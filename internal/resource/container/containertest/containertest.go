@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 )
@@ -38,11 +39,21 @@ func NewFake() *Fake {
 
 var _ container.Runtime = (*Fake)(nil)
 
+// key is what a Fake keeps a container under: its name, or for a service's, the
+// name Compose gives its first, whatever Dockwell names it, as Docker's runtime
+// finds a service's container by its labels (ADR 0035). Edit takes it too.
+func key(t container.Target) string {
+	if t.Scoped {
+		return docker.ContainerName(t.Project, t.Service)
+	}
+	return t.Name
+}
+
 // Inspect returns a copy, as Docker would.
 func (f *Fake) Inspect(_ context.Context, t container.Target) (*resourcev1.Container, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	c, ok := f.containers[t.Name]
+	c, ok := f.containers[key(t)]
 	if !ok {
 		return nil, nil
 	}
@@ -53,10 +64,10 @@ func (f *Fake) Inspect(_ context.Context, t container.Target) (*resourcev1.Conta
 func (f *Fake) Run(_ context.Context, t container.Target, spec *resourcev1.Container, dec resource.Decision) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.containers[t.Name] = proto.Clone(spec).(*resourcev1.Container)
+	f.containers[key(t)] = proto.Clone(spec).(*resourcev1.Container)
 	f.Runs++
 	if dec.Restart != "" {
-		f.restarted[t.Name] = dec.Restart
+		f.restarted[key(t)] = dec.Restart
 	}
 	return nil
 }
@@ -66,7 +77,7 @@ func (f *Fake) Run(_ context.Context, t container.Target, spec *resourcev1.Conta
 func (f *Fake) Left(_ context.Context, t container.Target, _ *resourcev1.Container, restart string) (resource.Decision, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if restart == "" || f.restarted[t.Name] == restart {
+	if restart == "" || f.restarted[key(t)] == restart {
 		return resource.Decision{}, false, nil
 	}
 	return resource.Decision{Action: resource.ActionReplace, Effect: resource.EffectRoll}, true, nil
@@ -76,7 +87,7 @@ func (f *Fake) Left(_ context.Context, t container.Target, _ *resourcev1.Contain
 func (f *Fake) Update(_ context.Context, t container.Target, spec *resourcev1.Container) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	c, ok := f.containers[t.Name]
+	c, ok := f.containers[key(t)]
 	if !ok {
 		return fmt.Errorf("no container %s", t.Name)
 	}
@@ -89,7 +100,7 @@ func (f *Fake) Update(_ context.Context, t container.Target, spec *resourcev1.Co
 func (f *Fake) Remove(_ context.Context, t container.Target) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	delete(f.containers, t.Name)
+	delete(f.containers, key(t))
 	return nil
 }
 
@@ -97,7 +108,7 @@ func (f *Fake) Remove(_ context.Context, t container.Target) error {
 func (f *Fake) Healthy(_ context.Context, t container.Target) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	c, ok := f.containers[t.Name]
+	c, ok := f.containers[key(t)]
 	switch {
 	case !ok:
 		return fmt.Errorf("no container %s", t.Name)

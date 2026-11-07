@@ -102,6 +102,8 @@ func CheckAlias(name string) error {
 		return errors.New("isn't a name a container can answer to: use letters, digits, dots, dashes and underscores, starting with a letter or digit, such as db")
 	case strings.HasPrefix(strings.ToLower(name), serviceForm):
 		return fmt.Errorf("has the form of a service's container, %s<ID>-<service>-1, so it can't be another name for one. Choose a name that doesn't start with %q", serviceForm, serviceForm)
+	case readableForm.MatchString(strings.ToLower(name)):
+		return errors.New("has the form of a service's container, <project>.<environment>.<service>-1, so it can't be another name for one, as Docker's DNS would answer it with both. Choose a name that doesn't end in -<number> after two dots")
 	}
 	return nil
 }

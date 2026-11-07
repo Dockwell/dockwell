@@ -170,6 +170,21 @@ func Target(ref resource.Ref) container.Target {
 	return container.Target{Name: docker.ContainerName(p, ref.Name), Project: p, Service: ref.Name, Scoped: true}
 }
 
+// TargetIn is Target for a call that says what people call the service's
+// environment (resource.WithScopeNames): its containers are named after that,
+// such as default.production.web-1, so docker ps says what each is, though
+// its Compose project, and so its volumes and networks, stay the environment's
+// ID. Dockwell finds a service's containers by their labels, so one named the
+// old way goes on being its own until a deploy replaces it (ADR 0035).
+func TargetIn(ctx context.Context, ref resource.Ref) container.Target {
+	t := Target(ref)
+	if name := resource.ScopeName(ctx, ref.Scope); container.ScopeNameRE.MatchString(name) {
+		t.Prefix = name
+		t.Name = docker.ReadableName(name, ref.Name, 1)
+	}
+	return t
+}
+
 // ContainerName is the name of a service's container on a server.
 func ContainerName(ref resource.Ref) string { return Target(ref).Name }
 
@@ -240,7 +255,7 @@ func setUses(svc *resourcev1.Service, kind resource.Kind, uses map[string]string
 // Observe reads the service's container, and what it uses from the
 // container's label. The values themselves never leave the driver.
 func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {
-	c, err := d.Containers.ObserveAt(ctx, Target(ref))
+	c, err := d.Containers.ObserveAt(ctx, TargetIn(ctx, ref))
 	if err != nil || c == nil {
 		return nil, err
 	}
@@ -249,7 +264,7 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 
 // NotRunning says how the service's container isn't running, in a word.
 func (d *Driver) NotRunning(ctx context.Context, ref resource.Ref) (string, error) {
-	return d.Containers.NotRunningAt(ctx, Target(ref))
+	return d.Containers.NotRunningAt(ctx, TargetIn(ctx, ref))
 }
 
 // Plan judges the step as the container driver does for the app.
@@ -260,7 +275,7 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 // Judge judges the step as the container driver does for the app, with
 // what its server has.
 func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
-	return d.Containers.JudgeAt(ctx, Target(ref), app(actual), planned(desired), inner(changes))
+	return d.Containers.JudgeAt(ctx, TargetIn(ctx, ref), app(actual), planned(desired), inner(changes))
 }
 
 // CheckPlan refuses a port something else on the server holds, or another service
@@ -274,13 +289,15 @@ func (d *Driver) CheckPlan(ctx context.Context, want resource.Desired, all []res
 			if s, ok := o.Spec.(*resourcev1.Service); ok {
 				c = s.GetApp()
 			}
-			planned = append(planned, container.Planned{Name: Target(o.Ref).Name, Words: o.Ref.Name, Spec: c})
+			t := TargetIn(ctx, o.Ref)
+			planned = append(planned, container.Planned{Name: t.Name, Project: t.Project, Service: t.Service, Words: o.Ref.Name, Spec: c})
 		case container.Kind:
 			c, _ := o.Spec.(*resourcev1.Container)
-			planned = append(planned, container.Planned{Name: container.HostTarget(o.Ref).Name, Words: o.Ref.Name, Spec: c})
+			h := container.HostTarget(o.Ref)
+			planned = append(planned, container.Planned{Name: h.Name, Project: h.Project, Service: h.Service, Words: o.Ref.Name, Spec: c})
 		}
 	}
-	return d.Containers.CheckPortsAt(ctx, Target(want.Ref), want.Spec.(*resourcev1.Service).GetApp(), planned)
+	return d.Containers.CheckPortsAt(ctx, TargetIn(ctx, want.Ref), want.Spec.(*resourcev1.Service).GetApp(), planned)
 }
 
 // ImageOf is the image a service's app runs, as it is written.
@@ -306,18 +323,18 @@ func (*Driver) SetImage(spec proto.Message, image string) {
 
 // Leads says where the server paths the app mounts lead on its server.
 func (d *Driver) Leads(ctx context.Context, ref resource.Ref, desired proto.Message) (map[string]string, error) {
-	return d.Containers.LeadsAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())
+	return d.Containers.LeadsAt(ctx, TargetIn(ctx, ref), desired.(*resourcev1.Service).GetApp())
 }
 
 // LeadsMoved says which of the server paths a service's app mounts don't lead where
 // they did when what runs now was made.
 func (d *Driver) LeadsMoved(ctx context.Context, ref resource.Ref, desired proto.Message) ([]string, error) {
-	return d.Containers.LeadsMovedAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())
+	return d.Containers.LeadsMovedAt(ctx, TargetIn(ctx, ref), desired.(*resourcev1.Service).GetApp())
 }
 
 // Check checks the app on its server, as the container driver does.
 func (d *Driver) Check(ctx context.Context, ref resource.Ref, desired proto.Message) error {
-	return d.Containers.CheckAt(ctx, Target(ref), desired.(*resourcev1.Service).GetApp())
+	return d.Containers.CheckAt(ctx, TargetIn(ctx, ref), desired.(*resourcev1.Service).GetApp())
 }
 
 // HostAccess is what the app itself reaches on its server: the server paths it
@@ -383,7 +400,7 @@ func inner(changes []resource.Change) []resource.Change {
 func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
 	step.Changes = inner(step.Changes)
 	if desired == nil {
-		return d.Containers.ApplyAt(ctx, Target(step.Ref), step, nil)
+		return d.Containers.ApplyAt(ctx, TargetIn(ctx, step.Ref), step, nil)
 	}
 	svc := desired.(*resourcev1.Service)
 	env, err := binding.Environment(ctx, svc)
@@ -391,23 +408,23 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 		return err
 	}
 	app := binding.App(svc, env)
-	return d.Containers.ApplyAt(ctx, Target(step.Ref), step, app)
+	return d.Containers.ApplyAt(ctx, TargetIn(ctx, step.Ref), step, app)
 }
 
 // Verify checks the service's container is healthy.
 func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) error {
-	return d.Containers.VerifyAt(ctx, Target(ref))
+	return d.Containers.VerifyAt(ctx, TargetIn(ctx, ref))
 }
 
 // Settle says what is left of a service that reads back as its spec: what a
 // rollout that stopped partway left, or a restart it hasn't had.
 func (d *Driver) Settle(ctx context.Context, ref resource.Ref, desired proto.Message, restart string) (resource.Decision, bool, error) {
-	return d.Containers.SettleAt(ctx, Target(ref), planned(desired).(*resourcev1.Container), restart)
+	return d.Containers.SettleAt(ctx, TargetIn(ctx, ref), planned(desired).(*resourcev1.Container), restart)
 }
 
 // ReadAdoption reads a container as the app of the service ref would be.
 func (d *Driver) ReadAdoption(ctx context.Context, ref resource.Ref, containerID string) (resource.Adoption, error) {
-	read, err := d.Containers.ReadAdoptionAt(ctx, Target(ref), containerID)
+	read, err := d.Containers.ReadAdoptionAt(ctx, TargetIn(ctx, ref), containerID)
 	if err != nil {
 		return resource.Adoption{}, err
 	}
@@ -417,7 +434,7 @@ func (d *Driver) ReadAdoption(ctx context.Context, ref resource.Ref, containerID
 
 // Adopts says what taking the container on as the service takes.
 func (d *Driver) Adopts(ctx context.Context, ref resource.Ref, containerID string, desired proto.Message) (resource.Decision, error) {
-	return d.Containers.AdoptsAt(ctx, Target(ref), containerID, desired.(*resourcev1.Service).GetApp())
+	return d.Containers.AdoptsAt(ctx, TargetIn(ctx, ref), containerID, desired.(*resourcev1.Service).GetApp())
 }
 
 // Ready says why services can't run now, as their containers can't.

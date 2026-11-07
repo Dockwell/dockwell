@@ -777,7 +777,7 @@ func (d *Docker) keptVolumes(ctx context.Context, t Target) (map[string]string, 
 	if d.Deleted == nil {
 		return nil, nil
 	}
-	byPath, _, err := d.Deleted.ImageVolumes(t.Name)
+	byPath, _, err := d.Deleted.ImageVolumes(t.keptKey())
 	if err != nil {
 		return nil, err
 	}
@@ -800,7 +800,7 @@ func (d *Docker) keep(t Target, byPath map[string]string) {
 	if d.Deleted == nil || len(byPath) == 0 {
 		return
 	}
-	if err := d.Deleted.KeepImageVolumes(t.Name, byPath); err != nil {
+	if err := d.Deleted.KeepImageVolumes(t.keptKey(), byPath); err != nil {
 		d.logger().Warn("can't list the volumes a container's image kept data in, so they stay on the server until docker volume prune removes them",
 			slog.String("container", t.Name), slog.Any("volumes", byPath), slog.String("error", err.Error()))
 	}
@@ -1504,9 +1504,11 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 			}
 		}
 		if dec.Action == resource.ActionReplace && !all[0].temp && !all[0].stopping {
-			// A replace makes the new one under this name, and a try that
-			// failed before leaves one there, but it may be someone's.
-			swap := c.ID[:12] + "_" + all[0].name()
+			// A replace makes the new one under the name of its number, after
+			// the one it replaces, and a try that failed before leaves one
+			// there, but it may be someone's. That name is the readable one,
+			// whatever the one it replaces is named (ADR 0035).
+			swap := c.ID[:12] + "_" + instanceName(t, all[0].number)
 			left, err := d.find(ctx, swap)
 			if err == nil && left != nil {
 				err = owned(Target{Name: swap, Project: t.Project, Service: t.Service}, left)

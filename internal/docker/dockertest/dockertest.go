@@ -1688,13 +1688,39 @@ func (e *Engine) Instances(project, service string) []string {
 	return out
 }
 
-// byNameOrID finds a container by its exact name or full ID, for tests.
+// byNameOrID finds a container by its exact name or full ID, for tests. A name
+// of the form Compose gives a service's container, env_…-web-1, that no
+// container has finds the one with those labels, under its own name, as
+// Dockwell names a service's container after its project and environment where
+// the control plane says them, default.production.web-1 (ADR 0035), and finds
+// it by its labels. Only tests ask this: what the engine answers goes by names.
 func (e *Engine) byNameOrID(key string) *container {
 	if c, ok := e.containers[key]; ok {
 		return c
 	}
-	return e.named(key)
+	if c := e.named(key); c != nil {
+		return c
+	}
+	m := composeForm.FindStringSubmatch(key)
+	if m == nil {
+		return nil
+	}
+	for _, c := range e.containers {
+		l := c.Config.Labels
+		if l[docker.LabelProject] == m[1] && l[docker.LabelService] == m[2] && l[docker.LabelNumber] == m[3] && !forNow.MatchString(c.Name) {
+			return c
+		}
+	}
+	return nil
 }
+
+var (
+	// composeForm is the name Compose gives a service's container in an
+	// environment's project: project, service and number.
+	composeForm = regexp.MustCompile(`^(env_[0-9a-z]{26})-(.+)-(\d+)$`)
+	// forNow starts a name a rollout gives a container for now.
+	forNow = regexp.MustCompile(`^/?(?:stopping_)?[0-9a-f]{12}_`)
+)
 
 // Containers lists the containers' names, sorted.
 func (e *Engine) Containers() []string {

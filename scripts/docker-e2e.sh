@@ -349,11 +349,28 @@ token_refused() {
 
 ports="{\"hostPort\":$web_port,\"containerPort\":80,\"hostIp\":\"127.0.0.1\"}"
 
+# service_container says what Docker runs for the service $2 of the Compose
+# project $1, and there is one, by the labels Dockwell and Compose give it,
+# whatever it's named: Dockwell names it default.production.web-1, and one docker
+# compose makes is env_…-web-1 (ADR 0035). Nothing here builds a name by hand.
+service_container() {
+  local out
+  out=$(docker ps --filter "label=com.docker.compose.project=$1" --filter "label=com.docker.compose.service=$2" --format '{{.Names}}') ||
+    fail "docker ps failed"
+  [[ -n "$out" && "$out" != *$'\n'* ]] || fail "Docker runs '$out' for $2 in $1, want one container"
+  echo "$out"
+}
+# named_container is service_container in the default environment's project.
+named_container() { service_container "$project" "$1"; }
+
 step "A service from an image runs"
 dw services create web --app-image nginx:1.27-alpine --app-ports "$ports" --app-env GREETING=hello --yes ||
   fail "services create failed"
 container=$(docker ps --filter label=com.docker.compose.service=web --format '{{.Names}}') || fail "docker ps failed"
-[[ "$container" == env_*-web-1 ]] || fail "Docker runs '$container' for web, want env_…-web-1"
+# docker ps says what it is, by its project and environment, though its Compose
+# project is still the environment's ID, which never changes (ADR 0035).
+readable=default.production
+[[ "$container" == "$readable.web-1" ]] || fail "Docker runs '$container' for web, want $readable.web-1, named after its project and environment"
 project=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$container") ||
   fail "docker inspect $container failed"
 [[ "$project" == env_* ]] || fail "$container is in the Compose project '$project', want its environment's, env_…"
@@ -666,7 +683,9 @@ docker compose -p e2e-taken ps --format '{{.Name}}' | grep -qx e2e-taken-front-1
 listed=$(dw containers list --json) || fail "containers list failed"
 [[ "$listed" != *e2e-taken-* ]] || fail "the project's containers are still among what Dockwell didn't make: $listed"
 dw services deploy front --project e2e-taken --image nginx:1.27-alpine --yes || fail "deploying a new image of front failed"
-front=$(docker ps --filter label=com.docker.compose.service=front --format '{{.Names}}' | grep '^env_' | head -1)
+# Dockwell's container is in its environment's Compose project, env_…, whatever it's
+# named (ADR 0035), and the one Compose made is in e2e-taken.
+front=$(docker ps --filter label=com.docker.compose.service=front --format '{{.Label "com.docker.compose.project"}} {{.Names}}' | awk '$1 ~ /^env_/ { print $2; exit }')
 [[ -n "$front" ]] || fail "nothing of Dockwell's runs as front: $(docker ps --format '{{.Names}} {{.Image}}')"
 [[ "$(docker inspect --format '{{.Config.Image}}' "$front")" == nginx:1.27-alpine ]] || fail "front runs $(docker inspect --format '{{.Config.Image}}' "$front")"
 docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$front" | grep -qx 'FRONT_KEY=not-in-any-plan' || fail "front lost its environment"
@@ -756,7 +775,7 @@ dw services create api --app-image nginx:1.27-alpine --variables LOG_LEVEL= --se
   fail "services create api failed"
 api=$(docker ps --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=api --format '{{.Names}}') ||
   fail "docker ps failed"
-[[ "$api" == "$project-api-1" ]] || fail "Docker runs '$api' for api, want $project-api-1"
+[[ "$api" == "$readable.api-1" ]] || fail "Docker runs '$api' for api, want $readable.api-1"
 api_env=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api") || fail "docker inspect $api failed"
 grep -qx "DATABASE_PASSWORD=$secret_value" <<<"$api_env" || fail "api doesn't run with the secret's value"
 grep -qx LOG_LEVEL=debug <<<"$api_env" || fail "api doesn't run with the variable's value"
@@ -801,12 +820,22 @@ if [[ "$imported" == *"$secret_value"* ]]; then fail "the plan holds the secret'
 
 step "A container docker compose makes from the export reads back as the service"
 DATABASE_PASSWORD=$secret_value docker compose -f "$data/values.yaml" up --detach --no-deps api || fail "docker compose up api failed"
+# Compose names what it makes itself, and Dockwell takes it as the service's by
+# its labels, under that name, and puts no name of its own back (ADR 0035).
+api=$(named_container api)
+[[ "$api" == "$project-api-1" ]] || fail "docker compose up made '$api' for api, want $project-api-1, as Compose names it"
 [[ "$(docker inspect --format '{{.Id}}' "$api")" != "$api_id" ]] || fail "docker compose up didn't recreate api, so this reads back nothing new"
 drift=$(dw drift list --json) || fail "drift list failed"
 jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift after docker compose up from the export: $drift"
+# The agent reads what it prints as the service's, by its name, as a person reads
+# it in docker ps.
+sources=$(dw logs sources api --json) || fail "logs sources api failed"
+jq -e --arg c "$api" 'any(.sources[]; .containerName == $c and .state == "LOG_SOURCE_STATE_RUNNING")' <<<"$sources" >/dev/null ||
+  fail "the agent doesn't read $api as api's: $sources"
 
 step "The same with no value in the shell reads as drift, and with it back, as none"
 env -u DATABASE_PASSWORD docker compose -f "$data/values.yaml" up --detach --no-deps --force-recreate api || fail "docker compose up api failed"
+api=$(named_container api)
 api_env=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api") || fail "docker inspect $api failed"
 if grep -q '^DATABASE_PASSWORD=' <<<"$api_env"; then fail "docker compose gave api the secret from nowhere, so this reads back nothing new"; fi
 drift=$(dw drift list --json) || fail "drift list failed"
@@ -823,6 +852,7 @@ sed -E 's/^( +)DATABASE_PASSWORD: null$/&\n\1NGINX_VERSION: null/' "$data/values
 grep -Eq '^ +NGINX_VERSION: null$' "$data/bare-name.yaml" || fail "the edited export doesn't name NGINX_VERSION:
 $(cat "$data/bare-name.yaml")"
 env -u NGINX_VERSION DATABASE_PASSWORD=$secret_value docker compose -f "$data/bare-name.yaml" up --detach --no-deps --force-recreate api || fail "docker compose up api failed"
+api=$(named_container api)
 api_env=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api") || fail "docker inspect $api failed"
 grep -qx NGINX_VERSION <<<"$api_env" || fail "docker compose didn't send NGINX_VERSION by name alone, so this reads back nothing new: $api_env"
 running=$(docker exec "$api" env) || fail "docker exec $api env failed"
@@ -840,7 +870,7 @@ dw secrets update DB_PASSWORD --value-file "$data/secret-value" --yes || fail "s
 # It rolls as any change does, to the next number.
 api=$(docker ps -a --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=api --format '{{.Names}}') ||
   fail "docker ps failed"
-[[ "$api" == "$project-api-2" ]] || fail "after the rotation, Docker has '$api' for api, want only $project-api-2"
+[[ "$api" == "$readable.api-2" ]] || fail "after the rotation, Docker has '$api' for api, want only $readable.api-2: it rolls to the next number, from the $project-api-1 docker compose made"
 api_env=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$api") || fail "docker inspect $api failed"
 grep -qx "DATABASE_PASSWORD=$secret_next" <<<"$api_env" || fail "the rotation didn't reach api"
 
@@ -868,14 +898,6 @@ services:
       retries: 30
 EOF
 printf 'REDIS_PASSWORD=%s\n' "$redis_password" >"$data/redis.env"
-# named_container says what Docker runs for a service, and there is one.
-named_container() {
-  local out
-  out=$(docker ps --filter "label=com.docker.compose.project=$project" --filter "label=com.docker.compose.service=$1" --format '{{.Names}}') ||
-    fail "docker ps failed"
-  [[ -n "$out" && "$out" != *$'\n'* ]] || fail "Docker runs '$out' for $1, want one container"
-  echo "$out"
-}
 # answers says whether a container's Redis takes a password: the real proof that
 # what the command names reached what runs, and that what it no longer names doesn't.
 answers() { [[ "$(docker exec "$1" redis-cli -a "$2" --no-auth-warning ping 2>&1)" == PONG ]]; }
@@ -1663,7 +1685,7 @@ step "Ingress: a replaced service moves to a container and an address of its own
 dw services update web --app-image nginx:1.27-alpine --app-env GREETING=hi --yes || fail "services update web failed"
 replaced=$web
 web=$(docker ps -a --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=web --format '{{.Names}}') || fail "docker ps failed"
-[[ "$web" == "$project-web-2" ]] || fail "after the update, Docker has '$web' for web, want only $project-web-2: a rolling replace takes the next number, as docker compose would give it"
+[[ "$web" == "$readable.web-2" ]] || fail "after the update, Docker has '$web' for web, want only $readable.web-2: a rolling replace takes the next number, as docker compose would give it"
 if docker inspect "$replaced" >/dev/null 2>&1; then fail "the update left the old container, $replaced"; fi
 now=$(docker inspect --format '{{(index .NetworkSettings.Networks "dockwell_ingress").IPAMConfig.IPv4Address}}' "$web") || fail "the new container isn't on dockwell_ingress"
 [[ -n "$now" && "$now" != "$static" ]] || fail "the new container is at '$now', want an address of its own, not the old one's, $static, which a connection that outlives the rollout may still dial"
@@ -1945,7 +1967,7 @@ one_app() {
   read -r app state image <<<"$list"
   [[ "$state" == running ]] || fail "$1: $app is $state, want running"
   [[ "$image" == "dockwell-e2e-app:$2" ]] || fail "$1: $app runs $image, want dockwell-e2e-app:$2"
-  [[ "$app" =~ ^$project-app-[0-9]+$ ]] || fail "$1: the container is called $app, want $project-app-<number>, as docker compose names it"
+  [[ "$app" =~ ^default\.production\.app-[0-9]+$ ]] || fail "$1: the container is called $app, want default.production.app-<number>, named after its project and environment"
   [[ "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.container-number"}}' "$app")" == "${app##*-}" ]] ||
     fail "$1: $app's number label isn't what its name says: $(docker inspect --format '{{json .Config.Labels}}' "$app")"
   [[ "$(docker compose -p "$project" ps --format '{{.Service}} {{.Name}}' | grep '^app ')" == "app $app" ]] ||
@@ -2743,7 +2765,7 @@ token_refused "$change"
 person_apply "$change"
 
 shop=$(docker ps --filter label=com.docker.compose.service=shop --format '{{.Names}}') || fail "docker ps failed"
-[[ "$shop" == env_*-shop-1 ]] || fail "Docker runs '$shop' for shop, want env_…-shop-1, not the file's container_name"
+[[ "$shop" == default.real.shop-1 ]] || fail "Docker runs '$shop' for shop, want default.real.shop-1, not the file's container_name"
 inspected=$(docker inspect "$shop") || fail "docker inspect $shop failed"
 real_projects+=("$(jq -r '.[0].Config.Labels["com.docker.compose.project"]' <<<"$inspected")")
 has() { jq -e "$1" <<<"$inspected" >/dev/null || fail "$shop isn't as asked: $1 is $(jq -c "$1" <<<"$inspected"), in $(jq -c '.[0].HostConfig' <<<"$inspected")"; }
@@ -3033,8 +3055,10 @@ step "Ingress: each project's route reaches its own service, with one name betwe
 blog_site=blog.e2e-dockwell.example.net
 wiki_site=wiki.e2e-dockwell.example.net
 # In the container, and not its spec: all that's needed is to tell them apart.
-docker exec "${blog_project}-db-1" sh -c 'echo blog >/usr/share/nginx/html/index.html' || fail "can't write in blog's db"
-docker exec "${wiki_project}-db-1" sh -c 'echo wiki >/usr/share/nginx/html/index.html' || fail "can't write in wiki's db"
+blog_db=$(service_container "$blog_project" db)
+wiki_db=$(service_container "$wiki_project" db)
+docker exec "$blog_db" sh -c 'echo blog >/usr/share/nginx/html/index.html' || fail "can't write in blog's db, $blog_db"
+docker exec "$wiki_db" sh -c 'echo wiki >/usr/share/nginx/html/index.html' || fail "can't write in wiki's db, $wiki_db"
 dw routes create site --project blog --domain "$blog_site" --service db --port 80 --tls off --yes >/dev/null || fail "routes create for blog failed"
 dw routes create site --project wiki --domain "$wiki_site" --service db --port 80 --tls off --yes >/dev/null || fail "routes create for wiki failed"
 site_serves() {
@@ -3054,8 +3078,8 @@ site_serves "$wiki_site" wiki
 dw routes delete site --project wiki --yes >/dev/null || fail "routes delete for wiki failed"
 
 # Naming one again updates it, and doesn't touch the other.
-wiki_state() { docker inspect --format '{{.Id}} {{.Config.Image}} {{.State.StartedAt}}' "${wiki_project}-db-1"; }
-wiki_before=$(wiki_state) || fail "wiki's db isn't called ${wiki_project}-db-1"
+wiki_state() { docker inspect --format '{{.Id}} {{.Config.Image}} {{.State.StartedAt}}' "$wiki_db"; }
+wiki_before=$(wiki_state) || fail "can't read wiki's db, $wiki_db"
 dw compose import --compose "$(named_file blog nginx:1.28-alpine)" --yes || fail "importing blog again failed"
 again=$(docker ps --filter "label=com.docker.compose.project=$blog_project" --format '{{.Image}}') || fail "docker ps failed"
 [[ "$again" == nginx:1.28-alpine ]] || fail "after importing blog again, its db runs '$again'"

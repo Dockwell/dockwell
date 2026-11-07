@@ -988,6 +988,13 @@ func CheckLabel(what, name, example string) error {
 	return nil
 }
 
+// NewNameChecker is a NameChecker with names only a resource made anew can't
+// take, as a newer rule keeps them for something else: one stored with such a
+// name goes on being edited, undone and adopted.
+type NewNameChecker interface {
+	CheckNewName(name string) error
+}
+
 // Valuer is a Type whose resources are values that others in their scope
 // use, such as an environment's variables and secrets that its services
 // use. A valuer runs on no server itself, whatever its level: it has

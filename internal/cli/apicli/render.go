@@ -445,6 +445,11 @@ func ChangeView(w io.Writer, c *dockwellv1.Change, now time.Time) {
 		fmt.Fprintf(w, "%s undid it.\n", c.GetUndoneBy())
 	}
 	fmt.Fprintln(w)
+	if c.GetState() == dockwellv1.ChangeState_CHANGE_STATE_FAILED {
+		// Its plan says what it was to do, in the present, as it was reviewed.
+		fmt.Fprintln(w, "What it was to do, as planned. It failed partway, so not all of this happened: its steps, below, say what did.")
+		fmt.Fprintln(w)
+	}
 	PlanView(w, c.GetPlan())
 	if len(c.GetSteps()) > 0 {
 		fmt.Fprintln(w, "\nSteps:")

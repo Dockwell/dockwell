@@ -80,6 +80,13 @@ func InstanceName(project, service string, number int) string {
 	return project + "-" + service + "-" + strconv.Itoa(number)
 }
 
+// ReadableName is what a service's container of a number is named after what
+// people call its environment, scope, such as "default.production.web-1",
+// rather than its Compose project, which is the environment's ID (ADR 0035).
+func ReadableName(scope, service string, number int) string {
+	return scope + "." + service + "-" + strconv.Itoa(number)
+}
+
 // ScopedName is what Compose names a project's volume or network, such as
 // "env_01kat…_data".
 func ScopedName(project, name string) string { return project + "_" + name }

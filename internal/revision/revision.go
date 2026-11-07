@@ -1055,11 +1055,12 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			if ed.Base != 0 && it.base != ed.Base {
 				return fault.New(ErrStale, "%s changed while this was being planned, and planning from what was read would undo that. Try again, to plan it from the latest", ed.Ref)
 			}
+			stored := it.id != ""
 			if it.id == "" {
 				it.id = cmp.Or(ed.ID, e.newID(ed.Ref.Kind))
 			}
 			if ed.Spec != nil {
-				if err := e.checkName(ed.Ref); err != nil {
+				if err := e.checkName(ed.Ref, stored); err != nil {
 					return err
 				}
 				it.spec = proto.Clone(ed.Spec)
@@ -1275,8 +1276,9 @@ func wasOrWere(n int) string {
 	return "were"
 }
 
-// checkName refuses a name its kind doesn't accept.
-func (e *Engine) checkName(ref resource.Ref) error {
+// checkName refuses a name its kind doesn't accept, and one it takes only from
+// what is stored already, for a resource that isn't.
+func (e *Engine) checkName(ref resource.Ref, stored bool) error {
 	if strings.TrimSpace(ref.Name) == "" {
 		return fault.New(ErrInvalid, "a %s needs a name. Give it one", ref.Kind)
 	}
@@ -1286,6 +1288,11 @@ func (e *Engine) checkName(ref resource.Ref) error {
 	}
 	if c, ok := t.(resource.NameChecker); ok {
 		if err := c.CheckName(ref.Name); err != nil {
+			return fault.New(ErrInvalid, "%w", err)
+		}
+	}
+	if c, ok := t.(resource.NewNameChecker); ok && !stored {
+		if err := c.CheckNewName(ref.Name); err != nil {
 			return fault.New(ErrInvalid, "%w", err)
 		}
 	}

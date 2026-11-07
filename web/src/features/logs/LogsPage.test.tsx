@@ -1083,6 +1083,9 @@ describe("replicaLabel", () => {
   it("goes by the name a person knows a container by", () => {
     expect(instanceName({ containerName: "env_01kat-web-3" })).toBe("web-3");
     expect(instanceName({ containerName: "env_01kat-my-api-12" })).toBe("my-api-12");
+    // Named after its environment, as containers are from ADR 0035 on.
+    expect(instanceName({ containerName: "default.production.web-3" })).toBe("web-3");
+    expect(instanceName({ containerName: "shop.staging.my-api-12" })).toBe("my-api-12");
     expect(instanceName({ containerName: "" })).toBe("");
   });
   it("names a server, and which of its replicas past the first", () => {

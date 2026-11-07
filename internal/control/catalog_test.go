@@ -285,7 +285,7 @@ func testInstallRefusalsAndHostAccess(t *testing.T, backend store.Backend) {
 	applyAsRoot(t, b, planned)
 	var tunnel *docker.Container
 	for _, name := range e.Containers() {
-		if strings.HasSuffix(name, "-tunnel-1") {
+		if strings.HasSuffix(name, ".tunnel-1") {
 			tunnel = e.Container(name)
 		}
 	}

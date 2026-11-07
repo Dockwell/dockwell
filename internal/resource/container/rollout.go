@@ -166,10 +166,14 @@ func (d *Docker) instances(ctx context.Context, t Target) ([]*instance, error) {
 }
 
 // instanceName is what a container of t of a number is named: Compose's name
-// for a service's, and its own for a container on its own, which has one.
+// for a service's, after what people call its environment where t says, and
+// its own for a container on its own, which has one.
 func instanceName(t Target, number int) string {
-	if !t.Scoped {
+	switch {
+	case !t.Scoped:
 		return t.Name
+	case t.Prefix != "":
+		return docker.ReadableName(t.Prefix, t.Service, number)
 	}
 	return docker.InstanceName(t.Project, t.Service, number)
 }
@@ -899,8 +903,10 @@ func (d *Docker) bringBack(ctx context.Context, t Target, keep *instance) error 
 		return fmt.Errorf("docker can't start the old %s: %w", t.Service, hideIn(err, valuesInContainer(keep.Container)))
 	}
 	// What was taken on goes back to the name it came with: what's on its network
-	// reaches it by that.
-	final := cmp.Or(keep.Config.Labels[docker.LabelAdopted], instanceName(t, keep.number))
+	// reaches it by that. Anything else gets back its own name, which may be of
+	// the form before its environment's name went into a container's (ADR 0035):
+	// that's the name it had, and is free.
+	final := cmp.Or(keep.Config.Labels[docker.LabelAdopted], PlainName(keep.name()), instanceName(t, keep.number))
 	if err := d.Client.RenameContainer(ctx, keep.ID, final); err != nil {
 		return fmt.Errorf("can't give the old %s its name back: %w", t.Service, err)
 	}
@@ -1108,7 +1114,7 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 	}
 	undo := func() {}
 	if len(restored) > 0 {
-		if undo, err = d.Deleted.TakeImageVolumes(t.Name, slices.Collect(maps.Keys(restored))); err != nil {
+		if undo, err = d.Deleted.TakeImageVolumes(t.keptKey(), slices.Collect(maps.Keys(restored))); err != nil {
 			return "", nil, err
 		}
 	}

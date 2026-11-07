@@ -53,3 +53,20 @@ func DeployOf(ctx context.Context) Deploy {
 	d, _ := ctx.Value(deployKey{}).(Deploy)
 	return d
 }
+
+type scopeNamesKey struct{}
+
+// WithScopeNames tells drivers, through ctx, what people call scopes, by ID,
+// such as "default.production" for an environment, for names that people read
+// on the server: a service's containers take it (ADR 0035). Over the agent
+// stream it travels with the call, as the agent has no store to look in.
+func WithScopeNames(ctx context.Context, names map[string]string) context.Context {
+	return context.WithValue(ctx, scopeNamesKey{}, names)
+}
+
+// ScopeName is what people call scope, as WithScopeNames said, or "" when it
+// didn't.
+func ScopeName(ctx context.Context, scope string) string {
+	names, _ := ctx.Value(scopeNamesKey{}).(map[string]string)
+	return names[scope]
+}

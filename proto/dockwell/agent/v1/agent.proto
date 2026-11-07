@@ -757,6 +757,13 @@ message DesiredResource {
   string adopt = 7;
   // Brings the resource's data back from a backup, with its spec as it is.
   RestoreSource restore = 8;
+  // What people call the resource's scope, for what they read on the server: for
+  // an environment, "<project>.<environment>", such as "default.production",
+  // which a service's containers are named after, as in
+  // "default.production.web-1", so docker ps says what each is. Its Compose
+  // project stays the environment's ID, which never changes. Empty names a new
+  // container as Compose would, "<project>-<service>-<number>", as before.
+  string scope_name = 9;
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.

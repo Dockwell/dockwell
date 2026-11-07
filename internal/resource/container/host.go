@@ -668,8 +668,10 @@ func walkLinks(p string, touch func(string) error) (string, error) {
 // Planned is what a plan wants of a container on this server, for checking what
 // runs beside it. A nil Spec takes it away.
 type Planned struct {
-	// Name is its container's name.
-	Name string
+	// Name is its container's name, and Project and Service its Compose labels,
+	// which find it whatever it's named (ADR 0035).
+	Name             string
+	Project, Service string
 	// Words name it for people, such as "web".
 	Words string
 	Spec  *resourcev1.Container
@@ -709,7 +711,8 @@ func (d *Driver) CheckPlan(ctx context.Context, want resource.Desired, all []res
 			continue
 		}
 		c, _ := o.Spec.(*resourcev1.Container)
-		planned = append(planned, Planned{Name: HostTarget(o.Ref).Name, Words: o.Ref.Name, Spec: c})
+		h := HostTarget(o.Ref)
+		planned = append(planned, Planned{Name: h.Name, Project: h.Project, Service: h.Service, Words: o.Ref.Name, Spec: c})
 	}
 	return d.CheckPortsAt(ctx, HostTarget(want.Ref), want.Spec.(*resourcev1.Container), planned)
 }
@@ -757,7 +760,7 @@ func (d *Docker) CheckPorts(ctx context.Context, t Target, spec *resourcev1.Cont
 			continue // what this is about to replace
 		}
 		for _, p := range spec.GetPorts() {
-			if !holds(c, p) || freedBy(planned, name, p) {
+			if !holds(c, p) || freedBy(planned, c, name, p) {
 				continue
 			}
 			return fmt.Errorf("%s publishes %s, so %s can't. Choose another port on the server, or free that one first",
@@ -781,9 +784,18 @@ func holds(c *docker.ContainerSummary, p *resourcev1.PortMapping) bool {
 	})
 }
 
-// freedBy reports a holder the plan takes away, or moves off the port.
-func freedBy(planned []Planned, name string, p *resourcev1.PortMapping) bool {
-	i := slices.IndexFunc(planned, func(o Planned) bool { return o.Name == name })
+// freedBy reports a holder the plan takes away, or moves off the port: by its
+// Compose labels, as a service's container may be named the readable way, the way
+// Compose names one, or under another number than its first, and by its name for
+// one with none.
+func freedBy(planned []Planned, c *docker.ContainerSummary, name string, p *resourcev1.PortMapping) bool {
+	project, service := c.Labels[docker.LabelProject], c.Labels[docker.LabelService]
+	i := slices.IndexFunc(planned, func(o Planned) bool {
+		if project != "" && service != "" && o.Project != "" {
+			return o.Project == project && o.Service == service
+		}
+		return o.Name == name
+	})
 	return i >= 0 && (planned[i].Spec == nil || !publishes(planned[i].Spec, p))
 }
 

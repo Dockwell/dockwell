@@ -8,7 +8,7 @@ import { request } from "node:http";
 
 export interface Running {
   id: string;
-  /** Its name, such as "env_01k…-web-1". */
+  /** Its name, such as "default.production.web-1", or "env_01k…-web-1" as Compose names one. */
   name: string;
   /** The image it was asked to run. */
   image: string;

@@ -323,6 +323,23 @@
   color: var(--ink);
 }
 
+.tabbar-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Something waits for you there, such as a change only a person can approve. */
+.tabbar-dot {
+  position: absolute;
+  top: -1px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+  box-shadow: 0 0 0 2px var(--surface-raised);
+}
+
 .tabbar-item:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);

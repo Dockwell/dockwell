@@ -186,6 +186,10 @@ func New(cfg Config) (*Server, error) {
 		cfg.Agents.SendValues(cfg.Secrets)
 		cfg.Agents.CheckNaming(cfg.Secrets)
 	}
+	// A service's containers are named after what people call its environment.
+	if cfg.Agents != nil && cfg.Store != nil {
+		cfg.Agents.NameScopes(scopeNames{db: cfg.Store})
+	}
 	if cfg.Identity != nil {
 		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger, agentapi.WithAgents(cfg.Agents))
 		s.agentTLS = agentapi.TLSConfig(cfg.Identity, cfg.AgentHosts)

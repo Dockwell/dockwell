@@ -44,6 +44,7 @@ import { InstalledPanel } from "../catalog/InstalledPanel";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { MachineWords } from "../changes/FailureNotice";
 import { withoutIds } from "../changes/plan";
+import { useWaitingFor } from "../changes/waiting";
 import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
 import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
@@ -87,6 +88,7 @@ export function AppOverview() {
   return (
     <div className="app-overview">
       <div className="app-main">
+        <WaitingNotice />
         <AppNotice />
         <RunningPanel />
         <InstalledPanel service={service} />
@@ -101,6 +103,56 @@ export function AppOverview() {
         <DeletePanel />
       </div>
     </div>
+  );
+}
+
+/**
+ * A change to this app, or to one of its routes, that a token proposed and only
+ * a person can apply, such as one the CLI stopped at for a person: whoever
+ * didn't run it learns of it here, and on Activity.
+ */
+function WaitingNotice() {
+  const { service } = useApp();
+  const sheet = useChangeSheet();
+  const name = nameOf(service);
+  const scope = service.resource?.scope ?? "";
+  const routes = new Set(
+    useAppDomains(service).domains.flatMap((domain) =>
+      domain.routes.filter((route) => route.service === name).map((route) => route.name),
+    ),
+  );
+  const waiting = useWaitingFor(
+    (ref) =>
+      ref.scope === scope &&
+      ((ref.kind === "service" && ref.name === name) || (ref.kind === "route" && routes.has(ref.name))),
+  );
+  const first = waiting[0];
+  if (!first) return null;
+  return (
+    <Callout
+      tone="warning"
+      title={plural(waiting.length, {
+        one: "# change to this app needs your approval",
+        other: "# changes to this app need your approval",
+      })}
+      actions={
+        <Button variant="primary" icon="commit" onClick={() => sheet.open({ kind: "change", id: first.id })}>
+          <Trans>Review plan</Trans>
+        </Button>
+      }
+    >
+      {waiting.length === 1 ? (
+        <Trans>
+          {first.summary}. It was proposed with an API token, and its plan is one only a signed-in person may apply.
+          Nothing changes until someone does.
+        </Trans>
+      ) : (
+        <Trans>
+          The newest is {first.summary}. They were proposed with API tokens, and their plans are ones only a signed-in
+          person may apply. Nothing changes until someone does; Activity lists them all.
+        </Trans>
+      )}
+    </Callout>
   );
 }
 

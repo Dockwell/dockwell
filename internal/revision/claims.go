@@ -10,6 +10,7 @@ import (
 
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -80,11 +81,11 @@ func (e *Engine) conflict(ctx context.Context, tx *store.Tx, it *item, c resourc
 		return fault.New(ErrInvalid, "this change has %s %s and %s %s both claim %s, and only one can. Keep one of them",
 			other.ref.Kind, other.ref.Name, it.ref.Kind, it.ref.Name, c.Words)
 	case c.Key == other.claim.Key:
-		return fault.New(ErrInvalid, "%s is already served by %s %s in the environment %s, so %s %s can't claim it. Delete %s first, or in this change, or choose another path",
-			c.Words, other.ref.Kind, other.ref.Name, scopeName(ctx, tx, other.ref.Scope), it.ref.Kind, it.ref.Name, other.ref.Name)
+		return fault.New(ErrInvalid, "%s is already served by %s %s in %s, so %s %s can't claim it. Delete %s first, or in this change, or choose another path",
+			c.Words, other.ref.Kind, other.ref.Name, whichScope(ctx, tx, other.ref.Scope), it.ref.Kind, it.ref.Name, other.ref.Name)
 	case c.Group == other.claim.Group && it.ref.Scope != other.ref.Scope:
-		return fault.New(ErrInvalid, "%s belongs to the environment %s, where %s %s serves it, so %s %s in the environment %s can't serve a path under it: a domain lives in one environment. Move the domain's routes first, or in this change, or use another domain",
-			c.GroupWords, scopeName(ctx, tx, other.ref.Scope), other.ref.Kind, other.ref.Name, it.ref.Kind, it.ref.Name, scopeName(ctx, tx, it.ref.Scope))
+		return fault.New(ErrInvalid, "%s belongs to %s, where %s %s serves it, so %s %s in %s can't serve a path under it: a domain lives in one environment. Move the domain's routes first, or in this change, or use another domain",
+			c.GroupWords, whichScope(ctx, tx, other.ref.Scope), other.ref.Kind, other.ref.Name, it.ref.Kind, it.ref.Name, whichScope(ctx, tx, it.ref.Scope))
 	case c.Group == other.claim.Group && c.Manner != other.claim.Manner:
 		return fault.New(ErrInvalid, "%s would be served two ways: %s %s %s, and %s %s %s. Set them the same, in one change",
 			c.GroupWords, other.ref.Kind, other.ref.Name, other.claim.MannerWords, it.ref.Kind, it.ref.Name, c.MannerWords)
@@ -93,11 +94,27 @@ func (e *Engine) conflict(ctx context.Context, tx *store.Tx, it *item, c resourc
 }
 
 // scopeName is what a person calls a scope, or its ID if it can't be read.
-func scopeName(ctx context.Context, tx *store.Tx, scope string) string {
-	if r, err := tx.GetResourceByID(ctx, scope); err == nil {
+func scopeName(ctx context.Context, tx *store.Tx, id string) string {
+	if r, err := tx.GetResourceByID(ctx, id); err == nil {
 		return r.Name
 	}
-	return scope
+	return id
+}
+
+// whichScope is scopeName for a refusal, where an environment goes by its
+// project's name too, as "default's production": every project has a
+// production, and a refusal that named only that would say nothing of which.
+func whichScope(ctx context.Context, tx *store.Tx, id string) string {
+	r, err := tx.GetResourceByID(ctx, id)
+	if err != nil {
+		return id
+	}
+	if r.Kind == string(scope.EnvironmentKind) {
+		if p, err := tx.GetResourceByID(ctx, r.Scope); err == nil && p.Kind == string(scope.ProjectKind) {
+			return p.Name + "'s " + r.Name
+		}
+	}
+	return r.Name
 }
 
 // checkOneServer refuses a resource of a kind that runs on one server at a

@@ -17,9 +17,14 @@ export function replicaLabel(s: Pick<LogSource, "serverName" | "replica"> & { la
   return s.label ?? (s.replica > 1 ? `${s.serverName}-${s.replica}` : s.serverName);
 }
 
-/** The name a person knows a container by: web-3, of Docker's env_01kat-web-3. */
+/**
+ * The name a person knows a container by: web-3, of Docker's default.production.web-3,
+ * or of env_01kat-web-3, as one made before containers took their environment's name
+ * has it (ADR 0035). A project's and an environment's names have no dots.
+ */
 export function instanceName(s: Pick<LogSource, "containerName">): string {
-  return s.containerName.replace(/^[^-]*-/, "");
+  const dot = s.containerName.lastIndexOf(".");
+  return dot >= 0 ? s.containerName.slice(dot + 1) : s.containerName.replace(/^[^-]*-/, "");
 }
 
 /**

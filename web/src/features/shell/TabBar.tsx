@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { cx, Icon, type IconName } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Link, useLocation } from "@tanstack/react-router";
 
+import { useWaitingForAPerson } from "../changes/waiting";
 import type { FleetView } from "../servers/server";
 import { firstSegment, inActivity, isUpcoming, UPCOMING } from "./sections";
 
@@ -35,6 +37,7 @@ export function TabBar({ view }: { view: FleetView }) {
   const { t } = useLingui();
   const pathname = useLocation({ select: (location) => location.pathname });
   const tab = tabOf(pathname);
+  const waiting = useWaitingForAPerson().length;
   const props = (id: Tab) => ({
     className: cx("tabbar-item", tab === id && "is-active"),
     "aria-current": tab === id ? ("page" as const) : undefined,
@@ -60,7 +63,15 @@ export function TabBar({ view }: { view: FleetView }) {
         </Link>
       )}
       <Link to="/activity" {...props("activity")}>
-        <TabBody icon="activity" label={t`Activity`} />
+        <TabBody
+          icon="activity"
+          label={t`Activity`}
+          count={
+            waiting > 0
+              ? plural(waiting, { one: "# change needs your approval", other: "# changes need your approval" })
+              : undefined
+          }
+        />
       </Link>
       <Link to="/more" {...props("more")}>
         <TabBody icon="menu" label={t`More`} />
@@ -69,11 +80,21 @@ export function TabBar({ view }: { view: FleetView }) {
   );
 }
 
-function TabBody({ icon, label }: { icon: IconName; label: string }) {
+/** A tab: its icon and name, and with count, a dot that says something waits there, in words for those who don't see it. */
+function TabBody({ icon, label, count }: { icon: IconName; label: string; count?: string | undefined }) {
   return (
     <>
-      <Icon name={icon} size={22} />
+      <span className="tabbar-icon">
+        <Icon name={icon} size={22} />
+        {count ? <span className="tabbar-dot" aria-hidden="true" /> : null}
+      </span>
       <span>{label}</span>
+      {count ? (
+        <>
+          {" "}
+          <span className="dw-sr">{count}</span>
+        </>
+      ) : null}
     </>
   );
 }

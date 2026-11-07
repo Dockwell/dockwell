@@ -22,7 +22,6 @@ import {
   PlanAction,
   type PlannedResource,
   ResourceService,
-  ServiceService,
   StepState,
   StepUpAction,
   VariableService,
@@ -66,7 +65,7 @@ import {
   visitorUrl,
 } from "../apps/domains";
 import { readHealthSoon, useHealth } from "../apps/health";
-import { useServices } from "../apps/useServices";
+import { readServicesAgain, useServices } from "../apps/useServices";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
@@ -321,9 +320,9 @@ function letGo(client: Client<typeof ChangeService>, proposal: Proposal): void {
 
 /** Reads what a change applied or undone may have changed again: the resources, the services and their domains, the timeline's pages and the changes. */
 function refreshAfter(queryClient: QueryClient): void {
+  void readServicesAgain(queryClient);
   for (const schema of [
     ResourceService,
-    ServiceService,
     DomainService,
     EventService,
     ChangeService,

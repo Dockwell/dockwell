@@ -56,6 +56,36 @@ function selectServices(res: { services: ServiceInfo[] }): ServiceInfo[] {
   return res.services;
 }
 
+/** The service a query of ServiceService asks after, such as its revisions, or "" for one that isn't a service's own. */
+function serviceAskedFor(key: QueryKey): string {
+  const id = (key[1] as { input?: { id?: unknown } } | undefined)?.input?.id;
+  return typeof id === "string" ? id : "";
+}
+
+/**
+ * Reads the services again: their list first, and then what screens hold of
+ * each service still in it, such as its revisions. One the list no longer has
+ * isn't asked after again: a change just deleted it, as from its own page,
+ * which shows under the plan sheet until that closes, and would only be told
+ * it's gone. With no list read yet, it reads all of them.
+ */
+export async function readServicesAgain(queryClient: QueryClient): Promise<void> {
+  const all = createConnectQueryKey({ schema: ServiceService, cardinality: undefined });
+  await queryClient.invalidateQueries({ queryKey: all, predicate: (q) => serviceAskedFor(q.queryKey) === "" });
+  const lists = queryClient.getQueriesData<{ services?: ServiceInfo[] }>({
+    queryKey: createConnectQueryKey({ schema: ServiceService.method.listServices, cardinality: undefined }),
+  });
+  const read = lists.filter(([, data]) => data?.services !== undefined);
+  const listed = new Set(read.flatMap(([, data]) => data?.services?.map((s) => s.id) ?? []));
+  await queryClient.invalidateQueries({
+    queryKey: all,
+    predicate: (q) => {
+      const id = serviceAskedFor(q.queryKey);
+      return id !== "" && (read.length === 0 || listed.has(id));
+    },
+  });
+}
+
 const BACKOFF = { minMs: 1_000, maxMs: 15_000 };
 
 /** How long a burst of moves waits before the list is read again, so it is read once for them. */
@@ -96,7 +126,6 @@ export function useServicesLive(): { reconnecting: boolean } {
   useEffect(() => {
     const abort = new AbortController();
     const client = createClient(EventService, transport);
-    const key = createConnectQueryKey({ schema: ServiceService, cardinality: undefined });
     const list = createConnectQueryKey({
       schema: ServiceService.method.listServices,
       input: {},
@@ -107,7 +136,7 @@ export function useServicesLive(): { reconnecting: boolean } {
     const read = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        void queryClient.invalidateQueries({ queryKey: key });
+        void readServicesAgain(queryClient);
         // What runs is what a change changes.
         readHealthSoon(queryClient);
       }, SETTLE_MS);

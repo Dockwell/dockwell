@@ -58,10 +58,15 @@ func newWholeStack(t *testing.T, panel *ingress.Panel) *wholeStack {
 	}
 }
 
-// container puts a running container of a service on the fake engine.
+// container puts a running container of a service on the fake engine, with the
+// labels Dockwell gives one, which is how the ingress finds it.
 func (s *wholeStack) container(name string) *docker.Container {
+	project := docker.Project(s.env)
 	return s.engine.AddContainer(docker.Container{
-		Name:  "/" + docker.ContainerName(docker.Project(s.env), name),
+		Name: "/" + docker.ContainerName(project, name),
+		Config: docker.Config{Labels: map[string]string{
+			docker.LabelProject: project, docker.LabelService: name, docker.LabelNumber: "1", docker.LabelOneoff: "False",
+		}},
 		State: docker.State{Running: true, Status: "running"},
 	})
 }
