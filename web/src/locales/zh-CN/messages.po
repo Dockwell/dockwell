@@ -1215,6 +1215,10 @@ msgstr "无法从 {destination} 取回 {volume} 的备份"
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "{domain} 的证书已通过 80 或 443 端口签发，截至{when}"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "A change goes on Activity, with what it replaced."
+msgstr "每次更改都会连同被替换的值记入动态。"
+
 #: src/features/catalog/InstalledPanel.tsx
 msgid "A change to how {version} runs is out."
 msgstr "{version} 的运行方式有更新。"
@@ -1352,6 +1356,10 @@ msgstr "访问"
 msgid "Access key"
 msgstr "访问密钥"
 
+#: src/features/settings/SettingsLayout.tsx
+msgid "Account"
+msgstr "账户"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "Across {cpus} vCPU"
 msgstr "{cpus} 个 vCPU 合计"
@@ -1481,6 +1489,10 @@ msgstr "用身份验证器验证码登录后添加了通行密钥 {name}"
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
 msgstr "添加通行密钥需要用你在此地址已有的通行密钥确认，而你在这里还没有。请退出登录，再用验证码、恢复码或 dockwell recover 给出的链接重新登录，然后在 10 分钟内添加。"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Address"
+msgstr "地址"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Addresses"
 msgstr "地址"
@@ -1594,6 +1606,10 @@ msgstr "还能规划并应用可撤销的更改。绝不会删除数据或切断
 #: src/features/apps/words.ts
 msgid "Always"
 msgstr "始终"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Always on, through an SSH tunnel to the server"
+msgstr "始终可用，通过到服务器的 SSH 隧道访问"
 
 #: src/features/apps/AddDomainSheet.tsx
 msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
@@ -1916,6 +1932,10 @@ msgstr "存储桶"
 msgid "By"
 msgstr "执行者"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Caddy, the server's ingress, which holds ports 80 and 443 once the server has a route"
+msgstr "Caddy，即服务器的入口，服务器有路由后它会占用 80 和 443 端口"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Can read logs"
 msgstr "可以读取日志"
@@ -2204,6 +2224,10 @@ msgstr "清除搜索"
 #: src/features/activity/describe.ts
 msgid "Cleared the public address of {server}, which was {previous}"
 msgstr "清除了 {server} 的公网地址，原地址为 {previous}"
+
+#: src/features/activity/describe.ts
+msgid "Cleared this install's name"
+msgstr "清除了此安装的名称"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Clearing this away failed too"
@@ -3161,6 +3185,15 @@ msgstr "{0} 重新连接后，Dockwell 会恢复 <0>{image}</0>"
 msgid "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
 msgstr "此后 Dockwell 会把它作为服务运行，因此更换镜像是一个可撤销的计划，并保留它的卷。接管不会重启它，它的环境变量会加密带入，任何计划或日志都不会显示。"
 
+#. placeholder {0}: panel.httpsListen
+#: src/features/settings/GeneralPage.tsx
+msgid "Dockwell, on {0}, with a certificate from Let's Encrypt that it renews"
+msgstr "Dockwell，在 {0} 上，使用它自动续期的 Let's Encrypt 证书"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Dockwell, with a certificate from Let's Encrypt that it renews"
+msgstr "Dockwell，使用它自动续期的 Let's Encrypt 证书"
+
 #: src/features/changes/fields.tsx
 msgid "doesn't come back"
 msgstr "不再恢复"
@@ -3599,6 +3632,11 @@ msgstr "来自面板"
 msgid "Full access to {name}"
 msgstr "完全访问 {name}"
 
+#: src/features/settings/GeneralPage.tsx
+#: src/features/settings/SettingsLayout.tsx
+msgid "General"
+msgstr "常规"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Give {first} a value to review the plan"
 msgstr "为 {first} 填写值后即可查看计划"
@@ -3719,6 +3757,14 @@ msgstr "方式"
 msgid "How often"
 msgstr "频率"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "How to change settings"
+msgstr "如何更改设置"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "HTTPS"
+msgstr "HTTPS"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "HTTPS is automatic. Your passkey works at this address."
 msgstr "HTTPS 自动配置。你的通行密钥在这个地址可用。"
@@ -3785,6 +3831,10 @@ msgstr "{minutes} 分钟后"
 msgid "In {projectName}"
 msgstr "在 {projectName} 中"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "In {zone}"
+msgstr "时区 {zone}"
+
 #: src/app/Providers.tsx
 msgid "In <0>{scope}</0>"
 msgstr "范围：<0>{scope}</0>"
@@ -3829,6 +3879,10 @@ msgstr "不到一分钟后"
 #: src/features/logs/LogsPage.tsx
 msgid "Info"
 msgstr "信息"
+
+#: src/features/settings/SettingsLayout.tsx
+msgid "Install"
+msgstr "安装"
 
 #: src/features/catalog/CatalogPage.tsx
 #: src/features/catalog/InstallSheet.tsx
@@ -4265,6 +4319,10 @@ msgstr "标签"
 msgid "labels"
 msgstr "标签"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Language"
+msgstr "语言"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "last {span}"
 msgstr "最近 {span}"
@@ -4460,6 +4518,14 @@ msgstr "查询所得，{when}。这是它的出站地址，不一定能从这里
 msgid "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 msgstr "查询所得，{when}。这可能是你路由器的地址，只能出站，不能入站"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Loopback"
+msgstr "本机回环"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Loopback only"
+msgstr "仅本机回环"
+
 #: src/features/auth/SignInPage.tsx
 msgid "Lost your passkey?"
 msgstr "丢了通行密钥？"
@@ -4589,6 +4655,7 @@ msgstr "换到另一个应用"
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainersPanel.tsx
+#: src/features/settings/GeneralPage.tsx
 msgid "Name"
 msgstr "名称"
 
@@ -4639,6 +4706,10 @@ msgstr "用将要使用它的程序为令牌命名，例如 GitHub Actions deplo
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Name what connects to this server, as an address or a range."
 msgstr "请以地址或范围的形式，写明连接此服务器的来源。"
+
+#: src/features/activity/describe.ts
+msgid "Named this install {value}"
+msgstr "将此安装命名为 {value}"
 
 #: src/features/changes/fields.tsx
 msgid "names values in"
@@ -4699,6 +4770,10 @@ msgstr "新建应用"
 #: src/features/auth/TotpPanel.tsx
 msgid "New recovery codes"
 msgstr "新的恢复码"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "New schedules, such as a backup's, start in it. Each keeps the zone it was made with."
+msgstr "新的计划（例如备份计划）使用此时区。每个计划保留创建时的时区。"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "New value"
@@ -5096,6 +5171,10 @@ msgstr "{servers} 恢复前没有可显示的内容"
 msgid "Nothing was written in this time"
 msgstr "这段时间内没有写入内容"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Nothing yet: the panel has no domain"
+msgstr "暂无：面板还没有域名"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Nothing yet. It runs once the deploy finishes."
 msgstr "暂无。部署完成后开始运行。"
@@ -5214,6 +5293,10 @@ msgstr "仅限服务器本机"
 #: src/features/servers/network.ts
 msgid "Only something outside connecting proves a way in, such as a certificate for a domain here"
 msgstr "只有来自外部的连接才能证明可以入站，例如此处某个域名的证书"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Only this browser changes. Your other browsers, and the command line, keep their own."
+msgstr "只更改此浏览器。你的其他浏览器和命令行保持各自的设置。"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
@@ -5417,6 +5500,7 @@ msgid "Pages"
 msgstr "页面"
 
 #: src/features/auth/ClaimPage.tsx
+#: src/features/settings/GeneralPage.tsx
 msgid "Panel address"
 msgstr "面板地址"
 
@@ -5675,6 +5759,7 @@ msgid "Processor"
 msgstr "处理器"
 
 #: src/features/auth/ProfilePage.tsx
+#: src/features/settings/SettingsLayout.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Profile and security"
 msgstr "个人资料和安全"
@@ -6446,8 +6531,13 @@ msgstr "一同运行的应用"
 msgid "same as the control plane"
 msgstr "与控制平面相同"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Same as this browser ({browser})"
+msgstr "与此浏览器相同（{browser}）"
+
 #: src/features/apps/ExportSheet.tsx
 #: src/features/files/FileViewer.tsx
+#: src/features/settings/GeneralPage.tsx
 msgid "Save"
 msgstr "保存"
 
@@ -6470,6 +6560,10 @@ msgstr "已保存 {server} 上的 {path}"
 #: src/features/activity/describe.ts
 msgid "Saved {path} on {server}, which can let someone back in"
 msgstr "已保存 {server} 上的 {path}，这个文件可能让他人重新进入服务器"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Saved. It's on Activity."
+msgstr "已保存，并已记入动态。"
 
 #: src/features/files/FileViewer.tsx
 msgid "Saving"
@@ -6617,6 +6711,10 @@ msgstr "发送"
 msgid "Sending to {0}"
 msgstr "正在发送到 {0}"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Served by"
+msgstr "提供方"
+
 #: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
 msgid "server"
@@ -6713,6 +6811,10 @@ msgstr "将 {server} 的公网地址设置为 {address}"
 msgid "Set the public address of {server} to {address}, which was {previous}"
 msgstr "将 {server} 的公网地址设置为 {address}，原地址为 {previous}"
 
+#: src/features/activity/describe.ts
+msgid "Set the time zone for new schedules to {value}"
+msgstr "将新计划的时区设为 {value}"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Set up"
 msgstr "设置"
@@ -6721,7 +6823,9 @@ msgstr "设置"
 msgid "Set up an authenticator app"
 msgstr "设置身份验证器应用"
 
-#: src/features/shell/sections.ts
+#: src/features/settings/SettingsLayout.tsx
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/Rail.tsx
 msgid "Settings"
 msgstr "设置"
 
@@ -6786,6 +6890,10 @@ msgstr "查看应用"
 #: src/features/logs/LogsPage.tsx
 msgid "Show the current logs"
 msgstr "显示当前日志"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Show the panel in"
+msgstr "面板显示语言"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show the value"
@@ -7331,6 +7439,10 @@ msgstr "部署正在等待其代理，重新连接后会继续。请检查服务
 msgid "the domain {path}, which the environment {detail} held within the last 7 days"
 msgstr "域名 {path}，环境 {detail} 在过去 7 天内曾持有它"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>. To change it, run <1>sudo systemctl edit dockwell</1>, change that line, and restart with <2>sudo systemctl restart dockwell</2>."
+msgstr "域名在 Dockwell 运行的地方设置，即 <0>DOCKWELL_DOMAIN</0>。要更改它，运行 <1>sudo systemctl edit dockwell</1>，修改这一行，然后用 <2>sudo systemctl restart dockwell</2> 重启。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "The file uses these, and has no default for them."
 msgstr "文件用到了这些变量，且没有默认值。"
@@ -7568,6 +7680,10 @@ msgstr "服务器的安全取决于它能访问的内容，所以这相当于拥
 msgid "The servers have no lines of this app."
 msgstr "服务器上没有这个应用的日志。"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "The sign-in screen and your browser's tabs say it. Empty, they say Dockwell."
+msgstr "登录页和浏览器标签页会显示它。留空时显示 Dockwell。"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
 msgstr "令牌未创建"
@@ -7642,6 +7758,7 @@ msgid "This backup failed, so nothing is on the server. This removes the record 
 msgstr "此备份失败了，服务器上没有留下任何内容。此操作会移除它的记录。"
 
 #: src/features/auth/SessionsPanel.tsx
+#: src/features/settings/GeneralPage.tsx
 msgid "This browser"
 msgstr "这个浏览器"
 
@@ -7757,6 +7874,10 @@ msgstr "这个文件夹是空的。"
 #: src/features/servers/SetPublicAddressSheet.tsx
 msgid "This goes in the activity log"
 msgstr "此操作会记入活动日志"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "This install"
+msgstr "此安装"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This install already has an owner"
@@ -7941,6 +8062,10 @@ msgstr "时间"
 msgid "Time range"
 msgstr "时间范围"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Time zone"
+msgstr "时区"
+
 #: src/features/apps/DomainNote.tsx
 msgid "TLS ends in front"
 msgstr "TLS 在前端终止"
@@ -7977,6 +8102,10 @@ msgstr "要取回它，请先将 {0} 部署到已连接的服务器上"
 #: src/app/Providers.tsx
 msgid "to move"
 msgstr "移动"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "To reach the panel over HTTPS on a domain of yours, point the domain at this server, run <0>sudo systemctl edit dockwell</0>, add <1>Environment=DOCKWELL_DOMAIN=panel.example.com</1>, and restart with <2>sudo systemctl restart dockwell</2>."
+msgstr "要通过你自己的域名以 HTTPS 访问面板，请将域名指向此服务器，运行 <0>sudo systemctl edit dockwell</0>，添加 <1>Environment=DOCKWELL_DOMAIN=panel.example.com</1>，然后用 <2>sudo systemctl restart dockwell</2> 重启。"
 
 #: src/app/Providers.tsx
 msgid "to replace"
@@ -8606,6 +8735,14 @@ msgstr "{envName} 中的服务按名称使用这些值。更改一个值后，�
 #: src/features/apps/NewAppSheet.tsx
 msgid "What this file makes"
 msgstr "此文件会创建的内容"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "What this install is called, its time zone and how its panel is served"
+msgstr "此安装的名称、时区以及面板的访问方式"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "What this install is called, its time zone and how its panel is served · set up {since}"
+msgstr "此安装的名称、时区以及面板的访问方式 · 设置于 {since}"
 
 #: src/features/changes/words.ts
 msgid "What this step wants already runs, so nothing stops for it"

@@ -41,6 +41,7 @@ func Commands() []string {
 		"servers",
 		"services",
 		"sessions",
+		"settings",
 		"system",
 		"totp",
 		"variables",

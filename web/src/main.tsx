@@ -7,7 +7,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { createApi } from "./app/api";
-import { activateLocale, pickLocale } from "./app/i18n";
+import { activateLocale, startingLocale } from "./app/i18n";
 import { Providers } from "./app/Providers";
 import { router } from "./app/router";
 
@@ -15,7 +15,7 @@ const root = document.getElementById("root");
 if (!root) throw new Error("index.html is missing #root");
 
 // Translations load before the first render, so text never flashes in English.
-await activateLocale(pickLocale(navigator.languages));
+await activateLocale(startingLocale());
 
 const { transport, queryClient } = createApi();
 createRoot(root).render(

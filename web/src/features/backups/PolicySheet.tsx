@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { type BackupDestinationInfo, BackupMethod, BackupService, BackupPolicy_Every as Every } from "@dockwell/api";
+import {
+  type BackupDestinationInfo,
+  BackupMethod,
+  BackupService,
+  BackupPolicy_Every as Every,
+  SettingsService,
+} from "@dockwell/api";
 import { Button, Callout, SegmentedControl, SelectField, Sheet, Switch, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -19,8 +25,13 @@ type How = "hour" | "day" | "week";
 
 const EVERY: Readonly<Record<How, Every>> = { hour: Every.HOUR, day: Every.DAY, week: Every.WEEK };
 
-/** The time zone at reads in: the browser's, as that's the clock a person means. */
-function browserZone(): string {
+/**
+ * The time zone at reads in: the install's, once someone has set one in Settings,
+ * and otherwise the browser's, as that's the clock a person means (ADR 0042).
+ */
+function useScheduleZone(): string {
+  const set = useQuery(SettingsService.method.getSettings, {}).data?.settings?.timeZone;
+  if (set && set !== "UTC") return set;
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }
 
@@ -40,6 +51,7 @@ export function PolicySheet({
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const weekdays = useWeekdays();
+  const zone = useScheduleZone();
   const [volumeId, setVolumeId] = useState(volumes[0]?.id ?? "");
   const [how, setHow] = useState<How>("day");
   const [at, setAt] = useState("03:00");
@@ -83,7 +95,7 @@ export function PolicySheet({
                 every: EVERY[how],
                 at,
                 weekday: Number(weekday),
-                timeZone: browserZone(),
+                timeZone: zone,
                 keep: count,
                 stop: risky && stop,
                 destination,
@@ -146,6 +158,7 @@ export function PolicySheet({
           label={how === "hour" ? t`Minutes past the hour, as 00:MM` : t`At`}
           mono
           value={at}
+          hint={how === "hour" ? undefined : t`In ${zone}`}
           error={validAt ? undefined : t`Use 24-hour HH:MM, such as 03:00.`}
           onChange={(event) => setAt(event.target.value)}
         />

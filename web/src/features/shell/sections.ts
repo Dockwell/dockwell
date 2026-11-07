@@ -25,7 +25,6 @@ export const UPCOMING = {
   "fleet-actions": { label: msg`Fleet actions`, icon: "play", inMore: true },
   alerts: { label: msg`Alerts`, icon: "bell", inMore: true },
   "scheduled-tasks": { label: msg`Scheduled tasks`, icon: "calendar", inMore: true },
-  settings: { label: msg`Settings`, icon: "settings", inMore: true },
 } as const satisfies Record<string, Section>;
 
 export type UpcomingSection = keyof typeof UPCOMING;

@@ -57,6 +57,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
 	serviceapi "github.com/dockwell/dockwell/internal/control/services"
+	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/control/system"
 	"github.com/dockwell/dockwell/internal/control/variables"
 	"github.com/dockwell/dockwell/internal/https"
@@ -99,6 +100,12 @@ type Config struct {
 	// Public serves the panel on its domain over HTTPS. Nil keeps the panel
 	// on loopback.
 	Public https.Source
+	// PanelListen is the loopback address the panel answers on, and
+	// HTTPSListen where it serves Public's domain itself, for the settings to
+	// say how the panel is served. PanelProxied is true when the server's
+	// ingress serves the panel's domain instead (ADR 0024).
+	PanelListen, HTTPSListen string
+	PanelProxied             bool
 	// PublicAddress is this server's public IP address, shown on the claim
 	// screen for pointing a domain at. Empty when it isn't known.
 	PublicAddress string
@@ -220,6 +227,13 @@ func apiRoutes(cfg Config, ui http.Handler, logsOut **logapi.Handler, backupsOut
 		services = append(services, strings.Trim(path, "/"))
 	}
 	handle(dockwellv1connect.NewSystemServiceHandler(system.New(cfg.Build), opts...))
+	if cfg.Store != nil {
+		serving := settings.Serving{Listen: cfg.PanelListen, HTTPSListen: cfg.HTTPSListen, Proxied: cfg.PanelProxied}
+		if cfg.Public != nil {
+			serving.Domain = cfg.Public.Domain()
+		}
+		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving), opts...))
+	}
 	if cfg.Auth != nil {
 		controlServer := func() *dockwellv1.Server { return nil }
 		if cfg.Fleet != nil {

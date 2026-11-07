@@ -1215,6 +1215,10 @@ msgstr "A backup of {volume} couldn't be fetched from {destination}"
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "A certificate came for {domain} on port 80 or 443, as of {when}"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "A change goes on Activity, with what it replaced."
+msgstr "A change goes on Activity, with what it replaced."
+
 #: src/features/catalog/InstalledPanel.tsx
 msgid "A change to how {version} runs is out."
 msgstr "A change to how {version} runs is out."
@@ -1352,6 +1356,10 @@ msgstr "Access"
 msgid "Access key"
 msgstr "Access key"
 
+#: src/features/settings/SettingsLayout.tsx
+msgid "Account"
+msgstr "Account"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "Across {cpus} vCPU"
 msgstr "Across {cpus} vCPU"
@@ -1481,6 +1489,10 @@ msgstr "Added the passkey {name} after signing in with an authenticator code"
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
 msgstr "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Address"
+msgstr "Address"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Addresses"
 msgstr "Addresses"
@@ -1594,6 +1606,10 @@ msgstr "Also plans and applies changes that can be undone. Never removes data or
 #: src/features/apps/words.ts
 msgid "Always"
 msgstr "Always"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Always on, through an SSH tunnel to the server"
+msgstr "Always on, through an SSH tunnel to the server"
 
 #: src/features/apps/AddDomainSheet.tsx
 msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
@@ -1916,6 +1932,10 @@ msgstr "Bucket"
 msgid "By"
 msgstr "By"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Caddy, the server's ingress, which holds ports 80 and 443 once the server has a route"
+msgstr "Caddy, the server's ingress, which holds ports 80 and 443 once the server has a route"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Can read logs"
 msgstr "Can read logs"
@@ -2204,6 +2224,10 @@ msgstr "Clear the search"
 #: src/features/activity/describe.ts
 msgid "Cleared the public address of {server}, which was {previous}"
 msgstr "Cleared the public address of {server}, which was {previous}"
+
+#: src/features/activity/describe.ts
+msgid "Cleared this install's name"
+msgstr "Cleared this install's name"
 
 #: src/features/changes/RollbackLine.tsx
 msgid "Clearing this away failed too"
@@ -3161,6 +3185,15 @@ msgstr "Dockwell puts <0>{image}</0> back once {0} reconnects"
 msgid "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
 msgstr "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
 
+#. placeholder {0}: panel.httpsListen
+#: src/features/settings/GeneralPage.tsx
+msgid "Dockwell, on {0}, with a certificate from Let's Encrypt that it renews"
+msgstr "Dockwell, on {0}, with a certificate from Let's Encrypt that it renews"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Dockwell, with a certificate from Let's Encrypt that it renews"
+msgstr "Dockwell, with a certificate from Let's Encrypt that it renews"
+
 #: src/features/changes/fields.tsx
 msgid "doesn't come back"
 msgstr "doesn't come back"
@@ -3599,6 +3632,11 @@ msgstr "From the panel"
 msgid "Full access to {name}"
 msgstr "Full access to {name}"
 
+#: src/features/settings/GeneralPage.tsx
+#: src/features/settings/SettingsLayout.tsx
+msgid "General"
+msgstr "General"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Give {first} a value to review the plan"
 msgstr "Give {first} a value to review the plan"
@@ -3719,6 +3757,14 @@ msgstr "How"
 msgid "How often"
 msgstr "How often"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "How to change settings"
+msgstr "How to change settings"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "HTTPS"
+msgstr "HTTPS"
+
 #: src/features/auth/ClaimPage.tsx
 msgid "HTTPS is automatic. Your passkey works at this address."
 msgstr "HTTPS is automatic. Your passkey works at this address."
@@ -3785,6 +3831,10 @@ msgstr "in {minutes} min"
 msgid "In {projectName}"
 msgstr "In {projectName}"
 
+#: src/features/backups/PolicySheet.tsx
+msgid "In {zone}"
+msgstr "In {zone}"
+
 #: src/app/Providers.tsx
 msgid "In <0>{scope}</0>"
 msgstr "In <0>{scope}</0>"
@@ -3829,6 +3879,10 @@ msgstr "in under a minute"
 #: src/features/logs/LogsPage.tsx
 msgid "Info"
 msgstr "Info"
+
+#: src/features/settings/SettingsLayout.tsx
+msgid "Install"
+msgstr "Install"
 
 #: src/features/catalog/CatalogPage.tsx
 #: src/features/catalog/InstallSheet.tsx
@@ -4265,6 +4319,10 @@ msgstr "label"
 msgid "labels"
 msgstr "labels"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Language"
+msgstr "Language"
+
 #: src/features/servers/ServerMetrics.tsx
 msgid "last {span}"
 msgstr "last {span}"
@@ -4460,6 +4518,14 @@ msgstr "Looked up, {when}. That's its way out, and may not be a way in"
 msgid "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 msgstr "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Loopback"
+msgstr "Loopback"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Loopback only"
+msgstr "Loopback only"
+
 #: src/features/auth/SignInPage.tsx
 msgid "Lost your passkey?"
 msgstr "Lost your passkey?"
@@ -4589,6 +4655,7 @@ msgstr "Move to another app"
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainersPanel.tsx
+#: src/features/settings/GeneralPage.tsx
 msgid "Name"
 msgstr "Name"
 
@@ -4639,6 +4706,10 @@ msgstr "Name the token after what will use it, such as GitHub Actions deploy."
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Name what connects to this server, as an address or a range."
 msgstr "Name what connects to this server, as an address or a range."
+
+#: src/features/activity/describe.ts
+msgid "Named this install {value}"
+msgstr "Named this install {value}"
 
 #: src/features/changes/fields.tsx
 msgid "names values in"
@@ -4699,6 +4770,10 @@ msgstr "New app"
 #: src/features/auth/TotpPanel.tsx
 msgid "New recovery codes"
 msgstr "New recovery codes"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "New schedules, such as a backup's, start in it. Each keeps the zone it was made with."
+msgstr "New schedules, such as a backup's, start in it. Each keeps the zone it was made with."
 
 #: src/features/variables/VariablesPage.tsx
 msgid "New value"
@@ -5096,6 +5171,10 @@ msgstr "Nothing to show until {servers} is back"
 msgid "Nothing was written in this time"
 msgstr "Nothing was written in this time"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Nothing yet: the panel has no domain"
+msgstr "Nothing yet: the panel has no domain"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Nothing yet. It runs once the deploy finishes."
 msgstr "Nothing yet. It runs once the deploy finishes."
@@ -5214,6 +5293,10 @@ msgstr "only on the server"
 #: src/features/servers/network.ts
 msgid "Only something outside connecting proves a way in, such as a certificate for a domain here"
 msgstr "Only something outside connecting proves a way in, such as a certificate for a domain here"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Only this browser changes. Your other browsers, and the command line, keep their own."
+msgstr "Only this browser changes. Your other browsers, and the command line, keep their own."
 
 #: src/features/auth/ClaimPage.tsx
 msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
@@ -5417,6 +5500,7 @@ msgid "Pages"
 msgstr "Pages"
 
 #: src/features/auth/ClaimPage.tsx
+#: src/features/settings/GeneralPage.tsx
 msgid "Panel address"
 msgstr "Panel address"
 
@@ -5675,6 +5759,7 @@ msgid "Processor"
 msgstr "Processor"
 
 #: src/features/auth/ProfilePage.tsx
+#: src/features/settings/SettingsLayout.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Profile and security"
 msgstr "Profile and security"
@@ -6446,8 +6531,13 @@ msgstr "Runs with"
 msgid "same as the control plane"
 msgstr "same as the control plane"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Same as this browser ({browser})"
+msgstr "Same as this browser ({browser})"
+
 #: src/features/apps/ExportSheet.tsx
 #: src/features/files/FileViewer.tsx
+#: src/features/settings/GeneralPage.tsx
 msgid "Save"
 msgstr "Save"
 
@@ -6470,6 +6560,10 @@ msgstr "Saved {path} on {server}"
 #: src/features/activity/describe.ts
 msgid "Saved {path} on {server}, which can let someone back in"
 msgstr "Saved {path} on {server}, which can let someone back in"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Saved. It's on Activity."
+msgstr "Saved. It's on Activity."
 
 #: src/features/files/FileViewer.tsx
 msgid "Saving"
@@ -6617,6 +6711,10 @@ msgstr "Sending"
 msgid "Sending to {0}"
 msgstr "Sending to {0}"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Served by"
+msgstr "Served by"
+
 #: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
 msgid "server"
@@ -6713,6 +6811,10 @@ msgstr "Set the public address of {server} to {address}"
 msgid "Set the public address of {server} to {address}, which was {previous}"
 msgstr "Set the public address of {server} to {address}, which was {previous}"
 
+#: src/features/activity/describe.ts
+msgid "Set the time zone for new schedules to {value}"
+msgstr "Set the time zone for new schedules to {value}"
+
 #: src/features/auth/TotpPanel.tsx
 msgid "Set up"
 msgstr "Set up"
@@ -6721,7 +6823,9 @@ msgstr "Set up"
 msgid "Set up an authenticator app"
 msgstr "Set up an authenticator app"
 
-#: src/features/shell/sections.ts
+#: src/features/settings/SettingsLayout.tsx
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/Rail.tsx
 msgid "Settings"
 msgstr "Settings"
 
@@ -6786,6 +6890,10 @@ msgstr "Show the apps"
 #: src/features/logs/LogsPage.tsx
 msgid "Show the current logs"
 msgstr "Show the current logs"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "Show the panel in"
+msgstr "Show the panel in"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Show the value"
@@ -7331,6 +7439,10 @@ msgstr "The deploy waits for its agent, and carries on once it reconnects. Check
 msgid "the domain {path}, which the environment {detail} held within the last 7 days"
 msgstr "the domain {path}, which the environment {detail} held within the last 7 days"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>. To change it, run <1>sudo systemctl edit dockwell</1>, change that line, and restart with <2>sudo systemctl restart dockwell</2>."
+msgstr "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>. To change it, run <1>sudo systemctl edit dockwell</1>, change that line, and restart with <2>sudo systemctl restart dockwell</2>."
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "The file uses these, and has no default for them."
 msgstr "The file uses these, and has no default for them."
@@ -7568,6 +7680,10 @@ msgstr "The server's security rests on what that reaches, so it is as good as ro
 msgid "The servers have no lines of this app."
 msgstr "The servers have no lines of this app."
 
+#: src/features/settings/GeneralPage.tsx
+msgid "The sign-in screen and your browser's tabs say it. Empty, they say Dockwell."
+msgstr "The sign-in screen and your browser's tabs say it. Empty, they say Dockwell."
+
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
 msgstr "The token wasn't created"
@@ -7642,6 +7758,7 @@ msgid "This backup failed, so nothing is on the server. This removes the record 
 msgstr "This backup failed, so nothing is on the server. This removes the record of it."
 
 #: src/features/auth/SessionsPanel.tsx
+#: src/features/settings/GeneralPage.tsx
 msgid "This browser"
 msgstr "This browser"
 
@@ -7757,6 +7874,10 @@ msgstr "This folder is empty."
 #: src/features/servers/SetPublicAddressSheet.tsx
 msgid "This goes in the activity log"
 msgstr "This goes in the activity log"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "This install"
+msgstr "This install"
 
 #: src/features/auth/ClaimPage.tsx
 msgid "This install already has an owner"
@@ -7941,6 +8062,10 @@ msgstr "Time"
 msgid "Time range"
 msgstr "Time range"
 
+#: src/features/settings/GeneralPage.tsx
+msgid "Time zone"
+msgstr "Time zone"
+
 #: src/features/apps/DomainNote.tsx
 msgid "TLS ends in front"
 msgstr "TLS ends in front"
@@ -7977,6 +8102,10 @@ msgstr "To fetch it, put {0} on a connected server first"
 #: src/app/Providers.tsx
 msgid "to move"
 msgstr "to move"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "To reach the panel over HTTPS on a domain of yours, point the domain at this server, run <0>sudo systemctl edit dockwell</0>, add <1>Environment=DOCKWELL_DOMAIN=panel.example.com</1>, and restart with <2>sudo systemctl restart dockwell</2>."
+msgstr "To reach the panel over HTTPS on a domain of yours, point the domain at this server, run <0>sudo systemctl edit dockwell</0>, add <1>Environment=DOCKWELL_DOMAIN=panel.example.com</1>, and restart with <2>sudo systemctl restart dockwell</2>."
 
 #: src/app/Providers.tsx
 msgid "to replace"
@@ -8606,6 +8735,14 @@ msgstr "What the services in {envName} use, by name. Changing a value restarts e
 #: src/features/apps/NewAppSheet.tsx
 msgid "What this file makes"
 msgstr "What this file makes"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "What this install is called, its time zone and how its panel is served"
+msgstr "What this install is called, its time zone and how its panel is served"
+
+#: src/features/settings/GeneralPage.tsx
+msgid "What this install is called, its time zone and how its panel is served · set up {since}"
+msgstr "What this install is called, its time zone and how its panel is served · set up {since}"
 
 #: src/features/changes/words.ts
 msgid "What this step wants already runs, so nothing stops for it"
