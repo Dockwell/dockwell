@@ -221,7 +221,7 @@ func TestAMovedPathStopsAStartOnRealDocker(t *testing.T) {
 		t.Fatalf("Docker reads the bind back as %+v, want its source as written, %s", c.Mounts, via)
 	}
 	paths := &container.Paths{Client: client, DataDir: filepath.Join(dir, "dockwell")}
-	if err := paths.LeadsAsMade(t.Context(), c); err != nil {
+	if err := paths.LeadsAsMade(t.Context(), c, nil); err != nil {
 		t.Fatalf("a path that leads where it did: %v", err)
 	}
 	if err := os.Remove(via); err != nil {
@@ -231,7 +231,7 @@ func TestAMovedPathStopsAStartOnRealDocker(t *testing.T) {
 		t.Fatal(err)
 	}
 	var moved *container.PathMovedError
-	if err := paths.LeadsAsMade(t.Context(), c); !errors.As(err, &moved) || moved.To != other {
+	if err := paths.LeadsAsMade(t.Context(), c, nil); !errors.As(err, &moved) || moved.To != other {
 		t.Errorf("a path that moved = %v", err)
 	}
 }

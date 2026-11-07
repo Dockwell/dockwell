@@ -892,7 +892,7 @@ func TestLeadsAsMade(t *testing.T) {
 			if tt.labeled {
 				c.Config.Labels[container.LabelLeads] = tt.label
 			}
-			err := m.paths.LeadsAsMade(t.Context(), c)
+			err := m.paths.LeadsAsMade(t.Context(), c, nil)
 			if got := err != nil; got != tt.refused {
 				t.Fatalf("refused = %v, want %v: %v", got, tt.refused, err)
 			}
@@ -914,17 +914,17 @@ func TestLeadsAsMade(t *testing.T) {
 		Name: "/ops", Config: docker.Config{Labels: map[string]string{}},
 		Mounts: []docker.MountPoint{{Type: "bind", Source: socket, RW: true}},
 	}
-	if err := m.paths.LeadsAsMade(t.Context(), c); err != nil {
+	if err := m.paths.LeadsAsMade(t.Context(), c, nil); err != nil {
 		t.Errorf("a socket by its usual link, with no record: %v", err)
 	}
 	// With a record, it goes by that.
 	c.Config.Labels[container.LabelLeads] = "{}"
-	if err := m.paths.LeadsAsMade(t.Context(), c); err == nil {
+	if err := m.paths.LeadsAsMade(t.Context(), c, nil); err == nil {
 		t.Error("a link the record doesn't have passed")
 	}
 
 	// A nil Paths is a runtime that doesn't follow paths.
-	if err := (*container.Paths)(nil).LeadsAsMade(t.Context(), c); err != nil {
+	if err := (*container.Paths)(nil).LeadsAsMade(t.Context(), c, nil); err != nil {
 		t.Errorf("no Paths: %v", err)
 	}
 }
@@ -942,11 +942,52 @@ func TestLeadsAsMadeGoesThroughAVolume(t *testing.T) {
 		Name: "/web", Config: docker.Config{Labels: map[string]string{container.LabelLeads: "{}"}},
 		Mounts: []docker.MountPoint{{Type: "volume", Name: "conf", RW: true}, {Type: "volume", Name: "gone", RW: true}, {Type: "tmpfs"}},
 	}
-	if err := m.paths.LeadsAsMade(t.Context(), c); err != nil {
+	if err := m.paths.LeadsAsMade(t.Context(), c, nil); err != nil {
 		t.Fatalf("a folder as it was: %v", err)
 	}
 	m.becomes(t, m.other)
-	if err := m.paths.LeadsAsMade(t.Context(), c); err == nil {
+	if err := m.paths.LeadsAsMade(t.Context(), c, nil); err == nil {
 		t.Error("a volume's folder that became a link passed")
+	}
+}
+
+// What has no record of where its paths led was taken on, or made, before records, so
+// all a plan can say is whether a path gives more now than it reads as. Asking about
+// every link would ask on every plan, for ever, of what was taken on with
+// /var/run/docker.sock wherever /var/run is a link.
+func TestWhatHasNoRecordAsksOnlyWhereAPathGivesMore(t *testing.T) {
+	for name, tt := range map[string]struct {
+		to    func(m *moving) string
+		moved bool
+	}{
+		"a link to a folder": {to: func(m *moving) string { return m.other }},
+		"a link to /etc":     {to: func(*moving) string { return "/etc" }, moved: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			e.Registry["nginx:1.27"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}}
+			m := aFolderThatCanMove(t, e)
+			rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Paths: m.paths}
+			c := &container.Driver{Runtime: rt}
+			l := resource.Local{Drivers: resource.NewRegistry(c)}
+			ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}
+			spec := &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: m.conf}, Target: "/conf"}}}
+			steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: spec}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := l.Apply(t.Context(), steps[0], spec); err != nil {
+				t.Fatal(err)
+			}
+			e.Edit("web", func(c *docker.Container) { delete(c.Config.Labels, container.LabelLeads) })
+			m.becomes(t, tt.to(m))
+			moved, err := c.LeadsMoved(t.Context(), ref, spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(moved) > 0; got != tt.moved {
+				t.Errorf("moved = %v, want %v", moved, tt.moved)
+			}
+		})
 	}
 }
