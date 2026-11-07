@@ -63,8 +63,8 @@ func TestAStartChecksWhereItsPathsLead(t *testing.T) {
 			s, spec, conf, toEtc := aServiceOnAFolder(t, order)
 			s.deploy(t, webRef, proto.Clone(spec).(*resourcev1.Service))
 			c := s.engine.Newest(project, "web")
-			container := strings.TrimPrefix(c.Name, "/")
-			s.engine.Stop(container)
+			named := strings.TrimPrefix(c.Name, "/")
+			s.engine.Stop(named)
 			plan := func() resource.Step {
 				t.Helper()
 				steps, err := s.local.Plan(t.Context(), []resource.Desired{{Ref: webRef, Spec: proto.Clone(spec), Run: true}})
@@ -78,12 +78,12 @@ func TestAStartChecksWhereItsPathsLead(t *testing.T) {
 				t.Fatalf("nothing has moved, and it says %v", step.LeadsMoved)
 			}
 			toEtc()
-			started := s.engine.Started(container)
+			started := s.engine.Started(named)
 			err := s.local.Apply(t.Context(), step, spec)
 			if err == nil || !strings.Contains(err.Error(), conf+" leads to /etc now") || !strings.Contains(err.Error(), "it wasn't started") {
 				t.Fatalf("a link made since its plan = %v", err)
 			}
-			if got := s.engine.Started(container); got != started {
+			if got := s.engine.Started(named); got != started {
 				t.Errorf("it started %d times, want %d", got, started)
 			}
 

@@ -840,7 +840,7 @@ func TestWhatsMadeKeepsWhereItsPathsLead(t *testing.T) {
 	m := aFolderThatCanMove(t, e)
 	rt := &container.Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Paths: m.paths}
 	l := resource.Local{Drivers: resource.NewRegistry(&container.Driver{Runtime: rt})}
-	make := func(name string, mounts ...*resourcev1.Mount) string {
+	made := func(name string, mounts ...*resourcev1.Mount) string {
 		t.Helper()
 		ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: name}
 		spec := &resourcev1.Container{Image: "nginx:1.27", Mounts: mounts}
@@ -853,10 +853,10 @@ func TestWhatsMadeKeepsWhereItsPathsLead(t *testing.T) {
 		}
 		return e.Container(name).Config.Labels[container.LabelLeads]
 	}
-	if got := make("plain"); got != "" {
+	if got := made("plain"); got != "" {
 		t.Errorf("what mounts no server path keeps %q", got)
 	}
-	if got := make("folder", &resourcev1.Mount{Source: &resourcev1.Mount_HostPath{HostPath: m.conf}, Target: "/conf"}); got != "{}" {
+	if got := made("folder", &resourcev1.Mount{Source: &resourcev1.Mount_HostPath{HostPath: m.conf}, Target: "/conf"}); got != "{}" {
 		t.Errorf("what mounts a folder keeps %q, want a record that it leads nowhere else", got)
 	}
 }
@@ -885,8 +885,10 @@ func TestLeadsAsMade(t *testing.T) {
 			if tt.move != nil {
 				tt.move(t, m)
 			}
-			c := &docker.Container{Name: "/web", Config: docker.Config{Labels: map[string]string{}},
-				Mounts: []docker.MountPoint{{Type: "bind", Source: m.conf, RW: true}}}
+			c := &docker.Container{
+				Name: "/web", Config: docker.Config{Labels: map[string]string{}},
+				Mounts: []docker.MountPoint{{Type: "bind", Source: m.conf, RW: true}},
+			}
 			if tt.labeled {
 				c.Config.Labels[container.LabelLeads] = tt.label
 			}
@@ -908,8 +910,10 @@ func TestLeadsAsMade(t *testing.T) {
 	if err := os.Symlink("/run/docker.sock", socket); err != nil {
 		t.Fatal(err)
 	}
-	c := &docker.Container{Name: "/ops", Config: docker.Config{Labels: map[string]string{}},
-		Mounts: []docker.MountPoint{{Type: "bind", Source: socket, RW: true}}}
+	c := &docker.Container{
+		Name: "/ops", Config: docker.Config{Labels: map[string]string{}},
+		Mounts: []docker.MountPoint{{Type: "bind", Source: socket, RW: true}},
+	}
 	if err := m.paths.LeadsAsMade(t.Context(), c); err != nil {
 		t.Errorf("a socket by its usual link, with no record: %v", err)
 	}
@@ -934,8 +938,10 @@ func TestLeadsAsMadeGoesThroughAVolume(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	c := &docker.Container{Name: "/web", Config: docker.Config{Labels: map[string]string{container.LabelLeads: "{}"}},
-		Mounts: []docker.MountPoint{{Type: "volume", Name: "conf", RW: true}, {Type: "volume", Name: "gone", RW: true}, {Type: "tmpfs"}}}
+	c := &docker.Container{
+		Name: "/web", Config: docker.Config{Labels: map[string]string{container.LabelLeads: "{}"}},
+		Mounts: []docker.MountPoint{{Type: "volume", Name: "conf", RW: true}, {Type: "volume", Name: "gone", RW: true}, {Type: "tmpfs"}},
+	}
 	if err := m.paths.LeadsAsMade(t.Context(), c); err != nil {
 		t.Fatalf("a folder as it was: %v", err)
 	}

@@ -255,7 +255,9 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 // now, as a plan would have it.
 func (r *Runner) reached(ctx context.Context, v *docker.Volume) ([]string, error) {
 	var out []string
-	for _, a := range (&volume.Driver{}).HostAccess(&resourcev1.Volume{Driver: v.Driver, Options: v.Options}) {
+	access := (&volume.Driver{}).HostAccess(&resourcev1.Volume{Driver: v.Driver, Options: v.Options})
+	for i := range access {
+		a := access[i]
 		// What a mount's device says, such as :/share on an NFS server, isn't a path here.
 		if a.Kind == resource.AccessPath || a.Kind == resource.AccessDocker {
 			leads, err := r.Paths.Follow(ctx, a.Path)
