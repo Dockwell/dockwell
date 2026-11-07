@@ -29,12 +29,18 @@ import { Route as ShellCatalogIndexRouteImport } from './routes/_shell/catalog.i
 import { Route as ShellCatalogEntryIdRouteImport } from './routes/_shell/catalog.$entryId'
 import { Route as ShellChangesChangeIdRouteImport } from './routes/_shell/changes.$changeId'
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
+import { Route as ShellWebsitesIndexRouteImport } from './routes/_shell/websites.index'
+import { Route as ShellWebsitesWebsiteIdRouteImport } from './routes/_shell/websites.$websiteId'
+import { Route as ShellWebsitesNewRouteImport } from './routes/_shell/websites.new'
 import { Route as ShellAppsServiceIdIndexRouteImport } from './routes/_shell/apps.$serviceId.index'
 import { Route as ShellAppsServiceIdDeploymentsRouteImport } from './routes/_shell/apps.$serviceId.deployments'
 import { Route as ShellAppsServiceIdEnvironmentRouteImport } from './routes/_shell/apps.$serviceId.environment'
 import { Route as ShellAppsServiceIdLogsRouteImport } from './routes/_shell/apps.$serviceId.logs'
 import { Route as ShellServersServerIdIndexRouteImport } from './routes/_shell/servers.$serverId.index'
 import { Route as ShellServersServerIdFilesRouteImport } from './routes/_shell/servers.$serverId.files'
+import { Route as ShellWebsitesWebsiteIdIndexRouteImport } from './routes/_shell/websites.$websiteId.index'
+import { Route as ShellWebsitesWebsiteIdConfigurationRouteImport } from './routes/_shell/websites.$websiteId.configuration'
+import { Route as ShellWebsitesWebsiteIdLogsRouteImport } from './routes/_shell/websites.$websiteId.logs'
 import { Route as ShellServersServerIdContainersNameRouteImport } from './routes/_shell/servers.$serverId.containers.$name'
 
 const ShellRoute = ShellRouteImport.update({
@@ -136,6 +142,21 @@ const ShellServersIndexRoute = ShellServersIndexRouteImport.update({
   path: '/servers/',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellWebsitesIndexRoute = ShellWebsitesIndexRouteImport.update({
+  id: '/websites/',
+  path: '/websites/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellWebsitesWebsiteIdRoute = ShellWebsitesWebsiteIdRouteImport.update({
+  id: '/websites/$websiteId',
+  path: '/websites/$websiteId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellWebsitesNewRoute = ShellWebsitesNewRouteImport.update({
+  id: '/websites/new',
+  path: '/websites/new',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellAppsServiceIdIndexRoute = ShellAppsServiceIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -170,6 +191,24 @@ const ShellServersServerIdFilesRoute =
     path: '/servers/$serverId/files',
     getParentRoute: () => ShellRoute,
   } as any)
+const ShellWebsitesWebsiteIdIndexRoute =
+  ShellWebsitesWebsiteIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => ShellWebsitesWebsiteIdRoute,
+  } as any)
+const ShellWebsitesWebsiteIdConfigurationRoute =
+  ShellWebsitesWebsiteIdConfigurationRouteImport.update({
+    id: '/configuration',
+    path: '/configuration',
+    getParentRoute: () => ShellWebsitesWebsiteIdRoute,
+  } as any)
+const ShellWebsitesWebsiteIdLogsRoute =
+  ShellWebsitesWebsiteIdLogsRouteImport.update({
+    id: '/logs',
+    path: '/logs',
+    getParentRoute: () => ShellWebsitesWebsiteIdRoute,
+  } as any)
 const ShellServersServerIdContainersNameRoute =
   ShellServersServerIdContainersNameRouteImport.update({
     id: '/servers/$serverId/containers/$name',
@@ -194,15 +233,21 @@ export interface FileRoutesByFullPath {
   '/apps/new': typeof ShellAppsNewRoute
   '/catalog/$entryId': typeof ShellCatalogEntryIdRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
+  '/websites/$websiteId': typeof ShellWebsitesWebsiteIdRouteWithChildren
+  '/websites/new': typeof ShellWebsitesNewRoute
   '/apps/': typeof ShellAppsIndexRoute
   '/catalog/': typeof ShellCatalogIndexRoute
   '/servers/': typeof ShellServersIndexRoute
+  '/websites/': typeof ShellWebsitesIndexRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/websites/$websiteId/configuration': typeof ShellWebsitesWebsiteIdConfigurationRoute
+  '/websites/$websiteId/logs': typeof ShellWebsitesWebsiteIdLogsRoute
   '/apps/$serviceId/': typeof ShellAppsServiceIdIndexRoute
   '/servers/$serverId/': typeof ShellServersServerIdIndexRoute
+  '/websites/$websiteId/': typeof ShellWebsitesWebsiteIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
 }
 export interface FileRoutesByTo {
@@ -221,15 +266,20 @@ export interface FileRoutesByTo {
   '/apps/new': typeof ShellAppsNewRoute
   '/catalog/$entryId': typeof ShellCatalogEntryIdRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
+  '/websites/new': typeof ShellWebsitesNewRoute
   '/apps': typeof ShellAppsIndexRoute
   '/catalog': typeof ShellCatalogIndexRoute
   '/servers': typeof ShellServersIndexRoute
+  '/websites': typeof ShellWebsitesIndexRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/websites/$websiteId/configuration': typeof ShellWebsitesWebsiteIdConfigurationRoute
+  '/websites/$websiteId/logs': typeof ShellWebsitesWebsiteIdLogsRoute
   '/apps/$serviceId': typeof ShellAppsServiceIdIndexRoute
   '/servers/$serverId': typeof ShellServersServerIdIndexRoute
+  '/websites/$websiteId': typeof ShellWebsitesWebsiteIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
 }
 export interface FileRoutesById {
@@ -251,15 +301,21 @@ export interface FileRoutesById {
   '/_shell/apps/new': typeof ShellAppsNewRoute
   '/_shell/catalog/$entryId': typeof ShellCatalogEntryIdRoute
   '/_shell/changes/$changeId': typeof ShellChangesChangeIdRoute
+  '/_shell/websites/$websiteId': typeof ShellWebsitesWebsiteIdRouteWithChildren
+  '/_shell/websites/new': typeof ShellWebsitesNewRoute
   '/_shell/apps/': typeof ShellAppsIndexRoute
   '/_shell/catalog/': typeof ShellCatalogIndexRoute
   '/_shell/servers/': typeof ShellServersIndexRoute
+  '/_shell/websites/': typeof ShellWebsitesIndexRoute
   '/_shell/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/_shell/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/_shell/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
   '/_shell/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/_shell/websites/$websiteId/configuration': typeof ShellWebsitesWebsiteIdConfigurationRoute
+  '/_shell/websites/$websiteId/logs': typeof ShellWebsitesWebsiteIdLogsRoute
   '/_shell/apps/$serviceId/': typeof ShellAppsServiceIdIndexRoute
   '/_shell/servers/$serverId/': typeof ShellServersServerIdIndexRoute
+  '/_shell/websites/$websiteId/': typeof ShellWebsitesWebsiteIdIndexRoute
   '/_shell/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
 }
 export interface FileRouteTypes {
@@ -281,15 +337,21 @@ export interface FileRouteTypes {
     | '/apps/new'
     | '/catalog/$entryId'
     | '/changes/$changeId'
+    | '/websites/$websiteId'
+    | '/websites/new'
     | '/apps/'
     | '/catalog/'
     | '/servers/'
+    | '/websites/'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
     | '/servers/$serverId/files'
+    | '/websites/$websiteId/configuration'
+    | '/websites/$websiteId/logs'
     | '/apps/$serviceId/'
     | '/servers/$serverId/'
+    | '/websites/$websiteId/'
     | '/servers/$serverId/containers/$name'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -308,15 +370,20 @@ export interface FileRouteTypes {
     | '/apps/new'
     | '/catalog/$entryId'
     | '/changes/$changeId'
+    | '/websites/new'
     | '/apps'
     | '/catalog'
     | '/servers'
+    | '/websites'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
     | '/servers/$serverId/files'
+    | '/websites/$websiteId/configuration'
+    | '/websites/$websiteId/logs'
     | '/apps/$serviceId'
     | '/servers/$serverId'
+    | '/websites/$websiteId'
     | '/servers/$serverId/containers/$name'
   id:
     | '__root__'
@@ -337,15 +404,21 @@ export interface FileRouteTypes {
     | '/_shell/apps/new'
     | '/_shell/catalog/$entryId'
     | '/_shell/changes/$changeId'
+    | '/_shell/websites/$websiteId'
+    | '/_shell/websites/new'
     | '/_shell/apps/'
     | '/_shell/catalog/'
     | '/_shell/servers/'
+    | '/_shell/websites/'
     | '/_shell/apps/$serviceId/deployments'
     | '/_shell/apps/$serviceId/environment'
     | '/_shell/apps/$serviceId/logs'
     | '/_shell/servers/$serverId/files'
+    | '/_shell/websites/$websiteId/configuration'
+    | '/_shell/websites/$websiteId/logs'
     | '/_shell/apps/$serviceId/'
     | '/_shell/servers/$serverId/'
+    | '/_shell/websites/$websiteId/'
     | '/_shell/servers/$serverId/containers/$name'
   fileRoutesById: FileRoutesById
 }
@@ -499,6 +572,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersIndexRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/websites/': {
+      id: '/_shell/websites/'
+      path: '/websites'
+      fullPath: '/websites/'
+      preLoaderRoute: typeof ShellWebsitesIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/websites/$websiteId': {
+      id: '/_shell/websites/$websiteId'
+      path: '/websites/$websiteId'
+      fullPath: '/websites/$websiteId'
+      preLoaderRoute: typeof ShellWebsitesWebsiteIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/websites/new': {
+      id: '/_shell/websites/new'
+      path: '/websites/new'
+      fullPath: '/websites/new'
+      preLoaderRoute: typeof ShellWebsitesNewRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/apps/$serviceId/': {
       id: '/_shell/apps/$serviceId/'
       path: '/'
@@ -541,6 +635,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersServerIdFilesRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/websites/$websiteId/': {
+      id: '/_shell/websites/$websiteId/'
+      path: '/'
+      fullPath: '/websites/$websiteId/'
+      preLoaderRoute: typeof ShellWebsitesWebsiteIdIndexRouteImport
+      parentRoute: typeof ShellWebsitesWebsiteIdRoute
+    }
+    '/_shell/websites/$websiteId/configuration': {
+      id: '/_shell/websites/$websiteId/configuration'
+      path: '/configuration'
+      fullPath: '/websites/$websiteId/configuration'
+      preLoaderRoute: typeof ShellWebsitesWebsiteIdConfigurationRouteImport
+      parentRoute: typeof ShellWebsitesWebsiteIdRoute
+    }
+    '/_shell/websites/$websiteId/logs': {
+      id: '/_shell/websites/$websiteId/logs'
+      path: '/logs'
+      fullPath: '/websites/$websiteId/logs'
+      preLoaderRoute: typeof ShellWebsitesWebsiteIdLogsRouteImport
+      parentRoute: typeof ShellWebsitesWebsiteIdRoute
+    }
     '/_shell/servers/$serverId/containers/$name': {
       id: '/_shell/servers/$serverId/containers/$name'
       path: '/servers/$serverId/containers/$name'
@@ -568,6 +683,25 @@ const ShellAppsServiceIdRouteChildren: ShellAppsServiceIdRouteChildren = {
 const ShellAppsServiceIdRouteWithChildren =
   ShellAppsServiceIdRoute._addFileChildren(ShellAppsServiceIdRouteChildren)
 
+interface ShellWebsitesWebsiteIdRouteChildren {
+  ShellWebsitesWebsiteIdConfigurationRoute: typeof ShellWebsitesWebsiteIdConfigurationRoute
+  ShellWebsitesWebsiteIdLogsRoute: typeof ShellWebsitesWebsiteIdLogsRoute
+  ShellWebsitesWebsiteIdIndexRoute: typeof ShellWebsitesWebsiteIdIndexRoute
+}
+
+const ShellWebsitesWebsiteIdRouteChildren: ShellWebsitesWebsiteIdRouteChildren =
+  {
+    ShellWebsitesWebsiteIdConfigurationRoute:
+      ShellWebsitesWebsiteIdConfigurationRoute,
+    ShellWebsitesWebsiteIdLogsRoute: ShellWebsitesWebsiteIdLogsRoute,
+    ShellWebsitesWebsiteIdIndexRoute: ShellWebsitesWebsiteIdIndexRoute,
+  }
+
+const ShellWebsitesWebsiteIdRouteWithChildren =
+  ShellWebsitesWebsiteIdRoute._addFileChildren(
+    ShellWebsitesWebsiteIdRouteChildren,
+  )
+
 interface ShellRouteChildren {
   ShellSectionRoute: typeof ShellSectionRoute
   ShellActivityRoute: typeof ShellActivityRoute
@@ -581,9 +715,12 @@ interface ShellRouteChildren {
   ShellAppsNewRoute: typeof ShellAppsNewRoute
   ShellCatalogEntryIdRoute: typeof ShellCatalogEntryIdRoute
   ShellChangesChangeIdRoute: typeof ShellChangesChangeIdRoute
+  ShellWebsitesWebsiteIdRoute: typeof ShellWebsitesWebsiteIdRouteWithChildren
+  ShellWebsitesNewRoute: typeof ShellWebsitesNewRoute
   ShellAppsIndexRoute: typeof ShellAppsIndexRoute
   ShellCatalogIndexRoute: typeof ShellCatalogIndexRoute
   ShellServersIndexRoute: typeof ShellServersIndexRoute
+  ShellWebsitesIndexRoute: typeof ShellWebsitesIndexRoute
   ShellServersServerIdFilesRoute: typeof ShellServersServerIdFilesRoute
   ShellServersServerIdIndexRoute: typeof ShellServersServerIdIndexRoute
   ShellServersServerIdContainersNameRoute: typeof ShellServersServerIdContainersNameRoute
@@ -602,9 +739,12 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellAppsNewRoute: ShellAppsNewRoute,
   ShellCatalogEntryIdRoute: ShellCatalogEntryIdRoute,
   ShellChangesChangeIdRoute: ShellChangesChangeIdRoute,
+  ShellWebsitesWebsiteIdRoute: ShellWebsitesWebsiteIdRouteWithChildren,
+  ShellWebsitesNewRoute: ShellWebsitesNewRoute,
   ShellAppsIndexRoute: ShellAppsIndexRoute,
   ShellCatalogIndexRoute: ShellCatalogIndexRoute,
   ShellServersIndexRoute: ShellServersIndexRoute,
+  ShellWebsitesIndexRoute: ShellWebsitesIndexRoute,
   ShellServersServerIdFilesRoute: ShellServersServerIdFilesRoute,
   ShellServersServerIdIndexRoute: ShellServersServerIdIndexRoute,
   ShellServersServerIdContainersNameRoute:

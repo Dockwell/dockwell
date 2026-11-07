@@ -243,6 +243,10 @@ msgstr "{app} 采用 {license} 许可证。"
 msgid "{browser} on {os}"
 msgstr "{os} 上的 {browser}"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "{changes, plural, one {# change} other {# changes}}"
+msgstr "{changes, plural, other {# 处更改}}"
+
 #: src/features/files/FileViewer.tsx
 msgid "{changes, plural, one {# line changed} other {# lines changed}}"
 msgstr "{changes, plural, other {已改动 # 行}}"
@@ -291,6 +295,16 @@ msgstr "{count, plural, other {这里还有 # 个其他应用。否则它们保�
 #: src/features/apps/AppsPage.tsx
 msgid "{count, plural, one {# server} other {# servers}}"
 msgstr "{count, plural, other {# 台服务器}}"
+
+#. placeholder {0}: only.name
+#. placeholder {1}: only.name
+#: src/features/websites/WebsitesPage.tsx
+msgid "{count, plural, one {# site on {0}} other {# sites on {1}}}"
+msgstr "{count, plural, other {{1} 上有 # 个网站}}"
+
+#: src/features/websites/WebsitesPage.tsx
+msgid "{count, plural, one {# site} other {# sites}}"
+msgstr "{count, plural, other {# 个网站}}"
 
 #. placeholder {0}: formatBytes(each, i18n.locale)
 #. placeholder {1}: formatBytes(total, i18n.locale)
@@ -380,6 +394,14 @@ msgstr "{database} 转储"
 #: src/features/changes/notices.tsx
 msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 msgstr "{database} 会在空卷上重新启动并载入转储（{size}），因此此后新增的内容都会消失，密码也会恢复为当时的值。如果载入失败，现有内容会恢复。服务器会将现有内容的副本保留 7 天，撤销此操作即可恢复。"
+
+#: src/features/websites/Standing.tsx
+msgid "{days, plural, one {# day left} other {# days left}}"
+msgstr "{days, plural, other {还剩 # 天}}"
+
+#: src/features/websites/Standing.tsx
+msgid "{days, plural, one {certificate valid for # day} other {certificate valid for # days}}"
+msgstr "{days, plural, other {证书有效期还有 # 天}}"
 
 #: src/features/apps/DomainNote.tsx
 msgid "{days, plural, one {Valid for # day} other {Valid for # days}}"
@@ -1159,6 +1181,10 @@ msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权�
 msgid "<0>{source}</0>, read-only"
 msgstr "<0>{source}</0>，只读"
 
+#: src/features/websites/WebsiteLayout.tsx
+msgid "<0>{websiteId}</0> may have been deleted, or the link may be wrong."
+msgstr "<0>{websiteId}</0> 可能已被删除，或链接有误。"
+
 #: src/features/logs/LogsPage.tsx
 msgid "1 h"
 msgstr "1 小时"
@@ -1264,6 +1290,11 @@ msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容�
 msgid "A new container takes over once it has been healthy for {soak}, and what runs goes on serving until then. If it isn't healthy within {healthyWithin}, the new one goes, and what runs stays"
 msgstr "新容器保持健康 {soak} 后接管，在此之前正在运行的容器继续提供服务。如果它在 {healthyWithin} 内未变为健康，新容器会被移除，正在运行的容器保留"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "A port on this server"
+msgstr "此服务器上的端口"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "A restart has no undo, as it changes nothing to go back to."
 msgstr "重启无法撤销，因为它不会改变任何可恢复的内容。"
@@ -1296,17 +1327,26 @@ msgstr "一台服务器"
 msgid "A service"
 msgstr "某个服务"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "A small web server of its own sends each request on"
+msgstr "由它自己的小型 Web 服务器转发每个请求"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "A step failed, so the change stopped there."
 msgstr "有一个步骤失败，更改就此停止。"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "A tunnel on this server"
 msgstr "此服务器上的隧道"
 
 #: src/features/apps/DomainNote.tsx
 msgid "A tunnel or a proxy in front handles HTTPS"
 msgstr "前面的隧道或代理负责 HTTPS"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "A URL"
+msgstr "URL"
 
 #: src/features/apps/AppEnvironment.tsx
 msgid "A value lives in its environment, and goes only to the servers that run an app using it. Change one in <0>Variables and secrets</0>, and its plan restarts each app that uses it."
@@ -1315,6 +1355,10 @@ msgstr "值保存在环境中，只会发送给运行了使用它的应用的服
 #: src/features/apps/NewAppSheet.tsx
 msgid "A volume such as data at /data, or a server path."
 msgstr "可以是卷（例如挂载到 /data 的 data），也可以是服务器路径。"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "A website runs on one server, as its certificate comes to the one its DNS points at."
+msgstr "网站运行在一台服务器上，因为证书只会颁发给其 DNS 指向的那一台。"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "About"
@@ -1595,7 +1639,7 @@ msgstr "还能规划并应用可撤销的更改。绝不会删除数据或切断
 msgid "Always"
 msgstr "始终"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
 msgstr "地址或范围，例如隧道在桥接网络上时的 10.77.0.0/24。该代理需要自己的网络，而不是 Docker 默认的 bridge。多个之间用逗号分隔。"
 
@@ -1624,9 +1668,13 @@ msgstr "还有 {moreMounts} 个"
 msgid "and {morePorts} more"
 msgstr "还有 {morePorts} 个"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "Another proxy"
 msgstr "其他代理"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on."
+msgstr "另一个站点，或你网络中的某个地址，例如 http://10.0.0.5:8080。由它自己的小型 Web 服务器转发每个请求。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Any image your server can pull, such as nginx:1.27."
@@ -1656,7 +1704,7 @@ msgstr "访问 {where} 的人将无法再访问到它。"
 msgid "anyone who can reach {server}"
 msgstr "任何能访问 {server} 的人"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "Anyone who can reach this server"
 msgstr "任何能访问此服务器的人"
 
@@ -1789,6 +1837,7 @@ msgstr "自动化"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/shell/Page.tsx
+#: src/features/websites/WebsiteLayout.tsx
 msgid "Back"
 msgstr "返回"
 
@@ -1896,6 +1945,7 @@ msgstr "阻止 <0>{port}</0>，{proto}，来源不限"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/servers/ContainerPage.tsx
+#: src/features/websites/WebsiteLayout.tsx
 msgid "Breadcrumb"
 msgstr "面包屑导航"
 
@@ -1949,9 +1999,17 @@ msgstr "无法加载部署"
 msgid "Can't load the domains"
 msgstr "无法加载域名"
 
+#: src/features/websites/WebsitesPage.tsx
+msgid "Can't load the websites"
+msgstr "无法加载网站"
+
 #: src/features/apps/AppLayout.tsx
 msgid "Can't load this app"
 msgstr "无法加载此应用"
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Can't load this website"
+msgstr "无法加载此网站"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
@@ -2025,6 +2083,7 @@ msgstr "无法扫描？请改为输入这个密钥：<0>{0}</0>"
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/servers/SetPublicAddressSheet.tsx
 #: src/features/variables/VariablesPage.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
 msgid "Cancel"
 msgstr "取消"
 
@@ -2037,6 +2096,31 @@ msgstr "应用目录"
 #: src/features/catalog/CatalogPage.tsx
 msgid "Categories"
 msgstr "分类"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsitesPage.tsx
+msgid "Certificate"
+msgstr "证书"
+
+#: src/features/websites/Standing.tsx
+msgid "certificate expired"
+msgstr "证书已过期"
+
+#: src/features/websites/Standing.tsx
+msgid "certificate failed"
+msgstr "证书获取失败"
+
+#: src/features/websites/Standing.tsx
+msgid "certificate on its way"
+msgstr "证书正在签发"
+
+#: src/features/websites/Standing.tsx
+msgid "certificate renewal failing"
+msgstr "证书续期失败"
+
+#: src/features/websites/Standing.tsx
+msgid "certificate valid"
+msgstr "证书有效"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Change"
@@ -2061,6 +2145,10 @@ msgstr "更改变量 {trimmed}"
 #: src/features/apps/AppDeployments.tsx
 msgid "changed"
 msgstr "已更改"
+
+#: src/features/websites/WebsitesPage.tsx
+msgid "Changed"
+msgstr "更改于"
 
 #: src/features/apps/revision.ts
 msgid "Changed {field}"
@@ -2152,6 +2240,10 @@ msgstr "选择文件"
 msgid "Choose a longer range, or follow what it writes next."
 msgstr "请选择更长的时间范围，或跟随它接下来写入的内容。"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Choose a server"
+msgstr "选择服务器"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Choose an app"
 msgstr "选择应用"
@@ -2159,6 +2251,10 @@ msgstr "选择应用"
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Choose the app this domain reaches."
 msgstr "请选择这个域名要到达的应用。"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Choose the server it runs on."
+msgstr "请选择它运行的服务器。"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
@@ -2230,11 +2326,11 @@ msgstr "关闭搜索"
 msgid "Close, and lose what you typed here?"
 msgstr "关闭并丢弃在此输入的内容？"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "Cloudflare connects to this server's port 80."
 msgstr "Cloudflare 连接此服务器的 80 端口。"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "Cloudflare's proxy"
 msgstr "Cloudflare 代理"
 
@@ -2302,6 +2398,7 @@ msgid "Compose project"
 msgstr "Compose 项目"
 
 #: src/features/apps/AppOverview.tsx
+#: src/features/websites/WebsiteLayout.tsx
 msgid "Configuration"
 msgstr "配置"
 
@@ -2433,6 +2530,10 @@ msgstr "运行中应用的副本"
 #: src/features/files/FilesPage.tsx
 msgid "Copy path {shown}"
 msgstr "复制路径 {shown}"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Copy the config"
+msgstr "复制配置"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
@@ -2686,6 +2787,7 @@ msgid "Dead"
 msgstr "已失效"
 
 #: src/app/Providers.tsx
+#: src/features/websites/Standing.tsx
 msgid "Degraded"
 msgstr "降级"
 
@@ -2730,6 +2832,14 @@ msgstr "删除此备份"
 #: src/features/backups/BackupsPage.tsx
 msgid "Delete this backup of {0}"
 msgstr "删除 {0} 的这份备份"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Delete this website"
+msgstr "删除此网站"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Delete website"
+msgstr "删除网站"
 
 #: src/app/Providers.tsx
 msgid "deleted"
@@ -2874,6 +2984,7 @@ msgstr "服务器上的目录"
 
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/files/FileViewer.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Discard"
 msgstr "丢弃"
 
@@ -2994,6 +3105,10 @@ msgstr "Dockwell 无法读取 {name} 运行的内容"
 #: src/features/apps/AppLayout.tsx
 msgid "Dockwell can't read what this runs"
 msgstr "Dockwell 无法读取它运行的内容"
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Dockwell can't read what this website serves"
+msgstr "Dockwell 无法读取此网站提供的内容"
 
 #: src/features/changes/words.ts
 msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
@@ -3176,6 +3291,8 @@ msgstr "域名"
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/domains/DomainsPage.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Domain"
 msgstr "域名"
 
@@ -3235,6 +3352,8 @@ msgstr "它运行过的每台服务器都已离开集群，因此 Dockwell 无�
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/catalog/InstallSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Edit and try again"
 msgstr "修改后重试"
 
@@ -3446,6 +3565,7 @@ msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"
 
 #: src/features/servers/ServerFrame.tsx
+#: src/features/websites/WebsitesPage.tsx
 msgid "Files"
 msgstr "文件"
 
@@ -3545,13 +3665,18 @@ msgstr "已连接 {connected}"
 msgid "for {span}"
 msgstr "已持续 {span}"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
 msgstr "用于前面没有任何代理的私有网络。否则，发往服务器自身地址的请求会得到 404。"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "For a script, the CLI or an integration"
 msgstr "用于脚本、CLI 或集成"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
+msgstr "适用于承载多个域名的站点，例如通过 HTTPS 访问的另一个站点。关闭时，它收到的是此网站的域名。"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
@@ -3611,6 +3736,11 @@ msgstr "请填写{missingLabel}，然后审阅计划"
 msgid "Give each variable a value to review the plan"
 msgstr "为每个变量填写值后即可查看计划"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Give the URL to send to, such as https://backend.example.com."
+msgstr "请填写要转发到的 URL，例如 https://backend.example.com。"
+
 #: src/features/system/StatusPage.tsx
 msgid "Go"
 msgstr "Go"
@@ -3628,6 +3758,11 @@ msgstr "转到最后一处"
 #: src/features/shell/NotYet.tsx
 msgid "Go to the overview"
 msgstr "前往概览"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Go to the websites"
+msgstr "前往网站"
 
 #. placeholder {0}: parentOf(folder)
 #: src/features/files/FilesPage.tsx
@@ -3671,6 +3806,7 @@ msgstr "健康检查超时"
 #: src/app/Providers.tsx
 #: src/features/activity/describe.ts
 #: src/features/apps/Health.tsx
+#: src/features/websites/Standing.tsx
 msgid "Healthy"
 msgstr "健康"
 
@@ -3859,7 +3995,7 @@ msgstr "它还会移除此服务的另外 {extra} 个容器，它们是中途停
 msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
 msgstr "它通过纯 HTTP 响应任何能访问 {server} 80 端口的人，绕过它前面的任何东西"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
 msgstr "它会通过明文 HTTP 响应任何能访问 80 端口的人，绕过前面的任何代理。你需要在计划中批准此项。"
 
@@ -4177,6 +4313,14 @@ msgstr "它所在的项目，让它与你的其他应用彼此隔离。"
 msgid "Its rollout order says to stop first, so there are never two"
 msgstr "其发布顺序设置为先停止，因此不会同时存在两个容器"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Its route and its web server go. Undo from Activity brings them back."
+msgstr "它的路由和 Web 服务器会被删除。在“动态”中撤销即可恢复。"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Its route goes, and what listens on the port keeps running. Undo from Activity brings it back."
+msgstr "它的路由会被删除，端口上监听的程序继续运行。在“动态”中撤销即可恢复。"
+
 #: src/features/activity/describe.ts
 #: src/features/changes/notices.tsx
 msgid "its server"
@@ -4197,6 +4341,10 @@ msgstr "它的值含有空格、引号或 Compose 会当作这一行一部分来
 #: src/features/changes/notices.tsx
 msgid "Its volumes are backed up first"
 msgstr "它的卷会先备份"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Its web server"
+msgstr "它的 Web 服务器"
 
 #: src/features/apps/ExportSheet.tsx
 msgid "Its whole project"
@@ -4426,6 +4574,10 @@ msgstr "正在加载应用"
 msgid "Loading the plan"
 msgstr "正在加载计划"
 
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Loading the website"
+msgstr "正在加载网站"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Loading tokens"
 msgstr "正在加载令牌"
@@ -4434,6 +4586,10 @@ msgstr "正在加载令牌"
 msgid "Loading variables and secrets"
 msgstr "正在加载变量和密钥"
 
+#: src/features/websites/WebsitesPage.tsx
+msgid "Loading websites"
+msgstr "正在加载网站"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Log filters"
 msgstr "日志筛选"
@@ -4441,6 +4597,7 @@ msgstr "日志筛选"
 #: src/features/apps/AppLayout.tsx
 #: src/features/files/FilesPage.tsx
 #: src/features/logs/LogsPage.tsx
+#: src/features/websites/WebsiteLayout.tsx
 msgid "Logs"
 msgstr "日志"
 
@@ -4616,6 +4773,10 @@ msgstr "请填写地址，例如 203.0.113.7。"
 msgid "Name the domain, such as app.example.com."
 msgstr "请填写域名，例如 app.example.com。"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Name the domain, such as blog.example.com."
+msgstr "请填写域名，例如 blog.example.com。"
+
 #: src/features/apps/DeploySheet.tsx
 msgid "Name the image to run, such as {current}."
 msgstr "请填写要运行的镜像，例如 {current}。"
@@ -4637,6 +4798,7 @@ msgid "Name the token after what will use it, such as GitHub Actions deploy."
 msgstr "用将要使用它的程序为令牌命名，例如 GitHub Actions deploy。"
 
 #: src/features/apps/AddDomainSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
 msgid "Name what connects to this server, as an address or a range."
 msgstr "请以地址或范围的形式，写明连接此服务器的来源。"
 
@@ -4703,6 +4865,11 @@ msgstr "新的恢复码"
 #: src/features/variables/VariablesPage.tsx
 msgid "New value"
 msgstr "新值"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsitesPage.tsx
+msgid "New website"
+msgstr "新建网站"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Next error"
@@ -4772,6 +4939,10 @@ msgstr "还没有备份"
 msgid "No container matches this filter."
 msgstr "没有符合此筛选条件的容器。"
 
+#: src/features/websites/Standing.tsx
+msgid "No domain"
+msgstr "没有域名"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "No domain here matches what you've chosen. Try part of a name, or another state."
 msgstr "这里没有符合所选条件的域名。请试试名称的一部分，或换一种状态。"
@@ -4816,6 +4987,10 @@ msgstr "{rpId} 上还没有可用的通行密钥"
 #: src/features/domains/DomainsPage.tsx
 msgid "No report"
 msgstr "无上报"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "No route gives it a domain now"
+msgstr "目前没有路由为它提供域名"
 
 #: src/features/changes/words.ts
 msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
@@ -4864,6 +5039,14 @@ msgstr "无法撤销"
 #: src/features/variables/VariablesPage.tsx
 msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
 msgstr "{envName} 中还没有变量或密钥。请在上方添加第一个，服务随后按名称使用它。"
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "No website with this ID"
+msgstr "没有此 ID 的网站"
+
+#: src/features/websites/WebsitesPage.tsx
+msgid "No websites yet"
+msgstr "还没有网站"
 
 #: src/features/apps/AppOverview.tsx
 msgid "Nobody can say how {name} runs"
@@ -4940,6 +5123,10 @@ msgstr "未部署"
 msgid "Not running"
 msgstr "没有运行"
 
+#: src/features/websites/Standing.tsx
+msgid "Not serving"
+msgstr "未在服务"
+
 #: src/features/servers/containers.ts
 msgid "Not started"
 msgstr "未启动"
@@ -4948,16 +5135,22 @@ msgstr "未启动"
 msgid "Not used yet"
 msgstr "尚未使用"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Not valid"
+msgstr "无效"
+
 #: src/features/files/FilesPage.tsx
 msgid "Nothing at this path"
 msgstr "这个路径下什么都没有"
 
 #: src/features/apps/AppLayout.tsx
+#: src/features/websites/WebsiteLayout.tsx
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "服务器上没有任何变化。请重新加载页面再试。"
 
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
 msgid "Nothing changes until you apply the plan"
 msgstr "应用计划之前不会有任何更改"
 
@@ -5008,6 +5201,10 @@ msgstr "没有符合这些筛选条件的内容。"
 #: src/features/files/FilesPage.tsx
 msgid "Nothing here matches your search."
 msgstr "这里没有符合搜索条件的内容。"
+
+#: src/features/websites/WebsiteLogs.tsx
+msgid "Nothing here writes logs"
+msgstr "这里没有写日志的程序"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Nothing here yet"
@@ -5124,6 +5321,7 @@ msgstr "离线"
 
 #: src/features/auth/TotpPanel.tsx
 #: src/features/backups/PolicySheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "On"
 msgstr "开启"
 
@@ -5249,6 +5447,10 @@ msgstr "打开 {name}"
 msgid "Open {where}"
 msgstr "打开 {where}"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Open in Domains"
+msgstr "在“域名”中打开"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Open plan"
 msgstr "打开计划"
@@ -5331,6 +5533,10 @@ msgid "Open the variables and secrets of {name}"
 msgstr "打开 {name} 的变量和密钥"
 
 #: src/features/shell/CommandMenu.tsx
+msgid "Open the websites"
+msgstr "打开网站"
+
+#: src/features/shell/CommandMenu.tsx
 msgid "Open your profile and security settings"
 msgstr "打开你的个人资料和安全设置"
 
@@ -5386,6 +5592,14 @@ msgstr "这里已有其他应用，因此需要单独的名称，例如 <0>shop<
 #: src/features/apps/NewAppSheet.tsx
 msgid "Other apps on its network reach it by this name."
 msgstr "同一网络上的其他应用通过此名称访问它。"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Over HTTPS, with its own certificate"
+msgstr "通过 HTTPS，使用它自己的证书"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Over plain HTTP, to anyone who reaches the server"
+msgstr "通过明文 HTTP，任何能访问到服务器的人都可以访问"
 
 #: src/features/apps/AppLayout.tsx
 #: src/features/overview/Overview.tsx
@@ -5496,6 +5710,18 @@ msgstr "已暂停"
 msgid "People outside the server reach the app through this port"
 msgstr "服务器外部的用户通过这个端口访问应用"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "People reach it at its domain, over HTTPS"
+msgstr "访问者通过 HTTPS 在其域名上访问它"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "People reach it at its domain, over plain HTTP"
+msgstr "访问者通过明文 HTTP 在其域名上访问它"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "People reach it at its domain, through what's in front of this server"
+msgstr "访问者经由此服务器前面的隧道或代理在其域名上访问它"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "People reach the app at this name, over HTTPS"
 msgstr "用户通过这个域名以 HTTPS 访问应用"
@@ -5523,6 +5749,10 @@ msgstr "常用位置"
 #: src/features/apps/revision.ts
 msgid "Placing it on {added}"
 msgstr "正在把它放到 {added} 上"
+
+#: src/features/websites/Standing.tsx
+msgid "plain HTTP"
+msgstr "明文 HTTP"
 
 #: src/features/apps/DomainNote.tsx
 msgid "Plain HTTP"
@@ -5590,11 +5820,17 @@ msgstr "请添加指向此服务器公网地址的 A 记录。Dockwell 在这里
 msgid "Point an A record at your router's public address."
 msgstr "请添加指向路由器公网地址的 A 记录。"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
+msgstr "将它的 DNS 指向此服务器，之前或之后均可。指向后证书会自动签发。"
+
 #: src/features/apps/AddDomainSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
 msgid "Point its DNS at this server."
 msgstr "将其 DNS 指向此服务器。"
 
 #: src/features/apps/AddDomainSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
 msgid "Point its DNS at your tunnel or proxy."
 msgstr "将它的 DNS 指向你的隧道或代理。"
 
@@ -5605,6 +5841,10 @@ msgstr "端口"
 #: src/features/apps/DomainNote.tsx
 msgid "port {hostPort} on the server"
 msgstr "服务器上的端口 {hostPort}"
+
+#: src/features/websites/WebsitesPage.tsx
+msgid "Port {port} on the server"
+msgstr "服务器上的端口 {port}"
 
 #: src/features/apps/AppOverview.tsx
 msgid "port {target}"
@@ -5633,6 +5873,8 @@ msgid "port on the server"
 msgstr "服务器端口"
 
 #: src/features/apps/AddDomainSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Port on the server"
 msgstr "服务器上的端口"
 
@@ -5848,6 +6090,10 @@ msgstr "排队中"
 #: src/features/servers/ServerPanels.tsx
 msgid "Reachable"
 msgstr "可访问"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Reached"
+msgstr "访问方式"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Reaches {path}"
@@ -6183,6 +6429,19 @@ msgstr "显示了一个密钥"
 msgid "Revealed the secret {name}"
 msgstr "显示了密钥 {name}"
 
+#: src/features/websites/WebsitesPage.tsx
+msgid "Reverse proxy"
+msgstr "反向代理"
+
+#. placeholder {0}: targetOf(site.spec)
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Reverse proxy to {0}"
+msgstr "反向代理到 {0}"
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Reverse proxy to port {port} on the server"
+msgstr "反向代理到服务器上的端口 {port}"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
@@ -6194,6 +6453,8 @@ msgstr "显示了密钥 {name}"
 #: src/features/catalog/InstallSheet.tsx
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/variables/VariablesPage.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Review plan"
 msgstr "审查计划"
 
@@ -6358,6 +6619,10 @@ msgstr "轮换了加密所有密钥的密钥"
 msgid "route"
 msgstr "路由"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Route"
+msgstr "路由"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "Routes to"
 msgstr "路由到"
@@ -6418,6 +6683,7 @@ msgstr "不运行入口点"
 
 #: src/features/apps/AppsPage.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/websites/WebsitesPage.tsx
 msgid "Runs on"
 msgstr "运行于"
 
@@ -6600,6 +6866,10 @@ msgstr "将 {wanted} 发送到 {name}"
 msgid "Send a copy to"
 msgstr "发送副本到"
 
+#: src/features/websites/WebsitesPage.tsx
+msgid "Send a domain to a URL, or to a port on your server. You review a plan before anything changes."
+msgstr "将域名转发到某个 URL，或你服务器上的某个端口。任何变更之前，你都会先审查计划。"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "Send a domain to one of your apps. You review a plan before anything changes."
 msgstr "把域名指向你的某个应用。任何改动生效前，你都会先审阅计划。"
@@ -6607,6 +6877,11 @@ msgstr "把域名指向你的某个应用。任何改动生效前，你都会先
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Send backups to {name}"
 msgstr "将备份发送到 {name}"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Send the URL's own name as Host"
+msgstr "将 URL 自己的主机名作为 Host 发送"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Sending"
@@ -6616,6 +6891,15 @@ msgstr "发送"
 #: src/features/backups/BackupsPage.tsx
 msgid "Sending to {0}"
 msgstr "正在发送到 {0}"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Sends its requests to"
+msgstr "将请求转发到"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Sends to"
+msgstr "转发到"
 
 #: src/app/Providers.tsx
 #: src/features/activity/ActivityPage.tsx
@@ -6631,6 +6915,7 @@ msgstr "服务器"
 #: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx
 #: src/features/shell/TabBar.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
 msgid "Server"
 msgstr "服务器"
 
@@ -6933,6 +7218,10 @@ msgstr "有人暂停了它，因此它不提供服务，也不会运行检查。
 msgid "something else on the server"
 msgstr "服务器上的其他内容"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan."
+msgstr "服务器本身上监听的程序，例如端口 3000。它会把每个访问者都视为本机，所以需要你在计划中批准。"
+
 #: src/features/changes/notices.tsx
 msgid "Something may still manage {container}"
 msgstr "可能还有其他工具在管理 {container}"
@@ -6957,6 +7246,10 @@ msgstr "来源"
 msgid "sources"
 msgstr "来源"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "Start it with http:// or https://, such as https://backend.example.com."
+msgstr "请以 http:// 或 https:// 开头，例如 https://backend.example.com。"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Start of the log"
 msgstr "日志开头"
@@ -6970,6 +7263,7 @@ msgid "Started"
 msgstr "开始时间"
 
 #: src/features/apps/Health.tsx
+#: src/features/websites/Standing.tsx
 msgid "Starting"
 msgstr "正在启动"
 
@@ -6984,6 +7278,7 @@ msgstr "状态"
 #: src/features/backups/BackupsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
+#: src/features/websites/WebsitesPage.tsx
 msgid "Status"
 msgstr "状态"
 
@@ -7041,7 +7336,11 @@ msgstr "例如 1Password、Google Authenticator 或 Aegis"
 msgid "Such as 8080 on the server, to 80 in the app."
 msgstr "例如将服务器上的 8080 映射到应用内的 80。"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
+msgid "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+msgstr "例如在服务器自身网络上运行的 cloudflared。网站转发到的目标能读取访问者的地址和 https。在桥接网络上的隧道在这里算作其他代理，按该网络的范围填写。"
+
+#: src/features/apps/FrontFields.tsx
 msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
 msgstr "例如在服务器自身网络上的 cloudflared。你的应用能读取访问者的地址和 https。桥接网络上的隧道在这里算作其他代理，用该网络的范围来指定。"
 
@@ -7367,6 +7666,18 @@ msgstr "{name} 备份的一小时时限只是估计"
 msgid "The image's own"
 msgstr "镜像自带"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "The ingress sends each request straight to the port"
+msgstr "入口代理将每个请求直接发送到该端口"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "The ingress sends each request straight to the port, with nothing of its own between, so there's no config here to show. Whatever listens there sees every visitor as local."
+msgstr "入口代理将每个请求直接发送到该端口，中间没有它自己的服务器，所以这里没有配置可显示。在那里监听的程序会把每个访问者都视为本机。"
+
+#: src/features/websites/WebsiteLogs.tsx
+msgid "The ingress sends this website straight to port {port} on the server, with nothing of its own between. What listens there keeps its own logs."
+msgstr "入口代理将此网站直接发送到服务器上的端口 {port}，中间没有它自己的服务器。在那里监听的程序自己保存日志。"
+
 #: src/features/apps/AppOverview.tsx
 msgid "The last deploy failed, so Dockwell rolled it back"
 msgstr "上次部署失败，Dockwell 已将其回滚"
@@ -7587,6 +7898,10 @@ msgstr "位于 {path} 的卷驱动 {driver}，可访问该插件能访问的内�
 #: src/features/changes/words.ts
 msgid "the volume driver {driver}, which reaches what the plugin does ({reads})"
 msgstr "卷驱动 {driver}，可访问该插件能访问的内容（{reads}）"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "The web server's config"
+msgstr "Web 服务器的配置"
 
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/MorePage.tsx
@@ -7815,7 +8130,7 @@ msgstr "这个面板控制 {name}。请用通行密钥创建所有者账户。"
 msgid "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
 msgstr "Dockwell 的这一部分尚未完成，会在之后的版本中推出。在此之前，可以在概览中查看服务器的运行情况。"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
 msgstr "这段路径在 Cloudflare 与此服务器之间以未加密方式经过公共互联网。它需要 Cloudflare 的 Flexible 模式，而隧道是更好的方式。"
 
@@ -7896,7 +8211,7 @@ msgstr "此服务器位于运营商级 NAT 之后，DNS 记录和端口转发都
 msgid "this server shares what it carries live between everyone reading it."
 msgstr "这台服务器的实时带宽由所有读者分享。"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "This server takes no certificate, and traffic reaches it unencrypted."
 msgstr "此服务器不使用证书，流量以未加密方式到达。"
 
@@ -7933,6 +8248,14 @@ msgstr "这会在数据库运行时使用 {0} 自带的转储，不会停止任�
 msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
 msgstr "此视图保留最新的 {most} 行。较早的日志请用 <0>dockwell logs read</0> 读取。"
 
+#: src/features/websites/WebsiteLogs.tsx
+msgid "This website has no web server of its own now, so there's nothing of its own to read."
+msgstr "此网站目前没有自己的 Web 服务器，因此没有它自己的日志可读。"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Through a tunnel or a proxy in front, which ends TLS"
+msgstr "通过前面终止 TLS 的隧道或代理"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Time"
 msgstr "时间"
@@ -7942,6 +8265,7 @@ msgid "Time range"
 msgstr "时间范围"
 
 #: src/features/apps/DomainNote.tsx
+#: src/features/websites/Standing.tsx
 msgid "TLS ends in front"
 msgstr "TLS 在前端终止"
 
@@ -8059,6 +8383,7 @@ msgstr "趋势"
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/logs/LogsPage.tsx
+#: src/features/websites/WebsitesPage.tsx
 msgid "Try again"
 msgstr "重试"
 
@@ -8101,6 +8426,10 @@ msgstr "两个容器不能同时写入服务器路径 {paths}，因此旧容器�
 #: src/features/changes/words.ts
 msgid "Two containers mustn't write to the volume {volumes} at once, so the old one stops first. If the app can, set its rollout order to start first"
 msgstr "两个容器不能同时写入卷 {volumes}，因此旧容器会先停止。如果应用支持同时写入，请将其发布顺序设置为先启动"
+
+#: src/features/websites/WebsitesPage.tsx
+msgid "Type"
+msgstr "类型"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "Type <0>{confirmWith}</0> to apply it"
@@ -8175,6 +8504,8 @@ msgstr "不健康"
 #: src/features/servers/FleetNotes.tsx
 #: src/features/servers/ServerFrame.tsx
 #: src/features/servers/ServerPanels.tsx
+#: src/features/websites/Standing.tsx
+#: src/features/websites/WebsitesPage.tsx
 msgid "Unknown"
 msgstr "未知"
 
@@ -8275,6 +8606,11 @@ msgstr "升级到 {latest}"
 msgid "Upgrade to {next}"
 msgstr "升级到 {next}"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "URL"
+msgstr "URL"
+
 #: src/features/backups/PolicySheet.tsx
 msgid "Use 24-hour HH:MM, such as 03:00."
 msgstr "请使用 24 小时制 HH:MM，例如 03:00。"
@@ -8298,6 +8634,8 @@ msgstr "使用我已有的密码短语"
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
 #: src/features/apps/NewAppSheet.tsx
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Use a port from 1 to 65535."
 msgstr "请使用 1 到 65535 之间的端口。"
 
@@ -8361,6 +8699,8 @@ msgid "User"
 msgstr "用户"
 
 #: src/features/apps/DomainNote.tsx
+#: src/features/websites/Standing.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
 msgid "Valid"
 msgstr "有效"
 
@@ -8423,6 +8763,10 @@ msgstr "版本 {version}"
 #: src/features/auth/SignInPage.tsx
 msgid "Version <0>{0}</0>"
 msgstr "版本 <0>{0}</0>"
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Visit site"
+msgstr "访问网站"
 
 #. placeholder {0}: going.length
 #: src/features/changes/ChangeSheet.tsx
@@ -8488,10 +8832,45 @@ msgstr "警告"
 msgid "Warnings"
 msgstr "警告"
 
+#. placeholder {0}: was.url
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Was {0}"
+msgstr "原为 {0}"
+
+#. placeholder {0}: was.port
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Was {0} · whatever listens there sees every visitor as local"
+msgstr "原为 {0} · 在那里监听的程序会把每个访问者都视为本机"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Was a port on this server"
+msgstr "原为此服务器上的端口"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Was a URL"
+msgstr "原为 URL"
+
+#: src/features/websites/WebsiteLayout.tsx
+#: src/features/websites/WebsitesPage.tsx
+msgid "Website"
+msgstr "网站"
+
+#: src/features/websites/WebsiteLayout.tsx
+msgid "Website sections"
+msgstr "网站分区"
+
 #: src/features/files/FilesPage.tsx
-#: src/features/shell/sections.ts
+#: src/features/shell/MorePage.tsx
+#: src/features/shell/Rail.tsx
+#: src/features/websites/WebsiteLayout.tsx
+#: src/features/websites/WebsitesPage.tsx
 msgid "Websites"
 msgstr "网站"
+
+#. placeholder {0}: only.name
+#: src/features/websites/WebsitesPage.tsx
+msgid "Websites on {0}"
+msgstr "{0} 上的网站"
 
 #: src/features/backups/PolicySheet.tsx
 msgid "Weekly"
@@ -8510,7 +8889,7 @@ msgstr "应用的影响"
 msgid "What changed"
 msgstr "变更内容"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "What connects to this server"
 msgstr "连接此服务器的来源"
 
@@ -8533,6 +8912,10 @@ msgstr "原定计划"
 #: src/features/changes/ChangeSheet.tsx
 msgid "What it would have done"
 msgstr "计划内容"
+
+#: src/features/websites/NewWebsiteSheet.tsx
+msgid "What listens on the server itself, on 127.0.0.1 or every address. Port 80 is the proxy's."
+msgstr "服务器本身上监听的程序，监听 127.0.0.1 或所有地址。端口 80 归代理使用。"
 
 #: src/features/apps/AddPortSheet.tsx
 msgid "What people connect to, such as 8080."
@@ -8649,7 +9032,11 @@ msgstr "你输入的内容还在这里。"
 msgid "What your domains serve isn't affected."
 msgstr "你的域名所提供的服务不受影响。"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/websites/WebsitesPage.tsx
+msgid "What your websites serve isn't affected."
+msgstr "网站提供的服务不受影响。"
+
+#: src/features/apps/FrontFields.tsx
 msgid "What's in front"
 msgstr "前面是什么"
 
@@ -8661,6 +9048,10 @@ msgstr "前面的代理无法再连接 {where}，因此访问者会看到它对�
 msgid "What's in front gets a 404 for {where}, so visitors see whatever it shows for one."
 msgstr "前面的代理访问 {where} 会得到 404，因此访问者会看到它对 404 的显示内容。"
 
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Whatever listens there sees every visitor as local, so you approve it in the plan."
+msgstr "在那里监听的程序会把每个访问者都视为本机，所以需要你在计划中批准。"
+
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AppDeployments.tsx
 msgid "When"
@@ -8669,6 +9060,10 @@ msgstr "时间"
 #: src/features/apps/words.ts
 msgid "When it exits with an error"
 msgstr "出错退出时"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "Where it sends"
+msgstr "转发目标"
 
 #: src/features/changes/notices.tsx
 msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
@@ -8703,6 +9098,11 @@ msgstr "经由 {list} 而来的任何人"
 msgid "Why it failed"
 msgstr "失败原因"
 
+#: src/features/websites/NewWebsiteSheet.tsx
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "With a path, such as /app, each request goes under it."
+msgstr "带路径时（例如 /app），每个请求都会放在该路径下。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "没有卷时，容器被替换后写入的内容会丢失。"
@@ -8723,6 +9123,10 @@ msgstr "在 {where} 上可用"
 #: src/features/logs/LogsPage.tsx
 msgid "Wrap long lines"
 msgstr "自动换行"
+
+#: src/features/websites/WebsiteConfiguration.tsx
+msgid "written by Dockwell from these settings"
+msgstr "由 Dockwell 根据这些设置生成"
 
 #: src/features/changes/fields.tsx
 msgid "yes"
@@ -8757,7 +9161,7 @@ msgstr "你无法读取这些日志"
 msgid "You have unsaved changes to {name}"
 msgstr "{name} 有未保存的更改"
 
-#: src/features/apps/AddDomainSheet.tsx
+#: src/features/apps/FrontFields.tsx
 msgid "You name what connects to this server."
 msgstr "由你写明连接此服务器的来源。"
 

@@ -12,20 +12,9 @@ import {
   type Server,
   type ServiceInfo,
 } from "@dockwell/api";
-import {
-  Button,
-  Callout,
-  cx,
-  Icon,
-  PHONE_QUERY,
-  SelectField,
-  Sheet,
-  Switch,
-  TextField,
-  useMediaQuery,
-} from "@dockwell/ui";
+import { Button, Callout, cx, Icon, PHONE_QUERY, SelectField, Sheet, TextField, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
@@ -35,6 +24,7 @@ import { appOf, environmentOf, nameOf } from "./app";
 import { useRouteTarget, useTunnelSwitchName } from "./DomainNote";
 import { DomainRecord } from "./DomainRecord";
 import { formRefusal, proxyList, refusedField, routeName } from "./domains";
+import { FrontFields, frontOf, type InFront } from "./FrontFields";
 import { validPort } from "./form";
 
 /** A domain that's refused a certificate, moved behind what's in front by editing the routes it has. */
@@ -77,9 +67,6 @@ function serverOf(fleet: FleetState, id: string): Server | undefined {
   if (fleet.status === "connecting") return undefined;
   return fleet.servers.find((s) => s.id === id) ?? (fleet.servers.length === 1 ? fleet.servers[0] : undefined);
 }
-
-/** What ends TLS in front of this server, which says who the route answers. */
-type InFront = "tunnel" | "cloudflare" | "proxy" | "anyone";
 
 /**
  * Sends a domain to this app: a domain and the port it listens on, then the plan,
@@ -144,7 +131,6 @@ export function AddDomainSheet({
   const leaves = !start && held && held.service !== name ? held : undefined;
   const target = useRouteTarget();
   const leavesApp = leaves ? target(leaves) : "";
-  const choiceName = useId();
 
   /** Takes you to the first field that was refused, ready to change, as New app does. */
   const revealError = () =>
@@ -190,13 +176,6 @@ export function AddDomainSheet({
     }
   };
 
-  // What a choice warns of is what it's for, so it isn't left below the fold of a phone.
-  const said = useRef<HTMLDivElement>(null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: it runs as the choice changes, once what it says is there.
-  useEffect(() => {
-    said.current?.scrollIntoView?.({ block: "nearest" });
-  }, [inFront]);
-
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
     if (busy) return;
@@ -214,18 +193,7 @@ export function AddDomainSheet({
       revealError();
       return;
     }
-    const front = () => {
-      switch (inFront) {
-        case "tunnel":
-          return { tls: "off", trustedProxies: ["127.0.0.1"] };
-        case "cloudflare":
-          return { tls: "off", trustedProxies: ["cloudflare"] };
-        case "proxy":
-          return { tls: "off", trustedProxies: named };
-        case "anyone":
-          return { tls: "off", plainForAnyone: true };
-      }
-    };
+    const front = () => frontOf(noCertificate, inFront, named);
     setBusy(true);
     let change: Change | undefined;
     try {
@@ -301,21 +269,6 @@ export function AddDomainSheet({
       },
     });
   };
-
-  const choices: { value: InFront; label: string; hint: string }[] = [
-    {
-      value: "tunnel",
-      label: t`A tunnel on this server`,
-      hint: t`Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range.`,
-    },
-    { value: "cloudflare", label: t`Cloudflare's proxy`, hint: t`Cloudflare connects to this server's port 80.` },
-    { value: "proxy", label: t`Another proxy`, hint: t`You name what connects to this server.` },
-    {
-      value: "anyone",
-      label: t`Anyone who can reach this server`,
-      hint: t`For a private network with nothing in front. Without this, a request to the server's own address gets a 404.`,
-    },
-  ];
 
   return (
     <Sheet
@@ -438,71 +391,21 @@ export function AddDomainSheet({
             onChange={(event) => setServer(event.target.value)}
           />
         ) : null}
-        <Switch
-          className="app-front-switch"
-          label={switchName}
-          description={t`This server takes no certificate, and traffic reaches it unencrypted.`}
-          checked={noCertificate}
-          onChange={setNoCertificate}
+        <FrontFields
+          noCertificate={noCertificate}
+          onNoCertificate={setNoCertificate}
+          inFront={inFront}
+          onInFront={(value) => {
+            setInFront(value);
+            setProxiesError(undefined);
+          }}
+          proxies={proxies}
+          onProxies={(value) => {
+            setProxies(value);
+            setProxiesError(undefined);
+          }}
+          proxiesError={proxiesError}
         />
-        {noCertificate ? (
-          <fieldset className="app-front">
-            <legend className="dw-field-label">
-              <Trans>What's in front</Trans>
-            </legend>
-            {choices.map((choice) => (
-              <label key={choice.value} className={cx("app-front-choice", inFront === choice.value && "is-on")}>
-                <input
-                  type="radio"
-                  name={choiceName}
-                  checked={inFront === choice.value}
-                  onChange={() => {
-                    setInFront(choice.value);
-                    setProxiesError(undefined);
-                  }}
-                />
-                <span className="app-front-text">
-                  <span className="app-front-name">{choice.label}</span>
-                  <span className="app-front-hint">{choice.hint}</span>
-                </span>
-              </label>
-            ))}
-            <div ref={said} className="app-front-says">
-              {inFront === "proxy" ? (
-                <TextField
-                  label={t`What connects to this server`}
-                  mono
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  value={proxies}
-                  error={proxiesError}
-                  hint={t`An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas.`}
-                  onChange={(event) => {
-                    setProxies(event.target.value);
-                    setProxiesError(undefined);
-                  }}
-                />
-              ) : null}
-              {inFront === "cloudflare" ? (
-                <Callout tone="warning">
-                  <Trans>
-                    This path crosses the open internet unencrypted, between Cloudflare and this server. It needs
-                    Flexible mode in Cloudflare, and a tunnel is the better way.
-                  </Trans>
-                </Callout>
-              ) : null}
-              {inFront === "anyone" ? (
-                <Callout tone="warning">
-                  <Trans>
-                    It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve
-                    this in the plan.
-                  </Trans>
-                </Callout>
-              ) : null}
-            </div>
-          </fieldset>
-        ) : null}
       </form>
     </Sheet>
   );

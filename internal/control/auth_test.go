@@ -41,6 +41,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
+	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
@@ -111,6 +112,9 @@ type fullServer struct {
 	// volumes wraps the volume driver of the next server added, to see what its
 	// agent hears. Nil leaves it as it is.
 	volumes func(*volume.Driver) resource.Type
+	// probe makes the checks an agent makes of a container on the next server added,
+	// as a fake engine's containers listen nowhere. Nil dials them.
+	probe func(ctx context.Context, c *health.Check, address string) (health.Result, error)
 }
 
 // execSQL runs a statement on the server's database from outside the store,

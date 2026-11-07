@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/website"
 )
 
 // Kinds.
@@ -61,18 +62,26 @@ func (ProjectType) IDPrefix() string { return id.Project }
 // New returns an empty Project.
 func (ProjectType) New() proto.Message { return &resourcev1.Project{} }
 
-// Validate trims the display name.
+// Validate trims the display name, and checks what a website serves.
 func (ProjectType) Validate(spec proto.Message) error {
 	p := spec.(*resourcev1.Project)
 	p.DisplayName = strings.TrimSpace(p.GetDisplayName())
+	if p.GetWebsite() != nil {
+		return website.Check(p.GetWebsite())
+	}
 	return nil
 }
 
-// Keep holds on to what a project is pinned to, as an edit replaces a whole spec and
-// no one renaming a project means to forget where it came from.
+// Keep holds on to what a project is pinned to, and what it serves as a website, as
+// an edit replaces a whole spec and no one renaming a project means to forget where
+// it came from or what it is.
 func (ProjectType) Keep(current, desired proto.Message) (resource.Kept, error) {
-	if d := desired.(*resourcev1.Project); d.GetCatalog() == nil {
-		d.Catalog = current.(*resourcev1.Project).GetCatalog()
+	d, c := desired.(*resourcev1.Project), current.(*resourcev1.Project)
+	if d.GetCatalog() == nil {
+		d.Catalog = c.GetCatalog()
+	}
+	if d.GetWebsite() == nil {
+		d.Website = c.GetWebsite()
 	}
 	return resource.Kept{}, nil
 }

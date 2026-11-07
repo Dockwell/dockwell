@@ -45,5 +45,6 @@ func Commands() []string {
 		"totp",
 		"variables",
 		"volumes",
+		"websites",
 	}
 }
