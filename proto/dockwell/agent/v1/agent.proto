@@ -13,6 +13,7 @@ import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/server.proto";
 import "dockwell/v1/system.proto";
+import "dockwell/v1/terminal.proto";
 import "dockwell/v1/update.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
@@ -53,6 +54,15 @@ service AgentService {
   rpc SendLogs(stream SendLogsRequest) returns (SendLogsResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
   }
+
+  // Terminal carries one attachment of a terminal (AttachTerminalCall), which the
+  // agent opens on a connection of its own for each one, as SendLogs does: what
+  // the terminal prints goes up, and what's typed comes down. Flow control is the
+  // backpressure, so a reader that's slow holds up this terminal's shell and
+  // nothing else. See docs/adr/0037-a-terminal-on-a-server.md.
+  rpc Terminal(stream TerminalRequest) returns (stream TerminalResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+  }
 }
 
 // ConnectRequest is one message from the agent.
@@ -92,7 +102,24 @@ message ConnectRequest {
     // What the server finds out of how the internet sees it, as the stream
     // opens, and again every few hours.
     Network network = 11;
+    // A terminal ended, as its shell exited or it timed out, on whichever stream
+    // is up then. Numbered apart, as open work adds to this message.
+    TerminalEnded terminal_ended = 20;
   }
+}
+
+// TerminalEnded says how a terminal ended.
+message TerminalEnded {
+  // The terminal's ID.
+  string id = 1;
+  // What the control plane called its opening when it asked for it
+  // (OpenTerminalCall.record), so it can put the end on record whoever's
+  // listening.
+  string record = 2;
+  // How it ended.
+  dockwell.v1.TerminalEnd end = 3;
+  // When it opened, by this server's clock.
+  google.protobuf.Timestamp opened = 4;
 }
 
 // Unstuck says something that held calls up on the agent ended.
@@ -247,6 +274,13 @@ message Hello {
   // to them at once: the terminal 50 to 52, and updates 53, so the next of either
   // takes 54.
   bool updates = 53;
+  // True when the agent opens terminals (OpenTerminalCall). Numbered apart, as
+  // open work adds to this message.
+  bool terminals = 20;
+  // The terminals the agent has that the control plane hasn't heard the end of:
+  // those still open, and those whose TerminalEnded hasn't gone yet. A control
+  // plane that doesn't know one asks for it to be closed.
+  repeated string open_terminals = 21;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -416,7 +450,97 @@ message Call {
     // 50 to 59 in agent messages: the terminal 50 to 52, and updates 53, so the
     // next of either takes 54.
     ListUpdatesCall list_updates = 53;
+    // Start a shell. Numbered apart, as open work adds to this message.
+    OpenTerminalCall open_terminal = 30;
+    // Carry a terminal's bytes over Terminal, until the attachment ends.
+    AttachTerminalCall attach_terminal = 31;
+    // Hang up a terminal's shell.
+    CloseTerminalCall close_terminal = 32;
   }
+}
+
+// OpenTerminalCall starts root's login shell on the server.
+message OpenTerminalCall {
+  // The terminal's ID, which the control plane gives it.
+  string id = 1;
+  // Its width, in characters.
+  uint32 columns = 2;
+  // Its height, in lines.
+  uint32 rows = 3;
+  // What the control plane calls its opening, which TerminalEnded hands back.
+  string record = 4;
+}
+
+// OpenTerminalResult is the terminal, running.
+message OpenTerminalResult {
+  // Who it runs as and where, such as "root@hz-1".
+  string title = 1;
+  // When it opened, by this server's clock.
+  google.protobuf.Timestamp opened = 2;
+}
+
+// AttachTerminalCall has the agent open Terminal for a terminal, and carry its
+// bytes over it until the attachment ends: the control plane cancels the call, the
+// stream drops, the terminal ends, or another attachment takes its place.
+message AttachTerminalCall {
+  // The terminal's ID.
+  string id = 1;
+  // Names the call's Terminal stream.
+  uint64 stream = 2;
+  // The first byte of what the terminal printed to send.
+  uint64 offset = 3;
+  // Its width now, to set as the attachment starts. 0 leaves it.
+  uint32 columns = 4;
+  // Its height now. 0 leaves it.
+  uint32 rows = 5;
+}
+
+// AttachTerminalResult says why an attachment ended.
+message AttachTerminalResult {
+  // True when another attachment took its place.
+  bool moved = 1;
+  // How the terminal ended, when it did.
+  dockwell.v1.TerminalEnd end = 2;
+}
+
+// CloseTerminalCall hangs up a terminal's shell.
+message CloseTerminalCall {
+  // The terminal's ID.
+  string id = 1;
+  // Why, as the control plane knows it.
+  dockwell.v1.TerminalEndReason reason = 2;
+}
+
+// CloseTerminalResult says how the terminal ended.
+message CloseTerminalResult {
+  dockwell.v1.TerminalEnd end = 1;
+}
+
+// TerminalRequest is one message of Terminal from the agent.
+message TerminalRequest {
+  // The call's stream, on the first message.
+  uint64 stream = 1;
+  // Where data starts, in all the terminal has printed.
+  uint64 offset = 2;
+  // What it printed.
+  bytes data = 3;
+  // How much of what's been typed the terminal has taken, in all: on the first
+  // message, and after each TerminalResponse that typed something, in answer.
+  uint64 input_offset = 4;
+  // True when this answers a TerminalResponse, so input_offset is set.
+  bool taken = 5;
+}
+
+// TerminalResponse is one message of Terminal from the control plane.
+message TerminalResponse {
+  // Where data starts in all that's been typed.
+  uint64 offset = 1;
+  // What's typed. The agent answers each message with input_offset.
+  bytes data = 2;
+  // The terminal's width, to change it. 0 leaves it.
+  uint32 columns = 3;
+  // Its height. 0 leaves it.
+  uint32 rows = 4;
 }
 
 // AdoptionCall asks what a container would be as a service. It reads the
@@ -885,6 +1009,12 @@ message CallResult {
     // What send_backup sent.
     SendBackupResult send_backup = 24;
     ListUpdatesResult list_updates = 53;
+    // The terminal, running. Numbered apart, as open work adds to this message.
+    OpenTerminalResult open_terminal = 30;
+    // The attachment ended.
+    AttachTerminalResult attach_terminal = 31;
+    // How the terminal ended.
+    CloseTerminalResult close_terminal = 32;
   }
 }
 

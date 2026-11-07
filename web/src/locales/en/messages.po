@@ -347,6 +347,9 @@ msgstr "From"
 msgid "Health"
 msgstr "Health"
 
+msgid "How it ended"
+msgstr "How it ended"
+
 msgid "Its check said"
 msgstr "Its check said"
 
@@ -374,11 +377,17 @@ msgstr "Open the file"
 msgid "Open the variables and secrets"
 msgstr "Open the variables and secrets"
 
+msgid "Opened"
+msgstr "Opened"
+
 msgid "Plan"
 msgstr "Plan"
 
 msgid "Proposed by"
 msgstr "Proposed by"
+
+msgid "Ran as"
+msgstr "Ran as"
 
 msgid "Review plan"
 msgstr "Review plan"
@@ -403,6 +412,9 @@ msgstr "Someone"
 
 msgid "State"
 msgstr "State"
+
+msgid "Terminal"
+msgstr "Terminal"
 
 msgid "Today"
 msgstr "Today"
@@ -430,6 +442,9 @@ msgstr "When"
 
 msgid "Who"
 msgstr "Who"
+
+msgid "Why"
+msgstr "Why"
 
 msgid "Why it failed"
 msgstr "Why it failed"
@@ -473,6 +488,9 @@ msgstr "Added the passkey {name} after signing in with an authenticator code"
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "Asked for a passkey to apply {change}, and none came"
 
+msgid "Asked for a passkey to open a terminal on {server}, and none came"
+msgstr "Asked for a passkey to open a terminal on {server}, and none came"
+
 msgid "Asked for a passkey to save {path} on {server}, and none came"
 msgstr "Asked for a passkey to save {path} on {server}, and none came"
 
@@ -490,6 +508,15 @@ msgstr "Cleared the time zone for new schedules, which was {previous}, so they s
 
 msgid "Cleared this install's name, which was {previous}"
 msgstr "Cleared this install's name, which was {previous}"
+
+msgid "Closed a terminal on {server}"
+msgstr "Closed a terminal on {server}"
+
+msgid "Closed a terminal on {server}, open {open}"
+msgstr "Closed a terminal on {server}, open {open}"
+
+msgid "Couldn't open a terminal on {server}"
+msgstr "Couldn't open a terminal on {server}"
 
 msgid "Couldn't open {path} on {server}"
 msgstr "Couldn't open {path} on {server}"
@@ -538,6 +565,12 @@ msgstr "Named this install {value}, which was {previous}"
 
 msgid "Not running"
 msgstr "Not running"
+
+msgid "Opened a terminal on {server}"
+msgstr "Opened a terminal on {server}"
+
+msgid "Opened a terminal on {server}, as {as}"
+msgstr "Opened a terminal on {server}, as {as}"
 
 msgid "Read {path} on {server}"
 msgstr "Read {path} on {server}"
@@ -2813,8 +2846,8 @@ msgstr "{name} has no owner yet"
 msgid "{browser} on {os}"
 msgstr "{browser} on {os}"
 
-msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or terminal, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or terminal, or change how you sign in and your tokens. Sign in and do it in the panel."
 
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
 msgstr "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
@@ -6532,6 +6565,162 @@ msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwe
 
 msgid "Unreachable"
 msgstr "Unreachable"
+
+#. placeholder {0}: server.name
+msgid "A terminal here is a root shell on <0>{0}</0>, through its agent, so it needs no SSH port. Opening one asks for your passkey."
+msgstr "A terminal here is a root shell on <0>{0}</0>, through its agent, so it needs no SSH port. Opening one asks for your passkey."
+
+msgid "Another tab or window attached to it, so what you type there goes to it. It goes on running."
+msgstr "Another tab or window attached to it, so what you type there goes to it. It goes on running."
+
+msgid "Can't reach the terminal"
+msgstr "Can't reach the terminal"
+
+msgid "Can't reach this terminal"
+msgstr "Can't reach this terminal"
+
+msgid "Clear scrollback"
+msgstr "Clear scrollback"
+
+msgid "Close terminal"
+msgstr "Close terminal"
+
+msgid "Close this tab"
+msgstr "Close this tab"
+
+msgid "Connected through the agent"
+msgstr "Connected through the agent"
+
+msgid "Connecting through the agent"
+msgstr "Connecting through the agent"
+
+msgid "Copy selection"
+msgstr "Copy selection"
+
+msgid "Ended"
+msgstr "Ended"
+
+msgid "Find in scrollback"
+msgstr "Find in scrollback"
+
+msgid "Find the one after"
+msgstr "Find the one after"
+
+msgid "Find the one before"
+msgstr "Find the one before"
+
+msgid "New session"
+msgstr "New session"
+
+msgid "No terminal open"
+msgstr "No terminal open"
+
+msgid "No terminal opened"
+msgstr "No terminal opened"
+
+msgid "Not in what it keeps"
+msgstr "Not in what it keeps"
+
+msgid "Open a new terminal"
+msgstr "Open a new terminal"
+
+msgid "Open a terminal"
+msgstr "Open a terminal"
+
+msgid "Open somewhere else"
+msgstr "Open somewhere else"
+
+msgid "Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
+msgstr "Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
+
+msgid "Paste"
+msgstr "Paste"
+
+msgid "Select text in the terminal to copy it"
+msgstr "Select text in the terminal to copy it"
+
+msgid "Session options"
+msgstr "Session options"
+
+msgid "Show it here"
+msgstr "Show it here"
+
+msgid "Stop finding"
+msgstr "Stop finding"
+
+msgid "Terminal sessions"
+msgstr "Terminal sessions"
+
+msgid "The passkey prompt closed, so no terminal opened. Open one when you're ready."
+msgstr "The passkey prompt closed, so no terminal opened. Open one when you're ready."
+
+msgid "This terminal is open somewhere else"
+msgstr "This terminal is open somewhere else"
+
+msgid "Through the agent"
+msgstr "Through the agent"
+
+msgid "what you type waits"
+msgstr "what you type waits"
+
+#. placeholder {0}: names.get(tab.id) ?? tab.title
+msgid "{0} output"
+msgstr "{0} output"
+
+msgid "{title} · through the agent"
+msgstr "{title} · through the agent"
+
+msgid "· no SSH port needed · opening it is on <0>Activity</0>, what you type isn't"
+msgstr "· no SSH port needed · opening it is on <0>Activity</0>, what you type isn't"
+
+#. placeholder {0}: formatBytes(lost, i18n.locale)
+msgid "· {0} it printed while you were away is gone"
+msgstr "· {0} it printed while you were away is gone"
+
+msgid "It ended while this page wasn't attached to it."
+msgstr "It ended while this page wasn't attached to it."
+
+msgid "It exited with code 0."
+msgstr "It exited with code 0."
+
+msgid "It exited with code {code}."
+msgstr "It exited with code {code}."
+
+msgid "Its server was removed from Dockwell."
+msgstr "Its server was removed from Dockwell."
+
+msgid "Its shell hung up, as an SSH session does."
+msgstr "Its shell hung up, as an SSH session does."
+
+msgid "Nobody was connected to it for 10 minutes, so its shell hung up."
+msgstr "Nobody was connected to it for 10 minutes, so its shell hung up."
+
+msgid "Nothing was typed into it for an hour, so its shell hung up, rather than leave a root shell open."
+msgstr "Nothing was typed into it for an hour, so its shell hung up, rather than leave a root shell open."
+
+msgid "The control plane restarted."
+msgstr "The control plane restarted."
+
+msgid "The server's agent restarted, and its shell with it."
+msgstr "The server's agent restarted, and its shell with it."
+
+msgid "The session that opened it ended."
+msgstr "The session that opened it ended."
+
+msgid "The shell exited"
+msgstr "The shell exited"
+
+msgid "This terminal closed"
+msgstr "This terminal closed"
+
+msgid "This terminal has ended"
+msgstr "This terminal has ended"
+
+msgid "This terminal stopped"
+msgstr "This terminal stopped"
+
+msgid "This terminal was closed"
+msgstr "This terminal was closed"
 
 msgid "Agent and control plane"
 msgstr "Agent and control plane"

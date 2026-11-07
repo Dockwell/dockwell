@@ -25,6 +25,7 @@ export interface Described {
  */
 export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, string>) => Described {
   const { t, i18n } = useLingui();
+  const time = useTimeWords();
   return useMemo(
     () => (event: Event, summaries: ReadonlyMap<string, string>) => {
       const change = event.change;
@@ -84,6 +85,32 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           const previous = event.publicAddress?.previous ?? "";
           return { title: t`Cleared the public address of ${server}, which was ${previous}`, icon: "server" };
         }
+        case "terminal.open": {
+          const as = event.terminal?.title ?? "";
+          return {
+            title: as ? t`Opened a terminal on ${server}, as ${as}` : t`Opened a terminal on ${server}`,
+            icon: "terminal",
+          };
+        }
+        case "terminal.close": {
+          const opened = event.terminal?.openTime;
+          const ended = event.terminal?.end?.time;
+          const open =
+            opened && ended ? time.span(timestampDate(ended).getTime() - timestampDate(opened).getTime()) : "";
+          return {
+            title: open ? t`Closed a terminal on ${server}, open ${open}` : t`Closed a terminal on ${server}`,
+            icon: "terminal",
+          };
+        }
+        case "terminal.open_failed":
+          return { title: t`Couldn't open a terminal on ${server}`, icon: "terminal", tone: "warning" };
+        case "terminal.open_unconfirmed":
+          // A root shell asked for, with no passkey following: what a stolen session looks like.
+          return {
+            title: t`Asked for a passkey to open a terminal on ${server}, and none came`,
+            icon: "terminal",
+            tone: "warning",
+          };
         case "file.read": {
           const path = event.subject?.path ?? "";
           return { title: t`Read ${path} on ${server}`, icon: "file" };
@@ -206,7 +233,7 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       }
       return { title: event.action, icon: event.kind === EventKind.SERVER ? "server" : "users" };
     },
-    [t, i18n],
+    [t, i18n, time],
   );
 }
 

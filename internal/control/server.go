@@ -59,6 +59,7 @@ import (
 	serviceapi "github.com/dockwell/dockwell/internal/control/services"
 	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/control/system"
+	"github.com/dockwell/dockwell/internal/control/terminals"
 	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/control/variables"
 	"github.com/dockwell/dockwell/internal/https"
@@ -286,6 +287,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		// A person's, so it needs sign-in; the agent decides what it reads.
 		if cfg.Fleet != nil && cfg.Auth != nil {
 			handle(dockwellv1connect.NewFileServiceHandler(files.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
+			handle(dockwellv1connect.NewTerminalServiceHandler(terminals.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
 		}
 		handle(dockwellv1connect.NewServiceServiceHandler(serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
 		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)

@@ -18,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/logs"
+	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/buildinfo"
@@ -86,6 +87,7 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
+	cfg.Terminals = terminal.New(terminal.Options{Logger: logger})
 	lookups(&cfg, stdio, g)
 	return agent.Run(ctx, cfg)
 }

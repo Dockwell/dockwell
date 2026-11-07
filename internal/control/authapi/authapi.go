@@ -360,6 +360,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN:              auth.StepUpCreateToken,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE:         auth.StepUpApplyRootChange,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN:          auth.StepUpSaveWayBackIn,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL:             auth.StepUpOpenTerminal,
 }
 
 // FinishStepUp checks the passkey's answer and returns a proof.

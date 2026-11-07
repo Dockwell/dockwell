@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/terminal"
 	agentupdates "github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/backup"
@@ -90,6 +91,8 @@ type testServer struct {
 	backups *backup.Runner
 	// updates reads its package updates, when set.
 	updates *agentupdates.Reader
+	// terms opens its terminals, as /bin/sh in a directory of its own.
+	terms *terminal.Manager
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -117,6 +120,7 @@ func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool)
 		dataDir: t.TempDir(),
 	}
 	s.disk = agentfiles.New(s.dataDir, nil, nil)
+	s.terms = terminal.New(terminal.Options{Shell: []string{"/bin/sh"}, Home: t.TempDir()})
 	if withDrivers {
 		containers := container.Driver{Runtime: s.docker, RecreateDowntime: 2 * time.Second}
 		s.drivers = resource.NewRegistry(&containers, &firewall.Driver{Backend: s.fw}, &service.Driver{Containers: containers})
@@ -136,7 +140,7 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	cfg := agent.Config{
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates,
+		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Terminals: s.terms,
 	}
 	if s.backups != nil {
 		cfg.Backups = backup.Calls{Runner: s.backups}

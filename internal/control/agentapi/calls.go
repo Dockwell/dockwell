@@ -76,8 +76,9 @@ type Agents struct {
 	scopes ScopeNamer
 
 	mu        sync.Mutex
-	sessions  map[string]*Session // the newest stream of each server
-	uploads   map[uint64]*upload  // logs calls under way, by their streams
+	sessions  map[string]*Session      // the newest stream of each server
+	uploads   map[uint64]*upload       // logs calls under way, by their streams
+	links     map[uint64]*TerminalLink // terminals' attachments under way, by their streams
 	onConnect []func(server string)
 	// opened is closed, and made again, whenever a session opens, for the
 	// calls waiting for a server's next stream.
@@ -97,13 +98,15 @@ type Agents struct {
 	health       map[string]health.Report
 	healthHearer func(server string, instances []*dockwellv1.InstanceHealth)
 	saveHearer   func(server string, ended *agentv1.SaveEnded)
+	// terminalHearer hears how each terminal ended.
+	terminalHearer func(server string, ended *agentv1.TerminalEnded)
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
 // send back.
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
-		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, opened: make(chan struct{}), moved: map[string]time.Time{},
+		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, links: map[uint64]*TerminalLink{}, opened: make(chan struct{}), moved: map[string]time.Time{},
 		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{}, health: map[string]health.Report{},
 	}
 }
@@ -375,7 +378,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), terminals: hello.GetTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
@@ -422,6 +425,11 @@ type Session struct {
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
 	readsUpdates bool
+	// terminals says the agent opens terminals, and openTerminals which it had
+	// as the stream opened, which is then.
+	terminals     bool
+	openTerminals []string
+	opened        time.Time
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
