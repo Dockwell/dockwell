@@ -2674,6 +2674,122 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/websites:
+        get:
+            tags:
+                - WebsiteService
+            description: ListWebsites returns every website, sorted by domain.
+            operationId: WebsiteService_ListWebsites
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListWebsitesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - WebsiteService
+            description: |-
+                CreateWebsite plans a new website at a domain, as a project of its own,
+                 ready to apply or discard. A website that sends to a port on the server
+                 reaches past containers, so a person applies it.
+            operationId: WebsiteService_CreateWebsite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateWebsiteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateWebsiteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/websites/{id}:delete:
+        post:
+            tags:
+                - WebsiteService
+            description: |-
+                DeleteWebsite plans deleting a website: its route, what serves it, and its
+                 project. Undoing it brings it all back. Its folder on the server, if it has
+                 one, stays where it is.
+            operationId: WebsiteService_DeleteWebsite
+            parameters:
+                - name: id
+                  in: path
+                  description: The website, by its project's name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeleteWebsiteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteWebsiteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/websites/{id}:update:
+        post:
+            tags:
+                - WebsiteService
+            description: |-
+                UpdateWebsite plans changing what a website serves, ready to apply or
+                 discard. Its domain, and what's in front of it, stay as they are: change
+                 those as for any route.
+            operationId: WebsiteService_UpdateWebsite
+            parameters:
+                - name: id
+                  in: path
+                  description: The website, by its project's name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateWebsiteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateWebsiteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
 components:
     schemas:
         Actor:
@@ -4017,10 +4133,74 @@ components:
                         The secret, such as "dwt_…", 53 characters. Send it as
                          "Authorization: Bearer <secret>". It is shown only now; store it safely.
             description: CreateTokenResponse carries the new token and its secret.
+        CreateWebsiteRequest:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain it answers at, such as "blog.example.com", as a route takes one.
+                website:
+                    allOf:
+                        - $ref: '#/components/schemas/Website'
+                    description: What it serves.
+                tls:
+                    type: string
+                    description: |-
+                        "off" when TLS ends before this server, at a tunnel or a proxy in front, as
+                         a route's tls says. Empty gets a certificate.
+                trustedProxies:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The proxies in front whose word it takes on a visitor's address, as a
+                         route's trusted_proxies.
+                plainForAnyone:
+                    type: boolean
+                    description: |-
+                        With tls off, answers anyone who reaches the server's port 80, as a route's
+                         plain_for_anyone.
+                servers:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Where it runs, by server ID. Empty runs it on the only server; once there
+                         are several, name one.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it makes.
+            description: CreateWebsiteRequest is a website to make.
+        CreateWebsiteResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: CreateWebsiteResponse carries the planned change.
         DeleteBackupResponse:
             type: object
             properties: {}
             description: DeleteBackupResponse says it's gone.
+        DeleteWebsiteRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The website, by its project's name or ID.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it deletes.
+            description: DeleteWebsiteRequest names a website to delete.
+        DeleteWebsiteResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: DeleteWebsiteResponse carries the planned change.
         DeployServiceRequest:
             type: object
             properties:
@@ -5831,6 +6011,15 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListVariablesResponse is an environment's variables and secrets.
+        ListWebsitesResponse:
+            type: object
+            properties:
+                websites:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/WebsiteInfo'
+                    description: The websites, sorted by domain.
+            description: ListWebsitesResponse lists the websites.
         LogChunk:
             type: object
             properties:
@@ -6651,6 +6840,13 @@ components:
                     description: |-
                         The catalog entry this project was installed from. Unset for any other
                          project. See docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md.
+                website:
+                    allOf:
+                        - $ref: '#/components/schemas/Website'
+                    description: |-
+                        What this project serves, for a project made as a website. Dockwell writes
+                         the route and the services of its environment from it. Unset for any other
+                         project. See docs/adr/0037-websites-as-projects-of-their-own.md.
             description: |-
                 Project is a product or client in the organization. It holds
                  environments, and scopes members, secrets and domains. An install starts
@@ -8612,6 +8808,28 @@ components:
             type: object
             properties: {}
             description: UnlockCodeSignInResponse is empty.
+        UpdateWebsiteRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The website, by its project's name or ID.
+                website:
+                    allOf:
+                        - $ref: '#/components/schemas/Website'
+                    description: What it serves, whole.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it changes.
+            description: UpdateWebsiteRequest is what a website should serve now.
+        UpdateWebsiteResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: UpdateWebsiteResponse carries the planned change.
         UpgradeCatalogInstallRequest:
             type: object
             properties:
@@ -8715,6 +8933,80 @@ components:
                     type: string
                     description: The service, by its name in the entry's Compose file, such as "adminer".
             description: Web says what a person opens once an entry is installed.
+        Website:
+            type: object
+            properties:
+                proxy:
+                    allOf:
+                        - $ref: '#/components/schemas/WebsiteProxy'
+                    description: Sends its requests on to a URL, or to a port on the server.
+            description: Website is what a website serves at its domain, as a person chose it.
+        WebsiteInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its project's ID, such as "prj_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                name:
+                    type: string
+                    description: Its project's name, such as "blog-example-com".
+                domain:
+                    type: string
+                    description: |-
+                        The domain it answers at, such as "blog.example.com". Empty once its route
+                         has gone.
+                spec:
+                    allOf:
+                        - $ref: '#/components/schemas/Website'
+                    description: What it serves.
+                environmentId:
+                    type: string
+                    description: The environment its route and services are in, by ID.
+                serviceId:
+                    type: string
+                    description: |-
+                        The service that serves it, by ID. Empty for a website that sends to a port
+                         on the server, which needs none.
+                routeId:
+                    type: string
+                    description: Its route, by ID. Empty once it has gone.
+                updateTime:
+                    type: string
+                    description: When what serves it last changed.
+                    format: date-time
+                serverId:
+                    type: string
+                    description: The server it runs on, by ID. Empty before it's placed.
+                serverName:
+                    type: string
+                    description: That server's name, such as "hz-1".
+            description: WebsiteInfo is one website.
+        WebsiteProxy:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: |-
+                        Where to send them, such as "https://backend.example.com" or
+                         "http://10.0.0.5:8080/app": http or https, a host, and a port and a path if
+                         it needs them, with no query. A path goes in front of each request's own.
+                         It's reached from a container, as any app reaches the internet, so it
+                         can't be the server's own loopback: give port for that.
+                port:
+                    type: integer
+                    description: |-
+                        A port on the server itself, such as 3000, in place of url. Whatever listens
+                         there sees every visitor as local, so a person approves it.
+                    format: uint32
+                sendTargetHost:
+                    type: boolean
+                    description: |-
+                        Sends the url's own host as the Host header, in place of the website's
+                         domain, as a target that serves several names needs, such as another site
+                         over HTTPS. For a url only.
+            description: |-
+                WebsiteProxy sends a website's requests on, to a URL or to a port on the
+                 server itself. Give one of url and port.
 tags:
     - name: AuthService
       description: |-
@@ -8919,3 +9211,11 @@ tags:
          edit of the service, doesn't let anyone read it: no response carries a
          secret's value but RevealSecret's, which needs a signed-in session, and
          no API token can call it.
+    - name: WebsiteService
+      description: |-
+        WebsiteService lists your websites, and plans making one, changing what it
+         serves and deleting it, each as a change to apply or discard. A website is a
+         project of its own: Dockwell writes its route, and the service that serves
+         it, from what you choose, such as a URL to send its requests to. Its domain
+         gets its certificate as any route's does, or none behind a tunnel or a proxy
+         that ends TLS. See docs/adr/0037-websites-as-projects-of-their-own.md.

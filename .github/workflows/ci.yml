@@ -152,7 +152,7 @@ jobs:
           echo "DOCKWELL_TEST_CADDY=$RUNNER_TEMP/ingress-tools/caddy" >> "$GITHUB_ENV"
           echo "DOCKWELL_TEST_PEBBLE=$RUNNER_TEMP/ingress-tools" >> "$GITHUB_ENV"
       - name: Tests against Caddy
-        run: go test -race -run 'OnRealCaddy' -v ./internal/ingress/...
+        run: go test -race -run 'OnRealCaddy' -v ./internal/ingress/... ./internal/website/...
 
   docker-e2e:
     name: Service end to end on Docker
