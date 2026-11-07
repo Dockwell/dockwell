@@ -149,9 +149,15 @@ func holdingsIn(list []serverMount, leads map[string]string) []pathHold {
 }
 
 // strictlyInside reports source inside holder, as either is written or where it leads.
+// What a holder can replace is the source's last part, in whatever folder that's in,
+// even where the source itself leads elsewhere already.
 func strictlyInside(holder, source string, leads map[string]string) bool {
+	sources := []string{source, leads[source]}
+	if dir := leads[path.Dir(path.Clean(source))]; dir != "" {
+		sources = append(sources, path.Join(dir, path.Base(source)))
+	}
 	for _, h := range []string{holder, leads[holder]} {
-		for _, s := range []string{source, leads[source]} {
+		for _, s := range sources {
 			if h != "" && s != "" && path.Clean(h) != path.Clean(s) && resource.Within(path.Clean(s), path.Clean(h)) {
 				return true
 			}

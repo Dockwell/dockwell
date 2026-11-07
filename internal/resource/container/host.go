@@ -650,6 +650,71 @@ func (p *Paths) LeadsAsMade(ctx context.Context, c *docker.Container) error {
 	return nil
 }
 
+// Survey says where the server paths on this server lead, for those that lead
+// elsewhere: what every container here mounts, what the volumes they mount bind, and
+// paths, each with the folder it's in. A plan works out what's inside what, and one
+// folder can be written two ways, so it needs every path here and not only its own.
+// One that can't be followed counts as it's written, as a plan for something else
+// shouldn't fail on it.
+func (d *Docker) Survey(ctx context.Context, paths []string) (map[string]string, error) {
+	if d.Paths == nil {
+		return nil, nil
+	}
+	list, err := d.Client.ListContainers(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	volumes := map[string]bool{}
+	for i := range list {
+		for _, m := range list[i].Mounts {
+			switch {
+			case m.Type == "bind":
+				paths = append(paths, m.Source)
+			case m.Type == "volume" && m.Name != "" && !volumes[m.Name]:
+				volumes[m.Name] = true
+				v, err := d.Client.InspectVolume(ctx, m.Name)
+				switch {
+				case docker.IsNotFound(err):
+					continue
+				case err != nil:
+					return nil, err
+				}
+				if dev, ok := BindDevice(v.Driver, v.Options); ok {
+					paths = append(paths, dev)
+				}
+			}
+		}
+	}
+	h, err := d.Paths.Host(ctx)
+	if err != nil || h.Resolve == nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	seen := map[string]bool{}
+	for _, p := range paths {
+		for _, at := range []string{path.Clean(p), path.Dir(path.Clean(p))} {
+			if seen[at] || !path.IsAbs(at) {
+				continue
+			}
+			seen[at] = true
+			if to, err := h.Resolve(at); err == nil && to != at {
+				out[at] = to
+			}
+		}
+	}
+	return out, nil
+}
+
+// Survey says where every server path on the server leads (Docker.Survey).
+func (d *Driver) Survey(ctx context.Context, paths []string) (map[string]string, error) {
+	if s, ok := d.Runtime.(interface {
+		Survey(ctx context.Context, paths []string) (map[string]string, error)
+	}); ok {
+		return s.Survey(ctx, paths)
+	}
+	return nil, nil
+}
+
 // Follow says where server paths lead on this server, for those that lead elsewhere.
 func (p *Paths) Follow(ctx context.Context, paths ...string) (map[string]string, error) {
 	if p == nil || len(paths) == 0 {

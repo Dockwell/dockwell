@@ -149,6 +149,13 @@ type PathFollower interface {
 	Leads(ctx context.Context, ref Ref, desired proto.Message) (map[string]string, error)
 }
 
+// Surveyor is a driver that can say where every server path on its server leads, and
+// the folder each is in, as a plan works out what's inside what, and the same folder
+// can be written two ways.
+type Surveyor interface {
+	Survey(ctx context.Context, paths []string) (map[string]string, error)
+}
+
 // PathMover is a PathFollower that can say which of a resource's server paths
 // don't lead where they did when what runs now was made.
 type PathMover interface {
@@ -411,7 +418,61 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		}
 		steps = append(steps, step)
 	}
+	if err := l.survey(ctx, desired, steps); err != nil {
+		return nil, err
+	}
 	return steps, nil
+}
+
+// survey adds where every server path on this server leads to each step that mounts
+// one, for the control plane to work out what's inside what. An agent's word on that
+// can only make a plan louder.
+func (l Local) survey(ctx context.Context, desired []Desired, steps []Step) error {
+	var s Surveyor
+	var paths []string
+	var mounting []int
+	for i := range desired {
+		d, err := l.Drivers.Driver(desired[i].Ref.Kind)
+		if err != nil || desired[i].Spec == nil {
+			continue
+		}
+		h, ok := d.(HostAccesser)
+		if !ok {
+			continue
+		}
+		mounts := false
+		for _, a := range h.HostAccess(desired[i].Spec) {
+			if a.Kind == AccessPath || a.Kind == AccessDocker {
+				paths, mounts = append(paths, a.Path), true
+			}
+		}
+		if !mounts {
+			continue
+		}
+		mounting = append(mounting, i)
+		if sv, ok := d.(Surveyor); ok && s == nil {
+			s = sv
+		}
+	}
+	if s == nil {
+		return nil
+	}
+	all, err := s.Survey(ctx, paths)
+	if err != nil {
+		return fmt.Errorf("can't read where this server's paths lead: %w", err)
+	}
+	for _, i := range mounting {
+		for p, to := range all {
+			if _, ok := steps[i].Leads[p]; ok {
+				continue
+			}
+			if steps[i].Leads == nil {
+				steps[i].Leads = map[string]string{}
+			}
+			steps[i].Leads[p] = to
+		}
+	}
+	return nil
 }
 
 // leadsOf says where the server paths a spec mounts lead, for a kind that follows
