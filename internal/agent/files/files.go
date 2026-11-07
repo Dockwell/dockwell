@@ -59,6 +59,9 @@ type Server struct {
 	// touches it. A test blocks in it to stand in for a mount that stopped
 	// answering, which is otherwise hard to come by. Nil hears nothing.
 	Touching func(path string)
+	// Writing hears of each save about to write its file, past where it can still
+	// stop, as Touching does. Nil hears nothing.
+	Writing func(path string)
 
 	dataDir    string
 	logger     *slog.Logger
@@ -70,6 +73,8 @@ type Server struct {
 	roots []string // where Docker has said it keeps its data, oldest first
 	// stuck holds where each call left behind stopped: see stuck.go.
 	stuck map[*trail]string
+	// savesEnded holds saves that ended once nobody was waiting for them.
+	savesEnded chan *agentv1.SaveEnded
 	// mounts reads what's mounted, as /proc/self/mountinfo has it.
 	mounts func() string
 	// saving keeps saves of roots to one at a time.
@@ -84,7 +89,7 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 	}
 	s := &Server{
 		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots),
-		stuck: map[*trail]string{}, mounts: mounts.Read,
+		stuck: map[*trail]string{}, mounts: mounts.Read, savesEnded: make(chan *agentv1.SaveEnded, maxStuck),
 	}
 	s.roots = s.loadRoots()
 	return s
@@ -256,16 +261,20 @@ func (s *Server) read(ctx context.Context, t *trail, p string) *agentv1.ReadFile
 	}
 	out.Content = string(text)
 	if !truncated {
-		out.Version = version(text)
+		out.Version = version(where, &w.st, text)
 	}
 	return &agentv1.ReadFileResult{File: out}
 }
 
-// version is what tells whether a file changed: a save compares it with the
-// file as it finds it. A time and a size can't, as two saves can share both.
-func version(text []byte) string {
-	sum := sha256.Sum256(text)
-	return hex.EncodeToString(sum[:])
+// version is what tells whether a file is as it was read: where a walk ended, which
+// file that was, and what it held. A time and a size can't tell, as two saves can
+// share both. Its text alone can't either: a link swapped in, to a file that holds
+// the same text, would read as the file a person opened, and a save would follow it.
+func version(where string, st *unix.Stat_t, text []byte) string {
+	h := sha256.New()
+	fmt.Fprintf(h, "%s\x00%d\x00%d\x00", where, st.Dev, st.Ino)
+	h.Write(text)
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // readText opens the walk's last part for reading, through the descriptor of the

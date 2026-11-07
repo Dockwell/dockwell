@@ -3,11 +3,15 @@
 package files
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"slices"
+	"sync/atomic"
 
 	"golang.org/x/sys/unix"
 
@@ -16,23 +20,57 @@ import (
 )
 
 // Save replaces the text of the file at p, if it is still the version the person
-// read. A file that changed since is left as it is, and they hear so.
-func (s *Server) Save(ctx context.Context, p, content, wanted string) (*agentv1.SaveFileResult, error) {
+// read: the same text, in the same file, where their read ended. A file that
+// changed since is left as it is, and they hear so. record is what the control plane
+// calls this save, for what's said of it if it ends after nobody is waiting.
+func (s *Server) Save(ctx context.Context, p, content, wanted, record string) (*agentv1.SaveFileResult, error) {
 	if err := CheckPath(p); err != nil {
 		return nil, err
 	}
 	if len(content) > MaxFileBytes {
 		return nil, fmt.Errorf("that text is %d bytes, and a file saves at %d at most. Connect to the server over SSH to write more", len(content), MaxFileBytes)
 	}
+	var began atomic.Bool
 	return attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.SaveFileResult, error) {
-		return s.save(ctx, t, p, content, wanted), nil
+		out := s.save(ctx, t, p, content, wanted, &began)
+		t.back = func() {
+			if began.Load() {
+				s.saveEnded(record, p, out)
+			}
+		}
+		return out, nil
 	}, func(r *agentv1.FileRefusal) *agentv1.SaveFileResult {
-		r.Message += ". A save already on its way can still land when it answers, so open the file again to see what's there"
+		if began.Load() {
+			r.Kind = agentv1.FileRefusal_KIND_MAY_LAND
+			r.Message = fmt.Sprintf("%s stopped answering as the agent began to write it, so this save may still land when it answers. "+
+				"Open it then, to see what's there", r.GetPath())
+		} else {
+			r.Message += ". Nothing was saved"
+		}
 		return &agentv1.SaveFileResult{Refusal: r}
 	})
 }
 
-func (s *Server) save(ctx context.Context, t *trail, p, content, wanted string) *agentv1.SaveFileResult {
+// SavesEnded says how each save that was left behind as it wrote came out, for the
+// control plane to put on record. It waits for a stream, and holds as many as can be
+// left behind.
+func (s *Server) SavesEnded() <-chan *agentv1.SaveEnded { return s.savesEnded }
+
+func (s *Server) saveEnded(record, p string, out *agentv1.SaveFileResult) {
+	ended := &agentv1.SaveEnded{Record: record, Path: p}
+	if saved := out.GetSaved(); saved != nil {
+		ended.Path, ended.Landed = saved.GetPath(), true
+	} else if r := out.GetRefusal(); r != nil {
+		ended.Path, ended.Reason = r.GetPath(), r.GetMessage()
+	}
+	select {
+	case s.savesEnded <- ended:
+	default:
+		s.logger.Warn("a save that was left behind ended, and too many are waiting to be put on record, so this one won't be", slog.String("path", ended.GetPath()))
+	}
+}
+
+func (s *Server) save(ctx context.Context, t *trail, p, content, wanted string, began *atomic.Bool) *agentv1.SaveFileResult {
 	w, refusal := s.guard(ctx).walk(t, p)
 	if refusal != nil {
 		return &agentv1.SaveFileResult{Refusal: refusal}
@@ -63,20 +101,29 @@ func (s *Server) save(ctx context.Context, t *trail, p, content, wanted string) 
 	if why := whatItHolds(now); why != "" {
 		return &agentv1.SaveFileResult{Refusal: refused(where, why)}
 	}
-	if truncated || version(now) != wanted {
+	if truncated || version(where, &w.st, now) != wanted {
 		return &agentv1.SaveFileResult{Refusal: changed(where)}
 	}
-	// A call left behind that comes back writes nothing: the person heard it may
-	// not land, and may have moved on, so the file is theirs again.
-	if ctx.Err() != nil {
-		return &agentv1.SaveFileResult{Refusal: notAnswering(where)}
-	}
-	if refusal := putText(t, w, now, []byte(content)); refusal != nil {
+	text := keepMark(now, []byte(content))
+	if refusal := s.putText(ctx, t, w, wanted, now, text, began); refusal != nil {
 		return &agentv1.SaveFileResult{Refusal: refusal}
 	}
 	return &agentv1.SaveFileResult{Saved: &dockwellv1.SaveFileResponse{
-		Path: where, File: entry(w.last().name, &w.st, owners{}), Version: version([]byte(content)),
+		Path: where, File: entry(w.last().name, &w.st, owners{}), Version: version(where, &w.st, text),
 	}}
+}
+
+// byteOrderMark is what some editors start a UTF-8 file with. A browser's decoder
+// takes it off the text it reads, so what comes back to be saved doesn't have it.
+var byteOrderMark = []byte{0xef, 0xbb, 0xbf}
+
+// keepMark gives text the mark old starts with, which nobody could have seen to
+// take out. The version a save returns has to be of these bytes.
+func keepMark(old, text []byte) []byte {
+	if bytes.HasPrefix(old, byteOrderMark) && !bytes.HasPrefix(text, byteOrderMark) {
+		return append(slices.Clone(byteOrderMark), text...)
+	}
+	return text
 }
 
 // changed is a save that found the file other than as it was read.
@@ -87,22 +134,30 @@ func changed(where string) *agentv1.FileRefusal {
 	}
 }
 
-// putIn writes a file's text. A test stands in for it, as a disk that fills up
-// halfway is hard to come by.
-var putIn = overwrite
+// Stand-ins for what's hard to come by in a test: a disk that fills up halfway, and
+// one that stalls in a flush.
+var (
+	putIn     = overwrite
+	syncSpare = (*os.File).Sync
+)
 
 // putText puts text in the walk's last part, in place: a rename would leave a
 // container that mounts this one file reading the old one, as a mount holds the
-// inode, and would break hard links. It writes a copy beside it first, which
-// proves the disk has room before the file is touched, and keeps the text if the
-// write fails partway and old can't go back. A reader can see the file half
-// written for a moment, as with any editor that writes in place.
-func putText(t *trail, w *walked, old, text []byte) *agentv1.FileRefusal {
+// inode, and would break hard links. A reader can see the file half written for a
+// moment, as with any editor that writes in place.
+//
+// A copy of the old text goes beside it first, as it's what can't be had again if
+// the write fails partway and it can't go back. Flushing that copy is where a
+// struggling disk stalls, so only after it does this read the file again and compare
+// it: what took that long may have changed the file, and whoever asked may have gone.
+// A save that outlived its caller writes nothing. Past began it can land, and
+// whoever hears of it is told that (Save).
+func (s *Server) putText(ctx context.Context, t *trail, w *walked, wanted string, old, text []byte, began *atomic.Bool) *agentv1.FileRefusal {
 	where, parent, name := w.path(), w.steps[len(w.steps)-2].fd, w.last().name
 	if refusal := t.touch(where); refusal != nil {
 		return refusal
 	}
-	spare, refusal := writeSpare(parent, where, text)
+	spare, refusal := writeSpare(parent, where, old)
 	if refusal != nil {
 		return refusal
 	}
@@ -112,6 +167,24 @@ func putText(t *trail, w *walked, old, text []byte) *agentv1.FileRefusal {
 			_ = unix.Unlinkat(parent, spare, 0)
 		}
 	}()
+	now, truncated, refusal := readText(t, w)
+	switch {
+	case refusal.GetKind() == agentv1.FileRefusal_KIND_NOT_FOUND:
+		return changed(where) // it went, or something else took its place
+	case refusal != nil:
+		return refusal
+	case truncated || version(where, &w.st, now) != wanted:
+		return changed(where)
+	}
+	// In this order, so whatever gave up on it first either sees this has begun or
+	// has ended ctx, and this stops.
+	began.Store(true)
+	if ctx.Err() != nil {
+		return notAnswering(where)
+	}
+	if s.Writing != nil {
+		s.Writing(where)
+	}
 	fd, err := unix.Openat(parent, name, unix.O_WRONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return unwritten(where, err)
@@ -126,12 +199,12 @@ func putText(t *trail, w *walked, old, text []byte) *agentv1.FileRefusal {
 		return changed(where) // it went between the check and here: it isn't what was read
 	}
 	if err := putIn(f, text); err != nil {
-		if again := putIn(f, old); again != nil {
+		if again := putIn(f, now); again != nil {
 			keep = true
 			return &agentv1.FileRefusal{
 				Kind: agentv1.FileRefusal_KIND_DENIED, Path: where,
 				Message: fmt.Sprintf("the agent couldn't finish writing %s: %v, and couldn't put it back: %v. "+
-					"The file may be cut short. What you saved is beside it, as %s: check it over SSH", where, err, again, spare),
+					"The file may be cut short. The text it had is beside it, as %s: put it back over SSH", where, err, again, spare),
 			}
 		}
 		return unwritten(where, err)
@@ -156,7 +229,7 @@ func writeSpare(parent int, where string, text []byte) (string, *agentv1.FileRef
 	f := os.NewFile(uintptr(fd), name)
 	_, err = f.Write(text)
 	if err == nil {
-		err = f.Sync()
+		err = syncSpare(f)
 	}
 	err = errors.Join(err, f.Close())
 	if err != nil {

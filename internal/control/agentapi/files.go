@@ -40,8 +40,9 @@ func (s *Session) ReadFile(ctx context.Context, path string) (*agentv1.ReadFileR
 
 // SaveFile asks the agent to replace a file's text, if it is still the version
 // read. A stream that drops as it does can leave it either way, which lost says.
-func (s *Session) SaveFile(ctx context.Context, path, content, version string) (*agentv1.SaveFileResult, error) {
-	call := &agentv1.SaveFileCall{Path: path, Content: content, Version: version}
+// record is what to call the save if it ends once nobody is waiting (OnSaveEnded).
+func (s *Session) SaveFile(ctx context.Context, path, content, version, record string) (*agentv1.SaveFileResult, error) {
+	call := &agentv1.SaveFileCall{Path: path, Content: content, Version: version, Record: record}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_SaveFile{SaveFile: call}}, FileTimeout, nil)
 	if err != nil {
 		return nil, err

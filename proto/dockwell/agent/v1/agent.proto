@@ -85,11 +85,26 @@ message ConnectRequest {
     // answering. What waited for it, such as a rollback, can go on, as when the
     // agent connects.
     Unstuck unstuck = 9;
+    // A save left behind as it wrote has ended, as the control plane stopped
+    // waiting for it. It says so on whichever stream is up by then.
+    SaveEnded save_ended = 10;
   }
 }
 
 // Unstuck says something that held calls up on the agent ended.
 message Unstuck {}
+
+// SaveEnded says how a save came out, after nobody was waiting for it.
+message SaveEnded {
+  // What the control plane called the save, from its SaveFileCall.
+  string record = 1;
+  // Where it ended, with every symlink before it followed.
+  string path = 2;
+  // True when the file now holds what was saved.
+  bool landed = 3;
+  // Why it didn't, for people.
+  string reason = 4;
+}
 
 // Health is how each container of a server's services is, as far as anything
 // checked.
@@ -348,6 +363,8 @@ message SaveFileCall {
   string content = 2;
   // The version from the read it was edited from.
   string version = 3;
+  // What the control plane calls this save on record, for a SaveEnded to name.
+  string record = 4;
 }
 
 // FileRefusal says why the agent didn't list, read or save a path. It is an
@@ -374,6 +391,9 @@ message FileRefusal {
     // The file isn't as the read a save came from left it, so nothing was
     // written.
     KIND_CHANGED = 7;
+    // The path stopped answering after a save began to write it, so the save
+    // may still land. A SaveEnded says how it came out.
+    KIND_MAY_LAND = 8;
   }
 
   // What went wrong.

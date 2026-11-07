@@ -3,12 +3,14 @@
 package control
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -395,6 +397,128 @@ func TestAPathThatStopsAnsweringLeavesTheServerOnline(t *testing.T) {
 	if read, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: well})); err != nil || read.Msg.GetContent() != "fine" {
 		t.Fatalf("after reconnecting = %v, %v", read, err)
 	}
+}
+
+// heldWrite is a server whose agent holds each save as it begins to write, past where
+// it can stop, with a person signed in to save.
+func heldWrite(t *testing.T, f *fullServer, answerWithin time.Duration) (server *testServer, reached chan struct{}, release func()) {
+	t.Helper()
+	server = f.addServer(t, false)
+	server.stop()
+	waitConnected(t, f, server.id.ServerID, false)
+	reached = make(chan struct{}, 1)
+	gone := make(chan struct{})
+	release = sync.OnceFunc(func() { close(gone) })
+	t.Cleanup(release)
+	disk := agentfiles.New(server.dataDir, nil, nil)
+	disk.AnswerWithin = answerWithin
+	disk.Writing = func(string) {
+		reached <- struct{}{}
+		<-gone
+	}
+	server.disk = disk
+	server.connect(t, f)
+	return server, reached, release
+}
+
+// waitForFileEvent waits for the timeline to have an action on a path.
+func waitForFileEvent(t *testing.T, b *browser, server, action, path string) *dockwellv1.Event {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		for _, e := range timelineFiles(t, b, &dockwellv1.ListEventsRequest{ServerId: server}) {
+			if e.GetAction() == action && e.GetSubject().GetPath() == path {
+				return e
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the timeline never had %s on %s: %v", action, path, timelineFiles(t, b, &dockwellv1.ListEventsRequest{ServerId: server}))
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// A save left behind as it wrote may have landed, so that's what the person hears and
+// what goes on record, under where it got to, not "couldn't save". When it ends, the
+// record says how, as whoever saved it, though nobody was waiting by then.
+func TestASaveThatMayHaveLandedSaysSoThenHowItEnded(t *testing.T) {
+	storetest.Each(t, testASaveThatMayHaveLandedSaysSoThenHowItEnded)
+}
+
+func testASaveThatMayHaveLandedSaysSoThenHowItEnded(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	server, reached, release := heldWrite(t, f, 50*time.Millisecond)
+	id := server.id.ServerID
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(dir, "config")
+	writeFile(t, target, "before")
+	via := filepath.Join(dir, "current")
+	if err := os.Symlink(target, via); err != nil {
+		t.Fatal(err)
+	}
+	c := fileClient(b, b.origin)
+	read, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: via}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = c.SaveFile(t.Context(), connect.NewRequest(&dockwellv1.SaveFileRequest{ServerId: id, Path: via, Content: "after", Version: read.Msg.GetVersion()}))
+	if reasonOf(err) != "save_may_land" || !strings.Contains(err.Error(), "may still land") {
+		t.Fatalf("a save left behind as it wrote = %v", err)
+	}
+	<-reached
+	unknown := waitForFileEvent(t, b, id, "file.save_unknown", target)
+	for _, e := range timelineFiles(t, b, &dockwellv1.ListEventsRequest{ServerId: id}) {
+		if e.GetAction() == "file.save_failed" {
+			t.Errorf("it reads as a save that failed: %v", e)
+		}
+	}
+	release()
+	landed := waitForFileEvent(t, b, id, "file.save", target)
+	if landed.GetActor() == nil || landed.GetActor().GetId() != unknown.GetActor().GetId() {
+		t.Errorf("it's on record as %v, and the save was %v's", landed.GetActor(), unknown.GetActor())
+	}
+	if got, err := os.ReadFile(target); err != nil || string(got) != "after" {
+		t.Fatalf("the file holds %q: %v", got, err)
+	}
+}
+
+// A stream that drops as a save writes leaves it either way too, and what's on
+// record comes from the agent's next stream.
+func TestASaveWhoseStreamDropsMayHaveLanded(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	server, reached, release := heldWrite(t, f, time.Minute)
+	id := server.id.ServerID
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := filepath.Join(dir, "config")
+	writeFile(t, config, "before")
+	c := fileClient(b, b.origin)
+	read, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{ServerId: id, Path: config}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := make(chan error, 1)
+	go func() {
+		_, err := c.SaveFile(context.Background(), connect.NewRequest(&dockwellv1.SaveFileRequest{ServerId: id, Path: config, Content: "after", Version: read.Msg.GetVersion()}))
+		saved <- err
+	}()
+	<-reached
+	server.stop()
+	if err := <-saved; reasonOf(err) != "server_offline" || !strings.Contains(err.Error(), "may or may not have saved") {
+		t.Fatalf("a save on a stream that dropped = %v", err)
+	}
+	waitForFileEvent(t, b, id, "file.save_unknown", config)
+	waitConnected(t, f, id, false)
+	server.connect(t, f)
+	release()
+	waitForFileEvent(t, b, id, "file.save", config)
 }
 
 // timelineFiles are the timeline's events about files, as Activity reads them.

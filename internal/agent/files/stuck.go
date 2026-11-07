@@ -45,6 +45,9 @@ type trail struct {
 	at atomic.Pointer[string]
 	// done says the call came back. It's the Server's mu that guards it.
 	done bool
+	// back is what a call left behind has to say when it comes back, if anything.
+	// It's the call's own to set, before it returns.
+	back func()
 }
 
 // touch says a call is about to touch path, or refuses if that's known not to
@@ -117,7 +120,11 @@ func attempt[T any](parent context.Context, s *Server, p string, work func(conte
 		return out.value, out.err
 	default:
 	}
-	at := s.leave(t)
+	at, left := s.leave(t)
+	if !left {
+		out := <-done // it came back as this was deciding it hadn't
+		return out.value, out.err
+	}
 	if errors.Is(parent.Err(), context.Canceled) {
 		var zero T
 		return zero, parent.Err() // whoever asked went, as a stream does as it ends
@@ -125,24 +132,30 @@ func attempt[T any](parent context.Context, s *Server, p string, work func(conte
 	return gaveUp(notAnswering(at)), nil
 }
 
-// leave notes a call left behind, and says where it stopped.
-func (s *Server) leave(t *trail) string {
+// leave notes a call left behind, says where it stopped, and reports whether it
+// was: it may have come back just now.
+func (s *Server) leave(t *trail) (string, bool) {
 	at := *t.at.Load()
 	place := mounts.PassOver(s.mounts(), at)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !t.done {
-		s.stuck[t] = place
+	if t.done {
+		return place, false
 	}
-	return place
+	s.stuck[t] = place
+	return place, true
 }
 
 // returned notes a call came back, however late, which frees where it was.
 func (s *Server) returned(t *trail) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	t.done = true
+	_, left := s.stuck[t]
 	delete(s.stuck, t)
+	s.mu.Unlock()
+	if left && t.back != nil {
+		t.back()
+	}
 }
 
 // notAnswering is a path a call stopped waiting for.

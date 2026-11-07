@@ -4,6 +4,7 @@ package files
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -304,24 +305,44 @@ func TestASaveThatDoesntAnswerSaysItMayStillLand(t *testing.T) {
 	v := d.read(t, p).GetFile().GetVersion()
 	stopAnswering(t, d.server, dead)
 	got := within(t, 2*time.Second, func() *agentv1.FileRefusal { return d.save(t, p, "after", v).GetRefusal() })
-	if got.GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING || !strings.Contains(got.GetMessage(), "can still land") {
+	if got.GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING || !strings.Contains(got.GetMessage(), "Nothing was saved") {
 		t.Fatalf("got %v", got)
 	}
 }
 
-// A person told a save may not have landed has moved on, so one that comes back
-// before it began to write doesn't write. What's on the disk stays theirs.
+// stallCopy holds each save in the flush of its copy, past the walk, the first
+// comparison and everything else it does before it writes, as a struggling disk does.
+func stallCopy(t *testing.T, s *Server) (reached chan struct{}, answer func()) {
+	t.Helper()
+	s.AnswerWithin = 50 * time.Millisecond
+	reached = make(chan struct{}, 8)
+	gone := make(chan struct{})
+	answer = sync.OnceFunc(func() { close(gone) })
+	syncSpare = func(f *os.File) error {
+		reached <- struct{}{}
+		<-gone
+		return f.Sync()
+	}
+	t.Cleanup(func() { answer(); syncSpare = (*os.File).Sync })
+	return reached, answer
+}
+
+// A person told a save didn't land has moved on, so one that comes back writes
+// nothing, as the file is theirs again. All the checks it passed were before the
+// flush that held it.
 func TestASaveLeftBehindWritesNothingWhenItComesBack(t *testing.T) {
 	d := newDisk(t)
 	dir := filepath.Join(d.root, "mnt")
 	p := filepath.Join(dir, "f")
 	write(t, p, "before")
 	v := d.read(t, p).GetFile().GetVersion()
-	m := stopAnswering(t, d.server, p)
-	if got := d.save(t, p, "after", v).GetRefusal(); got.GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING {
+	reached, answer := stallCopy(t, d.server)
+	got := d.save(t, p, "after", v).GetRefusal()
+	if got.GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING || !strings.Contains(got.GetMessage(), "Nothing was saved") {
 		t.Fatalf("got %v", got)
 	}
-	m.answer()
+	<-reached
+	answer()
 	waitFor(t, "the call to come back", func() bool { return d.server.stuckCount() == 0 })
 	if content, _ := os.ReadFile(p); string(content) != "before" {
 		t.Fatalf("a save the person gave up on landed: %q", content)
@@ -329,9 +350,46 @@ func TestASaveLeftBehindWritesNothingWhenItComesBack(t *testing.T) {
 	if left := spares(t, dir); len(left) != 0 {
 		t.Errorf("it left %v", left)
 	}
+	select {
+	case ended := <-d.server.SavesEnded():
+		t.Errorf("a save that wrote nothing has something to say: %v", ended)
+	default:
+	}
 }
 
-// Stuck on a link, it comes back to a file nothing has marked, and would save.
+// A stall after the copy, with the second reading under way, comes back past
+// everything but the last look at whoever asked.
+func TestASaveLeftBehindAsItReadsAgainWritesNothing(t *testing.T) {
+	d := newDisk(t)
+	p := filepath.Join(d.root, "app", "conf")
+	write(t, p, "before")
+	v := d.read(t, p).GetFile().GetVersion()
+	d.server.AnswerWithin = 50 * time.Millisecond
+	var flushed atomic.Bool
+	syncSpare = func(f *os.File) error {
+		flushed.Store(true)
+		return f.Sync()
+	}
+	t.Cleanup(func() { syncSpare = (*os.File).Sync })
+	reached, gone := make(chan struct{}, 1), make(chan struct{})
+	d.server.Touching = func(at string) {
+		if at == p && flushed.Load() {
+			reached <- struct{}{}
+			<-gone
+		}
+	}
+	if got := d.save(t, p, "after", v).GetRefusal(); got.GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING {
+		t.Fatalf("got %v", got)
+	}
+	<-reached
+	close(gone)
+	waitFor(t, "the call to come back", func() bool { return d.server.stuckCount() == 0 })
+	if content, _ := os.ReadFile(p); string(content) != "before" {
+		t.Fatalf("a save the person gave up on landed: %q", content)
+	}
+}
+
+// Through a link it's the same, by the path a link led to.
 func TestASaveLeftBehindOnALinkWritesNothingWhenItComesBack(t *testing.T) {
 	d := newDisk(t)
 	target := filepath.Join(d.root, "app", "conf")
@@ -339,16 +397,136 @@ func TestASaveLeftBehindOnALinkWritesNothingWhenItComesBack(t *testing.T) {
 	via := filepath.Join(d.root, "current")
 	link(t, target, via)
 	v := d.read(t, via).GetFile().GetVersion()
-	m := stopAnswering(t, d.server, via)
+	reached, answer := stallCopy(t, d.server)
 	if got := d.save(t, via, "after", v).GetRefusal(); got.GetKind() != agentv1.FileRefusal_KIND_NOT_ANSWERING {
 		t.Fatalf("got %v", got)
 	}
-	m.answer()
+	<-reached
+	answer()
 	waitFor(t, "the call to come back", func() bool { return d.server.stuckCount() == 0 })
 	if content, _ := os.ReadFile(target); string(content) != "before" {
 		t.Fatalf("a save the person gave up on landed: %q", content)
 	}
-	if left := spares(t, filepath.Dir(target)); len(left) != 0 {
+}
+
+// The flush can take a while, and what writes in place meanwhile isn't undone: a
+// save compares the file after it, not only before.
+func TestAFileChangedAsTheCopyFlushesIsntSavedOver(t *testing.T) {
+	d := newDisk(t)
+	dir := filepath.Join(d.root, "app")
+	p := filepath.Join(dir, "conf")
+	write(t, p, "before")
+	v := d.read(t, p).GetFile().GetVersion()
+	syncSpare = func(f *os.File) error {
+		other, err := os.OpenFile(p, os.O_WRONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer other.Close()
+		if _, err := other.WriteString("theirs"); err != nil {
+			t.Fatal(err)
+		}
+		return f.Sync()
+	}
+	t.Cleanup(func() { syncSpare = (*os.File).Sync })
+	got := d.save(t, p, "after", v).GetRefusal()
+	if got.GetKind() != agentv1.FileRefusal_KIND_CHANGED {
+		t.Fatalf("got %v", got)
+	}
+	if content, _ := os.ReadFile(p); string(content) != "theirs" {
+		t.Fatalf("the file holds %q", content)
+	}
+	if left := spares(t, dir); len(left) != 0 {
 		t.Errorf("it left %v", left)
+	}
+}
+
+// stallWrite holds each save as it writes the file, until told how that goes.
+func stallWrite(t *testing.T, s *Server, failing error) (reached chan struct{}, answer func()) {
+	t.Helper()
+	s.AnswerWithin = 50 * time.Millisecond
+	reached = make(chan struct{}, 8)
+	gone := make(chan struct{})
+	answer = sync.OnceFunc(func() { close(gone) })
+	first := true
+	putIn = func(f *os.File, text []byte) error {
+		if !first {
+			return overwrite(f, text)
+		}
+		first = false
+		reached <- struct{}{}
+		<-gone
+		if failing != nil {
+			return failing
+		}
+		return overwrite(f, text)
+	}
+	t.Cleanup(func() { answer(); putIn = overwrite })
+	return reached, answer
+}
+
+// A save left behind as it wrote may land, so that's what the person hears, and when
+// it comes back the control plane hears how it came out.
+func TestASaveLeftBehindAsItWritesSaysItMayLandAndHowItEnded(t *testing.T) {
+	for name, failing := range map[string]error{"lands": nil, "doesn't land": errors.New("no space left on device")} {
+		t.Run(name, func(t *testing.T) {
+			d := newDisk(t)
+			p := filepath.Join(d.root, "app", "conf")
+			write(t, p, "before")
+			v := d.read(t, p).GetFile().GetVersion()
+			reached, answer := stallWrite(t, d.server, failing)
+			got := d.save(t, p, "after", v).GetRefusal()
+			if got.GetKind() != agentv1.FileRefusal_KIND_MAY_LAND || !strings.Contains(got.GetMessage(), "may still land") || got.GetPath() != p {
+				t.Fatalf("got %v", got)
+			}
+			<-reached
+			answer()
+			select {
+			case ended := <-d.server.SavesEnded():
+				if ended.GetRecord() != "evt_save" || ended.GetPath() != p || ended.GetLanded() != (failing == nil) {
+					t.Errorf("it says %v", ended)
+				}
+				if failing != nil && !strings.Contains(ended.GetReason(), "no space left") {
+					t.Errorf("it says %v", ended)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("nothing says how the save came out")
+			}
+			want := "after"
+			if failing != nil {
+				want = "before"
+			}
+			if content, _ := os.ReadFile(p); string(content) != want {
+				t.Fatalf("the file holds %q", content)
+			}
+		})
+	}
+}
+
+// One that comes back just as it's being given up on answers, rather than say it
+// didn't.
+func TestACallThatComesBackAsItsLeftAnswers(t *testing.T) {
+	d := newDisk(t)
+	p := filepath.Join(d.root, "app", "conf")
+	write(t, p, "before")
+	gone := make(chan struct{})
+	d.server.AnswerWithin = 20 * time.Millisecond
+	d.server.Touching = func(at string) {
+		if at == p {
+			<-gone
+		}
+	}
+	// Reading what's mounted is the first thing leaving a call does.
+	d.server.mounts = func() string {
+		close(gone)
+		time.Sleep(200 * time.Millisecond)
+		return ""
+	}
+	got := d.read(t, p)
+	if got.GetFile().GetContent() != "before" || got.GetRefusal() != nil {
+		t.Fatalf("a call that came back says %v", got)
+	}
+	if n := d.server.stuckCount(); n != 0 {
+		t.Errorf("%d left behind", n)
 	}
 }

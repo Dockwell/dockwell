@@ -283,9 +283,10 @@ type ReadFileResponse struct {
 	Binary bool `protobuf:"varint,4,opt,name=binary,proto3" json:"binary,omitempty"`
 	// True when the file is longer than 1 MiB, so content is its beginning.
 	Truncated bool `protobuf:"varint,5,opt,name=truncated,proto3" json:"truncated,omitempty"`
-	// What SaveFile takes to save over this text: a digest of the file, which
-	// tells whether it changed since. Empty for what can't be saved here: a binary
-	// file, or one with more to it than content.
+	// What SaveFile takes to save over this text: a digest of where the path led,
+	// which file that was, and what it held, which tells whether any of it changed
+	// since. Empty for what can't be saved here: a binary file, one with more to
+	// it than content, or a file on a server whose agent is too old to save.
 	Version       string `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

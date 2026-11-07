@@ -361,6 +361,27 @@ func TestJoinTokensAreSingleUse(t *testing.T) {
 	})
 }
 
+func TestGetEvent(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		if err := db.Update(ctx, func(tx *Tx) error {
+			return tx.RecordEvent(ctx, Event{ID: "evt_1", At: time.Now(), Actor: "user:a", Action: "file.saving", Subject: "/a", Target: "srv_A"})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		_ = db.View(ctx, func(tx *Tx) error {
+			if e, err := tx.GetEvent(ctx, "evt_1"); err != nil || e.Action != "file.saving" || e.Actor != "user:a" || e.Target != "srv_A" {
+				t.Errorf("GetEvent = %+v, %v", e, err)
+			}
+			if _, err := tx.GetEvent(ctx, "evt_2"); !errors.Is(err, store.ErrNotFound) {
+				t.Errorf("an event that isn't there = %v", err)
+			}
+			return nil
+		})
+	})
+}
+
 func TestEventsNewestFirst(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		db, _ := storetest.Open(t, b)

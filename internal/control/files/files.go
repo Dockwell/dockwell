@@ -8,6 +8,7 @@
 package files
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -35,10 +36,13 @@ const (
 	eventRefuse = "file.refuse"
 	// eventSaving goes on record before a save, and eventSave after it: what
 	// can't go on record isn't written, and what may have failed isn't on the
-	// timeline as saved.
-	eventSaving     = "file.saving"
-	eventSave       = "file.save"
-	eventSaveFailed = "file.save_failed"
+	// timeline as saved. eventSaveUnknown is a save nobody can yet say the end of:
+	// its call ended with the file perhaps written, and the agent says how it
+	// came out if it can, which is eventSave or eventSaveFailed.
+	eventSaving      = "file.saving"
+	eventSave        = "file.save"
+	eventSaveFailed  = "file.save_failed"
+	eventSaveUnknown = "file.save_unknown"
 )
 
 // Handler implements FileService.
@@ -54,7 +58,9 @@ var _ dockwellv1connect.FileServiceHandler = (*Handler)(nil)
 
 // New returns a handler that reaches servers through agents.
 func New(hub *fleet.Hub, agents *agentapi.Agents, db *store.DB, logger *slog.Logger) *Handler {
-	return &Handler{fleet: hub, agents: agents, db: db, logger: logger, now: time.Now}
+	h := &Handler{fleet: hub, agents: agents, db: db, logger: logger, now: time.Now}
+	agents.OnSaveEnded(h.saveEnded)
+	return h
 }
 
 // person is who is asking. The interceptor refuses tokens already, as these
@@ -161,7 +167,7 @@ func (h *Handler) ReadFile(ctx context.Context, req *connect.Request[dockwellv1.
 		return nil, failed(refusal(r))
 	}
 	read := out.GetFile().GetPath()
-	if err := record(eventRead, read, fmt.Sprintf("read %s on %s", read, srv.GetName())); err != nil {
+	if _, err := record(eventRead, read, fmt.Sprintf("read %s on %s", read, srv.GetName())); err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
 	return connect.NewResponse(out.GetFile()), nil
@@ -199,34 +205,90 @@ func (h *Handler) SaveFile(ctx context.Context, req *connect.Request[dockwellv1.
 		return nil, failed(err)
 	}
 	ctx = context.WithoutCancel(ctx)
-	if err := record(eventSaving, path, fmt.Sprintf("saving %s on %s", path, srv.GetName())); err != nil {
+	saving, err := record(eventSaving, path, fmt.Sprintf("saving %s on %s", path, srv.GetName()))
+	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
-	out, err := session.SaveFile(ctx, path, content, version)
+	// unknown puts on record a save that may have landed, under where it got to.
+	unknown := func(where string, err error) error {
+		h.note(ctx, record, eventSaveUnknown, "save", where, srv, err)
+		return err
+	}
+	out, err := session.SaveFile(ctx, path, content, version, saving)
 	if err != nil {
+		if errors.Is(err, resource.ErrLost) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, unknown(path, h.rpcError(ctx, err))
+		}
 		return nil, failed(h.rpcError(ctx, err))
 	}
 	if r := out.GetRefusal(); r != nil {
-		return nil, failed(refusal(r))
+		where := cmp.Or(r.GetPath(), path)
+		if r.GetKind() == agentv1.FileRefusal_KIND_MAY_LAND {
+			return nil, unknown(where, refusal(r))
+		}
+		err := refusal(r)
+		h.note(ctx, record, eventSaveFailed, "save", where, srv, err)
+		return nil, err
 	}
 	saved := out.GetSaved()
-	if err := record(eventSave, saved.GetPath(), fmt.Sprintf("saved %s on %s, %d bytes", saved.GetPath(), srv.GetName(), len(content))); err != nil {
+	if _, err := record(eventSave, saved.GetPath(), fmt.Sprintf("saved %s on %s, %d bytes", saved.GetPath(), srv.GetName(), len(content))); err != nil {
 		// It's on the disk, and eventSaving says so might be: the person hears it saved.
 		h.logger.ErrorContext(ctx, "saved a file, and can't record that it saved", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
 	}
 	return connect.NewResponse(saved), nil
 }
 
+// saveEnded puts on record how a save came out, once the agent can say, for the
+// person whose save it was. An agent speaks for its own server and nothing more, so
+// it has to name a save on that server.
+func (h *Handler) saveEnded(server string, ended *agentv1.SaveEnded) {
+	ctx := context.Background()
+	refuse := func(why string) {
+		h.logger.WarnContext(ctx, "an agent said how a save ended, and it can't go on record", slog.String("why", why), slog.String("server", server), slog.String("record", ended.GetRecord()))
+	}
+	var saving store.Event
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		saving, err = tx.GetEvent(ctx, ended.GetRecord())
+		return err
+	})
+	if err != nil {
+		refuse("there's no such save")
+		return
+	}
+	if saving.Action != eventSaving || saving.Target != server {
+		refuse("that's not a save on this server")
+		return
+	}
+	name := server
+	if srv, err := h.fleet.Get(server); err == nil {
+		name = srv.GetName()
+	}
+	action, detail := eventSaveFailed, fmt.Sprintf("couldn't save %s on %s: %s", ended.GetPath(), name, ended.GetReason())
+	if ended.GetLanded() {
+		action, detail = eventSave, fmt.Sprintf("saved %s on %s, after it stopped answering", ended.GetPath(), name)
+	}
+	if err := h.db.Update(ctx, func(tx *store.Tx) error {
+		return tx.RecordEvent(ctx, store.Event{
+			ID: id.New(id.Event), At: h.now(), Actor: saving.Actor, Action: action, Subject: files.Printable(ended.GetPath()), Target: server,
+			Surface: saving.Surface, Detail: files.Printable(detail),
+		})
+	}); err != nil {
+		h.logger.ErrorContext(ctx, "can't record how a save ended", slog.String("server", server), slog.String("error", err.Error()))
+	}
+}
+
 // recorder writes a server's audit events for what p does to one of its files, by
-// a path that's fit to store, as a name can hold anything but a slash. It writes
-// whether or not the caller stays.
-func (h *Handler) recorder(ctx context.Context, p auth.Principal, srv *dockwellv1.Server) func(action, path, detail string) error {
+// a path that's fit to store, as a name can hold anything but a slash, and says what
+// each one is called. It writes whether or not the caller stays.
+func (h *Handler) recorder(ctx context.Context, p auth.Principal, srv *dockwellv1.Server) func(action, path, detail string) (string, error) {
 	client, _ := authapi.ClientFrom(ctx)
 	ctx = context.WithoutCancel(ctx)
-	return func(action, path, detail string) error {
-		return h.db.Update(ctx, func(tx *store.Tx) error {
+	return func(action, path, detail string) (string, error) {
+		event := id.New(id.Event)
+		return event, h.db.Update(ctx, func(tx *store.Tx) error {
 			return tx.RecordEvent(ctx, store.Event{
-				ID: id.New(id.Event), At: h.now(), Actor: p.Actor(), Action: action, Subject: files.Printable(path), Target: srv.GetId(),
+				ID: event, At: h.now(), Actor: p.Actor(), Action: action, Subject: files.Printable(path), Target: srv.GetId(),
 				Surface: client.Surface(p), Detail: files.Printable(detail),
 			})
 		})
@@ -235,12 +297,15 @@ func (h *Handler) recorder(ctx context.Context, p auth.Principal, srv *dockwellv
 
 // note puts on record something done to a file that came to nothing, and why. A
 // refusal stands whether or not this does. A caller that left isn't a refusal.
-func (h *Handler) note(ctx context.Context, record func(action, path, detail string) error, event, doing, path string, srv *dockwellv1.Server, why error) {
+func (h *Handler) note(ctx context.Context, record func(action, path, detail string) (string, error), event, doing, path string, srv *dockwellv1.Server, why error) {
 	if errors.Is(why, context.Canceled) || connect.CodeOf(why) == connect.CodeCanceled {
 		return
 	}
 	detail := fmt.Sprintf("couldn't %s %s on %s: %s", doing, path, srv.GetName(), why.Error())
-	if err := record(event, path, detail); err != nil {
+	if event == eventSaveUnknown {
+		detail = fmt.Sprintf("may have saved %s on %s: %s", path, srv.GetName(), why.Error())
+	}
+	if _, err := record(event, path, detail); err != nil {
 		h.logger.WarnContext(ctx, "can't record a refused file", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
 	}
 }
@@ -261,6 +326,8 @@ func refusal(r *agentv1.FileRefusal) error {
 		return authapi.ReasonError(connect.CodeDeadlineExceeded, err, "path_not_answering")
 	case agentv1.FileRefusal_KIND_CHANGED:
 		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "file_changed")
+	case agentv1.FileRefusal_KIND_MAY_LAND:
+		return authapi.ReasonError(connect.CodeDeadlineExceeded, err, "save_may_land")
 	case agentv1.FileRefusal_KIND_DENIED, agentv1.FileRefusal_KIND_UNSPECIFIED:
 	}
 	return authapi.ReasonError(connect.CodePermissionDenied, err, "file_denied")

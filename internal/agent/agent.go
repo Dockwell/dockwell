@@ -500,10 +500,18 @@ func session(ctx context.Context, cfg Config) (err error) {
 			return err
 		}
 	}
+	var savesEnded <-chan *agentv1.SaveEnded
+	if cfg.Files != nil {
+		savesEnded = cfg.Files.SavesEnded()
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case ended := <-savesEnded:
+			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_SaveEnded{SaveEnded: ended}}); err != nil {
+				return err
+			}
 		case <-domainsChanged:
 			if err := sendDomains(); err != nil {
 				return err
