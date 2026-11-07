@@ -70,6 +70,10 @@ func TestWhatEveryContainerHasIsNoReason(t *testing.T) {
 			"Mounts": `[{"Type": "bind", "Source": "/srv/app", "Target": "/app", "BindOptions": {"CreateMountpoint": true}}]`,
 		}},
 		{name: "rotation in the file", edits: map[string]string{"LogConfig": `{"Type": "json-file", "Config": {"max-size": "10m", "max-file": "3"}}`}},
+		{name: "what a spec holds of memory", edits: map[string]string{
+			"ShmSize": "1073741824", "Tmpfs": `{"/run": "", "/cache": "rw,noexec,nosuid,size=1048576"}`,
+			"Mounts": `[{"Type": "tmpfs", "Target": "/scratch", "TmpfsOptions": {"SizeBytes": 1048576}}]`,
+		}},
 		{name: "the server's own network", edits: map[string]string{"NetworkMode": `"host"`}, host: true},
 		{
 			name:  "another engine's logging",
@@ -115,13 +119,13 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 		"Devices":              {`[{"PathOnHost": "/dev/fuse"}]`, "devices"},
 		"LogConfig":            {`{"Type": "fluentd", "Config": {}}`, "logging: fluentd"},
 		"PublishAllPorts":      {"true", "publish_all_ports (-P)"},
-		"Mounts":               {`[{"Type": "tmpfs", "Target": "/cache"}]`, "a tmpfs mount at /cache"},
+		"Mounts":               {`[{"Type": "cluster", "Target": "/cache"}]`, "a cluster mount at /cache"},
+		"Tmpfs":                {`{"/cache": "size=1048576,uid=1000"}`, "tmpfs option uid on /cache"},
 		"Binds":                {`["/srv/a:/a:rslave"]`, "rslave on /a"},
 		"CpuQuota":             {"50000", "cpu_quota"},
 		"MemorySwap":           {"-1", "memswap_limit"},
 		"OomKillDisable":       {"true", "oom_kill_disable"},
 		"UsernsMode":           {`"host"`, "userns_mode"},
-		"ShmSize":              {"1073741824", "shm_size"},
 		"IpcMode":              {`"host"`, "ipc"},
 		"CgroupnsMode":         {`"host"`, "cgroupns_mode: host"},
 		"NetworkMode":          {`"none"`, "network_mode: none"},
@@ -144,6 +148,14 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 	}), "SIGQUIT", info)
 	if !slices.Equal(got, []string{"VolumeOptions on /a", "rshared on /b"}) {
 		t.Errorf("noSpecHolds of mount options = %v", got)
+	}
+
+	// Of a tmpfs, a spec holds its path and its size alone.
+	got = noSpecHolds(c, options(t, map[string]string{
+		"Mounts": `[{"Type": "tmpfs", "Target": "/c", "TmpfsOptions": {"SizeBytes": 1048576, "Mode": 448}}, {"Type": "tmpfs", "Target": "/d", "ReadOnly": true}]`,
+	}), "SIGQUIT", info)
+	if !slices.Equal(got, []string{"Mode on /c", "read_only on /d"}) {
+		t.Errorf("noSpecHolds of a tmpfs mount's options = %v", got)
 	}
 
 	// A hostname of its own is one someone chose, on any network.

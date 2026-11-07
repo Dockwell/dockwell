@@ -81,13 +81,14 @@ func zeroValue(v any) bool {
 var hostConfigRules = map[string]rule{
 	// A spec holds these, as Project reads them.
 	"CapAdd": kept, "CapDrop": kept, "GroupAdd": kept, "Memory": kept, "MemoryReservation": kept,
-	"NanoCpus": kept, "PortBindings": kept, "Privileged": kept, "RestartPolicy": kept,
+	"NanoCpus": kept, "PortBindings": kept, "Privileged": kept, "RestartPolicy": kept, "ShmSize": kept,
 	// These say how it was started, or follow from what's refused below by name: the
 	// paths Docker masks depend on its version and on security_opt and privileged.
 	"ConsoleSize": kept, "ContainerIDFile": kept, "MaskedPaths": kept, "ReadonlyPaths": kept,
 
 	"Binds": readBinds, "CgroupnsMode": readCgroupns, "LogConfig": readLogging, "MemorySwap": readSwap,
 	"Mounts": readMounts, "NetworkMode": readNetworkMode, "PidsLimit": readPidsLimit, "Runtime": readRuntime,
+	"Tmpfs": readTmpfs,
 
 	"Annotations": only("annotations"), "AutoRemove": only("auto remove (--rm)"),
 	"BlkioDeviceReadBps": only("blkio_config"), "BlkioDeviceReadIOps": only("blkio_config"),
@@ -103,8 +104,8 @@ var hostConfigRules = map[string]rule{
 	"Init": only("init"), "IpcMode": only("ipc", `"private"`, `"shareable"`), "Isolation": only("isolation", `"default"`),
 	"Links": only("links"), "MemorySwappiness": only("mem_swappiness"), "OomKillDisable": only("oom_kill_disable"),
 	"OomScoreAdj": only("oom_score_adj"), "PidMode": only("pid"), "PublishAllPorts": only("publish_all_ports (-P)"),
-	"ReadonlyRootfs": only("read_only"), "SecurityOpt": only("security_opt"), "ShmSize": only("shm_size", "67108864"),
-	"StorageOpt": only("storage_opt"), "Sysctls": only("sysctls"), "Tmpfs": only("tmpfs"), "UTSMode": only("uts"),
+	"ReadonlyRootfs": only("read_only"), "SecurityOpt": only("security_opt"),
+	"StorageOpt": only("storage_opt"), "Sysctls": only("sysctls"), "UTSMode": only("uts"),
 	"Ulimits": only("ulimits"), "Umask": only("umask"), "UsernsMode": only("userns_mode"),
 	"VolumeDriver": only("volume_driver"), "VolumesFrom": only("volumes_from"),
 }
@@ -204,6 +205,10 @@ func readMounts(raw json.RawMessage, _ *reading) []string {
 		var kind, target string
 		_ = json.Unmarshal(m["Type"], &kind)
 		_ = json.Unmarshal(m["Target"], &target)
+		if kind == "tmpfs" {
+			out = append(out, readTmpfsMount(m, target)...)
+			continue
+		}
 		if kind != "volume" && kind != "bind" {
 			out = append(out, fmt.Sprintf("a %s mount at %s", kind, target))
 			continue
@@ -218,6 +223,46 @@ func readMounts(raw json.RawMessage, _ *reading) []string {
 					out = append(out, key+" on "+target)
 				}
 			}
+		}
+	}
+	return out
+}
+
+// readTmpfs reads what a container keeps in memory, by the path of each. A spec holds
+// that and its size. Docker gives every tmpfs rw, noexec, nosuid and nodev.
+func readTmpfs(raw json.RawMessage, _ *reading) []string {
+	var tmpfs map[string]string
+	if json.Unmarshal(raw, &tmpfs) != nil {
+		return []string{"HostConfig.Tmpfs"}
+	}
+	var out []string
+	for _, target := range slices.Sorted(maps.Keys(tmpfs)) {
+		for o := range strings.SplitSeq(tmpfs[target], ",") {
+			name, _, _ := strings.Cut(o, "=")
+			switch name {
+			case "", "size", "rw", "noexec", "nosuid", "nodev":
+			default:
+				out = append(out, "tmpfs option "+name+" on "+target)
+			}
+		}
+	}
+	return out
+}
+
+// readTmpfsMount reads what docker compose sends for a volume of type tmpfs, which a
+// spec holds as it holds any other.
+func readTmpfsMount(m map[string]json.RawMessage, target string) []string {
+	var out []string
+	if !isZero(m["ReadOnly"]) {
+		out = append(out, "read_only on "+target)
+	}
+	var options map[string]json.RawMessage
+	if len(m["TmpfsOptions"]) > 0 && json.Unmarshal(m["TmpfsOptions"], &options) != nil {
+		return append(out, "TmpfsOptions on "+target)
+	}
+	for _, key := range slices.Sorted(maps.Keys(options)) {
+		if key != "SizeBytes" && !isZero(options[key]) {
+			out = append(out, key+" on "+target)
 		}
 	}
 	return out

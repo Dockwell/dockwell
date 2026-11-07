@@ -308,7 +308,7 @@ func TestWhatNoSpecHoldsIsRefusedByName(t *testing.T) {
 		"with-gpus":     {"HostConfig", map[string]any{"DeviceRequests": []any{map[string]any{"Driver": "nvidia", "Count": -1}}}, "gpus"},
 		"with-logging":  {"HostConfig", map[string]any{"LogConfig": map[string]any{"Type": "fluentd"}}, "logging: fluentd"},
 		"with-publish":  {"HostConfig", map[string]any{"PublishAllPorts": true}, "publish_all_ports"},
-		"with-tmpfs":    {"HostConfig", map[string]any{"Mounts": []any{map[string]any{"Type": "tmpfs", "Target": "/cache"}}}, "a tmpfs mount at /cache"},
+		"with-tmpfs":    {"HostConfig", map[string]any{"Tmpfs": map[string]any{"/cache": "size=1048576,mode=1777"}}, "tmpfs option mode on /cache"},
 		"with-rslave":   {"HostConfig", map[string]any{"Binds": []any{"/srv/data:/data:rslave"}}, "rslave on /data"},
 		"with-quota":    {"HostConfig", map[string]any{"CpuQuota": 50000}, "cpu_quota"},
 		"with-swap":     {"HostConfig", map[string]any{"Memory": 1 << 30, "MemorySwap": 1 << 30}, "memswap_limit"},
@@ -343,6 +343,47 @@ func TestWhatNoSpecHoldsIsRefusedByName(t *testing.T) {
 		"MaskedPaths": []any{"/proc/kcore"}, "ReadonlyPaths": []any{"/proc/bus"}, "OomKillDisable": false, "Memory": 1 << 30, "MemorySwap": 2 << 30,
 	})
 	adopt(t, cc, "plain", "plain")
+}
+
+// What a spec holds comes along, in either way Docker says a tmpfs, and a replace
+// gives it back: a change of image doesn't lose /dev/shm or what's kept in memory.
+func TestShmSizeAndTmpfsComeAlong(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	cc := containerClient(b, b.origin)
+	c := changeClient(b, b.origin)
+	services := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	runByHand(t, e, "headless", func(r *docker.CreateRequest) {
+		r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
+		r.HostConfig.ShmSize = 1 << 30
+		r.HostConfig.Tmpfs = map[string]string{"/scratch": "size=1048576"}
+	})
+	planned := adopt(t, cc, "headless", "headless")
+	if text := protojson.Format(planned); !strings.Contains(text, "shm_size") {
+		t.Errorf("the plan doesn't carry shm_size: %s", text)
+	}
+	applyConfirmed(t, c, planned)
+	res, err := services.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: "headless", Image: "nginx:1.27"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply(t, c, res.Msg.GetChange())
+	if e.Container("headless") != nil {
+		t.Error("the container taken on is still there after a change of image")
+	}
+	var replaced *docker.Container
+	for _, name := range e.Containers() {
+		if got := e.Container(name); got != nil && got.Config.Labels[docker.LabelService] == "headless" {
+			replaced = got
+		}
+	}
+	if replaced == nil {
+		t.Fatalf("nothing runs as headless: %v", e.Containers())
+	}
+	if replaced.HostConfig.ShmSize != 1<<30 || replaced.HostConfig.Tmpfs["/scratch"] != "size=1048576" {
+		t.Errorf("its replacement runs with %d of /dev/shm and tmpfs %v", replaced.HostConfig.ShmSize, replaced.HostConfig.Tmpfs)
+	}
 }
 
 // A value of the environment is sealed, and a spec's other fields aren't, so a value
