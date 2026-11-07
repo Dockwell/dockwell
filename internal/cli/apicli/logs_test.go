@@ -271,7 +271,7 @@ func TestATokenWithoutTheGrantIsToldWhatToDo(t *testing.T) {
 	err := connect.NewError(connect.CodePermissionDenied, errors.New("no"))
 	err.Meta().Set(authapi.ReasonKey, authapi.ReasonTokenLogs)
 	got := explain(err, &Client{URL: "https://panel.test"}, "dockwell logs read", nil)
-	if got == nil || !strings.Contains(got.Error(), "can't read logs") || !strings.Contains(got.Error(), "Profile and security") {
+	if got == nil || !strings.Contains(got.Error(), "can't read logs") || !strings.Contains(got.Error(), "in Settings under API tokens") {
 		t.Errorf("refused for want of the grant = %v", got)
 	}
 }

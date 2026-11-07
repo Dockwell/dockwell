@@ -2618,115 +2618,6 @@ msgstr "版本 <0>{0}</0>"
 msgid "You're not signed in"
 msgstr "你尚未登录"
 
-msgid "API tokens"
-msgstr "API 令牌"
-
-msgid "Also plans and applies changes that can be undone. Never removes data or cuts off access."
-msgstr "还能规划并应用可撤销的更改。绝不会删除数据或切断访问。"
-
-msgid "Can read logs"
-msgstr "可以读取日志"
-
-msgid "Copy this token now. It won't be shown again."
-msgstr "请立即复制这个令牌。它不会再次显示。"
-
-msgid "Copy token"
-msgstr "复制令牌"
-
-msgid "Create an API token"
-msgstr "创建 API 令牌"
-
-msgid "Create token"
-msgstr "创建令牌"
-
-msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It doesn't expire."
-msgstr "已创建 <0>{name}</0>。请在 Authorization 标头中发送 <1>Bearer</1> 加上令牌。它不会过期。"
-
-msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
-msgstr "已创建 <0>{name}</0>。请在 Authorization 标头中发送 <1>Bearer</1> 加上令牌。它将于 {expires} 过期。"
-
-msgid "Done"
-msgstr "完成"
-
-msgid "Expires"
-msgstr "过期时间"
-
-msgid "Expires in {remaining}"
-msgstr "{remaining}后过期"
-
-msgid "For a script, the CLI or an integration"
-msgstr "用于脚本、CLI 或集成"
-
-msgid "In 1 year"
-msgstr "1 年后"
-
-msgid "In 30 days"
-msgstr "30 天后"
-
-msgid "In 90 days"
-msgstr "90 天后"
-
-msgid "Loading tokens"
-msgstr "正在加载令牌"
-
-msgid "Logs often hold secrets that apps print, so a token reads them only if you say so here."
-msgstr "日志中常含有应用打印的密钥，因此令牌只有在此处勾选后才能读取。"
-
-msgid "Name the token after what will use it, such as GitHub Actions deploy."
-msgstr "用将要使用它的程序为令牌命名，例如 GitHub Actions deploy。"
-
-msgctxt "token expiry"
-msgid "Never"
-msgstr "从不"
-
-msgid "No tokens yet. Make one for each script or integration, so you can revoke one alone."
-msgstr "还没有令牌。为每个脚本或集成各创建一个，这样就能单独撤销其中一个。"
-
-msgid "Read and write"
-msgstr "读写"
-
-msgid "Read only"
-msgstr "只读"
-
-msgid "Reads logs"
-msgstr "可读取日志"
-
-msgid "Reads servers and their state. Changes nothing."
-msgstr "读取服务器及其状态，不做任何更改。"
-
-msgid "Revoke"
-msgstr "撤销"
-
-msgid "Revoke {name}"
-msgstr "撤销 {name}"
-
-msgid "Start with read only, and allow writes only when the job needs them."
-msgstr "先从只读开始，只在任务需要时才允许写入。"
-
-msgid "The token wasn't created"
-msgstr "令牌未创建"
-
-msgid "Token copied"
-msgstr "令牌已复制"
-
-msgid "Tokens act for you from scripts, the CLI and integrations. None can remove data, cut off access or change how you sign in."
-msgstr "令牌在脚本、CLI 和集成中代表你操作。任何令牌都不能删除数据、切断访问或更改你的登录方式。"
-
-msgid "What will use this token?"
-msgstr "什么将使用这个令牌？"
-
-msgid "You see the token once, right after you create it."
-msgstr "令牌只在创建后立即显示一次。"
-
-msgid "doesn't expire"
-msgstr "不会过期"
-
-msgid "expires {day}"
-msgstr "{day}过期"
-
-msgid "used {ago} from <0>{lastAddress}</0>"
-msgstr "{ago}从 <0>{lastAddress}</0> 使用过"
-
 msgid "Authenticator app"
 msgstr "身份验证器应用"
 
@@ -2849,11 +2740,11 @@ msgstr "通行密钥需要主机名，不能用 IP 地址。请在同一端口�
 msgid "Something went wrong. Try again."
 msgstr "出了点问题。请重试。"
 
-msgid "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
-msgstr "这个 API 令牌是只读的，所以不能进行更改。请在“个人资料和安全”中创建读写令牌。"
+msgid "That API token is read-only, so it can't make changes. Create a read-write token in Settings, under API tokens."
+msgstr "这个 API 令牌是只读的，无法做出更改。请在设置的 API 令牌中创建一个可读写的令牌。"
 
-msgid "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one under Profile and security."
-msgstr "这个 API 令牌无法识别、已撤销或已过期。请检查是否完整复制了它，或在“个人资料和安全”中创建新令牌。"
+msgid "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one in Settings, under API tokens."
+msgstr "这个 API 令牌无法识别、已被撤销或已过期。请检查是否完整复制，或在设置的 API 令牌中创建一个新的。"
 
 msgid "That code didn't work. Check the email and the code, then try again."
 msgstr "这个验证码无效。请检查邮箱和验证码，然后重试。"
@@ -3328,6 +3219,9 @@ msgstr "运行中应用的副本"
 
 msgid "Daily at {at}"
 msgstr "每天 {at}"
+
+msgid "Done"
+msgstr "完成"
 
 msgid "Exact copy"
 msgstr "精确副本"
@@ -7369,6 +7263,9 @@ msgstr "使用 OpenRC 时，在 <1>/etc/conf.d/dockwell</1> 中写入 <0>export 
 msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 msgstr "使用 systemd 时，用 <0>sudo systemctl edit dockwell</0> 添加 <1>Environment=DOCKWELL_DOMAIN=…</1> 这一行，然后运行 <2>sudo systemctl restart dockwell</2>。"
 
+msgid "API tokens"
+msgstr "API 令牌"
+
 msgid "Account"
 msgstr "账户"
 
@@ -7380,6 +7277,159 @@ msgstr "平台"
 
 msgid "Settings"
 msgstr "设置"
+
+msgid "1 token"
+msgstr "1 个令牌"
+
+msgid "Active tokens"
+msgstr "有效的令牌"
+
+msgid "Copy this token now. It won't be shown again."
+msgstr "请立即复制这个令牌。它不会再次显示。"
+
+msgid "Copy token"
+msgstr "复制令牌"
+
+msgid "Create a token"
+msgstr "创建令牌"
+
+msgid "Create token"
+msgstr "创建令牌"
+
+msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It doesn't expire."
+msgstr "已创建 <0>{name}</0>。请在 Authorization 请求头中以 <1>Bearer</1> 加令牌的形式发送。它不会过期。"
+
+msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
+msgstr "已创建 <0>{name}</0>。请在 Authorization 请求头中以 <1>Bearer</1> 加令牌的形式发送。它将于 {expires} 过期。"
+
+msgid "Dockwell can't list your tokens"
+msgstr "Dockwell 无法列出你的令牌"
+
+msgid "Each new address it's used from goes in the audit log"
+msgstr "每次从新地址使用都会记入审计日志"
+
+msgid "Expires"
+msgstr "过期时间"
+
+msgid "Hide the token"
+msgstr "隐藏令牌"
+
+msgid "In 1 year"
+msgstr "1 年后"
+
+msgid "In 30 days"
+msgstr "30 天后"
+
+msgid "In 90 days"
+msgstr "90 天后"
+
+msgid "Last used"
+msgstr "上次使用"
+
+msgid "Loading tokens"
+msgstr "正在加载令牌"
+
+msgid "Name the token after what will use it, such as GitHub Actions deploy."
+msgstr "用将要使用它的程序为令牌命名，例如 GitHub Actions deploy。"
+
+msgctxt "token expiry"
+msgid "Never"
+msgstr "从不"
+
+msgid "New"
+msgstr "新"
+
+msgid "No tokens yet. Make one for each script or integration below, so you can revoke one without stopping the rest."
+msgstr "还没有令牌。请在下方为每个脚本或集成各创建一个，这样撤销其中一个时不会影响其他。"
+
+msgid "Plan and apply changes that can be undone. Never removes data or cuts off access."
+msgstr "规划并应用可撤销的变更。绝不会删除数据或切断访问。"
+
+msgid "Read apps' logs, which often hold what apps shouldn't print."
+msgstr "读取应用日志，其中常含有应用不该打印的内容。"
+
+msgid "Read servers, apps, plans and activity. Every token can, and changes nothing."
+msgstr "读取服务器、应用、计划和动态。所有令牌都可以，且不做任何更改。"
+
+msgid "Revoke"
+msgstr "撤销"
+
+#. placeholder {0}: token.name
+msgid "Revoke {0}"
+msgstr "撤销 {0}"
+
+msgid "Scopes"
+msgstr "范围"
+
+msgid "Show the whole token"
+msgstr "显示完整令牌"
+
+msgid "Start with read access, and add only what the job needs."
+msgstr "从只读权限开始，只添加任务需要的权限。"
+
+msgid "The new token, partly hidden:"
+msgstr "新令牌，部分已隐藏："
+
+msgid "The token wasn't created"
+msgstr "令牌未创建"
+
+msgid "Token"
+msgstr "令牌"
+
+msgid "Token copied"
+msgstr "令牌已复制"
+
+msgid "Tokens act for you from CI, scripts and the CLI, with only the scope you give them"
+msgstr "令牌在 CI、脚本和 CLI 中代表你行事，权限仅限于你授予的范围"
+
+msgid "What will use this token?"
+msgstr "什么将使用这个令牌？"
+
+msgid "Your API tokens"
+msgstr "你的 API 令牌"
+
+msgid "Your passkey confirms it. You see the token once, right after you create it."
+msgstr "需要你的通行密钥确认。令牌只在创建后立即显示一次。"
+
+#. placeholder {0}: token.lastAddress
+msgid "from <0>{0}</0>"
+msgstr "来自 <0>{0}</0>"
+
+#. placeholder {0}: words.span(Math.max(0, when.getTime() - now))
+msgid "in {0}"
+msgstr "{0}后"
+
+#. placeholder {0}: list.length
+msgid "{0} tokens"
+msgstr "{0} 个令牌"
+
+msgid "{count} · 1 expires soon"
+msgstr "{count} · 1 个即将过期"
+
+msgid "{count} · {soon} expire soon"
+msgstr "{count} · {soon} 个即将过期"
+
+msgid "Manage"
+msgstr "管理"
+
+msgid "None yet. Make one for each script or integration that calls the API."
+msgstr "还没有。请为每个调用 API 的脚本或集成各创建一个。"
+
+msgid "They're listed, made and revoked in <0>Settings, under API tokens</0>."
+msgstr "令牌的列出、创建和撤销都在<0>设置的 API 令牌</0>中。"
+
+#. placeholder {0}: list.length
+msgid "{0, plural, one {# acts for you} other {# act for you}}"
+msgstr "{0, plural, other {# 个令牌代表你行事}}"
+
+msgid "{acting}, and {expiring}."
+msgstr "{acting}，其中 {expiring}。"
+
+msgid "{acting}."
+msgstr "{acting}。"
+
+msgid "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
+msgstr "{soon, plural, other {# 个将在两周内过期}}"
 
 msgid "Check the control plane's status"
 msgstr "查看控制平面状态"
@@ -7530,9 +7580,6 @@ msgstr "跳到主要内容"
 
 msgid "All healthy"
 msgstr "全部健康"
-
-msgid "New"
-msgstr "新建"
 
 msgid "{docker} can't read Docker"
 msgstr "{docker} 台无法读取 Docker"

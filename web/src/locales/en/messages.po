@@ -2618,115 +2618,6 @@ msgstr "Version <0>{0}</0>"
 msgid "You're not signed in"
 msgstr "You're not signed in"
 
-msgid "API tokens"
-msgstr "API tokens"
-
-msgid "Also plans and applies changes that can be undone. Never removes data or cuts off access."
-msgstr "Also plans and applies changes that can be undone. Never removes data or cuts off access."
-
-msgid "Can read logs"
-msgstr "Can read logs"
-
-msgid "Copy this token now. It won't be shown again."
-msgstr "Copy this token now. It won't be shown again."
-
-msgid "Copy token"
-msgstr "Copy token"
-
-msgid "Create an API token"
-msgstr "Create an API token"
-
-msgid "Create token"
-msgstr "Create token"
-
-msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It doesn't expire."
-msgstr "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It doesn't expire."
-
-msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
-msgstr "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
-
-msgid "Done"
-msgstr "Done"
-
-msgid "Expires"
-msgstr "Expires"
-
-msgid "Expires in {remaining}"
-msgstr "Expires in {remaining}"
-
-msgid "For a script, the CLI or an integration"
-msgstr "For a script, the CLI or an integration"
-
-msgid "In 1 year"
-msgstr "In 1 year"
-
-msgid "In 30 days"
-msgstr "In 30 days"
-
-msgid "In 90 days"
-msgstr "In 90 days"
-
-msgid "Loading tokens"
-msgstr "Loading tokens"
-
-msgid "Logs often hold secrets that apps print, so a token reads them only if you say so here."
-msgstr "Logs often hold secrets that apps print, so a token reads them only if you say so here."
-
-msgid "Name the token after what will use it, such as GitHub Actions deploy."
-msgstr "Name the token after what will use it, such as GitHub Actions deploy."
-
-msgctxt "token expiry"
-msgid "Never"
-msgstr "Never"
-
-msgid "No tokens yet. Make one for each script or integration, so you can revoke one alone."
-msgstr "No tokens yet. Make one for each script or integration, so you can revoke one alone."
-
-msgid "Read and write"
-msgstr "Read and write"
-
-msgid "Read only"
-msgstr "Read only"
-
-msgid "Reads logs"
-msgstr "Reads logs"
-
-msgid "Reads servers and their state. Changes nothing."
-msgstr "Reads servers and their state. Changes nothing."
-
-msgid "Revoke"
-msgstr "Revoke"
-
-msgid "Revoke {name}"
-msgstr "Revoke {name}"
-
-msgid "Start with read only, and allow writes only when the job needs them."
-msgstr "Start with read only, and allow writes only when the job needs them."
-
-msgid "The token wasn't created"
-msgstr "The token wasn't created"
-
-msgid "Token copied"
-msgstr "Token copied"
-
-msgid "Tokens act for you from scripts, the CLI and integrations. None can remove data, cut off access or change how you sign in."
-msgstr "Tokens act for you from scripts, the CLI and integrations. None can remove data, cut off access or change how you sign in."
-
-msgid "What will use this token?"
-msgstr "What will use this token?"
-
-msgid "You see the token once, right after you create it."
-msgstr "You see the token once, right after you create it."
-
-msgid "doesn't expire"
-msgstr "doesn't expire"
-
-msgid "expires {day}"
-msgstr "expires {day}"
-
-msgid "used {ago} from <0>{lastAddress}</0>"
-msgstr "used {ago} from <0>{lastAddress}</0>"
-
 msgid "Authenticator app"
 msgstr "Authenticator app"
 
@@ -2849,11 +2740,11 @@ msgstr "Passkeys need a hostname, not an IP address. Open the panel at http://lo
 msgid "Something went wrong. Try again."
 msgstr "Something went wrong. Try again."
 
-msgid "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
-msgstr "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
+msgid "That API token is read-only, so it can't make changes. Create a read-write token in Settings, under API tokens."
+msgstr "That API token is read-only, so it can't make changes. Create a read-write token in Settings, under API tokens."
 
-msgid "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one under Profile and security."
-msgstr "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one under Profile and security."
+msgid "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one in Settings, under API tokens."
+msgstr "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one in Settings, under API tokens."
 
 msgid "That code didn't work. Check the email and the code, then try again."
 msgstr "That code didn't work. Check the email and the code, then try again."
@@ -3328,6 +3219,9 @@ msgstr "Copy of a running app"
 
 msgid "Daily at {at}"
 msgstr "Daily at {at}"
+
+msgid "Done"
+msgstr "Done"
 
 msgid "Exact copy"
 msgstr "Exact copy"
@@ -7369,6 +7263,9 @@ msgstr "With OpenRC, <0>export DOCKWELL_DOMAIN=…</0> in <1>/etc/conf.d/dockwel
 msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 msgstr "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 
+msgid "API tokens"
+msgstr "API tokens"
+
 msgid "Account"
 msgstr "Account"
 
@@ -7380,6 +7277,159 @@ msgstr "Platform"
 
 msgid "Settings"
 msgstr "Settings"
+
+msgid "1 token"
+msgstr "1 token"
+
+msgid "Active tokens"
+msgstr "Active tokens"
+
+msgid "Copy this token now. It won't be shown again."
+msgstr "Copy this token now. It won't be shown again."
+
+msgid "Copy token"
+msgstr "Copy token"
+
+msgid "Create a token"
+msgstr "Create a token"
+
+msgid "Create token"
+msgstr "Create token"
+
+msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It doesn't expire."
+msgstr "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It doesn't expire."
+
+msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
+msgstr "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
+
+msgid "Dockwell can't list your tokens"
+msgstr "Dockwell can't list your tokens"
+
+msgid "Each new address it's used from goes in the audit log"
+msgstr "Each new address it's used from goes in the audit log"
+
+msgid "Expires"
+msgstr "Expires"
+
+msgid "Hide the token"
+msgstr "Hide the token"
+
+msgid "In 1 year"
+msgstr "In 1 year"
+
+msgid "In 30 days"
+msgstr "In 30 days"
+
+msgid "In 90 days"
+msgstr "In 90 days"
+
+msgid "Last used"
+msgstr "Last used"
+
+msgid "Loading tokens"
+msgstr "Loading tokens"
+
+msgid "Name the token after what will use it, such as GitHub Actions deploy."
+msgstr "Name the token after what will use it, such as GitHub Actions deploy."
+
+msgctxt "token expiry"
+msgid "Never"
+msgstr "Never"
+
+msgid "New"
+msgstr "New"
+
+msgid "No tokens yet. Make one for each script or integration below, so you can revoke one without stopping the rest."
+msgstr "No tokens yet. Make one for each script or integration below, so you can revoke one without stopping the rest."
+
+msgid "Plan and apply changes that can be undone. Never removes data or cuts off access."
+msgstr "Plan and apply changes that can be undone. Never removes data or cuts off access."
+
+msgid "Read apps' logs, which often hold what apps shouldn't print."
+msgstr "Read apps' logs, which often hold what apps shouldn't print."
+
+msgid "Read servers, apps, plans and activity. Every token can, and changes nothing."
+msgstr "Read servers, apps, plans and activity. Every token can, and changes nothing."
+
+msgid "Revoke"
+msgstr "Revoke"
+
+#. placeholder {0}: token.name
+msgid "Revoke {0}"
+msgstr "Revoke {0}"
+
+msgid "Scopes"
+msgstr "Scopes"
+
+msgid "Show the whole token"
+msgstr "Show the whole token"
+
+msgid "Start with read access, and add only what the job needs."
+msgstr "Start with read access, and add only what the job needs."
+
+msgid "The new token, partly hidden:"
+msgstr "The new token, partly hidden:"
+
+msgid "The token wasn't created"
+msgstr "The token wasn't created"
+
+msgid "Token"
+msgstr "Token"
+
+msgid "Token copied"
+msgstr "Token copied"
+
+msgid "Tokens act for you from CI, scripts and the CLI, with only the scope you give them"
+msgstr "Tokens act for you from CI, scripts and the CLI, with only the scope you give them"
+
+msgid "What will use this token?"
+msgstr "What will use this token?"
+
+msgid "Your API tokens"
+msgstr "Your API tokens"
+
+msgid "Your passkey confirms it. You see the token once, right after you create it."
+msgstr "Your passkey confirms it. You see the token once, right after you create it."
+
+#. placeholder {0}: token.lastAddress
+msgid "from <0>{0}</0>"
+msgstr "from <0>{0}</0>"
+
+#. placeholder {0}: words.span(Math.max(0, when.getTime() - now))
+msgid "in {0}"
+msgstr "in {0}"
+
+#. placeholder {0}: list.length
+msgid "{0} tokens"
+msgstr "{0} tokens"
+
+msgid "{count} · 1 expires soon"
+msgstr "{count} · 1 expires soon"
+
+msgid "{count} · {soon} expire soon"
+msgstr "{count} · {soon} expire soon"
+
+msgid "Manage"
+msgstr "Manage"
+
+msgid "None yet. Make one for each script or integration that calls the API."
+msgstr "None yet. Make one for each script or integration that calls the API."
+
+msgid "They're listed, made and revoked in <0>Settings, under API tokens</0>."
+msgstr "They're listed, made and revoked in <0>Settings, under API tokens</0>."
+
+#. placeholder {0}: list.length
+msgid "{0, plural, one {# acts for you} other {# act for you}}"
+msgstr "{0, plural, one {# acts for you} other {# act for you}}"
+
+msgid "{acting}, and {expiring}."
+msgstr "{acting}, and {expiring}."
+
+msgid "{acting}."
+msgstr "{acting}."
+
+msgid "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
+msgstr "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
 
 msgid "Check the control plane's status"
 msgstr "Check the control plane's status"
@@ -7530,9 +7580,6 @@ msgstr "Skip to content"
 
 msgid "All healthy"
 msgstr "All healthy"
-
-msgid "New"
-msgstr "New"
 
 msgid "{docker} can't read Docker"
 msgstr "{docker} can't read Docker"

@@ -71,12 +71,12 @@ var (
 	// ErrTokenRejected covers an unknown, revoked or expired token, and one
 	// that isn't a token at all: whoever holds it can tell which.
 	ErrTokenRejected = errors.New("this API token is unknown, revoked or expired. " +
-		"Check that you copied all of it, or create a new one under Profile and security")
+		"Check that you copied all of it, or create a new one in Settings, under API tokens")
 	ErrTokenScope = errors.New("this API token is read-only, so it can't make changes. " +
-		"Create a read-write token under Profile and security")
+		"Create a read-write token in Settings, under API tokens")
 	// ErrTokenLogs is a token without the logs grant reading logs.
 	ErrTokenLogs = errors.New("this API token can't read logs, which often hold secrets that apps print. " +
-		"Create a token that can read logs under Profile and security")
+		"Create a token that can read logs in Settings, under API tokens")
 	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, rename the install, or change how you sign in and your tokens. " +
 		"Sign in and do it in the panel")
 )
