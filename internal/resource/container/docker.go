@@ -709,7 +709,7 @@ func (d *Docker) finishKeepingLogs(ctx context.Context, keep LogKeep, c *docker.
 	if keep == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), LogCatchUp)
+	ctx, cancel := resource.Finishing(ctx, LogCatchUp)
 	defer cancel()
 	if stopped, err := d.Client.InspectContainer(ctx, c.ID); err == nil {
 		c = stopped
@@ -1549,8 +1549,11 @@ const finishWait = 30 * time.Second
 // when Docker doesn't answer, is logged with how to remove it; the next
 // replace removes it too, as it has the name a replace gives the new one.
 func (d *Docker) discard(ctx context.Context, id, name string) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), or(d.CleanupWait, cleanupWait))
+	ctx, cancel := resource.Finishing(ctx, or(d.CleanupWait, cleanupWait))
 	defer cancel()
+	if ctx.Err() != nil {
+		return // left behind: the next step to this service decides what becomes of it
+	}
 	if err := d.Client.RemoveContainer(ctx, id, true); err != nil && !docker.IsNotFound(err) {
 		d.logger().Warn("can't remove a container made for a change that failed, so it is left on the server. Remove it with docker rm -f",
 			slog.String("container", name), slog.String("id", id[:min(12, len(id))]), slog.String("error", err.Error()))
@@ -1561,7 +1564,7 @@ func (d *Docker) discard(ctx context.Context, id, name string) {
 // as a restart's does, keeping what it said, which is all that says why.
 func (d *Docker) discardFailed(ctx context.Context, i *instance) {
 	if d.Logs != nil {
-		wait, cancel := context.WithTimeout(context.WithoutCancel(ctx), or(d.CleanupWait, cleanupWait))
+		wait, cancel := resource.Finishing(ctx, or(d.CleanupWait, cleanupWait))
 		defer cancel()
 		keep := d.Logs.Begin(wait, i.Container, true)
 		if err := d.Client.StopContainer(wait, i.ID, stopGrace(i.Container)); err != nil && !docker.IsNotFound(err) {

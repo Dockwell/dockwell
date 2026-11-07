@@ -80,8 +80,16 @@ message ConnectRequest {
     // How the server's services are: all of them, when the stream opens,
     // whenever a state changes, and every so often while checks run.
     Health health = 8;
+    // Something that held calls up on the agent ended: a step that outlived its
+    // call, a call the agent left behind, or a server path that stopped
+    // answering. What waited for it, such as a rollback, can go on, as when the
+    // agent connects.
+    Unstuck unstuck = 9;
   }
 }
+
+// Unstuck says something that held calls up on the agent ended.
+message Unstuck {}
 
 // Health is how each container of a server's services is, as far as anything
 // checked.
@@ -665,6 +673,10 @@ message CallError {
   // What the failure comes down to, when the driver knows, as StepProgress has
   // it.
   string reason = 5;
+  // True when the agent didn't run the call because the last step on a resource
+  // it names hasn't ended, though that step's call has. Nothing ran, and the
+  // agent says Unstuck once that step ends.
+  bool unfinished = 6;
 }
 
 // PlanResult carries a plan call's steps.

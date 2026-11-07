@@ -2589,6 +2589,11 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			// happen twice.
 			wait(q, "")
 			continue
+		case (IsRollback(c) || it.restart != "") && errors.Is(err, resource.ErrUnfinished):
+			// The agent didn't run it, as the step this follows is still going
+			// there, and it says when that ends.
+			wait(q, couldntPlan(err))
+			continue
 		default:
 			return stop(qi, err, told.Untouched)
 		}

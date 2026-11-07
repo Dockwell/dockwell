@@ -8,6 +8,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -459,9 +460,9 @@ func TestACallThatNeverReturnsDoesntHoldUpTheStream(t *testing.T) {
 	}
 }
 
-// One that runs out its time says so to the control plane, rather than leave it
-// waiting on nothing.
-func TestACallThatRunsOutOfTimeSaysSoAndIsLeftBehind(t *testing.T) {
+// One that runs out its time is left behind with nothing said: the control plane
+// stopped at the same deadline, and said so itself, before the grace has passed.
+func TestACallThatRunsOutOfTimeIsLeftBehind(t *testing.T) {
 	fw := newDeafFirewall(t)
 	s := &sent{results: map[uint64]*agentv1.CallResult{}}
 	c := newCalls(context.Background(), Config{
@@ -473,25 +474,13 @@ func TestACallThatRunsOutOfTimeSaysSoAndIsLeftBehind(t *testing.T) {
 	call.Timeout = durationpb.New(20 * time.Millisecond)
 	c.start(call)
 	<-fw.started
-	deadline := time.Now().Add(3 * time.Second)
-	for s.result(1) == nil {
-		if time.Now().After(deadline) {
-			t.Fatal("a stuck call never answered")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	got := s.result(1).GetError()
-	if !got.GetOutOfTime() || !strings.Contains(got.GetMessage(), "isn't answering") {
-		t.Errorf("a stuck call says %v", got)
+	waitFor(t, "it to be left behind", func() bool { return c.unfinished.left.Load() == 1 })
+	c.wg.Wait()
+	if got := s.result(1); got != nil {
+		t.Errorf("it answered a control plane that has gone on: %v", got)
 	}
 	fw.answer()
-	deadline = time.Now().Add(3 * time.Second)
-	for c.left.Load() != 0 {
-		if time.Now().After(deadline) {
-			t.Fatal("a call that came back is still counted as left behind")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitFor(t, "a call that came back to stop counting", func() bool { return c.unfinished.left.Load() == 0 })
 	c.stop()
 }
 
@@ -500,21 +489,21 @@ func TestACallThatRunsOutOfTimeSaysSoAndIsLeftBehind(t *testing.T) {
 func TestWhatsLeftBehindIsBoundedAcrossStreams(t *testing.T) {
 	fw := newDeafFirewall(t)
 	cfg := Config{
-		Logger:    slog.New(slog.DiscardHandler),
-		Drivers:   resource.NewRegistry(&firewall.Driver{Backend: fw}),
-		CallGrace: time.Millisecond,
-		left:      &atomic.Int32{},
+		Logger:     slog.New(slog.DiscardHandler),
+		Drivers:    resource.NewRegistry(&firewall.Driver{Backend: fw}),
+		CallGrace:  time.Millisecond,
+		unfinished: newUnfinished(),
 	}
 	for i := range maxLeftBehind {
 		s := &sent{results: map[uint64]*agentv1.CallResult{}}
 		c := newCalls(context.Background(), cfg, s.send, nil)
-		c.start(applyCall(t, uint64(i+1), "stuck"))
+		c.start(applyCall(t, uint64(i+1), "stuck-"+strconv.Itoa(i)))
 		<-fw.started
 		if !stops(c) {
 			t.Fatal("stop hung")
 		}
 	}
-	if n := cfg.left.Load(); n != maxLeftBehind {
+	if n := cfg.unfinished.left.Load(); n != maxLeftBehind {
 		t.Fatalf("%d calls left behind", n)
 	}
 	s := &sent{results: map[uint64]*agentv1.CallResult{}}
@@ -534,6 +523,14 @@ func TestWhatsLeftBehindIsBoundedAcrossStreams(t *testing.T) {
 	case <-fw.started:
 		t.Error("a call ran past the limit")
 	default:
+	}
+	// Nothing else tells what was refused that it can go.
+	fw.answer()
+	waitFor(t, "the calls to come back", func() bool { return cfg.unfinished.left.Load() == 0 })
+	select {
+	case <-cfg.unfinished.back:
+	case <-time.After(3 * time.Second):
+		t.Error("what was refused at the limit never hears that it can go")
 	}
 	c.stop()
 }

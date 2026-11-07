@@ -262,6 +262,8 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 					// connects.
 					h.agents.connected(peer.ServerID)
 				}
+			case msg.GetUnstuck() != nil && session != nil:
+				h.agents.connected(peer.ServerID)
 			case msg.GetDomains() != nil && h.agents != nil:
 				h.agents.Report(peer.ServerID, msg.GetDomains().GetDomains(), msg.GetDomains().GetIngress())
 				h.fleet.RecordIngress(peer.ServerID, msg.GetDomains().GetIngress())
