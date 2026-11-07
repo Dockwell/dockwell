@@ -2731,10 +2731,11 @@ if ! { printf 'from-the-folder\n' >"$site_root/index.html" && chmod 644 "$site_r
 fi
 folder_says from-the-folder
 # Scripts and dotfiles stay hidden; .well-known is served.
-mkdir -p "$site_root/.well-known" && chmod 755 "$site_root/.well-known" || fail "can't make .well-known"
-printf 'Contact: mailto:security@example.com\n' >"$site_root/.well-known/security.txt" && chmod 644 "$site_root/.well-known/security.txt" ||
+if ! { mkdir -p "$site_root/.well-known" && chmod 755 "$site_root/.well-known"; }; then fail "can't make .well-known"; fi
+if ! { printf 'Contact: mailto:security@example.com\n' >"$site_root/.well-known/security.txt" && chmod 644 "$site_root/.well-known/security.txt"; }; then
   fail "can't write security.txt"
-printf '<?php $password = "secret";\n' >"$site_root/config.php" && chmod 644 "$site_root/config.php" || fail "can't write config.php"
+fi
+if ! { printf '<?php echo %s;\n' '"secret"' >"$site_root/config.php" && chmod 644 "$site_root/config.php"; }; then fail "can't write config.php"; fi
 for want in "config.php 404" ".well-known/security.txt 200"; do
   got=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' --resolve "$folder_site:80:127.0.0.1" "http://$folder_site/${want% *}") ||
     fail "http://$folder_site/${want% *} didn't answer"

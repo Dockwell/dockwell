@@ -67,7 +67,8 @@ func TestOnlyAServerPathWithAnOwnerIsMade(t *testing.T) {
 }
 
 func TestAnOwner(t *testing.T) {
-	for in, want := range map[string]string{"82:82": "82:82", "0082:082": "82:82", " 1000:1000 ": "1000:1000", "0:0": "0:0"} {
+	for _, tc := range []struct{ in, want string }{{"82:82", "82:82"}, {"0082:082", "82:82"}, {" 1000:1000 ", "1000:1000"}, {"0:0", "0:0"}} {
+		in, want := tc.in, tc.want
 		uid, gid, err := resource.ParseOwner(in)
 		if err != nil || resource.FormatOwner(uid, gid) != want {
 			t.Errorf("resource.ParseOwner(%q) = %d:%d, %v; want %s", in, uid, gid, err, want)

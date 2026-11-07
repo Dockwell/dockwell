@@ -30,10 +30,10 @@ func (HostFolders) Make(path string, uid, gid uint32) error {
 	if _, err := os.Lstat(path); err == nil || !errors.Is(err, fs.ErrNotExist) {
 		return nil // there, or the mount will say what's wrong with it
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // as Docker makes them: a website's web server walks them as nobody's user
 		return fmt.Errorf("can't make the folders above %s: %w", path, err)
 	}
-	if err := os.Mkdir(path, 0o755); err != nil {
+	if err := os.Mkdir(path, 0o755); err != nil { //nolint:gosec // a website's web server reads it as nobody's user
 		if errors.Is(err, fs.ErrExist) {
 			return nil
 		}
@@ -46,7 +46,7 @@ func (HostFolders) Make(path string, uid, gid uint32) error {
 		return fmt.Errorf("made %s, but can't give it to %s: %w", path, resource.FormatOwner(uid, gid), err)
 	}
 	// The mode, as the umask had its say in Mkdir.
-	if err := os.Chmod(path, 0o755); err != nil {
+	if err := os.Chmod(path, 0o755); err != nil { //nolint:gosec // a website's web server reads it as nobody's user
 		return fmt.Errorf("made %s, but can't open it to everyone: %w", path, err)
 	}
 	return nil
