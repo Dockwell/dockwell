@@ -1112,10 +1112,18 @@ func TestAWriteTheDiskCantHoldLeavesTheFileAsItWas(t *testing.T) {
 	p := filepath.Join(dir, "conf")
 	write(t, p, "before\n")
 	version := savable(t, d, p)
-	if err := unix.Setrlimit(unix.RLIMIT_FSIZE, &unix.Rlimit{Cur: limit, Max: limit}); err != nil {
+	// Only for the save, as a test binary writes its coverage as it exits.
+	var was unix.Rlimit
+	if err := unix.Getrlimit(unix.RLIMIT_FSIZE, &was); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Setrlimit(unix.RLIMIT_FSIZE, &unix.Rlimit{Cur: limit, Max: was.Max}); err != nil {
 		t.Fatal(err)
 	}
 	got := d.save(t, p, strings.Repeat("x", 2*limit), version)
+	if err := unix.Setrlimit(unix.RLIMIT_FSIZE, &was); err != nil {
+		t.Fatal(err)
+	}
 	if got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_DENIED || !strings.Contains(got.GetRefusal().GetMessage(), "nothing was saved") {
 		t.Fatalf("got %v", got)
 	}
