@@ -135,7 +135,9 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await shoot(page, "website-plan");
   await plan.getByRole("button", { name: /Cancel/ }).click();
   await sheet.waitFor();
-  if ((await sheet.getByRole("textbox", { name: "URL", exact: true }).inputValue()) !== "https://backend.example.net/blog") {
+  if (
+    (await sheet.getByRole("textbox", { name: "URL", exact: true }).inputValue()) !== "https://backend.example.net/blog"
+  ) {
     fail("cancelling the plan loses the URL");
   }
 

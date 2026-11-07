@@ -1397,7 +1397,7 @@ type Project struct {
 	Catalog *CatalogPin `protobuf:"bytes,2,opt,name=catalog,proto3" json:"catalog,omitempty"`
 	// What this project serves, for a project made as a website. Dockwell writes
 	// the route and the services of its environment from it. Unset for any other
-	// project. See docs/adr/0037-websites-as-projects-of-their-own.md.
+	// project. See docs/adr/0038-websites-as-projects-of-their-own.md.
 	Website       *Website `protobuf:"bytes,3,opt,name=website,proto3" json:"website,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

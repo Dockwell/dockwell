@@ -32,13 +32,14 @@ func toURL(url string) *resourcev1.Website {
 	return &resourcev1.Website{Serves: &resourcev1.Website_Proxy{Proxy: &resourcev1.WebsiteProxy{Url: url}}}
 }
 
-func toPort(port uint32) *resourcev1.Website {
-	return &resourcev1.Website{Serves: &resourcev1.Website_Proxy{Proxy: &resourcev1.WebsiteProxy{Port: port}}}
+// onPort3000 sends a website to port 3000 on the server.
+func onPort3000() *resourcev1.Website {
+	return &resourcev1.Website{Serves: &resourcev1.Website_Proxy{Proxy: &resourcev1.WebsiteProxy{Port: 3000}}}
 }
 
 // applyReviewed applies a change with the fingerprint of the plan, as the panel
 // does, which a plan with host access needs.
-func applyReviewed(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *dockwellv1.Change) *dockwellv1.Change {
+func applyReviewed(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *dockwellv1.Change) {
 	t.Helper()
 	w := watch(t, c, ch.GetId())
 	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint()})); err != nil {
@@ -48,7 +49,6 @@ func applyReviewed(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *do
 	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("%s ended %v: %s", ch.GetSummary(), got.GetState(), got.GetError())
 	}
-	return got
 }
 
 func listWebsites(t *testing.T, c dockwellv1connect.WebsiteServiceClient) []*dockwellv1.WebsiteInfo {
@@ -156,7 +156,7 @@ func testAWebsite(t *testing.T, backend store.Backend) {
 
 	// A port on the server reaches past containers: a token plans it, and only a
 	// person applies it.
-	moved, err := script.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "blog.example.com", Website: toPort(3000)}))
+	moved, err := script.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "blog.example.com", Website: onPort3000()}))
 	if err != nil {
 		t.Fatalf("UpdateWebsite: %v", err)
 	}
@@ -181,7 +181,7 @@ func testAWebsite(t *testing.T, backend store.Backend) {
 	}
 
 	// The same again is nothing to plan.
-	_, err = sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "blog-example-com", Website: toPort(3000)}))
+	_, err = sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "blog-example-com", Website: onPort3000()}))
 	if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "nothing to change") {
 		t.Errorf("an update to what it serves already = %v, want it refused as nothing to change", err)
 	}
@@ -246,15 +246,15 @@ func testWhatAWebsiteRefuses(t *testing.T, backend store.Backend) {
 		{&dockwellv1.CreateWebsiteRequest{Domain: "blog.example.com", Website: toURL("backend.example.com")}, "no http:// or https://"},
 		{&dockwellv1.CreateWebsiteRequest{Domain: "blog.example.com", Website: toURL("http://127.0.0.1:3000")}, "give the port in place of a URL"},
 		{&dockwellv1.CreateWebsiteRequest{Domain: "blog.example.com"}, "needs to say what it serves"},
-		{&dockwellv1.CreateWebsiteRequest{Domain: "blog", Website: toPort(3000)}, "needs a dot"},
-		{&dockwellv1.CreateWebsiteRequest{Website: toPort(3000)}, "needs a domain"},
+		{&dockwellv1.CreateWebsiteRequest{Domain: "blog", Website: onPort3000()}, "needs a dot"},
+		{&dockwellv1.CreateWebsiteRequest{Website: onPort3000()}, "needs a domain"},
 	} {
 		_, err := sites.CreateWebsite(t.Context(), connect.NewRequest(tc.req))
 		if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), tc.says) {
 			t.Errorf("CreateWebsite(%v) = %v, want invalid, saying %q", tc.req, err, tc.says)
 		}
 	}
-	if _, err := sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "nothing", Website: toPort(3000)})); reasonOf(err) != "not_found" {
+	if _, err := sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: "nothing", Website: onPort3000()})); reasonOf(err) != "not_found" {
 		t.Errorf("updating a website that isn't there = %v, want not_found", err)
 	}
 
@@ -304,7 +304,7 @@ func testWhatAWebsiteRefuses(t *testing.T, backend store.Backend) {
 	if got := preview.Msg; got.GetWebsite().GetProxy().GetUrl() != "https://backend.example.com/app" || !strings.Contains(got.GetConfig(), "rewrite * /app{uri}") {
 		t.Errorf("PreviewWebsite = %v", got)
 	}
-	if got, err := sites.PreviewWebsite(t.Context(), connect.NewRequest(&dockwellv1.PreviewWebsiteRequest{Website: toPort(3000)})); err != nil || got.Msg.GetConfig() != "" {
+	if got, err := sites.PreviewWebsite(t.Context(), connect.NewRequest(&dockwellv1.PreviewWebsiteRequest{Website: onPort3000()})); err != nil || got.Msg.GetConfig() != "" {
 		t.Errorf("PreviewWebsite of a port = %v, %v, want no config", got, err)
 	}
 	if _, err := sites.PreviewWebsite(t.Context(), connect.NewRequest(&dockwellv1.PreviewWebsiteRequest{Website: toURL("http://localhost")})); reasonOf(err) != "invalid" {
