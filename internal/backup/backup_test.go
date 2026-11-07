@@ -402,19 +402,30 @@ func TestABackupSaysWhatItsVolumeReached(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, tt := range map[string]struct {
-		device string
-		want   []string
+		device, share string
+		want          []string
 	}{
 		"an ordinary volume": {},
 		"a folder":           {device: folder},
 		"the system":         {device: "/etc", want: []string{"/etc"}},
 		"a link to it":       {device: link, want: []string{"/etc"}},
+		"an NFS share":       {share: ":/share"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			b := newBench(t)
 			b.runner.Paths = &container.Paths{Client: b.client, DataDir: t.TempDir()}
 			if tt.device != "" {
 				b.bound(tt.device)
+			}
+			if tt.share != "" {
+				if err := b.client.RemoveVolume(t.Context(), b.target.Name); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := b.client.CreateVolume(t.Context(), &docker.VolumeCreate{
+					Name: b.target.Name, Driver: "local", DriverOpts: map[string]string{"type": "nfs", "o": "addr=10.0.0.5", "device": tt.share},
+				}); err != nil {
+					t.Fatal(err)
+				}
 			}
 			m := b.take(false)
 			if !slices.Equal(m.Reached, tt.want) {
