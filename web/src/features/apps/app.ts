@@ -293,10 +293,10 @@ export function groupDeployedAt(group: AppGroup): Date {
  * cursor as a deploy starts or ends: sorting waits until the page is next opened.
  * One that is new comes first, as it is the newest. It returns the order to keep.
  */
-export function keepOrder(
+export function keepOrder<T extends { key: string }>(
   known: readonly string[],
-  sorted: readonly AppGroup[],
-): { order: string[]; groups: AppGroup[] } {
+  sorted: readonly T[],
+): { order: string[]; groups: T[] } {
   const at = new Map(known.map((key, i) => [key, i]));
   const fresh = sorted.filter((g) => !at.has(g.key));
   const kept = sorted.filter((g) => at.has(g.key)).sort((a, b) => (at.get(a.key) ?? 0) - (at.get(b.key) ?? 0));

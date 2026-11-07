@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { CertificateState, type Domain } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
-import { domainNeedsALook, groupOf, lookOf, refusedField } from "./domains";
+import { groupConcern, groupNeedsALook, groupOf, lookOf, refusedField } from "./domains";
 
 /**
  * What the server says, from its source, with values in place of its verbs, so this
@@ -79,14 +79,18 @@ describe("which field a refusal lands on", () => {
 });
 
 describe("how a domain sorts in the list of them", () => {
-  const onServer = (server: object = {}) =>
+  const onServer = (server: object = {}, route: object = {}) =>
     ({
       name: "app.example.com",
-      routes: [{ tls: "" }],
-      servers: [{ serverId: "srv_1", ...server }],
+      routes: [{ tls: "", ...route }],
+      servers: [{ serverId: "srv_1", serverName: "hz-1", ...server }],
     }) as unknown as Domain;
-  const certificate = (state: CertificateState, message = "") => ({ status: { certificate: { state, message } } });
-  const sorted = (domain: Domain) => groupOf(lookOf(domain));
+  const certificate = (state: CertificateState, message = "", expireTime?: { seconds: bigint }) => ({
+    status: { certificate: { state, message, expireTime } },
+  });
+  const sorted = (domain: Domain, silent = false) => groupOf(domain, lookOf(domain), silent);
+  const needs = (domain: Domain, silent = false) => groupNeedsALook(sorted(domain, silent));
+  const inDays = (days: number) => ({ seconds: BigInt(Math.floor(Date.now() / 1000) + days * 86_400) });
 
   it("says serving only of a certificate a server has said it has", () => {
     expect(sorted(onServer(certificate(CertificateState.ISSUED)))).toBe("serving");
@@ -102,8 +106,14 @@ describe("how a domain sorts in the list of them", () => {
     expect(sorted({ ...onServer(), servers: [] } as Domain)).toBe("failing");
   });
 
-  it("says behind a tunnel only of what a server has said takes no certificate", () => {
-    expect(sorted(onServer(certificate(CertificateState.NONE)))).toBe("tunnel");
+  it("says behind a tunnel only of what something ends TLS in front of", () => {
+    expect(sorted(onServer(certificate(CertificateState.NONE), { tls: "off" }))).toBe("tunnel");
+  });
+
+  it("sorts what answers anyone over plain HTTP as serving, as nothing is in front of it", () => {
+    const plain = onServer(certificate(CertificateState.NONE), { tls: "off", plainForAnyone: true });
+    expect(sorted(plain)).toBe("serving");
+    expect(needs(plain)).toBe(false);
   });
 
   it("says nothing of how it stands while a server isn't connected, whatever that server last said", () => {
@@ -113,12 +123,73 @@ describe("how a domain sorts in the list of them", () => {
     expect(sorted(onServer(failed))).toBe("not-connected");
   });
 
+  it("sorts a server that has said nothing for a while apart, not as on its way", () => {
+    expect(sorted(onServer(), false)).toBe("waiting");
+    expect(sorted(onServer(), true)).toBe("no-report");
+    expect(needs(onServer(), false)).toBe(false);
+    expect(needs(onServer(), true)).toBe(true);
+  });
+
   it("asks for a look at what's failing and what nobody can say, not what's on its way", () => {
-    const needs = (domain: Domain) => domainNeedsALook(lookOf(domain));
     expect(needs(onServer(certificate(CertificateState.FAILED, "DNS has no record.")))).toBe(true);
     expect(needs(onServer({ ...certificate(CertificateState.ISSUED), stale: true }))).toBe(true);
     expect(needs(onServer(certificate(CertificateState.ISSUED)))).toBe(false);
     expect(needs(onServer(certificate(CertificateState.PENDING)))).toBe(false);
-    expect(needs(onServer(certificate(CertificateState.NONE)))).toBe(false);
+    expect(needs(onServer(certificate(CertificateState.NONE), { tls: "off" }))).toBe(false);
+  });
+
+  it("puts what needs a look first, then what's moving, then the rest", () => {
+    expect(groupConcern("failing")).toBeLessThan(groupConcern("waiting"));
+    expect(groupConcern("no-report")).toBe(groupConcern("failing"));
+    expect(groupConcern("not-connected")).toBe(groupConcern("failing"));
+    expect(groupConcern("waiting")).toBeLessThan(groupConcern("serving"));
+    expect(groupConcern("serving")).toBe(groupConcern("tunnel"));
+  });
+
+  it("reads a certificate past its end as expired, whatever its server last said", () => {
+    const out = onServer(certificate(CertificateState.ISSUED, "", inDays(-2)));
+    const look = lookOf(out);
+    expect(look.state).toBe("failed");
+    expect(look.expired).toMatchObject({ id: "srv_1", name: "hz-1" });
+    expect(sorted(out)).toBe("failing");
+  });
+
+  it("reads a certificate as good right up to its end", () => {
+    const end = inDays(1);
+    const domain = onServer(certificate(CertificateState.ISSUED, "", end));
+    const at = Number(end.seconds) * 1000;
+    expect(lookOf(domain, at - 1000).state).toBe("serving");
+    expect(lookOf(domain, at).expired).toBeDefined();
+  });
+
+  it("goes by the control plane's clock where it's given, not this browser's", () => {
+    const domain = onServer(certificate(CertificateState.ISSUED, "", inDays(30)));
+    expect(lookOf(domain, Date.now() + 40 * 86_400_000).expired).toBeDefined();
+    expect(lookOf(domain).expired).toBeUndefined();
+  });
+
+  it("goes by the soonest of a domain's servers, as it needs them all", () => {
+    const issued = (id: string, days: number) => ({
+      serverId: id,
+      serverName: id,
+      ...certificate(CertificateState.ISSUED, "", inDays(days)),
+    });
+    const domain = { ...onServer(), servers: [issued("late", 30), issued("gone", -1)] } as unknown as Domain;
+    expect(lookOf(domain).expired).toMatchObject({ id: "gone" });
+  });
+
+  it("doesn't call a certificate expired behind one still on its way elsewhere", () => {
+    const domain = {
+      ...onServer(),
+      servers: [
+        { serverId: "a", serverName: "a", ...certificate(CertificateState.ISSUED, "", inDays(-1)) },
+        { serverId: "b", serverName: "b", ...certificate(CertificateState.PENDING) },
+      ],
+    } as unknown as Domain;
+    expect(lookOf(domain).expired).toMatchObject({ id: "a" });
+  });
+
+  it("leaves a certificate that says no end alone", () => {
+    expect(lookOf(onServer(certificate(CertificateState.ISSUED))).state).toBe("serving");
   });
 });

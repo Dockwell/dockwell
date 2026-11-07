@@ -362,6 +362,7 @@ msgid "{free} free"
 msgstr "{free} free"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "{later}. Show them first puts them at the top of the list."
 msgstr "{later}. Show them first puts them at the top of the list."
 
@@ -2966,6 +2967,7 @@ msgstr "Everything stays as it was"
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "Everything this plan asks for is already as it says, so there is nothing to apply."
 
+#: src/features/apps/DomainNote.tsx
 #: src/features/auth/ClaimPage.tsx
 msgid "Expired"
 msgstr "Expired"
@@ -4182,6 +4184,7 @@ msgid "No passkey works at {rpId} yet"
 msgstr "No passkey works at {rpId} yet"
 
 #: src/features/apps/DomainNote.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "No report"
 msgstr "No report"
 
@@ -5904,6 +5907,7 @@ msgid "Show the value"
 msgstr "Show the value"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "Show them first"
 msgstr "Show them first"
 
@@ -6297,6 +6301,10 @@ msgstr "The authenticator app isn't set up yet"
 #: src/features/auth/messages.ts
 msgid "The browser couldn't finish with the passkey. Try again, or use another device."
 msgstr "The browser couldn't finish with the passkey. Try again, or use another device."
+
+#: src/features/apps/DomainNote.tsx
+msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse this domain. Dockwell renews it by itself. If it stays like this, <1>check its page</1>."
+msgstr "The certificate on <0>{server}</0> ran out {when}, so browsers refuse this domain. Dockwell renews it by itself. If it stays like this, <1>check its page</1>."
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "The change failed"

@@ -57,6 +57,8 @@ export interface ServerSummary {
   connection: Connection;
   /** When it was last heard from, for one that isn't connected, as only then does this hold still. */
   lastSeen?: number;
+  /** When its agent connected, for one that's connected now. */
+  connectedAt?: number;
   /** The address people reach it on, from its inventory. */
   address: string | undefined;
   /** Since when its agent can't read Docker, for one that's connected and can't. */
@@ -117,6 +119,9 @@ function summaries(servers: readonly Server[], prev: readonly ServerSummary[] | 
       ...(server.connection !== Connection.CONNECTED && server.lastSeenTime
         ? { lastSeen: timestampMs(server.lastSeenTime) }
         : {}),
+      ...(server.connection === Connection.CONNECTED && server.connectTime
+        ? { connectedAt: timestampMs(server.connectTime) }
+        : {}),
       ...(server.connection === Connection.CONNECTED && server.dockerUnreadableSince
         ? { dockerUnreadableSince: timestampMs(server.dockerUnreadableSince) }
         : {}),
@@ -134,6 +139,7 @@ function sameSummary(a: ServerSummary, b: ServerSummary): boolean {
     a.connection === b.connection &&
     a.address === b.address &&
     a.lastSeen === b.lastSeen &&
+    a.connectedAt === b.connectedAt &&
     a.dockerUnreadableSince === b.dockerUnreadableSince
   );
 }

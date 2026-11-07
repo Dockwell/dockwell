@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { createClient } from "@connectrpc/connect";
-import { createConnectQueryKey, createQueryOptions, useQuery, useTransport } from "@connectrpc/connect-query";
+import { createConnectQueryKey, createQueryOptions, useTransport } from "@connectrpc/connect-query";
 import {
   CertificateState,
   type Domain,
   type DomainRoute,
   DomainService,
   type ListDomainsResponse,
+  ResourceService,
   type ServiceInfo,
 } from "@dockwell/api";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery as useTanstackQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 import { READ_EVERY_MS, READ_TIMEOUT_MS, type StandingRead, useStandingRead } from "../../lib/standing";
@@ -28,6 +29,9 @@ const SILENT_POLL_MS = 30_000;
 
 /** The most a route's name, a DNS label, can hold. */
 const MAX_LABEL = 63;
+
+/** The most ListResources returns at once. */
+const RESOURCE_PAGE = 1000;
 
 /** The guide's part on a server behind a tunnel or a proxy. */
 export const TUNNEL_GUIDE =
@@ -76,8 +80,10 @@ export interface DomainLook {
   orphaned?: boolean;
   /** It serves, and message says what's going wrong while it does, such as a renewal failing. */
   warning?: boolean;
-  /** When its certificate runs out, the soonest of its servers', in ms. */
-  expires?: number;
+  /** Its certificate has run out, whatever was said of it before it did: on which server, and when. */
+  expired?: { id: string; name: string; at: number };
+  /** How many days its certificate has left, the soonest of its servers', from at least one. */
+  days?: number;
   /** Its server isn't connected, so nothing here is known to be so any more. */
   stale?: { id: string; name: string };
   /** What that server last said, for one that isn't connected. */
@@ -85,26 +91,33 @@ export interface DomainLook {
 }
 
 /** The ways the list of domains sorts them, in the order it offers them. */
-export const DOMAIN_GROUPS = ["failing", "waiting", "serving", "tunnel", "not-connected"] as const;
+export const DOMAIN_GROUPS = ["failing", "waiting", "serving", "tunnel", "no-report", "not-connected"] as const;
 
 export type DomainGroup = (typeof DOMAIN_GROUPS)[number];
 
 /**
- * Which way a domain's look sorts it: what's going wrong, even while it serves, then
- * what's on its way, and what serves. A server that isn't connected comes before them
- * all, as nothing is known of those any more.
+ * Which way a domain sorts: what's going wrong, even while it serves, then what's on its
+ * way, and what serves. A domain whose server isn't connected, or has said nothing for a
+ * while, comes before them all, as nobody can say any of that of it. Behind a tunnel or
+ * a proxy is only what something ends TLS in front of: what answers anyone over plain
+ * HTTP has nothing in front, and serves.
  */
-export function groupOf(look: DomainLook): DomainGroup {
+export function groupOf(domain: Domain, look: DomainLook, silent: boolean): DomainGroup {
   if (look.stale) return "not-connected";
+  if (silent && look.unreported) return "no-report";
   if (look.state === "failed" || look.warning || look.orphaned) return "failing";
   if (look.state === "pending") return "waiting";
-  return look.noCertificate ? "tunnel" : "serving";
+  return look.noCertificate && !plainForAnyone(domain) ? "tunnel" : "serving";
 }
 
-/** Whether a person should look: it's failing, or nobody can say. */
-export function domainNeedsALook(look: DomainLook): boolean {
-  const group = groupOf(look);
-  return group === "failing" || group === "not-connected";
+/** Whether a person should look at a domain in a group: it's failing, or nobody can say. */
+export function groupNeedsALook(group: DomainGroup): boolean {
+  return group === "failing" || group === "not-connected" || group === "no-report";
+}
+
+/** How much a group needs someone, to put first what does, then what's moving, then the rest. */
+export function groupConcern(group: DomainGroup): number {
+  return groupNeedsALook(group) ? 0 : group === "waiting" ? 1 : 2;
 }
 
 /** True when a domain's certificate can't come, and a tunnel or a proxy in front may be why. */
@@ -190,16 +203,17 @@ export function panelWords(message: string, switchName: string): string {
 
 /**
  * Where a domain stands, as far as someone reaching it goes. With a server that isn't
- * connected, nothing is known of that any more, only what it last said.
+ * connected, nothing is known of that any more, only what it last said. now is on the
+ * control plane's clock, where it's known, as a browser's may be days out.
  */
-export function lookOf(domain: Domain): DomainLook {
-  const said = heardFrom(domain);
+export function lookOf(domain: Domain, now = Date.now()): DomainLook {
+  const said = heardFrom(domain, now);
   const away = domain.servers.find((server) => server.stale);
   return away ? { state: "stale", message: "", stale: { id: away.serverId, name: away.serverName }, said } : said;
 }
 
 /** The worst of what a domain's servers say, as it needs them all. */
-function heardFrom(domain: Domain): DomainLook {
+function heardFrom(domain: Domain, now: number): DomainLook {
   for (const server of domain.servers) {
     if (server.ingress?.message) return { state: "failed", message: server.ingress.message };
   }
@@ -210,6 +224,21 @@ function heardFrom(domain: Domain): DomainLook {
   if (domain.servers.length === 0) return { state: "pending", message: "", orphaned: true };
   // No certificate is asked for behind a tunnel, so there's none to wait for.
   const certificates = domain.servers.map((server) => server.status?.certificate);
+  // A server stops saying issued once it runs out, so one that still does said so before
+  // then. Nothing it said can make a certificate good past its end.
+  const issuedTo = domain.servers.flatMap((server) => {
+    const certificate = server.status?.certificate;
+    if (certificate?.state !== CertificateState.ISSUED || !certificate.expireTime) return [];
+    return [{ id: server.serverId, name: server.serverName, at: Number(certificate.expireTime.seconds) * 1000 }];
+  });
+  const first = issuedTo.reduce<(typeof issuedTo)[number] | undefined>(
+    (soonest, one) => (soonest && soonest.at <= one.at ? soonest : one),
+    undefined,
+  );
+  if (first && first.at <= now) {
+    const said = certificates.find((certificate) => certificate?.message)?.message ?? "";
+    return { state: "failed", message: said, expired: first };
+  }
   const pending = certificates.find(
     (certificate) =>
       certificate && certificate.state !== CertificateState.ISSUED && certificate.state !== CertificateState.NONE,
@@ -227,15 +256,12 @@ function heardFrom(domain: Domain): DomainLook {
     return { state: "serving", message: "", noCertificate: true };
   }
   // It has a certificate, and may say what's going wrong with getting the next one.
-  const expiries = certificates.flatMap((certificate) =>
-    certificate?.expireTime ? [Number(certificate.expireTime.seconds) * 1000] : [],
-  );
   const said = certificates.find((certificate) => certificate?.message)?.message ?? "";
   return {
     state: "serving",
     message: said,
     ...(said ? { warning: true } : {}),
-    ...(expiries.length > 0 ? { expires: Math.min(...expiries) } : {}),
+    ...(first ? { days: Math.max(1, Math.ceil((first.at - now) / 86_400_000)) } : {}),
   };
 }
 
@@ -275,38 +301,66 @@ function useReadAgainAsServersMove(read: () => void) {
   }, [connections]);
 }
 
-/** The domains an app is reached at, read again until each settles: a failed certificate is retried by itself. */
+/**
+ * How soon to read domains someone's looking at again: as usePace has it while one is
+ * moving, and otherwise on the pace of any reading, however well they're doing, as what
+ * stops being read goes on standing whatever became of it.
+ */
+function useReadPace(): (domains: readonly Domain[] | undefined) => number {
+  const pace = usePace();
+  return (domains = []) => Math.min(pace("", domains) || READ_EVERY_MS, READ_EVERY_MS);
+}
+
+/** What a read can say of how domains are now: where each stands, nothing for a moment, or nothing until it's back. */
+export type DomainRead = "read" | "reading" | "failed";
+
+/** What a read of domains comes to, for what's shown: whether it can be believed now. */
+export function readOf(read: StandingRead<ListDomainsResponse>): DomainRead {
+  return read.data ? "read" : read.reading ? "reading" : "failed";
+}
+
+/** The domains an app is reached at, held to the same rule as any reading (ADR 0027). */
 export function useAppDomains(service: ServiceInfo): {
+  /** As last read, whatever its age, so its rows stay. read says whether where they stand does. */
   domains: readonly Domain[];
+  read: DomainRead;
   isPending: boolean;
   failed: boolean;
   retrying: boolean;
   retry: () => void;
 } {
-  const pace = usePace();
-  const query = useQuery(
-    DomainService.method.listDomains,
-    { environment: environmentOf(service), service: nameOf(service) },
-    { refetchInterval: (state) => pace("", state.state.data?.domains ?? []) },
-  );
-  useReadAgainAsServersMove(() => void query.refetch());
+  const transport = useTransport();
+  const pace = useReadPace();
+  const input = { environment: environmentOf(service), service: nameOf(service) };
+  const domains = useStandingRead<ListDomainsResponse>({
+    queryKey: createConnectQueryKey({
+      schema: DomainService.method.listDomains,
+      input,
+      transport,
+      cardinality: "finite",
+    }),
+    read: (signal) => createClient(DomainService, transport).listDomains(input, { signal, timeoutMs: READ_TIMEOUT_MS }),
+    every: (last) => pace(last?.domains),
+  });
+  useReadAgainAsServersMove(domains.readAgain);
+  const read = readOf(domains);
   return {
-    domains: query.data?.domains ?? [],
-    isPending: query.isPending,
-    failed: query.isError,
-    retrying: query.isFetching,
-    retry: () => void query.refetch(),
+    domains: domains.last?.domains ?? [],
+    read,
+    isPending: domains.last === undefined && read === "reading",
+    failed: read === "failed",
+    retrying: domains.fetching,
+    retry: domains.readAgain,
   };
 }
 
 /**
- * Every domain, for a list of them. It reads all the time, where an app's own page stops
- * once its domains serve, as a list that stopped would go on saying so whatever became
- * of them. What a server has said of a domain stands as long as any reading (ADR 0027),
- * and it's read again at once as a server connects or goes.
+ * Every domain, for a list of them, held to the same rule as any reading (ADR 0027), and
+ * read again at once as a server connects or goes.
  */
 export function useAllDomains(): StandingRead<ListDomainsResponse> {
   const transport = useTransport();
+  const pace = useReadPace();
   const domains = useStandingRead<ListDomainsResponse>({
     queryKey: createConnectQueryKey({
       schema: DomainService.method.listDomains,
@@ -315,16 +369,48 @@ export function useAllDomains(): StandingRead<ListDomainsResponse> {
       cardinality: "finite",
     }),
     read: (signal) => createClient(DomainService, transport).listDomains({}, { signal, timeoutMs: READ_TIMEOUT_MS }),
-    every: (last) => {
-      // A server that has said nothing is a server to go and look at, not something about to change.
-      const looks = (last?.domains ?? []).map(lookOf);
-      return looks.some((look) => look.state === "pending" && !look.unreported && !look.orphaned)
-        ? POLL_MS
-        : READ_EVERY_MS;
-    },
+    every: (last) => pace(last?.domains),
   });
   useReadAgainAsServersMove(domains.readAgain);
   return domains;
+}
+
+function selectRouteTimes(resources: readonly { id: string; updateTime?: { seconds: bigint } | undefined }[]) {
+  return new Map(
+    resources.flatMap((route) => (route.updateTime ? [[route.id, Number(route.updateTime.seconds) * 1000]] : [])) as [
+      string,
+      number,
+    ][],
+  );
+}
+
+/**
+ * When each route's latest revision was applied, by its ID, read a page at a time, under
+ * ListResources' own key, so a change that applies reads it again. Undefined until it's
+ * read, and if it can't be.
+ */
+export function useRouteTimes(): ReadonlyMap<string, number> | undefined {
+  const transport = useTransport();
+  return useTanstackQuery({
+    queryKey: createConnectQueryKey({
+      schema: ResourceService.method.listResources,
+      input: { kind: "route" },
+      transport,
+      cardinality: "finite",
+    }),
+    queryFn: async ({ signal }) => {
+      const client = createClient(ResourceService, transport);
+      const all = [];
+      let pageToken = "";
+      do {
+        const page = await client.listResources({ kind: "route", pageSize: RESOURCE_PAGE, pageToken }, { signal });
+        all.push(...page.resources);
+        pageToken = page.nextPageToken;
+      } while (pageToken !== "");
+      return all;
+    },
+    select: selectRouteTimes,
+  }).data;
 }
 
 /** What a change brought to life in one environment, or sends there: services and routes, by name. */

@@ -47,12 +47,33 @@
   min-width: 160px;
 }
 
-.domains-table .dw-table td {
-  vertical-align: top;
+.domains-phone-trouble {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 20px;
+  margin-top: calc(-1 * var(--space-3));
+  padding: 0 2px;
+  font-size: 13px;
+  line-height: 20px;
 }
 
-.domains-table .is-inert {
-  cursor: default;
+/* 44 px to tap, as anything on a phone, and no taller on its line. */
+.domains-phone-trouble .apps-show-first {
+  flex: none;
+  height: 44px;
+  margin-block: -12px;
+  padding-inline: var(--space-1);
+}
+
+/* It arrives under someone's pointer, so it takes no room from the line it's on, and the list stays put. */
+.domains-page .page-lead .apps-show-first {
+  margin-block: calc(-1 * var(--space-1));
+}
+
+.domains-table .dw-table td {
+  vertical-align: top;
 }
 
 /* What a domain reaches is half of what a row says, so it's never clipped. */
@@ -61,10 +82,13 @@
   overflow-wrap: anywhere;
 }
 
+/* Where it is reads as one line that wraps, as a clipped server name is no name. */
 .domains-where {
-  display: flex;
-  gap: var(--space-2);
-  min-width: 0;
+  font-size: 12.5px;
+  line-height: 16px;
+  color: var(--ink-muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .domains-where code {
@@ -96,8 +120,13 @@
   line-height: 16px;
 }
 
-.domains-phone-row .apps-phone-sub {
-  flex-wrap: wrap;
+.domains-phone-target {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* Under the name, with the row's text, past its glyph. */

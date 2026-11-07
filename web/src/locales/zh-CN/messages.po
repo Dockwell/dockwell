@@ -362,6 +362,7 @@ msgid "{free} free"
 msgstr "可用 {free}"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "{later}. Show them first puts them at the top of the list."
 msgstr "{later}。“优先显示”会把它们移到列表顶部。"
 
@@ -2966,6 +2967,7 @@ msgstr "一切保持原样"
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "此计划要求的一切都已就绪，没有需要应用的内容。"
 
+#: src/features/apps/DomainNote.tsx
 #: src/features/auth/ClaimPage.tsx
 msgid "Expired"
 msgstr "已过期"
@@ -4182,6 +4184,7 @@ msgid "No passkey works at {rpId} yet"
 msgstr "{rpId} 上还没有可用的通行密钥"
 
 #: src/features/apps/DomainNote.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "No report"
 msgstr "无上报"
 
@@ -5904,6 +5907,7 @@ msgid "Show the value"
 msgstr "显示值"
 
 #: src/features/apps/AppsPage.tsx
+#: src/features/domains/DomainsPage.tsx
 msgid "Show them first"
 msgstr "优先显示"
 
@@ -6297,6 +6301,10 @@ msgstr "身份验证器应用尚未设置"
 #: src/features/auth/messages.ts
 msgid "The browser couldn't finish with the passkey. Try again, or use another device."
 msgstr "浏览器未能完成通行密钥操作。请重试，或换一台设备。"
+
+#: src/features/apps/DomainNote.tsx
+msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse this domain. Dockwell renews it by itself. If it stays like this, <1>check its page</1>."
+msgstr "<0>{server}</0> 上的证书已于{when}过期，因此浏览器会拒绝访问这个域名。Dockwell 会自动续期。如果一直是这样，请<1>查看它的页面</1>。"
 
 #: src/features/changes/ChangeSheet.tsx
 msgid "The change failed"

@@ -12,6 +12,9 @@ export const READ_EVERY_MS = 10_000;
 /** How long one page of a read may take, so a read nobody answers gives way to the next. */
 export const READ_TIMEOUT_MS = 8_000;
 
+/** How soon a read takes over from one a screen just called off, moving straight to another that shows the same. */
+const HANDOVER_MS = 1_500;
+
 /** Why what was read no longer stands: this browser is offline, or the control plane doesn't answer. */
 export interface Unstanding {
   why: Unread;
@@ -34,6 +37,8 @@ export interface StandingRead<T> {
   unread: Unstanding | undefined;
   /** What the last read failed with, while it's failing. */
   error: Error | null;
+  /** A read is under way, whatever came of the last. */
+  fetching: boolean;
   /** Reads now, rather than at the next turn of the pace. */
   readAgain: () => void;
 }
@@ -44,6 +49,8 @@ interface Clocks {
   began?: number;
   /** On the same clock as heard, so a clock that steps can't make one look older than the last good read. */
   failed?: number;
+  /** When a read was called off, as its screen left. That says nothing of whether anything can be read. */
+  calledOff?: number;
 }
 
 const clocksByClient = new WeakMap<QueryClient, Map<string, Clocks>>();
@@ -62,6 +69,11 @@ function clocksOf(client: QueryClient, queryKey: QueryKey): Clocks {
     byKey.set(key, clocks);
   }
   return clocks;
+}
+
+/** Whether a read has just been called off, by a screen moving straight to another. */
+function movedOn({ calledOff }: Clocks): boolean {
+  return calledOff !== undefined && performance.now() - calledOff <= HANDOVER_MS;
 }
 
 /** Renders again in the soonest of ms, so a reading that runs out of time says so on its own. */
@@ -102,14 +114,20 @@ export function useStandingRead<T>({
   const { data, dataUpdatedAt, error, fetchStatus, failureCount } = useQuery({
     queryKey,
     queryFn: async ({ signal }) => {
-      // A read's first try starts its time; a try again after a failure doesn't.
-      if ((queryClient.getQueryState(queryKey)?.fetchFailureCount ?? 0) === 0) clocks.began = performance.now();
+      // A read's first try starts its time. A try again after a failure doesn't, and nor
+      // does taking over from a read a screen just left: someone's still waiting, and
+      // moving between screens gives a hung read no more time.
+      const first = (queryClient.getQueryState(queryKey)?.fetchFailureCount ?? 0) === 0;
+      if (first && !movedOn(clocks)) clocks.began = performance.now();
+      clocks.calledOff = undefined;
+      // Said as it happens, as the read that takes over starts before this one has failed.
+      signal.addEventListener("abort", () => (clocks.calledOff = performance.now()), { once: true });
       try {
         const out = await read(signal);
         clocks.heard = performance.now();
         return out;
       } catch (err) {
-        clocks.failed = performance.now();
+        if (!signal.aborted) clocks.failed = performance.now();
         throw err;
       }
     },
@@ -129,8 +147,14 @@ export function useStandingRead<T>({
   // A read's first try under way, within its time, is reading, and never what was read,
   // until a read has failed since the last that didn't: then nobody can say, and stays so,
   // rather than come and go with each read that tries again.
-  // What hasn't begun yet is about to: a screen's first render comes before its read does.
-  const tried = clocks.began === undefined ? 0 : performance.now() - clocks.began;
+  // A read that's over isn't the one under way: a screen's first render comes before its
+  // read does, and the clocks outlive the screen, so this one hasn't begun yet.
+  const over = Math.max(
+    clocks.heard ?? Number.NEGATIVE_INFINITY,
+    clocks.failed ?? Number.NEGATIVE_INFINITY,
+    movedOn(clocks) ? Number.NEGATIVE_INFINITY : (clocks.calledOff ?? Number.NEGATIVE_INFINITY),
+  );
+  const tried = clocks.began === undefined || clocks.began <= over ? 0 : performance.now() - clocks.began;
   const reading =
     !trusted &&
     fetchStatus === "fetching" &&
@@ -145,5 +169,13 @@ export function useStandingRead<T>({
     () => (lost ? { why, heard: lastHeard === undefined ? undefined : new Date(lastHeard) } : undefined),
     [lost, why, lastHeard],
   );
-  return { data: trusted ? data : undefined, last: data, reading, unread, error, readAgain };
+  return {
+    data: trusted ? data : undefined,
+    last: data,
+    reading,
+    unread,
+    error,
+    fetching: fetchStatus === "fetching",
+    readAgain,
+  };
 }

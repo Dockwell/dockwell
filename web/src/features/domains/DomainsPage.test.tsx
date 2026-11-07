@@ -83,6 +83,26 @@ function api(
 
 const rowOf = (name: string | RegExp) => screen.findByRole("row", { name });
 
+/** The names of the rows shown, in their order. */
+const namesShown = () =>
+  screen
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => row.querySelector(".domains-at")?.textContent);
+
+const longAgo = timestampFromDate(new Date(Date.now() - 3_600_000));
+
+/** What the API says of what lives where, with when routes last changed, a page of them at a time. */
+function withRoutes(...pages: { id: string; updateTime?: typeof longAgo }[][]): Api["resources"] {
+  return {
+    listResources: (req) => {
+      if (req.kind !== "route") return places().listResources(req);
+      const at = Number(req.pageToken || 0);
+      return { resources: pages[at] ?? [], nextPageToken: at + 1 < pages.length ? String(at + 1) : "" };
+    },
+  } as Api["resources"];
+}
+
 const issued = certificate(CertificateState.ISSUED, "", 47);
 const noRecord =
   "No DNS record answers for app.example.com, so the certificate can't come. Add an A record for it pointing at 49.12.33.7. Dockwell tries again by itself.";
@@ -146,6 +166,60 @@ describe("the list of domains", () => {
     expect(within(gone).getByRole("link", { name: "Check its page" })).toHaveAttribute("href", `/servers/${SERVER}`);
   });
 
+  it("says at once that a server has gone quiet, as that started before this visit", async () => {
+    const connected = aServer({ id: SERVER, name: "hz-1", connectTime: longAgo });
+    const { container } = renderAt(
+      "/domains",
+      api([aDomain({ name: "quiet.example.com" })], {
+        servers: [connected],
+        more: { resources: withRoutes([{ id: "rte_quiet-example-com", updateTime: longAgo }]) },
+      }),
+    );
+    await waitFor(async () => expect(await rowOf(/quiet/)).toHaveTextContent("No report"));
+    expect(await rowOf(/quiet/)).toHaveTextContent("hz-1 hasn't reported yet.");
+    expect(within(await rowOf(/quiet/)).queryByText("Issuing")).toBeNull();
+    expect(container.querySelector(".page-lead")).toHaveTextContent("1 domain · 1 needs a look");
+  });
+
+  it("gives a server its minute from when it connected, or the route last changed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const justNow = timestampFromDate(new Date());
+    const cases = [
+      { connectTime: justNow, updateTime: longAgo },
+      { connectTime: longAgo, updateTime: justNow },
+    ];
+    for (const { connectTime, updateTime } of cases) {
+      const { unmount } = renderAt(
+        "/domains",
+        api([aDomain({ name: "quiet.example.com" })], {
+          servers: [aServer({ id: SERVER, name: "hz-1", connectTime })],
+          more: { resources: withRoutes([{ id: "rte_quiet-example-com", updateTime }]) },
+        }),
+      );
+      await screen.findByRole("row", { name: /quiet/ });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(await rowOf(/quiet/)).toHaveTextContent("Issuing");
+      unmount();
+    }
+  });
+
+  it("finds when a route changed however many there are, a page at a time", async () => {
+    const connected = aServer({ id: SERVER, name: "hz-1", connectTime: longAgo });
+    renderAt(
+      "/domains",
+      api([aDomain({ name: "quiet.example.com" })], {
+        servers: [connected],
+        more: {
+          resources: withRoutes(
+            [{ id: "rte_other", updateTime: longAgo }],
+            [{ id: "rte_quiet-example-com", updateTime: longAgo }],
+          ),
+        },
+      }),
+    );
+    await waitFor(async () => expect(await rowOf(/quiet/)).toHaveTextContent("No report"));
+  });
+
   it("says a server has gone quiet on a domain, once it has been a while", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     renderAt("/domains", api([aDomain({ name: "quiet.example.com" })]));
@@ -203,6 +277,92 @@ describe("the list of domains", () => {
     const row = await rowOf(/gone/);
     await user.click(within(row).getByRole("link", { name: "Check its page" }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/servers/${SERVER}`));
+  });
+
+  it("isn't a keyboard stop where a row leads nowhere, and is where it leads somewhere", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/domains",
+      api([
+        aDomain({ name: "app.example.com", certificate: issued }),
+        aDomain({ name: "port.example.com", service: "", certificate: issued, route: { hostPort: 9000, port: 0 } }),
+        aDomain({ name: "old.example.com", service: "deleted", certificate: issued }),
+      ]),
+    );
+    const app = await rowOf(/^app\.example\.com/);
+    const port = await rowOf(/^port\.example\.com/);
+    const old = await rowOf(/^old\.example\.com/);
+    expect(app).toHaveAttribute("tabindex", "0");
+    expect(port).not.toHaveAttribute("tabindex");
+    expect(old).not.toHaveAttribute("tabindex");
+    expect(port).not.toHaveClass("is-clickable");
+
+    // Tabbing goes past each, to what's in it that does something.
+    within(app).getByRole("link", { name: "Open app.example.com" }).focus();
+    await user.tab();
+    expect(screen.getByRole("link", { name: "Open port.example.com" })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("link", { name: "Open old.example.com" })).toHaveFocus();
+  });
+
+  it("reads a certificate past its end as expired, in red, with what to do", async () => {
+    const expired = certificate(CertificateState.ISSUED, "", -2);
+    const { container } = renderAt("/domains", api([aDomain({ name: "old.example.com", certificate: expired })]));
+    const row = await rowOf(/old\.example\.com/);
+    expect(row).toHaveTextContent("Expired");
+    expect(row).not.toHaveTextContent("Valid");
+    expect(row.querySelector(".dw-tone-healthy")).toBeNull();
+    expect(row.querySelector(".dw-tone-critical")).not.toBeNull();
+    expect(row.querySelector(".domains-note")).toHaveClass("is-failed");
+    expect(row).toHaveTextContent(
+      /The certificate on hz-1 ran out .+, so browsers refuse this domain\. Dockwell renews it by itself\./,
+    );
+    expect(within(row).getByRole("link", { name: "check its page" })).toHaveAttribute("href", `/servers/${SERVER}`);
+    expect(within(row).queryByRole("link", { name: /^Open / })).toBeNull();
+    expect(container.querySelector(".page-lead")).toHaveTextContent("1 domain · 1 needs a look");
+  });
+
+  it("says why renewing failed, with a certificate that has run out", async () => {
+    const said = "Renewing it failed: the certificate authority's rate limit was hit.";
+    renderAt(
+      "/domains",
+      api([aDomain({ name: "old.example.com", certificate: certificate(CertificateState.ISSUED, said, -2) })]),
+    );
+    const row = await rowOf(/old\.example\.com/);
+    expect(row).toHaveTextContent("Expired");
+    expect(row).toHaveTextContent(said);
+  });
+
+  it("says a server that isn't connected last said a certificate had run out, not that it's valid", async () => {
+    const expired = certificate(CertificateState.ISSUED, "", -2);
+    renderAt("/domains", api([aDomain({ name: "old.example.com", certificate: expired, server: { stale: true } })]));
+    const row = await rowOf(/old\.example\.com/);
+    expect(row).toHaveTextContent("Not connected");
+    expect(row).toHaveTextContent(/what it last said.*Expired/);
+    expect(row).not.toHaveTextContent("Valid");
+  });
+
+  it("goes by the control plane's clock, so a browser days ahead doesn't call a good certificate expired", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const domains = [aDomain({ name: "good.example.com", certificate: issued })];
+    // What the control plane stamps a server with says how far out this browser is.
+    const stamped = timestampFromDate(new Date());
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete, changed(aServer({ id: SERVER, name: "hz-1", lastSeenTime: stamped })));
+    vi.setSystemTime(Date.now() + 60 * 86_400_000);
+    renderAt("/domains", api(domains, { more: { servers: { watchServers: watch.stream } } }));
+    await waitFor(async () => expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Valid for 47 days"));
+  });
+
+  it("separates where a domain is, once it says both its servers and its environment", async () => {
+    renderAt(
+      "/domains",
+      api([aDomain({ name: "app.example.com", certificate: issued })], {
+        servers: [hz1, hz2],
+        more: { resources: places("staging") },
+      }),
+    );
+    await waitFor(async () => expect(await rowOf(/app\.example\.com/)).toHaveTextContent("hz-1 · production"));
   });
 
   it("gives each path of a domain its own row, and says what's wrong with the domain once", async () => {
@@ -375,6 +535,36 @@ describe("filtering the list of domains", () => {
     expect(router.state.location.search).toMatchObject({ state: "not-connected" });
   });
 
+  it("lists what answers anyone over plain HTTP as serving, not behind a tunnel or a proxy", async () => {
+    const plain = aDomain({
+      name: "plain.example.com",
+      certificate: certificate(CertificateState.NONE),
+      route: { tls: "off", plainForAnyone: true },
+    });
+    const { unmount } = renderAt("/domains?state=tunnel", api([...domains, plain]));
+    await rowOf(/tun\.example\.com/);
+    expect(screen.queryByRole("row", { name: /plain\.example\.com/ })).toBeNull();
+    unmount();
+
+    renderAt("/domains?state=serving", api([...domains, plain]));
+    expect(await rowOf(/plain\.example\.com/)).toHaveTextContent("Plain HTTP");
+    expect(shown()).toEqual(["shop.example.com", "plain.example.com"]);
+  });
+
+  it("lists a server that has gone quiet under its own word, not as waiting", async () => {
+    const quiet = aDomain({ name: "quiet.example.com" });
+    const connected = aServer({ id: SERVER, name: "hz-1", connectTime: longAgo });
+    const more = { resources: withRoutes([{ id: "rte_quiet-example-com", updateTime: longAgo }]) };
+    const { unmount } = renderAt("/domains?state=no-report", api([...domains, quiet], { servers: [connected], more }));
+    expect(await rowOf(/quiet\.example\.com/)).toHaveTextContent("No report");
+    expect(shown()).toEqual(["quiet.example.com"]);
+    unmount();
+
+    renderAt("/domains?state=waiting", api([...domains, quiet], { servers: [connected], more }));
+    await rowOf(/new\.example\.com/);
+    await waitFor(() => expect(shown()).toEqual(["new.example.com"]));
+  });
+
   it("narrows by server, only once there's a choice of them", async () => {
     const user = userEvent.setup();
     const { unmount } = renderAt("/domains", api(domains));
@@ -432,6 +622,107 @@ describe("how long what the list says stands", () => {
     aDomain({ name: "good.example.com", certificate: issued }),
     aDomain({ name: "bad.example.com", certificate: certificate(CertificateState.FAILED, noRecord) }),
   ];
+
+  /** Answers at once until told to hold, then keeps each read until let go. */
+  function holding(first: ReturnType<typeof aDomain>[]) {
+    const state = { hold: false, held: [] as (() => void)[] };
+    const listDomains = async (_req: unknown, ctx: { signal: AbortSignal }) => {
+      if (state.hold) {
+        await new Promise<void>((done) => {
+          state.held.push(done);
+          void untilAborted(ctx.signal).then(done);
+        });
+      }
+      if (ctx.signal.aborted) throw new ConnectError("the call was cancelled", Code.Canceled);
+      return { domains: first };
+    };
+    return { state, listDomains };
+  }
+
+  it("says it's checking, coming back to the list, and doesn't say something failed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const read = holding(domains);
+    const { router } = renderAt("/domains", api([], { more: { domains: { listDomains: read.listDomains as never } } }));
+    expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Valid for 47 days");
+    await act(() => router.navigate({ to: "/activity" }));
+    await vi.advanceTimersByTimeAsync(35_000);
+    read.state.hold = true;
+    await act(() => router.navigate({ to: "/domains" }));
+    await vi.advanceTimersByTimeAsync(300);
+    expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Checking");
+    expect(screen.queryByText(/can't reach the control plane/)).toBeNull();
+    for (const done of read.state.held) done();
+    await waitFor(async () => expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Valid for 47 days"));
+  });
+
+  it("keeps its filter coming back, rather than list everything and then narrow", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const read = holding(domains);
+    const { router } = renderAt(
+      "/domains?state=failing",
+      api([], { more: { domains: { listDomains: read.listDomains as never } } }),
+    );
+    await rowOf(/bad\.example\.com/);
+    await act(() => router.navigate({ to: "/activity" }));
+    await vi.advanceTimersByTimeAsync(35_000);
+    read.state.hold = true;
+    await act(() => router.navigate({ to: "/domains", search: { state: "failing" } }));
+    await vi.advanceTimersByTimeAsync(300);
+    await rowOf(/bad\.example\.com/);
+    expect(screen.queryByRole("row", { name: /good\.example\.com/ })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "State" })).toBeEnabled();
+    for (const done of read.state.held) done();
+  });
+
+  it("doesn't count a read called off by leaving as one that failed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const read = holding(domains);
+    const { router } = renderAt("/domains", api([], { more: { domains: { listDomains: read.listDomains as never } } }));
+    await rowOf(/good\.example\.com/);
+    // Away with a read under way, as a slow link makes likely.
+    read.state.hold = true;
+    await vi.advanceTimersByTimeAsync(11_000);
+    await act(() => router.navigate({ to: "/activity" }));
+    await vi.advanceTimersByTimeAsync(35_000);
+    await act(() => router.navigate({ to: "/domains" }));
+    await vi.advanceTimersByTimeAsync(300);
+    expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Checking");
+    expect(screen.queryByText(/can't reach the control plane/)).toBeNull();
+    for (const done of read.state.held) done();
+  });
+
+  it("still says it can't read, coming back, once that read hangs too", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const read = holding(domains);
+    const { router } = renderAt("/domains", api([], { more: { domains: { listDomains: read.listDomains as never } } }));
+    await rowOf(/good\.example\.com/);
+    await act(() => router.navigate({ to: "/activity" }));
+    await vi.advanceTimersByTimeAsync(35_000);
+    read.state.hold = true;
+    await act(() => router.navigate({ to: "/domains" }));
+    await vi.advanceTimersByTimeAsync(9_000);
+    await waitFor(async () => expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Unknown"));
+    expect(screen.getByText(/can't reach the control plane/)).toBeVisible();
+  });
+
+  it("says it's checking once, not each time, coming back to the same read", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const read = answering(domains);
+    const { router } = renderAt("/domains", api([], { more: { domains: { listDomains: read.listDomains as never } } }));
+    await rowOf(/good\.example\.com/);
+    await act(() => router.navigate({ to: "/activity" }));
+    await vi.advanceTimersByTimeAsync(35_000);
+    // The last read back failed, so nobody here can say until one doesn't.
+    read.state.answering = false;
+    await act(() => router.navigate({ to: "/domains" }));
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Unknown");
+    await act(() => router.navigate({ to: "/activity" }));
+    await vi.advanceTimersByTimeAsync(5_000);
+    await act(() => router.navigate({ to: "/domains" }));
+    await vi.advanceTimersByTimeAsync(300);
+    expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Unknown");
+  });
 
   it("keeps reading once every domain serves, so one that stops says so", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -582,6 +873,136 @@ describe("how long what the list says stands", () => {
     read.state.answering = true;
     await user.click(within(failed).getByRole("button", { name: "Try again" }));
     expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Valid for 47 days");
+  });
+});
+
+describe("what needs a look comes first", () => {
+  /** A list of names, in the API's order, of which those given are failing. */
+  const list = (count: number, failing: readonly number[]) =>
+    Array.from({ length: count }, (_, n) =>
+      aDomain({
+        name: `site-${String(n).padStart(3, "0")}.example.com`,
+        certificate: failing.includes(n) ? certificate(CertificateState.FAILED, noRecord) : issued,
+      }),
+    );
+
+  it("brings what needs a look forward from anywhere in a long list", async () => {
+    renderAt("/domains", api(list(220, [5, 90, 219])));
+    await rowOf(/site-219\.example\.com/);
+    expect(namesShown().slice(0, 4)).toEqual([
+      "site-005.example.com",
+      "site-090.example.com",
+      "site-219.example.com",
+      "site-000.example.com",
+    ]);
+  });
+
+  it("puts what needs a look, then what's on its way, then the rest", async () => {
+    renderAt(
+      "/domains",
+      api([
+        aDomain({ name: "a-fine.example.com", certificate: issued }),
+        aDomain({ name: "b-new.example.com", certificate: certificate(CertificateState.PENDING) }),
+        aDomain({
+          name: "c-tunnel.example.com",
+          certificate: certificate(CertificateState.NONE),
+          route: { tls: "off" },
+        }),
+        aDomain({ name: "d-gone.example.com", certificate: issued, server: { stale: true } }),
+        aDomain({ name: "e-bad.example.com", certificate: certificate(CertificateState.FAILED, noRecord) }),
+      ]),
+    );
+    await rowOf(/e-bad\.example\.com/);
+    expect(namesShown()).toEqual([
+      "d-gone.example.com",
+      "e-bad.example.com",
+      "b-new.example.com",
+      "a-fine.example.com",
+      "c-tunnel.example.com",
+    ]);
+  });
+
+  it("holds each in its place as things change, and offers to bring up what went wrong", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    let domains = list(4, [2]);
+    const { container } = renderAt("/domains", api([], { more: { domains: { listDomains: () => ({ domains }) } } }));
+    await rowOf(/site-002\.example\.com/);
+    const order = ["site-002", "site-000", "site-001", "site-003"].map((n) => `${n}.example.com`);
+    expect(namesShown()).toEqual(order);
+    expect(screen.queryByRole("button", { name: "Show them first" })).toBeNull();
+
+    // Another goes wrong, and the first comes right, while someone's looking.
+    domains = list(4, [0, 3]);
+    await vi.advanceTimersByTimeAsync(11_000);
+    await waitFor(async () => expect(await rowOf(/site-003/)).toHaveTextContent("Failed"));
+    expect(namesShown()).toEqual(order);
+    const first = screen.getByRole("button", { name: "Show them first" });
+    await waitFor(() =>
+      expect(container.querySelector('.apps-section [aria-live="polite"]')).toHaveTextContent(
+        "2 need a look. Show them first puts them at the top of the list.",
+      ),
+    );
+
+    await user.click(first);
+    await waitFor(() =>
+      expect(namesShown()).toEqual(["site-000", "site-003", "site-001", "site-002"].map((n) => `${n}.example.com`)),
+    );
+    expect(screen.queryByRole("button", { name: "Show them first" })).toBeNull();
+  });
+
+  it("puts a domain that's new where you'll see it, moving nothing else", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let domains = list(3, []);
+    renderAt("/domains", api([], { more: { domains: { listDomains: () => ({ domains }) } } }));
+    await rowOf(/site-002\.example\.com/);
+    domains = [...list(3, []), aDomain({ name: "zz-new.example.com", certificate: issued })];
+    await vi.advanceTimersByTimeAsync(11_000);
+    await rowOf(/zz-new\.example\.com/);
+    expect(namesShown()).toEqual([
+      "zz-new.example.com",
+      "site-000.example.com",
+      "site-001.example.com",
+      "site-002.example.com",
+    ]);
+  });
+
+  it("holds its order while nothing can be read, and offers nothing it can't back", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let fails = false;
+    const domains = list(3, [2]);
+    renderAt(
+      "/domains",
+      api([], {
+        more: {
+          domains: {
+            listDomains: () => {
+              if (fails) throw new ConnectError("the control plane is down", Code.Unavailable);
+              return { domains };
+            },
+          },
+        },
+      }),
+    );
+    await rowOf(/site-002\.example\.com/);
+    const order = namesShown();
+    fails = true;
+    await vi.advanceTimersByTimeAsync(35_000);
+    await waitFor(async () => expect(await rowOf(/site-002/)).toHaveTextContent("Unknown"));
+    expect(namesShown()).toEqual(order);
+    expect(screen.queryByRole("button", { name: "Show them first" })).toBeNull();
+  });
+
+  it("goes by a server that went quiet too, as that needs a look", async () => {
+    const connected = aServer({ id: SERVER, name: "hz-1", connectTime: longAgo });
+    renderAt(
+      "/domains",
+      api([aDomain({ name: "a.example.com", certificate: issued }), aDomain({ name: "quiet.example.com" })], {
+        servers: [connected],
+        more: { resources: withRoutes([{ id: "rte_quiet-example-com", updateTime: longAgo }]) },
+      }),
+    );
+    await waitFor(() => expect(namesShown()).toEqual(["quiet.example.com", "a.example.com"]));
   });
 });
 
@@ -782,6 +1203,43 @@ describe("adding a domain from the list", () => {
 });
 
 describe("the list of domains on a phone", () => {
+  it("names each row's environment, and its servers, so two apps of a name read apart", async () => {
+    onPhone();
+    const staging = anApp(
+      "web",
+      "nginx:1.5",
+      {},
+      { id: "svc_web_staging", resource: { kind: "service", scope: "env_staging", name: "web" } },
+    );
+    renderAt(
+      "/domains",
+      api(
+        [
+          aDomain({ name: "prod.example.com", certificate: issued }),
+          aDomain({ name: "staging.example.com", certificate: issued, environment: "env_staging" }),
+        ],
+        { services: [web, staging], servers: [hz1, hz2], more: { resources: places("staging") } },
+      ),
+    );
+    const prod = await screen.findByRole("link", { name: /^prod\.example\.com/ });
+    await waitFor(() => expect(prod).toHaveTextContent("hz-1 · production"));
+    expect(screen.getByRole("link", { name: /^staging\.example\.com/ })).toHaveTextContent("hz-1 · staging");
+  });
+
+  it("clips neither what a row reaches nor where", async () => {
+    onPhone();
+    const name = "a-service-with-a-name-long-enough-to-wrap-on-a-phone";
+    const long = anApp(name, "nginx:1.5");
+    const { container } = renderAt(
+      "/domains",
+      api([aDomain({ name: "app.example.com", service: name, certificate: issued })], { services: [long] }),
+    );
+    await screen.findByRole("link", { name: /^app\.example\.com/ });
+    expect(container.querySelector(".domains-phone-target")).toHaveTextContent(name);
+    // That class is the one that clips on an app's row.
+    expect(container.querySelector(".domains-phone .apps-phone-image")).toBeNull();
+  });
+
   it("stacks each row, leads to the app, and keeps the note's own link out of the row's", async () => {
     onPhone();
     const { container } = renderAt(

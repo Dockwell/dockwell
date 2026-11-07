@@ -44,7 +44,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { MachineWords } from "../changes/FailureNotice";
 import { withoutIds } from "../changes/plan";
 import { CopyButton } from "../servers/CopyButton";
-import { useAgoNow, useFleetView } from "../servers/useFleet";
+import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { AddDomainSheet, type MoveBehind, moveBehindOf } from "./AddDomainSheet";
 import { AddPortSheet } from "./AddPortSheet";
 import { useApp, useRevisions } from "./AppContext";
@@ -63,7 +63,7 @@ import {
   valuesOf,
 } from "./app";
 import { DomainFacts, DomainNote, useSilent } from "./DomainNote";
-import { lookOf, mayBeBehind, routeWhere, useAppDomains, visitorUrl } from "./domains";
+import { type DomainRead, lookOf, mayBeBehind, routeWhere, useAppDomains, visitorUrl } from "./domains";
 import { ExportSheet } from "./ExportSheet";
 import { HealthBadge, RunsOnServers, useRunsNow } from "./Health";
 import { type AppHealth, runsAsFarAsAnyoneKnows, useHealth } from "./health";
@@ -527,34 +527,38 @@ function RunningPanel() {
 function DomainRow({
   domain,
   route,
+  read,
   onRemove,
   onMoveBehind,
 }: {
   domain: Domain;
   route: DomainRoute;
+  read: DomainRead;
   onRemove: () => void;
   onMoveBehind: () => void;
 }) {
   const { t } = useLingui();
-  const look = lookOf(domain);
-  const silent = useSilent(look);
+  const look = lookOf(domain, useControlPlaneNow(30_000));
+  const silent = useSilent(domain, look);
   const where = routeWhere(domain, route);
+  // Past how long a reading stands, its row stays, and says nothing of how it was.
+  const said = read === "read";
   return (
     <li
       className={cx(
         "app-reach-row",
         "app-reach-domain",
-        look.state === "failed" && "is-failed",
-        look.warning && "is-warning",
+        said && look.state === "failed" && "is-failed",
+        said && look.warning && "is-warning",
       )}
     >
       <Icon name="globe" size={16} />
       <div className="app-reach-main">
         <code className="app-reach-at">{where}</code>
-        <DomainFacts domain={domain} route={route} look={look} silent={silent} />
+        <DomainFacts domain={domain} route={route} look={look} silent={silent} read={read} />
       </div>
       <div className="app-reach-acts">
-        {look.state === "serving" ? (
+        {said && look.state === "serving" ? (
           <a
             className="app-reach-open"
             href={visitorUrl(domain, route)}
@@ -567,17 +571,19 @@ function DomainRow({
         ) : null}
         <Button variant="ghost" size="sm" icon="trash" aria-label={t`Remove ${where}`} onClick={onRemove} />
       </div>
-      <p className="app-domain-note">
-        <DomainNote domain={domain} look={look} silent={silent} />
-        {mayBeBehind(look) ? (
-          <>
-            {" "}
-            <button type="button" className="app-panel-link" onClick={onMoveBehind}>
-              <Trans>It's behind a tunnel or a proxy</Trans>
-            </button>
-          </>
-        ) : null}
-      </p>
+      {said ? (
+        <p className="app-domain-note">
+          <DomainNote domain={domain} look={look} silent={silent} />
+          {mayBeBehind(look) ? (
+            <>
+              {" "}
+              <button type="button" className="app-panel-link" onClick={onMoveBehind}>
+                <Trans>It's behind a tunnel or a proxy</Trans>
+              </button>
+            </>
+          ) : null}
+        </p>
+      ) : null}
     </li>
   );
 }
@@ -597,7 +603,7 @@ function ReachedAt({
 }) {
   const { t } = useLingui();
   const { servers } = useFleetView();
-  const { domains, isPending, failed, retrying, retry } = useAppDomains(service);
+  const { domains, read, isPending, failed, retrying, retry } = useAppDomains(service);
   const sheet = useChangeSheet();
   const name = nameOf(service);
   const ports = app?.ports ?? [];
@@ -671,6 +677,7 @@ function ReachedAt({
             key={route.id}
             domain={domain}
             route={route}
+            read={read}
             onRemove={() => remove(routeWhere(domain, route), route.name)}
             onMoveBehind={() => onMoveBehind(moveBehindOf(domain, route))}
           />
