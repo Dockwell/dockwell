@@ -1150,6 +1150,7 @@ func accessWords(list []*dockwellv1.HostAccess) []string {
 		out = append(out, resource.AccessWords(resource.Access{
 			Kind: accessKinds[a.GetKind()], Path: a.GetPath(), ReadOnly: a.GetReadOnly(), Type: a.GetType(),
 			Address: a.GetAddress(), Relabel: a.GetRelabel(), Driver: a.GetDriver(), Detail: a.GetDetail(), SameAsRoot: a.GetSameAsRoot(), LeadsTo: a.GetLeadsTo(), Holds: a.GetHolds(),
+			HoldsFor: a.GetHoldsFor(), HeldIn: a.GetHeldIn(), HeldBy: a.GetHeldBy(),
 		}))
 	}
 	return out

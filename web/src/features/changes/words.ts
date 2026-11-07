@@ -302,9 +302,16 @@ export function useChangeWords(): ChangeWords {
         const reads = access.readOnly ? t`read-only` : t`read-write`;
         switch (access.kind) {
           case HostAccessKind.SERVER_PATH: {
-            const held = plain(access.holds);
+            const [held, holdsFor, heldIn, heldBy] = [access.holds, access.holdsFor, access.heldIn, access.heldBy].map(
+              plain,
+            );
             if (held !== "") {
-              return t`the server path ${path}, which holds ${held}, another mount's source, so what writes there can make that lead anywhere, as good as root`;
+              return holdsFor !== ""
+                ? t`the server path ${path}, which holds ${held}, which ${holdsFor} mounts, so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on`
+                : t`the server path ${path}, which holds ${held}, which it mounts as well, so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on`;
+            }
+            if (heldBy !== "") {
+              return t`the server path ${path}, inside ${heldIn}, which ${heldBy} can write, so it can make that lead anywhere, as good as root. Any change to ${heldBy} but another tag asks for a passkey from now on`;
             }
             let how = reads;
             if (access.relabel === "z") how = t`${reads}, relabelled for SELinux as shared`;

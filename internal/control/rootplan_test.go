@@ -496,7 +496,7 @@ func TestWhatCanMoveAnothersSourceIsOutOfATokensReach(t *testing.T) {
 		t.Fatalf("the layout with no passkey = %v", err)
 	}
 	if !slices.ContainsFunc(layout.GetPlan().GetResources()[0].GetHostAccess(), func(a *dockwellv1.HostAccess) bool {
-		return a.GetPath() == "/srv" && a.GetHolds() == "/srv/app/conf" && a.GetSameAsRoot()
+		return a.GetPath() == "/srv" && a.GetHolds() == "/srv/app/conf" && a.GetHoldsFor() == "api" && a.GetSameAsRoot()
 	}) {
 		t.Errorf("the plan says %v", layout.GetPlan().GetResources()[0].GetHostAccess())
 	}

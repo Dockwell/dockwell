@@ -3790,7 +3790,14 @@ type HostAccess struct {
 	// Another mount's source inside path, a read-write server path. What writes path
 	// can turn it into a link to anywhere on the server, which what mounts it follows
 	// the next time it starts, so this is as good as root.
-	Holds         string `protobuf:"bytes,12,opt,name=holds,proto3" json:"holds,omitempty"`
+	Holds string `protobuf:"bytes,12,opt,name=holds,proto3" json:"holds,omitempty"`
+	// What mounts holds, by name. Empty where that's this resource too.
+	HoldsFor string `protobuf:"bytes,13,opt,name=holds_for,json=holdsFor,proto3" json:"holds_for,omitempty"`
+	// The other side of holds: a read-write server path that holds path, and what can
+	// write it, by name, which can make path lead anywhere. A change to that asks for a
+	// passkey from now on.
+	HeldIn        string `protobuf:"bytes,14,opt,name=held_in,json=heldIn,proto3" json:"held_in,omitempty"`
+	HeldBy        string `protobuf:"bytes,15,opt,name=held_by,json=heldBy,proto3" json:"held_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3905,6 +3912,27 @@ func (x *HostAccess) GetLeadsMoved() bool {
 func (x *HostAccess) GetHolds() string {
 	if x != nil {
 		return x.Holds
+	}
+	return ""
+}
+
+func (x *HostAccess) GetHoldsFor() string {
+	if x != nil {
+		return x.HoldsFor
+	}
+	return ""
+}
+
+func (x *HostAccess) GetHeldIn() string {
+	if x != nil {
+		return x.HeldIn
+	}
+	return ""
+}
+
+func (x *HostAccess) GetHeldBy() string {
+	if x != nil {
+		return x.HeldBy
 	}
 	return ""
 }
@@ -5940,7 +5968,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aservers\x18\x06 \x03(\tR\aservers\x12)\n" +
 	"\x10previous_servers\x18\a \x03(\tR\x0fpreviousServers\x128\n" +
 	"\vhost_access\x18\b \x03(\v2\x17.dockwell.v1.HostAccessR\n" +
-	"hostAccess\"\xda\x02\n" +
+	"hostAccess\"\xa9\x03\n" +
 	"\n" +
 	"HostAccess\x12/\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1b.dockwell.v1.HostAccessKindR\x04kind\x12\x12\n" +
@@ -5957,7 +5985,10 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	" \x01(\tR\aleadsTo\x12\x1f\n" +
 	"\vleads_moved\x18\v \x01(\bR\n" +
 	"leadsMoved\x12\x14\n" +
-	"\x05holds\x18\f \x01(\tR\x05holds\"\xa2\x02\n" +
+	"\x05holds\x18\f \x01(\tR\x05holds\x12\x1b\n" +
+	"\tholds_for\x18\r \x01(\tR\bholdsFor\x12\x17\n" +
+	"\aheld_in\x18\x0e \x01(\tR\x06heldIn\x12\x17\n" +
+	"\aheld_by\x18\x0f \x01(\tR\x06heldBy\"\xa2\x02\n" +
 	"\n" +
 	"ServerPlan\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
