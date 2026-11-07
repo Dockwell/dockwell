@@ -30,6 +30,11 @@ inside=$(systemd-run --scope --quiet -p AllowedCPUs=0 -- nproc)
   exit 1
 }
 
+# The service asks nothing beyond this machine, and inherits nothing from here
+# (DOCKWELL_TEST, ADR 0034).
+mkdir -p /etc/systemd/system/dockwell.service.d
+printf '[Service]\nEnvironment=DOCKWELL_TEST=1\n' >/etc/systemd/system/dockwell.service.d/test.conf
+
 start=$(date +%s%N)
 systemd-run --scope --quiet -p AllowedCPUs=0 -- sh "$repo/scripts/install.sh"
 until curl -fsS --max-time 2 -H 'Accept: text/html' "$panel/" 2>/dev/null | grep -q '<div id="root"></div>'; do

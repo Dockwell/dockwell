@@ -93,7 +93,9 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 // TUN is no way of saying where the server is, as a Tailscale exit node's isn't.
 func lookups(cfg *agent.Config, stdio IO, g *globalFlags) {
 	cfg.NoLookup = g.noStun
-	cfg.Collector.Metadata = stdio.Getenv(envMetadataURL)
+	if isSet(stdio.Getenv(envTest)) {
+		cfg.NoLookup, cfg.Collector.Metadata = true, collect.ClosedMetadata
+	}
 	cfg.Collector.Outbound = func(ctx context.Context) string {
 		return ingress.OwnAddress(collect.OutboundAddress(ctx))
 	}
@@ -101,7 +103,11 @@ func lookups(cfg *agent.Config, stdio IO, g *globalFlags) {
 
 // stunOff reports DOCKWELL_NO_STUN set to turn the lookup off.
 func stunOff(stdio IO) bool {
-	v := stdio.Getenv(envNoStun)
+	return isSet(stdio.Getenv(envNoStun))
+}
+
+// isSet reports a variable set to turn something on.
+func isSet(v string) bool {
 	return v != "" && v != "0" && v != "false"
 }
 

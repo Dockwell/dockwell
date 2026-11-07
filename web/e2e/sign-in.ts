@@ -47,6 +47,9 @@ import { healthFlow } from "./health-flow.ts";
 import { networkFlow } from "./network-flow.ts";
 import { planFlow } from "./plan-flow.ts";
 
+// A real binary asks nothing beyond this machine in a test.
+process.env["DOCKWELL_TEST"] = "1";
+
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: { shots: { type: "string" }, "fake-docker": { type: "string" } },
@@ -154,8 +157,6 @@ async function start(): Promise<string> {
         ...engine,
         USER: "mira",
         DOCKWELL_CATALOG_DIR: catalogDir,
-        DOCKWELL_NO_STUN: "1",
-        DOCKWELL_METADATA_URL: "http://127.0.0.1:1",
       },
     },
   );

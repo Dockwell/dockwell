@@ -22,6 +22,9 @@ import { containersFlow } from "./containers-flow.ts";
 import { dockerMade, dockerProbe, removeMade } from "./docker-probe.ts";
 import { healthFlow } from "./health-flow.ts";
 
+// A real binary asks nothing beyond this machine in a test.
+process.env["DOCKWELL_TEST"] = "1";
+
 const bin = resolve(process.argv[2] ?? "bin/dockwell");
 const port = 7650 + Math.floor(Math.random() * 300);
 const origin = `http://localhost:${port}`;

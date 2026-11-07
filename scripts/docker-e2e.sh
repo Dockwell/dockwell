@@ -40,6 +40,8 @@
 #
 #   scripts/docker-e2e.sh bin/dockwell bin/dockwell-agent
 set -euo pipefail
+# Anything this starts asks nothing beyond this machine (DOCKWELL_TEST, ADR 0034).
+export DOCKWELL_TEST=1
 
 usage="usage: scripts/docker-e2e.sh path/to/dockwell path/to/dockwell-agent"
 for tool in docker curl go jq openssl pgrep ss; do
@@ -103,7 +105,7 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 
 start_dockwell() {
   # SSL_CERT_FILE is for the panel's own certificates alone, as they come through
   # Go's default roots. sudo keeps none of these unless it is told.
-  "${as_dockwell[@]}" env DOCKWELL_CATALOG_DIR="$catalog_dir" SSL_CERT_FILE="$DOCKWELL_ACME_ROOTS" DOCKWELL_ACME_DIRECTORY_URL="$DOCKWELL_ACME_DIRECTORY_URL" DOCKWELL_ACME_ROOTS="$DOCKWELL_ACME_ROOTS" \
+  "${as_dockwell[@]}" env DOCKWELL_TEST=1 DOCKWELL_CATALOG_DIR="$catalog_dir" SSL_CERT_FILE="$DOCKWELL_ACME_ROOTS" DOCKWELL_ACME_DIRECTORY_URL="$DOCKWELL_ACME_DIRECTORY_URL" DOCKWELL_ACME_ROOTS="$DOCKWELL_ACME_ROOTS" \
     "$bin" run --listen "$addr" --agent-listen 127.0.0.1:0 --data-dir "$data" --log-format json "$@" >>"$log" 2>&1 &
   pid=$!
 }

@@ -55,6 +55,8 @@
 # MB here is 10^6 bytes. The results go to $GITHUB_STEP_SUMMARY when it is
 # set, and as JSON to the second argument.
 set -euo pipefail
+# Anything this starts asks nothing beyond this machine (DOCKWELL_TEST, ADR 0034).
+export DOCKWELL_TEST=1
 
 usage="usage: [RUNS=5] [SETTLE=180] [STAGGER=3] [BASELINE=other/dockwell [BASELINE_AGENT=other/dockwell-agent]] scripts/budgets.sh path/to/dockwell path/to/dockwell-agent [results.json]"
 bin=$(realpath "${1:?$usage}")

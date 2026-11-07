@@ -16,6 +16,8 @@ concurrency:
 
 env:
   GOTOOL: go tool -modfile=tools/go.mod
+  # What a step starts asks nothing beyond the runner (ADR 0034).
+  DOCKWELL_TEST: "1"
 
 jobs:
   go:

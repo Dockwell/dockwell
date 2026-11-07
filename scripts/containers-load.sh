@@ -10,6 +10,8 @@
 #
 #   scripts/containers-load.sh bin/dockwell bin/dockwell-agent [containers]
 set -euo pipefail
+# Anything this starts asks nothing beyond this machine (DOCKWELL_TEST, ADR 0034).
+export DOCKWELL_TEST=1
 
 usage="usage: scripts/containers-load.sh path/to/dockwell path/to/dockwell-agent [containers]"
 full=$(realpath "${1:?$usage}")

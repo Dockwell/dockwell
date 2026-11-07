@@ -56,9 +56,13 @@ func TestTheRouteOutGoesThroughTheChecksForATUN(t *testing.T) {
 	}
 }
 
-func TestAnEnvironmentCanSayWhereMetadataIs(t *testing.T) {
-	const url = "http://127.0.0.1:9"
-	if got := lookupsFor(t, nil, map[string]string{envMetadataURL: url}).Collector.Metadata; got != url {
-		t.Errorf("Metadata = %q", got)
+// A script or an e2e starts the real binary, where a test binary's guard doesn't reach,
+// so one variable has it ask nobody, set by the Makefile and CI for all they start.
+func TestATestAsksNobody(t *testing.T) {
+	for value, off := range map[string]bool{"": false, "1": true, "true": true, "0": false, "false": false} {
+		cfg := lookupsFor(t, nil, map[string]string{envTest: value})
+		if cfg.NoLookup != off || (cfg.Collector.Metadata == collect.ClosedMetadata) != off {
+			t.Errorf("with %q: NoLookup %t, Metadata %q", value, cfg.NoLookup, cfg.Collector.Metadata)
+		}
 	}
 }

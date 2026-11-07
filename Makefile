@@ -6,6 +6,11 @@ SHELL := bash
 .DEFAULT_GOAL := help
 MAKEFLAGS += --no-builtin-rules --no-print-directory
 
+# Whatever a target starts asks nothing beyond this machine: no STUN server and no
+# metadata service (ADR 0034). make run and make dev are a real server.
+export DOCKWELL_TEST := 1
+run dev: export DOCKWELL_TEST :=
+
 GOTOOL    := go tool -modfile=tools/go.mod
 # The two builds of dockwell (docs/adr/0023-a-full-build-and-an-agent-build.md):
 # the full build, which the control server runs, and the agent build, built

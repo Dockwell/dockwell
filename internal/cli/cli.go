@@ -48,9 +48,11 @@ const (
 	// envNoStun turns off asking a public STUN server, when set to anything but
 	// false or 0 (ADR 0034).
 	envNoStun = "DOCKWELL_NO_STUN"
-	// envMetadataURL is where a cloud's metadata service answers, for a test that
-	// has nothing there to ask.
-	envMetadataURL = "DOCKWELL_METADATA_URL"
+	// envTest says this is a test, set to anything but false or 0, so the agent asks
+	// nothing beyond this machine: no STUN server and no metadata service, as what they
+	// said would depend on where it ran. The Makefile and CI set it for everything
+	// they start.
+	envTest = "DOCKWELL_TEST"
 )
 
 // IO carries the streams and environment a command runs with, so tests can

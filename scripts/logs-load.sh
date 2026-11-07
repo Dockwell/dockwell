@@ -11,6 +11,8 @@
 #
 #   scripts/logs-load.sh bin/dockwell bin/dockwell-agent [seconds]
 set -euo pipefail
+# Anything this starts asks nothing beyond this machine (DOCKWELL_TEST, ADR 0034).
+export DOCKWELL_TEST=1
 
 usage="usage: scripts/logs-load.sh path/to/dockwell path/to/dockwell-agent [seconds]"
 full=$(realpath "${1:?$usage}")
