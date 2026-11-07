@@ -280,7 +280,8 @@ func TestPuttingBackWhatRanSaysWhatToDoAboutAPath(t *testing.T) {
 		if !strings.HasSuffix(r.URL.Path, "/stop") {
 			return nil
 		}
-		if stops++; stops == 1 {
+		stops++
+		if stops == 1 {
 			toEtc()
 			return errors.New("the engine is busy")
 		}
