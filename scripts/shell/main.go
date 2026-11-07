@@ -37,7 +37,7 @@ func main() {
 	asked, out, err := run(ctx, os.Args[1], os.Args[2], os.Args[3], os.Args[4], os.Args[5], os.Args[6])
 	cancel()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "shell:", err)
+		fmt.Fprintf(os.Stderr, "shell: through %s: %v\n", os.Args[1], err)
 		os.Exit(1)
 	}
 	fmt.Printf("passkey: %t\n%s", asked, out)

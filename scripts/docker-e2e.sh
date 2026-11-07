@@ -3734,7 +3734,8 @@ jq -e '(.change.plan.notes | any(.reason == "backup_first")) and (.change.plan.s
 change=$(jq -r .change.id <<<"$planned")
 dw changes apply "$change" --yes >/dev/null || fail "applying the upgrade failed"
 catalog_runs() {
-  local at runs
+  # port is local, as the script's own names where the control plane listens.
+  local at runs port
   at=$(catalog_container web)
   runs=$(docker inspect --format '{{.Config.Image}}' "$at") || fail "docker inspect $at failed"
   [[ "$runs" == "$1" ]] || fail "it runs $runs, want $1"
