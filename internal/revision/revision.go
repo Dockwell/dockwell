@@ -2154,7 +2154,43 @@ func (e *Engine) reach(ref resource.Ref, spec proto.Message, named map[resource.
 			out = append(out, a)
 		}
 	}
+	e.writtenAs(ref.Kind, spec, out)
 	return out
+}
+
+// writtenAs says who writes to each read-write server path in list, where that's
+// root or may be. A person approves a path for what runs there, and root writes
+// what anyone owns there, and files that run as root, so a token that moves it to
+// root reaches further than what was approved (#247). What's as good as root
+// already asks for anything new that runs (runsSomethingElse).
+func (e *Engine) writtenAs(kind resource.Kind, spec proto.Message, list []resource.Access) {
+	t, err := e.kinds.Type(kind)
+	if err != nil || spec == nil {
+		return
+	}
+	users, ok := t.(resource.UserNamer)
+	images, named := t.(resource.ImageNamer)
+	if !ok || !named {
+		return
+	}
+	var detail, writer string
+	switch as, name := docker.UserRunsAs(users.UserOf(spec)); as {
+	case docker.RunsAsOther:
+		return
+	case docker.RunsAsRoot:
+		detail = resource.WrittenAsRoot
+	case docker.RunsAsNamed:
+		// A tag of the same repository is the same code by the same hand, as a
+		// deploy from CI is, so it keeps its writer.
+		detail, writer = resource.WrittenAsNamed, name+" in "+docker.Repository(images.ImageOf(spec))
+	case docker.RunsAsImage:
+		detail, writer = resource.WrittenAsImage, docker.Repository(images.ImageOf(spec))
+	}
+	for i := range list {
+		if a := &list[i]; a.Kind == resource.AccessPath && !a.ReadOnly && !a.SameAsRoot {
+			a.Detail, a.Writer = detail, writer
+		}
+	}
 }
 
 // named reads what the items name (resource.Referrer), as it stands

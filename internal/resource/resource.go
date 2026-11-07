@@ -610,7 +610,14 @@ type Access struct {
 	Driver string `json:",omitempty"`
 	// Detail is a network's other options, as name=value, sorted, or for a
 	// network the server has, the other names the resource answers to there.
+	// For a server path it's who writes there, where that's root or may be: one
+	// of the WrittenAs words.
 	Detail string `json:",omitempty"`
+	// Writer is who writes to a server path, where only its image can say
+	// whether that's root: the user's name in the image's repository, or the
+	// repository alone for the image's own user. Another one may be root where
+	// this one wasn't, so it counts as new.
+	Writer string `json:",omitempty"`
 	// SameAsRoot says this is the same as root on the server because of what it
 	// is, whatever else it says: the capability SYS_ADMIN, or a path such as /etc,
 	// or a plugin that mounts there (SystemPath). AsGoodAsRoot says it for every
@@ -662,6 +669,20 @@ func (a Access) AsGoodAsRoot() bool {
 	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork || a.Kind == AccessBackupOf ||
 		a.Kind == AccessNetworkDriver && a.Driver == "host"
 }
+
+// Who writes to a read-write server path, in its Access's Detail, where that's root
+// or may be. A path whose writer is root reaches more than the same path without:
+// root writes what anyone owns, and makes files that run as root (ADR 0032).
+const (
+	// WrittenAsRoot is root, however it's written.
+	WrittenAsRoot = "root"
+	// WrittenAsNamed is a user by a name other than root, which the image may
+	// say is root.
+	WrittenAsNamed = "named"
+	// WrittenAsImage is whatever user the image runs as, which is root unless it
+	// says otherwise.
+	WrittenAsImage = "image"
+)
 
 // AccessKind is what a resource reaches on its server.
 type AccessKind int
@@ -733,33 +754,57 @@ const (
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
 // have, or has another way, as read-write where it was read-only, or
-// relabelled where it wasn't, or at another address. Access to Docker's
-// socket is the same read-only or not, as a socket mounted read-only still
-// takes connections.
+// relabelled where it wasn't, or at another address, or written by root where
+// it wasn't, or by another who may be root. Access to Docker's socket is the
+// same read-only or not, as a socket mounted read-only still takes
+// connections.
 func NewAccess(from, to []Access) []Access {
-	// writable says, for each access with ReadOnly cleared, whether from
-	// has it read-write.
-	writable := make(map[Access]bool, len(from))
+	// had is each way from has what a key says, once each, so a list of the same
+	// access over and over costs no more than it once.
+	had := make(map[Access]map[Access]bool, len(from))
 	for i := range from {
-		b := from[i]
-		ro := b.ReadOnly
-		b.ReadOnly = false
-		writable[b] = writable[b] || !ro
+		k := from[i].key()
+		if had[k] == nil {
+			had[k] = map[Access]bool{}
+		}
+		had[k][from[i]] = true
 	}
 	var out []Access
 	seen := make(map[Access]bool)
+next:
 	for i := range to {
-		a := &to[i]
-		key := *a
-		key.ReadOnly = false
-		rw, has := writable[key]
-		if has && (a.ReadOnly || rw || a.Kind == AccessDocker) || seen[*a] {
+		a := to[i]
+		if seen[a] {
 			continue
 		}
-		seen[*a] = true
-		out = append(out, *a)
+		for b := range had[a.key()] {
+			if b.covers(a) {
+				continue next
+			}
+		}
+		seen[a] = true
+		out = append(out, a)
 	}
 	return out
+}
+
+// key is a without what one access can have more of than another: being
+// read-write, and for a server path, who writes there.
+func (a Access) key() Access {
+	a.ReadOnly, a.Writer = false, ""
+	if a.Kind == AccessPath {
+		a.Detail = ""
+	}
+	return a
+}
+
+// covers reports a, which has other's key, reaching all other does: read-write
+// where other is, and for a server path, written by root, or by who writes other.
+func (a Access) covers(other Access) bool {
+	if a.ReadOnly && !other.ReadOnly && other.Kind != AccessDocker {
+		return false
+	}
+	return other.Kind != AccessPath || other.Detail == "" || a.Detail == WrittenAsRoot || a.Detail == other.Detail && a.Writer == other.Writer
 }
 
 // AccessWords says what a resource reaches, for people, such as "the
@@ -779,8 +824,15 @@ func AccessWords(a Access) string {
 			how += ", relabelled for SELinux as private"
 		}
 		root := ""
-		if a.SameAsRoot {
+		switch {
+		case a.SameAsRoot:
 			root = ", which is as good as root"
+		case a.Detail == WrittenAsRoot:
+			root = ", which it writes as root"
+		case a.Detail == WrittenAsNamed:
+			root = ", which it writes as a user its image names, who may be root"
+		case a.Detail == WrittenAsImage:
+			root = ", which it writes as its image's user, who may be root"
 		}
 		if a.Holds != "" {
 			mounts := "which it mounts as well"

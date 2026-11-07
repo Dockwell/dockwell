@@ -239,6 +239,18 @@ msgstr "{address}, private"
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
 
+#: src/features/changes/words.ts
+msgid "{at}, which it writes as a user its image names, who may be root"
+msgstr "{at}, which it writes as a user its image names, who may be root"
+
+#: src/features/changes/words.ts
+msgid "{at}, which it writes as its image's user, who may be root"
+msgstr "{at}, which it writes as its image's user, who may be root"
+
+#: src/features/changes/words.ts
+msgid "{at}, which it writes as root"
+msgstr "{at}, which it writes as root"
+
 #: src/features/auth/device.ts
 msgid "{browser} on {os}"
 msgstr "{browser} on {os}"
@@ -4103,6 +4115,18 @@ msgstr "It was made without rotation, so its log can fill the disk. Dockwell set
 #: src/features/backups/BackupsPage.tsx
 msgid "It wasn't deleted"
 msgstr "It wasn't deleted"
+
+#: src/features/changes/notices.tsx
+msgid "It writes there as a user its image names, who may be root."
+msgstr "It writes there as a user its image names, who may be root."
+
+#: src/features/changes/notices.tsx
+msgid "It writes there as root, so it can change any file there, whoever owns it, and leave files that run as root."
+msgstr "It writes there as root, so it can change any file there, whoever owns it, and leave files that run as root."
+
+#: src/features/changes/notices.tsx
+msgid "It writes there as whichever user its image runs as, who is root unless the image says otherwise."
+msgstr "It writes there as whichever user its image runs as, who is root unless the image says otherwise."
 
 #: src/features/logs/LogNote.tsx
 msgid "It wrote more than the server keeps of one container, so not all of its lines are here."

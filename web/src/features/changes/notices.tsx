@@ -116,7 +116,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
   const reaches: { name: string; server: string; access: HostAccess }[] = [];
   const seen = new Set<string>();
   const add = (name: string, server: string, access: HostAccess) => {
-    const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}/${access.holds}/${access.heldBy}`;
+    const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}/${access.holds}/${access.heldBy}/${access.detail}`;
     if (seen.has(key)) return;
     seen.add(key);
     reaches.push({ name, server, access });
@@ -150,6 +150,26 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
       relabel ? (
         <>
           {detail} {relabel}
+        </>
+      ) : (
+        detail
+      );
+    // Who writes to a path, where that's root or may be (#247), in the control plane's
+    // own words for it: root writes over what anyone owns there.
+    const writer =
+      access.kind !== HostAccessKind.SERVER_PATH || access.readOnly
+        ? ""
+        : access.detail === "root"
+          ? t`It writes there as root, so it can change any file there, whoever owns it, and leave files that run as root.`
+          : access.detail === "named"
+            ? t`It writes there as a user its image names, who may be root.`
+            : access.detail === "image"
+              ? t`It writes there as whichever user its image runs as, who is root unless the image says otherwise.`
+              : "";
+    const andWriter = (detail: ReactNode): ReactNode =>
+      writer ? (
+        <>
+          {detail} {writer}
         </>
       ) : (
         detail
@@ -350,14 +370,16 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
                       It leads to <code>{leadsTo}</code> through a symlink, and it can read what is there.
                     </Trans>
                   ) : (
-                    <Trans>
-                      It leads to <code>{leadsTo}</code> through a symlink, and it can read and write what is there.
-                    </Trans>
+                    andWriter(
+                      <Trans>
+                        It leads to <code>{leadsTo}</code> through a symlink, and it can read and write what is there.
+                      </Trans>,
+                    )
                   )
                 ) : access.readOnly ? (
                   t`It can read that path on the server.`
                 ) : (
-                  t`It can read and write that path on the server.`
+                  andWriter(t`It can read and write that path on the server.`)
                 ),
               ),
             };

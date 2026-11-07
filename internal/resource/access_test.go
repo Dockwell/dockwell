@@ -22,6 +22,12 @@ func TestNewAccess(t *testing.T) {
 	}
 	relabelled := path("/a", false)
 	relabelled.Relabel = "z"
+	written := func(as, by string) resource.Access {
+		a := path("/a", false)
+		a.Detail, a.Writer = as, by
+		return a
+	}
+	root, image, other, named := written(resource.WrittenAsRoot, ""), written(resource.WrittenAsImage, "nginx"), written(resource.WrittenAsImage, "evil"), written(resource.WrittenAsNamed, "app in nginx")
 	for name, c := range map[string]struct{ from, to, want []resource.Access }{
 		"nothing":                     {},
 		"new":                         {to: []resource.Access{path("/a", true)}, want: []resource.Access{path("/a", true)}},
@@ -35,6 +41,19 @@ func TestNewAccess(t *testing.T) {
 		"relabelled":                  {from: []resource.Access{path("/a", false)}, to: []resource.Access{relabelled}, want: []resource.Access{relabelled}},
 		"Docker's socket, read-only":  {from: []resource.Access{docker(true)}, to: []resource.Access{docker(false)}},
 		"another":                     {from: []resource.Access{path("/a", false)}, to: []resource.Access{path("/b", false)}, want: []resource.Access{path("/b", false)}},
+		// Who writes a path, where that's root or may be, as root writes over what
+		// anyone owns there (#247).
+		"written as root":                    {from: []resource.Access{path("/a", false)}, to: []resource.Access{root}, want: []resource.Access{root}},
+		"written as root no more":            {from: []resource.Access{root}, to: []resource.Access{path("/a", false)}},
+		"root, from the image's user":        {from: []resource.Access{image}, to: []resource.Access{root}, want: []resource.Access{root}},
+		"the image's user, from root":        {from: []resource.Access{root}, to: []resource.Access{image}},
+		"a user by number, from the image's": {from: []resource.Access{image}, to: []resource.Access{path("/a", false)}},
+		"another image's user":               {from: []resource.Access{image}, to: []resource.Access{other}, want: []resource.Access{other}},
+		"the same image's user":              {from: []resource.Access{image}, to: []resource.Access{image}},
+		"a user by name":                     {from: []resource.Access{image}, to: []resource.Access{named}, want: []resource.Access{named}},
+		"a user by name, from another":       {from: []resource.Access{path("/a", false)}, to: []resource.Access{named}, want: []resource.Access{named}},
+		"read-only, written as root":         {from: []resource.Access{path("/a", true)}, to: []resource.Access{root}, want: []resource.Access{root}},
+		"read-only, from written as root":    {from: []resource.Access{root}, to: []resource.Access{path("/a", true)}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if got := resource.NewAccess(c.from, c.to); !slices.Equal(got, c.want) {
@@ -70,6 +89,9 @@ func TestAccessWords(t *testing.T) {
 		want   string
 	}{
 		{resource.Access{Kind: resource.AccessExternalNetwork, Path: "edge"}, "the network edge, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"},
+		{resource.Access{Kind: resource.AccessPath, Path: "/srv/data", Detail: resource.WrittenAsRoot}, "the server path /srv/data (read-write), which it writes as root"},
+		{resource.Access{Kind: resource.AccessPath, Path: "/srv/data", Detail: resource.WrittenAsImage, Writer: "nginx"}, "the server path /srv/data (read-write), which it writes as its image's user, who may be root"},
+		{resource.Access{Kind: resource.AccessPath, Path: "/srv/data", Detail: resource.WrittenAsNamed, Writer: "app in nginx"}, "the server path /srv/data (read-write), which it writes as a user its image names, who may be root"},
 		{resource.Access{Kind: resource.AccessExternalNetwork, Path: "edge", Detail: "db,www"}, "the network edge, which is on the server already, where it answers to its name and to db,www: whatever else is on that network, other projects' services too, can reach it, and it can reach them"},
 		{resource.Access{Kind: resource.AccessTrustedProxy, Path: "172.30.0.0/16"}, "172.30.0.0/16 as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"},
 		{resource.Access{Kind: resource.AccessTrustedProxy, Path: "2001:db8::/32"}, "2001:db8::/32 as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"},

@@ -305,6 +305,11 @@ func (*Driver) ImageOf(spec proto.Message) string {
 	return spec.(*resourcev1.Service).GetApp().GetImage()
 }
 
+// UserOf is the user a service's app runs as, as it is written.
+func (*Driver) UserOf(spec proto.Message) string {
+	return spec.(*resourcev1.Service).GetApp().GetUser()
+}
+
 // WhatRuns is a copy of a service's spec without its app's limits.
 func (*Driver) WhatRuns(spec proto.Message) proto.Message {
 	s := proto.Clone(spec).(*resourcev1.Service)

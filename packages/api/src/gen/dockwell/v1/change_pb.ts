@@ -1614,6 +1614,12 @@ export type HostAccess = Message<"dockwell.v1.HostAccess"> & {
    * A network's options beyond the few that keep it to its own bridge, as
    * "name=value" with commas between, sorted. For a network the server has,
    * the other names a service answers to on it, with commas between, sorted.
+   * For a server path mounted read-write, who writes there where that's root
+   * or may be: "root", however the user is written; "named", a user by a
+   * name the image may say is root; or "image", whichever user the image
+   * runs as. Empty for a user other than root, by number. A path written by
+   * root, or by another who may be root, reaches more than the same path
+   * written by someone else.
    *
    * @generated from field: string detail = 8;
    */

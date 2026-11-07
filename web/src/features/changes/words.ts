@@ -316,9 +316,21 @@ export function useChangeWords(): ChangeWords {
             let how = reads;
             if (access.relabel === "z") how = t`${reads}, relabelled for SELinux as shared`;
             if (access.relabel === "Z") how = t`${reads}, relabelled for SELinux as private`;
-            return leadsTo
+            const at = leadsTo
               ? t`the server path ${path}, which leads to ${leadsTo} (${how})`
               : t`the server path ${path} (${how})`;
+            // Who writes there, where that's root or may be, as the control plane says
+            // in words of its own (#247). What's as good as root says so already.
+            if (access.sameAsRoot) return at;
+            switch (access.detail) {
+              case "root":
+                return t`${at}, which it writes as root`;
+              case "named":
+                return t`${at}, which it writes as a user its image names, who may be root`;
+              case "image":
+                return t`${at}, which it writes as its image's user, who may be root`;
+            }
+            return at;
           }
           case HostAccessKind.DOCKER_SOCKET:
             return leadsTo

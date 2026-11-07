@@ -231,6 +231,7 @@ describe("the plan sheet", () => {
       create(HostAccessSchema, { kind: HostAccessKind.HTTPS_OFF, path: spoof }),
       create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/a", leadsTo: spoof }),
       create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/b", leadsTo: spoof, sameAsRoot: true }),
+      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/d", detail: spoof }),
       create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: "/srv/c", leadsTo: spoof }),
       create(HostAccessSchema, { kind: HostAccessKind.CAPABILITY, path: spoof, sameAsRoot: true }),
       create(HostAccessSchema, { kind: HostAccessKind.GROUP, path: spoof, sameAsRoot: true }),
@@ -351,6 +352,8 @@ describe("the plan sheet", () => {
     step.hidesLogs = true;
     step.hostAccess = [
       create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/app/config", readOnly: true }),
+      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/app/data", detail: "root" }),
+      create(HostAccessSchema, { kind: HostAccessKind.SERVER_PATH, path: "/srv/app/uploads", detail: "image" }),
       create(HostAccessSchema, { kind: HostAccessKind.DOCKER_SOCKET, path: "/var/run/docker.sock" }),
       create(HostAccessSchema, { kind: HostAccessKind.EXTERNAL_NETWORK, path: "edge", detail: "db" }),
       create(HostAccessSchema, { kind: HostAccessKind.CAPABILITY, path: "SYS_ADMIN", sameAsRoot: true }),
@@ -396,6 +399,13 @@ describe("the plan sheet", () => {
     expect(effects).toHaveTextContent("web reaches the nfs mount 10.0.0.2:/media (read-write) on hz-1");
     expect(effects).toHaveTextContent("web reaches /srv/app/config on hz-1");
     expect(effects).toHaveTextContent("It can read that path on the server.");
+    // Who writes a folder, where that's root or may be, as that's more than the folder (#247).
+    expect(effects).toHaveTextContent(
+      "web reaches /srv/app/data on hz-1It can read and write that path on the server. It writes there as root, so it can change any file there, whoever owns it, and leave files that run as root.",
+    );
+    expect(effects).toHaveTextContent(
+      "It writes there as whichever user its image runs as, who is root unless the image says otherwise.",
+    );
     expect(risk).toHaveTextContent(
       "web loses what its image keeps at /var/lib/postgresql/data. The server keeps that data for 7 days",
     );

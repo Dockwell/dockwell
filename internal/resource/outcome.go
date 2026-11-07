@@ -63,6 +63,13 @@ func Report(ctx context.Context, o Outcome) {
 	}
 }
 
+// UserNamer is a Type whose spec says which user it runs as, who writes to the
+// server paths it mounts.
+type UserNamer interface {
+	// UserOf is the user a spec runs as, as it is written. Empty is its image's.
+	UserOf(spec proto.Message) string
+}
+
 // ImageNamer is a Type whose spec names an image, so a rollback can say which
 // image it means by digest.
 type ImageNamer interface {

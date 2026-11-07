@@ -239,6 +239,18 @@ msgstr "{address}，私有地址"
 msgid "{app} is under the {license} licence."
 msgstr "{app} 采用 {license} 许可证。"
 
+#: src/features/changes/words.ts
+msgid "{at}, which it writes as a user its image names, who may be root"
+msgstr "{at}，它以镜像中指定名称的用户写入，该用户可能是 root"
+
+#: src/features/changes/words.ts
+msgid "{at}, which it writes as its image's user, who may be root"
+msgstr "{at}，它以镜像自身的用户写入，该用户可能是 root"
+
+#: src/features/changes/words.ts
+msgid "{at}, which it writes as root"
+msgstr "{at}，它以 root 写入"
+
 #: src/features/auth/device.ts
 msgid "{browser} on {os}"
 msgstr "{os} 上的 {browser}"
@@ -4103,6 +4115,18 @@ msgstr "它创建时没有设置日志轮转，日志可能占满磁盘。Dockwe
 #: src/features/backups/BackupsPage.tsx
 msgid "It wasn't deleted"
 msgstr "未能删除"
+
+#: src/features/changes/notices.tsx
+msgid "It writes there as a user its image names, who may be root."
+msgstr "它以镜像中指定名称的用户在那里写入，该用户可能是 root。"
+
+#: src/features/changes/notices.tsx
+msgid "It writes there as root, so it can change any file there, whoever owns it, and leave files that run as root."
+msgstr "它以 root 在那里写入，所以无论文件属于谁都能修改，还能留下以 root 运行的文件。"
+
+#: src/features/changes/notices.tsx
+msgid "It writes there as whichever user its image runs as, who is root unless the image says otherwise."
+msgstr "它以镜像运行时所用的用户在那里写入，除非镜像另有指定，否则就是 root。"
 
 #: src/features/logs/LogNote.tsx
 msgid "It wrote more than the server keeps of one container, so not all of its lines are here."
