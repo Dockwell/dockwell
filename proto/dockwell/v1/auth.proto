@@ -607,6 +607,9 @@ enum StepUpAction {
   // Saving a file that's a way back onto a server, with FileService.SaveFile.
   // The target is the server's ID and the path ReadFile gave, as "srv_…:/path".
   STEP_UP_ACTION_SAVE_WAY_BACK_IN = 9;
+  // Opening a terminal on a server, with TerminalService.OpenTerminal. The
+  // target is the server's ID.
+  STEP_UP_ACTION_OPEN_TERMINAL = 10;
 }
 
 // BeginStepUpRequest says what the passkey confirms.

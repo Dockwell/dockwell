@@ -35,6 +35,7 @@ import { Route as ShellAppsServiceIdEnvironmentRouteImport } from './routes/_she
 import { Route as ShellAppsServiceIdLogsRouteImport } from './routes/_shell/apps.$serviceId.logs'
 import { Route as ShellServersServerIdIndexRouteImport } from './routes/_shell/servers.$serverId.index'
 import { Route as ShellServersServerIdFilesRouteImport } from './routes/_shell/servers.$serverId.files'
+import { Route as ShellServersServerIdTerminalRouteImport } from './routes/_shell/servers.$serverId.terminal'
 import { Route as ShellServersServerIdContainersNameRouteImport } from './routes/_shell/servers.$serverId.containers.$name'
 
 const ShellRoute = ShellRouteImport.update({
@@ -170,6 +171,12 @@ const ShellServersServerIdFilesRoute =
     path: '/servers/$serverId/files',
     getParentRoute: () => ShellRoute,
   } as any)
+const ShellServersServerIdTerminalRoute =
+  ShellServersServerIdTerminalRouteImport.update({
+    id: '/servers/$serverId/terminal',
+    path: '/servers/$serverId/terminal',
+    getParentRoute: () => ShellRoute,
+  } as any)
 const ShellServersServerIdContainersNameRoute =
   ShellServersServerIdContainersNameRouteImport.update({
     id: '/servers/$serverId/containers/$name',
@@ -201,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
   '/apps/$serviceId/': typeof ShellAppsServiceIdIndexRoute
   '/servers/$serverId/': typeof ShellServersServerIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
@@ -228,6 +236,7 @@ export interface FileRoutesByTo {
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
   '/apps/$serviceId': typeof ShellAppsServiceIdIndexRoute
   '/servers/$serverId': typeof ShellServersServerIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
@@ -258,6 +267,7 @@ export interface FileRoutesById {
   '/_shell/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/_shell/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
   '/_shell/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/_shell/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
   '/_shell/apps/$serviceId/': typeof ShellAppsServiceIdIndexRoute
   '/_shell/servers/$serverId/': typeof ShellServersServerIdIndexRoute
   '/_shell/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
@@ -288,6 +298,7 @@ export interface FileRouteTypes {
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
     | '/servers/$serverId/files'
+    | '/servers/$serverId/terminal'
     | '/apps/$serviceId/'
     | '/servers/$serverId/'
     | '/servers/$serverId/containers/$name'
@@ -315,6 +326,7 @@ export interface FileRouteTypes {
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
     | '/servers/$serverId/files'
+    | '/servers/$serverId/terminal'
     | '/apps/$serviceId'
     | '/servers/$serverId'
     | '/servers/$serverId/containers/$name'
@@ -344,6 +356,7 @@ export interface FileRouteTypes {
     | '/_shell/apps/$serviceId/environment'
     | '/_shell/apps/$serviceId/logs'
     | '/_shell/servers/$serverId/files'
+    | '/_shell/servers/$serverId/terminal'
     | '/_shell/apps/$serviceId/'
     | '/_shell/servers/$serverId/'
     | '/_shell/servers/$serverId/containers/$name'
@@ -541,6 +554,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersServerIdFilesRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/servers/$serverId/terminal': {
+      id: '/_shell/servers/$serverId/terminal'
+      path: '/servers/$serverId/terminal'
+      fullPath: '/servers/$serverId/terminal'
+      preLoaderRoute: typeof ShellServersServerIdTerminalRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/servers/$serverId/containers/$name': {
       id: '/_shell/servers/$serverId/containers/$name'
       path: '/servers/$serverId/containers/$name'
@@ -585,6 +605,7 @@ interface ShellRouteChildren {
   ShellCatalogIndexRoute: typeof ShellCatalogIndexRoute
   ShellServersIndexRoute: typeof ShellServersIndexRoute
   ShellServersServerIdFilesRoute: typeof ShellServersServerIdFilesRoute
+  ShellServersServerIdTerminalRoute: typeof ShellServersServerIdTerminalRoute
   ShellServersServerIdIndexRoute: typeof ShellServersServerIdIndexRoute
   ShellServersServerIdContainersNameRoute: typeof ShellServersServerIdContainersNameRoute
 }
@@ -606,6 +627,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellCatalogIndexRoute: ShellCatalogIndexRoute,
   ShellServersIndexRoute: ShellServersIndexRoute,
   ShellServersServerIdFilesRoute: ShellServersServerIdFilesRoute,
+  ShellServersServerIdTerminalRoute: ShellServersServerIdTerminalRoute,
   ShellServersServerIdIndexRoute: ShellServersServerIdIndexRoute,
   ShellServersServerIdContainersNameRoute:
     ShellServersServerIdContainersNameRoute,

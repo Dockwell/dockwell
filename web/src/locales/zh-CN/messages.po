@@ -15,6 +15,15 @@ msgstr "，密钥"
 msgid ".env file"
 msgstr ".env 文件"
 
+#. placeholder {0}: formatBytes(lost, i18n.locale)
+#: src/features/terminal/TerminalPage.tsx
+msgid "· {0} it printed while you were away is gone"
+msgstr "· 你离开期间输出的 {0} 已丢失"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "· no SSH port needed · opening it is on <0>Activity</0>, what you type isn't"
+msgstr "· 无需 SSH 端口 · 打开它会记入<0>动态</0>，你输入的内容不会"
+
 #: src/features/system/StatusPage.tsx
 msgid "(modified)"
 msgstr "（有未提交的修改）"
@@ -190,6 +199,11 @@ msgstr "{0} 已离线"
 #: src/features/logs/LogFoot.tsx
 msgid "{0} of {1}"
 msgstr "第 {0} 个，共 {1} 个"
+
+#. placeholder {0}: names.get(tab.id) ?? tab.title
+#: src/features/terminal/TerminalPage.tsx
+msgid "{0} output"
+msgstr "{0} 的输出"
 
 #. placeholder {0}: s.create
 #: src/features/activity/describe.ts
@@ -961,6 +975,10 @@ msgstr "{subject} 已接管"
 msgid "{target}, up to {size}"
 msgstr "{target},最多 {size}"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "{title} · through the agent"
+msgstr "{title} · 通过代理"
+
 #: src/features/changes/notices.tsx
 msgid "{tool} still manages {container}"
 msgstr "{tool} 仍在管理 {container}"
@@ -1300,6 +1318,11 @@ msgstr "某个服务"
 msgid "A step failed, so the change stopped there."
 msgstr "有一个步骤失败，更改就此停止。"
 
+#. placeholder {0}: server.name
+#: src/features/terminal/TerminalPage.tsx
+msgid "A terminal here is a root shell on <0>{0}</0>, through its agent, so it needs no SSH port. Opening one asks for your passkey."
+msgstr "这里的终端是 <0>{0}</0> 上的 root shell，通过它的代理连接，所以无需 SSH 端口。打开终端时会要求验证你的通行密钥。"
+
 #: src/features/apps/AddDomainSheet.tsx
 msgid "A tunnel on this server"
 msgstr "此服务器上的隧道"
@@ -1628,6 +1651,10 @@ msgstr "还有 {morePorts} 个"
 msgid "Another proxy"
 msgstr "其他代理"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Another tab or window attached to it, so what you type there goes to it. It goes on running."
+msgstr "另一个标签页或窗口连接了它，所以你在那里输入的内容会发送给它。它会继续运行。"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Any image your server can pull, such as nginx:1.27."
 msgstr "服务器能够拉取的任意镜像，例如 nginx:1.27。"
@@ -1689,8 +1716,8 @@ msgid "API tokens"
 msgstr "API 令牌"
 
 #: src/features/auth/messages.ts
-msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API 令牌不能删除数据、切断访问、显示密钥、访问服务器上的文件，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
+msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or terminal, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API 令牌不能删除数据、切断访问、显示密钥、访问服务器上的文件或终端，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
 
 #: src/app/Providers.tsx
 #: src/features/changes/fields.tsx
@@ -1760,6 +1787,10 @@ msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "应用 {change} 时要求验证通行密钥，但未收到"
 
 #: src/features/activity/describe.ts
+msgid "Asked for a passkey to open a terminal on {server}, and none came"
+msgstr "在 {server} 上打开终端时要求验证通行密钥，但未收到"
+
+#: src/features/activity/describe.ts
 msgid "Asked for a passkey to save {path} on {server}, and none came"
 msgstr "保存 {server} 上的 {path} 时要求验证通行密钥，但未收到"
 
@@ -1797,6 +1828,7 @@ msgid "Back to {folder}"
 msgstr "返回 {folder}"
 
 #: src/features/servers/ContainerPage.tsx
+#: src/features/terminal/TerminalPage.tsx
 msgid "Back to the server"
 msgstr "返回服务器"
 
@@ -1963,9 +1995,17 @@ msgstr "无法生成计划"
 msgid "Can't reach the control plane"
 msgstr "无法连接到控制平面"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Can't reach the terminal"
+msgstr "无法连接终端"
+
 #: src/features/files/FilesPage.tsx
 msgid "Can't reach this server"
 msgstr "无法连接这台服务器"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Can't reach this terminal"
+msgstr "无法连接这个终端"
 
 #: src/features/apps/DomainRecord.tsx
 msgid "Can't read DNS"
@@ -2193,6 +2233,10 @@ msgstr "清除"
 msgid "Clear filters"
 msgstr "清除筛选"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Clear scrollback"
+msgstr "清空回滚记录"
+
 #: src/features/domains/DomainsPage.tsx
 msgid "Clear the filters"
 msgstr "清除筛选"
@@ -2215,6 +2259,7 @@ msgid "Close"
 msgstr "关闭"
 
 #: src/features/files/FileViewer.tsx
+#: src/features/terminal/TerminalPage.tsx
 msgid "Close {name}"
 msgstr "关闭 {name}"
 
@@ -2222,13 +2267,29 @@ msgstr "关闭 {name}"
 msgid "Close details"
 msgstr "关闭详情"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Close terminal"
+msgstr "关闭终端"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Close the search"
 msgstr "关闭搜索"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Close this tab"
+msgstr "关闭这个标签"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Close, and lose what you typed here?"
 msgstr "关闭并丢弃在此输入的内容？"
+
+#: src/features/activity/describe.ts
+msgid "Closed a terminal on {server}"
+msgstr "关闭了 {server} 上的终端"
+
+#: src/features/activity/describe.ts
+msgid "Closed a terminal on {server}, open {open}"
+msgstr "关闭了 {server} 上的终端，共打开 {open}"
 
 #: src/features/apps/AddDomainSheet.tsx
 msgid "Cloudflare connects to this server's port 80."
@@ -2318,9 +2379,17 @@ msgstr "确认此操作需要此地址的通行密钥，而你在这里还没有
 msgid "Connected"
 msgstr "已连接"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Connected through the agent"
+msgstr "已通过代理连接"
+
 #: src/features/system/StatusPage.tsx
 msgid "Connecting"
 msgstr "正在连接"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Connecting through the agent"
+msgstr "正在通过代理连接"
 
 #: src/features/system/StatusPage.tsx
 msgid "Connecting to the control plane"
@@ -2434,6 +2503,10 @@ msgstr "运行中应用的副本"
 msgid "Copy path {shown}"
 msgstr "复制路径 {shown}"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Copy selection"
+msgstr "复制所选内容"
+
 #: src/features/apps/AppOverview.tsx
 msgid "Copy the image"
 msgstr "复制镜像名称"
@@ -2501,6 +2574,10 @@ msgstr "无法放开"
 #: src/features/activity/describe.ts
 msgid "Couldn't open {path} on {server}"
 msgstr "无法打开 {server} 上的 {path}"
+
+#: src/features/activity/describe.ts
+msgid "Couldn't open a terminal on {server}"
+msgstr "无法在 {server} 上打开终端"
 
 #: src/features/apps/revision.ts
 msgid "Couldn't place it on {added}"
@@ -3251,6 +3328,10 @@ msgstr "邮箱"
 msgid "Encrypted on each server before upload"
 msgstr "上传前在各服务器上加密"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Ended"
+msgstr "已结束"
+
 #: src/features/activity/describe.ts
 msgid "Ended an authenticator app's setup after 5 wrong codes"
 msgstr "输错 5 次验证码后结束了身份验证器应用的设置"
@@ -3480,6 +3561,18 @@ msgstr "筛选域名"
 #: src/features/logs/LogsPage.tsx
 msgid "Filter log lines"
 msgstr "筛选日志"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Find in scrollback"
+msgstr "在回滚记录中查找"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Find the one after"
+msgstr "查找下一个"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Find the one before"
+msgstr "查找上一个"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Finding your projects"
@@ -3715,6 +3808,10 @@ msgstr "悬停或聚焦一台服务器以查看详情。"
 msgid "How"
 msgstr "方式"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "How it ended"
+msgstr "结束方式"
+
 #: src/features/backups/PolicySheet.tsx
 msgid "How often"
 msgstr "频率"
@@ -3917,6 +4014,18 @@ msgstr "无法取回：{0}"
 #: src/features/backups/BackupsPage.tsx
 msgid "It didn't reach {0}: {1}"
 msgstr "未能送达 {0}：{1}"
+
+#: src/features/terminal/words.ts
+msgid "It ended while this page wasn't attached to it."
+msgstr "它在这个页面未连接时结束了。"
+
+#: src/features/terminal/words.ts
+msgid "It exited with code {code}."
+msgstr "它以代码 {code} 退出。"
+
+#: src/features/terminal/words.ts
+msgid "It exited with code 0."
+msgstr "它以代码 0 退出。"
 
 #: src/features/apps/Health.tsx
 msgid "It has no container on this server."
@@ -4185,6 +4294,14 @@ msgstr "它的服务器"
 #: src/features/backups/BackupsPage.tsx
 msgid "Its server can't restore this now: it's away, or no longer has the volume"
 msgstr "它所在的服务器现在无法恢复：服务器未连接，或已不再有该卷"
+
+#: src/features/terminal/words.ts
+msgid "Its server was removed from Dockwell."
+msgstr "它所在的服务器已从 Dockwell 中移除。"
+
+#: src/features/terminal/words.ts
+msgid "Its shell hung up, as an SSH session does."
+msgstr "它的 shell 已挂断，与 SSH 会话结束时一样。"
 
 #: src/features/catalog/InstallSheet.tsx
 msgid "Its site"
@@ -4700,6 +4817,10 @@ msgstr "新建应用"
 msgid "New recovery codes"
 msgstr "新的恢复码"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "New session"
+msgstr "新会话"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "New value"
 msgstr "新值"
@@ -4853,6 +4974,14 @@ msgstr "还没有服务器。在这台服务器上运行 <0>dockwell token creat
 msgid "No steps: it left the fleet"
 msgstr "没有步骤：它已离开集群"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "No terminal open"
+msgstr "没有打开的终端"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "No terminal opened"
+msgstr "没有打开终端"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "No tokens yet. Make one for each script or integration, so you can revoke one alone."
 msgstr "还没有令牌。为每个脚本或集成各创建一个，这样就能单独撤销其中一个。"
@@ -4872,6 +5001,10 @@ msgstr "无法确定 {name} 的运行情况"
 #: src/features/apps/Health.tsx
 msgid "Nobody can say how {name} runs now."
 msgstr "现在无法确定 {name} 的运行情况。"
+
+#: src/features/terminal/words.ts
+msgid "Nobody was connected to it for 10 minutes, so its shell hung up."
+msgstr "10 分钟内没有人连接它，所以它的 shell 已挂断。"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "None reported"
@@ -4914,6 +5047,10 @@ msgstr "并非所有服务器都已连接"
 #: src/features/shell/NotYet.tsx
 msgid "Not in this release yet"
 msgstr "此版本尚未提供"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Not in what it keeps"
+msgstr "保留的记录中没有找到"
 
 #: src/features/servers/ServerPanels.tsx
 msgid "Not installed or not running"
@@ -5092,6 +5229,10 @@ msgstr "没有需要更改的内容"
 msgid "Nothing to show until {servers} is back"
 msgstr "{servers} 恢复前没有可显示的内容"
 
+#: src/features/terminal/words.ts
+msgid "Nothing was typed into it for an hour, so its shell hung up, rather than leave a root shell open."
+msgstr "一小时内没有输入任何内容，所以它的 shell 已挂断，以免 root shell 一直开着。"
+
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing was written in this time"
 msgstr "这段时间内没有写入内容"
@@ -5249,6 +5390,14 @@ msgstr "打开 {name}"
 msgid "Open {where}"
 msgstr "打开 {where}"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Open a new terminal"
+msgstr "打开新终端"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Open a terminal"
+msgstr "打开终端"
+
 #: src/features/activity/ActivityPage.tsx
 msgid "Open plan"
 msgstr "打开计划"
@@ -5276,6 +5425,10 @@ msgstr "请在 VPC 的防火墙规则中开放 80 和 443 端口，或在虚拟�
 #: src/features/servers/network.ts
 msgid "Open ports 80 and 443 in your provider's firewall and in the machine's own."
 msgstr "请在服务商的防火墙和这台机器自己的防火墙中开放 80 和 443 端口。"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Open somewhere else"
+msgstr "已在别处打开"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Open the activity"
@@ -5337,6 +5490,22 @@ msgstr "打开你的个人资料和安全设置"
 #: src/features/catalog/CatalogPage.tsx
 msgid "Open-source apps you can install in one step"
 msgstr "一步即可安装的开源应用"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Opened"
+msgstr "打开时间"
+
+#: src/features/activity/describe.ts
+msgid "Opened a terminal on {server}"
+msgstr "在 {server} 上打开了终端"
+
+#: src/features/activity/describe.ts
+msgid "Opened a terminal on {server}, as {as}"
+msgstr "在 {server} 上以 {as} 打开了终端"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
+msgstr "打开终端需要通行密钥，而你在这个地址上没有。请在“个人资料和安全”中添加一个，或通过 SSH 连接到 {name}。"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Opens a plan"
@@ -5452,6 +5621,10 @@ msgstr "密码短语"
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Passphrase copied"
 msgstr "密码短语已复制"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Paste"
+msgstr "粘贴"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Paste a Compose file to review its plan"
@@ -5845,6 +6018,10 @@ msgstr "身份验证器应用的二维码"
 msgid "Queued"
 msgstr "排队中"
 
+#: src/features/activity/ActivityPage.tsx
+msgid "Ran as"
+msgstr "运行身份"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "Reachable"
 msgstr "可访问"
@@ -5973,6 +6150,7 @@ msgid "Recommended. It needs no public address and no forwarded port."
 msgstr "推荐。无需公网地址，也无需端口转发。"
 
 #: src/features/servers/FleetNotes.tsx
+#: src/features/terminal/TerminalPage.tsx
 msgid "Reconnecting"
 msgstr "正在重新连接"
 
@@ -6587,6 +6765,10 @@ msgstr "查看原因"
 msgid "Seen as its agent connected, {when}. That's its way out, and may not be a way in"
 msgstr "在其 Agent 连接时看到，{when}。这是它的出站地址，不一定能从这里入站"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Select text in the terminal to copy it"
+msgstr "在终端中选中文字即可复制"
+
 #: src/features/changes/fields.tsx
 msgid "SELinux label"
 msgstr "SELinux 标签"
@@ -6669,7 +6851,12 @@ msgstr "服务"
 msgid "Serving"
 msgstr "正在提供服务"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Session options"
+msgstr "会话选项"
+
 #: src/features/auth/SessionsPanel.tsx
+#: src/features/terminal/TerminalPage.tsx
 msgid "Sessions"
 msgstr "会话"
 
@@ -6752,6 +6939,10 @@ msgstr "显示更早的日志"
 #: src/features/logs/LogsPage.tsx
 msgid "Show in context"
 msgstr "查看上下文"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Show it here"
+msgstr "在这里显示"
 
 #: src/features/catalog/InstalledPanel.tsx
 msgid "Show its secrets"
@@ -7011,6 +7202,10 @@ msgstr "每次备份时停止 {running}"
 msgid "Stop backing up {volume} on a schedule"
 msgstr "停止按计划备份 {volume}"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "Stop finding"
+msgstr "停止查找"
+
 #. placeholder {0}: d.name
 #: src/features/backups/DestinationsPanel.tsx
 msgid "Stop sending backups to {0}"
@@ -7086,6 +7281,16 @@ msgstr "正在接管"
 #: src/features/auth/TotpPanel.tsx
 msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
 msgstr "10 个新恢复码将替换你现有的 {left} 个，旧的会立即失效。新的恢复码只显示一次。"
+
+#: src/features/activity/ActivityPage.tsx
+#: src/features/servers/ServerFrame.tsx
+#: src/features/terminal/TerminalPage.tsx
+msgid "Terminal"
+msgstr "终端"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Terminal sessions"
+msgstr "终端会话"
 
 #: src/features/auth/messages.ts
 msgid "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
@@ -7311,6 +7516,10 @@ msgstr "控制平面正在运行"
 msgid "The control plane refused this because it didn't come from the panel's own address. Open the panel at its usual address and try there."
 msgstr "控制平面拒绝了这个请求，因为它不是从面板自己的地址发出的。请在面板的常用地址打开它，然后在那里重试。"
 
+#: src/features/terminal/words.ts
+msgid "The control plane restarted."
+msgstr "控制平面已重启。"
+
 #: src/features/servers/ServerPanels.tsx
 msgid "the control plane runs {controlPlane}"
 msgstr "控制平面为 {controlPlane}"
@@ -7480,6 +7689,10 @@ msgstr "面板的域名 {path}，它将转到 {detail} 之后"
 msgid "The passkey prompt closed before it finished. Try again when you're ready."
 msgstr "通行密钥提示在完成前关闭了。准备好后请重试。"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "The passkey prompt closed, so no terminal opened. Open one when you're ready."
+msgstr "通行密钥提示已关闭，所以没有打开终端。准备好后再打开。"
+
 #: src/features/changes/ChangeSheet.tsx
 msgid "The passkey prompt closed, so nothing was applied and the plan is still planned. Apply it again when you're ready."
 msgstr "通行密钥提示已关闭，所以没有应用任何内容，计划仍待应用。准备好后请再次应用。"
@@ -7552,6 +7765,10 @@ msgstr "服务器路径 {path}，它指向 {leadsTo}（{how}）"
 msgid "the server path {path}, which leads to Docker's socket at {leadsTo}, which gives control of Docker on the server, the same as root"
 msgstr "服务器路径 {path}，它指向位于 {leadsTo} 的 Docker 套接字，这能控制服务器上的 Docker，相当于 root"
 
+#: src/features/terminal/words.ts
+msgid "The server's agent restarted, and its shell with it."
+msgstr "服务器的代理已重启，它的 shell 也随之结束。"
+
 #: src/features/changes/words.ts
 msgid "the server's own network"
 msgstr "服务器自身的网络"
@@ -7567,6 +7784,14 @@ msgstr "服务器的安全取决于它能访问的内容，所以这相当于拥
 #: src/features/logs/LogsPage.tsx
 msgid "The servers have no lines of this app."
 msgstr "服务器上没有这个应用的日志。"
+
+#: src/features/terminal/words.ts
+msgid "The session that opened it ended."
+msgstr "打开它的会话已结束。"
+
+#: src/features/terminal/words.ts
+msgid "The shell exited"
+msgstr "shell 已退出"
 
 #: src/features/auth/TokensPanel.tsx
 msgid "The token wasn't created"
@@ -7924,6 +8149,26 @@ msgstr "此次变更在改动服务器上的任何内容之前就已停止。"
 msgid "This stopped before it reached that, and Dockwell put back the rest."
 msgstr "此次变更在涉及它之前就已停止，Dockwell 已恢复其余部分。"
 
+#: src/features/terminal/words.ts
+msgid "This terminal closed"
+msgstr "这个终端已关闭"
+
+#: src/features/terminal/words.ts
+msgid "This terminal has ended"
+msgstr "这个终端已结束"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "This terminal is open somewhere else"
+msgstr "这个终端已在别处打开"
+
+#: src/features/terminal/words.ts
+msgid "This terminal stopped"
+msgstr "这个终端已停止"
+
+#: src/features/terminal/words.ts
+msgid "This terminal was closed"
+msgstr "这个终端已被关闭"
+
 #. placeholder {0}: said.database
 #: src/features/backups/BackUpSheet.tsx
 msgid "This uses {0}'s own dump, with the database running, so nothing stops. A dump restores on a newer version too."
@@ -7932,6 +8177,10 @@ msgstr "这会在数据库运行时使用 {0} 自带的转储，不会停止任�
 #: src/features/logs/LogsPage.tsx
 msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
 msgstr "此视图保留最新的 {most} 行。较早的日志请用 <0>dockwell logs read</0> 读取。"
+
+#: src/features/terminal/TerminalPage.tsx
+msgid "Through the agent"
+msgstr "通过代理"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Time"
@@ -8059,6 +8308,7 @@ msgstr "趋势"
 #: src/features/changes/ChangeSheet.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/logs/LogsPage.tsx
+#: src/features/terminal/TerminalPage.tsx
 msgid "Try again"
 msgstr "重试"
 
@@ -8641,6 +8891,10 @@ msgstr "你看到的内容可能已过时。{0}"
 msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
 msgstr "你看到的内容可能已过时。请确认服务器上的 dockwell run 仍在运行，然后重试。"
 
+#: src/features/terminal/TerminalPage.tsx
+msgid "what you type waits"
+msgstr "你输入的内容会等待发送"
+
 #: src/features/files/FileViewer.tsx
 msgid "What you typed is still here."
 msgstr "你输入的内容还在这里。"
@@ -8698,6 +8952,10 @@ msgstr "执行者"
 #: src/features/changes/words.ts
 msgid "whoever comes through {list}"
 msgstr "经由 {list} 而来的任何人"
+
+#: src/features/activity/ActivityPage.tsx
+msgid "Why"
+msgstr "原因"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "Why it failed"
