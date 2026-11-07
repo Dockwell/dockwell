@@ -19,6 +19,7 @@ import {
   ServerInventorySchema,
   ServerNetworkSchema,
   ServerSchema,
+  ServerStrain,
   type WatchServersResponse,
 } from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
@@ -206,6 +207,36 @@ describe("ServerOverview", () => {
     await act(() => vi.advanceTimersByTimeAsync(35_000));
     await waitFor(() => expect(metrics()).toHaveAttribute("aria-disabled", "true"));
     expect(metrics()).toHaveClass("is-stale");
+    // What it last sent and received isn't "now" either.
+    expect(panel("Network")).not.toHaveTextContent(/ now$/);
+  });
+
+  it("greys the numbers of a server that isn't reporting, and keeps the Agent badge to its connection", async () => {
+    await renderServer(
+      "/servers/srv_1",
+      aServer({ ...hz1, connection: Connection.UNREACHABLE, connectTime: undefined }),
+    );
+    await waitFor(() =>
+      expect(screen.getAllByText("CPU", { exact: true })[0]?.closest(".metrics")).toHaveClass("is-stale"),
+    );
+  });
+
+  it("says Connected on the Agent panel of a strained server, and draws its memory as a warning", async () => {
+    await renderServer(
+      "/servers/srv_1",
+      aServer({
+        ...hz1,
+        stats: sample(40, 7.4),
+        strainedSince: timestampFromDate(new Date(2026, 10, 4, 11, 50)),
+        strain: ServerStrain.MEMORY,
+      }),
+    );
+    const agent = await screen.findByRole("region", { name: "Agent" });
+    expect(within(agent).getByText("Connected", { selector: ".dw-status-label" }).closest(".dw-status")).toHaveClass(
+      "dw-tone-healthy",
+    );
+    const memory = screen.getAllByText("Memory", { exact: true })[0]?.closest(".dw-metric");
+    expect(memory?.querySelector("[class*='warning']")).not.toBeNull();
   });
 
   it("draws Docker's disk part by part, and another disk beside it by used and free, each once", async () => {

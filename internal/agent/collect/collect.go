@@ -27,6 +27,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/mounts"
+	"github.com/dockwell/dockwell/internal/netif"
 )
 
 // Collector samples one server. Stats is not safe for concurrent use, as it
@@ -39,10 +40,17 @@ type Collector struct {
 	Statfs func(path string) (size, used uint64, err error)
 	// DockerSocket is where the Docker Engine listens.
 	DockerSocket string
-	// Hostname defaults to the real one, and Addresses to the addresses of the
-	// physical interfaces: never a Docker bridge's, or another virtual one's.
-	Hostname  func() (string, error)
+	// Hostname defaults to the real one.
+	Hostname func() (string, error)
+	// Addresses, for a test, lists the server's addresses, which then says
+	// nothing of which interfaces they're on. Nil reads the interfaces, and keeps
+	// the physical ones' addresses, as Sys says which those are.
 	Addresses func() ([]net.Addr, error)
+	// Interfaces lists the interfaces, with their addresses, for a test. Nil asks
+	// the kernel.
+	Interfaces func() ([]Interface, error)
+	// Sys is /sys/class/net, for a test. Nil reads the real one.
+	Sys fs.FS
 	// Outbound is the address this server's route to the internet leaves from.
 	// Nil says nothing of it.
 	Outbound func(ctx context.Context) string
@@ -71,7 +79,6 @@ func New() *Collector {
 		Statfs:       statfs,
 		DockerSocket: "/var/run/docker.sock",
 		Hostname:     os.Hostname,
-		Addresses:    physicalAddresses,
 		Outbound:     OutboundAddress,
 	}
 }
@@ -127,8 +134,9 @@ func (c *Collector) Inventory(ctx context.Context) *dockwellv1.ServerInventory {
 	})
 	inv.DockerVersion = c.dockerVersion(ctx)
 	inv.DockerLogDriver = c.dockerLogDriver(ctx)
-	if addrs, err := c.Addresses(); err == nil {
-		inv.AddressesPhysical = true
+	addrs, physical, err := c.addresses()
+	if err == nil {
+		inv.AddressesPhysical = physical
 		for _, a := range addrs {
 			if ipn, ok := a.(*net.IPNet); ok && !ipn.IP.IsLoopback() && !ipn.IP.IsLinkLocalUnicast() {
 				inv.Addresses = append(inv.Addresses, ipn.IP.String())
@@ -324,33 +332,61 @@ func parseMeminfo(b []byte) map[string]uint64 {
 	return out
 }
 
-// virtualInterfaces are network devices that carry traffic already counted
-// on a physical one, or none at all.
-var virtualInterfaces = []string{"lo", "docker", "veth", "br-", "virbr", "cni", "flannel", "cali", "vxlan", "tun", "tap", "dummy"}
-
-// virtual reports a network device that virtualInterfaces names.
-func virtual(name string) bool {
-	return slices.ContainsFunc(virtualInterfaces, func(p string) bool { return strings.HasPrefix(name, p) })
+// Interface is a network interface and its addresses.
+type Interface struct {
+	Name  string
+	Addrs []net.Addr
 }
 
-// physicalAddresses lists the addresses of the server's physical interfaces, so a
-// private one is a network the server is on, such as a cloud's private network,
-// and never one of Docker's bridges, which a custom pool can put in 10.x too.
-func physicalAddresses() ([]net.Addr, error) {
+// addresses lists the server's addresses, and whether they're its physical
+// interfaces' alone, as sysfs says (internal/netif): never a Docker or Podman
+// bridge's, a VPN's or a TUN's, whatever they're called. Where sysfs can't say,
+// as in a container, it leaves out what virtual interfaces are called by default,
+// and says they may not be physical.
+func (c *Collector) addresses() ([]net.Addr, bool, error) {
+	if c.Addresses != nil {
+		addrs, err := c.Addresses()
+		return addrs, false, err
+	}
+	list := c.Interfaces
+	if list == nil {
+		list = kernelInterfaces
+	}
+	ifaces, err := list()
+	if err != nil {
+		return nil, false, err
+	}
+	sys := c.Sys
+	if sys == nil {
+		sys = netif.Sys
+	}
+	names := make([]string, 0, len(ifaces))
+	for _, i := range ifaces {
+		names = append(names, i.Name)
+	}
+	physical, known := netif.Physicals(sys, names)
+	var out []net.Addr
+	for _, i := range ifaces {
+		if (known && physical[i.Name]) || (!known && !netif.Virtual(i.Name)) {
+			out = append(out, i.Addrs...)
+		}
+	}
+	return out, known, nil
+}
+
+// kernelInterfaces lists the kernel's interfaces and their addresses.
+func kernelInterfaces() ([]Interface, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return nil, err
 	}
-	var out []net.Addr
-	for _, iface := range ifaces {
-		if virtual(iface.Name) {
-			continue
-		}
-		addrs, err := iface.Addrs()
+	out := make([]Interface, 0, len(ifaces))
+	for _, i := range ifaces {
+		addrs, err := i.Addrs()
 		if err != nil {
 			continue
 		}
-		out = append(out, addrs...)
+		out = append(out, Interface{Name: i.Name, Addrs: addrs})
 	}
 	return out, nil
 }
@@ -364,7 +400,7 @@ func netTotals(dev []byte) (rx, tx uint64, ok bool) {
 			continue
 		}
 		name = strings.TrimSpace(name)
-		if virtual(name) {
+		if netif.Virtual(name) {
 			continue
 		}
 		f := strings.Fields(rest)

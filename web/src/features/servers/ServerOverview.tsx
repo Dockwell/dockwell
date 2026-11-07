@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { Connection } from "@dockwell/api";
 import { PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 
 import { OnePanelCallout } from "../import/OnePanelImport";
@@ -35,10 +36,14 @@ export function ServerOverview({ id }: { id: string }) {
           <OnePanelCallout server={server} />
           {/* A phone leads with M-Server.dc.html's: how it is, what runs, and what happened. */}
           {phone ? (
-            <PhoneServer server={server} unread={unread !== undefined} />
+            <PhoneServer server={server} heard={unread?.heard} />
           ) : (
             <>
-              <ServerMetrics server={server} fourth="load" stale={unread !== undefined} />
+              <ServerMetrics
+                server={server}
+                fourth="load"
+                stale={unread !== undefined || server.connection !== Connection.CONNECTED}
+              />
               <RunsHere server={server} />
             </>
           )}
@@ -49,7 +54,7 @@ export function ServerOverview({ id }: { id: string }) {
           </div>
           <div className="server-panels">
             <SystemPanel server={server} />
-            <NetworkPanel server={server} />
+            <NetworkPanel server={server} stale={unread !== undefined} />
             <AgentPanel server={server} unknown={unread !== undefined} />
           </div>
         </>

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   Connection,
@@ -161,8 +162,33 @@ describe("the containers Dockwell didn't make", () => {
     renderAt("/servers/srv_1", { servers: { watchServers: watch.stream }, containers: { listContainers } });
     await screen.findByRole("heading", { level: 1 });
     const panel = await screen.findByRole("region", { name: "非 Dockwell 创建的容器" });
-    expect(panel).toHaveTextContent("hz-1 未在上报，因此现在无法读取那里 Docker 运行的内容。");
+    expect(panel).toHaveTextContent("hz-1 没有上报数据，因此现在无法读取那里 Docker 运行的内容。");
     expect(panel).not.toHaveTextContent("isn't connected");
+    expect(listContainers).not.toHaveBeenCalled();
+  });
+
+  it("says Docker isn't answering, or that the server waits for its agent, in its own words, and asks nothing", async () => {
+    const listContainers = vi.fn(() => answer({ containers: [container("legacy")] }));
+    for (const [server, words] of [
+      [
+        aServer({ id: "srv_1", name: "hz-1", dockerUnreadableSince: timestampFromDate(new Date()) }),
+        "Docker isn't answering on hz-1, so what runs there can't be read now.",
+      ],
+      [
+        aServer({ id: "srv_1", name: "hz-1", connection: Connection.PENDING }),
+        "hz-1 is waiting for its agent, so what Docker runs there can't be read yet.",
+      ],
+    ] as const) {
+      const watch = feed<WatchServersResponse>();
+      watch.push(changed(server), snapshotComplete);
+      const { unmount } = renderAt("/servers/srv_1", {
+        servers: { watchServers: watch.stream },
+        containers: { listContainers },
+      });
+      await screen.findByRole("heading", { level: 1 });
+      expect(await screen.findByText(words)).toBeVisible();
+      unmount();
+    }
     expect(listContainers).not.toHaveBeenCalled();
   });
 

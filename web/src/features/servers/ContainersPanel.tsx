@@ -56,10 +56,11 @@ export function ContainersPanel({ server }: { server: Server }) {
   const phone = useMediaQuery(PHONE_QUERY);
   // A server whose agent isn't reporting can't say what runs there: it isn't asked.
   const connected = server.connection === Connection.CONNECTED;
+  const blind = connected && server.dockerUnreadableSince !== undefined;
   const list = useQuery(
     ContainerService.method.listContainers,
     { server: server.id },
-    { refetchInterval: READ_EVERY_MS, retry: false, enabled: connected },
+    { refetchInterval: READ_EVERY_MS, retry: false, enabled: connected && !blind },
   );
   const [filter, setFilter] = useState("");
   const [shown, setShown] = useState(PAGE);
@@ -73,7 +74,13 @@ export function ContainersPanel({ server }: { server: Server }) {
 
   // What it last read can't stand once it can't be read, so that is all this says.
   const body: ReactNode = !connected ? (
-    <p className="containers-note">{t`${server.name} isn't reporting, so what Docker runs there can't be read now.`}</p>
+    <p className="containers-note">
+      {server.connection === Connection.PENDING
+        ? t`${server.name} is waiting for its agent, so what Docker runs there can't be read yet.`
+        : t`${server.name} isn't reporting, so what Docker runs there can't be read now.`}
+    </p>
+  ) : blind ? (
+    <p className="containers-note">{t`Docker isn't answering on ${server.name}, so what runs there can't be read now.`}</p>
   ) : list.error ? (
     <p className="containers-note">{sentence(list.error)}</p>
   ) : !list.data ? (
@@ -151,7 +158,7 @@ export function ContainersPanel({ server }: { server: Server }) {
       className="containers"
       title={t`Containers Dockwell didn't make`}
       actions={
-        connected && count > 0 && !list.error ? (
+        connected && !blind && count > 0 && !list.error ? (
           <span className="containers-count">
             {plural(count, { one: `# container, ${running} running`, other: `# containers, ${running} running` })}
           </span>

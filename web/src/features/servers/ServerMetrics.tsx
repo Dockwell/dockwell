@@ -7,6 +7,7 @@ import { useLingui } from "@lingui/react/macro";
 import { formatBitRate, formatBytes, formatFixed, formatLiveBytesOf, formatPercent } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { trend } from "./history";
+import { HIGH_USE } from "./server";
 import "./ServerMetrics.css";
 
 export interface ServerMetricsProps {
@@ -59,6 +60,8 @@ export function ServerMetrics({ server, fourth, compact = false, stale = false }
       data: history.map((s) => s.cpuPercent),
       min: 0,
       max: 100,
+      threshold: HIGH_USE,
+      ...(stats.cpuPercent > HIGH_USE ? { tone: "warning" as const } : {}),
       caption:
         spanMs > 0 ? t`${cpuAverage} on average over the last ${span}` : cpus > 0 ? t`Across ${cpus} vCPU` : undefined,
     },
@@ -70,6 +73,8 @@ export function ServerMetrics({ server, fourth, compact = false, stale = false }
       data: history.map((s) => share(s.memoryUsedBytes, s.memoryTotalBytes)),
       min: 0,
       max: 100,
+      threshold: HIGH_USE,
+      ...(share(stats.memoryUsedBytes, stats.memoryTotalBytes) > HIGH_USE ? { tone: "warning" as const } : {}),
       caption: t`${memShare} in use`,
     },
     disk.size > 0

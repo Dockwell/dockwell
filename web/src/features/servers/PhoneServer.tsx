@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { ActorKind, Connection, DeploymentState, EventKind, type Server } from "@dockwell/api";
+import { ActorKind, Connection, DeploymentState, EventKind, type Server, ServerStrain } from "@dockwell/api";
 import { Icon, Metric, type Status, StatusBadge, Timeline, type TimelineEvent } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
 
-import { formatFixed, formatLiveBytesOf } from "../../lib/format";
+import { formatClock, formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { useDescribe } from "../activity/describe";
 import { useEvents } from "../activity/useEvents";
@@ -17,7 +17,7 @@ import { useHealth } from "../apps/health";
 import { useServices } from "../apps/useServices";
 import { useCopy } from "./CopyButton";
 import { forwardToOf, isSharedAddress, publicAddressOf } from "./network";
-import { HIGH_USE as HIGH, isPrivateAddress, serverStatus, strainOf, useServerWords } from "./server";
+import { HIGH_USE as HIGH, isPrivateAddress, serverStatus, useServerWords } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 import "./PhoneServer.css";
 
@@ -29,10 +29,11 @@ const RECENT = 3;
  * line, its CPU and memory, its addresses to copy, what runs on it, and what
  * happened lately. The rest of its Overview follows, for whoever scrolls.
  */
-export function PhoneServer({ server, unread = false }: { server: Server; unread?: boolean }) {
+export function PhoneServer({ server, heard }: { server: Server; heard?: Date | undefined }) {
+  const unread = heard !== undefined;
   return (
     <>
-      <PhoneStatus server={server} unread={unread} />
+      <PhoneStatus server={server} unread={unread} heard={heard} />
       <PhoneRunsHere server={server} />
       <PhoneRecent server={server} />
     </>
@@ -48,7 +49,7 @@ function share(part: bigint, whole: bigint): number {
  * when that's something, its CPU and memory, and its addresses. While the panel
  * can't hear the control plane, it says it can't say, as the rest of the page does.
  */
-function PhoneStatus({ server, unread }: { server: Server; unread: boolean }) {
+function PhoneStatus({ server, unread, heard }: { server: Server; unread: boolean; heard: Date | undefined }) {
   const { t, i18n } = useLingui();
   const words = useTimeWords();
   const now = useControlPlaneNow();
@@ -83,16 +84,22 @@ function PhoneStatus({ server, unread }: { server: Server; unread: boolean }) {
     );
   } else if (server.dockerUnreadableSince) {
     line = t`Docker hasn't answered for ${lasted(server.dockerUnreadableSince)}`;
-  } else if (strainOf(stats) === "memory") {
-    line = t`Memory above ${HIGH}%`;
-  } else if (strainOf(stats) === "cpu") {
-    line = t`CPU above ${HIGH}%`;
+  } else if (server.strainedSince) {
+    // The control plane's, once it has lasted a minute, as the mock says it.
+    const since = formatClock(timestampDate(server.strainedSince), locale);
+    line =
+      server.strain === ServerStrain.CPU
+        ? t`CPU above ${HIGH}% since ${since}`
+        : t`Memory above ${HIGH}% since ${since}`;
   } else {
     line = uptime ? t`Up ${uptime}` : t`Reporting`;
   }
 
   const [used, total] = stats ? formatLiveBytesOf(stats.memoryUsedBytes, stats.memoryTotalBytes, locale) : ["–", ""];
-  const cpuValue = stats ? formatFixed(cpu, 0, locale) : "–";
+  // Down, never up, so 89.6 doesn't read as 90 beside Healthy.
+  const cpuValue = stats ? formatFixed(Math.floor(cpu), 0, locale) : "–";
+  // What a meter last heard says how long ago, once it can't be taken as now.
+  const stale = (text: string) => (heard ? t`${text}, as last heard ${words.ago(heard, now)}` : text);
   const publicIp = publicAddressOf(server);
   const privateIp = privateAddressOf(server);
 
@@ -109,11 +116,11 @@ function PhoneStatus({ server, unread }: { server: Server; unread: boolean }) {
       <div className={unread ? "phone-status-grid is-stale" : "phone-status-grid"} aria-disabled={unread || undefined}>
         <div className="phone-status-cell">
           <Metric label={t`CPU`} value={cpuValue} unit="%" />
-          <Meter label={t`CPU`} share={cpu} text={`${cpuValue}%`} />
+          <Meter label={t`CPU`} share={cpu} text={stale(`${cpuValue}%`)} />
         </div>
         <div className="phone-status-cell">
           <Metric label={t`Memory`} value={used} unit={total ? t`of ${total}` : undefined} />
-          <Meter label={t`Memory`} share={memory} text={total ? t`${used} of ${total}` : "–"} />
+          <Meter label={t`Memory`} share={memory} text={stale(total ? t`${used} of ${total}` : "–")} />
         </div>
       </div>
       <div className="phone-status-grid">
@@ -129,7 +136,7 @@ function PhoneStatus({ server, unread }: { server: Server; unread: boolean }) {
 }
 
 function Meter({ label, share: value, text }: { label: string; share: number; text: string }) {
-  const high = value >= HIGH;
+  const high = value > HIGH;
   return (
     // biome-ignore lint/a11y/useSemanticElements: a <meter> takes no styling that reads the same in both themes
     <div
@@ -317,7 +324,7 @@ function PhoneRecent({ server }: { server: Server }) {
  */
 export function privateAddressOf(server: Server): string | "unknown" | undefined {
   const inv = server.inventory;
-  if (!inv || inv.outboundAddress === "") return "unknown";
+  if (!inv || (inv.outboundAddress === "" && !inv.addressesPhysical)) return "unknown";
   const forward = forwardToOf(server);
   if (forward || !inv.addressesPhysical) return forward;
   return inv.addresses.find((ip) => !ip.includes(":") && isPrivateAddress(ip) && !isSharedAddress(ip));

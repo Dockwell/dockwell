@@ -63,6 +63,7 @@ var agentPackages = []string{
 	"internal/ingress/caddy",
 	"internal/logging",
 	"internal/mounts", // what's mounted, to keep away from a mount that stopped answering
+	"internal/netif",  // which network interfaces are physical, as sysfs says
 	"internal/pki",
 	"internal/resource",
 	"internal/resource/binding",   // a service's environment and label, from what it uses

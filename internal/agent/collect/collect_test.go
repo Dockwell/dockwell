@@ -12,6 +12,8 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
 
 // fixture is a small Ubuntu server: 4 CPUs, 8 GiB, one data disk plus
@@ -211,44 +213,51 @@ func TestDiskOf(t *testing.T) {
 	}
 }
 
-// A server's addresses are its physical interfaces' alone, so a private one is a
-// network it's on, never a Docker bridge's, and the inventory says so (#254).
+// A server's addresses are its physical interfaces' alone, as sysfs says,
+// whatever the others are called, and the inventory says so; where sysfs can't
+// say, as in a container, it goes by name and says it can't (#287).
 func TestAddressesAreThePhysicalInterfaces(t *testing.T) {
-	got, err := physicalAddresses()
-	if err != nil {
-		t.Fatal(err)
+	addr := func(s string) net.Addr { ip, n, _ := net.ParseCIDR(s); n.IP = ip; return n }
+	ifaces := []Interface{
+		{Name: "lo", Addrs: []net.Addr{addr("127.0.0.1/8")}},
+		{Name: "eth0", Addrs: []net.Addr{addr("203.0.113.7/24")}},
+		{Name: "ens10", Addrs: []net.Addr{addr("10.0.1.5/32")}},
+		{Name: "docker0", Addrs: []net.Addr{addr("172.17.0.1/16")}},
+		{Name: "mynet", Addrs: []net.Addr{addr("10.200.0.1/24")}},
+		{Name: "podman0", Addrs: []net.Addr{addr("10.88.0.1/16")}},
+		{Name: "wg0", Addrs: []net.Addr{addr("10.8.0.1/24")}},
+		{Name: "Meta", Addrs: []net.Addr{addr("198.18.0.1/30")}},
 	}
-	listed := map[string]bool{}
-	for _, a := range got {
-		listed[a.String()] = true
+	sys := fstest.MapFS{
+		"eth0/device":         {},
+		"ens10/device":        {},
+		"docker0/lower_veth1": {},
+		"mynet/lower_veth2":   {},
+		"wg0/type":            {Data: []byte("65534\n")},
+		"Meta/tun_flags":      {Data: []byte("0x1001\n")},
 	}
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, iface := range ifaces {
-		addrs, _ := iface.Addrs()
-		for _, a := range addrs {
-			if virtual(iface.Name) && listed[a.String()] {
-				t.Errorf("%s on %s, a virtual interface, is listed", a, iface.Name)
-			}
-			if !virtual(iface.Name) && !listed[a.String()] {
-				t.Errorf("%s on %s, a physical interface, isn't listed", a, iface.Name)
-			}
+	inventory := func(sys fstest.MapFS) *dockwellv1.ServerInventory {
+		c := &Collector{
+			Root: fstest.MapFS{}, Hostname: func() (string, error) { return "hz-1", nil }, Metadata: ClosedMetadata, STUN: []string{},
+			Interfaces: func() ([]Interface, error) { return ifaces, nil }, Sys: sys,
 		}
+		return c.Inventory(t.Context())
 	}
-	for _, name := range []string{"docker0", "br-3f2a9c1d4e5b", "veth12ab", "lo", "cni0"} {
-		if !virtual(name) {
-			t.Errorf("%s reads as physical", name)
-		}
+	inv := inventory(sys)
+	if got := strings.Join(inv.GetAddresses(), " "); got != "203.0.113.7 10.0.1.5" || !inv.GetAddressesPhysical() {
+		t.Errorf("addresses %q, physical %v; want eth0's and the private network's, and that they're physical", got, inv.GetAddressesPhysical())
 	}
-	for _, name := range []string{"eth0", "ens3", "enp0s31f6", "wlan0"} {
-		if virtual(name) {
-			t.Errorf("%s reads as virtual", name)
-		}
+	// In a container no interface has a device: it goes by name, and says it can't tell.
+	inv = inventory(fstest.MapFS{})
+	if got := strings.Join(inv.GetAddresses(), " "); got != "203.0.113.7 10.0.1.5 10.200.0.1 198.18.0.1" || inv.GetAddressesPhysical() {
+		t.Errorf("in a container: addresses %q, physical %v; want those whose names aren't virtual, and not said to be physical", got, inv.GetAddressesPhysical())
 	}
-	c := &Collector{Root: fstest.MapFS{}, Hostname: func() (string, error) { return "hz-1", nil }, Addresses: func() ([]net.Addr, error) { return nil, nil }, Metadata: ClosedMetadata, STUN: []string{}}
-	if !c.Inventory(t.Context()).GetAddressesPhysical() {
-		t.Error("the inventory doesn't say its addresses are the physical interfaces'")
+	// A test's own addresses say nothing of which interfaces they're on.
+	c := &Collector{
+		Root: fstest.MapFS{}, Hostname: func() (string, error) { return "hz-1", nil }, Metadata: ClosedMetadata, STUN: []string{},
+		Addresses: func() ([]net.Addr, error) { return []net.Addr{addr("10.0.1.5/32")}, nil },
+	}
+	if c.Inventory(t.Context()).GetAddressesPhysical() {
+		t.Error("addresses from a test are said to be physical")
 	}
 }

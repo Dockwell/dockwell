@@ -63,7 +63,7 @@ export function SystemPanel({ server }: { server: Server }) {
  * have, what the internet knows it by and how that's known, and whether anything has
  * shown the internet can reach it. Then how much it is sending and receiving.
  */
-export function NetworkPanel({ server }: { server: Server }) {
+export function NetworkPanel({ server, stale = false }: { server: Server; stale?: boolean }) {
   const { t, i18n } = useLingui();
   const locale = i18n.locale;
   const words = useNetworkWords();
@@ -82,7 +82,11 @@ export function NetworkPanel({ server }: { server: Server }) {
     ? formatBitRate(stats.networkRxBytesPerSecond + stats.networkTxBytesPerSecond, locale).join(" ")
     : undefined;
   return (
-    <Panel title={t`Network`} actions={now ? <span className="panel-meta">{t`${now} now`}</span> : null}>
+    <Panel
+      title={t`Network`}
+      // What it last sent and received isn't "now" once nothing can say how it is.
+      actions={now && !stale ? <span className="panel-meta">{t`${now} now`}</span> : null}
+    >
       <dl className="facts">
         {shape ? <Fact term={t`Connection`}>{shape}</Fact> : null}
         {known.map((address) => {
@@ -209,7 +213,11 @@ export function AgentPanel({ server, unknown = false }: { server: Server; unknow
         unknown ? (
           <StatusBadge status="unknown" label={t`Unknown`} labelIsState />
         ) : (
-          <StatusBadge status={serverStatus(server)} label={badge} />
+          // The connection alone: a server short of memory says so in its numbers, not here.
+          <StatusBadge
+            status={serverStatus({ connection: server.connection, dockerUnreadableSince: blind })}
+            label={badge}
+          />
         )
       }
     >
