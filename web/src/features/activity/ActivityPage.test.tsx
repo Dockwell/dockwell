@@ -39,7 +39,7 @@ import {
   snapshot,
   webPlanned,
 } from "../../test/changes";
-import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
+import { type Api, feed, onPhone, quietWatch, renderAt, untilAborted } from "../../test/render";
 
 const HOUR = 3_600_000;
 // Midday, so that what these say about "today" and "yesterday" holds at any hour:
@@ -528,7 +528,9 @@ describe("Activity", () => {
     const pages: string[] = [];
     renderAt("/activity", {
       events: {
-        watchEvents: (req, ctx) => (watches.shift() ?? second).stream(req, ctx),
+        // The shell's own watch of changes, a page of one, keeps out of the timeline's turn.
+        watchEvents: (req, ctx) =>
+          req.pageSize === 1 ? quietWatch(req, ctx) : (watches.shift() ?? second).stream(req, ctx),
         listEvents: (req) => {
           pages.push(req.pageToken);
           return req.pageToken === "page-2" ? { events: [token], nextPageToken: "page-3" } : { events: [] };

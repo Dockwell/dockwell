@@ -418,14 +418,10 @@
   white-space: nowrap;
 }
 
+/* With no tone, as a healthy state has none, it reads in the line's own quiet ink. */
 .apps-phone-word {
   flex: none;
-  color: var(--tone);
-}
-
-/* Healthy stays quiet, as M-Apps has it: only what needs a look, or is moving, takes its colour. */
-.apps-phone-word.dw-tone-healthy {
-  color: var(--ink-muted);
+  color: var(--tone, var(--ink-muted));
 }
 
 .apps-phone-rev {

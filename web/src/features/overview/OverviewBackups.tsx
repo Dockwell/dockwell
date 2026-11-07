@@ -2,18 +2,20 @@
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { BackupCopy, type BackupPolicyInfo, BackupState } from "@dockwell/api";
-import { Button, Panel, type Status, StatusBadge } from "@dockwell/ui";
+import { Button, Callout, Panel, type Status, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo, useState } from "react";
 
+import { sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { BackUpSheet } from "../backups/BackUpSheet";
 import { useDestinations } from "../backups/DestinationsPanel";
 import { usePolicies } from "../backups/PoliciesPanel";
-import { useBackups, useVolumes } from "../backups/useBackups";
+import { useBackups, useVolumesRead } from "../backups/useBackups";
 import { useControlPlaneNow } from "../servers/useFleet";
+import "../apps/Apps.css";
 import "./Overview.css";
 
 /** How the schedules stand, worst first: one that failed outweighs one that's fine. */
@@ -36,11 +38,14 @@ export function OverviewBackups() {
   const { t, i18n } = useLingui();
   const time = useTimeWords();
   const now = useControlPlaneNow(15_000);
-  const volumes = useVolumes();
-  const backups = useBackups().data?.backups;
-  const policies = usePolicies().data?.policies ?? [];
+  const volumesRead = useVolumesRead();
+  const backupsRead = useBackups();
+  const policiesRead = usePolicies();
   const destinations = useDestinations().data?.destinations ?? [];
   const [taking, setTaking] = useState(false);
+  const volumes = volumesRead.volumes;
+  const backups = backupsRead.data?.backups;
+  const policies = policiesRead.data?.policies ?? [];
   const state = useScheduleState(policies);
 
   const last = useMemo(() => (backups ?? []).find((b) => b.state === BackupState.DONE), [backups]);
@@ -52,11 +57,63 @@ export function OverviewBackups() {
     }
     return soonest;
   }, [policies]);
+  // Where they're kept beyond the server: what a schedule sends to, and where a backup taken by hand went.
   const kept = useMemo(
-    () => [...new Set(policies.map((p) => p.spec?.destination ?? "").filter(Boolean))].join(", "),
-    [policies],
+    () =>
+      [
+        ...new Set([
+          ...policies.map((p) => p.spec?.destination ?? ""),
+          ...(backups ?? []).filter((b) => b.copy === BackupCopy.STORED).map((b) => b.destination),
+        ]),
+      ]
+        .filter(Boolean)
+        .sort()
+        .join(", "),
+    [policies, backups],
   );
 
+  // Nothing is said of the backups until all three reads have come: an empty list
+  // while one loads, or fails, would say there's nothing when there may be.
+  const failed = [volumesRead.error, backupsRead.error, policiesRead.error].find(Boolean);
+  if (failed) {
+    return (
+      <Panel title={t`Backups`}>
+        <Callout
+          tone="critical"
+          title={t`Dockwell can't read its backups`}
+          actions={
+            <Button
+              size="sm"
+              loading={backupsRead.isFetching || policiesRead.isFetching}
+              onClick={() => {
+                if (volumesRead.error) volumesRead.refetch();
+                if (backupsRead.error) void backupsRead.refetch();
+                if (policiesRead.error) void policiesRead.refetch();
+              }}
+            >
+              <Trans>Try again</Trans>
+            </Button>
+          }
+        >
+          {sentence(failed)}
+        </Callout>
+      </Panel>
+    );
+  }
+  if (volumesRead.isPending || backupsRead.isPending || policiesRead.isPending) {
+    return (
+      <Panel title={t`Backups`}>
+        <div aria-busy="true" className="overview-loading">
+          <span className="dw-sr">{t`Loading backups`}</span>
+          {["64%", "48%", "56%"].map((width) => (
+            <div key={width} className="apps-skeleton-line" aria-hidden="true">
+              <span className="apps-skeleton-bar" style={{ width }} />
+            </div>
+          ))}
+        </div>
+      </Panel>
+    );
+  }
   if (volumes.length === 0 && (backups?.length ?? 0) === 0) {
     return (
       <Panel title={t`Backups`}>

@@ -140,3 +140,19 @@
 .overview-loading .apps-skeleton-line {
   padding: 0;
 }
+
+/* A thumb's worth on a phone, without moving what's around them. */
+@media (max-width: 639.98px) {
+  .overview-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-block: -12px;
+    padding-inline: var(--space-1);
+    margin-inline-end: calc(-1 * var(--space-1));
+  }
+
+  .overview-actions .dw-btn {
+    min-height: 44px;
+  }
+}

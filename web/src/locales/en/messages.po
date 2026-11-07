@@ -3007,6 +3007,7 @@ msgid "Dockwell can't reach what this would back up"
 msgstr "Dockwell can't reach what this would back up"
 
 #: src/features/backups/BackupsPage.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell can't read its backups"
 
@@ -4431,6 +4432,10 @@ msgstr "Loading activity"
 msgid "Loading apps"
 msgstr "Loading apps"
 
+#: src/features/overview/OverviewBackups.tsx
+msgid "Loading backups"
+msgstr "Loading backups"
+
 #: src/features/overview/RecentChanges.tsx
 msgid "Loading changes"
 msgstr "Loading changes"
@@ -5064,8 +5069,8 @@ msgid "Nothing else was written around this line."
 msgstr "Nothing else was written around this line."
 
 #: src/features/overview/RecentChanges.tsx
-msgid "Nothing has changed yet. Each change you make shows here, with a way to undo it."
-msgstr "Nothing has changed yet. Each change you make shows here, with a way to undo it."
+msgid "Nothing has changed yet. Each change you make shows here."
+msgstr "Nothing has changed yet. Each change you make shows here."
 
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing here matches these filters."
@@ -8139,6 +8144,7 @@ msgstr "trend"
 #: src/features/domains/DomainsPage.tsx
 #: src/features/logs/LogsPage.tsx
 #: src/features/overview/OverviewApps.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "Try again"
 msgstr "Try again"
 

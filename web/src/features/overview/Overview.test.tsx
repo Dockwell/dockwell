@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { create } from "@bufbuild/protobuf";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import {
+  BackupCopy,
+  type BackupPolicyInfo,
+  BackupPolicyInfoSchema,
+  BackupSchema,
+  BackupState,
   Connection,
   HealthState,
   ServerInventorySchema,
@@ -11,12 +16,13 @@ import {
   type WatchServersResponse,
 } from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { aHealth, anApp, ENV, places } from "../../test/apps";
-import { applied, changeEvent, snapshot, webPlanned } from "../../test/changes";
+import { aHealth, anApp, ENV, places, running } from "../../test/apps";
+import { applied, changeEvent, since, snapshot, webPlanned } from "../../test/changes";
 import { expectMetric, metric } from "../../test/metrics";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, gap, history, sample, snapshotComplete } from "../../test/servers";
@@ -296,13 +302,20 @@ describe("what the overview shows below the numbers", () => {
   const web = anApp("web", "ghcr.io/example/web:1.5.0");
   const api = anApp("api", "ghcr.io/example/api:2.1.0");
 
-  function overviewApi(backups: Api["backups"] = {}): Api {
+  function overviewApi(backups: Api["backups"] = {}, volumes = false): Api {
     const watch = feed<WatchServersResponse>();
     watch.push(changed(hz1), snapshotComplete);
     return {
       servers: { watchServers: watch.stream },
       services: { listServices: () => ({ services: [web, api] }) },
-      resources: places(),
+      resources: {
+        listResources: (req: { kind: string }) =>
+          req.kind === "volume"
+            ? {
+                resources: volumes ? [{ id: "vol_1", resource: { kind: "volume", scope: ENV, name: "orders" } }] : [],
+              }
+            : places().listResources(req),
+      },
       health: {
         listHealth: () => ({
           services: [
@@ -373,5 +386,151 @@ describe("what the overview shows below the numbers", () => {
     const row = await screen.findByRole("link", { name: /^web/ });
     expect(row).toHaveAttribute("href", "/apps/svc_web");
     await waitFor(() => expect(within(row).getByText("Healthy")).toBeVisible());
+    // Healthy reads in the line's quiet ink; only what needs a look takes its colour.
+    expect(within(row).getByText("Healthy")).not.toHaveClass("dw-tone-healthy");
+    const api = screen.getByRole("link", { name: /^api/ });
+    expect(within(api).getByText("Unhealthy")).toHaveClass("dw-tone-warning");
+  });
+});
+
+describe("the overview's backups", () => {
+  const web = anApp("web", "ghcr.io/example/web:1.5.0");
+
+  function backupsApi(backups: Api["backups"]): Api {
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete);
+    return {
+      servers: { watchServers: watch.stream },
+      services: { listServices: () => ({ services: [web] }) },
+      resources: {
+        listResources: (req: { kind: string }) =>
+          req.kind === "volume"
+            ? { resources: [{ id: "vol_1", resource: { kind: "volume", scope: ENV, name: "orders" } }] }
+            : places().listResources(req),
+      },
+      health: running(web),
+      domains: { listDomains: () => ({ domains: [] }) },
+      events: { watchEvents: eventsWatch() },
+      backups: {
+        listBackups: () => ({ backups: [] }),
+        listBackupPolicies: () => ({ policies: [] }),
+        listBackupDestinations: () => ({ destinations: [] }),
+        ...backups,
+      },
+    };
+  }
+
+  const nightly = (init: MessageInitShape<typeof BackupPolicyInfoSchema> = {}): BackupPolicyInfo =>
+    create(BackupPolicyInfoSchema, {
+      id: "pol_1",
+      name: "orders-nightly",
+      environmentId: ENV,
+      spec: { volume: "orders", at: "03:00", timeZone: "Europe/Amsterdam", keep: 7 },
+      nextRun: timestampFromDate(new Date("2026-11-08T02:00:00Z")),
+      ...init,
+    } as MessageInitShape<typeof BackupPolicyInfoSchema>);
+  const done = create(BackupSchema, {
+    id: "bkp_1",
+    environmentId: ENV,
+    volume: "orders",
+    volumeId: "vol_1",
+    state: BackupState.DONE,
+    sizeBytes: 71n,
+    startedAt: timestampFromDate(new Date(Date.now() - 600_000)),
+    finishedAt: timestampFromDate(new Date(Date.now() - 596_000)),
+  });
+  const panel = () => screen.findByRole("region", { name: "Backups" });
+
+  it("says nothing of them until every read has come", async () => {
+    renderAt("/", backupsApi({ listBackups: () => new Promise(() => {}) }));
+    const backups = await panel();
+    expect(within(backups).getByText("Loading backups")).toBeInTheDocument();
+    expect(backups).not.toHaveTextContent("A backup is of a volume");
+    expect(backups).not.toHaveTextContent("None yet");
+  });
+
+  it("says when it can't read them, and tries again", async () => {
+    let calls = 0;
+    renderAt(
+      "/",
+      backupsApi({
+        listBackups: () => {
+          calls += 1;
+          if (calls === 1) throw new ConnectError("the control plane is restarting", Code.Unavailable);
+          return { backups: [done] };
+        },
+      }),
+    );
+    const backups = await panel();
+    expect(await within(backups).findByText("Dockwell can't read its backups")).toBeVisible();
+    expect(backups).not.toHaveTextContent("A backup is of a volume");
+    await userEvent.click(within(backups).getByRole("button", { name: "Try again" }));
+    expect(await within(backups).findByText(/orders · 71 B/)).toBeVisible();
+  });
+
+  it("says a schedule's last run failed", async () => {
+    renderAt(
+      "/",
+      backupsApi({
+        listBackupPolicies: () => ({
+          policies: [nightly({ last: { id: "bkp_2", state: BackupState.FAILED, error: "disk full" } })],
+        }),
+      }),
+    );
+    expect(await within(await panel()).findByText("Last run failed")).toBeVisible();
+  });
+
+  it("says a schedule hasn't run yet, and when it will, in its own zone", async () => {
+    renderAt("/", backupsApi({ listBackupPolicies: () => ({ policies: [nightly()] }) }));
+    const backups = await panel();
+    expect(await within(backups).findByText("Hasn't run yet")).toBeVisible();
+    // 02:00 UTC is 03:00 in Amsterdam in November, and the zone is named.
+    expect(within(backups).getByText(/03:00, Europe\/Amsterdam · orders/)).toBeVisible();
+  });
+
+  it("says where they're kept, a backup taken by hand included", async () => {
+    const { unmount } = renderAt("/", backupsApi({ listBackups: () => ({ backups: [done] }) }));
+    expect(await within(await panel()).findByText("On the server's own disk only")).toBeVisible();
+    unmount();
+    renderAt(
+      "/",
+      backupsApi({
+        listBackups: () => ({ backups: [{ ...done, copy: BackupCopy.STORED, destination: "r2" }] }),
+      }),
+    );
+    expect(await within(await panel()).findByText("On the server, and on r2")).toBeVisible();
+  });
+});
+
+describe("the overview's apps, live", () => {
+  it("shows an app made elsewhere as soon as its change applies", async () => {
+    const web = anApp("web", "ghcr.io/example/web:1.5.0");
+    const cli = anApp("cli-made", "ghcr.io/example/worker:2.1.0");
+    let made = false;
+    let apply = () => {};
+    const applying = new Promise<void>((resolve) => (apply = resolve));
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete);
+    renderAt("/", {
+      servers: { watchServers: watch.stream },
+      services: { listServices: () => ({ services: made ? [web, cli] : [web] }) },
+      resources: places(),
+      health: running(web, cli),
+      domains: { listDomains: () => ({ domains: [] }) },
+      events: {
+        watchEvents: async function* (_req: unknown, ctx: HandlerContext): AsyncGenerator<WatchEventsResponse> {
+          yield snapshot([]);
+          await applying;
+          yield since([changeEvent(applied(webPlanned()))]);
+          await new Promise<void>((resolve) => ctx.signal.addEventListener("abort", () => resolve(), { once: true }));
+        },
+      },
+      backups: { listBackups: () => ({}), listBackupPolicies: () => ({}), listBackupDestinations: () => ({}) },
+    });
+    const table = await screen.findByRole("table", { name: "Apps on this server" });
+    await within(table).findByText("web");
+    made = true;
+    act(() => apply());
+    expect(await within(table).findByText("cli-made", {}, { timeout: 3_000 })).toBeVisible();
   });
 });

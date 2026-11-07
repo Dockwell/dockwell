@@ -239,3 +239,11 @@ export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boo
     </ul>
   );
 }
+
+/**
+ * The class of a state's word in a phone's list. Healthy stays quiet, as M-Apps
+ * has it: only what needs a look, or is moving, takes its colour.
+ */
+export function phoneWordClass(tone: string): string {
+  return tone === "healthy" ? "apps-phone-word" : `apps-phone-word dw-tone-${tone}`;
+}

@@ -3007,6 +3007,7 @@ msgid "Dockwell can't reach what this would back up"
 msgstr "Dockwell 无法访问要备份的内容"
 
 #: src/features/backups/BackupsPage.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell 无法读取备份"
 
@@ -4431,6 +4432,10 @@ msgstr "正在加载动态"
 msgid "Loading apps"
 msgstr "正在加载应用"
 
+#: src/features/overview/OverviewBackups.tsx
+msgid "Loading backups"
+msgstr "正在加载备份"
+
 #: src/features/overview/RecentChanges.tsx
 msgid "Loading changes"
 msgstr "正在加载变更"
@@ -5064,8 +5069,8 @@ msgid "Nothing else was written around this line."
 msgstr "这一行前后没有其他日志。"
 
 #: src/features/overview/RecentChanges.tsx
-msgid "Nothing has changed yet. Each change you make shows here, with a way to undo it."
-msgstr "还没有任何变更。你做的每项变更都会显示在这里，并可撤销。"
+msgid "Nothing has changed yet. Each change you make shows here."
+msgstr "还没有任何变更。你做的每项变更都会显示在这里。"
 
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing here matches these filters."
@@ -8139,6 +8144,7 @@ msgstr "趋势"
 #: src/features/domains/DomainsPage.tsx
 #: src/features/logs/LogsPage.tsx
 #: src/features/overview/OverviewApps.tsx
+#: src/features/overview/OverviewBackups.tsx
 msgid "Try again"
 msgstr "重试"
 

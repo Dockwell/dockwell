@@ -58,7 +58,7 @@ export function RecentChanges() {
         </div>
       ) : shown.length === 0 ? (
         <p className="overview-quiet">
-          <Trans>Nothing has changed yet. Each change you make shows here, with a way to undo it.</Trans>
+          <Trans>Nothing has changed yet. Each change you make shows here.</Trans>
         </p>
       ) : (
         <EventTimeline events={shown} summaries={summaries} now={now} framed={false} />

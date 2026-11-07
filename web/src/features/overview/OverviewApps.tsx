@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Domain } from "@dockwell/api";
+import { useQuery } from "@connectrpc/connect-query";
+import { type Domain, DomainService } from "@dockwell/api";
 import { Button, Callout, cx, Glyph, Icon, Panel, PHONE_QUERY, STATUS, Table, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -13,8 +14,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { ListSkeleton, useAppsLead } from "../apps/AppsPage";
 import { type AppGroup, groupApps, groupDeployedAt, imageOf, nameOf, shortImage, sortGroups } from "../apps/app";
-import { useAllDomains } from "../apps/domains";
-import { HealthBadge, useHealthWords } from "../apps/Health";
+import { HealthBadge, phoneWordClass, useHealthWords } from "../apps/Health";
 import { type AppHealth, type HealthView, useHealth, worstHealth } from "../apps/health";
 import { ImageName } from "../apps/ImageName";
 import { usePlaces, useServices } from "../apps/useServices";
@@ -31,9 +31,12 @@ interface Row {
   group: AppGroup;
 }
 
-/** The domains each app answers on, by environment and service name. */
+/**
+ * The domains each app answers on, by environment and service name. Names only,
+ * so they're read once, not every few seconds as Domains reads where each stands.
+ */
 function useDomainsOf(): (group: AppGroup) => string[] {
-  const domains = useAllDomains().last?.domains;
+  const domains = useQuery(DomainService.method.listDomains, {}, { staleTime: Number.POSITIVE_INFINITY }).data?.domains;
   return useMemo(() => {
     const by = new Map<string, string[]>();
     for (const domain of domains ?? ([] as Domain[])) {
@@ -240,7 +243,7 @@ function PhoneRows({ rows, health }: { rows: readonly Row[]; health: HealthView 
             <span className="apps-phone-text">
               <span className="apps-phone-name">{rowName(row)}</span>
               <span className="apps-phone-sub">
-                <span className={`apps-phone-word dw-tone-${tone}`}>{words.word(runs)}</span>
+                <span className={phoneWordClass(tone)}>{words.word(runs)}</span>
                 {row.group.stack || !first ? (
                   <>
                     <span aria-hidden="true">·</span>
