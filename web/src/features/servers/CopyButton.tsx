@@ -4,9 +4,12 @@ import { Button } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
 
-/** A small button that copies text, and says so. */
-export function CopyButton({ text, label }: { text: string; label: string }) {
-  const { t } = useLingui();
+/**
+ * Copies text, and says it did for 2 s. A browser that refuses, or has no
+ * clipboard, as one on plain HTTP hasn't, copies nothing and throws nothing: the
+ * text stays on screen to select.
+ */
+export function useCopy(text: string): { copied: boolean; copy: () => void } {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -15,14 +18,23 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
     return () => clearTimeout(timer);
   }, [copied]);
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-    } catch {
-      // Clipboard access was refused; the text stays selectable.
-    }
+  const copy = () => {
+    void (async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+      } catch {
+        // Refused, or no clipboard; the text stays selectable.
+      }
+    })();
   };
+  return { copied, copy };
+}
+
+/** A small button that copies text, and says so. */
+export function CopyButton({ text, label }: { text: string; label: string }) {
+  const { t } = useLingui();
+  const { copied, copy } = useCopy(text);
 
   return (
     <>
@@ -32,7 +44,7 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
         className="copy-button"
         icon={copied ? "check" : "copy"}
         aria-label={copied ? t`Copied ${text}` : label}
-        onClick={() => void copy()}
+        onClick={copy}
       />
       <span className="dw-sr" aria-live="polite">
         {copied ? t`Copied ${text}` : ""}

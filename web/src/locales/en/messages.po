@@ -6365,14 +6365,21 @@ msgstr "All activity"
 msgid "CPU above {HIGH}%"
 msgstr "CPU above {HIGH}%"
 
+msgid "Can't say how it is now"
+msgstr "Can't say how it is now"
+
+msgid "Check that <0>dockwell run</0> is still running on the server."
+msgstr "Check that <0>dockwell run</0> is still running on the server."
+
 msgid "Copied {address}"
 msgstr "Copied {address}"
 
 msgid "Copy {label} {address}"
 msgstr "Copy {label} {address}"
 
-msgid "Docker hasn't answered since {since}."
-msgstr "Docker hasn't answered since {since}."
+#. placeholder {0}: lasted(server.dockerUnreadableSince)
+msgid "Docker hasn't answered for {0}"
+msgstr "Docker hasn't answered for {0}"
 
 msgid "Memory above {HIGH}%"
 msgstr "Memory above {HIGH}%"
@@ -6380,8 +6387,18 @@ msgstr "Memory above {HIGH}%"
 msgid "No apps here yet. Deploy one from an image or the catalog."
 msgstr "No apps here yet. Deploy one from an image or the catalog."
 
+msgid "None"
+msgstr "None"
+
 msgid "Not known"
 msgstr "Not known"
+
+msgid "Not reporting"
+msgstr "Not reporting"
+
+#. placeholder {0}: lasted(server.lastSeenTime)
+msgid "Not reporting for {0}"
+msgstr "Not reporting for {0}"
 
 msgid "Nothing has happened here yet."
 msgstr "Nothing has happened here yet."
@@ -6401,8 +6418,14 @@ msgstr "Reporting"
 msgid "Runs here"
 msgstr "Runs here"
 
+msgid "Start it with <0>dockwell run</0> on the server."
+msgstr "Start it with <0>dockwell run</0> on the server."
+
 msgid "Up {uptime}"
 msgstr "Up {uptime}"
+
+msgid "Waiting for its agent"
+msgstr "Waiting for its agent"
 
 msgid "of {total}"
 msgstr "of {total}"
@@ -6410,15 +6433,6 @@ msgstr "of {total}"
 #. placeholder {0}: here.length
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, one {# app} other {# apps}}"
-
-msgid "{name} is waiting for its agent."
-msgstr "{name} is waiting for its agent."
-
-msgid "{name} isn't reporting."
-msgstr "{name} isn't reporting."
-
-msgid "{name} isn't reporting. It last did {seen}."
-msgstr "{name} isn't reporting. It last did {seen}."
 
 msgid "{replicas, plural, one {# replica} other {# replicas}}"
 msgstr "{replicas, plural, one {# replica} other {# replicas}}"
@@ -6684,9 +6698,6 @@ msgstr "Unknown system"
 
 msgid "Up"
 msgstr "Up"
-
-msgid "Waiting for its agent"
-msgstr "Waiting for its agent"
 
 msgid "Clear"
 msgstr "Clear"
