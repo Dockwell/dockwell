@@ -423,6 +423,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 	switch {
 	case call.GetPlan() != nil:
 		desired := make([]resource.Desired, 0, len(call.GetPlan().GetDesired()))
+		names := map[string]string{}
 		for _, d := range call.GetPlan().GetDesired() {
 			ref, spec, err := c.decode(d)
 			if err != nil {
@@ -433,8 +434,11 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 				want.Restore = &resource.RestoreSource{Backup: r.GetBackupId(), Undoes: r.GetUndoes(), Change: r.GetChangeId()}
 			}
 			desired = append(desired, want)
+			if n := d.GetScopeName(); n != "" {
+				names[ref.Scope] = n
+			}
 		}
-		steps, err := c.local.Plan(ctx, desired)
+		steps, err := c.local.Plan(resource.WithScopeNames(ctx, names), desired)
 		if err != nil {
 			return fail(err)
 		}
@@ -455,6 +459,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		step.Ref, step.Pulled, step.Finishing = ref, call.GetApply().GetPulled(), call.GetApply().GetFinishing()
 		step.PlannedLeads = call.GetApply().GetPlannedLeads()
+		if n := call.GetApply().GetDesired().GetScopeName(); n != "" {
+			ctx = resource.WithScopeNames(ctx, map[string]string{ref.Scope: n})
+		}
 		progress := c.progress(call.GetId())
 		defer progress.stop()
 		ctx = resource.WithProgress(ctx, progress.say)

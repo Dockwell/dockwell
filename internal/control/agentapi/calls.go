@@ -71,6 +71,9 @@ type Agents struct {
 	values resource.Values
 	// naming says what names values on a server, for agents that don't write them in.
 	naming Naming
+	// scopes says what people call an environment, which its services'
+	// containers are named after.
+	scopes ScopeNamer
 
 	mu        sync.Mutex
 	sessions  map[string]*Session // the newest stream of each server
@@ -243,6 +246,22 @@ func (a *Agents) SendValues(values resource.Values) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.values = values
+}
+
+// ScopeNamer says what people call a scope, for the names of what agents make in
+// it: for an environment, "<project>.<environment>", such as default.production,
+// and "" when it can't tell.
+type ScopeNamer interface {
+	ScopeName(ctx context.Context, scope string) string
+}
+
+// NameScopes has plans and steps say what people call the environment of what
+// they're about, so a service's containers are named after it (ADR 0035).
+// Without it, they're named as Compose names them, after the environment's ID.
+func (a *Agents) NameScopes(scopes ScopeNamer) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.scopes = scopes
 }
 
 // Naming says which resources name values in what runs on a server, the keeper's
@@ -810,6 +829,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		if r := d.Restore; r != nil {
 			dr.Restore = &agentv1.RestoreSource{BackupId: r.Backup, Undoes: r.Undoes, ChangeId: r.Change}
 		}
+		dr.ScopeName = s.scopeName(ctx, d.Ref)
 		call.Desired = append(call.Desired, dr)
 	}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout, nil)
@@ -866,6 +886,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err != nil {
 		return err
 	}
+	dr.ScopeName = s.scopeName(ctx, step.Ref)
 	values, uses, err := s.values(ctx, step.Ref, desired)
 	if err != nil {
 		return err
@@ -887,6 +908,17 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	// period, comes on top of the time any step gets.
 	_, err = s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, ApplyTimeout+step.Budget(), seal)
 	return err
+}
+
+// scopeName is what people call ref's scope, for an environment's resource.
+func (s *Session) scopeName(ctx context.Context, ref resource.Ref) string {
+	s.agents.mu.Lock()
+	scopes := s.agents.scopes
+	s.agents.mu.Unlock()
+	if t, err := s.agents.kinds.Type(ref.Kind); scopes == nil || err != nil || t.Level() != resource.LevelEnvironment {
+		return ""
+	}
+	return scopes.ScopeName(ctx, ref.Scope)
 }
 
 // values are the values of what a desired spec uses, from the keeper, and

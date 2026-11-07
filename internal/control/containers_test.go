@@ -121,7 +121,11 @@ func testAContainersLogsReadAsAServicesDo(t *testing.T, backend store.Backend) {
 	lc := logClient(b, b.origin)
 
 	done := apply(t, c, propose(t, c, "Run web", runImage("ghcr.io/acme/shop:1.4")))
-	own := docker.ContainerName(docker.Project(done.GetPlan().GetResources()[0].GetResource().GetScope()), "web")
+	// As docker ps shows it, named after its project and environment (ADR 0035).
+	own := strings.TrimPrefix(e.Container(docker.ContainerName(docker.Project(done.GetPlan().GetResources()[0].GetResource().GetScope()), "web")).Name, "/")
+	if own != "default.production.web-1" {
+		t.Fatalf("web runs as %s, want default.production.web-1", own)
+	}
 
 	hand := e.AddContainer(docker.Container{ID: "a1", Name: "/by-hand", Config: docker.Config{Image: "nginx:1.27", Env: []string{"API_KEY=hunter2"}}})
 	e.Print("by-hand", docker.Stdout, "first line", "second line")

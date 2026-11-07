@@ -231,11 +231,15 @@ func newSetup(t *testing.T) *setup {
 	return s
 }
 
-// service puts a running container of a service on the fake engine.
+// service puts a running container of a service on the fake engine, with the
+// labels Dockwell gives one, which is how the ingress finds it.
 func (s *setup) service(name string) {
 	project := docker.Project(envID)
 	s.engine.AddContainer(docker.Container{
-		Name:  fmt.Sprintf("/%s-%s-1", project, name),
+		Name: fmt.Sprintf("/%s-%s-1", project, name),
+		Config: docker.Config{Labels: map[string]string{
+			docker.LabelProject: project, docker.LabelService: name, docker.LabelNumber: "1", docker.LabelOneoff: "False",
+		}},
 		State: docker.State{Running: true, Status: "running"},
 		NetworkSettings: struct {
 			Networks map[string]*docker.EndpointSettings `json:"Networks"`
@@ -330,6 +334,35 @@ func TestTheIngressNetworkIsKeptToItself(t *testing.T) {
 	}
 	if s.engine.Network(docker.IngressNetwork+"_probe") != nil {
 		t.Error("the network that found the subnet is still there")
+	}
+}
+
+// A service's container named after its project and environment is its own all
+// the same, by its labels, and a route reaches it (ADR 0035). One a rollout has
+// under a name for now, of the same number, isn't the one it reaches.
+func TestARouteReachesAContainerNamedAfterItsEnvironment(t *testing.T) {
+	s := newSetup(t)
+	project := docker.Project(envID)
+	labels := func(service string) map[string]string {
+		return map[string]string{docker.LabelProject: project, docker.LabelService: service, docker.LabelNumber: "1", docker.LabelOneoff: "False"}
+	}
+	add := func(name, service string) {
+		s.engine.AddContainer(docker.Container{
+			Name: "/" + name, Config: docker.Config{Labels: labels(service)}, State: docker.State{Running: true, Status: "running"},
+			NetworkSettings: struct {
+				Networks map[string]*docker.EndpointSettings `json:"Networks"`
+			}{Networks: map[string]*docker.EndpointSettings{"bridge": {}}},
+		})
+	}
+	add("0123456789ab_default.production.api-1", "api")
+	add("default.production.api-1", "api")
+	s.apply(t, "api", spec("api.example.com", "", "api", 80))
+	own := s.engine.Container("default.production.api-1")
+	if ep := own.NetworkSettings.Networks[docker.IngressNetwork]; ep == nil || ep.IPAMConfig == nil || ep.IPAMConfig.IPv4Address == "" {
+		t.Errorf("default.production.api-1 isn't on the ingress network at a static address: %+v", ep)
+	}
+	if _, on := s.engine.Container("0123456789ab_default.production.api-1").NetworkSettings.Networks[docker.IngressNetwork]; on {
+		t.Error("the container a replace has under a name for now went on the ingress network")
 	}
 }
 

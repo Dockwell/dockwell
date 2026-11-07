@@ -21,6 +21,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -146,7 +147,7 @@ func TestOneDomainAndPathOneRoute(t *testing.T) {
 		apply(t, e, propose(t, e, "Add www", routeIn(prod, "www", "app.example.com", "")))
 
 		refuseProposal(t, e, "the same domain and path in the same environment", ErrInvalid,
-			"app.example.com is already served by route www in the environment production",
+			"app.example.com is already served by route www in default's production, so route again can't claim it",
 			routeIn(prod, "again", "app.example.com", ""))
 		refuseProposal(t, e, "the same domain and path, written as /", ErrInvalid,
 			"app.example.com is already served by route www",
@@ -171,6 +172,31 @@ func TestOneDomainAndPathOneRoute(t *testing.T) {
 	})
 }
 
+// Every project has a production, so a refusal names the project with the
+// environment, or two projects' read the same (#112).
+func TestARefusalSaysWhichProjectsEnvironment(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, prod, _, _ := setupRoutes(t, b, "srv_A")
+		db := e.db
+		apply(t, e, propose(t, e, "Add www", routeIn(prod, "www", "app.example.com", "")))
+		apply(t, e, propose(t, e, "Add shop", Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: tree(t, db).Organization.ID, Name: "shop"}, Spec: &resourcev1.Project{}}))
+		_, shop, err := tree(t, db).Resolve("shop", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if shop.Name != "production" {
+			t.Fatalf("shop's environment is %s, want production", shop.Name)
+		}
+		apply(t, e, propose(t, e, "Run web in shop", webIn(shop.ID, "srv_A")))
+		refuseProposal(t, e, "a domain another project's production holds", ErrInvalid,
+			"app.example.com is already served by route www in default's production, so route www can't claim it",
+			routeIn(shop.ID, "www", "app.example.com", "", "srv_A"))
+		refuseProposal(t, e, "a path under another project's domain", ErrInvalid,
+			"the domain app.example.com belongs to default's production, where route www serves it, so route login in shop's production can't serve a path under it",
+			routeIn(shop.ID, "login", "app.example.com", "/login", "srv_A"))
+	})
+}
+
 // A token that may only touch staging mustn't be able to claim /login on
 // production's domain, which is more of a takeover than the whole name.
 func TestADomainLivesInOneEnvironment(t *testing.T) {
@@ -178,7 +204,7 @@ func TestADomainLivesInOneEnvironment(t *testing.T) {
 		e, prod, staging, _ := setupRoutes(t, b, "srv_A")
 		apply(t, e, propose(t, e, "Add www", routeIn(prod, "www", "app.example.com", "")))
 		refuseProposal(t, e, "a path under another environment's domain", ErrInvalid,
-			"the domain app.example.com belongs to the environment production, where route www serves it, so route login in the environment staging can't serve a path under it",
+			"the domain app.example.com belongs to default's production, where route www serves it, so route login in default's staging can't serve a path under it",
 			routeIn(staging, "login", "app.example.com", "/login"))
 		refuseProposal(t, e, "one change splitting a domain between environments", ErrInvalid,
 			"the domain new.example.com belongs to",

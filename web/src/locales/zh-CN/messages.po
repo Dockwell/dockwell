@@ -84,6 +84,11 @@ msgstr "{0, plural, other {# 个应用将停止，你可以在 {deadline} 之前
 msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, other {# 个应用将停止。}}"
 
+#. placeholder {0}: waiting.length
+#: src/features/apps/AppOverview.tsx
+msgid "{0, plural, one {# change to this app needs your approval} other {# changes to this app need your approval}}"
+msgstr "{0, plural, other {这个应用有 # 个变更等你批准}}"
+
 #. placeholder {0}: Number(b.filesChanged)
 #: src/features/backups/BackupsPage.tsx
 msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
@@ -214,6 +219,11 @@ msgstr "{0} vCPU"
 #: src/features/backups/PoliciesPanel.tsx
 msgid "{0}, {zone}"
 msgstr "{0}，{zone}"
+
+#. placeholder {0}: first.summary
+#: src/features/apps/AppOverview.tsx
+msgid "{0}. It was proposed with an API token, and its plan is one only a signed-in person may apply. Nothing changes until someone does."
+msgstr "{0}。它是用 API 令牌提出的，它的计划只有已登录的人才能应用。在有人应用之前，什么都不会改变。"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "{address}, private"
@@ -976,6 +986,11 @@ msgstr "{verb} {name}"
 #: src/features/changes/words.ts
 msgid "{volumes, plural, one {a volume} other {# volumes}}"
 msgstr "{volumes, plural, other {# 个卷}}"
+
+#: src/features/shell/Rail.tsx
+#: src/features/shell/TabBar.tsx
+msgid "{waiting, plural, one {# change needs your approval} other {# changes need your approval}}"
+msgstr "{waiting, plural, other {# 个变更等你批准}}"
 
 #: src/features/shell/Topbar.tsx
 msgid "{waiting} waiting for an agent"
@@ -5885,6 +5900,7 @@ msgstr "显示了密钥 {name}"
 #: src/features/activity/ActivityPage.tsx
 #: src/features/apps/AddDomainSheet.tsx
 #: src/features/apps/AddPortSheet.tsx
+#: src/features/apps/AppOverview.tsx
 #: src/features/apps/DeploySheet.tsx
 #: src/features/apps/NewAppSheet.tsx
 #: src/features/backups/PolicySheet.tsx
@@ -7044,6 +7060,11 @@ msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称�
 #: src/features/changes/words.ts
 msgid "the network {path}, which is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
 msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"
+
+#. placeholder {0}: first.summary
+#: src/features/apps/AppOverview.tsx
+msgid "The newest is {0}. They were proposed with API tokens, and their plans are ones only a signed-in person may apply. Nothing changes until someone does; Activity lists them all."
+msgstr "最新的是 {0}。它们是用 API 令牌提出的，它们的计划只有已登录的人才能应用。在有人应用之前，什么都不会改变；动态页面列出了全部。"
 
 #: src/features/changes/words.ts
 msgid "The old container stops first"

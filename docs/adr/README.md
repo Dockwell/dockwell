@@ -38,6 +38,7 @@ Each record captures one decision: the context, what we chose, and what follows 
 | [0032](0032-files-on-a-server.md) | Files on a server, for a person, outside revisions | Accepted |
 | [0033](0033-backups-of-volumes-and-databases.md) | Backups of volumes and databases | Accepted |
 | [0034](0034-a-servers-public-address.md) | A server's public address, and what may be claimed of it | Accepted |
+| [0035](0035-containers-named-after-their-environment.md) | A service's containers are named after its project and environment | Accepted |
 | [0036](0036-deleting-a-project-takes-its-environments.md) | Deleting a project takes its environments | Accepted |
 
 Still open from the PRD: the config-as-code format (extended Compose is recommended; needed in phase 3), and the [open questions](../product/prd.md#risks-open-questions-and-decisions).

@@ -1,6 +1,6 @@
 # 0021. The Docker driver, with Compose's names and labels
 
-- Status: Accepted. [0027](0027-health-checks-rollouts-and-rollback.md) changes how a service is replaced: two containers while a deploy rolls, and one at rest under the next number, rather than always the first. Everything else here stands, a service scaled by hand not being drift included.
+- Status: Accepted. [0027](0027-health-checks-rollouts-and-rollback.md) changes how a service is replaced: two containers while a deploy rolls, and one at rest under the next number, rather than always the first. [0035](0035-containers-named-after-their-environment.md) names a service's container after its project and environment, `default.production.web-1`, rather than its Compose project; the project, labels, volumes and networks stay as below. Everything else here stands, a service scaled by hand not being drift included.
 - Date: 2026-11-04
 
 ## Context

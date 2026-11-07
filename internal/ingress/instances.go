@@ -39,7 +39,9 @@ func (i Instance) String() string {
 	return i.Project + "/" + i.Service + "/" + strconv.Itoa(i.Number)
 }
 
-// ContainerName is the container Compose would name for the instance.
+// ContainerName is the container Compose would name for the instance, which
+// says which it is in a message. Its container may be named otherwise: find it
+// with docker.Client.ContainerOf.
 func (i Instance) ContainerName() string {
 	return i.Project + "-" + i.Service + "-" + strconv.Itoa(i.Number)
 }
@@ -760,26 +762,12 @@ func (m *Manager) gateway(ctx context.Context) string {
 	return n.IPAM.Config[0].Gateway
 }
 
-// container finds an instance's container: by the name of its number, or for one that
-// was taken on, which keeps the name it came with, by what it reads as. A rollout's
-// container with a name still to come is the rollout's to connect.
+// container finds an instance's container, by its Compose labels and number,
+// whatever it's named: the readable way, as Compose names one, or, for one that
+// was taken on, the name it came with (ADR 0035). A rollout's container with a
+// name still to come is the rollout's to connect.
 func (m *Manager) container(ctx context.Context, i Instance) (*docker.Container, error) {
-	c, err := m.Client.ContainerNamed(ctx, i.ContainerName())
-	if !docker.IsNotFound(err) {
-		return c, err
-	}
-	list, listErr := m.Client.ListContainers(ctx, map[string][]string{"label": {
-		docker.LabelProject + "=" + i.Project, docker.LabelService + "=" + i.Service, docker.LabelNumber + "=" + strconv.Itoa(i.Number),
-	}})
-	if listErr != nil {
-		return nil, listErr
-	}
-	for k := range list {
-		if list[k].Labels[docker.LabelAdopted] != "" {
-			return m.Client.InspectContainer(ctx, list[k].ID)
-		}
-	}
-	return nil, err
+	return m.Client.ContainerOf(ctx, i.Project, i.Service, i.Number)
 }
 
 // attach puts an instance's container on the network at its address, if there
@@ -809,11 +797,11 @@ func (m *Manager) attach(ctx context.Context, i Instance) error {
 			return nil
 		}
 		if err := m.Client.DisconnectNetwork(ctx, docker.IngressNetwork, c.ID); err != nil && !docker.IsNotFound(err) {
-			return fmt.Errorf("can't take %s off the network %s, as it has the wrong address: %w", i.ContainerName(), docker.IngressNetwork, err)
+			return fmt.Errorf("can't take %s off the network %s, as it has the wrong address: %w", strings.TrimPrefix(c.Name, "/"), docker.IngressNetwork, err)
 		}
 	}
 	if err := m.Client.ConnectEndpoint(ctx, docker.IngressNetwork, c.ID, endpoint(addr)); err != nil {
-		return fmt.Errorf("can't put %s on the network %s at %s: %w", i.ContainerName(), docker.IngressNetwork, addr, err)
+		return fmt.Errorf("can't put %s on the network %s at %s: %w", strings.TrimPrefix(c.Name, "/"), docker.IngressNetwork, addr, err)
 	}
 	return nil
 }

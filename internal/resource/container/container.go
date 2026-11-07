@@ -47,12 +47,45 @@ type Target struct {
 	// own, and that containers on its networks reach it by its service's
 	// name. A container on its own names Docker's.
 	Scoped bool
+	// Prefix is what the names of a service's containers start with in place
+	// of Project, as people read them: "<project>.<environment>", such as
+	// default.production, for default.production.web-1. Empty is Project, as
+	// Compose names them. Only names take it: labels, volumes and networks go
+	// by Project (ADR 0035).
+	Prefix string
 }
+
+// ScopeNameRE is the form of what people call an environment in its
+// containers' names, "<project>.<environment>": two names of the kind a
+// project and an environment take (resource.CheckLabel), which have no dots,
+// so the parts never run together, and what follows the last dot of a name is
+// the service and its number.
+var ScopeNameRE = regexp.MustCompile(`^[a-z]([a-z0-9-]{0,61}[a-z0-9])?\.[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`)
+
+// readableForm is the form of a service's container named after what people
+// call its environment, default.production.web-1: three names of the kind a
+// project, an environment and a service take, and a number.
+var readableForm = regexp.MustCompile(`^` + labelPart + `\.` + labelPart + `\.` + labelPart + `-[0-9]+$`)
+
+// labelPart is a name of the kind resource.CheckLabel takes.
+const labelPart = `[a-z]([a-z0-9-]{0,61}[a-z0-9])?`
 
 // HostTarget is where a container run on its own goes: by its name, in
 // its server's Compose project.
 func HostTarget(ref resource.Ref) Target {
 	return Target{Name: ref.Name, Project: docker.Project(ref.Scope), Service: ref.Name}
+}
+
+// keptKey is what the volumes a container's image kept are listed under, after a
+// change takes it out of use: for a service, the name Compose gives its first
+// container, which is what it was named when the list began, and never changes
+// with what people call its environment (ADR 0035), so an undo across an upgrade
+// or a rename finds its data. A container on its own is its name.
+func (t Target) keptKey() string {
+	if t.Scoped {
+		return docker.ContainerName(t.Project, t.Service)
+	}
+	return t.Name
 }
 
 // DockerName is what Docker names a volume or network a spec names.
@@ -144,6 +177,17 @@ func (*Driver) CheckName(name string) error {
 	case strings.HasPrefix(strings.ToLower(name), serviceForm):
 		return fmt.Errorf("%q has the form of a service's container, %s<ID>-<service>-1, so a container run by hand can't take it. Choose a name that doesn't start with %q, or run it as a service",
 			name, serviceForm, serviceForm)
+	}
+	return nil
+}
+
+// CheckNewName keeps the form of a service's container named after its
+// environment for services, from a container run by hand made anew: one that has
+// a name of that form already goes on being edited, undone and adopted, as it was
+// there before the form was a service's (ADR 0035).
+func (*Driver) CheckNewName(name string) error {
+	if readableForm.MatchString(name) {
+		return fmt.Errorf("%q has the form of a service's container, <project>.<environment>.<service>-1, so a container run by hand can't take it. Choose a name that doesn't end in -<number> after two dots, or run it as a service", name)
 	}
 	return nil
 }

@@ -280,6 +280,22 @@ func TestChangeViewDoesntGuessAtARollback(t *testing.T) {
 	}
 }
 
+// A failed change's plan says what it was to do, in the present, as it was
+// reviewed, so it says so, or "Removes web-1" reads as what happened (#112).
+func TestChangeViewSaysAFailedPlanIsWhatWasPlanned(t *testing.T) {
+	for state, want := range map[dockwellv1.ChangeState]bool{
+		dockwellv1.ChangeState_CHANGE_STATE_FAILED:  true,
+		dockwellv1.ChangeState_CHANGE_STATE_APPLIED: false,
+		dockwellv1.ChangeState_CHANGE_STATE_PLANNED: false,
+	} {
+		var buf bytes.Buffer
+		ChangeView(&buf, &dockwellv1.Change{Id: "chg_1", State: state, Plan: &dockwellv1.Plan{}}, now)
+		if got := strings.Contains(buf.String(), "What it was to do, as planned. It failed partway, so not all of this happened"); got != want {
+			t.Errorf("%v: says the plan is what was planned: %v, want %v:\n%s", state, got, want, buf.String())
+		}
+	}
+}
+
 func TestTables(t *testing.T) {
 	var buf bytes.Buffer
 	Render(&buf, &dockwellv1.ListServersResponse{Servers: []*dockwellv1.Server{

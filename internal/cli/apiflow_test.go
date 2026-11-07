@@ -62,16 +62,83 @@ type stubChanges struct {
 	watches int
 	// watch answers the nth watch, from 1.
 	watch func(n int, send func(*dockwellv1.Change) error) error
+	// watchOf, when set, answers a watch of another change than stubChange.
+	watchOf func(id string, send func(*dockwellv1.Change) error) error
+	// get, when set, answers GetChange.
+	get func(id string) *dockwellv1.Change
 }
 
-func (s *stubChanges) WatchChange(_ context.Context, _ *connect.Request[dockwellv1.WatchChangeRequest], stream *connect.ServerStream[dockwellv1.WatchChangeResponse]) error {
+func (s *stubChanges) WatchChange(_ context.Context, req *connect.Request[dockwellv1.WatchChangeRequest], stream *connect.ServerStream[dockwellv1.WatchChangeResponse]) error {
+	send := func(c *dockwellv1.Change) error {
+		return stream.Send(&dockwellv1.WatchChangeResponse{Event: &dockwellv1.WatchChangeResponse_Change{Change: c}})
+	}
+	if s.watchOf != nil && req.Msg.GetId() != stubChange {
+		return s.watchOf(req.Msg.GetId(), send)
+	}
 	s.mu.Lock()
 	s.watches++
 	n := s.watches
 	s.mu.Unlock()
-	return s.watch(n, func(c *dockwellv1.Change) error {
-		return stream.Send(&dockwellv1.WatchChangeResponse{Event: &dockwellv1.WatchChangeResponse_Change{Change: c}})
-	})
+	return s.watch(n, send)
+}
+
+func (s *stubChanges) GetChange(_ context.Context, req *connect.Request[dockwellv1.GetChangeRequest]) (*connect.Response[dockwellv1.GetChangeResponse], error) {
+	if s.get == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("not in this test"))
+	}
+	return connect.NewResponse(&dockwellv1.GetChangeResponse{Change: s.get(req.Msg.GetId())}), nil
+}
+
+// A deploy that fails its health check is rolled back in a change of its own,
+// which runs on after it. The person who deployed reads how that ended where
+// they are looking: that what ran never stopped (#112).
+func TestAFailedDeploySaysWhatRunsAfterItsRollback(t *testing.T) {
+	failed := func(s dockwellv1.RollbackState) *dockwellv1.Change {
+		return &dockwellv1.Change{
+			Id: stubChange, State: dockwellv1.ChangeState_CHANGE_STATE_FAILED, Error: "whoami runs, but fails its health check: it answered 502.",
+			Plan:         &dockwellv1.Plan{Summary: &dockwellv1.PlanSummary{Replace: 1}},
+			RolledBackBy: "chg_2", RollbackStatus: &dockwellv1.RollbackStatus{Id: "chg_2", State: s, Steps: 1},
+		}
+	}
+	stub := &stubChanges{
+		watch: func(_ int, send func(*dockwellv1.Change) error) error {
+			return send(failed(dockwellv1.RollbackState_ROLLBACK_STATE_APPLYING))
+		},
+		watchOf: func(id string, send func(*dockwellv1.Change) error) error {
+			step := &dockwellv1.StepProgress{State: dockwellv1.StepState_STEP_STATE_RUNNING, ServerId: "srv_1", Message: "Remove the new whoami"}
+			rollback := &dockwellv1.Change{Id: id, State: dockwellv1.ChangeState_CHANGE_STATE_APPLYING, Steps: []*dockwellv1.StepProgress{step}}
+			if err := send(rollback); err != nil {
+				return err
+			}
+			step.State, rollback.State = dockwellv1.StepState_STEP_STATE_DONE, dockwellv1.ChangeState_CHANGE_STATE_APPLIED
+			return send(rollback)
+		},
+		get: func(string) *dockwellv1.Change { return failed(dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED) },
+	}
+	env := serveChanges(t, stub)
+	r := run(t, env, "changes", "watch", stubChange)
+	if r.code == exitOK || !strings.Contains(r.err, "fails its health check: it answered 502. What ran never stopped. Dockwell removed what this made, in chg_2") {
+		t.Errorf("changes watch of a deploy that failed = %d:\n%s%s", r.code, r.out, r.err)
+	}
+	if !strings.Contains(r.out, "Rolling back in chg_2") || strings.Count(r.out, "Remove the new whoami") != 2 {
+		t.Errorf("changes watch doesn't follow the rollback:\n%s", r.out)
+	}
+	r = run(t, env, "changes", "watch", stubChange, "--json")
+	if r.code == exitOK || !strings.Contains(r.err, "What ran never stopped") || strings.Contains(r.out, "chg_2\",\n") || strings.Contains(r.out, "Remove the new whoami") {
+		t.Errorf("changes watch --json of a deploy that failed = %d, printing the rollback's own:\n%s%s", r.code, r.out, r.err)
+	}
+
+	// One waiting for a server isn't followed: that can take as long as the
+	// server is away, and it says so.
+	stub.watch = func(_ int, send func(*dockwellv1.Change) error) error {
+		c := failed(dockwellv1.RollbackState_ROLLBACK_STATE_WAITING)
+		c.RollbackStatus.WaitingFor = []string{"hz-1"}
+		return send(c)
+	}
+	r = run(t, env, "changes", "watch", stubChange)
+	if r.code == exitOK || !strings.Contains(r.err, "when it can reach hz-1") || strings.Contains(r.out, "Rolling back") {
+		t.Errorf("changes watch of a deploy whose rollback waits = %d:\n%s%s", r.code, r.out, r.err)
+	}
 }
 
 // serveChanges serves stub on loopback and returns the environment that

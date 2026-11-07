@@ -1384,3 +1384,92 @@ func nextCall(stream *connect.BidiStreamForClient[agentv1.ConnectRequest, agentv
 		}
 	}
 }
+
+// namer says what people call scopes, as the control plane's store does.
+type namer map[string]string
+
+func (n namer) ScopeName(_ context.Context, scope string) string { return n[scope] }
+
+// A plan and a step say what people call an environment, which its services'
+// containers are named after, and nothing of a scope that isn't one (ADR 0035).
+func TestCallsSayWhatPeopleCallAnEnvironment(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	s.agents.NameScopes(namer{"env_1": "default.production", "srv_x": "not-for-a-rule"})
+	id := s.enrollLocal(t)
+	stream := openStream(t, id, string(service.Kind), string(firewall.Kind))
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	web := resource.Ref{Kind: service.Kind, Scope: "env_1", Name: "web"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27"}}}
+	rule := resource.Ref{Kind: firewall.Kind, Scope: "srv_x", Name: "http"}
+	refuse := func(msg *agentv1.ConnectResponse) {
+		if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: &agentv1.CallResult{
+			Id: msg.GetCall().GetId(), Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: "not in this test"}},
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := a.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}, {Ref: rule, Spec: &resourcev1.FirewallRule{Port: 80}}})
+		done <- err
+	}()
+	msg, err := nextCall(stream)
+	if err != nil || msg.GetCall().GetPlan() == nil {
+		t.Fatalf("the control plane sent %v, %v, want a plan", msg, err)
+	}
+	if d := msg.GetCall().GetPlan().GetDesired(); len(d) != 2 || d[0].GetScopeName() != "default.production" || d[1].GetScopeName() != "" {
+		t.Errorf("the plan names the scopes %q and %q, want default.production and none", d[0].GetScopeName(), d[1].GetScopeName())
+	}
+	refuse(msg)
+	if err := <-done; err == nil {
+		t.Error("the plan the agent refused went through")
+	}
+
+	go func() { done <- a.Apply(t.Context(), resource.Step{Ref: web, Action: resource.ActionCreate}, spec) }()
+	msg, err = nextCall(stream)
+	if err != nil || msg.GetCall().GetApply() == nil {
+		t.Fatalf("the control plane sent %v, %v, want a step", msg, err)
+	}
+	if got := msg.GetCall().GetApply().GetDesired().GetScopeName(); got != "default.production" {
+		t.Errorf("the step names the scope %q, want default.production", got)
+	}
+	refuse(msg)
+	if err := <-done; err == nil {
+		t.Error("the step the agent refused went through")
+	}
+}
+
+// What people call an environment reaches the agent, which names the service's
+// container after it, so docker ps says what it is (#112).
+func TestAServicesContainerIsNamedAfterItsEnvironment(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	s.agents.NameScopes(namer{"env_1": "default.production"})
+	id := s.enrollLocal(t)
+	engine := dockertest.New(t)
+	engine.Registry["nginx:1.27"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx"}}}
+	containers := container.Driver{Runtime: &container.Docker{Client: engine.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1}}
+	runAgent(t, s, id, resource.NewRegistry(&containers, &service.Driver{Containers: containers}))
+	a := waitForAgent(t, s.agents, id.ServerID, true)
+	web := resource.Ref{Kind: service.Kind, Scope: "env_1", Name: "web"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27", Restart: resourcev1.RestartPolicy_RESTART_POLICY_UNLESS_STOPPED}}}
+	steps, err := a.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}})
+	if err != nil || len(steps) != 1 {
+		t.Fatalf("planning web = %v, %v", steps, err)
+	}
+	if err := a.Apply(t.Context(), steps[0], spec); err != nil {
+		t.Fatalf("applying web: %v", err)
+	}
+	if got := engine.Instances(docker.Project("env_1"), "web"); len(got) != 1 || got[0] != "default.production.web-1" {
+		t.Errorf("Docker has %v, want default.production.web-1", got)
+	}
+
+	// A plan knows the name too: someone else's container there is refused
+	// before anything changes, rather than when the step tries to make one.
+	engine.AddContainer(docker.Container{Name: "/default.production.api-1", Config: docker.Config{Image: "by-hand"}})
+	api := resource.Ref{Kind: service.Kind, Scope: "env_1", Name: "api"}
+	if _, err := a.Plan(t.Context(), []resource.Desired{{Ref: api, Spec: spec}}); err == nil ||
+		!strings.Contains(err.Error(), "a container named default.production.api-1 is on this server, but Dockwell didn't make it") {
+		t.Errorf("planning api beside someone else's default.production.api-1 = %v", err)
+	}
+}

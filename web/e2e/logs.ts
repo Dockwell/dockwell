@@ -522,7 +522,14 @@ async function main() {
         sources: { containerName?: string; state: string }[];
       }
     ).sources;
-  const ranBefore = new Set(names().map((s) => (s.containerName ?? "").replace(/^[^-]*-/, "")));
+  // What the panel calls each, as instanceName in src/features/logs/words.ts does,
+  // which this can't import: web-3, of default.production.web-3, or of
+  // env_01kat-web-3, as a container made before ADR 0035 is named.
+  const shortName = (container: string) => {
+    const dot = container.lastIndexOf(".");
+    return dot >= 0 ? container.slice(dot + 1) : container.replace(/^[^-]*-/, "");
+  };
+  const ranBefore = new Set(names().map((s) => shortName(s.containerName ?? "")));
   const deploying = (image: string) =>
     new Promise<void>((resolve, reject) => {
       spawn(bin, ["services", "update", "web", "--app-image", image, "--yes"], { env: env(), stdio: "ignore" }).on(

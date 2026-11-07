@@ -3924,7 +3924,14 @@ type DesiredResource struct {
 	// of making one.
 	Adopt string `protobuf:"bytes,7,opt,name=adopt,proto3" json:"adopt,omitempty"`
 	// Brings the resource's data back from a backup, with its spec as it is.
-	Restore       *RestoreSource `protobuf:"bytes,8,opt,name=restore,proto3" json:"restore,omitempty"`
+	Restore *RestoreSource `protobuf:"bytes,8,opt,name=restore,proto3" json:"restore,omitempty"`
+	// What people call the resource's scope, for what they read on the server: for
+	// an environment, "<project>.<environment>", such as "default.production",
+	// which a service's containers are named after, as in
+	// "default.production.web-1", so docker ps says what each is. Its Compose
+	// project stays the environment's ID, which never changes. Empty names a new
+	// container as Compose would, "<project>-<service>-<number>", as before.
+	ScopeName     string `protobuf:"bytes,9,opt,name=scope_name,json=scopeName,proto3" json:"scope_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4013,6 +4020,13 @@ func (x *DesiredResource) GetRestore() *RestoreSource {
 		return x.Restore
 	}
 	return nil
+}
+
+func (x *DesiredResource) GetScopeName() string {
+	if x != nil {
+		return x.ScopeName
+	}
+	return ""
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.
@@ -5390,7 +5404,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
 	"\vObserveCall\x126\n" +
-	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\x97\x02\n" +
+	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\xb6\x02\n" +
 	"\x0fDesiredResource\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x17\n" +
 	"\x04spec\x18\x02 \x01(\fH\x00R\x04spec\x88\x01\x01\x12\x12\n" +
@@ -5399,7 +5413,9 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\arestart\x18\x05 \x01(\tR\arestart\x12\x1a\n" +
 	"\brollback\x18\x06 \x01(\bR\brollback\x12\x14\n" +
 	"\x05adopt\x18\a \x01(\tR\x05adopt\x12:\n" +
-	"\arestore\x18\b \x01(\v2 .dockwell.agent.v1.RestoreSourceR\arestoreB\a\n" +
+	"\arestore\x18\b \x01(\v2 .dockwell.agent.v1.RestoreSourceR\arestore\x12\x1d\n" +
+	"\n" +
+	"scope_name\x18\t \x01(\tR\tscopeNameB\a\n" +
 	"\x05_spec\"\x1c\n" +
 	"\n" +
 	"CancelCall\x12\x0e\n" +

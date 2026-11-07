@@ -306,6 +306,35 @@ func (c *Client) ContainerNamed(ctx context.Context, name string) (*Container, e
 	return nil, noContainer(name)
 }
 
+// forNow starts a name that a rollout gives a container for now: one it is
+// stopping, or one a replace swaps in under the name of the one it replaces,
+// as Compose does. The container driver's PlainName takes it off.
+var forNow = regexp.MustCompile(`^/?(?:stopping_)?[0-9a-f]{12}_`)
+
+// ContainerOf returns the container of a Compose project's service of a number,
+// by the labels Compose and Dockwell give it, whatever it's named: Dockwell
+// names a service's container after what people call its environment, and one
+// made before that by its project (ADR 0035). Of those of that number, it is
+// the one under its own name, not one a rollout has under a name for now. A
+// one-off, as docker compose run makes, isn't one. It fails as ContainerNamed
+// does when there's none.
+func (c *Client) ContainerOf(ctx context.Context, project, service string, number int) (*Container, error) {
+	list, err := c.ListContainers(ctx, map[string][]string{"label": {
+		LabelProject + "=" + project, LabelService + "=" + service, LabelNumber + "=" + strconv.Itoa(number),
+	}})
+	if err != nil {
+		return nil, err
+	}
+	for i := range list {
+		s := &list[i]
+		if s.Labels[LabelOneoff] == "True" || len(s.Names) == 0 || forNow.MatchString(s.Names[0]) {
+			continue
+		}
+		return c.InspectContainer(ctx, s.ID)
+	}
+	return nil, noContainer(InstanceName(project, service, number))
+}
+
 func noContainer(name string) error {
 	return &Error{Status: http.StatusNotFound, Message: "No such container: " + name}
 }

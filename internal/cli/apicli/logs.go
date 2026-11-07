@@ -172,7 +172,7 @@ func (p *logPrinter) label(id string) string {
 	}
 	if same > 1 {
 		// By its own name, as a restart's has the same revision as what it replaces.
-		if _, name, ok := strings.Cut(s.GetContainerName(), "-"); ok {
+		if name, ok := instanceName(s.GetContainerName()); ok {
 			return label + " " + name
 		}
 		if s.GetRevision() > 0 {
@@ -180,6 +180,18 @@ func (p *logPrinter) label(id string) string {
 		}
 	}
 	return label
+}
+
+// instanceName is what a person knows one of a service's containers by among
+// its others, such as web-3: what follows its environment's name,
+// default.production.web-3, or its Compose project, env_01kat…-web-3, as one
+// made before containers took the environment's name has it (ADR 0035).
+func instanceName(container string) (string, bool) {
+	if i := strings.LastIndex(container, "."); i >= 0 {
+		return container[i+1:], true
+	}
+	_, name, ok := strings.Cut(container, "-")
+	return name, ok
 }
 
 // gapWords says what a gap is missing, as the panel's marker does.

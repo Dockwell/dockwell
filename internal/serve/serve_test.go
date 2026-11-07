@@ -6,16 +6,21 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/dockwell/dockwell/internal/pki"
 )
@@ -194,4 +199,160 @@ func TestShutdownDoesntWaitOnWhatIgnoresCancellation(t *testing.T) {
 	case <-time.After(8 * time.Second):
 		t.Fatal("Serve waited on a handler that ignores cancellation")
 	}
+}
+
+// logged is what the interceptor logged, by level and message.
+type logged struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (l *logged) Enabled(context.Context, slog.Level) bool { return true }
+func (l *logged) Handle(_ context.Context, r slog.Record) error {
+	var code string
+	r.Attrs(func(a slog.Attr) bool {
+		if a.Key == "code" {
+			code = a.Value.String()
+		}
+		return true
+	})
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.lines = append(l.lines, r.Level.String()+" "+r.Message+" "+code)
+	return nil
+}
+func (l *logged) WithAttrs([]slog.Attr) slog.Handler { return l }
+func (l *logged) WithGroup(string) slog.Handler      { return l }
+
+func (l *logged) all() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.lines)
+}
+
+// A call its caller left isn't a failure, so it logs at debug, and a bare
+// context.Canceled answers canceled, not unknown. Only the request's own context
+// says the caller left: a handler's own deadline or cancel, a fault wrapping one,
+// and a fault of the server's own while the caller left all log as they would
+// (#112).
+func TestACanceledCallIsNoFailure(t *testing.T) {
+	logs := &logged{}
+	opts := connect.WithInterceptors(logInterceptor{logger: slog.New(logs)})
+	// A call whose name starts with Left waits until the test ends its request's
+	// context, as the caller going away does, then answers as it says.
+	var mu sync.Mutex
+	leave := map[string]context.CancelFunc{}
+	entered := make(chan string, 1)
+	mux := http.NewServeMux()
+	unary := func(name string, answer func(ctx context.Context) error) {
+		mux.Handle("/test.v1.Test/"+name, connect.NewUnaryHandler("/test.v1.Test/"+name,
+			func(ctx context.Context, _ *connect.Request[emptypb.Empty]) (*connect.Response[emptypb.Empty], error) {
+				if strings.HasPrefix(name, "Left") {
+					entered <- name
+					<-ctx.Done()
+				}
+				return nil, answer(ctx)
+			}, opts))
+	}
+	unary("LeftBare", func(context.Context) error { return fmt.Errorf("can't list services: %w", context.Canceled) })
+	unary("LeftFault", func(context.Context) error { return errors.New("the store is broken") })
+	unary("OwnDeadline", func(ctx context.Context) error {
+		c, cancel := context.WithTimeout(ctx, time.Millisecond)
+		defer cancel()
+		<-c.Done()
+		return fmt.Errorf("the agent didn't answer: %w", c.Err())
+	})
+	unary("OwnCancel", func(ctx context.Context) error {
+		c, cancel := context.WithCancel(ctx)
+		cancel()
+		return fmt.Errorf("a worker stopped: %w", c.Err())
+	})
+	unary("InternalWrapsCanceled", func(context.Context) error {
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("store: %w", context.Canceled))
+	})
+	unary("UnavailableWrapsCanceled", func(context.Context) error {
+		return connect.NewError(connect.CodeUnavailable, fmt.Errorf("agent lost: %w", context.Canceled))
+	})
+	// A log view's stream, which reading fails with canceled as its client resets
+	// it, wrapping nothing of context's.
+	mux.Handle("/test.v1.Test/LeftStream", connect.NewClientStreamHandler("/test.v1.Test/LeftStream",
+		func(ctx context.Context, s *connect.ClientStream[emptypb.Empty]) (*connect.Response[emptypb.Empty], error) {
+			if s.Receive() {
+				entered <- "LeftStream"
+			}
+			<-ctx.Done()
+			return nil, connect.NewError(connect.CodeCanceled, errors.New("stream reset by the client"))
+		}, opts))
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		mu.Lock()
+		leave[strings.TrimPrefix(r.URL.Path, "/test.v1.Test/")] = cancel
+		mu.Unlock()
+		mux.ServeHTTP(w, r.WithContext(ctx))
+	}))
+	srv.EnableHTTP2 = true
+	srv.StartTLS()
+	defer srv.Close()
+	call := func(name string) {
+		t.Helper()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			_, _ = connect.NewClient[emptypb.Empty, emptypb.Empty](srv.Client(), srv.URL+"/test.v1.Test/"+name).
+				CallUnary(t.Context(), connect.NewRequest(&emptypb.Empty{}))
+		}()
+		if strings.HasPrefix(name, "Left") {
+			<-entered
+			mu.Lock()
+			leave[name]()
+			mu.Unlock()
+		}
+		<-done
+	}
+
+	cases := []struct{ name, want string }{
+		{"LeftBare", "DEBUG rpc canceled canceled"},
+		{"LeftFault", "ERROR rpc failed unknown"},
+		{"OwnDeadline", "ERROR rpc failed unknown"},
+		{"OwnCancel", "ERROR rpc failed unknown"},
+		{"InternalWrapsCanceled", "ERROR rpc failed internal"},
+		{"UnavailableWrapsCanceled", "INFO rpc failed unavailable"},
+	}
+	var want []string
+	for _, c := range cases {
+		call(c.name)
+		want = append(want, c.want)
+	}
+	stream := connect.NewClient[emptypb.Empty, emptypb.Empty](srv.Client(), srv.URL+"/test.v1.Test/LeftStream").CallClientStream(t.Context())
+	if err := stream.Send(&emptypb.Empty{}); err != nil {
+		t.Fatal(err)
+	}
+	<-entered
+	mu.Lock()
+	leave["LeftStream"]()
+	mu.Unlock()
+	_, _ = stream.CloseAndReceive()
+	want = append(want, "DEBUG rpc canceled canceled")
+
+	deadline := time.Now().Add(5 * time.Second)
+	for !slices.Equal(logs.all(), want) && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	got := logs.all()
+	for i, c := range cases {
+		if i >= len(got) || got[i] != c.want {
+			t.Errorf("%s logged %q, want %q", c.name, at(got, i), c.want)
+		}
+	}
+	if at(got, len(cases)) != want[len(cases)] {
+		t.Errorf("a stream its client reset logged %q, want %q", at(got, len(cases)), want[len(cases)])
+	}
+}
+
+func at(list []string, i int) string {
+	if i < len(list) {
+		return list[i]
+	}
+	return ""
 }

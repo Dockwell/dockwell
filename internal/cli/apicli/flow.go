@@ -570,10 +570,62 @@ const maxRewatches = 10
 // it is applied, failed or discarded. began is when this CLI applied it,
 // on its own clock, or zero when it only watches.
 func (r *runner) follow(ctx context.Context, id string, began time.Time) error {
+	last, err := r.watchTo(ctx, id, false)
+	if err != nil {
+		return err
+	}
+	if last.GetState() == dockwellv1.ChangeState_CHANGE_STATE_FAILED {
+		last = r.followRollback(ctx, last)
+	}
+	return r.outcome(last, began)
+}
+
+// rollbackFollow is how long a change that failed waits for its rollback to
+// end, so what it says last is whether what ran is back. A rollback waiting
+// for a server can take far longer, and says so.
+const rollbackFollow = 2 * time.Minute
+
+// followRollback follows the rollback of a change that failed, while it
+// applies, so the person who deployed reads how it ended where they are
+// looking: that what ran never stopped, say, rather than only that the deploy
+// failed. It returns the change read again, with how the rollback went, or as
+// it was if that can't be told within rollbackFollow.
+func (r *runner) followRollback(ctx context.Context, c *dockwellv1.Change) *dockwellv1.Change {
+	id := c.GetRolledBackBy()
+	if id == "" || c.GetRollbackStatus().GetState() != dockwellv1.RollbackState_ROLLBACK_STATE_APPLYING {
+		return c
+	}
+	ctx, cancel := context.WithTimeout(ctx, rollbackFollow)
+	defer cancel()
+	if !r.opts.json {
+		fmt.Fprintf(r.env.Out, "\nRolling back in %s\n", id)
+	}
+	if _, err := r.watchTo(ctx, id, true); err != nil {
+		return c
+	}
+	var got *dockwellv1.GetChangeResponse
+	err := r.do(ctx, func() error {
+		res, err := r.client.Changes().GetChange(ctx, connect.NewRequest(&dockwellv1.GetChangeRequest{Id: c.GetId()}))
+		if err == nil {
+			got = res.Msg
+		}
+		return err
+	})
+	if err != nil {
+		return c
+	}
+	return got.GetChange()
+}
+
+// watchTo watches a change until it is applied, failed or discarded, printing
+// each step as it moves on, and returns it as it ended. A rollback, quiet, is
+// one that follow follows after the change it rolls back: its steps show, and
+// nothing else, as the JSON is the change's own.
+func (r *runner) watchTo(ctx context.Context, id string, rollback bool) (*dockwellv1.Change, error) {
 	shown := map[int32]dockwellv1.StepState{}
 	var last *dockwellv1.Change
-	announced := false
-	if !r.opts.json {
+	announced := rollback
+	if !r.opts.json && !rollback {
 		fmt.Fprintln(r.env.Out)
 	}
 	step := func(i int32, s *dockwellv1.StepProgress) {
@@ -595,7 +647,7 @@ func (r *runner) follow(ctx context.Context, id string, began time.Time) error {
 		defer stream.Close()
 		for stream.Receive() {
 			msg := stream.Msg()
-			if r.opts.json {
+			if r.opts.json && !rollback {
 				if err := JSON(r.env.Out, msg, false); err != nil {
 					return err
 				}
@@ -627,20 +679,20 @@ func (r *runner) follow(ctx context.Context, id string, began time.Time) error {
 			break
 		}
 		if watches > maxRewatches {
-			return fmt.Errorf("watching %s fell behind it %d times, so dockwell stopped following it. It goes on applying: "+
+			return nil, fmt.Errorf("watching %s fell behind it %d times, so dockwell stopped following it. It goes on applying: "+
 				"follow it again with dockwell changes watch %s, or see where it is with dockwell changes get %s", id, watches, id, id)
 		}
 	}
 	if err != nil && (last == nil || !final(last.GetState())) {
 		if errors.Is(ctx.Err(), context.Canceled) {
-			return fmt.Errorf("stopped following %s, which goes on applying. Follow it again with dockwell changes watch %s", id, id)
+			return nil, fmt.Errorf("stopped following %s, which goes on applying. Follow it again with dockwell changes watch %s", id, id)
 		}
-		return r.explain(err)
+		return nil, r.explain(err)
 	}
 	if last == nil {
-		return fmt.Errorf("the watch of %s ended before it said how the change went. See it with dockwell changes get %s", id, id)
+		return nil, fmt.Errorf("the watch of %s ended before it said how the change went. See it with dockwell changes get %s", id, id)
 	}
-	return r.outcome(last, began)
+	return last, nil
 }
 
 // took is how long a change took to apply. By the change's own times, it

@@ -3,11 +3,13 @@
 import { useQuery } from "@connectrpc/connect-query";
 import { Role, SystemService } from "@dockwell/api";
 import { cx, Icon, type IconName, Logo } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useSignedInUser } from "../auth/useAuthState";
 import { initials, useRoleName } from "../auth/user";
 import { useUpgrades } from "../catalog/useCatalog";
+import { useWaitingForAPerson } from "../changes/waiting";
 import type { FleetView } from "../servers/server";
 import {
   AFTER_DOMAINS,
@@ -29,6 +31,7 @@ import { shortVersion } from "./version";
 export function Rail({ view }: { view: FleetView }) {
   const { t, i18n } = useLingui();
   const upgrades = useUpgrades();
+  const waiting = useWaitingForAPerson().length;
   const segment = firstSegment(useLocation({ select: (location) => location.pathname }));
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
 
@@ -103,7 +106,16 @@ export function Rail({ view }: { view: FleetView }) {
       )}
       <div className="rail-section">{t`Operate`}</div>
       <Link to="/activity" activeOptions={{ exact: true }} {...current(inActivity(segment))}>
-        <ItemBody icon="activity" label={t`Activity`} />
+        <ItemBody
+          icon="activity"
+          label={t`Activity`}
+          count={waiting > 0 ? String(waiting) : undefined}
+          countWords={
+            waiting > 0
+              ? plural(waiting, { one: "# change needs your approval", other: "# changes need your approval" })
+              : undefined
+          }
+        />
       </Link>
       {OPERATE.map(section)}
       <div className="rail-fill" />
@@ -152,11 +164,13 @@ interface ItemBodyProps {
   icon: IconName;
   label: string;
   count?: string | undefined;
+  /** What the count says, for those who don't see it, in place of the bare number. */
+  countWords?: string | undefined;
   /** The count is a machine value, such as a server's name. */
   machineCount?: boolean;
 }
 
-function ItemBody({ icon, label, count, machineCount = false }: ItemBodyProps) {
+function ItemBody({ icon, label, count, countWords, machineCount = false }: ItemBodyProps) {
   return (
     <>
       <Icon name={icon} size={16} />
@@ -165,7 +179,10 @@ function ItemBody({ icon, label, count, machineCount = false }: ItemBodyProps) {
       {count ? (
         <>
           {" "}
-          <span className={cx("rail-count", machineCount && "is-machine")}>{count}</span>
+          <span className={cx("rail-count", machineCount && "is-machine")} aria-hidden={countWords ? true : undefined}>
+            {count}
+          </span>
+          {countWords ? <span className="dw-sr">{countWords}</span> : null}
         </>
       ) : null}
       {/* The narrow rail's tooltip. The label already names the link, so screen readers skip this copy. */}

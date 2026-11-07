@@ -32,7 +32,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { aHealth, anApp, aProject, aRevision, places, projectPlaces, running, SERVER } from "../../test/apps";
+import { aHealth, anApp, aProject, aRevision, ENV, places, projectPlaces, running, SERVER } from "../../test/apps";
 import { applied, moved, watched, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -144,6 +144,45 @@ describe("an app's frame", () => {
     expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Apps/web");
     expect(document.title).toBe("web · Dockwell");
     await expectAccessible(container);
+  });
+
+  // A change the CLI proposed that only a person can apply shows on the app it
+  // touches, or only whoever ran the CLI learns it waits (#112).
+  it("says a change to it waits for a person, and opens its plan", async () => {
+    // A list has each plan in brief, and GetChange in full.
+    const planned = (id: string, summary: string, name: string, brief: boolean) =>
+      create(ChangeSchema, {
+        id,
+        summary,
+        state: ChangeState.PLANNED,
+        proposedVia: Surface.CLI,
+        plan: { hostAccess: true, resources: brief ? [] : [{ resource: { kind: "service", scope: ENV, name } }] },
+      });
+    const trust = planned("chg_trust", "Trust 127.0.0.1 on www", "web", true);
+    const elsewhere = planned("chg_other", "Delete api", "api", true);
+    const full: Record<string, Change> = {
+      chg_trust: planned("chg_trust", "Trust 127.0.0.1 on www", "web", false),
+      chg_other: planned("chg_other", "Delete api", "api", false),
+    };
+    const getChange = vi.fn(({ id }: { id: string }) => ({ change: full[id] }));
+    renderAt(
+      "/apps/svc_web",
+      api([web], {
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+          listChanges: () => ({ changes: [trust, elsewhere] }),
+          getChange,
+        },
+      }),
+    );
+    const notice = await screen.findByText("1 change to this app needs your approval");
+    const callout = notice.closest(".dw-callout") as HTMLElement;
+    expect(callout).toHaveTextContent("Trust 127.0.0.1 on www. It was proposed with an API token");
+    await userEvent.click(within(callout).getByRole("button", { name: "Review plan" }));
+    await waitFor(() =>
+      expect(getChange).toHaveBeenCalledWith(expect.objectContaining({ id: "chg_trust" }), expect.anything()),
+    );
   });
 
   it("says when there's no such app, and the way back", async () => {

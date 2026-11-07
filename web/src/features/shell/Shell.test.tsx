@@ -1,7 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
-import { Connection, GetVersionResponseSchema, ServerInventorySchema, type WatchServersResponse } from "@dockwell/api";
+import {
+  ChangeSchema,
+  ChangeState,
+  Connection,
+  GetVersionResponseSchema,
+  ListChangesResponseSchema,
+  ServerInventorySchema,
+  Surface,
+  type WatchServersResponse,
+} from "@dockwell/api";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -25,11 +34,36 @@ const hz2 = aServer({ id: "srv_2", name: "hz-2", stats: sample(8) });
 
 /** Renders the panel at path with these servers, once their snapshot is in. */
 async function renderWith(path: string, ...servers: ReturnType<typeof aServer>[]) {
+  return renderWithChanges(path, [], ...servers);
+}
+
+async function renderWithChanges(
+  path: string,
+  changes: ReturnType<typeof waiting>[],
+  ...servers: ReturnType<typeof aServer>[]
+) {
   const watch = feed<WatchServersResponse>();
   watch.push(...servers.map(changed), snapshotComplete);
-  const rendered = renderAt(path, { servers: { watchServers: watch.stream } });
+  const rendered = renderAt(path, {
+    servers: { watchServers: watch.stream },
+    changes: { listChanges: () => create(ListChangesResponseSchema, { changes }) },
+  });
   await screen.findByRole("heading", { level: 1 });
   return { ...rendered, watch };
+}
+
+/** A planned change, as the CLI leaves one that only a person can apply. */
+function waiting(
+  id: string,
+  init: Partial<{ via: Surface; state: ChangeState; destructive: boolean; hostAccess: boolean }> = {},
+) {
+  return create(ChangeSchema, {
+    id,
+    summary: "Trust 127.0.0.1 on www",
+    state: init.state ?? ChangeState.PLANNED,
+    proposedVia: init.via ?? Surface.CLI,
+    plan: { destructive: init.destructive ?? false, hostAccess: init.hostAccess ?? true },
+  });
 }
 
 const rail = () => screen.getByRole("navigation", { name: "Main" });
@@ -107,6 +141,24 @@ describe("the shell on wide screens", () => {
     const you = within(rail()).getByRole("link", { name: "Mira Chen Owner" });
     expect(you).toHaveAttribute("href", "/profile");
     expect(you.querySelector(".rail-avatar")).toHaveTextContent("MC");
+  });
+
+  // Someone who didn't run the CLI learns that a change waits for them (#112).
+  it("counts on Activity the changes that wait for a person", async () => {
+    await renderWithChanges(
+      "/",
+      [
+        waiting("chg_1"),
+        waiting("chg_2", { hostAccess: false, destructive: true }),
+        // Not one: a token may apply it, a person proposed it in the panel, or it has gone on.
+        waiting("chg_3", { hostAccess: false }),
+        waiting("chg_4", { via: Surface.PANEL }),
+        waiting("chg_5", { state: ChangeState.DISCARDED }),
+      ],
+      hz1,
+    );
+    const activity = await within(rail()).findByRole("link", { name: "Activity 2 changes need your approval" });
+    expect(activity.querySelector(".rail-count")).toHaveTextContent("2");
   });
 
   it("names each item once, keeping the narrow rail's tooltip from screen readers", async () => {
@@ -376,6 +428,15 @@ describe("the shell on phones", () => {
     expect(tabs[0]).toHaveAttribute("aria-current", "page");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     await expectAccessible(container);
+  });
+
+  it("marks Activity when a change waits for a person", async () => {
+    onPhone();
+    await renderWithChanges("/", [waiting("chg_1")], hz1);
+    const tab = await within(screen.getByRole("navigation", { name: "Main" })).findByRole("link", {
+      name: "Activity 1 change needs your approval",
+    });
+    expect(tab.querySelector(".tabbar-dot")).not.toBeNull();
   });
 
   it("names the Servers tab for a fleet", async () => {

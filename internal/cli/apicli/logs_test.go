@@ -317,3 +317,20 @@ func TestASourceSaysWhyItsLinesDontShow(t *testing.T) {
 		t.Errorf("standard output reads %q, want only lines", out.String())
 	}
 }
+
+// A container goes by its service and number, whichever form its name takes.
+func TestInstanceNameReadsEitherForm(t *testing.T) {
+	for name, want := range map[string]string{
+		"default.production.web-3": "web-3",
+		"shop.staging.my-api-12":   "my-api-12",
+		"env_01kat-web-3":          "web-3",
+		"env_01kat-my-api-12":      "my-api-12",
+	} {
+		if got, ok := instanceName(name); !ok || got != want {
+			t.Errorf("instanceName(%q) = %q, %v, want %q", name, got, ok, want)
+		}
+	}
+	if _, ok := instanceName("web"); ok {
+		t.Error("a name with no number reads as one")
+	}
+}
