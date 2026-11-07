@@ -4537,6 +4537,10 @@ msgstr "May have been copied; it no longer signs in"
 msgid "May have saved {path} on {server}"
 msgstr "May have saved {path} on {server}"
 
+#: src/features/catalog/useCatalog.ts
+msgid "Media"
+msgstr "Media"
+
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
@@ -4947,6 +4951,10 @@ msgstr "Not started"
 #: src/features/variables/VariablesPage.tsx
 msgid "Not used yet"
 msgstr "Not used yet"
+
+#: src/features/catalog/useCatalog.ts
+msgid "Notes"
+msgstr "Notes"
 
 #: src/features/files/FilesPage.tsx
 msgid "Nothing at this path"

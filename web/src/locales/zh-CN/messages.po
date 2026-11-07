@@ -4537,6 +4537,10 @@ msgstr "可能已被复制，不能再用于登录"
 msgid "May have saved {path} on {server}"
 msgstr "可能已保存 {server} 上的 {path}"
 
+#: src/features/catalog/useCatalog.ts
+msgid "Media"
+msgstr "媒体"
+
 #: src/app/Providers.tsx
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
@@ -4947,6 +4951,10 @@ msgstr "未启动"
 #: src/features/variables/VariablesPage.tsx
 msgid "Not used yet"
 msgstr "尚未使用"
+
+#: src/features/catalog/useCatalog.ts
+msgid "Notes"
+msgstr "笔记"
 
 #: src/features/files/FilesPage.tsx
 msgid "Nothing at this path"

@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: jellyfin
+name: Jellyfin
+summary: Stream your films, shows and music to any device
+category: media
+version: "12.3"
+release: 1
+homepage: https://jellyfin.org
+license: AGPL-3.0-only
+appLicense: GPL-2.0-only
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/jellyfin.yaml
+web:
+  service: jellyfin
+hostAccess: >-
+  The folder you give for your media, read-only, so Jellyfin can play what's in it
+  and change nothing.
+firstSteps: >-
+  Jellyfin answers over plain HTTP, so signing in from outside this server sends your
+  password in clear, and the first person to open it sets up its admin account. Add a
+  domain first, or reach it another way, such as a VPN or an SSH tunnel. Then open it,
+  set up your account, and add a library from /media, which is the folder you gave.
+inputs:
+  - name: PORT
+    label: Jellyfin port
+    hint: You open Jellyfin on this port of the server.
+    type: INPUT_TYPE_PORT
+    defaultValue: "8096"
+  - name: MEDIA_DIR
+    label: Media folder
+    hint: The folder on this server that holds your media, such as /srv/media. Jellyfin reads it as /media.
+    type: INPUT_TYPE_TEXT
+    defaultValue: /srv/media
+compose: |
+  services:
+    jellyfin:
+      image: jellyfin/jellyfin:12.3@sha256:2038fe038ab3876a80f6e7b7e0aef6607b032c7dc0c9b3ad3296d0b2eba3bbb5
+      restart: unless-stopped
+      ports:
+        - "${PORT}:8096"
+      volumes:
+        - config:/config
+        - cache:/cache
+        - ${MEDIA_DIR}:/media:ro
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "http://127.0.0.1:8096/health"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 30s
+  volumes:
+    config: {}
+    cache: {}

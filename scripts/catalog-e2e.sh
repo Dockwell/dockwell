@@ -49,6 +49,10 @@ stepup=$(mktemp)
 # A release other than the one built in comes from here, which Dockwell reads each time.
 catalog_dir=$(mktemp -d)
 chmod 755 "$catalog_dir"
+# A folder of media, for an app that reads one from the server.
+media_dir=$(mktemp -d)
+echo kept >"$media_dir/e2e.txt"
+chmod -R a+rX "$media_dir"
 projects=()
 plans=()
 pid=""
@@ -66,7 +70,7 @@ cleanup() {
   docker ps --all --quiet --filter label=dev.dockwell.volume-tool | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
   [[ -z "$pid" ]] || priv kill "$pid" 2>/dev/null || true
   wait 2>/dev/null || true
-  priv rm -rf "$data" "$log" "$cookie" "$passkey" "$stepup" "$catalog_dir"
+  priv rm -rf "$data" "$log" "$cookie" "$passkey" "$stepup" "$catalog_dir" "$media_dir"
 }
 trap cleanup EXIT
 
@@ -513,6 +517,127 @@ check_umami() {
   [[ "$said" == 401 ]] || fail "Umami answered $said to a wrong password, want 401"
 }
 
+check_plausible() {
+  local port said db events migrations tables
+  port=$(value PORT)
+  said=$(curl -fsS --max-time 10 "http://127.0.0.1:$port/api/system/health/ready") || fail "Plausible isn't ready on port $port"
+  jq -e . <<<"$said" >/dev/null || fail "Plausible's readiness says what isn't JSON: ${said:0:300}"
+  # On first launch it leads to registration, which needs both its databases.
+  said=$(curl -sS --max-time 10 -o /dev/null -w '%{redirect_url}' "http://127.0.0.1:$port/") || fail "Plausible doesn't answer on port $port"
+  [[ "$said" == */register ]] || fail "Plausible's first page leads to '$said', want its registration"
+  db=$(container db)
+  events=$(container events)
+  migrations=$(docker exec "$db" psql -X -U plausible -d plausible -tAc 'SELECT count(*) FROM schema_migrations') || fail "Plausible's PostgreSQL has no migrations"
+  tables=$(docker exec "$events" clickhouse-client -q "SELECT count() FROM system.tables WHERE database = 'plausible_events_db'") || fail "Plausible's ClickHouse doesn't answer"
+  ((migrations > 0 && tables > 0)) || fail "Plausible has $migrations migrations in PostgreSQL and $tables tables in ClickHouse"
+  if [[ "$1" == first ]]; then kept[plausible]=$tables; fi
+  ((tables >= kept[plausible])) || fail "Plausible's ClickHouse had ${kept[plausible]} tables before the upgrade, and has $tables"
+  said=$(docker exec "$events" clickhouse-client -q "SELECT count() FROM system.tables WHERE database = 'system' AND name = 'trace_log'")
+  [[ "$said" == 0 ]] || fail "ClickHouse keeps a trace log, which Plausible's settings turn off"
+}
+
+check_ghost() {
+  local port said
+  port=$(value PORT)
+  said=$(curl -fsS --max-time 15 "http://127.0.0.1:$port/ghost/api/admin/site/") || fail "Ghost doesn't answer on port $port"
+  [[ "$version" == "$(jq -r .site.version <<<"$said")"* ]] || fail "Ghost says $said, want $version"
+  if [[ "$1" == first ]]; then
+    said=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -H "Origin: http://127.0.0.1:$port" \
+      -d '{"setup":[{"name":"Owner","email":"owner@example.com","password":"E2e-owner-passw0rd-long","blogTitle":"E2E kept"}]}' \
+      "http://127.0.0.1:$port/ghost/api/admin/authentication/setup/") || fail "Ghost's setup got no answer"
+    [[ "$said" == 201 ]] || fail "Ghost didn't make its owner: it answered $said"
+  fi
+  # What it keeps is in MySQL, so the site keeps its title through an upgrade.
+  said=$(curl -fsS --max-time 15 "http://127.0.0.1:$port/ghost/api/admin/site/") || fail "Ghost doesn't answer on port $port"
+  [[ "$(jq -r .site.title <<<"$said")" == "E2E kept" ]] || fail "Ghost's site reads $said"
+}
+
+# wordpress_sign_in signs in to WordPress, and says where it sends you: its dashboard,
+# or nowhere, as its login page says why on the page itself.
+wordpress_sign_in() {
+  local jar landed
+  jar=$(mktemp)
+  curl -fsS --max-time 15 -o /dev/null -c "$jar" "http://127.0.0.1:$1/wp-login.php" || fail "WordPress's login page doesn't answer"
+  landed=$(curl -sS --max-time 30 -o /dev/null -w '%{redirect_url}' -b "$jar" -c "$jar" --data-urlencode log=owner --data-urlencode "pwd=$2" \
+    --data-urlencode 'wp-submit=Log In' --data-urlencode testcookie=1 --data-urlencode "redirect_to=http://127.0.0.1:$1/wp-admin/" \
+    "http://127.0.0.1:$1/wp-login.php") || fail "signing in to WordPress got no answer"
+  rm -f "$jar"
+  echo "$landed"
+}
+
+check_wordpress() {
+  local port said
+  port=$(value PORT)
+  if [[ "$1" == first ]]; then
+    said=$(curl -fsS --max-time 60 --data-urlencode 'weblog_title=E2E kept' --data-urlencode user_name=owner --data-urlencode admin_password=E2e-owner-passw0rd-long \
+      --data-urlencode admin_password2=E2e-owner-passw0rd-long --data-urlencode admin_email=owner@example.com --data-urlencode blog_public=0 \
+      --data-urlencode language= --data-urlencode 'Submit=Install WordPress' "http://127.0.0.1:$port/wp-admin/install.php?step=2") || fail "WordPress's install doesn't answer"
+    [[ "$said" == *wp-login.php* ]] || fail "WordPress didn't install: ${said:0:600}"
+  fi
+  [[ "$(wordpress_sign_in "$port" E2e-owner-passw0rd-long)" == */wp-admin/ ]] || fail "WordPress's admin can't sign in"
+  [[ "$(wordpress_sign_in "$port" not-the-password)" != */wp-admin/ ]] || fail "WordPress signed in with a wrong password"
+  said=$(curl -fsS --max-time 15 "http://127.0.0.1:$port/?rest_route=/") || fail "WordPress's API doesn't answer"
+  [[ "$(jq -r .name <<<"$said")" == "E2E kept" ]] || fail "WordPress's site reads ${said:0:300}"
+}
+
+check_memos() {
+  local port said token
+  port=$(value PORT)
+  said=$(curl -fsS --max-time 10 "http://127.0.0.1:$port/api/v1/instance/profile") || fail "Memos doesn't answer on port $port"
+  [[ "$(jq -r .version <<<"$said")" == "$version" ]] || fail "Memos says $said, want $version"
+  if [[ "$1" == first ]]; then
+    said=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+      -d '{"username":"owner","password":"E2e-owner-passw0rd"}' "http://127.0.0.1:$port/api/v1/users") || fail "Memos's first user got no answer"
+    [[ "$said" == 200 ]] || fail "Memos didn't make its first user: it answered $said"
+  fi
+  memos_sign_in() {
+    curl -sS --max-time 15 -H 'Content-Type: application/json' \
+      -d "{\"passwordCredentials\":{\"username\":\"owner\",\"password\":\"$1\"}}" "http://127.0.0.1:$port/api/v1/auth/signin"
+  }
+  said=$(memos_sign_in E2e-owner-passw0rd) || fail "Memos's sign-in got no answer"
+  token=$(jq -r '.accessToken // .access_token // empty' <<<"$said" 2>/dev/null)
+  [[ -n "$token" ]] || fail "Memos's admin can't sign in: ${said:0:300}"
+  said=$(memos_sign_in not-the-password)
+  [[ "$said" != *ccess* ]] || fail "Memos signed in with a wrong password"
+}
+
+check_adminer() {
+  local port page
+  port=$(value PORT)
+  page=$(curl -fsS --max-time 15 "http://127.0.0.1:$port/") || fail "Adminer doesn't answer on port $port"
+  [[ "$page" == *"auth[driver]"* && "$page" == *"$version"* ]] || fail "port $port answers something else, or not Adminer $version: ${page:0:400}"
+  [[ -n "$(form_token "$page")" ]] || fail "Adminer's login form has no token"
+}
+
+check_jellyfin() {
+  local jellyfin port said
+  jellyfin=$(container jellyfin)
+  port=$(value PORT)
+  said=$(curl -fsS --max-time 10 "http://127.0.0.1:$port/System/Info/Public") || fail "Jellyfin doesn't answer on port $port"
+  [[ "$(jq -r .Version <<<"$said")" == "$version"* ]] || fail "Jellyfin says $said, want $version"
+  docker exec "$jellyfin" test -r /media/e2e.txt || fail "Jellyfin can't read the media folder it was given"
+  if docker exec "$jellyfin" touch /media/written 2>/dev/null; then fail "Jellyfin can write to the media folder, which it reads alone"; fi
+  # It names itself on first start, and keeps that on its volume.
+  if [[ "$1" == first ]]; then kept[jellyfin]=$(jq -r .Id <<<"$said"); fi
+  [[ "$(jq -r .Id <<<"$said")" == "${kept[jellyfin]}" ]] || fail "Jellyfin's server ID changed through the upgrade"
+}
+
+check_home-assistant() {
+  local port said
+  port=$(value PORT)
+  said=$(curl -fsS --max-time 10 "http://127.0.0.1:$port/api/onboarding") || fail "Home Assistant doesn't answer on port $port"
+  if [[ "$1" == first ]]; then
+    jq -e 'any(.step == "user" and .done == false)' <<<"$said" >/dev/null || fail "Home Assistant doesn't ask for its owner first: $said"
+    said=$(curl -fsS --max-time 30 -H 'Content-Type: application/json' \
+      -d "{\"client_id\":\"http://127.0.0.1:$port/\",\"name\":\"Owner\",\"username\":\"owner\",\"password\":\"E2e-owner-passw0rd\",\"language\":\"en\"}" \
+      "http://127.0.0.1:$port/api/onboarding/users") || fail "Home Assistant didn't make its owner"
+    [[ -n "$(jq -r '.auth_code // empty' <<<"$said")" ]] || fail "Home Assistant made its owner with no sign-in: $said"
+    said=$(curl -fsS --max-time 10 "http://127.0.0.1:$port/api/onboarding") || fail "Home Assistant doesn't answer on port $port"
+  fi
+  # What it keeps is on its volume, so its owner stays through an upgrade.
+  jq -e 'any(.step == "user" and .done == true)' <<<"$said" >/dev/null || fail "Home Assistant has no owner: $said"
+}
+
 # The version before the one each entry pins, which it upgrades from, and the images
 # that version ran in place of the entry's: its version, then each image by digest.
 declare -A previous=(
@@ -528,11 +653,21 @@ declare -A previous=(
   [rustfs]="1.0.2 rustfs/rustfs:1.0.2@sha256:7e948dad4748bda48f8985fda7195f8cf2e4259427011f6120acc2c9acf51587"
   [grafana]="13.2.3 grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572"
   [umami]="3.4.0 ghcr.io/umami-software/umami:3.4.0@sha256:85909afc45bdcda1917394594a087421fdbb05610fded0fa9f6fb861abb2f367"
+  [plausible]="3.2.0 ghcr.io/plausible/community-edition:v3.2.0@sha256:3d8af8d4a1be32c3dcc5e8dc01496639d945edd9963827e18abe984dd6bda086"
+  [ghost]="6.71.0 ghost:6.71.0@sha256:00032f15726204565bf799ac272ee6fef588547cce50bedd38de3db55272c053"
+  [wordpress]="7.1.2 wordpress:7.1.2-apache@sha256:e04cf657f24889e96b5544828cdd5a92a0b51819f3e1899183f9be6ea0485edf"
+  [memos]="0.30.0 neosmemo/memos:0.30.0@sha256:71a5b4738d1bed96e92112004054f0888e92791b64eb78afd79077c96e6f9327"
+  [adminer]="6.1.2 adminer:6.1.2@sha256:251295c1cd51d3889f1c42ffa4864b24eeab51f0caf395cfe5bf4726c5ec9a2a"
+  [jellyfin]="12.2 jellyfin/jellyfin:12.2@sha256:357724bf0ae27a672c7cbaa899db2d9abeb13dbd8657ccce750258a4c059d037"
+  [home-assistant]="2026.10.3 ghcr.io/home-assistant/home-assistant:2026.10.3@sha256:407b89cd11a8cb67d388d21739a226c74acbbebe1ac59e3b83b11b43ce76b98f"
 )
 # What a person types for an entry, as dockwell catalog install takes it.
 declare -A given=(
   [pgadmin]="ADMIN_EMAIL=owner@example.com"
   [nextcloud]="DOMAIN=cloud.example.com"
+  [plausible]="BASE_URL=http://127.0.0.1:8000"
+  [ghost]="URL=http://127.0.0.1:2368"
+  [jellyfin]="MEDIA_DIR=$media_dir"
 )
 
 # release writes an entry into the catalog's directory, which takes over from the

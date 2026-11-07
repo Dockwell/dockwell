@@ -206,6 +206,8 @@ jobs:
           - pgadmin redis mariadb coder
           - uptime-kuma n8n gitea vaultwarden
           - nextcloud rustfs grafana umami
+          - plausible ghost wordpress memos
+          - adminer jellyfin home-assistant
     env:
       E2E_ROOT: "1"
     steps:

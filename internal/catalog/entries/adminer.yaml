@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: adminer
+name: Adminer
+summary: Manage PostgreSQL, MySQL, MariaDB and SQLite from one page
+category: databases
+version: "6.2.0"
+release: 1
+homepage: https://www.adminer.org
+license: AGPL-3.0-only
+appLicense: Apache-2.0
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/adminer.yaml
+web:
+  service: adminer
+firstSteps: >-
+  Adminer answers over plain HTTP, so signing in from outside this server sends your
+  database's password in clear. Add a domain first, or reach it another way, such as a
+  VPN or an SSH tunnel. Then open Adminer and sign in to a database by this server's
+  address and the database's port. A database installed here publishes no port, so
+  add one to its db service first. PostgreSQL and MySQL from the catalog each come
+  with an admin tool of their own already.
+inputs:
+  - name: PORT
+    label: Adminer port
+    hint: You open Adminer on this port of the server. It asks for each database's password.
+    type: INPUT_TYPE_PORT
+    defaultValue: "8086"
+compose: |
+  services:
+    adminer:
+      image: adminer:6.2.0@sha256:400af848ac3f57938abde4867677df1b195674d232c8896a27d111d04b9c088c
+      restart: unless-stopped
+      ports:
+        - "${PORT}:8080"
+      healthcheck:
+        test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 8080) ? 0 : 1);"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
