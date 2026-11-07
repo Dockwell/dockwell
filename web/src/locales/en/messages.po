@@ -85,6 +85,7 @@ msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, one {# app stops.} other {# apps stop.}}"
 
 #. placeholder {0}: here.length
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/RunsHere.tsx
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, one {# app} other {# apps}}"
@@ -657,6 +658,10 @@ msgstr "{name} is still deploying. You can review this plan once that ends."
 msgid "{name} is waiting for its agent"
 msgstr "{name} is waiting for its agent"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "{name} is waiting for its agent."
+msgstr "{name} is waiting for its agent."
+
 #: src/features/files/FileViewer.tsx
 msgid "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
 msgstr "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
@@ -668,6 +673,14 @@ msgstr "{name} isn't a text file under 1 MB any more, so it can't be saved here.
 #: src/features/servers/ServerCallout.tsx
 msgid "{name} isn't reporting"
 msgstr "{name} isn't reporting"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "{name} isn't reporting."
+msgstr "{name} isn't reporting."
+
+#: src/features/servers/PhoneServer.tsx
+msgid "{name} isn't reporting. It last did {seen}."
+msgstr "{name} isn't reporting. It last did {seen}."
 
 #: src/features/apps/AppOverview.tsx
 #: src/features/changes/ChangeSheet.tsx
@@ -932,6 +945,10 @@ msgstr "{reads}, relabelled for SELinux as private"
 msgid "{reads}, relabelled for SELinux as shared"
 msgstr "{reads}, relabelled for SELinux as shared"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "{replicas, plural, one {# replica} other {# replicas}}"
+msgstr "{replicas, plural, one {# replica} other {# replicas}}"
+
 #: src/features/apps/revision.ts
 msgid "{revision} deployed {when}"
 msgstr "{revision} deployed {when}"
@@ -1123,6 +1140,7 @@ msgstr "{unknown} in an unknown state"
 msgid "{unlisted, plural, one {This server has # more container than fit here.} other {This server has # more containers than fit here.}}"
 msgstr "{unlisted, plural, one {This server has # more container than fit here.} other {This server has # more containers than fit here.}}"
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "{used} of {total}"
 msgstr "{used} of {total}"
@@ -1690,6 +1708,10 @@ msgstr "Alerts"
 #: src/features/catalog/CatalogPage.tsx
 msgid "All"
 msgstr "All"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "All activity"
+msgstr "All activity"
 
 #: src/features/activity/ActivityPage.tsx
 msgid "All actors"
@@ -2568,6 +2590,10 @@ msgstr "Control server"
 msgid "Copied"
 msgstr "Copied"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Copied {address}"
+msgstr "Copied {address}"
+
 #: src/features/variables/VariablesPage.tsx
 msgid "Copied {name}"
 msgstr "Copied {name}"
@@ -2608,6 +2634,10 @@ msgstr "Copy {at}"
 #: src/features/servers/ServerPanels.tsx
 msgid "Copy {ip}"
 msgstr "Copy {ip}"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Copy {label} {address}"
+msgstr "Copy {label} {address}"
 
 #: src/features/variables/VariablesPage.tsx
 msgid "Copy {name}"
@@ -2762,10 +2792,15 @@ msgid "Couldn't update"
 msgstr "Couldn't update"
 
 #: src/app/Providers.tsx
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "CPU"
 msgstr "CPU"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "CPU above {HIGH}%"
+msgstr "CPU above {HIGH}%"
 
 #: src/app/Providers.tsx
 #: src/features/changes/words.ts
@@ -3156,6 +3191,10 @@ msgstr "Docker"
 #: src/features/servers/DiskUse.tsx
 msgid "Docker counts {0} for its images, volumes, containers and logs, more than the {1} used on this disk, as some of it is on another disk. So this shows what's used and free."
 msgstr "Docker counts {0} for its images, volumes, containers and logs, more than the {1} used on this disk, as some of it is on another disk. So this shows what's used and free."
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Docker hasn't answered since {since}."
+msgstr "Docker hasn't answered since {since}."
 
 #: src/features/apps/AppOverview.tsx
 msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
@@ -4804,11 +4843,16 @@ msgid "May have saved {path} on {server}"
 msgstr "May have saved {path} on {server}"
 
 #: src/app/Providers.tsx
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerMetrics.tsx
 #: src/features/servers/ServerPanels.tsx
 #: src/features/servers/ServersPanel.tsx
 msgid "Memory"
 msgstr "Memory"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Memory above {HIGH}%"
+msgstr "Memory above {HIGH}%"
 
 #: src/features/backups/PolicySheet.tsx
 msgid "Minutes past the hour, as 00:MM"
@@ -5035,6 +5079,10 @@ msgstr "No app with this ID"
 msgid "No apps"
 msgstr "No apps"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "No apps here yet. Deploy one from an image or the catalog."
+msgstr "No apps here yet. Deploy one from an image or the catalog."
+
 #: src/features/apps/AppsPage.tsx
 msgid "No apps yet"
 msgstr "No apps yet"
@@ -5210,6 +5258,7 @@ msgstr "Not in this release yet"
 msgid "Not installed or not running"
 msgstr "Not installed or not running"
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerPanels.tsx
 msgid "Not known"
 msgstr "Not known"
@@ -5295,6 +5344,10 @@ msgstr "Nothing checks it, so this only means it started."
 #: src/features/logs/LogContext.tsx
 msgid "Nothing else was written around this line."
 msgstr "Nothing else was written around this line."
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Nothing has happened here yet."
+msgstr "Nothing has happened here yet."
 
 #: src/features/logs/LogsPage.tsx
 msgid "Nothing here matches these filters."
@@ -5408,6 +5461,7 @@ msgstr "now"
 msgid "Nowhere else"
 msgstr "Nowhere else"
 
+#: src/features/servers/PhoneServer.tsx
 #: src/features/servers/ServerMetrics.tsx
 msgid "of {total}"
 msgstr "of {total}"
@@ -5978,6 +6032,10 @@ msgstr "Private"
 msgid "Private addresses"
 msgstr "Private addresses"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Private IP"
+msgstr "Private IP"
+
 #: src/features/changes/words.ts
 msgid "privileged mode, which gives it every device and capability on the server, the same as root"
 msgstr "privileged mode, which gives it every device and capability on the server, the same as root"
@@ -6043,6 +6101,7 @@ msgid "Public address"
 msgstr "Public address"
 
 #: src/features/auth/ClaimPage.tsx
+#: src/features/servers/PhoneServer.tsx
 msgid "Public IP"
 msgstr "Public IP"
 
@@ -6257,6 +6316,10 @@ msgstr "Reading this folder"
 msgid "Reading what Docker runs here"
 msgstr "Reading what Docker runs here"
 
+#: src/features/servers/PhoneServer.tsx
+msgid "Reading what happened here"
+msgstr "Reading what happened here"
+
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads logs"
 msgstr "Reads logs"
@@ -6264,6 +6327,10 @@ msgstr "Reads logs"
 #: src/features/auth/TokensPanel.tsx
 msgid "Reads servers and their state. Changes nothing."
 msgstr "Reads servers and their state. Changes nothing."
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Recent"
+msgstr "Recent"
 
 #: src/features/shell/CommandMenu.tsx
 msgid "Recent changes"
@@ -6418,6 +6485,10 @@ msgstr "replaced, and undoing this puts it back"
 #: src/features/changes/words.ts
 msgid "Replacing"
 msgstr "Replacing"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Reporting"
+msgstr "Reporting"
 
 #: src/features/apps/NewAppSheet.tsx
 msgid "Required"
@@ -6728,6 +6799,10 @@ msgstr "Running"
 #: src/features/logs/LogsPage.tsx
 msgid "Running now"
 msgstr "Running now"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Runs here"
+msgstr "Runs here"
 
 #: src/features/changes/fields.tsx
 msgid "runs no entrypoint"
@@ -7328,6 +7403,7 @@ msgstr "State"
 #: src/features/backups/BackupsPage.tsx
 #: src/features/domains/DomainsPage.tsx
 #: src/features/servers/ContainerPage.tsx
+#: src/features/servers/PhoneServer.tsx
 msgid "Status"
 msgstr "Status"
 
@@ -8626,6 +8702,10 @@ msgstr "Up"
 #: src/features/servers/server.ts
 msgid "up {uptime}"
 msgstr "up {uptime}"
+
+#: src/features/servers/PhoneServer.tsx
+msgid "Up {uptime}"
+msgstr "Up {uptime}"
 
 #: src/features/changes/PlanSteps.tsx
 msgid "Up to {stepBound} until healthy"
