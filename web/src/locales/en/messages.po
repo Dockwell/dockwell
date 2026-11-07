@@ -7425,6 +7425,102 @@ msgstr "With OpenRC, <0>export DOCKWELL_DOMAIN=…</0> in <1>/etc/conf.d/dockwel
 msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 msgstr "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 
+#. placeholder {0}: formatBytes(d.usedBytes, i18n.locale)
+msgid "1 backup, {0}"
+msgstr "1 backup, {0}"
+
+msgid "1 bucket · where backups go beside each server's disk"
+msgstr "1 bucket · where backups go beside each server's disk"
+
+msgid "1 connected · the services Dockwell sends backups to and routes behind"
+msgstr "1 connected · the services Dockwell sends backups to and routes behind"
+
+msgid "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
+msgstr "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
+
+msgid "Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave."
+msgstr "Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave."
+
+msgid "Any DNS provider"
+msgstr "Any DNS provider"
+
+#. placeholder {0}: d.bucket
+msgid "Bucket <0>{0}</0> at <1>{host}</1>"
+msgstr "Bucket <0>{0}</0> at <1>{host}</1>"
+
+msgid "Cloud providers"
+msgstr "Cloud providers"
+
+msgid "Coming later"
+msgstr "Coming later"
+
+msgid "Connect"
+msgstr "Connect"
+
+msgid "Credentials for private images. Today a server pulls them as its own docker login lets it."
+msgstr "Credentials for private images. Today a server pulls them as its own docker login lets it."
+
+msgid "DNS and proxies"
+msgstr "DNS and proxies"
+
+msgid "Dockwell can't list where backups go"
+msgstr "Dockwell can't list where backups go"
+
+msgid "Git"
+msgstr "Git"
+
+msgid "GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file."
+msgstr "GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file."
+
+msgid "Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket."
+msgstr "Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket."
+
+msgid "How to route behind it"
+msgstr "How to route behind it"
+
+msgid "Integrations"
+msgstr "Integrations"
+
+msgid "Manage in Backups"
+msgstr "Manage in Backups"
+
+msgid "No backup yet"
+msgstr "No backup yet"
+
+msgid "Object storage"
+msgstr "Object storage"
+
+msgid "Open Domains"
+msgstr "Open Domains"
+
+msgid "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
+msgstr "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
+
+#. placeholder {0}: words.ago(timestampDate(d.lastUpload), now)
+msgid "Received a backup {0}"
+msgstr "Received a backup {0}"
+
+msgid "Registries"
+msgstr "Registries"
+
+msgid "S3-compatible storage"
+msgstr "S3-compatible storage"
+
+msgid "Values your apps use live in <0>Variables and secrets</0>"
+msgstr "Values your apps use live in <0>Variables and secrets</0>"
+
+msgid "Works in front of routes"
+msgstr "Works in front of routes"
+
+msgid "in front of a server's routes"
+msgstr "in front of a server's routes"
+
+msgid "{connected} buckets · where backups go beside each server's disk"
+msgstr "{connected} buckets · where backups go beside each server's disk"
+
+msgid "{connected} connected · the services Dockwell sends backups to and routes behind"
+msgstr "{connected} connected · the services Dockwell sends backups to and routes behind"
+
 msgid "1 browser"
 msgstr "1 browser"
 

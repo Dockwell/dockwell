@@ -7425,6 +7425,102 @@ msgstr "使用 OpenRC 时，在 <1>/etc/conf.d/dockwell</1> 中写入 <0>export 
 msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 msgstr "使用 systemd 时，用 <0>sudo systemctl edit dockwell</0> 添加 <1>Environment=DOCKWELL_DOMAIN=…</1> 这一行，然后运行 <2>sudo systemctl restart dockwell</2>。"
 
+#. placeholder {0}: formatBytes(d.usedBytes, i18n.locale)
+msgid "1 backup, {0}"
+msgstr "1 份备份，{0}"
+
+msgid "1 bucket · where backups go beside each server's disk"
+msgstr "1 个存储桶 · 备份在各服务器磁盘之外存放的地方"
+
+msgid "1 connected · the services Dockwell sends backups to and routes behind"
+msgstr "已连接 1 个 · Dockwell 发送备份的服务，以及路由所在的服务"
+
+msgid "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
+msgstr "路由可以位于 Cloudflare 代理之后并信任其地址，或位于 Cloudflare Tunnel 之后，由它终止 TLS。从 Dockwell 管理其 DNS 记录将在之后推出。"
+
+msgid "Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave."
+msgstr "Amazon S3、Cloudflare R2、Backblaze B2、MinIO 或任何 S3 API。备份在离开服务器之前就已加密封存。"
+
+msgid "Any DNS provider"
+msgstr "任何 DNS 服务商"
+
+#. placeholder {0}: d.bucket
+msgid "Bucket <0>{0}</0> at <1>{host}</1>"
+msgstr "存储桶 <0>{0}</0>，位于 <1>{host}</1>"
+
+msgid "Cloud providers"
+msgstr "云服务商"
+
+msgid "Coming later"
+msgstr "之后推出"
+
+msgid "Connect"
+msgstr "连接"
+
+msgid "Credentials for private images. Today a server pulls them as its own docker login lets it."
+msgstr "私有镜像的凭据。目前服务器凭借自己的 docker login 拉取镜像。"
+
+msgid "DNS and proxies"
+msgstr "DNS 和代理"
+
+msgid "Dockwell can't list where backups go"
+msgstr "Dockwell 无法列出备份的去向"
+
+msgid "Git"
+msgstr "Git"
+
+msgid "GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file."
+msgstr "GitHub、GitLab 和 Gitea，在仓库变更时部署应用。目前应用运行的是镜像或 Compose 文件。"
+
+msgid "Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket."
+msgstr "Hetzner、DigitalOcean、Vultr 和 AWS，用于创建和替换服务器。目前服务器通过安装脚本和加入凭证加入。"
+
+msgid "How to route behind it"
+msgstr "如何在其后设置路由"
+
+msgid "Integrations"
+msgstr "集成"
+
+msgid "Manage in Backups"
+msgstr "在备份中管理"
+
+msgid "No backup yet"
+msgstr "尚无备份"
+
+msgid "Object storage"
+msgstr "对象存储"
+
+msgid "Open Domains"
+msgstr "打开域名"
+
+msgid "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
+msgstr "将域名记录指向服务器，Dockwell 就会为它获取证书。域名表单会说明要创建哪条记录，并持续跟踪 DNS 直到生效。"
+
+#. placeholder {0}: words.ago(timestampDate(d.lastUpload), now)
+msgid "Received a backup {0}"
+msgstr "{0}收到一份备份"
+
+msgid "Registries"
+msgstr "镜像仓库"
+
+msgid "S3-compatible storage"
+msgstr "S3 兼容存储"
+
+msgid "Values your apps use live in <0>Variables and secrets</0>"
+msgstr "应用使用的值保存在<0>变量和机密</0>中"
+
+msgid "Works in front of routes"
+msgstr "可用于路由之前"
+
+msgid "in front of a server's routes"
+msgstr "位于服务器路由之前"
+
+msgid "{connected} buckets · where backups go beside each server's disk"
+msgstr "{connected} 个存储桶 · 备份在各服务器磁盘之外存放的地方"
+
+msgid "{connected} connected · the services Dockwell sends backups to and routes behind"
+msgstr "已连接 {connected} 个 · Dockwell 发送备份的服务，以及路由所在的服务"
+
 msgid "1 browser"
 msgstr "1 个浏览器"
 
