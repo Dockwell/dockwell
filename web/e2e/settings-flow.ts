@@ -3,6 +3,7 @@
 // Settings, as Settings-General.dc.html has it for an install: reached from the rail,
 // the install named and given a time zone, each on Activity, how the panel is served
 // and how to change it, a language for this browser, and the sections on a phone.
+// Then Control plane, as Settings-ControlPlane.dc.html has it for one control plane.
 
 import type { Page } from "playwright-core";
 
@@ -55,6 +56,29 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await page.getByRole("region", { name: "语言" }).getByRole("combobox").selectOption("");
   await page.getByRole("heading", { level: 1, name: "General" }).waitFor();
 
+  step("settings: Control plane says what runs it, where its state is, and how to back it up and upgrade it");
+  await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Control plane" }).click();
+  await page.getByRole("heading", { level: 1, name: "Control plane" }).waitFor();
+  const store = page.getByRole("region", { name: "State store" });
+  await store.getByText(/^SQLite \d/).waitFor();
+  await store.getByText(/\/control\/state\.db$/).waitFor();
+  await page
+    .getByRole("region", { name: "Backups" })
+    .getByText(/--exclude control\/key -czf \/root\/dockwell-control\.tgz control agent/)
+    .waitFor();
+  await page
+    .getByRole("region", { name: "Updates" })
+    .getByText(/ runs here$/)
+    .waitFor();
+  await page
+    .getByRole("region", { name: "Agents" })
+    .getByText(/^\d+ connected$/)
+    .waitFor();
+  const replica = page.getByRole("article").first();
+  await replica.getByText("Healthy", { exact: true }).waitFor();
+  await replica.getByText(/with its agent, of a 250 MB budget$/).waitFor();
+  await shoot(page, "settings-control-plane");
+
   step("settings: on a phone, the sections are a list reached from More");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${origin}/more`);
@@ -64,9 +88,23 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await page.getByRole("heading", { level: 1, name: "General" }).waitFor();
   const wide = await page.evaluate(() => document.documentElement.scrollWidth);
   if (wide > 390) fail(`General is ${wide} px wide on a 390 px phone`);
+  await page.goto(`${origin}/settings`);
+  await page.getByRole("link", { name: "Control plane" }).click();
+  await page.getByRole("heading", { level: 1, name: "Control plane" }).waitFor();
+  await page
+    .getByRole("region", { name: "State store" })
+    .getByText(/^SQLite \d/)
+    .waitFor();
+  if ((await page.getByRole("link", { name: "Back", exact: true }).getAttribute("href")) !== "/settings") {
+    fail("Control plane on a phone doesn't lead back to Settings");
+  }
+  const cpWide = await page.evaluate(() => document.documentElement.scrollWidth);
+  if (cpWide > 390) fail(`Control plane is ${cpWide} px wide on a 390 px phone`);
 
   // What later steps and screens read stays as it was.
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${origin}/settings/general`);
+  await page.getByRole("heading", { level: 1, name: "General" }).waitFor();
   await name.fill("");
   await install.getByRole("combobox", { name: "Time zone" }).selectOption("");
   await install.getByRole("button", { name: "Save" }).click();

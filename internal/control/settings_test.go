@@ -3,6 +3,8 @@
 package control
 
 import (
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -10,6 +12,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -192,4 +195,59 @@ func TestASchedulesZoneIsTheInstalls(t *testing.T) {
 			t.Errorf("a schedule that names its zone starts in %q", got)
 		}
 	})
+}
+
+// The control plane says what it runs, where it keeps its state and the key,
+// where agents reach it, and how it's doing, so the panel can say how to back
+// it up and how to upgrade it.
+func TestTheControlPlaneSaysWhatItIs(t *testing.T) {
+	storetest.Each(t, testTheControlPlaneSaysWhatItIs)
+}
+
+func testTheControlPlaneSaysWhatItIs(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	if err := f.ident.SetAgentURL(t.Context(), "https://192.0.2.10:7443"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.ident.SetPublicAgentURLs(t.Context(), []identity.JoinURL{{URL: "https://203.0.113.7:7443", WayIn: true}}); err != nil {
+		t.Fatal(err)
+	}
+	b := signedIn(t, f)
+	c := dockwellv1connect.NewSettingsServiceClient(b, b.origin, connect.WithProtoJSON())
+	got, err := c.GetControlPlane(t.Context(), connect.NewRequest(&dockwellv1.GetControlPlaneRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cp := got.Msg.GetControlPlane()
+	if cp.GetBuild().GetVersion() != testBuild.Version || cp.GetStartTime() == nil {
+		t.Errorf("build %v, started %v: want the one that runs, and when", cp.GetBuild(), cp.GetStartTime())
+	}
+	if cp.GetDataDir() != f.config.DataDir || cp.GetKeyFile() != filepath.Join(f.config.DataDir, "key") {
+		t.Errorf("data in %q, key %q", cp.GetDataDir(), cp.GetKeyFile())
+	}
+	st := cp.GetStore()
+	engine := map[store.Backend]dockwellv1.StateStoreEngine{
+		store.SQLite:   dockwellv1.StateStoreEngine_STATE_STORE_ENGINE_SQLITE,
+		store.Postgres: dockwellv1.StateStoreEngine_STATE_STORE_ENGINE_POSTGRES,
+	}[backend]
+	if st.GetEngine() != engine || st.GetVersion() == "" || st.GetSizeBytes() <= 0 || st.GetRoundTrip() == nil {
+		t.Errorf("the state store is %v", st)
+	}
+	if strings.Contains(st.GetLocation(), "password") || strings.Contains(st.GetLocation(), ":"+"secret@") {
+		t.Errorf("the state store's location %q says its password", st.GetLocation())
+	}
+	if backend == store.SQLite && st.GetLocation() != f.db {
+		t.Errorf("the SQLite file is at %q, want %q", st.GetLocation(), f.db)
+	}
+	agents := cp.GetAgents()
+	if agents.GetListen() != f.agentAddr || agents.GetUrl() != "https://192.0.2.10:7443" ||
+		strings.Join(agents.GetPublicUrls(), " ") != "https://203.0.113.7:7443" {
+		t.Errorf("agents reach it as %v", agents)
+	}
+	if cp.GetPanel().GetListen() != f.config.PanelListen || cp.GetPanel().GetServedBy() != dockwellv1.PanelServedBy_PANEL_SERVED_BY_NONE {
+		t.Errorf("the panel is served as %v", cp.GetPanel())
+	}
+	if runtime.GOOS == "linux" && cp.GetMemoryBytes() < 1<<20 {
+		t.Errorf("it holds %d bytes, want its resident set", cp.GetMemoryBytes())
+	}
 }

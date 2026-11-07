@@ -7090,6 +7090,192 @@ msgstr "{provider} 的元数据服务给出此地址，{when}"
 msgid "up {uptime}"
 msgstr "已运行 {uptime}"
 
+msgid "A file beside the control plane, for one control plane"
+msgstr "控制平面旁的一个文件，适用于单个控制平面"
+
+msgid "A server that joined upgrades the same way: run the install script again on it."
+msgstr "已加入的服务器以同样方式升级：在它上面再次运行安装脚本。"
+
+msgid "Agents"
+msgstr "代理"
+
+msgid "Agents connect to"
+msgstr "代理连接到"
+
+msgid "Answering"
+msgstr "正在响应"
+
+msgid "Answers in"
+msgstr "响应时间"
+
+msgid "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
+msgstr "应用的卷和数据库有各自的备份，见<0>备份</0>。"
+
+msgid "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
+msgstr "像备份任何 Postgres 数据库一样用 <0>pg_dump</0> 备份它，并按下面的方法复制控制平面的文件夹和密钥。"
+
+msgid "Built from {commit}"
+msgstr "由 {commit} 构建"
+
+msgid "Built {built} from {commit}"
+msgstr "{built} 由 {commit} 构建"
+
+msgid "By hand, for now"
+msgstr "目前需手动"
+
+msgid "Dockwell can't say how its control plane is"
+msgstr "Dockwell 无法获知其控制平面的状态"
+
+msgid "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
+msgstr "Dockwell 还不会备份自己的状态。请把它复制到这台服务器之外，并把密钥分开存放：密钥能打开状态存储中的所有机密，没有密钥，存储的副本一个也打不开。"
+
+msgid "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
+msgstr "Dockwell 还不会检查新版本或自行升级。要安装特定版本，请将命令结尾改为 <0>sudo sh -s -- --version 0.4.0</0>。"
+
+msgid "Engine"
+msgstr "引擎"
+
+msgid "From elsewhere"
+msgstr "从其他网络"
+
+msgid "From its network"
+msgstr "从它所在的网络"
+
+msgid "How to back it up and restore it"
+msgstr "如何备份和恢复"
+
+msgid "How to change settings"
+msgstr "如何更改设置"
+
+msgctxt "encryption"
+msgid "Key"
+msgstr "密钥"
+
+msgid "Location"
+msgstr "位置"
+
+msgid "One · if it stops, the panel and API stop with it, and servers keep running what they run"
+msgstr "一个 · 它停止时，面板和 API 随之停止，服务器上运行的内容照常运行"
+
+msgid "Opens every secret the store keeps"
+msgstr "能打开存储中的所有机密"
+
+msgid "Panel and API"
+msgstr "面板和 API"
+
+msgid "Panel, API and scheduler for this install"
+msgstr "这个安装的面板、API 和调度器"
+
+#. placeholder {0}: own.name
+msgid "Panel, API and scheduler for this install · one replica, on {0}"
+msgstr "这个安装的面板、API 和调度器 · 一个副本，位于 {0}"
+
+msgid "Panel, API and scheduler for {name}"
+msgstr "{name} 的面板、API 和调度器"
+
+#. placeholder {0}: own.name
+msgid "Panel, API and scheduler for {name} · one replica, on {0}"
+msgstr "{name} 的面板、API 和调度器 · 一个副本，位于 {0}"
+
+msgid "PostgreSQL"
+msgstr "PostgreSQL"
+
+msgid "Ready for more than one control plane"
+msgstr "可支持多个控制平面"
+
+msgid "Releases"
+msgstr "版本发布"
+
+msgid "Replicas"
+msgstr "副本"
+
+msgid "SQLite, on this server"
+msgstr "SQLite，在这台服务器上"
+
+msgctxt "on disk"
+msgid "Size"
+msgstr "磁盘占用"
+
+msgid "State store"
+msgstr "状态存储"
+
+msgid "Stop Dockwell for the copy, so the store is whole. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "复制时请先停止 Dockwell，以保证存储完整。停止期间你的应用照常提供服务，Dockwell 恢复后服务器会重新连接。"
+
+msgid "The version that runs here is unknown"
+msgstr "无法得知这里运行的版本"
+
+msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
+msgstr "然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1> 移出服务器，分别存放在两个不同的地方。"
+
+msgid "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
+msgstr "这些取决于 Dockwell 的启动方式。面板的域名在<0>常规</0>中；其余的也以同样方式设置。"
+
+msgid "This control plane"
+msgstr "当前控制平面"
+
+msgid "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
+msgstr "要升级，请以 root 身份在这台服务器上再次运行安装脚本。如果有新版本，它会验证并安装，然后重启 Dockwell。你的应用照常提供服务。"
+
+msgid "agent"
+msgstr "个代理"
+
+msgid "agent · {versions}"
+msgstr "个代理 · {versions}"
+
+msgid "agents"
+msgstr "个代理"
+
+msgid "agents · {versions}"
+msgstr "个代理 · {versions}"
+
+msgid "all on {short}"
+msgstr "全部为 {short}"
+
+msgid "hasn't connected yet"
+msgstr "尚未连接"
+
+#. placeholder {0}: words.ago(timestampDate(s.lastSeenTime), now)
+msgid "not connected, last heard {0}"
+msgstr "未连接，最后一次联系在 {0}"
+
+msgid "on loopback"
+msgstr "在回环地址上"
+
+#. placeholder {0}: shortVersion(s.agentBuild?.version ?? "")
+msgid "runs {0}"
+msgstr "运行 {0}"
+
+msgid "under 0.1 ms"
+msgstr "不到 0.1 毫秒"
+
+#. placeholder {0}: connected.length
+msgid "{0} connected"
+msgstr "{0} 个已连接"
+
+#. placeholder {0}: formatFixed(trip, trip < 10 ? 1 : 0, i18n.locale)
+msgid "{0} ms"
+msgstr "{0} 毫秒"
+
+#. placeholder {0}: count - behind.length
+#. placeholder {1}: behind.length
+msgid "{0} on {short}, {1} on another version"
+msgstr "{0} 个为 {short}，{1} 个为其他版本"
+
+#. placeholder {0}: shortVersion(build.version)
+msgid "{0} runs here"
+msgstr "这里运行的是 {0}"
+
+#. placeholder {0}: formatBytes(memory, i18n.locale)
+#. placeholder {1}: formatBytes(BUDGET_BYTES, i18n.locale)
+msgid "{0} with its agent, of a {1} budget"
+msgstr "{0}（含其代理），预算为 {1}"
+
+#. placeholder {0}: words.span(Math.max(0, now - started.getTime()))
+#. placeholder {1}: formatDay(started, i18n.locale)
+msgid "{0}, since {1}"
+msgstr "{0}，自 {1} 起"
+
 msgid "A change goes on Activity, with what it replaced."
 msgstr "每次更改都会连同被替换的值记入动态。"
 
@@ -7113,9 +7299,6 @@ msgstr "常规"
 
 msgid "HTTPS"
 msgstr "HTTPS"
-
-msgid "How to change settings"
-msgstr "如何更改设置"
 
 msgid "Language"
 msgstr "语言"
@@ -7185,6 +7368,9 @@ msgstr "账户"
 
 msgid "Install"
 msgstr "安装"
+
+msgid "Platform"
+msgstr "平台"
 
 msgid "Settings"
 msgstr "设置"
@@ -7399,14 +7585,8 @@ msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方�
 msgid "Go"
 msgstr "Go"
 
-msgid "Platform"
-msgstr "平台"
-
 msgid "The control plane is running"
 msgstr "控制平面正在运行"
-
-msgid "This control plane"
-msgstr "当前控制平面"
 
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务器上的 <0>dockwell run</0> 仍在运行，然后重试。"
