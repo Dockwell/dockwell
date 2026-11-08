@@ -61,8 +61,12 @@ const (
 // AccessWait is a change to who reaches a server that waits for the person who
 // applied it to confirm they still can, before the server puts back what it had.
 type AccessWait struct {
-	// Deadline is when the server puts back what it had, unless confirmed first.
+	// Deadline is when the server puts back what it had, unless confirmed first,
+	// by the clock of whoever says it.
 	Deadline time.Time `json:"deadline"`
+	// Left is how long there was until the deadline as it was said, so the
+	// control plane reads the deadline by its own clock, whatever the agent's.
+	Left time.Duration `json:"left,omitempty"`
 	// SSHPorts are the ports SSH listens on now, for the test the person runs:
 	// a new SSH session, from where they are, with their key.
 	SSHPorts []uint32 `json:"ssh_ports,omitempty"`

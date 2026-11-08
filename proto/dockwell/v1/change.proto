@@ -359,10 +359,19 @@ message ApplyChangeRequest {
   string proof = 3;
 }
 
-// ConfirmChangeRequest names a change that waits for its confirmation.
+// ConfirmChangeRequest names a change that waits for its confirmation, and the
+// server whose confirmation it is, as a change to several servers waits on each
+// in turn.
 message ConfirmChangeRequest {
   // The change's ID.
   string id = 1;
+  // The server the confirmation is for: the one you checked you can still
+  // reach. It's refused unless that server waits now.
+  string server_id = 2;
+  // The deadline the confirmation answers, as the change said it. When it's
+  // set, it's refused unless the server still waits for that deadline, so a
+  // confirmation sent twice can't keep a wait it wasn't for.
+  google.protobuf.Timestamp deadline = 3;
 }
 
 // ConfirmChangeResponse carries the change, which goes on applying, or ends

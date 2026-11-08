@@ -53,6 +53,9 @@ type Table struct {
 	// DockerInterfaces are Docker's networks' interfaces, from Docker's network
 	// list. Traffic arriving on them, from containers, isn't filtered.
 	DockerInterfaces []string
+	// NoDocker is a server without Docker: nothing it forwards is a port Docker
+	// publishes, so the table leaves forwarding alone, as libvirt's or LXD's.
+	NoDocker bool
 }
 
 // keepsReachable is what every table lets in first, so the server stays
@@ -168,10 +171,13 @@ func (t Table) Script() (string, error) {
 	b.WriteString("\tchain forward {\n")
 	b.WriteString("\t\ttype filter hook forward priority filter; policy accept;\n")
 	// Docker's alone, so other port forwards on the server, such as libvirt's,
-	// LXD's or k3s's, aren't filtered as published ports.
-	if ifs := t.dockerSet(); ifs != "" {
+	// LXD's or k3s's, aren't filtered as published ports; with Docker's networks
+	// unknown, every one is; with no Docker, none is.
+	switch ifs := t.dockerSet(); {
+	case t.NoDocker:
+	case ifs != "":
 		fmt.Fprintf(&b, "\t\tct status dnat iifname != %s oifname %s jump published\n", ifs, ifs)
-	} else {
+	default:
 		b.WriteString("\t\tct status dnat jump published\n")
 	}
 	b.WriteString("\t}\n")

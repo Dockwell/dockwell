@@ -36,10 +36,12 @@ type Backend interface {
 }
 
 // Checker is a backend that refuses, when a change is planned, a rule or a
-// policy the server can't take safely: one that would narrow SSH with nobody's
-// address to keep, or deny the control plane's own ports (ADR 0052).
+// policy that leaves the server unsafe to reach: one that narrows SSH with
+// nobody's address to keep, or denies the control plane's own ports (ADR
+// 0052). It judges the state the edit leaves: actual is what's there now, nil
+// for nothing, and desired what it becomes, nil to delete it.
 type Checker interface {
-	CheckRule(desired *resourcev1.FirewallRule) error
+	CheckRule(actual, desired *resourcev1.FirewallRule) error
 	CheckPolicy(desired *resourcev1.FirewallPolicy) error
 }
 
@@ -127,8 +129,9 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 	return r, nil
 }
 
-// Plan never has downtime, but flags a rule that may cut off access, and lets
-// the backend refuse one the server can't take safely.
+// Plan never has downtime, but flags a rule that may cut off access: a deny, or
+// an allow deleted or narrowed, which under deny everything else drops what it
+// let in. It lets the backend refuse what leaves the server unsafe to reach.
 func (d *Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
 	var dec resource.Decision
 	switch {
@@ -139,17 +142,54 @@ func (d *Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resou
 	default:
 		dec.Action = resource.ActionUpdate
 	}
-	if r, ok := desired.(*resourcev1.FirewallRule); ok {
-		if blocksSSH(r) || r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY {
-			dec.Warnings = append(dec.Warnings, resource.WarningMayLockOut)
-		}
-		if c, ok := d.Backend.(Checker); ok {
-			if err := c.CheckRule(r); err != nil {
-				return dec, err
-			}
+	was, _ := actual.(*resourcev1.FirewallRule)
+	r, _ := desired.(*resourcev1.FirewallRule)
+	if blocksSSH(r) || r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY || narrows(was, r) {
+		dec.Warnings = append(dec.Warnings, resource.WarningMayLockOut)
+	}
+	if c, ok := d.Backend.(Checker); ok {
+		if err := c.CheckRule(was, r); err != nil {
+			return dec, err
 		}
 	}
 	return dec, nil
+}
+
+// narrows says whether an edit takes away some of what an allow let in: it
+// deletes it, makes it a deny, moves it, or lets in from fewer places.
+func narrows(was, r *resourcev1.FirewallRule) bool {
+	if was == nil || was.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY {
+		return false
+	}
+	if r == nil || r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY ||
+		r.GetPort() != was.GetPort() || r.GetProtocol() != was.GetProtocol() {
+		return true
+	}
+	return !covers(r.GetSources(), was.GetSources())
+}
+
+// covers says whether sources take in every address of others; empty is
+// anywhere.
+func covers(sources, others []string) bool {
+	if len(sources) == 0 {
+		return true
+	}
+	if len(others) == 0 {
+		return false
+	}
+	for _, o := range others {
+		p, err := netip.ParsePrefix(o)
+		if err != nil {
+			return false
+		}
+		if !slices.ContainsFunc(sources, func(s string) bool {
+			q, err := netip.ParsePrefix(s)
+			return err == nil && q.Bits() <= p.Bits() && q.Contains(p.Addr())
+		}) {
+			return false
+		}
+	}
+	return true
 }
 
 // blocksSSH reports a rule that denies SSH from anywhere: no sources, or a

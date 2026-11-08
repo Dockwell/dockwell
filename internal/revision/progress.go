@@ -64,7 +64,10 @@ type StepProgress struct {
 	Lost bool `json:"lost,omitempty"`
 	// Confirm is what the step waits for, while a change to who reaches its
 	// server waits for the person who applied it to confirm they still can.
-	Confirm *resource.AccessWait `json:"confirm,omitempty"`
+	// It belongs to the run that waits, so it isn't stored: a control plane
+	// that starts again can't confirm it, and the server's timer puts back its
+	// firewall.
+	Confirm *resource.AccessWait `json:"-"`
 	// Note is what the step found that changed what it did, such as a pull that
 	// found nothing newer.
 	Started  time.Time `json:"started,omitzero"`
@@ -405,22 +408,23 @@ func (e *Engine) awaits(changeID string, i int, w resource.AccessWait) {
 	e.publishLocked(changeID, Update{Index: i, Step: &step})
 }
 
-// Awaiting is the server where a change waits for its confirmation, and what
-// it waits for, if it does.
-func (e *Engine) Awaiting(changeID string) (string, *resource.AccessWait) {
+// Awaiting is what a change waits for on a server, if it waits there for its
+// confirmation now. Only a running step waits: step clears what one waited for
+// as it moves on.
+func (e *Engine) Awaiting(changeID, server string) *resource.AccessWait {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
 	p, ok := e.live[changeID]
 	if !ok {
-		return "", nil
+		return nil
 	}
 	for i := range p.Steps {
-		if s := &p.Steps[i]; s.Confirm != nil && s.State == StepRunning {
+		if s := &p.Steps[i]; s.Confirm != nil && s.Server == server {
 			w := *s.Confirm
-			return s.Server, &w
+			return &w
 		}
 	}
-	return "", nil
+	return nil
 }
 
 // announce tells a change's watchers that a step moved on; nil tells them

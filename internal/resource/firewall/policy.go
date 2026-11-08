@@ -77,7 +77,7 @@ func (d *PolicyDriver) Observe(ctx context.Context, _ resource.Ref) (proto.Messa
 }
 
 // Plan flags turning deny everything else on as able to cut off access, and
-// lets the backend refuse it where the server can't take it safely.
+// lets the backend refuse a policy that leaves the server unsafe to reach.
 func (d *PolicyDriver) Plan(actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
 	var dec resource.Decision
 	switch {
@@ -88,12 +88,13 @@ func (d *PolicyDriver) Plan(actual, desired proto.Message, _ []resource.Change) 
 	default:
 		dec.Action = resource.ActionUpdate
 	}
-	if p, ok := desired.(*resourcev1.FirewallPolicy); ok && p.GetDenyEverythingElse() {
+	p, _ := desired.(*resourcev1.FirewallPolicy)
+	if p.GetDenyEverythingElse() {
 		dec.Warnings = append(dec.Warnings, resource.WarningMayLockOut)
-		if c, ok := d.Backend.(Checker); ok {
-			if err := c.CheckPolicy(p); err != nil {
-				return dec, err
-			}
+	}
+	if c, ok := d.Backend.(Checker); ok {
+		if err := c.CheckPolicy(p); err != nil {
+			return dec, err
 		}
 	}
 	return dec, nil

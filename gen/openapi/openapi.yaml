@@ -6085,7 +6085,22 @@ components:
                 id:
                     type: string
                     description: The change's ID.
-            description: ConfirmChangeRequest names a change that waits for its confirmation.
+                serverId:
+                    type: string
+                    description: |-
+                        The server the confirmation is for: the one you checked you can still
+                         reach. It's refused unless that server waits now.
+                deadline:
+                    type: string
+                    description: |-
+                        The deadline the confirmation answers, as the change said it. When it's
+                         set, it's refused unless the server still waits for that deadline, so a
+                         confirmation sent twice can't keep a wait it wasn't for.
+                    format: date-time
+            description: |-
+                ConfirmChangeRequest names a change that waits for its confirmation, and the
+                 server whose confirmation it is, as a change to several servers waits on each
+                 in turn.
         ConfirmChangeResponse:
             type: object
             properties:

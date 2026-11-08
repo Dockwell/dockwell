@@ -3251,7 +3251,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		return 1
 	}
 	slices.SortStableFunc(builds, func(a, b queued) int { return backupFirst(a) - backupFirst(b) })
-	queue := slices.Concat(builds, deletes)
+	queue := accessLast(e, plan, slices.Concat(builds, deletes), func(q queued) (string, resource.Kind) { return q.server, q.step.Ref.Kind })
 	digests := map[at]string{}
 
 	// A removed server takes no steps. What the change took off it is
@@ -4284,6 +4284,29 @@ func (e *Engine) holdsToo(ctx context.Context, tx *store.Tx, items []item) ([]it
 	return held, nil
 }
 
+// accessLast puts the steps of kinds under the firewall's timer after every
+// other step, each server's together, in their order: a change waits on a
+// server for its confirmation at its last such step there, under a timer that
+// starts at its first, so nothing else runs while the timer does, neither a
+// slow step of another kind nor another server's wait (ADR 0052). A rule
+// depends on nothing, so where it runs in the change is free.
+func accessLast[Q any](e *Engine, plan *Plan, queue []Q, of func(Q) (string, resource.Kind)) []Q {
+	var rest []Q
+	access := map[string][]Q{}
+	for _, q := range queue {
+		server, kind := of(q)
+		if e.guardsAccess(kind) {
+			access[server] = append(access[server], q)
+		} else {
+			rest = append(rest, q)
+		}
+	}
+	for _, server := range serversOf(plan) {
+		rest = append(rest, access[server]...)
+	}
+	return rest
+}
+
 // TouchesAccess says whether a plan changes who reaches a server: it has a step
 // of a kind under the firewall's timer, so it waits for a confirmation, and
 // takes a person and a passkey to apply.
@@ -4298,10 +4321,12 @@ type AccessConfirmer interface {
 }
 
 // ConfirmAccess confirms a change that waits on a server for its confirmation,
-// through that server's agent, and says what the agent did.
-func (e *Engine) ConfirmAccess(ctx context.Context, changeID string) (resource.AccessVerdict, error) {
-	server, _ := e.Awaiting(changeID)
-	if server == "" {
+// through that server's agent, and says what the agent did. With a deadline,
+// it confirms only the wait that has it, so a confirmation sent again can't
+// keep another.
+func (e *Engine) ConfirmAccess(ctx context.Context, changeID, server string, deadline time.Time) (resource.AccessVerdict, error) {
+	w := e.Awaiting(changeID, server)
+	if w == nil || !deadline.IsZero() && !deadline.Equal(w.Deadline) {
 		return resource.AccessNotWaiting, nil
 	}
 	agent, online := e.agents.Agent(server)

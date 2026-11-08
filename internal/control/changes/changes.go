@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -351,12 +352,13 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		giveBack = back
 	}
 	if access {
-		h.mu.Lock()
-		h.appliedIn[r.ID] = p.Session.ID
-		h.mu.Unlock()
+		h.remember(ctx, r.ID, p.Session.ID)
 	}
 	if err := h.engine.Start(ctx, r.ID, who); err != nil {
 		giveBack()
+		if access {
+			h.forget(r.ID)
+		}
 		return nil, h.rpcError(ctx, err)
 	}
 	c, err := h.change(ctx, r.ID)
@@ -377,13 +379,13 @@ func stepUpNeeded(err error, action dockwellv1.StepUpAction, target string) erro
 }
 
 // ConfirmChange keeps a change to who reaches a server that waits for its
-// confirmation, for the person who applied it, in that session.
+// confirmation there, for the person who applied it, in that session.
 func (h *Handler) ConfirmChange(ctx context.Context, req *connect.Request[dockwellv1.ConfirmChangeRequest]) (*connect.Response[dockwellv1.ConfirmChangeResponse], error) {
 	_, p, err := by(ctx)
 	if err != nil {
 		return nil, err
 	}
-	changeID := req.Msg.GetId()
+	changeID, server := req.Msg.GetId(), req.Msg.GetServerId()
 	h.mu.Lock()
 	session, known := h.appliedIn[changeID]
 	h.mu.Unlock()
@@ -391,38 +393,77 @@ func (h *Handler) ConfirmChange(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
 			fmt.Errorf("only the person who applied %s may confirm it, in the session they applied it from, as they check they can still reach the server", changeID), "not_yours")
 	}
+	if server == "" {
+		return nil, authapi.Invalid(errors.New("a confirmation names its server, server_id, as a change to several servers waits on each in turn. Take it from the change's confirmation"))
+	}
 	r, err := h.engine.Change(ctx, changeID)
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
 	if r.State != store.ChangeApplying {
 		// It's over, so nothing of it waits on any of its servers now.
-		h.mu.Lock()
-		delete(h.appliedIn, changeID)
-		h.mu.Unlock()
+		h.forget(changeID)
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s is %s, so there's nothing of it to confirm", changeID, r.State), "not_waiting")
 	}
-	verdict, err := h.engine.ConfirmAccess(ctx, changeID)
+	var deadline time.Time
+	if d := req.Msg.GetDeadline(); d != nil {
+		deadline = d.AsTime()
+	}
+	verdict, err := h.engine.ConfirmAccess(ctx, changeID, server, deadline)
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
-	switch verdict {
-	case resource.AccessKept:
-		// A change to several servers waits on each in turn, so the session stays
-		// the one to confirm it until it's over.
-	case resource.AccessRolledBack:
-		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
-			fmt.Errorf("the server's time for %s ran out before the confirmation reached it, so it put back its firewall as it was, and the change rolls back", changeID), "rolled_back")
-	case resource.AccessNotWaiting:
-		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
-			fmt.Errorf("nothing of %s waits for a confirmation on its server now. Watch the change to see how it ended", changeID), "not_waiting")
+	if err := verdictError(changeID, verdict); err != nil {
+		return nil, err
 	}
 	c, err := h.change(ctx, changeID)
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.ConfirmChangeResponse{Change: c}), nil
+}
+
+// verdictError is what a confirmation answers for what the server did with it:
+// nothing when it kept the change.
+func verdictError(changeID string, v resource.AccessVerdict) error {
+	switch v {
+	case resource.AccessKept:
+		// A change to several servers waits on each in turn, so the session stays
+		// the one to confirm it until it's over.
+		return nil
+	case resource.AccessRolledBack:
+		return authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("the server's time for %s ran out before the confirmation reached it, so it put back its firewall as it was, and the change rolls back", changeID), "rolled_back")
+	case resource.AccessNotWaiting:
+	}
+	return authapi.ReasonError(connect.CodeFailedPrecondition,
+		fmt.Errorf("nothing of %s waits for that confirmation on that server now. Watch the change to see what it waits for, or how it ended", changeID), "not_waiting")
+}
+
+// remember keeps the session a change to who reaches a server was applied
+// from, and forgets those of changes that are over. It lives in memory: a
+// control plane that starts again during a wait has nobody who may confirm
+// it, and the server's timer puts back its firewall.
+func (h *Handler) remember(ctx context.Context, changeID, session string) {
+	h.mu.Lock()
+	ids := slices.Collect(maps.Keys(h.appliedIn))
+	h.appliedIn[changeID] = session
+	h.mu.Unlock()
+	for _, id := range ids {
+		if id == changeID {
+			continue
+		}
+		if r, err := h.engine.Change(ctx, id); err == nil && r.State != store.ChangeApplying {
+			h.forget(id)
+		}
+	}
+}
+
+func (h *Handler) forget(changeID string) {
+	h.mu.Lock()
+	delete(h.appliedIn, changeID)
+	h.mu.Unlock()
 }
 
 // noteUnconfirmed puts on record a plan as good as root that someone tried to apply,

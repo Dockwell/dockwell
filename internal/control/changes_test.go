@@ -61,6 +61,9 @@ type gate struct {
 }
 
 func (g *gate) Put(ctx context.Context, name string, rule *resourcev1.FirewallRule) error {
+	if name == "refused" {
+		return errors.New("the kernel refused the rule")
+	}
 	if name == "slow" {
 		g.started <- struct{}{}
 		select {
@@ -738,13 +741,14 @@ func testAFailedApplyRollsBack(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	hz1 := f.addServer(t, true)
-	hz1.docker.Broken["nginx:broken"] = true
 	c := changeClient(b, b.origin)
 
-	failed := apply(t, c, propose(t, c, "Open http and run web", ruleEdit("http", 80), ruleEdit("https", 443),
-		webEdit("nginx:broken", nil)))
-	if failed.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || failed.GetRolledBackBy() == "" || !strings.Contains(failed.GetError(), "isn't healthy") {
-		t.Fatalf("a change with a broken image = %v, want it failed and rolled back", failed)
+	// The firewall's steps run after the others (ADR 0052): web, then http,
+	// then a rule the server refuses.
+	failed := apply(t, c, propose(t, c, "Run web and open http", webEdit("nginx:1.27", nil), ruleEdit("http", 80),
+		ruleEdit("refused", 443)))
+	if failed.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || failed.GetRolledBackBy() == "" || !strings.Contains(failed.GetError(), "refused the rule") {
+		t.Fatalf("a change with a rule the server refuses = %v, want it failed and rolled back", failed)
 	}
 	var states []dockwellv1.StepState
 	for _, s := range failed.GetSteps() {
@@ -762,6 +766,9 @@ func testAFailedApplyRollsBack(t *testing.T, backend store.Backend) {
 	}
 	if hz1.fw.Len() != 0 {
 		t.Errorf("after the rollback hz-1 has %d rules, want none", hz1.fw.Len())
+	}
+	if got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"}); got != nil {
+		t.Errorf("after the rollback hz-1 runs web as %v, want it gone", got)
 	}
 }
 
@@ -810,6 +817,9 @@ func testADroppedStreamResumesOnReconnect(t *testing.T, backend store.Backend) {
 	}
 	if hz1.fw.Len() != 0 {
 		t.Errorf("after the rollback hz-1 has %d rules, want none", hz1.fw.Len())
+	}
+	if got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"}); got != nil {
+		t.Errorf("after the rollback hz-1 runs web as %v, want it gone", got)
 	}
 }
 

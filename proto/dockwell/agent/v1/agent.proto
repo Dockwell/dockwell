@@ -257,6 +257,9 @@ message AccessWait {
   google.protobuf.Timestamp deadline = 1;
   // The ports SSH listens on now, for the test the person runs first.
   repeated uint32 ssh_ports = 2;
+  // How long there was until the deadline when the agent said it, so the
+  // control plane counts down by its own clock, whatever the agent's.
+  google.protobuf.Duration left = 3;
 }
 
 // Kinds lists the kinds of resource an agent can run now, and why it

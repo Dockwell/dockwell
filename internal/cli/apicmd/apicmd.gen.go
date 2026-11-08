@@ -427,6 +427,8 @@ func Methods() []*apicli.Method {
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The change's ID.", Arg: true},
+				{Path: "server_id", Help: "The server the confirmation is for: the one you checked you can still reach. It's refused unless that server waits now."},
+				{Path: "deadline", Help: "The deadline the confirmation answers, as the change said it. When it's set, it's refused unless the server still waits for that deadline, so a confirmation sent twice can't keep a wait it wasn't for."},
 			},
 			Call: apicli.Unary[v1.ConfirmChangeRequest, v1.ConfirmChangeResponse](dockwellv1connect.ChangeServiceConfirmChangeProcedure),
 		},

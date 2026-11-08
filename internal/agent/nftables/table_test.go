@@ -87,6 +87,14 @@ func TestScriptWithNoPolicyAndNoDocker(t *testing.T) {
 	if !strings.Contains(got, "\t\tct status dnat jump published\n") {
 		t.Errorf("script doesn't send every translated packet to its rules:\n%s", got)
 	}
+	// With no Docker on the server, nothing it forwards is a published port.
+	none, err := Table{Denies: []Rule{{Name: "rule x", Protocol: "tcp", Ports: []uint16{3306}}}, NoDocker: true}.Script()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(none, "jump published") || !strings.Contains(none, "tcp dport 3306 drop") {
+		t.Errorf("with no Docker the script filters what the server forwards, or drops its rule:\n%s", none)
+	}
 }
 
 // An IPv4 address written as IPv6, as ::ffff:203.0.113.0/120, matches IPv4

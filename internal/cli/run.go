@@ -251,7 +251,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		reserved = panel.Domain
 	}
 	tools := hostTools(stdio)
-	firewalls := firewallAccess(ctx, logger, dir, tools, client, ownPorts)
+	firewalls := firewallAccess(ctx, logger, dir, tools, dockerOrNot(client, socket, err), ownPorts)
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
@@ -267,7 +267,16 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 // change that waited for its confirmation when the agent stopped, and loads
 // what was confirmed, before the agent connects anywhere. Until it can, the
 // agent offers no firewall kinds.
-func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, tools *hosttool.Runner, client *docker.Client, ownPorts []int) *access.Manager {
+// dockerOrNot reads Docker's networks for the firewall, or nothing where the
+// agent can't reach any Docker, as a server without Docker has none.
+func dockerOrNot(client *docker.Client, socket string, unusable error) func(context.Context) (access.DockerNetworks, error) {
+	if unusable != nil {
+		return nil
+	}
+	return access.DockerReader(client, socket)
+}
+
+func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, tools *hosttool.Runner, networks func(context.Context) (access.DockerNetworks, error), ownPorts []int) *access.Manager {
 	own := make([]uint16, 0, len(ownPorts))
 	for _, p := range ownPorts {
 		if p > 0 && p < 65536 {
@@ -277,7 +286,7 @@ func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, t
 	pins := &access.PinReader{Proc: os.DirFS("/proc"), Tools: tools, Own: own}
 	m := &access.Manager{
 		Dir: filepath.Join(dir.Agent(), "access"), Table: &nftables.Firewall{Run: tools}, Logger: logger,
-		Pins: pins.Read, Docker: access.DockerInterfaces(client),
+		Pins: pins.Read, Docker: networks,
 	}
 	if err := m.Ready(ctx); err != nil {
 		logger.InfoContext(ctx, "the agent offers no firewall kinds until this server can hold Dockwell's firewall", slog.String("reason", err.Error()))

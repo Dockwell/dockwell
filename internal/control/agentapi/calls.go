@@ -1428,12 +1428,18 @@ func (s *Session) RunTask(ctx context.Context, ref resource.Ref) (*dockwellv1.Ta
 	return r.GetRunTask().GetRun(), nil
 }
 
-// accessWait reads what a step waits for, if anything.
+// accessWait reads what a step waits for, if anything, with its deadline by
+// the control plane's clock where the agent said how long was left.
 func accessWait(w *agentv1.AccessWait) *resource.AccessWait {
 	if w == nil {
 		return nil
 	}
-	return &resource.AccessWait{Deadline: w.GetDeadline().AsTime(), SSHPorts: w.GetSshPorts()}
+	out := &resource.AccessWait{Deadline: w.GetDeadline().AsTime(), SSHPorts: w.GetSshPorts()}
+	if left := w.GetLeft(); left != nil {
+		out.Left = left.AsDuration()
+		out.Deadline = time.Now().Add(out.Left)
+	}
+	return out
 }
 
 // ConfirmAccess confirms a change to the server's firewall that waits for its

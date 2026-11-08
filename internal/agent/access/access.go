@@ -6,7 +6,7 @@
 // once, under a timer; the person who applied it confirms they can still reach
 // the server, and the agent records it as confirmed on disk before it says it
 // kept it. If nobody does in time, or the agent stops first, the agent puts
-// back the table as it was last confirmed, on its own.
+// back the table as it loaded when it was last confirmed, on its own.
 package access
 
 import (
@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -39,6 +40,10 @@ const Timer = 60 * time.Second
 // waitGrace is how much longer than its timer a step waits for its verdict,
 // for the verdict to be reached.
 const waitGrace = 30 * time.Second
+
+// readWait bounds each read of the server a change makes before it loads: the
+// pins, from /proc and systemd, and Docker's networks.
+const readWait = 15 * time.Second
 
 // keptVerdicts is how many changes' verdicts the agent remembers, for a late
 // confirmation or a resumed step to hear.
@@ -62,19 +67,27 @@ type Manager struct {
 	// Pins says what keeps the server reachable beyond the table's own: SSH from
 	// where people come in now, and the control plane's ports on its server.
 	Pins func(ctx context.Context) (Pins, error)
-	// Docker lists Docker's networks' interfaces. Nil lists none.
-	Docker func(ctx context.Context) ([]string, error)
+	// Docker reads Docker's networks. Nil is a server without Docker.
+	Docker func(ctx context.Context) (DockerNetworks, error)
 	Logger *slog.Logger
 	// Timer replaces Timer, for a test.
 	Timer time.Duration
 	now   func() time.Time
+	after func(time.Duration, func()) stopper
+	// readWait replaces readWait, for a test.
+	readWait time.Duration
 
 	mu        sync.Mutex
-	confirmed state
+	confirmed confirmedState
 	waiting   *pending
 	verdicts  []verdict
-	probed    bool
-	unusable  error
+	// docker is Docker's networks as it last listed them, nil until it has.
+	docker   *DockerNetworks
+	probed   bool
+	unusable error
+	// unrestored says why the table as confirmed isn't loaded, after a revert
+	// or a start that couldn't load it: the agent tries again at each check.
+	unrestored error
 }
 
 var (
@@ -85,10 +98,21 @@ var (
 	_ resource.SharedReadier = (*Manager)(nil)
 )
 
-// state is the rules and policy, by name, as the table holds them.
+// state is the rules and policy, by name, and the SSH pins they keep.
 type state struct {
 	Rules  map[string]*resourcev1.FirewallRule
 	Policy *resourcev1.FirewallPolicy
+	Pinned Pinned
+}
+
+// Pinned are the SSH ports and addresses a state keeps reaching SSH: those of
+// every session open as a change to it loaded, kept from one confirmed change
+// to the next, so a person who logged out since isn't locked out at the next
+// load, a restart or a revert. Only a change could drop one, and no kind of
+// change does yet.
+type Pinned struct {
+	SSHPorts []uint16       `json:"ssh_ports,omitempty"`
+	SSHFrom  []netip.Prefix `json:"ssh_from,omitempty"`
 }
 
 func (s state) clone() state {
@@ -99,21 +123,38 @@ func (s state) clone() state {
 	if s.Policy != nil {
 		out.Policy = proto.CloneOf(s.Policy)
 	}
+	out.Pinned = Pinned{SSHPorts: slices.Clone(s.Pinned.SSHPorts), SSHFrom: slices.Clone(s.Pinned.SSHFrom)}
 	return out
 }
 
 func (s state) empty() bool { return len(s.Rules) == 0 && !s.Policy.GetDenyEverythingElse() }
 
+// confirmedState is what was last confirmed, and the table it loaded as, which
+// a revert or a start loads again as it is, needing neither Docker nor the
+// pins read again.
+type confirmedState struct {
+	state
+	table nftables.Table
+	// wait is the wait that was confirmed, so a start can tell a confirmed
+	// change from one that waited.
+	wait string
+}
+
 // pending is the change that waits for its confirmation.
 type pending struct {
-	change   string
+	change string
+	// wait names this wait, on disk too.
+	wait     string
 	state    state
+	table    nftables.Table
+	sshPorts []uint16
 	deadline time.Time
-	timer    *time.Timer
+	timer    stopper
 	// done closes once the change has its verdict.
-	done    chan struct{}
-	verdict resource.AccessVerdict
+	done chan struct{}
 }
+
+type stopper interface{ Stop() bool }
 
 type verdict struct {
 	Change  string                 `json:"change"`
@@ -125,6 +166,13 @@ func (m *Manager) clock() time.Time {
 		return m.now()
 	}
 	return time.Now()
+}
+
+func (m *Manager) afterFunc(d time.Duration, f func()) stopper {
+	if m.after != nil {
+		return m.after(d, f)
+	}
+	return time.AfterFunc(d, f)
 }
 
 func (m *Manager) timer() time.Duration {
@@ -141,68 +189,75 @@ func (m *Manager) logger() *slog.Logger {
 	return slog.Default()
 }
 
-// Start reads what was confirmed, and reverts at once a change that waited for
-// its confirmation when the agent stopped, so a restart or a reboot inside its
-// timer keeps only what was confirmed. It loads the confirmed table, which a
-// flush may have taken, before the agent connects anywhere.
-func (m *Manager) Start(ctx context.Context) error {
+// ReadyKey shares one probe between the rule's and the policy's drivers.
+func (m *Manager) ReadyKey() any { return m }
+
+// errStarting is the table as confirmed not loaded yet, as the agent starts.
+var errStarting = errors.New("the agent hasn't loaded the firewall as confirmed yet")
+
+// Ready says whether the server can hold Dockwell's table: it has nft, and its
+// kernel takes a table. The first time it can, the agent reads what was
+// confirmed, puts back a change that waited when it stopped, and loads the
+// table as it was confirmed, or removes Dockwell's table with nothing
+// confirmed, before it offers the firewall's kinds. If that table won't load,
+// it tries again at each check, while it offers none.
+func (m *Manager) Ready(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.startLocked(ctx)
+	if !m.probed {
+		if m.unusable = m.Table.Probe(ctx); m.unusable != nil {
+			return m.unusable
+		}
+		if err := m.startLocked(ctx); err != nil {
+			m.unusable = fmt.Errorf("can't put the firewall back as it was confirmed: %w", err)
+			return m.unusable
+		}
+		m.probed = true
+	}
+	if m.unrestored == nil || m.waiting != nil {
+		return nil
+	}
+	if err := m.restoreLocked(ctx); err != nil {
+		return fmt.Errorf("can't put the firewall back as it was confirmed: %w", err)
+	}
+	if m.unrestored != nil {
+		return m.unrestored
+	}
+	// Loaded as confirmed: a change that waited is over, on disk too.
+	return m.removeWaiting()
 }
 
+// startLocked reads what was confirmed, and the change that waited when the
+// agent stopped, if one did: its verdict is rolled back, unless it was
+// confirmed on disk and the agent stopped before it said so. Ready then loads
+// the table as confirmed, so a restart or a reboot inside a change's timer
+// keeps only what was confirmed.
 func (m *Manager) startLocked(ctx context.Context) error {
 	if err := os.MkdirAll(m.Dir, 0o700); err != nil {
 		return fmt.Errorf("can't make the folder for the firewall's state: %w", err)
 	}
-	if err := readJSON(filepath.Join(m.Dir, "confirmed.json"), &m.confirmed, decodeState); err != nil {
+	var c confirmedState
+	if err := readJSON(filepath.Join(m.Dir, "confirmed.json"), &c, decodeConfirmed); err != nil {
 		return err
 	}
 	if err := readJSON(filepath.Join(m.Dir, "verdicts.json"), &m.verdicts, json.Unmarshal); err != nil {
 		return err
 	}
-	var w struct {
-		Change string `json:"change"`
-	}
+	var w waitingFile
 	if err := readJSON(filepath.Join(m.Dir, "waiting.json"), &w, json.Unmarshal); err != nil {
 		return err
 	}
-	if w.Change != "" {
+	m.confirmed = c
+	switch {
+	case w.Change == "":
+	case w.Wait != "" && w.Wait == c.wait:
+		m.record(w.Change, resource.AccessKept)
+	default:
 		m.logger().WarnContext(ctx, "a change to the firewall waited for its confirmation when the agent stopped, so it puts back what was confirmed",
 			slog.String("change", w.Change))
 		m.record(w.Change, resource.AccessRolledBack)
-		if err := os.Remove(filepath.Join(m.Dir, "waiting.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		return m.loadConfirmed(ctx)
 	}
-	if m.confirmed.empty() {
-		return nil
-	}
-	return m.loadConfirmed(ctx)
-}
-
-// ReadyKey shares one probe between the rule's and the policy's drivers.
-func (m *Manager) ReadyKey() any { return m }
-
-// Ready says whether the server can hold Dockwell's table: it has nft, and its
-// kernel takes a table. The first time it can, the agent reads what was
-// confirmed, puts back a change that waited when it stopped, and loads the
-// confirmed table, before it offers the firewall's kinds.
-func (m *Manager) Ready(ctx context.Context) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.probed {
-		return nil
-	}
-	if m.unusable = m.Table.Probe(ctx); m.unusable != nil {
-		return m.unusable
-	}
-	if err := m.startLocked(ctx); err != nil {
-		m.unusable = fmt.Errorf("can't put the firewall back as it was confirmed: %w", err)
-		return m.unusable
-	}
-	m.probed = true
+	m.unrestored = errStarting
 	return nil
 }
 
@@ -213,7 +268,7 @@ func (m *Manager) view(ctx context.Context) state {
 	if d := resource.DeployOf(ctx); m.waiting != nil && d.Change == m.waiting.change {
 		return m.waiting.state
 	}
-	return m.confirmed
+	return m.confirmed.state
 }
 
 // Rule returns the named rule, or nil.
@@ -262,24 +317,23 @@ func (m *Manager) DeletePolicy(ctx context.Context) error {
 var ErrBusy = errors.New("another change to this server's firewall waits for its confirmation")
 
 // edit carries out one step. A rollback restores what was confirmed with no
-// timer, as it needs no confirmation of its own. Any other step loads under the
-// change's timer, which starts with its first step; its last step on the
-// server waits for the verdict.
+// timer, as it needs no confirmation of its own. Any other step is checked
+// again, as the server is now, and loads under the change's timer, which
+// starts with its first step; its last step on the server starts the timer
+// again and waits for the verdict. A step of a change the server already put
+// back fails, so the change rolls back rather than end with part of it here.
 func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 	d := resource.DeployOf(ctx)
 	if d.Change == "" {
 		return errors.New("a change to the firewall comes through a change, which names it")
 	}
+	// Read before the lock, so neither a slow Docker nor a slow /proc holds up
+	// a confirmation or the timer.
+	host := m.readHost(ctx)
 	m.mu.Lock()
 	if d.Rollback {
 		defer m.mu.Unlock()
-		next := m.confirmed.clone()
-		fn(&next)
-		if err := m.load(ctx, next); err != nil {
-			return err
-		}
-		m.confirmed = next
-		return m.saveConfirmed(next)
+		return m.rollBackStepLocked(ctx, d.Change, fn, host)
 	}
 	if m.waiting != nil && m.waiting.change != d.Change {
 		other := m.waiting.change
@@ -287,33 +341,60 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 		return fmt.Errorf("%w (%s). Wait for it to be confirmed or rolled back, then try again", ErrBusy, other)
 	}
 	first := m.waiting == nil
-	var next state
-	if first {
-		next = m.confirmed.clone()
-	} else {
-		next = m.waiting.state.clone()
+	if first && m.verdictOf(d.Change) == resource.AccessRolledBack {
+		m.mu.Unlock()
+		return resource.Plainly(
+			"This server put back its firewall as it was before this step, as nobody confirmed the change in time, so the change rolls back.",
+			fmt.Errorf("%s was rolled back on this server before this step, so the step doesn't run", d.Change))
 	}
+	base := m.confirmed.state
+	if !first {
+		base = m.waiting.state
+	}
+	next := base.clone()
 	fn(&next)
-	if err := m.load(ctx, next); err != nil {
-		// A load nft refused changed nothing, but one that can't be seen through
-		// may be live, and a change that had loaded steps before has them live:
-		// either way, what was confirmed goes back.
-		if !first || errors.Is(err, nftables.ErrUnknown) {
+	next, tbl, pins, err := m.prepareLocked(ctx, next, host, false)
+	if err == nil {
+		err = check(next, pins)
+	}
+	if err != nil {
+		// Nothing loaded, but a change whose earlier steps did has them live.
+		if !first {
 			m.rollBackLocked(ctx, d.Change)
 		}
 		m.mu.Unlock()
 		return err
 	}
+	wait := ""
 	if first {
-		m.waiting = &pending{change: d.Change, done: make(chan struct{})}
-		m.armLocked(d.Change)
+		// On disk before the table loads, so an agent that stops from here on
+		// puts back what was confirmed as it starts again.
+		wait = d.Change + "@" + strconv.FormatInt(m.clock().UnixNano(), 10)
+		if err := m.saveWaiting(d.Change, wait); err != nil {
+			m.mu.Unlock()
+			return err
+		}
 	}
-	m.waiting.state = next
-	if err := m.saveWaiting(); err != nil {
-		m.rollBackLocked(ctx, d.Change)
+	loaded, err := m.Table.Load(ctx, tbl)
+	m.skipped(ctx, loaded)
+	if err != nil {
+		// A load nft refused changed nothing, but one that can't be seen through
+		// may be live, and a change that had loaded steps before has them live:
+		// either way, what was confirmed goes back.
+		if !first || errors.Is(err, nftables.ErrUnknown) {
+			m.rollBackLocked(ctx, d.Change)
+		} else if rerr := m.removeWaiting(); rerr != nil {
+			m.logger().WarnContext(ctx, "can't remove the record of a change to the firewall that didn't load; the agent puts back what was confirmed when it starts again",
+				slog.String("change", d.Change), slog.String("error", rerr.Error()))
+		}
 		m.mu.Unlock()
 		return err
 	}
+	if first {
+		m.waiting = &pending{change: d.Change, wait: wait, done: make(chan struct{})}
+		m.armLocked(d.Change)
+	}
+	m.waiting.state, m.waiting.table, m.waiting.sshPorts = next, tbl, pins.SSHPorts
 	if !d.LastAccess {
 		m.mu.Unlock()
 		return nil
@@ -321,9 +402,40 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 	// The change's last step here: the person who applied it has the timer's
 	// whole length from now to check and confirm.
 	m.armLocked(d.Change)
-	done, wait := m.waiting.done, m.announceLocked(ctx)
+	done, limit := m.waiting.done, m.announceLocked(ctx)
 	m.mu.Unlock()
-	return m.await(ctx, d.Change, done, wait)
+	return m.await(ctx, d.Change, done, limit)
+}
+
+// rollBackStepLocked carries out a step of a rollback: on what was confirmed,
+// with no timer, ending first any change that waits, which a rollback
+// overrides. What it loads is confirmed only once it's loaded and on disk.
+func (m *Manager) rollBackStepLocked(ctx context.Context, change string, fn func(*state), host hostNow) error {
+	if w := m.waiting; w != nil {
+		m.rollBackLocked(ctx, w.change)
+	}
+	next := m.confirmed.clone()
+	fn(&next)
+	next, tbl, _, err := m.prepareLocked(ctx, next, host, true)
+	if err != nil {
+		return err
+	}
+	loaded, err := m.Table.Load(ctx, tbl)
+	m.skipped(ctx, loaded)
+	if err != nil {
+		if errors.Is(err, nftables.ErrUnknown) {
+			_ = m.restoreLocked(ctx)
+		}
+		return err
+	}
+	c := confirmedState{state: next, table: tbl, wait: change + "@rollback"}
+	if err := m.saveConfirmed(c); err != nil {
+		// What loaded isn't on record, so what is goes back.
+		_ = m.restoreLocked(ctx)
+		return err
+	}
+	m.confirmed, m.unrestored = c, nil
+	return m.removeWaiting()
 }
 
 // armLocked starts, or starts again, the waiting change's timer.
@@ -332,20 +444,20 @@ func (m *Manager) armLocked(change string) {
 	if m.waiting.timer != nil {
 		m.waiting.timer.Stop()
 	}
-	m.waiting.timer = time.AfterFunc(m.timer(), func() { m.expire(change) })
+	m.waiting.timer = m.afterFunc(m.timer(), func() { m.expire(change) })
 }
 
 // announceLocked tells whoever applies the step what it waits for, and returns
-// how long to wait.
+// how long to wait. The time left goes too, so a control plane whose clock
+// isn't the agent's counts down the same.
 func (m *Manager) announceLocked(ctx context.Context) time.Duration {
-	w := resource.AccessWait{Deadline: m.waiting.deadline}
-	if pins, err := m.pins(ctx); err == nil {
-		for _, p := range pins.SSHPorts {
-			w.SSHPorts = append(w.SSHPorts, uint32(p))
-		}
+	left := m.waiting.deadline.Sub(m.clock())
+	w := resource.AccessWait{Deadline: m.waiting.deadline, Left: left}
+	for _, p := range m.waiting.sshPorts {
+		w.SSHPorts = append(w.SSHPorts, uint32(p))
 	}
 	resource.Report(ctx, resource.Outcome{Waits: &w})
-	return m.waiting.deadline.Sub(m.clock()) + waitGrace
+	return left + waitGrace
 }
 
 // await waits for a change's verdict.
@@ -353,7 +465,7 @@ func (m *Manager) await(ctx context.Context, change string, done <-chan struct{}
 	select {
 	case <-done:
 	case <-time.After(wait):
-		return fmt.Errorf("no verdict on %s came within %s", change, wait.Round(time.Second))
+		return fmt.Errorf("no verdict on %s came within %s", change, wording(wait))
 	case <-ctx.Done():
 		return context.Cause(ctx)
 	}
@@ -364,8 +476,16 @@ func (m *Manager) await(ctx context.Context, change string, done <-chan struct{}
 		return nil
 	}
 	return resource.Plainly(
-		fmt.Sprintf("Nobody confirmed the change within %s, so the server put back its firewall as it was.", m.timer().Round(time.Second)),
+		fmt.Sprintf("Nobody confirmed the change within %s, so the server put back its firewall as it was.", wording(m.timer())),
 		fmt.Errorf("%s wasn't confirmed in time, so the server put back its firewall as it was", change))
+}
+
+// wording says a duration as the panel does: "60 s", or "500 ms" under a second.
+func wording(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%d ms", d.Milliseconds())
+	}
+	return fmt.Sprintf("%d s", int64(d.Round(time.Second)/time.Second))
 }
 
 // Wait is a step's check: a resumed step of a change that still waits, waits
@@ -393,7 +513,8 @@ var closed = func() chan struct{} { c := make(chan struct{}); close(c); return c
 
 // Confirm keeps a change that waits for its confirmation, if its time hasn't
 // run out: it records the change as confirmed on disk, and only then says it
-// kept it.
+// kept it. What it records is the table as it loaded, so a confirmation reads
+// nothing of the server and can't fail on it.
 func (m *Manager) Confirm(ctx context.Context, change string) resource.AccessVerdict {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -409,18 +530,21 @@ func (m *Manager) Confirm(ctx context.Context, change string) resource.AccessVer
 		m.rollBackLocked(ctx, change)
 		return resource.AccessRolledBack
 	}
-	if err := m.saveConfirmed(w.state); err != nil {
+	c := confirmedState{state: w.state, table: w.table, wait: w.wait}
+	if err := m.saveConfirmed(c); err != nil {
 		m.logger().ErrorContext(ctx, "can't record a confirmed change to the firewall, so the agent puts back what was confirmed before",
 			slog.String("change", change), slog.String("error", err.Error()))
 		m.rollBackLocked(ctx, change)
 		return resource.AccessRolledBack
 	}
-	m.confirmed = w.state
+	m.confirmed = c
 	w.timer.Stop()
-	_ = os.Remove(filepath.Join(m.Dir, "waiting.json"))
 	m.waiting = nil
 	m.record(change, resource.AccessKept)
-	w.verdict = resource.AccessKept
+	if err := m.removeWaiting(); err != nil {
+		// confirmed.json names this wait, so a start reads it as kept.
+		m.logger().WarnContext(ctx, "can't remove the record of a change to the firewall that waited", slog.String("error", err.Error()))
+	}
 	close(w.done)
 	return resource.AccessKept
 }
@@ -437,28 +561,71 @@ func (m *Manager) expire(change string) {
 }
 
 // rollBackLocked puts back the table as last confirmed, and ends the waiting
-// change with its verdict.
+// change with its verdict. Its record on disk goes only once that's done: if
+// neither the confirmed table nor no table at all would load, the change's own
+// may still be live, and the agent puts back what was confirmed at its next
+// check, and as it starts again.
 func (m *Manager) rollBackLocked(ctx context.Context, change string) {
-	if err := m.loadConfirmed(context.WithoutCancel(ctx)); err != nil {
-		m.logger().ErrorContext(ctx, "can't put back the firewall as it was confirmed, so the agent removes its table, which leaves what the server's own firewall does",
-			slog.String("change", change), slog.String("error", err.Error()))
-		if err := m.Table.Delete(context.WithoutCancel(ctx)); err != nil {
-			m.logger().ErrorContext(ctx, "can't remove the firewall's table either", slog.String("error", err.Error()))
-		}
-	}
+	err := m.restoreLocked(ctx)
 	m.record(change, resource.AccessRolledBack)
 	if w := m.waiting; w != nil && w.change == change {
 		if w.timer != nil {
 			w.timer.Stop()
 		}
-		w.verdict = resource.AccessRolledBack
 		close(w.done)
 		m.waiting = nil
 	}
-	_ = os.Remove(filepath.Join(m.Dir, "waiting.json"))
+	if err != nil {
+		m.logger().ErrorContext(ctx, "can't put back the firewall as it was confirmed, or remove its table, so the change's table may still be live. The agent tries again at its next check; check nft list ruleset",
+			slog.String("change", change), slog.String("error", err.Error()))
+		return
+	}
+	if err := m.removeWaiting(); err != nil {
+		m.logger().WarnContext(ctx, "can't remove the record of a change to the firewall that waited", slog.String("error", err.Error()))
+	}
 }
 
+// restoreLocked loads the table as it was confirmed, as it loaded then, which
+// needs neither Docker nor the pins read again; with nothing confirmed, it
+// removes Dockwell's table. A confirmed table that won't load goes too, which
+// leaves what the server's own firewall does, and the agent tries again to
+// load it at its next check. It fails only when neither works.
+func (m *Manager) restoreLocked(ctx context.Context) error {
+	ctx = context.WithoutCancel(ctx)
+	if m.confirmed.empty() {
+		if err := m.Table.Delete(ctx); err != nil {
+			m.unrestored = err
+			return err
+		}
+		m.unrestored = nil
+		return nil
+	}
+	loaded, err := m.Table.Load(ctx, m.confirmed.table)
+	m.skipped(ctx, loaded)
+	if err == nil {
+		m.unrestored = nil
+		return nil
+	}
+	m.logger().ErrorContext(ctx, "can't load the firewall as it was confirmed, so the agent removes its table, which leaves what the server's own firewall does, and tries again at its next check",
+		slog.String("error", err.Error()))
+	m.unrestored = fmt.Errorf("can't load the firewall as it was confirmed: %w", err)
+	if derr := m.Table.Delete(ctx); derr != nil {
+		return fmt.Errorf("%w, and can't remove its table either: %w", m.unrestored, derr)
+	}
+	return nil
+}
+
+func (m *Manager) skipped(ctx context.Context, loaded nftables.Loaded) {
+	for _, name := range loaded.Skipped {
+		m.logger().WarnContext(ctx, "the firewall leaves out one of Docker's interfaces", slog.String("interface", name), slog.String("why", nftables.SkippedWords(name)))
+	}
+}
+
+// record keeps a change's verdict, once.
 func (m *Manager) record(change string, v resource.AccessVerdict) {
+	if m.verdictOf(change) == v {
+		return
+	}
 	m.verdicts = append(m.verdicts, verdict{Change: change, Verdict: v})
 	if len(m.verdicts) > keptVerdicts {
 		m.verdicts = m.verdicts[len(m.verdicts)-keptVerdicts:]
@@ -477,35 +644,107 @@ func (m *Manager) verdictOf(change string) resource.AccessVerdict {
 	return 0
 }
 
-// loadConfirmed loads the table as last confirmed, or removes Dockwell's table
-// when nothing is confirmed.
-func (m *Manager) loadConfirmed(ctx context.Context) error {
-	if m.confirmed.empty() {
-		return m.Table.Delete(ctx)
-	}
-	return m.load(ctx, m.confirmed)
+// hostNow is what the server has now, as a change reads it before it loads.
+type hostNow struct {
+	pins      Pins
+	pinsErr   error
+	docker    DockerNetworks
+	dockerErr error
 }
 
-// load renders a state with what keeps the server reachable, and loads it.
-func (m *Manager) load(ctx context.Context, s state) error {
-	t, err := m.table(ctx, s)
-	if err != nil {
-		return err
+// readHost reads the pins and Docker's networks, each within readWait.
+func (m *Manager) readHost(ctx context.Context) hostNow {
+	var h hostNow
+	bound := readWait
+	if m.readWait > 0 {
+		bound = m.readWait
 	}
-	loaded, err := m.Table.Load(ctx, t)
-	for _, name := range loaded.Skipped {
-		m.logger().WarnContext(ctx, "the firewall leaves out one of Docker's interfaces", slog.String("interface", name), slog.String("why", nftables.SkippedWords(name)))
+	if m.Pins != nil {
+		pctx, cancel := context.WithTimeout(ctx, bound)
+		h.pins, h.pinsErr = m.Pins(pctx)
+		cancel()
 	}
-	return err
+	if m.Docker != nil {
+		dctx, cancel := context.WithTimeout(ctx, bound)
+		h.docker, h.dockerErr = m.Docker(dctx)
+		cancel()
+	}
+	return h
 }
 
-func (m *Manager) table(ctx context.Context, s state) (nftables.Table, error) {
-	var t nftables.Table
-	pins, err := m.pins(ctx)
-	if err != nil {
-		return t, fmt.Errorf("can't tell what keeps the server reachable, so the firewall stays as it is: %w", err)
+// networksLocked are Docker's networks for the next table: as Docker lists them
+// now, or, when it doesn't answer, as it last did, or as the confirmed table
+// has them; a server without Docker has none.
+func (m *Manager) networksLocked(ctx context.Context, h hostNow) (DockerNetworks, error) {
+	switch {
+	case m.Docker == nil:
+		return DockerNetworks{None: true}, nil
+	case h.dockerErr == nil:
+		nets := h.docker
+		m.docker = &nets
+		return nets, nil
+	case m.docker != nil:
+		m.logger().WarnContext(ctx, "Docker didn't answer, so the firewall takes its networks as Docker last listed them", slog.String("error", h.dockerErr.Error()))
+		return *m.docker, nil
+	case !m.confirmed.empty():
+		m.logger().WarnContext(ctx, "Docker didn't answer, so the firewall takes its networks as they were last confirmed", slog.String("error", h.dockerErr.Error()))
+		return DockerNetworks{None: m.confirmed.table.NoDocker, Interfaces: slices.Clone(m.confirmed.table.DockerInterfaces)}, nil
+	case errors.Is(h.dockerErr, ErrNoDocker):
+		return DockerNetworks{None: true}, nil
 	}
-	t.Pins = pins.Rules()
+	return DockerNetworks{}, fmt.Errorf("can't read Docker's networks, which the firewall leaves to their containers, so it stays as it is: %w. Check Docker answers, with docker network ls, then try again", h.dockerErr)
+}
+
+// prepareLocked works out the table a state loads as: its rules, the pins, as
+// the sessions open now add to those it keeps, less sessions from Docker's
+// networks, and Docker's interfaces. It returns the state with what it now
+// keeps pinned. A rollback that can't read the pins keeps those it has.
+func (m *Manager) prepareLocked(ctx context.Context, s state, h hostNow, rollback bool) (state, nftables.Table, Pins, error) {
+	nets, err := m.networksLocked(ctx, h)
+	if err != nil {
+		return s, nftables.Table{}, Pins{}, err
+	}
+	found := h.pins
+	if h.pinsErr != nil {
+		if !rollback {
+			return s, nftables.Table{}, Pins{}, fmt.Errorf("can't tell what keeps the server reachable, so the firewall stays as it is: %w", h.pinsErr)
+		}
+		found = Pins{}
+	}
+	pins := withPinned(found, s.Pinned, nets.Subnets)
+	s.Pinned = Pinned{SSHPorts: slices.Clone(pins.SSHPorts), SSHFrom: slices.Clone(pins.SSHFrom)}
+	return s, render(s, pins, nets), pins, nil
+}
+
+// withPinned is the pins found now, less sessions from Docker's networks, with
+// what a state keeps pinned.
+func withPinned(found Pins, kept Pinned, docker []netip.Prefix) Pins {
+	out := Pins{Own: slices.Clone(found.Own)}
+	for _, p := range found.SSHPorts {
+		out.SSHPorts = appendNew(out.SSHPorts, p)
+	}
+	for _, p := range kept.SSHPorts {
+		out.SSHPorts = appendNew(out.SSHPorts, p)
+	}
+	for _, from := range found.SSHFrom {
+		if !slices.ContainsFunc(docker, func(n netip.Prefix) bool { return n.Contains(from.Addr()) }) {
+			out.SSHFrom = appendNew(out.SSHFrom, from)
+		}
+	}
+	for _, from := range kept.SSHFrom {
+		out.SSHFrom = appendNew(out.SSHFrom, from)
+	}
+	slices.Sort(out.SSHPorts)
+	slices.SortFunc(out.SSHFrom, func(a, b netip.Prefix) int { return a.Addr().Compare(b.Addr()) })
+	return out
+}
+
+// render is the table a state loads as.
+func render(s state, pins Pins, nets DockerNetworks) nftables.Table {
+	t := nftables.Table{Pins: pins.Rules(), DenyRest: s.Policy.GetDenyEverythingElse(), NoDocker: nets.None}
+	if !nets.None {
+		t.DockerInterfaces = slices.Clone(nets.Interfaces)
+	}
 	for _, name := range slices.Sorted(maps.Keys(s.Rules)) {
 		r := s.Rules[name]
 		rule := nftablesRule(name, r)
@@ -515,29 +754,12 @@ func (m *Manager) table(ctx context.Context, s state) (nftables.Table, error) {
 			t.Allows = append(t.Allows, rule)
 		}
 	}
-	t.DenyRest = s.Policy.GetDenyEverythingElse()
-	if m.Docker != nil {
-		if t.DockerInterfaces, err = m.Docker(ctx); err != nil {
-			return t, fmt.Errorf("can't read Docker's networks, which the firewall leaves to their containers, so it stays as it is: %w", err)
-		}
-	}
-	return t, nil
-}
-
-func (m *Manager) pins(ctx context.Context) (Pins, error) {
-	if m.Pins == nil {
-		return Pins{}, nil
-	}
-	return m.Pins(ctx)
+	return t
 }
 
 // nftablesRule is a rule as the table writes it.
 func nftablesRule(name string, r *resourcev1.FirewallRule) nftables.Rule {
-	protocol := "tcp"
-	if r.GetProtocol() == resourcev1.Protocol_PROTOCOL_UDP {
-		protocol = "udp"
-	}
-	out := nftables.Rule{Name: "rule " + name, Protocol: protocol, Ports: []uint16{uint16(r.GetPort())}} //nolint:gosec // Validate keeps it within 1 to 65535
+	out := nftables.Rule{Name: "rule " + name, Protocol: protocolOf(r), Ports: []uint16{portOf(r)}}
 	for _, s := range r.GetSources() {
 		if p, err := netip.ParsePrefix(s); err == nil {
 			out.Sources = append(out.Sources, p)
@@ -546,114 +768,224 @@ func nftablesRule(name string, r *resourcev1.FirewallRule) nftables.Rule {
 	return out
 }
 
-// CheckRule refuses, when it's planned, a rule the server can't take safely: a
-// deny of a port the control plane listens on, or one that narrows SSH while no
-// SSH session from outside says whose address to keep.
-func (m *Manager) CheckRule(r *resourcev1.FirewallRule) error {
-	if r.GetAction() != resourcev1.FirewallAction_FIREWALL_ACTION_DENY {
-		return nil
+func protocolOf(r *resourcev1.FirewallRule) string {
+	if r.GetProtocol() == resourcev1.Protocol_PROTOCOL_UDP {
+		return "udp"
 	}
-	pins, err := m.checkPins()
-	if err != nil {
-		return err
-	}
-	port := uint16(r.GetPort()) //nolint:gosec // Validate keeps it within 1 to 65535
-	tcp := r.GetProtocol() != resourcev1.Protocol_PROTOCOL_UDP
-	if tcp && slices.Contains(pins.Own, port) {
-		return fmt.Errorf("this rule would deny port %d, which the control plane on this server listens on, for the panel or its agents. Leave that port out", port)
-	}
-	if tcp && slices.Contains(pins.SSHPorts, port) && len(pins.SSHFrom) == 0 {
-		return errNoSession
-	}
-	return nil
+	return "tcp"
 }
 
-// CheckPolicy refuses turning on deny everything else while no SSH session
-// from outside says whose address to keep reaching SSH.
-func (m *Manager) CheckPolicy(p *resourcev1.FirewallPolicy) error {
-	if !p.GetDenyEverythingElse() {
-		return nil
-	}
-	pins, err := m.checkPins()
-	if err != nil {
-		return err
-	}
-	if len(pins.SSHPorts) > 0 && len(pins.SSHFrom) == 0 {
-		return errNoSession
-	}
-	return nil
+func portOf(r *resourcev1.FirewallRule) uint16 {
+	return uint16(r.GetPort()) //nolint:gosec // Validate keeps it within 1 to 65535
 }
 
-var errNoSession = errors.New("no SSH session is open to this server from outside it now, so Dockwell can't tell whose address to keep reaching SSH. Open an SSH session from where you'll come in, then plan this again")
+func isDeny(r *resourcev1.FirewallRule) bool {
+	return r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY
+}
 
-func (m *Manager) checkPins() (Pins, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+// CheckRule refuses, when it's planned, a change to a rule that leaves the
+// server unsafe to reach, as check judges the state it leaves: actual is the
+// rule now, nil for a new one, and desired what it becomes, nil to delete it.
+func (m *Manager) CheckRule(actual, desired *resourcev1.FirewallRule) error {
+	return m.checkPlan(func(s *state) {
+		if actual != nil {
+			for _, name := range slices.Sorted(maps.Keys(s.Rules)) {
+				if proto.Equal(s.Rules[name], actual) {
+					delete(s.Rules, name)
+					break
+				}
+			}
+		}
+		if desired != nil {
+			s.Rules["\x00planned"] = desired
+		}
+	})
+}
+
+// CheckPolicy refuses, when it's planned, a policy that leaves the server
+// unsafe to reach, as check judges the state it leaves; nil removes it.
+func (m *Manager) CheckPolicy(desired *resourcev1.FirewallPolicy) error {
+	return m.checkPlan(func(s *state) { s.Policy = desired })
+}
+
+// checkPlan judges what was confirmed, as one planned edit leaves it, as the
+// server is now. The step checks again as it applies, over all the change's
+// edits so far, as the server is then.
+func (m *Manager) checkPlan(fn func(*state)) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*readWait)
 	defer cancel()
-	pins, err := m.pins(ctx)
-	if err != nil {
-		return Pins{}, fmt.Errorf("can't tell what keeps the server reachable, so Dockwell won't narrow it: %w", err)
+	h := m.readHost(ctx)
+	if h.pinsErr != nil {
+		return fmt.Errorf("can't tell what keeps the server reachable, so Dockwell won't narrow it: %w", h.pinsErr)
 	}
-	return pins, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	next := m.confirmed.clone()
+	fn(&next)
+	// A Docker that doesn't answer only leaves its containers' sessions in.
+	nets, _ := m.networksLocked(ctx, h)
+	return check(next, withPinned(h.pins, next.Pinned, nets.Subnets))
 }
 
-// saveConfirmed records a state as confirmed, and the table it makes, for the
-// unit that loads it at boot.
-func (m *Manager) saveConfirmed(s state) error {
-	if err := writeJSON(filepath.Join(m.Dir, "confirmed.json"), encodeState(s)); err != nil {
+// check refuses a state the server can't take safely, as the pins say: a deny
+// of a port the control plane listens on, which its pin would let in anyway;
+// or, with nobody's address pinned to SSH, anything that narrows SSH: a deny of
+// one of its ports, or deny everything else with no allow of each of its ports
+// from anywhere. Where Dockwell finds no SSH at all, port 22 stands for it.
+func check(s state, p Pins) error {
+	names := slices.Sorted(maps.Keys(s.Rules))
+	for _, name := range names {
+		r := s.Rules[name]
+		if isDeny(r) && protocolOf(r) == "tcp" && slices.Contains(p.Own, portOf(r)) {
+			return fmt.Errorf("this would deny port %d, which the control plane on this server listens on, for the panel or its agents. Leave that port out", portOf(r))
+		}
+	}
+	if len(p.SSHFrom) > 0 {
+		return nil
+	}
+	ports, refuse := p.SSHPorts, errNoSession
+	if len(ports) == 0 {
+		ports, refuse = []uint16{22}, errNoSSH
+	}
+	for _, name := range names {
+		r := s.Rules[name]
+		if isDeny(r) && protocolOf(r) == "tcp" && slices.Contains(ports, portOf(r)) {
+			return refuse
+		}
+	}
+	if s.Policy.GetDenyEverythingElse() {
+		for _, port := range ports {
+			open := slices.ContainsFunc(names, func(name string) bool {
+				r := s.Rules[name]
+				return !isDeny(r) && protocolOf(r) == "tcp" && portOf(r) == port && len(r.GetSources()) == 0
+			})
+			if !open {
+				return refuse
+			}
+		}
+	}
+	return nil
+}
+
+var (
+	errNoSession = errors.New("no SSH session is open to this server from outside it now, and none was when its firewall last changed, so Dockwell can't tell whose address to keep reaching SSH. Open an SSH session from where you'll come in, then plan this again")
+	errNoSSH     = errors.New("this server has no SSH server listening that Dockwell knows of, so Dockwell can't tell which port to keep reachable. If SSH runs here under another name, add a rule that allows its port first, then plan this again")
+)
+
+// saveConfirmed records a state as confirmed, and the table it loaded as, for
+// the unit that loads it at boot. Both are written in full first, and
+// confirmed.json is renamed into place last but one: if confirmed.nft won't
+// follow, the old record goes back, so the two never disagree.
+func (m *Manager) saveConfirmed(c confirmedState) error {
+	script, err := c.table.Script()
+	if err != nil {
+		return fmt.Errorf("can't write the confirmed table for the server's start: %w", err)
+	}
+	data, err := json.MarshalIndent(encodeConfirmed(c), "", "  ")
+	if err != nil {
+		return err
+	}
+	jsonPath, nftPath := filepath.Join(m.Dir, "confirmed.json"), filepath.Join(m.Dir, "confirmed.nft")
+	old, err := os.ReadFile(jsonPath) //nolint:gosec // the agent's own folder
+	had := err == nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("can't read what was confirmed before: %w", err)
+	}
+	if err := stage(nftPath+".new", []byte(script)); err != nil {
 		return fmt.Errorf("can't record the firewall as confirmed: %w", err)
 	}
-	t, err := m.table(context.Background(), s)
-	if err != nil {
-		return err
+	if err := stage(jsonPath+".new", data); err != nil {
+		_ = os.Remove(nftPath + ".new")
+		return fmt.Errorf("can't record the firewall as confirmed: %w", err)
 	}
-	script, err := t.Script()
-	if err != nil {
-		return err
+	if err := os.Rename(jsonPath+".new", jsonPath); err != nil {
+		_ = os.Remove(jsonPath + ".new")
+		_ = os.Remove(nftPath + ".new")
+		return fmt.Errorf("can't record the firewall as confirmed: %w", err)
 	}
-	return writeFile(filepath.Join(m.Dir, "confirmed.nft"), []byte(script))
+	if err := os.Rename(nftPath+".new", nftPath); err != nil {
+		_ = os.Remove(nftPath + ".new")
+		var back error
+		if had {
+			back = writeFile(jsonPath, old)
+		} else {
+			back = os.Remove(jsonPath)
+		}
+		if back != nil {
+			m.logger().Error("can't put back what was confirmed before on disk, so the agent loads the change at its next start", slog.String("error", back.Error()))
+		}
+		return fmt.Errorf("can't record the firewall's table as confirmed: %w", err)
+	}
+	return nil
 }
 
-func (m *Manager) saveWaiting() error {
-	return writeJSON(filepath.Join(m.Dir, "waiting.json"), map[string]string{"change": m.waiting.change})
+// waitingFile is waiting.json: the change that waits, and which wait of it.
+type waitingFile struct {
+	Change string `json:"change"`
+	Wait   string `json:"wait,omitempty"`
 }
 
-// stored is a state as it's kept on disk: each spec as protojson.
+func (m *Manager) saveWaiting(change, wait string) error {
+	if err := writeJSON(filepath.Join(m.Dir, "waiting.json"), waitingFile{Change: change, Wait: wait}); err != nil {
+		return fmt.Errorf("can't record the change to the firewall before it loads, so it doesn't load: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) removeWaiting() error {
+	if err := os.Remove(filepath.Join(m.Dir, "waiting.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// stored is what was confirmed as it's kept on disk: each spec as protojson,
+// the pins it keeps, and the table it loaded as.
 type stored struct {
+	Wait   string                     `json:"wait,omitempty"`
 	Rules  map[string]json.RawMessage `json:"rules,omitempty"`
 	Policy json.RawMessage            `json:"policy,omitempty"`
+	Pinned Pinned                     `json:"pinned,omitzero"`
+	Table  *nftables.Table            `json:"table,omitempty"`
 }
 
-func encodeState(s state) stored {
-	out := stored{Rules: map[string]json.RawMessage{}}
-	for name, r := range s.Rules {
+func encodeConfirmed(c confirmedState) stored {
+	out := stored{Wait: c.wait, Rules: map[string]json.RawMessage{}, Pinned: c.Pinned, Table: &c.table}
+	for name, r := range c.Rules {
 		b, _ := protojson.Marshal(r)
 		out.Rules[name] = b
 	}
-	if s.Policy != nil {
-		out.Policy, _ = protojson.Marshal(s.Policy)
+	if c.Policy != nil {
+		out.Policy, _ = protojson.Marshal(c.Policy)
 	}
 	return out
 }
 
-func decodeState(b []byte, v any) error {
+func decodeConfirmed(b []byte, v any) error {
 	var in stored
 	if err := json.Unmarshal(b, &in); err != nil {
 		return err
 	}
-	s := v.(*state)
-	s.Rules = map[string]*resourcev1.FirewallRule{}
+	c := v.(*confirmedState)
+	c.wait, c.Pinned = in.Wait, in.Pinned
+	c.Rules = map[string]*resourcev1.FirewallRule{}
 	for name, raw := range in.Rules {
 		r := &resourcev1.FirewallRule{}
 		if err := protojson.Unmarshal(raw, r); err != nil {
 			return fmt.Errorf("rule %s: %w", name, err)
 		}
-		s.Rules[name] = r
+		c.Rules[name] = r
 	}
 	if len(in.Policy) > 0 {
-		s.Policy = &resourcev1.FirewallPolicy{}
-		if err := protojson.Unmarshal(in.Policy, s.Policy); err != nil {
+		c.Policy = &resourcev1.FirewallPolicy{}
+		if err := protojson.Unmarshal(in.Policy, c.Policy); err != nil {
 			return fmt.Errorf("the policy: %w", err)
 		}
+	}
+	if in.Table != nil {
+		c.table = *in.Table
+	} else if !c.empty() {
+		return errors.New("it has rules, and not the table they loaded as")
 	}
 	return nil
 }
@@ -661,8 +993,8 @@ func decodeState(b []byte, v any) error {
 func readJSON(path string, v any, decode func([]byte, any) error) error {
 	b, err := os.ReadFile(path) //nolint:gosec // the agent's own folder
 	if errors.Is(err, os.ErrNotExist) {
-		if s, ok := v.(*state); ok {
-			*s = state{Rules: map[string]*resourcev1.FirewallRule{}}
+		if c, ok := v.(*confirmedState); ok {
+			*c = confirmedState{state: state{Rules: map[string]*resourcev1.FirewallRule{}}}
 		}
 		return nil
 	}
@@ -685,8 +1017,15 @@ func writeJSON(path string, v any) error {
 
 // writeFile replaces a file whole, so a crash leaves the old one or the new.
 func writeFile(path string, b []byte) error {
-	tmp := path + ".new"
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // the agent's own folder
+	if err := stage(path+".new", b); err != nil {
+		return err
+	}
+	return os.Rename(path+".new", path)
+}
+
+// stage writes a file in full, to disk.
+func stage(path string, b []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // the agent's own folder
 	if err != nil {
 		return err
 	}
@@ -698,8 +1037,5 @@ func writeFile(path string, b []byte) error {
 		_ = f.Close()
 		return err
 	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return f.Close()
 }

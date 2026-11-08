@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/agent/v1/agentv1connect"
@@ -591,7 +591,10 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if err := c.local.Apply(applyCtx, step, spec); err != nil {
 			return fail(err)
 		}
-		if c.cfg.Desired != nil {
+		// A kind under the firewall's timer is kept only once confirmed, which
+		// the step can't say: the access manager keeps what was confirmed itself
+		// (ADR 0052), so it isn't desired state until then.
+		if c.cfg.Desired != nil && !c.guardsAccess(ref.Kind) {
 			if err := c.cfg.Desired.Applied(ctx, ref, spec); err != nil {
 				c.logger.Warn("applied a step, but can't keep its desired state", slog.String("resource", ref.String()), slog.String("error", err.Error()))
 			}
@@ -1137,5 +1140,11 @@ func accessWait(w *resource.AccessWait) *agentv1.AccessWait {
 	if w == nil {
 		return nil
 	}
-	return &agentv1.AccessWait{Deadline: timestamppb.New(w.Deadline), SshPorts: w.SSHPorts}
+	return &agentv1.AccessWait{Deadline: timestamppb.New(w.Deadline), SshPorts: w.SSHPorts, Left: durationpb.New(w.Left)}
+}
+
+// guardsAccess says whether a kind applies under the firewall's timer.
+func (c *calls) guardsAccess(kind resource.Kind) bool {
+	t, err := c.cfg.Drivers.Type(kind)
+	return err == nil && resource.GuardsAccess(t)
 }
