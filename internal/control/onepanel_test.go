@@ -106,7 +106,7 @@ func TestAPlanOnlyImportOf1Panel(t *testing.T) {
 	check("IMPORT_KIND_CERTIFICATE internal.example.com", leave, "a self-signed certificate", "a tunnel or a proxy that ends TLS")
 	check("IMPORT_KIND_COMPOSE_PROJECT stack", take, "made on 1Panel's Containers page", "a Compose project, stack")
 	check("IMPORT_KIND_CONTAINERS Other containers", leave, "Containers page lists every container Dockwell didn't make")
-	check("IMPORT_KIND_CRON_JOB nightly", again, "a sh script of 2 lines, in the container mine as www-data", "IMPORT_WAITS_FOR_SCHEDULED_TASKS")
+	check("IMPORT_KIND_CRON_JOB nightly", again, "a sh script of 2 lines, in the container mine, as www-data", "IMPORT_WAITS_FOR_SCHEDULED_TASKS")
 	check("IMPORT_KIND_CRON_JOB ping", again, "a call to hooks.example.com")
 	check("IMPORT_KIND_CRON_JOB app backup", again, "a backup of the apps mysql, wordpress", "off in 1Panel")
 	check("IMPORT_KIND_CRON_JOB site backup", again, "a backup of the websites blog.example.com, static.example.com")
