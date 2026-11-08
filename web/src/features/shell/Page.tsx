@@ -16,9 +16,15 @@ type Back = "/" | "/more" | "/servers" | "/apps" | "/settings";
  * rail, and each fills the room it has at 1440px and below.
  */
 export type PageWidth =
-  /** Lists, tables and dashboards: their grids gain columns up to page-wide. */
+  /**
+   * Pages that use the width: grids, dashboards and a server's pages, up to page-wide. Their grids gain columns and
+   * their rows of panels sit side by side.
+   */
   | "wide"
-  /** Detail pages, such as an app's: up to page-standard. */
+  /**
+   * Detail pages, such as an app's, and lists whose content is a table of few columns, such as Apps: up to
+   * page-standard, so a list's head, filters and table share their edges. The default.
+   */
   | "standard"
   /** Forms and settings: up to page-narrow. */
   | "narrow";

@@ -29,7 +29,7 @@ Each `.dc.html` file is one screen, written in Claude Design's component format:
 - `<x-import component-from-global-scope="Dockwell.Button" …>` places a design-system component with its props. Across the mocks, the most used are `Icon` (73 screens), `Button` (54), `StatusBadge` (52), `Table` (34), `TextField` (28), `SegmentedControl` (19), `Metric` (17), `Tag` (16), `Timeline` (16), `Switch` (15) and `Glyph` (14). `Glyph` is the status shape used inside `StatusBadge`; it has no README of its own, and its props are in `index.d.ts`.
 - `<dc-import>` pulls in the shared shell: `Rail` and `Topbar` on every desktop screen, and `MobileHeader` and `MobileTabBar` on phone screens.
 - `{{…}}` holes are filled from `renderVals()` in the `<script type="text/x-dc">` block at the bottom of each file, which also holds the screen's sample data. `<sc-for>` and `<sc-if>` repeat and branch.
-- Desktop screens are fluid pages drawn at 1440 px wide; phone screens are 390 × 844.
+- Desktop screens are fluid pages drawn at 1440 px wide; phone screens are 390 × 844. Past 1440 px a page grows only to the width of its kind, as [Page widths](system/README.md#page-widths) sets out.
 - Eight artboards default to the dark theme: `App-Logs`, `Incident`, `Server-Terminal`, `Sign-In`, `M-Incident`, `M-Logs`, `M-Overview-Fleet` and `M-Terminal`. The rest default to light.
 
 The mocks don't open in a browser as they are. They load `./support.js`, which is Claude Design's runtime and not ours to redistribute, and `ds/dockwell/…`, which is this folder's `system/` (it was byte-identical at import, so it isn't duplicated). Use the local viewer in [`packages/mockview`](../packages/mockview/README.md) instead:

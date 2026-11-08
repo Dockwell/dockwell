@@ -14,7 +14,7 @@ import { ServersPanel } from "../servers/ServersPanel";
 import { useServerWords } from "../servers/server";
 import { useFleet, useFleetUnread } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
-import { Page } from "../shell/Page";
+import { Page, type PageProps } from "../shell/Page";
 import { UpdatesCard, UpdatesPhoneCard } from "../updates/UpdatesCard";
 import { OverviewApps } from "./OverviewApps";
 import { OverviewBackups } from "./OverviewBackups";
@@ -34,9 +34,9 @@ export function Overview() {
   const status = usePageReconnecting(state.status);
   if (state.status === "connecting") {
     return (
-      <Page width="wide" title={t`Overview`}>
+      <OverviewPage title={t`Overview`}>
         <Connecting error={state.error} />
-      </Page>
+      </OverviewPage>
     );
   }
   const { servers } = state;
@@ -45,7 +45,7 @@ export function Overview() {
   if (servers.length === 1 && only) return <OneServer server={only} status={status} />;
   if (servers.length === 0) {
     return (
-      <Page width="wide" title={t`Overview`} status={status}>
+      <OverviewPage servers={0} title={t`Overview`} status={status}>
         <EmptyState icon="server" title={<Trans>No servers yet</Trans>}>
           <p>
             <Trans>
@@ -54,14 +54,24 @@ export function Overview() {
             </Trans>
           </p>
         </EmptyState>
-      </Page>
+      </OverviewPage>
     );
   }
   return (
-    <Page width="wide" title={t`Overview`} lead={strings.fleetGrid.servers(count)} status={status}>
+    <OverviewPage servers={count} title={t`Overview`} lead={strings.fleetGrid.servers(count)} status={status}>
       <ServersPanel linked reconnectingNote={false} />
-    </Page>
+    </OverviewPage>
   );
+}
+
+/**
+ * The overview's page, at the width of what it shows: one server's dashboard is a wide page; a fleet's list of
+ * servers is a table of few columns, and the note while it connects or before a server joins needs no room, so those
+ * are standard (Layout in design/system/README.md). Each state takes its width from here, so none takes another by
+ * mistake. One server's dashboard grows from the connecting note's width once the fleet's state arrives.
+ */
+function OverviewPage({ servers, ...props }: Omit<PageProps, "width"> & { servers?: number }) {
+  return <Page {...props} width={servers === 1 ? "wide" : "standard"} />;
 }
 
 function OneServer({ server, status }: { server: Server; status: ReactNode }) {
@@ -80,8 +90,8 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
     .filter(Boolean)
     .join(" · ");
   return (
-    <Page
-      width="wide"
+    <OverviewPage
+      servers={1}
       title={t`Overview`}
       lead={lead || undefined}
       phoneTitle={server.name}
@@ -108,6 +118,6 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
           {phone ? null : <UpdatesCard server={server} />}
         </div>
       </div>
-    </Page>
+    </OverviewPage>
   );
 }

@@ -11,6 +11,8 @@
 
 import type { Page } from "playwright-core";
 
+import type { Flow } from "./flows.ts";
+
 export interface LayoutFlowOptions {
   origin: string;
   /** Reports each step. */
@@ -94,13 +96,13 @@ export async function layoutFlow(page: Page, { origin, step }: LayoutFlowOptions
     async () => ((await (await fetch("/v1/services")).json()) as { services?: { id: string }[] }).services ?? [],
   );
   const app = services[0]?.id ?? fail("no app to measure a detail page and a log view on");
-  const kinds = [
+  const kinds: { kind: string; path: string; max: number; waitFor?: string }[] = [
     { kind: "wide", path: "/catalog", max: 1680, waitFor: ".catalog-grid" },
     { kind: "standard, a table of few columns", path: "/apps", max: 1360, waitFor: ".apps-section table" },
     { kind: "standard", path: `/apps/${app}`, max: 1360 },
     { kind: "narrow", path: "/settings/general", max: 1040 },
     { kind: "standard, with a log view", path: `/apps/${app}/logs`, max: 1360, waitFor: "section.logs" },
-  ] as const;
+  ];
   const name = (path: string) => path.replace(app, "<app>");
 
   await page.setViewportSize({ width: 2560, height: 1000 });
@@ -170,3 +172,6 @@ export async function layoutFlow(page: Page, { origin, step }: LayoutFlowOptions
   }
   await page.setViewportSize({ width: 1440, height: 900 });
 }
+
+/** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */
+export const flow: Flow = { order: 85, run: (page, run) => layoutFlow(page, run) };

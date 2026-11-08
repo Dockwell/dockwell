@@ -5205,6 +5205,9 @@ msgstr "无法连接这台服务器"
 msgid "Can't read this folder"
 msgstr "无法读取这个文件夹"
 
+msgid "Choose a file in the list to read or edit it here."
+msgstr "在列表中选择一个文件，即可在这里查看或编辑。"
+
 msgid "Common places"
 msgstr "常用位置"
 
@@ -5229,6 +5232,9 @@ msgstr "返回上级 {0}"
 
 msgid "Modified"
 msgstr "修改时间"
+
+msgid "No file open"
+msgstr "没有打开的文件"
 
 msgid "Nothing at this path"
 msgstr "这个路径下什么都没有"
