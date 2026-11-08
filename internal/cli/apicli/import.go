@@ -66,6 +66,10 @@ func kindWord(k dockwellv1.ImportKind) string {
 		return "Database"
 	case dockwellv1.ImportKind_IMPORT_KIND_CRON_JOB:
 		return "Cron job"
+	case dockwellv1.ImportKind_IMPORT_KIND_COMPOSE_PROJECT:
+		return "Compose project"
+	case dockwellv1.ImportKind_IMPORT_KIND_CONTAINERS:
+		return "Containers"
 	case dockwellv1.ImportKind_IMPORT_KIND_PANEL, dockwellv1.ImportKind_IMPORT_KIND_UNSPECIFIED:
 	}
 	return ""

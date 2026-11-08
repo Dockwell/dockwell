@@ -48,6 +48,7 @@ The tables the importer reads, by the names GORM gives them:
 | `databases` | A database server, local or remote | type, version, local or remote, which install it is |
 | `database_mysqls`, `database_postgresqls`, and v2's `database_users` | A database on a server, and its users | names, which server, format, permission. Passwords are AES-encrypted with a key in the same database (`settings.EncryptKey`): the importer never reads those columns |
 | `cronjobs` | A job 1Panel's own scheduler runs | name, type, schedules (several joined with `&&`, or `,` in 1.10), status. What a backup acts on, which 1Panel keeps by ID, comma separated, or `all`: apps from `app_installs`, websites from `websites`, and databases from the table its `db_type` names. For a shell job, where its script is (`script_mode`: written in the job, from the library by `script_id`, or a file on the server, whose path is read), what runs it (`executor`, or `command` in a container) and as whom (`user`), and how many lines it has. Not the script, nor a URL's path and query, which can hold a password |
+| `composes` | A Compose project made on 1Panel's Containers page, outside its store, which runs with its name as its project's | its name and its Compose file. The plan takes it on as it does an app |
 | `script_libraries` | 1Panel's library of scripts | a library script's name, and how many lines it has. Not the script |
 
 ### How it reads: on the server, by its agent, read-only
@@ -83,6 +84,7 @@ Every import is a plan a person reviews and applies, and nothing on the server c
   | A subsite, or a TCP or UDP stream | Stays: Dockwell has neither |
 
   What a website can't say yet is listed with each, so nothing goes quietly. That covers rewrite rules, redirects, basic auth, another domain beyond the first, a site's own Nginx lines and 1Panel's WAF.
+- **What 1Panel runs outside its store comes too, where it keeps a record.** A Compose project made on its Containers page is in `composes`, and the plan takes it on as it does an app. A container 1Panel started on its own has no record, so the import says so, and points to the server's Containers page, which lists every container Dockwell didn't make and takes one on (ADR 0031).
 - **Certificates aren't moved.** Dockwell's ingress gets its own for each website's domain when it takes over ports 80 and 443. 1Panel's stay in its records. A certificate a person uploaded, or a self-signed one, says that Dockwell would get one from Let's Encrypt in its place, and that a domain which can't get one goes behind a tunnel or a proxy that ends TLS (ADR 0030).
 - **Cron jobs** become scheduled tasks (#259): a shell job, a URL to call, and a backup of an app, a site, a database or a folder. A job that runs in a container says which, and the plan shows its schedule in words. 1Panel's own housekeeping stays with 1Panel, each with why:
   - the clock (`ntp`), which the server's own time service keeps;

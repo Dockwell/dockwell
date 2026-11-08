@@ -93,6 +93,10 @@ enum ImportKind {
   IMPORT_KIND_CRON_JOB = 7;
   // What the panel keeps for itself, such as its firewall's or its own settings.
   IMPORT_KIND_PANEL = 8;
+  // A Compose project made on the panel's Containers page, outside its store.
+  IMPORT_KIND_COMPOSE_PROJECT = 9;
+  // Containers the panel started on their own, which it keeps no record of.
+  IMPORT_KIND_CONTAINERS = 10;
 }
 
 // ImportAction is what an import does with a thing it found.
@@ -132,6 +136,17 @@ message OnePanel {
   repeated OnePanelDatabase databases = 10;
   // Its cron jobs.
   repeated OnePanelCronJob cron_jobs = 11;
+  // The Compose projects made on its Containers page, outside its store.
+  repeated OnePanelCompose composes = 12;
+}
+
+// OnePanelCompose is a Compose project made on 1Panel's Containers page, which
+// runs with its name as its project's.
+message OnePanelCompose {
+  // Its name, which is its Compose project's.
+  string name = 1;
+  // Its Compose file.
+  string file = 2;
 }
 
 // OnePanelApp is an install of an app from 1Panel's store.

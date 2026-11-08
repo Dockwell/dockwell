@@ -5943,6 +5943,8 @@ components:
                         - IMPORT_KIND_DATABASE
                         - IMPORT_KIND_CRON_JOB
                         - IMPORT_KIND_PANEL
+                        - IMPORT_KIND_COMPOSE_PROJECT
+                        - IMPORT_KIND_CONTAINERS
                     type: string
                     description: What it is.
                     format: enum
@@ -6851,6 +6853,11 @@ components:
                     items:
                         $ref: '#/components/schemas/OnePanelCronJob'
                     description: Its cron jobs.
+                composes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelCompose'
+                    description: The Compose projects made on its Containers page, outside its store.
             description: |-
                 OnePanel is what 1Panel keeps on a server, as its records say, with nothing
                  secret in it.
@@ -6928,6 +6935,18 @@ components:
             description: |-
                 OnePanelCertificate is a certificate 1Panel keeps for websites. Its key and
                  chain aren't read.
+        OnePanelCompose:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, which is its Compose project's.
+                file:
+                    type: string
+                    description: Its Compose file.
+            description: |-
+                OnePanelCompose is a Compose project made on 1Panel's Containers page, which
+                 runs with its name as its project's.
         OnePanelCronJob:
             type: object
             properties:

@@ -66,6 +66,8 @@ var data = []string{
 		(2, 0, 'reports', 'postgresql', '17', 'remote', '203.0.113.20', 5432, 'admin', 's3cret-db', 's3cret-key')`,
 	`INSERT INTO database_mysqls (name, mysql_name, format, username, password, permission, is_delete) VALUES ('wp', 'mysql', 'utf8mb4', 'wp_user', 's3cret-db', '%', 0), ('gone', 'mysql', 'utf8mb4', 'old', 's3cret-db', '%', 1)`,
 	`INSERT INTO database_postgresqls (name, postgresql_name, format, username, password, is_delete) VALUES ('stats', 'reports', 'UTF8', 'stats_user', 's3cret-db', 0)`,
+	"CREATE TABLE `composes` (`id` integer PRIMARY KEY AUTOINCREMENT,`created_at` datetime,`updated_at` datetime,`name` text,`path` text,`is_pinned` numeric)",
+	`INSERT INTO composes (name, path) VALUES ('stack', '/opt/1panel/docker/compose/stack/docker-compose.yml')`,
 	"CREATE TABLE `script_libraries` (`id` integer PRIMARY KEY AUTOINCREMENT,`created_at` datetime,`updated_at` datetime,`name` text NOT NULL,`script` text NOT NULL)",
 	`INSERT INTO script_libraries (id, name, script) VALUES (1, 'disk report', 'df -h
 du -sh /srv/* s3cret-script

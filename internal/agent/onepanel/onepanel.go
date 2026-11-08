@@ -232,6 +232,11 @@ func (r *reader) all(found *dockwellv1.OnePanel, settings map[string]string, v1 
 	if err := r.databases(found, installs); err != nil {
 		return err
 	}
+	if err := r.rows("composes", func(row sqlitefile.Row) {
+		found.Composes = append(found.Composes, &dockwellv1.OnePanelCompose{Name: row.Text("name"), File: row.Text("path")})
+	}); err != nil {
+		return err
+	}
 	return r.cronJobs(found, installs, v1)
 }
 
