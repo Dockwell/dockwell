@@ -634,12 +634,17 @@ check_memos() {
     curl -sS --max-time 15 -H 'Content-Type: application/json' \
       -d "{\"passwordCredentials\":{\"username\":\"owner\",\"password\":\"$1\"}}" "http://127.0.0.1:$port/api/v1/auth/signin"
   }
+  # The right password gives a token, and the token says who it signed in.
   said=$(memos_sign_in E2e-owner-passw0rd) || fail "Memos's sign-in got no answer"
-  token=$(jq -r '.accessToken // .access_token // empty' <<<"$said" 2>/dev/null)
+  token=$(jq -r '.accessToken // empty' <<<"$said" 2>/dev/null)
   [[ -n "$token" ]] || fail "Memos's admin can't sign in: ${said:0:300}"
-  said=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
-    -d '{"passwordCredentials":{"username":"owner","password":"not-the-password"}}' "http://127.0.0.1:$port/api/v1/auth/signin") || fail "Memos's sign-in got no answer"
-  [[ "$said" == 401 ]] || fail "Memos answered $said to a wrong password, want 401"
+  said=$(curl -sS --max-time 15 -H "Authorization: Bearer $token" "http://127.0.0.1:$port/api/v1/auth/me") || fail "Memos's current user got no answer"
+  [[ "$(jq -r '.user.username // empty' <<<"$said" 2>/dev/null)" == owner ]] || fail "Memos's token doesn't sign in as owner: ${said:0:300}"
+  # Memos 0.30 and 0.31 refuse a wrong password as InvalidArgument, which its
+  # gateway answers with 400, saying "unmatched username and password", and no token.
+  said=$(memos_sign_in not-the-password) || fail "Memos's sign-in got no answer"
+  jq -e '(.accessToken // "") == "" and (.message // "" | contains("unmatched username and password"))' <<<"$said" >/dev/null 2>&1 ||
+    fail "Memos didn't refuse a wrong password: ${said:0:300}"
 }
 
 # adminer_sign_in signs in to Adminer, as scripts/docker-e2e.sh does, to PostgreSQL at a
