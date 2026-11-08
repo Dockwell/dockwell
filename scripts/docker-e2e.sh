@@ -4152,7 +4152,8 @@ git_url=$(head -1 "$git_dir/serving")
 [[ "$git_url" == http://* ]] || fail "the Git server didn't say where it serves: $(cat "$git_dir/serving")"
 move_main() { curl -fsS -X POST "$git_url/_move?branch=main&to=$1" || fail "the Git server didn't move main to $1"; }
 built_port=18093
-dw services create e2e-built --environment "$build_env" --on e2e-agent --build-git-url "$git_url/web.git" --build-git-ref main \
+# Environment-level placement takes server IDs; the container commands above accept names too.
+dw services create e2e-built --environment "$build_env" --on "$agent_id" --build-git-url "$git_url/web.git" --build-git-ref main \
   --app-ports "{\"host_port\":$built_port,\"container_port\":8080}" --yes || fail "an app that builds from Git didn't deploy"
 served=$(curl -fsS --retry 10 --retry-connrefused --retry-delay 1 "http://127.0.0.1:$built_port/") || fail "what the build made doesn't answer on $built_port"
 [[ "$served" == "Add order export endpoint" ]] || fail "what runs answers '$served', not the commit it was built from"
