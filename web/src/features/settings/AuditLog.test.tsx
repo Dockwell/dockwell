@@ -25,6 +25,10 @@ import { expectAccessible } from "../../test/a11y";
 import { onPhone, renderAt } from "../../test/render";
 import { auditCSV, csvLine, MOST_EXPORTED } from "./AuditLogPage";
 
+// Midday, so that the days these events fall on hold at any hour: near midnight UTC,
+// 30 hours ago would be the day before yesterday.
+vi.setSystemTime(new Date(2026, 10, 7, 12, 0));
+
 const MINUTE = 60_000;
 const ago = (minutes: number) => timestampFromDate(new Date(Date.now() - minutes * MINUTE));
 const mira = { kind: ActorKind.USER, id: "usr_1", name: "Mira Chen" };
