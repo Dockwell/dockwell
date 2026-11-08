@@ -14,7 +14,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -25,8 +27,16 @@ type Server struct {
 	t   testing.TB
 	dir string
 	srv *httptest.Server
-	// Requests counts what it was asked, by path.
-	Requests []string
+	mu  sync.Mutex
+	// requests is what it was asked, by path, which more than one asks at once.
+	requests []string
+}
+
+// Requests is what it was asked, by path.
+func (s *Server) Requests() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.requests)
 }
 
 // Start serves an empty directory of repositories, until the test ends.
@@ -50,7 +60,9 @@ func Start(t testing.TB) *Server {
 		Env:  []string{"GIT_PROJECT_ROOT=" + s.dir, "GIT_HTTP_EXPORT_ALL=1", "GIT_CONFIG_NOSYSTEM=1", "HOME=" + s.dir},
 	}
 	s.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.Requests = append(s.Requests, r.URL.Path)
+		s.mu.Lock()
+		s.requests = append(s.requests, r.URL.Path)
+		s.mu.Unlock()
 		h.ServeHTTP(w, r)
 	}))
 	t.Cleanup(s.srv.Close)
