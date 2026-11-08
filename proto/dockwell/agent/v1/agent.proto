@@ -10,6 +10,7 @@ import "dockwell/v1/database.proto";
 import "dockwell/v1/domain.proto";
 import "dockwell/v1/file.proto";
 import "dockwell/v1/health.proto";
+import "dockwell/v1/import.proto";
 import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/process.proto";
@@ -254,6 +255,9 @@ message Hello {
   // watching, and stays there, and the control plane says that pace on its
   // samples. Numbered apart, as open work adds to this message.
   bool follows_pace = 40;
+  // True when the agent reads what 1Panel keeps on the server (ReadOnePanelCall).
+  // The importer takes 180 to 189 in agent messages.
+  bool reads_onepanel = 180;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -450,6 +454,8 @@ message Call {
     ProcessesCall processes = 41;
     // End a process.
     EndProcessCall end_process = 42;
+    // Read what 1Panel keeps on the server. The importer takes 180 to 189.
+    ReadOnePanelCall read_onepanel = 180;
   }
 }
 
@@ -538,6 +544,20 @@ message ListUpdatesCall {
 // checking nor error: those are the control plane's.
 message ListUpdatesResult {
   dockwell.v1.ServerUpdates updates = 1;
+}
+
+// ReadOnePanelCall asks what 1Panel keeps on the server, read from its records,
+// read-only, with nothing secret in what comes back. See
+// docs/adr/0056-importing-a-1panel-server.md.
+message ReadOnePanelCall {}
+
+// ReadOnePanelResult is what 1Panel keeps, or why there's nothing to read.
+message ReadOnePanelResult {
+  // What it keeps, when it's there.
+  dockwell.v1.OnePanel found = 1;
+  // Why there's nothing, such as that 1Panel isn't installed here, when it isn't
+  // there. A record that can't be read is the call's error.
+  string not_here = 2;
 }
 
 // SendBackupCall asks to send a backup that's on the server to its destination, as a
@@ -994,6 +1014,8 @@ message CallResult {
     ProcessesResult processes = 41;
     // How an end process call went.
     EndProcessResult end_process = 42;
+    // What read_onepanel found.
+    ReadOnePanelResult read_onepanel = 180;
   }
 }
 
