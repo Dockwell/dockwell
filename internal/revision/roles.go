@@ -54,8 +54,11 @@ type spot struct {
 // before and after the change, the stricter of the two: in reach at all, and
 // with the role the act needs there. Planning needs a developer, as a change in
 // a protected environment waits; applying needs an admin where an item is
-// protected, where the plan reaches past a container, and for what belongs to
-// no project. Discarding someone else's plan needs what applying would; the
+// protected, where the plan reaches past a container or keeps such reach while
+// it runs something else, and for what belongs to no project. Discarding
+// someone else's plan needs what applying it would in its places, an admin
+// where an item is protected or is an admin's to make; what it would reach on
+// a server doesn't count, as discarding runs nothing there (ADR 0049). The
 // proposer may always discard theirs. c is nil while planning.
 func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *store.Change, items []item, a act) error {
 	caller, ok := place.CallerFrom(ctx)
@@ -74,20 +77,13 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 			return err
 		}
 	}
-	// What each item reaches on its server that only an admin may give it.
-	install := map[resource.Ref]string{}
+	// What each item reaches on its server that only an admin may give it, or
+	// keeps while it runs something else.
+	var plan *Plan
 	if a == applying && c != nil {
-		plan, err := DecodePlan(c.Plan)
-		if err != nil {
+		var err error
+		if plan, err = DecodePlan(c.Plan); err != nil {
 			return err
-		}
-		for i := range plan.Resources {
-			for j := range plan.Resources[i].HostAccess {
-				if why := installWide(plan.Resources[i].HostAccess[j]); why != "" {
-					install[plan.Resources[i].Ref] = why
-					break
-				}
-			}
 		}
 	}
 	byID := make(map[string]*item, len(items))
@@ -104,7 +100,7 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 		if held == "" && it.current == nil && at.admins != "" {
 			// Something new that only an admin makes, such as a project: nothing
 			// to find, so the role is what's missing.
-			return refusal(a, place.Holds(caller.Grants, place.Install), store.RoleAdmin, at.admins)
+			return &Refusal{act: a, Held: place.Holds(caller.Grants, place.Install), Needs: store.RoleAdmin, Why: at.admins}
 		}
 		if held == "" {
 			return fault.New(ErrOutOfReach, "%s", ErrOutOfReach.Error())
@@ -117,15 +113,96 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 		case at.admins != "":
 			needs, why = store.RoleAdmin, at.admins
 		case a != planning && at.Protected:
-			needs, why = store.RoleAdmin, "it changes "+it.ref.Name+" in a protected environment, which waits for an admin or the owner to apply it"
-		case install[it.ref] != "":
-			needs, why = store.RoleAdmin, it.ref.Name+" "+install[it.ref]+", on a server every project there shares"
+			needs, why = store.RoleAdmin, "it changes "+it.ref.Name+" in a protected environment"
+		case plan != nil && store.RoleRank(held) < store.RoleRank(store.RoleAdmin):
+			reach, err := e.reachedOnServers(ctx, tx, plan, it, at)
+			if err != nil {
+				return err
+			}
+			if reach != "" {
+				needs, why = store.RoleAdmin, reach
+			}
 		}
 		if store.RoleRank(held) < store.RoleRank(needs) {
-			return refusal(a, held, needs, why)
+			return &Refusal{act: a, Held: held, Needs: needs, Why: why}
 		}
 	}
 	return nil
+}
+
+// reachedOnServers says what of a plan's item, applied, reaches on its servers
+// that only an admin may give it, whatever a project's grants say, or keeps
+// while it runs something else; or "" for nothing. A volume Dockwell didn't
+// make is an admin's too unless its environment mounts it already, as it may
+// be another project's data, such as a taken-on stack's (ADR 0049).
+func (e *Engine) reachedOnServers(ctx context.Context, tx *store.Tx, plan *Plan, it *item, at spot) (string, error) {
+	for i := range plan.Resources {
+		r := &plan.Resources[i]
+		if r.Ref != it.ref {
+			continue
+		}
+		for j := range r.HostAccess {
+			if why := installWide(r.HostAccess[j]); why != "" {
+				return it.ref.Name + " " + why + ", on a server every project there shares", nil
+			}
+		}
+		for j := range r.Keeps {
+			if r.Keeps[j].AsGoodAsRoot() {
+				return it.ref.Name + " would run something else while it gets as much as root on its server", nil
+			}
+			if why := installWide(r.Keeps[j]); why != "" {
+				return it.ref.Name + " would run another image, command or entrypoint while it " + why, nil
+			}
+		}
+		for j := range r.HostAccess {
+			a := r.HostAccess[j]
+			if a.Kind != resource.AccessExternalVolume {
+				continue
+			}
+			mounted, err := e.mountedIn(ctx, tx, at.Environment, it.ref, a.Path)
+			if err != nil {
+				return "", err
+			}
+			if !mounted {
+				return it.ref.Name + " mounts the volume " + a.Path + ", which Dockwell didn't make and nothing in its environment mounts yet, so it may be another project's data", nil
+			}
+		}
+	}
+	return "", nil
+}
+
+// mountedIn reports a volume Dockwell didn't make, by name, that something
+// other than self in an environment mounts as it stands now.
+func (e *Engine) mountedIn(ctx context.Context, tx *store.Tx, env string, self resource.Ref, name string) (bool, error) {
+	if env == "" {
+		return false, nil
+	}
+	for _, kind := range e.kinds.Kinds() {
+		t, err := e.kinds.Type(kind)
+		if err != nil || t.Level() != resource.LevelEnvironment {
+			continue
+		}
+		stored, err := tx.ListKind(ctx, string(kind))
+		if err != nil {
+			return false, err
+		}
+		for _, r := range stored {
+			ref := resource.Ref{Kind: kind, Scope: r.Scope, Name: r.Name}
+			if r.Scope != env || ref == self || r.Spec == nil {
+				continue
+			}
+			spec, err := e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return false, err
+			}
+			for _, a := range e.kinds.HostAccess(kind, spec) {
+				if a.Kind == resource.AccessExternalVolume && a.Path == name {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
 }
 
 // installWide says what an item reaches that ADR 0048 makes an admin's,
@@ -184,17 +261,42 @@ func (e *Engine) CheckApply(ctx context.Context, changeID string) error {
 	})
 }
 
-// refusal says what the act needs, what the person holds, and why.
-func refusal(a act, held, needs, why string) error {
-	verb := map[act]string{planning: "plan this", applying: "apply this", discarding: "discard someone else's plan here"}[a]
-	who := "an admin or the owner"
-	if needs == store.RoleDeveloper {
-		who = "a developer or more"
+// Refusal is an act the person's role doesn't cover where an item is: the
+// role it needs, the one they hold there, and why it needs that. It is
+// ErrNeedsRole.
+type Refusal struct {
+	act         act
+	Held, Needs string
+	// Why says what makes it need that role, as a clause, such as "it changes
+	// web in a protected environment". Empty when the role is all there is to it.
+	Why string
+}
+
+func (r *Refusal) who() string {
+	if r.Needs == store.RoleDeveloper {
+		return "a developer or more"
 	}
-	if why != "" {
-		return fault.New(ErrNeedsRole, "only %s can %s, as %s, and %s, so it didn't happen. Ask an admin or the owner", who, verb, why, youHold(held))
+	return "an admin or the owner"
+}
+
+func (r *Refusal) Error() string {
+	verb := map[act]string{planning: "plan this", applying: "apply this", discarding: "discard someone else's plan here"}[r.act]
+	if r.Why != "" {
+		return "only " + r.who() + " can " + verb + ", as " + r.Why + ", and " + youHold(r.Held) + ", so it didn't happen. Ask an admin or the owner"
 	}
-	return fault.New(ErrNeedsRole, "only %s can %s, and %s, so it didn't happen. Ask an admin to change your role", who, verb, youHold(held))
+	return "only " + r.who() + " can " + verb + ", and " + youHold(r.Held) + ", so it didn't happen. Ask an admin to change your role"
+}
+
+// Is makes a Refusal ErrNeedsRole.
+func (r *Refusal) Is(target error) bool { return target == ErrNeedsRole }
+
+// Waits says why a plan the person can't apply waits, and for whom: what
+// makes it theirs, then that they apply it, then what to do meanwhile.
+func (r *Refusal) Waits() string {
+	if r.Why == "" {
+		return "Only " + r.who() + " can apply this, and " + youHold(r.Held) + ". Leave it planned for them, or ask an admin to change your role"
+	}
+	return "As " + r.Why + ", " + r.who() + " applies this. Leave it planned for them"
 }
 
 // youHold says what the person holds: "you're a developer", or none.
@@ -246,18 +348,21 @@ func envSpot(it *item) spot {
 	after, _ := it.spec.(*resourcev1.Environment)
 	protected := before != nil && scope.Protected(it.ref.Name, before) || after != nil && scope.Protected(it.ref.Name, after)
 	s := spot{Place: place.Place{Project: it.ref.Scope, Environment: it.id, Protected: protected}}
+	// Unset, as on one from before protection was written, or brought back by an
+	// undo, it reads as its name has it.
+	byName := scope.DefaultProtection(it.ref.Name) == resourcev1.Protection_PROTECTION_PROTECTED
 	switch {
 	case after == nil:
-	case before == nil && after.GetProtection() != scope.DefaultProtection(it.ref.Name):
-		s.admins = "making " + it.ref.Name + " " + protectionWords(after) + " is an admin's, as its name would have it otherwise"
+	case before == nil && scope.Protected(it.ref.Name, after) != byName:
+		s.admins = "making " + it.ref.Name + " " + protectionWords(it.ref.Name, after) + " is an admin's, as its name would have it otherwise"
 	case before != nil && scope.Protected(it.ref.Name, before) != scope.Protected(it.ref.Name, after):
-		s.admins = "making " + it.ref.Name + " " + protectionWords(after) + " is an admin's"
+		s.admins = "making " + it.ref.Name + " " + protectionWords(it.ref.Name, after) + " is an admin's"
 	}
 	return s
 }
 
-func protectionWords(e *resourcev1.Environment) string {
-	if e.GetProtection() == resourcev1.Protection_PROTECTION_PROTECTED {
+func protectionWords(name string, e *resourcev1.Environment) string {
+	if scope.Protected(name, e) {
 		return "protected"
 	}
 	return "open"
@@ -349,27 +454,66 @@ type Approval struct {
 // ApprovalOf says what applying changeID needs of the caller in ctx beyond a
 // role. A context with no caller is Dockwell's own, which needs nothing.
 func (e *Engine) ApprovalOf(ctx context.Context, changeID string) (Approval, error) {
-	caller, ok := place.CallerFrom(ctx)
-	if !ok {
-		return Approval{}, nil
-	}
 	var out Approval
 	err := e.db.View(ctx, func(tx *store.Tx) error {
 		c, err := tx.GetChange(ctx, changeID)
 		if errors.Is(err, store.ErrNotFound) {
 			return noSuchChange(changeID)
 		}
-		if err != nil || c.State != store.ChangePlanned {
-			return err
-		}
-		mine, err := sameProposer(ctx, tx, caller, c.Actor)
 		if err != nil {
 			return err
 		}
-		// A plan Dockwell made has no other person to approve it for.
-		out.Theirs = !mine && aPerson(c.Actor)
-		out.Protected, err = e.protectedChange(ctx, tx, c)
+		out, err = e.approvalIn(ctx, tx, c)
 		return err
 	})
 	return out, err
+}
+
+func (e *Engine) approvalIn(ctx context.Context, tx *store.Tx, c store.Change) (Approval, error) {
+	caller, ok := place.CallerFrom(ctx)
+	if !ok || c.State != store.ChangePlanned {
+		return Approval{}, nil
+	}
+	mine, err := sameProposer(ctx, tx, caller, c.Actor)
+	if err != nil {
+		return Approval{}, err
+	}
+	// A plan Dockwell made has no other person to approve it for.
+	out := Approval{Theirs: !mine && aPerson(c.Actor)}
+	out.Protected, err = e.protectedChange(ctx, tx, c)
+	return out, err
+}
+
+// Applying is what applying a planned change asks of the person reading it.
+type Applying struct {
+	// Approves says applying it approves someone else's change in a protected
+	// environment, which takes a session, the plan's fingerprint and a passkey.
+	Approves bool
+	// Waits says why their role doesn't let them apply it, and who does
+	// (Refusal.Waits), or "" when it does.
+	Waits string
+}
+
+// ApplyingOf says, within tx, what applying c asks of the caller in ctx, as
+// ApplyChange would ask it, so a plan can say so before anyone tries. A context
+// with no caller, or a change that isn't planned, asks nothing.
+func (e *Engine) ApplyingOf(ctx context.Context, tx *store.Tx, c store.Change) (Applying, error) {
+	if _, ok := place.CallerFrom(ctx); !ok || c.State != store.ChangePlanned {
+		return Applying{}, nil
+	}
+	items, err := e.placed(ctx, tx, c)
+	if err != nil {
+		return Applying{}, err
+	}
+	var refused *Refusal
+	switch err := e.checkRoles(ctx, tx, c.Actor, &c, items, applying); {
+	case errors.As(err, &refused):
+		return Applying{Waits: refused.Waits()}, nil
+	case errors.Is(err, ErrOutOfReach):
+		return Applying{}, nil // not theirs to read, so a list doesn't show it
+	case err != nil:
+		return Applying{}, err
+	}
+	approval, err := e.approvalIn(ctx, tx, c)
+	return Applying{Approves: approval.Protected && approval.Theirs}, err
 }

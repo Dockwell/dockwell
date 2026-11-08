@@ -387,6 +387,14 @@ type ResourcePlan struct {
 	// couldn't before, from its specs (resource.HostAccesser). A plan with
 	// any needs a person to apply it.
 	HostAccess []resource.Access `json:",omitempty"`
+	// Keeps is the access ADR 0048 makes an admin's that it already has and
+	// keeps while the change has it run something else: under what's as good
+	// as root, any change to what runs, another tag of its image included;
+	// under other such access, another repository, command or entrypoint.
+	// Whoever changes what runs there gets what it reaches, so applying is an
+	// admin's (ADR 0049). It asks no passkey and no warning: who may apply is
+	// all it decides.
+	Keeps []resource.Access `json:",omitempty"`
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -2007,6 +2015,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	}
 	actions := map[string][]resource.Action{} // each item's steps, on every server
 	access := map[string][]resource.Access{}  // what each item gains on its servers
+	keeps := map[string][]resource.Access{}   // what each keeps while it runs something else
 	var before, after map[resource.Ref]proto.Message
 	var takes map[resource.Ref][]resource.Access
 	if len(servers) > 0 {
@@ -2126,6 +2135,10 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				}
 				// What a person approved was where a path led then.
 				gained = append(gained, resource.NewAccess(gained, movedOff(reaches, moved))...)
+				if kept := resource.NewAccess(gained, e.keptWhileRunningElse(it, server, reaches, leads)); len(kept) > 0 {
+					keeps[it.id] = append(keeps[it.id], resource.NewAccess(keeps[it.id], kept)...)
+					fmt.Fprintf(fp, "keeps %s|%s|%v\n", server, ref(it.ref), kept)
+				}
 				// What a backup holds came from what its volume reached then, and a
 				// volume of that name now may reach far less.
 				if len(asRoot(reaches, leads)) == 0 {
@@ -2215,7 +2228,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	masked := e.switchSides(items)
 	for i := range items {
 		rp := items[i].resourcePlan(actions[items[i].id])
-		rp.HostAccess = access[items[i].id]
+		rp.HostAccess, rp.Keeps = access[items[i].id], keeps[items[i].id]
 		if masked[items[i].ref] {
 			for j := range rp.Changes {
 				rp.Changes[j].Sensitive, rp.Changes[j].From, rp.Changes[j].To = true, "", ""
@@ -2396,6 +2409,63 @@ func (e *Engine) runsSomethingElse(it *item, server string) bool {
 		n.SetImage(before, now)
 	}
 	return !proto.Equal(before, after)
+}
+
+// keptWhileRunningElse is what of the access an item reaches on a server, by
+// where its paths lead, ADR 0048 makes an admin's and the change has it keep
+// while it runs something else (ResourcePlan.Keeps). Under what's as good as
+// root, that's any change to what runs, another tag of the same repository
+// included, as whoever can push to it would get root. Under other such access,
+// it's another repository, command or entrypoint: a new tag of the same
+// repository is the ordinary deploy, of what an admin trusted with that access.
+func (e *Engine) keptWhileRunningElse(it *item, server string, reaches []resource.Access, leads map[string]string) []resource.Access {
+	current, desired := it.currentOn(server), it.desiredOn(server)
+	n, ok := e.imageNamer(it.ref.Kind)
+	if !ok || current == nil || desired == nil {
+		return nil // what's new there gains what it reaches, and what goes runs nothing
+	}
+	var root, other []resource.Access
+	for _, a := range reaches {
+		switch led := a.Leading(leads[a.Path]); {
+		case led.AsGoodAsRoot():
+			root = append(root, led)
+		case installWide(led) != "":
+			other = append(other, led)
+		}
+	}
+	switch {
+	case len(root) > 0 && (it.restoreOn(server) != nil || !proto.Equal(n.WhatRuns(current), n.WhatRuns(desired))):
+		return append(root, other...)
+	case len(other) > 0 && startsSomethingElse(n.ImageOf(current), n.ImageOf(desired), current, desired):
+		return other
+	}
+	return nil
+}
+
+// startsSomethingElse reports a spec that starts another program than before:
+// another repository, command or entrypoint. A kind whose spec isn't a
+// container's counts any change to what it runs.
+func startsSomethingElse(imageBefore, imageAfter string, before, after proto.Message) bool {
+	if docker.Repository(imageBefore) != docker.Repository(imageAfter) {
+		return true
+	}
+	was, now := runs(before), runs(after)
+	if was == nil || now == nil {
+		return !proto.Equal(before, after)
+	}
+	return !slices.Equal(was.GetCommand(), now.GetCommand()) || !slices.Equal(was.GetEntrypoint(), now.GetEntrypoint()) ||
+		was.GetNoEntrypoint() != now.GetNoEntrypoint()
+}
+
+// runs is the container a spec runs: a container's own, or a service's app.
+func runs(spec proto.Message) *resourcev1.Container {
+	switch s := spec.(type) {
+	case *resourcev1.Container:
+		return s
+	case *resourcev1.Service:
+		return s.GetApp()
+	}
+	return nil
 }
 
 // movedOff is what of list is a server path that doesn't lead where it did.

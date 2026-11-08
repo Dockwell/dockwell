@@ -5,10 +5,15 @@ package revision
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/control/place"
+	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -129,7 +134,8 @@ func TestTheEngineChecksTheRolesOfEachItem(t *testing.T) {
 // project (ADR 0048).
 func TestHostAccessIsAnAdminsToApplyInTheEngine(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
-		e, _, db := setupDocker(t, b, "srv_A")
+		e, engines, db := setupDocker(t, b, "srv_A")
+		engines["srv_A"].AddVolume(docker.Volume{Name: "shared", Driver: "local"})
 		e.RequireRoles()
 		ctx := t.Context()
 		project := envProjectOf(t, db, production(t, db))
@@ -161,20 +167,135 @@ func TestHostAccessIsAnAdminsToApplyInTheEngine(t *testing.T) {
 		if err := e.ApplyBy(mira, mounts.Change, By{Actor: "user:usr_mira"}); err != nil {
 			t.Errorf("the owner applying it: %v", err)
 		}
-		// What ADR 0048 doesn't list, such as a volume Dockwell didn't make, a
-		// developer approves in a project they may apply in.
-		shared := Edit{Ref: resource.Ref{Kind: service.Kind, Scope: staging, Name: "worker"}, Servers: []string{"srv_A"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
-			Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "shared"}, External: true, Target: "/shared"}},
-		}}}}
-		outside, err := e.Propose(ada, Proposal{Summary: "Share", Actor: "user:usr_ada", Edits: []Edit{shared}})
+		// A volume Dockwell didn't make may be another project's data, such as a
+		// taken-on stack's, so it waits for an admin, until its environment
+		// mounts it: then a developer's next service may too.
+		shared := func(name string) Edit {
+			return Edit{Ref: resource.Ref{Kind: service.Kind, Scope: staging, Name: name}, Servers: []string{"srv_A"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+				Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "shared"}, External: true, Target: "/shared"}},
+			}}}}
+		}
+		outside, err := e.Propose(ada, Proposal{Summary: "Share", Actor: "user:usr_ada", Edits: []Edit{shared("worker")}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !outside.HostAccess() {
 			t.Fatalf("a volume Dockwell didn't make planned without host access: %+v", outside.Resources)
 		}
-		if err := e.ApplyBy(ada, outside.Change, By{Actor: "user:usr_ada"}); errors.Is(err, ErrNeedsRole) {
-			t.Errorf("a developer applying a volume Dockwell didn't make, in open staging: %v", err)
+		err = e.ApplyBy(ada, outside.Change, By{Actor: "user:usr_ada"})
+		if !errors.Is(err, ErrNeedsRole) || !strings.Contains(err.Error(), "mounts the volume shared, which Dockwell didn't make and nothing in its environment mounts yet") {
+			t.Errorf("a developer applying a volume Dockwell didn't make that nothing in staging mounts: %v, want ErrNeedsRole", err)
+		}
+		if err := e.ApplyBy(mira, outside.Change, By{Actor: "user:usr_mira"}); err != nil {
+			t.Fatalf("the owner applying it: %v", err)
+		}
+		another, err := e.Propose(ada, Proposal{Summary: "Share again", Actor: "user:usr_ada", Edits: []Edit{shared("reader")}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := e.ApplyBy(ada, another.Change, By{Actor: "user:usr_ada"}); err != nil {
+			t.Errorf("a developer mounting a volume staging mounts already: %v", err)
+		}
+	})
+}
+
+// Whoever changes what runs under host access an admin gave gets what it
+// reaches, so that's an admin's to apply too (ADR 0049): under what's as good
+// as root, any change to what runs, another tag of its image included; under
+// other such access, another repository, command or entrypoint. Another tag of
+// the same repository there is the ordinary deploy, a developer's.
+func TestWhatRunsUnderHostAccessIsAnAdminsToChange(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, engines, db := setupDocker(t, b, "srv_A")
+		e.RequireRoles()
+		engines["srv_A"].Registry["busybox:1.36"] = dockertest.Image{Config: docker.Config{Cmd: []string{"sh"}}}
+		ctx := t.Context()
+		project := envProjectOf(t, db, production(t, db))
+		as := func(user string, grants ...store.Grant) context.Context {
+			return place.WithCaller(ctx, place.Caller{UserID: user, Grants: grants})
+		}
+		mira := as("usr_mira", store.Grant{UserID: "usr_mira", ProjectID: store.Install, Role: store.RoleOwner})
+		ada := as("usr_ada", store.Grant{UserID: "usr_ada", ProjectID: project, Role: store.RoleDeveloper})
+		mustApply := func(who context.Context, actor string, edit Edit) *Plan {
+			t.Helper()
+			p, err := e.Propose(who, Proposal{Summary: "Change", Actor: actor, Edits: []Edit{edit}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := e.ApplyBy(who, p.Change, By{Actor: actor}); err != nil {
+				t.Fatal(err)
+			}
+			return p
+		}
+		staging := mustApply(mira, "user:usr_mira", Edit{Ref: resource.Ref{Kind: scope.EnvironmentKind, Scope: project, Name: "staging"}, Spec: &resourcev1.Environment{}}).Resources[0].ID
+		svc := func(name string, c *resourcev1.Container) Edit {
+			return Edit{Ref: resource.Ref{Kind: service.Kind, Scope: staging, Name: name}, Servers: []string{"srv_A"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: c}}}
+		}
+		path := func(p string, readOnly bool) []*resourcev1.Mount {
+			return []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: p}, Target: "/data", ReadOnly: readOnly}}
+		}
+		for _, k := range []struct {
+			name, svc string
+			given     *resourcev1.Container
+			root      bool
+			words     string
+		}{
+			{"a read-only server path", "reads", &resourcev1.Container{Image: "nginx:1.27", Mounts: path("/srv/shared", true)}, false, "reaches the server path /srv/shared"},
+			{"a server path", "writes", &resourcev1.Container{Image: "nginx:1.27", Mounts: path("/srv/shared-rw", false)}, false, "reaches the server path /srv/shared-rw"},
+			{"a capability", "admin-net", &resourcev1.Container{Image: "nginx:1.27", CapAdd: []string{"NET_ADMIN"}}, false, "runs with more than Docker gives a container"},
+			{"Docker's socket", "socket", &resourcev1.Container{Image: "nginx:1.27", Mounts: path("/var/run/docker.sock", false)}, true, "as much as root"},
+		} {
+			name := k.svc
+			mustApply(mira, "user:usr_mira", svc(name, k.given))
+			for _, change := range []struct {
+				what  string
+				edit  func(c *resourcev1.Container)
+				waits bool
+			}{
+				{"another repository", func(c *resourcev1.Container) { c.Image = "busybox:1.36" }, true},
+				{"another command", func(c *resourcev1.Container) { c.Command = []string{"sh", "-c", "id"} }, true},
+				{"another entrypoint", func(c *resourcev1.Container) { c.Entrypoint = []string{"/bin/sh"} }, true},
+				{"another tag of its repository", func(c *resourcev1.Container) { c.Image = "nginx:1.28" }, k.root},
+				{"an environment variable", func(c *resourcev1.Container) { c.Env = map[string]string{"MODE": "fast"} }, k.root},
+			} {
+				c := proto.Clone(k.given).(*resourcev1.Container)
+				change.edit(c)
+				p, err := e.Propose(ada, Proposal{Summary: change.what, Actor: "user:usr_ada", Edits: []Edit{svc(name, c)}})
+				if err != nil {
+					t.Fatalf("a developer planning %s under %s: %v", change.what, k.name, err)
+				}
+				err = e.ApplyBy(ada, p.Change, By{Actor: "user:usr_ada"})
+				switch {
+				case change.waits && (!errors.Is(err, ErrNeedsRole) || !strings.Contains(err.Error(), k.words)):
+					t.Errorf("a developer applying %s under %s: %v, want ErrNeedsRole saying it %s", change.what, k.name, err, k.words)
+				case !change.waits && err != nil:
+					t.Errorf("a developer applying %s under %s: %v, want it applied", change.what, k.name, err)
+				case change.waits:
+					if err := e.Discard(ada, p.Change, By{Actor: "user:usr_ada"}); err != nil {
+						t.Fatal(err)
+					}
+				default:
+					mustApply(mira, "user:usr_mira", svc(name, k.given)) // back to what the owner gave it
+				}
+			}
+			// What's kept asks no passkey and no warning, so the owner's own
+			// change under it plans as before: under root, as reaching it anew
+			// (ADR 0032); under the rest, as kept alone.
+			c := proto.Clone(k.given).(*resourcev1.Container)
+			c.Command = []string{"sh"}
+			owners, err := e.Propose(mira, Proposal{Summary: "Owner's", Actor: "user:usr_mira", Edits: []Edit{svc(name, c)}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := owners.HostAccess(); got != k.root || owners.AsGoodAsRoot() != k.root {
+				t.Errorf("a new command under %s planned with host access %v, want %v: %+v", k.name, got, k.root, owners.Resources)
+			}
+			if kept := owners.Resources[0].Keeps; len(kept) == 0 == !k.root {
+				t.Errorf("a new command under %s keeps %v: %+v", k.name, kept, owners.Resources)
+			}
+			if err := e.ApplyBy(mira, owners.Change, By{Actor: "user:usr_mira"}); err != nil {
+				t.Errorf("the owner applying a new command under %s: %v", k.name, err)
+			}
 		}
 	})
 }
