@@ -24,6 +24,7 @@ import { FleetUnreadNote } from "../servers/FleetNotes";
 import { primaryAddress, serverStatus } from "../servers/server";
 import { useControlPlaneNow, useFleetUnread } from "../servers/useFleet";
 import { Page } from "../shell/Page";
+import { shortVersion } from "../shell/version";
 import { FleetCallout } from "./FleetCallout";
 import { agentVersions, fleetCounts, fleetNumbers } from "./fleet";
 import { OverviewApps } from "./OverviewApps";
@@ -49,7 +50,8 @@ export function FleetOverview({ servers, status }: { servers: readonly Server[];
   const phone = useMediaQuery(PHONE_QUERY);
   const unread = useFleetUnread();
   const count = strings.fleetGrid.servers(servers.length);
-  const versions = agentVersions(servers);
+  // As the rail says the control plane's: a build on the way to a release is that release, dev.
+  const versions = [...new Set(agentVersions(servers).map(shortVersion))];
   const [version] = versions;
   const agents =
     versions.length === 1 && version

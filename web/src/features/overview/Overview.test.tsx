@@ -284,6 +284,15 @@ describe("Overview with a fleet", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/servers/srv_2"));
   });
 
+  it.each([
+    ["v0.2.2-0.20261108005608-b92efc90d686", "2 servers · agent 0.2.2-dev everywhere"],
+    ["0.2.0", "2 servers · agents on 2 versions"],
+  ])("says which agents run, a build on the way to a release as the rail says it (%s)", async (other, lead) => {
+    const wip = agent("v0.2.2-0.20261108005608-b92efc90d686");
+    renderFleet([aServer({ ...hz1, agentBuild: wip }), hz2({ agentBuild: agent(other) })]);
+    expect(await screen.findByText(lead, { selector: ".page-lead" })).toBeVisible();
+  });
+
   it("says first which server stopped reporting, and leaves its numbers out of the fleet's", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date(2026, 10, 8, 9, 30));
