@@ -76,6 +76,9 @@ type Config struct {
 	Docker *docker.Client
 	// Backups takes and removes backups of this server's volumes. Nil takes none.
 	Backups BackupTaker
+	// Databases reads this server's databases, each in its own container (ADR
+	// 0038). Nil reads none.
+	Databases DatabaseReader
 	// Health says how this server's services are, which the agent tells the
 	// control plane as its stream opens, when a state changes, and every so
 	// often while checks run. Nil says nothing.
@@ -156,6 +159,13 @@ type BackupTaker interface {
 	Fetch(ctx context.Context, call *agentv1.FetchBackupCall, destination map[string]string) (*agentv1.BackupResult, error)
 	// Delete removes a backup from the disk, and from where it was sent.
 	Delete(ctx context.Context, call *agentv1.DeleteBackupCall, destination map[string]string) (*agentv1.DeleteBackupResult, error)
+}
+
+// DatabaseReader asks this server's databases how they are, each with its own tools
+// in its own container (ADR 0038). It changes nothing.
+type DatabaseReader interface {
+	// Read says what each database asked about says of itself, in order.
+	Read(ctx context.Context, call *agentv1.DatabaseCall) (*agentv1.DatabaseResult, error)
 }
 
 // Desired keeps what the control plane told this agent to apply, so the

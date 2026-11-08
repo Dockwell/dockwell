@@ -16,7 +16,8 @@
 # a password no one typed, but for the tunnel, which stops at its plan. A volume,
 # PostgreSQL and MySQL each back up, lose their data, and get it back through a
 # plan, with owners and modes as they were, and a backup goes sealed to an S3 server and
-# comes back. Then the agent build joins the
+# comes back. PostgreSQL, MySQL and Redis each say what they hold, read in their own
+# containers with what their environments have, and no password shows. Then the agent build joins the
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
 # and serves a real container over HTTPS through Caddy, and routes that take no
@@ -1106,6 +1107,22 @@ if docker inspect --format '{{json .Config.Labels}}' "$secured" | grep -q -F -- 
 nothing_shows "$redis_password"
 drift=$(dw drift list --json) || fail "drift list failed"
 jq -e '(.drift // []) | length == 0' <<<"$drift" >/dev/null || fail "drift with a password in a command: $drift"
+
+step "Databases: Redis says how it is, signing in with what its environment has, which shows nowhere"
+# A client stays connected while Redis is read, so the count, which leaves out the
+# reading's own connection, has one to count.
+docker exec -d "$secured" redis-cli -a "$redis_password" --no-auth-warning BLPOP e2e-hold 30 || fail "can't connect a client to $secured"
+for _ in $(seq 50); do
+  [[ "$(docker exec "$secured" redis-cli -a "$redis_password" --no-auth-warning CLIENT LIST 2>&1)" == *cmd=blpop* ]] && break
+  sleep 0.2
+done
+said=$(dw databases get secured --project default --json) || fail "reading Redis as a database failed: $said"
+jq -e '.database.engine == "DATABASE_ENGINE_REDIS" and (.database.readings[0].unread // "") == ""
+  and (.database.readings[0].version | startswith("7.4")) and ((.database.readings[0].connections // "0") | tonumber) >= 1' <<<"$said" >/dev/null ||
+  fail "Redis reads as: $said"
+docker exec "$secured" redis-cli -a "$redis_password" --no-auth-warning LPUSH e2e-hold released >/dev/null || fail "can't let the client on $secured go"
+[[ "$said" != *"$redis_password"* ]] || fail "what Redis says of itself holds its password"
+nothing_shows "$redis_password"
 
 step "The same file with the same value changes nothing"
 imported=$(dw compose import --project default --compose "$(cat "$data/redis.yaml")" --env-file "$data/redis.env" --json 2>"$data/import.err") ||
@@ -3537,6 +3554,33 @@ backup_healthy "$postgres_db"
 [[ "$(pg postgres "SELECT count(*) FROM pg_database WHERE datname = 'made_since'")" == 1 ]] || fail "undoing the restore didn't bring back what it replaced"
 [[ -z "$(pg shop "SELECT tablename FROM pg_tables WHERE tablename = 'orders'")" ]] || fail "undoing the restore left the orders"
 
+step "Databases: PostgreSQL says what it holds, read in its own container, and its password shows nowhere"
+# A client stays connected while PostgreSQL is read, so the count, which leaves out
+# the reading's own session, has one to count.
+docker exec -d "$postgres_db" psql -X -q -U postgres -d postgres -c 'SELECT pg_sleep(30)' || fail "can't connect a client to PostgreSQL"
+for _ in $(seq 50); do
+  [[ "$(pg postgres "SELECT count(*) FROM pg_stat_activity WHERE query = 'SELECT pg_sleep(30)'")" -ge 1 ]] && break
+  sleep 0.2
+done
+# database_in reads the database a catalog install made, from the list.
+database_in() {
+  local all
+  all=$(dw databases list --json) || fail "listing databases failed: $all"
+  jq -c --arg p "$catalog_project" '.databases[] | select((.resource.scope | ascii_downcase) == $p and .resource.name == "db")' <<<"$all"
+}
+said=$(database_in)
+jq -e '.engine == "DATABASE_ENGINE_POSTGRESQL" and .volume == "data" and .passwordSecret == "POSTGRES_PASSWORD" and .host == "db" and .port == 5432
+  and (.beside == ["adminer"]) and .catalogEntry == "postgres" and .newestBackup.method == "BACKUP_METHOD_DUMP"' <<<"$said" >/dev/null ||
+  fail "PostgreSQL reads as: $said"
+jq -e '.readings[0] | (.unread // "") == "" and (.version | startswith("17.")) and .user == "postgres" and (.sizeBytes | tonumber) > 0
+  and ((.connections // "0") | tonumber) >= 1
+  and ([.databases[].name] | index("shop") and index("made_since"))
+  and ([.users[] | select(.name == "shopper" and (.superuser // false) == false)] | length == 1)
+  and ([.users[] | select(.name == "postgres" and .superuser)] | length == 1)' <<<"$said" >/dev/null ||
+  fail "PostgreSQL says: $(jq -c '.readings' <<<"$said")"
+[[ "$said" != *"$password"* ]] || fail "what PostgreSQL says of itself holds its password"
+pg postgres "SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE query = 'SELECT pg_sleep(30)'" >/dev/null || fail "can't let the client on PostgreSQL go"
+
 step "Catalog: MySQL runs with a password of its own, and phpMyAdmin signs in with it"
 catalog_install mysql
 mysql_db=$(catalog_container db)
@@ -3590,6 +3634,25 @@ page=$(phpmyadmin_sign_in "$password")
 backup_undo "$change"
 backup_healthy "$mysql_db"
 [[ -n "$(my "SHOW DATABASES LIKE 'made\\_since'")" ]] || fail "undoing the restore didn't bring back what it replaced"
+
+step "Databases: MySQL says what it holds, and whom it lets in from where"
+# A client stays connected while MySQL is read, so the count, which leaves out the
+# reading's own connection, has one to count.
+docker exec -d "$mysql_db" sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD exec mysql -uroot -h127.0.0.1 -N -e "SELECT SLEEP(30)"' || fail "can't connect a client to MySQL"
+for _ in $(seq 50); do
+  [[ "$(my "SELECT COUNT(*) FROM information_schema.PROCESSLIST WHERE INFO = 'SELECT SLEEP(30)'")" -ge 1 ]] && break
+  sleep 0.2
+done
+said=$(database_in)
+jq -e '.engine == "DATABASE_ENGINE_MYSQL" and .volume == "data" and .passwordSecret == "MYSQL_ROOT_PASSWORD" and .port == 3306' <<<"$said" >/dev/null ||
+  fail "MySQL reads as: $said"
+jq -e '.readings[0] | (.unread // "") == "" and (.version | startswith("8.4")) and .user == "root" and ((.connections // "0") | tonumber) >= 1
+  and ([.databases[].name] | index("shop") and index("made_since"))
+  and ([.users[] | select(.name == "shopper" and .host == "%" and .databases == ["shop"])] | length == 1)
+  and ([.users[] | select(.name == "root" and .superuser)] | length >= 1)' <<<"$said" >/dev/null ||
+  fail "MySQL says: $(jq -c '.readings' <<<"$said")"
+[[ "$said" != *"$password"* ]] || fail "what MySQL says of itself holds its password"
+for id in $(my "SELECT ID FROM information_schema.PROCESSLIST WHERE INFO = 'SELECT SLEEP(30)'"); do my "KILL $id" || fail "can't let the client on MySQL go"; done
 
 step "Catalog: Nginx Proxy Manager takes the email it was given and the password it wasn't"
 catalog_install nginx-proxy-manager --values ADMIN_EMAIL=owner@example.com

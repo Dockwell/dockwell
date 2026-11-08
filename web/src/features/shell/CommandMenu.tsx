@@ -230,6 +230,13 @@ function Commands({ onClose }: { onClose: () => void }) {
       run: () => navigate({ to: "/domains" }),
     });
     list.push({
+      id: "databases",
+      group: pages,
+      icon: "database",
+      label: t`Open the databases`,
+      run: () => navigate({ to: "/databases" }),
+    });
+    list.push({
       id: "status",
       group: pages,
       icon: "gauge",

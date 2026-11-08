@@ -16,7 +16,8 @@
 //   - the tag "prints" writes "legacy says hello" as it starts, as a container
 //     run by hand has something in its log;
 //   - postgres keeps its data as one file, and dumps and loads it as its tools do,
-//     for a backup to go through a database's own dump.
+//     for a backup to go through a database's own dump, and answers a reading of
+//     itself as psql would, for the Databases section.
 //
 // It is never part of a release. CI's Panel end to end on Docker job runs the
 // same flows on real Docker.
@@ -71,10 +72,32 @@ func postgres(x dockertest.Exec) int {
 		_, _ = io.WriteString(x.Stdout, "\n-- PostgreSQL database cluster dump complete\n")
 	case strings.Contains(script, "psql"):
 		data, err := io.ReadAll(x.Stdin)
-		if err != nil || os.WriteFile(file, data, 0o600) != nil {
+		if err != nil {
+			return 1
+		}
+		if strings.Contains(string(data), "json_build_object") {
+			return postgresReading(x, file)
+		}
+		if os.WriteFile(file, data, 0o600) != nil {
 			return 1
 		}
 	}
+	return 0
+}
+
+// postgresReading says what PostgreSQL would of itself, as one line of JSON: the
+// file of its data is its one database of its own.
+func postgresReading(x dockertest.Exec, file string) int {
+	var size int64
+	if info, err := os.Stat(file); err == nil {
+		size = info.Size()
+	}
+	const own = 7_512_000 // what an empty server's postgres database takes
+	_, _ = fmt.Fprintf(x.Stdout, `{"version":"17.11 (Debian 17.11-1.pgdg120+1)","user":"postgres","connections":3,"max_connections":100,`+
+		`"uptime":5400,"hit":9920,"read":80,"size":%d,"database_count":2,"user_count":2,`+
+		`"databases":[{"name":"app","owner":"app","size":%d},{"name":"postgres","owner":"postgres","size":%d}],`+
+		`"users":[{"name":"app","super":false,"login":true},{"name":"postgres","super":true,"login":true}]}`+"\n",
+		own+size+8_192, size+8_192, own)
 	return 0
 }
 

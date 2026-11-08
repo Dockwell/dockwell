@@ -6,6 +6,7 @@ package dockwell.agent.v1;
 
 import "dockwell/v1/change.proto";
 import "dockwell/v1/container.proto";
+import "dockwell/v1/database.proto";
 import "dockwell/v1/domain.proto";
 import "dockwell/v1/file.proto";
 import "dockwell/v1/health.proto";
@@ -416,6 +417,9 @@ message Call {
     // 50 to 59 in agent messages: the terminal 50 to 52, and updates 53, so the
     // next of either takes 54.
     ListUpdatesCall list_updates = 53;
+    // Say what each of the server's databases says of itself. Numbered apart, as
+    // open work adds to this message.
+    DatabaseCall database = 30;
   }
 }
 
@@ -507,6 +511,22 @@ message RestoreSource {
   string undoes = 2;
   // The change that restores, which it does once.
   string change_id = 3;
+}
+
+// DatabaseCall asks what databases say of themselves, each read in its own
+// container with its own tools, which sign in with what its environment holds,
+// so no password passes through the agent. It changes nothing.
+message DatabaseCall {
+  // The databases, each a service on this server.
+  repeated DatabaseAsked databases = 1;
+}
+
+// DatabaseAsked is one database to read.
+message DatabaseAsked {
+  // Its service.
+  dockwell.v1.ResourceRef service = 1;
+  // Which database it runs.
+  dockwell.v1.DatabaseEngine engine = 2;
 }
 
 // ContainersCall asks which containers Docker has, as it lists them, so nothing
@@ -885,6 +905,9 @@ message CallResult {
     // What send_backup sent.
     SendBackupResult send_backup = 24;
     ListUpdatesResult list_updates = 53;
+    // What a database call read. Numbered apart, as open work adds to this
+    // message.
+    DatabaseResult database = 30;
   }
 }
 
@@ -958,6 +981,13 @@ message SendBackupResult {
 message DeleteBackupResult {
   // Why it's still where it was sent, when the call asked for it to go from there too.
   string copy_error = 1;
+}
+
+// DatabaseResult is what each database said.
+message DatabaseResult {
+  // One for each database asked about, in order, with its server left for the
+  // control plane to fill in.
+  repeated dockwell.v1.DatabaseReading readings = 1;
 }
 
 // ContainersResult lists the containers Docker has.

@@ -3662,6 +3662,7 @@ msgid "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
 msgstr "{0, plural, other {已删除 # 项资源}}"
 
 #. placeholder {0}: servers.length
+#. placeholder {0}: view.servers?.length ?? 0
 msgid "{0, plural, one {# server} other {# servers}}"
 msgstr "{0, plural, other {# 台服务器}}"
 
@@ -5002,6 +5003,340 @@ msgstr "{where} 离开 {from}，转到服务器上的 {toPort} 端口。"
 msgid "{where} leaves {from}, and goes to {to}."
 msgstr "{where} 离开 {from}，转到 {to}。"
 
+msgid "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
+msgstr "<0>{serviceId}</0> 可能已被删除，或者它运行的已不是 Dockwell 认识的数据库。"
+
+msgid "Can't load this database"
+msgstr "无法加载此数据库"
+
+msgid "Database"
+msgstr "数据库"
+
+msgid "Database sections"
+msgstr "数据库分区"
+
+msgid "Go to the databases"
+msgstr "前往数据库"
+
+msgid "Loading the database"
+msgstr "正在加载数据库"
+
+msgid "No database with this ID"
+msgstr "没有此 ID 的数据库"
+
+msgid "Nothing changed on the server. The page tries again by itself."
+msgstr "服务器上没有任何改动。页面会自动重试。"
+
+msgid "Open as an app"
+msgstr "以应用打开"
+
+msgid "Users"
+msgstr "用户"
+
+msgid "backed up {ago}"
+msgstr "{ago}备份"
+
+msgid "beside {others}"
+msgstr "与 {others} 同在"
+
+msgid "in {placeName}"
+msgstr "位于 {placeName}"
+
+msgid "not backed up yet"
+msgstr "尚未备份"
+
+msgid "not in a volume"
+msgstr "不在卷中"
+
+msgid "A copy of its files, which stops it for an exact copy unless you choose to copy it running"
+msgstr "复制它的文件：为得到精确副本会先停止它，除非你选择在运行中复制"
+
+msgid "Asking its server"
+msgstr "正在询问它的服务器"
+
+msgid "Cache hit"
+msgstr "缓存命中率"
+
+msgid "Connection"
+msgstr "连接方式"
+
+msgid "Connections"
+msgstr "连接"
+
+msgid "Copied, without its password"
+msgstr "已复制，不含密码"
+
+msgid "Copy the internal URL, without its password"
+msgstr "复制内部地址，不含密码"
+
+msgid "External access"
+msgstr "外部访问"
+
+msgid "Internal URL"
+msgstr "内部地址"
+
+msgid "It sets no most"
+msgstr "未设置上限"
+
+msgid "It takes no password Dockwell keeps."
+msgstr "它没有使用 Dockwell 保存的密码。"
+
+msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
+msgstr "它的数据在 <0>{volume}</0> 中，这个卷不是 Dockwell 创建的，因此 Dockwell 不会备份它。请在它原来的地方备份，或把数据移到该应用自己的卷中。"
+
+msgid "Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give it a volume on its app's page."
+msgstr "它的数据不在卷中，容器被替换时数据会随之丢失，也没有可备份的内容。请在它的应用页面为它添加一个卷。"
+
+msgid "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
+msgstr "各项数值、数据库和用户来自 {server}，它运行在 {count} 台服务器上，这是其中一台。"
+
+msgid "Its numbers, databases and users show again once it does."
+msgstr "它报告后，这里会重新显示各项数值、数据库和用户。"
+
+msgid "Its server didn't say"
+msgstr "它的服务器没有说明"
+
+msgid "Kept on"
+msgstr "存放于"
+
+msgid "Keys asked for that were there"
+msgstr "查询的键中命中的比例"
+
+msgid "Newest"
+msgstr "最新"
+
+msgid "None"
+msgstr "无"
+
+msgid "None yet"
+msgstr "还没有"
+
+msgid "Nothing read yet"
+msgstr "尚未读取任何数据"
+
+msgid "Off. Only services on its server's networks can connect. Add a port on its app's page."
+msgstr "已关闭。只有其服务器网络上的服务可以连接。可在它的应用页面添加端口。"
+
+msgid "On. Port {serverPort} of its server reaches it, on {where}. Change it on its app's page."
+msgstr "已开启。可通过其服务器的 {serverPort} 端口在{where}上访问。可在它的应用页面修改。"
+
+msgid "One is running now"
+msgstr "正在进行一次备份"
+
+msgid "Only by hand"
+msgstr "仅手动"
+
+msgid "Reads served from memory"
+msgstr "从内存读取的比例"
+
+msgid "Services beside it reach it as <0>{host}</0>"
+msgstr "同环境的服务通过 <0>{host}</0> 访问它"
+
+msgid "Services in {place} reach it as <0>{host}</0>"
+msgstr "{place} 中的服务通过 <0>{host}</0> 访问它"
+
+msgid "Since"
+msgstr "此后"
+
+msgid "Since {started}"
+msgstr "自 {started} 起"
+
+msgctxt "how much data"
+msgid "Size"
+msgstr "规格"
+
+msgid "The last one failed: {latestError}"
+msgstr "最近一次失败：{latestError}"
+
+msgid "The most it takes is {mostWords}"
+msgstr "最多可接受 {mostWords} 个"
+
+msgid "The password is in its own environment, which Dockwell keeps sealed and never shows."
+msgstr "密码在它自己的环境变量中，Dockwell 会加密保存且从不显示。"
+
+msgid "The password is in the secret <0>{secret}</0>, which you reveal with your passkey on <1>Variables and secrets</1>."
+msgstr "密码在密钥 <0>{secret}</0> 中，可在<1>变量和密钥</1>中用通行密钥查看。"
+
+msgid "This server's disk, unencrypted"
+msgstr "本服务器磁盘，未加密"
+
+msgid "Up for"
+msgstr "已运行"
+
+msgid "When you ask"
+msgstr "手动发起时"
+
+msgid "every address"
+msgstr "所有地址"
+
+msgid "of {mostWords}"
+msgstr "/ {mostWords}"
+
+msgid "{databases, plural, one {On disk, in # database} other {On disk, across # databases}}"
+msgstr "{databases, plural, other {磁盘占用，共 # 个数据库}}"
+
+msgid "{dumpOf}'s own dump, while it runs: nothing stops"
+msgstr "{dumpOf} 自带的转储，运行中进行：不会停止任何服务"
+
+msgid "{engine} didn't say how it is"
+msgstr "{engine} 没有报告它的状况"
+
+msgid "{keys, plural, one {In memory, with # key} other {In memory, with # keys}}"
+msgstr "{keys, plural, other {内存占用，共 # 个键}}"
+
+msgid "{servers}, and sealed on {destination}"
+msgstr "{servers}，并加密存放在 {destination}"
+
+msgid "{servers}, unencrypted"
+msgstr "{servers}，未加密"
+
+msgid "Can do anything"
+msgstr "拥有全部权限"
+
+msgid "Can't sign in"
+msgstr "不可登录"
+
+msgid "Databases in {name}"
+msgstr "{name} 中的数据库"
+
+msgid "Granted on"
+msgstr "已授权"
+
+msgid "Its own"
+msgstr "系统自带"
+
+msgid "Its users show again once it does."
+msgstr "它报告后，这里会重新显示用户。"
+
+msgid "No server has said yet"
+msgstr "还没有服务器报告"
+
+msgid "None of their own"
+msgstr "没有自己的数据库"
+
+msgid "Owns"
+msgstr "拥有"
+
+msgid "Role"
+msgstr "角色"
+
+msgid "Signs in"
+msgstr "可登录"
+
+msgid "Users of {name}"
+msgstr "{name} 的用户"
+
+msgid "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
+msgstr "{count, plural, other {{name} 中有 # 个你自己的数据库}}"
+
+msgid "{count, plural, one {# user of {name}, {signIn} of whom can sign in} other {# users of {name}, {signIn} of whom can sign in}}"
+msgstr "{count, plural, other {{name} 有 # 个用户，其中 {signIn} 个可登录}}"
+
+msgid "{count, plural, one {# user of {name}} other {# users of {name}}}"
+msgstr "{count, plural, other {{name} 有 # 个用户}}"
+
+msgid "{engine} didn't say who's in it"
+msgstr "{engine} 没有报告其中的用户"
+
+msgid "{more, plural, one {# more database or user isn't listed here} other {# more databases and users aren't listed here}}"
+msgstr "{more, plural, other {还有 # 个数据库或用户未在此列出}}"
+
+msgid "+{left}"
+msgstr "+{left}"
+
+msgid "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
+msgstr "这里的数据库是指用官方镜像运行 PostgreSQL、MySQL、MariaDB、Redis 或 Valkey 的服务。可以从应用目录安装一个，或接管服务器上已在运行的数据库。"
+
+msgid "Beside it"
+msgstr "同环境服务"
+
+msgid "By hand"
+msgstr "手动"
+
+msgid "Create a database"
+msgstr "创建数据库"
+
+msgid "Destination"
+msgstr "存放位置"
+
+msgid "Dockwell can't read its databases"
+msgstr "Dockwell 无法读取数据库"
+
+msgid "Each server's own disk"
+msgstr "各服务器自己的磁盘"
+
+msgid "Engines"
+msgstr "数据库引擎"
+
+msgid "From the catalog, with its password kept as a secret"
+msgstr "从应用目录安装，密码保存为密钥"
+
+msgid "In a volume Dockwell didn't make"
+msgstr "在非 Dockwell 创建的卷中"
+
+msgid "Last run"
+msgstr "最近一次"
+
+msgid "Loading the databases"
+msgstr "正在加载数据库"
+
+msgid "New database"
+msgstr "新建数据库"
+
+msgid "No databases yet"
+msgstr "还没有数据库"
+
+msgid "No volume"
+msgstr "没有卷"
+
+msgid "No volume, so its data goes with its container"
+msgstr "没有卷，数据会随容器一起丢失"
+
+msgid "Nothing"
+msgstr "无"
+
+msgid "Nothing changed on the servers. The page tries again by itself."
+msgstr "服务器上没有任何改动。页面会自动重试。"
+
+msgid "Nothing has happened to them lately"
+msgstr "最近没有相关动态"
+
+msgid "Reading what happened"
+msgstr "正在读取动态"
+
+msgid "Recent activity"
+msgstr "最近动态"
+
+msgid "Some on schedule"
+msgstr "部分按计划运行"
+
+msgid "Take one on from its page to see it here. It keeps running as it is, with no restart."
+msgstr "在它的页面接管后，它就会显示在这里。接管时它保持原样运行，不会重启。"
+
+msgid "by hand"
+msgstr "手动"
+
+msgid "none yet"
+msgstr "尚无"
+
+msgid "the last failed, {ago}"
+msgstr "最近一次失败，{ago}"
+
+msgid "{count, plural, one {# database runs in a container Dockwell didn't make} other {# databases run in containers Dockwell didn't make}}"
+msgstr "{count, plural, other {# 个数据库运行在非 Dockwell 创建的容器中}}"
+
+msgid "{count, plural, one {# on {where}} other {# on {where}}}"
+msgstr "{count, plural, other {{where} 上有 # 个}}"
+
+msgid "{engine} on {server}"
+msgstr "{server} 上的 {engine}"
+
+msgid "{failedAt}, which failed: {failedWhy}"
+msgstr "{failedAt}，失败：{failedWhy}"
+
+msgid "{usedWords} of {ofWords}"
+msgstr "{usedWords} / {ofWords}"
+
 msgid "A domain sends people to an app, so run one first."
 msgstr "域名把访问者带到应用，所以请先运行一个应用。"
 
@@ -5756,9 +6091,6 @@ msgstr "没有计划"
 msgid "None scheduled"
 msgstr "没有计划"
 
-msgid "None yet"
-msgstr "还没有"
-
 msgid "On the server's own disk only"
 msgstr "仅在服务器自己的磁盘上"
 
@@ -5820,9 +6152,6 @@ msgstr "还有 {moreMounts} 个"
 
 msgid "and {morePorts} more"
 msgstr "还有 {morePorts} 个"
-
-msgid "+{left}"
-msgstr "+{left}"
 
 msgid "Apps you run with Dockwell are under <0>Apps</0>."
 msgstr "你用 Dockwell 运行的应用在<0>应用</0>中。"
@@ -5968,9 +6297,6 @@ msgstr "更改"
 
 msgid "Connected"
 msgstr "已连接"
-
-msgid "Connection"
-msgstr "连接方式"
 
 msgid "Control plane"
 msgstr "控制平面"
@@ -6359,6 +6685,9 @@ msgstr "打开动态"
 msgid "Open the apps"
 msgstr "打开应用"
 
+msgid "Open the databases"
+msgstr "打开数据库"
+
 msgid "Open the domains"
 msgstr "打开域名"
 
@@ -6469,9 +6798,6 @@ msgstr "{waiting} 台等待代理连接"
 
 msgid "Alerts"
 msgstr "告警"
-
-msgid "Connections"
-msgstr "连接"
 
 msgid "Fleet actions"
 msgstr "集群操作"

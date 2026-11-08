@@ -3662,6 +3662,7 @@ msgid "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
 msgstr "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
 
 #. placeholder {0}: servers.length
+#. placeholder {0}: view.servers?.length ?? 0
 msgid "{0, plural, one {# server} other {# servers}}"
 msgstr "{0, plural, one {# server} other {# servers}}"
 
@@ -5002,6 +5003,340 @@ msgstr "{where} leaves {from}, and goes to port {toPort} on the server."
 msgid "{where} leaves {from}, and goes to {to}."
 msgstr "{where} leaves {from}, and goes to {to}."
 
+msgid "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
+msgstr "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
+
+msgid "Can't load this database"
+msgstr "Can't load this database"
+
+msgid "Database"
+msgstr "Database"
+
+msgid "Database sections"
+msgstr "Database sections"
+
+msgid "Go to the databases"
+msgstr "Go to the databases"
+
+msgid "Loading the database"
+msgstr "Loading the database"
+
+msgid "No database with this ID"
+msgstr "No database with this ID"
+
+msgid "Nothing changed on the server. The page tries again by itself."
+msgstr "Nothing changed on the server. The page tries again by itself."
+
+msgid "Open as an app"
+msgstr "Open as an app"
+
+msgid "Users"
+msgstr "Users"
+
+msgid "backed up {ago}"
+msgstr "backed up {ago}"
+
+msgid "beside {others}"
+msgstr "beside {others}"
+
+msgid "in {placeName}"
+msgstr "in {placeName}"
+
+msgid "not backed up yet"
+msgstr "not backed up yet"
+
+msgid "not in a volume"
+msgstr "not in a volume"
+
+msgid "A copy of its files, which stops it for an exact copy unless you choose to copy it running"
+msgstr "A copy of its files, which stops it for an exact copy unless you choose to copy it running"
+
+msgid "Asking its server"
+msgstr "Asking its server"
+
+msgid "Cache hit"
+msgstr "Cache hit"
+
+msgid "Connection"
+msgstr "Connection"
+
+msgid "Connections"
+msgstr "Connections"
+
+msgid "Copied, without its password"
+msgstr "Copied, without its password"
+
+msgid "Copy the internal URL, without its password"
+msgstr "Copy the internal URL, without its password"
+
+msgid "External access"
+msgstr "External access"
+
+msgid "Internal URL"
+msgstr "Internal URL"
+
+msgid "It sets no most"
+msgstr "It sets no most"
+
+msgid "It takes no password Dockwell keeps."
+msgstr "It takes no password Dockwell keeps."
+
+msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
+msgstr "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
+
+msgid "Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give it a volume on its app's page."
+msgstr "Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give it a volume on its app's page."
+
+msgid "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
+msgstr "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
+
+msgid "Its numbers, databases and users show again once it does."
+msgstr "Its numbers, databases and users show again once it does."
+
+msgid "Its server didn't say"
+msgstr "Its server didn't say"
+
+msgid "Kept on"
+msgstr "Kept on"
+
+msgid "Keys asked for that were there"
+msgstr "Keys asked for that were there"
+
+msgid "Newest"
+msgstr "Newest"
+
+msgid "None"
+msgstr "None"
+
+msgid "None yet"
+msgstr "None yet"
+
+msgid "Nothing read yet"
+msgstr "Nothing read yet"
+
+msgid "Off. Only services on its server's networks can connect. Add a port on its app's page."
+msgstr "Off. Only services on its server's networks can connect. Add a port on its app's page."
+
+msgid "On. Port {serverPort} of its server reaches it, on {where}. Change it on its app's page."
+msgstr "On. Port {serverPort} of its server reaches it, on {where}. Change it on its app's page."
+
+msgid "One is running now"
+msgstr "One is running now"
+
+msgid "Only by hand"
+msgstr "Only by hand"
+
+msgid "Reads served from memory"
+msgstr "Reads served from memory"
+
+msgid "Services beside it reach it as <0>{host}</0>"
+msgstr "Services beside it reach it as <0>{host}</0>"
+
+msgid "Services in {place} reach it as <0>{host}</0>"
+msgstr "Services in {place} reach it as <0>{host}</0>"
+
+msgid "Since"
+msgstr "Since"
+
+msgid "Since {started}"
+msgstr "Since {started}"
+
+msgctxt "how much data"
+msgid "Size"
+msgstr "Size"
+
+msgid "The last one failed: {latestError}"
+msgstr "The last one failed: {latestError}"
+
+msgid "The most it takes is {mostWords}"
+msgstr "The most it takes is {mostWords}"
+
+msgid "The password is in its own environment, which Dockwell keeps sealed and never shows."
+msgstr "The password is in its own environment, which Dockwell keeps sealed and never shows."
+
+msgid "The password is in the secret <0>{secret}</0>, which you reveal with your passkey on <1>Variables and secrets</1>."
+msgstr "The password is in the secret <0>{secret}</0>, which you reveal with your passkey on <1>Variables and secrets</1>."
+
+msgid "This server's disk, unencrypted"
+msgstr "This server's disk, unencrypted"
+
+msgid "Up for"
+msgstr "Up for"
+
+msgid "When you ask"
+msgstr "When you ask"
+
+msgid "every address"
+msgstr "every address"
+
+msgid "of {mostWords}"
+msgstr "of {mostWords}"
+
+msgid "{databases, plural, one {On disk, in # database} other {On disk, across # databases}}"
+msgstr "{databases, plural, one {On disk, in # database} other {On disk, across # databases}}"
+
+msgid "{dumpOf}'s own dump, while it runs: nothing stops"
+msgstr "{dumpOf}'s own dump, while it runs: nothing stops"
+
+msgid "{engine} didn't say how it is"
+msgstr "{engine} didn't say how it is"
+
+msgid "{keys, plural, one {In memory, with # key} other {In memory, with # keys}}"
+msgstr "{keys, plural, one {In memory, with # key} other {In memory, with # keys}}"
+
+msgid "{servers}, and sealed on {destination}"
+msgstr "{servers}, and sealed on {destination}"
+
+msgid "{servers}, unencrypted"
+msgstr "{servers}, unencrypted"
+
+msgid "Can do anything"
+msgstr "Can do anything"
+
+msgid "Can't sign in"
+msgstr "Can't sign in"
+
+msgid "Databases in {name}"
+msgstr "Databases in {name}"
+
+msgid "Granted on"
+msgstr "Granted on"
+
+msgid "Its own"
+msgstr "Its own"
+
+msgid "Its users show again once it does."
+msgstr "Its users show again once it does."
+
+msgid "No server has said yet"
+msgstr "No server has said yet"
+
+msgid "None of their own"
+msgstr "None of their own"
+
+msgid "Owns"
+msgstr "Owns"
+
+msgid "Role"
+msgstr "Role"
+
+msgid "Signs in"
+msgstr "Signs in"
+
+msgid "Users of {name}"
+msgstr "Users of {name}"
+
+msgid "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
+msgstr "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
+
+msgid "{count, plural, one {# user of {name}, {signIn} of whom can sign in} other {# users of {name}, {signIn} of whom can sign in}}"
+msgstr "{count, plural, one {# user of {name}, {signIn} of whom can sign in} other {# users of {name}, {signIn} of whom can sign in}}"
+
+msgid "{count, plural, one {# user of {name}} other {# users of {name}}}"
+msgstr "{count, plural, one {# user of {name}} other {# users of {name}}}"
+
+msgid "{engine} didn't say who's in it"
+msgstr "{engine} didn't say who's in it"
+
+msgid "{more, plural, one {# more database or user isn't listed here} other {# more databases and users aren't listed here}}"
+msgstr "{more, plural, one {# more database or user isn't listed here} other {# more databases and users aren't listed here}}"
+
+msgid "+{left}"
+msgstr "+{left}"
+
+msgid "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
+msgstr "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
+
+msgid "Beside it"
+msgstr "Beside it"
+
+msgid "By hand"
+msgstr "By hand"
+
+msgid "Create a database"
+msgstr "Create a database"
+
+msgid "Destination"
+msgstr "Destination"
+
+msgid "Dockwell can't read its databases"
+msgstr "Dockwell can't read its databases"
+
+msgid "Each server's own disk"
+msgstr "Each server's own disk"
+
+msgid "Engines"
+msgstr "Engines"
+
+msgid "From the catalog, with its password kept as a secret"
+msgstr "From the catalog, with its password kept as a secret"
+
+msgid "In a volume Dockwell didn't make"
+msgstr "In a volume Dockwell didn't make"
+
+msgid "Last run"
+msgstr "Last run"
+
+msgid "Loading the databases"
+msgstr "Loading the databases"
+
+msgid "New database"
+msgstr "New database"
+
+msgid "No databases yet"
+msgstr "No databases yet"
+
+msgid "No volume"
+msgstr "No volume"
+
+msgid "No volume, so its data goes with its container"
+msgstr "No volume, so its data goes with its container"
+
+msgid "Nothing"
+msgstr "Nothing"
+
+msgid "Nothing changed on the servers. The page tries again by itself."
+msgstr "Nothing changed on the servers. The page tries again by itself."
+
+msgid "Nothing has happened to them lately"
+msgstr "Nothing has happened to them lately"
+
+msgid "Reading what happened"
+msgstr "Reading what happened"
+
+msgid "Recent activity"
+msgstr "Recent activity"
+
+msgid "Some on schedule"
+msgstr "Some on schedule"
+
+msgid "Take one on from its page to see it here. It keeps running as it is, with no restart."
+msgstr "Take one on from its page to see it here. It keeps running as it is, with no restart."
+
+msgid "by hand"
+msgstr "by hand"
+
+msgid "none yet"
+msgstr "none yet"
+
+msgid "the last failed, {ago}"
+msgstr "the last failed, {ago}"
+
+msgid "{count, plural, one {# database runs in a container Dockwell didn't make} other {# databases run in containers Dockwell didn't make}}"
+msgstr "{count, plural, one {# database runs in a container Dockwell didn't make} other {# databases run in containers Dockwell didn't make}}"
+
+msgid "{count, plural, one {# on {where}} other {# on {where}}}"
+msgstr "{count, plural, one {# on {where}} other {# on {where}}}"
+
+msgid "{engine} on {server}"
+msgstr "{engine} on {server}"
+
+msgid "{failedAt}, which failed: {failedWhy}"
+msgstr "{failedAt}, which failed: {failedWhy}"
+
+msgid "{usedWords} of {ofWords}"
+msgstr "{usedWords} of {ofWords}"
+
 msgid "A domain sends people to an app, so run one first."
 msgstr "A domain sends people to an app, so run one first."
 
@@ -5756,9 +6091,6 @@ msgstr "No schedule"
 msgid "None scheduled"
 msgstr "None scheduled"
 
-msgid "None yet"
-msgstr "None yet"
-
 msgid "On the server's own disk only"
 msgstr "On the server's own disk only"
 
@@ -5820,9 +6152,6 @@ msgstr "and {moreMounts} more"
 
 msgid "and {morePorts} more"
 msgstr "and {morePorts} more"
-
-msgid "+{left}"
-msgstr "+{left}"
 
 msgid "Apps you run with Dockwell are under <0>Apps</0>."
 msgstr "Apps you run with Dockwell are under <0>Apps</0>."
@@ -5968,9 +6297,6 @@ msgstr "Change"
 
 msgid "Connected"
 msgstr "Connected"
-
-msgid "Connection"
-msgstr "Connection"
 
 msgid "Control plane"
 msgstr "Control plane"
@@ -6359,6 +6685,9 @@ msgstr "Open the activity"
 msgid "Open the apps"
 msgstr "Open the apps"
 
+msgid "Open the databases"
+msgstr "Open the databases"
+
 msgid "Open the domains"
 msgstr "Open the domains"
 
@@ -6469,9 +6798,6 @@ msgstr "{waiting} waiting for an agent"
 
 msgid "Alerts"
 msgstr "Alerts"
-
-msgid "Connections"
-msgstr "Connections"
 
 msgid "Fleet actions"
 msgstr "Fleet actions"
