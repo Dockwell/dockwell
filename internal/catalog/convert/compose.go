@@ -570,11 +570,13 @@ func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
 func volumeSource(v *yaml.Node) (string, func(string)) {
 	switch v.Kind {
 	case yaml.ScalarNode:
-		parts := strings.SplitN(v.Value, ":", 2)
+		// At the first colon outside ${...}, so ${DATA:-./data}:/data is ${DATA:-./data}.
+		parts := splitPort(v.Value)
 		if len(parts) < 2 {
 			return "", nil
 		}
-		return parts[0], func(named string) { v.Value = named + ":" + parts[1] }
+		rest := strings.Join(parts[1:], ":")
+		return parts[0], func(named string) { v.Value = named + ":" + rest }
 	case yaml.MappingNode:
 		src := mapGet(v, "source")
 		if src == nil {
@@ -596,7 +598,7 @@ func readOnly(v *yaml.Node) bool {
 		ro := mapGet(v, "read_only")
 		return ro != nil && ro.Value == "true"
 	}
-	parts := strings.Split(v.Value, ":")
+	parts := splitPort(v.Value)
 	return len(parts) == 3 && slices.Contains(strings.Split(parts[2], ","), "ro")
 }
 
