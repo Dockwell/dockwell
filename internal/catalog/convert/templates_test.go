@@ -1,0 +1,279 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package convert
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
+	"github.com/dockwell/dockwell/internal/catalog"
+)
+
+func templateConverter(src Source) *Converter {
+	c := converter()
+	c.Source = src
+	c.Overlays = map[string]Overlay{
+		"wiki": written("Keeps a wiki", "notes"), "board": written("Keeps a board", "notes"),
+		"files": written("Stands in", "ai"), "urlsecret": written("Stands in", "ai"), "supa": written("Stands in", "ai"),
+	}
+	return c
+}
+
+func appsOf(t *testing.T, read func(string) ([]App, error), root string) map[string]App {
+	t.Helper()
+	apps, err := read(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]App{}
+	for i := range apps {
+		out[apps[i].ID] = apps[i]
+	}
+	return out
+}
+
+func inputsByName(e *catalogv1.Entry) map[string]*catalogv1.Input {
+	out := map[string]*catalogv1.Input{}
+	for _, in := range e.GetInputs() {
+		out[in.GetName()] = in
+	}
+	return out
+}
+
+// Dokploy writes its template's environment at an install, and routes a domain to a
+// port it doesn't publish. An entry says both in its own file.
+func TestDokployWritesWhatItsTemplateMakes(t *testing.T) {
+	apps := appsOf(t, Dokploy, "testdata/dokploy")
+	wiki := apps["wiki"]
+	if wiki.Name != "Wiki" || wiki.Version != "2.1.0" || wiki.Homepage != "https://wiki.example.com" || wiki.Category != "notes" || wiki.Path != "blueprints/wiki" {
+		t.Errorf("wiki reads as %+v", wiki)
+	}
+	r := templateConverter(DokploySource("abc")).Convert(t.Context(), wiki)
+	if r.Entry == nil {
+		t.Fatal(r.LeftOut)
+	}
+	file := r.Entry.GetCompose()
+	for _, want := range []string{
+		`"127.0.0.1:${PORT}:3000"`,
+		"BASE_URL=http://localhost:${PORT}",
+		"ADMIN_USER=${ADMIN_USER}",
+		"ADMIN_PASSWORD=${ADMIN_PASSWORD}",
+		"DB_PASSWORD=${ADMIN_PASSWORD}",
+		"MODE=production",
+	} {
+		if !strings.Contains(file, want) {
+			t.Errorf("its file doesn't say %s:\n%s", want, file)
+		}
+	}
+	if strings.Contains(file, "env_file") || !strings.Contains(file, "SESSION_KEY: ${SESSION_KEY}") {
+		t.Errorf("db's .env isn't its own environment:\n%s", file)
+	}
+	in := inputsByName(r.Entry)
+	for name, want := range map[string]struct {
+		kind catalogv1.InputType
+		n    uint32
+		as   catalogv1.GenerateAs
+		def  string
+	}{
+		"PORT":           {catalogv1.InputType_INPUT_TYPE_PORT, 0, 0, "3000"},
+		"ADMIN_USER":     {catalogv1.InputType_INPUT_TYPE_TEXT, 0, 0, "admin"},
+		"ADMIN_PASSWORD": {catalogv1.InputType_INPUT_TYPE_SECRET, 24, 0, ""},
+		"SESSION_KEY":    {catalogv1.InputType_INPUT_TYPE_SECRET, 64, catalogv1.GenerateAs_GENERATE_AS_HEX, ""},
+		"TOTP_KEY":       {catalogv1.InputType_INPUT_TYPE_SECRET, 32, catalogv1.GenerateAs_GENERATE_AS_BASE64, ""},
+	} {
+		got := in[name]
+		if got.GetType() != want.kind || got.GetGenerate() != want.n || got.GetGenerateAs() != want.as || got.GetDefaultValue() != want.def {
+			t.Errorf("%s is %v", name, got)
+		}
+	}
+	// A secret the template writes out, which everyone would share, is one a person
+	// types, and a number named like one stays as the template wrote it.
+	if k := in["SECRET_KEY"]; k.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET || k.GetDefaultValue() != "" || k.GetGenerate() != 0 {
+		t.Errorf("SECRET_KEY is %v, want a secret a person types", k)
+	}
+	if !strings.Contains(file, "PASSWORD_MIN_LENGTH=12") || strings.Contains(file, "changeme") {
+		t.Errorf("its file:\n%s", file)
+	}
+	// What the file uses of the template's own, a folder Dokploy keeps, and a
+	// variable the template leaves to a person.
+	for _, want := range []string{"SITE=http://localhost:${PORT}/wiki", "- uploads:/uploads", "uploads: {}"} {
+		if !strings.Contains(file, want) {
+			t.Errorf("its file doesn't say %q:\n%s", want, file)
+		}
+	}
+	if h := in["SMTP_HOST"]; h.GetType() != catalogv1.InputType_INPUT_TYPE_TEXT || !h.GetOptional() {
+		t.Errorf("SMTP_HOST is %v", h)
+	}
+	if len(in) != 7 {
+		t.Errorf("its inputs are %v, want seven", in)
+	}
+	if r.Entry.GetLicense() != "MIT" || r.Entry.GetSource().GetRepository() != "https://github.com/Dokploy/templates" {
+		t.Errorf("it says it's %s, from %s", r.Entry.GetLicense(), r.Entry.GetSource().GetRepository())
+	}
+}
+
+func TestDokployLeavesOutWhatAnEntryCantSay(t *testing.T) {
+	apps := appsOf(t, Dokploy, "testdata/dokploy")
+	for id, want := range map[string]string{
+		"files":     "it ships 1 files beside its Compose file",
+		"urlsecret": "puts a value it makes up, db_password, inside a longer one",
+	} {
+		r := templateConverter(DokploySource("abc")).Convert(t.Context(), apps[id])
+		if r.Entry != nil || !strings.Contains(r.LeftOut, want) {
+			t.Errorf("%s: %q, want it left out as %q", id, r.LeftOut, want)
+		}
+	}
+}
+
+// Coolify makes its SERVICE_ variables at an install, and asks a person for the rest.
+// An entry generates the first, asks for the second, and answers on loopback.
+func TestCoolifyWritesWhatItsTemplateMakes(t *testing.T) {
+	apps := appsOf(t, Coolify, "testdata/coolify")
+	board := apps["board"]
+	if board.Name != "Board" || board.Version != "3.2.1" || board.Homepage != "https://board.example.com" || board.Category != "notes" {
+		t.Errorf("board reads as %+v", board)
+	}
+	r := templateConverter(CoolifySource("abc")).Convert(t.Context(), board)
+	if r.Entry == nil {
+		t.Fatal(r.LeftOut)
+	}
+	file := r.Entry.GetCompose()
+	for _, want := range []string{
+		`"127.0.0.1:${PORT}:8080"`,
+		"PUBLIC_URL=http://localhost:${PORT}",
+		"HOSTNAME=localhost",
+		"DB_USER=${POSTGRES_USER}",
+		"POSTGRES_PASSWORD=${POSTGRES_PASSWORD}",
+		"SECRET=${BOARD_SECRET}",
+		"SIGNING=${BOARD_SECRET2}",
+		"LOG_LEVEL=${LOG_LEVEL:-info}",
+		"COST=$$5",
+		"board-data: {}",
+		"pg-data: {}",
+	} {
+		if !strings.Contains(file, want) {
+			t.Errorf("its file doesn't say %s:\n%s", want, file)
+		}
+	}
+	for _, gone := range []string{"SERVICE_", "exclude_from_hc", "traefik"} {
+		if strings.Contains(file, gone) {
+			t.Errorf("its file still says %s:\n%s", gone, file)
+		}
+	}
+	in := inputsByName(r.Entry)
+	if u := in["POSTGRES_USER"]; u.GetType() != catalogv1.InputType_INPUT_TYPE_TEXT || u.GetDefaultValue() != "postgres" {
+		t.Errorf("POSTGRES_USER is %v", u)
+	}
+	if p := in["POSTGRES_PASSWORD"]; p.GetGenerate() != 32 || p.GetGenerateAs() != 0 {
+		t.Errorf("POSTGRES_PASSWORD is %v", p)
+	}
+	if h := in["BOARD_SECRET"]; h.GetGenerate() != 32 || h.GetGenerateAs() != catalogv1.GenerateAs_GENERATE_AS_HEX {
+		t.Errorf("BOARD_SECRET is %v, want 32 hex digits, as SERVICE_HEX_32 makes", h)
+	}
+	if b := in["BOARD_SECRET2"]; b.GetGenerate() != 64 || b.GetGenerateAs() != catalogv1.GenerateAs_GENERATE_AS_BASE64 {
+		t.Errorf("BOARD_SECRET2 is %v, want 64 bytes in base64, as SERVICE_REALBASE64_64 makes", b)
+	}
+	if h := in["SMTP_HOST"]; h.GetType() != catalogv1.InputType_INPUT_TYPE_TEXT || !h.GetOptional() {
+		t.Errorf("SMTP_HOST is %v, want text a person may leave", h)
+	}
+	if p := in["SMTP_PASSWORD"]; p.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET || !p.GetOptional() || p.GetGenerate() != 0 {
+		t.Errorf("SMTP_PASSWORD is %v, want a secret a person may type", p)
+	}
+	if k := in["LICENSE_KEY"]; k.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET || k.GetOptional() {
+		t.Errorf("LICENSE_KEY is %v, want a secret a person must type, as :? asks", k)
+	}
+	if _, ok := in["LOG_LEVEL"]; ok {
+		t.Error("LOG_LEVEL, which always has a default, became an input")
+	}
+	// A secret whose only default is in the file is one a person must type.
+	if s := in["APP_SECRET"]; s.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET || s.GetOptional() || strings.Contains(file, "changeme") || !strings.Contains(file, "APP_SECRET=${APP_SECRET}") {
+		t.Errorf("APP_SECRET is %v, and its file:\n%s", s, file)
+	}
+	if r.Entry.GetLicense() != "Apache-2.0" || r.Entry.GetSource().GetPath() != "templates/compose/board.yaml" {
+		t.Errorf("it says it's %s, at %s", r.Entry.GetLicense(), r.Entry.GetSource().GetPath())
+	}
+}
+
+func TestCoolifyLeavesOutWhatAnEntryCantSay(t *testing.T) {
+	apps := appsOf(t, Coolify, "testdata/coolify")
+	for id, want := range map[string]string{
+		"ignored": "Coolify marks it as one to leave out",
+		"supa":    "it uses SERVICE_SUPABASEANON_KEY, which Coolify makes and Dockwell doesn't yet",
+	} {
+		r := templateConverter(CoolifySource("abc")).Convert(t.Context(), apps[id])
+		if r.Entry != nil || !strings.Contains(r.LeftOut, want) {
+			t.Errorf("%s: %q, want it left out as %q", id, r.LeftOut, want)
+		}
+	}
+}
+
+// What's converted from a source goes with its licence's text, and each file says
+// its own licence.
+func TestALicenceGoesWithWhatsConverted(t *testing.T) {
+	src := CoolifySource("abc")
+	src.LicenseText = []byte("the licence's text")
+	c := templateConverter(src)
+	r := c.Convert(t.Context(), appsOf(t, Coolify, "testdata/coolify")["board"])
+	dir := t.TempDir()
+	if err := Write(dir, src, []Result{r}, nil, c.Pins, true); err != nil {
+		t.Fatal(err)
+	}
+	text, err := os.ReadFile(filepath.Join(dir, "LICENSE"))
+	if err != nil || string(text) != "the licence's text" {
+		t.Errorf("LICENSE is %q, %v", text, err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "board.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(raw), "# SPDX-License-Identifier: Apache-2.0\n# Converted from Coolify's templates") {
+		t.Errorf("board.yaml starts %q", strings.SplitN(string(raw), "\n", 3)[:2])
+	}
+	if _, err := catalog.Parse(raw); err != nil {
+		t.Errorf("the catalog refuses board.yaml: %v", err)
+	}
+}
+
+// Neither template source is read past its checkout, and every reason has a class.
+func TestTemplatesReadOnlyTheirCheckout(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "elsewhere.yml")
+	if err := os.WriteFile(outside, []byte("services:\n  a:\n    image: example/a:1.0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dokploy := t.TempDir()
+	blueprint := filepath.Join(dokploy, "blueprints", "linked")
+	coolify := t.TempDir()
+	templates := filepath.Join(coolify, "templates", "compose")
+	for _, err := range []error{
+		os.MkdirAll(blueprint, 0o755),
+		os.Symlink(outside, filepath.Join(blueprint, "docker-compose.yml")),
+		os.MkdirAll(templates, 0o755),
+		os.Symlink(outside, filepath.Join(templates, "linked.yaml")),
+		os.WriteFile(filepath.Join(templates, "plain.yaml"), []byte("# port: 80\nservices:\n  a:\n    image: example/a:1.0\n"), 0o600),
+	} {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	apps := appsOf(t, Dokploy, dokploy)
+	if a := apps["linked"]; a.Compose != nil || a.Class != ClassFile {
+		t.Errorf("Dokploy: a link out of the checkout was read: %s, %q", a.Class, a.LeftOut)
+	}
+	apps = appsOf(t, Coolify, coolify)
+	if _, ok := apps["linked"]; ok {
+		t.Error("Coolify: a link out of the checkout was listed")
+	}
+	for _, read := range []struct {
+		f    func(string) ([]App, error)
+		root string
+	}{{Dokploy, "testdata/dokploy"}, {Coolify, "testdata/coolify"}} {
+		for _, a := range appsOf(t, read.f, read.root) {
+			if a.LeftOut != "" && a.Class == "" {
+				t.Errorf("%s is left out with no class: %q", a.ID, a.LeftOut)
+			}
+		}
+	}
+}

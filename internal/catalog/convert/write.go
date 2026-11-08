@@ -158,6 +158,12 @@ func Write(dir string, src Source, results []Result, previous map[string]*catalo
 			return fmt.Errorf("removing %s: %w", file, err)
 		}
 	}
+	if len(src.LicenseText) > 0 {
+		file := filepath.Join(dir, "LICENSE")
+		if err := os.WriteFile(file, src.LicenseText, 0o644); err != nil { //nolint:gosec // a catalog is for anyone to read
+			return fmt.Errorf("writing %s: %w", file, err)
+		}
+	}
 	rows := make([]Row, 0, len(results))
 	for i := range results {
 		rows = append(rows, rowOf(&results[i]))

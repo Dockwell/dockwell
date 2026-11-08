@@ -50,7 +50,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 	flags := flag.NewFlagSet("convert", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	from := flags.String("from", "", "the source's format: 1panel")
+	from := flags.String("from", "", "the source's format: 1panel, dokploy or coolify")
 	source := flags.String("source", "", "a checkout of the source")
 	out := flags.String("out", "", "the folder converted entries go in, where an earlier run's are")
 	overlays := flags.String("overlays", "", "a folder of what people wrote for each app, as <id>.yaml")
@@ -79,10 +79,19 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	case "1panel":
 		src = convert.OnePanelSource(*commit)
 		apps, err = convert.OnePanel(*source)
+	case "dokploy":
+		src = convert.DokploySource(*commit)
+		apps, err = convert.Dokploy(*source)
+	case "coolify":
+		src = convert.CoolifySource(*commit)
+		apps, err = convert.Coolify(*source)
 	default:
-		return fmt.Errorf("the converter reads 1panel, not %q", *from)
+		return fmt.Errorf("the converter reads 1panel, dokploy and coolify, not %q", *from)
 	}
 	if err != nil {
+		return err
+	}
+	if src.LicenseText, err = convert.ReadLicense(*source, src); err != nil {
 		return err
 	}
 	all := *only == ""

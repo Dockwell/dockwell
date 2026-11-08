@@ -44,6 +44,11 @@ type Source struct {
 	Commit string
 	// License is the SPDX licence of what it publishes, which a converted entry keeps.
 	License string
+	// LicenseFile is where its licence's text is in a checkout, such as LICENSE.
+	LicenseFile string
+	// LicenseText is that text, which goes beside what's converted from it, as each
+	// of the licences the converter reads asks.
+	LicenseText []byte
 }
 
 // App is one app as an adapter reads it, before it's an entry.
@@ -88,6 +93,8 @@ const (
 	Secret
 	// Generated is a password the source makes up, which an entry generates and seals.
 	Generated
+	// Email is an address a person types.
+	Email
 )
 
 // Field is one value an app's form asks for.
@@ -102,6 +109,10 @@ type Field struct {
 	Choices []string
 	// Web says this port is the one a person opens in a browser.
 	Web bool
+	// Length is how much a Generated field makes, 32 unless set, and As how it's
+	// written, for an app that decodes it as a key.
+	Length int
+	As     catalogv1.GenerateAs
 }
 
 // Result is what came of one app.
@@ -385,11 +396,11 @@ func (c *Converter) pin(ctx context.Context, file []byte) ([]byte, []string, err
 		if missing := slices.DeleteFunc(slices.Clone(platforms), func(p string) bool { return slices.Contains(has, p) }); len(missing) > 0 {
 			return nil, nil, leave(ClassArch, "%s runs on %s, and not %s, where an entry runs on amd64 and arm64 both", image, strings.Join(has, " and "), strings.Join(missing, " or "))
 		}
-		// Plain, as the catalog reads a pin by its line.
+		// Plain, and with no comment after it, as the catalog reads a pin by its line.
 		if r.digest == "" {
 			img.Value = image + "@" + kept.Digest
 		}
-		img.Style = 0
+		img.Style, img.LineComment = 0, ""
 	}
 	out, err := encodeFile(doc)
 	return out, notes, err

@@ -93,6 +93,21 @@ message Input {
   // its first password. Reading a log takes no passkey, so nothing may call it
   // sealed, and a person hears that before they apply.
   bool logged = 8;
+  // How a generated secret is written, for an app that reads it as a key: letters
+  // and digits unless set.
+  GenerateAs generate_as = 80;
+}
+
+// GenerateAs is how a generated secret is written.
+enum GenerateAs {
+  // Letters and digits, as many as generate says.
+  GENERATE_AS_UNSPECIFIED = 0;
+  // Hex digits, as many as generate says, as openssl rand -hex writes them.
+  GENERATE_AS_HEX = 1;
+  // As many random bytes as generate says, in standard base64 with its
+  // padding, as openssl rand -base64 writes them, for an app that decodes its
+  // key.
+  GENERATE_AS_BASE64 = 2;
 }
 
 // InputType is what an input takes.

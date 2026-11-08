@@ -100,13 +100,10 @@ func rewrite(app App) (rewritten, error) {
 			named[n.Value] = name
 		}
 		mapDel(svc, "container_name")
+		// Coolify's own, which says what its health page leaves out.
+		mapDel(svc, "exclude_from_hc")
 		if labels := mapGet(svc, "labels"); labels != nil {
-			for _, platform := range []string{"createdBy", "skipStatusCheck"} {
-				mapDel(labels, platform)
-				labels.Content = slices.DeleteFunc(labels.Content, func(n *yaml.Node) bool {
-					return labels.Kind == yaml.SequenceNode && strings.HasPrefix(n.Value, platform+"=")
-				})
-			}
+			dropLabels(labels)
 			if len(labels.Content) == 0 {
 				mapDel(svc, "labels")
 			}
@@ -199,6 +196,11 @@ func rewrite(app App) (rewritten, error) {
 	asked := map[string]bool{}
 	for _, in := range out.inputs {
 		asked[in.GetName()] = true
+		if in.GetType() == catalogv1.InputType_INPUT_TYPE_SECRET {
+			// A secret is a whole value, written plainly: the form asks for it as :?
+			// asked Compose to, and a default in the file is one everyone would share.
+			walkScalars(root, func(n *yaml.Node) { n.Value = replaceVar(n.Value, in.GetName(), "${"+in.GetName()+"}") })
+		}
 	}
 	for _, f := range app.Fields {
 		if f.Web && f.Kind == Port {
@@ -527,9 +529,25 @@ type mounted struct {
 // own is UTC and the mount is host access a person would have to approve for nothing
 // more. A folder a person names reaches the server, whatever its default.
 func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
+	if v.Kind == yaml.MappingNode {
+		if mapGet(v, "content") != nil {
+			return mounted{}, leave(ClassShipped, "it writes a file of its own into the container, which an entry can't declare yet")
+		}
+		// Coolify's own, which makes the folder first, as Docker does for a volume.
+		mapDel(v, "is_directory")
+	}
 	source, set := volumeSource(v)
 	if source == "" {
 		return mounted{}, nil
+	}
+	if volumeLike.MatchString(source) {
+		// A named volume, which a platform may declare for its file where the file
+		// doesn't.
+		return mounted{named: source}, nil
+	}
+	if !strings.HasPrefix(source, "/") && !strings.HasPrefix(source, "~") && !strings.HasPrefix(source, "$") && !strings.HasPrefix(source, ".") {
+		// A folder written without its ./, as Coolify's files do.
+		source = "./" + source
 	}
 	switch {
 	case source == "/etc/localtime" || source == "/etc/timezone":
@@ -564,6 +582,33 @@ func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
 	folders[named] = rel
 	set(named)
 	return mounted{named: named}, nil
+}
+
+// volumeLike is a named volume's name, as Compose tells one from a path.
+var volumeLike = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+
+// dropLabels drops the labels a platform reads, which nothing in Dockwell does:
+// 1Panel's, Coolify's, and Traefik's, as Dockwell's proxy is Caddy.
+func dropLabels(labels *yaml.Node) {
+	platform := func(key string) bool {
+		return key == "createdBy" || key == "skipStatusCheck" || strings.HasPrefix(key, "traefik.") || strings.HasPrefix(key, "coolify.")
+	}
+	switch labels.Kind {
+	case yaml.MappingNode:
+		for i := 0; i+1 < len(labels.Content); {
+			if platform(labels.Content[i].Value) {
+				labels.Content = append(labels.Content[:i], labels.Content[i+2:]...)
+			} else {
+				i += 2
+			}
+		}
+	case yaml.SequenceNode:
+		labels.Content = slices.DeleteFunc(labels.Content, func(n *yaml.Node) bool {
+			key, _, _ := strings.Cut(n.Value, "=")
+			return platform(key)
+		})
+	default:
+	}
 }
 
 // volumeSource finds what a volume mounts, and how to change it.
@@ -663,6 +708,34 @@ func renameVars(s string, renames map[string]string) string {
 	return b.String()
 }
 
+// replaceVar replaces each use of a variable in a value, with whatever default it
+// has, with what stands for it.
+func replaceVar(s, name, with string) string {
+	var b strings.Builder
+	last := 0
+	for _, u := range usesOf(s) {
+		if u.name != name || u.at < last {
+			continue
+		}
+		start := u.at - 2 // ${
+		end := u.end
+		for depth := 1; end < len(s) && depth > 0; end++ {
+			switch {
+			case strings.HasPrefix(s[end:], "${"):
+				depth++
+				end++
+			case s[end] == '}':
+				depth--
+			}
+		}
+		b.WriteString(s[last:start])
+		b.WriteString(with)
+		last = end
+	}
+	b.WriteString(s[last:])
+	return b.String()
+}
+
 // renamesOf gives each of a platform's variables a plainer name: its web port PORT,
 // another port by what it's for, such as SSH_PORT, and anything else without the
 // platform's prefix. A name another field has already stays.
@@ -738,8 +811,17 @@ func inputsOf(fields []Field, renames map[string]string, root *yaml.Node) []*cat
 			}
 		case f.Kind == Secret:
 			in.Type, in.DefaultValue = catalogv1.InputType_INPUT_TYPE_SECRET, ""
+		case f.Kind == Email:
+			in.Type = catalogv1.InputType_INPUT_TYPE_EMAIL
 		case f.Kind == Generated:
-			in.Type, in.DefaultValue, in.Generate, in.Optional = catalogv1.InputType_INPUT_TYPE_SECRET, "", 32, false
+			in.Type, in.DefaultValue, in.Optional = catalogv1.InputType_INPUT_TYPE_SECRET, "", false
+			// The source's own length, as an app may want a key of exactly that, and at
+			// least what the catalog takes.
+			n := f.Length
+			if n == 0 {
+				n = 32
+			}
+			in.Generate, in.GenerateAs = uint32(max(n, 16)), f.As
 		default:
 			in.Type = catalogv1.InputType_INPUT_TYPE_TEXT
 			if len(f.Choices) > 0 {

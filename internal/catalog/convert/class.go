@@ -33,6 +33,9 @@ const (
 	ClassFile       Class = "Its files can't be read"
 	ClassMajor      Class = "Moves to a new major version, which waits for the breaking marker"
 	ClassBack       Class = "Would go back to an older version"
+	ClassInside     Class = "Puts a secret inside a longer value, such as a connection URL"
+	ClassMadeUp     Class = "Asks for a value Dockwell doesn't make yet"
+	ClassSkipped    Class = "Its source marks it as one to leave out"
 )
 
 // leftOut is a reason an app is left out, with the class the report counts it in.

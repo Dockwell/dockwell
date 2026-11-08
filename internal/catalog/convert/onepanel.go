@@ -18,10 +18,11 @@ import (
 // OnePanelSource is 1Panel's app store, under the licence its repository declares.
 func OnePanelSource(commit string) Source {
 	return Source{
-		Name:       "1Panel's app store",
-		Repository: "https://github.com/1Panel-dev/appstore",
-		Commit:     commit,
-		License:    "GPL-3.0-only",
+		Name:        "1Panel's app store",
+		Repository:  "https://github.com/1Panel-dev/appstore",
+		Commit:      commit,
+		License:     "GPL-3.0-only",
+		LicenseFile: "LICENSE",
 	}
 }
 

@@ -1,0 +1,37 @@
+# documentation: https://board.example.com
+# slogan: A stand-in app for the converter's tests.
+# category: productivity
+# tags: board
+# port: 8080
+
+services:
+  board:
+    image: example/board:3.2.1
+    environment:
+      - SERVICE_URL_BOARD_8080
+      - PUBLIC_URL=$SERVICE_URL_BOARD
+      - HOSTNAME=${SERVICE_FQDN_BOARD}
+      - DB_USER=${SERVICE_USER_POSTGRES}
+      - DB_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - SECRET=${SERVICE_HEX_32_BOARD}
+      - SIGNING=${SERVICE_REALBASE64_64_BOARD}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - LICENSE_KEY=${LICENSE_KEY:?}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - APP_SECRET=${APP_SECRET:-changeme}
+      - COST=$$5
+    volumes:
+      - board-data:/data
+    exclude_from_hc: true
+    labels:
+      - traefik.enable=true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080"]
+  postgres:
+    image: postgres:17.6
+    environment:
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=$SERVICE_PASSWORD_POSTGRES
+    volumes:
+      - pg-data:/var/lib/postgresql/data

@@ -3,6 +3,7 @@
 package catalog_test
 
 import (
+	"encoding/base64"
 	"maps"
 	"os"
 	"path/filepath"
@@ -747,6 +748,8 @@ func TestCheckTakesASecretThatStandsAlone(t *testing.T) {
 		"a value":      "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}",
 		"a list entry": "- POSTGRES_PASSWORD=${POSTGRES_PASSWORD}",
 		"a word":       "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: [\"serve\", \"${POSTGRES_PASSWORD}\"]",
+		// A longer name that starts with this one is another secret, not this one inside it.
+		"beside one whose name starts with it": "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n      OTHER: x${POSTGRES_PASSWORD_OLD}",
 	} {
 		e := proto.CloneOf(base)
 		e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", compose, 1)
@@ -782,6 +785,32 @@ func TestSuggestMovesPastWhatsTaken(t *testing.T) {
 // Generated secrets differ each time, stay in the secrets, and aren't in what the
 // pin keeps. What a person gives is checked by its type, and a refusal never
 // quotes a value.
+// A key an app decodes is generated as it reads one: hex digits, or random bytes in
+// base64, as openssl rand writes them.
+func TestASecretIsGeneratedAsItsAppReadsIt(t *testing.T) {
+	e := &catalogv1.Entry{Name: "Thing", Inputs: []*catalogv1.Input{
+		{Name: "HEX", Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 33, GenerateAs: catalogv1.GenerateAs_GENERATE_AS_HEX},
+		{Name: "B64", Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32, GenerateAs: catalogv1.GenerateAs_GENERATE_AS_BASE64},
+	}}
+	filled, err := catalog.Fill(e, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h := filled.Secrets["HEX"]; len(h) != 33 || strings.Trim(h, "0123456789abcdef") != "" {
+		t.Errorf("HEX is %q, want 33 hex digits", h)
+	}
+	if b, err := base64.StdEncoding.DecodeString(filled.Secrets["B64"]); err != nil || len(b) != 32 {
+		t.Errorf("B64 is %q, which decodes to %d bytes, %v; want 32", filled.Secrets["B64"], len(b), err)
+	}
+	e.Inputs = append(e.Inputs, &catalogv1.Input{Name: "TYPED", Type: catalogv1.InputType_INPUT_TYPE_SECRET, GenerateAs: catalogv1.GenerateAs_GENERATE_AS_HEX})
+	e.Compose = "services:\n  a:\n    image: x@sha256:" + strings.Repeat("a", 64) + "\n    environment:\n      HEX: ${HEX}\n      B64: ${B64}\n      TYPED: ${TYPED}\n"
+	e.Id, e.Summary, e.Category, e.Version, e.Release, e.License = "thing", "A thing", "ai", "1", 1, "MIT"
+	e.Source = &catalogv1.Source{Repository: "https://example.com/thing"}
+	if err := catalog.Check(e); err == nil || !strings.Contains(err.Error(), "TYPED says how to write what it generates, and generates nothing") {
+		t.Errorf("Check = %v", err)
+	}
+}
+
 func TestFill(t *testing.T) {
 	e := &catalogv1.Entry{Name: "Thing", Inputs: []*catalogv1.Input{
 		{Name: "PORT", Label: "Port", Type: catalogv1.InputType_INPUT_TYPE_PORT, DefaultValue: "8081"},

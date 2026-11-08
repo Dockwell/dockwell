@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -50,11 +51,15 @@ type OCI struct {
 	HubGets int
 	// HubAPI is Docker Hub's API, https://hub.docker.com unless a test sets it.
 	HubAPI string
+	// HubEvery spaces what's asked of Docker Hub's API, which answers a burst of
+	// hundreds with 429: 400 ms unless set.
+	HubEvery time.Duration
 
-	mu     sync.Mutex
-	tokens map[string]string
-	gets   int
-	hub    map[string]hubTag
+	mu      sync.Mutex
+	tokens  map[string]string
+	gets    int
+	hub     map[string]hubTag
+	lastHub time.Time
 }
 
 // hubTag is what Docker Hub's API says of a tag: when it was last pushed, the index it
@@ -194,7 +199,10 @@ func (o *OCI) hubTag(ctx context.Context, r ref) (hubTag, error) {
 	if err != nil {
 		return hubTag{}, err
 	}
-	resp, err := client.Do(req)
+	if err := o.spaceHub(ctx); err != nil {
+		return hubTag{}, err
+	}
+	resp, err := politely(ctx, client, req)
 	if err != nil {
 		return hubTag{}, fmt.Errorf("asking Docker Hub for %s: %w", r.name, err)
 	}
@@ -212,6 +220,48 @@ func (o *OCI) hubTag(ctx context.Context, r ref) (hubTag, error) {
 	o.hub[key] = tag
 	o.mu.Unlock()
 	return tag, nil
+}
+
+// spaceHub waits until it's HubEvery since Docker Hub's API was last asked.
+func (o *OCI) spaceHub(ctx context.Context) error {
+	every := o.HubEvery
+	if every == 0 {
+		every = 400 * time.Millisecond
+	}
+	o.mu.Lock()
+	wait := time.Until(o.lastHub.Add(every))
+	o.lastHub = time.Now().Add(max(wait, 0))
+	o.mu.Unlock()
+	if wait <= 0 {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(wait):
+		return nil
+	}
+}
+
+// politely asks, and asks again when told to ask more slowly, three times at most,
+// as long as each wait is half a minute or less.
+func politely(ctx context.Context, client *http.Client, req *http.Request) (*http.Response, error) {
+	for try := 0; ; try++ {
+		resp, err := client.Do(req)
+		if err != nil || resp.StatusCode != http.StatusTooManyRequests || try == 3 {
+			return resp, err
+		}
+		_ = resp.Body.Close()
+		wait := 2 * time.Second
+		if s, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil && s > 0 {
+			wait = min(time.Duration(s)*time.Second, 30*time.Second)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(wait):
+		}
+	}
 }
 
 // Platforms says what an image runs on: from Docker Hub's API where the tag still
@@ -316,7 +366,7 @@ func (o *OCI) do(ctx context.Context, r ref, method, path, accept string) (*http
 		if token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
-		resp, err := client.Do(req)
+		resp, err := politely(ctx, client, req)
 		if err != nil {
 			return nil, fmt.Errorf("asking %s for %s: %w", r.host, r.name, err)
 		}
@@ -450,6 +500,10 @@ func parseRef(image string) (ref, error) {
 	}
 	if r.host == "index.docker.io" || r.host == "registry-1.docker.io" {
 		r.host = dockerHub
+	}
+	// An official image is under library/, however its registry is written.
+	if r.host == dockerHub && !strings.Contains(r.name, "/") {
+		r.name = "library/" + r.name
 	}
 	if r.name == "" || r.tag == "" && r.digest == "" {
 		return ref{}, fmt.Errorf("the image %q names no tag. Name its version", image)

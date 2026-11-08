@@ -566,3 +566,21 @@ func TestTheReportHoldsWhatItSays(t *testing.T) {
 		t.Errorf("forCatalog = %q", got)
 	}
 }
+
+// A pin's line says nothing after it, as the catalog reads a pin by its line, and a
+// secret is written plainly, whatever default or message the source gave it.
+func TestAPinAndASecretArePlain(t *testing.T) {
+	file := "services:\n  a:\n    image: example/a:1.0 # released last spring\n    environment:\n      - TOKEN=${TOKEN:?Set the token}\n      - KEY=${KEY:-shared-by-everyone}\n"
+	r := convertPlain(t, converter(), file, Field{Name: "TOKEN", Kind: Secret}, Field{Name: "KEY", Kind: Generated})
+	if r.Entry == nil {
+		t.Fatal(r.LeftOut)
+	}
+	for _, gone := range []string{"released last spring", "Set the token", "shared-by-everyone"} {
+		if strings.Contains(r.Entry.GetCompose(), gone) {
+			t.Errorf("its file still says %q:\n%s", gone, r.Entry.GetCompose())
+		}
+	}
+	if !strings.Contains(r.Entry.GetCompose(), "TOKEN=${TOKEN}") || !strings.Contains(r.Entry.GetCompose(), "KEY=${KEY}") {
+		t.Errorf("its file:\n%s", r.Entry.GetCompose())
+	}
+}
