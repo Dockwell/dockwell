@@ -6952,15 +6952,40 @@ components:
                 target:
                     type: string
                     description: |-
-                        What it backs up or acts on: an app's, a website's or a database's name,
-                         or a folder.
+                        What it backs up or acts on: apps', websites' or databases' names, comma
+                         separated, "all" for every one, or a folder.
                 urlHost:
                     type: string
                     description: The host a URL job calls, without its path or query.
                 scriptLines:
                     type: integer
-                    description: How many lines a shell job's script has.
+                    description: |-
+                        How many lines a shell job's script has, where it's written in the job or
+                         in 1Panel's library.
                     format: uint32
+                scriptFrom:
+                    type: string
+                    description: |-
+                        Where a shell job's script is: "input", written in the job; "library", one
+                         of 1Panel's library scripts, named in script_name; or "select", a file on
+                         the server, at script_path.
+                scriptName:
+                    type: string
+                    description: The name of the library script a shell job runs.
+                scriptPath:
+                    type: string
+                    description: The file on the server a shell job runs.
+                interpreter:
+                    type: string
+                    description: What runs a shell job's script, such as "bash" or "python3".
+                user:
+                    type: string
+                    description: Who a shell job runs as in its container, where 1Panel says.
+                databaseType:
+                    type: string
+                    description: |-
+                        The kind of database a database backup is of, as 1Panel says it: "mysql",
+                         "mariadb", "postgresql" or "mongodb".
             description: |-
                 OnePanelCronJob is a job 1Panel's own scheduler runs. Its script, command and
                  URL path aren't read.

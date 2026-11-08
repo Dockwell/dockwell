@@ -291,11 +291,27 @@ message OnePanelCronJob {
   string status = 4;
   // The container a shell job runs in, where it runs in one.
   string container = 5;
-  // What it backs up or acts on: an app's, a website's or a database's name,
-  // or a folder.
+  // What it backs up or acts on: apps', websites' or databases' names, comma
+  // separated, "all" for every one, or a folder.
   string target = 6;
   // The host a URL job calls, without its path or query.
   string url_host = 7;
-  // How many lines a shell job's script has.
+  // How many lines a shell job's script has, where it's written in the job or
+  // in 1Panel's library.
   uint32 script_lines = 8;
+  // Where a shell job's script is: "input", written in the job; "library", one
+  // of 1Panel's library scripts, named in script_name; or "select", a file on
+  // the server, at script_path.
+  string script_from = 9;
+  // The name of the library script a shell job runs.
+  string script_name = 10;
+  // The file on the server a shell job runs.
+  string script_path = 11;
+  // What runs a shell job's script, such as "bash" or "python3".
+  string interpreter = 12;
+  // Who a shell job runs as in its container, where 1Panel says.
+  string user = 13;
+  // The kind of database a database backup is of, as 1Panel says it: "mysql",
+  // "mariadb", "postgresql" or "mongodb".
+  string database_type = 14;
 }

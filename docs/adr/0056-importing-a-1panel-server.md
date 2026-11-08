@@ -47,7 +47,8 @@ The tables the importer reads, by the names GORM gives them:
 | `website_acme_accounts` | The ACME account a certificate was got with | its CA (`type`: `letsencrypt`, `zerossl`, `buypass`, `google` or `custom`), by `website_ssls.acme_account_id`. Never its key or its EAB secret |
 | `databases` | A database server, local or remote | type, version, local or remote, which install it is |
 | `database_mysqls`, `database_postgresqls`, and v2's `database_users` | A database on a server, and its users | names, which server, format, permission. Passwords are AES-encrypted with a key in the same database (`settings.EncryptKey`): the importer never reads those columns |
-| `cronjobs` | A job 1Panel's own scheduler runs | name, type, schedule, status, what it acts on. Not the script, nor a URL's path and query, which can hold a password |
+| `cronjobs` | A job 1Panel's own scheduler runs | name, type, schedules (several joined with `&&`, or `,` in 1.10), status. What a backup acts on, which 1Panel keeps by ID, comma separated, or `all`: apps from `app_installs`, websites from `websites`, and databases from the table its `db_type` names. For a shell job, where its script is (`script_mode`: written in the job, from the library by `script_id`, or a file on the server, whose path is read), what runs it (`executor`, or `command` in a container) and as whom (`user`), and how many lines it has. Not the script, nor a URL's path and query, which can hold a password |
+| `script_libraries` | 1Panel's library of scripts | a library script's name, and how many lines it has. Not the script |
 
 ### How it reads: on the server, by its agent, read-only
 

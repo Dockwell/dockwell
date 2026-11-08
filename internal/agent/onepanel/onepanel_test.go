@@ -82,8 +82,27 @@ func TestReadsWhat1PanelKeeps(t *testing.T) {
 	for _, j := range found.GetCronJobs() {
 		jobs[j.GetName()] = j
 	}
-	if j := jobs["nightly"]; j.GetScriptLines() != 2 || j.GetContainer() != "mine" || j.GetSchedule() != "0 3 * * *" {
+	if j := jobs["nightly"]; j.GetScriptLines() != 2 || j.GetContainer() != "mine" || j.GetSchedule() != "0 3 * * *" ||
+		j.GetScriptFrom() != "input" || j.GetInterpreter() != "sh" || j.GetUser() != "www-data" {
 		t.Errorf("a shell job = %v", j)
+	}
+	// One from 1Panel's library runs what's there, and its schedules are a line each.
+	if j := jobs["report"]; j.GetScriptFrom() != "library" || j.GetScriptName() != "disk report" || j.GetScriptLines() != 2 ||
+		j.GetInterpreter() != "python3" || j.GetSchedule() != "0 8 * * 1\n0 8 * * 4" {
+		t.Errorf("a library job = %v", j)
+	}
+	if j := jobs["rotate"]; j.GetScriptFrom() != "select" || j.GetScriptPath() != "/srv/scripts/rotate.sh" || j.GetScriptLines() != 0 || j.GetInterpreter() != "bash" {
+		t.Errorf("a job running a file = %v", j)
+	}
+	// A backup's targets are IDs in 1Panel, and names here.
+	if j := jobs["site backup"]; j.GetTarget() != "blog.example.com, static.example.com" {
+		t.Errorf("a website backup = %v", j)
+	}
+	if j := jobs["db backup"]; j.GetTarget() != "wp" || j.GetDatabaseType() != "mysql" {
+		t.Errorf("a database backup = %v", j)
+	}
+	if j := jobs["every db"]; j.GetTarget() != "all" || j.GetDatabaseType() != "postgresql" {
+		t.Errorf("a backup of every database = %v", j)
 	}
 	if j := jobs["ping"]; j.GetUrlHost() != "hooks.example.com" {
 		t.Errorf("a URL job = %v", j)

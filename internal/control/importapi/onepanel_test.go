@@ -52,7 +52,12 @@ func TestWhatCantComeSaysWhy(t *testing.T) {
 		CronJobs: []*dockwellv1.OnePanelCronJob{
 			{Name: "who knows", Type: "mystery", Status: "Enable"},
 			{Name: "snap", Type: "snapshot", Status: "Enable"},
-			{Name: "twice", Type: "shell", Schedule: "0 1 * * *\n0 13 * * *", ScriptLines: 1, Status: "Enable"},
+			{Name: "twice", Type: "shell", Schedule: "0 1 * * *\n0 13 * * *", ScriptFrom: "input", ScriptLines: 1, Interpreter: "bash", Status: "Enable"},
+			{Name: "report", Type: "shell", Schedule: "0 8 * * 1", ScriptFrom: "library", ScriptName: "disk report", ScriptLines: 2, Interpreter: "python3", Status: "Enable"},
+			{Name: "rotate", Type: "shell", Schedule: "30 2 * * *", ScriptFrom: "select", ScriptPath: "/srv/scripts/rotate.sh", Interpreter: "bash", Container: "app", User: "www-data", Status: "Enable"},
+			{Name: "sites", Type: "website", Schedule: "0 4 * * *", Target: "blog.example.com, static.example.com", Status: "Enable"},
+			{Name: "dbs", Type: "database", Schedule: "0 6 * * *", DatabaseType: "postgresql", Target: "all", Status: "Enable"},
+			{Name: "one db", Type: "database", Schedule: "0 6 * * *", DatabaseType: "mysql", Target: "wp", Status: "Enable"},
 		},
 	})
 	leave, again := dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, dockwellv1.ImportAction_IMPORT_ACTION_MAKE
@@ -81,7 +86,12 @@ func TestWhatCantComeSaysWhy(t *testing.T) {
 		{dockwellv1.ImportKind_IMPORT_KIND_CERTIFICATE, "pushed.example.com", leave, "a tunnel or a proxy that ends TLS"},
 		{dockwellv1.ImportKind_IMPORT_KIND_CRON_JOB, "who knows", leave, `1Panel calls "mystery"`},
 		{dockwellv1.ImportKind_IMPORT_KIND_CRON_JOB, "snap", leave, "1Panel itself"},
-		{dockwellv1.ImportKind_IMPORT_KIND_CRON_JOB, "twice", again, "on 0 1 * * *, 0 13 * * *"},
+		{dockwellv1.ImportKind_IMPORT_KIND_CRON_JOB, "twice", again, "a bash script of 1 line, on 0 1 * * *, 0 13 * * *"},
+		{dockwellv1.ImportKind_IMPORT_KIND_CRON_JOB, "report", again, "the script disk report from 1Panel's library, 2 lines, run by python3"},
+		{dockwellv1.ImportKind_IMPORT_KIND_CRON_JOB, "rotate", again, "the script /srv/scripts/rotate.sh on the server, run by bash, in the container app as www-data"},
+		{dockwellv1.ImportKind_IMPORT_KIND_CRON_JOB, "sites", again, "a backup of the websites blog.example.com, static.example.com"},
+		{dockwellv1.ImportKind_IMPORT_KIND_CRON_JOB, "dbs", again, "a backup of every PostgreSQL database"},
+		{dockwellv1.ImportKind_IMPORT_KIND_CRON_JOB, "one db", again, "a backup of the MySQL database wp"},
 		{dockwellv1.ImportKind_IMPORT_KIND_PANEL, "1Panel", leave, "v2.6.0 is read the same way"},
 	} {
 		s := stepFor(t, steps, c.kind, c.name)
