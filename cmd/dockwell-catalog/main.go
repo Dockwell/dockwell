@@ -115,10 +115,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		Now:           time.Now(),
 	}
 	var results []convert.Result
-	converted := 0
+	converted, kept := 0, 0
 	for i := range apps {
 		r := c.Convert(ctx, apps[i])
-		if r.Entry != nil {
+		switch {
+		case r.Held != "":
+			kept++
+		case r.Entry != nil:
 			converted++
 		}
 		results = append(results, r)
@@ -126,7 +129,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if err := convert.Write(*out, src, results, previous, c.Pins, all); err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "Converted %d of %d apps from %s into %s. %s says why the rest were left out.\n",
-		converted, len(results), src.Name, *out, convert.ReportFile)
+	fmt.Fprintf(stdout, "Converted %d of %d apps from %s into %s, and kept %d at an earlier release. %s says why the rest were left out.\n",
+		converted, len(results), src.Name, *out, kept, convert.ReportFile)
 	return nil
 }
