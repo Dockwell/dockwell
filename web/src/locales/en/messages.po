@@ -6523,8 +6523,14 @@ msgstr "Can't load the domains"
 msgid "Can't read your apps"
 msgstr "Can't read your apps"
 
+msgid "Certificates"
+msgstr "Certificates"
+
 msgid "Clear the filters"
 msgstr "Clear the filters"
+
+msgid "DNS"
+msgstr "DNS"
 
 msgid "Domains"
 msgstr "Domains"
@@ -6541,8 +6547,14 @@ msgstr "No domain here matches what you've chosen. Try part of a name, or anothe
 msgid "No domains yet"
 msgstr "No domains yet"
 
+msgid "Renewed automatically"
+msgstr "Renewed automatically"
+
 msgid "Routes to"
 msgstr "Routes to"
+
+msgid "Runs out first"
+msgstr "Runs out first"
 
 msgid "Send a domain to one of your apps. You review a plan before anything changes."
 msgstr "Send a domain to one of your apps. You review a plan before anything changes."
@@ -6570,6 +6582,27 @@ msgstr "What your domains serve isn't affected."
 
 msgid "{count, plural, one {# domain} other {# domains}}"
 msgstr "{count, plural, one {# domain} other {# domains}}"
+
+msgid "{days, plural, one {in # day} other {in # days}}"
+msgstr "{days, plural, one {in # day} other {in # days}}"
+
+msgid "Can't tell where it points"
+msgstr "Can't tell where it points"
+
+msgid "No record yet"
+msgstr "No record yet"
+
+msgid "Not read yet"
+msgstr "Not read yet"
+
+msgid "Points elsewhere"
+msgstr "Points elsewhere"
+
+msgid "Points here"
+msgstr "Points here"
+
+msgid "Proxied by Cloudflare"
+msgstr "Proxied by Cloudflare"
 
 msgid "Bring them back"
 msgstr "Bring them back"

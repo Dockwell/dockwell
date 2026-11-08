@@ -54,8 +54,9 @@ import { useWebsiteOfEnvironment } from "../websites/website";
 // The add sheet's form and the list's filters are the apps' own, and this page can be where you land.
 import "../apps/Apps.css";
 import "./Domains.css";
-import { phoneWordClass } from "../apps/Health";
+import { phoneWordClass, useHealthWords } from "../apps/Health";
 import { useServicesWatch } from "../apps/ServicesLive";
+import { dnsOf, useDnsWord } from "./dns";
 
 /** The list's place, in its URL: its filters. */
 export interface DomainsSearch {
@@ -415,7 +416,14 @@ export function DomainsPage({
             <Trans>Until then, a domain doesn't lead to its app, and you can't add one here.</Trans>
           </Callout>
         ) : null}
-        {body}
+        {phone || rows.length === 0 || read !== "read" ? (
+          body
+        ) : (
+          <div className="domains-layout">
+            <div className="domains-main">{body}</div>
+            <Certificates rows={rows} />
+          </div>
+        )}
       </section>
       {adding ? <AddDomainSheet apps={apps} onClose={() => setAdding(false)} /> : null}
       {moving?.service ? (
@@ -569,6 +577,79 @@ function RowBadge({ row, read }: { row: Row; read: DomainRead }) {
   return <StatusBadge status={status} label={word} labelIsState className="apps-status" title={word} />;
 }
 
+/** What DNS says of a domain, as Domains-List's column has it: whether it leads here, and the addresses it found. */
+function DnsCell({ domain, read }: { domain: Domain; read: DomainRead }) {
+  const word = useDnsWord()(dnsOf(domain));
+  const words = useHealthWords();
+  if (read !== "read") {
+    return <StatusBadge status="unknown" label={words.word({ kind: "unknown", read })} labelIsState />;
+  }
+  return (
+    <span className="dw-cell">
+      <StatusBadge status={word.status} label={word.word} labelIsState className="apps-status" title={word.word} />
+      {word.found ? (
+        <code className="dw-cell-sub domains-dns-found" title={word.found}>
+          {word.found}
+        </code>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * Where the certificates stand, beside the list, as Domains-List has it: how many
+ * serve, how many are on their way or going wrong, and which runs out first.
+ */
+function Certificates({ rows }: { rows: readonly Row[] }) {
+  const { t } = useLingui();
+  const firsts = rows.filter((row) => row.first);
+  const count = (pick: (look: DomainLook) => boolean) => firsts.filter((row) => pick(row.look)).length;
+  const valid = count((l) => l.state === "serving" && !l.noCertificate && !l.warning);
+  const renewing = count((l) => l.state === "serving" && Boolean(l.warning));
+  const issuing = count((l) => l.state === "pending");
+  const failed = count((l) => l.state === "failed");
+  const inFront = count((l) => l.state === "serving" && Boolean(l.noCertificate));
+  const soonest = firsts
+    .filter((row) => row.look.state === "serving" && row.look.days !== undefined)
+    .reduce<Row | undefined>(
+      (first, row) => (first && (first.look.days ?? 0) <= (row.look.days ?? 0) ? first : row),
+      undefined,
+    );
+  if (firsts.length === 0) return null;
+  const facts: [string, ReactNode][] = [];
+  if (soonest) {
+    const name = soonest.domain.name;
+    const days = soonest.look.days ?? 0;
+    facts.push([
+      t`Runs out first`,
+      <span key="soonest">
+        <code>{name}</code> {plural(days, { one: "in # day", other: "in # days" })}
+      </span>,
+    ]);
+  }
+  facts.push([t`Valid`, String(valid)]);
+  if (renewing > 0) facts.push([t`Renewal failing`, String(renewing)]);
+  if (issuing > 0) facts.push([t`Issuing`, String(issuing)]);
+  if (failed > 0) facts.push([t`Failed`, String(failed)]);
+  if (inFront > 0) facts.push([t`TLS ends in front`, String(inFront)]);
+  return (
+    <Panel
+      className="domains-certificates"
+      title={t`Certificates`}
+      actions={<span className="domains-certificates-meta">{t`Renewed automatically`}</span>}
+    >
+      <dl className="domains-facts">
+        {facts.map(([term, value]) => (
+          <div key={term}>
+            <dt>{term}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </Panel>
+  );
+}
+
 function DomainsTable({
   rows,
   read,
@@ -606,6 +687,7 @@ function DomainsTable({
         width: "28%",
         render: (row) => <Reaches row={row} fleet={fleet} environment={environment} />,
       },
+      { key: "dns", header: t`DNS`, width: 184, render: (row) => <DnsCell domain={row.domain} read={read} /> },
       { key: "status", header: t`Status`, width: 176, render: (row) => <RowBadge row={row} read={read} /> },
     ],
     [t, read, fleet, environment, onMoveBehind],
