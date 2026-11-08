@@ -5624,6 +5624,114 @@ msgstr "所有者 <0>{owner}</0>"
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, other {# 项}}"
 
+msgid "1Panel"
+msgstr "1Panel"
+
+msgid "1Panel isn't on this server"
+msgstr "此服务器上没有 1Panel"
+
+#. placeholder {0}: panel.version
+#. placeholder {1}: panel.baseDir
+#. placeholder {2}: panel.records
+msgid "1Panel {0}, under <0>{1}</0>, read from <1>{2}</1>."
+msgstr "1Panel {0}，安装在 <0>{1}</0> 下，读取自 <1>{2}</1>。"
+
+msgid "A version of 1Panel this wasn't written from"
+msgstr "导入功能并非依据这个 1Panel 版本编写"
+
+msgid "Becomes"
+msgstr "将成为"
+
+msgid "Certificate"
+msgstr "证书"
+
+msgid "Compose project"
+msgstr "Compose 项目"
+
+msgid "Containers"
+msgstr "容器"
+
+msgid "Containers 1Panel made run on this server"
+msgstr "此服务器上运行着 1Panel 创建的容器"
+
+msgid "Couldn't read what 1Panel keeps"
+msgstr "无法读取 1Panel 保存的内容"
+
+msgid "Cron job"
+msgstr "计划任务"
+
+msgid "Database server"
+msgstr "数据库服务器"
+
+msgid "Dockwell can take on what 1Panel runs as it is, with no restart, and say what it would make again and what it would leave."
+msgstr "Dockwell 可以原样接管 1Panel 运行的内容，无需重启，并说明哪些会重新创建、哪些会保留。"
+
+#. placeholder {0}: server.name
+msgid "Dockwell reads what 1Panel keeps on {0}, from its own records, read-only, and says what it would take on as it runs, with no restart, what it would make again, and what it would leave, and why. Review the plan to see each change. Nothing changes on the server until you apply it."
+msgstr "Dockwell 以只读方式从 1Panel 自己的记录中读取它在 {0} 上保存的内容，并说明哪些会原样接管（无需重启）、哪些会重新创建、哪些会保留，以及原因。审阅计划可查看每项变更。在你应用计划之前，服务器上不会有任何改变。"
+
+msgid "Each thing below says whether it's in Dockwell already, what it waits for, or why it stays."
+msgstr "下面每一项都说明了它是否已在 Dockwell 中、它在等待什么，或它为何保留。"
+
+msgid "Hide them"
+msgstr "收起"
+
+msgid "In Dockwell already"
+msgstr "已在 Dockwell 中"
+
+msgid "In this plan"
+msgstr "在此计划中"
+
+msgid "Later, once Dockwell has databases"
+msgstr "稍后，待 Dockwell 支持数据库"
+
+msgid "Later, once Dockwell has firewall rules"
+msgstr "稍后，待 Dockwell 支持防火墙规则"
+
+msgid "Later, once Dockwell has scheduled tasks"
+msgstr "稍后，待 Dockwell 支持计划任务"
+
+msgid "Later, once Dockwell has websites"
+msgstr "稍后，待 Dockwell 支持网站"
+
+msgid "Move in from 1Panel"
+msgstr "从 1Panel 迁入"
+
+msgid "Not now"
+msgstr "暂不"
+
+msgid "Nothing to plan now"
+msgstr "现在没有可计划的内容"
+
+msgid "Read it again"
+msgstr "重新读取"
+
+msgid "Read what 1Panel keeps"
+msgstr "读取 1Panel 保存的内容"
+
+msgid "Review the plan"
+msgstr "查看计划"
+
+msgid "Runtime"
+msgstr "运行环境"
+
+msgid "Stays with 1Panel"
+msgstr "保留在 1Panel 中"
+
+#. placeholder {0}: panel.version
+msgid "This was written from 1Panel v2.0 to v2.4.2, and v1.10, and this server runs {0}. It was read the same way, by its records' column names, so check what it found before you apply the plan."
+msgstr "导入功能依据 1Panel v2.0 至 v2.4.2 及 v1.10 编写，而此服务器运行的是 {0}。它按记录的列名以同样方式读取，因此请在应用计划前核对读取到的内容。"
+
+msgid "Website"
+msgstr "网站"
+
+#. placeholder {0}: steps.length
+msgid "{0, plural, one {# thing found} other {# things found}}"
+msgstr "{0, plural, other {找到 # 项}}"
+
+msgid "{count, plural, one {Show it} other {Show all #}}"
+msgstr "{count, plural, other {显示全部 # 项}}"
+
 msgid "Read this deploy's logs"
 msgstr "查看此次部署的日志"
 
@@ -6151,9 +6259,6 @@ msgstr "最近的变更"
 msgid "Back to the server"
 msgstr "返回服务器"
 
-msgid "Compose project"
-msgstr "Compose 项目"
-
 msgid "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
 msgstr "此后 Dockwell 会把它作为服务运行，因此更换镜像是一个可撤销的计划，并保留它的卷。接管不会重启它，它的环境变量会加密带入，任何计划或日志都不会显示。"
 
@@ -6234,9 +6339,6 @@ msgstr "正在统计磁盘占用"
 
 msgid "Adding up what takes the disk Docker keeps its data on."
 msgstr "正在统计 Docker 数据所在磁盘的占用。"
-
-msgid "Containers"
-msgstr "容器"
 
 msgid "Disk usage"
 msgstr "磁盘占用"
@@ -6702,6 +6804,9 @@ msgstr "{name} 没有上报数据"
 
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> 可能已被移除，或者链接有误。"
+
+msgid "Move in"
+msgstr "迁入"
 
 msgid "No server with this ID"
 msgstr "没有这个 ID 的服务器"
@@ -8665,9 +8770,6 @@ msgstr "{days, plural, other {证书有效期还有 # 天}}"
 msgid "{host} answers {code}"
 msgstr "{host} 返回 {code}"
 
-msgid "Certificate"
-msgstr "证书"
-
 msgid "Issued"
 msgstr "已签发"
 
@@ -9030,9 +9132,6 @@ msgstr "来自 {root} 的静态文件"
 
 msgid "Visit site"
 msgstr "访问网站"
-
-msgid "Website"
-msgstr "网站"
 
 msgid "Website sections"
 msgstr "网站分区"

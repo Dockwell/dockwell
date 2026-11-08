@@ -117,7 +117,7 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 		notes = append(notes, revision.ManagedElsewhere(resource.Elsewhere{Manager: found.Manager, Container: c.GetName(), Project: p, Folder: found.Folder}))
 	}
 	change, err := h.changes.Propose(ctx, fmt.Sprintf("Take on %s as %s", c.GetName(), name), []*dockwellv1.Edit{edit}, nil, changes.Also{
-		Adopts: map[string]changes.Adoption{name: {ID: c.GetId(), Name: c.GetName()}},
+		Adopts: map[resource.Ref]changes.Adoption{{Kind: service.Kind, Scope: env.ID, Name: name}: {ID: c.GetId(), Name: c.GetName()}},
 		Notes:  notes,
 	})
 	if err != nil {
@@ -189,27 +189,62 @@ func (h *Handler) ReadAs(ctx context.Context, s Server, c *dockwellv1.ServerCont
 	return svc, found, nil
 }
 
-// InProject lists what a Compose project has on a server that Dockwell didn't make,
-// by name. A one-off is no service of it, so it isn't there.
-func (h *Handler) InProject(ctx context.Context, serverName, project string) (Server, []*dockwellv1.ServerContainer, error) {
+// Running is what a server runs, read once: every container, and of those the ones
+// Dockwell didn't make. A caller that reads several projects reads the server once.
+type Running struct {
+	Server Server
+	All    []*dockwellv1.ServerContainer
+	Others []*dockwellv1.ServerContainer
+}
+
+// ReadRunning reads what serverName runs.
+func (h *Handler) ReadRunning(ctx context.Context, serverName string) (*Running, error) {
 	s, err := h.server(ctx, serverName)
 	if err != nil {
-		return Server{}, nil, err
+		return nil, err
 	}
 	found, err := h.read(ctx, s, "")
 	if err != nil {
-		return Server{}, nil, err
+		return nil, err
 	}
 	others, _, err := h.others(ctx, found.GetContainers())
 	if err != nil {
-		return Server{}, nil, err
+		return nil, err
 	}
-	in := slices.DeleteFunc(others, func(c *dockwellv1.ServerContainer) bool { return c.GetComposeProject() != project || c.GetOneOff() })
+	return &Running{Server: s, All: found.GetContainers(), Others: others}, nil
+}
+
+// InProject is the containers of the Compose project, of those Dockwell didn't make.
+func (r *Running) InProject(project string) ([]*dockwellv1.ServerContainer, error) {
+	in := slices.DeleteFunc(slices.Clone(r.Others), func(c *dockwellv1.ServerContainer) bool { return c.GetComposeProject() != project || c.GetOneOff() })
 	if len(in) == 0 {
-		return Server{}, nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("%s has no Compose project %s among the containers Dockwell didn't make. See what's there with dockwell containers list --server %s", s.Name, project, s.Name), "not_found")
+		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("%s has no Compose project %s among the containers Dockwell didn't make. See what's there with dockwell containers list --server %s", r.Server.Name, project, r.Server.Name), "not_found")
 	}
 	slices.SortFunc(in, func(a, b *dockwellv1.ServerContainer) int { return cmp.Compare(a.GetName(), b.GetName()) })
-	return s, in, nil
+	return in, nil
+}
+
+// RunsAs is the Compose project Dockwell runs the container called name in, which
+// is its environment's: a container taken on keeps its name. It's "" for one
+// Dockwell doesn't run, or that isn't there.
+func (r *Running) RunsAs(name string) string {
+	for _, c := range r.All {
+		if c.GetName() == name && !slices.Contains(r.Others, c) {
+			return c.GetComposeProject()
+		}
+	}
+	return ""
+}
+
+// InProject lists what a Compose project has on a server that Dockwell didn't make,
+// by name. A one-off is no service of it, so it isn't there.
+func (h *Handler) InProject(ctx context.Context, serverName, project string) (Server, []*dockwellv1.ServerContainer, error) {
+	r, err := h.ReadRunning(ctx, serverName)
+	if err != nil {
+		return Server{}, nil, err
+	}
+	in, err := r.InProject(project)
+	return r.Server, in, err
 }
 
 // ServiceName is what a service that takes a container on is called unless someone

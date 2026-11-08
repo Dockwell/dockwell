@@ -95,6 +95,8 @@ type testServer struct {
 	backups *backup.Runner
 	// updates reads its package updates, when set.
 	updates *agentupdates.Reader
+	// onePanel reads what 1Panel keeps on it, when set.
+	onePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -141,7 +143,7 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	cfg := agent.Config{
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe,
+		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, OnePanel: s.onePanel,
 	}
 	if cfg.Probe == nil {
 		cfg.Probe = answersEverything
