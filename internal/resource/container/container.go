@@ -1007,6 +1007,9 @@ func (*Driver) WhatRuns(spec proto.Message) proto.Message {
 // ImageOf is the image a container runs, as it is written.
 func (*Driver) ImageOf(spec proto.Message) string { return spec.(*resourcev1.Container).GetImage() }
 
+// UserOf is the user a container runs as, as it is written.
+func (*Driver) UserOf(spec proto.Message) string { return spec.(*resourcev1.Container).GetUser() }
+
 // SetImage changes the image a container runs.
 func (*Driver) SetImage(spec proto.Message, image string) { spec.(*resourcev1.Container).Image = image }
 

@@ -313,7 +313,7 @@ func HostAccess(list []resource.Access) []*dockwellv1.HostAccess {
 		a := &list[i]
 		out = append(out, &dockwellv1.HostAccess{
 			Kind: accessKinds[a.Kind], Path: a.Path, ReadOnly: a.ReadOnly, Type: a.Type,
-			Address: a.Address, Relabel: a.Relabel, Driver: a.Driver, Detail: a.Detail, SameAsRoot: a.AsGoodAsRoot(), LeadsTo: a.LeadsTo, Holds: a.Holds,
+			Address: a.Address, Relabel: a.Relabel, Driver: a.Driver, Detail: a.Detail, WrittenBy: a.Writer, SameAsRoot: a.AsGoodAsRoot(), LeadsTo: a.LeadsTo, Holds: a.Holds,
 			HoldsFor: a.HoldsFor, HeldIn: a.HeldIn, HeldBy: a.HeldBy,
 		})
 	}

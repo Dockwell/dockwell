@@ -287,9 +287,41 @@ msgstr "{address}, private"
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
 
+#: src/features/changes/words.ts
+msgid "{base}, written by {by}"
+msgstr "{base}, written by {by}"
+
+#: src/features/changes/words.ts
+msgid "{base}, written by {by} as a user by name, which only its image can say is root or not"
+msgstr "{base}, written by {by} as a user by name, which only its image can say is root or not"
+
+#: src/features/changes/words.ts
+msgid "{base}, written by {by} as its own user, who may be root"
+msgstr "{base}, written by {by} as its own user, who may be root"
+
+#: src/features/changes/words.ts
+msgid "{base}, written by {by} as root"
+msgstr "{base}, written by {by} as root"
+
 #: src/features/auth/device.ts
 msgid "{browser} on {os}"
 msgstr "{browser} on {os}"
+
+#: src/features/changes/notices.tsx
+msgid "{by} writes there as a user by name, which only its image can say is root or not."
+msgstr "{by} writes there as a user by name, which only its image can say is root or not."
+
+#: src/features/changes/notices.tsx
+msgid "{by} writes there as its own user, who is root unless the image says otherwise."
+msgstr "{by} writes there as its own user, who is root unless the image says otherwise."
+
+#: src/features/changes/notices.tsx
+msgid "{by} writes there as root, so it can change any file there, whoever owns it, and leave files that run as root."
+msgstr "{by} writes there as root, so it can change any file there, whoever owns it, and leave files that run as root."
+
+#: src/features/changes/notices.tsx
+msgid "{by} writes there. Code from another image asks again, as a program in any image can run as root."
+msgstr "{by} writes there. Code from another image asks again, as a program in any image can run as root."
 
 #: src/features/files/FileViewer.tsx
 msgid "{changes, plural, one {# line changed} other {# lines changed}}"

@@ -610,7 +610,18 @@ type Access struct {
 	Driver string `json:",omitempty"`
 	// Detail is a network's other options, as name=value, sorted, or for a
 	// network the server has, the other names the resource answers to there.
+	// For a server path, an external volume or a mount, read-write, it's who
+	// writes there, where that's root or may be: one of the WrittenAs words.
 	Detail string `json:",omitempty"`
+	// Writer is the image repository whose code writes to a server path, an
+	// external volume or a mount, read-write. A person approves one for what
+	// runs there, and any image can hold a program that runs as root, whatever
+	// the user, so code from another repository counts as new. Another tag of
+	// the same repository is how CI deploys, and doesn't.
+	Writer string `json:",omitempty"`
+	// User is the name of a user by name who writes there, which only the image
+	// says the number of, so another name counts as new.
+	User string `json:",omitempty"`
 	// SameAsRoot says this is the same as root on the server because of what it
 	// is, whatever else it says: the capability SYS_ADMIN, or a path such as /etc,
 	// or a plugin that mounts there (SystemPath). AsGoodAsRoot says it for every
@@ -662,6 +673,20 @@ func (a Access) AsGoodAsRoot() bool {
 	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork || a.Kind == AccessBackupOf ||
 		a.Kind == AccessNetworkDriver && a.Driver == "host"
 }
+
+// Who writes to a read-write server path, in its Access's Detail, where that's root
+// or may be. A path whose writer is root reaches more than the same path without:
+// root writes what anyone owns, and makes files that run as root (ADR 0032).
+const (
+	// WrittenAsRoot is root, however it's written.
+	WrittenAsRoot = "root"
+	// WrittenAsNamed is a user by a name other than root, which the image may
+	// say is root.
+	WrittenAsNamed = "named"
+	// WrittenAsImage is whatever user the image runs as, which is root unless it
+	// says otherwise.
+	WrittenAsImage = "image"
+)
 
 // AccessKind is what a resource reaches on its server.
 type AccessKind int
@@ -733,33 +758,87 @@ const (
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
 // have, or has another way, as read-write where it was read-only, or
-// relabelled where it wasn't, or at another address. Access to Docker's
-// socket is the same read-only or not, as a socket mounted read-only still
-// takes connections.
+// relabelled where it wasn't, or at another address, or written by root where
+// it wasn't, or by another who may be root. Access to Docker's socket is the
+// same read-only or not, as a socket mounted read-only still takes
+// connections.
 func NewAccess(from, to []Access) []Access {
-	// writable says, for each access with ReadOnly cleared, whether from
-	// has it read-write.
-	writable := make(map[Access]bool, len(from))
+	// had is each way from has what a key says, once each, so a list of the same
+	// access over and over costs no more than it once.
+	had := make(map[Access]map[Access]bool, len(from))
 	for i := range from {
-		b := from[i]
-		ro := b.ReadOnly
-		b.ReadOnly = false
-		writable[b] = writable[b] || !ro
+		k := from[i].key()
+		if had[k] == nil {
+			had[k] = map[Access]bool{}
+		}
+		had[k][from[i]] = true
 	}
 	var out []Access
 	seen := make(map[Access]bool)
+next:
 	for i := range to {
-		a := &to[i]
-		key := *a
-		key.ReadOnly = false
-		rw, has := writable[key]
-		if has && (a.ReadOnly || rw || a.Kind == AccessDocker) || seen[*a] {
+		a := to[i]
+		if seen[a] {
 			continue
 		}
-		seen[*a] = true
-		out = append(out, *a)
+		for b := range had[a.key()] {
+			if b.covers(a) {
+				continue next
+			}
+		}
+		seen[a] = true
+		out = append(out, a)
 	}
 	return out
+}
+
+// Written reports a kind of access that something writes to, when it's
+// read-write: what's there outlasts what runs, and others use it.
+func Written(kind AccessKind) bool {
+	return kind == AccessPath || kind == AccessMount || kind == AccessExternalVolume
+}
+
+// key is a without what one access can have more of than another: being
+// read-write, and for what's written, who writes there.
+func (a Access) key() Access {
+	a.ReadOnly, a.Writer, a.User = false, "", ""
+	if Written(a.Kind) {
+		a.Detail = ""
+	}
+	return a
+}
+
+// covers reports a, which has other's key, reaching all other does: read-write
+// where other is, and for what's written, by code from the same repository, as
+// root or as who writes other.
+func (a Access) covers(other Access) bool {
+	if a.ReadOnly && !other.ReadOnly && other.Kind != AccessDocker {
+		return false
+	}
+	if !Written(other.Kind) || other.ReadOnly {
+		return true
+	}
+	if a.Writer != other.Writer {
+		return false
+	}
+	return other.Detail == "" || a.Detail == WrittenAsRoot || a.Detail == other.Detail && a.User == other.User
+}
+
+// writtenBy says who writes what's read-write, for AccessWords, or nothing.
+func writtenBy(a Access) string {
+	if a.Writer == "" || a.ReadOnly || a.SameAsRoot {
+		return ""
+	}
+	by := ", written by " + plain(a.Writer)
+	switch a.Detail {
+	case WrittenAsRoot:
+		return by + " as root"
+	case WrittenAsNamed:
+		return by + " as a user by name, which only its image can say is root or not"
+	case WrittenAsImage:
+		return by + " as its own user, who may be root"
+	}
+	return by
 }
 
 // AccessWords says what a resource reaches, for people, such as "the
@@ -778,7 +857,7 @@ func AccessWords(a Access) string {
 		case "Z":
 			how += ", relabelled for SELinux as private"
 		}
-		root := ""
+		root := writtenBy(a)
 		if a.SameAsRoot {
 			root = ", which is as good as root"
 		}
@@ -807,10 +886,10 @@ func AccessWords(a Access) string {
 		return "the server's own network"
 	case AccessMount:
 		if a.Driver != "" && a.Path != "" {
-			return "the volume driver " + plain(a.Driver) + " at " + plain(a.Path) + ", which reaches what the plugin does (" + how + ")"
+			return "the volume driver " + plain(a.Driver) + " at " + plain(a.Path) + ", which reaches what the plugin does (" + how + ")" + writtenBy(a)
 		}
 		if a.Driver != "" {
-			return "the volume driver " + plain(a.Driver) + ", which reaches what the plugin does (" + how + ")"
+			return "the volume driver " + plain(a.Driver) + ", which reaches what the plugin does (" + how + ")" + writtenBy(a)
 		}
 		// So a device can't spell out the rest of this line, such as
 		// "//6.6.6.6/x at 10.0.0.2", with a space or anything else.
@@ -827,9 +906,9 @@ func AccessWords(a Access) string {
 			at += " at " + address
 		}
 		if at == "" {
-			return "a " + plain(a.Type) + " mount (" + how + ")"
+			return "a " + plain(a.Type) + " mount (" + how + ")" + writtenBy(a)
 		}
-		return "the " + plain(a.Type) + " mount " + at + " (" + how + ")"
+		return "the " + plain(a.Type) + " mount " + at + " (" + how + ")" + writtenBy(a)
 	case AccessNetworkDriver:
 		out := "a " + plain(a.Driver) + " network"
 		if a.Path != "" {
@@ -851,7 +930,7 @@ func AccessWords(a Access) string {
 		if a.ReadOnly {
 			out += ", and this reads it only"
 		}
-		return out
+		return out + writtenBy(a)
 	case AccessTakesOn:
 		return "the container " + plain(a.Path) + ", which Dockwell didn't make, and its environment, which comes in with it"
 	case AccessExternalNetwork:

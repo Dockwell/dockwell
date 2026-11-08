@@ -5442,6 +5442,12 @@ components:
                         A network's options beyond the few that keep it to its own bridge, as
                          "name=value" with commas between, sorted. For a network the server has,
                          the other names a service answers to on it, with commas between, sorted.
+                         For a server path, an external volume or a mount, read-write, who writes
+                         there where that's root or may be: "root", however the user is written;
+                         "named", a user by name, which only the image can say is root or not; or
+                         "image", whichever user the image runs as. Empty for a user other than
+                         root, by number. Written by root, or by another who may be root, reaches
+                         more than the same written by someone else.
                 sameAsRoot:
                     type: boolean
                     description: |-
@@ -5479,6 +5485,14 @@ components:
                          passkey from now on.
                 heldBy:
                     type: string
+                writtenBy:
+                    type: string
+                    description: |-
+                        For a server path, an external volume or a mount, read-write, the image
+                         repository whose code writes there, such as "ghcr.io/acme/web". A person
+                         approves one for what runs there, and any image can hold a program that
+                         runs as root, so another repository reaches more, whatever the user.
+                         Another tag of the same one doesn't.
             description: |-
                 HostAccess is something on a server that a resource reaches beyond what
                  Docker keeps for it, such as a server path a container mounts.

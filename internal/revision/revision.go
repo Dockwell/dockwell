@@ -2154,7 +2154,45 @@ func (e *Engine) reach(ref resource.Ref, spec proto.Message, named map[resource.
 			out = append(out, a)
 		}
 	}
+	e.writtenAs(ref.Kind, spec, out)
 	return out
+}
+
+// writtenAs says who writes to what's read-write in list: a server path, an
+// external volume or a mount. A person approves one for what runs there. Any image
+// can hold a program that runs as root, as Docker leaves set-uid programs working,
+// so code from another repository counts as new whatever the user; another tag of the
+// same repository is how CI deploys, and doesn't (#247). Root writes what anyone
+// owns there, so a move to root, or to a user that only the image can say isn't
+// root, counts too. What's as good as root already asks for anything new that runs
+// (runsSomethingElse).
+func (e *Engine) writtenAs(kind resource.Kind, spec proto.Message, list []resource.Access) {
+	t, err := e.kinds.Type(kind)
+	if err != nil || spec == nil {
+		return
+	}
+	users, ok := t.(resource.UserNamer)
+	images, named := t.(resource.ImageNamer)
+	if !ok || !named {
+		return
+	}
+	writer, detail, user := docker.Repository(images.ImageOf(spec)), "", ""
+	switch as, name := docker.UserRunsAs(users.UserOf(spec)); as {
+	case docker.RunsAsOther:
+	case docker.RunsAsRoot:
+		detail = resource.WrittenAsRoot
+	case docker.RunsAsNamed:
+		detail, user = resource.WrittenAsNamed, name
+	case docker.RunsAsImage:
+		detail = resource.WrittenAsImage
+	}
+	for i := range list {
+		a := &list[i]
+		if !resource.Written(a.Kind) || a.ReadOnly || a.SameAsRoot || a.Kind == resource.AccessMount && a.Type == "tmpfs" {
+			continue
+		}
+		a.Writer, a.Detail, a.User = writer, detail, user
+	}
 }
 
 // named reads what the items name (resource.Referrer), as it stands

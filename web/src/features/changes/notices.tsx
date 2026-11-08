@@ -116,7 +116,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
   const reaches: { name: string; server: string; access: HostAccess }[] = [];
   const seen = new Set<string>();
   const add = (name: string, server: string, access: HostAccess) => {
-    const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}/${access.holds}/${access.heldBy}`;
+    const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}/${access.holds}/${access.heldBy}/${access.detail}`;
     if (seen.has(key)) return;
     seen.add(key);
     reaches.push({ name, server, access });
@@ -150,6 +150,32 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
       relabel ? (
         <>
           {detail} {relabel}
+        </>
+      ) : (
+        detail
+      );
+    // Whose code writes what's read-write, and as whom (#247), in the control plane's
+    // own words for it: root writes over what anyone owns there, and any image can hold
+    // a program that runs as root, so code from another image asks again.
+    const by = plain(access.writtenBy);
+    const writes =
+      access.kind === HostAccessKind.SERVER_PATH ||
+      access.kind === HostAccessKind.VOLUME_MOUNT ||
+      access.kind === HostAccessKind.EXTERNAL_VOLUME;
+    const writer =
+      !writes || access.readOnly || by === ""
+        ? ""
+        : access.detail === "root"
+          ? t`${by} writes there as root, so it can change any file there, whoever owns it, and leave files that run as root.`
+          : access.detail === "named"
+            ? t`${by} writes there as a user by name, which only its image can say is root or not.`
+            : access.detail === "image"
+              ? t`${by} writes there as its own user, who is root unless the image says otherwise.`
+              : t`${by} writes there. Code from another image asks again, as a program in any image can run as root.`;
+    const andWriter = (detail: ReactNode): ReactNode =>
+      writer ? (
+        <>
+          {detail} {writer}
         </>
       ) : (
         detail
@@ -226,7 +252,9 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return {
           key,
           title: t`${name} mounts the volume ${path} on ${server}`,
-          detail: t`Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds.`,
+          detail: andWriter(
+            t`Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds.`,
+          ),
         };
       case HostAccessKind.BACKUP_OF:
         return {
@@ -350,14 +378,16 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
                       It leads to <code>{leadsTo}</code> through a symlink, and it can read what is there.
                     </Trans>
                   ) : (
-                    <Trans>
-                      It leads to <code>{leadsTo}</code> through a symlink, and it can read and write what is there.
-                    </Trans>
+                    andWriter(
+                      <Trans>
+                        It leads to <code>{leadsTo}</code> through a symlink, and it can read and write what is there.
+                      </Trans>,
+                    )
                   )
                 ) : access.readOnly ? (
                   t`It can read that path on the server.`
                 ) : (
-                  t`It can read and write that path on the server.`
+                  andWriter(t`It can read and write that path on the server.`)
                 ),
               ),
             };
@@ -373,7 +403,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         : {
             detail: asGoodAsRoot(access)
               ? t`The server's security rests on what that reaches, so it is as good as root.`
-              : t`That goes beyond what Docker keeps for it.`,
+              : andWriter(t`That goes beyond what Docker keeps for it.`),
           }),
       ...(asGoodAsRoot(access) ? { trust: true } : {}),
     };
