@@ -8,7 +8,9 @@
 // the page stops the reading on the agent. It measures the page at a hundred
 // thousand lines, and at thousands of lines a second, and prints the figures.
 // With --shots <dir> it saves screenshots at 1440, 800, 390 and 360 px, light and
-// dark, and in Chinese. CI's Service end to end on Docker job reads real
+// dark, and in Chinese. DOCKWELL_E2E_CPU=6 slows the page's CPU six times, as a
+// loaded CI machine does, to bring out races: from after the line-latency check,
+// and not while it measures frames. CI's Service end to end on Docker job reads real
 // containers' logs through the CLI (scripts/docker-e2e.sh).
 //
 //   make e2e
@@ -356,6 +358,13 @@ async function main() {
   const worst = latencies[latencies.length - 1] ?? 0;
   step(`  written to on screen, 20 lines: median ${latencies[10]} ms, worst ${worst} ms`);
   if (worst >= 1000) fail(`a line took ${worst} ms to reach the browser, and must within 1 s`);
+  const cpu = Number(process.env["DOCKWELL_E2E_CPU"] ?? "1");
+  const cdp = cpu > 1 ? await context.newCDPSession(page) : undefined;
+  const slow = (rate: number) => cdp?.send("Emulation.setCPUThrottlingRate", { rate });
+  if (cdp) {
+    step(`  from here the page's CPU runs ${cpu} times slower, but while frames are measured`);
+    await slow(cpu);
+  }
 
   step("what a line holds can't break out of it");
   await post(
@@ -409,6 +418,28 @@ async function main() {
   await log.hover();
   await page.mouse.wheel(0, -600);
   await page.getByRole("status").getByText("Paused").waitFor({ timeout: 2000 });
+  // The wheel pauses as it's turned, and its scroll lands on the page in a frame
+  // of its own, which a busy machine can draw after Paused shows. The line being
+  // read is the one that shows once it has: away from the end, which holds still
+  // while paused, and still itself for a few frames.
+  await log.evaluate(
+    (el) =>
+      new Promise<void>((done, failed) => {
+        const until = performance.now() + 3000;
+        let last = el.scrollTop;
+        let still = 0;
+        const look = () => {
+          still = el.scrollTop === last ? still + 1 : 0;
+          last = el.scrollTop;
+          const fromEnd = el.scrollHeight - last - el.clientHeight;
+          if (still >= 3 && fromEnd >= 300) done();
+          else if (performance.now() > until)
+            failed(new Error(`the wheel's scroll didn't land: ${fromEnd} px from the end`));
+          else requestAnimationFrame(look);
+        };
+        requestAnimationFrame(look);
+      }),
+  );
   // The line being read stays where it is. Its scroll position may not: lines
   // merging in from another source can move it, with the line kept in place.
   const lineAtTop = () =>
@@ -736,6 +767,8 @@ async function main() {
   step(`  printed ${JSON.stringify(followed.split("\n").at(-2))}, and exited with status 0`);
 
   step("the page at a hundred thousand lines, at 5,000 lines a second from each replica");
+  // What it measures is how fast the page is, so at the speed it has.
+  await slow(1);
   await page.goto(url);
   const written = async () => Number((await (await fetch(`${load}/written`)).text()).trim());
   const writtenBefore = await written();
@@ -778,6 +811,7 @@ async function main() {
     `  a search over all of them, from typing to the answer (120 ms of that waits for the next key): ${Date.now() - typed} ms`,
   );
   await search.fill("");
+  await slow(cpu);
 
   step("a search leaves a paused reader where they were");
   const topLine = () =>
