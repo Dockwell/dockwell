@@ -56,6 +56,8 @@ ComposeService.ExportCompose                   read         viewer     viewer   
 ComposeService.ImportCompose                   plan         developer  developer  project
 ContainerService.AdoptContainer                plan         admin      admin      install  session
 ContainerService.ListContainers                read         admin      admin      install
+DatabaseService.GetDatabase                    read         viewer     viewer     project
+DatabaseService.ListDatabases                  read         viewer     viewer     project
 DomainService.CheckDomain                      plan         developer  developer  named
 DomainService.ListDomains                      read         viewer     viewer     project
 EventService.ListEvents                        read         viewer     viewer     project
