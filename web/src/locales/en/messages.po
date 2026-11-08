@@ -3626,6 +3626,7 @@ msgstr "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgid "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
 msgstr "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
 
+#. placeholder {0}: names.length
 #. placeholder {0}: servers.length
 #. placeholder {0}: view.servers?.length ?? 0
 msgid "{0, plural, one {# server} other {# servers}}"
@@ -6089,6 +6090,106 @@ msgstr "{0, plural, one {{lines} line from {source} not shown: this server share
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 
+msgid "Inspect"
+msgstr "Inspect"
+
+msgid "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
+msgstr "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
+
+msgid "Its agent has disconnected, so its numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on the server."
+msgstr "Its agent has disconnected, so its numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on the server."
+
+msgid "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker is running on the server."
+msgstr "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker is running on the server."
+
+msgid "Its agent last reported {seen}, so its numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on the server."
+msgstr "Its agent last reported {seen}, so its numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on the server."
+
+msgid "On {list}, the agent is connected but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker is running on each."
+msgstr "On {list}, the agent is connected but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker is running on each."
+
+#. placeholder {0}: blind.length
+msgid "{0, plural, one {# server can't read Docker} other {# servers can't read Docker}}"
+msgstr "{0, plural, one {# server can't read Docker} other {# servers can't read Docker}}"
+
+#. placeholder {0}: waiting.length
+msgid "{0, plural, one {# server is waiting for its agent} other {# servers are waiting for their agents}}"
+msgstr "{0, plural, one {# server is waiting for its agent} other {# servers are waiting for their agents}}"
+
+#. placeholder {0}: down.length
+msgid "{0, plural, one {# server isn't reporting} other {# servers aren't reporting}}"
+msgstr "{0, plural, one {# server isn't reporting} other {# servers aren't reporting}}"
+
+msgid "{list} joined, but their agents haven't connected yet. Start each with <0>dockwell run</0> on the server."
+msgstr "{list} joined, but their agents haven't connected yet. Start each with <0>dockwell run</0> on the server."
+
+msgid "{list} stopped reporting, so their numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on each."
+msgstr "{list} stopped reporting, so their numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on each."
+
+msgid "{name} can't read Docker"
+msgstr "{name} can't read Docker"
+
+msgid "{name} is waiting for its agent"
+msgstr "{name} is waiting for its agent"
+
+msgid "{name} isn't reporting"
+msgstr "{name} isn't reporting"
+
+msgid "Across {cpus} vCPU"
+msgstr "Across {cpus} vCPU"
+
+msgid "Can't read Docker"
+msgstr "Can't read Docker"
+
+msgid "Every server is reporting"
+msgstr "Every server is reporting"
+
+msgid "Fleet"
+msgstr "Fleet"
+
+msgid "Last reported {seen}"
+msgstr "Last reported {seen}"
+
+msgid "No server is reporting"
+msgstr "No server is reporting"
+
+msgid "Servers serving"
+msgstr "Servers serving"
+
+msgid "View all"
+msgstr "View all"
+
+msgid "Waiting for its agent"
+msgstr "Waiting for its agent"
+
+msgid "agent {version} everywhere"
+msgstr "agent {version} everywhere"
+
+msgid "last {span}"
+msgstr "last {span}"
+
+msgid "of {total}"
+msgstr "of {total}"
+
+#. placeholder {0}: counts.degraded
+msgid "{0, plural, one {# can't read Docker} other {# can't read Docker}}"
+msgstr "{0, plural, one {# can't read Docker} other {# can't read Docker}}"
+
+#. placeholder {0}: counts.down
+msgid "{0, plural, one {# down} other {# down}}"
+msgstr "{0, plural, one {# down} other {# down}}"
+
+#. placeholder {0}: counts.waiting
+msgid "{0, plural, one {# waiting} other {# waiting}}"
+msgstr "{0, plural, one {# waiting} other {# waiting}}"
+
+#. placeholder {0}: versions.length
+msgid "{0, plural, one {agents on # version} other {agents on # versions}}"
+msgstr "{0, plural, one {agents on # version} other {agents on # versions}}"
+
+msgid "{used} of {total}"
+msgstr "{used} of {total}"
+
 msgid "Files"
 msgstr "Files"
 
@@ -6104,11 +6205,11 @@ msgstr "{cpus} vCPU"
 msgid "Apps on this server"
 msgstr "Apps on this server"
 
+msgid "Apps on your servers"
+msgstr "Apps on your servers"
+
 msgid "No apps yet. Run an image, a Compose file or an app from the catalog."
 msgstr "No apps yet. Run an image, a Compose file or an app from the catalog."
-
-msgid "View all"
-msgstr "View all"
 
 msgid "Kept"
 msgstr "Kept"
@@ -6449,21 +6550,12 @@ msgstr "Start it with <0>dockwell run</0> on the server."
 msgid "Up {uptime}"
 msgstr "Up {uptime}"
 
-msgid "Waiting for its agent"
-msgstr "Waiting for its agent"
-
-msgid "of {total}"
-msgstr "of {total}"
-
 #. placeholder {0}: here.length
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, one {# app} other {# apps}}"
 
 msgid "{replicas, plural, one {# replica} other {# replicas}}"
 msgstr "{replicas, plural, one {# replica} other {# replicas}}"
-
-msgid "{used} of {total}"
-msgstr "{used} of {total}"
 
 #. placeholder {0}: g.owner.name
 #. placeholder {0}: owner.name
@@ -6694,12 +6786,6 @@ msgstr "Its agent has disconnected. Check that <0>dockwell run</0> is still runn
 msgid "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
 msgstr "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
 
-msgid "{name} is waiting for its agent"
-msgstr "{name} is waiting for its agent"
-
-msgid "{name} isn't reporting"
-msgstr "{name} isn't reporting"
-
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> may have been removed, or the link may be wrong."
 
@@ -6721,9 +6807,6 @@ msgstr "1, 5 and 15 min"
 
 msgid "1, 5 and 15 min, on {cpus} vCPU"
 msgstr "1, 5 and 15 min, on {cpus} vCPU"
-
-msgid "Across {cpus} vCPU"
-msgstr "Across {cpus} vCPU"
 
 msgid "Disk"
 msgstr "Disk"
@@ -6751,9 +6834,6 @@ msgstr "{rx} in · {tx} out"
 
 msgid "Addresses"
 msgstr "Addresses"
-
-msgid "Can't read Docker"
-msgstr "Can't read Docker"
 
 msgid "Change"
 msgstr "Change"
@@ -8018,9 +8098,6 @@ msgstr "This part of Dockwell isn't built yet; it arrives in a later release. Un
 
 msgid "Dockwell {short}: control plane status"
 msgstr "Dockwell {short}: control plane status"
-
-msgid "Fleet"
-msgstr "Fleet"
 
 msgid "Machine"
 msgstr "Machine"

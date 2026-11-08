@@ -9,9 +9,13 @@ import {
   BackupPolicyInfoSchema,
   BackupSchema,
   BackupState,
+  BuildInfoSchema,
   Connection,
+  DeploymentState,
+  EventKind,
   HealthState,
   PackageManager,
+  type Server,
   ServerInventorySchema,
   type WatchEventsResponse,
   type WatchServersResponse,
@@ -242,15 +246,133 @@ describe("Overview while it connects", () => {
 });
 
 describe("Overview with a fleet", () => {
-  it("lists every server, each linked to its page", async () => {
-    const { watch } = renderOverview();
-    watch.push(changed(hz1), changed(aServer({ id: "srv_2", name: "hz-2", stats: sample(8) })), snapshotComplete);
+  const big = create(ServerInventorySchema, {
+    osName: "Debian GNU/Linux 13",
+    cpuCount: 12,
+    addresses: ["198.51.100.20"],
+  });
+  const agent = (version: string) => create(BuildInfoSchema, { version });
+  const hz2 = (init: Parameters<typeof aServer>[0] = {}) =>
+    aServer({ id: "srv_2", name: "hz-2", inventory: big, stats: sample(70, 6), agentBuild: agent("0.2.1"), ...init });
+  const fleet = () => [aServer({ ...hz1, agentBuild: agent("0.2.1") }), hz2()];
 
-    expect(await screen.findByText("2 servers", { selector: ".page-lead" })).toBeVisible();
-    const list = screen.getByRole("region", { name: "Servers" });
-    expect(within(list).getByRole("link", { name: "hz-1" })).toHaveAttribute("href", "/servers/srv_1");
-    expect(within(list).getByRole("link", { name: "hz-2" })).toHaveAttribute("href", "/servers/srv_2");
-    expect(screen.queryByText("Network")).toBeNull();
+  /** The overview of these servers, with the apps, health and events the test gives. */
+  function renderFleet(servers: Server[], extra: Partial<Api> = {}) {
+    const watch = feed<WatchServersResponse>();
+    watch.push(...servers.map(changed), snapshotComplete);
+    const rendered = renderAt("/", { servers: { watchServers: watch.stream }, ...extra });
+    return { ...rendered, watch };
+  }
+
+  it("leads with how many servers serve and the fleet's numbers, each server a tile that opens it", async () => {
+    const user = userEvent.setup();
+    const { router } = renderFleet(fleet());
+
+    expect(await screen.findByText("2 servers · agent 0.2.1 everywhere", { selector: ".page-lead" })).toBeVisible();
+    expectMetric("Servers serving", "2", "of 2", "Every server is reporting");
+    // Each server's CPU counts for its cores: (23.4 × 4 + 70 × 12) / 16.
+    expectMetric("CPU", "58.4", "%", "Across 16 vCPU");
+    // 2.4 and 6 GiB of 8 each.
+    expectMetric("Memory", "53", "%", "8.4 of 16 GB");
+    expect(screen.queryByText("Requests")).toBeNull();
+
+    const map = screen.getByRole("region", { name: "Servers" });
+    expect(within(map).getByRole("link", { name: "View all" })).toHaveAttribute("href", "/servers");
+    await user.hover(within(map).getByRole("button", { name: "hz-2, Healthy, CPU 70%" }));
+    expect(within(map).getByText("198.51.100.20")).toBeVisible();
+    await user.click(within(map).getByRole("button", { name: "hz-2, Healthy, CPU 70%" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/servers/srv_2"));
+  });
+
+  it("says first which server stopped reporting, and leaves its numbers out of the fleet's", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 10, 8, 9, 30));
+    const lastSeenTime = timestampFromDate(new Date(2026, 10, 8, 9, 27));
+    renderFleet([hz1, hz2({ connection: Connection.UNREACHABLE, lastSeenTime })]);
+
+    const callout = await screen.findByRole("alert");
+    expect(callout).toHaveTextContent("hz-2 isn't reporting");
+    expect(callout).toHaveTextContent(
+      "Its agent last reported 3 min ago, so its numbers are left out of the fleet's. Check that dockwell run is still running on the server.",
+    );
+    expect(within(callout).getByRole("link", { name: "Inspect" })).toHaveAttribute("href", "/servers/srv_2");
+    expectMetric("Servers serving", "1", "of 2", "1 down");
+    expectMetric("CPU", "23.4", "%", "Across 4 vCPU");
+    expect(screen.getByRole("button", { name: "hz-2, Down" })).toBeVisible();
+  });
+
+  it("names several servers that stopped reporting in one callout, and opens Servers", async () => {
+    renderFleet([
+      hz1,
+      hz2({ connection: Connection.UNREACHABLE }),
+      aServer({ id: "srv_3", name: "hz-3", connection: Connection.UNREACHABLE }),
+    ]);
+
+    const callout = await screen.findByRole("alert");
+    expect(callout).toHaveTextContent("2 servers aren't reporting");
+    expect(callout).toHaveTextContent("hz-2 and hz-3 stopped reporting");
+    expect(within(callout).getByRole("link", { name: "Inspect" })).toHaveAttribute("href", "/servers");
+  });
+
+  it("says when a server can't read Docker, and counts it as serving", async () => {
+    renderFleet([hz1, hz2({ dockerUnreadableSince: timestampFromDate(new Date()) })]);
+
+    expect(await screen.findByText("hz-2 can't read Docker")).toBeVisible();
+    expectMetric("Servers serving", "2", "of 2", "1 can't read Docker");
+  });
+
+  it("lists the apps with where each runs, and what changed, apps' health included", async () => {
+    const kinds: EventKind[][] = [];
+    const web = anApp(
+      "web",
+      "ghcr.io/example/web:1.5.0",
+      {},
+      {
+        deployments: [
+          { serverId: "srv_2", serverName: "hz-2", state: DeploymentState.LIVE },
+          { serverId: "srv_1", serverName: "hz-1", state: DeploymentState.LIVE },
+        ],
+      },
+    );
+    renderFleet(fleet(), {
+      services: { listServices: () => ({ services: [web] }) },
+      resources: places(),
+      health: running(web),
+      domains: { listDomains: () => ({}) },
+      events: {
+        watchEvents: eventsWatch(changeEvent(applied(webPlanned()))),
+        listEvents: (req: { kinds: EventKind[] }) => {
+          kinds.push(req.kinds);
+          return { events: [changeEvent(applied(webPlanned()))] };
+        },
+      },
+    });
+
+    const table = await screen.findByRole("table", { name: "Apps on your servers" });
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(2));
+    expect(within(table).getAllByRole("row")[1]).toHaveTextContent("2 servershz-1, hz-2");
+    expect(within(table).queryByRole("columnheader", { name: "Deployed" })).toBeNull();
+    const changes = screen.getByRole("region", { name: "Recent changes" });
+    expect(await within(changes).findByText("Update web")).toBeVisible();
+    expect(kinds).toContainEqual([EventKind.CHANGE, EventKind.HEALTH]);
+  });
+
+  it("calls itself Fleet on a phone, with CPU and memory two by two and the map without its readout", async () => {
+    onPhone();
+    renderFleet(fleet());
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Fleet" })).toBeVisible();
+    expectMetric("CPU", "58.4", "%");
+    expectMetric("Memory", "8.4", "of 16 GB");
+    expect(screen.queryByText("Servers serving")).toBeNull();
+    expect(screen.getByRole("button", { name: "hz-2, Healthy, CPU 70%" })).toBeVisible();
+    expect(screen.queryByText("Hover or focus a server to inspect it.")).toBeNull();
+  });
+
+  it("passes axe", async () => {
+    const { container } = renderFleet([hz1, hz2({ connection: Connection.UNREACHABLE })]);
+    await screen.findByRole("alert");
+    await expectAccessible(container);
   });
 
   it.each([
@@ -260,7 +382,7 @@ describe("Overview with a fleet", () => {
     if (layout === "phone") onPhone();
     const { watch } = renderOverview();
     watch.push(changed(hz1), changed(aServer({ id: "srv_2", name: "hz-2", stats: sample(8) })), snapshotComplete);
-    await screen.findByRole("link", { name: "hz-2" });
+    await screen.findByRole("button", { name: /^hz-2, / });
 
     act(() => watch.fail(new ConnectError("the watch fell behind", Code.Unavailable)));
 
