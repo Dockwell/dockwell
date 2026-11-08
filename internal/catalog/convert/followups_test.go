@@ -121,3 +121,42 @@ func TestTheFollowUpsLows(t *testing.T) {
 		t.Errorf("an example is a default: %q", f.Default)
 	}
 }
+
+// The first review of #328: a secret's word joined to another, a token's ID, a
+// build's own parts of a version, numbers that sort as numbers, and a volume whose
+// source has a default.
+func TestTheFirstReviewOf328(t *testing.T) {
+	for _, name := range []string{
+		"PGPASSWORD", "MINIO_SECRETKEY", "BITCOIN_RPCPASSWORD", "SEQ_FIRSTRUN_ADMINPASSWORD", "VIKUNJA_SERVICE_JWTSECRET",
+		"ELASTICSEARCH_SERVICEACCOUNTTOKEN", "FMD_REGISTRATIONTOKEN", "YOUTUBE_POTOKEN", "VAULT_DEV_ROOT_TOKEN_ID", "APP_PRIVATEKEY",
+	} {
+		if !secretNamed(name) {
+			t.Errorf("%s reads as no secret", name)
+		}
+	}
+	for _, name := range []string{"BYPASS", "PASSWORDLESS", "ACCESS_KEY_ID", "API_KEY_HEADER", "MAX_TOKENS", "SECRETS_DIR", "TOKEN_TTL"} {
+		if secretNamed(name) {
+			t.Errorf("%s reads as a secret", name)
+		}
+	}
+	for _, same := range [][2]string{
+		{"RELEASE.2025-04-22T22-12-26Z", "RELEASE.2025-09-07T16-13-09Z"},
+		{"4.0.12-r0-ls245", "4.0.13-r0-ls246"},
+		{"1.2.3-ls45", "1.2.4-ls46"},
+		{"1.2.3+build.5", "1.2.4"},
+		{"8.4.3-debian-12-r1", "8.4.4-debian-12-r2"},
+	} {
+		if majorOf(same[0]) != majorOf(same[1]) {
+			t.Errorf("%s and %s read as different majors: %q, %q", same[0], same[1], majorOf(same[0]), majorOf(same[1]))
+		}
+	}
+	versions := []string{"2.0.0-rc.10", "2.0.0-rc.2", "2.0.0", "2.0.0-rc.9", "0.8.7-pg16", "0.8.7-pg9", "1.6.0-postgres", "1.6.0"}
+	slices.SortFunc(versions, compareVersions)
+	if want := []string{"0.8.7-pg9", "0.8.7-pg16", "1.6.0-postgres", "1.6.0", "2.0.0-rc.2", "2.0.0-rc.9", "2.0.0-rc.10", "2.0.0"}; !slices.Equal(versions, want) {
+		t.Errorf("versions sort as %q, want %q", versions, want)
+	}
+	r := convertPlain(t, converter(), "services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - ${DATA:-./data}:/data\n")
+	if r.Entry != nil || !strings.Contains(r.LeftOut, `"a: a server path a person names, ${DATA:-./data}"`) {
+		t.Errorf("a volume whose source has a default: %q", r.LeftOut)
+	}
+}

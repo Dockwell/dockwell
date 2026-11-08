@@ -25,20 +25,36 @@ var aboutWords = []string{
 	"COUNT", "LIMIT", "ENABLED", "ENABLE", "DISABLED", "REQUIRED", "POLICY", "MODE",
 }
 
-// secretNamed says a variable holds a secret, by its name's words, each whole: one is
-// a secret's word, as in ADMIN_PASSWORD, RABBITMQ_DEFAULT_PASS or SECRET_KEY_BASE, and
-// none after it says the name is about the secret instead, as in TOKEN_URL,
-// SSH_KEY_PATH, PASSWORD_MIN_LENGTH or SALT_ROUNDS. A public key is no secret.
+// joinedSecrets are the endings of a word that holds a secret's word joined to another,
+// as PGPASSWORD, JWTSECRET and SERVICEACCOUNTTOKEN do, and the joined words that are one.
+var (
+	joinedSecrets = []string{"PASSWORD", "PASSWD", "SECRET", "TOKEN"}
+	joinedWords   = []string{"SECRETKEY", "PRIVATEKEY", "APIKEY", "ACCESSTOKEN"}
+)
+
+// secretNamed says a variable holds a secret, by its name's words: one is a secret's
+// word, whole, as in ADMIN_PASSWORD, RABBITMQ_DEFAULT_PASS or SECRET_KEY_BASE, or
+// joined to another, as in PGPASSWORD or MINIO_SECRETKEY, and none after it says the
+// name is about the secret instead, as in TOKEN_URL, SSH_KEY_PATH,
+// PASSWORD_MIN_LENGTH or SALT_ROUNDS. A token's ID is the token itself, as Vault's
+// root token's is, where a key's ID, as an access key's, is no secret. A public key
+// is no secret either.
 func secretNamed(name string) bool {
 	words := strings.FieldsFunc(strings.ToUpper(name), func(r rune) bool { return r == '_' || r == '-' || r == '.' })
 	if slices.Contains(words, "PUBLIC") {
 		return false
 	}
 	for i, w := range words {
-		if !slices.Contains(secretWords, w) {
+		token := w == "TOKEN" || strings.HasSuffix(w, "TOKEN")
+		secret := slices.Contains(secretWords, w) || slices.Contains(joinedWords, w) ||
+			slices.ContainsFunc(joinedSecrets, func(end string) bool { return strings.HasSuffix(w, end) })
+		if !secret {
 			continue
 		}
-		if !slices.ContainsFunc(words[i+1:], func(after string) bool { return slices.Contains(aboutWords, after) }) {
+		about := slices.ContainsFunc(words[i+1:], func(after string) bool {
+			return slices.Contains(aboutWords, after) && (!token || after != "ID")
+		})
+		if !about {
 			return true
 		}
 	}

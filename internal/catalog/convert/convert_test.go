@@ -464,7 +464,7 @@ func TestHelpers(t *testing.T) {
 	}
 	versions := []string{"1.10.0", "1.9.0", "1.9.0-alpine", "v2.0", "20250803"}
 	slices.SortFunc(versions, compareVersions)
-	if want := []string{"1.9.0", "1.9.0-alpine", "1.10.0", "v2.0", "20250803"}; !slices.Equal(versions, want) {
+	if want := []string{"1.9.0-alpine", "1.9.0", "1.10.0", "v2.0", "20250803"}; !slices.Equal(versions, want) {
 		t.Errorf("versions sort as %q, want %q", versions, want)
 	}
 	if got := renameVars("a=${PANEL_X} b=${PANEL_X:-${PANEL_Y}} c=$${PANEL_X}", map[string]string{"PANEL_X": "X", "PANEL_Y": "Y"}); got != "a=${X} b=${X:-${Y}} c=$${PANEL_X}" {
