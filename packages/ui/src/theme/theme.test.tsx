@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   applyThemePreference,
+  followThemeAcrossTabs,
   readThemePreference,
   setThemePreference,
   THEME_STORAGE_KEY,
@@ -73,6 +74,20 @@ describe("theme preference", () => {
     expect(result.current).toBe("dark");
     act(() => setThemePreference("light"));
     expect(result.current).toBe("light");
+  });
+
+  it("follows a change made in another tab with nothing that uses the hook drawn", () => {
+    const stop = followThemeAcrossTabs();
+    localStorage.setItem(THEME_STORAGE_KEY, "dark");
+    window.dispatchEvent(new StorageEvent("storage", { key: THEME_STORAGE_KEY }));
+    expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+    localStorage.removeItem(THEME_STORAGE_KEY);
+    window.dispatchEvent(new StorageEvent("storage", { key: THEME_STORAGE_KEY }));
+    expect(document.documentElement).not.toHaveAttribute("data-theme");
+    stop();
+    localStorage.setItem(THEME_STORAGE_KEY, "light");
+    window.dispatchEvent(new StorageEvent("storage", { key: THEME_STORAGE_KEY }));
+    expect(document.documentElement).not.toHaveAttribute("data-theme");
   });
 
   it("follows a change made in another tab", () => {

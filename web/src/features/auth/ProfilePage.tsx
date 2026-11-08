@@ -14,6 +14,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { useAuthError } from "./messages";
 import { PasskeysPanel, useAddPasskey } from "./PasskeysPanel";
+import { PreferencesPanel } from "./PreferencesPanel";
 import { SessionsPanel } from "./SessionsPanel";
 import { TokensPanel } from "./TokensPanel";
 import { TotpPanel } from "./TotpPanel";
@@ -55,7 +56,9 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
         </p>
       ) : null}
       <ProfileCallout via={via} rpId={auth?.rpId ?? ""} />
+      {/* Preferences in the first row, where the mock has it beside the account. */}
       <div className="profile-grid">
+        <PreferencesPanel />
         <PasskeysPanel rpId={auth?.rpId ?? ""} />
         <TotpPanel />
         <SessionsPanel />

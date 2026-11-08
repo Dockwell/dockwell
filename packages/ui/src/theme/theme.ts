@@ -44,9 +44,27 @@ export function setThemePreference(preference: ThemePreference): void {
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
+/** Whether a storage event is about the theme; a null key means storage was cleared. */
+function aboutTheme(e: StorageEvent): boolean {
+  return e.key === THEME_STORAGE_KEY || e.key === null;
+}
+
+/**
+ * Has this page take on a theme chosen in another tab, whatever screen it is
+ * on. The panel calls it once as it starts; the hook alone listens only while
+ * something that uses it is drawn. Returns what stops it.
+ */
+export function followThemeAcrossTabs(): () => void {
+  const onStorage = (e: StorageEvent) => {
+    if (aboutTheme(e)) applyThemePreference(readThemePreference());
+  };
+  window.addEventListener("storage", onStorage);
+  return () => window.removeEventListener("storage", onStorage);
+}
+
 function subscribePreference(onChange: () => void): () => void {
   const onStorage = (e: StorageEvent) => {
-    if (e.key === THEME_STORAGE_KEY || e.key === null) {
+    if (aboutTheme(e)) {
       applyThemePreference(readThemePreference());
       onChange();
     }

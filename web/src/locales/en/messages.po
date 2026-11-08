@@ -2762,9 +2762,14 @@ msgstr "Daily"
 msgid "Daily at {at}"
 msgstr "Daily at {at}"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Dark"
 msgstr "Dark"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "Dark, whatever your device uses"
+msgstr "Dark, whatever your device uses"
 
 #: src/features/changes/fields.tsx
 msgid "data"
@@ -4503,9 +4508,14 @@ msgstr "Levels are read from each line's text. A line that names none counts as 
 msgid "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
 msgstr "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Light"
 msgstr "Light"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "Light, whatever your device uses"
+msgstr "Light, whatever your device uses"
 
 #: src/features/servers/network.ts
 msgid "Likely a home or office network"
@@ -5901,6 +5911,10 @@ msgstr "Ports"
 #: src/features/settings/GeneralPage.tsx
 msgid "Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of this server's routes already serves. Passkeys belong to the address they were made on, so those for an old domain won't work on the new one: over SSH, run <0>dockwell recover</0> on the server, open its link on the new domain, and add a passkey there."
 msgstr "Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of this server's routes already serves. Passkeys belong to the address they were made on, so those for an old domain won't work on the new one: over SSH, run <0>dockwell recover</0> on the server, open its link on the new domain, and add a passkey there."
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "Preferences"
+msgstr "Preferences"
 
 #: src/features/logs/LogFoot.tsx
 msgid "Press Enter to search all the servers keep."
@@ -7351,10 +7365,15 @@ msgstr "Synced"
 msgid "System"
 msgstr "System"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/MorePage.tsx
 msgctxt "theme"
 msgid "System"
 msgstr "System"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "System follows your device"
+msgstr "System follows your device"
 
 #: src/features/servers/ContainerPage.tsx
 msgid "Take it on"
@@ -7905,6 +7924,7 @@ msgstr "the volume driver {driver} at {path}, which reaches what the plugin does
 msgid "the volume driver {driver}, which reaches what the plugin does ({reads})"
 msgstr "the volume driver {driver}, which reaches what the plugin does ({reads})"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Theme"

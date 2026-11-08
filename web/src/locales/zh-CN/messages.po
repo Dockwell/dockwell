@@ -2762,9 +2762,14 @@ msgstr "每天"
 msgid "Daily at {at}"
 msgstr "每天 {at}"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Dark"
 msgstr "深色"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "Dark, whatever your device uses"
+msgstr "深色，不论设备用哪种"
 
 #: src/features/changes/fields.tsx
 msgid "data"
@@ -4503,9 +4508,14 @@ msgstr "级别是从每行的文本中读取的。没有标明级别的行算作
 msgid "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
 msgstr "级别根据每行文本判断。未标明级别的行算作信息。双击或按住 Shift 点击可只显示该级别。"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Light"
 msgstr "浅色"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "Light, whatever your device uses"
+msgstr "浅色，不论设备用哪种"
 
 #: src/features/servers/network.ts
 msgid "Likely a home or office network"
@@ -5901,6 +5911,10 @@ msgstr "端口"
 #: src/features/settings/GeneralPage.tsx
 msgid "Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of this server's routes already serves. Passkeys belong to the address they were made on, so those for an old domain won't work on the new one: over SSH, run <0>dockwell recover</0> on the server, open its link on the new domain, and add a passkey there."
 msgstr "要获取证书，80 和 443 端口必须能访问到这台服务器；如果这台服务器的某条路由已在使用该域名，Dockwell 将无法启动。通行密钥属于创建它的地址，旧域名的通行密钥在新域名上不可用：请通过 SSH 在服务器上运行 <0>dockwell recover</0>，在新域名上打开它给出的链接，然后在那里添加通行密钥。"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "Preferences"
+msgstr "偏好设置"
 
 #: src/features/logs/LogFoot.tsx
 msgid "Press Enter to search all the servers keep."
@@ -7351,10 +7365,15 @@ msgstr "已同步"
 msgid "System"
 msgstr "系统"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/MorePage.tsx
 msgctxt "theme"
 msgid "System"
 msgstr "跟随系统"
+
+#: src/features/auth/PreferencesPanel.tsx
+msgid "System follows your device"
+msgstr "跟随设备的设置"
 
 #: src/features/servers/ContainerPage.tsx
 msgid "Take it on"
@@ -7905,6 +7924,7 @@ msgstr "位于 {path} 的卷驱动 {driver}，可访问该插件能访问的内�
 msgid "the volume driver {driver}, which reaches what the plugin does ({reads})"
 msgstr "卷驱动 {driver}，可访问该插件能访问的内容（{reads}）"
 
+#: src/features/auth/PreferencesPanel.tsx
 #: src/features/shell/CommandMenu.tsx
 #: src/features/shell/MorePage.tsx
 msgid "Theme"
