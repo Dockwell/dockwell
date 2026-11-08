@@ -122,3 +122,57 @@ func TestTheEngineChecksTheRolesOfEachItem(t *testing.T) {
 		}
 	})
 }
+
+// A plan with host access reaches the server every project on it shares, so
+// it's an admin's to apply, even in an open environment of the developer's own
+// project (ADR 0048).
+func TestHostAccessIsAnAdminsToApplyInTheEngine(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, db := setupDocker(t, b, "srv_A")
+		e.RequireRoles()
+		ctx := t.Context()
+		project := envProjectOf(t, db, production(t, db))
+		as := func(user string, grants ...store.Grant) context.Context {
+			return place.WithCaller(ctx, place.Caller{UserID: user, Grants: grants})
+		}
+		mira := as("usr_mira", store.Grant{UserID: "usr_mira", ProjectID: store.Install, Role: store.RoleOwner})
+		ada := as("usr_ada", store.Grant{UserID: "usr_ada", ProjectID: project, Role: store.RoleDeveloper})
+		made, err := e.Propose(mira, Proposal{Summary: "Add staging", Actor: "user:usr_mira", Edits: []Edit{{
+			Ref: resource.Ref{Kind: scope.EnvironmentKind, Scope: project, Name: "staging"}, Spec: &resourcev1.Environment{},
+		}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := e.ApplyBy(mira, made.Change, By{Actor: "user:usr_mira"}); err != nil {
+			t.Fatal(err)
+		}
+		staging := made.Resources[0].ID
+		mounts, err := e.Propose(ada, Proposal{Summary: "Mount", Actor: "user:usr_ada", Edits: []Edit{webAt(staging, "/srv/x", "srv_A")}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !mounts.HostAccess() {
+			t.Fatalf("a server path planned without host access: %+v", mounts.Resources)
+		}
+		if err := e.ApplyBy(ada, mounts.Change, By{Actor: "user:usr_ada"}); !errors.Is(err, ErrNeedsRole) {
+			t.Errorf("a developer applying a server path in open staging: %v, want ErrNeedsRole", err)
+		}
+		if err := e.ApplyBy(mira, mounts.Change, By{Actor: "user:usr_mira"}); err != nil {
+			t.Errorf("the owner applying it: %v", err)
+		}
+	})
+}
+
+// envProjectOf is the project an environment is in.
+func envProjectOf(t *testing.T, db *store.DB, env string) string {
+	t.Helper()
+	var project string
+	if err := db.View(t.Context(), func(tx *store.Tx) error {
+		r, err := tx.GetResourceByID(t.Context(), env)
+		project = r.Scope
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return project
+}
