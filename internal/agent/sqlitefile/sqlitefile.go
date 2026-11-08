@@ -36,6 +36,10 @@ const maxDepth = 32
 // make it allocate without end.
 const maxPayload = 64 << 20
 
+// ErrNotSQLite is a file that isn't a SQLite database: its first bytes, which SQLite
+// never writes again, say so.
+var ErrNotSQLite = errors.New("it isn't a SQLite database")
+
 // ErrWriting is a database in the rollback journal's mode that's part way through
 // a write, which its journal holds. Read it again once the write ends.
 var ErrWriting = errors.New("it's part way through a write, which its journal holds")
@@ -117,10 +121,10 @@ func openRead(path string) (*os.File, error) {
 func (db *DB) load(path string) error {
 	var header [100]byte
 	if _, err := db.file.ReadAt(header[:], 0); err != nil {
-		return fmt.Errorf("%s is too short to be a SQLite database: %w", path, err)
+		return fmt.Errorf("%s: %w, as it's too short to be one (%w)", path, ErrNotSQLite, err)
 	}
 	if string(header[:16]) != "SQLite format 3\x00" {
-		return fmt.Errorf("%s isn't a SQLite database", path)
+		return fmt.Errorf("%s: %w", path, ErrNotSQLite)
 	}
 	size := int(binary.BigEndian.Uint16(header[16:18]))
 	if size == 1 {
