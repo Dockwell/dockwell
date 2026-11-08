@@ -782,9 +782,6 @@ func TestSuggestMovesPastWhatsTaken(t *testing.T) {
 	}
 }
 
-// Generated secrets differ each time, stay in the secrets, and aren't in what the
-// pin keeps. What a person gives is checked by its type, and a refusal never
-// quotes a value.
 // A key an app decodes is generated as it reads one: hex digits, or random bytes in
 // base64, as openssl rand writes them.
 func TestASecretIsGeneratedAsItsAppReadsIt(t *testing.T) {
@@ -811,6 +808,9 @@ func TestASecretIsGeneratedAsItsAppReadsIt(t *testing.T) {
 	}
 }
 
+// Generated secrets differ each time, stay in the secrets, and aren't in what the
+// pin keeps. What a person gives is checked by its type, and a refusal never
+// quotes a value.
 func TestFill(t *testing.T) {
 	e := &catalogv1.Entry{Name: "Thing", Inputs: []*catalogv1.Input{
 		{Name: "PORT", Label: "Port", Type: catalogv1.InputType_INPUT_TYPE_PORT, DefaultValue: "8081"},

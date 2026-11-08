@@ -27,6 +27,8 @@ func DokploySource(commit string) Source {
 		Commit:      commit,
 		License:     "MIT",
 		LicenseFile: "LICENSE",
+		// "Copyright (c) 2024 Dokploy and Carlos Ortiz" at b40194a4.
+		CopyrightInLicense: true,
 	}
 }
 
@@ -118,6 +120,16 @@ func dokployRead(t *tree, name string) App {
 		app.LeftOut, app.Class = "reading its template.toml: "+err.Error(), ClassFile
 		return app
 	}
+	shipped, err := t.shipped(at)
+	if err != nil {
+		app.LeftOut, app.Class = err.Error(), ClassFile
+		return app
+	}
+	if terms := ownTerms(shipped); terms != "" {
+		app.LeftOut, app.Class = fmt.Sprintf("its folder carries terms of its own, in %s, beside Dokploy's licence. "+
+			"A person reads them before anything of it is converted", terms), ClassTerms
+		return app
+	}
 	if n := len(tmpl.Config.Mounts); n > 0 {
 		app.LeftOut, app.Class = fmt.Sprintf("it ships %d files beside its Compose file, which an entry can't declare yet", n), ClassShipped
 		return app
@@ -130,11 +142,6 @@ func dokployRead(t *tree, name string) App {
 	app.Version = meta.Version
 	if app.Version == "" || unversioned[app.Version] {
 		app.Version = webTag(app.Compose, app.Fields)
-	}
-	shipped, err := t.shipped(at)
-	if err != nil {
-		app.LeftOut, app.Class = err.Error(), ClassFile
-		return app
 	}
 	for _, own := range []string{"docker-compose.yml", "template.toml", "meta.json"} {
 		delete(shipped, own)
@@ -153,34 +160,46 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 	}
 	walkScalars(doc.Content[0], func(n *yaml.Node) { n.Value = braceVars(n.Value) })
 	ev := &dokployEval{vars: t.Variables, hosts: map[string]string{}}
+	env, err := envPairs(t.Config.Env)
+	if err != nil {
+		return nil, nil, err
+	}
+	// A routed port's input takes a name nothing in the template or its file has, so
+	// a template's own PORT stays the app's.
+	taken := usedNames(doc.Content[0])
+	for _, kv := range env {
+		taken[kv[0]] = true
+	}
+	for v := range t.Variables {
+		taken[strings.ToUpper(v)] = true
+	}
 	var fields []Field
 	for i, d := range t.Config.Domains {
-		name := "PORT"
-		if i > 0 {
-			name = envName(d.ServiceName) + "_PORT"
-		}
-		if slices.ContainsFunc(fields, func(f Field) bool { return f.Name == name }) {
-			name += strconv.Itoa(i)
-		}
 		port := fmt.Sprint(d.Port)
 		if _, err := strconv.ParseUint(port, 10, 16); err != nil {
 			return nil, nil, leave(ClassCantSay, "its domain routes to %s's port %q, which isn't a port", d.ServiceName, port)
 		}
-		if err := publish(doc, d.ServiceName, name, port); err != nil {
+		base := "PORT"
+		if i > 0 {
+			base = envName(d.ServiceName) + "_PORT"
+		}
+		name := freeName(base, taken, "HOST_"+base)
+		published, err := publish(doc, d.ServiceName, name, port)
+		if err != nil {
 			return nil, nil, err
 		}
-		fields = append(fields, Field{Name: name, Label: "Port", Kind: Port, Default: port, Web: i == 0})
-		address := "localhost:${" + name + "}"
+		// A service on the server's own network answers on its own port there.
+		address := "localhost:" + port
+		if published {
+			fields = append(fields, Field{Name: name, Label: "Port", Kind: Port, Default: port, Web: i == 0})
+			address = "localhost:${" + name + "}"
+		}
 		if v, ok := soleVar(d.Host); ok {
 			ev.hosts[v] = address
 		}
 		if ev.firstHost == "" {
 			ev.firstHost = address
 		}
-	}
-	env, err := envPairs(t.Config.Env)
-	if err != nil {
-		return nil, nil, err
 	}
 	literal := map[string]string{}
 	claimed := map[string]string{}
@@ -193,10 +212,14 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 			return nil, nil, fmt.Errorf("its template's %s %w", key, err)
 		}
 		switch {
-		case made == nil && sharedSecret(key, text):
-			// A secret the template writes out, which everyone who installs it would
-			// share, so a person types their own.
-			fields = append(fields, Field{Name: key, Label: sentenceCase(titleOf(strings.ToLower(strings.ReplaceAll(key, "_", "-")))), Kind: Secret})
+		case made == nil && strings.TrimSpace(text) == "" && inputLike.MatchString(key):
+			// Nothing written is a value a person may give, a secret where its name
+			// says so, and no fixed empty one.
+			f := Field{Name: key, Label: labelOf(key), Kind: Text, Optional: true}
+			if secretNamed(key) {
+				f.Kind = Secret
+			}
+			fields = append(fields, f)
 		case made == nil:
 			literal[key] = localHTTP(text)
 		case claimed[made.id] != "":
@@ -206,7 +229,7 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 		default:
 			claimed[made.id] = key
 			f := made.field
-			f.Name = key
+			f.Name, f.Label = key, labelOf(key)
 			fields = append(fields, f)
 		}
 	}
@@ -282,20 +305,54 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 	return out, fields, err
 }
 
-// sharedSecret says a value a template writes out is a secret everyone would share:
-// it's named as one, and is more than a number or a switch, such as a length.
-func sharedSecret(key, value string) bool {
-	if !secretName.MatchString(key) || strings.Contains(value, "${") || len(value) < 4 {
-		return false
+// ownTerms names what in a template's folder puts it under terms of its own: a
+// licence, a notice, or a vendor folder of someone else's files, as Harbor's
+// template carries Harbor's licence and notice.
+func ownTerms(shipped map[string]bool) string {
+	for _, rel := range slices.Sorted(maps.Keys(shipped)) {
+		for part := range strings.SplitSeq(rel, "/") {
+			upper := strings.ToUpper(part)
+			if part == "vendor" || strings.Contains(upper, "LICENSE") || strings.Contains(upper, "LICENCE") ||
+				strings.Contains(upper, "NOTICE") || strings.Contains(upper, "COPYING") {
+				return rel
+			}
+		}
 	}
-	if _, err := strconv.Atoi(value); err == nil {
-		return false
+	return ""
+}
+
+// labelOf names an input from its variable until a person does: ADMIN_PASSWORD reads
+// Admin password.
+func labelOf(name string) string {
+	return sentenceCase(titleOf(strings.ToLower(strings.NewReplacer("_", "-", ".", "-").Replace(name))))
+}
+
+// usedNames are the variables a file uses.
+func usedNames(root *yaml.Node) map[string]bool {
+	out := map[string]bool{}
+	walkScalars(root, func(n *yaml.Node) {
+		for _, u := range usesOf(n.Value) {
+			out[u.name] = true
+		}
+	})
+	return out
+}
+
+// freeName is the first name taken hasn't, which it then has: base, another name
+// for it, or base with a number after it.
+func freeName(base string, taken map[string]bool, others ...string) string {
+	for _, name := range append([]string{base}, others...) {
+		if !taken[name] {
+			taken[name] = true
+			return name
+		}
 	}
-	switch strings.ToLower(value) {
-	case "true", "false", "yes", "no", "on", "off", "none", "null":
-		return false
+	name := base
+	for i := 2; taken[name]; i++ {
+		name = base + "_" + strconv.Itoa(i)
 	}
-	return true
+	taken[name] = true
+	return name
 }
 
 // inputLike is a name an entry's input can take.
@@ -511,19 +568,45 @@ func envFile(doc *yaml.Node, keys []string) error {
 }
 
 // publish publishes a port of a service that a platform reaches through its own
-// proxy, which Dockwell's reaches on loopback.
-func publish(doc *yaml.Node, serviceName, variable, port string) error {
+// proxy, which Dockwell's reaches on loopback, by variable: in place of a port the
+// file publishes already, or beside the rest. A service on the server's own network
+// publishes none, as it answers on the server's addresses already, and says so.
+func publish(doc *yaml.Node, serviceName, variable, port string) (bool, error) {
 	svc := service(doc, serviceName)
 	if svc == nil {
-		return leave(ClassCantSay, "its domain routes to %s, a service its Compose file doesn't run", serviceName)
+		return false, leave(ClassCantSay, "its domain routes to %s, a service its Compose file doesn't run", serviceName)
+	}
+	if mode := mapGet(svc, "network_mode"); mode != nil && strings.TrimSpace(mode.Value) == "host" {
+		return false, nil
 	}
 	ports := mapGet(svc, "ports")
 	if ports == nil {
 		ports = &yaml.Node{Kind: yaml.SequenceNode}
 		svc.Content = append(svc.Content, scalar("ports"), ports)
 	}
+	for _, p := range ports.Content {
+		switch p.Kind {
+		case yaml.ScalarNode:
+			parts := splitPort(p.Value)
+			inApp, proto, _ := strings.Cut(parts[len(parts)-1], "/")
+			if inApp == port && (proto == "" || proto == "tcp") {
+				p.Value, p.Tag, p.Style = "${"+variable+"}:"+port, "!!str", 0
+				return true, nil
+			}
+		case yaml.MappingNode:
+			if target := mapGet(p, "target"); target != nil && target.Value == port {
+				if published := mapGet(p, "published"); published != nil {
+					published.Value, published.Tag = "${"+variable+"}", "!!str"
+				} else {
+					p.Content = append(p.Content, scalar("published"), scalar("${"+variable+"}"))
+				}
+				return true, nil
+			}
+		default:
+		}
+	}
 	ports.Content = append(ports.Content, scalar("${"+variable+"}:"+port))
-	return nil
+	return true, nil
 }
 
 // envName is a service's name as part of a variable's: web-ui becomes WEB_UI.

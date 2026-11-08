@@ -23,6 +23,7 @@ var aboutWords = []string{
 	"TTL", "EXPIRY", "EXPIRE", "EXPIRES", "EXPIRATION", "TIMEOUT", "LIFETIME",
 	"TYPE", "NAME", "ID", "HEADER", "PREFIX", "ALGORITHM", "ALG",
 	"COUNT", "LIMIT", "ENABLED", "ENABLE", "DISABLED", "REQUIRED", "POLICY", "MODE",
+	"USER", "USERS", "USERNAME", "PORT", "PROVIDER", "INTERVAL", "SCOPE", "RESET",
 }
 
 // joinedSecrets are the endings of a word that holds a secret's word joined to another,

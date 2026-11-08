@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"fmt"
 	"path"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -178,8 +177,9 @@ func coolifyVar(name string) (kind, id, port string, ok bool) {
 	return "", "", "", false
 }
 
-// route is a port Coolify's proxy reaches a service on.
-type route struct{ service, id, port, variable string }
+// route is a port Coolify's proxy reaches a service on, and the path it routes there,
+// if any, as SERVICE_URL_API_8080=/api routes /api.
+type route struct{ service, id, port, path, variable string }
 
 // coolifyCompose writes what Coolify does at an install into the file: the port its
 // proxy reaches, published, its SERVICE_ variables as fields or as the address the
@@ -191,32 +191,65 @@ func coolifyCompose(file []byte, headPort string) ([]byte, []Field, error) {
 	}
 	root := doc.Content[0]
 	walkScalars(root, func(n *yaml.Node) { n.Value = braceVars(n.Value) })
+	// What the template or its file names already, which a port Dockwell publishes by
+	// or a value it makes up takes no name of.
+	taken := usedNames(root)
 	var routes []route
 	for _, name := range serviceNames(doc) {
 		env := mapGet(service(doc, name), "environment")
 		if env == nil {
 			continue
 		}
-		keep := func(key string) bool {
+		// keep says whether a variable stays in the environment: a route Coolify's proxy
+		// takes, with no value or a path, goes.
+		keep := func(key, value string) bool {
 			kind, id, port, ok := coolifyVar(key)
-			if !ok || kind != "URL" && kind != "FQDN" {
+			value = strings.TrimSpace(value)
+			if !ok || kind != "URL" && kind != "FQDN" || value != "" && !strings.HasPrefix(value, "/") {
 				return true
 			}
-			routes = append(routes, route{service: name, id: id, port: port})
+			routes = append(routes, route{service: name, id: id, port: port, path: strings.TrimRight(value, "/")})
 			return false
 		}
 		switch env.Kind {
 		case yaml.SequenceNode:
-			env.Content = slices.DeleteFunc(env.Content, func(n *yaml.Node) bool { return !strings.Contains(n.Value, "=") && !keep(strings.TrimSpace(n.Value)) })
+			env.Content = slices.DeleteFunc(env.Content, func(n *yaml.Node) bool {
+				key, value, set := strings.Cut(n.Value, "=")
+				key = strings.TrimSpace(key)
+				if !set {
+					// A variable the container takes from those Compose reads.
+					taken[key] = true
+				}
+				if !keep(key, value) {
+					return true
+				}
+				if _, _, _, ok := coolifyVar(key); ok && !set {
+					// A value Coolify makes, declared bare, which the container gets.
+					n.Value = key + "=${" + key + "}"
+				}
+				return false
+			})
 		case yaml.MappingNode:
 			for i := 0; i+1 < len(env.Content); {
-				if v := env.Content[i+1]; (v.Value == "" || v.Tag == "!!null") && !keep(env.Content[i].Value) {
-					env.Content = append(env.Content[:i], env.Content[i+2:]...)
-				} else {
-					i += 2
+				key, v := env.Content[i].Value, env.Content[i+1]
+				value := v.Value
+				if v.Tag == "!!null" {
+					value = ""
+					taken[key] = true
 				}
+				if !keep(key, value) {
+					env.Content = append(env.Content[:i], env.Content[i+2:]...)
+					continue
+				}
+				if _, _, _, ok := coolifyVar(key); ok && value == "" {
+					v.Value, v.Tag, v.Style = "${"+key+"}", "!!str", 0
+				}
+				i += 2
 			}
 		default:
+		}
+		if len(env.Content) == 0 {
+			mapDel(service(doc, name), "environment")
 		}
 	}
 	// The web port first: the header's, or the first route's.
@@ -236,29 +269,38 @@ func coolifyCompose(file []byte, headPort string) ([]byte, []Field, error) {
 			r.variable = routes[j].variable
 			continue
 		}
-		r.variable = "PORT"
+		base := "PORT"
 		if i > 0 {
-			r.variable = envName(r.id) + "_PORT"
+			base = envName(r.id) + "_PORT"
 		}
-		if err := publish(doc, r.service, r.variable, r.port); err != nil {
+		variable := freeName(base, taken, "HOST_"+base)
+		published, err := publish(doc, r.service, variable, r.port)
+		if err != nil {
 			return nil, nil, err
 		}
+		if !published {
+			// A service on the server's own network answers on its own port there.
+			continue
+		}
+		r.variable = variable
 		fields = append(fields, Field{Name: r.variable, Label: "Port", Kind: Port, Default: r.port, Web: i == 0})
 	}
 	address := func(id string, scheme bool) string {
-		at := ""
-		for _, r := range routes {
-			if r.id == id || at == "" {
-				at = r.variable
+		var at *route
+		for i := range routes {
+			if routes[i].id == id || at == nil {
+				at = &routes[i]
 			}
 		}
 		switch {
 		case !scheme:
 			return "localhost"
-		case at == "":
+		case at == nil:
 			return ""
+		case at.variable == "":
+			return "http://localhost:" + at.port + at.path
 		}
-		return "http://localhost:${" + at + "}"
+		return "http://localhost:${" + at.variable + "}" + at.path
 	}
 	// Each SERVICE_ variable becomes what Coolify makes of it.
 	made := map[string]string{}
@@ -267,8 +309,12 @@ func coolifyCompose(file []byte, headPort string) ([]byte, []Field, error) {
 		for _, u := range usesOf(n.Value) {
 			kind, id, _, ok := coolifyVar(u.name)
 			if !ok {
-				if strings.HasPrefix(u.name, "SERVICE_") && fail == nil {
+				switch {
+				case fail != nil:
+				case strings.HasPrefix(u.name, "SERVICE_"):
 					fail = leave(ClassMadeUp, "it uses %s, which Coolify makes and Dockwell doesn't yet", u.name)
+				case strings.HasPrefix(u.name, "COOLIFY_"):
+					fail = leave(ClassPlatform, "it uses %s, which Coolify fills in about the app it runs, and no person could", u.name)
 				}
 				continue
 			}
@@ -282,10 +328,10 @@ func coolifyCompose(file []byte, headPort string) ([]byte, []Field, error) {
 			default:
 				input, ok := made[u.name]
 				if !ok {
-					input = coolifyInput(kind, id, fields)
+					input = coolifyInput(kind, id, taken)
 					made[u.name] = input
 					f := coolifyField(kind)
-					f.Name, f.Label = input, sentenceCase(titleOf(strings.ToLower(strings.ReplaceAll(input, "_", "-"))))
+					f.Name, f.Label = input, labelOf(input)
 					if f.Kind == Text {
 						f.Default = strings.ToLower(id)
 					}
@@ -322,25 +368,24 @@ func coolifyField(kind string) Field {
 	return Field{}
 }
 
-// coolifyInput names the field a SERVICE_ variable becomes: SERVICE_PASSWORD_MYSQL
-// becomes MYSQL_PASSWORD, SERVICE_USER_MYSQL MYSQL_USER, and a key MYSQL_SECRET.
-func coolifyInput(kind, id string, fields []Field) string {
-	suffix := "_SECRET"
+// coolifyInput names the field a SERVICE_ variable becomes, by a name nothing else
+// has: SERVICE_PASSWORD_MYSQL becomes MYSQL_PASSWORD, SERVICE_USER_MYSQL MYSQL_USER,
+// and a key MYSQL_SECRET, where the identifier doesn't say so already, as
+// SERVICE_BASE64_JWT_SECRET's does.
+func coolifyInput(kind, id string, taken map[string]bool) string {
+	suffix := "SECRET"
 	switch {
 	case strings.HasPrefix(kind, "PASSWORD"):
-		suffix = "_PASSWORD"
+		suffix = "PASSWORD"
 	case strings.HasSuffix(kind, "USER"):
-		suffix = "_USER"
+		suffix = "USER"
 	}
-	name := envName(id) + suffix
-	for i := 2; slices.ContainsFunc(fields, func(f Field) bool { return f.Name == name }); i++ {
-		name = envName(id) + suffix + strconv.Itoa(i)
+	base := envName(id)
+	if !strings.HasSuffix(base, suffix) {
+		base += "_" + suffix
 	}
-	return name
+	return freeName(base, taken)
 }
-
-// secretLike says a variable a person sets holds a secret, by its name.
-var secretLike = regexp.MustCompile(`PASS|SECRET|TOKEN|(^|_)KEY($|_)|PRIVATE`)
 
 // askedFields makes a field of each variable a person sets: one the file uses with
 // no default somewhere, with the default it has elsewhere, if any. One it always
@@ -378,14 +423,18 @@ func askedFields(root *yaml.Node, have []Field) []Field {
 	var out []Field
 	for _, name := range order {
 		v := vars[name]
-		// A secret the file gives a default everyone would share is one a person
-		// must type, as an entry's secret takes no default.
-		shared := sharedSecret(name, v.def)
-		if !v.bare && !v.required && !shared {
+		if !v.bare && !v.required {
+			// One the file always gives a default stays as it says, but for a secret's,
+			// which rewrite makes a secret of its own.
 			continue
 		}
-		f := Field{Name: name, Label: sentenceCase(titleOf(strings.ToLower(strings.ReplaceAll(name, "_", "-")))), Kind: Text, Default: v.def, Optional: !v.required && !shared}
-		if secretLike.MatchString(name) {
+		f := Field{Name: name, Label: labelOf(name), Kind: Text, Default: v.def, Optional: !v.required}
+		switch {
+		case !secretNamed(name):
+		case literalSecret(v.def):
+			// A default everyone would share is a secret Dockwell makes up instead.
+			f = Field{Name: name, Label: f.Label, Kind: Generated}
+		default:
 			f.Kind, f.Default = Secret, ""
 		}
 		out = append(out, f)

@@ -243,8 +243,9 @@ func (o *OCI) spaceHub(ctx context.Context) error {
 	}
 }
 
-// politely asks, and asks again when told to ask more slowly, three times at most,
-// as long as each wait is half a minute or less.
+// politely asks, and asks again when told to ask more slowly, three times at most. It
+// waits as long as the registry says, in seconds or until a time, and half a minute at
+// most, so a registry that asks for longer is asked sooner than it wants.
 func politely(ctx context.Context, client *http.Client, req *http.Request) (*http.Response, error) {
 	for try := 0; ; try++ {
 		resp, err := client.Do(req)
@@ -252,16 +253,26 @@ func politely(ctx context.Context, client *http.Client, req *http.Request) (*htt
 			return resp, err
 		}
 		_ = resp.Body.Close()
-		wait := 2 * time.Second
-		if s, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil && s > 0 {
-			wait = min(time.Duration(s)*time.Second, 30*time.Second)
-		}
+		wait := min(retryAfter(resp.Header.Get("Retry-After"), time.Now()), 30*time.Second)
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-time.After(wait):
 		}
 	}
+}
+
+// retryAfter reads how long a Retry-After header asks a client to wait: a number of
+// seconds, or an HTTP date. Anything else, or a time gone, is two seconds.
+func retryAfter(header string, now time.Time) time.Duration {
+	header = strings.TrimSpace(header)
+	if s, err := strconv.Atoi(header); err == nil && s > 0 {
+		return time.Duration(s) * time.Second
+	}
+	if at, err := http.ParseTime(header); err == nil && at.After(now) {
+		return at.Sub(now)
+	}
+	return 2 * time.Second
 }
 
 // Platforms says what an image runs on: from Docker Hub's API where the tag still

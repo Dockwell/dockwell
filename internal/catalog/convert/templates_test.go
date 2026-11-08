@@ -89,10 +89,10 @@ func TestDokployWritesWhatItsTemplateMakes(t *testing.T) {
 			t.Errorf("%s is %v", name, got)
 		}
 	}
-	// A secret the template writes out, which everyone would share, is one a person
-	// types, and a number named like one stays as the template wrote it.
-	if k := in["SECRET_KEY"]; k.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET || k.GetDefaultValue() != "" || k.GetGenerate() != 0 {
-		t.Errorf("SECRET_KEY is %v, want a secret a person types", k)
+	// A secret the template writes out, which everyone would share, is one Dockwell
+	// generates, and a number named as being about one stays as the template wrote it.
+	if k := in["SECRET_KEY"]; k.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET || k.GetDefaultValue() != "" || k.GetGenerate() != 32 {
+		t.Errorf("SECRET_KEY is %v, want a secret Dockwell generates", k)
 	}
 	if !strings.Contains(file, "PASSWORD_MIN_LENGTH=12") || strings.Contains(file, "changeme") {
 		t.Errorf("its file:\n%s", file)
@@ -148,7 +148,7 @@ func TestCoolifyWritesWhatItsTemplateMakes(t *testing.T) {
 		"DB_USER=${POSTGRES_USER}",
 		"POSTGRES_PASSWORD=${POSTGRES_PASSWORD}",
 		"SECRET=${BOARD_SECRET}",
-		"SIGNING=${BOARD_SECRET2}",
+		"SIGNING=${BOARD_SECRET_2}",
 		"LOG_LEVEL=${LOG_LEVEL:-info}",
 		"COST=$$5",
 		"board-data: {}",
@@ -173,8 +173,8 @@ func TestCoolifyWritesWhatItsTemplateMakes(t *testing.T) {
 	if h := in["BOARD_SECRET"]; h.GetGenerate() != 32 || h.GetGenerateAs() != catalogv1.GenerateAs_GENERATE_AS_HEX {
 		t.Errorf("BOARD_SECRET is %v, want 32 hex digits, as SERVICE_HEX_32 makes", h)
 	}
-	if b := in["BOARD_SECRET2"]; b.GetGenerate() != 64 || b.GetGenerateAs() != catalogv1.GenerateAs_GENERATE_AS_BASE64 {
-		t.Errorf("BOARD_SECRET2 is %v, want 64 bytes in base64, as SERVICE_REALBASE64_64 makes", b)
+	if b := in["BOARD_SECRET_2"]; b.GetGenerate() != 64 || b.GetGenerateAs() != catalogv1.GenerateAs_GENERATE_AS_BASE64 {
+		t.Errorf("BOARD_SECRET_2 is %v, want 64 bytes in base64, as SERVICE_REALBASE64_64 makes", b)
 	}
 	if h := in["SMTP_HOST"]; h.GetType() != catalogv1.InputType_INPUT_TYPE_TEXT || !h.GetOptional() {
 		t.Errorf("SMTP_HOST is %v, want text a person may leave", h)
@@ -188,8 +188,8 @@ func TestCoolifyWritesWhatItsTemplateMakes(t *testing.T) {
 	if _, ok := in["LOG_LEVEL"]; ok {
 		t.Error("LOG_LEVEL, which always has a default, became an input")
 	}
-	// A secret whose only default is in the file is one a person must type.
-	if s := in["APP_SECRET"]; s.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET || s.GetOptional() || strings.Contains(file, "changeme") || !strings.Contains(file, "APP_SECRET=${APP_SECRET}") {
+	// A secret whose only default is in the file is one Dockwell generates.
+	if s := in["APP_SECRET"]; s.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET || s.GetOptional() || s.GetGenerate() != 32 || strings.Contains(file, "changeme") || !strings.Contains(file, "APP_SECRET=${APP_SECRET}") {
 		t.Errorf("APP_SECRET is %v, and its file:\n%s", s, file)
 	}
 	if r.Entry.GetLicense() != "Apache-2.0" || r.Entry.GetSource().GetPath() != "templates/compose/board.yaml" {

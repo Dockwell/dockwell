@@ -36,6 +36,7 @@ const (
 	ClassInside     Class = "Puts a secret inside a longer value, such as a connection URL"
 	ClassMadeUp     Class = "Asks for a value Dockwell doesn't make yet"
 	ClassSkipped    Class = "Its source marks it as one to leave out"
+	ClassTerms      Class = "Comes under terms of its own"
 )
 
 // leftOut is a reason an app is left out, with the class the report counts it in.

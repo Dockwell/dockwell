@@ -49,6 +49,23 @@ type Source struct {
 	// LicenseText is that text, which goes beside what's converted from it, as each
 	// of the licences the converter reads asks.
 	LicenseText []byte
+	// CopyrightInLicense says the licence's text opens with the work's copyright
+	// line, as MIT's does, which each entry then repeats, so one copied out alone
+	// keeps it. Apache-2.0's and the GPL's texts hold copyright lines of their own.
+	CopyrightInLicense bool
+}
+
+// copyrightOf is the work's copyright line in a source's licence, if it has one.
+func copyrightOf(src Source) string {
+	if !src.CopyrightInLicense {
+		return ""
+	}
+	for line := range strings.Lines(string(src.LicenseText)) {
+		if line = strings.TrimSpace(line); strings.HasPrefix(strings.ToLower(line), "copyright") {
+			return line
+		}
+	}
+	return ""
 }
 
 // App is one app as an adapter reads it, before it's an entry.
@@ -625,6 +642,21 @@ func words(a *resource.Access) string {
 	return what
 }
 
+// hostNetwork says a service of an entry's uses the server's own network, where it
+// publishes no port, as it answers on the server's own.
+func hostNetwork(e *catalogv1.Entry) bool {
+	doc, err := parseFile([]byte(e.GetCompose()))
+	if err != nil {
+		return false
+	}
+	for _, name := range serviceNames(doc) {
+		if mode := mapGet(service(doc, name), "network_mode"); mode != nil && strings.TrimSpace(mode.Value) == "host" {
+			return true
+		}
+	}
+	return false
+}
+
 // firstSteps says how to reach an app, as every entry does: on loopback until it has
 // a domain, and, for one a person opens in a browser, through an SSH tunnel for
 // whoever makes its first account.
@@ -636,7 +668,12 @@ func firstSteps(e *catalogv1.Entry, name string) string {
 		}
 	}
 	port := webPort(e)
-	if port == "" {
+	switch {
+	case hostNetwork(e):
+		return name + " uses the server's own network, so it answers on every address the server has, on each port it " +
+			"listens on, to anything that reaches the server. Keep those ports closed in the server's firewall unless " +
+			"something elsewhere must reach them."
+	case port == "":
 		return name + " answers only on this server. Add a port on its page for anything elsewhere that must reach it."
 	}
 	steps := fmt.Sprintf("%[1]s answers only on this server until you add a domain. If it makes an account for "+

@@ -192,7 +192,17 @@ func rewrite(app App) (rewritten, error) {
 	for i := range out.reaches {
 		out.reaches[i] = renameVars(out.reaches[i], renames)
 	}
-	out.inputs = inputsOf(app.Fields, renames, root)
+	fields := slices.Clone(app.Fields)
+	for i := range fields {
+		if to, ok := renames[fields[i].Name]; ok {
+			fields[i].Name = to
+		}
+	}
+	made, err := sharedSecrets(root, fields, images)
+	if err != nil {
+		return out, err
+	}
+	out.inputs = inputsOf(append(fields, made...), nil, root)
 	asked := map[string]bool{}
 	for _, in := range out.inputs {
 		asked[in.GetName()] = true
@@ -236,6 +246,184 @@ func dropComments(n *yaml.Node) {
 	for _, c := range n.Content {
 		dropComments(c)
 	}
+}
+
+// sharedSecrets finds each secret the file writes out, where everyone who installs it
+// would share it and every plan would show it: a value written under a secret's name,
+// as ADMIN_PASSWORD: example, or the default of a variable no field fills, where the
+// variable or what it's written under is named as a secret, as DB_PASS:
+// ${DB_PASS:-example}. Each becomes a secret Dockwell generates and seals, one for
+// each distinct value, so a database and its app that wrote the same one still agree.
+// A switch, such as true, or a path is no secret.
+//
+// A value written inside a longer one too, as a connection URL holds a password,
+// couldn't follow a generated secret, as the catalog keeps a secret a value of its
+// own, so the app is left out, saying so. Where a name is written, as an image, a
+// volume, a host, a path or a user is, the same word is a name, not the secret.
+func sharedSecrets(root *yaml.Node, fields []Field, images map[*yaml.Node]bool) ([]Field, error) {
+	filled := map[string]bool{}
+	for _, f := range fields {
+		filled[f.Name] = true
+	}
+	// What the file names already, which a secret named for a key takes no name of.
+	taken := usedNames(root)
+	for name := range filled {
+		taken[name] = true
+	}
+	// The key each value of an environment is written under.
+	keyOf := map[*yaml.Node]string{}
+	services := mapGet(root, "services")
+	for i := 1; services != nil && i < len(services.Content); i += 2 {
+		env := mapGet(services.Content[i], "environment")
+		if env == nil {
+			continue
+		}
+		switch env.Kind {
+		case yaml.MappingNode:
+			for j := 0; j+1 < len(env.Content); j += 2 {
+				keyOf[env.Content[j+1]] = env.Content[j].Value
+			}
+		case yaml.SequenceNode:
+			for _, n := range env.Content {
+				if k, _, ok := strings.Cut(n.Value, "="); ok {
+					keyOf[n] = strings.TrimSpace(k)
+				}
+			}
+		default:
+		}
+	}
+	byValue := map[string]string{} // a value, by the secret it becomes
+	byVar := map[string]string{}   // a variable, by the secret it becomes
+	var out []Field
+	secret := func(value, name string) string {
+		value = strings.TrimSpace(value)
+		if input, ok := byValue[value]; ok {
+			return input
+		}
+		input := freeName(strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(name)), taken)
+		byValue[value] = input
+		out = append(out, Field{Name: input, Label: labelOf(input), Kind: Generated})
+		return input
+	}
+	walkScalars(root, func(n *yaml.Node) {
+		key, inEnv := keyOf[n]
+		value := n.Value
+		if inEnv && n.Kind == yaml.ScalarNode && strings.HasPrefix(value, key+"=") {
+			value = strings.TrimPrefix(value, key+"=")
+		}
+		uses := usesOf(value)
+		if inEnv && len(uses) == 0 && secretNamed(key) && literalSecret(value) {
+			ref := "${" + secret(value, key) + "}"
+			if n.Value != value {
+				n.Value = key + "=" + ref
+			} else {
+				n.Value, n.Tag, n.Style = ref, "!!str", 0
+			}
+			return
+		}
+		for _, u := range uses {
+			if u.op != ":-" && u.op != "-" || filled[u.name] || byVar[u.name] != "" {
+				continue
+			}
+			def := defaultOf(value, u)
+			whole := inEnv && u.at == 2 && u.end+len(u.op)+len(def)+1 == len(value)
+			if !literalSecret(def) || !secretNamed(u.name) && (!whole || !secretNamed(key)) {
+				continue
+			}
+			if input, ok := byValue[strings.TrimSpace(def)]; ok {
+				byVar[u.name] = input
+			} else {
+				// The variable keeps its own name, as it's the one the file uses.
+				taken[u.name] = false
+				byVar[u.name] = secret(def, u.name)
+			}
+		}
+	})
+	if len(out) == 0 {
+		return nil, nil
+	}
+	walkScalars(root, func(n *yaml.Node) {
+		for name, input := range byVar {
+			n.Value = replaceVar(n.Value, name, "${"+input+"}")
+		}
+	})
+	names := nameNodes(root, images)
+	for _, value := range slices.Sorted(maps.Keys(byValue)) {
+		input := byValue[value]
+		var elsewhere string
+		walkScalars(root, func(n *yaml.Node) {
+			whole := n.Value
+			if key, ok := keyOf[n]; ok && strings.HasPrefix(whole, key+"=") {
+				whole = strings.TrimPrefix(whole, key+"=")
+			}
+			// The same value whole, as a database named as its password is, is another
+			// value that happens to match.
+			if elsewhere == "" && !names[n] && strings.TrimSpace(whole) != value && holdsSecret(n.Value, value) {
+				elsewhere = n.Value
+			}
+		})
+		if elsewhere != "" {
+			return nil, leave(ClassInside, "its secret %s's value is written elsewhere in the file too, in %q, which a generated secret couldn't follow", input, nodeText(&yaml.Node{Kind: yaml.ScalarNode, Value: elsewhere}))
+		}
+	}
+	return out, nil
+}
+
+// nameNodes are where a file writes names alone: each service's image, volumes,
+// ports, networks, host and the services it waits for.
+func nameNodes(root *yaml.Node, images map[*yaml.Node]bool) map[*yaml.Node]bool {
+	out := maps.Clone(images)
+	services := mapGet(root, "services")
+	for i := 1; services != nil && i < len(services.Content); i += 2 {
+		for _, key := range []string{"volumes", "ports", "networks", "hostname", "container_name", "depends_on", "links", "extends", "volumes_from"} {
+			if n := mapGet(services.Content[i], key); n != nil {
+				walkScalars(n, func(s *yaml.Node) { out[s] = true })
+			}
+		}
+	}
+	return out
+}
+
+// holdsSecret says a longer value holds a secret's: the same word, where a name
+// isn't written. A word runs on through - _ and ., so postgres isn't in postgres-data,
+// and a word after ://, @ or /, or after a user's or database's flag or key, as in
+// pg_isready -U postgres -d postgres, is a user, a host, a database or a path.
+func holdsSecret(s, value string) bool {
+	word := func(b byte) bool {
+		return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9' || b == '-' || b == '_' || b == '.'
+	}
+	for at := 0; ; {
+		i := strings.Index(s[at:], value)
+		if i < 0 {
+			return false
+		}
+		start, end := at+i, at+i+len(value)
+		at = start + 1
+		if start > 0 && word(s[start-1]) || end < len(s) && word(s[end]) {
+			continue
+		}
+		if !nameBefore.MatchString(s[:start]) {
+			return true
+		}
+	}
+}
+
+// nameBefore is what comes before a name: a URL's scheme, a host's @, a path's /, a
+// user's flag or key, or a database's flag, as pg_isready -d writes it.
+var nameBefore = regexp.MustCompile(`(?i)(://|@|/|-u\s*|--user(name)?[\s=]+|\buser(name)?\s*[=:]\s*|\buser id\s*=\s*|\buid\s*=\s*|\s-d\s+|--dbname[\s=]+)$`)
+
+// literalSecret says a value written under a secret's name is one: written out, and no
+// switch, such as true or 0, or path, such as /run/secrets/db.
+func literalSecret(value string) bool {
+	value = strings.TrimSpace(value)
+	switch {
+	case value == "", strings.Contains(value, "$"),
+		strings.HasPrefix(value, "/"), strings.HasPrefix(value, "./"), strings.HasPrefix(value, "../"), strings.HasPrefix(value, "~/"):
+		return false
+	}
+	// A switch, or a word for none, as YANDEX_MAP_TOKEN: 0 and MAIL_PASSWORD: null say
+	// there's no token or password.
+	return !slices.Contains([]string{"true", "false", "yes", "no", "on", "off", "0", "1", "null", "none"}, strings.ToLower(value))
 }
 
 // maxNodes bounds what expanding a file's aliases makes, as a few aliases of aliases
@@ -479,7 +667,8 @@ func loopback(p *yaml.Node) error {
 		default:
 			return errNoPort
 		}
-		p.Style = yaml.DoubleQuotedStyle
+		// A port written as a number, such as 3000, is text once it says where.
+		p.Tag, p.Style = "!!str", yaml.DoubleQuotedStyle
 	case yaml.MappingNode:
 		if ip := mapGet(p, "host_ip"); ip != nil {
 			ip.Value = "127.0.0.1"

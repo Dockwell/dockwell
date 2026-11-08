@@ -235,7 +235,7 @@ func Check(e *catalogv1.Entry) error {
 		case in.GetGenerate() > 0 && in.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET:
 			return fmt.Errorf("the input %s sets generate, which only a secret takes", name)
 		case in.GetGenerate() > 0 && in.GetGenerate() < 16:
-			return fmt.Errorf("the secret %s generates %d characters. Generate at least 16", name, in.GetGenerate())
+			return fmt.Errorf("the secret %s generates %d, too few to guess at. Generate at least 16", name, in.GetGenerate())
 		case in.GetGenerateAs() != catalogv1.GenerateAs_GENERATE_AS_UNSPECIFIED && in.GetGenerate() == 0:
 			return fmt.Errorf("the input %s says how to write what it generates, and generates nothing. Set generate, or take generate_as away", name)
 		}
@@ -508,7 +508,6 @@ func names(e *catalogv1.Entry) string {
 // means the same in a URL, a shell and a config file.
 const generated = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-// generate makes a secret of n characters.
 // generateAs makes a secret as an input asks: n letters and digits, n hex digits, or
 // n random bytes in base64.
 func generateAs(n int, as catalogv1.GenerateAs) (string, error) {
@@ -530,6 +529,7 @@ func generateAs(n int, as catalogv1.GenerateAs) (string, error) {
 	}
 }
 
+// generate makes a secret of n letters and digits.
 func generate(n int) (string, error) {
 	var b strings.Builder
 	size := big.NewInt(int64(len(generated)))
