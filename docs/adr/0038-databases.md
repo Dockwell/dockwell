@@ -34,7 +34,7 @@ What was settled already:
 
 ### MongoDB and ClickHouse
 
-*Proposed for the PRD's last two engines (#266's Databases row), to build on the first slice once it lands, and on the second for their users.*
+*Proposed for the PRD's last two engines (#342, from #266's Databases row), to build on the first slice once it lands, and on the second for their users.*
 
 Each is a database as the others are: a service on its engine's own image, read, given users, backed up and restored in its own container with its own tools, signing in with what its environment holds. What differs is below. Facts about the images are from their sources as their libraries build them on 2026-11-08: `docker-library/mongo` and `ClickHouse/docker-library`.
 
