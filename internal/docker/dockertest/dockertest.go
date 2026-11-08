@@ -776,6 +776,9 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			}
 		}
 		e.attach(c)
+		if c.started != nil {
+			close(c.started)
+		}
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && action == "stop":
 		if !c.State.Running {
@@ -785,6 +788,9 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
 		c.log.end()
 		e.detach(c)
+		if c.exited != nil && !c.img.imported {
+			close(c.exited)
+		}
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && action == "pause":
 		if !c.State.Running || c.State.Paused {
@@ -1172,6 +1178,11 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 	if img.imported {
 		c.started, c.exited = make(chan struct{}), make(chan struct{})
 		e.helpers = append(e.helpers, req)
+	}
+	if !img.imported && img.Exec != nil && req.Labels[docker.LabelOneoff] == "True" {
+		// A one-off container, as docker compose run makes, runs its command
+		// through Exec once something attaches, and ends with it.
+		c.started, c.exited = make(chan struct{}), make(chan struct{})
 	}
 	c.ID = newID()
 	c.Created = time.Now().UTC()

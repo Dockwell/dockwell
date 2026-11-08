@@ -21,6 +21,7 @@ import { Route as ShellActivityRouteImport } from './routes/_shell/activity'
 import { Route as ShellBackupsRouteImport } from './routes/_shell/backups'
 import { Route as ShellDomainsRouteImport } from './routes/_shell/domains'
 import { Route as ShellMoreRouteImport } from './routes/_shell/more'
+import { Route as ShellScheduledTasksRouteImport } from './routes/_shell/scheduled-tasks'
 import { Route as ShellVariablesRouteImport } from './routes/_shell/variables'
 import { Route as ShellSettingsProfileRouteImport } from './routes/_shell/_settings/profile'
 import { Route as ShellAppsIndexRouteImport } from './routes/_shell/apps.index'
@@ -117,6 +118,11 @@ const ShellDomainsRoute = ShellDomainsRouteImport.update({
 const ShellMoreRoute = ShellMoreRouteImport.update({
   id: '/more',
   path: '/more',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellScheduledTasksRoute = ShellScheduledTasksRouteImport.update({
+  id: '/scheduled-tasks',
+  path: '/scheduled-tasks',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellVariablesRoute = ShellVariablesRouteImport.update({
@@ -349,6 +355,7 @@ export interface FileRoutesByFullPath {
   '/backups': typeof ShellBackupsRoute
   '/domains': typeof ShellDomainsRoute
   '/more': typeof ShellMoreRoute
+  '/scheduled-tasks': typeof ShellScheduledTasksRoute
   '/variables': typeof ShellVariablesRoute
   '/profile': typeof ShellSettingsProfileRoute
   '/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
@@ -400,6 +407,7 @@ export interface FileRoutesByTo {
   '/backups': typeof ShellBackupsRoute
   '/domains': typeof ShellDomainsRoute
   '/more': typeof ShellMoreRoute
+  '/scheduled-tasks': typeof ShellScheduledTasksRoute
   '/variables': typeof ShellVariablesRoute
   '/profile': typeof ShellSettingsProfileRoute
   '/apps/new': typeof ShellAppsNewRoute
@@ -450,6 +458,7 @@ export interface FileRoutesById {
   '/_shell/backups': typeof ShellBackupsRoute
   '/_shell/domains': typeof ShellDomainsRoute
   '/_shell/more': typeof ShellMoreRoute
+  '/_shell/scheduled-tasks': typeof ShellScheduledTasksRoute
   '/_shell/variables': typeof ShellVariablesRoute
   '/_shell/': typeof ShellIndexRoute
   '/_shell/_settings/profile': typeof ShellSettingsProfileRoute
@@ -504,6 +513,7 @@ export interface FileRouteTypes {
     | '/backups'
     | '/domains'
     | '/more'
+    | '/scheduled-tasks'
     | '/variables'
     | '/profile'
     | '/apps/$serviceId'
@@ -555,6 +565,7 @@ export interface FileRouteTypes {
     | '/backups'
     | '/domains'
     | '/more'
+    | '/scheduled-tasks'
     | '/variables'
     | '/profile'
     | '/apps/new'
@@ -604,6 +615,7 @@ export interface FileRouteTypes {
     | '/_shell/backups'
     | '/_shell/domains'
     | '/_shell/more'
+    | '/_shell/scheduled-tasks'
     | '/_shell/variables'
     | '/_shell/'
     | '/_shell/_settings/profile'
@@ -738,6 +750,13 @@ declare module '@tanstack/react-router' {
       path: '/more'
       fullPath: '/more'
       preLoaderRoute: typeof ShellMoreRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/scheduled-tasks': {
+      id: '/_shell/scheduled-tasks'
+      path: '/scheduled-tasks'
+      fullPath: '/scheduled-tasks'
+      preLoaderRoute: typeof ShellScheduledTasksRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/variables': {
@@ -1110,6 +1129,7 @@ interface ShellRouteChildren {
   ShellBackupsRoute: typeof ShellBackupsRoute
   ShellDomainsRoute: typeof ShellDomainsRoute
   ShellMoreRoute: typeof ShellMoreRoute
+  ShellScheduledTasksRoute: typeof ShellScheduledTasksRoute
   ShellVariablesRoute: typeof ShellVariablesRoute
   ShellIndexRoute: typeof ShellIndexRoute
   ShellAppsServiceIdRoute: typeof ShellAppsServiceIdRouteWithChildren
@@ -1139,6 +1159,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellBackupsRoute: ShellBackupsRoute,
   ShellDomainsRoute: ShellDomainsRoute,
   ShellMoreRoute: ShellMoreRoute,
+  ShellScheduledTasksRoute: ShellScheduledTasksRoute,
   ShellVariablesRoute: ShellVariablesRoute,
   ShellIndexRoute: ShellIndexRoute,
   ShellAppsServiceIdRoute: ShellAppsServiceIdRouteWithChildren,

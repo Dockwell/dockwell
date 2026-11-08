@@ -47,6 +47,7 @@ var agentPackages = []string{
 	"internal/buildinfo",
 	"internal/cli",
 	"internal/cli/apinames", // the API commands' names, to say they're in the full build
+	"internal/cron",         // the schedule each scheduled task runs on (ADR 0053)
 	"internal/database",     // reading a database in its own container (ADR 0038)
 	"internal/datadir",
 	"internal/delivery", // opens the values of a step's variables and secrets, sealed to the stream
@@ -69,6 +70,7 @@ var agentPackages = []string{
 	"internal/resource/service",
 	"internal/resource/variable", // the names and kinds a service's Validate checks what it uses by
 	"internal/resource/volume",
+	"internal/task", // scheduled tasks, which each agent runs on its own clock (ADR 0053)
 	"internal/ticket",
 	"internal/volumetool", // reading and writing a volume's bytes, in a throwaway container (ADR 0033)
 }

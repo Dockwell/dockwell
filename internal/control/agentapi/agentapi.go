@@ -313,6 +313,8 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 				h.agents.connected(peer.ServerID)
 			case msg.GetSaveEnded() != nil && h.agents != nil:
 				h.agents.reportSaveEnded(peer.ServerID, msg.GetSaveEnded())
+			case msg.GetTaskRunsReady() != nil && h.agents != nil:
+				h.agents.reportTaskRunsReady(peer.ServerID)
 			case msg.GetDomains() != nil && h.agents != nil:
 				h.agents.Report(peer.ServerID, msg.GetDomains().GetDomains(), msg.GetDomains().GetIngress())
 				h.fleet.RecordIngress(peer.ServerID, msg.GetDomains().GetIngress())

@@ -4128,6 +4128,9 @@ msgstr "它能访问服务器能访问的一切，绕过 Docker 网络和防火�
 msgid "It runs in privileged mode, which gives it every device and capability on the server."
 msgstr "它以特权模式运行，可使用服务器上的所有设备和能力。"
 
+msgid "It runs on its schedule, and whenever someone runs it now. Whatever it runs, it runs with everything root can do there."
+msgstr "它按计划运行，也会在有人立即运行时运行。无论运行什么，它都拥有 root 在那里的全部权限。"
+
 msgid "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, 1Panel shows it in error, as it can't find the container. Leave that as it is: Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
 msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜像之前，在 1Panel 中对它的任何操作都会作用于这个容器。更换之后，1Panel 会显示它出错，因为找不到这个容器。不要理会这个状态：在那里启动、重建、升级或编辑其设置都会启动第二个副本，使用相同的目录和相同的名称。无论何时都不要在 1Panel 中卸载它：那会删除 {where}，其中保存着此服务挂载的内容。"
 
@@ -4380,6 +4383,9 @@ msgstr "{name} 可访问 {server} 上的 {path}"
 
 msgid "{name} reaches {reach} on {server}"
 msgstr "{name} 可访问 {server} 上的 {reach}"
+
+msgid "{name} runs a shell command as root on {server}"
+msgstr "{name} 在 {server} 上以 root 身份运行 shell 命令"
 
 msgid "{name} runs with the latest value of {names}"
 msgstr "{name} 使用 {names} 的最新值运行"
@@ -4793,6 +4799,9 @@ msgstr "前面的代理访问 {where} 会得到 404，因此访问者会看到�
 
 msgid "a backup of a volume that reached {path}, which can hold what's there, as good as root"
 msgstr "一个曾可访问 {path} 的卷的备份，可能含有那里的内容，相当于拥有 root"
+
+msgid "a shell command on the server, which runs as root"
+msgstr "服务器上的 shell 命令，以 root 身份运行"
 
 msgid "a {driver} network"
 msgstr "一个 {driver} 网络"
@@ -6569,6 +6578,7 @@ msgstr "{used} / {total}"
 
 #. placeholder {0}: g.owner.name
 #. placeholder {0}: owner.name
+#. placeholder {0}: spec.runs.value.service
 msgid "App {0}"
 msgstr "应用 {0}"
 
@@ -8208,6 +8218,337 @@ msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务�
 msgid "Unreachable"
 msgstr "无法访问"
 
+msgid "All runs"
+msgstr "全部运行"
+
+msgid "Edit"
+msgstr "编辑"
+
+msgid "Enabled"
+msgstr "已启用"
+
+#. placeholder {0}: last.httpStatus
+msgid "HTTP {0}"
+msgstr "HTTP {0}"
+
+msgid "It didn't run"
+msgstr "未能运行"
+
+msgid "It hasn't run yet. Run it now to see what it does."
+msgstr "它还没有运行过。立即运行一次，看看它会做什么。"
+
+msgid "It printed nothing."
+msgstr "没有任何输出。"
+
+msgid "It runs on its schedule all the same, and its runs show here once the server is back."
+msgstr "它仍会按计划运行，服务器重新连接后，运行记录会显示在这里。"
+
+msgid "Its server isn't connected"
+msgstr "它的服务器未连接"
+
+msgid "Last output"
+msgstr "最近输出"
+
+msgid "Last runs, oldest first"
+msgstr "最近的运行，最早的在前"
+
+msgid "Request"
+msgstr "请求"
+
+msgid "Run now"
+msgstr "立即运行"
+
+msgid "Runs in"
+msgstr "运行于"
+
+msgid "Schedule"
+msgstr "计划"
+
+msgid "Timeout"
+msgstr "超时"
+
+#. placeholder {0}: newest.outputCutBytes
+msgid "What it printed before this, {0} bytes, wasn't kept."
+msgstr "在此之前输出的 {0} 字节没有保留。"
+
+#. placeholder {0}: last.exitCode
+msgid "exit {0}"
+msgstr "退出码 {0}"
+
+msgid "stopped"
+msgstr "已停止"
+
+#. placeholder {0}: runs.length
+msgid "{0, plural, one {Last run} other {Last # runs}}"
+msgstr "{0, plural, one {最近一次运行} other {最近 # 次运行}}"
+
+#. placeholder {0}: day(lastBad)
+#. placeholder {1}: words.state(lastBad.state).toLowerCase()
+#. placeholder {2}: lastBad.error
+msgid "{0} {1}: {2}"
+msgstr "{0} {1}：{2}"
+
+msgid "{bad, plural, one {# failed} other {# failed}}"
+msgstr "{bad, plural, other {# 次失败}}"
+
+msgid "{good} succeeded"
+msgstr "{good} 次成功"
+
+msgid "{retries, plural, one {{timeout}, then retry once} other {{timeout}, then retry # times}}"
+msgstr "{retries, plural, other {{timeout}，之后重试 # 次}}"
+
+msgid "Another, in cron"
+msgstr "其他，用 cron 表示"
+
+msgid "Any 2xx when empty."
+msgstr "留空时接受任意 2xx。"
+
+msgid "Change the task {resourceName}"
+msgstr "修改任务 {resourceName}"
+
+msgid "Choose the app it runs in."
+msgstr "请选择它运行所在的应用。"
+
+msgid "Command in an app"
+msgstr "应用中的命令"
+
+msgid "Delete the task {resourceName}"
+msgstr "删除任务 {resourceName}"
+
+#. placeholder {0}: display || resourceName
+msgid "Edit {0}"
+msgstr "编辑 {0}"
+
+msgid "Folder it runs in"
+msgstr "运行目录"
+
+msgid "HTTP request"
+msgstr "HTTP 请求"
+
+msgid "If a run fails"
+msgstr "运行失败时"
+
+msgid "In an app"
+msgstr "应用中"
+
+msgid "In cron"
+msgstr "cron 表达式"
+
+msgid "It runs in a container of the app's image, with its environment, after its entrypoint. Name sh -c for a shell."
+msgstr "它在应用镜像的容器中运行，带有应用的环境变量，在入口点之后执行。需要 shell 时请写 sh -c。"
+
+msgid "It runs on its server's own clock, and every change to it is a plan"
+msgstr "它按服务器自己的时钟运行，每次修改都是一个计划"
+
+msgid "It runs only when you run it now."
+msgstr "只有在你立即运行时才会运行。"
+
+msgid "It runs with /bin/sh on the server, as root, so applying it takes your passkey."
+msgstr "它在服务器上以 root 身份用 /bin/sh 运行，因此应用时需要你的通行密钥。"
+
+msgid "Leave it"
+msgstr "不处理"
+
+msgid "Method"
+msgstr "方法"
+
+msgid "Minute, hour, day of the month, month and day of the week, in its time zone."
+msgstr "分钟、小时、日、月和星期，按它的时区计算。"
+
+msgid "New task"
+msgstr "新建任务"
+
+msgid "Nightly sales report"
+msgstr "每晚销售报表"
+
+msgid "Otherwise one runs as the server comes back, however many were missed."
+msgstr "否则在服务器恢复时补跑一次，无论错过了多少次。"
+
+#. placeholder {0}: display.trim() || resourceName
+msgid "Run {0} on a schedule"
+msgstr "按计划运行 {0}"
+
+msgid "Say what it runs."
+msgstr "请说明它运行什么。"
+
+msgid "Server it runs on"
+msgstr "运行它的服务器"
+
+msgid "Shell"
+msgstr "Shell"
+
+msgid "Shell command"
+msgstr "Shell 命令"
+
+msgid "Skip runs missed while the server was off"
+msgstr "跳过服务器关机期间错过的运行"
+
+msgid "Status it expects"
+msgstr "预期状态码"
+
+msgid "The server asks it, so it reaches what the server reaches. A run keeps the status and how long it took, never what came back."
+msgstr "由服务器发出请求，因此能访问服务器能访问的地址。每次运行只保留状态码和耗时，从不保留返回内容。"
+
+msgid "Timeout, in minutes"
+msgstr "超时（分钟）"
+
+msgid "Try once more, a minute later"
+msgstr "一分钟后再试一次"
+
+msgid "Try three times more"
+msgstr "再试三次"
+
+msgid "Try twice more"
+msgstr "再试两次"
+
+msgid "URL"
+msgstr "URL"
+
+msgid "Use 1 to 1,440 minutes."
+msgstr "请使用 1 到 1,440 分钟。"
+
+msgid "Use a URL that starts with http:// or https://."
+msgstr "请使用以 http:// 或 https:// 开头的 URL。"
+
+msgid "Use an HTTP status from 100 to 599, or leave it empty for any 2xx."
+msgstr "请使用 100 到 599 之间的 HTTP 状态码，或留空以接受任意 2xx。"
+
+msgid "Use cron's five fields, such as 0 4 * * *."
+msgstr "请使用 cron 的五个字段，例如 0 4 * * *。"
+
+msgid "Use lowercase letters, digits and hyphens, such as nightly-report."
+msgstr "请使用小写字母、数字和连字符，例如 nightly-report。"
+
+msgid "What it runs"
+msgstr "运行内容"
+
+msgid "What people call it"
+msgstr "显示名称"
+
+msgid "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
+msgstr "任务按服务器自己的时钟运行，控制平面不在时也会照常运行。每次运行都会保留输出，失败的运行会出现在动态中。"
+
+msgid "All tasks"
+msgstr "全部任务"
+
+msgid "Dockwell can't read its scheduled tasks"
+msgstr "Dockwell 无法读取计划任务"
+
+msgid "Next 24 hours"
+msgstr "接下来 24 小时"
+
+#. placeholder {0}: nameOf(next.task)
+#. placeholder {1}: words.until(next.at, now)
+msgid "Next: {0} {1}"
+msgstr "下一个：{0}，{1}"
+
+msgid "No scheduled tasks yet"
+msgstr "还没有计划任务"
+
+msgid "Not scheduled"
+msgstr "未安排"
+
+msgid "Not yet"
+msgstr "尚未运行"
+
+msgid "On its own schedule"
+msgstr "按自定义计划"
+
+msgid "Run a shell command, a command in an app or an HTTP request on a schedule"
+msgstr "按计划运行 shell 命令、应用中的命令或 HTTP 请求"
+
+msgid "Task"
+msgstr "任务"
+
+msgid "no failures in the last 24 h"
+msgstr "过去 24 小时没有失败"
+
+#. placeholder {0}: away.length
+msgid "{0, plural, one {# server isn't connected} other {# servers aren't connected}}"
+msgstr "{0, plural, other {# 台服务器未连接}}"
+
+#. placeholder {0}: away.join(", ")
+msgid "{0} runs its tasks all the same, on its own clock. Its runs show here once it's back."
+msgstr "{0} 仍会按自己的时钟照常运行任务。它重新连接后，运行记录会显示在这里。"
+
+msgid "{count, plural, one {# task on {where}} other {# tasks on {where}}}"
+msgstr "{count, plural, other {{where} 上有 # 个任务}}"
+
+msgid "{failedLately, plural, one {# failed in the last 24 h} other {# failed in the last 24 h}}"
+msgstr "{failedLately, plural, other {过去 24 小时有 # 次失败}}"
+
+msgid "{from} to {to}"
+msgstr "{from} 至 {to}"
+
+msgid "{runs, plural, one {# run} other {# runs}}"
+msgstr "{runs, plural, other {# 次运行}}"
+
+msgid "Command in {app}"
+msgstr "{app} 中的命令"
+
+msgid "Didn't start"
+msgstr "未能启动"
+
+msgid "Every day at {at}"
+msgstr "每天 {at}"
+
+msgid "Every hour"
+msgstr "每小时"
+
+msgid "Every hour at {at}"
+msgstr "每小时的 {at}"
+
+msgid "Every minute"
+msgstr "每分钟"
+
+msgid "Every weekday at {at}"
+msgstr "每个工作日 {at}"
+
+msgid "Every year on {on} at {at}"
+msgstr "每年 {on} {at}"
+
+msgid "Every {count} hours"
+msgstr "每 {count} 小时"
+
+msgid "Every {count} hours at {at}"
+msgstr "每 {count} 小时的 {at}"
+
+msgid "Every {count} minutes"
+msgstr "每 {count} 分钟"
+
+msgid "Every {day} at {at}"
+msgstr "每{day} {at}"
+
+msgid "On day {date} of every month at {at}"
+msgstr "每月 {date} 日 {at}"
+
+msgid "Succeeded"
+msgstr "成功"
+
+msgid "Timed out"
+msgstr "超时"
+
+msgid "Today {time}"
+msgstr "今天 {time}"
+
+msgid "Tomorrow {time}"
+msgstr "明天 {time}"
+
+msgid "Yesterday {time}"
+msgstr "昨天 {time}"
+
+msgid "in {count} days"
+msgstr "{count} 天后"
+
+msgid "in {count} h"
+msgstr "{count} 小时后"
+
+msgid "in {count} min"
+msgstr "{count} 分钟后"
+
+msgid "{count} ms"
+msgstr "{count} 毫秒"
+
 msgid "Agent and control plane"
 msgstr "代理与控制平面"
 
@@ -9030,9 +9371,6 @@ msgstr "Web 服务器以 nobody 用户读取该文件夹，而 <0>{path}</0> 的
 
 msgid "There's no <0>{first}</0> in <1>{path}</1>, so its address answers 404 until there is. Add one, or name the index the site has."
 msgstr "<1>{path}</1> 中没有 <0>{first}</0>，所以在添加之前访问它会返回 404。请添加一个，或填写网站已有的首页文件。"
-
-msgid "URL"
-msgstr "URL"
 
 msgid "Upload limit"
 msgstr "上传上限"

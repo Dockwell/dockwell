@@ -123,6 +123,7 @@ func TestAccessWords(t *testing.T) {
 		{resource.Access{Kind: resource.AccessPath, Path: "/srv", Holds: "/srv/app/conf", SameAsRoot: true}, "the server path /srv, which holds /srv/app/conf, which it mounts as well, so what writes there can make that lead anywhere, as good as root. Any change to it but another tag asks for a passkey from now on"},
 		{resource.Access{Kind: resource.AccessPath, Path: "/srv/app/conf", HeldIn: "/srv", HeldBy: "files", SameAsRoot: true}, "the server path /srv/app/conf, inside /srv, which files can write, so it can make that lead anywhere, as good as root. Any change to files but another tag asks for a passkey from now on"},
 		{resource.Access{Kind: resource.AccessBackupOf, Path: "/etc"}, "a backup of a volume that reached /etc, which can hold what's there, as good as root"},
+		{resource.Access{Kind: resource.AccessServerShell, SameAsRoot: true}, "a shell command on the server, which runs as root"},
 		{resource.Access{Kind: resource.AccessPrivileged, SameAsRoot: true}, "privileged mode, which gives it every device and capability on the server, the same as root"},
 		// Whatever let it through, it can't read as more of the line.
 		{resource.Access{Kind: resource.AccessExternalNetwork, Path: "lan", LeadsTo: "macvlan"}, "the macvlan network lan, which reaches past the server's firewall and is on the server already, where it answers to its name: whatever else is on that network, other projects' services too, can reach it, and it can reach them"},

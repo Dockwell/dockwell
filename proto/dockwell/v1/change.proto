@@ -926,6 +926,10 @@ enum HostAccessKind {
   // A backup of a volume that reached path, which is as good as root, coming back
   // into a volume that doesn't. What it holds can be read from there.
   HOST_ACCESS_KIND_BACKUP_OF = 18;
+  // A shell command the agent runs on the server as root, on a schedule (ADR
+  // 0053): the same as root. Numbered in the block scheduled tasks hold, as open
+  // work adds to this enum.
+  HOST_ACCESS_KIND_SERVER_SHELL = 150;
 }
 
 // ServerPlan is the part of a plan on one server.

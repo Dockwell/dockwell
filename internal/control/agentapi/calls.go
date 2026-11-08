@@ -100,8 +100,9 @@ type Agents struct {
 	// pace is how often agents should send stats, as last set, and paceGen counts
 	// each setting, so a stream never hears an older pace after a newer one. Zero
 	// before it's set, when the welcome's pace stands.
-	pace    time.Duration
-	paceGen uint64
+	pace       time.Duration
+	paceGen    uint64
+	runsHearer func(server string)
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
@@ -129,6 +130,24 @@ func (a *Agents) reportSaveEnded(server string, ended *agentv1.SaveEnded) {
 	a.mu.Unlock()
 	if hear != nil {
 		hear(server, ended)
+	}
+}
+
+// OnTaskRunsReady calls fn when a server's agent says its scheduled tasks have runs
+// the control plane hasn't read (ADR 0053).
+func (a *Agents) OnTaskRunsReady(fn func(server string)) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.runsHearer = fn
+}
+
+// reportTaskRunsReady passes on that an agent has runs to read.
+func (a *Agents) reportTaskRunsReady(server string) {
+	a.mu.Lock()
+	hear := a.runsHearer
+	a.mu.Unlock()
+	if hear != nil {
+		hear(server)
 	}
 }
 
@@ -1338,6 +1357,31 @@ func (s *Session) Containers(ctx context.Context, container string) (*agentv1.Co
 		return nil, err
 	}
 	return r.GetContainers(), nil
+}
+
+// TaskRuns reads the runs a server's scheduled tasks have had past after, and lets
+// the agent go of those at or before it (ADR 0053).
+func (s *Session) TaskRuns(ctx context.Context, after string) (*agentv1.TaskRunsResult, error) {
+	if err := s.supports(resource.Ref{Kind: "task", Name: "runs"}); err != nil {
+		return nil, err
+	}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_TaskRuns{TaskRuns: &agentv1.TaskRunsCall{After: after}}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetTaskRuns(), nil
+}
+
+// RunTask runs a scheduled task now, and returns its run, started.
+func (s *Session) RunTask(ctx context.Context, ref resource.Ref) (*dockwellv1.TaskRun, error) {
+	if err := s.supports(ref); err != nil {
+		return nil, err
+	}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_RunTask{RunTask: &agentv1.RunTaskCall{Task: resourcepb.Ref(ref)}}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetRunTask().GetRun(), nil
 }
 
 // backupTaken reads what a step took.

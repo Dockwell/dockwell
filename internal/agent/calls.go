@@ -594,6 +594,22 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Database{Database: read}}
+	case call.GetTaskRuns() != nil, call.GetRunTask() != nil:
+		if c.cfg.Tasks == nil {
+			return fail(errors.New("this agent runs no scheduled tasks. Update it to the control plane's version"))
+		}
+		if r := call.GetRunTask(); r != nil {
+			run, err := c.cfg.Tasks.RunNow(ctx, resourcepb.FromRef(r.GetTask()))
+			if err != nil {
+				return fail(err)
+			}
+			return &agentv1.CallResult{Result: &agentv1.CallResult_RunTask{RunTask: &agentv1.RunTaskResult{Run: run}}}
+		}
+		runs, err := c.cfg.Tasks.Runs(call.GetTaskRuns().GetAfter())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_TaskRuns{TaskRuns: runs}}
 	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil, call.GetFetchBackup() != nil, call.GetSendBackup() != nil:
 		if c.cfg.Backups == nil {
 			return fail(errors.New("this agent can't back up volumes, as it has no Docker driver"))

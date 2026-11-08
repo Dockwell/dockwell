@@ -2296,10 +2296,15 @@ func (e *Engine) runsSomethingElse(it *item, server string) bool {
 	if it.restoreOn(server) != nil {
 		return true
 	}
-	n, ok := e.imageNamer(it.ref.Kind)
 	current, desired := it.currentOn(server), it.desiredOn(server)
-	if !ok || current == nil || desired == nil {
+	if current == nil || desired == nil {
 		return false
+	}
+	n, ok := e.imageNamer(it.ref.Kind)
+	if !ok {
+		// A kind that runs code with no image, as a scheduled task's shell command.
+		w, ok := e.whatRunner(it.ref.Kind)
+		return ok && !proto.Equal(w.WhatRuns(current), w.WhatRuns(desired))
 	}
 	before, after := n.WhatRuns(current), n.WhatRuns(desired)
 	if now := n.ImageOf(desired); docker.Repository(n.ImageOf(current)) == docker.Repository(now) {
@@ -4132,6 +4137,15 @@ func (e *Engine) pinIfMoved(ctx context.Context, tx *store.Tx, rev *store.Revisi
 }
 
 // imageNamer returns a kind as an ImageNamer, if it is one.
+func (e *Engine) whatRunner(kind resource.Kind) (resource.WhatRunner, bool) {
+	t, err := e.kinds.Type(kind)
+	if err != nil {
+		return nil, false
+	}
+	w, ok := t.(resource.WhatRunner)
+	return w, ok
+}
+
 func (e *Engine) imageNamer(kind resource.Kind) (resource.ImageNamer, bool) {
 	t, err := e.kinds.Type(kind)
 	if err != nil {

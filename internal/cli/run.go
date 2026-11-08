@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // runRole runs the role dockwell run takes, until ctx is done.
@@ -216,15 +217,17 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go routes.Watch(ctx)
 	monitor := &health.Monitor{Client: client, Logger: logger}
 	go monitor.Run(ctx)
+	tasks := &task.Driver{Dir: dir.Agent(), Client: client, Logger: logger}
+	go tasks.Keep(ctx)
 	var reserved string
 	if panel != nil {
 		reserved = panel.Domain
 	}
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
-			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved}),
+			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved}, tasks),
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
-		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client},
+		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Tasks: tasks,
 	}
 }
 

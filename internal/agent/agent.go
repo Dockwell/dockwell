@@ -91,6 +91,9 @@ type Config struct {
 	// OnePanel reads what 1Panel keeps on this server, for an import (ADR 0056).
 	// Nil reads nothing.
 	OnePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
+	// Tasks runs this server's scheduled tasks and keeps their runs (ADR 0053).
+	// Nil runs none.
+	Tasks TaskKeeper
 	// CallGrace is how long a call gets to end once its time is up or its stream is
 	// going, before it's left behind. Zero means DefaultCallGrace.
 	CallGrace time.Duration
@@ -154,6 +157,17 @@ type LogReader interface {
 	// it all or ctx ends. send may block: a follow drops what it can't send,
 	// and says how much.
 	Stream(ctx context.Context, call *agentv1.LogsCall, send func(*agentv1.SendLogsRequest) error) error
+}
+
+// TaskKeeper runs this server's scheduled tasks on its own clock, and keeps their
+// runs until the control plane reads them (ADR 0053).
+type TaskKeeper interface {
+	// RunNow runs a task now, as its schedule would.
+	RunNow(ctx context.Context, ref resource.Ref) (*dockwellv1.TaskRun, error)
+	// Runs returns the runs past after, and lets go of the ones before it.
+	Runs(after string) (*agentv1.TaskRunsResult, error)
+	// RunsReady says a run started or ended.
+	RunsReady() <-chan struct{}
 }
 
 // BackupTaker takes and removes backups on this server (ADR 0033). What restores
@@ -626,12 +640,20 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Files != nil {
 		savesEnded = cfg.Files.SavesEnded()
 	}
+	var runsReady <-chan struct{}
+	if cfg.Tasks != nil {
+		runsReady = cfg.Tasks.RunsReady()
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case ended := <-savesEnded:
 			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_SaveEnded{SaveEnded: ended}}); err != nil {
+				return err
+			}
+		case <-runsReady:
+			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_TaskRunsReady{TaskRunsReady: &agentv1.TaskRunsReady{}}}); err != nil {
 				return err
 			}
 		case <-domainsChanged:

@@ -747,6 +747,19 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 // start in it (ADR 0042). The kind's own default, UTC, is for an install that
 // has none. A copy is changed, never the request.
 func withInstallZone(ctx context.Context, tx *store.Tx, spec proto.Message) (proto.Message, error) {
+	if t, ok := spec.(*resourcev1.Task); ok && t.GetTimeZone() == "" {
+		// A scheduled task too (ADR 0053).
+		zone, err := tx.GetSetting(ctx, store.SettingTimeZone)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			return spec, nil
+		case err != nil:
+			return nil, fmt.Errorf("can't read the install's time zone for a scheduled task: %w", err)
+		}
+		t = proto.CloneOf(t)
+		t.TimeZone = string(zone)
+		return t, nil
+	}
 	p, ok := spec.(*resourcev1.BackupPolicy)
 	if !ok || p.GetTimeZone() != "" {
 		return spec, nil

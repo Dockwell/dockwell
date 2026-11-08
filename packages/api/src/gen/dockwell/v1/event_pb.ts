@@ -11,6 +11,8 @@ import { file_dockwell_v1_change } from "./change_pb";
 import type { HealthState } from "./health_pb";
 import { file_dockwell_v1_health } from "./health_pb";
 import { file_dockwell_v1_options } from "./options_pb";
+import type { TaskRunReason, TaskRunState } from "./task_pb";
+import { file_dockwell_v1_task } from "./task_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
@@ -20,7 +22,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/event.proto.
  */
 export const file_dockwell_v1_event: GenFile = /*@__PURE__*/
-  fileDesc("Chdkb2Nrd2VsbC92MS9ldmVudC5wcm90bxILZG9ja3dlbGwudjEixwEKEUxpc3RFdmVudHNSZXF1ZXN0EhEKCXBhZ2Vfc2l6ZRgBIAEoBRISCgpwYWdlX3Rva2VuGAIgASgJEiUKBWtpbmRzGAMgAygOMhYuZG9ja3dlbGwudjEuRXZlbnRLaW5kEhEKCXNlcnZlcl9pZBgEIAEoCRITCgtyZXNvdXJjZV9pZBgFIAEoCRIQCghhY3Rvcl9pZBgGIAEoCRIqCgphY3Rvcl9raW5kGAcgASgOMhYuZG9ja3dlbGwudjEuQWN0b3JLaW5kIlEKEkxpc3RFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkitAEKEldhdGNoRXZlbnRzUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSJQoFa2luZHMYAiADKA4yFi5kb2Nrd2VsbC52MS5FdmVudEtpbmQSEQoJc2VydmVyX2lkGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJEhAKCGFjdG9yX2lkGAUgASgJEioKCmFjdG9yX2tpbmQYBiABKA4yFi5kb2Nrd2VsbC52MS5BY3RvcktpbmQidQoTV2F0Y2hFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIPCgdyZW1vdmVkGAIgAygJEhAKCHNuYXBzaG90GAMgASgIEhcKD25leHRfcGFnZV90b2tlbhgEIAEoCSLzAwoFRXZlbnQSCgoCaWQYASABKAkSJAoEa2luZBgCIAEoDjIWLmRvY2t3ZWxsLnYxLkV2ZW50S2luZBIOCgZhY3Rpb24YAyABKAkSKAoEdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASIQoFYWN0b3IYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIlCgdzdXJmYWNlGAYgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRIjCgZjaGFuZ2UYByABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USKgoHc3ViamVjdBgIIAEoCzIZLmRvY2t3ZWxsLnYxLkV2ZW50U3ViamVjdBIoCgZoZWFsdGgYCSABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEhlYWx0aBIoCgZiYWNrdXAYCiABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEJhY2t1cBI3Cg5wdWJsaWNfYWRkcmVzcxgLIAEoCzIfLmRvY2t3ZWxsLnYxLkV2ZW50UHVibGljQWRkcmVzcxIqCgdwcm9jZXNzGB4gASgLMhkuZG9ja3dlbGwudjEuRXZlbnRQcm9jZXNzEioKB3NldHRpbmcYHyABKAsyGS5kb2Nrd2VsbC52MS5FdmVudFNldHRpbmcieAoMRXZlbnRQcm9jZXNzEgsKA3BpZBgBIAEoDRIMCgRuYW1lGAIgASgJEgwKBHVzZXIYBCABKAkSEQoJY29udGFpbmVyGAUgASgJEg4KBmtpbGxlZBgGIAEoCBINCgVlcnJvchgHIAEoCUoECAMQBFIHY29tbWFuZCJACgxFdmVudFNldHRpbmcSDwoHc2V0dGluZxgBIAEoCRINCgV2YWx1ZRgCIAEoCRIQCghwcmV2aW91cxgDIAEoCSKhAQoLRXZlbnRCYWNrdXASCgoCaWQYASABKAkSDgoGdm9sdW1lGAIgASgJEhMKC3NlcnZlcl9uYW1lGAMgASgJEikKBm1ldGhvZBgEIAEoDjIZLmRvY2t3ZWxsLnYxLkJhY2t1cE1ldGhvZBISCgpzaXplX2J5dGVzGAUgASgDEg0KBWVycm9yGAYgASgJEhMKC2Rlc3RpbmF0aW9uGAcgASgJIjcKEkV2ZW50UHVibGljQWRkcmVzcxIPCgdhZGRyZXNzGAEgASgJEhAKCHByZXZpb3VzGAIgASgJItQBCgtFdmVudEhlYWx0aBIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSJwoFc3RhdGUYAyABKA4yGC5kb2Nrd2VsbC52MS5IZWFsdGhTdGF0ZRIqCghwcmV2aW91cxgEIAEoDjIYLmRvY2t3ZWxsLnYxLkhlYWx0aFN0YXRlEg4KBm91dHB1dBgFIAEoCRINCgVmbGlwcxgGIAEoBRIpCgVzaW5jZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiRQoMRXZlbnRTdWJqZWN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFc2NvcGUYAyABKAkSDAoEcGF0aBgEIAEoCSqzAQoJRXZlbnRLaW5kEhoKFkVWRU5UX0tJTkRfVU5TUEVDSUZJRUQQABIVChFFVkVOVF9LSU5EX0NIQU5HRRABEhUKEUVWRU5UX0tJTkRfU0VSVkVSEAISFQoRRVZFTlRfS0lORF9BQ0NFU1MQAxIVChFFVkVOVF9LSU5EX0hFQUxUSBAEEhUKEUVWRU5UX0tJTkRfQkFDS1VQEAUSFwoTRVZFTlRfS0lORF9TRVRUSU5HUxAKMtIBCgxFdmVudFNlcnZpY2USaAoKTGlzdEV2ZW50cxIeLmRvY2t3ZWxsLnYxLkxpc3RFdmVudHNSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuTGlzdEV2ZW50c1Jlc3BvbnNlIhmQAgGguxgBgtPkkwIMEgovdjEvZXZlbnRzElgKC1dhdGNoRXZlbnRzEh8uZG9ja3dlbGwudjEuV2F0Y2hFdmVudHNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuV2F0Y2hFdmVudHNSZXNwb25zZSIEoLsYATABQqMBCg9jb20uZG9ja3dlbGwudjFCCkV2ZW50UHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_health, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chdkb2Nrd2VsbC92MS9ldmVudC5wcm90bxILZG9ja3dlbGwudjEixwEKEUxpc3RFdmVudHNSZXF1ZXN0EhEKCXBhZ2Vfc2l6ZRgBIAEoBRISCgpwYWdlX3Rva2VuGAIgASgJEiUKBWtpbmRzGAMgAygOMhYuZG9ja3dlbGwudjEuRXZlbnRLaW5kEhEKCXNlcnZlcl9pZBgEIAEoCRITCgtyZXNvdXJjZV9pZBgFIAEoCRIQCghhY3Rvcl9pZBgGIAEoCRIqCgphY3Rvcl9raW5kGAcgASgOMhYuZG9ja3dlbGwudjEuQWN0b3JLaW5kIlEKEkxpc3RFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkitAEKEldhdGNoRXZlbnRzUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSJQoFa2luZHMYAiADKA4yFi5kb2Nrd2VsbC52MS5FdmVudEtpbmQSEQoJc2VydmVyX2lkGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJEhAKCGFjdG9yX2lkGAUgASgJEioKCmFjdG9yX2tpbmQYBiABKA4yFi5kb2Nrd2VsbC52MS5BY3RvcktpbmQidQoTV2F0Y2hFdmVudHNSZXNwb25zZRIiCgZldmVudHMYASADKAsyEi5kb2Nrd2VsbC52MS5FdmVudBIPCgdyZW1vdmVkGAIgAygJEhAKCHNuYXBzaG90GAMgASgIEhcKD25leHRfcGFnZV90b2tlbhgEIAEoCSKhBAoFRXZlbnQSCgoCaWQYASABKAkSJAoEa2luZBgCIAEoDjIWLmRvY2t3ZWxsLnYxLkV2ZW50S2luZBIOCgZhY3Rpb24YAyABKAkSKAoEdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASIQoFYWN0b3IYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIlCgdzdXJmYWNlGAYgASgOMhQuZG9ja3dlbGwudjEuU3VyZmFjZRIjCgZjaGFuZ2UYByABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USKgoHc3ViamVjdBgIIAEoCzIZLmRvY2t3ZWxsLnYxLkV2ZW50U3ViamVjdBIoCgZoZWFsdGgYCSABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEhlYWx0aBIoCgZiYWNrdXAYCiABKAsyGC5kb2Nrd2VsbC52MS5FdmVudEJhY2t1cBI3Cg5wdWJsaWNfYWRkcmVzcxgLIAEoCzIfLmRvY2t3ZWxsLnYxLkV2ZW50UHVibGljQWRkcmVzcxIqCgdwcm9jZXNzGB4gASgLMhkuZG9ja3dlbGwudjEuRXZlbnRQcm9jZXNzEioKB3NldHRpbmcYHyABKAsyGS5kb2Nrd2VsbC52MS5FdmVudFNldHRpbmcSLAoIdGFza19ydW4YggEgASgLMhkuZG9ja3dlbGwudjEuRXZlbnRUYXNrUnVuIuABCgxFdmVudFRhc2tSdW4SCgoCaWQYASABKAkSDAoEdGFzaxgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSEwoLc2VydmVyX25hbWUYBCABKAkSKAoFc3RhdGUYBSABKA4yGS5kb2Nrd2VsbC52MS5UYXNrUnVuU3RhdGUSKgoGcmVhc29uGAYgASgOMhouZG9ja3dlbGwudjEuVGFza1J1blJlYXNvbhIRCglleGl0X2NvZGUYByABKAUSEwoLaHR0cF9zdGF0dXMYCCABKAUSDQoFZXJyb3IYCSABKAkieAoMRXZlbnRQcm9jZXNzEgsKA3BpZBgBIAEoDRIMCgRuYW1lGAIgASgJEgwKBHVzZXIYBCABKAkSEQoJY29udGFpbmVyGAUgASgJEg4KBmtpbGxlZBgGIAEoCBINCgVlcnJvchgHIAEoCUoECAMQBFIHY29tbWFuZCJACgxFdmVudFNldHRpbmcSDwoHc2V0dGluZxgBIAEoCRINCgV2YWx1ZRgCIAEoCRIQCghwcmV2aW91cxgDIAEoCSKhAQoLRXZlbnRCYWNrdXASCgoCaWQYASABKAkSDgoGdm9sdW1lGAIgASgJEhMKC3NlcnZlcl9uYW1lGAMgASgJEikKBm1ldGhvZBgEIAEoDjIZLmRvY2t3ZWxsLnYxLkJhY2t1cE1ldGhvZBISCgpzaXplX2J5dGVzGAUgASgDEg0KBWVycm9yGAYgASgJEhMKC2Rlc3RpbmF0aW9uGAcgASgJIjcKEkV2ZW50UHVibGljQWRkcmVzcxIPCgdhZGRyZXNzGAEgASgJEhAKCHByZXZpb3VzGAIgASgJItQBCgtFdmVudEhlYWx0aBIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSJwoFc3RhdGUYAyABKA4yGC5kb2Nrd2VsbC52MS5IZWFsdGhTdGF0ZRIqCghwcmV2aW91cxgEIAEoDjIYLmRvY2t3ZWxsLnYxLkhlYWx0aFN0YXRlEg4KBm91dHB1dBgFIAEoCRINCgVmbGlwcxgGIAEoBRIpCgVzaW5jZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiRQoMRXZlbnRTdWJqZWN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFc2NvcGUYAyABKAkSDAoEcGF0aBgEIAEoCSrJAQoJRXZlbnRLaW5kEhoKFkVWRU5UX0tJTkRfVU5TUEVDSUZJRUQQABIVChFFVkVOVF9LSU5EX0NIQU5HRRABEhUKEUVWRU5UX0tJTkRfU0VSVkVSEAISFQoRRVZFTlRfS0lORF9BQ0NFU1MQAxIVChFFVkVOVF9LSU5EX0hFQUxUSBAEEhUKEUVWRU5UX0tJTkRfQkFDS1VQEAUSFwoTRVZFTlRfS0lORF9TRVRUSU5HUxAKEhQKD0VWRU5UX0tJTkRfVEFTSxCCATLSAQoMRXZlbnRTZXJ2aWNlEmgKCkxpc3RFdmVudHMSHi5kb2Nrd2VsbC52MS5MaXN0RXZlbnRzUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkxpc3RFdmVudHNSZXNwb25zZSIZkAIBoLsYAYLT5JMCDBIKL3YxL2V2ZW50cxJYCgtXYXRjaEV2ZW50cxIfLmRvY2t3ZWxsLnYxLldhdGNoRXZlbnRzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLldhdGNoRXZlbnRzUmVzcG9uc2UiBKC7GAEwAUKjAQoPY29tLmRvY2t3ZWxsLnYxQgpFdmVudFByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_health, file_dockwell_v1_options, file_dockwell_v1_task, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListEventsRequest asks for a page of events. The filters narrow it, and
@@ -341,6 +343,15 @@ export type Event = Message<"dockwell.v1.Event"> & {
    * @generated from field: dockwell.v1.EventSetting setting = 31;
    */
   setting?: EventSetting | undefined;
+
+  /**
+   * What became of a scheduled task's run, for a task event. Its subject is the
+   * task. Numbered in the block scheduled tasks hold, as open work adds to this
+   * message.
+   *
+   * @generated from field: dockwell.v1.EventTaskRun task_run = 130;
+   */
+  taskRun?: EventTaskRun | undefined;
 };
 
 /**
@@ -349,6 +360,82 @@ export type Event = Message<"dockwell.v1.Event"> & {
  */
 export const EventSchema: GenMessage<Event> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_event, 4);
+
+/**
+ * EventTaskRun is a scheduled task's run that failed, or the one that succeeded
+ * after it (ADR 0053).
+ *
+ * @generated from message dockwell.v1.EventTaskRun
+ */
+export type EventTaskRun = Message<"dockwell.v1.EventTaskRun"> & {
+  /**
+   * The run's ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The task, by name, and what people call it.
+   *
+   * @generated from field: string task = 2;
+   */
+  task: string;
+
+  /**
+   * @generated from field: string display_name = 3;
+   */
+  displayName: string;
+
+  /**
+   * The server it ran on, by name.
+   *
+   * @generated from field: string server_name = 4;
+   */
+  serverName: string;
+
+  /**
+   * How it ended.
+   *
+   * @generated from field: dockwell.v1.TaskRunState state = 5;
+   */
+  state: TaskRunState;
+
+  /**
+   * Why it ran.
+   *
+   * @generated from field: dockwell.v1.TaskRunReason reason = 6;
+   */
+  reason: TaskRunReason;
+
+  /**
+   * The last attempt's exit status, for a command.
+   *
+   * @generated from field: int32 exit_code = 7;
+   */
+  exitCode: number;
+
+  /**
+   * The last attempt's HTTP status, for a request.
+   *
+   * @generated from field: int32 http_status = 8;
+   */
+  httpStatus: number;
+
+  /**
+   * Why it failed, for people. Empty when it didn't.
+   *
+   * @generated from field: string error = 9;
+   */
+  error: string;
+};
+
+/**
+ * Describes the message dockwell.v1.EventTaskRun.
+ * Use `create(EventTaskRunSchema)` to create a new message.
+ */
+export const EventTaskRunSchema: GenMessage<EventTaskRun> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_event, 5);
 
 /**
  * EventProcess is a process someone ended on a server.
@@ -406,7 +493,7 @@ export type EventProcess = Message<"dockwell.v1.EventProcess"> & {
  * Use `create(EventProcessSchema)` to create a new message.
  */
 export const EventProcessSchema: GenMessage<EventProcess> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 5);
+  messageDesc(file_dockwell_v1_event, 6);
 
 /**
  * EventSetting is a setting of the install as someone changed it.
@@ -441,7 +528,7 @@ export type EventSetting = Message<"dockwell.v1.EventSetting"> & {
  * Use `create(EventSettingSchema)` to create a new message.
  */
 export const EventSettingSchema: GenMessage<EventSetting> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 6);
+  messageDesc(file_dockwell_v1_event, 7);
 
 /**
  * EventBackup is what became of one backup.
@@ -504,7 +591,7 @@ export type EventBackup = Message<"dockwell.v1.EventBackup"> & {
  * Use `create(EventBackupSchema)` to create a new message.
  */
 export const EventBackupSchema: GenMessage<EventBackup> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 7);
+  messageDesc(file_dockwell_v1_event, 8);
 
 /**
  * EventPublicAddress is a server's public address as a person changed it.
@@ -532,7 +619,7 @@ export type EventPublicAddress = Message<"dockwell.v1.EventPublicAddress"> & {
  * Use `create(EventPublicAddressSchema)` to create a new message.
  */
 export const EventPublicAddressSchema: GenMessage<EventPublicAddress> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 8);
+  messageDesc(file_dockwell_v1_event, 9);
 
 /**
  * EventHealth is how a service's health changed on a server, as far as the
@@ -604,7 +691,7 @@ export type EventHealth = Message<"dockwell.v1.EventHealth"> & {
  * Use `create(EventHealthSchema)` to create a new message.
  */
 export const EventHealthSchema: GenMessage<EventHealth> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 9);
+  messageDesc(file_dockwell_v1_event, 10);
 
 /**
  * EventSubject names what an event is about.
@@ -651,7 +738,7 @@ export type EventSubject = Message<"dockwell.v1.EventSubject"> & {
  * Use `create(EventSubjectSchema)` to create a new message.
  */
 export const EventSubjectSchema: GenMessage<EventSubject> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_event, 10);
+  messageDesc(file_dockwell_v1_event, 11);
 
 /**
  * EventKind sorts events, for filtering.
@@ -714,6 +801,14 @@ export enum EventKind {
    * @generated from enum value: EVENT_KIND_SETTINGS = 10;
    */
   SETTINGS = 10,
+
+  /**
+   * A scheduled task's run failed or timed out, or one succeeded after that.
+   * Numbered in the block scheduled tasks hold.
+   *
+   * @generated from enum value: EVENT_KIND_TASK = 130;
+   */
+  TASK = 130,
 }
 
 /**

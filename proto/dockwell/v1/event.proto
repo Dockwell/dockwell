@@ -7,6 +7,7 @@ package dockwell.v1;
 import "dockwell/v1/change.proto";
 import "dockwell/v1/health.proto";
 import "dockwell/v1/options.proto";
+import "dockwell/v1/task.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -161,6 +162,32 @@ message Event {
   // A setting of the install someone changed, for a settings event. Numbered
   // apart, as open work adds to this message.
   EventSetting setting = 31;
+  // What became of a scheduled task's run, for a task event. Its subject is the
+  // task. Numbered in the block scheduled tasks hold, as open work adds to this
+  // message.
+  EventTaskRun task_run = 130;
+}
+
+// EventTaskRun is a scheduled task's run that failed, or the one that succeeded
+// after it (ADR 0053).
+message EventTaskRun {
+  // The run's ID.
+  string id = 1;
+  // The task, by name, and what people call it.
+  string task = 2;
+  string display_name = 3;
+  // The server it ran on, by name.
+  string server_name = 4;
+  // How it ended.
+  TaskRunState state = 5;
+  // Why it ran.
+  TaskRunReason reason = 6;
+  // The last attempt's exit status, for a command.
+  int32 exit_code = 7;
+  // The last attempt's HTTP status, for a request.
+  int32 http_status = 8;
+  // Why it failed, for people. Empty when it didn't.
+  string error = 9;
 }
 
 // EventProcess is a process someone ended on a server.
@@ -287,4 +314,7 @@ enum EventKind {
   // Someone changed a setting of the install, such as its name or time zone.
   // Numbered apart, as open work adds to this enum.
   EVENT_KIND_SETTINGS = 10;
+  // A scheduled task's run failed or timed out, or one succeeded after that.
+  // Numbered in the block scheduled tasks hold.
+  EVENT_KIND_TASK = 130;
 }

@@ -4128,6 +4128,9 @@ msgstr "It reaches what the server reaches, past Docker's network and the firewa
 msgid "It runs in privileged mode, which gives it every device and capability on the server."
 msgstr "It runs in privileged mode, which gives it every device and capability on the server."
 
+msgid "It runs on its schedule, and whenever someone runs it now. Whatever it runs, it runs with everything root can do there."
+msgstr "It runs on its schedule, and whenever someone runs it now. Whatever it runs, it runs with everything root can do there."
+
 msgid "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, 1Panel shows it in error, as it can't find the container. Leave that as it is: Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
 msgstr "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, 1Panel shows it in error, as it can't find the container. Leave that as it is: Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
 
@@ -4380,6 +4383,9 @@ msgstr "{name} reaches {path} on {server}"
 
 msgid "{name} reaches {reach} on {server}"
 msgstr "{name} reaches {reach} on {server}"
+
+msgid "{name} runs a shell command as root on {server}"
+msgstr "{name} runs a shell command as root on {server}"
 
 msgid "{name} runs with the latest value of {names}"
 msgstr "{name} runs with the latest value of {names}"
@@ -4793,6 +4799,9 @@ msgstr "What's in front gets a 404 for {where}, so visitors see whatever it show
 
 msgid "a backup of a volume that reached {path}, which can hold what's there, as good as root"
 msgstr "a backup of a volume that reached {path}, which can hold what's there, as good as root"
+
+msgid "a shell command on the server, which runs as root"
+msgstr "a shell command on the server, which runs as root"
 
 msgid "a {driver} network"
 msgstr "a {driver} network"
@@ -6569,6 +6578,7 @@ msgstr "{used} of {total}"
 
 #. placeholder {0}: g.owner.name
 #. placeholder {0}: owner.name
+#. placeholder {0}: spec.runs.value.service
 msgid "App {0}"
 msgstr "App {0}"
 
@@ -8208,6 +8218,337 @@ msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwe
 msgid "Unreachable"
 msgstr "Unreachable"
 
+msgid "All runs"
+msgstr "All runs"
+
+msgid "Edit"
+msgstr "Edit"
+
+msgid "Enabled"
+msgstr "Enabled"
+
+#. placeholder {0}: last.httpStatus
+msgid "HTTP {0}"
+msgstr "HTTP {0}"
+
+msgid "It didn't run"
+msgstr "It didn't run"
+
+msgid "It hasn't run yet. Run it now to see what it does."
+msgstr "It hasn't run yet. Run it now to see what it does."
+
+msgid "It printed nothing."
+msgstr "It printed nothing."
+
+msgid "It runs on its schedule all the same, and its runs show here once the server is back."
+msgstr "It runs on its schedule all the same, and its runs show here once the server is back."
+
+msgid "Its server isn't connected"
+msgstr "Its server isn't connected"
+
+msgid "Last output"
+msgstr "Last output"
+
+msgid "Last runs, oldest first"
+msgstr "Last runs, oldest first"
+
+msgid "Request"
+msgstr "Request"
+
+msgid "Run now"
+msgstr "Run now"
+
+msgid "Runs in"
+msgstr "Runs in"
+
+msgid "Schedule"
+msgstr "Schedule"
+
+msgid "Timeout"
+msgstr "Timeout"
+
+#. placeholder {0}: newest.outputCutBytes
+msgid "What it printed before this, {0} bytes, wasn't kept."
+msgstr "What it printed before this, {0} bytes, wasn't kept."
+
+#. placeholder {0}: last.exitCode
+msgid "exit {0}"
+msgstr "exit {0}"
+
+msgid "stopped"
+msgstr "stopped"
+
+#. placeholder {0}: runs.length
+msgid "{0, plural, one {Last run} other {Last # runs}}"
+msgstr "{0, plural, one {Last run} other {Last # runs}}"
+
+#. placeholder {0}: day(lastBad)
+#. placeholder {1}: words.state(lastBad.state).toLowerCase()
+#. placeholder {2}: lastBad.error
+msgid "{0} {1}: {2}"
+msgstr "{0} {1}: {2}"
+
+msgid "{bad, plural, one {# failed} other {# failed}}"
+msgstr "{bad, plural, one {# failed} other {# failed}}"
+
+msgid "{good} succeeded"
+msgstr "{good} succeeded"
+
+msgid "{retries, plural, one {{timeout}, then retry once} other {{timeout}, then retry # times}}"
+msgstr "{retries, plural, one {{timeout}, then retry once} other {{timeout}, then retry # times}}"
+
+msgid "Another, in cron"
+msgstr "Another, in cron"
+
+msgid "Any 2xx when empty."
+msgstr "Any 2xx when empty."
+
+msgid "Change the task {resourceName}"
+msgstr "Change the task {resourceName}"
+
+msgid "Choose the app it runs in."
+msgstr "Choose the app it runs in."
+
+msgid "Command in an app"
+msgstr "Command in an app"
+
+msgid "Delete the task {resourceName}"
+msgstr "Delete the task {resourceName}"
+
+#. placeholder {0}: display || resourceName
+msgid "Edit {0}"
+msgstr "Edit {0}"
+
+msgid "Folder it runs in"
+msgstr "Folder it runs in"
+
+msgid "HTTP request"
+msgstr "HTTP request"
+
+msgid "If a run fails"
+msgstr "If a run fails"
+
+msgid "In an app"
+msgstr "In an app"
+
+msgid "In cron"
+msgstr "In cron"
+
+msgid "It runs in a container of the app's image, with its environment, after its entrypoint. Name sh -c for a shell."
+msgstr "It runs in a container of the app's image, with its environment, after its entrypoint. Name sh -c for a shell."
+
+msgid "It runs on its server's own clock, and every change to it is a plan"
+msgstr "It runs on its server's own clock, and every change to it is a plan"
+
+msgid "It runs only when you run it now."
+msgstr "It runs only when you run it now."
+
+msgid "It runs with /bin/sh on the server, as root, so applying it takes your passkey."
+msgstr "It runs with /bin/sh on the server, as root, so applying it takes your passkey."
+
+msgid "Leave it"
+msgstr "Leave it"
+
+msgid "Method"
+msgstr "Method"
+
+msgid "Minute, hour, day of the month, month and day of the week, in its time zone."
+msgstr "Minute, hour, day of the month, month and day of the week, in its time zone."
+
+msgid "New task"
+msgstr "New task"
+
+msgid "Nightly sales report"
+msgstr "Nightly sales report"
+
+msgid "Otherwise one runs as the server comes back, however many were missed."
+msgstr "Otherwise one runs as the server comes back, however many were missed."
+
+#. placeholder {0}: display.trim() || resourceName
+msgid "Run {0} on a schedule"
+msgstr "Run {0} on a schedule"
+
+msgid "Say what it runs."
+msgstr "Say what it runs."
+
+msgid "Server it runs on"
+msgstr "Server it runs on"
+
+msgid "Shell"
+msgstr "Shell"
+
+msgid "Shell command"
+msgstr "Shell command"
+
+msgid "Skip runs missed while the server was off"
+msgstr "Skip runs missed while the server was off"
+
+msgid "Status it expects"
+msgstr "Status it expects"
+
+msgid "The server asks it, so it reaches what the server reaches. A run keeps the status and how long it took, never what came back."
+msgstr "The server asks it, so it reaches what the server reaches. A run keeps the status and how long it took, never what came back."
+
+msgid "Timeout, in minutes"
+msgstr "Timeout, in minutes"
+
+msgid "Try once more, a minute later"
+msgstr "Try once more, a minute later"
+
+msgid "Try three times more"
+msgstr "Try three times more"
+
+msgid "Try twice more"
+msgstr "Try twice more"
+
+msgid "URL"
+msgstr "URL"
+
+msgid "Use 1 to 1,440 minutes."
+msgstr "Use 1 to 1,440 minutes."
+
+msgid "Use a URL that starts with http:// or https://."
+msgstr "Use a URL that starts with http:// or https://."
+
+msgid "Use an HTTP status from 100 to 599, or leave it empty for any 2xx."
+msgstr "Use an HTTP status from 100 to 599, or leave it empty for any 2xx."
+
+msgid "Use cron's five fields, such as 0 4 * * *."
+msgstr "Use cron's five fields, such as 0 4 * * *."
+
+msgid "Use lowercase letters, digits and hyphens, such as nightly-report."
+msgstr "Use lowercase letters, digits and hyphens, such as nightly-report."
+
+msgid "What it runs"
+msgstr "What it runs"
+
+msgid "What people call it"
+msgstr "What people call it"
+
+msgid "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
+msgstr "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
+
+msgid "All tasks"
+msgstr "All tasks"
+
+msgid "Dockwell can't read its scheduled tasks"
+msgstr "Dockwell can't read its scheduled tasks"
+
+msgid "Next 24 hours"
+msgstr "Next 24 hours"
+
+#. placeholder {0}: nameOf(next.task)
+#. placeholder {1}: words.until(next.at, now)
+msgid "Next: {0} {1}"
+msgstr "Next: {0} {1}"
+
+msgid "No scheduled tasks yet"
+msgstr "No scheduled tasks yet"
+
+msgid "Not scheduled"
+msgstr "Not scheduled"
+
+msgid "Not yet"
+msgstr "Not yet"
+
+msgid "On its own schedule"
+msgstr "On its own schedule"
+
+msgid "Run a shell command, a command in an app or an HTTP request on a schedule"
+msgstr "Run a shell command, a command in an app or an HTTP request on a schedule"
+
+msgid "Task"
+msgstr "Task"
+
+msgid "no failures in the last 24 h"
+msgstr "no failures in the last 24 h"
+
+#. placeholder {0}: away.length
+msgid "{0, plural, one {# server isn't connected} other {# servers aren't connected}}"
+msgstr "{0, plural, one {# server isn't connected} other {# servers aren't connected}}"
+
+#. placeholder {0}: away.join(", ")
+msgid "{0} runs its tasks all the same, on its own clock. Its runs show here once it's back."
+msgstr "{0} runs its tasks all the same, on its own clock. Its runs show here once it's back."
+
+msgid "{count, plural, one {# task on {where}} other {# tasks on {where}}}"
+msgstr "{count, plural, one {# task on {where}} other {# tasks on {where}}}"
+
+msgid "{failedLately, plural, one {# failed in the last 24 h} other {# failed in the last 24 h}}"
+msgstr "{failedLately, plural, one {# failed in the last 24 h} other {# failed in the last 24 h}}"
+
+msgid "{from} to {to}"
+msgstr "{from} to {to}"
+
+msgid "{runs, plural, one {# run} other {# runs}}"
+msgstr "{runs, plural, one {# run} other {# runs}}"
+
+msgid "Command in {app}"
+msgstr "Command in {app}"
+
+msgid "Didn't start"
+msgstr "Didn't start"
+
+msgid "Every day at {at}"
+msgstr "Every day at {at}"
+
+msgid "Every hour"
+msgstr "Every hour"
+
+msgid "Every hour at {at}"
+msgstr "Every hour at {at}"
+
+msgid "Every minute"
+msgstr "Every minute"
+
+msgid "Every weekday at {at}"
+msgstr "Every weekday at {at}"
+
+msgid "Every year on {on} at {at}"
+msgstr "Every year on {on} at {at}"
+
+msgid "Every {count} hours"
+msgstr "Every {count} hours"
+
+msgid "Every {count} hours at {at}"
+msgstr "Every {count} hours at {at}"
+
+msgid "Every {count} minutes"
+msgstr "Every {count} minutes"
+
+msgid "Every {day} at {at}"
+msgstr "Every {day} at {at}"
+
+msgid "On day {date} of every month at {at}"
+msgstr "On day {date} of every month at {at}"
+
+msgid "Succeeded"
+msgstr "Succeeded"
+
+msgid "Timed out"
+msgstr "Timed out"
+
+msgid "Today {time}"
+msgstr "Today {time}"
+
+msgid "Tomorrow {time}"
+msgstr "Tomorrow {time}"
+
+msgid "Yesterday {time}"
+msgstr "Yesterday {time}"
+
+msgid "in {count} days"
+msgstr "in {count} days"
+
+msgid "in {count} h"
+msgstr "in {count} h"
+
+msgid "in {count} min"
+msgstr "in {count} min"
+
+msgid "{count} ms"
+msgstr "{count} ms"
+
 msgid "Agent and control plane"
 msgstr "Agent and control plane"
 
@@ -9030,9 +9371,6 @@ msgstr "The web server reads the folder as nobody's user, and <0>{path}</0> is <
 
 msgid "There's no <0>{first}</0> in <1>{path}</1>, so its address answers 404 until there is. Add one, or name the index the site has."
 msgstr "There's no <0>{first}</0> in <1>{path}</1>, so its address answers 404 until there is. Add one, or name the index the site has."
-
-msgid "URL"
-msgstr "URL"
 
 msgid "Upload limit"
 msgstr "Upload limit"

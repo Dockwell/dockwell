@@ -76,6 +76,7 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.EXTERNAL_VOLUME]: 3,
   [HostAccessKind.TAKES_ON]: 3,
   [HostAccessKind.BACKUP_OF]: 0,
+  [HostAccessKind.SERVER_SHELL]: 0,
   [HostAccessKind.SERVER_PORT]: 3,
   [HostAccessKind.PLAIN_FOR_ANYONE]: 4,
   [HostAccessKind.TRUSTED_PROXY]: 4,
@@ -255,6 +256,12 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           detail: andWriter(
             t`Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds.`,
           ),
+        };
+      case HostAccessKind.SERVER_SHELL:
+        return {
+          key,
+          title: t`${name} runs a shell command as root on ${server}`,
+          detail: t`It runs on its schedule, and whenever someone runs it now. Whatever it runs, it runs with everything root can do there.`,
         };
       case HostAccessKind.BACKUP_OF:
         return {

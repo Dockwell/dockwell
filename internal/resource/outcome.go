@@ -77,9 +77,16 @@ type ImageNamer interface {
 	ImageOf(spec proto.Message) string
 	// SetImage changes the image a spec runs.
 	SetImage(spec proto.Message, image string)
-	// WhatRuns is a copy of a spec to compare what runs in it: all of it but its
-	// limits, which run nothing, so what's added to a spec later counts until someone
-	// says it doesn't.
+	WhatRunner
+}
+
+// WhatRunner is a kind that runs code with what its spec reaches, as a service or a
+// scheduled task does, so a change to the code it runs counts as gaining that
+// access again (ADR 0032).
+type WhatRunner interface {
+	// WhatRuns is a copy of a spec to compare what runs in it: all of it but what
+	// runs nothing, such as limits or a schedule, so what's added to a spec later
+	// counts until someone says it doesn't.
 	WhatRuns(spec proto.Message) proto.Message
 }
 
