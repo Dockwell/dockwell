@@ -18,8 +18,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
-import { aHealth, anApp, aRevision, places, SERVER } from "../../test/apps";
-import { type Api, feed, onPhone, renderAt } from "../../test/render";
+import { aHealth, anApp, aRevision, ENV, places, SERVER } from "../../test/apps";
+import { type Api, feed, onPhone, onScreen, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
 const hz1 = aServer({ id: SERVER, name: "hz-1" });
@@ -439,6 +439,22 @@ describe("an app from a folder", () => {
     // 26 is all Node.js offers now, so there's no version to choose.
     expect(within(form).queryByRole("option", { name: /^24/ })).toBeNull();
     expect(within(form).queryByLabelText("Version")).toBeNull();
+  });
+
+  it("keeps the runtime under the app name beside its domain on a wide screen", async () => {
+    onScreen("(min-width: 1100px)");
+    renderAt("/apps", {
+      ...api(),
+      domains: {
+        listDomains: () => ({
+          domains: [{ name: "shop.example.com", environmentId: ENV, routes: [{ service: "shop", port: 3000 }] }],
+        }),
+      },
+    });
+    const row = await screen.findByRole("row", { name: /shop/ });
+    expect(screen.getByRole("columnheader", { name: "Domain" })).toBeVisible();
+    await waitFor(() => expect(within(row).getAllByRole("cell")[0]).toHaveTextContent("Node.js 24 · /srv/shop"));
+    await waitFor(() => expect(row).toHaveTextContent("shop.example.com"));
   });
 
   it("lists as what it runs on and its folder, on a wide screen and a phone", async () => {
