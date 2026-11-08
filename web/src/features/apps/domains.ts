@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { createClient } from "@connectrpc/connect";
-import { createConnectQueryKey, createQueryOptions, useTransport } from "@connectrpc/connect-query";
+import { createConnectQueryKey, createQueryOptions, useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   CertificateState,
   type Domain,
@@ -12,7 +12,7 @@ import {
   type ServiceInfo,
 } from "@dockwell/api";
 import { useQueries, useQuery as useTanstackQuery } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { READ_EVERY_MS, READ_TIMEOUT_MS, type StandingRead, useStandingRead } from "../../lib/standing";
 import { useFleetView } from "../servers/useFleet";
@@ -475,4 +475,27 @@ export function useDomainsReaching(reaches: readonly EnvironmentReach[]): {
       for (const read of failures) void read.refetch();
     },
   };
+}
+
+/**
+ * The domains apps answer on, by name, for lists that show them beside each app:
+ * a function of an environment and its services' names. Names only, so they're
+ * read once, not every few seconds as Domains reads where each stands.
+ */
+export function useDomainNames(): (environment: string, services: readonly ServiceInfo[]) => string[] | undefined {
+  const domains = useQuery(DomainService.method.listDomains, {}, { staleTime: Number.POSITIVE_INFINITY }).data?.domains;
+  return useMemo(() => {
+    // Until they're read, or while they can't be, nobody can say an app has none.
+    if (domains === undefined) return () => undefined;
+    const by = new Map<string, string[]>();
+    for (const domain of domains) {
+      for (const route of domain.routes) {
+        const key = `${domain.environmentId}/${route.service}`;
+        by.set(key, [...(by.get(key) ?? []), domain.name]);
+      }
+    }
+    return (environment: string, services: readonly ServiceInfo[]): string[] => [
+      ...new Set(services.flatMap((s) => by.get(`${environment}/${nameOf(s)}`) ?? [])),
+    ];
+  }, [domains]);
 }

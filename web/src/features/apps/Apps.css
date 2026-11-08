@@ -261,6 +261,24 @@
   text-overflow: ellipsis;
 }
 
+/* Where an app answers: its first domain, and how many more. */
+.apps-domain {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.apps-domain code {
+  font-size: 12px;
+}
+
+.apps-domain-more {
+  flex: none;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
 .apps-clip {
   display: block;
   min-width: 0;

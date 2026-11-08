@@ -113,6 +113,7 @@ describe("the streams a screen holds", () => {
     "/servers/srv_1",
     "/catalog",
     "/profile",
+    "/more",
   ])(`at most ${BUDGET} on %s, so two tabs fit in a browser's six`, async (path) => {
     const { api, most } = counting();
     const { unmount } = renderAt(path, api);

@@ -1333,6 +1333,9 @@ msgstr "{revision} 开始部署于 {when}"
 msgid "{secrets, plural, one {# secret} other {# secrets}}"
 msgstr "{secrets, plural, other {# 个密钥}}"
 
+msgid "+{others}"
+msgstr "+{others}"
+
 msgid "All environments"
 msgstr "所有环境"
 
@@ -1348,8 +1351,8 @@ msgstr "导出"
 msgid "Filter apps"
 msgstr "筛选应用"
 
-msgid "Filter by name or image"
-msgstr "按名称或镜像筛选"
+msgid "Filter by name, image or domain"
+msgstr "按名称、镜像或域名筛选"
 
 msgid "Fold {title}"
 msgstr "折叠 {title}"
@@ -6090,9 +6093,6 @@ msgstr "在控制服务器上运行 <0>dockwell token create</0>，然后在要�
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} 个 vCPU"
-
-msgid "+{others}"
-msgstr "+{others}"
 
 msgid "Apps on this server"
 msgstr "此服务器上的应用"
