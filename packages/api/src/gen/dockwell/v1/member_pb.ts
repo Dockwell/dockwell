@@ -6,7 +6,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { User } from "./auth_pb";
+import type { Role, User } from "./auth_pb";
 import { file_dockwell_v1_auth } from "./auth_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
@@ -18,7 +18,209 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/member.proto.
  */
 export const file_dockwell_v1_member: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9tZW1iZXIucHJvdG8SC2RvY2t3ZWxsLnYxIhQKEkxpc3RNZW1iZXJzUmVxdWVzdCI7ChNMaXN0TWVtYmVyc1Jlc3BvbnNlEiQKB21lbWJlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5NZW1iZXIinwIKBk1lbWJlchIfCgR1c2VyGAEgASgLMhEuZG9ja3dlbGwudjEuVXNlchILCgN5b3UYAiABKAgSEAoIcGFzc2tleXMYAyABKAUSGQoRcGFzc2tleV9hZGRyZXNzZXMYBCADKAkSFQoNYXV0aGVudGljYXRvchgFIAEoCBIbChNyZWNvdmVyeV9jb2Rlc19sZWZ0GAYgASgFEhAKCHNlc3Npb25zGAcgASgFEjQKEGxhc3RfYWN0aXZlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEigKB3NpZ25faW4YCSADKA4yFy5kb2Nrd2VsbC52MS5TaWduSW5LaW5kEhQKDGNvZGVzX2xvY2tlZBgKIAEoCCpoCgpTaWduSW5LaW5kEhwKGFNJR05fSU5fS0lORF9VTlNQRUNJRklFRBAAEhgKFFNJR05fSU5fS0lORF9QQVNTS0VZEAESIgoeU0lHTl9JTl9LSU5EX0FVVEhFTlRJQ0FUT1JfQVBQEAIyjQEKDU1lbWJlclNlcnZpY2USfAoLTGlzdE1lbWJlcnMSHy5kb2Nrd2VsbC52MS5MaXN0TWVtYmVyc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5MaXN0TWVtYmVyc1Jlc3BvbnNlIiqQAgGguxgBsLsYAcC7GATIuxgE0LsYBoLT5JMCDRILL3YxL21lbWJlcnNCpAEKD2NvbS5kb2Nrd2VsbC52MUILTWVtYmVyUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_auth, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9tZW1iZXIucHJvdG8SC2RvY2t3ZWxsLnYxImUKE0NyZWF0ZUludml0ZVJlcXVlc3QSDQoFZW1haWwYASABKAkSHwoEcm9sZRgCIAEoDjIRLmRvY2t3ZWxsLnYxLlJvbGUSDwoHcHJvamVjdBgDIAEoCRINCgVwcm9vZhgEIAEoCSJJChRDcmVhdGVJbnZpdGVSZXNwb25zZRIjCgZpbnZpdGUYASABKAsyEy5kb2Nrd2VsbC52MS5JbnZpdGUSDAoEbGluaxgCIAEoCSIhChNSZXZva2VJbnZpdGVSZXF1ZXN0EgoKAmlkGAEgASgJIhYKFFJldm9rZUludml0ZVJlc3BvbnNlIuQBCgZJbnZpdGUSCgoCaWQYASABKAkSDQoFZW1haWwYAiABKAkSHwoEcm9sZRgDIAEoDjIRLmRvY2t3ZWxsLnYxLlJvbGUSEgoKcHJvamVjdF9pZBgEIAEoCRIUCgxwcm9qZWN0X25hbWUYBSABKAkSEgoKaW52aXRlZF9ieRgGIAEoCRIvCgtjcmVhdGVfdGltZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZXhwaXJlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIlgKC01lbWJlckdyYW50EhIKCnByb2plY3RfaWQYASABKAkSFAoMcHJvamVjdF9uYW1lGAIgASgJEh8KBHJvbGUYAyABKA4yES5kb2Nrd2VsbC52MS5Sb2xlIhQKEkxpc3RNZW1iZXJzUmVxdWVzdCJhChNMaXN0TWVtYmVyc1Jlc3BvbnNlEiQKB21lbWJlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5NZW1iZXISJAoHaW52aXRlcxgCIAMoCzITLmRvY2t3ZWxsLnYxLkludml0ZSLJAgoGTWVtYmVyEh8KBHVzZXIYASABKAsyES5kb2Nrd2VsbC52MS5Vc2VyEgsKA3lvdRgCIAEoCBIQCghwYXNza2V5cxgDIAEoBRIZChFwYXNza2V5X2FkZHJlc3NlcxgEIAMoCRIVCg1hdXRoZW50aWNhdG9yGAUgASgIEhsKE3JlY292ZXJ5X2NvZGVzX2xlZnQYBiABKAUSEAoIc2Vzc2lvbnMYByABKAUSNAoQbGFzdF9hY3RpdmVfdGltZRgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKAoHc2lnbl9pbhgJIAMoDjIXLmRvY2t3ZWxsLnYxLlNpZ25JbktpbmQSFAoMY29kZXNfbG9ja2VkGAogASgIEigKBmdyYW50cxgLIAMoCzIYLmRvY2t3ZWxsLnYxLk1lbWJlckdyYW50KmgKClNpZ25JbktpbmQSHAoYU0lHTl9JTl9LSU5EX1VOU1BFQ0lGSUVEEAASGAoUU0lHTl9JTl9LSU5EX1BBU1NLRVkQARIiCh5TSUdOX0lOX0tJTkRfQVVUSEVOVElDQVRPUl9BUFAQAjLNBwoNTWVtYmVyU2VydmljZRJ8CgtMaXN0TWVtYmVycxIfLmRvY2t3ZWxsLnYxLkxpc3RNZW1iZXJzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkxpc3RNZW1iZXJzUmVzcG9uc2UiKpACAaC7GAGwuxgBwLsYBMi7GATQuxgGgtPkkwINEgsvdjEvbWVtYmVycxJ/CgxDcmVhdGVJbnZpdGUSIC5kb2Nrd2VsbC52MS5DcmVhdGVJbnZpdGVSZXF1ZXN0GiEuZG9ja3dlbGwudjEuQ3JlYXRlSW52aXRlUmVzcG9uc2UiKqC7GAOwuxgBwLsYBMi7GATQuxgGgtPkkwIQOgEqIgsvdjEvaW52aXRlcxKLAQoMUmV2b2tlSW52aXRlEiAuZG9ja3dlbGwudjEuUmV2b2tlSW52aXRlUmVxdWVzdBohLmRvY2t3ZWxsLnYxLlJldm9rZUludml0ZVJlc3BvbnNlIjaguxgDsLsYAcC7GATIuxgE0LsYBoLT5JMCHDoBKiIXL3YxL2ludml0ZXMve2lkfTpyZXZva2UargSiuxj2AQoHbWVtYmVycxLqAU1lbWJlcnMgYXJlIHRoZSBwZW9wbGUgd2hvIHNpZ24gaW4gdG8gdGhlIGluc3RhbGwsIHdpdGggdGhlaXIgcm9sZXM6IG9uIHRoZSB3aG9sZSBpbnN0YWxsLCBvciBpbiBwcm9qZWN0cy4gTGlzdGluZyB0aGVtIG5hbWVzIHBlb3BsZSBhbmQgdGhlaXIgZW1haWxzLCBzbyBpdCBuZWVkcyBhIHNpZ25lZC1pbiBzZXNzaW9uIGFzIGFuIGFkbWluIG9yIHRoZSBvd25lciwgd2hpY2ggbm8gQVBJIHRva2VuIGdpdmVzLqK7GK4CCgdpbnZpdGVzEqICQW4gaW52aXRlIGFza3Mgc29tZW9uZSwgYnkgZW1haWwsIHRvIHNpZ24gaW4gd2l0aCBhIHJvbGUgaW4gYSBwbGFjZSwgdGhlIGluc3RhbGwgb3IgYSBwcm9qZWN0LiBBbiBhZG1pbiBvciB0aGUgb3duZXIgbWFrZXMgaXQgaW4gdGhlIHBhbmVsLCB3aXRoIGEgcGFzc2tleSwgYW5kIHNlbmRzIHRoZSBsaW5rIGl0IHNob3dzIG9uY2U6IERvY2t3ZWxsIHNlbmRzIG5vIG1haWwuIE1ha2luZyBhbmQgcmV2b2tpbmcgb25lIG5lZWRzIGEgc2lnbmVkLWluIHNlc3Npb24sIHdoaWNoIG5vIEFQSSB0b2tlbiBnaXZlcy5CpAEKD2NvbS5kb2Nrd2VsbC52MUILTWVtYmVyUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_auth, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+
+/**
+ * CreateInviteRequest says whom to invite, as what, and where.
+ *
+ * @generated from message dockwell.v1.CreateInviteRequest
+ */
+export type CreateInviteRequest = Message<"dockwell.v1.CreateInviteRequest"> & {
+  /**
+   * Who the invite names, such as "ada@example.com". Unverified: it names the
+   * invite in Members and on the page that accepts it.
+   *
+   * @generated from field: string email = 1;
+   */
+  email: string;
+
+  /**
+   * ROLE_ADMIN, ROLE_DEVELOPER or ROLE_VIEWER.
+   *
+   * @generated from field: dockwell.v1.Role role = 2;
+   */
+  role: Role;
+
+  /**
+   * The project's ID or name, for a developer or a viewer of one project.
+   * Empty is the whole install, which an admin's invite always is.
+   *
+   * @generated from field: string project = 3;
+   */
+  project: string;
+
+  /**
+   * From FinishStepUp, for STEP_UP_ACTION_INVITE with the target the email,
+   * lowercased, the role's name and the place, apart by spaces, as "ada@example.com
+   * developer prj_…", or "install" for the whole install.
+   *
+   * @generated from field: string proof = 4;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CreateInviteRequest.
+ * Use `create(CreateInviteRequestSchema)` to create a new message.
+ */
+export const CreateInviteRequestSchema: GenMessage<CreateInviteRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 0);
+
+/**
+ * CreateInviteResponse carries the invite and its link, shown once.
+ *
+ * @generated from message dockwell.v1.CreateInviteResponse
+ */
+export type CreateInviteResponse = Message<"dockwell.v1.CreateInviteResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.Invite invite = 1;
+   */
+  invite?: Invite | undefined;
+
+  /**
+   * The link to send, as "https://panel.example.com/invite#…". Its secret
+   * isn't kept: it can't be shown again.
+   *
+   * @generated from field: string link = 2;
+   */
+  link: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CreateInviteResponse.
+ * Use `create(CreateInviteResponseSchema)` to create a new message.
+ */
+export const CreateInviteResponseSchema: GenMessage<CreateInviteResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 1);
+
+/**
+ * RevokeInviteRequest names an open invite.
+ *
+ * @generated from message dockwell.v1.RevokeInviteRequest
+ */
+export type RevokeInviteRequest = Message<"dockwell.v1.RevokeInviteRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message dockwell.v1.RevokeInviteRequest.
+ * Use `create(RevokeInviteRequestSchema)` to create a new message.
+ */
+export const RevokeInviteRequestSchema: GenMessage<RevokeInviteRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 2);
+
+/**
+ * RevokeInviteResponse is empty.
+ *
+ * @generated from message dockwell.v1.RevokeInviteResponse
+ */
+export type RevokeInviteResponse = Message<"dockwell.v1.RevokeInviteResponse"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.RevokeInviteResponse.
+ * Use `create(RevokeInviteResponseSchema)` to create a new message.
+ */
+export const RevokeInviteResponseSchema: GenMessage<RevokeInviteResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 3);
+
+/**
+ * Invite is an open invitation to sign in.
+ *
+ * @generated from message dockwell.v1.Invite
+ */
+export type Invite = Message<"dockwell.v1.Invite"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Who it names, unverified.
+   *
+   * @generated from field: string email = 2;
+   */
+  email: string;
+
+  /**
+   * @generated from field: dockwell.v1.Role role = 3;
+   */
+  role: Role;
+
+  /**
+   * The project, for a developer or a viewer of one. Empty for the install.
+   *
+   * @generated from field: string project_id = 4;
+   */
+  projectId: string;
+
+  /**
+   * The project's name. Empty for the install.
+   *
+   * @generated from field: string project_name = 5;
+   */
+  projectName: string;
+
+  /**
+   * Who made it, by name.
+   *
+   * @generated from field: string invited_by = 6;
+   */
+  invitedBy: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp create_time = 7;
+   */
+  createTime?: Timestamp | undefined;
+
+  /**
+   * When it stops working: 7 days after it's made for a developer or a
+   * viewer, 24 hours for an admin, whose link is a bearer credential to the
+   * install.
+   *
+   * @generated from field: google.protobuf.Timestamp expire_time = 8;
+   */
+  expireTime?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.Invite.
+ * Use `create(InviteSchema)` to create a new message.
+ */
+export const InviteSchema: GenMessage<Invite> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 4);
+
+/**
+ * MemberGrant is a role someone holds in one project.
+ *
+ * @generated from message dockwell.v1.MemberGrant
+ */
+export type MemberGrant = Message<"dockwell.v1.MemberGrant"> & {
+  /**
+   * @generated from field: string project_id = 1;
+   */
+  projectId: string;
+
+  /**
+   * @generated from field: string project_name = 2;
+   */
+  projectName: string;
+
+  /**
+   * @generated from field: dockwell.v1.Role role = 3;
+   */
+  role: Role;
+};
+
+/**
+ * Describes the message dockwell.v1.MemberGrant.
+ * Use `create(MemberGrantSchema)` to create a new message.
+ */
+export const MemberGrantSchema: GenMessage<MemberGrant> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_member, 5);
 
 /**
  * ListMembersRequest takes no parameters.
@@ -33,7 +235,7 @@ export type ListMembersRequest = Message<"dockwell.v1.ListMembersRequest"> & {
  * Use `create(ListMembersRequestSchema)` to create a new message.
  */
 export const ListMembersRequestSchema: GenMessage<ListMembersRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_member, 0);
+  messageDesc(file_dockwell_v1_member, 6);
 
 /**
  * ListMembersResponse lists who can sign in.
@@ -47,6 +249,13 @@ export type ListMembersResponse = Message<"dockwell.v1.ListMembersResponse"> & {
    * @generated from field: repeated dockwell.v1.Member members = 1;
    */
   members: Member[];
+
+  /**
+   * The invites that still work, newest first.
+   *
+   * @generated from field: repeated dockwell.v1.Invite invites = 2;
+   */
+  invites: Invite[];
 };
 
 /**
@@ -54,7 +263,7 @@ export type ListMembersResponse = Message<"dockwell.v1.ListMembersResponse"> & {
  * Use `create(ListMembersResponseSchema)` to create a new message.
  */
 export const ListMembersResponseSchema: GenMessage<ListMembersResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_member, 1);
+  messageDesc(file_dockwell_v1_member, 7);
 
 /**
  * Member is a person who can sign in, and how. The details of how are the
@@ -140,6 +349,14 @@ export type Member = Message<"dockwell.v1.Member"> & {
    * @generated from field: bool codes_locked = 10;
    */
   codesLocked: boolean;
+
+  /**
+   * The roles they hold in projects, by project name. Their role on the
+   * whole install, which covers every project, is user.role.
+   *
+   * @generated from field: repeated dockwell.v1.MemberGrant grants = 11;
+   */
+  grants: MemberGrant[];
 };
 
 /**
@@ -147,7 +364,7 @@ export type Member = Message<"dockwell.v1.Member"> & {
  * Use `create(MemberSchema)` to create a new message.
  */
 export const MemberSchema: GenMessage<Member> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_member, 2);
+  messageDesc(file_dockwell_v1_member, 8);
 
 /**
  * SignInKind is a kind of sign-in a member has.
@@ -182,10 +399,12 @@ export const SignInKindSchema: GenEnum<SignInKind> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_member, 0);
 
 /**
- * MemberService says who can sign in to the install, with their role and how
- * they sign in. Today that is one person, the owner, who claimed the install:
- * inviting others, and roles beyond the owner, come later. See
- * docs/adr/0048-members-as-far-as-one-owner-goes.md.
+ * MemberService says who can sign in to the install, with their roles and how
+ * they sign in, and invites others: the owner and admins invite someone with
+ * a role in a place, the install or a project, and the person accepts with a
+ * passkey (AuthService.FinishAcceptInvite). See
+ * docs/adr/0048-members-as-far-as-one-owner-goes.md and
+ * docs/adr/0049-roles-and-invites-by-project.md.
  *
  * It names people and their emails, so only a person signed in reads it, never
  * an API token. How each person signs in is theirs: everyone sees the kinds of
@@ -204,6 +423,32 @@ export const MemberService: GenService<{
     methodKind: "unary";
     input: typeof ListMembersRequestSchema;
     output: typeof ListMembersResponseSchema;
+  },
+  /**
+   * CreateInvite invites someone by email to sign in with a role in a place,
+   * and returns the link to send them, once: Dockwell sends no mail. It takes a
+   * passkey step-up bound to the email, the role and the place
+   * (STEP_UP_ACTION_INVITE), and the panel's domain, which the link always
+   * uses. Nobody is invited as owner, an admin's place is the install, and an
+   * admin invites no one above admin. An invite to someone who signs in here
+   * already is refused; a newer one to the same email replaces an open one.
+   *
+   * @generated from rpc dockwell.v1.MemberService.CreateInvite
+   */
+  createInvite: {
+    methodKind: "unary";
+    input: typeof CreateInviteRequestSchema;
+    output: typeof CreateInviteResponseSchema;
+  },
+  /**
+   * RevokeInvite stops an open invite working.
+   *
+   * @generated from rpc dockwell.v1.MemberService.RevokeInvite
+   */
+  revokeInvite: {
+    methodKind: "unary";
+    input: typeof RevokeInviteRequestSchema;
+    output: typeof RevokeInviteResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_member, 0);

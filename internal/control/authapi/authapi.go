@@ -375,6 +375,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_MOVE_WAY_BACK_IN:          auth.StepUpMoveWayBackIn,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_DELETE_WAY_BACK_IN:        auth.StepUpDeleteWayBackIn,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_RESTORE_WAY_BACK_IN:       auth.StepUpRestoreWayBackIn,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_INVITE:                    auth.StepUpInvite,
 }
 
 // FinishStepUp checks the passkey's answer and returns a proof.
@@ -612,6 +613,9 @@ var codes = []struct {
 	{auth.ErrClaimLinkRejected, connect.CodePermissionDenied, "claim_link_rejected"},
 	{auth.ErrSignInLinkRejected, connect.CodePermissionDenied, "sign_in_link_rejected"},
 	{auth.ErrClaimed, connect.CodeFailedPrecondition, "claimed"},
+	{auth.ErrInviteRejected, connect.CodePermissionDenied, "invite_rejected"},
+	{auth.ErrInviteNeedsDomain, connect.CodeFailedPrecondition, "needs_domain"},
+	{auth.ErrInviteOwner, connect.CodeInvalidArgument, "invalid"},
 	{auth.ErrCeremonyExpired, connect.CodeFailedPrecondition, "ceremony_expired"},
 	{auth.ErrLastWayIn, connect.CodeFailedPrecondition, "last_way_in"},
 	{auth.ErrNeedsHostname, connect.CodeFailedPrecondition, "needs_hostname"},
@@ -628,6 +632,12 @@ var codes = []struct {
 }
 
 func (h *Handler) rpcError(ctx context.Context, err error) error {
+	return AuthError(ctx, h.logger, err)
+}
+
+// AuthError is an error of the auth package as the API answers it, with its
+// reason, for other services that call it, as MemberService does to invite.
+func AuthError(ctx context.Context, logger *slog.Logger, err error) error {
 	var slow *auth.SlowDown
 	if errors.As(err, &slow) {
 		cerr := connect.NewError(connect.CodeResourceExhausted, slow)
@@ -647,7 +657,12 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 		err    error
 		code   connect.Code
 		reason string
-	}{{auth.ErrInvalid, connect.CodeInvalidArgument, "invalid"}, {auth.ErrNotFound, connect.CodeNotFound, "not_found"}} {
+	}{
+		{auth.ErrInvalid, connect.CodeInvalidArgument, "invalid"},
+		{auth.ErrNotFound, connect.CodeNotFound, "not_found"},
+		{auth.ErrMemberExists, connect.CodeAlreadyExists, "member_exists"},
+		{auth.ErrInviteElsewhere, connect.CodeFailedPrecondition, "invite_elsewhere"},
+	} {
 		if errors.Is(err, c.err) {
 			cerr := connect.NewError(c.code, errors.New(strings.TrimPrefix(err.Error(), c.err.Error()+": ")))
 			cerr.Meta().Set(ReasonKey, c.reason)
@@ -657,7 +672,7 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 	if errors.Is(err, context.Canceled) {
 		return connect.NewError(connect.CodeCanceled, err)
 	}
-	h.logger.ErrorContext(ctx, "auth call failed", slog.Any("error", err))
+	logger.ErrorContext(ctx, "auth call failed", slog.Any("error", err))
 	return connect.NewError(connect.CodeInternal, errors.New("internal error"))
 }
 
@@ -695,6 +710,8 @@ func methodProto(m string) dockwellv1.SignInMethod {
 		return dockwellv1.SignInMethod_SIGN_IN_METHOD_RECOVERY_CODE
 	case auth.MethodLink:
 		return dockwellv1.SignInMethod_SIGN_IN_METHOD_LINK
+	case auth.MethodInvite:
+		return dockwellv1.SignInMethod_SIGN_IN_METHOD_INVITE
 	default:
 		return dockwellv1.SignInMethod_SIGN_IN_METHOD_UNSPECIFIED
 	}

@@ -45,6 +45,10 @@ service AuthService {
     help: "A claim link, which dockwell run and dockwell claim print, creates the install's owner with a passkey, and works once. CheckClaim describes the server a link claims, and BeginClaim and FinishClaim make the passkey, which takes a browser: open the link in one."
   };
   option (dockwell.v1.nouns) = {
+    name: "invite"
+    help: "An invite's link, which an admin or the owner makes in the panel's Members, signs in a new person with the role and the place it names, and works once. CheckInvite says who invited them, as what and where, and BeginAcceptInvite and FinishAcceptInvite make their passkey, which takes a browser at the panel's domain: open the link in one."
+  };
+  option (dockwell.v1.nouns) = {
     name: "passkeys"
     help: "Passkeys are how you sign in to the panel. A browser, a phone or a security key makes each one, for one address, and only it can use it. Adding and removing them needs a signed-in session, which no API token gives, and a passkey you already have to confirm it, so you do it in the panel, under Profile and security."
   };
@@ -108,6 +112,47 @@ service AuthService {
       body: "*"
     };
     option (dockwell.v1.command) = {noun: "claim-link"};
+  }
+
+  // CheckInvite reads an invite's link without spending it: who invited
+  // them, as what, and where. It works only at the panel's domain, where the
+  // passkey is made.
+  rpc CheckInvite(CheckInviteRequest) returns (CheckInviteResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
+    option (google.api.http) = {
+      post: "/v1/invite:check"
+      body: "*"
+    };
+  }
+
+  // BeginAcceptInvite starts creating the passkey of the person an invite
+  // names. It refuses while someone is signed in in the browser: accepting
+  // only ever makes a new person.
+  rpc BeginAcceptInvite(BeginAcceptInviteRequest) returns (BeginAcceptInviteResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
+    option (google.api.http) = {
+      post: "/v1/invite:begin"
+      body: "*"
+    };
+  }
+
+  // FinishAcceptInvite spends the invite, makes the person with the role it
+  // names and the new passkey, and signs them in.
+  rpc FinishAcceptInvite(FinishAcceptInviteRequest) returns (FinishAcceptInviteResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
+    option (google.api.http) = {
+      post: "/v1/invite:finish"
+      body: "*"
+    };
   }
 
   // BeginPasskeySignIn starts signing in with a passkey.
@@ -420,6 +465,8 @@ enum SignInMethod {
   SIGN_IN_METHOD_RECOVERY_CODE = 4;
   // A one-time link from dockwell recover.
   SIGN_IN_METHOD_LINK = 5;
+  // Accepting an invite, with the passkey it made.
+  SIGN_IN_METHOD_INVITE = 6;
 }
 
 // User is a person who signs in to the panel.
@@ -535,6 +582,56 @@ message FinishClaimRequest {
 // cookie.
 message FinishClaimResponse {
   // The owner.
+  User user = 1;
+}
+
+// CheckInviteRequest carries an invite's secret, from after the # in its link.
+message CheckInviteRequest {
+  string secret = 1;
+}
+
+// CheckInviteResponse says what an invite offers.
+message CheckInviteResponse {
+  // Who it names.
+  string email = 1;
+  Role role = 2;
+  // The project's name, for a developer or a viewer of one. Empty for the
+  // whole install.
+  string project_name = 3;
+  // Who made it, by name.
+  string invited_by = 4;
+  google.protobuf.Timestamp expire_time = 5;
+}
+
+// BeginAcceptInviteRequest names the person accepting.
+message BeginAcceptInviteRequest {
+  string secret = 1;
+  // Their name, such as "Ada Lovelace".
+  string name = 2;
+}
+
+// BeginAcceptInviteResponse carries the passkey ceremony to finish.
+message BeginAcceptInviteResponse {
+  string ceremony_id = 1;
+  // PublicKeyCredentialCreationOptionsJSON, for navigator.credentials.create.
+  string options_json = 2;
+}
+
+// FinishAcceptInviteRequest finishes the passkey and spends the invite.
+message FinishAcceptInviteRequest {
+  // From BeginAcceptInvite.
+  string ceremony_id = 1;
+  // The invite's secret, again: it is spent only here.
+  string secret = 2;
+  // RegistrationResponseJSON from navigator.credentials.create.
+  string credential_json = 3;
+  // What to call the passkey, such as "Chrome on macOS". Optional.
+  string passkey_name = 4;
+}
+
+// FinishAcceptInviteResponse carries the new person. The response sets the
+// session cookie.
+message FinishAcceptInviteResponse {
   User user = 1;
 }
 
@@ -739,6 +836,10 @@ enum StepUpAction {
   // "chg_…:fingerprint", so the proof is good for that plan alone. It also
   // stands for applying a change that gives something as much as root.
   STEP_UP_ACTION_APPROVE_CHANGE = 114;
+  // Inviting someone, with MemberService.CreateInvite. The target is the
+  // email, lowercased, the role's name and the place, apart by spaces, as
+  // "ada@example.com developer prj_…", or "install" for the whole install.
+  STEP_UP_ACTION_INVITE = 110;
 }
 
 // StepUpNeeded is the detail of an error whose reason is "needs_step_up",

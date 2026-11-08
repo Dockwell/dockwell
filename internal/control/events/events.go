@@ -24,6 +24,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/actors"
 	"github.com/dockwell/dockwell/internal/control/alerts"
 	"github.com/dockwell/dockwell/internal/control/authapi"
@@ -120,6 +121,7 @@ var (
 		"sign_in_link.create", "claim_link.create", "join_token.create",
 		"secret.reveal", "secrets.rotate_key",
 		fileRead, fileRefuse, fileDownload, changeApplyUnconfirmed,
+		"member.invite", "member.invite_revoke", "member.join",
 	}
 )
 
@@ -619,6 +621,15 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	}
 	if a.Target != "" {
 		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
+	}
+	if strings.HasPrefix(a.Action, "member.") {
+		// Who, with what role, where (ADR 0049): only internal/auth writes these.
+		if email, name, role, project, ok := auth.ReadMemberDetail(a.Detail); ok {
+			e.Member = &dockwellv1.EventMember{Email: email, Name: name, Role: authapi.RoleProto(role), ProjectId: project}
+			if project != store.Install {
+				e.Member.ProjectName = look.Name(project)
+			}
+		}
 	}
 	if setting, ok := settings.ReadEvent(a.Action, a.Detail); ok {
 		e.Kind, e.Setting = dockwellv1.EventKind_EVENT_KIND_SETTINGS, setting

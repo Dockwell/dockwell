@@ -91,6 +91,9 @@ const (
 	// StepUpRestoreWayBackIn puts back what was deleted where that's a way back
 	// onto a server. Its target is the server's ID and the path it goes back to.
 	StepUpRestoreWayBackIn StepUpAction = "file.restore_way_back_in"
+	// StepUpInvite invites someone. Its target is the email, the role and the
+	// place, as InviteTarget writes them.
+	StepUpInvite StepUpAction = "member.invite"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -116,6 +119,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpMoveWayBackIn:    {"moving", true},
 	StepUpDeleteWayBackIn:  {"deleting", true},
 	StepUpRestoreWayBackIn: {"putting back", true},
+	StepUpInvite:           {"inviting", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".
