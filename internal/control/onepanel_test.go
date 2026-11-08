@@ -97,7 +97,7 @@ func TestAPlanOnlyImportOf1Panel(t *testing.T) {
 	check("IMPORT_KIND_APP mine", take, "from your own store")
 	check("IMPORT_KIND_RUNTIME php82", again, "PHP 8.2 in each website", "IMPORT_WAITS_FOR_WEBSITES")
 	check("IMPORT_KIND_RUNTIME api", take, "Node.js 22.11.0", "/srv/api")
-	check("IMPORT_KIND_DATABASE_SERVER mysql", take, "with the app mysql")
+	check("IMPORT_KIND_DATABASE_SERVER mysql", take, "part of the project mysql")
 	check("IMPORT_KIND_DATABASE_SERVER reports", leave, "on another machine", "IMPORT_WAITS_FOR_DATABASES")
 	check("IMPORT_KIND_DATABASE wp", take, "wp_user", "sealed secret", "IMPORT_WAITS_FOR_DATABASES")
 	check("IMPORT_KIND_WEBSITE blog.example.com", again, "a PHP 8.2 website on /data/www/sites/blog/index/public", "rewrite rules", "its other domain,", "IMPORT_WAITS_FOR_WEBSITES")
@@ -210,7 +210,7 @@ func TestImportingA1PanelServerTakesOnWhatRuns(t *testing.T) {
 		"IMPORT_KIND_APP wordpress":           {leave, "publish_all_ports"},
 		"IMPORT_KIND_APP mine":                {leave, "Docker runs no container of its Compose project, mine"},
 		"IMPORT_KIND_APP openresty":           {leave, "ports 80 and 443"},
-		"IMPORT_KIND_DATABASE_SERVER mysql":   {take, "taken on with the app mysql"},
+		"IMPORT_KIND_DATABASE_SERVER mysql":   {take, "part of the project mysql"},
 		"IMPORT_KIND_DATABASE_SERVER reports": {leave, "another machine"},
 	} {
 		s := steps[key]

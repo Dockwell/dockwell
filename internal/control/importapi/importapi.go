@@ -82,7 +82,7 @@ func (h *Handler) ImportOnePanel(ctx context.Context, req *connect.Request[dockw
 	if p, ok := authapi.PrincipalFrom(ctx); !ok || p.Token != nil {
 		return connect.NewResponse(res), nil
 	}
-	if res.Change, err = h.plan(ctx, srv, res.GetSteps()); err != nil {
+	if res.Change, err = h.plan(ctx, srv, out.GetFound(), res.GetSteps()); err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(res), nil
@@ -91,7 +91,7 @@ func (h *Handler) ImportOnePanel(ctx context.Context, req *connect.Request[dockw
 // plan reads what taking on each app and runtime would be, and plans the ones
 // nothing stands in the way of, in one change. One that can't come says why, and
 // stays, and so does its database server.
-func (h *Handler) plan(ctx context.Context, srv *dockwellv1.Server, steps []*dockwellv1.ImportStep) (*dockwellv1.Change, error) {
+func (h *Handler) plan(ctx context.Context, srv *dockwellv1.Server, found *dockwellv1.OnePanel, steps []*dockwellv1.ImportStep) (*dockwellv1.Change, error) {
 	var takings []*composeapi.Taking
 	var taken []string
 	left := map[string]bool{}
@@ -133,9 +133,13 @@ func (h *Handler) plan(ctx context.Context, srv *dockwellv1.Server, steps []*doc
 		takings = append(takings, t)
 		taken = append(taken, step.GetName())
 	}
+	apps := map[string]string{}
+	for _, d := range found.GetDatabaseServers() {
+		apps[d.GetName()] = d.GetApp()
+	}
 	for _, step := range steps {
-		if step.GetKind() == dockwellv1.ImportKind_IMPORT_KIND_DATABASE_SERVER && left[strings.TrimPrefix(step.GetBecomes(), "taken on with the app ")] {
-			leave(step, "Its app can't be taken on yet, as it says above.")
+		if step.GetKind() == dockwellv1.ImportKind_IMPORT_KIND_DATABASE_SERVER && left[apps[step.GetName()]] {
+			leave(step, fmt.Sprintf("Its app, %s, can't be taken on yet, as it says above.", apps[step.GetName()]))
 		}
 	}
 	if len(takings) == 0 {
