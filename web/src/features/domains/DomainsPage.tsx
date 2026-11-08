@@ -54,7 +54,7 @@ import { useWebsiteOfEnvironment } from "../websites/website";
 // The add sheet's form and the list's filters are the apps' own, and this page can be where you land.
 import "../apps/Apps.css";
 import "./Domains.css";
-import { phoneWordClass, useHealthWords } from "../apps/Health";
+import { phoneWordClass } from "../apps/Health";
 import { useServicesWatch } from "../apps/ServicesLive";
 import { dnsOf, useDnsWord } from "./dns";
 
@@ -580,10 +580,8 @@ function RowBadge({ row, read }: { row: Row; read: DomainRead }) {
 /** What DNS says of a domain, as Domains-List's column has it: whether it leads here, and the addresses it found. */
 function DnsCell({ domain, read }: { domain: Domain; read: DomainRead }) {
   const word = useDnsWord()(dnsOf(domain));
-  const words = useHealthWords();
-  if (read !== "read") {
-    return <StatusBadge status="unknown" label={words.word({ kind: "unknown", read })} labelIsState />;
-  }
+  // What it last said may no longer be so, and the status says once that nobody can tell.
+  if (read !== "read") return <span aria-hidden="true">—</span>;
   return (
     <span className="dw-cell">
       <StatusBadge status={word.status} label={word.word} labelIsState className="apps-status" title={word.word} />
