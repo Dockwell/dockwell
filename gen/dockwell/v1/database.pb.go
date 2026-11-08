@@ -897,10 +897,10 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x17DATABASE_ENGINE_MARIADB\x10\x03\x1a\v\xa2\xbb\x18\aMariaDB\x12$\n" +
 	"\x15DATABASE_ENGINE_REDIS\x10\x04\x1a\t\xa2\xbb\x18\x05Redis\x12&\n" +
 	"\x16DATABASE_ENGINE_VALKEY\x10\x05\x1a\n" +
-	"\xa2\xbb\x18\x06Valkey2\xfc\x01\n" +
-	"\x0fDatabaseService\x12t\n" +
-	"\rListDatabases\x12!.dockwell.v1.ListDatabasesRequest\x1a\".dockwell.v1.ListDatabasesResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/databases\x90\x02\x01\x12s\n" +
-	"\vGetDatabase\x12\x1f.dockwell.v1.GetDatabaseRequest\x1a .dockwell.v1.GetDatabaseResponse\"!\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/databases/{id}\x90\x02\x01B\xa6\x01\n" +
+	"\xa2\xbb\x18\x06Valkey2\x95\x02\n" +
+	"\x0fDatabaseService\x12\x80\x01\n" +
+	"\rListDatabases\x12!.dockwell.v1.ListDatabasesRequest\x1a\".dockwell.v1.ListDatabasesResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/databases\x90\x02\x01\x12\x7f\n" +
+	"\vGetDatabase\x12\x1f.dockwell.v1.GetDatabaseRequest\x1a .dockwell.v1.GetDatabaseResponse\"-\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/databases/{id}\x90\x02\x01B\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rDatabaseProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
