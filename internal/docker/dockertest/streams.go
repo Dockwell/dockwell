@@ -159,7 +159,7 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 		fail(w, http.StatusNotFound, "No such container: %s", id)
 		return
 	}
-	if !c.img.imported {
+	if !c.img.runsAttached() {
 		fail(w, http.StatusNotImplemented, "this fake attaches only to helpers")
 		return
 	}
@@ -178,6 +178,14 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 	stdout, stderr := frames{mu, out, 1}, frames{mu, out, 2}
 	if !stdin {
 		in = strings.NewReader("")
+	}
+	if c.img.repo == BuildKitRepository {
+		code := e.fakeBuild(c, stdout, stderr)
+		e.mu.Lock()
+		c.State = docker.State{Status: "exited", ExitCode: code, StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC(), OOMKilled: c.State.OOMKilled}
+		close(c.exited)
+		e.mu.Unlock()
+		return
 	}
 	e.mu.Lock()
 	code := -1
@@ -337,11 +345,19 @@ func (e *Engine) listImages(w http.ResponseWriter, r *http.Request) {
 }
 
 // removeImage removes an image by reference.
-func (e *Engine) removeImage(w http.ResponseWriter, ref string) {
+func (e *Engine) removeImage(w http.ResponseWriter, ref string, force bool) {
 	img := e.images[ref]
 	if img == nil {
 		fail(w, http.StatusNotFound, "No such image: %s", ref)
 		return
+	}
+	if !force {
+		for _, c := range e.containers {
+			if c.img == img {
+				fail(w, http.StatusConflict, "conflict: unable to remove repository reference %q (must force) - container %s is using its referenced image %s", ref, c.ID[:12], img.id)
+				return
+			}
+		}
 	}
 	for k, v := range e.images {
 		if v == img {

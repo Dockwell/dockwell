@@ -83,6 +83,14 @@ type ImageNamer interface {
 	WhatRuns(spec proto.Message) proto.Message
 }
 
+// WriterNamer is a Type whose spec says whose code it runs, for what it writes on
+// its server: a person approves a folder for the code that writes it, and new code
+// asks again. A Type that isn't one is named by its image's repository.
+type WriterNamer interface {
+	// WriterOf names the code a spec runs, the same for each build or tag of it.
+	WriterOf(spec proto.Message) string
+}
+
 // BareImage is an image without the digest it may be pinned to.
 func BareImage(image string) string {
 	bare, _, _ := strings.Cut(image, "@")

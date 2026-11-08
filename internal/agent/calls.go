@@ -498,6 +498,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			ctx = resource.WithDeploy(ctx, resource.Deploy{
 				Revision: int(d.GetRevision()), Change: d.GetChangeId(), Rollback: d.GetRollback(),
 			})
+			ctx = resource.WithBuilds(ctx, c.buildUpdates(d.GetChangeId(), ref))
 		}
 		// The values of what the spec uses, opened in memory for this
 		// step alone; they never reach a log, the disk or Desired, which
@@ -575,6 +576,13 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Database{Database: read}}
+	case call.GetCancelBuild() != nil:
+		cb := call.GetCancelBuild()
+		stopping := false
+		if c.cfg.Builds != nil {
+			stopping = c.cfg.Builds.Cancel(cb.GetChangeId(), resourcepb.FromRef(cb.GetResource()), cb.GetBy())
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_CancelBuild{CancelBuild: &agentv1.CancelBuildResult{Stopping: stopping}}}
 	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil, call.GetFetchBackup() != nil, call.GetSendBackup() != nil:
 		if c.cfg.Backups == nil {
 			return fail(errors.New("this agent can't back up volumes, as it has no Docker driver"))

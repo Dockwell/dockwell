@@ -132,11 +132,15 @@ type Engine struct {
 	Requests []string
 	// followers counts the requests following a log now.
 	followers atomic.Int64
-	// Imports counts images made with docker import.
-	Imports int
-	execs   map[string]*execRun
-	helpers []docker.CreateRequest
-	starts  map[string]int
+	// Imports counts images made with docker import, and Loads those docker load
+	// took.
+	Imports, Loads int
+	// buildCache is what the stand-in for BuildKit has built, by step.
+	buildCache map[string]bool
+	builders   []docker.CreateRequest
+	execs      map[string]*execRun
+	helpers    []docker.CreateRequest
+	starts     map[string]int
 	// volumeRoot is where what's in each volume is kept, once one is asked for.
 	volumeRoot string
 }
@@ -144,9 +148,11 @@ type Engine struct {
 type image struct {
 	// imported says it came from docker import, so a container of it is a helper.
 	imported bool
-	id       string
-	digest   string
-	repo     string
+	// created is when it was made, for an image a build made.
+	created time.Time
+	id      string
+	digest  string
+	repo    string
 	Image
 }
 
@@ -246,6 +252,7 @@ func New(t testing.TB) *Engine {
 		containers: map[string]*container{},
 		volumes:    map[string]*docker.Volume{},
 		execs:      map[string]*execRun{},
+		buildCache: map[string]bool{},
 		starts:     map[string]int{},
 		networks: map[string]*docker.Network{
 			"bridge": {ID: newID(), Name: "bridge", Driver: "bridge", Options: map[string]string{}, Labels: map[string]string{}},
@@ -334,6 +341,12 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		return // it may follow for as long as its client reads, so it holds no lock
 	}
 	if e.serveStream(w, r) {
+		return
+	}
+	if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/images/load") {
+		// It reads as long as what writes the archive takes, as a build does, so it
+		// holds no lock until it has it all.
+		e.loadImage(w, r)
 		return
 	}
 	e.mu.Lock()
@@ -448,7 +461,7 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 	case r.Method == http.MethodGet && path == "/images/json":
 		e.listImages(w, r)
 	case r.Method == http.MethodDelete:
-		e.removeImage(w, strings.TrimPrefix(path, "/images/"))
+		e.removeImage(w, strings.TrimPrefix(path, "/images/"), truthy(r.URL.Query().Get("force")))
 	case r.Method == http.MethodPost && path == "/images/create":
 		ref := r.URL.Query().Get("fromImage")
 		if tag := r.URL.Query().Get("tag"); tag != "" {
@@ -520,7 +533,7 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 				cfg.Volumes[v] = struct{}{}
 			}
 		}
-		out := docker.Image{ID: img.id, Config: &cfg}
+		out := docker.Image{ID: img.id, Config: &cfg, Created: img.created}
 		// An image built here has none.
 		if img.digest != "" {
 			out.RepoDigests = []string{img.repo + "@" + img.digest}
@@ -529,6 +542,17 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 	default:
 		fail(w, http.StatusNotFound, "page not found")
 	}
+}
+
+// runsAttached reports an image whose containers run as a helper does: in the
+// engine, for as long as something attaches.
+func (i *image) runsAttached() bool { return i.imported || i.repo == BuildKitRepository }
+
+// Builders are what was asked of each container of BuildKit's image.
+func (e *Engine) Builders() []docker.CreateRequest {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]docker.CreateRequest(nil), e.builders...)
 }
 
 // digestOf is what a registry calls an image.
@@ -672,7 +696,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			return
 		}
 		e.starts[strings.TrimPrefix(c.Name, "/")]++
-		if c.img.imported {
+		if c.img.runsAttached() {
 			c.State = docker.State{Status: "running", Running: true, StartedAt: time.Now().UTC()}
 			close(c.started)
 			w.WriteHeader(http.StatusNoContent)
@@ -1124,9 +1148,14 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := &container{img: img}
-	if img.imported {
+	if img.runsAttached() {
 		c.started, c.exited = make(chan struct{}), make(chan struct{})
+	}
+	if img.imported {
 		e.helpers = append(e.helpers, req)
+	}
+	if img.repo == BuildKitRepository {
+		e.builders = append(e.builders, req)
 	}
 	c.ID = newID()
 	c.Created = time.Now().UTC()

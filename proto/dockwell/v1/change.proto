@@ -745,6 +745,11 @@ message Intent {
   int32 port = 4;
   // The revision a rollback puts back.
   int64 revision = 5;
+  // The commit a deploy builds, for a service that builds from Git, in full.
+  // Numbered apart, as open work adds to this message.
+  string commit = 130;
+  // The branch or tag that commit was read from.
+  string ref = 131;
 }
 
 // IntentKind is what a change is for.
@@ -1042,6 +1047,27 @@ message PlanStep {
   RestorePlan restore = 40;
   // What a step that backs up a volume before the rest of a change does.
   BackupFirst backup_first = 41;
+  // What the step builds, from source, before it replaces what runs. A build
+  // that fails leaves what runs as it was. Numbered apart, as open work adds to
+  // this message.
+  BuildPlan build = 130;
+}
+
+// BuildPlan is what a step builds: a commit of a repository, with a Dockerfile,
+// into an image of its own. See docs/adr/0046-builds-from-git.md.
+message BuildPlan {
+  // The repository, such as "https://github.com/acme/web.git".
+  string url = 1;
+  // The branch or tag the commit was read from, such as "main".
+  string ref = 2;
+  // The commit, in full.
+  string commit = 3;
+  // The folder the build starts from. Empty is the repository's top.
+  string context = 4;
+  // The Dockerfile, as a path in context.
+  string dockerfile = 5;
+  // The image it makes.
+  string image = 6;
 }
 
 // BackupFirst is a backup a change takes before anything else it does, as a catalog

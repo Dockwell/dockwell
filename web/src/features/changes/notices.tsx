@@ -16,6 +16,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
+import { shownRef } from "../../lib/built";
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { asGoodAsRoot, changing, factAndRest, onlyIfNewer, reloadsProxy, shownName, startsStopped } from "./plan";
@@ -901,7 +902,18 @@ export function useAsides(plan: Plan | undefined): Notice[] {
           title: t`${name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back.`,
         });
       }
-      if (step.healthUnknown) {
+      if (step.build) {
+        // What a step builds comes before anything about it stops (ADR 0046).
+        const repository = step.build.url.replace(/^https?:\/\//, "").replace(/\.git$/, "");
+        const commit = step.build.commit.slice(0, 7);
+        const ref = shownRef(step.build.ref);
+        out.push({
+          key: `build-${key}`,
+          title: ref
+            ? t`Builds ${repository} at ${commit} (${ref}) on ${server.serverName} first. If the build fails, what runs stays as it is.`
+            : t`Builds ${repository} at ${commit} on ${server.serverName} first. If the build fails, what runs stays as it is.`,
+        });
+      } else if (step.healthUnknown) {
         out.push({
           key: `health-${key}`,
           title: t`${name} may take longer to be healthy, as its image isn't on the server yet.`,

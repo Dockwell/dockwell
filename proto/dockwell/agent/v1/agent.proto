@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.agent.v1;
 
+import "dockwell/v1/build.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/container.proto";
 import "dockwell/v1/database.proto";
@@ -93,7 +94,49 @@ message ConnectRequest {
     // What the server finds out of how the internet sees it, as the stream
     // opens, and again every few hours.
     Network network = 11;
+    // How a build under way is going: where it stands, and the lines its log
+    // gained. Numbered apart, as open work adds to this message.
+    BuildUpdate build = 130;
   }
+}
+
+// BuildUpdate is how a build on the server is going, sent as it moves on, and
+// at most every 250 ms while it prints. See docs/adr/0046-builds-from-git.md.
+message BuildUpdate {
+  // The change the build is a step of.
+  string change_id = 1;
+  // The service it builds for.
+  dockwell.v1.ResourceRef resource = 2;
+  // Where it stands.
+  dockwell.v1.BuildState state = 3;
+  // The lines its log gained since the last update, oldest first, with the
+  // build's secrets masked. Their numbers go on from the last update's.
+  repeated dockwell.v1.BuildLine lines = 4;
+  // How many lines the agent dropped since the last update, as the build wrote
+  // faster than its stream may carry.
+  int64 dropped = 5;
+  // The commit's subject, once the checkout has read it.
+  string commit_subject = 6;
+  // The commit's author, by name, once the checkout has read it.
+  string commit_author = 7;
+  // How many steps the build has, once BuildKit has said.
+  int32 steps = 8;
+  // How many of its steps came from the cache.
+  int32 cached_steps = 9;
+  // The step it is on, or that failed, from 1.
+  int32 step = 10;
+  // What that step does, such as "RUN npm ci".
+  string step_name = 11;
+  // Why it failed, in plain words, with what to do.
+  string error = 12;
+  // The last line the failing step printed, with secrets masked.
+  string failed_line = 13;
+  // When it began building.
+  google.protobuf.Timestamp start_time = 14;
+  // When it ended.
+  google.protobuf.Timestamp end_time = 15;
+  // The image it makes.
+  string image = 16;
 }
 
 // Unstuck says something that held calls up on the agent ended.
@@ -423,6 +466,9 @@ message Call {
     // Ask whether what a website sends to answers, from the server. Numbered in
     // the websites' block, as open work adds to this message.
     ProbeCall probe = 60;
+    // Stop a build under way. Numbered apart, as open work adds to this
+    // message.
+    CancelBuildCall cancel_build = 130;
   }
 }
 
@@ -873,6 +919,23 @@ message DesiredResource {
   string backup_id = 10;
 }
 
+// CancelBuildCall stops a build that is waiting or running, which fails the
+// step it is part of as cancelled, before anything that runs is touched.
+message CancelBuildCall {
+  // The change the build is a step of.
+  string change_id = 1;
+  // The service it builds for.
+  dockwell.v1.ResourceRef resource = 2;
+  // Who cancelled it, by name, for its log.
+  string by = 3;
+}
+
+// CancelBuildResult says whether there was such a build to stop.
+message CancelBuildResult {
+  // True when the build was waiting or running, and is stopping.
+  bool stopping = 1;
+}
+
 // CancelCall stops a call: its caller went away, or its time ran out.
 message CancelCall {
   // The call's ID.
@@ -926,6 +989,8 @@ message CallResult {
     DatabaseResult database = 30;
     // What a probe found.
     ProbeResult probe = 60;
+    // Answers cancel_build. Numbered apart, as open work adds to this message.
+    CancelBuildResult cancel_build = 130;
   }
 }
 

@@ -5,6 +5,7 @@ import type { PlanChange, PlanValue } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useMemo } from "react";
 
+import { shownImage, shownRef } from "../../lib/built";
 import { asGoodAsRoot } from "./plan";
 
 /** What the rows of a plan are read from: a resource's kind and what changes in it. */
@@ -66,6 +67,18 @@ export function useFieldRows(): (source: FieldSource) => PlanChange[] {
       protocol: t`protocol`,
       sources: t`sources`,
       comment: t`comment`,
+      "build.git.url": t`repository`,
+      "build.git.ref": t`branch`,
+      "build.git.commit": t`commit`,
+      "build.context": t`build folder`,
+      "build.dockerfile": t`Dockerfile`,
+      "build.target": t`build stage`,
+    };
+    // What a person reads a value as, where the value itself is long: a commit in 7 digits, a branch by its own name, and an image Dockwell built as its commit.
+    const readers: Readonly<Record<string, (value: string) => string>> = {
+      "build.git.commit": (value) => value.slice(0, 7),
+      "build.git.ref": shownRef,
+      image: shownImage,
     };
     const yesNo = (value: string) => (value === "true" ? t`yes` : value === "false" ? t`no` : value);
     const protocol = (value: string) => value.toUpperCase();
@@ -305,7 +318,7 @@ export function useFieldRows(): (source: FieldSource) => PlanChange[] {
         const entry = KEYED.exec(path);
         const row = entry
           ? keyed(path, entry[1] ?? "", entry[2] ?? "", change)
-          : plain(path, change, labels[path] ?? humanize(path));
+          : plain(path, change, labels[path] ?? humanize(path), readers[path] ?? yesNo);
         const tone = change.op === FieldOp.REMOVED ? undefined : reaching(path, hostAccess);
         rows.push(tone ? { ...row, tone } : row);
       }

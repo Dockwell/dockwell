@@ -3,6 +3,8 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { type EditSchema, Protocol } from "@dockwell/api";
 
+import { toLabel } from "./app";
+
 /** One port someone is publishing. */
 export interface PortRow {
   key: number;
@@ -36,6 +38,53 @@ export interface ImageForm {
   mounts: MountRow[];
 }
 
+/** What New app asks of an app that builds from Git, beside what any app has (ADR 0046). */
+export interface GitForm {
+  /** The repository's URL, as typed, such as github.com/acme/web. */
+  url: string;
+  /** The branch or tag. Empty builds the default branch. */
+  ref: string;
+  /** The folder the build starts from. Empty is the repository's top. */
+  context: string;
+  /** The Dockerfile, as a path in the folder. Empty is Dockerfile. */
+  dockerfile: string;
+  /** Build arguments, a NAME=value a line. */
+  args: string;
+}
+
+/** The app a repository makes, by default: its last part, without .git, as a name, such as web. */
+export function nameFromRepository(url: string): string {
+  const path = url
+    .trim()
+    .replace(/[?#].*$/, "")
+    .replace(/\/+$/, "");
+  const last = path.split("/").pop() ?? "";
+  return toLabel(last.replace(/\.git$/, ""));
+}
+
+/** A build's settings as the spec has them. */
+export function buildOf(git: GitForm) {
+  const args: Record<string, string> = {};
+  for (const { name, value } of parseEnv(git.args) ?? []) args[name] = value;
+  return {
+    source: { case: "git" as const, value: { url: git.url.trim(), ref: git.ref.trim() } },
+    context: git.context.trim(),
+    dockerfile: git.dockerfile.trim(),
+    args,
+  };
+}
+
+/** The field of the Git form a refusal is about, by what it names, or "" for none of them. */
+export function gitFieldOf(message: string): string {
+  const text = message.toLowerCase();
+  if (/\bdockerfile\b/.test(text)) return "git.dockerfile";
+  if (/\bcontext\b|\bno folder\b/.test(text)) return "git.context";
+  if (/\bbranch\b|\btag\b/.test(text)) return "git.ref";
+  if (/build argument/.test(text)) return "git.args";
+  if (/repositor|url|fetch|reach|credentials|https/.test(text)) return "git.url";
+  return "";
+}
+
 /** The form's fields, by a path a refusal can point at, such as "ports.3.host", with the row's key. */
 export type FormErrors = Readonly<Record<string, string>>;
 
@@ -60,6 +109,7 @@ export function appEdits(
   form: ImageForm,
   name: string,
   scope: { environment: string; servers: readonly string[]; volumes: readonly string[] },
+  git?: GitForm,
 ): MessageInitShape<typeof EditSchema>[] {
   const servers = [...scope.servers];
   const edits: MessageInitShape<typeof EditSchema>[] = [];
@@ -87,7 +137,8 @@ export function appEdits(
           runs: {
             case: "app",
             value: {
-              image: form.image.trim(),
+              // An app that builds runs what its build makes, which the plan names.
+              image: git ? "" : form.image.trim(),
               env,
               ports: form.ports
                 .filter((p) => p.host.trim() !== "" || p.container.trim() !== "")
@@ -107,6 +158,7 @@ export function appEdits(
                 })),
             },
           },
+          ...(git ? { build: buildOf(git) } : {}),
         },
       },
     },

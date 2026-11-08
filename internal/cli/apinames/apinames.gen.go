@@ -19,6 +19,7 @@ func Commands() []string {
 		"backup-destinations",
 		"backup-policies",
 		"backups",
+		"builds",
 		"catalog",
 		"changes",
 		"claim-link",

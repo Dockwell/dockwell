@@ -50,3 +50,22 @@ func (c *Client) CreateVolume(ctx context.Context, v *VolumeCreate) (*Volume, er
 func (c *Client) RemoveVolume(ctx context.Context, name string) error {
 	return c.do(ctx, http.MethodDelete, "/volumes/"+esc(name), url.Values{"force": {"false"}}, nil, nil)
 }
+
+// ListVolumes returns the volumes that carry label, whatever its value.
+func (c *Client) ListVolumes(ctx context.Context, label string) ([]Volume, error) {
+	var out struct {
+		Volumes []Volume `json:"Volumes"`
+	}
+	q := url.Values{"filters": {`{"label":["` + label + `"]}`}}
+	if err := c.do(ctx, http.MethodGet, "/volumes", q, nil, &out); err != nil {
+		return nil, err
+	}
+	// An engine that doesn't filter is filtered here.
+	kept := out.Volumes[:0]
+	for _, v := range out.Volumes {
+		if _, ok := v.Labels[label]; ok {
+			kept = append(kept, v)
+		}
+	}
+	return kept, nil
+}

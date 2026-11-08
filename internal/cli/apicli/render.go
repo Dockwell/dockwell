@@ -73,6 +73,12 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 			fmt.Fprintln(w)
 			_, _ = io.WriteString(w, m.GetConfig())
 		}
+	case *dockwellv1.WatchBuildResponse:
+		buildFollow(w, m)
+	case *dockwellv1.ReadBuildLogResponse:
+		buildLog(w, m)
+	case *dockwellv1.ListBuildsResponse:
+		buildsTable(w, m, now)
 	case *dockwellv1.ExportComposeResponse:
 		// The file alone, so it pipes into docker compose -f -. Its comments
 		// say which variables it leaves out.
@@ -731,7 +737,10 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			if access := st.GetHostAccess(); len(access) > 0 {
 				fmt.Fprintln(tw, "      "+reachWords(access, s.GetServerName()))
 			}
-			if st.GetHealthUnknown() {
+			if b := st.GetBuild(); b != nil {
+				fmt.Fprintln(tw, "      "+buildWords(b))
+			}
+			if st.GetHealthUnknown() && st.GetBuild() == nil {
 				fmt.Fprintln(tw, "      Its image isn't on the server yet, so its own health check isn't known, and it may take longer to be healthy.")
 			}
 			for _, line := range rolloutWords(st.GetRollout(), st.GetRestart() != "", startsStopped(st)) {

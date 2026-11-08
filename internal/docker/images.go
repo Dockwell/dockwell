@@ -18,6 +18,8 @@ import (
 type Image struct {
 	ID     string  `json:"Id"`
 	Config *Config `json:"Config"`
+	// Created is when it was made.
+	Created time.Time `json:"Created"`
 	// RepoDigests are what its registries call it, such as nginx@sha256:ab12….
 	// An image built here has none.
 	RepoDigests []string `json:"RepoDigests"`

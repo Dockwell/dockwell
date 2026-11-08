@@ -173,6 +173,9 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	if b := s.BackupFirst; b != nil {
 		p.BackupFirst = &dockwellv1.BackupFirst{BackupId: b.ID, Method: BackupMethod(b.Method), Database: b.Database, Stops: b.Stops, EstimateBytes: b.Estimate, Unmeasured: b.Unmeasured}
 	}
+	if b := s.Build; b != nil {
+		p.Build = &dockwellv1.BuildPlan{Url: b.URL, Ref: b.Ref, Commit: b.Commit, Context: b.Context, Dockerfile: b.Dockerfile, Image: b.Image}
+	}
 	return p
 }
 
@@ -428,6 +431,9 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	}
 	if b := p.GetBackupFirst(); b != nil {
 		s.BackupFirst = &resource.BackupFirst{ID: b.GetBackupId(), Method: BackupMethodFrom(b.GetMethod()), Database: b.GetDatabase(), Stops: b.GetStops(), Estimate: b.GetEstimateBytes(), Unmeasured: b.GetUnmeasured()}
+	}
+	if b := p.GetBuild(); b != nil {
+		s.Build = &resource.BuildPlan{URL: b.GetUrl(), Ref: b.GetRef(), Commit: b.GetCommit(), Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Image: b.GetImage()}
 	}
 	return s, nil
 }

@@ -64,13 +64,92 @@ function api(more: Api = {}, ...servers: ReturnType<typeof aServer>[]): Api {
 }
 
 async function openImage(apiImpl: Api) {
-  const rendered = renderAt("/apps/new", apiImpl);
+  const rendered = renderAt("/apps/new?source=image", apiImpl);
   const sheet = await screen.findByRole("dialog", { name: "New app" });
   return { ...rendered, sheet };
 }
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("New app, from Git", () => {
+  it("opens on Git, asks for the repository and its branch, and builds with its Dockerfile unless you change that", async () => {
+    const user = userEvent.setup();
+    const { container } = renderAt("/apps/new", api());
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    expect(within(sheet).getByRole("radio", { name: "Git" })).toBeChecked();
+    expect(within(sheet).getByLabelText("Repository")).toHaveFocus();
+    expect(within(sheet).getByLabelText("Branch")).toHaveValue("");
+    expect(sheet).toHaveTextContent("Dockerfileat ./Dockerfile");
+    expect(within(sheet).queryByLabelText("Build arguments")).not.toBeInTheDocument();
+    await user.click(within(sheet).getByRole("button", { name: "Change" }));
+    await user.type(within(sheet).getByLabelText(/^Folder/), "web");
+    expect(sheet).toHaveTextContent("at ./web/Dockerfile");
+    expect(within(sheet).getByLabelText("Build arguments")).toBeVisible();
+    await expectAccessible(container);
+  });
+
+  it("proposes an app that builds, with no image, named after the repository", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/new",
+      api({
+        changes: {
+          proposeChange: (req) => {
+            proposals.push(req);
+            return { change: planned() };
+          },
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/search-ui.git");
+    await user.type(within(sheet).getByLabelText("Branch"), "main");
+    expect(within(sheet).getByPlaceholderText("search-ui")).toHaveValue("");
+    await user.click(within(sheet).getByRole("button", { name: "Change" }));
+    await user.type(within(sheet).getByLabelText("Build arguments"), "NODE_ENV=production");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(proposals[0]?.summary).toBe("Build github.com/acme/search-ui as search-ui");
+    const service = proposals[0]?.edits[0]?.spec?.kind;
+    expect(service?.case).toBe("service");
+    const spec = service?.case === "service" ? service.value : undefined;
+    expect(spec?.runs.case === "app" ? spec.runs.value.image : "unset").toBe("");
+    expect(spec?.build?.source).toMatchObject({
+      case: "git",
+      value: { url: "github.com/acme/search-ui.git", ref: "main" },
+    });
+    expect(spec?.build?.args).toEqual({ NODE_ENV: "production" });
+  });
+
+  it("says at the field what's wrong with the branch", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/new",
+      api({
+        changes: {
+          proposeChange: () => {
+            const err = new ConnectError(
+              "service/web isn't valid: github.com/acme/web has no branch or tag mian. Its branches are main and dev",
+              Code.InvalidArgument,
+            );
+            err.metadata.set("Dockwell-Error", "invalid");
+            throw err;
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "https://github.com/acme/web");
+    await user.type(within(sheet).getByLabelText("Branch"), "mian");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() =>
+      expect(within(sheet).getByLabelText("Branch")).toHaveAccessibleDescription(/has no branch or tag mian/),
+    );
+  });
 });
 
 describe("New app, from an image", () => {
@@ -81,8 +160,8 @@ describe("New app, from an image", () => {
     expect(within(sheet).queryByRole("group", { name: "Runs on" })).not.toBeInTheDocument();
     expect(within(sheet).queryByLabelText("Environment")).not.toBeInTheDocument();
     // What it doesn't have yet isn't offered.
-    for (const later of ["Git", "Catalog"])
-      expect(within(sheet).queryByRole("radio", { name: later })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole("radio", { name: "Catalog" })).not.toBeInTheDocument();
+    expect(within(sheet).getByRole("radio", { name: "Git" })).not.toBeChecked();
     expect(within(sheet).getByRole("radio", { name: "Image" })).toBeChecked();
     expect(within(sheet).getByRole("radio", { name: "Compose" })).toBeVisible();
     // Ports, variables and volumes wait behind a button each.
@@ -537,7 +616,7 @@ describe("New app, from an image", () => {
 
   it("speaks Chinese", async () => {
     await activateLocale("zh-CN");
-    renderAt("/apps/new", api());
+    renderAt("/apps/new?source=image", api());
     const sheet = await screen.findByRole("dialog", { name: "新建应用" });
     expect(within(sheet).getByRole("button", { name: "添加端口" })).toBeVisible();
     expect(within(sheet).getByLabelText("镜像")).toBeVisible();

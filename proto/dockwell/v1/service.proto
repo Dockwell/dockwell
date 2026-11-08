@@ -5,6 +5,7 @@ syntax = "proto3";
 package dockwell.v1;
 
 import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/build.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
@@ -229,6 +230,11 @@ message ServiceRevision {
   repeated string servers_added = 10;
   // The servers it took the service off, by name.
   repeated string servers_left = 11;
+  // The build that made its image, for a revision of a service that builds from
+  // Git whose change built one. Unset for any other: an undo or a rollback runs
+  // the image an earlier revision built. Numbered apart, as open work adds to
+  // this message.
+  Build build = 130;
 }
 
 // DeployServiceRequest names a service and the image to run.

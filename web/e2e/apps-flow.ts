@@ -109,12 +109,15 @@ export async function appsFlow(
     fail(`port ${port} answers as "${got}", want ${version}`);
   };
 
-  step("apps: the list invites the first app, and New app asks only for the image");
+  step("apps: the list invites the first app, and New app opens on Git, and asks only for an image");
   await page.goto(`${origin}/apps`);
   await page.getByRole("heading", { name: "No apps yet" }).waitFor();
   await page.getByRole("link", { name: "New app" }).click();
   const sheet = page.getByRole("dialog", { name: "New app" });
   await sheet.waitFor();
+  if (!(await sheet.getByRole("radio", { name: "Git" }).isChecked()))
+    fail("New app doesn't open on Git, as Apps-New has it");
+  await sheet.getByRole("radio", { name: "Image" }).click();
   if ((await sheet.getByRole("group", { name: "Runs on" }).count()) > 0)
     fail("New app asks where to run with one server");
   await shoot(page, "apps-new");
@@ -590,7 +593,7 @@ export async function appsFlow(
     });
   if (touch) {
     const finger = await touch.newPage();
-    await finger.goto(`${origin}/apps/new`);
+    await finger.goto(`${origin}/apps/new?source=image`);
     const image = finger.getByRole("dialog", { name: "New app" }).getByLabel("Image", { exact: true });
     await image.waitFor();
     const fieldSize = await image.evaluate((el) => ({
