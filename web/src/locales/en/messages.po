@@ -2374,6 +2374,10 @@ msgstr "Commit"
 msgid "Committed"
 msgstr "Committed"
 
+#: src/features/files/FilesPage.tsx
+msgid "Common places"
+msgstr "Common places"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Compose"
 msgstr "Compose"
@@ -6875,6 +6879,7 @@ msgstr "server"
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
 #: src/features/domains/DomainsPage.tsx
+#: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainerPage.tsx
 #: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx
@@ -7156,9 +7161,13 @@ msgid "Signing you in with a one-time link"
 msgstr "Signing you in with a one-time link"
 
 #: src/features/activity/ActivityPage.tsx
-#: src/features/auth/ClaimPage.tsx
 #: src/features/backups/BackupsPage.tsx
 #: src/features/files/FilesPage.tsx
+msgid "Size"
+msgstr "Size"
+
+#: src/features/auth/ClaimPage.tsx
+msgctxt "server"
 msgid "Size"
 msgstr "Size"
 

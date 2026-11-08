@@ -2374,6 +2374,10 @@ msgstr "提交"
 msgid "Committed"
 msgstr "提交时间"
 
+#: src/features/files/FilesPage.tsx
+msgid "Common places"
+msgstr "常用位置"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Compose"
 msgstr "Compose"
@@ -6875,6 +6879,7 @@ msgstr "服务器"
 #: src/features/apps/AppsPage.tsx
 #: src/features/changes/words.ts
 #: src/features/domains/DomainsPage.tsx
+#: src/features/files/FilesPage.tsx
 #: src/features/servers/ContainerPage.tsx
 #: src/features/servers/ServerFrame.tsx
 #: src/features/shell/Rail.tsx
@@ -7156,9 +7161,13 @@ msgid "Signing you in with a one-time link"
 msgstr "正在用一次性链接为你登录"
 
 #: src/features/activity/ActivityPage.tsx
-#: src/features/auth/ClaimPage.tsx
 #: src/features/backups/BackupsPage.tsx
 #: src/features/files/FilesPage.tsx
+msgid "Size"
+msgstr "大小"
+
+#: src/features/auth/ClaimPage.tsx
+msgctxt "server"
 msgid "Size"
 msgstr "规格"
 

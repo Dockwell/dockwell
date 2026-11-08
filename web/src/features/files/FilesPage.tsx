@@ -18,7 +18,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { isTransient } from "../../app/api";
 import { reasonOf, sentence } from "../../lib/errors";
@@ -45,15 +45,77 @@ function retryListing(failures: number, error: unknown): boolean {
   return failures < 2 && isTransient(error) && reasonOf(error) !== "path_not_answering";
 }
 
-/** Places on most servers worth a click, as the mock has them. */
-function usePlaces(): { label: string; path: string; icon: IconName }[] {
+interface Place {
+  label: string;
+  path: string;
+  icon: IconName;
+}
+
+/**
+ * Places worth a click on most servers, as the mock has them, then the server's
+ * own root. They're the same on every server, and one may not be there; pinning
+ * your own is the file manager's to come (#243).
+ */
+function usePlaces(): { common: Place[]; server: Place[] } {
   const { t } = useLingui();
-  return [
-    { label: t`Websites`, path: "/var/www", icon: "browser" },
-    { label: t`Logs`, path: "/var/log", icon: "file" },
-    { label: t`Docker volumes`, path: "/var/lib/docker/volumes", icon: "layers" },
-    { label: t`Server root`, path: "/", icon: "server" },
-  ];
+  return {
+    common: [
+      { label: t`Websites`, path: "/var/www", icon: "browser" },
+      { label: t`Logs`, path: "/var/log", icon: "file" },
+      { label: t`Docker volumes`, path: "/var/lib/docker/volumes", icon: "layers" },
+    ],
+    server: [{ label: t`Server root`, path: "/", icon: "server" }],
+  };
+}
+
+/** The place a folder is in: the deepest one whose path holds it, the root when none does. */
+function placeOf(folder: string, places: readonly Place[]): string | undefined {
+  let best: Place | undefined;
+  for (const place of places) {
+    const holds = place.path === "/" || folder === place.path || folder.startsWith(`${place.path}/`);
+    if (holds && (!best || place.path.length > best.path.length)) best = place;
+  }
+  return best?.path;
+}
+
+/** One group of places, named by its heading, with the one you're in marked. */
+function PlaceGroup({
+  title,
+  places,
+  current,
+  serverId,
+}: {
+  title: string;
+  places: readonly Place[];
+  current: string | undefined;
+  serverId: string;
+}) {
+  const id = useId();
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a fieldset is for a form's fields, and these are links
+    <div role="group" aria-labelledby={id} className="files-places-group">
+      <div id={id} className="files-places-head">
+        {title}
+      </div>
+      {places.map((place) => (
+        <RouterButtonLink
+          key={place.path}
+          variant="ghost"
+          size="sm"
+          icon={place.icon}
+          to="/servers/$serverId/files"
+          params={{ serverId }}
+          search={{ path: place.path }}
+          title={place.path}
+          className={place.path === current ? "is-current" : undefined}
+          // Inside a place it's where you are; on the place itself the router says it's the page.
+          aria-current={place.path === current ? "location" : undefined}
+        >
+          {place.label}
+        </RouterButtonLink>
+      ))}
+    </div>
+  );
 }
 
 /** A file manager on a server's own page, through its agent. */
@@ -134,6 +196,7 @@ function Files({ server, folder, file, reading }: FilesProps) {
   const now = useControlPlaneNow();
   const words = useTimeWords();
   const places = usePlaces();
+  const current = placeOf(folder, [...places.common, ...places.server]);
   const [filter, setFilter] = useState("");
   const serverId = server.id;
   // A refused listing is on record, so it isn't asked again each time the window takes focus.
@@ -278,20 +341,10 @@ function Files({ server, folder, file, reading }: FilesProps) {
         {reading ? null : (
           <Panel flush className="files-places">
             <nav aria-label={t`Places`}>
-              {places.map((place) => (
-                <RouterButtonLink
-                  key={place.path}
-                  variant="ghost"
-                  size="sm"
-                  icon={place.icon}
-                  to="/servers/$serverId/files"
-                  params={{ serverId }}
-                  search={{ path: place.path }}
-                  title={place.path}
-                >
-                  {place.label}
-                </RouterButtonLink>
-              ))}
+              {/* As Server-Files groups them: the places worth a click, then the server's own root. */}
+              <PlaceGroup title={t`Common places`} places={places.common} current={current} serverId={serverId} />
+              <div className="files-places-rule" aria-hidden="true" />
+              <PlaceGroup title={t`Server`} places={places.server} current={current} serverId={serverId} />
             </nav>
           </Panel>
         )}

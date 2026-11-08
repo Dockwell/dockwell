@@ -83,10 +83,40 @@
   padding: var(--space-2);
 }
 
+.files-places-group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* As the mock has them: 13 px in ink, with only the icon muted. */
 .files-places .dw-btn {
   justify-content: flex-start;
   width: 100%;
+  color: var(--ink);
+  font-size: 13px;
   font-weight: 400;
+}
+
+.files-places .dw-btn .dw-icon {
+  color: var(--ink-muted);
+}
+
+/* The place you're in, as a selected row is. */
+.files-places .dw-btn.is-current {
+  background: var(--selection);
+}
+
+.files-places-head {
+  padding: var(--space-1) var(--space-2) 6px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.files-places-rule {
+  height: 1px;
+  margin: var(--space-2) 0;
+  background: var(--line);
 }
 
 .files-list {
@@ -299,6 +329,15 @@
     flex-direction: row;
     overflow-x: auto;
     padding: var(--space-1);
+  }
+
+  .files-places-group {
+    flex-direction: row;
+  }
+
+  .files-places-head,
+  .files-places-rule {
+    display: none;
   }
 
   .files-places .dw-btn {
