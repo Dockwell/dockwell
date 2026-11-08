@@ -260,6 +260,10 @@ type Decision struct {
 	// if its server could say. It never stops a plan, and a fingerprint leaves it
 	// out: the spec says the port.
 	ServerPort *ServerPortCheck `json:",omitempty"`
+	// Closes is what a step that turns deny everything else on closes: each port
+	// that listens or that Docker publishes, that no rule lets in from anywhere,
+	// such as "8080/tcp (shop-web-1)" (ADR 0052). It never stops a plan.
+	Closes []string `json:",omitempty"`
 	// Goes says what someone visiting a route finds once the step takes it away, as
 	// a route stops nothing the plan counts as downtime and yet stops people reaching
 	// what it served. It never stops a plan, and a fingerprint leaves it out, as it

@@ -1186,6 +1186,11 @@ message PlanStep {
   RestorePlan restore = 40;
   // What a step that backs up a volume before the rest of a change does.
   BackupFirst backup_first = 41;
+  // What a step that turns on deny everything else closes: each port that
+  // listens on the server, or that Docker publishes, that no rule lets in from
+  // anywhere, such as "8080/tcp (shop-web-1)". SSH's ports and the control
+  // plane's own stay let in by their pins, and aren't here (ADR 0052).
+  repeated string closes = 42;
 }
 
 // BackupFirst is a backup a change takes before anything else it does, as a catalog

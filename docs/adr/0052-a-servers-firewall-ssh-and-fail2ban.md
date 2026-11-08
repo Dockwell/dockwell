@@ -149,6 +149,13 @@ The agent drives `nft`, `sshd`, `fail2ban-client`, `ufw`, `firewall-cmd`, `iptab
 
 **A server without `nft`** says so, apart from one whose kernel won't load a table, as LXC and OpenVZ containers can refuse: each has its own words in the tab, and neither can be changed. Alpine and some minimal images ship without `nft`; installing `nftables` is a plan step through #276's install path, or `install.sh`'s.
 
+### What the tab says of Dockwell's own firewall
+
+- **Its rules and policy are as the server holds them,** as its agent says in the firewall's read, not the latest plan: what was last confirmed, and, while a change waits for Keep, that change's rules and policy beside them, marked, with nothing else to change until it's kept or put back.
+- **Dockwell's table counts in how far what listens reaches,** as the others' do: its pins, its allows, its denies, then the policy, the first that matches deciding. With no other firewall there, the tab says only Dockwell's rules filter what comes in.
+- **Turning deny everything else on lists what it closes,** in the plan: each port that listens on the server, or that Docker publishes, that no confirmed rule lets in from anywhere. SSH's ports and the control plane's own stay let in by their pins, so they aren't on it.
+- **A server that can't hold Dockwell's table** says why on the tab, and offers no rule or policy.
+
 ### How this differs from the mock
 
 - **The locked "Always last" row** becomes the policy, on or off, as the owner decided.

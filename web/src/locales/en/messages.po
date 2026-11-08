@@ -4837,6 +4837,12 @@ msgstr "{subject} is taken on"
 msgid "{verb} {name}"
 msgstr "{verb} {name}"
 
+msgid "{where} denies everything else"
+msgstr "{where} denies everything else"
+
+msgid "{where} lets in what no rule drops"
+msgstr "{where} lets in what no rule drops"
+
 msgid "Check you can still reach {name}"
 msgstr "Check you can still reach {name}"
 
@@ -4846,14 +4852,29 @@ msgstr "Keep the change"
 msgid "Only the person who applied this change can keep it, from where they applied it."
 msgstr "Only the person who applied this change can keep it, from where they applied it."
 
+msgid "Open a new SSH session from where you are now, with your key. If it works, keep the change."
+msgstr "Open a new SSH session from where you are now, with your key. If it works, keep the change."
+
+msgid "Open a new SSH session to port {portList} from where you are now, with your key. If it works, keep the change."
+msgstr "Open a new SSH session to port {portList} from where you are now, with your key. If it works, keep the change."
+
 msgid "Open a new SSH session to port {port} from where you are now, with your key. If it works, keep the change."
 msgstr "Open a new SSH session to port {port} from where you are now, with your key. If it works, keep the change."
+
+msgid "That wait is over: the server kept the change, or put back its firewall. The change goes on as this sheet shows."
+msgstr "That wait is over: the server kept the change, or put back its firewall. The change goes on as this sheet shows."
+
+msgid "or"
+msgstr "or"
 
 msgid "{name} is putting back its firewall as it was."
 msgstr "{name} is putting back its firewall as it was."
 
 msgid "{name} puts back its firewall as it was in {left} s unless you keep it."
 msgstr "{name} puts back its firewall as it was in {left} s unless you keep it."
+
+msgid "{name}'s agent isn't connected, so it can't hear a confirmation. It puts back its firewall as it was on its own when its time runs out."
+msgstr "{name}'s agent isn't connected, so it can't hear a confirmation. It puts back its firewall as it was on its own when its time runs out."
 
 msgid "Details"
 msgstr "Details"
@@ -5225,6 +5246,10 @@ msgstr "Anyone who can read this app can see it. Only a variable's value is hidd
 msgid "Check that you have another way in, such as your provider's console, before you apply it."
 msgstr "Check that you have another way in, such as your provider's console, before you apply it."
 
+#. placeholder {0}: server.serverName
+msgid "Deny everything else closes what no rule lets in on {0}"
+msgstr "Deny everything else closes what no rule lets in on {0}"
+
 msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 
@@ -5392,6 +5417,9 @@ msgstr "The server's security rests on what that reaches, so it is as good as ro
 
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 msgstr "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
+
+msgid "These ports listen, or Docker publishes them, and no rule lets them in from anywhere: {closes}. SSH, and on the control server its own ports, stay let in."
+msgstr "These ports listen, or Docker publishes them, and no rule lets them in from anywhere: {closes}. SSH, and on the control server its own ports, stay let in."
 
 msgid "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
 msgstr "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
@@ -8174,6 +8202,9 @@ msgstr "Deny"
 msgid "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them, but for what Docker's proxy takes, as marked."
 msgstr "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them, but for what Docker's proxy takes, as marked."
 
+msgid "Dockwell's rules cover these too, as Docker forwards them: with deny everything else on, only a port a rule of Dockwell's allows reaches its container."
+msgstr "Dockwell's rules cover these too, as Docker forwards them: with deny everything else on, only a port a rule of Dockwell's allows reaches its container."
+
 msgid "Every IPv4 address"
 msgstr "Every IPv4 address"
 
@@ -8222,6 +8253,10 @@ msgstr "Nothing filters what comes in to {0}: it has no ufw, firewalld, nftables
 
 msgid "On · read-only, as Dockwell didn't make it"
 msgstr "On · read-only, as Dockwell didn't make it"
+
+#. placeholder {0}: server.name
+msgid "Only Dockwell's rules filter what comes in to {0}: it has no ufw, firewalld or other nftables or iptables rules of its own."
+msgstr "Only Dockwell's rules filter what comes in to {0}: it has no ufw, firewalld or other nftables or iptables rules of its own."
 
 msgid "Only from {sources}, as {by} says"
 msgstr "Only from {sources}, as {by} says"
@@ -8341,6 +8376,9 @@ msgstr "{count}, {input} of them on what comes in."
 msgid "{count}. Its input chain drops what no rule lets in."
 msgstr "{count}. Its input chain drops what no rule lets in."
 
+msgid "A change to this firewall waits for you to keep it, so nothing else here changes until it's kept or {name} puts it back."
+msgstr "A change to this firewall waits for you to keep it, so nothing else here changes until it's kept or {name} puts it back."
+
 msgid "Add a rule"
 msgstr "Add a rule"
 
@@ -8348,14 +8386,20 @@ msgstr "Add a rule"
 msgid "Add a rule to {0}"
 msgstr "Add a rule to {0}"
 
-msgid "Addresses or ranges, such as 203.0.113.0/24, apart by commas. Empty is anywhere."
-msgstr "Addresses or ranges, such as 203.0.113.0/24, apart by commas. Empty is anywhere."
+msgid "Addresses or ranges, such as 203.0.113.0/24, separated by commas. Empty is anywhere."
+msgstr "Addresses or ranges, such as 203.0.113.0/24, separated by commas. Empty is anywhere."
 
 msgid "Allow {n}/{protocol} on {serverName}"
 msgstr "Allow {n}/{protocol} on {serverName}"
 
-msgid "As {name} starts, these are off until its agent is up, a few seconds in, which loads them again. Nothing is lost, and nobody is locked out, as they only narrow what comes in."
-msgstr "As {name} starts, these are off until its agent is up, a few seconds in, which loads them again. Nothing is lost, and nobody is locked out, as they only narrow what comes in."
+msgid "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, everything they'd drop gets in. Nothing is lost, and nobody is locked out."
+msgstr "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, everything they'd drop gets in. Nothing is lost, and nobody is locked out."
+
+msgid "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, what they deny gets in. Nothing is lost, and nobody is locked out."
+msgstr "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, what they deny gets in. Nothing is lost, and nobody is locked out."
+
+msgid "Change waiting for Keep"
+msgstr "Change waiting for Keep"
 
 msgid "Deny everything else"
 msgstr "Deny everything else"
@@ -8363,11 +8407,17 @@ msgstr "Deny everything else"
 msgid "Deny everything else on {name}"
 msgstr "Deny everything else on {name}"
 
+msgid "Deny everything else, waiting for Keep"
+msgstr "Deny everything else, waiting for Keep"
+
 msgid "Deny {n}/{protocol} on {serverName}"
 msgstr "Deny {n}/{protocol} on {serverName}"
 
 msgid "Dockwell has no rules for {name} yet. What comes in is as the server's own firewall leaves it."
 msgstr "Dockwell has no rules for {name} yet. What comes in is as the server's own firewall leaves it."
+
+msgid "Dockwell has no rules for {name}, and denies everything else: only connections already open, SSH from the addresses it keeps, and on the control server its own ports, get in."
+msgstr "Dockwell has no rules for {name}, and denies everything else: only connections already open, SSH from the addresses it keeps, and on the control server its own ports, get in."
 
 msgid "Dockwell's rules"
 msgstr "Dockwell's rules"
@@ -8384,10 +8434,16 @@ msgstr "Let in what no rule drops on {name}"
 msgid "Name a port from 1 to 65535, such as 443."
 msgstr "Name a port from 1 to 65535, such as 443."
 
+msgid "Nothing listens"
+msgstr "Nothing listens"
+
 msgid "Plan it"
 msgstr "Plan it"
 
-#. placeholder {0}: r.name
+msgid "Removal waiting for Keep"
+msgstr "Removal waiting for Keep"
+
+#. placeholder {0}: row.id
 msgid "Remove the rule {0}"
 msgstr "Remove the rule {0}"
 
@@ -8395,8 +8451,17 @@ msgstr "Remove the rule {0}"
 msgid "Remove the rule {0} from {name}"
 msgstr "Remove the rule {0} from {name}"
 
+msgid "The server itself"
+msgstr "The server itself"
+
+msgid "Waiting for Keep"
+msgstr "Waiting for Keep"
+
 msgid "Why the rule is there, shown beside it."
 msgstr "Why the rule is there, shown beside it."
+
+msgid "{name} can't hold Dockwell's firewall, so no rule or policy can be planned for it: {why}"
+msgstr "{name} can't hold Dockwell's firewall, so no rule or policy can be planned for it: {why}"
 
 msgid "Loading servers"
 msgstr "Loading servers"

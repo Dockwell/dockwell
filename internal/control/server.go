@@ -317,7 +317,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	}
 	if cfg.Fleet != nil {
 		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet, cfg.Store, cfg.Agents), opts...))
-		handle(dockwellv1connect.NewFirewallServiceHandler(firewall.New(cfg.Fleet, cfg.Agents, cfg.Store), opts...))
+		handle(dockwellv1connect.NewFirewallServiceHandler(firewall.New(cfg.Fleet, cfg.Agents), opts...))
 	}
 	if cfg.Changes != nil {
 		ch := changes.New(cfg.Changes, cfg.Auth, cfg.Store, cfg.Logger)

@@ -29,6 +29,12 @@ type PolicyBackend interface {
 	DeletePolicy(ctx context.Context) error
 }
 
+// Closer is a backend that says what turning deny everything else on would
+// close, for the plan to list (ADR 0052).
+type Closer interface {
+	Closes(desired *resourcev1.FirewallPolicy) []string
+}
+
 // PolicyDriver manages a server's firewall policy.
 type PolicyDriver struct {
 	Backend PolicyBackend
@@ -91,6 +97,9 @@ func (d *PolicyDriver) Plan(actual, desired proto.Message, _ []resource.Change) 
 	p, _ := desired.(*resourcev1.FirewallPolicy)
 	if p.GetDenyEverythingElse() {
 		dec.Warnings = append(dec.Warnings, resource.WarningMayLockOut)
+		if c, ok := d.Backend.(Closer); ok {
+			dec.Closes = c.Closes(p)
+		}
 	}
 	if c, ok := d.Backend.(Checker); ok {
 		if err := c.CheckPolicy(p); err != nil {

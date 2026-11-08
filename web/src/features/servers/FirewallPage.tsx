@@ -82,28 +82,36 @@ function Firewall({ server }: { server: Server }) {
   const primary = there.filter(weighed);
   const others = there.filter((tool) => !weighed(tool));
   const filtered = primary.some((tool) => tool.active && !tool.unreadable);
+  const dockwell = fw.dockwell;
+  // Dockwell's own table filters too, once it holds a rule or the policy.
+  const dockwellFilters =
+    (dockwell?.rules.length ?? 0) > 0 ||
+    (dockwell?.policy?.denyEverythingElse ?? false) ||
+    (dockwell?.waitingChange ?? "") !== "";
   return (
     <div className="firewall">
-      <DockwellRules
-        server={server}
-        rules={read.data?.rules ?? []}
-        policy={read.data?.policy}
-        onChanged={() => void read.refetch()}
-      />
+      <DockwellRules server={server} fw={fw} onChanged={() => void read.refetch()} />
       {there.length === 0 ? (
         <Panel title={t`Inbound traffic`}>
           <p className="firewall-note">
-            <Trans>
-              Nothing filters what comes in to {server.name}: it has no ufw, firewalld, nftables or iptables rules that
-              could.
-            </Trans>
+            {dockwellFilters ? (
+              <Trans>
+                Only Dockwell's rules filter what comes in to {server.name}: it has no ufw, firewalld or other nftables
+                or iptables rules of its own.
+              </Trans>
+            ) : (
+              <Trans>
+                Nothing filters what comes in to {server.name}: it has no ufw, firewalld, nftables or iptables rules
+                that could.
+              </Trans>
+            )}
           </p>
         </Panel>
       ) : (
         primary.map((tool) => <ToolPanel key={`${tool.kind}-${tool.name}`} tool={tool} />)
       )}
       <ListeningPanel server={server} listening={fw.listening} />
-      <PublishedPanel fw={fw} filtered={filtered} />
+      <PublishedPanel fw={fw} filtered={filtered} dockwellDenies={dockwell?.policy?.denyEverythingElse ?? false} />
       {others.length > 0 ? <OtherRulesPanel tools={others} /> : null}
     </div>
   );
@@ -359,7 +367,16 @@ interface PortRow {
  * firewalld's input rules see them, but for those Docker's proxy takes, and the
  * rules in DOCKER-USER, which filter them.
  */
-function PublishedPanel({ fw, filtered }: { fw: ServerFirewall; filtered: boolean }) {
+function PublishedPanel({
+  fw,
+  filtered,
+  dockwellDenies,
+}: {
+  fw: ServerFirewall;
+  filtered: boolean;
+  /** Dockwell denies everything else, which covers what Docker publishes too. */
+  dockwellDenies: boolean;
+}) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const ports = fw.published;
@@ -437,6 +454,14 @@ function PublishedPanel({ fw, filtered }: { fw: ServerFirewall; filtered: boolea
           <Trans>
             Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't
             cover them, but for what Docker's proxy takes, as marked.
+          </Trans>
+        </p>
+      ) : null}
+      {dockwellDenies ? (
+        <p className="firewall-note">
+          <Trans>
+            Dockwell's rules cover these too, as Docker forwards them: with deny everything else on, only a port a rule
+            of Dockwell's allows reaches its container.
           </Trans>
         </p>
       ) : null}

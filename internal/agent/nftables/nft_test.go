@@ -314,7 +314,7 @@ func TestAKernelWithoutNftablesSaysSo(t *testing.T) {
 	if !errors.Is(err, ErrRefused) || !strings.Contains(err.Error(), "modprobe nf_tables") || strings.Contains(err.Error(), "LXC or OpenVZ container can") {
 		t.Errorf("no nf_tables: %v", err)
 	}
-	if !strings.Contains(err.Error(), "so nothing changed") {
-		t.Errorf("a check that failed doesn't say nothing changed: %v", err)
+	if !strings.HasPrefix(err.Error(), "nothing changed, as Dockwell couldn't check that a table can load: ") || !strings.HasSuffix(err.Error(), "or ask the container's host") {
+		t.Errorf("a check that failed doesn't say nothing changed first, and the fix last: %v", err)
 	}
 }

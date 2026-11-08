@@ -43,14 +43,9 @@ message GetServerFirewallRequest {
 
 // GetServerFirewallResponse is what filters the server's inbound traffic.
 message GetServerFirewallResponse {
-  // The firewall, as the agent read it.
+  // The firewall, as the agent read it, Dockwell's own with the rest.
   ServerFirewall firewall = 1;
-  // Dockwell's own rules for the server, as applied, by name. Each is a
-  // firewall.rule resource in the server's scope, which a change edits.
-  repeated DockwellFirewallRule rules = 2;
-  // Dockwell's policy for the server, as applied: what it does with what no
-  // rule lets in. Unset when it has none, which lets in what no rule drops.
-  dockwell.resource.v1alpha1.FirewallPolicy policy = 3;
+  reserved 2, 3;
 }
 
 // DockwellFirewallRule is one of Dockwell's own rules for a server.
@@ -82,6 +77,31 @@ message ServerFirewall {
   // puts there, as ufw-docker or a person adds. They filter published ports,
   // and the agent doesn't weigh them one by one.
   uint32 docker_user_rules = 6;
+  // Dockwell's own firewall, as the agent holds it: what was confirmed, and a
+  // change that waits for its confirmation. Its table counts in how far what
+  // listens reaches, as the others' do. Unset from an agent too old to say.
+  DockwellTable dockwell = 7;
+}
+
+// DockwellTable is Dockwell's own firewall on a server, as its agent holds it
+// (ADR 0052).
+message DockwellTable {
+  // Why the server can't hold Dockwell's firewall, such as that it has no nft,
+  // so no rule or policy can be planned for it. Empty when it can.
+  string unusable = 1;
+  // Its rules as last confirmed, which the server keeps, by name. Each is a
+  // firewall.rule resource in the server's scope, which a change edits.
+  repeated DockwellFirewallRule rules = 2;
+  // Its policy as last confirmed: what it does with what no rule lets in.
+  // Unset when it has none, which lets in what no rule drops.
+  dockwell.resource.v1alpha1.FirewallPolicy policy = 3;
+  // The change that waits for its confirmation now, if one does. Its rules and
+  // policy are loaded, and go back unless it's kept.
+  string waiting_change = 4;
+  // The rules as that change leaves them, by name.
+  repeated DockwellFirewallRule waiting_rules = 5;
+  // The policy as that change leaves it. Unset when it leaves none.
+  dockwell.resource.v1alpha1.FirewallPolicy waiting_policy = 6;
 }
 
 // HostListener is a port something on the server listens on, beyond loopback.

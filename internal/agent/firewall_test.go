@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,10 +17,14 @@ import (
 	"testing"
 	"testing/fstest"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
+	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 // testdata reads a tool's output from testdata/firewall: the reviewer's
@@ -699,5 +704,76 @@ func TestDockersDefaultsBehindADefaultDeny(t *testing.T) {
 		if strings.Join(got, ", ") != ":::8090 ipv6only=true CLOSED" {
 			t.Errorf("proxy on IPv4 too %v: listening %v, want IPv6 alone, closed", proxyOnIPv4, got)
 		}
+	}
+}
+
+// holding is an access manager that holds Dockwell's table as a test says.
+type holding struct{ applied access.Applied }
+
+func (h holding) Confirm(context.Context, string) resource.AccessVerdict {
+	return resource.AccessNotWaiting
+}
+func (h holding) Applied() access.Applied { return h.applied }
+
+// Dockwell's own table counts in how far what listens reaches, as nft runs it:
+// its pins, its allows, its denies, then deny everything else, the first that
+// matches deciding; and the read says the table's rules and policy as
+// confirmed, and a change that waits.
+func TestDockwellsTableCountsInReach(t *testing.T) {
+	table := nftables.Table{
+		Pins: []nftables.Rule{
+			{Name: "pin ssh", Protocol: "tcp", Ports: []uint16{22}, Sources: []netip.Prefix{netip.MustParsePrefix("203.0.113.7/32"), netip.MustParsePrefix("2001:db8::7/128")}},
+			{Name: "pin control plane", Protocol: "tcp", Ports: []uint16{7600}},
+		},
+		Allows: []nftables.Rule{
+			{Name: "rule https", Protocol: "tcp", Ports: []uint16{443}},
+			{Name: "rule office-db", Protocol: "tcp", Ports: []uint16{5432}, Sources: []netip.Prefix{netip.MustParsePrefix("198.51.100.0/24")}},
+		},
+		Denies:   []nftables.Rule{{Name: "rule deny-redis", Protocol: "tcp", Ports: []uint16{6379}}},
+		DenyRest: true,
+	}
+	policy := &resourcev1.FirewallPolicy{DenyEverythingElse: true}
+	applied := access.Applied{
+		Live:   &table,
+		Rules:  map[string]*resourcev1.FirewallRule{"https": {Port: 443}},
+		Policy: policy,
+	}
+	f := reader(&fakeTools{outputs: map[string]hosttool.Result{"nft -j -t list ruleset": ok([]byte(`{"nftables": []}`))}}, proc(22, 443, 5432, 6379, 7600, 8080))
+	f.dockwell = holding{applied}
+	read, err := f.read(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, l := range read.GetListening() {
+		got = append(got, fmt.Sprintf("%d %s %s %v", l.GetPort(), strings.TrimPrefix(l.GetReach().String(), "LISTENER_REACH_"), l.GetDecidedBy(), l.GetSources()))
+	}
+	want := "22 SOME Dockwell [203.0.113.7/32], 443 OPEN Dockwell [], 5432 SOME Dockwell [198.51.100.0/24], 6379 CLOSED Dockwell [], 7600 OPEN Dockwell [], 8080 CLOSED Dockwell []"
+	if strings.Join(got, ", ") != want {
+		t.Errorf("reach\n %s\nwant\n %s", strings.Join(got, ", "), want)
+	}
+	if dw := read.GetDockwell(); len(dw.GetRules()) != 1 || dw.GetRules()[0].GetName() != "https" || !dw.GetPolicy().GetDenyEverythingElse() || dw.GetWaitingChange() != "" {
+		t.Errorf("Dockwell's table reads %v", dw)
+	}
+
+	// With the policy off, what no rule closes reaches from anywhere; a deny
+	// closes its port; and a change that waits is said with what it leaves.
+	table.DenyRest = false
+	applied.Waiting = "chg_1"
+	applied.WaitingRules = map[string]*resourcev1.FirewallRule{"https": {Port: 443}, "http": {Port: 80}}
+	f.dockwell = holding{applied}
+	read, err = f.read(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = nil
+	for _, l := range read.GetListening() {
+		got = append(got, fmt.Sprintf("%d %s", l.GetPort(), strings.TrimPrefix(l.GetReach().String(), "LISTENER_REACH_")))
+	}
+	if want := "22 OPEN, 443 OPEN, 5432 OPEN, 6379 CLOSED, 7600 OPEN, 8080 OPEN"; strings.Join(got, ", ") != want {
+		t.Errorf("with the policy off, reach %v, want %s", got, want)
+	}
+	if dw := read.GetDockwell(); dw.GetWaitingChange() != "chg_1" || len(dw.GetWaitingRules()) != 2 || dw.GetWaitingRules()[0].GetName() != "http" {
+		t.Errorf("the waiting change reads %v", dw)
 	}
 }

@@ -4503,7 +4503,12 @@ type PlanStep struct {
 	// work adds to this message.
 	Restore *RestorePlan `protobuf:"bytes,40,opt,name=restore,proto3" json:"restore,omitempty"`
 	// What a step that backs up a volume before the rest of a change does.
-	BackupFirst   *BackupFirst `protobuf:"bytes,41,opt,name=backup_first,json=backupFirst,proto3" json:"backup_first,omitempty"`
+	BackupFirst *BackupFirst `protobuf:"bytes,41,opt,name=backup_first,json=backupFirst,proto3" json:"backup_first,omitempty"`
+	// What a step that turns on deny everything else closes: each port that
+	// listens on the server, or that Docker publishes, that no rule lets in from
+	// anywhere, such as "8080/tcp (shop-web-1)". SSH's ports and the control
+	// plane's own stay let in by their pins, and aren't here (ADR 0052).
+	Closes        []string `protobuf:"bytes,42,rep,name=closes,proto3" json:"closes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4758,6 +4763,13 @@ func (x *PlanStep) GetRestore() *RestorePlan {
 func (x *PlanStep) GetBackupFirst() *BackupFirst {
 	if x != nil {
 		return x.BackupFirst
+	}
+	return nil
+}
+
+func (x *PlanStep) GetCloses() []string {
+	if x != nil {
+		return x.Closes
 	}
 	return nil
 }
@@ -6386,7 +6398,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aremoved\x18\x04 \x01(\bR\aremoved\x125\n" +
 	"\bdowntime\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\bdowntime\x12+\n" +
 	"\x05steps\x18\x06 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\x12>\n" +
-	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xc8\v\n" +
+	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xe0\v\n" +
 	"\bPlanStep\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x124\n" +
@@ -6426,7 +6438,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x11managed_elsewhere\x18# \x01(\v2\x1d.dockwell.v1.ManagedElsewhereR\x10managedElsewhere\x12:\n" +
 	"\fshared_names\x18$ \x03(\v2\x17.dockwell.v1.SharedNameR\vsharedNames\x122\n" +
 	"\arestore\x18( \x01(\v2\x18.dockwell.v1.RestorePlanR\arestore\x12;\n" +
-	"\fbackup_first\x18) \x01(\v2\x18.dockwell.v1.BackupFirstR\vbackupFirst\"\xd6\x01\n" +
+	"\fbackup_first\x18) \x01(\v2\x18.dockwell.v1.BackupFirstR\vbackupFirst\x12\x16\n" +
+	"\x06closes\x18* \x03(\tR\x06closes\"\xd6\x01\n" +
 	"\vBackupFirst\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x121\n" +
 	"\x06method\x18\x02 \x01(\x0e2\x19.dockwell.v1.BackupMethodR\x06method\x12\x1a\n" +

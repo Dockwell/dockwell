@@ -604,11 +604,32 @@ func testTheFirewallSaysDockwellsOwnRules(t *testing.T, backend store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rules := got.Msg.GetRules()
-	if len(rules) != 1 || rules[0].GetName() != "http" || rules[0].GetRule().GetPort() != 80 {
+	dw := got.Msg.GetFirewall().GetDockwell()
+	if rules := dw.GetRules(); len(rules) != 1 || rules[0].GetName() != "http" || rules[0].GetRule().GetPort() != 80 {
 		t.Errorf("Dockwell's rules %v", rules)
 	}
-	if !got.Msg.GetPolicy().GetDenyEverythingElse() {
-		t.Errorf("Dockwell's policy %v", got.Msg.GetPolicy())
+	if !dw.GetPolicy().GetDenyEverythingElse() || dw.GetWaitingChange() != "" {
+		t.Errorf("Dockwell's policy %v, waiting %q", dw.GetPolicy(), dw.GetWaitingChange())
 	}
+
+	// A rule whose change waits for its confirmation is said apart from what's
+	// confirmed, as the server holds it.
+	https := propose(t, c, "Open https", ruleOn(srv.id.ServerID, "https", 443))
+	w := watch(t, c, https.GetId())
+	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: https.GetId()}); err != nil {
+		t.Fatal(err)
+	}
+	wait := waitingFor(t, c, https.GetId())
+	got, err = fc.GetServerFirewall(t.Context(), connect.NewRequest(&dockwellv1.GetServerFirewallRequest{ServerId: srv.id.ServerID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dw = got.Msg.GetFirewall().GetDockwell()
+	if len(dw.GetRules()) != 1 || dw.GetWaitingChange() != https.GetId() || len(dw.GetWaitingRules()) != 2 {
+		t.Errorf("while https waits: confirmed %v, waiting %q with %v", dw.GetRules(), dw.GetWaitingChange(), dw.GetWaitingRules())
+	}
+	if _, err := c.ConfirmChange(t.Context(), confirmation(https.GetId(), wait)); err != nil {
+		t.Fatal(err)
+	}
+	waitWatch(t, w)
 }

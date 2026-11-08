@@ -986,6 +986,14 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   if (plan?.servers.some((server) => server.steps.some((step) => step.releases))) {
     return t`Dockwell let go of ${subject}`;
   }
+  // A server's firewall policy has one name, "default", which says nothing: its
+  // title says what it does.
+  if (only?.resource?.kind === "firewall.policy") {
+    const where = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? only.resource.scope;
+    return only.action === PlanAction.DELETE
+      ? t`${where} lets in what no rule drops`
+      : t`${where} denies everything else`;
+  }
   switch (only?.action) {
     case PlanAction.CREATE:
       return t`${subject} is created`;
@@ -1029,7 +1037,7 @@ function PlanBody({
   const { t } = useLingui();
   const words = useChangeWords();
   const alsoWords = useAlsoWords();
-  const risks = useRisks(plan);
+  const risks = useRisks(plan, phase !== "review");
   // Worked out from the review on, so an arrival has what it says as it lands, and room for it.
   const reach = useReach(plan, change, phase === "arrived");
   const serving = reach.domains.flatMap(({ read }) =>
@@ -2159,9 +2167,11 @@ function Effects({
 
 /**
  * What a change waits for, while a change to who reaches a server waits for you
- * to confirm you still can: on the change once it's read again, and on its step
- * as the watch tells it.
+ * to confirm you still can: on its steps, as the watch moves them on, and on the
+ * change itself only when it has no steps to say. The change's own is as of
+ * when it was read, so a step that has moved on since outranks it.
  */
 function confirmationOf(change: Change | undefined): ChangeConfirmation | undefined {
-  return change?.confirmation ?? change?.steps.find((s) => s.confirmation)?.confirmation;
+  if (change && change.steps.length > 0) return change.steps.find((s) => s.confirmation)?.confirmation;
+  return change?.confirmation;
 }

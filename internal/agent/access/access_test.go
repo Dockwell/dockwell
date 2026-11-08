@@ -1390,3 +1390,71 @@ func TestAFailedRevertIsRetriedOnTheAgentsOwnClock(t *testing.T) {
 		t.Errorf("the agent's own clock left %q", got)
 	}
 }
+
+// What the server holds of Dockwell's firewall: nothing before it's ready, with
+// why; the confirmed table, and its rules and policy; and, while a change
+// waits, its table, which is the one loaded, with what it leaves.
+func TestAppliedSaysWhatTheServerHolds(t *testing.T) {
+	unready := &Manager{Dir: t.TempDir(), Table: refusing{&table{}}}
+	_ = unready.Ready(t.Context())
+	if got := unready.Applied(); got.Unusable == "" || got.Live != nil {
+		t.Errorf("a server that can't hold a table: %+v", got)
+	}
+	m, _ := manager(t, t.TempDir(), time.Minute)
+	if got := m.Applied(); got.Live != nil || len(got.Rules) != 0 || got.Unusable != "" {
+		t.Errorf("nothing confirmed: %+v", got)
+	}
+	if err := keep(t, m, "chg_1", func(ctx context.Context) error { return m.Put(ctx, "https", https) }); err != nil {
+		t.Fatal(err)
+	}
+	got := m.Applied()
+	if got.Live == nil || len(got.Live.Allows) != 1 || got.Rules["https"].GetPort() != 443 || got.Waiting != "" {
+		t.Errorf("confirmed: %+v", got)
+	}
+	if err := m.PutPolicy(step("chg_2", false), policy); err != nil {
+		t.Fatal(err)
+	}
+	got = m.Applied()
+	if got.Waiting != "chg_2" || !got.Live.DenyRest || got.Policy != nil || !got.WaitingPolicy.GetDenyEverythingElse() || got.WaitingRules["https"] == nil {
+		t.Errorf("while a change waits: %+v", got)
+	}
+	m.Confirm(t.Context(), "chg_2")
+}
+
+// refusing is a kernel that won't take a table, as an LXC container's.
+type refusing struct{ *table }
+
+func (refusing) Probe(context.Context) error { return nftables.ErrRefused }
+
+// Turning deny everything else on closes each port that listens, or that
+// Docker publishes, that no confirmed rule lets in from anywhere; SSH's ports
+// and the control plane's own stay let in by their pins.
+func TestTheClosesListIsWhatNoRuleLetsIn(t *testing.T) {
+	s := &sessions{own: []uint16{7600}}
+	s.set(office)
+	m := start(t, t.TempDir(), &table{}, s, time.Minute, func(m *Manager) {
+		m.Exposed = func(context.Context) ([]Exposed, error) {
+			return []Exposed{
+				{Port: 8080, Protocol: "tcp", What: "shop-web-1"},
+				{Port: 22, Protocol: "tcp"},
+				{Port: 443, Protocol: "tcp"},
+				{Port: 5432, Protocol: "tcp"},
+				{Port: 53, Protocol: "udp"},
+				{Port: 7600, Protocol: "tcp"},
+			}, nil
+		}
+	})
+	if err := keep(t, m, "chg_1", func(ctx context.Context) error { return m.Put(ctx, "https", https) }); err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprint(m.Closes(policy)); got != "[53/udp 5432/tcp 8080/tcp (shop-web-1)]" {
+		t.Errorf("deny everything else closes %s", got)
+	}
+	if got := m.Closes(&resourcev1.FirewallPolicy{}); got != nil {
+		t.Errorf("the policy off closes %v", got)
+	}
+	dec, err := (&firewall.PolicyDriver{Backend: m}).Plan(nil, policy, nil)
+	if err != nil || fmt.Sprint(dec.Closes) != "[53/udp 5432/tcp 8080/tcp (shop-web-1)]" {
+		t.Errorf("the policy's plan: %v, closes %v", err, dec.Closes)
+	}
+}

@@ -145,6 +145,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	if a := s.Answers; a != nil {
 		p.Answers = &dockwellv1.RouteAnswers{Reach: routeReaches[a.Reach], Proxies: a.Proxies, Plain: a.Plain}
 	}
+	p.Closes = s.Closes
 	if c := s.ServerPort; c != nil {
 		p.ServerPort = &dockwellv1.ServerPortCheck{Port: c.Port, Listening: c.Listening, NothingListening: c.Nothing}
 	}
@@ -408,6 +409,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		reach, _ := from(routeReaches, a.GetReach())
 		s.Answers = &resource.RouteAnswers{Reach: reach, Proxies: a.GetProxies(), Plain: a.GetPlain()}
 	}
+	s.Closes = p.GetCloses()
 	if c := p.GetServerPort(); c != nil {
 		s.ServerPort = &resource.ServerPortCheck{Port: c.GetPort(), Listening: c.GetListening(), Nothing: c.GetNothingListening()}
 	}

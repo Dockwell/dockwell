@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"net/netip"
 	"os"
 	"slices"
@@ -17,7 +18,9 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/docker"
 )
@@ -59,6 +62,8 @@ type firewallReader struct {
 	now  func() time.Time
 	// euid is the agent's user, for a test. Nil asks the kernel.
 	euid func() int
+	// dockwell says what the server holds of Dockwell's own firewall. Nil holds none.
+	dockwell AccessConfirmer
 
 	mu sync.Mutex
 	// reading is the read in flight, which another who asks shares.
@@ -78,7 +83,7 @@ func newFirewallReader(cfg Config) *firewallReader {
 	if tools == nil {
 		tools = &hosttool.Runner{Off: true}
 	}
-	return &firewallReader{docker: cfg.Docker, tools: tools}
+	return &firewallReader{docker: cfg.Docker, tools: tools, dockwell: cfg.Access}
 }
 
 // command runs one of firewallTools, and returns how it ended.
@@ -181,6 +186,11 @@ func (f *firewallReader) readNow(ctx context.Context) *dockwellv1.ServerFirewall
 		}
 	}
 	opts := reachOptions{dockerUnknown: out.GetPublishedUnreadable() != ""}
+	if f.dockwell != nil {
+		applied := f.dockwell.Applied()
+		out.Dockwell = dockwellTable(applied)
+		opts.dockwell = applied.Live
+	}
 	for _, l := range found {
 		// Docker's proxy listens on each port Docker publishes, but what reaches
 		// that port is forwarded past the input rules, so the port is said with
@@ -273,4 +283,47 @@ func dockerPublished(ctx context.Context, client *docker.Client) ([]*dockwellv1.
 		return strings.Compare(a.GetHostIp(), b.GetHostIp())
 	})
 	return out, err
+}
+
+// dockwellTable is Dockwell's own firewall as the read says it.
+func dockwellTable(a access.Applied) *dockwellv1.DockwellTable {
+	out := &dockwellv1.DockwellTable{Unusable: a.Unusable, Policy: a.Policy, WaitingChange: a.Waiting, WaitingPolicy: a.WaitingPolicy}
+	rules := func(m map[string]*resourcev1.FirewallRule) []*dockwellv1.DockwellFirewallRule {
+		var list []*dockwellv1.DockwellFirewallRule
+		for _, name := range slices.Sorted(maps.Keys(m)) {
+			list = append(list, &dockwellv1.DockwellFirewallRule{Name: name, Rule: m[name]})
+		}
+		return list
+	}
+	out.Rules = rules(a.Rules)
+	if a.Waiting != "" {
+		out.WaitingRules = rules(a.WaitingRules)
+	}
+	return out
+}
+
+// ExposedPorts lists what listens on the server beyond loopback, and what
+// Docker publishes beyond it, for what turning deny everything else on would
+// close (ADR 0052).
+func ExposedPorts(client *docker.Client) func(ctx context.Context) ([]access.Exposed, error) {
+	return func(ctx context.Context) ([]access.Exposed, error) {
+		var out []access.Exposed
+		var published []*dockwellv1.PublishedPort
+		if client != nil {
+			published, _ = dockerPublished(ctx, client)
+			for _, p := range published {
+				if ip, err := netip.ParseAddr(p.GetHostIp()); err == nil && ip.IsLoopback() {
+					continue
+				}
+				out = append(out, access.Exposed{Port: uint16(p.GetHostPort()), Protocol: p.GetProtocol(), What: p.GetContainer()}) //nolint:gosec // a port
+			}
+		}
+		for _, l := range listeners(os.DirFS("/proc")) {
+			if publishedPast(published, l) {
+				continue
+			}
+			out = append(out, access.Exposed{Port: uint16(l.GetPort()), Protocol: l.GetProtocol()}) //nolint:gosec // a port
+		}
+		return out, nil
+	}
 }

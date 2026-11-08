@@ -27,6 +27,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
@@ -42,9 +43,11 @@ import (
 )
 
 // AccessConfirmer keeps a change to the firewall that waits for its
-// confirmation (ADR 0052).
+// confirmation, and says what the server holds of Dockwell's firewall now
+// (ADR 0052).
 type AccessConfirmer interface {
 	Confirm(ctx context.Context, change string) resource.AccessVerdict
+	Applied() access.Applied
 }
 
 // Config configures Run.

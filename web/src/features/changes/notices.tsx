@@ -517,7 +517,7 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
   };
 }
 
-export function useRisks(plan: Plan | undefined): Notice[] {
+export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
   const { t } = useLingui();
   const restoreNotices = useRestoreNotices();
   const { root } = useReaches(plan);
@@ -560,11 +560,20 @@ export function useRisks(plan: Plan | undefined): Notice[] {
           detail: t`${name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it.`,
         });
       }
-      if (step.warnings.includes(PlanWarning.MAY_LOCK_OUT)) {
+      if (step.warnings.includes(PlanWarning.MAY_LOCK_OUT) && !applied) {
         out.push({
           key: `lock-${key}`,
           title: t`This may cut off access to ${server.serverName}`,
           detail: t`Check that you have another way in, such as your provider's console, before you apply it.`,
+        });
+      }
+      if (step.closes.length > 0) {
+        const closes = step.closes.join(", ");
+        out.push({
+          key: `closes-${key}`,
+          amber: true,
+          title: t`Deny everything else closes what no rule lets in on ${server.serverName}`,
+          detail: t`These ports listen, or Docker publishes them, and no rule lets them in from anywhere: ${closes}. SSH, and on the control server its own ports, stay let in.`,
         });
       }
     }

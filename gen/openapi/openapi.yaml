@@ -7022,6 +7022,44 @@ components:
             description: |-
                 DockwellRelease is Dockwell's version on a server and its control plane, and
                  the newest release.
+        DockwellTable:
+            type: object
+            properties:
+                unusable:
+                    type: string
+                    description: |-
+                        Why the server can't hold Dockwell's firewall, such as that it has no nft,
+                         so no rule or policy can be planned for it. Empty when it can.
+                rules:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockwellFirewallRule'
+                    description: |-
+                        Its rules as last confirmed, which the server keeps, by name. Each is a
+                         firewall.rule resource in the server's scope, which a change edits.
+                policy:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallPolicy'
+                    description: |-
+                        Its policy as last confirmed: what it does with what no rule lets in.
+                         Unset when it has none, which lets in what no rule drops.
+                waitingChange:
+                    type: string
+                    description: |-
+                        The change that waits for its confirmation now, if one does. Its rules and
+                         policy are loaded, and go back unless it's kept.
+                waitingRules:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockwellFirewallRule'
+                    description: The rules as that change leaves them, by name.
+                waitingPolicy:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallPolicy'
+                    description: The policy as that change leaves it. Unset when it leaves none.
+            description: |-
+                DockwellTable is Dockwell's own firewall on a server, as its agent holds it
+                 (ADR 0052).
         Domain:
             type: object
             properties:
@@ -8517,20 +8555,7 @@ components:
                 firewall:
                     allOf:
                         - $ref: '#/components/schemas/ServerFirewall'
-                    description: The firewall, as the agent read it.
-                rules:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/DockwellFirewallRule'
-                    description: |-
-                        Dockwell's own rules for the server, as applied, by name. Each is a
-                         firewall.rule resource in the server's scope, which a change edits.
-                policy:
-                    allOf:
-                        - $ref: '#/components/schemas/FirewallPolicy'
-                    description: |-
-                        Dockwell's policy for the server, as applied: what it does with what no
-                         rule lets in. Unset when it has none, which lets in what no rule drops.
+                    description: The firewall, as the agent read it, Dockwell's own with the rest.
             description: GetServerFirewallResponse is what filters the server's inbound traffic.
         GetServerResponse:
             type: object
@@ -11047,6 +11072,15 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/BackupFirst'
                     description: What a step that backs up a volume before the rest of a change does.
+                closes:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What a step that turns on deny everything else closes: each port that
+                         listens on the server, or that Docker publishes, that no rule lets in from
+                         anywhere, such as "8080/tcp (shop-web-1)". SSH's ports and the control
+                         plane's own stay let in by their pins, and aren't here (ADR 0052).
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -12427,6 +12461,13 @@ components:
                          puts there, as ufw-docker or a person adds. They filter published ports,
                          and the agent doesn't weigh them one by one.
                     format: uint32
+                dockwell:
+                    allOf:
+                        - $ref: '#/components/schemas/DockwellTable'
+                    description: |-
+                        Dockwell's own firewall, as the agent holds it: what was confirmed, and a
+                         change that waits for its confirmation. Its table counts in how far what
+                         listens reaches, as the others' do. Unset from an agent too old to say.
             description: ServerFirewall is what filters a server's inbound traffic, as its agent read it.
         ServerHealth:
             type: object

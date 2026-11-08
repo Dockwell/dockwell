@@ -10,6 +10,7 @@
 package access
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -77,7 +78,10 @@ type Manager struct {
 	PanelOverSSH bool
 	// Docker reads Docker's networks. Nil is a server without Docker.
 	Docker func(ctx context.Context) (DockerNetworks, error)
-	Logger *slog.Logger
+	// Exposed lists what listens on the server, and what Docker publishes, for
+	// what turning deny everything else on would close. Nil lists nothing.
+	Exposed func(ctx context.Context) ([]Exposed, error)
+	Logger  *slog.Logger
 	// Timer replaces Timer, for a test.
 	Timer time.Duration
 	now   func() time.Time
@@ -272,6 +276,99 @@ func (m *Manager) startLocked(ctx context.Context) error {
 	}
 	m.unrestored = errStarting
 	return nil
+}
+
+// Applied is Dockwell's firewall as the server holds it now (ADR 0052).
+type Applied struct {
+	// Unusable says why the server can't hold Dockwell's table, when it can't.
+	Unusable string
+	// Live is the table loaded now: the waiting change's, or the one last
+	// confirmed. Nil when none is.
+	Live *nftables.Table
+	// Rules and Policy are as last confirmed.
+	Rules  map[string]*resourcev1.FirewallRule
+	Policy *resourcev1.FirewallPolicy
+	// Waiting is the change that waits for its confirmation, with the rules and
+	// policy it leaves, which are loaded now.
+	Waiting       string
+	WaitingRules  map[string]*resourcev1.FirewallRule
+	WaitingPolicy *resourcev1.FirewallPolicy
+}
+
+// Applied says what the server holds of Dockwell's firewall now.
+func (m *Manager) Applied() Applied {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out Applied
+	if m.unusable != nil {
+		out.Unusable = m.unusable.Error()
+	}
+	if !m.probed {
+		return out
+	}
+	c := m.confirmed.clone()
+	out.Rules, out.Policy = c.Rules, c.Policy
+	switch {
+	case m.waiting != nil:
+		t := m.waiting.table
+		w := m.waiting.state.clone()
+		out.Live, out.Waiting, out.WaitingRules, out.WaitingPolicy = &t, m.waiting.change, w.Rules, w.Policy
+	case m.unrestored == nil && !m.confirmed.empty():
+		t := m.confirmed.table
+		out.Live = &t
+	}
+	return out
+}
+
+// Exposed is a port that something on the server listens on, or that Docker
+// publishes, beyond loopback.
+type Exposed struct {
+	Port     uint16
+	Protocol string
+	// What is the container a port Docker publishes goes to. Empty for what
+	// listens on the server itself.
+	What string
+}
+
+// Closes says what turning deny everything else on would close, as the server
+// is now: each port that listens or that Docker publishes and that no rule
+// confirmed lets in from anywhere. SSH's ports and the control plane's own
+// stay let in by their pins, so they aren't there.
+func (m *Manager) Closes(desired *resourcev1.FirewallPolicy) []string {
+	if !desired.GetDenyEverythingElse() || m.Exposed == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*readWait)
+	defer cancel()
+	exposed, err := m.Exposed(ctx)
+	if err != nil {
+		return nil
+	}
+	h := m.readHost(ctx)
+	m.mu.Lock()
+	s := m.confirmed.clone()
+	m.mu.Unlock()
+	pins := withPinned(h.pins, s.Pinned, nil)
+	slices.SortFunc(exposed, func(a, b Exposed) int {
+		return cmp.Or(cmp.Compare(a.Port, b.Port), cmp.Compare(a.Protocol, b.Protocol), cmp.Compare(a.What, b.What))
+	})
+	var out []string
+	for _, e := range exposed {
+		if e.Protocol == "tcp" && (slices.Contains(pins.Own, e.Port) || slices.Contains(pins.SSHPorts, e.Port)) {
+			continue
+		}
+		if slices.ContainsFunc(slices.Collect(maps.Values(s.Rules)), func(r *resourcev1.FirewallRule) bool {
+			return !isDeny(r) && protocolOf(r) == e.Protocol && portOf(r) == e.Port && len(r.GetSources()) == 0
+		}) {
+			continue
+		}
+		label := fmt.Sprintf("%d/%s", e.Port, e.Protocol)
+		if e.What != "" {
+			label += " (" + e.What + ")"
+		}
+		out = appendNew(out, label)
+	}
+	return out
 }
 
 // KeepCurrent renders the confirmed table again whenever Docker's networks

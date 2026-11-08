@@ -251,7 +251,11 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		reserved = panel.Domain
 	}
 	tools := hostTools(stdio)
-	firewalls := firewallAccess(ctx, logger, dir, tools, dockerOrNot(client, socket, err), ownPorts, panel == nil && len(ownPorts) > 0)
+	exposed := agent.ExposedPorts(client)
+	if err != nil {
+		exposed = agent.ExposedPorts(nil)
+	}
+	firewalls := firewallAccess(ctx, logger, dir, tools, dockerOrNot(client, socket, err), exposed, ownPorts, panel == nil && len(ownPorts) > 0)
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
@@ -276,7 +280,9 @@ func dockerOrNot(client *docker.Client, socket string, unusable error) func(cont
 	return access.DockerReader(client, socket)
 }
 
-func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, tools *hosttool.Runner, networks func(context.Context) (access.DockerNetworks, error), ownPorts []int, panelOverSSH bool) *access.Manager {
+func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, tools *hosttool.Runner, networks func(context.Context) (access.DockerNetworks, error),
+	exposed func(context.Context) ([]access.Exposed, error), ownPorts []int, panelOverSSH bool,
+) *access.Manager {
 	own := make([]uint16, 0, len(ownPorts))
 	for _, p := range ownPorts {
 		if p > 0 && p < 65536 {
@@ -286,7 +292,7 @@ func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, t
 	pins := &access.PinReader{Proc: os.DirFS("/proc"), Tools: tools, Own: own}
 	m := &access.Manager{
 		Dir: filepath.Join(dir.Agent(), "access"), Table: &nftables.Firewall{Run: tools}, Logger: logger,
-		Pins: pins.Read, Docker: networks,
+		Pins: pins.Read, Docker: networks, Exposed: exposed,
 		PanelOverSSH: panelOverSSH,
 	}
 	if err := m.Ready(ctx); err != nil {
