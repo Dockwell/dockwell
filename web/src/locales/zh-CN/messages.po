@@ -7596,9 +7596,6 @@ msgstr "提供的内容"
 msgid "<0>{name}</0> runs an older build of {0}"
 msgstr "<0>{name}</0> 运行的是 {0} 的旧构建"
 
-msgid "Build"
-msgstr "构建"
-
 msgid "Extensions"
 msgstr "扩展"
 
@@ -7837,9 +7834,6 @@ msgstr "WordPress、Laravel 等大多数 PHP 应用需要这样处理自己的�
 
 msgid "Files in a folder"
 msgstr "文件夹中的文件"
-
-msgid "Folder"
-msgstr "文件夹"
 
 msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
 msgstr "适用于承载多个域名的站点，例如通过 HTTPS 访问的另一个站点。关闭时，它收到的是此网站的域名。"

@@ -7596,9 +7596,6 @@ msgstr "What it serves"
 msgid "<0>{name}</0> runs an older build of {0}"
 msgstr "<0>{name}</0> runs an older build of {0}"
 
-msgid "Build"
-msgstr "Build"
-
 msgid "Extensions"
 msgstr "Extensions"
 
@@ -7837,9 +7834,6 @@ msgstr "As WordPress, Laravel and most PHP apps want, for their own addresses"
 
 msgid "Files in a folder"
 msgstr "Files in a folder"
-
-msgid "Folder"
-msgstr "Folder"
 
 msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
 msgstr "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
