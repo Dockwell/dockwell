@@ -355,3 +355,8 @@
   font-weight: 550;
   line-height: 20px;
 }
+
+/* A flag or a command word in the steps reads whole, as one would type it. */
+.servers-add-steps p code {
+  white-space: nowrap;
+}
