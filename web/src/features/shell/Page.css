@@ -1,13 +1,31 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-/* A page: its head, then panels space-6 apart, on canvas with a space-6 gutter. */
+/*
+ * A page: its head, then panels space-6 apart, on canvas with a space-6 gutter, centred right of the rail. How wide it
+ * grows goes by its kind (Layout in design/system/README.md): a detail page or a list of few columns by default, a
+ * page that uses the width (a grid, a dashboard, a server's pages) wider, and a form narrower. At 1440px and below
+ * each fills the room it has, as the mocks draw it.
+ */
 .page {
+  --page-max: var(--page-standard);
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
   width: 100%;
-  max-width: 1360px;
+  max-width: var(--page-max);
+  margin-inline: auto;
   padding: var(--space-6);
+}
+
+.page.is-wide {
+  --page-max: var(--page-wide);
+}
+
+/* A form fills the column up to 1440px, as the mocks draw it, and stops at its own width past that. */
+@media (min-width: 1440.02px) {
+  .page.is-narrow {
+    --page-max: var(--page-narrow);
+  }
 }
 
 .page-head {
@@ -16,6 +34,24 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-4);
+}
+
+/*
+ * A body that takes the whole width, as a log view does, under a head and tabs that keep the column of the page's
+ * kind: the page spans the room, and they sit where they would in its column, so moving to that tab moves neither.
+ */
+.page.has-full-body {
+  --page-column-inset: max(0px, calc((100% - var(--page-max)) / 2 + var(--space-6)));
+  max-width: 100%;
+}
+
+.page.has-full-body > .page-head {
+  margin-inline: var(--page-column-inset);
+}
+
+/* The tabs reach 4px past their column for their focus rings, as they do in any page. */
+.page.has-full-body > .dw-tabs {
+  margin-inline: calc(var(--page-column-inset) - 4px);
 }
 
 /* It takes what the actions leave, so a long lead wraps rather than push them to a line of their own. */

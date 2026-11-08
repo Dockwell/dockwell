@@ -167,6 +167,25 @@
   color: var(--ink-muted);
 }
 
+/* Where an open file shows, kept on a wide screen with nothing open, so the list beside it reads as it does with one. */
+.files-idle {
+  display: none;
+  flex: 1 1 380px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.files-idle .empty-state {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+@media (min-width: 1600px) {
+  .files-idle {
+    display: flex;
+  }
+}
+
 .files-viewer {
   flex: 1 1 380px;
   display: flex;

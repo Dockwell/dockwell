@@ -28,6 +28,7 @@ import { useTimeWords } from "../../lib/time";
 import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { EmptyState } from "../shell/EmptyState";
 import { FileViewer } from "./FileViewer";
 import { crumbs, join, nameOf, parentOf } from "./paths";
 import "./FilesPage.css";
@@ -385,7 +386,19 @@ function Files({ server, folder, file, reading }: FilesProps) {
             )}
           </div>
         )}
-        {file ? <FileViewer serverId={serverId} path={file} folder={shown} key={file} /> : null}
+        {file ? (
+          <FileViewer serverId={serverId} path={file} folder={shown} key={file} />
+        ) : (
+          // On a wide screen the viewer's place stays, so the list keeps the width it has with a file open and a
+          // name doesn't sit far from its size. Below 1600px the stylesheet hides it, as the list needs the room.
+          <div className="files-idle">
+            <EmptyState icon="file" title={<Trans>No file open</Trans>}>
+              <p>
+                <Trans>Choose a file in the list to read or edit it here.</Trans>
+              </p>
+            </EmptyState>
+          </div>
+        )}
       </div>
     </div>
   );

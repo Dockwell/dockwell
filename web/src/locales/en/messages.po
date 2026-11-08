@@ -5205,6 +5205,9 @@ msgstr "Can't reach this server"
 msgid "Can't read this folder"
 msgstr "Can't read this folder"
 
+msgid "Choose a file in the list to read or edit it here."
+msgstr "Choose a file in the list to read or edit it here."
+
 msgid "Common places"
 msgstr "Common places"
 
@@ -5229,6 +5232,9 @@ msgstr "Go up to {0}"
 
 msgid "Modified"
 msgstr "Modified"
+
+msgid "No file open"
+msgstr "No file open"
 
 msgid "Nothing at this path"
 msgstr "Nothing at this path"

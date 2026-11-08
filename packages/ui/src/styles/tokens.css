@@ -27,6 +27,9 @@
   --rail-width: 232px; /* Left navigation rail on desktop. */
   --scopebar-height: 52px; /* Top bar holding the scope and command entry. */
   --sheet-width: 560px; /* Default width of a side sheet (plans, settings). */
+  --page-wide: 1680px; /* Widest a page that uses the width grows (a grid, a dashboard, a server's pages), centred right of the rail; its grids gain columns up to it. */
+  --page-standard: 1360px; /* Widest a detail page, such as an app's, or a list of few columns, such as Apps, grows, centred right of the rail. The default. */
+  --page-narrow: 1040px; /* Widest a form or settings page grows, centred right of the rail, on screens wider than 1440px. */
   --z-sticky: 10; /* Sticky table headers and the scope bar. */
   --z-sheet: 40; /* Side sheets and their scrim. */
   --z-command: 50; /* The command bar, above sheets. */

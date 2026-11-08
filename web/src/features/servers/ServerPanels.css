@@ -81,10 +81,11 @@ code.panel-meta {
 
 /* ---------- Disks ---------- */
 
+/* A disk to a column, side by side once the panel has room for two, so one bar never runs a wide page's width. */
 .disks {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(600px, 100%), 1fr));
+  gap: var(--space-5) var(--space-8);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -94,6 +95,7 @@ code.panel-meta {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  min-width: 0;
 }
 
 .disk-head {

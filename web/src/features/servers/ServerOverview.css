@@ -7,3 +7,37 @@
   gap: var(--space-3);
   align-items: start;
 }
+
+/*
+ * The disks, then what runs here that Dockwell didn't make: one over the other, until the page has room for both side
+ * by side (1,464 px of content, a window about 1,744 px wide). Then they sit on the three columns of the row below, with
+ * its gap, the disks in the first and the containers' table across the other two, so the two rows' edges line up.
+ */
+.server-pair {
+  display: flex;
+  flex-direction: column;
+  /* The page's own gap, so stacked they sit as they would without this row, on a phone too. */
+  gap: inherit;
+}
+
+.server-pair > * {
+  min-width: 0;
+}
+
+@media (min-width: 1744px) {
+  .server-pair {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+    align-items: start;
+  }
+
+  .server-pair > :last-child {
+    grid-column: span 2;
+  }
+
+  /* A server with no disk to show has its containers alone, across the row. */
+  .server-pair > :only-child {
+    grid-column: 1 / -1;
+  }
+}

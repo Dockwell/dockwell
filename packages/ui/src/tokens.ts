@@ -109,7 +109,10 @@ export const size = {
   "control-lg": 40,
   "rail-width": 232,
   "scopebar-height": 52,
-  "sheet-width": 560
+  "sheet-width": 560,
+  "page-wide": 1680,
+  "page-standard": 1360,
+  "page-narrow": 1040
 } as const;
 
 /** Layer order, lowest to highest. */

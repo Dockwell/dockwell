@@ -101,6 +101,9 @@
   --rail-width: 232px;
   --scopebar-height: 52px;
   --sheet-width: 560px;
+  --page-wide: 1680px;
+  --page-standard: 1360px;
+  --page-narrow: 1040px;
   --z-sticky: 10;
   --z-sheet: 40;
   --z-command: 50;

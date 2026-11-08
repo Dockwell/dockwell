@@ -31,6 +31,15 @@ interface ServerFrameProps {
 }
 
 /**
+ * The page a server's frame stands in, whatever state it's in: a wide page, as its rows of panels and its tables, such
+ * as Processes, use the width. Every state takes it from here, so the page keeps its width as the fleet's state
+ * arrives.
+ */
+function ServerFramePage(props: Omit<PageProps, "width">) {
+  return <Page {...props} width="wide" />;
+}
+
+/**
  * One server's own page, which exists from the first server on, whichever tab
  * is open: its name, what it is, and its tabs, each a route of its own.
  */
@@ -40,15 +49,15 @@ export function ServerFrame({ id, phoneHead, noTabs = false, children }: ServerF
   const status = usePageReconnecting(state.status);
   if (state.status === "connecting") {
     return (
-      <Page title={t`Server`}>
+      <ServerFramePage title={t`Server`}>
         <Connecting error={state.error} />
-      </Page>
+      </ServerFramePage>
     );
   }
   const server = state.servers.find((s) => s.id === id);
   if (!server) {
     return (
-      <Page title={t`Server`} status={status}>
+      <ServerFramePage title={t`Server`} status={status}>
         <EmptyState
           icon="server"
           title={<Trans>No server with this ID</Trans>}
@@ -64,7 +73,7 @@ export function ServerFrame({ id, phoneHead, noTabs = false, children }: ServerF
             </Trans>
           </p>
         </EmptyState>
-      </Page>
+      </ServerFramePage>
     );
   }
   return (
@@ -106,7 +115,7 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
         ))
       : undefined;
   return (
-    <Page
+    <ServerFramePage
       title={server.name}
       machineTitle
       badge={server.controlServer ? <Tag>{t`Runs the control plane`}</Tag> : null}
@@ -129,7 +138,7 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
         </TabNav>
       )}
       {children}
-    </Page>
+    </ServerFramePage>
   );
 }
 

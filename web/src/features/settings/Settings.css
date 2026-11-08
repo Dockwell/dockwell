@@ -2,18 +2,21 @@
 
 /* ---------- The layout: its sections beside the one that's open ---------- */
 
+/* The sections, then the open one as wide as a form reads, the two centred right of the rail as a page is. */
 .settings {
+  --settings-nav-width: 200px;
   display: flex;
   align-items: flex-start;
   width: 100%;
-  max-width: 1360px;
+  max-width: calc(var(--settings-nav-width) + var(--space-2) + var(--page-narrow));
+  margin-inline: auto;
 }
 
 .settings-nav {
   position: sticky;
   top: 0;
   display: flex;
-  flex: 0 0 200px;
+  flex: 0 0 var(--settings-nav-width);
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-6) 0 var(--space-6) var(--space-6);
