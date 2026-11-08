@@ -1164,3 +1164,92 @@ func TestAConfirmationPastItsDeadlineLoses(t *testing.T) {
 		t.Errorf("after it the table holds %q", got)
 	}
 }
+
+// A Docker network made after the last change to the firewall is left to its
+// containers once the agent sees it, under the policy, with the rules, the
+// policy and the pins as confirmed; the table that does so is confirmed on
+// disk, so a restart keeps it. Nothing loads while the networks stay as they
+// are, or while a change waits.
+func TestANewDockerNetworkIsRenderedIntoTheTable(t *testing.T) {
+	dir := t.TempDir()
+	s := &sessions{}
+	s.set(office)
+	tbl := &table{}
+	var mu sync.Mutex
+	nets := DockerNetworks{Interfaces: []string{"docker0"}}
+	docker := func(context.Context) (DockerNetworks, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return nets, nil
+	}
+	set := func(n DockerNetworks) {
+		mu.Lock()
+		defer mu.Unlock()
+		nets = n
+	}
+	m := start(t, dir, tbl, s, time.Minute, func(m *Manager) { m.Docker = docker })
+	if err := keep(t, m, "chg_1", func(ctx context.Context) error { return m.PutPolicy(ctx, policy) }); err != nil {
+		t.Fatal(err)
+	}
+	loads := tbl.loads
+	if err := m.refresh(t.Context()); err != nil || tbl.loads != loads {
+		t.Errorf("with Docker's networks as they were, a refresh loaded %d tables: %v", tbl.loads-loads, err)
+	}
+
+	set(DockerNetworks{Interfaces: []string{"docker0", "br-1a2b3c4d5e6f"}})
+	if err := m.refresh(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	got := tbl.current()
+	if fmt.Sprint(got.DockerInterfaces) != "[br-1a2b3c4d5e6f docker0]" || !got.DenyRest || tbl.pins() != "pin ssh [22] from [203.0.113.7/32]" {
+		t.Errorf("after the network was made the table leaves %v to Docker, denies the rest %t, pins %q", got.DockerInterfaces, got.DenyRest, tbl.pins())
+	}
+	script, err := os.ReadFile(filepath.Join(dir, "confirmed.nft"))
+	if err != nil || !strings.Contains(string(script), `"br-1a2b3c4d5e6f"`) {
+		t.Errorf("confirmed.nft doesn't leave the new network to its containers: %v\n%s", err, script)
+	}
+	again := &table{}
+	start(t, dir, again, &sessions{}, time.Minute)
+	if fmt.Sprint(again.current().DockerInterfaces) != "[br-1a2b3c4d5e6f docker0]" {
+		t.Errorf("after a restart the table leaves %v to Docker", again.current().DockerInterfaces)
+	}
+
+	// A change waits: its own confirmation or revert renders the table.
+	if err := m.Put(step("chg_2", false), "http", http); err != nil {
+		t.Fatal(err)
+	}
+	set(DockerNetworks{Interfaces: []string{"docker0"}})
+	loads = tbl.loads
+	if err := m.refresh(t.Context()); err != nil || tbl.loads != loads {
+		t.Errorf("while a change waits, a refresh loaded %d tables: %v", tbl.loads-loads, err)
+	}
+	m.Confirm(t.Context(), "chg_2")
+
+	// Docker goes away from the server: the table leaves forwarding alone.
+	set(DockerNetworks{})
+	m.Docker = func(context.Context) (DockerNetworks, error) { return DockerNetworks{}, ErrNoDocker }
+	if err := m.refresh(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := tbl.current(); !got.NoDocker || len(got.DockerInterfaces) != 0 {
+		t.Errorf("with no Docker the table has %t, %v", got.NoDocker, got.DockerInterfaces)
+	}
+}
+
+// A rollback that can't read /proc keeps the pin of the control plane's own
+// ports, which never needed it.
+func TestARollbackThatCantReadProcKeepsTheControlPlanesPin(t *testing.T) {
+	s := &sessions{own: []uint16{7600}}
+	s.set(office)
+	tbl := &table{}
+	m := start(t, t.TempDir(), tbl, s, time.Minute)
+	s.mu.Lock()
+	s.err = errors.New("can't read /proc")
+	s.mu.Unlock()
+	if err := m.Put(rollback("chg_r"), "http", http); err != nil {
+		t.Fatal(err)
+	}
+	if got := tbl.pins(); !strings.Contains(got, "pin control plane [7600]") {
+		t.Errorf("after a rollback with /proc unreadable the table pins %q", got)
+	}
+}

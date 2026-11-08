@@ -3251,7 +3251,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		return 1
 	}
 	slices.SortStableFunc(builds, func(a, b queued) int { return backupFirst(a) - backupFirst(b) })
-	queue := accessLast(e, plan, slices.Concat(builds, deletes), func(q queued) (string, resource.Kind) { return q.server, q.step.Ref.Kind })
+	queue := accessBetween(e, plan, builds, deletes, func(q queued) (string, resource.Kind) { return q.server, q.step.Ref.Kind })
 	digests := map[at]string{}
 
 	// A removed server takes no steps. What the change took off it is
@@ -4284,27 +4284,34 @@ func (e *Engine) holdsToo(ctx context.Context, tx *store.Tx, items []item) ([]it
 	return held, nil
 }
 
-// accessLast puts the steps of kinds under the firewall's timer after every
-// other step, each server's together, in their order: a change waits on a
-// server for its confirmation at its last such step there, under a timer that
-// starts at its first, so nothing else runs while the timer does, neither a
-// slow step of another kind nor another server's wait (ADR 0052). A rule
-// depends on nothing, so where it runs in the change is free.
-func accessLast[Q any](e *Engine, plan *Plan, queue []Q, of func(Q) (string, resource.Kind)) []Q {
-	var rest []Q
+// accessBetween puts the steps of kinds under the firewall's timer after
+// every other build and before every other delete, each server's together, in
+// their order: a change waits on a server for its confirmation at its last
+// such step there, under a timer that starts at its first, so nothing else
+// runs while the timer does, neither a slow step of another kind nor another
+// server's wait (ADR 0052). Nothing is deleted before the wait, so a change
+// nobody confirms rolls back with everything it would have removed still
+// there. A rule depends on nothing, so where it runs in the change is free.
+func accessBetween[Q any](e *Engine, plan *Plan, builds, deletes []Q, of func(Q) (string, resource.Kind)) []Q {
+	var out, after []Q
 	access := map[string][]Q{}
-	for _, q := range queue {
-		server, kind := of(q)
-		if e.guardsAccess(kind) {
-			access[server] = append(access[server], q)
-		} else {
-			rest = append(rest, q)
+	for _, list := range []struct {
+		steps []Q
+		rest  *[]Q
+	}{{builds, &out}, {deletes, &after}} {
+		for _, q := range list.steps {
+			server, kind := of(q)
+			if e.guardsAccess(kind) {
+				access[server] = append(access[server], q)
+			} else {
+				*list.rest = append(*list.rest, q)
+			}
 		}
 	}
 	for _, server := range serversOf(plan) {
-		rest = append(rest, access[server]...)
+		out = append(out, access[server]...)
 	}
-	return rest
+	return append(out, after...)
 }
 
 // TouchesAccess says whether a plan changes who reaches a server: it has a step

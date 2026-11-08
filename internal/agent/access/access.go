@@ -45,6 +45,10 @@ const waitGrace = 30 * time.Second
 // pins, from /proc and systemd, and Docker's networks.
 const readWait = 15 * time.Second
 
+// networksEvery is how often the agent checks Docker's networks against those
+// the confirmed table leaves to their containers.
+const networksEvery = 15 * time.Second
+
 // keptVerdicts is how many changes' verdicts the agent remembers, for a late
 // confirmation or a resumed step to hear.
 const keptVerdicts = 32
@@ -258,6 +262,84 @@ func (m *Manager) startLocked(ctx context.Context) error {
 		m.record(w.Change, resource.AccessRolledBack)
 	}
 	m.unrestored = errStarting
+	return nil
+}
+
+// KeepCurrent renders the confirmed table again whenever Docker's networks
+// change, and once as it starts, until ctx is done, so a Compose network made
+// since the last change to the firewall is left to its containers, and the
+// ports it publishes are filtered (ADR 0052). Only Docker's networks change:
+// the rules, the policy and the pins stay as confirmed, and the new table is
+// confirmed on disk as it loads. Nothing changes while a change waits; its
+// own confirmation or revert renders it.
+func (m *Manager) KeepCurrent(ctx context.Context) {
+	if m.Docker == nil {
+		return
+	}
+	for {
+		if err := m.refresh(ctx); err != nil && ctx.Err() == nil {
+			m.logger().WarnContext(ctx, "can't render the firewall again for Docker's networks; the agent tries again", slog.String("error", err.Error()))
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(networksEvery):
+		}
+	}
+}
+
+// refresh renders the confirmed table again if Docker's networks have changed.
+func (m *Manager) refresh(ctx context.Context) error {
+	if m.Docker == nil {
+		return nil
+	}
+	// Docker alone: the pins don't change here, so /proc isn't read.
+	bound := readWait
+	if m.readWait > 0 {
+		bound = m.readWait
+	}
+	dctx, cancel := context.WithTimeout(ctx, bound)
+	nets, err := m.Docker(dctx)
+	cancel()
+	if errors.Is(err, ErrNoDocker) {
+		nets, err = DockerNetworks{None: true}, nil
+	}
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.docker = &nets
+	if !m.probed || m.waiting != nil || m.unrestored != nil || m.confirmed.empty() {
+		return nil
+	}
+	was := m.confirmed.table
+	interfaces := slices.Sorted(slices.Values(nets.Interfaces))
+	if nets.None {
+		interfaces = nil
+	}
+	if was.NoDocker == nets.None && slices.Equal(was.DockerInterfaces, interfaces) {
+		return nil
+	}
+	next := was
+	next.DockerInterfaces, next.NoDocker = interfaces, nets.None
+	loaded, err := m.Table.Load(ctx, next)
+	m.skipped(ctx, loaded)
+	if err != nil {
+		if errors.Is(err, nftables.ErrUnknown) {
+			_ = m.restoreLocked(ctx)
+		}
+		return err
+	}
+	c := confirmedState{state: m.confirmed.state, table: next, wait: m.confirmed.wait}
+	if err := m.saveConfirmed(c); err != nil {
+		// What loaded isn't on record, so what is goes back.
+		_ = m.restoreLocked(ctx)
+		return err
+	}
+	m.confirmed = c
+	m.logger().InfoContext(ctx, "Docker's networks changed, so the firewall leaves them to their containers as they are now",
+		slog.Any("interfaces", interfaces))
 	return nil
 }
 
@@ -709,7 +791,9 @@ func (m *Manager) prepareLocked(ctx context.Context, s state, h hostNow, rollbac
 		if !rollback {
 			return s, nftables.Table{}, Pins{}, fmt.Errorf("can't tell what keeps the server reachable, so the firewall stays as it is: %w", h.pinsErr)
 		}
-		found = Pins{}
+		// The sessions open now are unknown; the control plane's own ports never
+		// needed /proc, so their pin stays.
+		found = Pins{Own: h.pins.Own}
 	}
 	pins := withPinned(found, s.Pinned, nets.Subnets)
 	s.Pinned = Pinned{SSHPorts: slices.Clone(pins.SSHPorts), SSHFrom: slices.Clone(pins.SSHFrom)}

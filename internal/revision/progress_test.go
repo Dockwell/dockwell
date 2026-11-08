@@ -97,7 +97,9 @@ func testAPlanSumsUpEachResource(t *testing.T, backend store.Backend) {
 		actions["https"] != resource.ActionCreate || actions["staging"] != resource.ActionCreate {
 		t.Errorf("actions = %v", actions)
 	}
-	if p.Servers[0].Name != "srv_A" || p.Destructive() {
+	// Limiting http and dropping ssh take away what they let in, which may lock
+	// someone out, so the plan asks for its fingerprint (ADR 0052).
+	if p.Servers[0].Name != "srv_A" || !p.Destructive() {
 		t.Errorf("server plan = %+v, destructive %t", p.Servers[0], p.Destructive())
 	}
 }
@@ -216,7 +218,7 @@ func testResumeCarriesProgressOver(t *testing.T, backend store.Backend) {
 	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online.Store(false) }}
 	onB := web("nginx:1.27")
 	onB.Ref.Scope = "srv_B"
-	p := propose(t, e, "Open http and run web", rule("srv_A", "http", 80), onB)
+	p := propose(t, e, "Open http and run web", onA(), onB)
 	var failed *FailedError
 	if err := e.Apply(t.Context(), p.Change); !errors.As(err, &failed) {
 		t.Fatalf("apply = %v", err)

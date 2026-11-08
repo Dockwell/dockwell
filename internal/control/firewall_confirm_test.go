@@ -435,3 +435,41 @@ func testARuleThatWouldCutAccessIsRefused(t *testing.T, backend store.Backend) {
 		t.Errorf("deny everything else with no SSH session = %v", err)
 	}
 }
+
+// A change's firewall steps run after its other builds and before its deletes,
+// so nothing is removed before the server waits for its confirmation: a change
+// nobody confirms rolls back with what it would have removed still there
+// (ADR 0052).
+func TestFirewallStepsRunBeforeDeletes(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	f.addServer(t, true)
+	c := changeClient(b, b.origin)
+	if got := apply(t, c, propose(t, c, "Run web", webEdit("nginx:1.27", nil))); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("running web: %v", got.GetState())
+	}
+	swap := propose(t, c, "Swap web for a rule", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "container", Name: "web"}, Delete: true}, ruleEdit("http", 80))
+	w := watch(t, c, swap.GetId())
+	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: swap.GetId(), Fingerprint: swap.GetPlan().GetFingerprint()}); err != nil {
+		t.Fatal(err)
+	}
+	got := waitWatch(t, w).last()
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the swap ends %v: %s", got.GetState(), got.GetError())
+	}
+	var rule, web *dockwellv1.StepProgress
+	for _, s := range got.GetSteps() {
+		switch s.GetResource().GetName() {
+		case "http":
+			rule = s
+		case "web":
+			web = s
+		}
+	}
+	if rule == nil || web == nil {
+		t.Fatalf("steps %v", got.GetSteps())
+	}
+	if rule.GetFinishTime().AsTime().After(web.GetStartTime().AsTime()) {
+		t.Errorf("web's delete started at %v, before the rule's step ended at %v", web.GetStartTime().AsTime(), rule.GetFinishTime().AsTime())
+	}
+}

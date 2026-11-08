@@ -196,6 +196,9 @@ func TestAnUnreadableProcIsAnError(t *testing.T) {
 			t.Errorf("%s: no error", name)
 		}
 	}
+	if pins, err := (&PinReader{Proc: errFS{fail: "."}, Own: []uint16{7600}}).Read(t.Context()); err == nil || fmt.Sprint(pins.Own) != "[7600]" {
+		t.Errorf("an unreadable /proc: %v, own ports %v, want an error and 7600 still", err, pins.Own)
+	}
 	noIPv6 := newProc().fs
 	if _, err := (&PinReader{Proc: noIPv6}).Read(t.Context()); err != nil {
 		t.Errorf("a kernel with no IPv6: %v", err)

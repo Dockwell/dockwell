@@ -291,6 +291,7 @@ func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, t
 	if err := m.Ready(ctx); err != nil {
 		logger.InfoContext(ctx, "the agent offers no firewall kinds until this server can hold Dockwell's firewall", slog.String("reason", err.Error()))
 	}
+	go m.KeepCurrent(ctx)
 	return m
 }
 

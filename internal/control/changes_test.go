@@ -724,7 +724,8 @@ func testStaleAndChangedPlans(t *testing.T, backend store.Backend) {
 	if err := hz1.fw.Delete(t.Context(), "http"); err != nil {
 		t.Fatal(err)
 	}
-	_, err = applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: edit.GetId()})
+	// Moving an allow to another port may lock someone out, so it takes the plan's fingerprint.
+	_, err = applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: edit.GetId(), Fingerprint: edit.GetPlan().GetFingerprint()})
 	if reasonOf(err) != "plan_changed" {
 		t.Errorf("applying a plan the server no longer matches = %v, want plan_changed", err)
 	}

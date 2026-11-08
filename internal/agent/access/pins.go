@@ -84,14 +84,15 @@ type socket struct {
 	daemon bool
 }
 
-// Read reads the pins as the server has them now. SSH's ports are those its
+// Read reads the pins as the server has them now, and, with an error, the
+// control plane's own ports still, which never needed /proc. SSH's ports are those its
 // server listens on, away from loopback, as a session's X11 or -R listener is;
 // its sessions are those to one of those ports, so a -L forward's connection
 // out isn't one.
 func (r *PinReader) Read(ctx context.Context) (Pins, error) {
 	holders, err := r.sshSockets()
 	if err != nil {
-		return Pins{}, fmt.Errorf("can't read the server's processes in /proc: %w", err)
+		return Pins{Own: slices.Clone(r.Own)}, fmt.Errorf("can't read the server's processes in /proc: %w", err)
 	}
 	var sockets []socket
 	for _, file := range []string{"net/tcp", "net/tcp6"} {
@@ -100,7 +101,7 @@ func (r *PinReader) Read(ctx context.Context) (Pins, error) {
 			continue // the kernel has no IPv6
 		}
 		if err != nil {
-			return Pins{}, fmt.Errorf("can't read the kernel's socket table, /proc/%s: %w", file, err)
+			return Pins{Own: slices.Clone(r.Own)}, fmt.Errorf("can't read the kernel's socket table, /proc/%s: %w", file, err)
 		}
 	}
 	pins := Pins{Own: slices.Clone(r.Own)}
