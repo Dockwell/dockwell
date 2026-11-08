@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
@@ -247,9 +248,89 @@ func TestImportingA1PanelServerTakesOnWhatRuns(t *testing.T) {
 		t.Errorf("the import asked Docker to %v", got)
 	}
 
+	// Read again, what was taken on says as what, and there's nothing new to plan.
+	again, err := importClient(b).ImportOnePanel(t.Context(), connect.NewRequest(&dockwellv1.ImportOnePanelRequest{ServerId: id}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Msg.GetChange() != nil {
+		t.Errorf("a second import planned %v", again.Msg.GetChange())
+	}
+	done := dockwellv1.ImportAction_IMPORT_ACTION_DONE
+	for _, s := range again.Msg.GetSteps() {
+		key := s.GetKind().String() + " " + s.GetName()
+		want := map[string]string{
+			"IMPORT_KIND_APP mysql":             "the project mysql, taken on already",
+			"IMPORT_KIND_RUNTIME api":           "the project api, taken on already",
+			"IMPORT_KIND_DATABASE_SERVER mysql": "part of the project mysql, taken on already",
+		}[key]
+		if want != "" && (s.GetAction() != done || !strings.Contains(s.GetBecomes(), want)) {
+			t.Errorf("read again, %s = %v %q, want %q", key, s.GetAction(), s.GetBecomes(), want)
+		}
+	}
+
 	// A token gets what was found, and no plan, as taking on is a person's.
 	rw := map[string]string{"Authorization": "Bearer " + createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)}
 	if status, _, body := callREST(t, b, http.MethodPost, "/v1/servers/"+id+"/imports:onepanel", rw, `{}`); status != http.StatusOK || strings.Contains(body, `"change"`) {
 		t.Errorf("a token's import = %d %s", status, body)
+	}
+}
+
+// An import beside a project of Dockwell's with an app's name takes the app on into
+// a project of its own, and one app that can't come leaves its database server with
+// it, while the rest are planned. Importing again stands in for the last plan.
+func TestAnImportGoesBesideWhatsThere(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	f.onePanelRoot = onepaneltest.Make(t, "/opt", false)
+	e := f.addDockerServer(t)
+	e.AddNetwork(docker.Network{ID: "apinet", Name: "api_default", Driver: "bridge"})
+	composeContainer(t, e, "api", "api", "api", nil)
+	id := f.lastDocker.id.ServerID
+	c := changeClient(b, b.origin)
+	apply(t, c, propose(t, c, "A project of our own called api", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "api"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}},
+	}))
+	apply(t, c, propose(t, c, "And its staging", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "environment", Scope: "api", Name: "staging"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Environment{Environment: &resourcev1.Environment{}}},
+	}))
+
+	read := func() *dockwellv1.ImportOnePanelResponse {
+		t.Helper()
+		res, err := importClient(b).ImportOnePanel(t.Context(), connect.NewRequest(&dockwellv1.ImportOnePanelRequest{ServerId: id}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg
+	}
+	first := read()
+	steps := map[string]*dockwellv1.ImportStep{}
+	for _, s := range first.GetSteps() {
+		steps[s.GetKind().String()+" "+s.GetName()] = s
+	}
+	if s := steps["IMPORT_KIND_RUNTIME api"]; s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON ||
+		!strings.Contains(s.GetBecomes(), "the project api-1panel, taken on as it runs") || !strings.Contains(s.GetBecomes(), "a project api already") {
+		t.Errorf("api = %v %q", s.GetAction(), s.GetBecomes())
+	}
+	if s := steps["IMPORT_KIND_DATABASE_SERVER mysql"]; s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE ||
+		!strings.Contains(s.GetReason(), "Its app, mysql, can't be taken on yet") {
+		t.Errorf("mysql's database server = %v %q", s.GetAction(), s.GetReason())
+	}
+	if first.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
+		t.Fatalf("change = %v", first.GetChange())
+	}
+
+	second := read()
+	if second.GetChange().GetId() == first.GetChange().GetId() {
+		t.Fatal("a second read planned nothing new")
+	}
+	was, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: first.GetChange().GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if was.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_DISCARDED {
+		t.Errorf("the plan a read stood in for is %v", was.Msg.GetChange().GetState())
 	}
 }

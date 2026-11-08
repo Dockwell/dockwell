@@ -333,7 +333,22 @@ type Taking struct {
 // collected, whatever kind it is, so a person fixes it once rather than meeting it
 // one thing at a time.
 func (h *Handler) ReadTaking(ctx context.Context, server, name, project, environment string) (*Taking, error) {
-	s, list, err := h.containers.InProject(ctx, server, name)
+	r, err := h.containers.ReadRunning(ctx, server)
+	if err != nil {
+		return nil, err
+	}
+	return h.ReadTakingIn(ctx, r, name, project, environment)
+}
+
+// ReadRunning reads what a server runs, once, for ReadTakingIn and TakenOn.
+func (h *Handler) ReadRunning(ctx context.Context, server string) (*containers.Running, error) {
+	return h.containers.ReadRunning(ctx, server)
+}
+
+// ReadTakingIn is ReadTaking, of what r read the server running.
+func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name, project, environment string) (*Taking, error) {
+	s := r.Server
+	list, err := r.InProject(name)
 	if err != nil {
 		return nil, err
 	}
@@ -385,6 +400,64 @@ func (h *Handler) ReadTaking(ctx context.Context, server, name, project, environ
 		revision.ManagedElsewhere(resource.Elsewhere{Manager: manager, Container: human.List(names), Project: name, Folder: folder}),
 	}
 	return t, nil
+}
+
+// TakenOn is the project of Dockwell's that runs the container called name, as r
+// read the server, or "" where none does: one taken on keeps its name, and runs in
+// its environment's Compose project.
+func (h *Handler) TakenOn(ctx context.Context, r *containers.Running, name string) (string, error) {
+	env := r.RunsAs(name)
+	if env == "" {
+		return "", nil
+	}
+	project := ""
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			for _, e := range p.Environments {
+				if docker.Project(e.ID) == env {
+					project = p.Name
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return "", h.internal(ctx, err)
+	}
+	return project, nil
+}
+
+// FreeProject is want, or, where a project has that name, the first of
+// want-1panel, want-1panel-2 and on that none has: a project to take something on
+// into that's no one else's.
+func (h *Handler) FreeProject(ctx context.Context, want string) (string, error) {
+	var names []string
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		for _, p := range tree.Projects {
+			names = append(names, p.Name)
+		}
+		return err
+	})
+	if err != nil {
+		return "", h.internal(ctx, err)
+	}
+	for i := 0; ; i++ {
+		name := want
+		switch {
+		case i == 1:
+			name = want + "-1panel"
+		case i > 1:
+			name = fmt.Sprintf("%s-1panel-%d", want, i)
+		}
+		if !slices.Contains(names, name) {
+			return name, nil
+		}
+	}
 }
 
 // oneService says why containers that come to one service's name can't be taken on:

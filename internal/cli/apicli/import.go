@@ -5,6 +5,7 @@ package apicli
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -37,7 +38,9 @@ func importView(w io.Writer, res *dockwellv1.ImportOnePanelResponse) {
 			return s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE && s.GetWaitsFor() == wf
 		}})
 	}
-	groups = append(groups, group{"Stays with 1Panel", func(s *dockwellv1.ImportStep) bool {
+	groups = append(groups, group{"In Dockwell already", func(s *dockwellv1.ImportStep) bool {
+		return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_DONE
+	}}, group{"Stays with 1Panel", func(s *dockwellv1.ImportStep) bool {
 		return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_LEAVE
 	}})
 	for _, g := range groups {
@@ -60,6 +63,13 @@ func importView(w io.Writer, res *dockwellv1.ImportOnePanelResponse) {
 				fmt.Fprintf(w, "    %s\n", r)
 			}
 		}
+	}
+	// A token reads what's there, and a person plans it, as a plan that takes a
+	// container on shows what a token can't read.
+	if res.GetChange() == nil && slices.ContainsFunc(res.GetSteps(), func(s *dockwellv1.ImportStep) bool {
+		return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON && !strings.HasPrefix(s.GetReason(), "Dockwell can't read what runs")
+	}) {
+		fmt.Fprintln(w, "\nNothing was planned: the CLI signs in with an API token, and a plan that takes containers on takes a person. Sign in to the panel to plan it, from the server's page.")
 	}
 }
 

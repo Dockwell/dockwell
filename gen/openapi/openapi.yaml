@@ -5963,6 +5963,7 @@ components:
                         - IMPORT_ACTION_TAKE_ON
                         - IMPORT_ACTION_MAKE
                         - IMPORT_ACTION_LEAVE
+                        - IMPORT_ACTION_DONE
                     type: string
                     description: What an import would do with it.
                     format: enum

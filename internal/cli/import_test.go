@@ -59,6 +59,7 @@ func TestImport1PanelPlanOnly(t *testing.T) {
 		"Later, once Dockwell has websites (1)",
 		"  Website blog.example.com: a static site",
 		"Stays with 1Panel (1)",
+		"Nothing was planned: the CLI signs in with an API token",
 		"  Firewall: the rules 1Panel writes",
 	} {
 		if !strings.Contains(r.out, want) {
