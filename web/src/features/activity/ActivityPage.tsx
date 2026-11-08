@@ -874,10 +874,21 @@ function DesiredSentFacts({ sent }: { sent: EventDesiredSent }) {
   const server = sent.serverName;
   return (
     <>
-      <dt>{t`Resources sent`}</dt>
-      <dd>{sent.resources}</dd>
-      <dt>{t`With variables and secrets`}</dt>
-      <dd>{sent.withValues}</dd>
+      {sent.unknown > 0 ? (
+        <>
+          <dt>{t`Not on record`}</dt>
+          <dd>
+            {t`The control plane's data was restored or rebuilt from before these were made or changed, so what ${server}'s agent keeps of them, values included, may be the only copy of what runs there. Apply them again from the control plane to bring its record up to date.`}
+          </dd>
+        </>
+      ) : (
+        <>
+          <dt>{t`Resources sent`}</dt>
+          <dd>{sent.resources}</dd>
+          <dt>{t`With variables and secrets`}</dt>
+          <dd>{sent.withValues}</dd>
+        </>
+      )}
       {sent.newCache ? (
         <>
           <dt>{t`New cache`}</dt>

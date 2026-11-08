@@ -362,6 +362,9 @@ msgstr "正在加载计划"
 msgid "New cache"
 msgstr "新缓存"
 
+msgid "Not on record"
+msgstr "无记录"
+
 msgid "Nothing here yet"
 msgstr "这里还没有内容"
 
@@ -418,6 +421,9 @@ msgstr "状态"
 
 msgid "Terminal"
 msgstr "终端"
+
+msgid "The control plane's data was restored or rebuilt from before these were made or changed, so what {server}'s agent keeps of them, values included, may be the only copy of what runs there. Apply them again from the control plane to bring its record up to date."
+msgstr "控制平面的数据是从这些资源创建或修改之前恢复或重建的，因此 {server} 的 agent 保留的这些资源（包括其中的值）可能是那里运行内容的唯一副本。请从控制平面重新应用它们，以更新其记录。"
 
 msgid "Today"
 msgstr "今天"
@@ -751,8 +757,14 @@ msgstr "{count, plural, other {自上一条记录以来又变化了 # 次。}}"
 msgid "{count, plural, one {Sent {server}'s agent the variables and secrets of # resource it runs, to keep while the control plane is away} other {Sent {server}'s agent the variables and secrets of # resources it runs, to keep while the control plane is away}}"
 msgstr "{count, plural, other {已向 {server} 的 agent 发送它运行的 # 个资源的变量和密钥，供控制平面离线时保留}}"
 
+msgid "{count, plural, one {Sent {server}'s agent, which kept none before, the variables and secrets of # resource it runs} other {Sent {server}'s agent, which kept none before, the variables and secrets of # resources it runs}}"
+msgstr "{count, plural, other {已向此前未保留任何内容的 {server} 的 agent 发送它运行的 # 个资源的变量和密钥}}"
+
 msgid "{count, plural, one {{server}'s agent has a new cache, and was sent the variables and secrets of # resource it runs} other {{server}'s agent has a new cache, and was sent the variables and secrets of # resources it runs}}"
 msgstr "{count, plural, other {{server} 的 agent 有了新的缓存，并收到了它运行的 # 个资源的变量和密钥}}"
+
+msgid "{count, plural, one {{server}'s agent keeps # resource this control plane has no record of at that revision, and it was left as it is} other {{server}'s agent keeps # resources this control plane has no record of at that revision, and they were left as they are}}"
+msgstr "{count, plural, other {{server} 的 agent 保留着 # 个控制平面在该修订版本上没有记录的资源，已原样保留}}"
 
 msgid "{destination} kept a backup of {volume} that was to go"
 msgstr "{destination} 保留了本应删除的 {volume} 备份"

@@ -14,6 +14,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -112,7 +113,7 @@ func testRememberSendsWhatAnAgentLacks(t *testing.T, backend store.Backend) {
 	f["srv_A"].agent = k
 
 	// An agent that keeps nothing yet is sent all of it.
-	fill(t, e, Filled{Kept: 2, NewCache: true})
+	fill(t, e, Filled{Kept: 2, FirstCache: true})
 	got := k.sent()
 	if names := slices.Sorted(maps.Keys(got)); !slices.Equal(names, []string{"http", "web"}) {
 		t.Fatalf("sent %v, want http and web", names)
@@ -169,15 +170,73 @@ func TestRememberForgetsWhatTheServerNoLongerRuns(t *testing.T) {
 }
 
 func testRememberForgetsWhatTheServerNoLongerRuns(t *testing.T, backend store.Backend) {
-	e, f, _ := setup(t, backend, "srv_A")
+	e, f, db := setup(t, backend, "srv_A", "srv_B")
 	apply(t, e, propose(t, e, "Run web", web("nginx:1.27")))
+	// Made, then deleted, as when the agent kept it through a delete step that
+	// failed partway.
+	gone := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "gone"}
+	apply(t, e, propose(t, e, "Run gone", Edit{Ref: gone, Spec: &resourcev1.Container{Image: "nginx:1.27"}}))
+	apply(t, e, propose(t, e, "Delete gone", Edit{Ref: gone}))
+	// Moved to another server, which leaves it unplaced here.
+	env := production(t, db)
+	moved := resource.Ref{Kind: service.Kind, Scope: env, Name: "web"}
+	apply(t, e, propose(t, e, "Run web on A", webIn(env, "srv_A")))
+	apply(t, e, propose(t, e, "Move web to B", webIn(env, "srv_B")))
 	k := &keeping{Agent: f["srv_A"].agent, keeps: true, cache: "c1", forgot: map[resource.Ref]int64{}}
 	f["srv_A"].agent = k
-	stale := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "gone"}
-	k.hold(map[resource.Ref]int64{webRef: 1, stale: 4})
-	fill(t, e, Filled{Forgot: 1, NewCache: true})
-	if got := k.forgotten(); len(got) != 1 || got["gone"] != 4 {
-		t.Errorf("forgot %v, want gone at 4, and not web", got)
+	k.hold(map[resource.Ref]int64{webRef: 1, gone: 1, moved: 1})
+	fill(t, e, Filled{Forgot: 2, FirstCache: true})
+	if got := k.forgotten(); len(got) != 2 || got["gone"] != 1 || got["web"] != 1 {
+		t.Errorf("forgot %v, want gone and the service that moved, each at 1, and not the web that runs here", got)
+	}
+}
+
+// A store restored or rebuilt holds less than what runs: what an agent keeps that it
+// has no record of, or only at an earlier revision, is left as it is, as it may be
+// the only copy of later values, and its count goes on the timeline as it changes.
+func TestRememberLeavesWhatTheStoreDoesntKnow(t *testing.T) {
+	storetest.Each(t, testRememberLeavesWhatTheStoreDoesntKnow)
+}
+
+func testRememberLeavesWhatTheStoreDoesntKnow(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A", "srv_B")
+	env := production(t, db)
+	apply(t, e, propose(t, e, "Run web on B", webIn(env, "srv_B")))
+	later := resource.Ref{Kind: service.Kind, Scope: env, Name: "web"}
+	never := resource.Ref{Kind: service.Kind, Scope: env, Name: "made-after-the-snapshot"}
+	k := &keeping{Agent: f["srv_A"].agent, keeps: true, cache: "c1", forgot: map[resource.Ref]int64{}}
+	f["srv_A"].agent = k
+	k.hold(map[resource.Ref]int64{later: 5, never: 3})
+	unknowns := func() []DesiredSent {
+		t.Helper()
+		var out []DesiredSent
+		if err := db.View(t.Context(), func(tx *store.Tx) error {
+			got, err := tx.Timeline(t.Context(), store.TimelineQuery{Filter: store.TimelineFilter{Actions: []string{ActionDesiredUnknown}}})
+			for _, entry := range got {
+				if told, ok := ReadDesiredSent(entry.Event.Detail); ok {
+					out = append(out, told)
+				}
+			}
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	fill(t, e, Filled{Unknown: 2, FirstCache: true})
+	if got := k.forgotten(); len(got) != 0 {
+		t.Fatalf("forgot %v, which the store doesn't know at the revision held", got)
+	}
+	fill(t, e, Filled{Unknown: 2})
+	if got := unknowns(); len(got) != 1 || got[0].Unknown != 2 {
+		t.Fatalf("the timeline has %+v, want one event of 2, said once", got)
+	}
+	k.hold(map[resource.Ref]int64{never: 3})
+	fill(t, e, Filled{Unknown: 1})
+	k.hold(map[resource.Ref]int64{})
+	fill(t, e, Filled{})
+	if got := unknowns(); len(got) != 2 || got[0].Unknown+got[1].Unknown != 3 {
+		t.Errorf("the timeline has %+v, want 2 then 1, and nothing for none", got)
 	}
 }
 
@@ -211,7 +270,7 @@ func testRememberLeavesWhatAChangeIsApplying(t *testing.T, backend store.Backend
 	done := make(chan error, 1)
 	go func() { done <- e.Apply(t.Context(), p.Change) }()
 	<-h.reached
-	fill(t, e, Filled{NewCache: true})
+	fill(t, e, Filled{FirstCache: true})
 	if got, gone := k.sent(), k.forgotten(); len(got) != 0 || len(gone) != 0 {
 		t.Errorf("mid-apply, sent %v and forgot %v", slices.Sorted(maps.Keys(got)), gone)
 	}
@@ -253,23 +312,28 @@ func testAFillWithValuesGoesOnTheTimeline(t *testing.T, backend store.Backend) {
 		}
 		return out
 	}
-	fill(t, e, Filled{Kept: 1, WithValues: 1, NewCache: true})
+	// The first cache the control plane sees is said plainly; only another one
+	// after it is worth a warning.
+	fill(t, e, Filled{Kept: 1, WithValues: 1, FirstCache: true})
 	fill(t, e, Filled{Kept: 1, WithValues: 1})
 	k.mu.Lock()
 	k.cache = "c2"
 	k.mu.Unlock()
 	fill(t, e, Filled{Kept: 1, WithValues: 1, NewCache: true})
 	got := events()
-	news := 0
+	firsts, news := 0, 0
 	for _, ev := range got {
-		if ev.Resources != 1 || ev.WithValues != 1 || ev.Cache == "" {
+		if ev.Resources != 1 || ev.WithValues != 1 || ev.Cache == "" || ev.FirstCache && ev.NewCache {
 			t.Errorf("an event says %+v", ev)
+		}
+		if ev.FirstCache {
+			firsts++
 		}
 		if ev.NewCache {
 			news++
 		}
 	}
-	if len(got) != 3 || news != 2 {
-		t.Errorf("the timeline has %+v, want 3 fills, 2 of a new cache", got)
+	if len(got) != 3 || firsts != 1 || news != 1 {
+		t.Errorf("the timeline has %+v, want 3 fills, the first said so and one of a new cache", got)
 	}
 }

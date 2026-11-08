@@ -47,6 +47,10 @@ func SettingPublicAddress(server string) string { return "server.public_address.
 // said it keeps its desired state in (ADR 0054).
 func SettingDesiredCache(server string) string { return "server.desired_cache." + server }
 
+// SettingDesiredUnknown is the key of how many of what a server's agent keeps the
+// store had no record of, as last said on the timeline (ADR 0054).
+func SettingDesiredUnknown(server string) string { return "server.desired_unknown." + server }
+
 // SettingDomainProofs is the key of what a server's certificates proved of its domains.
 func SettingDomainProofs(server string) string { return "server.domain_proofs." + server }
 

@@ -311,6 +311,40 @@ describe("Activity", () => {
     ).toBeVisible();
   });
 
+  it("says plainly when a server's agent is sent values for the first time, and what it keeps that isn't on record", async () => {
+    const on = { id: "srv_1", name: "hz-1" };
+    const watch = feed<WatchEventsResponse>();
+    watch.push(
+      snapshot([
+        auditEvent({
+          id: "evt_unknown",
+          action: "server.desired_unknown",
+          kind: EventKind.SERVER,
+          subject: on,
+          desiredSent: { unknown: 2, serverName: "hz-1" },
+        }),
+        auditEvent({
+          id: "evt_first",
+          action: "server.desired_sent",
+          kind: EventKind.SERVER,
+          time: timestampFromDate(new Date(Date.now() - HOUR)),
+          subject: on,
+          desiredSent: { resources: 3, withValues: 2, firstCache: true, serverName: "hz-1" },
+        }),
+      ]),
+    );
+    renderActivity(watch, {}, "/activity?event=evt_unknown");
+    const first = await screen.findByRole("row", {
+      name: /Sent hz-1's agent, which kept none before, the variables and secrets of 2 resources it runs/,
+    });
+    expect(first).not.toHaveTextContent(/new cache/);
+    const detail = await screen.findByRole("region", {
+      name: /hz-1's agent keeps 2 resources this control plane has no record of at that revision, and they were left as they are/,
+    });
+    expect(within(detail).getByText(/may be the only copy of what runs there/)).toBeVisible();
+    expect(within(detail).queryByText("Resources sent")).toBeNull();
+  });
+
   it("says what the install's settings were set to, and what they were, so they can be put back", async () => {
     const at = (hours: number) => timestampFromDate(new Date(Date.now() - hours * HOUR));
     const events = [

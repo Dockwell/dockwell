@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 
 	"google.golang.org/protobuf/proto"
@@ -16,9 +17,13 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// ActionDesiredSent is the timeline's action for a fill that sent a server's
-// agent the values of variables and secrets to keep (ADR 0054).
-const ActionDesiredSent = "server.desired_sent"
+// The timeline's actions for a fill (ADR 0054): one that sent a server's agent
+// the values of variables and secrets to keep, and one that found the agent keeps
+// what this control plane has no record of, at the revision it keeps.
+const (
+	ActionDesiredSent    = "server.desired_sent"
+	ActionDesiredUnknown = "server.desired_unknown"
+)
 
 // Rememberer is an agent that keeps what its server should run, so the server
 // can be put back while the control plane is away (ADR 0054).
@@ -41,17 +46,25 @@ type Filled struct {
 	// Forgot counts the resources the agent forgot, as its server no longer
 	// runs them.
 	Forgot int
-	// NewCache says the agent's cache was new to the control plane.
-	NewCache bool
+	// Unknown counts what the agent keeps that this control plane has no record
+	// of, or only at an earlier revision, which only a restored or rebuilt store
+	// has: it's left as it is.
+	Unknown int
+	// FirstCache says the control plane hadn't seen the agent's cache before, as
+	// for an agent that kept nothing until now; NewCache, that it had seen
+	// another.
+	FirstCache, NewCache bool
 }
 
 // DesiredSent is what a fill's event keeps: counts, and the cache, never a value
 // or a spec.
 type DesiredSent struct {
-	Resources  int    `json:"resources"`
-	WithValues int    `json:"with_values"`
-	Cache      string `json:"cache"`
-	NewCache   bool   `json:"new_cache"`
+	Resources  int    `json:"resources,omitempty"`
+	WithValues int    `json:"with_values,omitempty"`
+	Cache      string `json:"cache,omitempty"`
+	FirstCache bool   `json:"first_cache,omitempty"`
+	NewCache   bool   `json:"new_cache,omitempty"`
+	Unknown    int    `json:"unknown,omitempty"`
 }
 
 // ReadDesiredSent reads a fill's event's detail.
@@ -93,6 +106,7 @@ func (e *Engine) Remember(ctx context.Context, server string) (Filled, error) {
 		res store.Resource
 	}
 	var send []lacking
+	var forget []resource.Ref
 	placed := map[resource.Ref]bool{}
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
 		live, err := tx.ListLive(ctx, server)
@@ -108,10 +122,31 @@ func (e *Engine) Remember(ctx context.Context, server string) (Filled, error) {
 		// What a change placed there, applying now or not, isn't forgotten:
 		// its step has the say.
 		all, err := tx.ListPlaced(ctx, server)
+		if err != nil {
+			return err
+		}
 		for _, res := range all {
 			placed[resource.Ref{Kind: resource.Kind(res.Kind), Scope: res.Scope, Name: res.Name}] = true
 		}
-		return err
+		for ref, revision := range held {
+			if placed[ref] {
+				continue
+			}
+			known, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
+			switch {
+			case errors.Is(err, store.ErrNotFound), err == nil && int64(known.Revision) < revision:
+				// The store never deletes a resource, nor goes back on a revision,
+				// so only one restored or rebuilt holds less than the agent: what
+				// it keeps then may be the only copy of later values, beside
+				// Docker's. What runs wins, so it stays.
+				n.Unknown++
+			case err != nil:
+				return err
+			default:
+				forget = append(forget, ref)
+			}
+		}
+		return nil
 	}); err != nil {
 		return n, err
 	}
@@ -139,11 +174,8 @@ func (e *Engine) Remember(ctx context.Context, server string) (Filled, error) {
 			}
 		}
 	}
-	for ref, revision := range held {
-		if placed[ref] {
-			continue
-		}
-		gone, err := r.Forget(ctx, ref, revision)
+	for _, ref := range forget {
+		gone, err := r.Forget(ctx, ref, held[ref])
 		switch {
 		case err != nil:
 			errs = append(errs, fmt.Errorf("%s: %w", ref, err))
@@ -157,30 +189,57 @@ func (e *Engine) Remember(ctx context.Context, server string) (Filled, error) {
 	return n, errors.Join(errs...)
 }
 
-// noteCache keeps the ID of the server's agent's cache, and puts a fill that sent
-// values on the server's timeline, saying whether the cache was new.
+// noteCache keeps the ID of the server's agent's cache, and puts on the server's
+// timeline a fill that sent values, saying whether the control plane had seen the
+// cache, and what the agent keeps that the store doesn't know, when that count
+// changes.
 func (e *Engine) noteCache(ctx context.Context, server, cache string, n *Filled) error {
 	return e.db.Update(ctx, func(tx *store.Tx) error {
 		was, err := tx.GetSetting(ctx, store.SettingDesiredCache(server))
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
 		}
-		n.NewCache = string(was) != cache
-		if n.NewCache {
+		n.FirstCache, n.NewCache = len(was) == 0, len(was) > 0 && string(was) != cache
+		if string(was) != cache {
 			if err := tx.PutSetting(ctx, store.SettingDesiredCache(server), []byte(cache)); err != nil {
 				return err
 			}
 		}
-		if n.WithValues == 0 {
-			return nil
+		if n.WithValues > 0 {
+			if err := e.event(ctx, tx, server, ActionDesiredSent, DesiredSent{
+				Resources: n.Kept, WithValues: n.WithValues, Cache: cache, FirstCache: n.FirstCache, NewCache: n.NewCache,
+			}); err != nil {
+				return err
+			}
 		}
-		detail, err := json.Marshal(DesiredSent{Resources: n.Kept, WithValues: n.WithValues, Cache: cache, NewCache: n.NewCache})
-		if err != nil {
+		// What the store doesn't know goes on the timeline as its count changes,
+		// not on each connect.
+		said, err := tx.GetSetting(ctx, store.SettingDesiredUnknown(server))
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
 		}
-		return tx.RecordEvent(ctx, store.Event{
-			ID: id.New(id.Event), At: e.now(), Actor: SystemActor, Action: ActionDesiredSent, Subject: server, Target: server,
-			Surface: ViaAutomatic, Detail: string(detail),
-		})
+		count := strconv.Itoa(n.Unknown)
+		if string(said) == count || len(said) == 0 && n.Unknown == 0 {
+			return nil
+		}
+		if err := tx.PutSetting(ctx, store.SettingDesiredUnknown(server), []byte(count)); err != nil {
+			return err
+		}
+		if n.Unknown == 0 {
+			return nil
+		}
+		return e.event(ctx, tx, server, ActionDesiredUnknown, DesiredSent{Unknown: n.Unknown, Cache: cache})
+	})
+}
+
+// event puts a fill's event on the server's timeline.
+func (e *Engine) event(ctx context.Context, tx *store.Tx, server, action string, told DesiredSent) error {
+	detail, err := json.Marshal(told)
+	if err != nil {
+		return err
+	}
+	return tx.RecordEvent(ctx, store.Event{
+		ID: id.New(id.Event), At: e.now(), Actor: SystemActor, Action: action, Subject: server, Target: server,
+		Surface: ViaAutomatic, Detail: string(detail),
 	})
 }

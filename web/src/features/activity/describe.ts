@@ -111,13 +111,34 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
                 icon: "server",
                 tone: "warning",
               }
-            : {
-                title: plural(count, {
-                  one: `Sent ${server}'s agent the variables and secrets of # resource it runs, to keep while the control plane is away`,
-                  other: `Sent ${server}'s agent the variables and secrets of # resources it runs, to keep while the control plane is away`,
-                }),
-                icon: "server",
-              };
+            : sent?.firstCache
+              ? {
+                  title: plural(count, {
+                    one: `Sent ${server}'s agent, which kept none before, the variables and secrets of # resource it runs`,
+                    other: `Sent ${server}'s agent, which kept none before, the variables and secrets of # resources it runs`,
+                  }),
+                  icon: "server",
+                }
+              : {
+                  title: plural(count, {
+                    one: `Sent ${server}'s agent the variables and secrets of # resource it runs, to keep while the control plane is away`,
+                    other: `Sent ${server}'s agent the variables and secrets of # resources it runs, to keep while the control plane is away`,
+                  }),
+                  icon: "server",
+                };
+        }
+        case "server.desired_unknown": {
+          // What the agent keeps that the store doesn't know, at that revision, is
+          // left as it is: only a restored or rebuilt store holds less (ADR 0054).
+          const count = event.desiredSent?.unknown ?? 0;
+          return {
+            title: plural(count, {
+              one: `${server}'s agent keeps # resource this control plane has no record of at that revision, and it was left as it is`,
+              other: `${server}'s agent keeps # resources this control plane has no record of at that revision, and they were left as they are`,
+            }),
+            icon: "server",
+            tone: "warning",
+          };
         }
         case "server.public_address_clear": {
           const previous = event.publicAddress?.previous ?? "";

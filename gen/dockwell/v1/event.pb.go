@@ -497,7 +497,8 @@ type Event struct {
 	// message.
 	TaskRun *EventTaskRun `protobuf:"bytes,130,opt,name=task_run,json=taskRun,proto3" json:"task_run,omitempty"`
 	// What the control plane sent a server's agent to keep as what the server
-	// runs, for an event with the action "server.desired_sent" (ADR 0054).
+	// runs, for an event with the action "server.desired_sent", or found it keeps
+	// and doesn't know, for "server.desired_unknown" (ADR 0054).
 	DesiredSent   *EventDesiredSent `protobuf:"bytes,140,opt,name=desired_sent,json=desiredSent,proto3" json:"desired_sent,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -773,12 +774,20 @@ type EventDesiredSent struct {
 	Resources uint32 `protobuf:"varint,1,opt,name=resources,proto3" json:"resources,omitempty"`
 	// How many of them came with the values of variables and secrets.
 	WithValues uint32 `protobuf:"varint,2,opt,name=with_values,json=withValues,proto3" json:"with_values,omitempty"`
-	// True when the agent's cache is new to the control plane: one made since the
-	// control plane last sent it anything, as after a reinstall or a lost key, or
-	// one of another holder of the server's identity.
+	// True when the agent's cache isn't the one the control plane last saw: one
+	// made since, as after a reinstall or a lost key, or one of another holder of
+	// the server's identity.
 	NewCache bool `protobuf:"varint,3,opt,name=new_cache,json=newCache,proto3" json:"new_cache,omitempty"`
 	// The server's name.
-	ServerName    string `protobuf:"bytes,4,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
+	ServerName string `protobuf:"bytes,4,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
+	// For an event with the action "server.desired_unknown", how many of what the
+	// agent keeps this control plane has no record of, or only at an earlier
+	// revision, as after its store was restored or rebuilt. They were left as they
+	// are, as they may be the only copy of what runs.
+	Unknown uint32 `protobuf:"varint,5,opt,name=unknown,proto3" json:"unknown,omitempty"`
+	// True when the control plane hadn't seen the agent's cache before, as for an
+	// agent that kept nothing until it was updated.
+	FirstCache    bool `protobuf:"varint,6,opt,name=first_cache,json=firstCache,proto3" json:"first_cache,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -839,6 +848,20 @@ func (x *EventDesiredSent) GetServerName() string {
 		return x.ServerName
 	}
 	return ""
+}
+
+func (x *EventDesiredSent) GetUnknown() uint32 {
+	if x != nil {
+		return x.Unknown
+	}
+	return 0
+}
+
+func (x *EventDesiredSent) GetFirstCache() bool {
+	if x != nil {
+		return x.FirstCache
+	}
+	return false
 }
 
 // EventProcess is a process someone ended on a server.
@@ -1503,14 +1526,17 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\texit_code\x18\a \x01(\x05R\bexitCode\x12\x1f\n" +
 	"\vhttp_status\x18\b \x01(\x05R\n" +
 	"httpStatus\x12\x14\n" +
-	"\x05error\x18\t \x01(\tR\x05error\"\x8f\x01\n" +
+	"\x05error\x18\t \x01(\tR\x05error\"\xca\x01\n" +
 	"\x10EventDesiredSent\x12\x1c\n" +
 	"\tresources\x18\x01 \x01(\rR\tresources\x12\x1f\n" +
 	"\vwith_values\x18\x02 \x01(\rR\n" +
 	"withValues\x12\x1b\n" +
 	"\tnew_cache\x18\x03 \x01(\bR\bnewCache\x12\x1f\n" +
 	"\vserver_name\x18\x04 \x01(\tR\n" +
-	"serverName\"\xa3\x01\n" +
+	"serverName\x12\x18\n" +
+	"\aunknown\x18\x05 \x01(\rR\aunknown\x12\x1f\n" +
+	"\vfirst_cache\x18\x06 \x01(\bR\n" +
+	"firstCache\"\xa3\x01\n" +
 	"\fEventProcess\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +

@@ -58,4 +58,30 @@ func testAFillIsOnTheServersTimeline(t *testing.T, backend store.Backend) {
 	if err != nil || strings.Contains(string(b2), "cache-id-stays-behind") {
 		t.Errorf("the event carries the cache's ID: %s, %v", b2, err)
 	}
+
+	// What the agent keeps that the store doesn't know reads with its count.
+	detail, err = json.Marshal(revision.DesiredSent{Unknown: 2, Cache: "cache-id-stays-behind"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.store.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.RecordEvent(t.Context(), store.Event{
+			ID: id.New(id.Event), At: time.Now(), Actor: revision.SystemActor, Action: revision.ActionDesiredUnknown,
+			Subject: s.id.ServerID, Target: s.id.ServerID, Surface: revision.ViaAutomatic, Detail: string(detail),
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	events = listEvents(t, dockwellv1connect.NewEventServiceClient(b, b.origin), &dockwellv1.ListEventsRequest{
+		Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_SERVER}, ServerId: s.id.ServerID,
+	})
+	var unknown *dockwellv1.Event
+	for _, e := range events {
+		if e.GetAction() == revision.ActionDesiredUnknown {
+			unknown = e
+		}
+	}
+	if unknown.GetDesiredSent().GetUnknown() != 2 || unknown.GetKind() != dockwellv1.EventKind_EVENT_KIND_SERVER {
+		t.Errorf("the timeline has %v", unknown)
+	}
 }
