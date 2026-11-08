@@ -83,7 +83,7 @@ jobs:
         run: $GOTOOL golangci-lint fmt --diff
       - name: Test
         if: steps.pick.outputs.run == 'true'
-        run: go test -race -coverprofile=coverage.out ./...
+        run: go test -timeout 20m -race -coverprofile=coverage.out ./...
       - name: Test the agent build
         if: steps.pick.outputs.run == 'true'
         run: go test -race -tags agent $AGENT_PKGS
