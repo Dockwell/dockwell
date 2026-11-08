@@ -75,7 +75,7 @@ func TestRunLeavesThePortsToItsProxy(t *testing.T) {
 		"--acme-directory-url", "https://acme.invalid/directory")
 	defer stop()
 	socket := caddy.PanelSocket(d.Ingress())
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(startUp)
 	var info os.FileInfo
 	for time.Now().Before(deadline) {
 		if info, err = os.Stat(socket); err == nil {
@@ -96,7 +96,14 @@ func TestRunLeavesThePortsToItsProxy(t *testing.T) {
 	if run.Mode().Perm() != 0o700 {
 		t.Errorf("the socket's directory has mode %v, want 0700", run.Mode().Perm())
 	}
-	if !strings.Contains(logs.String(), "SSH tunnel") || !strings.Contains(logs.String(), "ssh -L ") {
+	// It says so once it has made the socket, so the line can come a moment after it.
+	tunnel := func() bool {
+		return strings.Contains(logs.String(), "SSH tunnel") && strings.Contains(logs.String(), "ssh -L ")
+	}
+	for deadline := time.Now().Add(startUp); !tunnel() && time.Now().Before(deadline); {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !tunnel() {
 		t.Errorf("the log doesn't say how to reach the panel if the proxy is down:\n%s", logs.String())
 	}
 }

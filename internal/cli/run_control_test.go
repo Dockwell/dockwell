@@ -142,10 +142,16 @@ func startRun(t *testing.T) string {
 			t.Errorf("run exited %d:\n%s", code, errOut.String())
 		}
 	})
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(startUp)
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "agent", "agent.json")); err == nil {
 			return dir
+		}
+		select {
+		case code := <-done:
+			done <- code // for the cleanup, which waits on it
+			t.Fatalf("dockwell run exited %d before its agent got an identity:\n%s", code, errOut.String())
+		default:
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("the control server's agent never got an identity:\n%s", errOut.String())
