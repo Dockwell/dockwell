@@ -162,6 +162,104 @@ describe("scheduled tasks", () => {
     );
   });
 
+  it("runs it now on the server chosen, and an edit keeps it on every server it's on", async () => {
+    const user = userEvent.setup();
+    const two = aTask({
+      kind: TaskKind.SHELL,
+      spec: {
+        displayName: "Rotate logs",
+        schedule: "30 2 * * *",
+        runs: { case: "shell", value: { command: "logrotate" } },
+      },
+    });
+    two.servers.push({ ...two.servers[0], serverId: "srv_2", serverName: "hz-2" } as TaskInfo["servers"][number]);
+    const ran = vi.fn(() => ({ run: { id: "run_3", state: TaskRunState.RUNNING } }));
+    const proposed = vi.fn((req: ProposeChangeRequest) => {
+      void req;
+      return { change: { id: "chg_1" } };
+    });
+    renderAt(
+      "/scheduled-tasks",
+      api([two], {
+        tasks: { listTasks: () => ({ tasks: [two] }), listTaskRuns: () => ({ runs }), runTask: ran },
+        changes: { proposeChange: proposed },
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "Rotate logs" });
+    await user.selectOptions(within(panel).getByLabelText("Run it now on"), "hz-2");
+    await user.click(within(panel).getByRole("button", { name: "Run now" }));
+    await waitFor(() =>
+      expect(ran).toHaveBeenCalledWith(expect.objectContaining({ server: "srv_2" }), expect.anything()),
+    );
+
+    await user.click(within(panel).getByRole("button", { name: "Edit" }));
+    const sheet = await screen.findByRole("dialog");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    // No servers keeps the ones it's on.
+    expect(proposed.mock.calls[0]?.[0].edits[0]?.servers).toEqual([]);
+  });
+
+  it("says how a run went in its own words, and what a request answered", async () => {
+    const ping = aTask({
+      id: "tsk_ping",
+      resource: { kind: "task", scope: ENV, name: "ping" },
+      kind: TaskKind.REQUEST,
+      spec: {
+        displayName: "Ping the shop",
+        schedule: "*/5 * * * *",
+        timeZone: "Pacific/Chatham",
+        runs: { case: "request", value: { url: "https://shop.example.com/health", method: "GET", expectStatus: 200 } },
+      },
+    });
+    const pings = [
+      {
+        id: "run_c",
+        state: TaskRunState.SUCCEEDED,
+        startTime: at(-60_000),
+        endTime: at(-60_000 + 180),
+        skippedSlots: 2,
+        attempts: [{ startTime: at(-60_000), endTime: at(-60_000 + 180), httpStatus: 200, responseBytes: 22n }],
+        output: [
+          {
+            time: at(-60_000 + 180),
+            text: "Dockwell: GET https://shop.example.com/health answered 200 OK in 180ms, 22 bytes.",
+          },
+        ],
+      },
+      {
+        id: "run_b",
+        state: TaskRunState.INTERRUPTED,
+        startTime: at(-3_600_000),
+        endTime: at(-3_600_000 + 1_000),
+        error: "the agent stopped while it ran, so how it ended isn't known",
+      },
+      {
+        id: "run_a",
+        state: TaskRunState.FAILED,
+        startTime: at(-7_200_000),
+        endTime: at(-7_200_000 + 300),
+        attempts: [{ httpStatus: 503 }],
+        error: "it answered 503, and the task expects 200",
+      },
+    ];
+    renderAt(
+      "/scheduled-tasks",
+      api([ping], { tasks: { listTasks: () => ({ tasks: [ping] }), listTaskRuns: () => ({ runs: pings }) } }),
+    );
+    const panel = await screen.findByRole("region", { name: "Ping the shop" });
+    expect(
+      await within(panel).findByText("GET https://shop.example.com/health answered 200 in 180 ms, 22 bytes."),
+    ).toBeVisible();
+    expect(panel).not.toHaveTextContent("Dockwell:");
+    expect(panel).toHaveTextContent("Its schedule came round 2 times while it ran");
+    expect(panel).toHaveTextContent("interrupted: the agent stopped while it ran");
+    expect(panel).toHaveTextContent("failed: it answered 503, and the task expects 200");
+    // Its schedule reads in its own zone, which isn't the viewer's.
+    const table = screen.getByRole("table", { name: "Scheduled tasks" });
+    expect(within(table).getAllByRole("row")[1]).toHaveTextContent("Every 5 minutes, Pacific/Chatham time");
+  });
+
   it("says a server that isn't connected runs its tasks all the same", async () => {
     const away = aTask();
     const first = away.servers[0];

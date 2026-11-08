@@ -305,6 +305,12 @@ code.tasks-sub,
   color: var(--ink-muted);
 }
 
+/* What Dockwell says of the run, beside what the run printed. */
+.tasks-output-line.is-own {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
 .tasks-quiet {
   margin: 0;
   font-size: 13px;

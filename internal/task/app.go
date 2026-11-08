@@ -49,11 +49,20 @@ func (d *Driver) runApp(ctx context.Context, ref resource.Ref, a *resourcev1.Tas
 	host.PortBindings, host.RestartPolicy = nil, docker.RestartPolicy{Name: "no"}
 	// The run reaches what the app reaches, under no name of the app's own, so
 	// nothing sends it the app's traffic. Docker joins one network as it makes a
-	// container; the rest join after.
+	// container, the one its network mode names, and the rest join after. An app
+	// on the host's network, or another container's, shares that as it is.
 	networks := slices.Sorted(maps.Keys(app.NetworkSettings.Networks))
 	endpoints := map[string]*docker.EndpointSettings{}
-	if len(networks) > 0 {
-		endpoints[networks[0]] = &docker.EndpointSettings{}
+	if mode := host.NetworkMode; len(networks) > 0 && mode != "host" && mode != "none" && !strings.HasPrefix(mode, "container:") {
+		first := networks[0]
+		if slices.Contains(networks, mode) {
+			first = mode
+		}
+		host.NetworkMode = first
+		endpoints[first] = &docker.EndpointSettings{}
+		networks = slices.DeleteFunc(networks, func(n string) bool { return n == first })
+	} else {
+		networks = nil
 	}
 	cfg := app.Config
 	cfg.Image, cfg.Cmd, cfg.Labels = app.Image, words, labels
@@ -65,10 +74,10 @@ func (d *Driver) runApp(ctx context.Context, ref resource.Ref, a *resourcev1.Tas
 	}
 	defer func() {
 		rm, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
-		_ = d.Client.RemoveContainer(rm, cid, true)
+		_ = d.Client.RemoveOneOff(rm, cid)
 		cancel()
 	}()
-	for _, net := range networks[min(1, len(networks)):] {
+	for _, net := range networks {
 		if err := d.Client.ConnectNetwork(ctx, net, cid, nil); err != nil {
 			return attempt{err: fmt.Errorf("can't put the task's container on %s's network %s: %w", service, net, err)}
 		}

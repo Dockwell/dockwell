@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync"
 	"time"
 	_ "time/tzdata" // a server's own zone files aren't always there, and a zone means the same everywhere
 	"unicode/utf8"
@@ -218,15 +219,62 @@ func Timeout(t *resourcev1.Task) time.Duration {
 // Next is when a task next runs after after, or the zero time for one whose
 // schedule or zone doesn't read, which Validate refuses.
 func Next(t *resourcev1.Task, after time.Time) time.Time {
-	s, err := cron.Parse(t.GetSchedule())
-	if err != nil {
+	w := whenOf(t)
+	if !w.ok {
 		return time.Time{}
 	}
-	loc, err := time.LoadLocation(t.GetTimeZone())
-	if err != nil {
-		return time.Time{}
+	return w.schedule.Next(after, w.loc)
+}
+
+// Upcoming is when a task runs after from and before until, n at most.
+func Upcoming(t *resourcev1.Task, from, until time.Time, n int) []time.Time {
+	w := whenOf(t)
+	if !w.ok {
+		return nil
 	}
-	return s.Next(after, loc)
+	var out []time.Time
+	for at := w.schedule.Next(from, w.loc); !at.IsZero() && at.Before(until) && len(out) < n; at = w.schedule.Next(at, w.loc) {
+		out = append(out, at)
+	}
+	return out
+}
+
+// when is a task's schedule and zone, read.
+type when struct {
+	schedule cron.Schedule
+	loc      *time.Location
+	ok       bool
+}
+
+// whens keeps schedules and zones as they were read, as a timeline asks when the
+// same task runs hundreds of times, and reading a zone takes its whole file.
+var whens = struct {
+	sync.Mutex
+	m map[string]when
+}{m: map[string]when{}}
+
+// maxWhens bounds whens, which a control plane with every task's schedule in a
+// few zones stays far below.
+const maxWhens = 1024
+
+func whenOf(t *resourcev1.Task) when {
+	key := t.GetSchedule() + "\x00" + t.GetTimeZone()
+	whens.Lock()
+	defer whens.Unlock()
+	if w, ok := whens.m[key]; ok {
+		return w
+	}
+	var w when
+	if s, err := cron.Parse(t.GetSchedule()); err == nil {
+		if loc, err := time.LoadLocation(t.GetTimeZone()); err == nil {
+			w = when{schedule: s, loc: loc, ok: true}
+		}
+	}
+	if len(whens.m) >= maxWhens {
+		clear(whens.m)
+	}
+	whens.m[key] = w
+	return w
 }
 
 // Words splits a command as a shell splits it into words: on spaces, with single

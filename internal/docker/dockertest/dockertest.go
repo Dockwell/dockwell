@@ -871,6 +871,19 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		e.detach(c)
 		c.log.end()
 		delete(e.containers, c.ID)
+		if truthy(r.URL.Query().Get("v")) {
+			// As the engine does: the anonymous volumes it made for this container go
+			// with it, unless something else mounts one now.
+			for _, m := range c.Mounts {
+				v := e.volumes[m.Name]
+				if m.Type != "volume" || v == nil {
+					continue
+				}
+				if _, anonymous := v.Labels["com.docker.volume.anonymous"]; anonymous && e.volumeInUse(m.Name) == "" {
+					delete(e.volumes, m.Name)
+				}
+			}
+		}
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		fail(w, http.StatusNotFound, "page not found")
@@ -1587,6 +1600,10 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 			fail(w, http.StatusNotFound, "No such container: %s", req.Container)
 			return
 		}
+		if _, on := c.NetworkSettings.Networks[n.Name]; on {
+			fail(w, http.StatusForbidden, "endpoint with name %s already exists in network %s", strings.TrimPrefix(c.Name, "/"), n.Name)
+			return
+		}
 		s := req.EndpointConfig
 		if a := s.IPAMConfig; a != nil && a.IPv4Address != "" {
 			if len(n.IPAM.Config) == 0 || n.IPAM.Config[0].Subnet == "" {
@@ -1920,6 +1937,13 @@ func (e *Engine) Remove(name string) {
 		e.detach(c)
 		delete(e.containers, c.ID)
 	}
+}
+
+// VolumeNames lists the volumes the engine has, by name, sorted.
+func (e *Engine) VolumeNames() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return slices.Sorted(maps.Keys(e.volumes))
 }
 
 // Volume returns a volume by name, or nil.

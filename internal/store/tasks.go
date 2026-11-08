@@ -30,14 +30,17 @@ type TaskRun struct {
 }
 
 // PutTaskRun keeps a run as it is now: a running one, and again when it ends, in
-// its place. An agent may send a run twice, which keeps it once.
+// its place. An agent may send a run twice, which keeps it once. A run that ended
+// stays ended, whatever arrives after: Run now's answer and the agent's word that
+// the run ended can come in either order.
 func (t *Tx) PutTaskRun(ctx context.Context, r TaskRun) error {
 	var ended any
 	if !r.EndedAt.IsZero() {
 		ended = millis(r.EndedAt)
 	}
 	_, err := t.exec(ctx, `INSERT INTO task_runs (id, task_id, server_id, state, started_at, ended_at, run) VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (id) DO UPDATE SET state = excluded.state, ended_at = excluded.ended_at, run = excluded.run`,
+		ON CONFLICT (id) DO UPDATE SET state = excluded.state, ended_at = excluded.ended_at, run = excluded.run
+		WHERE task_runs.ended_at IS NULL`,
 		r.ID, r.TaskID, r.ServerID, r.State, millis(r.StartedAt), ended, r.Run)
 	if err != nil {
 		return fmt.Errorf("can't record the task run %s: %w", r.ID, err)
@@ -104,10 +107,14 @@ func (t *Tx) ListTaskRuns(ctx context.Context, f TaskRunFilter) ([]TaskRun, erro
 	return out, rows.Err()
 }
 
-// DeleteTaskRuns lets go of every run of a task that's gone.
-func (t *Tx) DeleteTaskRuns(ctx context.Context, taskID string) error {
-	if _, err := t.exec(ctx, `DELETE FROM task_runs WHERE task_id = ?`, taskID); err != nil {
-		return fmt.Errorf("can't let go of the runs of %s: %w", taskID, err)
+// PruneGoneTaskRuns lets go of the runs of each task deleted before before. Until
+// then they stay, as undoing the delete brings the task back under its own ID.
+func (t *Tx) PruneGoneTaskRuns(ctx context.Context, kind string, before time.Time) error {
+	_, err := t.exec(ctx, `DELETE FROM task_runs WHERE task_id NOT IN (SELECT id FROM resources WHERE kind = ?)
+		OR task_id IN (SELECT r.id FROM resources r JOIN revisions v ON v.resource_id = r.id AND v.number = r.revision
+			WHERE r.kind = ? AND v.spec IS NULL AND v.created_at < ?)`, kind, kind, millis(before))
+	if err != nil {
+		return fmt.Errorf("can't let go of the runs of deleted tasks: %w", err)
 	}
 	return nil
 }

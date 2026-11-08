@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
-import { type Task, type TaskInfo, TaskSchema } from "@dockwell/api";
+import { useQuery } from "@connectrpc/connect-query";
+import { SettingsService, type Task, type TaskInfo, TaskSchema } from "@dockwell/api";
 import {
   Button,
   PHONE_QUERY,
@@ -27,6 +28,22 @@ const NAME = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /** Schedules most tasks want, each with what it is in cron. */
 const PRESETS = ["*/5 * * * *", "0 * * * *", "0 4 * * *", "0 4 * * 1", "0 4 1 * *"] as const;
+
+/**
+ * The zone a new task's schedule reads in: the install's from Settings, or UTC where
+ * it has none, as the control plane gives a task that comes without one (ADR 0042).
+ * Undefined until Settings answer, so it never says another.
+ */
+function useScheduleZone(): { zone: string | undefined; set: boolean } {
+  const settings = useQuery(SettingsService.method.getSettings, {}).data?.settings;
+  if (!settings) return { zone: undefined, set: false };
+  return { zone: settings.timeZone || "UTC", set: settings.timeZone !== "" };
+}
+
+/** Every zone the browser knows, by name. */
+function zones(): string[] {
+  return typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : ["UTC"];
+}
 
 /**
  * Makes or changes a scheduled task, as a plan: a shell command on a server, which
@@ -59,7 +76,11 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
   const [retries, setRetries] = useState(String(spec?.retries ?? 0));
   const [paused, setPaused] = useState(spec?.paused ?? false);
   const [skipMissed, setSkipMissed] = useState(spec?.skipMissed ?? false);
-  const [server, setServer] = useState(task?.servers[0]?.serverId ?? servers?.[0]?.id ?? "");
+  // An edit keeps where a task runs, on every server, unless a person picks one:
+  // "" leaves it as it is.
+  const [server, setServer] = useState(task ? "" : (servers?.[0]?.id ?? ""));
+  const [zone, setZone] = useState(spec?.timeZone ?? "");
+  const scheduleZone = useScheduleZone();
   const [environment, setEnvironment] = useState(task?.resource?.scope ?? places.defaultEnvironment?.id ?? "");
   const [tried, setTried] = useState(false);
 
@@ -95,7 +116,8 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
     if (!valid) return;
     const value: Task = create(TaskSchema, {
       schedule: schedule.trim(),
-      timeZone: spec?.timeZone ?? "",
+      // Left out of a new task, the control plane gives it the install's zone.
+      timeZone: zone,
       timeoutSeconds: minutes * 60,
       retries: Number(retries),
       paused,
@@ -115,6 +137,7 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
         {
           resource: { kind: "task", scope, name: resourceName },
           spec: { kind: { case: "task", value } },
+          // An empty list keeps the servers a task is on.
           servers: server ? [server] : [],
         },
       ],
@@ -305,10 +328,37 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
           <SelectField
             label={t`Server it runs on`}
             value={server}
-            options={serverChoices.map((s) => ({ value: s.id, label: s.name }))}
+            options={[
+              ...(task
+                ? [{ value: "", label: t`Where it runs now: ${task.servers.map((s) => s.serverName).join(", ")}` }]
+                : []),
+              ...serverChoices.map((s) => ({ value: s.id, label: s.name })),
+            ]}
             onChange={(event) => setServer(event.target.value)}
           />
         ) : null}
+        <SelectField
+          label={t`Time zone`}
+          value={zone}
+          hint={t`Its schedule reads in this zone, whatever each server's clock is set to.`}
+          options={[
+            ...(spec?.timeZone
+              ? []
+              : [
+                  {
+                    value: "",
+                    label:
+                      scheduleZone.zone === undefined
+                        ? t`The install's`
+                        : scheduleZone.set
+                          ? t`The install's, ${scheduleZone.zone}`
+                          : t`UTC, as the install has none set`,
+                  },
+                ]),
+            ...zones().map((z) => ({ value: z, label: z })),
+          ]}
+          onChange={(event) => setZone(event.target.value)}
+        />
         <TextField
           label={t`Timeout, in minutes`}
           value={timeout}

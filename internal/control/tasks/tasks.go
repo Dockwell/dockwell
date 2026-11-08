@@ -82,6 +82,10 @@ const (
 	maxUpcoming = 288
 	// defaultPage and maxPage bound a page of runs.
 	defaultPage, maxPage = 20, 100
+	// pruneEvery is how often the runs of deleted tasks are looked for, and
+	// keepGone how long they stay after the delete, which can be undone until then.
+	pruneEvery = time.Hour
+	keepGone   = 7 * 24 * time.Hour
 )
 
 // Handler implements TaskService.
@@ -124,6 +128,25 @@ func (h *Handler) Start(ctx context.Context) {
 		h.collect(server)
 	})
 	h.agents.OnTaskRunsReady(h.collect)
+	go h.pruneGone(ctx)
+}
+
+// pruneGone lets go of the runs of tasks deleted a while ago, now and every
+// pruneEvery, until ctx ends.
+func (h *Handler) pruneGone(ctx context.Context) {
+	for {
+		err := h.db.Update(ctx, func(tx *store.Tx) error {
+			return tx.PruneGoneTaskRuns(ctx, string(task.Kind), h.now().Add(-keepGone))
+		})
+		if err != nil && ctx.Err() == nil {
+			h.logger.ErrorContext(ctx, "can't let go of the runs of deleted tasks", slog.String("error", err.Error()))
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(pruneEvery):
+		}
+	}
 }
 
 // collect reads a server's runs, once at a time for each server: what's asked while
@@ -234,7 +257,7 @@ func (h *Handler) keep(ctx context.Context, server string, said *agentv1.AgentTa
 		if spec, err := h.engine.Kinds().Decode(task.Kind, r.Spec); err == nil {
 			display = spec.(*resourcev1.Task).GetDisplayName() //nolint:forcetypeassert // the kind's own message
 		}
-		return record(ctx, tx, action, revision.SystemActor, store.SurfaceAutomatic, h.now(), ref.Name, display, run)
+		return record(ctx, tx, action, revision.SystemActor, store.SurfaceAutomatic, run.GetEndTime().AsTime(), ref.Name, display, run)
 	})
 }
 
@@ -254,20 +277,19 @@ func put(ctx context.Context, tx *store.Tx, run *dockwellv1.TaskRun) error {
 	return tx.PutTaskRun(ctx, kept)
 }
 
-// failed says a run ended badly.
+// failed says a run ended badly. One the agent stopped under says nothing of the
+// task.
 func failed(s dockwellv1.TaskRunState) bool {
 	return s == dockwellv1.TaskRunState_TASK_RUN_STATE_FAILED || s == dockwellv1.TaskRunState_TASK_RUN_STATE_TIMED_OUT ||
 		s == dockwellv1.TaskRunState_TASK_RUN_STATE_NOT_STARTED
 }
 
-// endedAction is what a run that just ended puts on Activity: a failure, or one that
-// succeeded after the last that ended failed. A run that succeeds otherwise, or was
-// skipped, puts nothing there.
+// endedAction is what a run that just ended puts on Activity: the first failure
+// after a run that succeeded, or before any, and the first success after a failure.
+// A task that goes on failing, or on succeeding, adds nothing more.
 func (h *Handler) endedAction(ctx context.Context, tx *store.Tx, run *dockwellv1.TaskRun) (string, error) {
-	switch {
-	case failed(run.GetState()):
-		return ActionFailed, nil
-	case run.GetState() != dockwellv1.TaskRunState_TASK_RUN_STATE_SUCCEEDED:
+	state := run.GetState()
+	if !failed(state) && state != dockwellv1.TaskRunState_TASK_RUN_STATE_SUCCEEDED {
 		return "", nil
 	}
 	at := run.GetStartTime().AsTime()
@@ -275,16 +297,20 @@ func (h *Handler) endedAction(ctx context.Context, tx *store.Tx, run *dockwellv1
 	if err != nil {
 		return "", err
 	}
+	failedBefore := false
 	for i := range earlier {
 		e := &earlier[i]
-		state := dockwellv1.TaskRunState(e.State)
-		if e.EndedAt.IsZero() || state == dockwellv1.TaskRunState_TASK_RUN_STATE_SKIPPED {
+		if e.EndedAt.IsZero() || dockwellv1.TaskRunState(e.State) == dockwellv1.TaskRunState_TASK_RUN_STATE_INTERRUPTED {
 			continue
 		}
-		if failed(state) {
-			return ActionRecovered, nil
-		}
-		return "", nil
+		failedBefore = failed(dockwellv1.TaskRunState(e.State))
+		break
+	}
+	switch {
+	case failed(state) && !failedBefore:
+		return ActionFailed, nil
+	case !failed(state) && failedBefore:
+		return ActionRecovered, nil
 	}
 	return "", nil
 }
@@ -508,6 +534,7 @@ func (h *Handler) info(ctx context.Context, tx *store.Tx, s stored) (*dockwellv1
 		Kind: task.KindOf(s.spec), Spec: s.spec,
 	}
 	now := h.now()
+	upcoming := task.Upcoming(s.spec, now, now.Add(24*time.Hour), maxUpcoming)
 	for i := range s.servers {
 		srv := &s.servers[i]
 		on := &dockwellv1.TaskOnServer{ServerId: srv.ID, ServerName: srv.Name, Connection: h.connection(*srv)}
@@ -515,7 +542,7 @@ func (h *Handler) info(ctx context.Context, tx *store.Tx, s stored) (*dockwellv1
 			if next := task.Next(s.spec, now); !next.IsZero() {
 				on.NextRun = timestamppb.New(next)
 			}
-			for at := task.Next(s.spec, now); !at.IsZero() && at.Before(now.Add(24*time.Hour)) && len(on.Upcoming) < maxUpcoming; at = task.Next(s.spec, at) {
+			for _, at := range upcoming {
 				on.Upcoming = append(on.Upcoming, timestamppb.New(at))
 			}
 		}

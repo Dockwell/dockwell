@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type Timestamp, timestampMs } from "@bufbuild/protobuf/wkt";
+import { type Timestamp, timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { Connection, type TaskInfo, TaskKind, type TaskOnServer, TaskRunState, TaskService } from "@dockwell/api";
+import {
+  Connection,
+  type TaskInfo,
+  TaskKind,
+  type TaskOnServer,
+  type TaskRun,
+  TaskRunState,
+  TaskService,
+} from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
@@ -94,10 +103,28 @@ export function runStatus(state: TaskRunState): Status {
     case TaskRunState.TIMED_OUT:
     case TaskRunState.NOT_STARTED:
       return "down";
-    case TaskRunState.SKIPPED:
+    case TaskRunState.INTERRUPTED:
       return "stopped";
   }
   return "unknown";
+}
+
+/** The zone the viewer's clock reads in. */
+export function viewerZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+/** A line of a run's transcript: what it printed, or what happened to it, said here. */
+export interface TranscriptLine {
+  time?: Date;
+  text: string;
+  /** Dockwell's own, not the run's. */
+  own: boolean;
+}
+
+/** How long a run's attempt took, in milliseconds. */
+function attemptMs(a: TaskRun["attempts"][number]): number {
+  return a.startTime && a.endTime ? Math.max(0, timestampMs(a.endTime) - timestampMs(a.startTime)) : 0;
 }
 
 /** Words for what tasks run, how runs went, and when. */
@@ -135,6 +162,111 @@ export function useTaskWords() {
             return t`URL`;
         }
         return task.servers.length > 1 ? t`Servers` : t`Server`;
+      },
+      /**
+       * A task's schedule in words, with its zone where that isn't the viewer's, as
+       * the schedule reads in the task's own: "Every day at 04:00, Europe/Amsterdam time".
+       */
+      scheduleIn(task: TaskInfo): string {
+        const said = this.schedule(task.spec?.schedule ?? "");
+        const zone = task.spec?.timeZone || "UTC";
+        if (!said || zone === viewerZone()) return said;
+        return t`${said}, ${zone} time`;
+      },
+      /**
+       * Why a run didn't succeed, as a clause that follows a colon, from its attempts
+       * where they say, and the agent's own words otherwise, such as why it couldn't start.
+       */
+      why(run: TaskRun, task: TaskInfo | undefined, span: (ms: number) => string): string {
+        const last = run.attempts.at(-1);
+        switch (run.state) {
+          case TaskRunState.INTERRUPTED:
+            return t`the agent stopped while it ran`;
+          case TaskRunState.TIMED_OUT: {
+            const limit = span((task?.spec?.timeoutSeconds || 600) * 1000);
+            return t`it took longer than its timeout, ${limit}`;
+          }
+          case TaskRunState.FAILED: {
+            const runs = task?.spec?.runs;
+            if (last?.httpStatus) {
+              const status = last.httpStatus;
+              const expected = runs?.case === "request" ? runs.value.expectStatus : 0;
+              return expected
+                ? t`it answered ${status}, and the task expects ${expected}`
+                : t`it answered ${status}, and the task expects a 2xx`;
+            }
+            if (last && last.exitCode > 0) {
+              const code = last.exitCode;
+              return t`it exited with ${code}`;
+            }
+            break;
+          }
+        }
+        return run.error;
+      },
+      /**
+       * What a run printed, with what happened to it said here in place of the agent's
+       * own lines: each try again, a timeout, what a request answered, and what it left.
+       */
+      transcript(run: TaskRun, task: TaskInfo | undefined, span: (ms: number) => string): TranscriptLine[] {
+        const lines: TranscriptLine[] = run.output
+          .filter((line) => !line.text.startsWith("Dockwell: "))
+          .map((line) => ({ time: line.time ? timestampDate(line.time) : undefined, text: line.text, own: false }));
+        const retries = task?.spec?.retries ?? 0;
+        const runs = task?.spec?.runs;
+        run.attempts.forEach((a, i) => {
+          const start = a.startTime ? timestampDate(a.startTime) : undefined;
+          const end = a.endTime ? timestampDate(a.endTime) : undefined;
+          if (i > 0) lines.push({ time: start, text: t`Trying again, ${i} of ${retries}.`, own: true });
+          if (runs?.case === "request") {
+            const method = runs.value.method || "GET";
+            const url = runs.value.url;
+            const took = this.took(attemptMs(a), span);
+            const status = a.httpStatus;
+            const bytes = Number(a.responseBytes);
+            lines.push({
+              time: end,
+              text: status
+                ? t`${method} ${url} answered ${status} in ${took}, ${bytes} bytes.`
+                : t`${method} ${url} didn't answer.`,
+              own: true,
+            });
+          }
+          if (a.timedOut) {
+            const limit = span((task?.spec?.timeoutSeconds || 600) * 1000);
+            lines.push({ time: end, text: t`It took longer than its timeout, ${limit}, and was stopped.`, own: true });
+          }
+          if (a.outputHeld) {
+            lines.push({
+              time: end,
+              text: t`Something it started still holds its output, and runs on after it.`,
+              own: true,
+            });
+          }
+        });
+        if (run.state === TaskRunState.INTERRUPTED) {
+          lines.push({
+            time: run.endTime ? timestampDate(run.endTime) : undefined,
+            text: t`The agent stopped while it ran.`,
+            own: true,
+          });
+        }
+        if (run.skippedSlots > 0) {
+          const count = run.skippedSlots;
+          lines.push({
+            time: run.endTime ? timestampDate(run.endTime) : undefined,
+            text: plural(count, {
+              one: "Its schedule came round once while it ran, which ran nothing, as its runs never overlap.",
+              other: "Its schedule came round # times while it ran, which ran nothing, as its runs never overlap.",
+            }),
+            own: true,
+          });
+        }
+        // In the order they came; what has no time stays where it is.
+        return lines
+          .map((line, i) => ({ line, i }))
+          .sort((a, b) => (a.line.time?.getTime() ?? 0) - (b.line.time?.getTime() ?? 0) || a.i - b.i)
+          .map(({ line }) => line);
       },
       /** A schedule in words, such as "Every day at 04:00", or "" where it isn't one of the common ones. */
       schedule(cron: string): string {
@@ -236,8 +368,8 @@ export function useTaskWords() {
             return t`Failed`;
           case TaskRunState.TIMED_OUT:
             return t`Timed out`;
-          case TaskRunState.SKIPPED:
-            return t`Skipped`;
+          case TaskRunState.INTERRUPTED:
+            return t`Interrupted`;
           case TaskRunState.NOT_STARTED:
             return t`Didn't start`;
         }

@@ -490,7 +490,19 @@ func (c *Client) StopContainer(ctx context.Context, id string, timeout time.Dura
 // RemoveContainer removes a container, stopping it first if force is set.
 // Its anonymous volumes stay, until a prune.
 func (c *Client) RemoveContainer(ctx context.Context, id string, force bool) error {
-	q := url.Values{"force": {strconv.FormatBool(force)}, "v": {"false"}}
+	return c.removeContainer(ctx, id, force, false)
+}
+
+// RemoveOneOff removes a container made for one run, running or not, with the
+// anonymous volumes the engine made for it: where its image declares a volume that
+// nothing mounts, as when a task's run copies its app's configuration. Named volumes
+// stay.
+func (c *Client) RemoveOneOff(ctx context.Context, id string) error {
+	return c.removeContainer(ctx, id, true, true)
+}
+
+func (c *Client) removeContainer(ctx context.Context, id string, force, volumes bool) error {
+	q := url.Values{"force": {strconv.FormatBool(force)}, "v": {strconv.FormatBool(volumes)}}
 	err := c.do(ctx, http.MethodDelete, "/containers/"+esc(id), q, nil, nil)
 	if err == nil || IsNotFound(err) {
 		if c.Adopted != nil {

@@ -168,6 +168,9 @@ type TaskKeeper interface {
 	Runs(after string) (*agentv1.TaskRunsResult, error)
 	// RunsReady says a run started or ended.
 	RunsReady() <-chan struct{}
+	// Drain waits up to wait, once the agent is stopping, for the runs that stops
+	// to end and be kept.
+	Drain(wait time.Duration)
 }
 
 // BackupTaker takes and removes backups on this server (ADR 0033). What restores

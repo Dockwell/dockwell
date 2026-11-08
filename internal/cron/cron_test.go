@@ -127,6 +127,32 @@ func TestDaylightSavingSkipsNoRunAndRunsNoneTwice(t *testing.T) {
 	}
 }
 
+// A schedule whose hour starts with * runs by the real time, as Vixie cron runs such
+// a job: through both of the hour that comes twice on 25 October, and at 02:00 in
+// each, where one at set hours runs the first alone.
+func TestEveryFewMinutesRunsThroughAnHourThatComesTwice(t *testing.T) {
+	ams := mustZone(t, "Europe/Amsterdam")
+	for expr, want := range map[string]string{
+		"*/15 * * * *": "01:45 CEST, 02:00 CEST, 02:15 CEST, 02:30 CEST, 02:45 CEST, 02:00 CET",
+		"0 * * * *":    "02:00 CEST, 02:00 CET, 03:00 CET, 04:00 CET, 05:00 CET, 06:00 CET",
+		"0 */2 * * *":  "02:00 CEST, 02:00 CET, 04:00 CET, 06:00 CET, 08:00 CET, 10:00 CET",
+	} {
+		s, err := Parse(expr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var runs []string
+		// 01:30 in summer time.
+		for at, i := time.Date(2026, 10, 24, 23, 30, 0, 0, time.UTC), 0; i < 6; i++ {
+			at = s.Next(at, ams)
+			runs = append(runs, at.In(ams).Format("15:04 MST"))
+		}
+		if got := strings.Join(runs, ", "); got != want {
+			t.Errorf("%s from 01:30 on 25 October runs at %s, want %s", expr, got, want)
+		}
+	}
+}
+
 func TestEveryIsHowFarApartRunsAre(t *testing.T) {
 	s, _ := Parse("*/5 * * * *")
 	if got := s.Every(time.Date(2026, 11, 4, 14, 20, 0, 0, time.UTC), time.UTC); got != 5*time.Minute {

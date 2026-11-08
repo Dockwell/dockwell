@@ -92,7 +92,13 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
 	cfg.OnePanel = serverOnePanel(stdio)
 	lookups(&cfg, stdio, g)
-	return agent.Run(ctx, cfg)
+	err := agent.Run(ctx, cfg)
+	if cfg.Tasks != nil && ctx.Err() != nil {
+		// Stopping stops the tasks' runs too; what each came to is kept before the
+		// agent goes, and one that outlasts this is ended when it starts again.
+		cfg.Tasks.Drain(task.DrainWait)
+	}
+	return err
 }
 
 // lookups says how this server's agent finds out how the internet sees it: what the

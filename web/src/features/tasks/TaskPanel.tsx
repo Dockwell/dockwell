@@ -4,7 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { type TaskInfo, TaskKind, type TaskRun, TaskRunState, TaskService } from "@dockwell/api";
-import { Button, Callout, Glyph, type GlyphShape, StatusBadge } from "@dockwell/ui";
+import { Button, Callout, Glyph, type GlyphShape, SelectField, StatusBadge } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
@@ -24,7 +24,7 @@ function mark(state: TaskRunState): { shape: GlyphShape; tone: string } {
       return { shape: "circle", tone: "is-good" };
     case TaskRunState.RUNNING:
       return { shape: "spinner", tone: "is-running" };
-    case TaskRunState.SKIPPED:
+    case TaskRunState.INTERRUPTED:
       return { shape: "ring", tone: "is-skipped" };
   }
   return { shape: "square", tone: "is-bad" };
@@ -42,11 +42,13 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
   const [editing, setEditing] = useState(false);
   const [running, setRunning] = useState(false);
   const [runFailure, setRunFailure] = useState<string>();
+  const [runOn, setRunOn] = useState(task.servers[0]?.serverId ?? "");
   const runs = runsQuery.data?.runs ?? [];
   const oldestFirst = [...runs].reverse();
   const good = runs.filter((r) => r.state === TaskRunState.SUCCEEDED).length;
   const bad = runs.filter((r) => runStatus(r.state) === "down").length;
   const newest = runs[0];
+  const transcript = newest ? words.transcript(newest, task, time.span) : [];
   const lastBad = runs.find((r) => runStatus(r.state) === "down");
   const spec = task.spec;
   const name = nameOf(task);
@@ -70,7 +72,10 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
     setRunning(true);
     setRunFailure(undefined);
     try {
-      await createClient(TaskService, transport).runTask({ id: task.id, server: task.servers[0]?.serverId ?? "" });
+      await createClient(TaskService, transport).runTask({
+        id: task.id,
+        server: runOn || (task.servers[0]?.serverId ?? ""),
+      });
       await queries.invalidateQueries();
     } catch (err) {
       setRunFailure(sentence(err));
@@ -143,7 +148,8 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
               <ol className="tasks-strip" aria-label={t`Last runs, oldest first`}>
                 {oldestFirst.map((r) => {
                   const m = mark(r.state);
-                  const what = `${day(r)}, ${words.state(r.state).toLowerCase()}${r.error ? `: ${r.error}` : ""}`;
+                  const why = r.state === TaskRunState.SUCCEEDED ? "" : words.why(r, task, time.span);
+                  const what = `${day(r)}, ${words.state(r.state).toLowerCase()}${why ? `: ${why}` : ""}`;
                   return (
                     <li key={r.id} title={what} className={`tasks-strip-run ${m.tone}`}>
                       <Glyph shape={m.shape} size={10} />
@@ -155,7 +161,7 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
               <div className="tasks-row tasks-label">
                 <span>{oldestFirst[0] ? day(oldestFirst[0]) : ""}</span>
                 {lastBad ? (
-                  <span className="tasks-bad">{t`${day(lastBad)} ${words.state(lastBad.state).toLowerCase()}: ${lastBad.error}`}</span>
+                  <span className="tasks-bad">{t`${day(lastBad)} ${words.state(lastBad.state).toLowerCase()}: ${words.why(lastBad, task, time.span)}`}</span>
                 ) : null}
               </div>
             </>
@@ -180,12 +186,12 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
               </span>
             </div>
             <pre className="tasks-output">
-              {newest.output.length === 0 ? (
+              {transcript.length === 0 ? (
                 <span className="tasks-quiet">{t`It printed nothing.`}</span>
               ) : (
-                newest.output.map((line, i) => (
+                transcript.map((line, i) => (
                   // biome-ignore lint/suspicious/noArrayIndexKey: lines have no identity but their place
-                  <span key={i} className="tasks-output-line">
+                  <span key={i} className={line.own ? "tasks-output-line is-own" : "tasks-output-line"}>
                     <span className="tasks-output-time">
                       {line.time
                         ? new Intl.DateTimeFormat(i18n.locale, {
@@ -193,7 +199,7 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
                             minute: "2-digit",
                             second: "2-digit",
                             hourCycle: "h23",
-                          }).format(timestampDate(line.time))
+                          }).format(line.time)
                         : ""}
                     </span>
                     <span>{line.text}</span>
@@ -210,6 +216,14 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
           <Callout tone="critical" title={t`It didn't run`}>
             {runFailure}
           </Callout>
+        ) : null}
+        {task.servers.length > 1 ? (
+          <SelectField
+            label={t`Run it now on`}
+            value={runOn}
+            options={task.servers.map((s) => ({ value: s.serverId, label: s.serverName }))}
+            onChange={(event) => setRunOn(event.target.value)}
+          />
         ) : null}
         <div className="tasks-actions">
           <Button icon="play" loading={running} onClick={() => void runNow()}>

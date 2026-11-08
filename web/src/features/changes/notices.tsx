@@ -690,6 +690,16 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           title: t`No backup is taken first`,
           detail: t`You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first.`,
         };
+      case "tasks_as_root": {
+        const tasks: string[] = [];
+        for (let i = 0; i + 1 < note.names.length; i += 2) tasks.push(`${note.names[i]}: ${note.names[i + 1]}`);
+        const list = tasks.join("; ");
+        return {
+          key,
+          title: t`${name}'s scheduled tasks get the same reach`,
+          detail: t`They run in what ${name} runs, so they reach what it reaches on its server too: ${list}.`,
+        };
+      }
       case "tmpfs_no_size": {
         const [target = ""] = note.names;
         return {

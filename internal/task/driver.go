@@ -34,10 +34,18 @@ const (
 	// lateBy is how late a due run can start and still be on time: past it, the
 	// agent was stopped or the server was off, and it's a missed run.
 	lateBy = time.Minute
-	// lookEvery bounds how long the scheduler sleeps, so a clock that's set
-	// differently is noticed.
-	lookEvery = 30 * time.Second
+	// clockSlack is how far ahead of the clock a task's last due time can be before
+	// the clock is taken to have gone back.
+	clockSlack = 5 * time.Minute
+	// DrainWait is how long the agent waits, as it stops, for the runs it stopped
+	// to end and be kept.
+	DrainWait = stopGrace + 5*time.Second
 )
+
+// lookEvery bounds how long the scheduler sleeps, so a clock that's set
+// differently is noticed, and tasks it couldn't read are read again. It's a
+// variable for tests.
+var lookEvery = 30 * time.Second
 
 // Driver is the agent's: it keeps each task's spec in its data directory, runs
 // each on its schedule from the server's own clock, and keeps their runs until the
@@ -53,14 +61,19 @@ type Driver struct {
 	// Now is the clock, for tests.
 	Now func() time.Time
 
-	mu      sync.Mutex
-	loaded  bool
-	tasks   map[string]*kept
-	running map[string]bool
+	mu     sync.Mutex
+	loaded bool
+	tasks  map[string]*kept
+	// running is each task's run that's going, as it was last kept.
+	running map[string]*dockwellv1.TaskRun
 	wake    chan struct{}
 	log     *runLog
 	retry   time.Duration
 	ready   chan struct{}
+	// loadErr is why the tasks couldn't be read, as last logged.
+	loadErr string
+	// runs counts the runs going, for Drain.
+	runs sync.WaitGroup
 	// life is what Keep runs under: a run outlives the call that started it, as Run
 	// now's does, and stops with the agent.
 	life context.Context //nolint:containedctx // the agent's, for runs that outlive their call
@@ -96,12 +109,16 @@ func (d *Driver) logger() *slog.Logger {
 
 func (d *Driver) dir() string { return filepath.Join(d.Dir, "tasks") }
 
+// goingDir holds a record of each run that's going, until it ends, so a run the
+// agent stopped under is known when it starts again.
+func (d *Driver) goingDir() string { return filepath.Join(d.dir(), "going") }
+
 // load reads the tasks and runs an earlier start left, once. The caller holds mu.
 func (d *Driver) load() error {
 	if d.loaded {
 		return nil
 	}
-	d.tasks, d.running, d.wake = map[string]*kept{}, map[string]bool{}, make(chan struct{}, 1)
+	d.tasks, d.running, d.wake = map[string]*kept{}, map[string]*dockwellv1.TaskRun{}, make(chan struct{}, 1)
 	if d.ready == nil {
 		d.ready = make(chan struct{}, 1)
 	}
@@ -109,25 +126,58 @@ func (d *Driver) load() error {
 	if err := d.log.load(); err != nil {
 		return fmt.Errorf("can't read the tasks' runs in %s: %w", d.log.dir, err)
 	}
-	b, err := os.ReadFile(filepath.Join(d.dir(), "tasks.json"))
+	file := filepath.Join(d.dir(), "tasks.json")
+	b, err := os.ReadFile(file) //nolint:gosec // the agent's own file
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 	case err != nil:
-		return fmt.Errorf("can't read the tasks this server keeps: %w", err)
+		return fmt.Errorf("can't read the tasks this server keeps in %s, so none of them runs: %w. Check the agent can read it", file, err)
 	default:
 		var list []*kept
 		if err := json.Unmarshal(b, &list); err != nil {
-			return fmt.Errorf("can't read %s: %w", filepath.Join(d.dir(), "tasks.json"), err)
+			return fmt.Errorf("can't read the tasks this server keeps in %s, so none of them runs: %w. "+
+				"Mend the file, or move it aside and change each task in the control plane, which puts it back here", file, err)
 		}
 		for _, k := range list {
 			k.spec = &resourcev1.Task{}
 			if err := protojson.Unmarshal(k.Spec, k.spec); err != nil {
-				return fmt.Errorf("can't read the task %s this server keeps: %w", k.Ref.Name, err)
+				return fmt.Errorf("can't read the task %s this server keeps in %s: %w. Change it in the control plane, which writes it again", k.Ref.Name, file, err)
 			}
 			d.tasks[k.Ref.String()] = k
 		}
 	}
+	if err := d.endInterrupted(); err != nil {
+		return err
+	}
 	d.loaded = true
+	return nil
+}
+
+// endInterrupted ends each run an earlier start left going: the agent stopped
+// under it, so it was stopped too, or how it went isn't known. The caller holds mu.
+func (d *Driver) endInterrupted() error {
+	names, err := os.ReadDir(d.goingDir())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("can't read which tasks' runs were going in %s: %w", d.goingDir(), err)
+	}
+	now := d.now()
+	for _, n := range names {
+		file := filepath.Join(d.goingDir(), n.Name())
+		b, err := os.ReadFile(file) //nolint:gosec // the agent's own file
+		r := &agentv1.AgentTaskRun{}
+		if err == nil && protojson.Unmarshal(b, r) == nil && r.GetRun().GetId() != "" {
+			run := r.GetRun()
+			run.State, run.EndTime = dockwellv1.TaskRunState_TASK_RUN_STATE_INTERRUPTED, timestamppb.New(now)
+			run.Error = "the agent stopped while it ran, so how it ended isn't known"
+			if err := d.log.put(resourcepb.FromRef(r.GetTask()), r); err != nil {
+				return fmt.Errorf("can't keep a run the agent stopped under: %w", err)
+			}
+		}
+		_ = os.Remove(file)
+	}
 	return nil
 }
 
@@ -143,11 +193,29 @@ func (d *Driver) save() error {
 	if err := os.MkdirAll(d.dir(), 0o700); err != nil {
 		return err
 	}
-	tmp := filepath.Join(d.dir(), "tasks.json.tmp")
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+	return writeSynced(filepath.Join(d.dir(), "tasks.json"), b)
+}
+
+// writeSynced writes a file whole, on the disk before it takes the old one's place,
+// so a crash leaves one or the other.
+func writeSynced(file string, b []byte) error {
+	tmp := file + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // the agent's own file
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, filepath.Join(d.dir(), "tasks.json"))
+	if _, err := f.Write(b); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, file)
 }
 
 func cmpString(a, b string) int {
@@ -187,7 +255,9 @@ func (*Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resourc
 }
 
 // Apply keeps a task, with its new spec, or forgets it. A task that's new starts
-// from now, so it doesn't run for what was due before it was made.
+// from now, so it doesn't run for what was due before it was made, and so does one
+// with a new schedule or time zone, or one that's paused or resumed: changing when
+// a task runs never runs it.
 func (d *Driver) Apply(_ context.Context, step resource.Step, desired proto.Message) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -204,9 +274,12 @@ func (d *Driver) Apply(_ context.Context, step resource.Step, desired proto.Mess
 			return err
 		}
 		k, ok := d.tasks[key]
-		if !ok {
+		switch {
+		case !ok:
 			k = &kept{Ref: step.Ref, LastDue: d.now()}
 			d.tasks[key] = k
+		case k.spec.GetSchedule() != spec.GetSchedule() || k.spec.GetTimeZone() != spec.GetTimeZone() || k.spec.GetPaused() != spec.GetPaused():
+			k.LastDue = d.now()
 		}
 		k.Spec, k.spec = raw, spec
 	}
@@ -229,16 +302,11 @@ func (d *Driver) nudge() {
 }
 
 // Keep runs each task when it's due, until ctx ends. A run missed while the agent
-// was stopped runs once, first.
+// was stopped runs once, first. Tasks it can't read, it tries again to read, so
+// mending the file is enough.
 func (d *Driver) Keep(ctx context.Context) {
 	d.mu.Lock()
 	d.life = ctx
-	if err := d.load(); err != nil {
-		d.mu.Unlock()
-		d.logger().ErrorContext(ctx, "can't run scheduled tasks", slog.String("error", err.Error()))
-		return
-	}
-	wake := d.wake
 	d.mu.Unlock()
 	for {
 		wait := d.tick(ctx)
@@ -248,9 +316,33 @@ func (d *Driver) Keep(ctx context.Context) {
 			timer.Stop()
 			return
 		case <-timer.C:
-		case <-wake:
+		case <-d.waker():
 			timer.Stop()
 		}
+	}
+}
+
+// waker is what wakes the scheduler, once the tasks are read: never before.
+func (d *Driver) waker() <-chan struct{} {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.loaded {
+		return nil
+	}
+	return d.wake
+}
+
+// Drain waits up to wait for the runs going to end and be kept, once the agent is
+// stopping, which stops them.
+func (d *Driver) Drain(wait time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		d.runs.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(wait):
 	}
 }
 
@@ -259,18 +351,36 @@ func (d *Driver) tick(ctx context.Context) time.Duration {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if err := d.load(); err != nil {
-		d.logger().ErrorContext(ctx, "can't run scheduled tasks", slog.String("error", err.Error()))
+		if msg := err.Error(); msg != d.loadErr {
+			d.loadErr = msg
+			d.logger().ErrorContext(ctx, "can't run scheduled tasks", slog.String("error", msg))
+		}
 		return lookEvery
+	}
+	if d.loadErr != "" {
+		d.loadErr = ""
+		d.logger().InfoContext(ctx, "reads its scheduled tasks again, and runs them")
 	}
 	now := d.now()
 	wait := lookEvery
 	changed := false
 	for _, k := range d.tasks {
-		if k.spec.GetPaused() {
-			continue
+		if k.LastDue.After(now.Add(clockSlack)) {
+			// The clock ran ahead and was set back: what ran by the wrong time
+			// doesn't hold the task back until the clock catches up.
+			d.logger().WarnContext(ctx, "the server's clock went back, so a scheduled task counts its runs from now",
+				slog.String("task", k.Ref.Name), slog.Time("last_due", k.LastDue), slog.Time("now", now))
+			k.LastDue, changed = now, true
 		}
 		due := Next(k.spec, k.LastDue)
 		if due.IsZero() {
+			continue
+		}
+		if k.spec.GetPaused() {
+			// Its slots pass while it's paused, so resuming it misses none.
+			if !due.After(now) {
+				k.LastDue, changed = now, true
+			}
 			continue
 		}
 		if due.After(now) {
@@ -312,7 +422,7 @@ func (d *Driver) RunNow(ctx context.Context, ref resource.Ref) (*dockwellv1.Task
 	switch {
 	case !ok:
 		return nil, fmt.Errorf("this server has no task %s. Check the task is placed on it", ref.Name)
-	case d.running[ref.String()]:
+	case d.running[ref.String()] != nil:
 		return nil, fmt.Errorf("%s is running now, and a task's runs never overlap. Run it again once this one ends", ref.Name)
 	}
 	return d.start(ctx, k, dockwellv1.TaskRunReason_TASK_RUN_REASON_BY_HAND, d.now()), nil
@@ -330,24 +440,26 @@ func (d *Driver) Runs(after string) (*agentv1.TaskRunsResult, error) {
 	return log.read(after)
 }
 
-// start starts a run of k, or keeps one that's skipped as the last is still going.
-// The caller holds mu.
+// start starts a run of k. While the last is still going, it starts none, as a
+// task's runs never overlap, and counts the slot on the run that's going. The
+// caller holds mu.
 func (d *Driver) start(ctx context.Context, k *kept, reason dockwellv1.TaskRunReason, due time.Time) *dockwellv1.TaskRun {
+	key := k.Ref.String()
+	if going := d.running[key]; going != nil {
+		going.SkippedSlots++
+		d.record(ctx, k.Ref, proto.CloneOf(going))
+		return proto.CloneOf(going)
+	}
 	now := d.now()
 	run := &dockwellv1.TaskRun{
 		Id: id.New(id.TaskRun), Reason: reason,
 		DueTime: timestamppb.New(due), StartTime: timestamppb.New(now),
 		State: dockwellv1.TaskRunState_TASK_RUN_STATE_RUNNING,
 	}
-	key := k.Ref.String()
-	if d.running[key] {
-		run.State, run.EndTime = dockwellv1.TaskRunState_TASK_RUN_STATE_SKIPPED, run.GetStartTime()
-		run.Error = "the run before it was still going, and a task's runs never overlap"
-		d.record(ctx, k.Ref, run)
-		return run
-	}
-	d.running[key] = true
+	d.running[key] = run
 	d.record(ctx, k.Ref, run)
+	d.markGoing(ctx, k.Ref, run)
+	d.runs.Add(1)
 	spec := proto.Clone(k.spec).(*resourcev1.Task) //nolint:forcetypeassert // a clone has its original's type
 	life := d.life
 	if life == nil {
@@ -357,13 +469,23 @@ func (d *Driver) start(ctx context.Context, k *kept, reason dockwellv1.TaskRunRe
 	return run
 }
 
+// markGoing keeps a record of a run that's going until it ends. The caller holds
+// mu.
+func (d *Driver) markGoing(ctx context.Context, ref resource.Ref, run *dockwellv1.TaskRun) {
+	b, err := protojson.Marshal(&agentv1.AgentTaskRun{Task: resourcepb.Ref(ref), Run: run})
+	if err == nil {
+		if err = os.MkdirAll(d.goingDir(), 0o700); err == nil {
+			err = os.WriteFile(filepath.Join(d.goingDir(), run.GetId()+".json"), b, 0o600)
+		}
+	}
+	if err != nil {
+		d.logger().ErrorContext(ctx, "can't keep that a task's run is going", slog.String("task", ref.Name), slog.String("error", err.Error()))
+	}
+}
+
 // run runs each attempt of a run, and keeps how it went.
 func (d *Driver) run(ctx, agent context.Context, ref resource.Ref, spec *resourcev1.Task, run *dockwellv1.TaskRun) {
-	defer func() {
-		d.mu.Lock()
-		delete(d.running, ref.String())
-		d.mu.Unlock()
-	}()
+	defer d.runs.Done()
 	out := newOutput(d.now)
 	timeout := Timeout(spec)
 	retry := d.retry
@@ -385,7 +507,7 @@ func (d *Driver) run(ctx, agent context.Context, ref resource.Ref, spec *resourc
 		last = d.attempt(agent, ref, spec, timeout, out)
 		run.Attempts = append(run.Attempts, &dockwellv1.TaskAttempt{
 			StartTime: timestamppb.New(start), EndTime: timestamppb.New(d.now()),
-			ExitCode: last.exitCode, HttpStatus: last.httpStatus, TimedOut: last.timedOut, ResponseBytes: last.bytes,
+			ExitCode: last.exitCode, HttpStatus: last.httpStatus, TimedOut: last.timedOut, ResponseBytes: last.bytes, OutputHeld: last.held,
 		})
 		if last.err == nil || !last.started {
 			break
@@ -395,8 +517,17 @@ func (d *Driver) run(ctx, agent context.Context, ref resource.Ref, spec *resourc
 	if last.err != nil {
 		run.Error = last.err.Error()
 	}
+	if agent.Err() != nil && last.err != nil {
+		run.State = dockwellv1.TaskRunState_TASK_RUN_STATE_INTERRUPTED
+	}
 	run.Output, run.OutputCutBytes = out.done()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	key := ref.String()
+	run.SkippedSlots = d.running[key].GetSkippedSlots()
 	d.record(ctx, ref, run)
+	delete(d.running, key)
+	_ = os.Remove(filepath.Join(d.goingDir(), run.GetId()+".json"))
 }
 
 // attempt tries a run once.

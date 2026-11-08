@@ -95,8 +95,10 @@ const (
 	TaskRunState_TASK_RUN_STATE_FAILED TaskRunState = 3
 	// Its last attempt took longer than the task's timeout, and was stopped.
 	TaskRunState_TASK_RUN_STATE_TIMED_OUT TaskRunState = 4
-	// It didn't run, as the one before was still running.
-	TaskRunState_TASK_RUN_STATE_SKIPPED TaskRunState = 5
+	// The agent stopped while it ran, as when it's upgraded, so it was stopped
+	// too, or how it ended isn't known. A slot that comes round while a run is
+	// still going runs nothing, and is counted on that run (TaskRun.skipped_slots).
+	TaskRunState_TASK_RUN_STATE_INTERRUPTED TaskRunState = 5
 	// It couldn't start, such as an app that isn't running on the server.
 	TaskRunState_TASK_RUN_STATE_NOT_STARTED TaskRunState = 6
 )
@@ -109,7 +111,7 @@ var (
 		2: "TASK_RUN_STATE_SUCCEEDED",
 		3: "TASK_RUN_STATE_FAILED",
 		4: "TASK_RUN_STATE_TIMED_OUT",
-		5: "TASK_RUN_STATE_SKIPPED",
+		5: "TASK_RUN_STATE_INTERRUPTED",
 		6: "TASK_RUN_STATE_NOT_STARTED",
 	}
 	TaskRunState_value = map[string]int32{
@@ -118,7 +120,7 @@ var (
 		"TASK_RUN_STATE_SUCCEEDED":   2,
 		"TASK_RUN_STATE_FAILED":      3,
 		"TASK_RUN_STATE_TIMED_OUT":   4,
-		"TASK_RUN_STATE_SKIPPED":     5,
+		"TASK_RUN_STATE_INTERRUPTED": 5,
 		"TASK_RUN_STATE_NOT_STARTED": 6,
 	}
 )
@@ -418,8 +420,11 @@ type TaskRun struct {
 	Output []*TaskOutputLine `protobuf:"bytes,12,rep,name=output,proto3" json:"output,omitempty"`
 	// How much of what it printed was cut from the start, in bytes.
 	OutputCutBytes int64 `protobuf:"varint,13,opt,name=output_cut_bytes,json=outputCutBytes,proto3" json:"output_cut_bytes,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// How many times its schedule came round while it ran, which ran nothing, as a
+	// task's runs never overlap.
+	SkippedSlots  uint32 `protobuf:"varint,14,opt,name=skipped_slots,json=skippedSlots,proto3" json:"skipped_slots,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TaskRun) Reset() {
@@ -543,6 +548,13 @@ func (x *TaskRun) GetOutputCutBytes() int64 {
 	return 0
 }
 
+func (x *TaskRun) GetSkippedSlots() uint32 {
+	if x != nil {
+		return x.SkippedSlots
+	}
+	return 0
+}
+
 // TaskAttempt is one try of a run.
 type TaskAttempt struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
@@ -556,6 +568,9 @@ type TaskAttempt struct {
 	TimedOut bool `protobuf:"varint,5,opt,name=timed_out,json=timedOut,proto3" json:"timed_out,omitempty"`
 	// The size of a request's answer, in bytes.
 	ResponseBytes int64 `protobuf:"varint,6,opt,name=response_bytes,json=responseBytes,proto3" json:"response_bytes,omitempty"`
+	// Something the command started outlived it and held its output, which was read
+	// for a few seconds more, then left as it runs on.
+	OutputHeld    bool `protobuf:"varint,7,opt,name=output_held,json=outputHeld,proto3" json:"output_held,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -632,7 +647,16 @@ func (x *TaskAttempt) GetResponseBytes() int64 {
 	return 0
 }
 
-// TaskOutputLine is one line a run printed.
+func (x *TaskAttempt) GetOutputHeld() bool {
+	if x != nil {
+		return x.OutputHeld
+	}
+	return false
+}
+
+// TaskOutputLine is one line a run printed. Lines the agent adds of its own, such
+// as why an attempt stopped, start "Dockwell: ", and its attempts say the same as
+// facts, for a surface to say in its own words.
 type TaskOutputLine struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// When it came.
@@ -1167,7 +1191,7 @@ const file_dockwell_v1_task_proto_rawDesc = "" +
 	"\bnext_run\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\anextRun\x12/\n" +
 	"\blast_run\x18\x05 \x01(\v2\x14.dockwell.v1.TaskRunR\alastRun\x121\n" +
 	"\x06recent\x18\x06 \x03(\x0e2\x19.dockwell.v1.TaskRunStateR\x06recent\x126\n" +
-	"\bupcoming\x18\a \x03(\v2\x1a.google.protobuf.TimestampR\bupcoming\"\xa9\x04\n" +
+	"\bupcoming\x18\a \x03(\v2\x1a.google.protobuf.TimestampR\bupcoming\"\xce\x04\n" +
 	"\aTaskRun\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x1b\n" +
@@ -1184,7 +1208,8 @@ const file_dockwell_v1_task_proto_rawDesc = "" +
 	" \x03(\v2\x18.dockwell.v1.TaskAttemptR\battempts\x12\x14\n" +
 	"\x05error\x18\v \x01(\tR\x05error\x123\n" +
 	"\x06output\x18\f \x03(\v2\x1b.dockwell.v1.TaskOutputLineR\x06output\x12(\n" +
-	"\x10output_cut_bytes\x18\r \x01(\x03R\x0eoutputCutBytes\"\x81\x02\n" +
+	"\x10output_cut_bytes\x18\r \x01(\x03R\x0eoutputCutBytes\x12#\n" +
+	"\rskipped_slots\x18\x0e \x01(\rR\fskippedSlots\"\xa2\x02\n" +
 	"\vTaskAttempt\x129\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
@@ -1193,7 +1218,9 @@ const file_dockwell_v1_task_proto_rawDesc = "" +
 	"\vhttp_status\x18\x04 \x01(\x05R\n" +
 	"httpStatus\x12\x1b\n" +
 	"\ttimed_out\x18\x05 \x01(\bR\btimedOut\x12%\n" +
-	"\x0eresponse_bytes\x18\x06 \x01(\x03R\rresponseBytes\"T\n" +
+	"\x0eresponse_bytes\x18\x06 \x01(\x03R\rresponseBytes\x12\x1f\n" +
+	"\voutput_held\x18\a \x01(\bR\n" +
+	"outputHeld\"T\n" +
 	"\x0eTaskOutputLine\x12.\n" +
 	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x12\n" +
 	"\x04text\x18\x02 \x01(\tR\x04text\"\x12\n" +
@@ -1228,14 +1255,14 @@ const file_dockwell_v1_task_proto_rawDesc = "" +
 	"\x15TASK_KIND_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fTASK_KIND_SHELL\x10\x01\x12\x11\n" +
 	"\rTASK_KIND_APP\x10\x02\x12\x15\n" +
-	"\x11TASK_KIND_REQUEST\x10\x03*\xdd\x01\n" +
+	"\x11TASK_KIND_REQUEST\x10\x03*\xe1\x01\n" +
 	"\fTaskRunState\x12\x1e\n" +
 	"\x1aTASK_RUN_STATE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16TASK_RUN_STATE_RUNNING\x10\x01\x12\x1c\n" +
 	"\x18TASK_RUN_STATE_SUCCEEDED\x10\x02\x12\x19\n" +
 	"\x15TASK_RUN_STATE_FAILED\x10\x03\x12\x1c\n" +
-	"\x18TASK_RUN_STATE_TIMED_OUT\x10\x04\x12\x1a\n" +
-	"\x16TASK_RUN_STATE_SKIPPED\x10\x05\x12\x1e\n" +
+	"\x18TASK_RUN_STATE_TIMED_OUT\x10\x04\x12\x1e\n" +
+	"\x1aTASK_RUN_STATE_INTERRUPTED\x10\x05\x12\x1e\n" +
 	"\x1aTASK_RUN_STATE_NOT_STARTED\x10\x06*\x87\x01\n" +
 	"\rTaskRunReason\x12\x1f\n" +
 	"\x1bTASK_RUN_REASON_UNSPECIFIED\x10\x00\x12\x1c\n" +

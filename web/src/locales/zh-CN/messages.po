@@ -4227,6 +4227,9 @@ msgstr "服务器的安全取决于它能访问的内容，所以这相当于拥
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 msgstr "修订版本 {revision} 运行的 {image}（{digest}）已不在服务器上，其镜像仓库也不提供，因此 {name} 将运行 {image} 当前指向的镜像"
 
+msgid "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
+msgstr "它们在 {name} 运行的环境中运行，因此在服务器上也能访问它能访问的内容：{list}。"
+
 msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 msgstr "这份备份创建时，该卷可访问 <0>{path}</0>，所以任何挂载它的内容都能读取恢复后的数据。"
 
@@ -4407,6 +4410,9 @@ msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后�
 
 msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 msgstr "{name} 的发布顺序设置为先启动，因此在此过程中新旧容器都会写入那里，这可能损坏数据库。只有在应用能够承受时才应用此计划。"
+
+msgid "{name}'s scheduled tasks get the same reach"
+msgstr "{name} 的计划任务获得同样的访问范围"
 
 msgid "{name}'s tmpfs at {target} has no size"
 msgstr "{name} 的 tmpfs({target})没有设置大小"
@@ -5294,7 +5300,7 @@ msgid "In a volume Dockwell didn't make"
 msgstr "在非 Dockwell 创建的卷中"
 
 msgid "Last run"
-msgstr "最近一次"
+msgstr "最近运行"
 
 msgid "Loading the databases"
 msgstr "正在加载数据库"
@@ -8255,6 +8261,9 @@ msgstr "最近的运行，最早的在前"
 msgid "Request"
 msgstr "请求"
 
+msgid "Run it now on"
+msgstr "立即运行于"
+
 msgid "Run now"
 msgstr "立即运行"
 
@@ -8284,7 +8293,7 @@ msgstr "{0, plural, one {最近一次运行} other {最近 # 次运行}}"
 
 #. placeholder {0}: day(lastBad)
 #. placeholder {1}: words.state(lastBad.state).toLowerCase()
-#. placeholder {2}: lastBad.error
+#. placeholder {2}: words.why(lastBad, task, time.span)
 msgid "{0} {1}: {2}"
 msgstr "{0} {1}：{2}"
 
@@ -8346,6 +8355,9 @@ msgstr "只有在你立即运行时才会运行。"
 msgid "It runs with /bin/sh on the server, as root, so applying it takes your passkey."
 msgstr "它在服务器上以 root 身份用 /bin/sh 运行，因此应用时需要你的通行密钥。"
 
+msgid "Its schedule reads in this zone, whatever each server's clock is set to."
+msgstr "无论各服务器的时钟如何设置，它的计划都按这个时区计算。"
+
 msgid "Leave it"
 msgstr "不处理"
 
@@ -8386,6 +8398,13 @@ msgstr "跳过服务器关机期间错过的运行"
 msgid "Status it expects"
 msgstr "预期状态码"
 
+msgid "The install's"
+msgstr "安装的时区"
+
+#. placeholder {0}: scheduleZone.zone
+msgid "The install's, {0}"
+msgstr "安装的时区：{0}"
+
 msgid "The server asks it, so it reaches what the server reaches. A run keeps the status and how long it took, never what came back."
 msgstr "由服务器发出请求，因此能访问服务器能访问的地址。每次运行只保留状态码和耗时，从不保留返回内容。"
 
@@ -8403,6 +8422,9 @@ msgstr "再试两次"
 
 msgid "URL"
 msgstr "URL"
+
+msgid "UTC, as the install has none set"
+msgstr "UTC（安装未设置时区）"
 
 msgid "Use 1 to 1,440 minutes."
 msgstr "请使用 1 到 1,440 分钟。"
@@ -8424,6 +8446,10 @@ msgstr "运行内容"
 
 msgid "What people call it"
 msgstr "显示名称"
+
+#. placeholder {0}: task.servers.map((s) => s.serverName).join(", ")
+msgid "Where it runs now: {0}"
+msgstr "当前运行位置：{0}"
 
 msgid "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
 msgstr "任务按服务器自己的时钟运行，控制平面不在时也会照常运行。每次运行都会保留输出，失败的运行会出现在动态中。"
@@ -8519,11 +8545,23 @@ msgstr "每 {count} 分钟"
 msgid "Every {day} at {at}"
 msgstr "每{day} {at}"
 
+msgid "Interrupted"
+msgstr "已中断"
+
+msgid "It took longer than its timeout, {limit}, and was stopped."
+msgstr "它超过了超时时间 {limit}，已被停止。"
+
 msgid "On day {date} of every month at {at}"
 msgstr "每月 {date} 日 {at}"
 
+msgid "Something it started still holds its output, and runs on after it."
+msgstr "它启动的进程仍占用着它的输出，并在它结束后继续运行。"
+
 msgid "Succeeded"
 msgstr "成功"
+
+msgid "The agent stopped while it ran."
+msgstr "它运行时代理已停止。"
 
 msgid "Timed out"
 msgstr "超时"
@@ -8533,6 +8571,9 @@ msgstr "今天 {time}"
 
 msgid "Tomorrow {time}"
 msgstr "明天 {time}"
+
+msgid "Trying again, {i} of {retries}."
+msgstr "重试，第 {i} 次，共 {retries} 次。"
 
 msgid "Yesterday {time}"
 msgstr "昨天 {time}"
@@ -8546,8 +8587,35 @@ msgstr "{count} 小时后"
 msgid "in {count} min"
 msgstr "{count} 分钟后"
 
+msgid "it answered {status}, and the task expects a 2xx"
+msgstr "它返回了 {status}，而任务期望 2xx"
+
+msgid "it answered {status}, and the task expects {expected}"
+msgstr "它返回了 {status}，而任务期望 {expected}"
+
+msgid "it exited with {code}"
+msgstr "它以退出码 {code} 退出"
+
+msgid "it took longer than its timeout, {limit}"
+msgstr "它超过了超时时间 {limit}"
+
+msgid "the agent stopped while it ran"
+msgstr "它运行时代理已停止"
+
+msgid "{count, plural, one {Its schedule came round once while it ran, which ran nothing, as its runs never overlap.} other {Its schedule came round # times while it ran, which ran nothing, as its runs never overlap.}}"
+msgstr "{count, plural, other {它运行期间计划又到了 # 次，但没有运行，因为同一任务的运行从不重叠。}}"
+
 msgid "{count} ms"
 msgstr "{count} 毫秒"
+
+msgid "{method} {url} answered {status} in {took}, {bytes} bytes."
+msgstr "{method} {url} 在 {took} 内返回 {status}，共 {bytes} 字节。"
+
+msgid "{method} {url} didn't answer."
+msgstr "{method} {url} 没有响应。"
+
+msgid "{said}, {zone} time"
+msgstr "{said}（{zone} 时间）"
 
 msgid "Agent and control plane"
 msgstr "代理与控制平面"

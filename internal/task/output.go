@@ -13,8 +13,13 @@ import (
 )
 
 // MaxOutput is how much of what a run prints it keeps: the last 64 KB, a screen or
-// two of a script's log (ADR 0053).
+// two of a script's log (ADR 0053), each line counting its time too.
 const MaxOutput = 64 << 10
+
+// lineCost is what a kept line costs beside its text: its time and its place in a
+// record, about as much as it takes in the record the agent keeps. So a run that
+// prints many short lines keeps fewer of them, and its record stays near MaxOutput.
+const lineCost = 40
 
 // output keeps the last MaxOutput bytes of what a run prints, a line at a time,
 // each with when it came. It's an io.Writer for both stdout and stderr.
@@ -22,7 +27,7 @@ type output struct {
 	mu      sync.Mutex
 	now     func() time.Time
 	lines   []line
-	size    int   // bytes in lines
+	size    int   // what lines cost: their text and lineCost each
 	cut     int64 // bytes let go of from the start
 	partial []byte
 	partAt  time.Time
@@ -70,10 +75,10 @@ func (o *output) keep(text []byte) {
 		text = text[len(text)-MaxOutput:]
 	}
 	o.lines = append(o.lines, line{at: o.partAt, text: string(text)})
-	o.size += len(text) + 1
+	o.size += len(text) + lineCost
 	for o.size > MaxOutput && len(o.lines) > 1 {
 		o.cut += int64(len(o.lines[0].text) + 1)
-		o.size -= len(o.lines[0].text) + 1
+		o.size -= len(o.lines[0].text) + lineCost
 		o.lines[0] = line{}
 		o.lines = o.lines[1:]
 	}

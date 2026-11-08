@@ -22,6 +22,9 @@ type Schedule struct {
 	// domStar and dowStar say a day field starts with *. As in Vixie cron, a day
 	// then has to match both fields; with neither, either one is enough.
 	domStar, dowStar bool
+	// hourStar says the hour field starts with *, which runs by the clock's real
+	// time through a change of daylight saving, as Vixie cron runs such a job.
+	hourStar bool
 }
 
 // field is one of the five, with its range and names.
@@ -79,6 +82,7 @@ func Parse(expr string) (Schedule, error) {
 	}
 	out.domStar = strings.HasPrefix(parts[2], "*")
 	out.dowStar = strings.HasPrefix(parts[4], "*")
+	out.hourStar = strings.HasPrefix(parts[1], "*")
 	return out, nil
 }
 
@@ -149,9 +153,12 @@ func (f field) value(text string) (int, error) {
 var errNever = errors.New("no date matches it")
 
 // Next is the first time after after when the schedule runs, in loc, to the minute.
-// A wall-clock time that a change of daylight saving skips runs once, at the first
-// minute after the change; one that comes twice runs the first time only. It's the
-// zero time for a schedule no date in the next eight years matches.
+// A schedule at set hours runs at a wall-clock time that a change of daylight saving
+// skips once, at the first minute after the change, and at one that comes twice the
+// first time only. One whose hour field starts with *, such as every 15 minutes,
+// runs by the real time, as Vixie cron has it: through both of an hour that comes
+// twice, and not in one that's skipped. It's the zero time for a schedule no date in
+// the next eight years matches.
 func (s Schedule) Next(after time.Time, loc *time.Location) time.Time {
 	t, err := s.next(after, loc)
 	if err != nil {
@@ -171,6 +178,9 @@ func (s Schedule) Valid() error {
 func (s Schedule) next(after time.Time, loc *time.Location) (time.Time, error) {
 	if loc == nil {
 		loc = time.UTC
+	}
+	if s.hourStar {
+		return s.nextReal(after, loc)
 	}
 	local := after.In(loc)
 	// Walk wall-clock minutes from the one after, as cron does, skipping whole
@@ -196,6 +206,35 @@ func (s Schedule) next(after time.Time, loc *time.Location) (time.Time, error) {
 			return at, nil
 		}
 		wall = wall.Add(time.Minute)
+	}
+	return time.Time{}, errNever
+}
+
+// nextReal walks real minutes, as they read in loc, skipping whole months, days and
+// hours that can't match.
+func (s Schedule) nextReal(after time.Time, loc *time.Location) (time.Time, error) {
+	at := after.Truncate(time.Minute).Add(time.Minute)
+	end := at.AddDate(8, 0, 0)
+	for at.Before(end) {
+		wall := at.In(loc)
+		var next time.Time
+		switch {
+		case s.month&(1<<uint(wall.Month())) == 0:
+			next = time.Date(wall.Year(), wall.Month()+1, 1, 0, 0, 0, 0, loc)
+		case !s.dayMatches(wall):
+			next = time.Date(wall.Year(), wall.Month(), wall.Day()+1, 0, 0, 0, 0, loc)
+		case s.hour&(1<<uint(wall.Hour())) == 0:
+			next = at.Add(time.Duration(60-wall.Minute()) * time.Minute)
+		case s.minute&(1<<uint(wall.Minute())) == 0:
+			next = at.Add(time.Minute)
+		default:
+			return at, nil
+		}
+		// A midnight a change of daylight saving skips reads as a time before it.
+		if !next.After(at) {
+			next = at.Add(time.Minute)
+		}
+		at = next
 	}
 	return time.Time{}, errNever
 }

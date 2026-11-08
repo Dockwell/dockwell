@@ -91,9 +91,7 @@ export function TasksPage() {
       width: 168,
       render: (task) => (
         <span className="dw-cell">
-          <span>
-            {task.spec?.paused ? t`Paused` : words.schedule(task.spec?.schedule ?? "") || t`On its own schedule`}
-          </span>
+          <span>{task.spec?.paused ? t`Paused` : words.scheduleIn(task) || t`On its own schedule`}</span>
           <code className="tasks-sub">{task.spec?.schedule}</code>
         </span>
       ),
@@ -206,10 +204,7 @@ export function TasksPage() {
                         >
                           <span className="tasks-name">{nameOf(task)}</span>
                           <span className="tasks-sub">
-                            {[
-                              words.schedule(task.spec?.schedule ?? "") || task.spec?.schedule,
-                              at ? words.until(at, now) : "",
-                            ]
+                            {[words.scheduleIn(task) || task.spec?.schedule, at ? words.until(at, now) : ""]
                               .filter(Boolean)
                               .join(" · ")}
                           </span>

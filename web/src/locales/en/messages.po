@@ -4227,6 +4227,9 @@ msgstr "The server's security rests on what that reaches, so it is as good as ro
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 msgstr "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 
+msgid "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
+msgstr "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
+
 msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 msgstr "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 
@@ -4407,6 +4410,9 @@ msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing
 
 msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 msgstr "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
+
+msgid "{name}'s scheduled tasks get the same reach"
+msgstr "{name}'s scheduled tasks get the same reach"
 
 msgid "{name}'s tmpfs at {target} has no size"
 msgstr "{name}'s tmpfs at {target} has no size"
@@ -8255,6 +8261,9 @@ msgstr "Last runs, oldest first"
 msgid "Request"
 msgstr "Request"
 
+msgid "Run it now on"
+msgstr "Run it now on"
+
 msgid "Run now"
 msgstr "Run now"
 
@@ -8284,7 +8293,7 @@ msgstr "{0, plural, one {Last run} other {Last # runs}}"
 
 #. placeholder {0}: day(lastBad)
 #. placeholder {1}: words.state(lastBad.state).toLowerCase()
-#. placeholder {2}: lastBad.error
+#. placeholder {2}: words.why(lastBad, task, time.span)
 msgid "{0} {1}: {2}"
 msgstr "{0} {1}: {2}"
 
@@ -8346,6 +8355,9 @@ msgstr "It runs only when you run it now."
 msgid "It runs with /bin/sh on the server, as root, so applying it takes your passkey."
 msgstr "It runs with /bin/sh on the server, as root, so applying it takes your passkey."
 
+msgid "Its schedule reads in this zone, whatever each server's clock is set to."
+msgstr "Its schedule reads in this zone, whatever each server's clock is set to."
+
 msgid "Leave it"
 msgstr "Leave it"
 
@@ -8386,6 +8398,13 @@ msgstr "Skip runs missed while the server was off"
 msgid "Status it expects"
 msgstr "Status it expects"
 
+msgid "The install's"
+msgstr "The install's"
+
+#. placeholder {0}: scheduleZone.zone
+msgid "The install's, {0}"
+msgstr "The install's, {0}"
+
 msgid "The server asks it, so it reaches what the server reaches. A run keeps the status and how long it took, never what came back."
 msgstr "The server asks it, so it reaches what the server reaches. A run keeps the status and how long it took, never what came back."
 
@@ -8403,6 +8422,9 @@ msgstr "Try twice more"
 
 msgid "URL"
 msgstr "URL"
+
+msgid "UTC, as the install has none set"
+msgstr "UTC, as the install has none set"
 
 msgid "Use 1 to 1,440 minutes."
 msgstr "Use 1 to 1,440 minutes."
@@ -8424,6 +8446,10 @@ msgstr "What it runs"
 
 msgid "What people call it"
 msgstr "What people call it"
+
+#. placeholder {0}: task.servers.map((s) => s.serverName).join(", ")
+msgid "Where it runs now: {0}"
+msgstr "Where it runs now: {0}"
 
 msgid "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
 msgstr "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
@@ -8519,11 +8545,23 @@ msgstr "Every {count} minutes"
 msgid "Every {day} at {at}"
 msgstr "Every {day} at {at}"
 
+msgid "Interrupted"
+msgstr "Interrupted"
+
+msgid "It took longer than its timeout, {limit}, and was stopped."
+msgstr "It took longer than its timeout, {limit}, and was stopped."
+
 msgid "On day {date} of every month at {at}"
 msgstr "On day {date} of every month at {at}"
 
+msgid "Something it started still holds its output, and runs on after it."
+msgstr "Something it started still holds its output, and runs on after it."
+
 msgid "Succeeded"
 msgstr "Succeeded"
+
+msgid "The agent stopped while it ran."
+msgstr "The agent stopped while it ran."
 
 msgid "Timed out"
 msgstr "Timed out"
@@ -8533,6 +8571,9 @@ msgstr "Today {time}"
 
 msgid "Tomorrow {time}"
 msgstr "Tomorrow {time}"
+
+msgid "Trying again, {i} of {retries}."
+msgstr "Trying again, {i} of {retries}."
 
 msgid "Yesterday {time}"
 msgstr "Yesterday {time}"
@@ -8546,8 +8587,35 @@ msgstr "in {count} h"
 msgid "in {count} min"
 msgstr "in {count} min"
 
+msgid "it answered {status}, and the task expects a 2xx"
+msgstr "it answered {status}, and the task expects a 2xx"
+
+msgid "it answered {status}, and the task expects {expected}"
+msgstr "it answered {status}, and the task expects {expected}"
+
+msgid "it exited with {code}"
+msgstr "it exited with {code}"
+
+msgid "it took longer than its timeout, {limit}"
+msgstr "it took longer than its timeout, {limit}"
+
+msgid "the agent stopped while it ran"
+msgstr "the agent stopped while it ran"
+
+msgid "{count, plural, one {Its schedule came round once while it ran, which ran nothing, as its runs never overlap.} other {Its schedule came round # times while it ran, which ran nothing, as its runs never overlap.}}"
+msgstr "{count, plural, one {Its schedule came round once while it ran, which ran nothing, as its runs never overlap.} other {Its schedule came round # times while it ran, which ran nothing, as its runs never overlap.}}"
+
 msgid "{count} ms"
 msgstr "{count} ms"
+
+msgid "{method} {url} answered {status} in {took}, {bytes} bytes."
+msgstr "{method} {url} answered {status} in {took}, {bytes} bytes."
+
+msgid "{method} {url} didn't answer."
+msgstr "{method} {url} didn't answer."
+
+msgid "{said}, {zone} time"
+msgstr "{said}, {zone} time"
 
 msgid "Agent and control plane"
 msgstr "Agent and control plane"

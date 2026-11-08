@@ -79,8 +79,10 @@ enum TaskRunState {
   TASK_RUN_STATE_FAILED = 3;
   // Its last attempt took longer than the task's timeout, and was stopped.
   TASK_RUN_STATE_TIMED_OUT = 4;
-  // It didn't run, as the one before was still running.
-  TASK_RUN_STATE_SKIPPED = 5;
+  // The agent stopped while it ran, as when it's upgraded, so it was stopped
+  // too, or how it ended isn't known. A slot that comes round while a run is
+  // still going runs nothing, and is counted on that run (TaskRun.skipped_slots).
+  TASK_RUN_STATE_INTERRUPTED = 5;
   // It couldn't start, such as an app that isn't running on the server.
   TASK_RUN_STATE_NOT_STARTED = 6;
 }
@@ -157,6 +159,9 @@ message TaskRun {
   repeated TaskOutputLine output = 12;
   // How much of what it printed was cut from the start, in bytes.
   int64 output_cut_bytes = 13;
+  // How many times its schedule came round while it ran, which ran nothing, as a
+  // task's runs never overlap.
+  uint32 skipped_slots = 14;
 }
 
 // TaskAttempt is one try of a run.
@@ -171,9 +176,14 @@ message TaskAttempt {
   bool timed_out = 5;
   // The size of a request's answer, in bytes.
   int64 response_bytes = 6;
+  // Something the command started outlived it and held its output, which was read
+  // for a few seconds more, then left as it runs on.
+  bool output_held = 7;
 }
 
-// TaskOutputLine is one line a run printed.
+// TaskOutputLine is one line a run printed. Lines the agent adds of its own, such
+// as why an attempt stopped, start "Dockwell: ", and its attempts say the same as
+// facts, for a surface to say in its own words.
 message TaskOutputLine {
   // When it came.
   google.protobuf.Timestamp time = 1;
