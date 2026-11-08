@@ -3,12 +3,12 @@
 package importapi
 
 import (
+	"cmp"
 	"fmt"
 	"net"
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
@@ -276,16 +276,26 @@ func certificateStep(c *dockwellv1.OnePanelCertificate) *dockwellv1.ImportStep {
 	switch c.GetKind() {
 	case "manual":
 		s.Summary = "a certificate you uploaded"
+		if i := c.GetIssuer(); i != "" {
+			s.Summary += ", issued by " + i
+		}
 	case "selfSigned":
-		s.Summary = "a self-signed certificate"
+		s.Summary = "a self-signed certificate from 1Panel's own CA"
+	case "fromMaster":
+		s.Summary = "a certificate the 1Panel that manages this one sends it"
+	case "dnsManual":
+		s.Summary = "a certificate from " + certificateSource(c) + ", with DNS records set by hand"
+	case "dnsAccount":
+		s.Summary = "a certificate from " + certificateSource(c) + ", through a DNS provider's account"
 	default:
-		s.Summary = "a certificate from " + certificateSource(c.GetProvider())
+		s.Summary = "a certificate from " + certificateSource(c)
 	}
 	if end := c.GetExpires(); end != nil {
-		s.Summary += ", until " + end.AsTime().UTC().Format(time.DateOnly)
+		// A date in UTC, said so, as a certificate's end is a moment, not a day.
+		s.Summary += ", until " + end.AsTime().UTC().Format("2006-01-02 15:04") + " UTC"
 	}
 	switch c.GetKind() {
-	case "manual", "selfSigned", "dnsManual":
+	case "manual", "selfSigned", "dnsManual", "fromMaster":
 		s.Reason = "Dockwell's ingress gets one from Let's Encrypt in its place when it takes over ports 80 and 443. " +
 			"A domain that can't get one, as it isn't on public DNS, goes behind a tunnel or a proxy that ends TLS."
 	default:
@@ -294,14 +304,13 @@ func certificateStep(c *dockwellv1.OnePanelCertificate) *dockwellv1.ImportStep {
 	return s
 }
 
-func certificateSource(provider string) string {
-	if name, ok := map[string]string{"letsencrypt": "Let's Encrypt", "zerossl": "ZeroSSL", "buypass": "Buypass", "google": "Google"}[strings.ToLower(provider)]; ok {
+// certificateSource names the CA an ACME certificate came from: its account's, or
+// its issuer.
+func certificateSource(c *dockwellv1.OnePanelCertificate) string {
+	if name, ok := map[string]string{"letsencrypt": "Let's Encrypt", "zerossl": "ZeroSSL", "buypass": "Buypass", "google": "Google Trust Services"}[strings.ToLower(c.GetProvider())]; ok {
 		return name
 	}
-	if provider == "" {
-		return "ACME"
-	}
-	return provider
+	return cmp.Or(c.GetIssuer(), "an ACME server")
 }
 
 func cronJobStep(j *dockwellv1.OnePanelCronJob) *dockwellv1.ImportStep {

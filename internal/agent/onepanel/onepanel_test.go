@@ -5,8 +5,11 @@ package onepanel
 import (
 	"database/sql"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/encoding/prototext"
 
@@ -62,7 +65,11 @@ func TestReadsWhat1PanelKeeps(t *testing.T) {
 	if docs := sites["docs"]; docs.GetParent() != "blog" {
 		t.Errorf("a subsite = %v", docs)
 	}
-	if c := found.GetCertificates(); len(c) != 1 || c[0].GetKind() != "autoSSL" || len(c[0].GetDomains()) != 2 || c[0].GetExpires().AsTime().Year() != 2027 {
+	// How it was got is 1Panel's provider, its CA its ACME account's, and its
+	// issuer its organization.
+	if c := found.GetCertificates(); len(c) != 2 || c[0].GetKind() != "http" || c[0].GetProvider() != "letsencrypt" ||
+		c[0].GetIssuer() != "Let's Encrypt" || len(c[0].GetDomains()) != 2 || c[0].GetExpires().AsTime().Year() != 2027 ||
+		c[1].GetKind() != "selfSigned" || c[1].GetProvider() != "" || c[1].GetIssuer() != "1Panel CA" {
 		t.Errorf("certificates = %v", c)
 	}
 	if s := found.GetDatabaseServers(); len(s) != 2 || !s[0].GetLocal() || s[0].GetApp() != "mysql" || s[1].GetLocal() {
@@ -155,5 +162,56 @@ func TestOnlyTheOriginOfAProxy(t *testing.T) {
 		if got := origin(in); got != want {
 			t.Errorf("origin(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// A 1Panel that writes as the agent reads, checkpointing often, never reads as a
+// damaged database: a read that fails on a page written under it goes again, and
+// one that can't get a still moment says that's why. What does come back is whole.
+func TestAReadDuringWritesGoesAgain(t *testing.T) {
+	root := onepaneltest.Make(t, "/opt", false)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(root, "opt", "1panel", "db", "agent.db")+
+		"?_pragma=journal_mode(WAL)&_pragma=wal_autocheckpoint(4)&_pragma=busy_timeout(5000)&_pragma=synchronous(OFF)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec("CREATE TABLE IF NOT EXISTS `task_logs` (`id` integer PRIMARY KEY AUTOINCREMENT, `body` text)"); err != nil {
+		t.Fatal(err)
+	}
+	want := len(readOK(t, root).GetApps())
+	var stop atomic.Bool
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; !stop.Load(); i++ {
+			st := []string{"Running", "Stopped"}[i%2]
+			_, _ = db.Exec("UPDATE app_installs SET status = ?, env = ? WHERE id % 3 = ?", st, strings.Repeat(st, 1000+i%500), i%3)
+			_, _ = db.Exec("INSERT INTO task_logs (body) VALUES (?)", strings.Repeat(strconv.Itoa(i), 3000))
+			if i%50 == 0 {
+				_, _ = db.Exec("DELETE FROM task_logs WHERE id % 3 = 0")
+			}
+			if i%3 == 0 {
+				time.Sleep(time.Millisecond)
+			}
+		}
+	}()
+	defer func() { stop.Store(true); <-done }()
+	ok := 0
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); {
+		res, err := Read(t.Context(), root)
+		if err != nil {
+			if !strings.Contains(err.Error(), "1Panel changed") {
+				t.Fatalf("a read during writes failed as if the records were damaged: %v", err)
+			}
+			continue
+		}
+		if got := len(res.GetFound().GetApps()); got != want {
+			t.Fatalf("a read during writes found %d apps, not %d", got, want)
+		}
+		ok++
+	}
+	if ok == 0 {
+		t.Error("no read got through")
 	}
 }

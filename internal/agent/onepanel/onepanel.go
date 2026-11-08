@@ -7,6 +7,7 @@ package onepanel
 
 import (
 	"bufio"
+	"cmp"
 	"bytes"
 	"context"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
@@ -32,7 +34,7 @@ import (
 const ctl = "/usr/local/bin/1pctl"
 
 // tries is how many times a read starts again when 1Panel writes as it reads.
-const tries = 3
+const tries = 5
 
 // known are the versions this was written from: v2.0 to v2.4.2, and v1.10 LTS.
 var known = regexp.MustCompile(`^v?(2\.[0-3]\.\d+|2\.4\.[012]|1\.10\.\d+)(-lts)?$`)
@@ -52,26 +54,48 @@ func Read(ctx context.Context, root string) (*agentv1.ReadOnePanelResult, error)
 		return &agentv1.ReadOnePanelResult{NotHere: fmt.Sprintf(
 			"1Panel isn't installed here: there's no %s or %s", path.Join(dbDir, "agent.db"), path.Join(dbDir, "1Panel.db"))}, nil
 	}
-	var last error
-	for range tries {
+	last := fmt.Errorf("1Panel changed %s each of the %d times the agent read it, so what it read may mix two moments. Try again in a moment", records, tries)
+	for i := range tries {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		before := stateOf(filepath.Join(root, records))
 		found, changed, err := read(root, base, records, v1)
-		if err != nil {
+		switch {
+		case err == nil && !changed:
+			return &agentv1.ReadOnePanelResult{Found: found}, nil
+		// A read that failed on files that held still failed on what they hold. One
+		// whose files changed under it may have read a page half written, so it
+		// goes again, as one that read through a change does.
+		case err != nil && !changed && stateOf(filepath.Join(root, records)) == before:
 			return nil, err
 		}
-		if !changed {
-			return &agentv1.ReadOnePanelResult{Found: found}, nil
-		}
-		last = fmt.Errorf("1Panel changed %s %d times as the agent read it, so what it read may mix two moments. Try again in a moment", records, tries)
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(200 * time.Millisecond):
+		case <-time.After(time.Duration(100<<i) * time.Millisecond):
 		}
 	}
 	return nil, last
+}
+
+// fileState is what a file's stat says of whether it changed.
+type fileState struct {
+	size, mtime, ctime int64
+	ino                uint64
+}
+
+// stateOf is the state of a database and its WAL, so a read that failed can tell
+// a file that's damaged from one written as it read.
+func stateOf(db string) [2]fileState {
+	var out [2]fileState
+	for i, p := range []string{db, db + "-wal"} {
+		var st unix.Stat_t
+		if unix.Stat(p, &st) == nil {
+			out[i] = fileState{size: st.Size, mtime: st.Mtim.Nano(), ctime: st.Ctim.Nano(), ino: st.Ino}
+		}
+	}
+	return out
 }
 
 // baseDir is the folder 1Panel is installed under: what 1pctl says, or /opt.
@@ -108,7 +132,7 @@ func read(root, base, records string, v1 bool) (*dockwellv1.OnePanel, bool, erro
 	found.Version = settings["SystemVersion"]
 	found.KnownVersion = known.MatchString(found.Version)
 	if err := r.all(found, settings, v1); err != nil {
-		return nil, false, fmt.Errorf("the agent can't read 1Panel's records, %s: %w", records, err)
+		return nil, db.Changed(), fmt.Errorf("the agent can't read 1Panel's records, %s: %w", records, err)
 	}
 	return found, db.Changed(), nil
 }
@@ -178,14 +202,27 @@ func (r *reader) all(found *dockwellv1.OnePanel, settings map[string]string, v1 
 	}); err != nil {
 		return err
 	}
+	// 1Panel keeps how a certificate was got in provider, and its issuer in type
+	// (the common name) and organization. The CA is its ACME account's.
+	cas := map[int64]string{}
+	if err := r.rows("website_acme_accounts", func(row sqlitefile.Row) {
+		cas[row.Int("id")] = row.Text("type")
+	}); err != nil {
+		return err
+	}
 	certs := map[int64]string{}
 	if err := r.rows("website_ssls", func(row sqlitefile.Row) {
-		primary := row.Text("primary_domain")
+		primary, kind := row.Text("primary_domain"), row.Text("provider")
 		certs[row.Int("id")] = primary
-		found.Certificates = append(found.Certificates, &dockwellv1.OnePanelCertificate{
-			PrimaryDomain: primary, Domains: list(row.Text("domains")), Kind: row.Text("type"),
-			Provider: row.Text("provider"), Expires: when(row.Text("expire_date")), AutoRenew: row.Bool("auto_renew"),
-		})
+		c := &dockwellv1.OnePanelCertificate{
+			PrimaryDomain: primary, Domains: list(row.Text("domains")), Kind: kind,
+			Issuer: cmp.Or(row.Text("organization"), row.Text("type")), Expires: when(row.Text("expire_date")), AutoRenew: row.Bool("auto_renew"),
+		}
+		switch kind {
+		case "http", "dnsAccount", "dnsManual":
+			c.Provider = cas[row.Int("acme_account_id")]
+		}
+		found.Certificates = append(found.Certificates, c)
 	}); err != nil {
 		return err
 	}

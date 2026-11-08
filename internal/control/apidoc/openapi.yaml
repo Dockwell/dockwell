@@ -6906,11 +6906,15 @@ components:
                 kind:
                     type: string
                     description: |-
-                        How it was got: "autoSSL", "dnsAccount", "dnsManual", "http", "manual" or
-                         "selfSigned", as 1Panel says it.
+                        How it was got, as 1Panel's provider column says it: "http" or
+                         "dnsAccount" from an ACME server, "dnsManual" from one with DNS records set
+                         by hand, "manual" uploaded, "selfSigned" from 1Panel's own CA, or
+                         "fromMaster" from the 1Panel that manages this one.
                 provider:
                     type: string
-                    description: The ACME provider, where it came from one.
+                    description: |-
+                        The ACME account's CA, as 1Panel names it, such as "letsencrypt", "zerossl"
+                         or "custom", for one got from an ACME server.
                 expires:
                     type: string
                     description: When it ends.
@@ -6918,6 +6922,9 @@ components:
                 autoRenew:
                     type: boolean
                     description: True when 1Panel renews it.
+                issuer:
+                    type: string
+                    description: 'Who issued it: the issuer''s organization, or its common name.'
             description: |-
                 OnePanelCertificate is a certificate 1Panel keeps for websites. Its key and
                  chain aren't read.
