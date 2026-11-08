@@ -35,9 +35,9 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { type Browser, type BrowserContext, chromium, type Locator, type Page } from "playwright-core";
-
 import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.ts";
 import { runFlows } from "./flows.ts";
+import { describePages, watchContext, watchPage } from "./report.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -236,8 +236,8 @@ async function main() {
     executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
     headless: true,
   });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await context.newPage();
+  const context = watchContext(await browser.newContext({ viewport: { width: 1440, height: 900 } }));
+  const page = watchPage(await context.newPage());
   // A throw in here would end the process and skip the cleaning up.
   page.on("pageerror", (err) => pageThrew(new Error(`the page threw: ${err.message}`)));
   const { cdp, authenticatorId } = await withAuthenticator(context, page);
@@ -277,7 +277,7 @@ async function main() {
   await shoot(page, "overview");
 
   step("the claim link works only once");
-  const reuse = await browser.newPage();
+  const reuse = watchPage(await browser.newPage());
   await reuse.goto(claimLink);
   await expectText(reuse, "This install already has an owner");
   await reuse.close();
@@ -420,7 +420,7 @@ async function main() {
     recover.match(/(http:\/\/localhost:\d+\/recover#[A-Za-z0-9_-]{43})/)?.[1] ??
     fail(`dockwell recover printed:\n${recover}`);
   const other = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const phone = await other.newPage();
+  const phone = watchPage(await other.newPage());
   await phone.goto(link);
   await expectText(phone, "You signed in with a one-time link");
   await expectPage(phone, "Profile and security");
@@ -879,6 +879,7 @@ try {
 } catch (err) {
   console.error(`e2e: failed: ${err instanceof Error ? err.message : String(err)}`);
   console.error(log.join("").split("\n").slice(-30).join("\n"));
+  console.error(await describePages());
   process.exitCode = 1;
 } finally {
   await browser?.close();

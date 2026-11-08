@@ -21,6 +21,7 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { type Browser, chromium, type Page } from "playwright-core";
+import { describePages, watchPage } from "./report.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -197,7 +198,7 @@ async function main() {
 
   browser = await chromium.launch({ executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium" });
   const context = await browser.newContext({ viewport: { width: 1440, height: 970 }, colorScheme: "light" });
-  const page = await context.newPage();
+  const page = watchPage(await context.newPage());
   lastPage = page;
   page.on("pageerror", (err) => fail(`the page threw: ${err.message}`));
   await page.goto(signIn);
@@ -303,7 +304,7 @@ async function main() {
     locale: "zh-CN",
     storageState: await context.storageState(),
   });
-  const zhPage = await zh.newPage();
+  const zhPage = watchPage(await zh.newPage());
   await zhPage.goto(`${origin}/servers/${serverId}/updates`);
   await zhPage.getByRole("heading", { name: "安全更新" }).waitFor();
   await zhPage.getByText("6 个安全更新可以安装").waitFor();
@@ -332,6 +333,7 @@ main().then(
   async (err: unknown) => {
     console.error(err);
     console.error(serverLog.join("").split("\n").slice(-30).join("\n"));
+    console.error(await describePages());
     if (shots && lastPage) {
       mkdirSync(shots, { recursive: true });
       await lastPage.screenshot({ path: join(shots, "failure.png") }).catch(() => {});

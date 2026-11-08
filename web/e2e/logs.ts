@@ -23,6 +23,7 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
+import { describePages, watchPage } from "./report.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -325,7 +326,7 @@ async function main() {
     colorScheme: "dark",
   });
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  const page = await context.newPage();
+  const page = watchPage(await context.newPage());
   lastPage = page;
   page.on("pageerror", (err) => fail(`the page threw: ${err.message}`));
   await page.goto(signIn);
@@ -1005,7 +1006,7 @@ async function main() {
     locale: "zh-CN",
     storageState: await context.storageState(),
   });
-  const zhPage = await zh.newPage();
+  const zhPage = watchPage(await zh.newPage());
   await zhPage.goto(url);
   await zhPage.getByRole("status").first().waitFor();
   await post("/print", "2026-11-04 14:20:00 ERROR 上游服务连接被重置 connection reset");
@@ -1038,7 +1039,8 @@ main().then(
         notes: [...document.querySelectorAll(".logs-note, [role=alert]")].map((el) => el.textContent),
       }))
       .catch(() => undefined);
-    console.error("the page said:", said);
+    console.error("the log said:", said);
+    console.error(await describePages());
     if (shots && lastPage) {
       mkdirSync(shots, { recursive: true });
       await lastPage.screenshot({ path: join(shots, "failure.png") }).catch(() => {});

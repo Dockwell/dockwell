@@ -16,11 +16,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { type Browser, chromium } from "playwright-core";
-
 import { appsFlow } from "./apps-flow.ts";
 import { containersFlow } from "./containers-flow.ts";
 import { dockerMade, dockerProbe, removeMade } from "./docker-probe.ts";
 import { healthFlow } from "./health-flow.ts";
+import { describePages, watchContext, watchPage } from "./report.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -140,8 +140,8 @@ try {
     executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
     headless: true,
   });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await context.newPage();
+  const context = watchContext(await browser.newContext({ viewport: { width: 1440, height: 900 } }));
+  const page = watchPage(await context.newPage());
   // A throw in here would end the process and skip the cleaning up.
   const pageThrew = new Promise<never>((_, threw) => {
     page.on("pageerror", (err) => threw(new Error(`the page threw: ${err.message}`)));
@@ -203,6 +203,7 @@ try {
 } catch (err) {
   console.error(`e2e: failed: ${err instanceof Error ? err.message : String(err)}`);
   console.error(log.join("").split("\n").slice(-30).join("\n"));
+  console.error(await describePages());
   process.exitCode = 1;
 } finally {
   await browser?.close();
