@@ -3,8 +3,8 @@
 import { create } from "@bufbuild/protobuf";
 import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
 import {
-  AuditService,
   AlertService,
+  AuditService,
   AuthService,
   BackupService,
   CatalogService,

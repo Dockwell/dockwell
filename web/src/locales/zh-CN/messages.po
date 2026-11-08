@@ -9714,9 +9714,6 @@ msgstr "访问方式"
 msgid "Route"
 msgstr "路由"
 
-msgid "Sends to"
-msgstr "转发到"
-
 msgid "Serves"
 msgstr "提供内容"
 
@@ -10006,9 +10003,6 @@ msgstr "修改"
 
 msgid "How it serves"
 msgstr "提供方式"
-
-msgid "Port"
-msgstr "端口"
 
 msgid "Sends each request straight to the port, with nothing of its own between"
 msgstr "将每个请求直接发送到该端口，中间没有它自己的服务器"

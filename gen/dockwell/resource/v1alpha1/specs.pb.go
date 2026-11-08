@@ -494,6 +494,63 @@ func (AlertRule_Severity) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{30, 1}
 }
 
+// How Dockwell secures its connection to the SMTP server.
+type AlertEmail_Security int32
+
+const (
+	// STARTTLS, unless set.
+	AlertEmail_SECURITY_UNSPECIFIED AlertEmail_Security = 0
+	// A plain connection that STARTTLS makes TLS, as on port 587.
+	AlertEmail_SECURITY_STARTTLS AlertEmail_Security = 1
+	// TLS from the start, as on port 465.
+	AlertEmail_SECURITY_TLS AlertEmail_Security = 2
+	// No TLS: only for a server on this server or its private network.
+	AlertEmail_SECURITY_NONE AlertEmail_Security = 3
+)
+
+// Enum value maps for AlertEmail_Security.
+var (
+	AlertEmail_Security_name = map[int32]string{
+		0: "SECURITY_UNSPECIFIED",
+		1: "SECURITY_STARTTLS",
+		2: "SECURITY_TLS",
+		3: "SECURITY_NONE",
+	}
+	AlertEmail_Security_value = map[string]int32{
+		"SECURITY_UNSPECIFIED": 0,
+		"SECURITY_STARTTLS":    1,
+		"SECURITY_TLS":         2,
+		"SECURITY_NONE":        3,
+	}
+)
+
+func (x AlertEmail_Security) Enum() *AlertEmail_Security {
+	p := new(AlertEmail_Security)
+	*p = x
+	return p
+}
+
+func (x AlertEmail_Security) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AlertEmail_Security) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[8].Descriptor()
+}
+
+func (AlertEmail_Security) Type() protoreflect.EnumType {
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[8]
+}
+
+func (x AlertEmail_Security) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AlertEmail_Security.Descriptor instead.
+func (AlertEmail_Security) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{33, 0}
+}
+
 // Container is one Docker container: run by hand on a server, or a
 // service's app. Docker fills in from the image what a container leaves
 // out, such as its command or working directory, and that isn't drift.
@@ -3639,6 +3696,11 @@ type AlertChannel struct {
 	// Types that are valid to be assigned to To:
 	//
 	//	*AlertChannel_Webhook
+	//	*AlertChannel_Email
+	//	*AlertChannel_Ntfy
+	//	*AlertChannel_Slack
+	//	*AlertChannel_Discord
+	//	*AlertChannel_Telegram
 	To            isAlertChannel_To `protobuf_oneof:"to"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3690,6 +3752,51 @@ func (x *AlertChannel) GetWebhook() *AlertWebhook {
 	return nil
 }
 
+func (x *AlertChannel) GetEmail() *AlertEmail {
+	if x != nil {
+		if x, ok := x.To.(*AlertChannel_Email); ok {
+			return x.Email
+		}
+	}
+	return nil
+}
+
+func (x *AlertChannel) GetNtfy() *AlertNtfy {
+	if x != nil {
+		if x, ok := x.To.(*AlertChannel_Ntfy); ok {
+			return x.Ntfy
+		}
+	}
+	return nil
+}
+
+func (x *AlertChannel) GetSlack() *AlertSlack {
+	if x != nil {
+		if x, ok := x.To.(*AlertChannel_Slack); ok {
+			return x.Slack
+		}
+	}
+	return nil
+}
+
+func (x *AlertChannel) GetDiscord() *AlertDiscord {
+	if x != nil {
+		if x, ok := x.To.(*AlertChannel_Discord); ok {
+			return x.Discord
+		}
+	}
+	return nil
+}
+
+func (x *AlertChannel) GetTelegram() *AlertTelegram {
+	if x != nil {
+		if x, ok := x.To.(*AlertChannel_Telegram); ok {
+			return x.Telegram
+		}
+	}
+	return nil
+}
+
 type isAlertChannel_To interface {
 	isAlertChannel_To()
 }
@@ -3699,7 +3806,42 @@ type AlertChannel_Webhook struct {
 	Webhook *AlertWebhook `protobuf:"bytes,1,opt,name=webhook,proto3,oneof"`
 }
 
+type AlertChannel_Email struct {
+	// Email, through an SMTP server.
+	Email *AlertEmail `protobuf:"bytes,2,opt,name=email,proto3,oneof"`
+}
+
+type AlertChannel_Ntfy struct {
+	// A topic on an ntfy server, which pushes to phones.
+	Ntfy *AlertNtfy `protobuf:"bytes,3,opt,name=ntfy,proto3,oneof"`
+}
+
+type AlertChannel_Slack struct {
+	// A Slack channel, through an incoming webhook.
+	Slack *AlertSlack `protobuf:"bytes,4,opt,name=slack,proto3,oneof"`
+}
+
+type AlertChannel_Discord struct {
+	// A Discord channel, through a webhook.
+	Discord *AlertDiscord `protobuf:"bytes,5,opt,name=discord,proto3,oneof"`
+}
+
+type AlertChannel_Telegram struct {
+	// A Telegram chat, through a bot.
+	Telegram *AlertTelegram `protobuf:"bytes,6,opt,name=telegram,proto3,oneof"`
+}
+
 func (*AlertChannel_Webhook) isAlertChannel_To() {}
+
+func (*AlertChannel_Email) isAlertChannel_To() {}
+
+func (*AlertChannel_Ntfy) isAlertChannel_To() {}
+
+func (*AlertChannel_Slack) isAlertChannel_To() {}
+
+func (*AlertChannel_Discord) isAlertChannel_To() {}
+
+func (*AlertChannel_Telegram) isAlertChannel_To() {}
 
 // AlertWebhook sends each alert, and each that resolves, as JSON in a POST.
 type AlertWebhook struct {
@@ -3754,6 +3896,333 @@ func (x *AlertWebhook) GetUrl() string {
 func (x *AlertWebhook) GetSecret() string {
 	if x != nil {
 		return x.Secret
+	}
+	return ""
+}
+
+// AlertEmail sends each alert as an email, through an SMTP server such as your
+// mail provider's. Dockwell talks TLS to it, unless it's on this server or its
+// private network, and sends its password only over TLS.
+type AlertEmail struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The SMTP server's name or address, such as "smtp.example.com".
+	Host string `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
+	// Its port: 587 for STARTTLS and 465 for TLS unless set, and 25 for none.
+	Port uint32 `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	// How Dockwell secures the connection.
+	Security AlertEmail_Security `protobuf:"varint,3,opt,name=security,proto3,enum=dockwell.resource.v1alpha1.AlertEmail_Security" json:"security,omitempty"`
+	// Who Dockwell signs in as, when the server asks for that. Empty signs in as
+	// no one.
+	Username string `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
+	// The password Dockwell signs in with. Changing the server, its port, its
+	// security or the user needs it again.
+	Password string `protobuf:"bytes,5,opt,name=password,proto3" json:"password,omitempty"`
+	// Who the emails come from, such as "Dockwell <alerts@example.com>".
+	From string `protobuf:"bytes,6,opt,name=from,proto3" json:"from,omitempty"`
+	// Who they go to, such as "ops@example.com": one to ten addresses.
+	To            []string `protobuf:"bytes,7,rep,name=to,proto3" json:"to,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AlertEmail) Reset() {
+	*x = AlertEmail{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AlertEmail) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AlertEmail) ProtoMessage() {}
+
+func (x *AlertEmail) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AlertEmail.ProtoReflect.Descriptor instead.
+func (*AlertEmail) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *AlertEmail) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *AlertEmail) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *AlertEmail) GetSecurity() AlertEmail_Security {
+	if x != nil {
+		return x.Security
+	}
+	return AlertEmail_SECURITY_UNSPECIFIED
+}
+
+func (x *AlertEmail) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *AlertEmail) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *AlertEmail) GetFrom() string {
+	if x != nil {
+		return x.From
+	}
+	return ""
+}
+
+func (x *AlertEmail) GetTo() []string {
+	if x != nil {
+		return x.To
+	}
+	return nil
+}
+
+// AlertNtfy publishes each alert to a topic on an ntfy server, such as ntfy.sh
+// or one of your own, which pushes it to the phones that subscribe.
+type AlertNtfy struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server, such as "https://ntfy.sh", which it is unless set.
+	Server string `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+	// The topic, such as "dockwell-alerts-x7f2". On a public server anyone who
+	// knows it can read what's sent, so it's sealed like a password, and lists
+	// show only the server.
+	Topic string `protobuf:"bytes,2,opt,name=topic,proto3" json:"topic,omitempty"`
+	// An access token, for a server or topic that asks for one. Changing the
+	// server needs it again.
+	Token         string `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AlertNtfy) Reset() {
+	*x = AlertNtfy{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AlertNtfy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AlertNtfy) ProtoMessage() {}
+
+func (x *AlertNtfy) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AlertNtfy.ProtoReflect.Descriptor instead.
+func (*AlertNtfy) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *AlertNtfy) GetServer() string {
+	if x != nil {
+		return x.Server
+	}
+	return ""
+}
+
+func (x *AlertNtfy) GetTopic() string {
+	if x != nil {
+		return x.Topic
+	}
+	return ""
+}
+
+func (x *AlertNtfy) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+// AlertSlack posts each alert to a Slack channel, through an incoming webhook
+// a Slack app gives.
+type AlertSlack struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The webhook's URL, such as "https://hooks.slack.com/services/T000/B000/XXXX".
+	// It's what lets anyone post there, so it's sealed, and lists show only its
+	// host.
+	Url           string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AlertSlack) Reset() {
+	*x = AlertSlack{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AlertSlack) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AlertSlack) ProtoMessage() {}
+
+func (x *AlertSlack) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AlertSlack.ProtoReflect.Descriptor instead.
+func (*AlertSlack) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *AlertSlack) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+// AlertDiscord posts each alert to a Discord channel, through a webhook the
+// channel's settings give.
+type AlertDiscord struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The webhook's URL, such as "https://discord.com/api/webhooks/0000/XXXX".
+	// It's what lets anyone post there, so it's sealed, and lists show only its
+	// host.
+	Url           string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AlertDiscord) Reset() {
+	*x = AlertDiscord{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AlertDiscord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AlertDiscord) ProtoMessage() {}
+
+func (x *AlertDiscord) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AlertDiscord.ProtoReflect.Descriptor instead.
+func (*AlertDiscord) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *AlertDiscord) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+// AlertTelegram sends each alert to a Telegram chat, as a bot you made with
+// @BotFather.
+type AlertTelegram struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The bot's token, such as "123456789:AAE…", which BotFather gives.
+	BotToken string `protobuf:"bytes,1,opt,name=bot_token,json=botToken,proto3" json:"bot_token,omitempty"`
+	// The chat, by its ID, such as "-1001234567890" for a group, or a channel's
+	// name, such as "@example_alerts". The bot has to be in it.
+	ChatId        string `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AlertTelegram) Reset() {
+	*x = AlertTelegram{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AlertTelegram) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AlertTelegram) ProtoMessage() {}
+
+func (x *AlertTelegram) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AlertTelegram.ProtoReflect.Descriptor instead.
+func (*AlertTelegram) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *AlertTelegram) GetBotToken() string {
+	if x != nil {
+		return x.BotToken
+	}
+	return ""
+}
+
+func (x *AlertTelegram) GetChatId() string {
+	if x != nil {
+		return x.ChatId
 	}
 	return ""
 }
@@ -4061,13 +4530,44 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\bSeverity\x12\x18\n" +
 	"\x14SEVERITY_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10SEVERITY_WARNING\x10\x01\x12\x15\n" +
-	"\x11SEVERITY_CRITICAL\x10\x02\"Z\n" +
+	"\x11SEVERITY_CRITICAL\x10\x02\"\xa6\x03\n" +
 	"\fAlertChannel\x12D\n" +
-	"\awebhook\x18\x01 \x01(\v2(.dockwell.resource.v1alpha1.AlertWebhookH\x00R\awebhookB\x04\n" +
+	"\awebhook\x18\x01 \x01(\v2(.dockwell.resource.v1alpha1.AlertWebhookH\x00R\awebhook\x12>\n" +
+	"\x05email\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.AlertEmailH\x00R\x05email\x12;\n" +
+	"\x04ntfy\x18\x03 \x01(\v2%.dockwell.resource.v1alpha1.AlertNtfyH\x00R\x04ntfy\x12>\n" +
+	"\x05slack\x18\x04 \x01(\v2&.dockwell.resource.v1alpha1.AlertSlackH\x00R\x05slack\x12D\n" +
+	"\adiscord\x18\x05 \x01(\v2(.dockwell.resource.v1alpha1.AlertDiscordH\x00R\adiscord\x12G\n" +
+	"\btelegram\x18\x06 \x01(\v2).dockwell.resource.v1alpha1.AlertTelegramH\x00R\btelegramB\x04\n" +
 	"\x02to\"D\n" +
 	"\fAlertWebhook\x12\x16\n" +
 	"\x03url\x18\x01 \x01(\tB\x04\xc8\xf3\x18\x01R\x03url\x12\x1c\n" +
-	"\x06secret\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\x06secret*j\n" +
+	"\x06secret\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\x06secret\"\xc5\x02\n" +
+	"\n" +
+	"AlertEmail\x12\x12\n" +
+	"\x04host\x18\x01 \x01(\tR\x04host\x12\x12\n" +
+	"\x04port\x18\x02 \x01(\rR\x04port\x12K\n" +
+	"\bsecurity\x18\x03 \x01(\x0e2/.dockwell.resource.v1alpha1.AlertEmail.SecurityR\bsecurity\x12\x1a\n" +
+	"\busername\x18\x04 \x01(\tR\busername\x12 \n" +
+	"\bpassword\x18\x05 \x01(\tB\x04\xc8\xf3\x18\x01R\bpassword\x12\x12\n" +
+	"\x04from\x18\x06 \x01(\tR\x04from\x12\x0e\n" +
+	"\x02to\x18\a \x03(\tR\x02to\"`\n" +
+	"\bSecurity\x12\x18\n" +
+	"\x14SECURITY_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11SECURITY_STARTTLS\x10\x01\x12\x10\n" +
+	"\fSECURITY_TLS\x10\x02\x12\x11\n" +
+	"\rSECURITY_NONE\x10\x03\"[\n" +
+	"\tAlertNtfy\x12\x16\n" +
+	"\x06server\x18\x01 \x01(\tR\x06server\x12\x1a\n" +
+	"\x05topic\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\x05topic\x12\x1a\n" +
+	"\x05token\x18\x03 \x01(\tB\x04\xc8\xf3\x18\x01R\x05token\"$\n" +
+	"\n" +
+	"AlertSlack\x12\x16\n" +
+	"\x03url\x18\x01 \x01(\tB\x04\xc8\xf3\x18\x01R\x03url\"&\n" +
+	"\fAlertDiscord\x12\x16\n" +
+	"\x03url\x18\x01 \x01(\tB\x04\xc8\xf3\x18\x01R\x03url\"K\n" +
+	"\rAlertTelegram\x12!\n" +
+	"\tbot_token\x18\x01 \x01(\tB\x04\xc8\xf3\x18\x01R\bbotToken\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId*j\n" +
 	"\fRolloutOrder\x12\x1d\n" +
 	"\x19ROLLOUT_ORDER_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19ROLLOUT_ORDER_START_FIRST\x10\x01\x12\x1c\n" +
@@ -4106,8 +4606,8 @@ func file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP() []byte {
 	return file_dockwell_resource_v1alpha1_specs_proto_rawDescData
 }
 
-var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
+var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 9)
+var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
 var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(RolloutOrder)(0),                 // 0: dockwell.resource.v1alpha1.RolloutOrder
 	(Relabel)(0),                      // 1: dockwell.resource.v1alpha1.Relabel
@@ -4117,110 +4617,122 @@ var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(BackupPolicy_Every)(0),           // 5: dockwell.resource.v1alpha1.BackupPolicy.Every
 	(AlertRule_Condition)(0),          // 6: dockwell.resource.v1alpha1.AlertRule.Condition
 	(AlertRule_Severity)(0),           // 7: dockwell.resource.v1alpha1.AlertRule.Severity
-	(*Container)(nil),                 // 8: dockwell.resource.v1alpha1.Container
-	(*Tmpfs)(nil),                     // 9: dockwell.resource.v1alpha1.Tmpfs
-	(*Resources)(nil),                 // 10: dockwell.resource.v1alpha1.Resources
-	(*Rollout)(nil),                   // 11: dockwell.resource.v1alpha1.Rollout
-	(*Mount)(nil),                     // 12: dockwell.resource.v1alpha1.Mount
-	(*Healthcheck)(nil),               // 13: dockwell.resource.v1alpha1.Healthcheck
-	(*HttpCheck)(nil),                 // 14: dockwell.resource.v1alpha1.HttpCheck
-	(*TcpCheck)(nil),                  // 15: dockwell.resource.v1alpha1.TcpCheck
-	(*PortMapping)(nil),               // 16: dockwell.resource.v1alpha1.PortMapping
-	(*FirewallRule)(nil),              // 17: dockwell.resource.v1alpha1.FirewallRule
-	(*Project)(nil),                   // 18: dockwell.resource.v1alpha1.Project
-	(*Website)(nil),                   // 19: dockwell.resource.v1alpha1.Website
-	(*WebsitePhp)(nil),                // 20: dockwell.resource.v1alpha1.WebsitePhp
-	(*WebsiteFolder)(nil),             // 21: dockwell.resource.v1alpha1.WebsiteFolder
-	(*WebsiteProxy)(nil),              // 22: dockwell.resource.v1alpha1.WebsiteProxy
-	(*CatalogPin)(nil),                // 23: dockwell.resource.v1alpha1.CatalogPin
-	(*Environment)(nil),               // 24: dockwell.resource.v1alpha1.Environment
-	(*Service)(nil),                   // 25: dockwell.resource.v1alpha1.Service
-	(*Variable)(nil),                  // 26: dockwell.resource.v1alpha1.Variable
-	(*Secret)(nil),                    // 27: dockwell.resource.v1alpha1.Secret
-	(*Volume)(nil),                    // 28: dockwell.resource.v1alpha1.Volume
-	(*BackupPolicy)(nil),              // 29: dockwell.resource.v1alpha1.BackupPolicy
-	(*BackupDestination)(nil),         // 30: dockwell.resource.v1alpha1.BackupDestination
-	(*Network)(nil),                   // 31: dockwell.resource.v1alpha1.Network
-	(*Route)(nil),                     // 32: dockwell.resource.v1alpha1.Route
-	(*Spec)(nil),                      // 33: dockwell.resource.v1alpha1.Spec
-	(*Task)(nil),                      // 34: dockwell.resource.v1alpha1.Task
-	(*TaskShell)(nil),                 // 35: dockwell.resource.v1alpha1.TaskShell
-	(*TaskApp)(nil),                   // 36: dockwell.resource.v1alpha1.TaskApp
-	(*TaskRequest)(nil),               // 37: dockwell.resource.v1alpha1.TaskRequest
-	(*AlertRule)(nil),                 // 38: dockwell.resource.v1alpha1.AlertRule
-	(*AlertChannel)(nil),              // 39: dockwell.resource.v1alpha1.AlertChannel
-	(*AlertWebhook)(nil),              // 40: dockwell.resource.v1alpha1.AlertWebhook
-	nil,                               // 41: dockwell.resource.v1alpha1.Container.EnvEntry
-	nil,                               // 42: dockwell.resource.v1alpha1.Container.LabelsEntry
-	nil,                               // 43: dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
-	nil,                               // 44: dockwell.resource.v1alpha1.Service.VariablesEntry
-	nil,                               // 45: dockwell.resource.v1alpha1.Service.SecretsEntry
-	nil,                               // 46: dockwell.resource.v1alpha1.Service.RevisionsEntry
-	nil,                               // 47: dockwell.resource.v1alpha1.Volume.OptionsEntry
-	nil,                               // 48: dockwell.resource.v1alpha1.Volume.LabelsEntry
-	nil,                               // 49: dockwell.resource.v1alpha1.Network.OptionsEntry
-	nil,                               // 50: dockwell.resource.v1alpha1.Network.LabelsEntry
-	(*descriptorpb.FieldOptions)(nil), // 51: google.protobuf.FieldOptions
+	(AlertEmail_Security)(0),          // 8: dockwell.resource.v1alpha1.AlertEmail.Security
+	(*Container)(nil),                 // 9: dockwell.resource.v1alpha1.Container
+	(*Tmpfs)(nil),                     // 10: dockwell.resource.v1alpha1.Tmpfs
+	(*Resources)(nil),                 // 11: dockwell.resource.v1alpha1.Resources
+	(*Rollout)(nil),                   // 12: dockwell.resource.v1alpha1.Rollout
+	(*Mount)(nil),                     // 13: dockwell.resource.v1alpha1.Mount
+	(*Healthcheck)(nil),               // 14: dockwell.resource.v1alpha1.Healthcheck
+	(*HttpCheck)(nil),                 // 15: dockwell.resource.v1alpha1.HttpCheck
+	(*TcpCheck)(nil),                  // 16: dockwell.resource.v1alpha1.TcpCheck
+	(*PortMapping)(nil),               // 17: dockwell.resource.v1alpha1.PortMapping
+	(*FirewallRule)(nil),              // 18: dockwell.resource.v1alpha1.FirewallRule
+	(*Project)(nil),                   // 19: dockwell.resource.v1alpha1.Project
+	(*Website)(nil),                   // 20: dockwell.resource.v1alpha1.Website
+	(*WebsitePhp)(nil),                // 21: dockwell.resource.v1alpha1.WebsitePhp
+	(*WebsiteFolder)(nil),             // 22: dockwell.resource.v1alpha1.WebsiteFolder
+	(*WebsiteProxy)(nil),              // 23: dockwell.resource.v1alpha1.WebsiteProxy
+	(*CatalogPin)(nil),                // 24: dockwell.resource.v1alpha1.CatalogPin
+	(*Environment)(nil),               // 25: dockwell.resource.v1alpha1.Environment
+	(*Service)(nil),                   // 26: dockwell.resource.v1alpha1.Service
+	(*Variable)(nil),                  // 27: dockwell.resource.v1alpha1.Variable
+	(*Secret)(nil),                    // 28: dockwell.resource.v1alpha1.Secret
+	(*Volume)(nil),                    // 29: dockwell.resource.v1alpha1.Volume
+	(*BackupPolicy)(nil),              // 30: dockwell.resource.v1alpha1.BackupPolicy
+	(*BackupDestination)(nil),         // 31: dockwell.resource.v1alpha1.BackupDestination
+	(*Network)(nil),                   // 32: dockwell.resource.v1alpha1.Network
+	(*Route)(nil),                     // 33: dockwell.resource.v1alpha1.Route
+	(*Spec)(nil),                      // 34: dockwell.resource.v1alpha1.Spec
+	(*Task)(nil),                      // 35: dockwell.resource.v1alpha1.Task
+	(*TaskShell)(nil),                 // 36: dockwell.resource.v1alpha1.TaskShell
+	(*TaskApp)(nil),                   // 37: dockwell.resource.v1alpha1.TaskApp
+	(*TaskRequest)(nil),               // 38: dockwell.resource.v1alpha1.TaskRequest
+	(*AlertRule)(nil),                 // 39: dockwell.resource.v1alpha1.AlertRule
+	(*AlertChannel)(nil),              // 40: dockwell.resource.v1alpha1.AlertChannel
+	(*AlertWebhook)(nil),              // 41: dockwell.resource.v1alpha1.AlertWebhook
+	(*AlertEmail)(nil),                // 42: dockwell.resource.v1alpha1.AlertEmail
+	(*AlertNtfy)(nil),                 // 43: dockwell.resource.v1alpha1.AlertNtfy
+	(*AlertSlack)(nil),                // 44: dockwell.resource.v1alpha1.AlertSlack
+	(*AlertDiscord)(nil),              // 45: dockwell.resource.v1alpha1.AlertDiscord
+	(*AlertTelegram)(nil),             // 46: dockwell.resource.v1alpha1.AlertTelegram
+	nil,                               // 47: dockwell.resource.v1alpha1.Container.EnvEntry
+	nil,                               // 48: dockwell.resource.v1alpha1.Container.LabelsEntry
+	nil,                               // 49: dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
+	nil,                               // 50: dockwell.resource.v1alpha1.Service.VariablesEntry
+	nil,                               // 51: dockwell.resource.v1alpha1.Service.SecretsEntry
+	nil,                               // 52: dockwell.resource.v1alpha1.Service.RevisionsEntry
+	nil,                               // 53: dockwell.resource.v1alpha1.Volume.OptionsEntry
+	nil,                               // 54: dockwell.resource.v1alpha1.Volume.LabelsEntry
+	nil,                               // 55: dockwell.resource.v1alpha1.Network.OptionsEntry
+	nil,                               // 56: dockwell.resource.v1alpha1.Network.LabelsEntry
+	(*descriptorpb.FieldOptions)(nil), // 57: google.protobuf.FieldOptions
 }
 var file_dockwell_resource_v1alpha1_specs_proto_depIdxs = []int32{
-	41, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
-	16, // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
+	47, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
+	17, // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
 	2,  // 2: dockwell.resource.v1alpha1.Container.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
-	42, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
-	12, // 4: dockwell.resource.v1alpha1.Container.mounts:type_name -> dockwell.resource.v1alpha1.Mount
-	13, // 5: dockwell.resource.v1alpha1.Container.healthcheck:type_name -> dockwell.resource.v1alpha1.Healthcheck
-	11, // 6: dockwell.resource.v1alpha1.Container.rollout:type_name -> dockwell.resource.v1alpha1.Rollout
-	10, // 7: dockwell.resource.v1alpha1.Container.resources:type_name -> dockwell.resource.v1alpha1.Resources
-	9,  // 8: dockwell.resource.v1alpha1.Container.tmpfs:type_name -> dockwell.resource.v1alpha1.Tmpfs
+	48, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
+	13, // 4: dockwell.resource.v1alpha1.Container.mounts:type_name -> dockwell.resource.v1alpha1.Mount
+	14, // 5: dockwell.resource.v1alpha1.Container.healthcheck:type_name -> dockwell.resource.v1alpha1.Healthcheck
+	12, // 6: dockwell.resource.v1alpha1.Container.rollout:type_name -> dockwell.resource.v1alpha1.Rollout
+	11, // 7: dockwell.resource.v1alpha1.Container.resources:type_name -> dockwell.resource.v1alpha1.Resources
+	10, // 8: dockwell.resource.v1alpha1.Container.tmpfs:type_name -> dockwell.resource.v1alpha1.Tmpfs
 	0,  // 9: dockwell.resource.v1alpha1.Rollout.order:type_name -> dockwell.resource.v1alpha1.RolloutOrder
 	1,  // 10: dockwell.resource.v1alpha1.Mount.relabel:type_name -> dockwell.resource.v1alpha1.Relabel
-	14, // 11: dockwell.resource.v1alpha1.Healthcheck.http:type_name -> dockwell.resource.v1alpha1.HttpCheck
-	15, // 12: dockwell.resource.v1alpha1.Healthcheck.tcp:type_name -> dockwell.resource.v1alpha1.TcpCheck
+	15, // 11: dockwell.resource.v1alpha1.Healthcheck.http:type_name -> dockwell.resource.v1alpha1.HttpCheck
+	16, // 12: dockwell.resource.v1alpha1.Healthcheck.tcp:type_name -> dockwell.resource.v1alpha1.TcpCheck
 	3,  // 13: dockwell.resource.v1alpha1.PortMapping.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
 	4,  // 14: dockwell.resource.v1alpha1.FirewallRule.action:type_name -> dockwell.resource.v1alpha1.FirewallAction
 	3,  // 15: dockwell.resource.v1alpha1.FirewallRule.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
-	23, // 16: dockwell.resource.v1alpha1.Project.catalog:type_name -> dockwell.resource.v1alpha1.CatalogPin
-	19, // 17: dockwell.resource.v1alpha1.Project.website:type_name -> dockwell.resource.v1alpha1.Website
-	22, // 18: dockwell.resource.v1alpha1.Website.proxy:type_name -> dockwell.resource.v1alpha1.WebsiteProxy
-	21, // 19: dockwell.resource.v1alpha1.Website.folder:type_name -> dockwell.resource.v1alpha1.WebsiteFolder
-	20, // 20: dockwell.resource.v1alpha1.Website.php:type_name -> dockwell.resource.v1alpha1.WebsitePhp
-	43, // 21: dockwell.resource.v1alpha1.CatalogPin.values:type_name -> dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
-	8,  // 22: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
-	44, // 23: dockwell.resource.v1alpha1.Service.variables:type_name -> dockwell.resource.v1alpha1.Service.VariablesEntry
-	45, // 24: dockwell.resource.v1alpha1.Service.secrets:type_name -> dockwell.resource.v1alpha1.Service.SecretsEntry
-	46, // 25: dockwell.resource.v1alpha1.Service.revisions:type_name -> dockwell.resource.v1alpha1.Service.RevisionsEntry
-	47, // 26: dockwell.resource.v1alpha1.Volume.options:type_name -> dockwell.resource.v1alpha1.Volume.OptionsEntry
-	48, // 27: dockwell.resource.v1alpha1.Volume.labels:type_name -> dockwell.resource.v1alpha1.Volume.LabelsEntry
+	24, // 16: dockwell.resource.v1alpha1.Project.catalog:type_name -> dockwell.resource.v1alpha1.CatalogPin
+	20, // 17: dockwell.resource.v1alpha1.Project.website:type_name -> dockwell.resource.v1alpha1.Website
+	23, // 18: dockwell.resource.v1alpha1.Website.proxy:type_name -> dockwell.resource.v1alpha1.WebsiteProxy
+	22, // 19: dockwell.resource.v1alpha1.Website.folder:type_name -> dockwell.resource.v1alpha1.WebsiteFolder
+	21, // 20: dockwell.resource.v1alpha1.Website.php:type_name -> dockwell.resource.v1alpha1.WebsitePhp
+	49, // 21: dockwell.resource.v1alpha1.CatalogPin.values:type_name -> dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
+	9,  // 22: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
+	50, // 23: dockwell.resource.v1alpha1.Service.variables:type_name -> dockwell.resource.v1alpha1.Service.VariablesEntry
+	51, // 24: dockwell.resource.v1alpha1.Service.secrets:type_name -> dockwell.resource.v1alpha1.Service.SecretsEntry
+	52, // 25: dockwell.resource.v1alpha1.Service.revisions:type_name -> dockwell.resource.v1alpha1.Service.RevisionsEntry
+	53, // 26: dockwell.resource.v1alpha1.Volume.options:type_name -> dockwell.resource.v1alpha1.Volume.OptionsEntry
+	54, // 27: dockwell.resource.v1alpha1.Volume.labels:type_name -> dockwell.resource.v1alpha1.Volume.LabelsEntry
 	5,  // 28: dockwell.resource.v1alpha1.BackupPolicy.every:type_name -> dockwell.resource.v1alpha1.BackupPolicy.Every
-	49, // 29: dockwell.resource.v1alpha1.Network.options:type_name -> dockwell.resource.v1alpha1.Network.OptionsEntry
-	50, // 30: dockwell.resource.v1alpha1.Network.labels:type_name -> dockwell.resource.v1alpha1.Network.LabelsEntry
-	18, // 31: dockwell.resource.v1alpha1.Spec.project:type_name -> dockwell.resource.v1alpha1.Project
-	24, // 32: dockwell.resource.v1alpha1.Spec.environment:type_name -> dockwell.resource.v1alpha1.Environment
-	25, // 33: dockwell.resource.v1alpha1.Spec.service:type_name -> dockwell.resource.v1alpha1.Service
-	8,  // 34: dockwell.resource.v1alpha1.Spec.container:type_name -> dockwell.resource.v1alpha1.Container
-	17, // 35: dockwell.resource.v1alpha1.Spec.firewall_rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
-	28, // 36: dockwell.resource.v1alpha1.Spec.volume:type_name -> dockwell.resource.v1alpha1.Volume
-	31, // 37: dockwell.resource.v1alpha1.Spec.network:type_name -> dockwell.resource.v1alpha1.Network
-	26, // 38: dockwell.resource.v1alpha1.Spec.variable:type_name -> dockwell.resource.v1alpha1.Variable
-	27, // 39: dockwell.resource.v1alpha1.Spec.secret:type_name -> dockwell.resource.v1alpha1.Secret
-	32, // 40: dockwell.resource.v1alpha1.Spec.route:type_name -> dockwell.resource.v1alpha1.Route
-	29, // 41: dockwell.resource.v1alpha1.Spec.backup_policy:type_name -> dockwell.resource.v1alpha1.BackupPolicy
-	30, // 42: dockwell.resource.v1alpha1.Spec.backup_destination:type_name -> dockwell.resource.v1alpha1.BackupDestination
-	38, // 43: dockwell.resource.v1alpha1.Spec.alert_rule:type_name -> dockwell.resource.v1alpha1.AlertRule
-	39, // 44: dockwell.resource.v1alpha1.Spec.alert_channel:type_name -> dockwell.resource.v1alpha1.AlertChannel
-	34, // 45: dockwell.resource.v1alpha1.Spec.task:type_name -> dockwell.resource.v1alpha1.Task
-	35, // 46: dockwell.resource.v1alpha1.Task.shell:type_name -> dockwell.resource.v1alpha1.TaskShell
-	36, // 47: dockwell.resource.v1alpha1.Task.app:type_name -> dockwell.resource.v1alpha1.TaskApp
-	37, // 48: dockwell.resource.v1alpha1.Task.request:type_name -> dockwell.resource.v1alpha1.TaskRequest
+	55, // 29: dockwell.resource.v1alpha1.Network.options:type_name -> dockwell.resource.v1alpha1.Network.OptionsEntry
+	56, // 30: dockwell.resource.v1alpha1.Network.labels:type_name -> dockwell.resource.v1alpha1.Network.LabelsEntry
+	19, // 31: dockwell.resource.v1alpha1.Spec.project:type_name -> dockwell.resource.v1alpha1.Project
+	25, // 32: dockwell.resource.v1alpha1.Spec.environment:type_name -> dockwell.resource.v1alpha1.Environment
+	26, // 33: dockwell.resource.v1alpha1.Spec.service:type_name -> dockwell.resource.v1alpha1.Service
+	9,  // 34: dockwell.resource.v1alpha1.Spec.container:type_name -> dockwell.resource.v1alpha1.Container
+	18, // 35: dockwell.resource.v1alpha1.Spec.firewall_rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
+	29, // 36: dockwell.resource.v1alpha1.Spec.volume:type_name -> dockwell.resource.v1alpha1.Volume
+	32, // 37: dockwell.resource.v1alpha1.Spec.network:type_name -> dockwell.resource.v1alpha1.Network
+	27, // 38: dockwell.resource.v1alpha1.Spec.variable:type_name -> dockwell.resource.v1alpha1.Variable
+	28, // 39: dockwell.resource.v1alpha1.Spec.secret:type_name -> dockwell.resource.v1alpha1.Secret
+	33, // 40: dockwell.resource.v1alpha1.Spec.route:type_name -> dockwell.resource.v1alpha1.Route
+	30, // 41: dockwell.resource.v1alpha1.Spec.backup_policy:type_name -> dockwell.resource.v1alpha1.BackupPolicy
+	31, // 42: dockwell.resource.v1alpha1.Spec.backup_destination:type_name -> dockwell.resource.v1alpha1.BackupDestination
+	39, // 43: dockwell.resource.v1alpha1.Spec.alert_rule:type_name -> dockwell.resource.v1alpha1.AlertRule
+	40, // 44: dockwell.resource.v1alpha1.Spec.alert_channel:type_name -> dockwell.resource.v1alpha1.AlertChannel
+	35, // 45: dockwell.resource.v1alpha1.Spec.task:type_name -> dockwell.resource.v1alpha1.Task
+	36, // 46: dockwell.resource.v1alpha1.Task.shell:type_name -> dockwell.resource.v1alpha1.TaskShell
+	37, // 47: dockwell.resource.v1alpha1.Task.app:type_name -> dockwell.resource.v1alpha1.TaskApp
+	38, // 48: dockwell.resource.v1alpha1.Task.request:type_name -> dockwell.resource.v1alpha1.TaskRequest
 	6,  // 49: dockwell.resource.v1alpha1.AlertRule.condition:type_name -> dockwell.resource.v1alpha1.AlertRule.Condition
 	7,  // 50: dockwell.resource.v1alpha1.AlertRule.severity:type_name -> dockwell.resource.v1alpha1.AlertRule.Severity
-	40, // 51: dockwell.resource.v1alpha1.AlertChannel.webhook:type_name -> dockwell.resource.v1alpha1.AlertWebhook
-	51, // 52: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
-	53, // [53:53] is the sub-list for method output_type
-	53, // [53:53] is the sub-list for method input_type
-	53, // [53:53] is the sub-list for extension type_name
-	52, // [52:53] is the sub-list for extension extendee
-	0,  // [0:52] is the sub-list for field type_name
+	41, // 51: dockwell.resource.v1alpha1.AlertChannel.webhook:type_name -> dockwell.resource.v1alpha1.AlertWebhook
+	42, // 52: dockwell.resource.v1alpha1.AlertChannel.email:type_name -> dockwell.resource.v1alpha1.AlertEmail
+	43, // 53: dockwell.resource.v1alpha1.AlertChannel.ntfy:type_name -> dockwell.resource.v1alpha1.AlertNtfy
+	44, // 54: dockwell.resource.v1alpha1.AlertChannel.slack:type_name -> dockwell.resource.v1alpha1.AlertSlack
+	45, // 55: dockwell.resource.v1alpha1.AlertChannel.discord:type_name -> dockwell.resource.v1alpha1.AlertDiscord
+	46, // 56: dockwell.resource.v1alpha1.AlertChannel.telegram:type_name -> dockwell.resource.v1alpha1.AlertTelegram
+	8,  // 57: dockwell.resource.v1alpha1.AlertEmail.security:type_name -> dockwell.resource.v1alpha1.AlertEmail.Security
+	57, // 58: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
+	59, // [59:59] is the sub-list for method output_type
+	59, // [59:59] is the sub-list for method input_type
+	59, // [59:59] is the sub-list for extension type_name
+	58, // [58:59] is the sub-list for extension extendee
+	0,  // [0:58] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_resource_v1alpha1_specs_proto_init() }
@@ -4264,14 +4776,19 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 	}
 	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[31].OneofWrappers = []any{
 		(*AlertChannel_Webhook)(nil),
+		(*AlertChannel_Email)(nil),
+		(*AlertChannel_Ntfy)(nil),
+		(*AlertChannel_Slack)(nil),
+		(*AlertChannel_Discord)(nil),
+		(*AlertChannel_Telegram)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_resource_v1alpha1_specs_proto_rawDesc), len(file_dockwell_resource_v1alpha1_specs_proto_rawDesc)),
-			NumEnums:      8,
-			NumMessages:   43,
+			NumEnums:      9,
+			NumMessages:   48,
 			NumExtensions: 1,
 			NumServices:   0,
 		},
