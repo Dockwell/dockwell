@@ -194,7 +194,7 @@ func databaseServerStep(d *dockwellv1.OnePanelDatabaseServer) *dockwellv1.Import
 		return s
 	}
 	s.Action = dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON
-	s.Becomes = fmt.Sprintf("taken on with the app %s, with its data where it is", d.GetApp())
+	s.Becomes = fmt.Sprintf("part of the project %s, with its data where it is", strings.ToLower(d.GetApp()))
 	return s
 }
 
