@@ -869,12 +869,12 @@ const file_dockwell_v1_update_proto_rawDesc = "" +
 	"\rPackageEffect\x12\x1e\n" +
 	"\x1aPACKAGE_EFFECT_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15PACKAGE_EFFECT_REBOOT\x10\x01\x12!\n" +
-	"\x1dPACKAGE_EFFECT_DOCKER_RESTART\x10\x022\xdb\x02\n" +
-	"\rUpdateService\x12\x9a\x01\n" +
-	"\x10GetServerUpdates\x12$.dockwell.v1.GetServerUpdatesRequest\x1a%.dockwell.v1.GetServerUpdatesResponse\"9\xa0\xbb\x18\x01\xaa\xbb\x18\x0e\n" +
-	"\aupdates\x12\x03get\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/servers/{id}/updates\x90\x02\x01\x12\xac\x01\n" +
-	"\x12CheckServerUpdates\x12&.dockwell.v1.CheckServerUpdatesRequest\x1a'.dockwell.v1.CheckServerUpdatesResponse\"E\xa0\xbb\x18\x01\xaa\xbb\x18\x10\n" +
-	"\aupdates\x12\x05check\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/servers/{id}/updates:checkB\xa4\x01\n" +
+	"\x1dPACKAGE_EFFECT_DOCKER_RESTART\x10\x022\xf3\x02\n" +
+	"\rUpdateService\x12\xa6\x01\n" +
+	"\x10GetServerUpdates\x12$.dockwell.v1.GetServerUpdatesRequest\x1a%.dockwell.v1.GetServerUpdatesResponse\"E\xa0\xbb\x18\x01\xaa\xbb\x18\x0e\n" +
+	"\aupdates\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/servers/{id}/updates\x90\x02\x01\x12\xb8\x01\n" +
+	"\x12CheckServerUpdates\x12&.dockwell.v1.CheckServerUpdatesRequest\x1a'.dockwell.v1.CheckServerUpdatesResponse\"Q\xa0\xbb\x18\x01\xaa\xbb\x18\x10\n" +
+	"\aupdates\x12\x05check\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/servers/{id}/updates:checkB\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vUpdateProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
