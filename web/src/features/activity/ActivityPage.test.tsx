@@ -316,6 +316,44 @@ describe("Activity", () => {
     await screen.findByRole("row", { name: /Set the time zone for new schedules to Europe\/Amsterdam(?!,)/ });
   });
 
+  it("is one row for the same file read again and again, saying how often, and the day counts each", async () => {
+    const user = userEvent.setup();
+    const on = { id: "srv_1", name: "hz-1" };
+    const read = (id: string, minutesAgo: number, path = "/etc/os-release", actor?: typeof signIn.actor) =>
+      auditEvent({
+        id,
+        action: "file.read",
+        time: timestampFromDate(new Date(Date.now() - minutesAgo * 60_000)),
+        subject: { ...on, path },
+        ...(actor ? { actor } : {}),
+      });
+    renderAt("/activity", {
+      events: {
+        watchEvents: feedOf(
+          snapshot([
+            read("evt_r1", 1),
+            read("evt_r2", 2),
+            read("evt_r3", 4),
+            // Another file, then the same one again but long after: rows of their own.
+            read("evt_other", 5, "/etc/hosts"),
+            read("evt_r4", 6),
+            read("evt_r5", 30),
+          ]),
+        ),
+        listEvents: () => ({}),
+      },
+    });
+    const rows = await screen.findAllByRole("row", { name: /Read \/etc\/os-release on hz-1/ });
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveTextContent("3 times");
+    expect(rows[1]).not.toHaveTextContent("times");
+    expect(screen.getByRole("row", { name: /Read \/etc\/hosts on hz-1/ })).toBeVisible();
+    expect(screen.getByText(/· 6 events$/)).toBeVisible();
+    await user.click(rows[0] as HTMLElement);
+    const detail = await screen.findByRole("region", { name: /Read \/etc\/os-release on hz-1/ });
+    expect(detail).toHaveTextContent("Times3, from 11:56 to 11:59");
+  });
+
   it("shows what was read of a server and what wasn't, and leads to the file", async () => {
     const user = userEvent.setup();
     const watch = feed<WatchEventsResponse>();
@@ -624,6 +662,23 @@ describe("Activity", () => {
     expect(link).toHaveAttribute("href", `/apps/${service?.id}/logs?change=${failedChange.id}`);
     await userEvent.setup().click(link);
     await waitFor(() => expect(router.state.location.pathname).toBe(`/apps/${service?.id}/logs`));
+  });
+
+  it("links a deploy that went well to the logs of what it started too, as Logs for r57 does", async () => {
+    const planned = webPlanned();
+    const service = planned.plan?.resources[0];
+    if (service?.resource) service.resource.kind = "service";
+    const done = applied(planned, new Date(Date.now() - 60_000));
+    renderAt(`/activity?event=${done.id}`, {
+      events: { watchEvents: feedOf(snapshot([changeEvent(done)])) },
+      changes: { getChange: () => ({ change: done }) },
+      logs: {
+        listLogSources: () => ({ sources: [{ id: "aaaaaaaaaaaa", changeId: done.id }] }),
+        watchLogs: quietLogs,
+      },
+    });
+    const link = await screen.findByRole("link", { name: "Read this deploy's logs" });
+    expect(link).toHaveAttribute("href", `/apps/${service?.id}/logs?change=${done.id}`);
   });
 
   it("offers no logs of a deploy that never made a container", async () => {
