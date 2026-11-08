@@ -89,7 +89,7 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
-	cfg.OnePanel = func(ctx context.Context) (*agentv1.ReadOnePanelResult, error) { return onepanel.Read(ctx, "/") }
+	cfg.OnePanel = serverOnePanel(stdio)
 	lookups(&cfg, stdio, g)
 	return agent.Run(ctx, cfg)
 }
@@ -154,6 +154,22 @@ func serverUpdates(stdio IO, logger *slog.Logger, stateDir string) *updates.Read
 		}
 	}
 	return updates.New(o)
+}
+
+// serverOnePanel reads what 1Panel keeps on this server (ADR 0056). A test reads
+// nothing of the machine it runs on: with DOCKWELL_TEST set, only what's under
+// DOCKWELL_TEST_ONEPANEL, and nothing without it.
+func serverOnePanel(stdio IO) func(context.Context) (*agentv1.ReadOnePanelResult, error) {
+	root := "/"
+	if isSet(stdio.Getenv(envTest)) {
+		root = stdio.Getenv(envTestOnePanel)
+	}
+	return func(ctx context.Context) (*agentv1.ReadOnePanelResult, error) {
+		if root == "" {
+			return &agentv1.ReadOnePanelResult{NotHere: "this is a test, so Dockwell reads no 1Panel here. Set " + envTestOnePanel + " to a folder laid out as a server's root"}, nil
+		}
+		return onepanel.Read(ctx, root)
+	}
 }
 
 // ingressEvery is how often the agent puts the server's ingress as its routes
