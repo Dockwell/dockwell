@@ -25,6 +25,95 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ListenerReachReason is why a listener reaches as far as it does.
+type ListenerReachReason int32
+
+const (
+	ListenerReachReason_LISTENER_REACH_REASON_UNSPECIFIED ListenerReachReason = 0
+	// A ufw rule names an app profile whose ports ufw doesn't say.
+	ListenerReachReason_LISTENER_REACH_REASON_APP_PROFILE ListenerReachReason = 1
+	// A firewalld service the agent doesn't know the ports of.
+	ListenerReachReason_LISTENER_REACH_REASON_SERVICE ListenerReachReason = 2
+	// firewalld's rich rules, which run before the zone's ports and services,
+	// and which the agent doesn't weigh.
+	ListenerReachReason_LISTENER_REACH_REASON_RICH_RULE ListenerReachReason = 3
+	// A rule on an interface, as which one traffic arrives on isn't known.
+	ListenerReachReason_LISTENER_REACH_REASON_INTERFACE ListenerReachReason = 4
+	// A rule to one of the server's addresses alone.
+	ListenerReachReason_LISTENER_REACH_REASON_DESTINATION ListenerReachReason = 5
+	// firewalld zones that treat it differently, by which interface traffic
+	// arrives on.
+	ListenerReachReason_LISTENER_REACH_REASON_ZONES ListenerReachReason = 6
+	// A firewall here couldn't be read: decided_by names it.
+	ListenerReachReason_LISTENER_REACH_REASON_UNREADABLE ListenerReachReason = 7
+	// Rules the agent doesn't weigh one by one, in the nftables table or
+	// iptables chain decided_by names, may drop it.
+	ListenerReachReason_LISTENER_REACH_REASON_OTHER_RULES ListenerReachReason = 8
+	// Docker couldn't be read, and this may be a port it publishes, which ufw's
+	// and firewalld's input rules don't cover.
+	ListenerReachReason_LISTENER_REACH_REASON_DOCKER_UNKNOWN ListenerReachReason = 9
+	// ufw always lets it in, by its own before.rules: DHCP replies, mDNS and
+	// UPnP discovery.
+	ListenerReachReason_LISTENER_REACH_REASON_BUILT_IN ListenerReachReason = 10
+)
+
+// Enum value maps for ListenerReachReason.
+var (
+	ListenerReachReason_name = map[int32]string{
+		0:  "LISTENER_REACH_REASON_UNSPECIFIED",
+		1:  "LISTENER_REACH_REASON_APP_PROFILE",
+		2:  "LISTENER_REACH_REASON_SERVICE",
+		3:  "LISTENER_REACH_REASON_RICH_RULE",
+		4:  "LISTENER_REACH_REASON_INTERFACE",
+		5:  "LISTENER_REACH_REASON_DESTINATION",
+		6:  "LISTENER_REACH_REASON_ZONES",
+		7:  "LISTENER_REACH_REASON_UNREADABLE",
+		8:  "LISTENER_REACH_REASON_OTHER_RULES",
+		9:  "LISTENER_REACH_REASON_DOCKER_UNKNOWN",
+		10: "LISTENER_REACH_REASON_BUILT_IN",
+	}
+	ListenerReachReason_value = map[string]int32{
+		"LISTENER_REACH_REASON_UNSPECIFIED":    0,
+		"LISTENER_REACH_REASON_APP_PROFILE":    1,
+		"LISTENER_REACH_REASON_SERVICE":        2,
+		"LISTENER_REACH_REASON_RICH_RULE":      3,
+		"LISTENER_REACH_REASON_INTERFACE":      4,
+		"LISTENER_REACH_REASON_DESTINATION":    5,
+		"LISTENER_REACH_REASON_ZONES":          6,
+		"LISTENER_REACH_REASON_UNREADABLE":     7,
+		"LISTENER_REACH_REASON_OTHER_RULES":    8,
+		"LISTENER_REACH_REASON_DOCKER_UNKNOWN": 9,
+		"LISTENER_REACH_REASON_BUILT_IN":       10,
+	}
+)
+
+func (x ListenerReachReason) Enum() *ListenerReachReason {
+	p := new(ListenerReachReason)
+	*p = x
+	return p
+}
+
+func (x ListenerReachReason) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ListenerReachReason) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_firewall_proto_enumTypes[0].Descriptor()
+}
+
+func (ListenerReachReason) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_firewall_proto_enumTypes[0]
+}
+
+func (x ListenerReachReason) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ListenerReachReason.Descriptor instead.
+func (ListenerReachReason) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{0}
+}
+
 // ListenerReach is how far something listening on the server reaches.
 type ListenerReach int32
 
@@ -32,12 +121,11 @@ const (
 	ListenerReach_LISTENER_REACH_UNSPECIFIED ListenerReach = 0
 	// Nothing here closes it: anyone who reaches the server reaches it.
 	ListenerReach_LISTENER_REACH_OPEN ListenerReach = 1
-	// Only from some sources, as a rule says.
+	// Only from some sources, or on some interfaces, as a rule says.
 	ListenerReach_LISTENER_REACH_SOME ListenerReach = 2
 	// A firewall here closes it.
 	ListenerReach_LISTENER_REACH_CLOSED ListenerReach = 3
-	// A rule names it by a service, such as "ssh", which the agent doesn't
-	// resolve, or a firewall it can't read decides: it can't say.
+	// The agent can't tell, and reason says why. Never read as open.
 	ListenerReach_LISTENER_REACH_UNKNOWN ListenerReach = 4
 )
 
@@ -70,11 +158,11 @@ func (x ListenerReach) String() string {
 }
 
 func (ListenerReach) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_firewall_proto_enumTypes[0].Descriptor()
+	return file_dockwell_v1_firewall_proto_enumTypes[1].Descriptor()
 }
 
 func (ListenerReach) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_firewall_proto_enumTypes[0]
+	return &file_dockwell_v1_firewall_proto_enumTypes[1]
 }
 
 func (x ListenerReach) Number() protoreflect.EnumNumber {
@@ -83,7 +171,7 @@ func (x ListenerReach) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ListenerReach.Descriptor instead.
 func (ListenerReach) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{1}
 }
 
 // FirewallToolKind is a firewall a server can have.
@@ -100,6 +188,9 @@ const (
 	// iptables-legacy's rules, which run beside nftables's, and whose drops win
 	// as any table's do.
 	FirewallToolKind_FIREWALL_TOOL_KIND_IPTABLES_LEGACY FirewallToolKind = 4
+	// iptables's rules, as iptables-save lists them, read on a server without
+	// nft.
+	FirewallToolKind_FIREWALL_TOOL_KIND_IPTABLES FirewallToolKind = 5
 )
 
 // Enum value maps for FirewallToolKind.
@@ -110,6 +201,7 @@ var (
 		2: "FIREWALL_TOOL_KIND_FIREWALLD",
 		3: "FIREWALL_TOOL_KIND_NFTABLES",
 		4: "FIREWALL_TOOL_KIND_IPTABLES_LEGACY",
+		5: "FIREWALL_TOOL_KIND_IPTABLES",
 	}
 	FirewallToolKind_value = map[string]int32{
 		"FIREWALL_TOOL_KIND_UNSPECIFIED":     0,
@@ -117,6 +209,7 @@ var (
 		"FIREWALL_TOOL_KIND_FIREWALLD":       2,
 		"FIREWALL_TOOL_KIND_NFTABLES":        3,
 		"FIREWALL_TOOL_KIND_IPTABLES_LEGACY": 4,
+		"FIREWALL_TOOL_KIND_IPTABLES":        5,
 	}
 )
 
@@ -131,11 +224,11 @@ func (x FirewallToolKind) String() string {
 }
 
 func (FirewallToolKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_firewall_proto_enumTypes[1].Descriptor()
+	return file_dockwell_v1_firewall_proto_enumTypes[2].Descriptor()
 }
 
 func (FirewallToolKind) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_firewall_proto_enumTypes[1]
+	return &file_dockwell_v1_firewall_proto_enumTypes[2]
 }
 
 func (x FirewallToolKind) Number() protoreflect.EnumNumber {
@@ -144,7 +237,7 @@ func (x FirewallToolKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FirewallToolKind.Descriptor instead.
 func (FirewallToolKind) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{2}
 }
 
 // FirewallVerdict is what a rule, or a firewall's default, does with traffic.
@@ -191,11 +284,11 @@ func (x FirewallVerdict) String() string {
 }
 
 func (FirewallVerdict) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_firewall_proto_enumTypes[2].Descriptor()
+	return file_dockwell_v1_firewall_proto_enumTypes[3].Descriptor()
 }
 
 func (FirewallVerdict) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_firewall_proto_enumTypes[2]
+	return &file_dockwell_v1_firewall_proto_enumTypes[3]
 }
 
 func (x FirewallVerdict) Number() protoreflect.EnumNumber {
@@ -204,7 +297,7 @@ func (x FirewallVerdict) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FirewallVerdict.Descriptor instead.
 func (FirewallVerdict) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{3}
 }
 
 // GetServerFirewallRequest names a server.
@@ -317,8 +410,12 @@ type ServerFirewall struct {
 	// Why the agent couldn't read the ports Docker publishes, such as that Docker
 	// isn't answering. Empty when it could.
 	PublishedUnreadable string `protobuf:"bytes,5,opt,name=published_unreadable,json=publishedUnreadable,proto3" json:"published_unreadable,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// How many rules Docker's DOCKER-USER chains hold, beyond the return Docker
+	// puts there, as ufw-docker or a person adds. They filter published ports,
+	// and the agent doesn't weigh them one by one.
+	DockerUserRules uint32 `protobuf:"varint,6,opt,name=docker_user_rules,json=dockerUserRules,proto3" json:"docker_user_rules,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ServerFirewall) Reset() {
@@ -386,6 +483,13 @@ func (x *ServerFirewall) GetPublishedUnreadable() string {
 	return ""
 }
 
+func (x *ServerFirewall) GetDockerUserRules() uint32 {
+	if x != nil {
+		return x.DockerUserRules
+	}
+	return 0
+}
+
 // HostListener is a port something on the server listens on, beyond loopback.
 type HostListener struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -400,7 +504,12 @@ type HostListener struct {
 	// The firewall that decides that, such as "ufw", when one does.
 	DecidedBy string `protobuf:"bytes,5,opt,name=decided_by,json=decidedBy,proto3" json:"decided_by,omitempty"`
 	// The sources a rule lets in from, when only some may reach it.
-	Sources       []string `protobuf:"bytes,6,rep,name=sources,proto3" json:"sources,omitempty"`
+	Sources []string `protobuf:"bytes,6,rep,name=sources,proto3" json:"sources,omitempty"`
+	// The interfaces a rule lets it in on, when only those may reach it.
+	Interfaces []string `protobuf:"bytes,7,rep,name=interfaces,proto3" json:"interfaces,omitempty"`
+	// Why the reach is what it is, when that needs saying: why the agent can't
+	// tell, or that a firewall lets it in by a rule of its own.
+	Reason        ListenerReachReason `protobuf:"varint,8,opt,name=reason,proto3,enum=dockwell.v1.ListenerReachReason" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -477,13 +586,27 @@ func (x *HostListener) GetSources() []string {
 	return nil
 }
 
+func (x *HostListener) GetInterfaces() []string {
+	if x != nil {
+		return x.Interfaces
+	}
+	return nil
+}
+
+func (x *HostListener) GetReason() ListenerReachReason {
+	if x != nil {
+		return x.Reason
+	}
+	return ListenerReachReason_LISTENER_REACH_REASON_UNSPECIFIED
+}
+
 // FirewallTool is one firewall on a server, and what it does.
 type FirewallTool struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What it is.
 	Kind FirewallToolKind `protobuf:"varint,1,opt,name=kind,proto3,enum=dockwell.v1.FirewallToolKind" json:"kind,omitempty"`
-	// Which: an nftables table, such as "inet filter", or firewalld's zone, such
-	// as "public". Empty for ufw.
+	// Which: an nftables table, such as "inet filter", firewalld's zone, such as
+	// "public", or iptables's family, "IPv4" or "IPv6". Empty for ufw.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// True when it filters traffic now.
 	Active bool `protobuf:"varint,3,opt,name=active,proto3" json:"active,omitempty"`
@@ -495,12 +618,25 @@ type FirewallTool struct {
 	// Rules it holds that aren't a port and a source, as it says them, such as
 	// firewalld's rich rules.
 	Other []string `protobuf:"bytes,6,rep,name=other,proto3" json:"other,omitempty"`
-	// How many rules an nftables table, or iptables-legacy, holds, which the agent
+	// How many rules an nftables table, or iptables, holds, which the agent
 	// doesn't read one by one. Zero for ufw and firewalld, whose rules are in rules.
 	RuleCount uint32 `protobuf:"varint,7,opt,name=rule_count,json=ruleCount,proto3" json:"rule_count,omitempty"`
 	// Why the agent couldn't read it, such as that the agent doesn't run as root.
 	// Empty when it could.
-	Unreadable    string `protobuf:"bytes,8,opt,name=unreadable,proto3" json:"unreadable,omitempty"`
+	Unreadable string `protobuf:"bytes,8,opt,name=unreadable,proto3" json:"unreadable,omitempty"`
+	// The interfaces a firewalld zone takes traffic from.
+	Interfaces []string `protobuf:"bytes,9,rep,name=interfaces,proto3" json:"interfaces,omitempty"`
+	// The sources a firewalld zone takes traffic from, which come before its
+	// interfaces.
+	Sources []string `protobuf:"bytes,10,rep,name=sources,proto3" json:"sources,omitempty"`
+	// True for firewalld's default zone, which takes what no other zone does.
+	DefaultZone bool `protobuf:"varint,11,opt,name=default_zone,json=defaultZone,proto3" json:"default_zone,omitempty"`
+	// What an nftables table's or iptables's input chain does with what no rule
+	// matches. Unspecified when it has no input chain.
+	InputPolicy FirewallVerdict `protobuf:"varint,12,opt,name=input_policy,json=inputPolicy,proto3,enum=dockwell.v1.FirewallVerdict" json:"input_policy,omitempty"`
+	// How many rules its input chain holds. With a policy that drops, or any
+	// rule, it may close what listens on the server.
+	InputRules    uint32 `protobuf:"varint,13,opt,name=input_rules,json=inputRules,proto3" json:"input_rules,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -591,6 +727,41 @@ func (x *FirewallTool) GetUnreadable() string {
 	return ""
 }
 
+func (x *FirewallTool) GetInterfaces() []string {
+	if x != nil {
+		return x.Interfaces
+	}
+	return nil
+}
+
+func (x *FirewallTool) GetSources() []string {
+	if x != nil {
+		return x.Sources
+	}
+	return nil
+}
+
+func (x *FirewallTool) GetDefaultZone() bool {
+	if x != nil {
+		return x.DefaultZone
+	}
+	return false
+}
+
+func (x *FirewallTool) GetInputPolicy() FirewallVerdict {
+	if x != nil {
+		return x.InputPolicy
+	}
+	return FirewallVerdict_FIREWALL_VERDICT_UNSPECIFIED
+}
+
+func (x *FirewallTool) GetInputRules() uint32 {
+	if x != nil {
+		return x.InputRules
+	}
+	return 0
+}
+
 // FirewallSeenRule is one rule of a firewall Dockwell didn't make.
 type FirewallSeenRule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -604,7 +775,14 @@ type FirewallSeenRule struct {
 	// True when it covers IPv6 alone.
 	Ipv6 bool `protobuf:"varint,4,opt,name=ipv6,proto3" json:"ipv6,omitempty"`
 	// The comment it has, if any.
-	Comment       string `protobuf:"bytes,5,opt,name=comment,proto3" json:"comment,omitempty"`
+	Comment string `protobuf:"bytes,5,opt,name=comment,proto3" json:"comment,omitempty"`
+	// The app profile ufw names it by, such as "OpenSSH", when it has one.
+	App string `protobuf:"bytes,6,opt,name=app,proto3" json:"app,omitempty"`
+	// The interface it covers alone, such as "eth0", when it has one.
+	Interface string `protobuf:"bytes,7,opt,name=interface,proto3" json:"interface,omitempty"`
+	// The server's address it covers alone, such as "203.0.113.5", when it has
+	// one. Empty for every address.
+	Destination   string `protobuf:"bytes,8,opt,name=destination,proto3" json:"destination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -674,6 +852,27 @@ func (x *FirewallSeenRule) GetComment() string {
 	return ""
 }
 
+func (x *FirewallSeenRule) GetApp() string {
+	if x != nil {
+		return x.App
+	}
+	return ""
+}
+
+func (x *FirewallSeenRule) GetInterface() string {
+	if x != nil {
+		return x.Interface
+	}
+	return ""
+}
+
+func (x *FirewallSeenRule) GetDestination() string {
+	if x != nil {
+		return x.Destination
+	}
+	return ""
+}
+
 // PublishedPort is a port Docker publishes on the server for a container.
 type PublishedPort struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -687,6 +886,10 @@ type PublishedPort struct {
 	Protocol string `protobuf:"bytes,4,opt,name=protocol,proto3" json:"protocol,omitempty"`
 	// The port in the container.
 	ContainerPort uint32 `protobuf:"varint,5,opt,name=container_port,json=containerPort,proto3" json:"container_port,omitempty"`
+	// True when Docker's proxy on the server takes this port's traffic, as for
+	// IPv6 to a container on networks without IPv6. That traffic arrives on the
+	// input chain, so the server's input rules cover it, as for what listens.
+	Proxied       bool `protobuf:"varint,6,opt,name=proxied,proto3" json:"proxied,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -756,6 +959,13 @@ func (x *PublishedPort) GetContainerPort() uint32 {
 	return 0
 }
 
+func (x *PublishedPort) GetProxied() bool {
+	if x != nil {
+		return x.Proxied
+	}
+	return false
+}
+
 var File_dockwell_v1_firewall_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_firewall_proto_rawDesc = "" +
@@ -764,13 +974,14 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\x18GetServerFirewallRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\"T\n" +
 	"\x19GetServerFirewallResponse\x127\n" +
-	"\bfirewall\x18\x01 \x01(\v2\x1b.dockwell.v1.ServerFirewallR\bfirewall\"\x97\x02\n" +
+	"\bfirewall\x18\x01 \x01(\v2\x1b.dockwell.v1.ServerFirewallR\bfirewall\"\xc3\x02\n" +
 	"\x0eServerFirewall\x12.\n" +
 	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12/\n" +
 	"\x05tools\x18\x02 \x03(\v2\x19.dockwell.v1.FirewallToolR\x05tools\x128\n" +
 	"\tpublished\x18\x03 \x03(\v2\x1a.dockwell.v1.PublishedPortR\tpublished\x127\n" +
 	"\tlistening\x18\x04 \x03(\v2\x19.dockwell.v1.HostListenerR\tlistening\x121\n" +
-	"\x14published_unreadable\x18\x05 \x01(\tR\x13publishedUnreadable\"\xc3\x01\n" +
+	"\x14published_unreadable\x18\x05 \x01(\tR\x13publishedUnreadable\x12*\n" +
+	"\x11docker_user_rules\x18\x06 \x01(\rR\x0fdockerUserRules\"\x9d\x02\n" +
 	"\fHostListener\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12\x1a\n" +
@@ -778,7 +989,11 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\x05reach\x18\x04 \x01(\x0e2\x1a.dockwell.v1.ListenerReachR\x05reach\x12\x1d\n" +
 	"\n" +
 	"decided_by\x18\x05 \x01(\tR\tdecidedBy\x12\x18\n" +
-	"\asources\x18\x06 \x03(\tR\asources\"\xbe\x02\n" +
+	"\asources\x18\x06 \x03(\tR\asources\x12\x1e\n" +
+	"\n" +
+	"interfaces\x18\a \x03(\tR\n" +
+	"interfaces\x128\n" +
+	"\x06reason\x18\b \x01(\x0e2 .dockwell.v1.ListenerReachReasonR\x06reason\"\xfd\x03\n" +
 	"\fFirewallTool\x121\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1d.dockwell.v1.FirewallToolKindR\x04kind\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
@@ -790,31 +1005,58 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"rule_count\x18\a \x01(\rR\truleCount\x12\x1e\n" +
 	"\n" +
 	"unreadable\x18\b \x01(\tR\n" +
-	"unreadable\"\xa4\x01\n" +
+	"unreadable\x12\x1e\n" +
+	"\n" +
+	"interfaces\x18\t \x03(\tR\n" +
+	"interfaces\x12\x18\n" +
+	"\asources\x18\n" +
+	" \x03(\tR\asources\x12!\n" +
+	"\fdefault_zone\x18\v \x01(\bR\vdefaultZone\x12?\n" +
+	"\finput_policy\x18\f \x01(\x0e2\x1c.dockwell.v1.FirewallVerdictR\vinputPolicy\x12\x1f\n" +
+	"\vinput_rules\x18\r \x01(\rR\n" +
+	"inputRules\"\xf6\x01\n" +
 	"\x10FirewallSeenRule\x126\n" +
 	"\averdict\x18\x01 \x01(\x0e2\x1c.dockwell.v1.FirewallVerdictR\averdict\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\tR\x04port\x12\x16\n" +
 	"\x06source\x18\x03 \x01(\tR\x06source\x12\x12\n" +
 	"\x04ipv6\x18\x04 \x01(\bR\x04ipv6\x12\x18\n" +
-	"\acomment\x18\x05 \x01(\tR\acomment\"\xa6\x01\n" +
+	"\acomment\x18\x05 \x01(\tR\acomment\x12\x10\n" +
+	"\x03app\x18\x06 \x01(\tR\x03app\x12\x1c\n" +
+	"\tinterface\x18\a \x01(\tR\tinterface\x12 \n" +
+	"\vdestination\x18\b \x01(\tR\vdestination\"\xc0\x01\n" +
 	"\rPublishedPort\x12\x1c\n" +
 	"\tcontainer\x18\x01 \x01(\tR\tcontainer\x12\x17\n" +
 	"\ahost_ip\x18\x02 \x01(\tR\x06hostIp\x12\x1b\n" +
 	"\thost_port\x18\x03 \x01(\rR\bhostPort\x12\x1a\n" +
 	"\bprotocol\x18\x04 \x01(\tR\bprotocol\x12%\n" +
-	"\x0econtainer_port\x18\x05 \x01(\rR\rcontainerPort*\x98\x01\n" +
+	"\x0econtainer_port\x18\x05 \x01(\rR\rcontainerPort\x12\x18\n" +
+	"\aproxied\x18\x06 \x01(\bR\aproxied*\xb3\x03\n" +
+	"\x13ListenerReachReason\x12%\n" +
+	"!LISTENER_REACH_REASON_UNSPECIFIED\x10\x00\x12%\n" +
+	"!LISTENER_REACH_REASON_APP_PROFILE\x10\x01\x12!\n" +
+	"\x1dLISTENER_REACH_REASON_SERVICE\x10\x02\x12#\n" +
+	"\x1fLISTENER_REACH_REASON_RICH_RULE\x10\x03\x12#\n" +
+	"\x1fLISTENER_REACH_REASON_INTERFACE\x10\x04\x12%\n" +
+	"!LISTENER_REACH_REASON_DESTINATION\x10\x05\x12\x1f\n" +
+	"\x1bLISTENER_REACH_REASON_ZONES\x10\x06\x12$\n" +
+	" LISTENER_REACH_REASON_UNREADABLE\x10\a\x12%\n" +
+	"!LISTENER_REACH_REASON_OTHER_RULES\x10\b\x12(\n" +
+	"$LISTENER_REACH_REASON_DOCKER_UNKNOWN\x10\t\x12\"\n" +
+	"\x1eLISTENER_REACH_REASON_BUILT_IN\x10\n" +
+	"*\x98\x01\n" +
 	"\rListenerReach\x12\x1e\n" +
 	"\x1aLISTENER_REACH_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13LISTENER_REACH_OPEN\x10\x01\x12\x17\n" +
 	"\x13LISTENER_REACH_SOME\x10\x02\x12\x19\n" +
 	"\x15LISTENER_REACH_CLOSED\x10\x03\x12\x1a\n" +
-	"\x16LISTENER_REACH_UNKNOWN\x10\x04*\xbd\x01\n" +
+	"\x16LISTENER_REACH_UNKNOWN\x10\x04*\xde\x01\n" +
 	"\x10FirewallToolKind\x12\"\n" +
 	"\x1eFIREWALL_TOOL_KIND_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16FIREWALL_TOOL_KIND_UFW\x10\x01\x12 \n" +
 	"\x1cFIREWALL_TOOL_KIND_FIREWALLD\x10\x02\x12\x1f\n" +
 	"\x1bFIREWALL_TOOL_KIND_NFTABLES\x10\x03\x12&\n" +
-	"\"FIREWALL_TOOL_KIND_IPTABLES_LEGACY\x10\x04*\xa3\x01\n" +
+	"\"FIREWALL_TOOL_KIND_IPTABLES_LEGACY\x10\x04\x12\x1f\n" +
+	"\x1bFIREWALL_TOOL_KIND_IPTABLES\x10\x05*\xa3\x01\n" +
 	"\x0fFirewallVerdict\x12 \n" +
 	"\x1cFIREWALL_VERDICT_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16FIREWALL_VERDICT_ALLOW\x10\x01\x12\x19\n" +
@@ -838,39 +1080,42 @@ func file_dockwell_v1_firewall_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_firewall_proto_rawDescData
 }
 
-var file_dockwell_v1_firewall_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_dockwell_v1_firewall_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
 var file_dockwell_v1_firewall_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_dockwell_v1_firewall_proto_goTypes = []any{
-	(ListenerReach)(0),                // 0: dockwell.v1.ListenerReach
-	(FirewallToolKind)(0),             // 1: dockwell.v1.FirewallToolKind
-	(FirewallVerdict)(0),              // 2: dockwell.v1.FirewallVerdict
-	(*GetServerFirewallRequest)(nil),  // 3: dockwell.v1.GetServerFirewallRequest
-	(*GetServerFirewallResponse)(nil), // 4: dockwell.v1.GetServerFirewallResponse
-	(*ServerFirewall)(nil),            // 5: dockwell.v1.ServerFirewall
-	(*HostListener)(nil),              // 6: dockwell.v1.HostListener
-	(*FirewallTool)(nil),              // 7: dockwell.v1.FirewallTool
-	(*FirewallSeenRule)(nil),          // 8: dockwell.v1.FirewallSeenRule
-	(*PublishedPort)(nil),             // 9: dockwell.v1.PublishedPort
-	(*timestamppb.Timestamp)(nil),     // 10: google.protobuf.Timestamp
+	(ListenerReachReason)(0),          // 0: dockwell.v1.ListenerReachReason
+	(ListenerReach)(0),                // 1: dockwell.v1.ListenerReach
+	(FirewallToolKind)(0),             // 2: dockwell.v1.FirewallToolKind
+	(FirewallVerdict)(0),              // 3: dockwell.v1.FirewallVerdict
+	(*GetServerFirewallRequest)(nil),  // 4: dockwell.v1.GetServerFirewallRequest
+	(*GetServerFirewallResponse)(nil), // 5: dockwell.v1.GetServerFirewallResponse
+	(*ServerFirewall)(nil),            // 6: dockwell.v1.ServerFirewall
+	(*HostListener)(nil),              // 7: dockwell.v1.HostListener
+	(*FirewallTool)(nil),              // 8: dockwell.v1.FirewallTool
+	(*FirewallSeenRule)(nil),          // 9: dockwell.v1.FirewallSeenRule
+	(*PublishedPort)(nil),             // 10: dockwell.v1.PublishedPort
+	(*timestamppb.Timestamp)(nil),     // 11: google.protobuf.Timestamp
 }
 var file_dockwell_v1_firewall_proto_depIdxs = []int32{
-	5,  // 0: dockwell.v1.GetServerFirewallResponse.firewall:type_name -> dockwell.v1.ServerFirewall
-	10, // 1: dockwell.v1.ServerFirewall.time:type_name -> google.protobuf.Timestamp
-	7,  // 2: dockwell.v1.ServerFirewall.tools:type_name -> dockwell.v1.FirewallTool
-	9,  // 3: dockwell.v1.ServerFirewall.published:type_name -> dockwell.v1.PublishedPort
-	6,  // 4: dockwell.v1.ServerFirewall.listening:type_name -> dockwell.v1.HostListener
-	0,  // 5: dockwell.v1.HostListener.reach:type_name -> dockwell.v1.ListenerReach
-	1,  // 6: dockwell.v1.FirewallTool.kind:type_name -> dockwell.v1.FirewallToolKind
-	2,  // 7: dockwell.v1.FirewallTool.default_inbound:type_name -> dockwell.v1.FirewallVerdict
-	8,  // 8: dockwell.v1.FirewallTool.rules:type_name -> dockwell.v1.FirewallSeenRule
-	2,  // 9: dockwell.v1.FirewallSeenRule.verdict:type_name -> dockwell.v1.FirewallVerdict
-	3,  // 10: dockwell.v1.FirewallService.GetServerFirewall:input_type -> dockwell.v1.GetServerFirewallRequest
-	4,  // 11: dockwell.v1.FirewallService.GetServerFirewall:output_type -> dockwell.v1.GetServerFirewallResponse
-	11, // [11:12] is the sub-list for method output_type
-	10, // [10:11] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	6,  // 0: dockwell.v1.GetServerFirewallResponse.firewall:type_name -> dockwell.v1.ServerFirewall
+	11, // 1: dockwell.v1.ServerFirewall.time:type_name -> google.protobuf.Timestamp
+	8,  // 2: dockwell.v1.ServerFirewall.tools:type_name -> dockwell.v1.FirewallTool
+	10, // 3: dockwell.v1.ServerFirewall.published:type_name -> dockwell.v1.PublishedPort
+	7,  // 4: dockwell.v1.ServerFirewall.listening:type_name -> dockwell.v1.HostListener
+	1,  // 5: dockwell.v1.HostListener.reach:type_name -> dockwell.v1.ListenerReach
+	0,  // 6: dockwell.v1.HostListener.reason:type_name -> dockwell.v1.ListenerReachReason
+	2,  // 7: dockwell.v1.FirewallTool.kind:type_name -> dockwell.v1.FirewallToolKind
+	3,  // 8: dockwell.v1.FirewallTool.default_inbound:type_name -> dockwell.v1.FirewallVerdict
+	9,  // 9: dockwell.v1.FirewallTool.rules:type_name -> dockwell.v1.FirewallSeenRule
+	3,  // 10: dockwell.v1.FirewallTool.input_policy:type_name -> dockwell.v1.FirewallVerdict
+	3,  // 11: dockwell.v1.FirewallSeenRule.verdict:type_name -> dockwell.v1.FirewallVerdict
+	4,  // 12: dockwell.v1.FirewallService.GetServerFirewall:input_type -> dockwell.v1.GetServerFirewallRequest
+	5,  // 13: dockwell.v1.FirewallService.GetServerFirewall:output_type -> dockwell.v1.GetServerFirewallResponse
+	13, // [13:14] is the sub-list for method output_type
+	12, // [12:13] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_firewall_proto_init() }
@@ -884,7 +1129,7 @@ func file_dockwell_v1_firewall_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_firewall_proto_rawDesc), len(file_dockwell_v1_firewall_proto_rawDesc)),
-			NumEnums:      3,
+			NumEnums:      4,
 			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,

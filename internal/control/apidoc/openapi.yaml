@@ -1790,10 +1790,12 @@ paths:
                 - FirewallService
             description: |-
                 GetServerFirewall reads, through the server's agent, the firewalls already
-                 there, ufw, firewalld, nftables's tables and iptables-legacy, with what each
-                 allows and drops; what listens on the server, and how far each reaches past
-                 them; and the ports Docker publishes, which reach their containers past a
-                 firewall's input rules.
+                 there, each with its own tool: ufw, firewalld's zones, nftables's tables
+                 other than ufw's, Docker's and firewalld's, and iptables-legacy, or
+                 iptables on a server without nft. It says what each allows and drops; what
+                 listens on the server, and how far each reaches past them, never open
+                 where it can't tell; and the ports Docker publishes, which reach their
+                 containers past ufw's and firewalld's input rules.
             operationId: FirewallService_GetServerFirewall
             parameters:
                 - name: serverId
@@ -5787,6 +5789,17 @@ components:
                 comment:
                     type: string
                     description: The comment it has, if any.
+                app:
+                    type: string
+                    description: The app profile ufw names it by, such as "OpenSSH", when it has one.
+                interface:
+                    type: string
+                    description: The interface it covers alone, such as "eth0", when it has one.
+                destination:
+                    type: string
+                    description: |-
+                        The server's address it covers alone, such as "203.0.113.5", when it has
+                         one. Empty for every address.
             description: FirewallSeenRule is one rule of a firewall Dockwell didn't make.
         FirewallTool:
             type: object
@@ -5798,14 +5811,15 @@ components:
                         - FIREWALL_TOOL_KIND_FIREWALLD
                         - FIREWALL_TOOL_KIND_NFTABLES
                         - FIREWALL_TOOL_KIND_IPTABLES_LEGACY
+                        - FIREWALL_TOOL_KIND_IPTABLES
                     type: string
                     description: What it is.
                     format: enum
                 name:
                     type: string
                     description: |-
-                        Which: an nftables table, such as "inet filter", or firewalld's zone, such
-                         as "public". Empty for ufw.
+                        Which: an nftables table, such as "inet filter", firewalld's zone, such as
+                         "public", or iptables's family, "IPv4" or "IPv6". Empty for ufw.
                 active:
                     type: boolean
                     description: True when it filters traffic now.
@@ -5836,7 +5850,7 @@ components:
                 ruleCount:
                     type: integer
                     description: |-
-                        How many rules an nftables table, or iptables-legacy, holds, which the agent
+                        How many rules an nftables table, or iptables, holds, which the agent
                          doesn't read one by one. Zero for ufw and firewalld, whose rules are in rules.
                     format: uint32
                 unreadable:
@@ -5844,6 +5858,39 @@ components:
                     description: |-
                         Why the agent couldn't read it, such as that the agent doesn't run as root.
                          Empty when it could.
+                interfaces:
+                    type: array
+                    items:
+                        type: string
+                    description: The interfaces a firewalld zone takes traffic from.
+                sources:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The sources a firewalld zone takes traffic from, which come before its
+                         interfaces.
+                defaultZone:
+                    type: boolean
+                    description: True for firewalld's default zone, which takes what no other zone does.
+                inputPolicy:
+                    enum:
+                        - FIREWALL_VERDICT_UNSPECIFIED
+                        - FIREWALL_VERDICT_ALLOW
+                        - FIREWALL_VERDICT_DENY
+                        - FIREWALL_VERDICT_REJECT
+                        - FIREWALL_VERDICT_LIMIT
+                    type: string
+                    description: |-
+                        What an nftables table's or iptables's input chain does with what no rule
+                         matches. Unspecified when it has no input chain.
+                    format: enum
+                inputRules:
+                    type: integer
+                    description: |-
+                        How many rules its input chain holds. With a policy that drops, or any
+                         rule, it may close what listens on the server.
+                    format: uint32
             description: FirewallTool is one firewall on a server, and what it does.
         GetAuthStateResponse:
             type: object
@@ -6226,6 +6273,29 @@ components:
                     items:
                         type: string
                     description: The sources a rule lets in from, when only some may reach it.
+                interfaces:
+                    type: array
+                    items:
+                        type: string
+                    description: The interfaces a rule lets it in on, when only those may reach it.
+                reason:
+                    enum:
+                        - LISTENER_REACH_REASON_UNSPECIFIED
+                        - LISTENER_REACH_REASON_APP_PROFILE
+                        - LISTENER_REACH_REASON_SERVICE
+                        - LISTENER_REACH_REASON_RICH_RULE
+                        - LISTENER_REACH_REASON_INTERFACE
+                        - LISTENER_REACH_REASON_DESTINATION
+                        - LISTENER_REACH_REASON_ZONES
+                        - LISTENER_REACH_REASON_UNREADABLE
+                        - LISTENER_REACH_REASON_OTHER_RULES
+                        - LISTENER_REACH_REASON_DOCKER_UNKNOWN
+                        - LISTENER_REACH_REASON_BUILT_IN
+                    type: string
+                    description: |-
+                        Why the reach is what it is, when that needs saying: why the agent can't
+                         tell, or that a firewall lets it in by a rule of its own.
+                    format: enum
             description: HostListener is a port something on the server listens on, beyond loopback.
         HttpCheck:
             type: object
@@ -7923,6 +7993,12 @@ components:
                     type: integer
                     description: The port in the container.
                     format: uint32
+                proxied:
+                    type: boolean
+                    description: |-
+                        True when Docker's proxy on the server takes this port's traffic, as for
+                         IPv6 to a container on networks without IPv6. That traffic arrives on the
+                         input chain, so the server's input rules cover it, as for what listens.
             description: PublishedPort is a port Docker publishes on the server for a container.
         ReadFileRequest:
             type: object
@@ -8882,6 +8958,13 @@ components:
                     description: |-
                         Why the agent couldn't read the ports Docker publishes, such as that Docker
                          isn't answering. Empty when it could.
+                dockerUserRules:
+                    type: integer
+                    description: |-
+                        How many rules Docker's DOCKER-USER chains hold, beyond the return Docker
+                         puts there, as ufw-docker or a person adds. They filter published ports,
+                         and the agent doesn't weigh them one by one.
+                    format: uint32
             description: ServerFirewall is what filters a server's inbound traffic, as its agent read it.
         ServerHealth:
             type: object

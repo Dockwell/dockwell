@@ -90,35 +90,37 @@ func procAddress(field string) (netip.Addr, uint16, bool) {
 	return addr.Unmap(), uint16(port), true
 }
 
-// reachOf works out how far a listener reaches past the firewalls that cover it:
-// ufw's and firewalld's, read by their own tools. nftables's other tables and
-// iptables-legacy aren't weighed rule by rule, which the tab says.
-func reachOf(l *dockwellv1.HostListener, tools []*dockwellv1.FirewallTool) {
-	l.Reach = dockwellv1.ListenerReach_LISTENER_REACH_OPEN
-	for _, tool := range tools {
-		if !tool.GetActive() && tool.GetUnreadable() == "" {
-			continue
-		}
-		var reach dockwellv1.ListenerReach
-		var sources []string
-		switch {
-		case tool.GetUnreadable() != "" && (tool.GetKind() == dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_UFW || tool.GetKind() == dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_FIREWALLD):
-			reach = dockwellv1.ListenerReach_LISTENER_REACH_UNKNOWN
-		case tool.GetKind() == dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_UFW:
-			reach, sources = ufwReach(l, tool)
-		case tool.GetKind() == dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_FIREWALLD:
-			reach = firewalldReach(l, tool)
-		default:
-			continue
-		}
-		// The narrowest of the firewalls wins: a drop anywhere drops.
-		if reachRank(reach) > reachRank(l.GetReach()) {
-			l.Reach, l.DecidedBy, l.Sources = reach, toolName(tool), sources
-		}
-	}
+// listenerKey is a listener's port and protocol, whatever its address.
+func listenerKey(l *dockwellv1.HostListener) string {
+	return l.GetProtocol() + " " + strconv.Itoa(int(l.GetPort()))
 }
 
-func reachRank(r dockwellv1.ListenerReach) int {
+// boundOnIPv4 is the ports, by protocol, something holds on every IPv4 address.
+// A socket on "::" beside one of them takes IPv6 alone; on its own, it takes
+// IPv4 too, as Linux has it by default.
+func boundOnIPv4(found []*dockwellv1.HostListener) map[string]bool {
+	out := map[string]bool{}
+	for _, l := range found {
+		if l.GetAddress() == "0.0.0.0" {
+			out[listenerKey(l)] = true
+		}
+	}
+	return out
+}
+
+// reached is how far a listener reaches past one firewall, or past them all.
+type reached struct {
+	reach      dockwellv1.ListenerReach
+	by         string
+	sources    []string
+	interfaces []string
+	reason     dockwellv1.ListenerReachReason
+}
+
+// narrowness ranks a reach from open to closed: a drop in any firewall drops,
+// and what one firewall can't say, the whole can't either, unless another
+// closes it.
+func narrowness(r dockwellv1.ListenerReach) int {
 	switch r {
 	case dockwellv1.ListenerReach_LISTENER_REACH_SOME:
 		return 1
@@ -131,106 +133,129 @@ func reachRank(r dockwellv1.ListenerReach) int {
 	}
 }
 
+// reachOptions are what reach depends on beyond the firewalls.
+type reachOptions struct {
+	// dualStack is a socket on "::" alone, which takes IPv4 and IPv6 both.
+	dualStack bool
+	// dockerUnknown is Docker not saying which ports it publishes, so a
+	// listener may be its proxy for a published port.
+	dockerUnknown bool
+}
+
+// reachOf works out how far a listener reaches past the firewalls here, for
+// each family it takes, and the wider of them for a socket that takes both.
+// Each firewall is weighed by its own rules: ufw's and firewalld's one by one;
+// a table or chain the agent doesn't weigh one by one, or a firewall it
+// couldn't read, makes what nothing else closes read "can't tell", never open.
+func reachOf(l *dockwellv1.HostListener, tools []*dockwellv1.FirewallTool, opts reachOptions) {
+	var r reached
+	switch {
+	case opts.dualStack:
+		r = wider(reachFor(l, tools, 4), reachFor(l, tools, 6))
+	case strings.Contains(l.GetAddress(), ":"):
+		r = reachFor(l, tools, 6)
+	default:
+		r = reachFor(l, tools, 4)
+	}
+	// Docker's proxy listens on the ports Docker publishes, which ufw's and
+	// firewalld's rules don't cover; without Docker's list, any of these may be one.
+	if opts.dockerUnknown && (r.reach == dockwellv1.ListenerReach_LISTENER_REACH_CLOSED || r.reach == dockwellv1.ListenerReach_LISTENER_REACH_SOME) {
+		r = reached{reach: dockwellv1.ListenerReach_LISTENER_REACH_UNKNOWN, by: r.by, reason: dockwellv1.ListenerReachReason_LISTENER_REACH_REASON_DOCKER_UNKNOWN}
+	}
+	l.Reach, l.DecidedBy, l.Sources, l.Interfaces, l.Reason = r.reach, r.by, r.sources, r.interfaces, r.reason
+}
+
+// reachFor weighs a listener over one family against every firewall that
+// covers that family, the narrowest winning.
+func reachFor(l *dockwellv1.HostListener, tools []*dockwellv1.FirewallTool, family int) reached {
+	out := reached{reach: dockwellv1.ListenerReach_LISTENER_REACH_OPEN}
+	take := func(r reached) {
+		n, have := narrowness(r.reach), narrowness(out.reach)
+		// An open that a firewall decided says more than one nothing decided.
+		if n > have || (n == have && out.by == "" && r.by != "") {
+			out = r
+		}
+	}
+	var zones []*dockwellv1.FirewallTool
+	for _, tool := range tools {
+		if !coversFamily(tool, family) {
+			continue
+		}
+		if tool.GetUnreadable() != "" {
+			take(reached{reach: dockwellv1.ListenerReach_LISTENER_REACH_UNKNOWN, by: toolName(tool), reason: dockwellv1.ListenerReachReason_LISTENER_REACH_REASON_UNREADABLE})
+			continue
+		}
+		if !tool.GetActive() {
+			continue
+		}
+		switch tool.GetKind() {
+		case dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_UFW:
+			take(ufwReach(l, tool, family))
+		case dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_FIREWALLD:
+			zones = append(zones, tool)
+		default:
+			if tool.GetInputRules() > 0 || tool.GetInputPolicy() == dockwellv1.FirewallVerdict_FIREWALL_VERDICT_DENY {
+				take(reached{reach: dockwellv1.ListenerReach_LISTENER_REACH_UNKNOWN, by: toolName(tool), reason: dockwellv1.ListenerReachReason_LISTENER_REACH_REASON_OTHER_RULES})
+			}
+		}
+	}
+	if len(zones) > 0 {
+		take(firewalldReach(l, zones, family))
+	}
+	return out
+}
+
+// wider is how far a socket that takes both families reaches: as far as the
+// farther of the two.
+func wider(a, b reached) reached {
+	if narrowness(b.reach) < narrowness(a.reach) {
+		a, b = b, a
+	}
+	if a.reach == dockwellv1.ListenerReach_LISTENER_REACH_SOME && b.reach == dockwellv1.ListenerReach_LISTENER_REACH_SOME {
+		for _, s := range b.sources {
+			a.sources = appendNew(a.sources, s)
+		}
+		for _, i := range b.interfaces {
+			a.interfaces = appendNew(a.interfaces, i)
+		}
+	}
+	return a
+}
+
+// coversFamily says whether a firewall filters a family: ufw and firewalld do
+// both, an nftables table its own, and iptables its own.
+func coversFamily(tool *dockwellv1.FirewallTool, family int) bool {
+	switch tool.GetKind() {
+	case dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_NFTABLES:
+		f, _, _ := strings.Cut(tool.GetName(), " ")
+		n := nftFamily(f)
+		return n == 0 || n == family
+	case dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_IPTABLES, dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_IPTABLES_LEGACY:
+		switch tool.GetName() {
+		case "IPv4":
+			return family == 4
+		case "IPv6":
+			return family == 6
+		}
+	case dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_UFW, dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_FIREWALLD,
+		dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_UNSPECIFIED:
+	}
+	return true
+}
+
 func toolName(tool *dockwellv1.FirewallTool) string {
 	switch tool.GetKind() {
 	case dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_UFW:
 		return "ufw"
 	case dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_FIREWALLD:
 		return "firewalld"
+	case dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_IPTABLES_LEGACY:
+		return strings.TrimSpace("iptables-legacy " + tool.GetName())
+	case dockwellv1.FirewallToolKind_FIREWALL_TOOL_KIND_IPTABLES:
+		return strings.TrimSpace("iptables " + tool.GetName())
 	default:
-		return tool.GetName()
+		return strings.TrimSpace("nftables " + tool.GetName())
 	}
-}
-
-// ufwReach takes ufw's first rule that covers the listener, as ufw does, or its
-// default for what comes in. A rule naming an app profile, which the agent
-// doesn't resolve, leaves it unknown when nothing else decides.
-func ufwReach(l *dockwellv1.HostListener, tool *dockwellv1.FirewallTool) (dockwellv1.ListenerReach, []string) {
-	ipv6 := strings.Contains(l.GetAddress(), ":")
-	named := false
-	var allowedFrom []string
-	for _, r := range tool.GetRules() {
-		if r.GetIpv6() && !ipv6 {
-			continue
-		}
-		covers, known := ufwCovers(r.GetPort(), l)
-		if !known {
-			named = true
-			continue
-		}
-		if !covers {
-			continue
-		}
-		switch r.GetVerdict() {
-		case dockwellv1.FirewallVerdict_FIREWALL_VERDICT_ALLOW, dockwellv1.FirewallVerdict_FIREWALL_VERDICT_LIMIT:
-			if r.GetSource() == "" {
-				// Whoever an earlier rule let in, this lets in everyone else.
-				return dockwellv1.ListenerReach_LISTENER_REACH_OPEN, nil
-			}
-			allowedFrom = append(allowedFrom, r.GetSource())
-		case dockwellv1.FirewallVerdict_FIREWALL_VERDICT_DENY, dockwellv1.FirewallVerdict_FIREWALL_VERDICT_REJECT:
-			if r.GetSource() == "" {
-				if len(allowedFrom) > 0 {
-					return dockwellv1.ListenerReach_LISTENER_REACH_SOME, allowedFrom
-				}
-				return dockwellv1.ListenerReach_LISTENER_REACH_CLOSED, nil
-			}
-		default:
-			// A verdict this agent doesn't know decides nothing here.
-		}
-	}
-	if named {
-		return dockwellv1.ListenerReach_LISTENER_REACH_UNKNOWN, nil
-	}
-	// What no rule matched goes by the default. When that allows, everyone gets
-	// in, not only the sources a rule named.
-	reach := byDefault(tool.GetDefaultInbound())
-	if len(allowedFrom) > 0 && reach == dockwellv1.ListenerReach_LISTENER_REACH_CLOSED {
-		return dockwellv1.ListenerReach_LISTENER_REACH_SOME, allowedFrom
-	}
-	return reach, nil
-}
-
-// ufwCovers is portCovers for a ufw rule, whose "To" is "Anywhere" for every port.
-func ufwCovers(to string, l *dockwellv1.HostListener) (covers, known bool) {
-	if to == "Anywhere" {
-		return true, true
-	}
-	return portCovers(to, l.GetPort(), l.GetProtocol(), "-:")
-}
-
-// firewalldReach is open when a port of the zone covers the listener, unknown
-// when a service or rich rule might and the agent doesn't resolve them, and the
-// zone's target otherwise.
-func firewalldReach(l *dockwellv1.HostListener, tool *dockwellv1.FirewallTool) dockwellv1.ListenerReach {
-	named := len(tool.GetOther()) > 0
-	for _, r := range tool.GetRules() {
-		covers, known := portCovers(r.GetPort(), l.GetPort(), l.GetProtocol(), "-")
-		if !known {
-			if svc, ok := wellKnownServices[r.GetPort()]; ok {
-				covers, known = portCovers(svc, l.GetPort(), l.GetProtocol(), "-")
-			}
-		}
-		if !known {
-			named = true
-			continue
-		}
-		if covers {
-			return dockwellv1.ListenerReach_LISTENER_REACH_OPEN
-		}
-	}
-	if named {
-		return dockwellv1.ListenerReach_LISTENER_REACH_UNKNOWN
-	}
-	return byDefault(tool.GetDefaultInbound())
-}
-
-// wellKnownServices are the firewalld services a server's SSH and web ports go
-// by, and those AlmaLinux's and Fedora's default zone turns on, so they don't
-// leave a listener unknown.
-var wellKnownServices = map[string]string{
-	"ssh": "22/tcp", "http": "80/tcp", "https": "443/tcp",
-	"dhcpv6-client": "546/udp", "cockpit": "9090/tcp", "mdns": "5353/udp",
 }
 
 func byDefault(v dockwellv1.FirewallVerdict) dockwellv1.ListenerReach {
@@ -244,10 +269,23 @@ func byDefault(v dockwellv1.FirewallVerdict) dockwellv1.ListenerReach {
 	}
 }
 
+// coversSpec says whether a rule's port covers a listener: "Anywhere" covers
+// every port, "Anywhere/tcp" every port of a protocol, and a port spec as
+// portCovers reads it.
+func coversSpec(spec string, l *dockwellv1.HostListener, ranges string) (covers, known bool) {
+	if spec == "Anywhere" {
+		return true, true
+	}
+	if proto, ok := strings.CutPrefix(spec, "Anywhere/"); ok {
+		return proto == l.GetProtocol(), true
+	}
+	return portCovers(spec, l.GetPort(), l.GetProtocol(), ranges)
+}
+
 // portCovers says whether a rule's port, such as "22", "22/tcp", "80,443/tcp" or
 // "9000:9100/udp", covers port and protocol; known is false for a name, such as
-// ufw's "OpenSSH" or firewalld's "ssh". ranges are the characters a range is
-// written with: ufw writes "9000:9100", firewalld "9000-9100".
+// firewalld's "ssh". ranges are the characters a range is written with: ufw
+// writes "9000:9100", firewalld "9000-9100".
 func portCovers(spec string, port uint32, protocol, ranges string) (covers, known bool) {
 	ports, proto, hasProto := strings.Cut(spec, "/")
 	if hasProto && proto != protocol {

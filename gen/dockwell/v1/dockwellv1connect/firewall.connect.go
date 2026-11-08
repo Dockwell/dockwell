@@ -43,10 +43,12 @@ const (
 // FirewallServiceClient is a client for the dockwell.v1.FirewallService service.
 type FirewallServiceClient interface {
 	// GetServerFirewall reads, through the server's agent, the firewalls already
-	// there, ufw, firewalld, nftables's tables and iptables-legacy, with what each
-	// allows and drops; what listens on the server, and how far each reaches past
-	// them; and the ports Docker publishes, which reach their containers past a
-	// firewall's input rules.
+	// there, each with its own tool: ufw, firewalld's zones, nftables's tables
+	// other than ufw's, Docker's and firewalld's, and iptables-legacy, or
+	// iptables on a server without nft. It says what each allows and drops; what
+	// listens on the server, and how far each reaches past them, never open
+	// where it can't tell; and the ports Docker publishes, which reach their
+	// containers past ufw's and firewalld's input rules.
 	GetServerFirewall(context.Context, *connect.Request[v1.GetServerFirewallRequest]) (*connect.Response[v1.GetServerFirewallResponse], error)
 }
 
@@ -84,10 +86,12 @@ func (c *firewallServiceClient) GetServerFirewall(ctx context.Context, req *conn
 // FirewallServiceHandler is an implementation of the dockwell.v1.FirewallService service.
 type FirewallServiceHandler interface {
 	// GetServerFirewall reads, through the server's agent, the firewalls already
-	// there, ufw, firewalld, nftables's tables and iptables-legacy, with what each
-	// allows and drops; what listens on the server, and how far each reaches past
-	// them; and the ports Docker publishes, which reach their containers past a
-	// firewall's input rules.
+	// there, each with its own tool: ufw, firewalld's zones, nftables's tables
+	// other than ufw's, Docker's and firewalld's, and iptables-legacy, or
+	// iptables on a server without nft. It says what each allows and drops; what
+	// listens on the server, and how far each reaches past them, never open
+	// where it can't tell; and the ports Docker publishes, which reach their
+	// containers past ufw's and firewalld's input rules.
 	GetServerFirewall(context.Context, *connect.Request[v1.GetServerFirewallRequest]) (*connect.Response[v1.GetServerFirewallResponse], error)
 }
 

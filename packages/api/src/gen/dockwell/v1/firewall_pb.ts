@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/firewall.proto.
  */
 export const file_dockwell_v1_firewall: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9maXJld2FsbC5wcm90bxILZG9ja3dlbGwudjEiLQoYR2V0U2VydmVyRmlyZXdhbGxSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJKChlHZXRTZXJ2ZXJGaXJld2FsbFJlc3BvbnNlEi0KCGZpcmV3YWxsGAEgASgLMhsuZG9ja3dlbGwudjEuU2VydmVyRmlyZXdhbGwi3wEKDlNlcnZlckZpcmV3YWxsEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEigKBXRvb2xzGAIgAygLMhkuZG9ja3dlbGwudjEuRmlyZXdhbGxUb29sEi0KCXB1Ymxpc2hlZBgDIAMoCzIaLmRvY2t3ZWxsLnYxLlB1Ymxpc2hlZFBvcnQSLAoJbGlzdGVuaW5nGAQgAygLMhkuZG9ja3dlbGwudjEuSG9zdExpc3RlbmVyEhwKFHB1Ymxpc2hlZF91bnJlYWRhYmxlGAUgASgJIo8BCgxIb3N0TGlzdGVuZXISDwoHYWRkcmVzcxgBIAEoCRIMCgRwb3J0GAIgASgNEhAKCHByb3RvY29sGAMgASgJEikKBXJlYWNoGAQgASgOMhouZG9ja3dlbGwudjEuTGlzdGVuZXJSZWFjaBISCgpkZWNpZGVkX2J5GAUgASgJEg8KB3NvdXJjZXMYBiADKAki9QEKDEZpcmV3YWxsVG9vbBIrCgRraW5kGAEgASgOMh0uZG9ja3dlbGwudjEuRmlyZXdhbGxUb29sS2luZBIMCgRuYW1lGAIgASgJEg4KBmFjdGl2ZRgDIAEoCBI1Cg9kZWZhdWx0X2luYm91bmQYBCABKA4yHC5kb2Nrd2VsbC52MS5GaXJld2FsbFZlcmRpY3QSLAoFcnVsZXMYBSADKAsyHS5kb2Nrd2VsbC52MS5GaXJld2FsbFNlZW5SdWxlEg0KBW90aGVyGAYgAygJEhIKCnJ1bGVfY291bnQYByABKA0SEgoKdW5yZWFkYWJsZRgIIAEoCSJ+ChBGaXJld2FsbFNlZW5SdWxlEi0KB3ZlcmRpY3QYASABKA4yHC5kb2Nrd2VsbC52MS5GaXJld2FsbFZlcmRpY3QSDAoEcG9ydBgCIAEoCRIOCgZzb3VyY2UYAyABKAkSDAoEaXB2NhgEIAEoCBIPCgdjb21tZW50GAUgASgJInAKDVB1Ymxpc2hlZFBvcnQSEQoJY29udGFpbmVyGAEgASgJEg8KB2hvc3RfaXAYAiABKAkSEQoJaG9zdF9wb3J0GAMgASgNEhAKCHByb3RvY29sGAQgASgJEhYKDmNvbnRhaW5lcl9wb3J0GAUgASgNKpgBCg1MaXN0ZW5lclJlYWNoEh4KGkxJU1RFTkVSX1JFQUNIX1VOU1BFQ0lGSUVEEAASFwoTTElTVEVORVJfUkVBQ0hfT1BFThABEhcKE0xJU1RFTkVSX1JFQUNIX1NPTUUQAhIZChVMSVNURU5FUl9SRUFDSF9DTE9TRUQQAxIaChZMSVNURU5FUl9SRUFDSF9VTktOT1dOEAQqvQEKEEZpcmV3YWxsVG9vbEtpbmQSIgoeRklSRVdBTExfVE9PTF9LSU5EX1VOU1BFQ0lGSUVEEAASGgoWRklSRVdBTExfVE9PTF9LSU5EX1VGVxABEiAKHEZJUkVXQUxMX1RPT0xfS0lORF9GSVJFV0FMTEQQAhIfChtGSVJFV0FMTF9UT09MX0tJTkRfTkZUQUJMRVMQAxImCiJGSVJFV0FMTF9UT09MX0tJTkRfSVBUQUJMRVNfTEVHQUNZEAQqowEKD0ZpcmV3YWxsVmVyZGljdBIgChxGSVJFV0FMTF9WRVJESUNUX1VOU1BFQ0lGSUVEEAASGgoWRklSRVdBTExfVkVSRElDVF9BTExPVxABEhkKFUZJUkVXQUxMX1ZFUkRJQ1RfREVOWRACEhsKF0ZJUkVXQUxMX1ZFUkRJQ1RfUkVKRUNUEAMSGgoWRklSRVdBTExfVkVSRElDVF9MSU1JVBAEMroBCg9GaXJld2FsbFNlcnZpY2USpgEKEUdldFNlcnZlckZpcmV3YWxsEiUuZG9ja3dlbGwudjEuR2V0U2VydmVyRmlyZXdhbGxSZXF1ZXN0GiYuZG9ja3dlbGwudjEuR2V0U2VydmVyRmlyZXdhbGxSZXNwb25zZSJCkAIBoLsYAaq7GA8KCGZpcmV3YWxsEgNnZXSC0+STAiISIC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpcmV3YWxsQqYBCg9jb20uZG9ja3dlbGwudjFCDUZpcmV3YWxsUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9maXJld2FsbC5wcm90bxILZG9ja3dlbGwudjEiLQoYR2V0U2VydmVyRmlyZXdhbGxSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJKChlHZXRTZXJ2ZXJGaXJld2FsbFJlc3BvbnNlEi0KCGZpcmV3YWxsGAEgASgLMhsuZG9ja3dlbGwudjEuU2VydmVyRmlyZXdhbGwi+gEKDlNlcnZlckZpcmV3YWxsEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEigKBXRvb2xzGAIgAygLMhkuZG9ja3dlbGwudjEuRmlyZXdhbGxUb29sEi0KCXB1Ymxpc2hlZBgDIAMoCzIaLmRvY2t3ZWxsLnYxLlB1Ymxpc2hlZFBvcnQSLAoJbGlzdGVuaW5nGAQgAygLMhkuZG9ja3dlbGwudjEuSG9zdExpc3RlbmVyEhwKFHB1Ymxpc2hlZF91bnJlYWRhYmxlGAUgASgJEhkKEWRvY2tlcl91c2VyX3J1bGVzGAYgASgNItUBCgxIb3N0TGlzdGVuZXISDwoHYWRkcmVzcxgBIAEoCRIMCgRwb3J0GAIgASgNEhAKCHByb3RvY29sGAMgASgJEikKBXJlYWNoGAQgASgOMhouZG9ja3dlbGwudjEuTGlzdGVuZXJSZWFjaBISCgpkZWNpZGVkX2J5GAUgASgJEg8KB3NvdXJjZXMYBiADKAkSEgoKaW50ZXJmYWNlcxgHIAMoCRIwCgZyZWFzb24YCCABKA4yIC5kb2Nrd2VsbC52MS5MaXN0ZW5lclJlYWNoUmVhc29uIvkCCgxGaXJld2FsbFRvb2wSKwoEa2luZBgBIAEoDjIdLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVG9vbEtpbmQSDAoEbmFtZRgCIAEoCRIOCgZhY3RpdmUYAyABKAgSNQoPZGVmYXVsdF9pbmJvdW5kGAQgASgOMhwuZG9ja3dlbGwudjEuRmlyZXdhbGxWZXJkaWN0EiwKBXJ1bGVzGAUgAygLMh0uZG9ja3dlbGwudjEuRmlyZXdhbGxTZWVuUnVsZRINCgVvdGhlchgGIAMoCRISCgpydWxlX2NvdW50GAcgASgNEhIKCnVucmVhZGFibGUYCCABKAkSEgoKaW50ZXJmYWNlcxgJIAMoCRIPCgdzb3VyY2VzGAogAygJEhQKDGRlZmF1bHRfem9uZRgLIAEoCBIyCgxpbnB1dF9wb2xpY3kYDCABKA4yHC5kb2Nrd2VsbC52MS5GaXJld2FsbFZlcmRpY3QSEwoLaW5wdXRfcnVsZXMYDSABKA0iswEKEEZpcmV3YWxsU2VlblJ1bGUSLQoHdmVyZGljdBgBIAEoDjIcLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVmVyZGljdBIMCgRwb3J0GAIgASgJEg4KBnNvdXJjZRgDIAEoCRIMCgRpcHY2GAQgASgIEg8KB2NvbW1lbnQYBSABKAkSCwoDYXBwGAYgASgJEhEKCWludGVyZmFjZRgHIAEoCRITCgtkZXN0aW5hdGlvbhgIIAEoCSKBAQoNUHVibGlzaGVkUG9ydBIRCgljb250YWluZXIYASABKAkSDwoHaG9zdF9pcBgCIAEoCRIRCglob3N0X3BvcnQYAyABKA0SEAoIcHJvdG9jb2wYBCABKAkSFgoOY29udGFpbmVyX3BvcnQYBSABKA0SDwoHcHJveGllZBgGIAEoCCqzAwoTTGlzdGVuZXJSZWFjaFJlYXNvbhIlCiFMSVNURU5FUl9SRUFDSF9SRUFTT05fVU5TUEVDSUZJRUQQABIlCiFMSVNURU5FUl9SRUFDSF9SRUFTT05fQVBQX1BST0ZJTEUQARIhCh1MSVNURU5FUl9SRUFDSF9SRUFTT05fU0VSVklDRRACEiMKH0xJU1RFTkVSX1JFQUNIX1JFQVNPTl9SSUNIX1JVTEUQAxIjCh9MSVNURU5FUl9SRUFDSF9SRUFTT05fSU5URVJGQUNFEAQSJQohTElTVEVORVJfUkVBQ0hfUkVBU09OX0RFU1RJTkFUSU9OEAUSHwobTElTVEVORVJfUkVBQ0hfUkVBU09OX1pPTkVTEAYSJAogTElTVEVORVJfUkVBQ0hfUkVBU09OX1VOUkVBREFCTEUQBxIlCiFMSVNURU5FUl9SRUFDSF9SRUFTT05fT1RIRVJfUlVMRVMQCBIoCiRMSVNURU5FUl9SRUFDSF9SRUFTT05fRE9DS0VSX1VOS05PV04QCRIiCh5MSVNURU5FUl9SRUFDSF9SRUFTT05fQlVJTFRfSU4QCiqYAQoNTGlzdGVuZXJSZWFjaBIeChpMSVNURU5FUl9SRUFDSF9VTlNQRUNJRklFRBAAEhcKE0xJU1RFTkVSX1JFQUNIX09QRU4QARIXChNMSVNURU5FUl9SRUFDSF9TT01FEAISGQoVTElTVEVORVJfUkVBQ0hfQ0xPU0VEEAMSGgoWTElTVEVORVJfUkVBQ0hfVU5LTk9XThAEKt4BChBGaXJld2FsbFRvb2xLaW5kEiIKHkZJUkVXQUxMX1RPT0xfS0lORF9VTlNQRUNJRklFRBAAEhoKFkZJUkVXQUxMX1RPT0xfS0lORF9VRlcQARIgChxGSVJFV0FMTF9UT09MX0tJTkRfRklSRVdBTExEEAISHwobRklSRVdBTExfVE9PTF9LSU5EX05GVEFCTEVTEAMSJgoiRklSRVdBTExfVE9PTF9LSU5EX0lQVEFCTEVTX0xFR0FDWRAEEh8KG0ZJUkVXQUxMX1RPT0xfS0lORF9JUFRBQkxFUxAFKqMBCg9GaXJld2FsbFZlcmRpY3QSIAocRklSRVdBTExfVkVSRElDVF9VTlNQRUNJRklFRBAAEhoKFkZJUkVXQUxMX1ZFUkRJQ1RfQUxMT1cQARIZChVGSVJFV0FMTF9WRVJESUNUX0RFTlkQAhIbChdGSVJFV0FMTF9WRVJESUNUX1JFSkVDVBADEhoKFkZJUkVXQUxMX1ZFUkRJQ1RfTElNSVQQBDK6AQoPRmlyZXdhbGxTZXJ2aWNlEqYBChFHZXRTZXJ2ZXJGaXJld2FsbBIlLmRvY2t3ZWxsLnYxLkdldFNlcnZlckZpcmV3YWxsUmVxdWVzdBomLmRvY2t3ZWxsLnYxLkdldFNlcnZlckZpcmV3YWxsUmVzcG9uc2UiQpACAaC7GAGquxgPCghmaXJld2FsbBIDZ2V0gtPkkwIiEiAvdjEvc2VydmVycy97c2VydmVyX2lkfS9maXJld2FsbEKmAQoPY29tLmRvY2t3ZWxsLnYxQg1GaXJld2FsbFByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * GetServerFirewallRequest names a server.
@@ -105,6 +105,15 @@ export type ServerFirewall = Message<"dockwell.v1.ServerFirewall"> & {
    * @generated from field: string published_unreadable = 5;
    */
   publishedUnreadable: string;
+
+  /**
+   * How many rules Docker's DOCKER-USER chains hold, beyond the return Docker
+   * puts there, as ufw-docker or a person adds. They filter published ports,
+   * and the agent doesn't weigh them one by one.
+   *
+   * @generated from field: uint32 docker_user_rules = 6;
+   */
+  dockerUserRules: number;
 };
 
 /**
@@ -161,6 +170,21 @@ export type HostListener = Message<"dockwell.v1.HostListener"> & {
    * @generated from field: repeated string sources = 6;
    */
   sources: string[];
+
+  /**
+   * The interfaces a rule lets it in on, when only those may reach it.
+   *
+   * @generated from field: repeated string interfaces = 7;
+   */
+  interfaces: string[];
+
+  /**
+   * Why the reach is what it is, when that needs saying: why the agent can't
+   * tell, or that a firewall lets it in by a rule of its own.
+   *
+   * @generated from field: dockwell.v1.ListenerReachReason reason = 8;
+   */
+  reason: ListenerReachReason;
 };
 
 /**
@@ -184,8 +208,8 @@ export type FirewallTool = Message<"dockwell.v1.FirewallTool"> & {
   kind: FirewallToolKind;
 
   /**
-   * Which: an nftables table, such as "inet filter", or firewalld's zone, such
-   * as "public". Empty for ufw.
+   * Which: an nftables table, such as "inet filter", firewalld's zone, such as
+   * "public", or iptables's family, "IPv4" or "IPv6". Empty for ufw.
    *
    * @generated from field: string name = 2;
    */
@@ -222,7 +246,7 @@ export type FirewallTool = Message<"dockwell.v1.FirewallTool"> & {
   other: string[];
 
   /**
-   * How many rules an nftables table, or iptables-legacy, holds, which the agent
+   * How many rules an nftables table, or iptables, holds, which the agent
    * doesn't read one by one. Zero for ufw and firewalld, whose rules are in rules.
    *
    * @generated from field: uint32 rule_count = 7;
@@ -236,6 +260,44 @@ export type FirewallTool = Message<"dockwell.v1.FirewallTool"> & {
    * @generated from field: string unreadable = 8;
    */
   unreadable: string;
+
+  /**
+   * The interfaces a firewalld zone takes traffic from.
+   *
+   * @generated from field: repeated string interfaces = 9;
+   */
+  interfaces: string[];
+
+  /**
+   * The sources a firewalld zone takes traffic from, which come before its
+   * interfaces.
+   *
+   * @generated from field: repeated string sources = 10;
+   */
+  sources: string[];
+
+  /**
+   * True for firewalld's default zone, which takes what no other zone does.
+   *
+   * @generated from field: bool default_zone = 11;
+   */
+  defaultZone: boolean;
+
+  /**
+   * What an nftables table's or iptables's input chain does with what no rule
+   * matches. Unspecified when it has no input chain.
+   *
+   * @generated from field: dockwell.v1.FirewallVerdict input_policy = 12;
+   */
+  inputPolicy: FirewallVerdict;
+
+  /**
+   * How many rules its input chain holds. With a policy that drops, or any
+   * rule, it may close what listens on the server.
+   *
+   * @generated from field: uint32 input_rules = 13;
+   */
+  inputRules: number;
 };
 
 /**
@@ -286,6 +348,28 @@ export type FirewallSeenRule = Message<"dockwell.v1.FirewallSeenRule"> & {
    * @generated from field: string comment = 5;
    */
   comment: string;
+
+  /**
+   * The app profile ufw names it by, such as "OpenSSH", when it has one.
+   *
+   * @generated from field: string app = 6;
+   */
+  app: string;
+
+  /**
+   * The interface it covers alone, such as "eth0", when it has one.
+   *
+   * @generated from field: string interface = 7;
+   */
+  interface: string;
+
+  /**
+   * The server's address it covers alone, such as "203.0.113.5", when it has
+   * one. Empty for every address.
+   *
+   * @generated from field: string destination = 8;
+   */
+  destination: string;
 };
 
 /**
@@ -335,6 +419,15 @@ export type PublishedPort = Message<"dockwell.v1.PublishedPort"> & {
    * @generated from field: uint32 container_port = 5;
    */
   containerPort: number;
+
+  /**
+   * True when Docker's proxy on the server takes this port's traffic, as for
+   * IPv6 to a container on networks without IPv6. That traffic arrives on the
+   * input chain, so the server's input rules cover it, as for what listens.
+   *
+   * @generated from field: bool proxied = 6;
+   */
+  proxied: boolean;
 };
 
 /**
@@ -343,6 +436,99 @@ export type PublishedPort = Message<"dockwell.v1.PublishedPort"> & {
  */
 export const PublishedPortSchema: GenMessage<PublishedPort> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_firewall, 6);
+
+/**
+ * ListenerReachReason is why a listener reaches as far as it does.
+ *
+ * @generated from enum dockwell.v1.ListenerReachReason
+ */
+export enum ListenerReachReason {
+  /**
+   * @generated from enum value: LISTENER_REACH_REASON_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * A ufw rule names an app profile whose ports ufw doesn't say.
+   *
+   * @generated from enum value: LISTENER_REACH_REASON_APP_PROFILE = 1;
+   */
+  APP_PROFILE = 1,
+
+  /**
+   * A firewalld service the agent doesn't know the ports of.
+   *
+   * @generated from enum value: LISTENER_REACH_REASON_SERVICE = 2;
+   */
+  SERVICE = 2,
+
+  /**
+   * firewalld's rich rules, which run before the zone's ports and services,
+   * and which the agent doesn't weigh.
+   *
+   * @generated from enum value: LISTENER_REACH_REASON_RICH_RULE = 3;
+   */
+  RICH_RULE = 3,
+
+  /**
+   * A rule on an interface, as which one traffic arrives on isn't known.
+   *
+   * @generated from enum value: LISTENER_REACH_REASON_INTERFACE = 4;
+   */
+  INTERFACE = 4,
+
+  /**
+   * A rule to one of the server's addresses alone.
+   *
+   * @generated from enum value: LISTENER_REACH_REASON_DESTINATION = 5;
+   */
+  DESTINATION = 5,
+
+  /**
+   * firewalld zones that treat it differently, by which interface traffic
+   * arrives on.
+   *
+   * @generated from enum value: LISTENER_REACH_REASON_ZONES = 6;
+   */
+  ZONES = 6,
+
+  /**
+   * A firewall here couldn't be read: decided_by names it.
+   *
+   * @generated from enum value: LISTENER_REACH_REASON_UNREADABLE = 7;
+   */
+  UNREADABLE = 7,
+
+  /**
+   * Rules the agent doesn't weigh one by one, in the nftables table or
+   * iptables chain decided_by names, may drop it.
+   *
+   * @generated from enum value: LISTENER_REACH_REASON_OTHER_RULES = 8;
+   */
+  OTHER_RULES = 8,
+
+  /**
+   * Docker couldn't be read, and this may be a port it publishes, which ufw's
+   * and firewalld's input rules don't cover.
+   *
+   * @generated from enum value: LISTENER_REACH_REASON_DOCKER_UNKNOWN = 9;
+   */
+  DOCKER_UNKNOWN = 9,
+
+  /**
+   * ufw always lets it in, by its own before.rules: DHCP replies, mDNS and
+   * UPnP discovery.
+   *
+   * @generated from enum value: LISTENER_REACH_REASON_BUILT_IN = 10;
+   */
+  BUILT_IN = 10,
+}
+
+/**
+ * Describes the enum dockwell.v1.ListenerReachReason.
+ */
+export const ListenerReachReasonSchema: GenEnum<ListenerReachReason> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_firewall, 0);
 
 /**
  * ListenerReach is how far something listening on the server reaches.
@@ -363,7 +549,7 @@ export enum ListenerReach {
   OPEN = 1,
 
   /**
-   * Only from some sources, as a rule says.
+   * Only from some sources, or on some interfaces, as a rule says.
    *
    * @generated from enum value: LISTENER_REACH_SOME = 2;
    */
@@ -377,8 +563,7 @@ export enum ListenerReach {
   CLOSED = 3,
 
   /**
-   * A rule names it by a service, such as "ssh", which the agent doesn't
-   * resolve, or a firewall it can't read decides: it can't say.
+   * The agent can't tell, and reason says why. Never read as open.
    *
    * @generated from enum value: LISTENER_REACH_UNKNOWN = 4;
    */
@@ -389,7 +574,7 @@ export enum ListenerReach {
  * Describes the enum dockwell.v1.ListenerReach.
  */
 export const ListenerReachSchema: GenEnum<ListenerReach> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_firewall, 0);
+  enumDesc(file_dockwell_v1_firewall, 1);
 
 /**
  * FirewallToolKind is a firewall a server can have.
@@ -430,13 +615,21 @@ export enum FirewallToolKind {
    * @generated from enum value: FIREWALL_TOOL_KIND_IPTABLES_LEGACY = 4;
    */
   IPTABLES_LEGACY = 4,
+
+  /**
+   * iptables's rules, as iptables-save lists them, read on a server without
+   * nft.
+   *
+   * @generated from enum value: FIREWALL_TOOL_KIND_IPTABLES = 5;
+   */
+  IPTABLES = 5,
 }
 
 /**
  * Describes the enum dockwell.v1.FirewallToolKind.
  */
 export const FirewallToolKindSchema: GenEnum<FirewallToolKind> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_firewall, 1);
+  enumDesc(file_dockwell_v1_firewall, 2);
 
 /**
  * FirewallVerdict is what a rule, or a firewall's default, does with traffic.
@@ -482,7 +675,7 @@ export enum FirewallVerdict {
  * Describes the enum dockwell.v1.FirewallVerdict.
  */
 export const FirewallVerdictSchema: GenEnum<FirewallVerdict> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_firewall, 2);
+  enumDesc(file_dockwell_v1_firewall, 3);
 
 /**
  * FirewallService says what filters a server's inbound traffic. Reading it
@@ -493,10 +686,12 @@ export const FirewallVerdictSchema: GenEnum<FirewallVerdict> = /*@__PURE__*/
 export const FirewallService: GenService<{
   /**
    * GetServerFirewall reads, through the server's agent, the firewalls already
-   * there, ufw, firewalld, nftables's tables and iptables-legacy, with what each
-   * allows and drops; what listens on the server, and how far each reaches past
-   * them; and the ports Docker publishes, which reach their containers past a
-   * firewall's input rules.
+   * there, each with its own tool: ufw, firewalld's zones, nftables's tables
+   * other than ufw's, Docker's and firewalld's, and iptables-legacy, or
+   * iptables on a server without nft. It says what each allows and drops; what
+   * listens on the server, and how far each reaches past them, never open
+   * where it can't tell; and the ports Docker publishes, which reach their
+   * containers past ufw's and firewalld's input rules.
    *
    * @generated from rpc dockwell.v1.FirewallService.GetServerFirewall
    */

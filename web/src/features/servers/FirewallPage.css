@@ -8,20 +8,42 @@
 
 .firewall-note {
   margin: 0;
-  padding: var(--space-3) var(--space-4);
   color: var(--ink-muted);
   font-size: 13px;
   line-height: 20px;
 }
 
-.firewall .dw-panel .firewall-note + .dw-table-wrap,
-.firewall .dw-panel .firewall-note + table {
-  border-top: 1px solid var(--line);
+/* A flush panel has no padding of its own, so its notes bring theirs; one that
+   isn't flush pads them already. */
+.dw-panel-body.is-flush > .firewall-note {
+  padding: var(--space-3) var(--space-4);
+}
+
+.dw-panel-body.is-flush > .firewall-note + .firewall-note {
+  padding-top: 0;
+}
+
+/* The panel is the table's edge, so the table draws only the line above it. */
+.firewall .dw-table-wrap {
+  border-width: 1px 0 0;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
 .firewall-meta {
   color: var(--ink-muted);
   font-size: 12.5px;
+}
+
+.firewall-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.firewall-sub {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
 }
 
 .firewall-other {

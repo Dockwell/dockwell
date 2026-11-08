@@ -1239,14 +1239,27 @@ func (s *Session) Containers(ctx context.Context, container string) (*agentv1.Co
 	return r.GetContainers(), nil
 }
 
+// ErrAgentOutdated is an agent older than the control plane, which doesn't
+// know a call it was sent.
+var ErrAgentOutdated = errors.New("its agent is older than the control plane, and doesn't know how. Update it by running the install script on the server again")
+
+// unknownCall says whether an agent answered that it doesn't know a call, as
+// every agent says it.
+func unknownCall(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "doesn't know that call")
+}
+
 // Firewall asks the agent what filters the server's inbound traffic.
 func (s *Session) Firewall(ctx context.Context) (*dockwellv1.ServerFirewall, error) {
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Firewall{Firewall: &agentv1.FirewallCall{}}}, ObserveTimeout, nil)
+	if unknownCall(err) {
+		return nil, ErrAgentOutdated
+	}
 	if err != nil {
 		return nil, err
 	}
 	if r.GetFirewall() == nil {
-		return nil, errors.New("its agent is older than the control plane, and can't read its firewall. Upgrade it by running the install script on the server again")
+		return nil, ErrAgentOutdated
 	}
 	return r.GetFirewall(), nil
 }
