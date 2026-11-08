@@ -241,6 +241,48 @@ func TestANameWithoutItsProjectIsFoundInReach(t *testing.T) {
 	})
 }
 
+// Databases are read as their services are: each in its project, and one named
+// by name below an admin is found among the caller's own (ADR 0049).
+func TestDatabasesAreReadInReach(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newReachStand(t, backend)
+		ctx := t.Context()
+		db := resourceIn(t, apply(t, s.c, propose(t, s.c, "Run db", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Scope: s.production, Name: "db"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+				Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "postgres:17"}},
+			}}},
+		})), "service")
+		dc := databaseClient(s.b, s.b.origin)
+		read := func(req *dockwellv1.GetDatabaseRequest) (string, error) {
+			got, err := dc.GetDatabase(ctx, connect.NewRequest(req))
+			if err != nil {
+				return "", err
+			}
+			return got.Msg.GetDatabase().GetId(), nil
+		}
+
+		s.hold(in(s.blogID, store.RoleDeveloper))
+		listed, err := dc.ListDatabases(ctx, connect.NewRequest(&dockwellv1.ListDatabasesRequest{}))
+		if err != nil || len(listed.Msg.GetDatabases()) != 0 {
+			t.Errorf("blog's developer listing databases: %v, %v, want none of default's", listed.Msg.GetDatabases(), err)
+		}
+		for _, req := range []*dockwellv1.GetDatabaseRequest{{Id: db}, {Id: "db"}, {Id: "db", Project: "default"}} {
+			_, err := read(req)
+			notFound(t, "blog's developer reading default's database as "+req.String(), err)
+		}
+
+		s.hold(in(s.defaultID, store.RoleViewer))
+		if got, err := read(&dockwellv1.GetDatabaseRequest{Id: "db"}); err != nil || got != db {
+			t.Errorf("default's viewer reading its database by name: %q, %v", got, err)
+		}
+		listed, err = dc.ListDatabases(ctx, connect.NewRequest(&dockwellv1.ListDatabasesRequest{}))
+		if err != nil || len(listed.Msg.GetDatabases()) != 1 {
+			t.Errorf("default's viewer listing databases: %v, %v, want db", listed.Msg.GetDatabases(), err)
+		}
+	})
+}
+
 // A question of which project names only the caller's: someone who holds one
 // project alone gets theirs, and someone with several is asked which of
 // theirs, never told every project's name.

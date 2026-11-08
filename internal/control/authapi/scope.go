@@ -48,6 +48,7 @@ var idNames = map[string]string{
 	dockwellv1connect.LogServiceReadLogsProcedure:                  "service",
 	dockwellv1connect.LogServiceWatchLogsProcedure:                 "service",
 	dockwellv1connect.CatalogServiceUpgradeCatalogInstallProcedure: "project",
+	dockwellv1connect.DatabaseServiceGetDatabaseProcedure:          "service",
 }
 
 // serviceFields are the calls whose service field names a service to read, by
