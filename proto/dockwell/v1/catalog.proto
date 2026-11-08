@@ -20,6 +20,9 @@ service CatalogService {
   rpc ListCatalogEntries(ListCatalogEntriesRequest) returns (ListCatalogEntriesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SHARED;
     option (google.api.http) = {get: "/v1/catalog/entries"};
   }
 
@@ -29,6 +32,9 @@ service CatalogService {
   rpc GetCatalogEntry(GetCatalogEntryRequest) returns (GetCatalogEntryResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SHARED;
     option (google.api.http) = {get: "/v1/catalog/entries/{id}"};
   }
 
@@ -37,6 +43,9 @@ service CatalogService {
   rpc ListCatalogInstalls(ListCatalogInstallsRequest) returns (ListCatalogInstallsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.command) = {verb: "installs"};
     option (google.api.http) = {get: "/v1/catalog/installs"};
   }
@@ -54,6 +63,9 @@ service CatalogService {
   // kept what its file gave.
   rpc UpgradeCatalogInstall(UpgradeCatalogInstallRequest) returns (UpgradeCatalogInstallResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.command) = {verb: "upgrade"};
     option (google.api.http) = {
       post: "/v1/catalog/installs/{id}:upgrade"
@@ -68,6 +80,9 @@ service CatalogService {
   // response carries it, and revealing it takes a passkey.
   rpc InstallCatalogEntry(InstallCatalogEntryRequest) returns (InstallCatalogEntryResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/catalog/entries/{id}:install"
       body: "*"

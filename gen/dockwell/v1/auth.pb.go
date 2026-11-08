@@ -29,9 +29,19 @@ const (
 type Role int32
 
 const (
+	// No role on the whole install: someone who holds projects alone, or
+	// nothing.
 	Role_ROLE_UNSPECIFIED Role = 0
-	// Everything, on every server. The first person, who claimed the install.
+	// Everything, on every server. One person, who claimed the install or had
+	// it transferred to them.
 	Role_ROLE_OWNER Role = 1
+	// Everything but what's the owner's alone: transferring ownership, and the
+	// owner's own sign-in.
+	Role_ROLE_ADMIN Role = 2
+	// Plans, and applies outside protected environments, in the projects held.
+	Role_ROLE_DEVELOPER Role = 3
+	// Reads, in the projects held.
+	Role_ROLE_VIEWER Role = 4
 )
 
 // Enum value maps for Role.
@@ -39,10 +49,16 @@ var (
 	Role_name = map[int32]string{
 		0: "ROLE_UNSPECIFIED",
 		1: "ROLE_OWNER",
+		2: "ROLE_ADMIN",
+		3: "ROLE_DEVELOPER",
+		4: "ROLE_VIEWER",
 	}
 	Role_value = map[string]int32{
 		"ROLE_UNSPECIFIED": 0,
 		"ROLE_OWNER":       1,
+		"ROLE_ADMIN":       2,
+		"ROLE_DEVELOPER":   3,
+		"ROLE_VIEWER":      4,
 	}
 )
 
@@ -3227,11 +3243,15 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1fRegenerateRecoveryCodesResponse\x12%\n" +
 	"\x0erecovery_codes\x18\x01 \x03(\tR\rrecoveryCodes\"\x19\n" +
 	"\x17UnlockCodeSignInRequest\"\x1a\n" +
-	"\x18UnlockCodeSignInResponse*,\n" +
+	"\x18UnlockCodeSignInResponse*a\n" +
 	"\x04Role\x12\x14\n" +
 	"\x10ROLE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
-	"ROLE_OWNER\x10\x01*\xc6\x01\n" +
+	"ROLE_OWNER\x10\x01\x12\x0e\n" +
+	"\n" +
+	"ROLE_ADMIN\x10\x02\x12\x12\n" +
+	"\x0eROLE_DEVELOPER\x10\x03\x12\x0f\n" +
+	"\vROLE_VIEWER\x10\x04*\xc6\x01\n" +
 	"\fSignInMethod\x12\x1e\n" +
 	"\x1aSIGN_IN_METHOD_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14SIGN_IN_METHOD_CLAIM\x10\x01\x12\x1a\n" +
@@ -3250,42 +3270,42 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1bSTEP_UP_ACTION_CREATE_TOKEN\x10\a\x12$\n" +
 	" STEP_UP_ACTION_APPLY_ROOT_CHANGE\x10\b\x12#\n" +
 	"\x1fSTEP_UP_ACTION_SAVE_WAY_BACK_IN\x10\t\x12\x1e\n" +
-	"\x1aSTEP_UP_ACTION_END_PROCESS\x10\x142\x96%\n" +
-	"\vAuthService\x12q\n" +
-	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12}\n" +
+	"\x1aSTEP_UP_ACTION_END_PROCESS\x10\x142\xca'\n" +
+	"\vAuthService\x12}\n" +
+	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12\x89\x01\n" +
 	"\n" +
-	"CheckClaim\x12\x1e.dockwell.v1.CheckClaimRequest\x1a\x1f.dockwell.v1.CheckClaimResponse\".\xa0\xbb\x18\x01\xaa\xbb\x18\f\n" +
+	"CheckClaim\x12\x1e.dockwell.v1.CheckClaimRequest\x1a\x1f.dockwell.v1.CheckClaimResponse\":\xa0\xbb\x18\x01\xaa\xbb\x18\f\n" +
 	"\n" +
-	"claim-link\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/claim:check\x12}\n" +
+	"claim-link\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/claim:check\x12\x89\x01\n" +
 	"\n" +
-	"BeginClaim\x12\x1e.dockwell.v1.BeginClaimRequest\x1a\x1f.dockwell.v1.BeginClaimResponse\".\xa0\xbb\x18\x01\xaa\xbb\x18\f\n" +
+	"BeginClaim\x12\x1e.dockwell.v1.BeginClaimRequest\x1a\x1f.dockwell.v1.BeginClaimResponse\":\xa0\xbb\x18\x01\xaa\xbb\x18\f\n" +
 	"\n" +
-	"claim-link\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/claim:begin\x12\x81\x01\n" +
-	"\vFinishClaim\x12\x1f.dockwell.v1.FinishClaimRequest\x1a .dockwell.v1.FinishClaimResponse\"/\xa0\xbb\x18\x03\xaa\xbb\x18\f\n" +
+	"claim-link\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/claim:begin\x12\x8d\x01\n" +
+	"\vFinishClaim\x12\x1f.dockwell.v1.FinishClaimRequest\x1a .dockwell.v1.FinishClaimResponse\";\xa0\xbb\x18\x03\xaa\xbb\x18\f\n" +
 	"\n" +
-	"claim-link\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/claim:finish\x12\x95\x01\n" +
-	"\x12BeginPasskeySignIn\x12&.dockwell.v1.BeginPasskeySignInRequest\x1a'.dockwell.v1.BeginPasskeySignInResponse\".\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/sessions:beginPasskeySignIn\x12\x99\x01\n" +
-	"\x13FinishPasskeySignIn\x12'.dockwell.v1.FinishPasskeySignInRequest\x1a(.dockwell.v1.FinishPasskeySignInResponse\"/\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02%:\x01*\" /v1/sessions:finishPasskeySignIn\x12\x85\x01\n" +
-	"\x0eSignInWithCode\x12\".dockwell.v1.SignInWithCodeRequest\x1a#.dockwell.v1.SignInWithCodeResponse\"*\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/sessions:signInWithCode\x12\x85\x01\n" +
-	"\x0eSignInWithLink\x12\".dockwell.v1.SignInWithLinkRequest\x1a#.dockwell.v1.SignInWithLinkResponse\"*\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/sessions:signInWithLink\x12i\n" +
-	"\aSignOut\x12\x1b.dockwell.v1.SignOutRequest\x1a\x1c.dockwell.v1.SignOutResponse\"#\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/sessions:signOut\x12p\n" +
-	"\fListSessions\x12 .dockwell.v1.ListSessionsRequest\x1a!.dockwell.v1.ListSessionsResponse\"\x1b\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/sessions\x90\x02\x01\x12\x7f\n" +
-	"\rRevokeSession\x12!.dockwell.v1.RevokeSessionRequest\x1a\".dockwell.v1.RevokeSessionResponse\"'\xa0\xbb\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/sessions/{id}:revoke\x12\x92\x01\n" +
-	"\x13RevokeOtherSessions\x12'.dockwell.v1.RevokeOtherSessionsRequest\x1a(.dockwell.v1.RevokeOtherSessionsResponse\"(\xa0\xbb\x18\x04\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/sessions:revokeOthers\x12y\n" +
-	"\vBeginStepUp\x12\x1f.dockwell.v1.BeginStepUpRequest\x1a .dockwell.v1.BeginStepUpResponse\"'\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/sessions:beginStepUp\x12}\n" +
-	"\fFinishStepUp\x12 .dockwell.v1.FinishStepUpRequest\x1a!.dockwell.v1.FinishStepUpResponse\"(\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/sessions:finishStepUp\x12p\n" +
-	"\fListPasskeys\x12 .dockwell.v1.ListPasskeysRequest\x1a!.dockwell.v1.ListPasskeysResponse\"\x1b\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/passkeys\x90\x02\x01\x12\x82\x01\n" +
-	"\x0fBeginAddPasskey\x12#.dockwell.v1.BeginAddPasskeyRequest\x1a$.dockwell.v1.BeginAddPasskeyResponse\"$\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/passkeys:beginAdd\x12\x86\x01\n" +
-	"\x10FinishAddPasskey\x12$.dockwell.v1.FinishAddPasskeyRequest\x1a%.dockwell.v1.FinishAddPasskeyResponse\"%\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/passkeys:finishAdd\x12\x7f\n" +
-	"\rRemovePasskey\x12!.dockwell.v1.RemovePasskeyRequest\x1a\".dockwell.v1.RemovePasskeyResponse\"'\xa0\xbb\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/passkeys/{id}:remove\x12]\n" +
-	"\aGetTotp\x12\x1b.dockwell.v1.GetTotpRequest\x1a\x1c.dockwell.v1.GetTotpResponse\"\x17\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\n" +
-	"\x12\b/v1/totp\x90\x02\x01\x12}\n" +
-	"\x0eBeginTotpSetup\x12\".dockwell.v1.BeginTotpSetupRequest\x1a#.dockwell.v1.BeginTotpSetupResponse\"\"\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/totp:beginSetup\x12\x85\x01\n" +
-	"\x10ConfirmTotpSetup\x12$.dockwell.v1.ConfirmTotpSetupRequest\x1a%.dockwell.v1.ConfirmTotpSetupResponse\"$\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/totp:confirmSetup\x12\x81\x01\n" +
-	"\x0fCancelTotpSetup\x12#.dockwell.v1.CancelTotpSetupRequest\x1a$.dockwell.v1.CancelTotpSetupResponse\"#\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/totp:cancelSetup\x12q\n" +
-	"\vDisableTotp\x12\x1f.dockwell.v1.DisableTotpRequest\x1a .dockwell.v1.DisableTotpResponse\"\x1f\xa0\xbb\x18\x04\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/totp:disable\x12\xa5\x01\n" +
-	"\x17RegenerateRecoveryCodes\x12+.dockwell.v1.RegenerateRecoveryCodesRequest\x1a,.dockwell.v1.RegenerateRecoveryCodesResponse\"/\xa0\xbb\x18\x04\x82\xd3\xe4\x93\x02%:\x01*\" /v1/totp:regenerateRecoveryCodes\x12\x7f\n" +
-	"\x10UnlockCodeSignIn\x12$.dockwell.v1.UnlockCodeSignInRequest\x1a%.dockwell.v1.UnlockCodeSignInResponse\"\x1e\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/totp:unlock\x1a\xd9\v\xa2\xbb\x18\xb6\x01\n" +
+	"claim-link\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/claim:finish\x12\xa1\x01\n" +
+	"\x12BeginPasskeySignIn\x12&.dockwell.v1.BeginPasskeySignInRequest\x1a'.dockwell.v1.BeginPasskeySignInResponse\":\xa0\xbb\x18\x01\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/sessions:beginPasskeySignIn\x12\xa5\x01\n" +
+	"\x13FinishPasskeySignIn\x12'.dockwell.v1.FinishPasskeySignInRequest\x1a(.dockwell.v1.FinishPasskeySignInResponse\";\xa0\xbb\x18\x03\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02%:\x01*\" /v1/sessions:finishPasskeySignIn\x12\x91\x01\n" +
+	"\x0eSignInWithCode\x12\".dockwell.v1.SignInWithCodeRequest\x1a#.dockwell.v1.SignInWithCodeResponse\"6\xa0\xbb\x18\x03\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/sessions:signInWithCode\x12\x91\x01\n" +
+	"\x0eSignInWithLink\x12\".dockwell.v1.SignInWithLinkRequest\x1a#.dockwell.v1.SignInWithLinkResponse\"6\xa0\xbb\x18\x03\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/sessions:signInWithLink\x12u\n" +
+	"\aSignOut\x12\x1b.dockwell.v1.SignOutRequest\x1a\x1c.dockwell.v1.SignOutResponse\"/\xa0\xbb\x18\x03\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x02\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/sessions:signOut\x12|\n" +
+	"\fListSessions\x12 .dockwell.v1.ListSessionsRequest\x1a!.dockwell.v1.ListSessionsResponse\"'\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/sessions\x90\x02\x01\x12\x8b\x01\n" +
+	"\rRevokeSession\x12!.dockwell.v1.RevokeSessionRequest\x1a\".dockwell.v1.RevokeSessionResponse\"3\xa0\xbb\x18\x04\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/sessions/{id}:revoke\x12\x9e\x01\n" +
+	"\x13RevokeOtherSessions\x12'.dockwell.v1.RevokeOtherSessionsRequest\x1a(.dockwell.v1.RevokeOtherSessionsResponse\"4\xa0\xbb\x18\x04\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/sessions:revokeOthers\x12\x85\x01\n" +
+	"\vBeginStepUp\x12\x1f.dockwell.v1.BeginStepUpRequest\x1a .dockwell.v1.BeginStepUpResponse\"3\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/sessions:beginStepUp\x12\x89\x01\n" +
+	"\fFinishStepUp\x12 .dockwell.v1.FinishStepUpRequest\x1a!.dockwell.v1.FinishStepUpResponse\"4\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/sessions:finishStepUp\x12|\n" +
+	"\fListPasskeys\x12 .dockwell.v1.ListPasskeysRequest\x1a!.dockwell.v1.ListPasskeysResponse\"'\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/passkeys\x90\x02\x01\x12\x8e\x01\n" +
+	"\x0fBeginAddPasskey\x12#.dockwell.v1.BeginAddPasskeyRequest\x1a$.dockwell.v1.BeginAddPasskeyResponse\"0\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/passkeys:beginAdd\x12\x92\x01\n" +
+	"\x10FinishAddPasskey\x12$.dockwell.v1.FinishAddPasskeyRequest\x1a%.dockwell.v1.FinishAddPasskeyResponse\"1\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/passkeys:finishAdd\x12\x8b\x01\n" +
+	"\rRemovePasskey\x12!.dockwell.v1.RemovePasskeyRequest\x1a\".dockwell.v1.RemovePasskeyResponse\"3\xa0\xbb\x18\x04\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/passkeys/{id}:remove\x12i\n" +
+	"\aGetTotp\x12\x1b.dockwell.v1.GetTotpRequest\x1a\x1c.dockwell.v1.GetTotpResponse\"#\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\n" +
+	"\x12\b/v1/totp\x90\x02\x01\x12\x89\x01\n" +
+	"\x0eBeginTotpSetup\x12\".dockwell.v1.BeginTotpSetupRequest\x1a#.dockwell.v1.BeginTotpSetupResponse\".\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/totp:beginSetup\x12\x91\x01\n" +
+	"\x10ConfirmTotpSetup\x12$.dockwell.v1.ConfirmTotpSetupRequest\x1a%.dockwell.v1.ConfirmTotpSetupResponse\"0\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/totp:confirmSetup\x12\x8d\x01\n" +
+	"\x0fCancelTotpSetup\x12#.dockwell.v1.CancelTotpSetupRequest\x1a$.dockwell.v1.CancelTotpSetupResponse\"/\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/totp:cancelSetup\x12}\n" +
+	"\vDisableTotp\x12\x1f.dockwell.v1.DisableTotpRequest\x1a .dockwell.v1.DisableTotpResponse\"+\xa0\xbb\x18\x04\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/totp:disable\x12\xb1\x01\n" +
+	"\x17RegenerateRecoveryCodes\x12+.dockwell.v1.RegenerateRecoveryCodesRequest\x1a,.dockwell.v1.RegenerateRecoveryCodesResponse\";\xa0\xbb\x18\x04\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02%:\x01*\" /v1/totp:regenerateRecoveryCodes\x12\x8b\x01\n" +
+	"\x10UnlockCodeSignIn\x12$.dockwell.v1.UnlockCodeSignInRequest\x1a%.dockwell.v1.UnlockCodeSignInResponse\"*\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/totp:unlock\x1a\xd9\v\xa2\xbb\x18\xb6\x01\n" +
 	"\n" +
 	"auth-state\x12\xa7\x01The install's auth state says whether it has an owner yet, who is signed in on a request, and which address passkeys are made for there. GetAuthState needs no sign-in.\xa2\xbb\x18\x92\x02\n" +
 	"\n" +

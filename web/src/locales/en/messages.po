@@ -2831,6 +2831,9 @@ msgstr "Too many wrong codes. Wait {0}, then try again."
 msgid "You're not signed in. Sign in, then try again."
 msgstr "You're not signed in. Sign in, then try again."
 
+msgid "Your role doesn't let you do this here. Ask an admin to change your role."
+msgstr "Your role doesn't let you do this here. Ask an admin to change your role."
+
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "Your session ended, so this didn't happen. Sign in again, then try again."
 

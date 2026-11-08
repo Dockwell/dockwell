@@ -2831,6 +2831,9 @@ msgstr "验证码错误次数过多。请等待 {0} 后重试。"
 msgid "You're not signed in. Sign in, then try again."
 msgstr "你尚未登录。请登录后重试。"
 
+msgid "Your role doesn't let you do this here. Ask an admin to change your role."
+msgstr "你的角色不能在这里执行此操作。请让管理员更改你的角色。"
+
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "你的会话已结束，所以这个操作没有执行。请重新登录后重试。"
 

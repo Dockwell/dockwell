@@ -6369,21 +6369,21 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0fSTEP_STATE_DONE\x10\x03\x12\x15\n" +
 	"\x11STEP_STATE_FAILED\x10\x04\x12\x16\n" +
 	"\x12STEP_STATE_SKIPPED\x10\x05\x12\x16\n" +
-	"\x12STEP_STATE_WAITING\x10\x062\xdc\x12\n" +
-	"\rChangeService\x12r\n" +
-	"\rProposeChange\x12!.dockwell.v1.ProposeChangeRequest\x1a\".dockwell.v1.ProposeChangeResponse\"\x1a\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/changes\x12k\n" +
-	"\tGetChange\x12\x1d.dockwell.v1.GetChangeRequest\x1a\x1e.dockwell.v1.GetChangeResponse\"\x1f\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/changes/{id}\x90\x02\x01\x12l\n" +
-	"\vListChanges\x12\x1f.dockwell.v1.ListChangesRequest\x1a .dockwell.v1.ListChangesResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/changes\x90\x02\x01\x12w\n" +
-	"\vApplyChange\x12\x1f.dockwell.v1.ApplyChangeRequest\x1a .dockwell.v1.ApplyChangeResponse\"%\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/changes/{id}:apply\x12X\n" +
-	"\vWatchChange\x12\x1f.dockwell.v1.WatchChangeRequest\x1a .dockwell.v1.WatchChangeResponse\"\x04\xa0\xbb\x18\x010\x01\x12s\n" +
+	"\x12STEP_STATE_WAITING\x10\x062\xe2\x13\n" +
+	"\rChangeService\x12~\n" +
+	"\rProposeChange\x12!.dockwell.v1.ProposeChangeRequest\x1a\".dockwell.v1.ProposeChangeResponse\"&\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/changes\x12w\n" +
+	"\tGetChange\x12\x1d.dockwell.v1.GetChangeRequest\x1a\x1e.dockwell.v1.GetChangeResponse\"+\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/changes/{id}\x90\x02\x01\x12x\n" +
+	"\vListChanges\x12\x1f.dockwell.v1.ListChangesRequest\x1a .dockwell.v1.ListChangesResponse\"&\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\r\x12\v/v1/changes\x90\x02\x01\x12\x83\x01\n" +
+	"\vApplyChange\x12\x1f.dockwell.v1.ApplyChangeRequest\x1a .dockwell.v1.ApplyChangeResponse\"1\xa0\xbb\x18\x03\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/changes/{id}:apply\x12d\n" +
+	"\vWatchChange\x12\x1f.dockwell.v1.WatchChangeRequest\x1a .dockwell.v1.WatchChangeResponse\"\x10\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x040\x01\x12\x7f\n" +
 	"\n" +
-	"UndoChange\x12\x1e.dockwell.v1.UndoChangeRequest\x1a\x1f.dockwell.v1.UndoChangeResponse\"$\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/changes/{id}:undo\x12\x7f\n" +
-	"\rDiscardChange\x12!.dockwell.v1.DiscardChangeRequest\x1a\".dockwell.v1.DiscardChangeResponse\"'\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/changes/{id}:discard\x12\x83\x01\n" +
-	"\x0eRestartService\x12\".dockwell.v1.RestartServiceRequest\x1a#.dockwell.v1.RestartServiceResponse\"(\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/services/{id}:restart\x12d\n" +
-	"\tListDrift\x12\x1d.dockwell.v1.ListDriftRequest\x1a\x1e.dockwell.v1.ListDriftResponse\"\x18\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\v\x12\t/v1/drift\x90\x02\x01\x12q\n" +
-	"\vRevertDrift\x12\x1f.dockwell.v1.RevertDriftRequest\x1a .dockwell.v1.RevertDriftResponse\"\x1f\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/drift:revert\x12m\n" +
+	"UndoChange\x12\x1e.dockwell.v1.UndoChangeRequest\x1a\x1f.dockwell.v1.UndoChangeResponse\"0\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/changes/{id}:undo\x12\x8b\x01\n" +
+	"\rDiscardChange\x12!.dockwell.v1.DiscardChangeRequest\x1a\".dockwell.v1.DiscardChangeResponse\"3\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/changes/{id}:discard\x12\x8f\x01\n" +
+	"\x0eRestartService\x12\".dockwell.v1.RestartServiceRequest\x1a#.dockwell.v1.RestartServiceResponse\"4\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/services/{id}:restart\x12p\n" +
+	"\tListDrift\x12\x1d.dockwell.v1.ListDriftRequest\x1a\x1e.dockwell.v1.ListDriftResponse\"$\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\v\x12\t/v1/drift\x90\x02\x01\x12}\n" +
+	"\vRevertDrift\x12\x1f.dockwell.v1.RevertDriftRequest\x1a .dockwell.v1.RevertDriftResponse\"+\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/drift:revert\x12y\n" +
 	"\n" +
-	"AdoptDrift\x12\x1e.dockwell.v1.AdoptDriftRequest\x1a\x1f.dockwell.v1.AdoptDriftResponse\"\x1e\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/drift:adopt\x1a\xe4\b\xa2\xbb\x18\xcf\x03\n" +
+	"AdoptDrift\x12\x1e.dockwell.v1.AdoptDriftRequest\x1a\x1f.dockwell.v1.AdoptDriftResponse\"*\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/drift:adopt\x1a\xe4\b\xa2\xbb\x18\xcf\x03\n" +
 	"\achanges\x12\xc3\x03A change is a set of edits to managed state, with the plan that carries them out. You propose edits and get a plan back; applying it writes immutable revisions and runs its steps on the servers; undoing it makes a new plan that puts things back. A change applies only as it was planned, and a plan never shows a secret, only that it changed.\n" +
 	"\n" +
 	"See docs/adr/0009-resources-revisions-and-plans.md and docs/adr/0017-the-change-api-and-the-agent-stream.md.\xa2\xbb\x18\x97\x02\n" +

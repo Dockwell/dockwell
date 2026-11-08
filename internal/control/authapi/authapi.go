@@ -551,6 +551,9 @@ const (
 	// ReasonNeedsSession: the call came with an API token, and no token may
 	// make it: it is destructive, or manages sign-in or tokens.
 	ReasonNeedsSession = "needs_session"
+	// ReasonNeedsRole: the call needs a role the caller doesn't hold, or for
+	// an API token, its maker doesn't (ADR 0049).
+	ReasonNeedsRole = "needs_role"
 	// ReasonNeedsStepUp: the call needs a fresh passkey assertion for it,
 	// from FinishStepUp, and its proof is missing, used, expired, or for
 	// something else.
@@ -644,11 +647,22 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 func UserProto(u store.User) *dockwellv1.User { return userProto(u) }
 
 func userProto(u store.User) *dockwellv1.User {
-	role := dockwellv1.Role_ROLE_UNSPECIFIED
-	if u.Role == store.RoleOwner {
-		role = dockwellv1.Role_ROLE_OWNER
+	return &dockwellv1.User{Id: u.ID, Name: u.Name, Email: u.Email, Role: RoleProto(u.Role), CreateTime: timestamppb.New(u.CreatedAt)}
+}
+
+// RoleProto is a role as the API names it.
+func RoleProto(role string) dockwellv1.Role {
+	switch role {
+	case store.RoleOwner:
+		return dockwellv1.Role_ROLE_OWNER
+	case store.RoleAdmin:
+		return dockwellv1.Role_ROLE_ADMIN
+	case store.RoleDeveloper:
+		return dockwellv1.Role_ROLE_DEVELOPER
+	case store.RoleViewer:
+		return dockwellv1.Role_ROLE_VIEWER
 	}
-	return &dockwellv1.User{Id: u.ID, Name: u.Name, Email: u.Email, Role: role, CreateTime: timestamppb.New(u.CreatedAt)}
+	return dockwellv1.Role_ROLE_UNSPECIFIED
 }
 
 func methodProto(m string) dockwellv1.SignInMethod {

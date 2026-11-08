@@ -53,6 +53,9 @@ service ChangeService {
   // value is no change, and a plan masks one that differs.
   rpc ProposeChange(ProposeChangeRequest) returns (ProposeChangeResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/changes"
       body: "*"
@@ -64,6 +67,9 @@ service ChangeService {
   rpc GetChange(GetChangeRequest) returns (GetChangeResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/changes/{id}"};
   }
 
@@ -73,6 +79,9 @@ service ChangeService {
   rpc ListChanges(ListChangesRequest) returns (ListChangesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/changes"};
   }
 
@@ -92,6 +101,9 @@ service ChangeService {
   // signed-in session: no API token may apply one.
   rpc ApplyChange(ApplyChangeRequest) returns (ApplyChangeResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/changes/{id}:apply"
       body: "*"
@@ -105,6 +117,9 @@ service ChangeService {
   // number of clients can watch one change, whoever applies it.
   rpc WatchChange(WatchChangeRequest) returns (stream WatchChangeResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
   }
 
   // UndoChange plans putting back everything an applied change did, as a
@@ -113,6 +128,9 @@ service ChangeService {
   // again since: undo that later change first, or edit the resource.
   rpc UndoChange(UndoChangeRequest) returns (UndoChangeResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/changes/{id}:undo"
       body: "*"
@@ -123,6 +141,9 @@ service ChangeService {
   // stays on record as discarded.
   rpc DiscardChange(DiscardChangeRequest) returns (DiscardChangeResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/changes/{id}:discard"
       body: "*"
@@ -137,6 +158,9 @@ service ChangeService {
   // nothing to undo, and a restart that fails leaves the revision where it was.
   rpc RestartService(RestartServiceRequest) returns (RestartServiceResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/services/{id}:restart"
       body: "*"
@@ -149,6 +173,9 @@ service ChangeService {
   rpc ListDrift(ListDriftRequest) returns (ListDriftResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/drift"};
   }
 
@@ -156,6 +183,9 @@ service ChangeService {
   // revision on the servers it runs on.
   rpc RevertDrift(RevertDriftRequest) returns (RevertDriftResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/drift:revert"
       body: "*"
@@ -167,6 +197,9 @@ service ChangeService {
   // server the resource runs on is brought to match, and the plan shows it.
   rpc AdoptDrift(AdoptDriftRequest) returns (AdoptDriftResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/drift:adopt"
       body: "*"

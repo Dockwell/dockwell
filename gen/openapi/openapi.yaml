@@ -10982,6 +10982,9 @@ components:
                     enum:
                         - ROLE_UNSPECIFIED
                         - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
                     type: string
                     description: What they may do.
                     format: enum

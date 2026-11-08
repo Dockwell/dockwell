@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 // publicProcedures work without a session: claiming, signing in, and what
@@ -373,6 +375,100 @@ var tokenAccess = func() map[string]auth.Access {
 	return m
 }()
 
+// rule is what a procedure needs of a role (ADR 0049): the lowest role it
+// needs anywhere, which the interceptor checks first, and what its objects are.
+type rule struct {
+	needs dockwellv1.Needs
+	reach dockwellv1.Reach
+}
+
+// roleRules maps each procedure of dockwell.v1 to its rule, from its
+// (dockwell.v1.min_role) and (dockwell.v1.reach). A procedure without one needs
+// the owner, so a new method is closed until it says.
+var roleRules = func() map[string]rule {
+	m := map[string]rule{}
+	protoregistry.GlobalFiles.RangeFilesByPackage("dockwell.v1", func(fd protoreflect.FileDescriptor) bool {
+		for i := range fd.Services().Len() {
+			sd := fd.Services().Get(i)
+			for j := range sd.Methods().Len() {
+				md := sd.Methods().Get(j)
+				needs, _ := proto.GetExtension(md.Options(), dockwellv1.E_MinRole).(dockwellv1.Needs)
+				reach, _ := proto.GetExtension(md.Options(), dockwellv1.E_Reach).(dockwellv1.Reach)
+				m["/"+string(sd.FullName())+"/"+string(md.Name())] = rule{needs: needs, reach: reach}
+			}
+		}
+		return true
+	})
+	return m
+}()
+
+// roleOf is the store's role a Needs names, or "" for none.
+func roleOf(n dockwellv1.Needs) string {
+	switch n {
+	case dockwellv1.Needs_NEEDS_VIEWER:
+		return store.RoleViewer
+	case dockwellv1.Needs_NEEDS_DEVELOPER:
+		return store.RoleDeveloper
+	case dockwellv1.Needs_NEEDS_ADMIN:
+		return store.RoleAdmin
+	case dockwellv1.Needs_NEEDS_NOTHING:
+		return ""
+	case dockwellv1.Needs_NEEDS_OWNER, dockwellv1.Needs_NEEDS_UNSPECIFIED:
+		// Unset is the owner's, so a method that doesn't say is closed.
+	}
+	return store.RoleOwner
+}
+
+// gate checks the lowest role a procedure needs anywhere against the highest
+// the caller holds, a person's own or a token's maker's, read now. It's the
+// first of the checks roles make: where the call's objects are is checked
+// after (ADR 0048, ADR 0049).
+func (i *interceptor) gate(ctx context.Context, p auth.Principal, procedure string) error {
+	r, known := roleRules[procedure]
+	if !known && !strings.HasPrefix(procedure, "/dockwell.v1.") {
+		return nil // reflection and health, which read nothing of anyone's
+	}
+	needs := roleOf(r.needs)
+	if needs == "" {
+		return nil
+	}
+	grants, err := i.svc.Grants(ctx, p)
+	if err != nil {
+		i.logger.ErrorContext(ctx, "can't read what someone may do", slog.Any("error", err))
+		return ReasonError(connect.CodeUnavailable, errors.New("can't check your role right now. Try again in a moment"), ReasonUnavailable)
+	}
+	held := auth.Highest(grants)
+	if store.RoleRank(held) >= store.RoleRank(needs) {
+		return nil
+	}
+	return ReasonError(connect.CodePermissionDenied, roleRefusal(p, held, needs), ReasonNeedsRole)
+}
+
+// roleRefusal says what the call needs, what the caller holds, and what to do.
+func roleRefusal(p auth.Principal, held, needs string) error {
+	who := "you hold"
+	if p.Token != nil {
+		who = "this API token's maker holds"
+	}
+	switch {
+	case held == "" && p.Token != nil:
+		return errors.New("this API token's maker holds no role on this install any more, so it can't make calls. Ask an admin, or use another token")
+	case held == "":
+		return errors.New("you hold no role on this install any more, so you can only sign out. Ask an admin to add you again")
+	case needs == store.RoleOwner:
+		return fmt.Errorf("only the owner can do this, and %s %s. Ask the owner", who, article(held))
+	}
+	return fmt.Errorf("this needs %s or more, and %s %s. Ask an admin to change the role", article(needs), who, article(held))
+}
+
+// article names a role with its article: "a viewer's role", "an admin's role".
+func article(role string) string {
+	if role == store.RoleAdmin || role == store.RoleOwner {
+		return "an " + role + "'s role"
+	}
+	return "a " + role + "'s role"
+}
+
 func (i *interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
 		ctx, err := i.authorize(ctx, req.Spec().Procedure)
@@ -451,11 +547,15 @@ func (i *interceptor) authorize(ctx context.Context, procedure string) (context.
 	if publicProcedures[procedure] {
 		return ctx, nil
 	}
-	if _, ok := PrincipalFrom(ctx); !ok {
+	p, ok := PrincipalFrom(ctx)
+	if !ok {
 		if req.token != "" {
 			return ctx, ReasonError(connect.CodeUnauthenticated, errSessionEnded, ReasonSessionEnded)
 		}
 		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
+	}
+	if err := i.gate(ctx, p, procedure); err != nil {
+		return ctx, err
 	}
 	if !req.get && !req.sameOrigin {
 		return ctx, ReasonError(connect.CodePermissionDenied,
@@ -474,6 +574,9 @@ func (i *interceptor) authorizeToken(ctx context.Context, req request, procedure
 	p, err := i.svc.AuthenticateToken(ctx, req.client, req.bearer, accessFor(procedure), procedure)
 	switch {
 	case err == nil:
+		if err := i.gate(ctx, p, procedure); err != nil {
+			return ctx, err
+		}
 		return context.WithValue(ctx, principalKey{}, p), nil
 	case errors.Is(err, auth.ErrTokenRejected):
 		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)

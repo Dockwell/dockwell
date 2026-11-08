@@ -891,14 +891,14 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"L\n" +
 	"\x1dUpgradeCatalogInstallResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change2\x8e\x06\n" +
-	"\x0eCatalogService\x12\x89\x01\n" +
-	"\x12ListCatalogEntries\x12&.dockwell.v1.ListCatalogEntriesRequest\x1a'.dockwell.v1.ListCatalogEntriesResponse\"\"\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/catalog/entries\x90\x02\x01\x12\x85\x01\n" +
-	"\x0fGetCatalogEntry\x12#.dockwell.v1.GetCatalogEntryRequest\x1a$.dockwell.v1.GetCatalogEntryResponse\"'\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/catalog/entries/{id}\x90\x02\x01\x12\x9b\x01\n" +
-	"\x13ListCatalogInstalls\x12'.dockwell.v1.ListCatalogInstallsRequest\x1a(.dockwell.v1.ListCatalogInstallsResponse\"1\xa0\xbb\x18\x01\xaa\xbb\x18\n" +
-	"\x12\binstalls\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/catalog/installs\x90\x02\x01\x12\xad\x01\n" +
-	"\x15UpgradeCatalogInstall\x12).dockwell.v1.UpgradeCatalogInstallRequest\x1a*.dockwell.v1.UpgradeCatalogInstallResponse\"=\xa0\xbb\x18\x02\xaa\xbb\x18\t\x12\aupgrade\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/catalog/installs/{id}:upgrade\x12\x99\x01\n" +
-	"\x13InstallCatalogEntry\x12'.dockwell.v1.InstallCatalogEntryRequest\x1a(.dockwell.v1.InstallCatalogEntryResponse\"/\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02%:\x01*\" /v1/catalog/entries/{id}:installB\xa5\x01\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change2\xca\x06\n" +
+	"\x0eCatalogService\x12\x95\x01\n" +
+	"\x12ListCatalogEntries\x12&.dockwell.v1.ListCatalogEntriesRequest\x1a'.dockwell.v1.ListCatalogEntriesResponse\".\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x03\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/catalog/entries\x90\x02\x01\x12\x91\x01\n" +
+	"\x0fGetCatalogEntry\x12#.dockwell.v1.GetCatalogEntryRequest\x1a$.dockwell.v1.GetCatalogEntryResponse\"3\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x03\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/catalog/entries/{id}\x90\x02\x01\x12\xa7\x01\n" +
+	"\x13ListCatalogInstalls\x12'.dockwell.v1.ListCatalogInstallsRequest\x1a(.dockwell.v1.ListCatalogInstallsResponse\"=\xa0\xbb\x18\x01\xaa\xbb\x18\n" +
+	"\x12\binstalls\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/catalog/installs\x90\x02\x01\x12\xb9\x01\n" +
+	"\x15UpgradeCatalogInstall\x12).dockwell.v1.UpgradeCatalogInstallRequest\x1a*.dockwell.v1.UpgradeCatalogInstallResponse\"I\xa0\xbb\x18\x02\xaa\xbb\x18\t\x12\aupgrade\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/catalog/installs/{id}:upgrade\x12\xa5\x01\n" +
+	"\x13InstallCatalogEntry\x12'.dockwell.v1.InstallCatalogEntryRequest\x1a(.dockwell.v1.InstallCatalogEntryResponse\";\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02%:\x01*\" /v1/catalog/entries/{id}:installB\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fCatalogProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
