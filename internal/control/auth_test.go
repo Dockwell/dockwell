@@ -108,6 +108,8 @@ type fullServer struct {
 	server *Server
 	// lastDocker is the server addDockerServer last added.
 	lastDocker *testServer
+	// onePanelRoot is where the next Docker server added has 1Panel installed, if anywhere.
+	onePanelRoot string
 	// volumes wraps the volume driver of the next server added, to see what its
 	// agent hears. Nil leaves it as it is.
 	volumes func(*volume.Driver) resource.Type

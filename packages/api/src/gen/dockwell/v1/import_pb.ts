@@ -64,8 +64,9 @@ export type ImportOnePanelResponse = Message<"dockwell.v1.ImportOnePanelResponse
   steps: ImportStep[];
 
   /**
-   * The change that takes on what can be taken now, planned for a person to
-   * apply. Empty for now: planning the import comes next.
+   * The change that takes on what can come now, planned for a person to apply.
+   * Empty for a token, where nothing can come, and where Dockwell can't read
+   * what runs on the server now.
    *
    * @generated from field: dockwell.v1.Change change = 3;
    */
@@ -1052,11 +1053,13 @@ export const ImportService: GenService<{
    * ImportOnePanel reads what 1Panel keeps on a server: its apps from its store,
    * runtimes, websites, certificates, databases and cron jobs. It says what
    * Dockwell would do with each and why: take it on as it runs, make it again,
-   * or leave it, and which issue it waits for where Dockwell can't yet. For now
-   * it records nothing and returns no change: planning the import, as a change
-   * a person applies, comes next. The agent reads 1Panel's records read-only,
-   * and nothing secret comes back: no password, key, script, environment or URL
-   * path. So a read-write token can ask, as for CheckCompose.
+   * or leave it, and which issue it waits for where Dockwell can't yet. For a
+   * person, it also plans the change that takes on each app and runtime that
+   * can come as it runs, reading each container as AdoptCompose does: one that
+   * can't come stays, with why. A token gets what was found and no change, as a
+   * plan that takes a container on shows what a token can't read. The agent
+   * reads 1Panel's records read-only, and nothing secret comes back from them:
+   * no password, key, script, environment or URL path.
    *
    * @generated from rpc dockwell.v1.ImportService.ImportOnePanel
    */

@@ -20,11 +20,13 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentlogs "github.com/dockwell/dockwell/internal/agent/logs"
+	"github.com/dockwell/dockwell/internal/agent/onepanel"
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -100,6 +102,9 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		logs:    &agentlogs.Reader{Client: client, Archive: archive, Logger: slog.New(slog.DiscardHandler)},
 		client:  client,
 		backups: backups,
+	}
+	if root := f.onePanelRoot; root != "" {
+		s.onePanel = func(ctx context.Context) (*agentv1.ReadOnePanelResult, error) { return onepanel.Read(ctx, root) }
 	}
 	s.connect(t, f)
 	f.lastDocker = s

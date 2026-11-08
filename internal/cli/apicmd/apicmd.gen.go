@@ -736,7 +736,7 @@ func Methods() []*apicli.Method {
 			Noun:      "import",
 			Verb:      "1panel",
 			Short:     "Read what 1Panel keeps on a server",
-			Long:      "Read what 1Panel keeps on a server: its apps from its store, runtimes, websites,\ncertificates, databases and cron jobs. It says what Dockwell would do with each\nand why: take it on as it runs, make it again, or leave it, and which issue it\nwaits for where Dockwell can't yet. For now it records nothing and returns no\nchange: planning the import, as a change a person applies, comes next. The agent\nreads 1Panel's records read-only, and nothing secret comes back: no password,\nkey, script, environment or URL path. So a read-write token can ask, as for\ndockwell compose check.",
+			Long:      "Read what 1Panel keeps on a server: its apps from its store, runtimes, websites,\ncertificates, databases and cron jobs. It says what Dockwell would do with each\nand why: take it on as it runs, make it again, or leave it, and which issue it\nwaits for where Dockwell can't yet. For a person, it also plans the change that\ntakes on each app and runtime that can come as it runs, reading each container\nas dockwell compose adopt does: one that can't come stays, with why. A token\ngets what was found and no change, as a plan that takes a container on shows\nwhat a token can't read. The agent reads 1Panel's records read-only, and nothing\nsecret comes back from them: no password, key, script, environment or URL path.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server running 1Panel, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\"."},
