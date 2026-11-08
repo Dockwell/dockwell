@@ -253,6 +253,9 @@ func (d *differ) list(path string, fd protoreflect.FieldDescriptor, a, b protore
 		}
 		return
 	}
+	if key, ok := listKeys[fd.Message().FullName()]; ok && d.keyed(path, fd.Message(), la, lb, key, sensitive) {
+		return
+	}
 	for i := range max(len(la), len(lb)) {
 		var ma, mb protoreflect.Message
 		if i < len(la) {
@@ -263,6 +266,59 @@ func (d *differ) list(path string, fd protoreflect.FieldDescriptor, a, b protore
 		}
 		d.message(fmt.Sprintf("%s[%d]", path, i), fd.Message(), ma, mb, sensitive)
 	}
+}
+
+// listKeys names the field that tells an item of a list from the others, for a
+// list whose order means nothing to what runs: a mount and a tmpfs, by where they
+// appear in the container. Matched by it, a mount added in the middle reads as one
+// added, rather than as every one after it changed.
+var listKeys = map[protoreflect.FullName]protoreflect.Name{
+	"dockwell.resource.v1alpha1.Mount": "target",
+	"dockwell.resource.v1alpha1.Tmpfs": "target",
+}
+
+// keyed diffs two lists by their items' key: an item at its place in the new list,
+// against the old one with its key, and one that went after the new list's end, so
+// no two items share a path. It declines, for the lists to go by place, where a key
+// is missing or used twice, as then it tells nothing apart.
+func (d *differ) keyed(path string, md protoreflect.MessageDescriptor, la, lb []protoreflect.Value, key protoreflect.Name, sensitive bool) bool {
+	fd := md.Fields().ByName(key)
+	if fd == nil {
+		return false
+	}
+	keys := func(items []protoreflect.Value) (map[string]int, bool) {
+		at := make(map[string]int, len(items))
+		for i, v := range items {
+			k := v.Message().Get(fd).String()
+			if _, twice := at[k]; twice || k == "" {
+				return nil, false
+			}
+			at[k] = i
+		}
+		return at, true
+	}
+	old, okA := keys(la)
+	_, okB := keys(lb)
+	if !okA || !okB {
+		return false
+	}
+	kept := make([]bool, len(la))
+	for j, v := range lb {
+		var was protoreflect.Message
+		if i, ok := old[v.Message().Get(fd).String()]; ok {
+			kept[i] = true
+			was = la[i].Message()
+		}
+		d.message(fmt.Sprintf("%s[%d]", path, j), md, was, v.Message(), sensitive)
+	}
+	next := len(lb)
+	for i, v := range la {
+		if !kept[i] {
+			d.message(fmt.Sprintf("%s[%d]", path, next), md, v.Message(), nil, sensitive)
+			next++
+		}
+	}
+	return true
 }
 
 func (d *differ) mapField(path string, fd protoreflect.FieldDescriptor, a, b protoreflect.Value, sensitive bool) {

@@ -4054,6 +4054,9 @@ msgstr "tmpfs at"
 msgid "tmpfs size"
 msgstr "tmpfs size"
 
+msgid "uses its newer value"
+msgstr "uses its newer value"
+
 msgid "yes"
 msgstr "yes"
 

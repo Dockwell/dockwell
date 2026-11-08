@@ -780,6 +780,25 @@ describe("the plan sheet", () => {
     expect(sheet).toHaveTextContent("This reloads the proxy on hz-1");
   });
 
+  it("says quietly, once, what an edit kept of an app's own values, as no warning", async () => {
+    const kept = webPlanned();
+    if (!kept.plan) throw new Error("webPlanned has no plan");
+    kept.plan.notes = [
+      create(PlanNoteSchema, {
+        reason: "keeps_env",
+        message: "web keeps the value of SESSION_KEY as it is, as nobody read it back",
+        resource: create(ResourceRefSchema, { kind: "service", name: "web" }),
+      }),
+    ];
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: kept }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: /plan/i });
+    const said = within(sheet).getAllByText("web keeps the value of SESSION_KEY as it is, as nobody read it back.");
+    expect(said).toHaveLength(1);
+    expect(said[0]?.closest(".dw-tone-warning")).toBeNull();
+  });
+
   it("says what stopping the ingress leaves behind, and names the domain a plan takes", async () => {
     const routed = webPlanned();
     const plan = routed.plan;

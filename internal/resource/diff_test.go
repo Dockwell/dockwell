@@ -3,7 +3,9 @@
 package resource_test
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"google.golang.org/protobuf/proto"
@@ -186,5 +188,52 @@ func TestSensitivePath(t *testing.T) {
 	}
 	if !resource.SensitivePath((&resourcev1.Secret{}).ProtoReflect().Descriptor(), "value") {
 		t.Error("a secret's value isn't sensitive")
+	}
+}
+
+// A mount is told from the others by where it appears in the container, as its
+// place in the list means nothing to Docker: one added or taken out in the middle
+// reads as that, not as every one after it changed.
+func TestDiffMatchesMountsByTarget(t *testing.T) {
+	mount := func(volume, target string, readOnly bool) *resourcev1.Mount {
+		return &resourcev1.Mount{Source: &resourcev1.Mount_Volume{Volume: volume}, Target: target, ReadOnly: readOnly}
+	}
+	paths := func(got []resource.Change) []string {
+		out := make([]string, len(got))
+		for i, c := range got {
+			out[i] = fmt.Sprintf("%s %v %s>%s", c.Path, c.Op, c.From, c.To)
+		}
+		return out
+	}
+	a := &resourcev1.Container{Mounts: []*resourcev1.Mount{mount("data", "/data", false), mount("conf", "/conf", true)}}
+	inserted := &resourcev1.Container{Mounts: []*resourcev1.Mount{mount("data", "/data", false), mount("cache", "/cache", false), mount("conf", "/conf", true)}}
+	got := paths(resource.Diff(a, inserted))
+	want := []string{
+		fmt.Sprintf("mounts[1].volume %v >cache", resource.OpAdded),
+		fmt.Sprintf("mounts[1].target %v >/cache", resource.OpAdded),
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("a mount added in the middle reads as %q, want %q", got, want)
+	}
+	// Taken out of the middle, it goes after the new list's end, so no two share a path.
+	got = paths(resource.Diff(inserted, a))
+	want = []string{
+		fmt.Sprintf("mounts[2].volume %v cache>", resource.OpRemoved),
+		fmt.Sprintf("mounts[2].target %v /cache>", resource.OpRemoved),
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("a mount taken out of the middle reads as %q, want %q", got, want)
+	}
+	// One that changes keeps its place in the new list.
+	changed := &resourcev1.Container{Mounts: []*resourcev1.Mount{mount("conf", "/conf", false), mount("data", "/data", false)}}
+	got = paths(resource.Diff(a, changed))
+	want = []string{fmt.Sprintf("mounts[0].read_only %v true>", resource.OpRemoved)}
+	if !slices.Equal(got, want) {
+		t.Errorf("a mount that moved and changed reads as %q, want %q", got, want)
+	}
+	// Two with one target tell nothing apart, so they go by place, as before.
+	twice := &resourcev1.Container{Mounts: []*resourcev1.Mount{mount("a", "/x", false), mount("b", "/x", false)}}
+	if got := paths(resource.Diff(twice, a)); len(got) == 0 || !strings.HasPrefix(got[0], "mounts[0].volume") {
+		t.Errorf("mounts sharing a target read as %q", got)
 	}
 }

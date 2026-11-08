@@ -4054,6 +4054,9 @@ msgstr "tmpfs 位置"
 msgid "tmpfs size"
 msgstr "tmpfs 大小"
 
+msgid "uses its newer value"
+msgstr "使用它的新值"
+
 msgid "yes"
 msgstr "是"
 
