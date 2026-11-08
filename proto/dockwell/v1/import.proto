@@ -228,15 +228,20 @@ message OnePanelCertificate {
   string primary_domain = 1;
   // The other domains it covers.
   repeated string domains = 2;
-  // How it was got: "autoSSL", "dnsAccount", "dnsManual", "http", "manual" or
-  // "selfSigned", as 1Panel says it.
+  // How it was got, as 1Panel's provider column says it: "http" or
+  // "dnsAccount" from an ACME server, "dnsManual" from one with DNS records set
+  // by hand, "manual" uploaded, "selfSigned" from 1Panel's own CA, or
+  // "fromMaster" from the 1Panel that manages this one.
   string kind = 3;
-  // The ACME provider, where it came from one.
+  // The ACME account's CA, as 1Panel names it, such as "letsencrypt", "zerossl"
+  // or "custom", for one got from an ACME server.
   string provider = 4;
   // When it ends.
   google.protobuf.Timestamp expires = 5;
   // True when 1Panel renews it.
   bool auto_renew = 6;
+  // Who issued it: the issuer's organization, or its common name.
+  string issuer = 7;
 }
 
 // OnePanelDatabaseServer is a database server 1Panel knows: one of its store's,

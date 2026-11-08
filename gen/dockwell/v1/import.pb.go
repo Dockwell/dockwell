@@ -975,15 +975,20 @@ type OnePanelCertificate struct {
 	PrimaryDomain string `protobuf:"bytes,1,opt,name=primary_domain,json=primaryDomain,proto3" json:"primary_domain,omitempty"`
 	// The other domains it covers.
 	Domains []string `protobuf:"bytes,2,rep,name=domains,proto3" json:"domains,omitempty"`
-	// How it was got: "autoSSL", "dnsAccount", "dnsManual", "http", "manual" or
-	// "selfSigned", as 1Panel says it.
+	// How it was got, as 1Panel's provider column says it: "http" or
+	// "dnsAccount" from an ACME server, "dnsManual" from one with DNS records set
+	// by hand, "manual" uploaded, "selfSigned" from 1Panel's own CA, or
+	// "fromMaster" from the 1Panel that manages this one.
 	Kind string `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
-	// The ACME provider, where it came from one.
+	// The ACME account's CA, as 1Panel names it, such as "letsencrypt", "zerossl"
+	// or "custom", for one got from an ACME server.
 	Provider string `protobuf:"bytes,4,opt,name=provider,proto3" json:"provider,omitempty"`
 	// When it ends.
 	Expires *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=expires,proto3" json:"expires,omitempty"`
 	// True when 1Panel renews it.
-	AutoRenew     bool `protobuf:"varint,6,opt,name=auto_renew,json=autoRenew,proto3" json:"auto_renew,omitempty"`
+	AutoRenew bool `protobuf:"varint,6,opt,name=auto_renew,json=autoRenew,proto3" json:"auto_renew,omitempty"`
+	// Who issued it: the issuer's organization, or its common name.
+	Issuer        string `protobuf:"bytes,7,opt,name=issuer,proto3" json:"issuer,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1058,6 +1063,13 @@ func (x *OnePanelCertificate) GetAutoRenew() bool {
 		return x.AutoRenew
 	}
 	return false
+}
+
+func (x *OnePanelCertificate) GetIssuer() string {
+	if x != nil {
+		return x.Issuer
+	}
+	return ""
 }
 
 // OnePanelDatabaseServer is a database server 1Panel knows: one of its store's,
@@ -1422,7 +1434,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x0eOnePanelDomain\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12\x14\n" +
-	"\x05https\x18\x03 \x01(\bR\x05https\"\xdb\x01\n" +
+	"\x05https\x18\x03 \x01(\bR\x05https\"\xf3\x01\n" +
 	"\x13OnePanelCertificate\x12%\n" +
 	"\x0eprimary_domain\x18\x01 \x01(\tR\rprimaryDomain\x12\x18\n" +
 	"\adomains\x18\x02 \x03(\tR\adomains\x12\x12\n" +
@@ -1430,7 +1442,8 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\bprovider\x18\x04 \x01(\tR\bprovider\x124\n" +
 	"\aexpires\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\x12\x1d\n" +
 	"\n" +
-	"auto_renew\x18\x06 \x01(\bR\tautoRenew\"\x96\x01\n" +
+	"auto_renew\x18\x06 \x01(\bR\tautoRenew\x12\x16\n" +
+	"\x06issuer\x18\a \x01(\tR\x06issuer\"\x96\x01\n" +
 	"\x16OnePanelDatabaseServer\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x18\n" +
