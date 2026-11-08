@@ -22,6 +22,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
@@ -354,6 +355,9 @@ func (i *interceptor) checkScope(ctx context.Context, procedure string, msg any)
 		}
 		if store.RoleRank(held) < store.RoleRank(needs) {
 			who, _ := PrincipalFrom(ctx)
+			if p.Protected && store.RoleRank(held) >= store.RoleRank(roleOf(r.needs)) {
+				return ReasonError(connect.CodePermissionDenied, protectedRefusal(who, held, needs), ReasonNeedsRole)
+			}
 			return ReasonError(connect.CodePermissionDenied, roleRefusal(who, held, needs), ReasonNeedsRole)
 		}
 	}
@@ -832,4 +836,15 @@ func pageToken(ctx context.Context, procedure string, msg any, field protoreflec
 func InstallRole(ctx context.Context) string {
 	grants, _ := grantsFrom(ctx)
 	return place.Holds(grants, place.Install)
+}
+
+// protectedRefusal says a call the caller could make in an open environment
+// needs more in a protected one, where a developer's change waits for an admin
+// or the owner to apply it (ADR 0049).
+func protectedRefusal(p auth.Principal, held, needs string) error {
+	who := "you're " + aRole(held)
+	if p.Token != nil {
+		who = "this API token's maker is " + aRole(held)
+	}
+	return fmt.Errorf("this is in a protected environment, where only %s can do it, and %s, so it didn't happen. A developer's change there waits for an admin or the owner to apply it", atLeast(needs), who)
 }

@@ -75,6 +75,10 @@ const (
 	// StepUpOpenTerminal opens a root shell on a server. Its target is the
 	// server's ID. A proof opens one terminal (ADR 0037).
 	StepUpOpenTerminal StepUpAction = "terminal.open"
+	// StepUpApproveChange applies someone else's change in a protected
+	// environment. Its target is the change's ID and its plan's fingerprint, as
+	// "chg_…:fingerprint".
+	StepUpApproveChange StepUpAction = "change.approve"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -94,6 +98,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpSaveWayBackIn:   {"saving", true},
 	StepUpEndProcess:      {"ending process", true},
 	StepUpOpenTerminal:    {"opening a terminal on", true},
+	StepUpApproveChange:   {"approving", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".

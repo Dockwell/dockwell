@@ -542,6 +542,10 @@ message Change {
   string because = 19;
   // True for a restart, which makes no revision.
   bool restart = 20;
+  // True on a planned change with an item in a protected environment: a
+  // developer's waits for an admin or the owner to apply it, and someone
+  // else's is approved with a passkey (ADR 0049).
+  bool protected = 21;
 }
 
 // RollbackStatus is how the rollback of a failed change is going, for

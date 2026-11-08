@@ -35,6 +35,28 @@ type Place struct {
 // Install is the place of what belongs to no project, such as a server.
 var Install = Place{}
 
+// Caller is who makes a call, as the API read them for it: the person, and the
+// grants they hold now, an API token's maker's for a token (ADR 0049). The API
+// puts it in each call's context, for the checks after its first gate and for
+// internal/revision's check of each item of a change.
+type Caller struct {
+	UserID string
+	Grants []store.Grant
+}
+
+type callerKey struct{}
+
+// WithCaller returns ctx carrying c.
+func WithCaller(ctx context.Context, c Caller) context.Context {
+	return context.WithValue(ctx, callerKey{}, c)
+}
+
+// CallerFrom is the caller ctx carries, if any.
+func CallerFrom(ctx context.Context) (Caller, bool) {
+	c, ok := ctx.Value(callerKey{}).(Caller)
+	return c, ok
+}
+
 // ErrUnknown is an ID of a kind this package can't place. A call naming one is
 // refused, so a new kind of object is closed until it's placed.
 var ErrUnknown = errors.New("can't say where this belongs")

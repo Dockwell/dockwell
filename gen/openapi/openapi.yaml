@@ -4269,6 +4269,7 @@ components:
                         - STEP_UP_ACTION_SAVE_WAY_BACK_IN
                         - STEP_UP_ACTION_END_PROCESS
                         - STEP_UP_ACTION_OPEN_TERMINAL
+                        - STEP_UP_ACTION_APPROVE_CHANGE
                     type: string
                     description: The action.
                     format: enum
@@ -4632,6 +4633,12 @@ components:
                 restart:
                     type: boolean
                     description: True for a restart, which makes no revision.
+                protected:
+                    type: boolean
+                    description: |-
+                        True on a planned change with an item in a protected environment: a
+                         developer's waits for an admin or the owner to apply it, and someone
+                         else's is approved with a passkey (ADR 0049).
             description: |-
                 Change is one action's worth of edits to managed resources: planned,
                  then applied, failed or discarded.

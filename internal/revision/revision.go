@@ -126,12 +126,15 @@ type Agents interface {
 type Engine struct {
 	// onBackup hears of each backup a step takes.
 	onBackup func(context.Context, BackupStep)
-	db       *store.DB
-	kinds    *resource.Registry
-	agents   Agents
-	sealer   Sealer
-	logger   *slog.Logger
-	now      func() time.Time
+	// roles has a person's change without a caller in its context refused
+	// (RequireRoles).
+	roles  bool
+	db     *store.DB
+	kinds  *resource.Registry
+	agents Agents
+	sealer Sealer
+	logger *slog.Logger
+	now    func() time.Time
 	// mu makes commits take turns: checking again that nothing moved since
 	// the plan, and committing the revisions, happen together. Planning
 	// asks agents, so it happens outside mu, and so do the steps: a slow
@@ -628,6 +631,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	}
 	items, err := e.items(ctx, p.Edits, rotate)
 	if err != nil {
+		return nil, err
+	}
+	if err := e.db.View(ctx, func(tx *store.Tx) error { return e.checkRoles(ctx, tx, p.Actor, nil, items, planning) }); err != nil {
 		return nil, err
 	}
 	changeID := id.New(id.Change)
@@ -2796,6 +2802,9 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 		if items, err = e.current(ctx, tx, c); err != nil {
 			return err
 		}
+		if err := e.checkRoles(ctx, tx, cmp.Or(by.Actor, c.Actor), &c, items, applying); err != nil {
+			return err
+		}
 		held, err = e.holdsToo(ctx, tx, items)
 		return err
 	})
@@ -4104,6 +4113,13 @@ func (e *Engine) Discard(ctx context.Context, changeID string, by By) error {
 			return err
 		case c.State != store.ChangePlanned:
 			return fault.New(ErrNotPlanned, "%s is %s, and only a planned change can be discarded", changeID, c.State)
+		}
+		items, err := e.current(ctx, tx.Tx, c)
+		if err != nil {
+			return err
+		}
+		if err := e.checkRoles(ctx, tx.Tx, by.Actor, &c, items, discarding); err != nil {
+			return err
 		}
 		if err := tx.SetChangeState(ctx, changeID, store.ChangeDiscarded, "", time.Time{}); err != nil {
 			return err

@@ -2795,7 +2795,11 @@ type Change struct {
 	// cleaned and masked.
 	Because string `protobuf:"bytes,19,opt,name=because,proto3" json:"because,omitempty"`
 	// True for a restart, which makes no revision.
-	Restart       bool `protobuf:"varint,20,opt,name=restart,proto3" json:"restart,omitempty"`
+	Restart bool `protobuf:"varint,20,opt,name=restart,proto3" json:"restart,omitempty"`
+	// True on a planned change with an item in a protected environment: a
+	// developer's waits for an admin or the owner to apply it, and someone
+	// else's is approved with a passkey (ADR 0049).
+	Protected     bool `protobuf:"varint,21,opt,name=protected,proto3" json:"protected,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2966,6 +2970,13 @@ func (x *Change) GetBecause() string {
 func (x *Change) GetRestart() bool {
 	if x != nil {
 		return x.Restart
+	}
+	return false
+}
+
+func (x *Change) GetProtected() bool {
+	if x != nil {
+		return x.Protected
 	}
 	return false
 }
@@ -5976,7 +5987,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
 	"resourceId\"A\n" +
 	"\x12AdoptDriftResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xd4\x06\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xf2\x06\n" +
 	"\x06Change\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\asummary\x18\x02 \x01(\tR\asummary\x12.\n" +
@@ -6003,7 +6014,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\tundone_by\x18\x11 \x01(\tR\bundoneBy\x12D\n" +
 	"\x0frollback_status\x18\x12 \x01(\v2\x1b.dockwell.v1.RollbackStatusR\x0erollbackStatus\x12\x18\n" +
 	"\abecause\x18\x13 \x01(\tR\abecause\x12\x18\n" +
-	"\arestart\x18\x14 \x01(\bR\arestart\"\xd3\x01\n" +
+	"\arestart\x18\x14 \x01(\bR\arestart\x12\x1c\n" +
+	"\tprotected\x18\x15 \x01(\bR\tprotected\"\xd3\x01\n" +
 	"\x0eRollbackStatus\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x120\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x1a.dockwell.v1.RollbackStateR\x05state\x12\x14\n" +

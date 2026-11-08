@@ -190,23 +190,30 @@ const (
 	// target is the server's ID, or for a shell in a container, the server's ID and
 	// the container as the request names it, as "srv_…:web".
 	StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL StepUpAction = 10
+	// Approving someone else's change in a protected environment, as an admin
+	// or the owner, by applying it with ChangeService.ApplyChange. The target is
+	// the change's ID and the fingerprint of the plan reviewed, as
+	// "chg_…:fingerprint", so the proof is good for that plan alone. It also
+	// stands for applying a change that gives something as much as root.
+	StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE StepUpAction = 114
 )
 
 // Enum value maps for StepUpAction.
 var (
 	StepUpAction_name = map[int32]string{
-		0:  "STEP_UP_ACTION_UNSPECIFIED",
-		1:  "STEP_UP_ACTION_REVEAL_SECRET",
-		2:  "STEP_UP_ACTION_ADD_PASSKEY",
-		3:  "STEP_UP_ACTION_REMOVE_PASSKEY",
-		4:  "STEP_UP_ACTION_SET_UP_CODES",
-		5:  "STEP_UP_ACTION_DISABLE_CODES",
-		6:  "STEP_UP_ACTION_REGENERATE_RECOVERY_CODES",
-		7:  "STEP_UP_ACTION_CREATE_TOKEN",
-		8:  "STEP_UP_ACTION_APPLY_ROOT_CHANGE",
-		9:  "STEP_UP_ACTION_SAVE_WAY_BACK_IN",
-		20: "STEP_UP_ACTION_END_PROCESS",
-		10: "STEP_UP_ACTION_OPEN_TERMINAL",
+		0:   "STEP_UP_ACTION_UNSPECIFIED",
+		1:   "STEP_UP_ACTION_REVEAL_SECRET",
+		2:   "STEP_UP_ACTION_ADD_PASSKEY",
+		3:   "STEP_UP_ACTION_REMOVE_PASSKEY",
+		4:   "STEP_UP_ACTION_SET_UP_CODES",
+		5:   "STEP_UP_ACTION_DISABLE_CODES",
+		6:   "STEP_UP_ACTION_REGENERATE_RECOVERY_CODES",
+		7:   "STEP_UP_ACTION_CREATE_TOKEN",
+		8:   "STEP_UP_ACTION_APPLY_ROOT_CHANGE",
+		9:   "STEP_UP_ACTION_SAVE_WAY_BACK_IN",
+		20:  "STEP_UP_ACTION_END_PROCESS",
+		10:  "STEP_UP_ACTION_OPEN_TERMINAL",
+		114: "STEP_UP_ACTION_APPROVE_CHANGE",
 	}
 	StepUpAction_value = map[string]int32{
 		"STEP_UP_ACTION_UNSPECIFIED":               0,
@@ -221,6 +228,7 @@ var (
 		"STEP_UP_ACTION_SAVE_WAY_BACK_IN":          9,
 		"STEP_UP_ACTION_END_PROCESS":               20,
 		"STEP_UP_ACTION_OPEN_TERMINAL":             10,
+		"STEP_UP_ACTION_APPROVE_CHANGE":            114,
 	}
 )
 
@@ -1882,6 +1890,63 @@ func (x *Passkey) GetSuspectedCopy() bool {
 	return false
 }
 
+// StepUpNeeded is the detail of an error whose reason is "needs_step_up",
+// when the call says which step-up it takes: its action and target, to pass
+// to BeginStepUp as they are. Applying someone else's change in a protected
+// environment, for one, takes STEP_UP_ACTION_APPROVE_CHANGE, bound to the
+// plan's fingerprint.
+type StepUpNeeded struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Action        StepUpAction           `protobuf:"varint,1,opt,name=action,proto3,enum=dockwell.v1.StepUpAction" json:"action,omitempty"`
+	Target        string                 `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StepUpNeeded) Reset() {
+	*x = StepUpNeeded{}
+	mi := &file_dockwell_v1_auth_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StepUpNeeded) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StepUpNeeded) ProtoMessage() {}
+
+func (x *StepUpNeeded) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_auth_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StepUpNeeded.ProtoReflect.Descriptor instead.
+func (*StepUpNeeded) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *StepUpNeeded) GetAction() StepUpAction {
+	if x != nil {
+		return x.Action
+	}
+	return StepUpAction_STEP_UP_ACTION_UNSPECIFIED
+}
+
+func (x *StepUpNeeded) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
 // BeginStepUpRequest says what the passkey confirms.
 type BeginStepUpRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1897,7 +1962,7 @@ type BeginStepUpRequest struct {
 
 func (x *BeginStepUpRequest) Reset() {
 	*x = BeginStepUpRequest{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[29]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1909,7 +1974,7 @@ func (x *BeginStepUpRequest) String() string {
 func (*BeginStepUpRequest) ProtoMessage() {}
 
 func (x *BeginStepUpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[29]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1922,7 +1987,7 @@ func (x *BeginStepUpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginStepUpRequest.ProtoReflect.Descriptor instead.
 func (*BeginStepUpRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{29}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *BeginStepUpRequest) GetAction() StepUpAction {
@@ -1953,7 +2018,7 @@ type BeginStepUpResponse struct {
 
 func (x *BeginStepUpResponse) Reset() {
 	*x = BeginStepUpResponse{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[30]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1965,7 +2030,7 @@ func (x *BeginStepUpResponse) String() string {
 func (*BeginStepUpResponse) ProtoMessage() {}
 
 func (x *BeginStepUpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[30]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1978,7 +2043,7 @@ func (x *BeginStepUpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginStepUpResponse.ProtoReflect.Descriptor instead.
 func (*BeginStepUpResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{30}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *BeginStepUpResponse) GetCeremonyId() string {
@@ -2008,7 +2073,7 @@ type FinishStepUpRequest struct {
 
 func (x *FinishStepUpRequest) Reset() {
 	*x = FinishStepUpRequest{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[31]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2020,7 +2085,7 @@ func (x *FinishStepUpRequest) String() string {
 func (*FinishStepUpRequest) ProtoMessage() {}
 
 func (x *FinishStepUpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[31]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2033,7 +2098,7 @@ func (x *FinishStepUpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FinishStepUpRequest.ProtoReflect.Descriptor instead.
 func (*FinishStepUpRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{31}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *FinishStepUpRequest) GetCeremonyId() string {
@@ -2063,7 +2128,7 @@ type FinishStepUpResponse struct {
 
 func (x *FinishStepUpResponse) Reset() {
 	*x = FinishStepUpResponse{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[32]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2075,7 +2140,7 @@ func (x *FinishStepUpResponse) String() string {
 func (*FinishStepUpResponse) ProtoMessage() {}
 
 func (x *FinishStepUpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[32]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2088,7 +2153,7 @@ func (x *FinishStepUpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FinishStepUpResponse.ProtoReflect.Descriptor instead.
 func (*FinishStepUpResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{32}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *FinishStepUpResponse) GetProof() string {
@@ -2118,7 +2183,7 @@ type BeginAddPasskeyRequest struct {
 
 func (x *BeginAddPasskeyRequest) Reset() {
 	*x = BeginAddPasskeyRequest{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[33]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2130,7 +2195,7 @@ func (x *BeginAddPasskeyRequest) String() string {
 func (*BeginAddPasskeyRequest) ProtoMessage() {}
 
 func (x *BeginAddPasskeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[33]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2143,7 +2208,7 @@ func (x *BeginAddPasskeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginAddPasskeyRequest.ProtoReflect.Descriptor instead.
 func (*BeginAddPasskeyRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{33}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *BeginAddPasskeyRequest) GetProof() string {
@@ -2166,7 +2231,7 @@ type BeginAddPasskeyResponse struct {
 
 func (x *BeginAddPasskeyResponse) Reset() {
 	*x = BeginAddPasskeyResponse{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[34]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2178,7 +2243,7 @@ func (x *BeginAddPasskeyResponse) String() string {
 func (*BeginAddPasskeyResponse) ProtoMessage() {}
 
 func (x *BeginAddPasskeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[34]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2191,7 +2256,7 @@ func (x *BeginAddPasskeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginAddPasskeyResponse.ProtoReflect.Descriptor instead.
 func (*BeginAddPasskeyResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{34}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *BeginAddPasskeyResponse) GetCeremonyId() string {
@@ -2223,7 +2288,7 @@ type FinishAddPasskeyRequest struct {
 
 func (x *FinishAddPasskeyRequest) Reset() {
 	*x = FinishAddPasskeyRequest{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[35]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2235,7 +2300,7 @@ func (x *FinishAddPasskeyRequest) String() string {
 func (*FinishAddPasskeyRequest) ProtoMessage() {}
 
 func (x *FinishAddPasskeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[35]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2248,7 +2313,7 @@ func (x *FinishAddPasskeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FinishAddPasskeyRequest.ProtoReflect.Descriptor instead.
 func (*FinishAddPasskeyRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{35}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *FinishAddPasskeyRequest) GetCeremonyId() string {
@@ -2283,7 +2348,7 @@ type FinishAddPasskeyResponse struct {
 
 func (x *FinishAddPasskeyResponse) Reset() {
 	*x = FinishAddPasskeyResponse{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[36]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2295,7 +2360,7 @@ func (x *FinishAddPasskeyResponse) String() string {
 func (*FinishAddPasskeyResponse) ProtoMessage() {}
 
 func (x *FinishAddPasskeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[36]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2308,7 +2373,7 @@ func (x *FinishAddPasskeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FinishAddPasskeyResponse.ProtoReflect.Descriptor instead.
 func (*FinishAddPasskeyResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{36}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *FinishAddPasskeyResponse) GetPasskey() *Passkey {
@@ -2331,7 +2396,7 @@ type RemovePasskeyRequest struct {
 
 func (x *RemovePasskeyRequest) Reset() {
 	*x = RemovePasskeyRequest{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[37]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2343,7 +2408,7 @@ func (x *RemovePasskeyRequest) String() string {
 func (*RemovePasskeyRequest) ProtoMessage() {}
 
 func (x *RemovePasskeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[37]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2356,7 +2421,7 @@ func (x *RemovePasskeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemovePasskeyRequest.ProtoReflect.Descriptor instead.
 func (*RemovePasskeyRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{37}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *RemovePasskeyRequest) GetId() string {
@@ -2382,7 +2447,7 @@ type RemovePasskeyResponse struct {
 
 func (x *RemovePasskeyResponse) Reset() {
 	*x = RemovePasskeyResponse{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[38]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2394,7 +2459,7 @@ func (x *RemovePasskeyResponse) String() string {
 func (*RemovePasskeyResponse) ProtoMessage() {}
 
 func (x *RemovePasskeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[38]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2407,7 +2472,7 @@ func (x *RemovePasskeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemovePasskeyResponse.ProtoReflect.Descriptor instead.
 func (*RemovePasskeyResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{38}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{39}
 }
 
 // GetTotpRequest takes no parameters.
@@ -2419,7 +2484,7 @@ type GetTotpRequest struct {
 
 func (x *GetTotpRequest) Reset() {
 	*x = GetTotpRequest{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[39]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2431,7 +2496,7 @@ func (x *GetTotpRequest) String() string {
 func (*GetTotpRequest) ProtoMessage() {}
 
 func (x *GetTotpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[39]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2444,7 +2509,7 @@ func (x *GetTotpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTotpRequest.ProtoReflect.Descriptor instead.
 func (*GetTotpRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{39}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{40}
 }
 
 // GetTotpResponse describes code sign-in.
@@ -2458,7 +2523,7 @@ type GetTotpResponse struct {
 
 func (x *GetTotpResponse) Reset() {
 	*x = GetTotpResponse{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[40]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2470,7 +2535,7 @@ func (x *GetTotpResponse) String() string {
 func (*GetTotpResponse) ProtoMessage() {}
 
 func (x *GetTotpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[40]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2483,7 +2548,7 @@ func (x *GetTotpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTotpResponse.ProtoReflect.Descriptor instead.
 func (*GetTotpResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{40}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *GetTotpResponse) GetTotp() *Totp {
@@ -2511,7 +2576,7 @@ type Totp struct {
 
 func (x *Totp) Reset() {
 	*x = Totp{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[41]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2523,7 +2588,7 @@ func (x *Totp) String() string {
 func (*Totp) ProtoMessage() {}
 
 func (x *Totp) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[41]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2536,7 +2601,7 @@ func (x *Totp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Totp.ProtoReflect.Descriptor instead.
 func (*Totp) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{41}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *Totp) GetEnabled() bool {
@@ -2578,7 +2643,7 @@ type BeginTotpSetupRequest struct {
 
 func (x *BeginTotpSetupRequest) Reset() {
 	*x = BeginTotpSetupRequest{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[42]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2590,7 +2655,7 @@ func (x *BeginTotpSetupRequest) String() string {
 func (*BeginTotpSetupRequest) ProtoMessage() {}
 
 func (x *BeginTotpSetupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[42]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2603,7 +2668,7 @@ func (x *BeginTotpSetupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginTotpSetupRequest.ProtoReflect.Descriptor instead.
 func (*BeginTotpSetupRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{42}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *BeginTotpSetupRequest) GetProof() string {
@@ -2626,7 +2691,7 @@ type BeginTotpSetupResponse struct {
 
 func (x *BeginTotpSetupResponse) Reset() {
 	*x = BeginTotpSetupResponse{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[43]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2638,7 +2703,7 @@ func (x *BeginTotpSetupResponse) String() string {
 func (*BeginTotpSetupResponse) ProtoMessage() {}
 
 func (x *BeginTotpSetupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[43]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2651,7 +2716,7 @@ func (x *BeginTotpSetupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginTotpSetupResponse.ProtoReflect.Descriptor instead.
 func (*BeginTotpSetupResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{43}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *BeginTotpSetupResponse) GetSecret() string {
@@ -2679,7 +2744,7 @@ type ConfirmTotpSetupRequest struct {
 
 func (x *ConfirmTotpSetupRequest) Reset() {
 	*x = ConfirmTotpSetupRequest{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[44]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2691,7 +2756,7 @@ func (x *ConfirmTotpSetupRequest) String() string {
 func (*ConfirmTotpSetupRequest) ProtoMessage() {}
 
 func (x *ConfirmTotpSetupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[44]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2704,7 +2769,7 @@ func (x *ConfirmTotpSetupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmTotpSetupRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmTotpSetupRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{44}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ConfirmTotpSetupRequest) GetCode() string {
@@ -2725,7 +2790,7 @@ type ConfirmTotpSetupResponse struct {
 
 func (x *ConfirmTotpSetupResponse) Reset() {
 	*x = ConfirmTotpSetupResponse{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[45]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2737,7 +2802,7 @@ func (x *ConfirmTotpSetupResponse) String() string {
 func (*ConfirmTotpSetupResponse) ProtoMessage() {}
 
 func (x *ConfirmTotpSetupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[45]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2750,7 +2815,7 @@ func (x *ConfirmTotpSetupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmTotpSetupResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmTotpSetupResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{45}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ConfirmTotpSetupResponse) GetRecoveryCodes() []string {
@@ -2769,7 +2834,7 @@ type CancelTotpSetupRequest struct {
 
 func (x *CancelTotpSetupRequest) Reset() {
 	*x = CancelTotpSetupRequest{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[46]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2781,7 +2846,7 @@ func (x *CancelTotpSetupRequest) String() string {
 func (*CancelTotpSetupRequest) ProtoMessage() {}
 
 func (x *CancelTotpSetupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[46]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2794,7 +2859,7 @@ func (x *CancelTotpSetupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelTotpSetupRequest.ProtoReflect.Descriptor instead.
 func (*CancelTotpSetupRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{46}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{47}
 }
 
 // CancelTotpSetupResponse is empty.
@@ -2806,7 +2871,7 @@ type CancelTotpSetupResponse struct {
 
 func (x *CancelTotpSetupResponse) Reset() {
 	*x = CancelTotpSetupResponse{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[47]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2818,7 +2883,7 @@ func (x *CancelTotpSetupResponse) String() string {
 func (*CancelTotpSetupResponse) ProtoMessage() {}
 
 func (x *CancelTotpSetupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[47]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2831,7 +2896,7 @@ func (x *CancelTotpSetupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelTotpSetupResponse.ProtoReflect.Descriptor instead.
 func (*CancelTotpSetupResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{47}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{48}
 }
 
 // DisableTotpRequest confirms turning code sign-in off.
@@ -2845,7 +2910,7 @@ type DisableTotpRequest struct {
 
 func (x *DisableTotpRequest) Reset() {
 	*x = DisableTotpRequest{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[48]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2857,7 +2922,7 @@ func (x *DisableTotpRequest) String() string {
 func (*DisableTotpRequest) ProtoMessage() {}
 
 func (x *DisableTotpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[48]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2870,7 +2935,7 @@ func (x *DisableTotpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisableTotpRequest.ProtoReflect.Descriptor instead.
 func (*DisableTotpRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{48}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *DisableTotpRequest) GetProof() string {
@@ -2889,7 +2954,7 @@ type DisableTotpResponse struct {
 
 func (x *DisableTotpResponse) Reset() {
 	*x = DisableTotpResponse{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[49]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2901,7 +2966,7 @@ func (x *DisableTotpResponse) String() string {
 func (*DisableTotpResponse) ProtoMessage() {}
 
 func (x *DisableTotpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[49]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2914,7 +2979,7 @@ func (x *DisableTotpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisableTotpResponse.ProtoReflect.Descriptor instead.
 func (*DisableTotpResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{49}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{50}
 }
 
 // RegenerateRecoveryCodesRequest confirms making new recovery codes.
@@ -2928,7 +2993,7 @@ type RegenerateRecoveryCodesRequest struct {
 
 func (x *RegenerateRecoveryCodesRequest) Reset() {
 	*x = RegenerateRecoveryCodesRequest{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[50]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2940,7 +3005,7 @@ func (x *RegenerateRecoveryCodesRequest) String() string {
 func (*RegenerateRecoveryCodesRequest) ProtoMessage() {}
 
 func (x *RegenerateRecoveryCodesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[50]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2953,7 +3018,7 @@ func (x *RegenerateRecoveryCodesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegenerateRecoveryCodesRequest.ProtoReflect.Descriptor instead.
 func (*RegenerateRecoveryCodesRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{50}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *RegenerateRecoveryCodesRequest) GetProof() string {
@@ -2974,7 +3039,7 @@ type RegenerateRecoveryCodesResponse struct {
 
 func (x *RegenerateRecoveryCodesResponse) Reset() {
 	*x = RegenerateRecoveryCodesResponse{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[51]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2986,7 +3051,7 @@ func (x *RegenerateRecoveryCodesResponse) String() string {
 func (*RegenerateRecoveryCodesResponse) ProtoMessage() {}
 
 func (x *RegenerateRecoveryCodesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[51]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2999,7 +3064,7 @@ func (x *RegenerateRecoveryCodesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegenerateRecoveryCodesResponse.ProtoReflect.Descriptor instead.
 func (*RegenerateRecoveryCodesResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{51}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *RegenerateRecoveryCodesResponse) GetRecoveryCodes() []string {
@@ -3018,7 +3083,7 @@ type UnlockCodeSignInRequest struct {
 
 func (x *UnlockCodeSignInRequest) Reset() {
 	*x = UnlockCodeSignInRequest{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[52]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3030,7 +3095,7 @@ func (x *UnlockCodeSignInRequest) String() string {
 func (*UnlockCodeSignInRequest) ProtoMessage() {}
 
 func (x *UnlockCodeSignInRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[52]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3043,7 +3108,7 @@ func (x *UnlockCodeSignInRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnlockCodeSignInRequest.ProtoReflect.Descriptor instead.
 func (*UnlockCodeSignInRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{52}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{53}
 }
 
 // UnlockCodeSignInResponse is empty.
@@ -3055,7 +3120,7 @@ type UnlockCodeSignInResponse struct {
 
 func (x *UnlockCodeSignInResponse) Reset() {
 	*x = UnlockCodeSignInResponse{}
-	mi := &file_dockwell_v1_auth_proto_msgTypes[53]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3067,7 +3132,7 @@ func (x *UnlockCodeSignInResponse) String() string {
 func (*UnlockCodeSignInResponse) ProtoMessage() {}
 
 func (x *UnlockCodeSignInResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_auth_proto_msgTypes[53]
+	mi := &file_dockwell_v1_auth_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3080,7 +3145,7 @@ func (x *UnlockCodeSignInResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnlockCodeSignInResponse.ProtoReflect.Descriptor instead.
 func (*UnlockCodeSignInResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{53}
+	return file_dockwell_v1_auth_proto_rawDescGZIP(), []int{54}
 }
 
 var File_dockwell_v1_auth_proto protoreflect.FileDescriptor
@@ -3189,7 +3254,10 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"createTime\x12@\n" +
 	"\x0elast_used_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\flastUsedTime\x12\x16\n" +
 	"\x06synced\x18\x06 \x01(\bR\x06synced\x12%\n" +
-	"\x0esuspected_copy\x18\a \x01(\bR\rsuspectedCopy\"_\n" +
+	"\x0esuspected_copy\x18\a \x01(\bR\rsuspectedCopy\"Y\n" +
+	"\fStepUpNeeded\x121\n" +
+	"\x06action\x18\x01 \x01(\x0e2\x19.dockwell.v1.StepUpActionR\x06action\x12\x16\n" +
+	"\x06target\x18\x02 \x01(\tR\x06target\"_\n" +
 	"\x12BeginStepUpRequest\x121\n" +
 	"\x06action\x18\x01 \x01(\x0e2\x19.dockwell.v1.StepUpActionR\x06action\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\"Y\n" +
@@ -3264,7 +3332,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x16SIGN_IN_METHOD_PASSKEY\x10\x02\x12%\n" +
 	"!SIGN_IN_METHOD_AUTHENTICATOR_CODE\x10\x03\x12 \n" +
 	"\x1cSIGN_IN_METHOD_RECOVERY_CODE\x10\x04\x12\x17\n" +
-	"\x13SIGN_IN_METHOD_LINK\x10\x05*\xb2\x03\n" +
+	"\x13SIGN_IN_METHOD_LINK\x10\x05*\xd5\x03\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
@@ -3278,7 +3346,8 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1fSTEP_UP_ACTION_SAVE_WAY_BACK_IN\x10\t\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_END_PROCESS\x10\x14\x12 \n" +
 	"\x1cSTEP_UP_ACTION_OPEN_TERMINAL\x10\n" +
-	"2\xca'\n" +
+	"\x12!\n" +
+	"\x1dSTEP_UP_ACTION_APPROVE_CHANGE\x10r2\xca'\n" +
 	"\vAuthService\x12}\n" +
 	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12\x89\x01\n" +
 	"\n" +
@@ -3336,7 +3405,7 @@ func file_dockwell_v1_auth_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_auth_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_dockwell_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 54)
+var file_dockwell_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 55)
 var file_dockwell_v1_auth_proto_goTypes = []any{
 	(Role)(0),                               // 0: dockwell.v1.Role
 	(SignInMethod)(0),                       // 1: dockwell.v1.SignInMethod
@@ -3370,113 +3439,115 @@ var file_dockwell_v1_auth_proto_goTypes = []any{
 	(*ListPasskeysRequest)(nil),             // 29: dockwell.v1.ListPasskeysRequest
 	(*ListPasskeysResponse)(nil),            // 30: dockwell.v1.ListPasskeysResponse
 	(*Passkey)(nil),                         // 31: dockwell.v1.Passkey
-	(*BeginStepUpRequest)(nil),              // 32: dockwell.v1.BeginStepUpRequest
-	(*BeginStepUpResponse)(nil),             // 33: dockwell.v1.BeginStepUpResponse
-	(*FinishStepUpRequest)(nil),             // 34: dockwell.v1.FinishStepUpRequest
-	(*FinishStepUpResponse)(nil),            // 35: dockwell.v1.FinishStepUpResponse
-	(*BeginAddPasskeyRequest)(nil),          // 36: dockwell.v1.BeginAddPasskeyRequest
-	(*BeginAddPasskeyResponse)(nil),         // 37: dockwell.v1.BeginAddPasskeyResponse
-	(*FinishAddPasskeyRequest)(nil),         // 38: dockwell.v1.FinishAddPasskeyRequest
-	(*FinishAddPasskeyResponse)(nil),        // 39: dockwell.v1.FinishAddPasskeyResponse
-	(*RemovePasskeyRequest)(nil),            // 40: dockwell.v1.RemovePasskeyRequest
-	(*RemovePasskeyResponse)(nil),           // 41: dockwell.v1.RemovePasskeyResponse
-	(*GetTotpRequest)(nil),                  // 42: dockwell.v1.GetTotpRequest
-	(*GetTotpResponse)(nil),                 // 43: dockwell.v1.GetTotpResponse
-	(*Totp)(nil),                            // 44: dockwell.v1.Totp
-	(*BeginTotpSetupRequest)(nil),           // 45: dockwell.v1.BeginTotpSetupRequest
-	(*BeginTotpSetupResponse)(nil),          // 46: dockwell.v1.BeginTotpSetupResponse
-	(*ConfirmTotpSetupRequest)(nil),         // 47: dockwell.v1.ConfirmTotpSetupRequest
-	(*ConfirmTotpSetupResponse)(nil),        // 48: dockwell.v1.ConfirmTotpSetupResponse
-	(*CancelTotpSetupRequest)(nil),          // 49: dockwell.v1.CancelTotpSetupRequest
-	(*CancelTotpSetupResponse)(nil),         // 50: dockwell.v1.CancelTotpSetupResponse
-	(*DisableTotpRequest)(nil),              // 51: dockwell.v1.DisableTotpRequest
-	(*DisableTotpResponse)(nil),             // 52: dockwell.v1.DisableTotpResponse
-	(*RegenerateRecoveryCodesRequest)(nil),  // 53: dockwell.v1.RegenerateRecoveryCodesRequest
-	(*RegenerateRecoveryCodesResponse)(nil), // 54: dockwell.v1.RegenerateRecoveryCodesResponse
-	(*UnlockCodeSignInRequest)(nil),         // 55: dockwell.v1.UnlockCodeSignInRequest
-	(*UnlockCodeSignInResponse)(nil),        // 56: dockwell.v1.UnlockCodeSignInResponse
-	(*timestamppb.Timestamp)(nil),           // 57: google.protobuf.Timestamp
-	(*Server)(nil),                          // 58: dockwell.v1.Server
+	(*StepUpNeeded)(nil),                    // 32: dockwell.v1.StepUpNeeded
+	(*BeginStepUpRequest)(nil),              // 33: dockwell.v1.BeginStepUpRequest
+	(*BeginStepUpResponse)(nil),             // 34: dockwell.v1.BeginStepUpResponse
+	(*FinishStepUpRequest)(nil),             // 35: dockwell.v1.FinishStepUpRequest
+	(*FinishStepUpResponse)(nil),            // 36: dockwell.v1.FinishStepUpResponse
+	(*BeginAddPasskeyRequest)(nil),          // 37: dockwell.v1.BeginAddPasskeyRequest
+	(*BeginAddPasskeyResponse)(nil),         // 38: dockwell.v1.BeginAddPasskeyResponse
+	(*FinishAddPasskeyRequest)(nil),         // 39: dockwell.v1.FinishAddPasskeyRequest
+	(*FinishAddPasskeyResponse)(nil),        // 40: dockwell.v1.FinishAddPasskeyResponse
+	(*RemovePasskeyRequest)(nil),            // 41: dockwell.v1.RemovePasskeyRequest
+	(*RemovePasskeyResponse)(nil),           // 42: dockwell.v1.RemovePasskeyResponse
+	(*GetTotpRequest)(nil),                  // 43: dockwell.v1.GetTotpRequest
+	(*GetTotpResponse)(nil),                 // 44: dockwell.v1.GetTotpResponse
+	(*Totp)(nil),                            // 45: dockwell.v1.Totp
+	(*BeginTotpSetupRequest)(nil),           // 46: dockwell.v1.BeginTotpSetupRequest
+	(*BeginTotpSetupResponse)(nil),          // 47: dockwell.v1.BeginTotpSetupResponse
+	(*ConfirmTotpSetupRequest)(nil),         // 48: dockwell.v1.ConfirmTotpSetupRequest
+	(*ConfirmTotpSetupResponse)(nil),        // 49: dockwell.v1.ConfirmTotpSetupResponse
+	(*CancelTotpSetupRequest)(nil),          // 50: dockwell.v1.CancelTotpSetupRequest
+	(*CancelTotpSetupResponse)(nil),         // 51: dockwell.v1.CancelTotpSetupResponse
+	(*DisableTotpRequest)(nil),              // 52: dockwell.v1.DisableTotpRequest
+	(*DisableTotpResponse)(nil),             // 53: dockwell.v1.DisableTotpResponse
+	(*RegenerateRecoveryCodesRequest)(nil),  // 54: dockwell.v1.RegenerateRecoveryCodesRequest
+	(*RegenerateRecoveryCodesResponse)(nil), // 55: dockwell.v1.RegenerateRecoveryCodesResponse
+	(*UnlockCodeSignInRequest)(nil),         // 56: dockwell.v1.UnlockCodeSignInRequest
+	(*UnlockCodeSignInResponse)(nil),        // 57: dockwell.v1.UnlockCodeSignInResponse
+	(*timestamppb.Timestamp)(nil),           // 58: google.protobuf.Timestamp
+	(*Server)(nil),                          // 59: dockwell.v1.Server
 }
 var file_dockwell_v1_auth_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.User.role:type_name -> dockwell.v1.Role
-	57, // 1: dockwell.v1.User.create_time:type_name -> google.protobuf.Timestamp
+	58, // 1: dockwell.v1.User.create_time:type_name -> google.protobuf.Timestamp
 	3,  // 2: dockwell.v1.GetAuthStateResponse.user:type_name -> dockwell.v1.User
 	1,  // 3: dockwell.v1.GetAuthStateResponse.sign_in_method:type_name -> dockwell.v1.SignInMethod
-	58, // 4: dockwell.v1.CheckClaimResponse.server:type_name -> dockwell.v1.Server
-	57, // 5: dockwell.v1.CheckClaimResponse.expire_time:type_name -> google.protobuf.Timestamp
+	59, // 4: dockwell.v1.CheckClaimResponse.server:type_name -> dockwell.v1.Server
+	58, // 5: dockwell.v1.CheckClaimResponse.expire_time:type_name -> google.protobuf.Timestamp
 	3,  // 6: dockwell.v1.FinishClaimResponse.user:type_name -> dockwell.v1.User
 	3,  // 7: dockwell.v1.FinishPasskeySignInResponse.user:type_name -> dockwell.v1.User
 	3,  // 8: dockwell.v1.SignInWithCodeResponse.user:type_name -> dockwell.v1.User
 	3,  // 9: dockwell.v1.SignInWithLinkResponse.user:type_name -> dockwell.v1.User
 	24, // 10: dockwell.v1.ListSessionsResponse.sessions:type_name -> dockwell.v1.Session
-	57, // 11: dockwell.v1.Session.create_time:type_name -> google.protobuf.Timestamp
-	57, // 12: dockwell.v1.Session.last_seen_time:type_name -> google.protobuf.Timestamp
-	57, // 13: dockwell.v1.Session.expire_time:type_name -> google.protobuf.Timestamp
+	58, // 11: dockwell.v1.Session.create_time:type_name -> google.protobuf.Timestamp
+	58, // 12: dockwell.v1.Session.last_seen_time:type_name -> google.protobuf.Timestamp
+	58, // 13: dockwell.v1.Session.expire_time:type_name -> google.protobuf.Timestamp
 	1,  // 14: dockwell.v1.Session.sign_in_method:type_name -> dockwell.v1.SignInMethod
 	31, // 15: dockwell.v1.ListPasskeysResponse.passkeys:type_name -> dockwell.v1.Passkey
-	57, // 16: dockwell.v1.Passkey.create_time:type_name -> google.protobuf.Timestamp
-	57, // 17: dockwell.v1.Passkey.last_used_time:type_name -> google.protobuf.Timestamp
-	2,  // 18: dockwell.v1.BeginStepUpRequest.action:type_name -> dockwell.v1.StepUpAction
-	57, // 19: dockwell.v1.FinishStepUpResponse.expire_time:type_name -> google.protobuf.Timestamp
-	31, // 20: dockwell.v1.FinishAddPasskeyResponse.passkey:type_name -> dockwell.v1.Passkey
-	44, // 21: dockwell.v1.GetTotpResponse.totp:type_name -> dockwell.v1.Totp
-	57, // 22: dockwell.v1.Totp.lock_time:type_name -> google.protobuf.Timestamp
-	4,  // 23: dockwell.v1.AuthService.GetAuthState:input_type -> dockwell.v1.GetAuthStateRequest
-	6,  // 24: dockwell.v1.AuthService.CheckClaim:input_type -> dockwell.v1.CheckClaimRequest
-	8,  // 25: dockwell.v1.AuthService.BeginClaim:input_type -> dockwell.v1.BeginClaimRequest
-	10, // 26: dockwell.v1.AuthService.FinishClaim:input_type -> dockwell.v1.FinishClaimRequest
-	12, // 27: dockwell.v1.AuthService.BeginPasskeySignIn:input_type -> dockwell.v1.BeginPasskeySignInRequest
-	14, // 28: dockwell.v1.AuthService.FinishPasskeySignIn:input_type -> dockwell.v1.FinishPasskeySignInRequest
-	16, // 29: dockwell.v1.AuthService.SignInWithCode:input_type -> dockwell.v1.SignInWithCodeRequest
-	18, // 30: dockwell.v1.AuthService.SignInWithLink:input_type -> dockwell.v1.SignInWithLinkRequest
-	20, // 31: dockwell.v1.AuthService.SignOut:input_type -> dockwell.v1.SignOutRequest
-	22, // 32: dockwell.v1.AuthService.ListSessions:input_type -> dockwell.v1.ListSessionsRequest
-	25, // 33: dockwell.v1.AuthService.RevokeSession:input_type -> dockwell.v1.RevokeSessionRequest
-	27, // 34: dockwell.v1.AuthService.RevokeOtherSessions:input_type -> dockwell.v1.RevokeOtherSessionsRequest
-	32, // 35: dockwell.v1.AuthService.BeginStepUp:input_type -> dockwell.v1.BeginStepUpRequest
-	34, // 36: dockwell.v1.AuthService.FinishStepUp:input_type -> dockwell.v1.FinishStepUpRequest
-	29, // 37: dockwell.v1.AuthService.ListPasskeys:input_type -> dockwell.v1.ListPasskeysRequest
-	36, // 38: dockwell.v1.AuthService.BeginAddPasskey:input_type -> dockwell.v1.BeginAddPasskeyRequest
-	38, // 39: dockwell.v1.AuthService.FinishAddPasskey:input_type -> dockwell.v1.FinishAddPasskeyRequest
-	40, // 40: dockwell.v1.AuthService.RemovePasskey:input_type -> dockwell.v1.RemovePasskeyRequest
-	42, // 41: dockwell.v1.AuthService.GetTotp:input_type -> dockwell.v1.GetTotpRequest
-	45, // 42: dockwell.v1.AuthService.BeginTotpSetup:input_type -> dockwell.v1.BeginTotpSetupRequest
-	47, // 43: dockwell.v1.AuthService.ConfirmTotpSetup:input_type -> dockwell.v1.ConfirmTotpSetupRequest
-	49, // 44: dockwell.v1.AuthService.CancelTotpSetup:input_type -> dockwell.v1.CancelTotpSetupRequest
-	51, // 45: dockwell.v1.AuthService.DisableTotp:input_type -> dockwell.v1.DisableTotpRequest
-	53, // 46: dockwell.v1.AuthService.RegenerateRecoveryCodes:input_type -> dockwell.v1.RegenerateRecoveryCodesRequest
-	55, // 47: dockwell.v1.AuthService.UnlockCodeSignIn:input_type -> dockwell.v1.UnlockCodeSignInRequest
-	5,  // 48: dockwell.v1.AuthService.GetAuthState:output_type -> dockwell.v1.GetAuthStateResponse
-	7,  // 49: dockwell.v1.AuthService.CheckClaim:output_type -> dockwell.v1.CheckClaimResponse
-	9,  // 50: dockwell.v1.AuthService.BeginClaim:output_type -> dockwell.v1.BeginClaimResponse
-	11, // 51: dockwell.v1.AuthService.FinishClaim:output_type -> dockwell.v1.FinishClaimResponse
-	13, // 52: dockwell.v1.AuthService.BeginPasskeySignIn:output_type -> dockwell.v1.BeginPasskeySignInResponse
-	15, // 53: dockwell.v1.AuthService.FinishPasskeySignIn:output_type -> dockwell.v1.FinishPasskeySignInResponse
-	17, // 54: dockwell.v1.AuthService.SignInWithCode:output_type -> dockwell.v1.SignInWithCodeResponse
-	19, // 55: dockwell.v1.AuthService.SignInWithLink:output_type -> dockwell.v1.SignInWithLinkResponse
-	21, // 56: dockwell.v1.AuthService.SignOut:output_type -> dockwell.v1.SignOutResponse
-	23, // 57: dockwell.v1.AuthService.ListSessions:output_type -> dockwell.v1.ListSessionsResponse
-	26, // 58: dockwell.v1.AuthService.RevokeSession:output_type -> dockwell.v1.RevokeSessionResponse
-	28, // 59: dockwell.v1.AuthService.RevokeOtherSessions:output_type -> dockwell.v1.RevokeOtherSessionsResponse
-	33, // 60: dockwell.v1.AuthService.BeginStepUp:output_type -> dockwell.v1.BeginStepUpResponse
-	35, // 61: dockwell.v1.AuthService.FinishStepUp:output_type -> dockwell.v1.FinishStepUpResponse
-	30, // 62: dockwell.v1.AuthService.ListPasskeys:output_type -> dockwell.v1.ListPasskeysResponse
-	37, // 63: dockwell.v1.AuthService.BeginAddPasskey:output_type -> dockwell.v1.BeginAddPasskeyResponse
-	39, // 64: dockwell.v1.AuthService.FinishAddPasskey:output_type -> dockwell.v1.FinishAddPasskeyResponse
-	41, // 65: dockwell.v1.AuthService.RemovePasskey:output_type -> dockwell.v1.RemovePasskeyResponse
-	43, // 66: dockwell.v1.AuthService.GetTotp:output_type -> dockwell.v1.GetTotpResponse
-	46, // 67: dockwell.v1.AuthService.BeginTotpSetup:output_type -> dockwell.v1.BeginTotpSetupResponse
-	48, // 68: dockwell.v1.AuthService.ConfirmTotpSetup:output_type -> dockwell.v1.ConfirmTotpSetupResponse
-	50, // 69: dockwell.v1.AuthService.CancelTotpSetup:output_type -> dockwell.v1.CancelTotpSetupResponse
-	52, // 70: dockwell.v1.AuthService.DisableTotp:output_type -> dockwell.v1.DisableTotpResponse
-	54, // 71: dockwell.v1.AuthService.RegenerateRecoveryCodes:output_type -> dockwell.v1.RegenerateRecoveryCodesResponse
-	56, // 72: dockwell.v1.AuthService.UnlockCodeSignIn:output_type -> dockwell.v1.UnlockCodeSignInResponse
-	48, // [48:73] is the sub-list for method output_type
-	23, // [23:48] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	58, // 16: dockwell.v1.Passkey.create_time:type_name -> google.protobuf.Timestamp
+	58, // 17: dockwell.v1.Passkey.last_used_time:type_name -> google.protobuf.Timestamp
+	2,  // 18: dockwell.v1.StepUpNeeded.action:type_name -> dockwell.v1.StepUpAction
+	2,  // 19: dockwell.v1.BeginStepUpRequest.action:type_name -> dockwell.v1.StepUpAction
+	58, // 20: dockwell.v1.FinishStepUpResponse.expire_time:type_name -> google.protobuf.Timestamp
+	31, // 21: dockwell.v1.FinishAddPasskeyResponse.passkey:type_name -> dockwell.v1.Passkey
+	45, // 22: dockwell.v1.GetTotpResponse.totp:type_name -> dockwell.v1.Totp
+	58, // 23: dockwell.v1.Totp.lock_time:type_name -> google.protobuf.Timestamp
+	4,  // 24: dockwell.v1.AuthService.GetAuthState:input_type -> dockwell.v1.GetAuthStateRequest
+	6,  // 25: dockwell.v1.AuthService.CheckClaim:input_type -> dockwell.v1.CheckClaimRequest
+	8,  // 26: dockwell.v1.AuthService.BeginClaim:input_type -> dockwell.v1.BeginClaimRequest
+	10, // 27: dockwell.v1.AuthService.FinishClaim:input_type -> dockwell.v1.FinishClaimRequest
+	12, // 28: dockwell.v1.AuthService.BeginPasskeySignIn:input_type -> dockwell.v1.BeginPasskeySignInRequest
+	14, // 29: dockwell.v1.AuthService.FinishPasskeySignIn:input_type -> dockwell.v1.FinishPasskeySignInRequest
+	16, // 30: dockwell.v1.AuthService.SignInWithCode:input_type -> dockwell.v1.SignInWithCodeRequest
+	18, // 31: dockwell.v1.AuthService.SignInWithLink:input_type -> dockwell.v1.SignInWithLinkRequest
+	20, // 32: dockwell.v1.AuthService.SignOut:input_type -> dockwell.v1.SignOutRequest
+	22, // 33: dockwell.v1.AuthService.ListSessions:input_type -> dockwell.v1.ListSessionsRequest
+	25, // 34: dockwell.v1.AuthService.RevokeSession:input_type -> dockwell.v1.RevokeSessionRequest
+	27, // 35: dockwell.v1.AuthService.RevokeOtherSessions:input_type -> dockwell.v1.RevokeOtherSessionsRequest
+	33, // 36: dockwell.v1.AuthService.BeginStepUp:input_type -> dockwell.v1.BeginStepUpRequest
+	35, // 37: dockwell.v1.AuthService.FinishStepUp:input_type -> dockwell.v1.FinishStepUpRequest
+	29, // 38: dockwell.v1.AuthService.ListPasskeys:input_type -> dockwell.v1.ListPasskeysRequest
+	37, // 39: dockwell.v1.AuthService.BeginAddPasskey:input_type -> dockwell.v1.BeginAddPasskeyRequest
+	39, // 40: dockwell.v1.AuthService.FinishAddPasskey:input_type -> dockwell.v1.FinishAddPasskeyRequest
+	41, // 41: dockwell.v1.AuthService.RemovePasskey:input_type -> dockwell.v1.RemovePasskeyRequest
+	43, // 42: dockwell.v1.AuthService.GetTotp:input_type -> dockwell.v1.GetTotpRequest
+	46, // 43: dockwell.v1.AuthService.BeginTotpSetup:input_type -> dockwell.v1.BeginTotpSetupRequest
+	48, // 44: dockwell.v1.AuthService.ConfirmTotpSetup:input_type -> dockwell.v1.ConfirmTotpSetupRequest
+	50, // 45: dockwell.v1.AuthService.CancelTotpSetup:input_type -> dockwell.v1.CancelTotpSetupRequest
+	52, // 46: dockwell.v1.AuthService.DisableTotp:input_type -> dockwell.v1.DisableTotpRequest
+	54, // 47: dockwell.v1.AuthService.RegenerateRecoveryCodes:input_type -> dockwell.v1.RegenerateRecoveryCodesRequest
+	56, // 48: dockwell.v1.AuthService.UnlockCodeSignIn:input_type -> dockwell.v1.UnlockCodeSignInRequest
+	5,  // 49: dockwell.v1.AuthService.GetAuthState:output_type -> dockwell.v1.GetAuthStateResponse
+	7,  // 50: dockwell.v1.AuthService.CheckClaim:output_type -> dockwell.v1.CheckClaimResponse
+	9,  // 51: dockwell.v1.AuthService.BeginClaim:output_type -> dockwell.v1.BeginClaimResponse
+	11, // 52: dockwell.v1.AuthService.FinishClaim:output_type -> dockwell.v1.FinishClaimResponse
+	13, // 53: dockwell.v1.AuthService.BeginPasskeySignIn:output_type -> dockwell.v1.BeginPasskeySignInResponse
+	15, // 54: dockwell.v1.AuthService.FinishPasskeySignIn:output_type -> dockwell.v1.FinishPasskeySignInResponse
+	17, // 55: dockwell.v1.AuthService.SignInWithCode:output_type -> dockwell.v1.SignInWithCodeResponse
+	19, // 56: dockwell.v1.AuthService.SignInWithLink:output_type -> dockwell.v1.SignInWithLinkResponse
+	21, // 57: dockwell.v1.AuthService.SignOut:output_type -> dockwell.v1.SignOutResponse
+	23, // 58: dockwell.v1.AuthService.ListSessions:output_type -> dockwell.v1.ListSessionsResponse
+	26, // 59: dockwell.v1.AuthService.RevokeSession:output_type -> dockwell.v1.RevokeSessionResponse
+	28, // 60: dockwell.v1.AuthService.RevokeOtherSessions:output_type -> dockwell.v1.RevokeOtherSessionsResponse
+	34, // 61: dockwell.v1.AuthService.BeginStepUp:output_type -> dockwell.v1.BeginStepUpResponse
+	36, // 62: dockwell.v1.AuthService.FinishStepUp:output_type -> dockwell.v1.FinishStepUpResponse
+	30, // 63: dockwell.v1.AuthService.ListPasskeys:output_type -> dockwell.v1.ListPasskeysResponse
+	38, // 64: dockwell.v1.AuthService.BeginAddPasskey:output_type -> dockwell.v1.BeginAddPasskeyResponse
+	40, // 65: dockwell.v1.AuthService.FinishAddPasskey:output_type -> dockwell.v1.FinishAddPasskeyResponse
+	42, // 66: dockwell.v1.AuthService.RemovePasskey:output_type -> dockwell.v1.RemovePasskeyResponse
+	44, // 67: dockwell.v1.AuthService.GetTotp:output_type -> dockwell.v1.GetTotpResponse
+	47, // 68: dockwell.v1.AuthService.BeginTotpSetup:output_type -> dockwell.v1.BeginTotpSetupResponse
+	49, // 69: dockwell.v1.AuthService.ConfirmTotpSetup:output_type -> dockwell.v1.ConfirmTotpSetupResponse
+	51, // 70: dockwell.v1.AuthService.CancelTotpSetup:output_type -> dockwell.v1.CancelTotpSetupResponse
+	53, // 71: dockwell.v1.AuthService.DisableTotp:output_type -> dockwell.v1.DisableTotpResponse
+	55, // 72: dockwell.v1.AuthService.RegenerateRecoveryCodes:output_type -> dockwell.v1.RegenerateRecoveryCodesResponse
+	57, // 73: dockwell.v1.AuthService.UnlockCodeSignIn:output_type -> dockwell.v1.UnlockCodeSignInResponse
+	49, // [49:74] is the sub-list for method output_type
+	24, // [24:49] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_auth_proto_init() }
@@ -3492,7 +3563,7 @@ func file_dockwell_v1_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_auth_proto_rawDesc), len(file_dockwell_v1_auth_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   54,
+			NumMessages:   55,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

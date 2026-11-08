@@ -23,6 +23,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -462,7 +463,7 @@ func (i *interceptor) check(ctx context.Context, p auth.Principal, procedure str
 	}
 	held = auth.Highest(grants)
 	if store.RoleRank(held) >= store.RoleRank(needs) {
-		return context.WithValue(ctx, grantsKey{}, grants), "", "", nil
+		return place.WithCaller(ctx, place.Caller{UserID: p.User.ID, Grants: grants}), "", "", nil
 	}
 	return ctx, held, needs, ReasonError(connect.CodePermissionDenied, roleRefusal(p, held, needs), ReasonNeedsRole)
 }
@@ -477,12 +478,10 @@ var unroled = map[string]bool{
 	"/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo": true,
 }
 
-// grantsKey carries the caller's grants from the gate to what's checked after.
-type grantsKey struct{}
-
+// grantsFrom are the caller's grants, as the gate read them for this call.
 func grantsFrom(ctx context.Context) ([]store.Grant, bool) {
-	g, ok := ctx.Value(grantsKey{}).([]store.Grant)
-	return g, ok
+	c, ok := place.CallerFrom(ctx)
+	return c.Grants, ok
 }
 
 // roleRefusal says what the call needs, what the caller holds, that it didn't
@@ -610,8 +609,8 @@ func (c *scopedConn) recheck(ctx context.Context, p auth.Principal) error {
 		return err
 	}
 	// The stream's own context, with the grants just read.
-	if grants, ok := grantsFrom(gated); ok {
-		c.ctx = context.WithValue(c.ctx, grantsKey{}, grants)
+	if caller, ok := place.CallerFrom(gated); ok {
+		c.ctx = place.WithCaller(c.ctx, caller)
 	}
 	return nil
 }

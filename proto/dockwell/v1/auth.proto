@@ -703,6 +703,22 @@ enum StepUpAction {
   // target is the server's ID, or for a shell in a container, the server's ID and
   // the container as the request names it, as "srv_…:web".
   STEP_UP_ACTION_OPEN_TERMINAL = 10;
+  // Approving someone else's change in a protected environment, as an admin
+  // or the owner, by applying it with ChangeService.ApplyChange. The target is
+  // the change's ID and the fingerprint of the plan reviewed, as
+  // "chg_…:fingerprint", so the proof is good for that plan alone. It also
+  // stands for applying a change that gives something as much as root.
+  STEP_UP_ACTION_APPROVE_CHANGE = 114;
+}
+
+// StepUpNeeded is the detail of an error whose reason is "needs_step_up",
+// when the call says which step-up it takes: its action and target, to pass
+// to BeginStepUp as they are. Applying someone else's change in a protected
+// environment, for one, takes STEP_UP_ACTION_APPROVE_CHANGE, bound to the
+// plan's fingerprint.
+message StepUpNeeded {
+  StepUpAction action = 1;
+  string target = 2;
 }
 
 // BeginStepUpRequest says what the passkey confirms.

@@ -14,6 +14,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -464,9 +465,11 @@ func TestANarrowedStreamSaysNothingOfElsewhere(t *testing.T) {
 		s := newReachStand(t, backend)
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
+		// The owner, as the API would carry them, changes things elsewhere.
+		keeper := place.WithCaller(ctx, place.Caller{UserID: "usr_keeper", Grants: []store.Grant{{UserID: "usr_keeper", ProjectID: store.Install, Role: store.RoleOwner}}})
 		elsewhere := func(env, name string) string {
 			t.Helper()
-			plan, err := s.f.engine.Propose(ctx, revision.Proposal{Summary: "Set " + name, Actor: "user:usr_keeper", Edits: []revision.Edit{{
+			plan, err := s.f.engine.Propose(keeper, revision.Proposal{Summary: "Set " + name, Actor: "user:usr_keeper", Edits: []revision.Edit{{
 				Ref:  resource.Ref{Kind: "variable", Scope: env, Name: name},
 				Spec: &resourcev1.Variable{Value: "1"},
 			}}})
@@ -495,7 +498,7 @@ func TestANarrowedStreamSaysNothingOfElsewhere(t *testing.T) {
 		time.Sleep(500 * time.Millisecond)
 		planned := elsewhere(s.production, "X")
 		time.Sleep(500 * time.Millisecond) // so its plan and its discard come apart
-		if err := s.f.engine.Discard(ctx, planned, revision.By{Actor: "user:usr_keeper"}); err != nil {
+		if err := s.f.engine.Discard(keeper, planned, revision.By{Actor: "user:usr_keeper"}); err != nil {
 			t.Fatal(err)
 		}
 		mine := elsewhere(s.staging, "Y")
