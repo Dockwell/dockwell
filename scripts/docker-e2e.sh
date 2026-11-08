@@ -3864,7 +3864,7 @@ nothing_shows e2e-buyer-password-7Rk2
 # A role with something in another database isn't dropped, and neither is its database:
 # dropping the database first would leave the user.
 pg shop 'CREATE TABLE buyer_reads (id int); GRANT SELECT ON buyer_reads TO buyer' || fail "can't grant buyer something in shop"
-planned=$(dw changes propose --edits '{"resource":{"kind":"database.user","scope":"'"$db_env"'","name":"buyer"},"delete":true}' --plan-only --json) ||
+planned=$(dw changes propose --summary "Delete the database user buyer" --edits '{"resource":{"kind":"database.user","scope":"'"$db_env"'","name":"buyer"},"delete":true}' --plan-only --json) ||
   fail "planning to delete buyer failed: $planned"
 fingerprint=$(change_field "$(jq -r '.change.id' <<<"$planned")" plan.fingerprint) || fail "can't read the plan of the delete"
 person_call ChangeService/ApplyChange "{\"id\":\"$(jq -r '.change.id' <<<"$planned")\",\"fingerprint\":\"$fingerprint\"}" >/dev/null ||
@@ -3874,7 +3874,7 @@ blocked=$(wait_failed "$(jq -r '.change.id' <<<"$planned")")
 [[ "$(pg postgres "SELECT count(*) FROM pg_database WHERE datname = 'buyer'")" == 1 ]] || fail "a drop that stopped took the database buyer with it"
 pg shop 'DROP TABLE buyer_reads' || fail "can't drop what buyer was granted"
 # Deleting it drops the user and the database, which a person applies.
-planned=$(dw changes propose --edits '{"resource":{"kind":"database.user","scope":"'"$db_env"'","name":"buyer"},"delete":true}' --plan-only --json) ||
+planned=$(dw changes propose --summary "Delete the database user buyer" --edits '{"resource":{"kind":"database.user","scope":"'"$db_env"'","name":"buyer"},"delete":true}' --plan-only --json) ||
   fail "planning to delete buyer failed: $planned"
 jq -e '.change.plan.destructive' <<<"$planned" >/dev/null || fail "dropping buyer doesn't say it destroys data: $planned"
 person_apply "$(jq -r '.change.id' <<<"$planned")"
