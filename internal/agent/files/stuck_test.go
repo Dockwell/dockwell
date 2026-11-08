@@ -67,6 +67,12 @@ func within[T any](t *testing.T, limit time.Duration, call func() T) T {
 // else, and then the call is left behind early, at the wrong step.
 const roomy = 500 * time.Millisecond
 
+// held is how long a path has to answer in a test that holds a save past the flush
+// of its copy. A busy runner's disk can take longer than roomy over that, and a save
+// left behind there stops itself before the step the test holds. The step is held
+// until the test lets it go, so the deadline runs out there however long it is.
+const held = 2 * time.Second
+
 func waitFor(t *testing.T, what string, ok func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -398,11 +404,12 @@ func TestASaveLeftBehindAsItReadsAgainWritesNothing(t *testing.T) {
 	p := filepath.Join(d.root, "app", "conf")
 	write(t, p, "before")
 	v := d.read(t, p).GetFile().GetVersion()
-	d.server.AnswerWithin = roomy
+	d.server.AnswerWithin = held
+	// The flush isn't the step this holds, so it doesn't wait on the disk.
 	var flushed atomic.Bool
-	syncSpare = func(f *os.File) error {
+	syncSpare = func(*os.File) error {
 		flushed.Store(true)
-		return f.Sync()
+		return nil
 	}
 	t.Cleanup(func() { syncSpare = (*os.File).Sync })
 	reached, gone := make(chan struct{}, 1), make(chan struct{})
@@ -478,7 +485,9 @@ func TestAFileChangedAsTheCopyFlushesIsntSavedOver(t *testing.T) {
 // stallWrite holds each save as it writes the file, until told how that goes.
 func stallWrite(t *testing.T, s *Server, failing error) (reached chan struct{}, answer func()) {
 	t.Helper()
-	s.AnswerWithin = roomy
+	s.AnswerWithin = held
+	// The flush before it isn't the step this holds, so it doesn't wait on the disk.
+	syncSpare = func(*os.File) error { return nil }
 	reached = make(chan struct{}, 8)
 	gone := make(chan struct{})
 	answer = sync.OnceFunc(func() { close(gone) })
@@ -495,7 +504,7 @@ func stallWrite(t *testing.T, s *Server, failing error) (reached chan struct{}, 
 		}
 		return overwrite(f, text)
 	}
-	t.Cleanup(func() { answer(); putIn = overwrite })
+	t.Cleanup(func() { answer(); putIn = overwrite; syncSpare = (*os.File).Sync })
 	return reached, answer
 }
 
