@@ -122,6 +122,7 @@ export function TokensPage() {
 
   return (
     <Page
+      width="narrow"
       title={t`API tokens`}
       lead={t`Tokens act for you from CI, scripts and the CLI, with only the scope you give them`}
       back="/settings"

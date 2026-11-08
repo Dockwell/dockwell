@@ -58,7 +58,7 @@ export function ControlPlanePage() {
   else if (name) lead = t`Panel, API and scheduler for ${name}`;
   else if (own) lead = t`Panel, API and scheduler for this install · one replica, on ${own.name}`;
   return (
-    <Page title={t`Control plane`} lead={lead} back="/settings" className="control-plane">
+    <Page width="narrow" title={t`Control plane`} lead={lead} back="/settings" className="control-plane">
       {got.error ? (
         <Callout
           tone="critical"

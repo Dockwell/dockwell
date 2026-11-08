@@ -143,6 +143,7 @@ export function AuditLogPage() {
 
   return (
     <Page
+      width="narrow"
       title={t`Audit log`}
       lead={t`Every change and every way in, by people, tokens, servers and Dockwell · kept as long as this install exists`}
       back="/settings"
