@@ -6,8 +6,17 @@ import type { FleetServer } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 
 import { useTimeWords } from "../../lib/time";
+import { publicAddressOf } from "./network";
 import { primaryAddress, serverStatus } from "./server";
 import { useControlPlaneNow } from "./useFleet";
+
+/**
+ * The address to show for a server: its public one as its network says, which a role
+ * that sees no inventory still gets, then the best of its own interfaces.
+ */
+function addressOf(server: Server): string | undefined {
+  return publicAddressOf(server) ?? primaryAddress(server.inventory?.addresses ?? []);
+}
 
 /**
  * Each server as a tile names it: its state, its numbers while it reports, its address, and why it's not well.
@@ -31,14 +40,14 @@ export function useServerTiles(servers: readonly Server[], unknown: boolean): Fl
           : s.dockerUnreadableSince
             ? t`Can't read Docker`
             : undefined;
-    if (unknown) return { id: s.id, name: s.name, status: "unknown", ip: primaryAddress(s.inventory?.addresses ?? []) };
+    if (unknown) return { id: s.id, name: s.name, status: "unknown", ip: addressOf(s) };
     return {
       id: s.id,
       name: s.name,
       status: serverStatus(s),
       cpu: stats ? Math.round(stats.cpuPercent) : null,
       mem: stats && total > 0 ? Math.round((Number(stats.memoryUsedBytes) / total) * 100) : null,
-      ip: primaryAddress(s.inventory?.addresses ?? []),
+      ip: addressOf(s),
       note,
     };
   });

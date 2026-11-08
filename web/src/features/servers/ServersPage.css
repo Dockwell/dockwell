@@ -41,18 +41,28 @@
 }
 
 .servers-table-foot {
-  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 32px;
   color: var(--ink-muted);
   font-size: 12.5px;
 }
 
 /* ---------- The inspector ---------- */
 
+/* It stays in view as a long list scrolls, below the top bar, and scrolls itself when it's taller than the screen. */
 .servers-inspector {
+  position: sticky;
+  top: calc(var(--scopebar-height) + var(--space-4));
   display: flex;
   flex: 1 1 340px;
   flex-direction: column;
   min-width: 0;
+  max-height: calc(100dvh - var(--scopebar-height) - var(--space-8));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .servers-inspector-head {

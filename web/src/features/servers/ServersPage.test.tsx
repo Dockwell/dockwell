@@ -12,13 +12,13 @@ import {
   ServerInventorySchema,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, places, running } from "../../test/apps";
-import { type Api, feed, onPhone, renderAt } from "../../test/render";
+import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, history, sample, snapshotComplete } from "../../test/servers";
 
 const GiB = 1024 ** 3;
@@ -76,6 +76,8 @@ function renderServers(servers: Server[], url = "/servers", extra: Partial<Api> 
   });
 }
 
+const rowOf = (name: RegExp) => screen.findByRole("row", { name });
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -108,6 +110,8 @@ describe("Servers", () => {
     const { router } = renderServers([web1, web2({ connection: Connection.UNREACHABLE, lastSeenTime })]);
 
     const inspector = await screen.findByRole("complementary", { name: "web-2" });
+    // Chosen once, into the URL, so it stays put as others change.
+    await waitFor(() => expect(router.state.location.search).toEqual({ server: "srv_2" }));
     expect(inspector).toHaveTextContent("Downfor 3 min");
     expect(inspector).toHaveTextContent(
       "Its agent last reported 3 min ago. Check that dockwell run is still running on the server.",
@@ -119,8 +123,113 @@ describe("Servers", () => {
     expect(within(inspector).getByRole("link", { name: "Open web-2" })).toHaveAttribute("href", "/servers/srv_2");
 
     await user.click(within(inspector).getByRole("button", { name: "Close web-2" }));
+    await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+    // Closed stays closed, through a reload, and the keyboard is back on its row.
+    expect(router.state.location.search).toEqual({ closed: true });
+    await waitFor(() => expect(document.activeElement).toHaveTextContent(/^web-2/));
+    expect(document.activeElement?.tagName).toBe("TR");
+  });
+
+  it("keeps the inspector it opened on its own when that server recovers, or another goes wrong", async () => {
+    const watch = feed<WatchServersResponse>();
+    const down = web2({ connection: Connection.UNREACHABLE });
+    watch.push(changed(web1), changed(down), snapshotComplete);
+    renderAt("/servers", {
+      servers: { watchServers: watch.stream },
+      services: { listServices: () => ({ services: [shop, blog] }) },
+      resources: places(),
+      health: running(shop, blog),
+      events: { listEvents: () => ({ events: [] }) },
+    });
+    await screen.findByRole("complementary", { name: "web-2" });
+    // web-2 comes back, and web-1, first by name, can't read Docker.
+    act(() =>
+      watch.push(changed(web2()), changed(aServer({ ...web1, dockerUnreadableSince: timestampFromDate(new Date()) }))),
+    );
+    await screen.findByRole("button", { name: /^web-2, Healthy/ });
+    expect(screen.getByRole("complementary", { name: "web-2" })).toBeVisible();
+    expect(screen.queryByRole("complementary", { name: "web-1" })).toBeNull();
+  });
+
+  it("goes back through the servers chosen", async () => {
+    const user = userEvent.setup();
+    const { router } = renderServers([web1, web2()]);
+    await user.click(await screen.findByRole("button", { name: /^web-1, / }));
+    await screen.findByRole("complementary", { name: "web-1" });
+    await user.click(screen.getByRole("button", { name: /^web-2, / }));
+    await screen.findByRole("complementary", { name: "web-2" });
+    act(() => router.history.back());
+    await waitFor(() => expect(router.state.location.search).toEqual({ server: "srv_1" }));
+    expect(await screen.findByRole("complementary", { name: "web-1" })).toBeVisible();
+  });
+
+  it("opens nothing on its own once closed, the URL says so", async () => {
+    renderServers([web1, web2({ connection: Connection.UNREACHABLE })], "/servers?closed=true");
+    await screen.findByRole("button", { name: /^web-2, Down/ });
     expect(screen.queryByRole("complementary")).toBeNull();
-    expect(router.state.location.search).toEqual({});
+  });
+
+  it("shows no numbers in the inspector once the fleet reads Unknown", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let answering = true;
+    renderAt("/servers?server=srv_1", {
+      services: { listServices: () => ({ services: [shop, blog] }) },
+      resources: places(),
+      health: running(shop, blog),
+      events: { listEvents: () => ({ events: [] }) },
+      servers: {
+        async *watchServers(_req: unknown, ctx: { signal: AbortSignal }) {
+          if (answering) {
+            yield changed(web1);
+            yield changed(web2());
+            yield snapshotComplete;
+          }
+          await untilAborted(ctx.signal);
+        },
+      },
+    });
+    const inspector = await screen.findByRole("complementary", { name: "web-1" });
+    await waitFor(() => expect(within(inspector).getByText("CPU")).toBeVisible());
+    answering = false;
+    await vi.advanceTimersByTimeAsync(35_000);
+    await waitFor(() => expect(inspector.querySelector(".dw-tone-unknown")).not.toBeNull());
+    expect(within(inspector).queryByText("CPU")).toBeNull();
+  });
+
+  it("says why a server isn't well in its row, and which is the control server", async () => {
+    renderServers([
+      aServer({ ...web1, dockerUnreadableSince: timestampFromDate(new Date()) }),
+      web2({ connection: Connection.PENDING }),
+    ]);
+    expect(await rowOf(/^web-1/)).toHaveTextContent("DegradedCan't read Docker · Control server");
+    expect(await rowOf(/^web-2/)).toHaveTextContent("Waiting for its agent");
+  });
+
+  it("pages the table as Servers-List does, and shows a server chosen past the page", async () => {
+    const user = userEvent.setup();
+    const many = Array.from({ length: 25 }, (_, i) =>
+      aServer({
+        id: `srv_${String(i).padStart(2, "0")}`,
+        name: `node-${String(i).padStart(2, "0")}`,
+        stats: sample(10),
+      }),
+    );
+    renderServers(many);
+    const table = await screen.findByRole("table", { name: "Servers, sorted by name" });
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(21));
+    expect(screen.getByText("Showing 20 of 25 · sorted by name")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Show all 25" }));
+    expect(within(table).getAllByRole("row")).toHaveLength(26);
+    expect(screen.getByText("25 servers · sorted by name")).toBeVisible();
+  });
+
+  it("names apps two projects share once, with how many", async () => {
+    const db = (scope: string) =>
+      anApp("db", "postgres:16", {}, { id: `svc_db_${scope}`, resource: { kind: "service", scope, name: "db" } });
+    renderServers([web1], "/servers", {
+      services: { listServices: () => ({ services: [db("env_a"), db("env_b"), shop] }) },
+    });
+    expect(await rowOf(/^web-1/)).toHaveTextContent("db ×2, shop");
   });
 
   it("inspects the server chosen from its tile or its row, and keeps it in the URL", async () => {
@@ -165,17 +274,50 @@ describe("Servers", () => {
     expect(await screen.findByRole("complementary", { name: "web-2" })).toBeVisible();
   });
 
-  it("says how to add a server with the commands that work today", async () => {
+  it("says how to add a server, with the install script of the control plane's own release", async () => {
     const user = userEvent.setup();
-    renderServers([web1, web2()]);
+    const asked: string[] = [];
+    renderServers([web1, web2()], "/servers", {
+      updates: {
+        getServerUpdates: (req: { id: string }) => {
+          asked.push(req.id);
+          return { dockwell: { controlPlane: "0.2.1", releases: "https://github.com/Dockwell/dockwell/releases" } };
+        },
+      },
+    });
 
     await user.click(await screen.findByRole("button", { name: "Add server" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a server" });
     expect(sheet).toHaveTextContent("Make a ticket on web-1");
-    expect(within(sheet).getByText("sudo dockwell token create")).toBeVisible();
-    expect(within(sheet).getByText("curl -fsSL https://get.dockwell.dev | sh -s -- --join <ticket>")).toBeVisible();
+    expect(within(sheet).getByText("dockwell token create")).toBeVisible();
+    expect(
+      await within(sheet).findByText(
+        "curl -fsSL https://github.com/Dockwell/dockwell/releases/download/v0.2.1/install.sh | sudo sh -s -- --version 0.2.1 --join <ticket>",
+      ),
+    ).toBeVisible();
+    expect(asked).toEqual(["srv_1"]);
+    expect(sheet).not.toHaveTextContent("get.dockwell.dev");
     await user.click(within(sheet).getByRole("button", { name: "Done" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("names no command it can't stand behind, for a build that isn't a release", async () => {
+    const user = userEvent.setup();
+    renderServers([web1, web2()], "/servers", {
+      updates: {
+        getServerUpdates: () => ({
+          dockwell: { controlPlane: "0.2.1-dev", releases: "https://github.com/Dockwell/dockwell/releases" },
+        }),
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: "Add server" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+    await waitFor(() =>
+      expect(sheet).toHaveTextContent(
+        "run the install script of the release the control plane runs, with --join and the ticket",
+      ),
+    );
+    expect(sheet).not.toHaveTextContent("curl");
   });
 
   it("lists what needs attention on a phone, and holds the server chosen with the way to its page", async () => {

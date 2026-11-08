@@ -7269,9 +7269,6 @@ msgstr "最近的变更"
 msgid "Add a server"
 msgstr "添加服务器"
 
-msgid "As root, on any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the agent, joins, and starts."
-msgstr "以 root 身份在任意 Linux 服务器上运行：其他云服务商、家庭实验室或虚拟机都可以。把 <0><ticket></0> 换成票据。它会安装代理、加入并启动。"
-
 msgid "It joins in seconds, and nothing on your servers changes."
 msgstr "几秒钟内即可加入，你现有服务器上的一切保持不变。"
 
@@ -7281,11 +7278,17 @@ msgstr "它的代理一连接，它就会出现在“服务器”页面。你的
 msgid "Make a ticket on the control server"
 msgstr "在控制服务器上生成票据"
 
-msgid "Make a ticket on {control}"
-msgstr "在 {control} 上生成票据"
+msgid "Make a ticket on {name}"
+msgstr ""
 
-msgid "Over SSH, as the user that runs Dockwell. It works once, for an hour, and needs sudo when Dockwell runs as the system service."
-msgstr "通过 SSH，以运行 Dockwell 的用户身份执行。票据只能使用一次，有效期一小时；Dockwell 作为系统服务运行时需要 sudo。"
+msgid "On any Linux server, run the install script of the release the control plane runs, with <0>--join</0> and the ticket. It installs the agent, joins, and starts."
+msgstr ""
+
+msgid "On any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the control plane's version of the agent, joins, and starts."
+msgstr ""
+
+msgid "Over SSH, as the user that runs Dockwell, with <0>sudo</0> in front when it runs as the system service. The ticket works once, for an hour."
+msgstr ""
 
 msgid "Run one command on the new server"
 msgstr "在新服务器上运行一条命令"
@@ -7850,17 +7853,11 @@ msgstr "更新"
 msgid "Control server"
 msgstr "控制服务器"
 
-msgid "It joined, but its agent hasn't connected yet. Start it with dockwell run on the server."
-msgstr "它已加入，但它的代理还没有连接。请在服务器上运行 dockwell run 启动它。"
-
-msgid "Its agent has disconnected. Check that dockwell run is still running on the server."
-msgstr "它的代理已断开。请检查该服务器上的 dockwell run 是否仍在运行。"
-
 msgid "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is."
 msgstr "它的代理已连接，但 Docker 没有响应，所以无法得知上面运行的内容状况如何。"
 
-msgid "Its agent last reported {seen}. Check that dockwell run is still running on the server."
-msgstr "它的代理最后一次上报于 {seen}。请检查该服务器上的 dockwell run 是否仍在运行。"
+msgid "Its agent last reported {seen}. Check that <0>dockwell run</0> is still running on the server."
+msgstr ""
 
 msgid "Last {span}"
 msgstr "最近 {span}"
@@ -8045,6 +8042,13 @@ msgstr "服务器一览"
 
 msgid "Servers, sorted by name"
 msgstr "服务器，按名称排序"
+
+msgid "Show all {count}"
+msgstr ""
+
+#. placeholder {0}: rows.length
+msgid "Showing {0} of {count} · sorted by name"
+msgstr ""
 
 msgid "sorted by name"
 msgstr "按名称排序"

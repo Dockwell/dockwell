@@ -7269,9 +7269,6 @@ msgstr "Recent changes"
 msgid "Add a server"
 msgstr "Add a server"
 
-msgid "As root, on any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the agent, joins, and starts."
-msgstr "As root, on any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the agent, joins, and starts."
-
 msgid "It joins in seconds, and nothing on your servers changes."
 msgstr "It joins in seconds, and nothing on your servers changes."
 
@@ -7281,11 +7278,17 @@ msgstr "It shows on Servers as soon as its agent connects. Your apps stay where 
 msgid "Make a ticket on the control server"
 msgstr "Make a ticket on the control server"
 
-msgid "Make a ticket on {control}"
-msgstr "Make a ticket on {control}"
+msgid "Make a ticket on {name}"
+msgstr "Make a ticket on {name}"
 
-msgid "Over SSH, as the user that runs Dockwell. It works once, for an hour, and needs sudo when Dockwell runs as the system service."
-msgstr "Over SSH, as the user that runs Dockwell. It works once, for an hour, and needs sudo when Dockwell runs as the system service."
+msgid "On any Linux server, run the install script of the release the control plane runs, with <0>--join</0> and the ticket. It installs the agent, joins, and starts."
+msgstr "On any Linux server, run the install script of the release the control plane runs, with <0>--join</0> and the ticket. It installs the agent, joins, and starts."
+
+msgid "On any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the control plane's version of the agent, joins, and starts."
+msgstr "On any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the control plane's version of the agent, joins, and starts."
+
+msgid "Over SSH, as the user that runs Dockwell, with <0>sudo</0> in front when it runs as the system service. The ticket works once, for an hour."
+msgstr "Over SSH, as the user that runs Dockwell, with <0>sudo</0> in front when it runs as the system service. The ticket works once, for an hour."
 
 msgid "Run one command on the new server"
 msgstr "Run one command on the new server"
@@ -7850,17 +7853,11 @@ msgstr "Updates"
 msgid "Control server"
 msgstr "Control server"
 
-msgid "It joined, but its agent hasn't connected yet. Start it with dockwell run on the server."
-msgstr "It joined, but its agent hasn't connected yet. Start it with dockwell run on the server."
-
-msgid "Its agent has disconnected. Check that dockwell run is still running on the server."
-msgstr "Its agent has disconnected. Check that dockwell run is still running on the server."
-
 msgid "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is."
 msgstr "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is."
 
-msgid "Its agent last reported {seen}. Check that dockwell run is still running on the server."
-msgstr "Its agent last reported {seen}. Check that dockwell run is still running on the server."
+msgid "Its agent last reported {seen}. Check that <0>dockwell run</0> is still running on the server."
+msgstr "Its agent last reported {seen}. Check that <0>dockwell run</0> is still running on the server."
 
 msgid "Last {span}"
 msgstr "Last {span}"
@@ -8045,6 +8042,13 @@ msgstr "Servers at a glance"
 
 msgid "Servers, sorted by name"
 msgstr "Servers, sorted by name"
+
+msgid "Show all {count}"
+msgstr "Show all {count}"
+
+#. placeholder {0}: rows.length
+msgid "Showing {0} of {count} · sorted by name"
+msgstr "Showing {0} of {count} · sorted by name"
 
 msgid "sorted by name"
 msgstr "sorted by name"

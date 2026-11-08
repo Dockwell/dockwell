@@ -64,7 +64,8 @@ export function ServerInspector({
         <Button variant="ghost" size="sm" icon="x" aria-label={t`Close ${name}`} onClick={onClose} />
       </div>
       <Facts server={server} unknown={unknown} />
-      <Numbers server={server} />
+      {/* Its numbers stand only while what the fleet says does. */}
+      {unknown ? null : <Numbers server={server} />}
       <RunsHere server={server} />
       <Recent server={server} />
       <div className="servers-inspector-actions">
@@ -95,17 +96,23 @@ function Facts({ server, unknown }: { server: Server; unknown: boolean }) {
   const now = useControlPlaneNow(15_000);
   const inv = server.inventory;
   const seen = server.lastSeenTime ? words.ago(timestampDate(server.lastSeenTime), now) : undefined;
-  const why = unknown
-    ? undefined
-    : server.connection === Connection.UNREACHABLE
-      ? seen
-        ? t`Its agent last reported ${seen}. Check that dockwell run is still running on the server.`
-        : t`Its agent has disconnected. Check that dockwell run is still running on the server.`
-      : server.connection === Connection.PENDING
-        ? t`It joined, but its agent hasn't connected yet. Start it with dockwell run on the server.`
-        : server.dockerUnreadableSince
-          ? t`Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is.`
-          : undefined;
+  const why: ReactNode = unknown ? undefined : server.connection === Connection.UNREACHABLE ? (
+    seen ? (
+      <Trans>
+        Its agent last reported {seen}. Check that <code>dockwell run</code> is still running on the server.
+      </Trans>
+    ) : (
+      <Trans>
+        Its agent has disconnected. Check that <code>dockwell run</code> is still running on the server.
+      </Trans>
+    )
+  ) : server.connection === Connection.PENDING ? (
+    <Trans>
+      It joined, but its agent hasn't connected yet. Start it with <code>dockwell run</code> on the server.
+    </Trans>
+  ) : server.dockerUnreadableSince ? (
+    <Trans>Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is.</Trans>
+  ) : undefined;
   const addresses = inv?.addresses ?? [];
   const publicIp = publicAddressOf(server) ?? addresses.find((ip) => !isPrivateAddress(ip));
   const privateIp = addresses.find((ip) => isPrivateAddress(ip) && !ip.includes(":"));

@@ -14,7 +14,7 @@ import {
   useUIStrings,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
 import { useServices } from "../apps/useServices";
@@ -28,10 +28,15 @@ import { useServerTiles } from "./tiles";
 import { useFleet, useFleetUnread } from "./useFleet";
 import "./ServersPage.css";
 
-/** Which server Servers inspects, as its URL says. */
+/** Which server Servers inspects, or that none is, as its URL says. */
 export interface ServersSearch {
   server?: string;
+  /** The inspector was closed, so none opens on its own, a reload and Back included. */
+  closed?: boolean;
 }
+
+/** How many rows the table shows before "Show all", as Servers-List pages them. */
+export const TABLE_PAGE = 20;
 
 /** Whether a server needs a look: it isn't reporting, can't read Docker, or hasn't connected. */
 function needsLook(server: Server): boolean {
@@ -44,7 +49,13 @@ function needsLook(server: Server): boolean {
  * in the URL, the first that needs a look is. On a phone, M-Servers: the tiles,
  * what needs attention, and the server chosen, with the way to its page.
  */
-export function ServersPage({ search, onSearch }: { search: ServersSearch; onSearch: (next: ServersSearch) => void }) {
+export function ServersPage({
+  search,
+  onSearch,
+}: {
+  search: ServersSearch;
+  onSearch: (next: ServersSearch, how?: { replace?: boolean }) => void;
+}) {
   const { t } = useLingui();
   const strings = useUIStrings();
   const fleet = useFleet();
@@ -52,12 +63,17 @@ export function ServersPage({ search, onSearch }: { search: ServersSearch; onSea
   const status = usePageReconnecting(fleet.status);
   const phone = useMediaQuery(PHONE_QUERY);
   const [adding, setAdding] = useState(false);
-  // Closing the inspector keeps it closed, rather than opening the next server that needs a look.
-  const [dismissed, setDismissed] = useState(false);
   const servers = useMemo(
     () => (fleet.status === "connecting" ? [] : [...fleet.servers].sort((a, b) => a.name.localeCompare(b.name))),
     [fleet],
   );
+  // Without a server in the URL, the first that needs a look opens, once: it goes into the
+  // URL, so it stays as others come and go, and a reload or Back keeps it.
+  const firstLook = servers.find(needsLook)?.id;
+  const pick = search.server === undefined && !search.closed ? firstLook : undefined;
+  useEffect(() => {
+    if (pick) onSearch({ server: pick }, { replace: true });
+  }, [pick, onSearch]);
 
   if (fleet.status === "connecting") {
     return (
@@ -67,16 +83,12 @@ export function ServersPage({ search, onSearch }: { search: ServersSearch; onSea
     );
   }
   const lead = strings.fleetGrid.servers(servers.length);
-  const control = servers.find((s) => s.controlServer)?.name;
-  const chosen = search.server
-    ? servers.find((s) => s.id === search.server)
-    : dismissed
-      ? undefined
-      : servers.find(needsLook);
-  const select = (id: string | undefined) => {
-    if (!id) setDismissed(true);
-    onSearch(id ? { server: id } : {});
-  };
+  const controlServer = servers.find((s) => s.controlServer);
+  const control = controlServer ? { id: controlServer.id, name: controlServer.name } : undefined;
+  const chosenId = search.server ?? pick;
+  const chosen = chosenId ? servers.find((s) => s.id === chosenId) : undefined;
+  // Each choice is a step Back goes through; closing is one too.
+  const select = (id: string | undefined) => onSearch(id ? { server: id } : { closed: true });
 
   return (
     <Page
@@ -115,20 +127,44 @@ interface ListProps {
   unknown: boolean;
 }
 
-/** The tiles and the table, with the inspector beside them while a server is chosen. */
+/**
+ * The tiles and the table, with the inspector beside them while a server is chosen. It
+ * stays in view as the page scrolls; where it wraps below the table, a choice brings it
+ * into view, and closing it puts the keyboard back on the row it was about.
+ */
 function WideServers({ servers, chosen, select, unknown }: ListProps) {
   const { t } = useLingui();
   const tiles = useServerTiles(servers, unknown);
+  const layout = useRef<HTMLDivElement>(null);
+  const after = useRef<{ reveal?: boolean; focus?: string }>({});
+  const choose = (id: string | undefined) => {
+    after.current = id ? { reveal: true } : { focus: chosen?.id };
+    select(id);
+  };
+  useEffect(() => {
+    const { reveal, focus } = after.current;
+    after.current = {};
+    const box = layout.current;
+    if (!box) return;
+    if (focus) box.querySelector<HTMLElement>(`.servers-row-${CSS.escape(focus)}`)?.focus();
+    if (!reveal) return;
+    const inspector = box.querySelector<HTMLElement>(".servers-inspector");
+    const main = box.querySelector<HTMLElement>(".servers-main");
+    // Beside the table it's in view already; below it, as on a narrow screen, it isn't.
+    if (inspector && main && inspector.offsetTop > main.offsetTop + 8) {
+      inspector.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+    }
+  });
   return (
-    <div className={cx("servers-layout", chosen && "is-inspecting")}>
+    <div ref={layout} className={cx("servers-layout", chosen && "is-inspecting")}>
       <div className="servers-main">
         <section className="dw-panel servers-map" aria-label={t`Servers at a glance`}>
-          <FleetGrid servers={tiles} selectedId={chosen?.id} onSelect={(s) => select(s.id)} />
+          <FleetGrid servers={tiles} selectedId={chosen?.id} onSelect={(s) => choose(s.id)} />
         </section>
-        <ServersTable servers={servers} tiles={tiles} chosen={chosen} select={select} unknown={unknown} />
+        <ServersTable servers={servers} tiles={tiles} chosen={chosen} select={choose} unknown={unknown} />
       </div>
       {chosen ? (
-        <ServerInspector key={chosen.id} server={chosen} unknown={unknown} onClose={() => select(undefined)} />
+        <ServerInspector key={chosen.id} server={chosen} unknown={unknown} onClose={() => choose(undefined)} />
       ) : null}
     </div>
   );
@@ -140,13 +176,19 @@ function ServersTable({ servers, tiles, chosen, select }: ListProps & { tiles: r
   const strings = useUIStrings();
   const runs = useRunsByServer();
   const byId = new Map(tiles.map((tile) => [tile.id, tile]));
+  const [all, setAll] = useState(false);
+  // A server chosen past the page, from its tile, shows the rest rather than lose its row.
+  const beyond = chosen ? servers.findIndex((s) => s.id === chosen.id) >= TABLE_PAGE : false;
+  const rows = all || beyond ? servers : servers.slice(0, TABLE_PAGE);
+  const count = servers.length;
   return (
     <section className="servers-table" aria-label={t`Server list`}>
       <Table<Server>
         density="compact"
         caption={t`Servers, sorted by name`}
-        rows={servers}
+        rows={rows}
         rowKey="id"
+        rowClassName={(s) => `servers-row-${s.id}`}
         selectedKey={chosen?.id ?? null}
         onRowClick={(s) => select(s.id)}
         columns={[
@@ -165,12 +207,13 @@ function ServersTable({ servers, tiles, chosen, select }: ListProps & { tiles: r
             key: "status",
             header: t`Status`,
             width: 160,
-            render: (s) => (
-              <StatusBadge
-                status={byId.get(s.id)?.status ?? serverStatus(s)}
-                meta={s.controlServer ? t`Control server` : undefined}
-              />
-            ),
+            render: (s) => {
+              // Why it isn't well, as the old list said it, then what it is.
+              const meta = [byId.get(s.id)?.note ?? "", s.controlServer ? t`Control server` : ""]
+                .filter(Boolean)
+                .join(" · ");
+              return <StatusBadge status={byId.get(s.id)?.status ?? serverStatus(s)} meta={meta || undefined} />;
+            },
           },
           {
             key: "cpu",
@@ -191,10 +234,10 @@ function ServersTable({ servers, tiles, chosen, select }: ListProps & { tiles: r
             header: t`Runs`,
             muted: true,
             render: (s) => {
-              const names = runs.get(s.id) ?? [];
-              return names.length > 0 ? (
-                <span className="servers-table-runs" title={names.join(", ")}>
-                  {names.join(", ")}
+              const said = runs.get(s.id) ?? "";
+              return said ? (
+                <span className="servers-table-runs" title={said}>
+                  {said}
                 </span>
               ) : (
                 <span aria-hidden="true">—</span>
@@ -203,9 +246,24 @@ function ServersTable({ servers, tiles, chosen, select }: ListProps & { tiles: r
           },
         ]}
       />
-      <p className="servers-table-foot">
-        {strings.fleetGrid.servers(servers.length)} · <Trans>sorted by name</Trans>
-      </p>
+      <div className="servers-table-foot">
+        {rows.length < count ? (
+          <>
+            <span>
+              <Trans>
+                Showing {rows.length} of {count} · sorted by name
+              </Trans>
+            </span>
+            <Button variant="ghost" size="sm" onClick={() => setAll(true)}>
+              <Trans>Show all {count}</Trans>
+            </Button>
+          </>
+        ) : (
+          <span>
+            {strings.fleetGrid.servers(count)} · <Trans>sorted by name</Trans>
+          </span>
+        )}
+      </div>
     </section>
   );
 }
@@ -214,16 +272,29 @@ function percent(value: number | null | undefined) {
   return value == null ? <span aria-hidden="true">—</span> : `${value}%`;
 }
 
-/** The apps on each server, by name, as their deployments say. */
-function useRunsByServer(): Map<string, string[]> {
+/**
+ * The apps on each server, by name, as their deployments say: a name that two apps
+ * share, in two projects, once with how many, as "db ×2".
+ */
+function useRunsByServer(): Map<string, string> {
   const services = useServices();
   return useMemo(() => {
-    const out = new Map<string, string[]>();
+    const names = new Map<string, Map<string, number>>();
     for (const s of services.data ?? []) {
       const name = s.resource?.name ?? s.id;
-      for (const d of s.deployments) out.set(d.serverId, [...(out.get(d.serverId) ?? []), name]);
+      for (const d of s.deployments) {
+        const on = names.get(d.serverId) ?? new Map<string, number>();
+        on.set(name, (on.get(name) ?? 0) + 1);
+        names.set(d.serverId, on);
+      }
     }
-    for (const names of out.values()) names.sort((a, b) => a.localeCompare(b));
+    const out = new Map<string, string>();
+    for (const [server, on] of names) {
+      const said = [...on.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([name, n]) => (n > 1 ? `${name} ×${n}` : name));
+      out.set(server, said.join(", "));
+    }
     return out;
   }, [services.data]);
 }
