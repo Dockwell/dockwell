@@ -724,6 +724,10 @@ export async function appsFlow(
   await addValue("LONG_NOTE", "x".repeat(90).concat("-", "y".repeat(90), "/", "z".repeat(90)), false);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: width > 600 ? 900 : 844 });
+    // Wait for the responsive columns before measuring their layout.
+    await page
+      .getByRole("columnheader", { name: "Value", exact: true })
+      .waitFor({ state: width < 640 ? "hidden" : "visible" });
     const fits = await page.evaluate(() => {
       const wrap = document.querySelector(".app-environment .dw-table-wrap");
       const keys = [...document.querySelectorAll(".app-environment .app-env-name")];
