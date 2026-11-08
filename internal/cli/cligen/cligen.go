@@ -396,7 +396,8 @@ func nounShort(noun string, verbs []string, one string) string {
 		}
 	}
 	short := capitalize(list(all, "or") + " " + words(noun))
-	if len(short) <= maxNounShort || len(single) == 0 {
+	// When every verb is one word, the list of one-word verbs is all of them.
+	if len(short) <= maxNounShort || len(single) == 0 || len(single) == len(all) {
 		return short
 	}
 	return capitalize(list(single, "or")+" "+words(noun)) + fmt.Sprintf(", and %d more", len(all)-len(single))

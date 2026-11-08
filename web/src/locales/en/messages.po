@@ -811,6 +811,363 @@ msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps don
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 
+msgid "Alerts sections"
+msgstr "Alerts sections"
+
+msgid "Channels"
+msgstr "Channels"
+
+msgid "Nothing open"
+msgstr "Nothing open"
+
+msgid "Rules"
+msgstr "Rules"
+
+msgid "no channel yet, so nothing is sent"
+msgstr "no channel yet, so nothing is sent"
+
+#. placeholder {0}: c.rules
+#. placeholder {0}: r.rules
+#. placeholder {0}: rules.length
+msgid "{0, plural, one {# rule} other {# rules}}"
+msgstr "{0, plural, one {# rule} other {# rules}}"
+
+#. placeholder {0}: channels.length
+msgid "{0, plural, one {sent to # channel} other {sent to # channels}}"
+msgstr "{0, plural, one {sent to # channel} other {sent to # channels}}"
+
+msgid "{firing} open"
+msgstr "{firing} open"
+
+msgid "A group's ID, or a channel's name, such as @example_alerts. Add the bot to it first."
+msgstr "A group's ID, or a channel's name, such as @example_alerts. Add the bot to it first."
+
+msgid "Access token"
+msgstr "Access token"
+
+msgid "Add a channel"
+msgstr "Add a channel"
+
+#. placeholder {0}: form.name
+msgid "Add the alert channel {0}"
+msgstr "Add the alert channel {0}"
+
+msgid "An address your SMTP server sends as."
+msgstr "An address your SMTP server sends as."
+
+msgid "Bot token"
+msgstr "Bot token"
+
+#. placeholder {0}: form.name
+msgid "Change the alert channel {0}"
+msgstr "Change the alert channel {0}"
+
+#. placeholder {0}: channel.name
+msgid "Change {0}"
+msgstr "Change {0}"
+
+msgid "Chat"
+msgstr "Chat"
+
+msgid "Dockwell didn't send it"
+msgstr "Dockwell didn't send it"
+
+msgid "Dockwell keeps it sealed. Leave it empty to keep it."
+msgstr "Dockwell keeps it sealed. Leave it empty to keep it."
+
+msgid "Dockwell posts each alert to it as JSON. It may hold a token, so it's kept sealed, and lists show only its host."
+msgstr "Dockwell posts each alert to it as JSON. It may hold a token, so it's kept sealed, and lists show only its host."
+
+msgid "For a server or topic that asks for one."
+msgstr "For a server or topic that asks for one."
+
+msgid "From @BotFather, when you make the bot. It's kept sealed."
+msgstr "From @BotFather, when you make the bot. It's kept sealed."
+
+msgid "From the channel's settings, under Integrations, then Webhooks. Anyone with it can post there, so it's kept sealed."
+msgstr "From the channel's settings, under Integrations, then Webhooks. Anyone with it can post there, so it's kept sealed."
+
+msgid "From your Slack app's Incoming Webhooks page. Anyone with it can post there, so it's kept sealed."
+msgstr "From your Slack app's Incoming Webhooks page. Anyone with it can post there, so it's kept sealed."
+
+msgid "It said: {said}. Check what the form holds, then send another."
+msgstr "It said: {said}. Check what the form holds, then send another."
+
+msgid "Kept, sealed"
+msgstr "Kept, sealed"
+
+msgid "Lowercase letters, digits and dashes. Rules name a channel by it."
+msgstr "Lowercase letters, digits and dashes. Rules name a channel by it."
+
+msgid "Name"
+msgstr "Name"
+
+msgid "None, on this network"
+msgstr "None, on this network"
+
+msgid "On ntfy.sh anyone who knows a topic can read it, so this one is hard to guess, and kept sealed. Subscribe to it in the ntfy app."
+msgstr "On ntfy.sh anyone who knows a topic can read it, so this one is hard to guess, and kept sealed. Subscribe to it in the ntfy app."
+
+msgid "Password"
+msgstr "Password"
+
+msgid "Port"
+msgstr "Port"
+
+msgid "Remove"
+msgstr "Remove"
+
+#. placeholder {0}: form.name
+msgid "Remove the alert channel {0}"
+msgstr "Remove the alert channel {0}"
+
+msgid "SMTP server"
+msgstr "SMTP server"
+
+msgid "STARTTLS"
+msgstr "STARTTLS"
+
+msgid "Security"
+msgstr "Security"
+
+msgid "Send a test"
+msgstr "Send a test"
+
+msgid "Sending a test…"
+msgstr "Sending a test…"
+
+msgid "Sends to"
+msgstr "Sends to"
+
+msgid "Sent only over TLS, and kept sealed. Changing the server, port, security or user asks for it again."
+msgstr "Sent only over TLS, and kept sealed. Changing the server, port, security or user asks for it again."
+
+msgid "Signing secret"
+msgstr "Signing secret"
+
+msgid "Signs each request in a Dockwell-Signature header, so your endpoint can tell it came from this install."
+msgstr "Signs each request in a Dockwell-Signature header, so your endpoint can tell it came from this install."
+
+msgid "TLS"
+msgstr "TLS"
+
+msgid "The test arrived"
+msgstr "The test arrived"
+
+msgid "The test didn't arrive"
+msgstr "The test didn't arrive"
+
+msgid "To"
+msgstr "To"
+
+msgid "Topic"
+msgstr "Topic"
+
+msgid "URL"
+msgstr "URL"
+
+msgid "Up to 10 addresses, separated by commas."
+msgstr "Up to 10 addresses, separated by commas."
+
+msgid "User"
+msgstr "User"
+
+msgid "Webhook URL"
+msgstr "Webhook URL"
+
+msgid "ntfy.sh unless you give a server of your own."
+msgstr "ntfy.sh unless you give a server of your own."
+
+msgid "{kindName} answered {said}. Look for a message titled Dockwell test message."
+msgstr "{kindName} answered {said}. Look for a message titled Dockwell test message."
+
+msgid "A rule that names no channel sends to every one."
+msgstr "A rule that names no channel sends to every one."
+
+msgid "Actions"
+msgstr "Actions"
+
+msgid "Add channel"
+msgstr "Add channel"
+
+msgid "Alert"
+msgstr "Alert"
+
+msgid "Alert channels"
+msgstr "Alert channels"
+
+msgid "Can't load the channels"
+msgstr "Can't load the channels"
+
+msgid "Channel"
+msgstr "Channel"
+
+msgid "Critical"
+msgstr "Critical"
+
+msgid "Delivered"
+msgstr "Delivered"
+
+msgid "Dockwell didn't send a test to {name}"
+msgstr "Dockwell didn't send a test to {name}"
+
+msgid "Dockwell watches your servers and apps from the first start, and puts what it finds on Activity. Add a channel, such as email, Slack or ntfy on your phone, and every rule sends to it."
+msgstr "Dockwell watches your servers and apps from the first start, and puts what it finds on Activity. Add a channel, such as email, Slack or ntfy on your phone, and every rule sends to it."
+
+#. placeholder {0}: list(r.failed)
+msgid "Failed to {0}"
+msgstr "Failed to {0}"
+
+msgid "It answered {said}."
+msgstr "It answered {said}."
+
+msgid "It said: {said}. Open the channel to check what it holds."
+msgstr "It said: {said}. Open the channel to check what it holds."
+
+msgid "Last sent"
+msgstr "Last sent"
+
+msgid "Messages sent lately"
+msgstr "Messages sent lately"
+
+msgid "No rules"
+msgstr "No rules"
+
+msgid "None failed"
+msgstr "None failed"
+
+msgid "Nothing sent yet"
+msgstr "Nothing sent yet"
+
+msgid "Nothing yet"
+msgstr "Nothing yet"
+
+msgid "Nowhere to send alerts yet"
+msgstr "Nowhere to send alerts yet"
+
+msgid "Reaches no channel."
+msgstr "Reaches no channel."
+
+msgid "Recent deliveries"
+msgstr "Recent deliveries"
+
+msgid "Result"
+msgstr "Result"
+
+msgid "Routing"
+msgstr "Routing"
+
+#. placeholder {0}: c.name
+msgid "Send a test to {0}"
+msgstr "Send a test to {0}"
+
+msgid "Send test"
+msgstr "Send test"
+
+msgid "Sending…"
+msgstr "Sending…"
+
+msgid "Sent to"
+msgstr "Sent to"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "The test didn't reach {name}"
+msgstr "The test didn't reach {name}"
+
+msgid "The test reached {name}"
+msgstr "The test reached {name}"
+
+msgid "Time"
+msgstr "Time"
+
+msgid "Used by"
+msgstr "Used by"
+
+msgid "What Dockwell sends shows here, tests too, with what each channel answered."
+msgstr "What Dockwell sends shows here, tests too, with what each channel answered."
+
+#. placeholder {0}: when(newest)
+msgid "last sent {0}"
+msgstr "last sent {0}"
+
+msgid "none failing"
+msgstr "none failing"
+
+#. placeholder {0}: list.length
+msgid "{0, plural, one {# channel} other {# channels}}"
+msgstr "{0, plural, one {# channel} other {# channels}}"
+
+msgid "{failed, plural, one {# failed} other {# failed}}"
+msgstr "{failed, plural, one {# failed} other {# failed}}"
+
+msgid "{failing, plural, one {# failing} other {# failing}}"
+msgstr "{failing, plural, one {# failing} other {# failing}}"
+
+msgid "Alert rules"
+msgstr "Alert rules"
+
+msgid "Alerts, firing first"
+msgstr "Alerts, firing first"
+
+msgid "Can't load the alerts"
+msgstr "Can't load the alerts"
+
+msgid "Can't load the rules"
+msgstr "Can't load the rules"
+
+msgid "Change a rule with dockwell alert-rules update, as a plan that undo takes back."
+msgstr "Change a rule with dockwell alert-rules update, as a plan that undo takes back."
+
+msgid "Choose where alerts go"
+msgstr "Choose where alerts go"
+
+msgid "Dockwell watches every server and app, and says here when a rule holds: an app down, a server it can't reach, a disk nearly full, a certificate about to end, a backup that failed."
+msgstr "Dockwell watches every server and app, and says here when a rule holds: an app down, a server it can't reach, a disk nearly full, a certificate about to end, a backup that failed."
+
+msgid "Every channel"
+msgstr "Every channel"
+
+msgid "No channel yet"
+msgstr "No channel yet"
+
+msgid "Nothing has fired"
+msgstr "Nothing has fired"
+
+msgid "Off"
+msgstr "Off"
+
+msgid "Opened"
+msgstr "Opened"
+
+msgid "Resolved"
+msgstr "Resolved"
+
+msgid "Severity"
+msgstr "Severity"
+
+msgid "Discord"
+msgstr "Discord"
+
+msgid "Email"
+msgstr "Email"
+
+msgid "Failing"
+msgstr "Failing"
+
+msgid "Slack"
+msgstr "Slack"
+
+msgid "Telegram"
+msgstr "Telegram"
+
+msgid "Webhook"
+msgstr "Webhook"
+
+msgid "ntfy"
+msgstr "ntfy"
+
 msgid "A route runs on one server, as its certificate comes to the one its DNS points at."
 msgstr "A route runs on one server, as its certificate comes to the one its DNS points at."
 
@@ -964,9 +1321,6 @@ msgstr "Show older revisions"
 msgid "Showing {oldest} to {newest}"
 msgstr "Showing {oldest} to {newest}"
 
-msgid "Status"
-msgstr "Status"
-
 msgid "Took"
 msgstr "Took"
 
@@ -997,9 +1351,6 @@ msgstr "Environment variables"
 
 msgid "Hidden"
 msgstr "Hidden"
-
-msgid "Name"
-msgstr "Name"
 
 msgid "No environment variables"
 msgstr "No environment variables"
@@ -1328,9 +1679,6 @@ msgstr "Unknown until {away} reconnects"
 
 msgid "Unknown, as putting it back failed"
 msgstr "Unknown, as putting it back failed"
-
-msgid "User"
-msgstr "User"
 
 msgid "Volumes"
 msgstr "Volumes"
@@ -2392,9 +2740,6 @@ msgstr "Creating passkey"
 msgid "Deploy your first app"
 msgstr "Deploy your first app"
 
-msgid "Email"
-msgstr "Email"
-
 msgid "Enter an email address, such as mira@acme.dev."
 msgstr "Enter an email address, such as mira@acme.dev."
 
@@ -2529,9 +2874,6 @@ msgstr "Passkey"
 
 msgid "Passkeys"
 msgstr "Passkeys"
-
-msgid "Remove"
-msgstr "Remove"
 
 msgid "Remove {name}"
 msgstr "Remove {name}"
@@ -2775,9 +3117,6 @@ msgstr "Move to another app"
 msgid "New recovery codes"
 msgstr "New recovery codes"
 
-msgid "Off"
-msgstr "Off"
-
 msgid "On"
 msgstr "On"
 
@@ -3012,9 +3351,6 @@ msgstr "{0, plural, one {{list} runs on this volume} other {{list} run on this v
 msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
 msgstr "A backup is of a volume. Add one to an app, or install a database from the catalog."
 
-msgid "Actions"
-msgstr "Actions"
-
 #. placeholder {0}: b.destination
 msgid "Also on {0}"
 msgstr "Also on {0}"
@@ -3129,9 +3465,6 @@ msgstr "To fetch it, put {0} on a connected server first"
 #. placeholder {0}: Number(b.filesChanged)
 msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 msgstr "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
-
-msgid "{failed, plural, one {# failed} other {# failed}}"
-msgstr "{failed, plural, one {# failed} other {# failed}}"
 
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, one {# backup} other {# backups}}"
@@ -3512,9 +3845,6 @@ msgstr "Networking"
 
 msgid "Notes"
 msgstr "Notes"
-
-msgid "Security"
-msgstr "Security"
 
 msgid "Storage"
 msgstr "Storage"
@@ -5494,9 +5824,6 @@ msgstr "Clear the filters"
 msgid "Domains"
 msgstr "Domains"
 
-msgid "Failing"
-msgstr "Failing"
-
 msgid "Filter domains"
 msgstr "Filter domains"
 
@@ -6232,9 +6559,6 @@ msgstr "This deploy's logs are gone"
 
 msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
 msgstr "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
-
-msgid "Time"
-msgstr "Time"
 
 msgid "Time range"
 msgstr "Time range"
@@ -9153,9 +9477,6 @@ msgstr "The old value stays in this variable's history"
 
 msgid "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
 msgstr "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
-
-msgid "Used by"
-msgstr "Used by"
 
 msgid "Variables and secrets in {envName}"
 msgstr "Variables and secrets in {envName}"

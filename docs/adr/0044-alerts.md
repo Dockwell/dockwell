@@ -66,9 +66,37 @@ Every 15 seconds, one loop reads what the control plane already holds and decide
 - **Repeats.** An alert still firing is sent again as its rule's `repeat` says, at most every 10 minutes and at least weekly, or never.
 - **Resolved.** An alert whose firing message went out gets one more when it resolves, to the same channels, under a mute too: a mute holds what fires, never the all-clear. An alert whose rule is removed or turned off is closed, and gets a resolved message that says so. One that resolves before anything was queued gets none. One that resolves while its firing message is still on its way to a channel gets the resolved one there instead, which says how long it held.
 - **Messages follow the content rules:** the fact ("web-1's disk is 93% full"), what it means ("Apps there can't write once it fills, and Docker can't pull"), the fix ("Free space with docker system prune, or grow the disk"), and a link to where the panel shows it, when the control plane has a domain (`--domain`).
-- **An outbox, per alert and channel.** Each message an alert owes a channel is a row (`alert_sends`) until the far end takes it, with a 2xx, or Dockwell gives up. A rule's rows that are due together go as one message. One that fails is tried again after 10 seconds, 30 seconds, a minute, 2, 5, 10, then every 15 minutes, for 24 hours. A channel's deliveries keep the first failure, what went, and giving up, not every try between. Nothing waits on a channel that's down: each is sent to on its own.
+- **An outbox, per alert and channel.** Each message an alert owes a channel is a row (`alert_sends`) until the far end takes it, with a 2xx, or Dockwell gives up. A rule's rows that are due together go as one message. One that fails is tried again after 10 seconds, 30 seconds, a minute, 2, 5, 10, then every 15 minutes, for 24 hours. A channel's deliveries keep the first failure, what went, and giving up, not every try between. Nothing waits on a channel that's down: each is sent to on its own, one message at a time. A far end that asks Dockwell to slow down (429) is waited for as long as it says, in `Retry-After` or Discord's and Telegram's `retry_after`, or the schedule's next wait if longer, with its other messages; that isn't a failure, so the channel doesn't read Failing.
 - **A stop gives what's on its way 5 seconds** to land, so a far end that never answers can't hold the control plane past systemd's stop timeout. What doesn't land stays in the outbox.
 - **Webhooks** get a JSON `POST`, with `Dockwell-Signature: t=<unix time>,v1=<HMAC-SHA256 of t, ".", and the body>` when the channel has a secret; [`docs/webhooks.md`](../webhooks.md) says how to check it. The payload has each alert's title in English and its facts apart. A URL has to use HTTPS, unless it's on this server or its private network. Nothing is sent to a link-local address, nor to the other addresses clouds keep metadata services on (`100.100.100.200`, `fd00:ec2::254`), whatever a name resolves to. No proxy from the environment is used: through one, the dial check would see the proxy alone. Should someone need one, it becomes a setting of its own. These rules are `internal/netguard`'s, the one guarded client for every address a person names (#341), which catalog sources, scheduled HTTP tasks and Git lookups take up too: it checks the address it's about to connect to, follows no redirect and caps what an answer reads. It refuses this server's own addresses and private networks unless a caller allows each; alerts do, as a webhook or a chat server on the install's own network is what many want, and a channel is made and tested only by a person or a token that can make changes. A test never reaches this server's own addresses, though, as it shows what answered, which would let a token read what listens on the control server's loopback; and every test goes on Activity, with who sent it, the channel's type and host, and what answered. Its client bounds each request at 30 seconds unless a caller says, caps an answer's headers at 64 KiB, and its errors name a URL by its scheme and host alone, as `netguard.Words` says them.
+
+### Channels
+
+Each channel is a field of `AlertChannel`'s oneof, and every field that signs in is `(sensitive)`: sealed at rest, never in a plan, a list, an event or a log, and kept when an update leaves it empty.
+
+| Channel | What it sends | What's sealed |
+| --- | --- | --- |
+| Webhook | A JSON `POST`, with `Dockwell-Signature: t=<unix time>,v1=<HMAC-SHA256 of t, ".", and the body>` when the channel has a secret | The URL, which may hold a token, and the secret |
+| Email | Plain text, quoted-printable, through the channel's SMTP server, with STARTTLS (587) unless it says TLS (465), or none for a server on this server or its private network | The password |
+| ntfy | A JSON publish to the server's root, `https://ntfy.sh` unless it says, with the topic in the body, never in a URL; priority 5 for what's critical, 4 for a warning, 3 for a test or what resolved | The topic, which on a public server is what lets anyone read it, and the token |
+| Slack | Slack's markup to an incoming webhook, with what a title holds escaped | The URL |
+| Discord | Markdown to a webhook, mentioning no one whatever a title holds | The URL |
+| Telegram | Plain text through the Bot API, to a chat ID or a channel's name | The bot's token |
+
+Lists show where each sends with nothing that signs in: a URL's host, whom an email goes to, or a Telegram chat. A form gets a channel's spec with what's sealed left empty, and the names of the fields it keeps.
+
+**What's kept stays where it was.** An update that leaves a field that signs in empty keeps it only while the channel signs in to the same place: the same webhook host, the same SMTP server, port, security and user, or the same ntfy server. Moving it asks for what it kept again, so a token that can make changes can't point a password at a server of its own. A test of a form is held to the same rule.
+
+### Where Dockwell sends
+
+Every request to an address a person gives a channel goes through the same rules, which `docs/security/alerts.md` sets out:
+
+- **HTTPS, or TLS for email,** with the certificate verified, unless the address is on this server or its private network: a loopback or private address, a name with no dot, or one under `.internal`, `.lan`, `.local` or `.home.arpa`.
+- **No link-local address,** nor the other addresses where clouds keep their metadata services (`100.100.100.200`, `fd00:ec2::254`), nor a multicast or unspecified one: refused when the channel is planned, if the address is written out, and again as each connection is made, whatever a name resolved to, so a name that changes what it resolves to between the two gets nothing.
+- **No proxy from the environment, no user and password in a URL,** no redirect followed, 10 seconds a try, and no more than 64 KiB read back.
+- **Only what the far end said** goes in a delivery, cut to a line: a status, and for Slack, Discord, ntfy and Telegram, their own reason. A webhook's answer is its status alone, as its body is its own and may hold what signs in. Nothing that signs in, and never a URL, is in what Dockwell says of a failure.
+- **A password goes only over TLS,** and an email channel without TLS can't sign in.
+- **Private addresses are allowed:** a webhook on this server or its network is what many installs want, such as a chat server of their own. A channel is something only a person, or a token that can make changes, can make or test.
 
 ### Surviving a restart
 
@@ -94,4 +122,4 @@ Evaluation keeps, for each rule and each thing that holds but hasn't fired yet, 
 - The rail's Alerts opens a screen of its own, and Activity has an Alerts kind of event, `EVENT_KIND_ALERT`, with what fired or resolved, beside the deploys and changes around it.
 - An install has nine resources it didn't before. Someone who wants no alerts deletes them or adds no channel; without a channel, alerts still open, close and go on Activity.
 - A channel's URL, token or password can't be read back, in the panel or the API. Changing a channel without them keeps what it has.
-- Not yet: push to the panel as a PWA, uptime checks of a URL from outside, an incident view, quiet hours, on-call rotations, and rules scoped to some servers or projects. Each fits beside these rules and channels.
+- Not yet: push to the panel as a PWA, PagerDuty and Opsgenie, uptime checks of a URL from outside, an incident view, quiet hours, on-call rotations, and rules scoped to some servers or projects. Each fits beside these rules and channels.

@@ -54,6 +54,34 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/alert-deliveries:
+        get:
+            tags:
+                - AlertService
+            description: |-
+                ListAlertDeliveries returns the newest messages to every channel, tests
+                 among them, newest first: what each was, and what the far end answered.
+            operationId: AlertService_ListAlertDeliveries
+            parameters:
+                - name: pageSize
+                  in: query
+                  description: How many, 50 unless set, and at most 200.
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListAlertDeliveriesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/alert-mutes:
         get:
             tags:
@@ -3900,6 +3928,16 @@ components:
                 muted:
                     type: boolean
                     description: Whether a mute holds what it sends now.
+                variant:
+                    type: string
+                    description: |-
+                        What its title says, apart, for the panel to say in its own language, as
+                         EventAlert has it: which of its condition's titles it is, where, and a value.
+                where:
+                    type: string
+                value:
+                    type: integer
+                    format: int32
             description: |-
                 Alert is one rule holding for one thing, such as a server's disk, from when
                  it fired until it resolved.
@@ -3910,6 +3948,26 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/AlertWebhook'
                     description: An HTTP endpoint of your own, sent JSON.
+                email:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertEmail'
+                    description: Email, through an SMTP server.
+                ntfy:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertNtfy'
+                    description: A topic on an ntfy server, which pushes to phones.
+                slack:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertSlack'
+                    description: A Slack channel, through an incoming webhook.
+                discord:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertDiscord'
+                    description: A Discord channel, through a webhook.
+                telegram:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertTelegram'
+                    description: A Telegram chat, through a bot.
             description: |-
                 AlertChannel is somewhere alerts are sent. It lives in the organization. What
                  signs in to it is sealed, and a plan says only that it changed (ADR 0022).
@@ -3935,6 +3993,17 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/AlertDelivery'
                     description: How its last message went. Unset when it has sent none.
+                channel:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertChannel'
+                    description: Its spec, with every field that signs in left empty, for a form to change.
+                sealed:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The fields that sign in which it has, such as "email.password". They're
+                         sealed and never shown; an update that leaves one empty keeps it.
             description: AlertChannelInfo is a channel, with nothing that signs in to it.
         AlertDelivery:
             type: object
@@ -3954,7 +4023,63 @@ components:
                 about:
                     type: string
                     description: What it was, such as "Disk above 90% on web-1" or "Test message".
+                channel:
+                    type: string
+                    description: The channel it went to, by name, as it was named then.
             description: AlertDelivery is how one message to a channel went.
+        AlertDiscord:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: |-
+                        The webhook's URL, such as "https://discord.com/api/webhooks/0000/XXXX".
+                         It's what lets anyone post there, so it's sealed, and lists show only its
+                         host.
+            description: |-
+                AlertDiscord posts each alert to a Discord channel, through a webhook the
+                 channel's settings give.
+        AlertEmail:
+            type: object
+            properties:
+                host:
+                    type: string
+                    description: The SMTP server's name or address, such as "smtp.example.com".
+                port:
+                    type: integer
+                    description: 'Its port: 587 for STARTTLS and 465 for TLS unless set, and 25 for none.'
+                    format: uint32
+                security:
+                    enum:
+                        - SECURITY_UNSPECIFIED
+                        - SECURITY_STARTTLS
+                        - SECURITY_TLS
+                        - SECURITY_NONE
+                    type: string
+                    description: How Dockwell secures the connection.
+                    format: enum
+                username:
+                    type: string
+                    description: |-
+                        Who Dockwell signs in as, when the server asks for that. Empty signs in as
+                         no one.
+                password:
+                    type: string
+                    description: |-
+                        The password Dockwell signs in with. Changing the server, its port, its
+                         security or the user needs it again.
+                from:
+                    type: string
+                    description: Who the emails come from, such as "Dockwell <alerts@example.com>".
+                to:
+                    type: array
+                    items:
+                        type: string
+                    description: 'Who they go to, such as "ops@example.com": one to ten addresses.'
+            description: |-
+                AlertEmail sends each alert as an email, through an SMTP server such as your
+                 mail provider's. Dockwell talks TLS to it, unless it's on this server or its
+                 private network, and sends its password only over TLS.
         AlertMute:
             type: object
             properties:
@@ -3976,6 +4101,26 @@ components:
                     type: string
                     description: Why, in their words. Empty when they gave none.
             description: AlertMute holds what a rule or a server sends, until a time.
+        AlertNtfy:
+            type: object
+            properties:
+                server:
+                    type: string
+                    description: The server, such as "https://ntfy.sh", which it is unless set.
+                topic:
+                    type: string
+                    description: |-
+                        The topic, such as "dockwell-alerts-x7f2". On a public server anyone who
+                         knows it can read what's sent, so it's sealed like a password, and lists
+                         show only the server.
+                token:
+                    type: string
+                    description: |-
+                        An access token, for a server or topic that asks for one. Changing the
+                         server needs it again.
+            description: |-
+                AlertNtfy publishes each alert to a topic on an ntfy server, such as ntfy.sh
+                 or one of your own, which pushes it to the phones that subscribe.
         AlertRule:
             type: object
             properties:
@@ -4067,6 +4212,32 @@ components:
                     type: boolean
                     description: Whether Dockwell made it, as one of an install's first rules.
             description: AlertRuleInfo is a rule, as it stands, with what it's doing now.
+        AlertSlack:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: |-
+                        The webhook's URL, such as "https://hooks.slack.com/services/T000/B000/XXXX".
+                         It's what lets anyone post there, so it's sealed, and lists show only its
+                         host.
+            description: |-
+                AlertSlack posts each alert to a Slack channel, through an incoming webhook
+                 a Slack app gives.
+        AlertTelegram:
+            type: object
+            properties:
+                botToken:
+                    type: string
+                    description: The bot's token, such as "123456789:AAE…", which BotFather gives.
+                chatId:
+                    type: string
+                    description: |-
+                        The chat, by its ID, such as "-1001234567890" for a group, or a channel's
+                         name, such as "@example_alerts". The bot has to be in it.
+            description: |-
+                AlertTelegram sends each alert to a Telegram chat, as a bot you made with
+                 @BotFather.
         AlertWebhook:
             type: object
             properties:
@@ -7782,6 +7953,14 @@ components:
                     items:
                         $ref: '#/components/schemas/AlertChannelInfo'
             description: ListAlertChannelsResponse lists the channels, by name.
+        ListAlertDeliveriesResponse:
+            type: object
+            properties:
+                deliveries:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AlertDelivery'
+            description: ListAlertDeliveriesResponse lists them, newest first.
         ListAlertMutesResponse:
             type: object
             properties:

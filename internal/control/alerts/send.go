@@ -3,23 +3,14 @@
 package alerts
 
 import (
-	"bytes"
 	"cmp"
-	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/buildinfo"
-	"github.com/dockwell/dockwell/internal/netguard"
 	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -108,41 +99,54 @@ func ended(a store.Alert) string {
 // Text is the whole message, as a chat or an email takes it: the fact, what it
 // means and what fixes it, then a link to where the panel shows it.
 func (m Message) Text() string {
-	if m.Status == "test" {
-		return "This is a test from Dockwell, to see that alerts reach you here. Nothing is wrong."
+	parts := append([]string{m.Title()}, m.Lines()...)
+	if link := m.Link(); link != "" {
+		parts = append(parts, link)
 	}
-	var b strings.Builder
-	b.WriteString(m.Title())
+	return strings.Join(parts, "\n")
+}
+
+// Lines are what a message says after its title, without its link: what it means
+// and what fixes it, or each alert of a rule's that fired together.
+func (m Message) Lines() []string {
+	if m.Status == "test" {
+		return []string{"This is a test from Dockwell, to see that alerts reach you here. Nothing is wrong."}
+	}
 	if len(m.Alerts) == 1 {
 		a := m.Alerts[0]
-		if m.Status == "resolved" {
-			if why := ended(a); why != "" {
-				b.WriteString("\n" + why)
-			} else if a.ResolvedAt != nil {
-				fmt.Fprintf(&b, "\nIt held for %s.", humanDuration(a.ResolvedAt.Sub(a.OpenedAt)))
-			}
-		} else if a.Detail != "" {
-			b.WriteString("\n" + a.Detail)
+		switch {
+		case m.Status == "resolved" && ended(a) != "":
+			return []string{ended(a)}
+		case m.Status == "resolved" && a.ResolvedAt != nil:
+			return []string{fmt.Sprintf("It held for %s.", humanDuration(a.ResolvedAt.Sub(a.OpenedAt)))}
+		case m.Status != "resolved" && a.Detail != "":
+			return []string{a.Detail}
 		}
-		if link := m.link(a.Path); link != "" {
-			b.WriteString("\n" + link)
-		}
-		return b.String()
+		return nil
 	}
+	var out []string
 	for i := range m.Alerts {
-		a := &m.Alerts[i]
-		b.WriteString("\n- " + a.Title)
+		out = append(out, "- "+m.Alerts[i].Title)
 	}
-	if m.Status != "resolved" && m.Alerts[0].Detail != "" {
-		b.WriteString("\n" + m.Alerts[0].Detail)
+	if m.Status != "resolved" && len(m.Alerts) > 0 && m.Alerts[0].Detail != "" {
+		out = append(out, m.Alerts[0].Detail)
 	}
 	if why := ended(m.Alerts[0]); m.Status == "resolved" && why != "" {
-		b.WriteString("\n" + why)
+		out = append(out, why)
 	}
-	if link := m.link("/alerts"); link != "" {
-		b.WriteString("\n" + link)
+	return out
+}
+
+// Link is where the panel shows what a message is about: the alert's own page, or
+// Alerts for several. Empty when the control plane has no domain, or for a test.
+func (m Message) Link() string {
+	switch {
+	case m.Status == "test" || len(m.Alerts) == 0:
+		return ""
+	case len(m.Alerts) == 1:
+		return m.link(m.Alerts[0].Path)
 	}
-	return b.String()
+	return m.link("/alerts")
 }
 
 func (m Message) link(path string) string {
@@ -150,6 +154,11 @@ func (m Message) link(path string) string {
 		return ""
 	}
 	return strings.TrimSuffix(m.Panel, "/") + path
+}
+
+// Critical reports a message about a critical rule's alerts that fire.
+func (m Message) Critical() bool {
+	return m.Status == "firing" && m.Rule.GetSeverity() == resourcev1.AlertRule_SEVERITY_CRITICAL
 }
 
 // About is what a delivery says it was, as the channels' list shows it.
@@ -231,112 +240,4 @@ func (m Message) payload() payload {
 		})
 	}
 	return p
-}
-
-// Sender sends messages to channels.
-type Sender struct {
-	// Client sends webhooks. Nil is netguard's, for what a channel may reach
-	// (alert.Guard), or for a test (alert.TestGuard).
-	Client *http.Client
-}
-
-// doer sends a request: an *http.Client, or netguard's.
-type doer interface {
-	Do(*http.Request) (*http.Response, error)
-}
-
-// Result is how one message to a channel went, in the words a delivery keeps.
-type Result struct {
-	OK   bool
-	Said string
-}
-
-// Once sends m to a channel once. The outbox tries again what doesn't land
-// (ADR 0044).
-func (s *Sender) Once(ctx context.Context, c *resourcev1.AlertChannel, m Message) Result {
-	return s.send(ctx, c, m, s.client(defaultClient))
-}
-
-// Test sends a test to a channel once, as a person asks: never to this server's
-// own addresses, whatever the channel may reach, so a test can't read what answers
-// on the control server's loopback.
-func (s *Sender) Test(ctx context.Context, c *resourcev1.AlertChannel, m Message) Result {
-	return s.send(ctx, c, m, s.client(testClient))
-}
-
-func (s *Sender) send(ctx context.Context, c *resourcev1.AlertChannel, m Message, client doer) Result {
-	ctx, cancel := context.WithTimeout(ctx, SendTimeout)
-	defer cancel()
-	switch to := c.GetTo().(type) {
-	case *resourcev1.AlertChannel_Webhook:
-		return s.webhook(ctx, to.Webhook, m, client)
-	default:
-		return Result{Said: "this channel sends nowhere Dockwell knows of"}
-	}
-}
-
-// Signature is what signs a webhook's body: when it was sent, and the HMAC-SHA256,
-// under the channel's secret, of that time, a dot, and the body.
-func Signature(secret string, at time.Time, body []byte) string {
-	t := strconv.FormatInt(at.Unix(), 10)
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(t + "."))
-	mac.Write(body)
-	return "t=" + t + ",v1=" + hex.EncodeToString(mac.Sum(nil))
-}
-
-func (s *Sender) webhook(ctx context.Context, w *resourcev1.AlertWebhook, m Message, client doer) Result {
-	body, err := json.Marshal(m.payload())
-	if err != nil {
-		return Result{Said: "Dockwell couldn't write the message"}
-	}
-	ctx, cancel := context.WithTimeout(ctx, SendTimeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.GetUrl(), bytes.NewReader(body))
-	if err != nil {
-		return Result{Said: "the webhook's URL isn't one to send to"}
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "Dockwell/"+buildinfo.Read().Version)
-	if w.GetSecret() != "" {
-		req.Header.Set("Dockwell-Signature", Signature(w.GetSecret(), m.At, body))
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return Result{Said: sendWords(err)}
-	}
-	defer resp.Body.Close()
-	_, _ = io.CopyN(io.Discard, resp.Body, 64<<10)
-	return Result{OK: resp.StatusCode >= 200 && resp.StatusCode < 300, Said: clip(resp.Status)}
-}
-
-func (s *Sender) client(guarded doer) doer {
-	if s.Client != nil {
-		return s.Client
-	}
-	return guarded
-}
-
-// defaultClient is netguard's for what a channel may reach (alert.Guard), and
-// testClient for a test (alert.TestGuard): each dials no link-local or metadata
-// address, whatever a name resolves to, goes through no proxy, follows no redirect,
-// as a webhook that moves says so in its answer, and reads 64 KiB of an answer at
-// most (ADR 0044).
-var (
-	defaultClient = netguard.Client(netguard.Options{Private: alert.Guard.Private, Loopback: alert.Guard.Loopback, MaxBody: 64 << 10, Timeout: SendTimeout})
-	testClient    = netguard.Client(netguard.Options{Private: alert.TestGuard.Private, Loopback: alert.TestGuard.Loopback, MaxBody: 64 << 10, Timeout: SendTimeout})
-)
-
-// sendWords says why a message didn't arrive, in a few words, with nothing that
-// signs in: never the URL, which may hold a token (netguard.Words).
-func sendWords(err error) string {
-	return clip(netguard.Words(err))
-}
-
-func clip(s string) string {
-	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
-	if len(s) > saidMax {
-		return s[:saidMax] + "…"
-	}
-	return s
 }

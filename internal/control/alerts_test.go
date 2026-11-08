@@ -268,3 +268,78 @@ func testAnAlert(t *testing.T, backend store.Backend) {
 		t.Errorf("after deleting, ListAlertChannels = %v", listed.Msg.GetChannels())
 	}
 }
+
+// A channel of every type keeps what signs in sealed: no plan, list, resource,
+// event or log holds it, and an update that moves a channel's server asks for its
+// password again rather than send the one it kept there.
+func TestEveryChannelKeepsWhatSignsInSealed(t *testing.T) {
+	logs := &syncBuffer{}
+	f := startFullLogging(t, store.SQLite, nil, slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	b := signedIn(t, f)
+	rec := &recorder{next: b}
+	// Uncompressed, so what's recorded can be searched.
+	plain := []connect.ClientOption{connect.WithProtoJSON(), connect.WithAcceptCompression("gzip", nil, nil)}
+	c := dockwellv1connect.NewChangeServiceClient(rec, b.origin, plain...)
+	sites := dockwellv1connect.NewAlertServiceClient(rec, b.origin, plain...)
+	channels := map[string]*resourcev1.AlertChannel{
+		"hook": {To: &resourcev1.AlertChannel_Webhook{Webhook: &resourcev1.AlertWebhook{Url: "https://hooks.example.com/mark-hook-url", Secret: "mark-hook-secret"}}},
+		"mail": {To: &resourcev1.AlertChannel_Email{Email: &resourcev1.AlertEmail{Host: "smtp.example.com", Username: "alerts", Password: "mark-mail-password", From: "alerts@example.com", To: []string{"ops@example.com"}}}},
+		"push": {To: &resourcev1.AlertChannel_Ntfy{Ntfy: &resourcev1.AlertNtfy{Topic: "mark-ntfy-topic", Token: "mark-ntfy-token"}}},
+		"chat": {To: &resourcev1.AlertChannel_Slack{Slack: &resourcev1.AlertSlack{Url: "https://hooks.slack.com/services/mark-slack-url"}}},
+		"game": {To: &resourcev1.AlertChannel_Discord{Discord: &resourcev1.AlertDiscord{Url: "https://discord.com/api/webhooks/1/mark-discord-url"}}},
+		"bot":  {To: &resourcev1.AlertChannel_Telegram{Telegram: &resourcev1.AlertTelegram{BotToken: "123456789:markmarkmarkmarkmarkmarkmarktelegram", ChatId: "-1001234567890"}}},
+	}
+	var edits []*dockwellv1.Edit
+	for name, ch := range channels {
+		edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(alert.ChannelKind), Name: name}, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_AlertChannel{AlertChannel: ch}}})
+	}
+	made := apply(t, c, propose(t, c, "Add a channel of each type", edits...))
+	if made.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("adding the channels: %v", made)
+	}
+	listed, err := sites.ListAlertChannels(t.Context(), connect.NewRequest(&dockwellv1.ListAlertChannelsRequest{}))
+	if err != nil || len(listed.Msg.GetChannels()) != 6 {
+		t.Fatalf("ListAlertChannels = %v, %v", listed, err)
+	}
+	for _, info := range listed.Msg.GetChannels() {
+		want := map[string][]string{
+			"hook": {"webhook.url", "webhook.secret"}, "mail": {"email.password"}, "push": {"ntfy.topic", "ntfy.token"},
+			"chat": {"slack.url"}, "game": {"discord.url"}, "bot": {"telegram.bot_token"},
+		}[info.GetName()]
+		if !slices.Equal(info.GetSealed(), want) || alert.Type(info.GetChannel()) != info.GetType() {
+			t.Errorf("%s lists as sealing %v, as a %s; want %v", info.GetName(), info.GetSealed(), info.GetType(), want)
+		}
+	}
+	if _, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: made.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dockwellv1connect.NewResourceServiceClient(rec, b.origin, plain...).ListResources(t.Context(), connect.NewRequest(&dockwellv1.ListResourcesRequest{PageSize: 1000})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dockwellv1connect.NewEventServiceClient(rec, b.origin, plain...).ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{PageSize: 100})); err != nil {
+		t.Fatal(err)
+	}
+	// Moving the email's server keeping its password is refused, in a plan, with
+	// why; given again, it goes.
+	moved := &resourcev1.AlertChannel{To: &resourcev1.AlertChannel_Email{Email: &resourcev1.AlertEmail{Host: "smtp.example.net", Username: "alerts", From: "alerts@example.com", To: []string{"ops@example.com"}}}}
+	_, err = c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Move the mail", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: string(alert.ChannelKind), Name: "mail"}, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_AlertChannel{AlertChannel: moved}},
+	}}}))
+	if err == nil || !strings.Contains(err.Error(), "needs its password again") {
+		t.Errorf("moving the email's server keeping its password = %v", err)
+	}
+	// A test of a form that moves it is refused the same way.
+	if _, err := sites.TestAlertChannel(t.Context(), connect.NewRequest(&dockwellv1.TestAlertChannelRequest{Name: "mail", Channel: moved})); reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "needs its password again") {
+		t.Errorf("testing a form that moves the email's server = %v", err)
+	}
+
+	said := rec.String() + logs.String()
+	if !strings.Contains(said, "smtp.example.com") || !strings.Contains(said, "ops@example.com") {
+		t.Fatalf("the responses recorded hold no channel at all, so they prove nothing")
+	}
+	for _, mark := range []string{"mark-hook-url", "mark-hook-secret", "mark-mail-password", "mark-ntfy-topic", "mark-ntfy-token", "mark-slack-url", "mark-discord-url", "markmarkmarkmark"} {
+		if strings.Contains(said, mark) {
+			t.Errorf("%s left the control plane", mark)
+		}
+	}
+}

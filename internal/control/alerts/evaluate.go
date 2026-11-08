@@ -186,6 +186,11 @@ type Evaluator struct {
 	// sending are the outbox's messages on their way, by ID, which the next look
 	// leaves alone.
 	sending map[string]bool
+	// busy are the channels a message is on its way to, by ID: one goes at a time,
+	// so a channel that limits how fast it takes them isn't sent several at once.
+	busy map[string]bool
+	// held are the channels that asked Dockwell to slow down, by ID, until when.
+	held map[string]time.Time
 	// sendCtx is what messages go with: it outlives Run's by StopGrace.
 	sendCtx context.Context
 	// pruned is when what's past Retention was last forgotten.
@@ -207,6 +212,8 @@ func (e *Evaluator) init() {
 		e.pending = map[string]time.Time{}
 		e.clearing = map[string]time.Time{}
 		e.sending = map[string]bool{}
+		e.busy = map[string]bool{}
+		e.held = map[string]time.Time{}
 		if e.Logger == nil {
 			e.Logger = slog.Default()
 		}
@@ -777,7 +784,8 @@ type outgoing struct {
 }
 
 // deliver sends what the outbox has due, a rule's sends to a channel as one
-// message, each channel on its own so nothing waits on one that's down.
+// message, each channel on its own so nothing waits on one that's down, and one
+// message at a time to each, none to one that asked to slow down until it said.
 func (e *Evaluator) deliver(ctx context.Context, now time.Time) error {
 	e.mu.Lock()
 	base := e.sendCtx
@@ -861,32 +869,68 @@ func (e *Evaluator) deliver(ctx context.Context, now time.Time) error {
 		}
 	}
 	slices.Sort(order)
+	byChannel := map[string][]*outgoing{}
+	var channelOrder []string
 	for _, k := range order {
 		g := groups[k]
+		if _, ok := byChannel[g.c.id]; !ok {
+			channelOrder = append(channelOrder, g.c.id)
+		}
+		byChannel[g.c.id] = append(byChannel[g.c.id], g)
+	}
+	for _, cid := range channelOrder {
+		gs := byChannel[cid]
 		e.mu.Lock()
-		for i := range g.sends {
-			e.sending[g.sends[i].ID] = true
+		if e.busy[cid] || now.Before(e.held[cid]) {
+			e.mu.Unlock()
+			continue // what's due stays due, for when it's free
+		}
+		e.busy[cid] = true
+		for _, g := range gs {
+			for i := range g.sends {
+				e.sending[g.sends[i].ID] = true
+			}
 		}
 		e.mu.Unlock()
-		e.sends.Go(func() { e.send(base, g) })
+		e.sends.Go(func() {
+			defer func() {
+				e.mu.Lock()
+				delete(e.busy, cid)
+				e.mu.Unlock()
+			}()
+			for i, g := range gs {
+				if e.send(base, g) {
+					// It asked to slow down: the rest wait with it.
+					for _, rest := range gs[i+1:] {
+						e.release(rest)
+					}
+					return
+				}
+			}
+		})
 	}
 	return nil
 }
 
+// release lets the next look have a message that wasn't sent.
+func (e *Evaluator) release(g *outgoing) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for i := range g.sends {
+		delete(e.sending, g.sends[i].ID)
+	}
+}
+
 // send sends one message, and records how it went: done when the far end took
 // it, and otherwise tried again later, until GiveUpAfter. A stop that cuts it
-// short leaves it in the outbox, for the next start.
-func (e *Evaluator) send(ctx context.Context, g *outgoing) {
-	defer func() {
-		e.mu.Lock()
-		for i := range g.sends {
-			delete(e.sending, g.sends[i].ID)
-		}
-		e.mu.Unlock()
-	}()
+// short leaves it in the outbox, for the next start. A far end that asks Dockwell
+// to slow down holds its channel for as long as it asks, or the schedule's next
+// wait if longer, which isn't a failure: it reports that.
+func (e *Evaluator) send(ctx context.Context, g *outgoing) (limited bool) {
+	defer e.release(g)
 	r := e.Sender.Once(ctx, g.c.spec, g.m)
 	if !r.OK && ctx.Err() != nil {
-		return // stopping: it goes at the next start
+		return false // stopping: it goes at the next start
 	}
 	at := e.now()
 	ctx = context.WithoutCancel(ctx)
@@ -897,6 +941,25 @@ func (e *Evaluator) send(ctx context.Context, g *outgoing) {
 		}
 	}
 	gaveUp := !r.OK && at.Sub(first.QueuedAt) >= GiveUpAfter
+	if r.Limited && !gaveUp {
+		until := at.Add(max(r.RetryAfter, retryAfter(first.Tries+1)))
+		e.mu.Lock()
+		e.held[g.c.id] = until
+		e.mu.Unlock()
+		err := e.DB.Update(ctx, func(tx *store.Tx) error {
+			for i := range g.sends {
+				if err := tx.PostponeSend(ctx, g.sends[i].ID, until, r.Said); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			e.Logger.WarnContext(ctx, "can't record that an alert channel asked to slow down; it may go again sooner", slog.String("channel", g.c.name), slog.String("error", err.Error()))
+		}
+		e.Logger.InfoContext(ctx, "an alert channel asked Dockwell to slow down; it waits, then goes again", slog.String("channel", g.c.name), slog.Time("until", until))
+		return true
+	}
 	said := r.Said
 	if gaveUp {
 		said = clip("Dockwell gave up after " + humanDuration(at.Sub(first.QueuedAt)) + ": " + r.Said)
@@ -929,6 +992,7 @@ func (e *Evaluator) send(ctx context.Context, g *outgoing) {
 	if !r.OK {
 		e.Logger.WarnContext(ctx, "an alert channel didn't take a message; Dockwell tries again", slog.String("channel", g.c.name), slog.String("said", r.Said), slog.Bool("gave_up", gaveUp))
 	}
+	return false
 }
 
 // prune forgets, once an hour, alerts that closed and messages to channels from

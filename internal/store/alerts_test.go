@@ -65,6 +65,25 @@ func TestTheAlertsOutbox(t *testing.T) {
 			if due, _ := tx.DueSends(ctx, t0, 10); len(due) != 0 {
 				t.Errorf("a message tried again later is due now: %+v", due)
 			}
+			// A far end that asks to slow down puts it off, which isn't a try.
+			if err := tx.PostponeSend(ctx, "snd_3", t0.Add(2*time.Minute), "429 Too Many Requests"); err != nil {
+				return err
+			}
+			of := func(at time.Time) *store.AlertSend {
+				due, _ := tx.DueSends(ctx, at, 10)
+				for i := range due {
+					if due[i].ID == "snd_3" {
+						return &due[i]
+					}
+				}
+				return nil
+			}
+			if s := of(t0.Add(time.Minute)); s != nil {
+				t.Errorf("a message put off for two minutes is due after one: %+v", s)
+			}
+			if s := of(t0.Add(2 * time.Minute)); s == nil || s.Tries != 1 || s.Said != "429 Too Many Requests" {
+				t.Errorf("a message put off is %+v, want it due with the one try it had", s)
+			}
 			gone, err := tx.PruneAlerts(ctx, t0.Add(-90*24*time.Hour))
 			if err != nil {
 				return err

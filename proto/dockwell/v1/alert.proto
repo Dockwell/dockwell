@@ -31,6 +31,10 @@ service AlertService {
     help: "A channel is somewhere alerts are sent, such as a webhook. What signs in to it is sealed, never shown again, and a plan says only that it changed. Channels are resources: creating, changing and deleting one is a change, with a plan, that undo takes back. TestAlertChannel sends a test message and says what the far end answered."
   };
   option (dockwell.v1.nouns) = {
+    name: "alert-deliveries"
+    help: "A delivery is a message Dockwell sent a channel, a test among them: what it was about, when, and what the far end answered, with nothing that signs in. Each channel's last one says whether it works."
+  };
+  option (dockwell.v1.nouns) = {
     name: "alert-mutes"
     help: "A mute holds what a rule or a server sends for a while, during an outage, with no change to apply. dockwell alerts mute starts one and dockwell alerts unmute ends it; both go on Activity."
   };
@@ -57,6 +61,18 @@ service AlertService {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
     option (google.api.http) = {get: "/v1/alert-channels"};
+  }
+
+  // ListAlertDeliveries returns the newest messages to every channel, tests
+  // among them, newest first: what each was, and what the far end answered.
+  rpc ListAlertDeliveries(ListAlertDeliveriesRequest) returns (ListAlertDeliveriesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.command) = {
+      noun: "alert-deliveries"
+      verb: "list"
+    };
+    option (google.api.http) = {get: "/v1/alert-deliveries"};
   }
 
   // TestAlertChannel sends a test message through a channel, one that exists or
@@ -154,6 +170,11 @@ message Alert {
   google.protobuf.Timestamp sent_time = 16;
   // Whether a mute holds what it sends now.
   bool muted = 17;
+  // What its title says, apart, for the panel to say in its own language, as
+  // EventAlert has it: which of its condition's titles it is, where, and a value.
+  string variant = 18;
+  string where = 19;
+  int32 value = 20;
 }
 
 // ListAlertsRequest asks for a page of alerts.
@@ -216,6 +237,8 @@ message AlertDelivery {
   string said = 3;
   // What it was, such as "Disk above 90% on web-1" or "Test message".
   string about = 4;
+  // The channel it went to, by name, as it was named then.
+  string channel = 5;
 }
 
 // AlertChannelInfo is a channel, with nothing that signs in to it.
@@ -231,6 +254,11 @@ message AlertChannelInfo {
   int32 rules = 5;
   // How its last message went. Unset when it has sent none.
   AlertDelivery last = 6;
+  // Its spec, with every field that signs in left empty, for a form to change.
+  dockwell.resource.v1alpha1.AlertChannel channel = 7;
+  // The fields that sign in which it has, such as "email.password". They're
+  // sealed and never shown; an update that leaves one empty keeps it.
+  repeated string sealed = 8;
 }
 
 // ListAlertChannelsRequest asks for every channel.
@@ -239,6 +267,17 @@ message ListAlertChannelsRequest {}
 // ListAlertChannelsResponse lists the channels, by name.
 message ListAlertChannelsResponse {
   repeated AlertChannelInfo channels = 1;
+}
+
+// ListAlertDeliveriesRequest asks for the newest messages.
+message ListAlertDeliveriesRequest {
+  // How many, 50 unless set, and at most 200.
+  int32 page_size = 1;
+}
+
+// ListAlertDeliveriesResponse lists them, newest first.
+message ListAlertDeliveriesResponse {
+  repeated AlertDelivery deliveries = 1;
 }
 
 // TestAlertChannelRequest names a channel to test, or gives one a form holds.

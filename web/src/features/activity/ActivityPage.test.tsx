@@ -1074,6 +1074,42 @@ describe("Activity's health", () => {
     await waitFor(() => expect(asked.at(-1)?.kinds).toEqual([EventKind.ALERT]));
   });
 
+  it("says who sent a test to which channel, and whether it arrived", async () => {
+    const tested = auditEvent({
+      id: "evt_test",
+      kind: EventKind.ALERT,
+      action: "alert.test",
+      time: timestampFromDate(new Date(Date.now() - 60_000)),
+      surface: Surface.PANEL,
+      alert: { subjectName: "ops", variant: "slack", where: "hooks.slack.com", value: 1, reason: "200 OK" },
+    });
+    const form = auditEvent({
+      id: "evt_form",
+      kind: EventKind.ALERT,
+      action: "alert.test",
+      time: timestampFromDate(new Date(Date.now() - 2 * 60_000)),
+      surface: Surface.API,
+      alert: { variant: "webhook", where: "10.0.0.7:9000", reason: "connection refused" },
+    });
+    renderAt("/activity", {
+      events: {
+        watchEvents: async function* (_req: WatchEventsRequest, ctx: { signal: AbortSignal }) {
+          yield snapshot([tested, form]);
+          await untilAborted(ctx.signal);
+        },
+        listEvents: () => ({ events: [tested, form] }),
+      },
+    });
+    expect(
+      await screen.findByRole("row", { name: /Sent a test to ops \(slack, hooks\.slack\.com\), which arrived/ }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("row", {
+        name: /Sent a test to a new webhook channel at 10\.0\.0\.7:9000, which didn't arrive/,
+      }),
+    ).toBeVisible();
+  });
+
   it("says an alert in the panel's language, from what it's about", async () => {
     const fired = auditEvent({
       id: "evt_down",

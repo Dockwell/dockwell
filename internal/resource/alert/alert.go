@@ -9,8 +9,6 @@ package alert
 import (
 	"errors"
 	"fmt"
-	"net/netip"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -20,7 +18,6 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/id"
-	"github.com/dockwell/dockwell/internal/netguard"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -292,173 +289,6 @@ func Expression(r *resourcev1.AlertRule) string {
 	default:
 		return ""
 	}
-}
-
-// Channel is the alert channel kind.
-type Channel struct{}
-
-var (
-	_ resource.Type       = Channel{}
-	_ resource.Unplaced   = Channel{}
-	_ resource.Rotates    = Channel{}
-	_ resource.Keeper     = Channel{}
-	_ resource.NewChecker = Channel{}
-)
-
-// Kind returns "alert.channel".
-func (Channel) Kind() resource.Kind { return ChannelKind }
-
-// Level is the organization: any rule can send to it.
-func (Channel) Level() resource.Level { return resource.LevelOrganization }
-
-// IDPrefix is "ach".
-func (Channel) IDPrefix() string { return id.AlertChannel }
-
-// New returns an empty AlertChannel.
-func (Channel) New() proto.Message { return &resourcev1.AlertChannel{} }
-
-// Unplaced says the control plane sends to it.
-func (Channel) Unplaced() {}
-
-// RotatesSensitive says setting what signs in always plans as a change, never
-// compared with what's there, so a plan can't confirm a guess at it (ADR 0022).
-func (Channel) RotatesSensitive() {}
-
-// CheckName takes what fits in a URL and on a command line.
-func (Channel) CheckName(name string) error {
-	return resource.CheckLabel("alert channel", name, "ops-webhook")
-}
-
-// Keep holds on to what signs in to a channel when an update leaves it out, so a
-// form can change the rest without asking for a token again. It keeps only from a
-// channel of the same type.
-func (Channel) Keep(current, desired proto.Message) (resource.Kept, error) {
-	was, ok := current.(*resourcev1.AlertChannel)
-	is, same := desired.(*resourcev1.AlertChannel)
-	if !ok || !same {
-		return resource.Kept{}, nil
-	}
-	kept := false
-	if w, ok := is.GetTo().(*resourcev1.AlertChannel_Webhook); ok && was.GetWebhook() != nil {
-		if w.Webhook.GetUrl() == "" {
-			w.Webhook.Url, kept = was.GetWebhook().GetUrl(), true
-		}
-		if w.Webhook.GetSecret() == "" && was.GetWebhook().GetSecret() != "" {
-			w.Webhook.Secret, kept = was.GetWebhook().GetSecret(), true
-		}
-	}
-	if !kept {
-		return resource.Kept{}, nil
-	}
-	return resource.Kept{Reason: "kept_credentials", Words: "keeps what signs in to it, as the update left that out"}, nil
-}
-
-// CheckNew asks a new channel for everything it sends with. An update can leave
-// what signs in out, which Keep fills in, so Validate can't.
-func (Channel) CheckNew(spec proto.Message) error {
-	c := spec.(*resourcev1.AlertChannel) //nolint:forcetypeassert // Validate saw it
-	if w := c.GetWebhook(); w != nil && w.GetUrl() == "" {
-		return errors.New("a webhook channel needs its URL, such as https://hooks.example.com/dockwell")
-	}
-	return nil
-}
-
-// Validate refuses what can't be sent to, in words that hold nothing that signs in.
-func (Channel) Validate(spec proto.Message) error {
-	c := spec.(*resourcev1.AlertChannel) //nolint:forcetypeassert // the registry gives this kind's message
-	switch to := c.GetTo().(type) {
-	case *resourcev1.AlertChannel_Webhook:
-		w := to.Webhook
-		if w == nil {
-			return errors.New("a webhook channel needs its URL, such as https://hooks.example.com/dockwell")
-		}
-		w.Url = strings.TrimSpace(w.GetUrl())
-		if w.GetUrl() == "" {
-			return nil // CheckNew asks a new one for it, and Keep fills in an update's
-		}
-		return CheckURL(w.GetUrl())
-	default:
-		return errors.New("a channel needs somewhere to send, such as a webhook")
-	}
-}
-
-// CheckURL refuses a URL a channel can't send to, saying nothing of what it holds
-// beyond its scheme and host.
-func CheckURL(raw string) error {
-	u, err := url.Parse(raw)
-	if err != nil || u.Host == "" || u.Hostname() == "" {
-		return errors.New("a webhook's URL is an address such as https://hooks.example.com/dockwell")
-	}
-	if u.User != nil {
-		return errors.New("a webhook's URL can't hold a user and password. Use a token in its path or query, or a secret to sign with")
-	}
-	if why := netguard.Forbidden(u.Hostname(), Guard); why != "" {
-		return fmt.Errorf("a webhook can't send to %s, as that's %s", u.Hostname(), why)
-	}
-	switch u.Scheme {
-	case "https":
-	case "http":
-		if !Nearby(u.Hostname()) {
-			return fmt.Errorf("a webhook's URL to %s has to use HTTPS, as an alert says what's wrong where anyone between could read it. Only an address on this server or its private network may use plain HTTP", u.Hostname())
-		}
-	default:
-		return errors.New("a webhook's URL starts with https://")
-	}
-	return nil
-}
-
-// Nearby reports a host on this server or its private network, by its address or
-// a name only such a network gives.
-func Nearby(host string) bool {
-	if host == "localhost" || !strings.Contains(host, ".") {
-		return true
-	}
-	if addr, err := netip.ParseAddr(strings.Trim(host, "[]")); err == nil {
-		addr = addr.Unmap()
-		// Carrier-grade NAT's, as a tailnet's are, is a private network too, as
-		// netguard counts it.
-		return addr.IsLoopback() || addr.IsPrivate() || cgnat.Contains(addr)
-	}
-	for _, suffix := range []string{".internal", ".lan", ".local", ".home.arpa"} {
-		if strings.HasSuffix(host, suffix) {
-			return true
-		}
-	}
-	return false
-}
-
-// Guard is what a channel may reach (netguard, #341): this server and its private
-// networks as well as the internet, as a webhook or a chat server on the install's
-// own network is what many want, and a channel is made and tested only by a person
-// or a token that can make changes. Never a link-local or metadata address.
-var Guard = netguard.Options{Private: true, Loopback: true}
-
-// TestGuard is what a test of a channel may reach: what Guard does but this
-// server's own addresses, so a test, which shows what answered, can't read what
-// listens on the control server's loopback.
-var TestGuard = netguard.Options{Private: true}
-
-// cgnat is carrier-grade NAT's range.
-var cgnat = netip.MustParsePrefix("100.64.0.0/10")
-
-// Type is what sort of channel it is, such as "webhook".
-func Type(c *resourcev1.AlertChannel) string {
-	switch c.GetTo().(type) {
-	case *resourcev1.AlertChannel_Webhook:
-		return "webhook"
-	default:
-		return ""
-	}
-}
-
-// Target is where a channel sends, with nothing that signs in: a webhook's host.
-func Target(c *resourcev1.AlertChannel) string {
-	if w := c.GetWebhook(); w != nil {
-		if u, err := url.Parse(w.GetUrl()); err == nil {
-			return u.Host
-		}
-	}
-	return ""
 }
 
 // Default is one of the rules an install starts with.

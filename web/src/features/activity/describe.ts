@@ -287,7 +287,13 @@ export function happenedAt(event: Event): Date {
  * it's about, where, and a value. An event from before alerts carried them says
  * its title as it was sent, in English.
  */
-export function alertTitle(a: NonNullable<Event["alert"]>, i18n: I18n): string {
+export function alertTitle(
+  a: Pick<
+    NonNullable<Event["alert"]>,
+    "condition" | "subjectName" | "serverName" | "variant" | "where" | "value" | "title"
+  >,
+  i18n: I18n,
+): string {
   const subject = a.subjectName;
   const server = a.serverName;
   const where = a.where;

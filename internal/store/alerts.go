@@ -426,6 +426,15 @@ func (t *Tx) RetrySend(ctx context.Context, id string, due time.Time, said strin
 	return nil
 }
 
+// PostponeSend puts a message off until due, as a far end that's limiting asks,
+// which doesn't count as a try.
+func (t *Tx) PostponeSend(ctx context.Context, id string, due time.Time, said string) error {
+	if _, err := t.exec(ctx, `UPDATE alert_sends SET due_at = ?, said = ? WHERE id = ? AND done_at IS NULL`, millis(due), said, id); err != nil {
+		return fmt.Errorf("can't record how a message went: %w", err)
+	}
+	return nil
+}
+
 // AlertsByID returns the alerts with these IDs, in no order.
 func (t *Tx) AlertsByID(ctx context.Context, ids []string) ([]Alert, error) {
 	var out []Alert

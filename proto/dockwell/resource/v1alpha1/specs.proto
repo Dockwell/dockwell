@@ -824,6 +824,16 @@ message AlertChannel {
   oneof to {
     // An HTTP endpoint of your own, sent JSON.
     AlertWebhook webhook = 1;
+    // Email, through an SMTP server.
+    AlertEmail email = 2;
+    // A topic on an ntfy server, which pushes to phones.
+    AlertNtfy ntfy = 3;
+    // A Slack channel, through an incoming webhook.
+    AlertSlack slack = 4;
+    // A Discord channel, through a webhook.
+    AlertDiscord discord = 5;
+    // A Telegram chat, through a bot.
+    AlertTelegram telegram = 6;
   }
 }
 
@@ -835,4 +845,79 @@ message AlertWebhook {
   // What signs each request, in a Dockwell-Signature header, so the endpoint
   // can tell it came from this install. Empty signs nothing.
   string secret = 2 [(sensitive) = true];
+}
+
+// AlertEmail sends each alert as an email, through an SMTP server such as your
+// mail provider's. Dockwell talks TLS to it, unless it's on this server or its
+// private network, and sends its password only over TLS.
+message AlertEmail {
+  // How Dockwell secures its connection to the SMTP server.
+  enum Security {
+    // STARTTLS, unless set.
+    SECURITY_UNSPECIFIED = 0;
+    // A plain connection that STARTTLS makes TLS, as on port 587.
+    SECURITY_STARTTLS = 1;
+    // TLS from the start, as on port 465.
+    SECURITY_TLS = 2;
+    // No TLS: only for a server on this server or its private network.
+    SECURITY_NONE = 3;
+  }
+  // The SMTP server's name or address, such as "smtp.example.com".
+  string host = 1;
+  // Its port: 587 for STARTTLS and 465 for TLS unless set, and 25 for none.
+  uint32 port = 2;
+  // How Dockwell secures the connection.
+  Security security = 3;
+  // Who Dockwell signs in as, when the server asks for that. Empty signs in as
+  // no one.
+  string username = 4;
+  // The password Dockwell signs in with. Changing the server, its port, its
+  // security or the user needs it again.
+  string password = 5 [(sensitive) = true];
+  // Who the emails come from, such as "Dockwell <alerts@example.com>".
+  string from = 6;
+  // Who they go to, such as "ops@example.com": one to ten addresses.
+  repeated string to = 7;
+}
+
+// AlertNtfy publishes each alert to a topic on an ntfy server, such as ntfy.sh
+// or one of your own, which pushes it to the phones that subscribe.
+message AlertNtfy {
+  // The server, such as "https://ntfy.sh", which it is unless set.
+  string server = 1;
+  // The topic, such as "dockwell-alerts-x7f2". On a public server anyone who
+  // knows it can read what's sent, so it's sealed like a password, and lists
+  // show only the server.
+  string topic = 2 [(sensitive) = true];
+  // An access token, for a server or topic that asks for one. Changing the
+  // server needs it again.
+  string token = 3 [(sensitive) = true];
+}
+
+// AlertSlack posts each alert to a Slack channel, through an incoming webhook
+// a Slack app gives.
+message AlertSlack {
+  // The webhook's URL, such as "https://hooks.slack.com/services/T000/B000/XXXX".
+  // It's what lets anyone post there, so it's sealed, and lists show only its
+  // host.
+  string url = 1 [(sensitive) = true];
+}
+
+// AlertDiscord posts each alert to a Discord channel, through a webhook the
+// channel's settings give.
+message AlertDiscord {
+  // The webhook's URL, such as "https://discord.com/api/webhooks/0000/XXXX".
+  // It's what lets anyone post there, so it's sealed, and lists show only its
+  // host.
+  string url = 1 [(sensitive) = true];
+}
+
+// AlertTelegram sends each alert to a Telegram chat, as a bot you made with
+// @BotFather.
+message AlertTelegram {
+  // The bot's token, such as "123456789:AAE…", which BotFather gives.
+  string bot_token = 1 [(sensitive) = true];
+  // The chat, by its ID, such as "-1001234567890" for a group, or a channel's
+  // name, such as "@example_alerts". The bot has to be in it.
+  string chat_id = 2;
 }

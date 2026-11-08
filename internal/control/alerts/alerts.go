@@ -49,6 +49,8 @@ type Handler struct {
 	db     *store.DB
 	eval   *Evaluator
 	logger *slog.Logger
+	// tests counts each person's and token's tests in the last minute.
+	tests *testers
 }
 
 var _ dockwellv1connect.AlertServiceHandler = (*Handler)(nil)
@@ -58,7 +60,7 @@ var _ dockwellv1connect.AlertServiceHandler = (*Handler)(nil)
 // ChangeService.
 func New(eval *Evaluator, logger *slog.Logger) *Handler {
 	eval.init()
-	return &Handler{db: eval.DB, eval: eval, logger: logger}
+	return &Handler{db: eval.DB, eval: eval, logger: logger, tests: &testers{seen: map[string][]time.Time{}}}
 }
 
 func (h *Handler) internal(ctx context.Context, err error) error {
@@ -87,6 +89,11 @@ func alertOf(a store.Alert, serverName string, mutes []store.AlertMute, now time
 	}
 	if a.SentAt != nil {
 		out.SentTime = timestamppb.New(*a.SentAt)
+	}
+	facts := ReadFacts(a.Facts)
+	out.Variant, out.Where, out.Value = facts.Variant, facts.Where, facts.Value
+	if out.ServerName == "" {
+		out.ServerName = facts.Server
 	}
 	out.Muted = a.ResolvedAt == nil && muted(mutes, a.RuleName, a.ServerID, now)
 	return out
@@ -228,14 +235,17 @@ func (h *Handler) ListAlertChannels(ctx context.Context, _ *connect.Request[dock
 		}
 		slices.SortFunc(channels, func(a, b channel) int { return strings.Compare(a.name, b.name) })
 		for _, c := range channels {
-			info := &dockwellv1.AlertChannelInfo{Id: c.id, Name: c.name, Type: alert.Type(c.spec), Target: alert.Target(c.spec)}
+			info := &dockwellv1.AlertChannelInfo{
+				Id: c.id, Name: c.name, Type: alert.Type(c.spec), Target: alert.Target(c.spec),
+				Channel: alert.Redacted(c.spec), Sealed: alert.Sealed(c.spec),
+			}
 			for _, r := range rules {
 				if !r.spec.GetDisabled() && slices.ContainsFunc(channelsOf(r, channels), func(o channel) bool { return o.id == c.id }) {
 					info.Rules++
 				}
 			}
 			if d, ok := last[c.id]; ok {
-				info.Last = &dockwellv1.AlertDelivery{Time: timestamppb.New(d.At), Ok: d.OK, Said: d.Said, About: d.About}
+				info.Last = deliveryOf(d)
 			}
 			res.Channels = append(res.Channels, info)
 		}
@@ -247,7 +257,43 @@ func (h *Handler) ListAlertChannels(ctx context.Context, _ *connect.Request[dock
 	return connect.NewResponse(res), nil
 }
 
-// TestAlertChannel sends a test message, and says what the far end answered.
+func deliveryOf(d store.AlertDelivery) *dockwellv1.AlertDelivery {
+	return &dockwellv1.AlertDelivery{Time: timestamppb.New(d.At), Ok: d.OK, Said: d.Said, About: d.About, Channel: d.ChannelName}
+}
+
+// Bounds on a page of deliveries.
+const (
+	defaultDeliveries = 50
+	maxDeliveries     = 200
+)
+
+// ListAlertDeliveries returns the newest messages to every channel.
+func (h *Handler) ListAlertDeliveries(ctx context.Context, req *connect.Request[dockwellv1.ListAlertDeliveriesRequest]) (*connect.Response[dockwellv1.ListAlertDeliveriesResponse], error) {
+	size := int(req.Msg.GetPageSize())
+	switch {
+	case size < 0:
+		return nil, authapi.Invalid(errors.New("a page size is a number from 1 to 200, or 0 for 50"))
+	case size == 0:
+		size = defaultDeliveries
+	case size > maxDeliveries:
+		size = maxDeliveries
+	}
+	res := &dockwellv1.ListAlertDeliveriesResponse{}
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		recent, err := tx.RecentDeliveries(ctx, size)
+		for i := range recent {
+			res.Deliveries = append(res.Deliveries, deliveryOf(recent[i]))
+		}
+		return err
+	})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	return connect.NewResponse(res), nil
+}
+
+// TestAlertChannel sends a test message, and says what the far end answered. Each
+// person or token sends TestsPerMinute at most, and each test is on Activity.
 func (h *Handler) TestAlertChannel(ctx context.Context, req *connect.Request[dockwellv1.TestAlertChannelRequest]) (*connect.Response[dockwellv1.TestAlertChannelResponse], error) {
 	p, ok := authapi.PrincipalFrom(ctx)
 	if !ok {
@@ -292,11 +338,20 @@ func (h *Handler) TestAlertChannel(ctx context.Context, req *connect.Request[doc
 		return nil, authapi.Invalid(err)
 	}
 	now := h.eval.now()
+	if wait := h.tests.allow(p.Actor(), now); wait > 0 {
+		err := connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("you've sent %d tests in the last minute, the most Dockwell sends. Try again in %d seconds", TestsPerMinute, int(wait.Round(time.Second)/time.Second)))
+		err.Meta().Set(authapi.ReasonKey, "too_many_requests")
+		return nil, err
+	}
 	msg := Message{Status: "test", Panel: h.eval.Panel, At: now}
 	r := h.eval.Sender.Test(ctx, spec, msg)
-	d := &dockwellv1.AlertDelivery{Time: timestamppb.New(now), Ok: r.OK, Said: r.Said, About: msg.About()}
+	d := &dockwellv1.AlertDelivery{Time: timestamppb.New(now), Ok: r.OK, Said: r.Said, About: msg.About(), Channel: m.GetName()}
+	// What a channel's deliveries say is how it is, so a form's test that isn't the
+	// channel as it's kept, such as one with a URL that's yet to be planned, says
+	// nothing of it there.
+	asStored := stored != nil && proto.Equal(spec, stored.spec)
 	err := h.db.Update(ctx, func(tx *store.Tx) error {
-		if stored != nil {
+		if asStored {
 			rec := store.AlertDelivery{ID: id.New(id.Alert), ChannelID: stored.id, ChannelName: stored.name, At: now, OK: r.OK, Said: r.Said, About: msg.About()}
 			if err := tx.AddAlertDelivery(ctx, rec); err != nil {
 				return err
@@ -310,10 +365,10 @@ func (h *Handler) TestAlertChannel(ctx context.Context, req *connect.Request[doc
 	return connect.NewResponse(&dockwellv1.TestAlertChannelResponse{Delivery: d}), nil
 }
 
-// recordTest puts every test on Activity, a channel's or a form's: who sent it, to
-// what type of channel and which host, and what answered.
+// recordTest puts a test on Activity: who sent it, to what type of channel and
+// which host, and whether it arrived.
 func recordTest(ctx context.Context, tx *store.Tx, name string, spec *resourcev1.AlertChannel, r Result, actor, surface string, now time.Time) error {
-	told := Told{SubjectName: name, Facts: Facts{Variant: alert.Type(spec), Where: alert.Target(spec)}, Reason: r.Said}
+	told := Told{SubjectName: name, Facts: Facts{Variant: alert.Type(spec), Where: alert.Host(spec)}, Reason: r.Said}
 	if r.OK {
 		told.Facts.Value = 1
 	}
