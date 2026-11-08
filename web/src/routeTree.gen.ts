@@ -36,7 +36,12 @@ import { Route as ShellWebsitesIndexRouteImport } from './routes/_shell/websites
 import { Route as ShellWebsitesWebsiteIdRouteImport } from './routes/_shell/websites.$websiteId'
 import { Route as ShellWebsitesNewRouteImport } from './routes/_shell/websites.new'
 import { Route as ShellSettingsSettingsIndexRouteImport } from './routes/_shell/_settings/settings.index'
+import { Route as ShellSettingsSettingsApiTokensRouteImport } from './routes/_shell/_settings/settings.api-tokens'
+import { Route as ShellSettingsSettingsAuditLogRouteImport } from './routes/_shell/_settings/settings.audit-log'
+import { Route as ShellSettingsSettingsControlPlaneRouteImport } from './routes/_shell/_settings/settings.control-plane'
 import { Route as ShellSettingsSettingsGeneralRouteImport } from './routes/_shell/_settings/settings.general'
+import { Route as ShellSettingsSettingsIntegrationsRouteImport } from './routes/_shell/_settings/settings.integrations'
+import { Route as ShellSettingsSettingsMembersRouteImport } from './routes/_shell/_settings/settings.members'
 import { Route as ShellAppsServiceIdIndexRouteImport } from './routes/_shell/apps.$serviceId.index'
 import { Route as ShellAppsServiceIdDeploymentsRouteImport } from './routes/_shell/apps.$serviceId.deployments'
 import { Route as ShellAppsServiceIdEnvironmentRouteImport } from './routes/_shell/apps.$serviceId.environment'
@@ -189,10 +194,40 @@ const ShellSettingsSettingsIndexRoute =
     path: '/settings/',
     getParentRoute: () => ShellSettingsRoute,
   } as any)
+const ShellSettingsSettingsApiTokensRoute =
+  ShellSettingsSettingsApiTokensRouteImport.update({
+    id: '/settings/api-tokens',
+    path: '/settings/api-tokens',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
+const ShellSettingsSettingsAuditLogRoute =
+  ShellSettingsSettingsAuditLogRouteImport.update({
+    id: '/settings/audit-log',
+    path: '/settings/audit-log',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
+const ShellSettingsSettingsControlPlaneRoute =
+  ShellSettingsSettingsControlPlaneRouteImport.update({
+    id: '/settings/control-plane',
+    path: '/settings/control-plane',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
 const ShellSettingsSettingsGeneralRoute =
   ShellSettingsSettingsGeneralRouteImport.update({
     id: '/settings/general',
     path: '/settings/general',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
+const ShellSettingsSettingsIntegrationsRoute =
+  ShellSettingsSettingsIntegrationsRouteImport.update({
+    id: '/settings/integrations',
+    path: '/settings/integrations',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
+const ShellSettingsSettingsMembersRoute =
+  ShellSettingsSettingsMembersRouteImport.update({
+    id: '/settings/members',
+    path: '/settings/members',
     getParentRoute: () => ShellSettingsRoute,
   } as any)
 const ShellAppsServiceIdIndexRoute = ShellAppsServiceIdIndexRouteImport.update({
@@ -321,7 +356,12 @@ export interface FileRoutesByFullPath {
   '/databases/': typeof ShellDatabasesIndexRoute
   '/servers/': typeof ShellServersIndexRoute
   '/websites/': typeof ShellWebsitesIndexRoute
+  '/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
+  '/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
+  '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
+  '/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
+  '/settings/members': typeof ShellSettingsSettingsMembersRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
@@ -363,7 +403,12 @@ export interface FileRoutesByTo {
   '/databases': typeof ShellDatabasesIndexRoute
   '/servers': typeof ShellServersIndexRoute
   '/websites': typeof ShellWebsitesIndexRoute
+  '/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
+  '/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
+  '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
+  '/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
+  '/settings/members': typeof ShellSettingsSettingsMembersRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
@@ -411,7 +456,12 @@ export interface FileRoutesById {
   '/_shell/databases/': typeof ShellDatabasesIndexRoute
   '/_shell/servers/': typeof ShellServersIndexRoute
   '/_shell/websites/': typeof ShellWebsitesIndexRoute
+  '/_shell/_settings/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
+  '/_shell/_settings/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
+  '/_shell/_settings/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/_shell/_settings/settings/general': typeof ShellSettingsSettingsGeneralRoute
+  '/_shell/_settings/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
+  '/_shell/_settings/settings/members': typeof ShellSettingsSettingsMembersRoute
   '/_shell/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/_shell/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/_shell/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
@@ -458,7 +508,12 @@ export interface FileRouteTypes {
     | '/databases/'
     | '/servers/'
     | '/websites/'
+    | '/settings/api-tokens'
+    | '/settings/audit-log'
+    | '/settings/control-plane'
     | '/settings/general'
+    | '/settings/integrations'
+    | '/settings/members'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
@@ -500,7 +555,12 @@ export interface FileRouteTypes {
     | '/databases'
     | '/servers'
     | '/websites'
+    | '/settings/api-tokens'
+    | '/settings/audit-log'
+    | '/settings/control-plane'
     | '/settings/general'
+    | '/settings/integrations'
+    | '/settings/members'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
@@ -547,7 +607,12 @@ export interface FileRouteTypes {
     | '/_shell/databases/'
     | '/_shell/servers/'
     | '/_shell/websites/'
+    | '/_shell/_settings/settings/api-tokens'
+    | '/_shell/_settings/settings/audit-log'
+    | '/_shell/_settings/settings/control-plane'
     | '/_shell/_settings/settings/general'
+    | '/_shell/_settings/settings/integrations'
+    | '/_shell/_settings/settings/members'
     | '/_shell/apps/$serviceId/deployments'
     | '/_shell/apps/$serviceId/environment'
     | '/_shell/apps/$serviceId/logs'
@@ -767,11 +832,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellSettingsSettingsIndexRouteImport
       parentRoute: typeof ShellSettingsRoute
     }
+    '/_shell/_settings/settings/api-tokens': {
+      id: '/_shell/_settings/settings/api-tokens'
+      path: '/settings/api-tokens'
+      fullPath: '/settings/api-tokens'
+      preLoaderRoute: typeof ShellSettingsSettingsApiTokensRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
+    '/_shell/_settings/settings/audit-log': {
+      id: '/_shell/_settings/settings/audit-log'
+      path: '/settings/audit-log'
+      fullPath: '/settings/audit-log'
+      preLoaderRoute: typeof ShellSettingsSettingsAuditLogRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
+    '/_shell/_settings/settings/control-plane': {
+      id: '/_shell/_settings/settings/control-plane'
+      path: '/settings/control-plane'
+      fullPath: '/settings/control-plane'
+      preLoaderRoute: typeof ShellSettingsSettingsControlPlaneRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
     '/_shell/_settings/settings/general': {
       id: '/_shell/_settings/settings/general'
       path: '/settings/general'
       fullPath: '/settings/general'
       preLoaderRoute: typeof ShellSettingsSettingsGeneralRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
+    '/_shell/_settings/settings/integrations': {
+      id: '/_shell/_settings/settings/integrations'
+      path: '/settings/integrations'
+      fullPath: '/settings/integrations'
+      preLoaderRoute: typeof ShellSettingsSettingsIntegrationsRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
+    '/_shell/_settings/settings/members': {
+      id: '/_shell/_settings/settings/members'
+      path: '/settings/members'
+      fullPath: '/settings/members'
+      preLoaderRoute: typeof ShellSettingsSettingsMembersRouteImport
       parentRoute: typeof ShellSettingsRoute
     }
     '/_shell/apps/$serviceId/': {
@@ -898,13 +998,25 @@ declare module '@tanstack/react-router' {
 
 interface ShellSettingsRouteChildren {
   ShellSettingsProfileRoute: typeof ShellSettingsProfileRoute
+  ShellSettingsSettingsApiTokensRoute: typeof ShellSettingsSettingsApiTokensRoute
+  ShellSettingsSettingsAuditLogRoute: typeof ShellSettingsSettingsAuditLogRoute
+  ShellSettingsSettingsControlPlaneRoute: typeof ShellSettingsSettingsControlPlaneRoute
   ShellSettingsSettingsGeneralRoute: typeof ShellSettingsSettingsGeneralRoute
+  ShellSettingsSettingsIntegrationsRoute: typeof ShellSettingsSettingsIntegrationsRoute
+  ShellSettingsSettingsMembersRoute: typeof ShellSettingsSettingsMembersRoute
   ShellSettingsSettingsIndexRoute: typeof ShellSettingsSettingsIndexRoute
 }
 
 const ShellSettingsRouteChildren: ShellSettingsRouteChildren = {
   ShellSettingsProfileRoute: ShellSettingsProfileRoute,
+  ShellSettingsSettingsApiTokensRoute: ShellSettingsSettingsApiTokensRoute,
+  ShellSettingsSettingsAuditLogRoute: ShellSettingsSettingsAuditLogRoute,
+  ShellSettingsSettingsControlPlaneRoute:
+    ShellSettingsSettingsControlPlaneRoute,
   ShellSettingsSettingsGeneralRoute: ShellSettingsSettingsGeneralRoute,
+  ShellSettingsSettingsIntegrationsRoute:
+    ShellSettingsSettingsIntegrationsRoute,
+  ShellSettingsSettingsMembersRoute: ShellSettingsSettingsMembersRoute,
   ShellSettingsSettingsIndexRoute: ShellSettingsSettingsIndexRoute,
 }
 

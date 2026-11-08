@@ -15,6 +15,7 @@ package apinames
 func Commands() []string {
 	return []string{
 		"api-tokens",
+		"audit-events",
 		"auth-state",
 		"backup-destinations",
 		"backup-policies",
@@ -24,6 +25,7 @@ func Commands() []string {
 		"claim-link",
 		"compose",
 		"containers",
+		"control-plane",
 		"databases",
 		"domains",
 		"drift",
@@ -33,6 +35,7 @@ func Commands() []string {
 		"firewall-rules",
 		"health",
 		"logs",
+		"members",
 		"networks",
 		"passkeys",
 		"processes",

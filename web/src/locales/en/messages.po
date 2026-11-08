@@ -398,9 +398,6 @@ msgstr "Show earlier events"
 msgid "Size"
 msgstr "Size"
 
-msgid "Someone"
-msgstr "Someone"
-
 msgid "State"
 msgstr "State"
 
@@ -445,6 +442,18 @@ msgstr "the server filter"
 
 msgid "{count, plural, one {{long} · # event} other {{long} · # events}}"
 msgstr "{count, plural, one {{long} · # event} other {{long} · # events}}"
+
+msgid "CLI on {host}"
+msgstr "CLI on {host}"
+
+msgid "Local access token, read-only, {id}, made by {account}"
+msgstr "Local access token, read-only, {id}, made by {account}"
+
+msgid "Local access token, read-write, {id}, made by {account}"
+msgstr "Local access token, read-write, {id}, made by {account}"
+
+msgid "Someone"
+msgstr "Someone"
 
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "A backup of {volume} couldn't be fetched from {destination}"
@@ -2618,115 +2627,6 @@ msgstr "Version <0>{0}</0>"
 msgid "You're not signed in"
 msgstr "You're not signed in"
 
-msgid "API tokens"
-msgstr "API tokens"
-
-msgid "Also plans and applies changes that can be undone. Never removes data or cuts off access."
-msgstr "Also plans and applies changes that can be undone. Never removes data or cuts off access."
-
-msgid "Can read logs"
-msgstr "Can read logs"
-
-msgid "Copy this token now. It won't be shown again."
-msgstr "Copy this token now. It won't be shown again."
-
-msgid "Copy token"
-msgstr "Copy token"
-
-msgid "Create an API token"
-msgstr "Create an API token"
-
-msgid "Create token"
-msgstr "Create token"
-
-msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It doesn't expire."
-msgstr "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It doesn't expire."
-
-msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
-msgstr "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
-
-msgid "Done"
-msgstr "Done"
-
-msgid "Expires"
-msgstr "Expires"
-
-msgid "Expires in {remaining}"
-msgstr "Expires in {remaining}"
-
-msgid "For a script, the CLI or an integration"
-msgstr "For a script, the CLI or an integration"
-
-msgid "In 1 year"
-msgstr "In 1 year"
-
-msgid "In 30 days"
-msgstr "In 30 days"
-
-msgid "In 90 days"
-msgstr "In 90 days"
-
-msgid "Loading tokens"
-msgstr "Loading tokens"
-
-msgid "Logs often hold secrets that apps print, so a token reads them only if you say so here."
-msgstr "Logs often hold secrets that apps print, so a token reads them only if you say so here."
-
-msgid "Name the token after what will use it, such as GitHub Actions deploy."
-msgstr "Name the token after what will use it, such as GitHub Actions deploy."
-
-msgctxt "token expiry"
-msgid "Never"
-msgstr "Never"
-
-msgid "No tokens yet. Make one for each script or integration, so you can revoke one alone."
-msgstr "No tokens yet. Make one for each script or integration, so you can revoke one alone."
-
-msgid "Read and write"
-msgstr "Read and write"
-
-msgid "Read only"
-msgstr "Read only"
-
-msgid "Reads logs"
-msgstr "Reads logs"
-
-msgid "Reads servers and their state. Changes nothing."
-msgstr "Reads servers and their state. Changes nothing."
-
-msgid "Revoke"
-msgstr "Revoke"
-
-msgid "Revoke {name}"
-msgstr "Revoke {name}"
-
-msgid "Start with read only, and allow writes only when the job needs them."
-msgstr "Start with read only, and allow writes only when the job needs them."
-
-msgid "The token wasn't created"
-msgstr "The token wasn't created"
-
-msgid "Token copied"
-msgstr "Token copied"
-
-msgid "Tokens act for you from scripts, the CLI and integrations. None can remove data, cut off access or change how you sign in."
-msgstr "Tokens act for you from scripts, the CLI and integrations. None can remove data, cut off access or change how you sign in."
-
-msgid "What will use this token?"
-msgstr "What will use this token?"
-
-msgid "You see the token once, right after you create it."
-msgstr "You see the token once, right after you create it."
-
-msgid "doesn't expire"
-msgstr "doesn't expire"
-
-msgid "expires {day}"
-msgstr "expires {day}"
-
-msgid "used {ago} from <0>{lastAddress}</0>"
-msgstr "used {ago} from <0>{lastAddress}</0>"
-
 msgid "Authenticator app"
 msgstr "Authenticator app"
 
@@ -2831,8 +2731,8 @@ msgstr "{name} has no owner yet"
 msgid "{browser} on {os}"
 msgstr "{browser} on {os}"
 
-msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel."
 
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
 msgstr "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
@@ -2849,11 +2749,11 @@ msgstr "Passkeys need a hostname, not an IP address. Open the panel at http://lo
 msgid "Something went wrong. Try again."
 msgstr "Something went wrong. Try again."
 
-msgid "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
-msgstr "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
+msgid "That API token is read-only, so it can't make changes. Create a read-write token in Settings, under API tokens."
+msgstr "That API token is read-only, so it can't make changes. Create a read-write token in Settings, under API tokens."
 
-msgid "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one under Profile and security."
-msgstr "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one under Profile and security."
+msgid "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one in Settings, under API tokens."
+msgstr "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one in Settings, under API tokens."
 
 msgid "That code didn't work. Check the email and the code, then try again."
 msgstr "That code didn't work. Check the email and the code, then try again."
@@ -3328,6 +3228,9 @@ msgstr "Copy of a running app"
 
 msgid "Daily at {at}"
 msgstr "Daily at {at}"
+
+msgid "Done"
+msgstr "Done"
 
 msgid "Exact copy"
 msgstr "Exact copy"
@@ -7090,6 +6993,351 @@ msgstr "{provider}'s metadata says so, {when}"
 msgid "up {uptime}"
 msgstr "up {uptime}"
 
+msgid "1 event in the last 24 hours."
+msgstr "1 event in the last 24 hours."
+
+msgid "1 event in the last 30 days."
+msgstr "1 event in the last 30 days."
+
+msgid "1 event in the last 7 days."
+msgstr "1 event in the last 7 days."
+
+msgid "1 event, all there is."
+msgstr "1 event, all there is."
+
+msgid "API"
+msgstr "API"
+
+msgid "API tokens"
+msgstr "API tokens"
+
+msgid "Action"
+msgstr "Action"
+
+msgid "All sources"
+msgstr "All sources"
+
+msgid "Applied by"
+msgstr "Applied by"
+
+msgid "Audit log"
+msgstr "Audit log"
+
+msgid "CLI"
+msgstr "CLI"
+
+msgid "Detail"
+msgstr "Detail"
+
+msgid "Dockwell can't read the audit log"
+msgstr "Dockwell can't read the audit log"
+
+msgid "Events"
+msgstr "Events"
+
+msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept as long as this install exists"
+msgstr "Every change and every way in, by people, tokens, servers and Dockwell · kept as long as this install exists"
+
+msgid "Everything"
+msgstr "Everything"
+
+msgid "Export CSV"
+msgstr "Export CSV"
+
+msgid "Filter by actor, action, target or address"
+msgstr "Filter by actor, action, target or address"
+
+msgid "Filter events"
+msgstr "Filter events"
+
+#. placeholder {0}: event.action
+msgid "Hide details for {0} at {time}"
+msgstr "Hide details for {0} at {time}"
+
+msgid "JSON lines"
+msgstr "JSON lines"
+
+msgid "Last 24 hours"
+msgstr "Last 24 hours"
+
+msgid "Last 30 days"
+msgstr "Last 30 days"
+
+msgid "Last 7 days"
+msgstr "Last 7 days"
+
+msgid "Loading the audit log"
+msgstr "Loading the audit log"
+
+msgid "Loading the change"
+msgstr "Loading the change"
+
+msgid "Not signed in"
+msgstr "Not signed in"
+
+msgid "Nothing happened in this range. Pick a longer one to see more."
+msgstr "Nothing happened in this range. Pick a longer one to see more."
+
+msgid "Nothing matches. Pick a longer range, or clear the filters."
+msgstr "Nothing matches. Pick a longer range, or clear the filters."
+
+msgid "Open in Activity"
+msgstr "Open in Activity"
+
+msgid "Panel"
+msgstr "Panel"
+
+msgid "People"
+msgstr "People"
+
+msgid "Pick a longer range to see more."
+msgstr "Pick a longer range to see more."
+
+msgid "Recorded"
+msgstr "Recorded"
+
+msgid "Saved 1 event."
+msgstr "Saved 1 event."
+
+msgid "Saved the newest {most} events. Narrow the filters to save the rest."
+msgstr "Saved the newest {most} events. Narrow the filters to save the rest."
+
+#. placeholder {0}: events.length
+msgid "Saved {0} events."
+msgstr "Saved {0} events."
+
+msgid "Shells on the control server"
+msgstr "Shells on the control server"
+
+#. placeholder {0}: event.action
+msgid "Show details for {0} at {time}"
+msgstr "Show details for {0} at {time}"
+
+msgid "Target"
+msgstr "Target"
+
+msgid "The audit log, newest first"
+msgstr "The audit log, newest first"
+
+msgid "The newest {count} events. Show more for older ones."
+msgstr "The newest {count} events. Show more for older ones."
+
+msgid "Today · {day}"
+msgstr "Today · {day}"
+
+msgid "What happened"
+msgstr "What happened"
+
+msgid "Yesterday · {day}"
+msgstr "Yesterday · {day}"
+
+msgid "{count} events in the last 24 hours."
+msgstr "{count} events in the last 24 hours."
+
+msgid "{count} events in the last 30 days."
+msgstr "{count} events in the last 30 days."
+
+msgid "{count} events in the last 7 days."
+msgstr "{count} events in the last 7 days."
+
+msgid "{count} events, all there are."
+msgstr "{count} events, all there are."
+
+msgid "{name} and {more} more"
+msgstr "{name} and {more} more"
+
+msgid "A file beside the control plane, for one control plane"
+msgstr "A file beside the control plane, for one control plane"
+
+msgid "A server that joined upgrades the same way: run the install script again on it."
+msgstr "A server that joined upgrades the same way: run the install script again on it."
+
+msgid "Agents"
+msgstr "Agents"
+
+msgid "Agents connect to"
+msgstr "Agents connect to"
+
+msgid "Answering"
+msgstr "Answering"
+
+msgid "Answers in"
+msgstr "Answers in"
+
+msgid "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
+msgstr "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
+
+msgid "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
+msgstr "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
+
+msgid "Built from {commit}"
+msgstr "Built from {commit}"
+
+msgid "Built {built} from {commit}"
+msgstr "Built {built} from {commit}"
+
+msgid "By hand, for now"
+msgstr "By hand, for now"
+
+msgid "Dockwell can't say how its control plane is"
+msgstr "Dockwell can't say how its control plane is"
+
+msgid "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
+msgstr "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
+
+msgid "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
+msgstr "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
+
+msgid "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
+msgstr "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
+
+msgid "Engine"
+msgstr "Engine"
+
+msgid "From elsewhere"
+msgstr "From elsewhere"
+
+msgid "From its network"
+msgstr "From its network"
+
+msgid "How to back it up and restore it"
+msgstr "How to back it up and restore it"
+
+msgid "How to change settings"
+msgstr "How to change settings"
+
+msgctxt "encryption"
+msgid "Key"
+msgstr "Key"
+
+msgid "Location"
+msgstr "Location"
+
+msgid "One · if it stops, the panel and API stop with it, and servers keep running what they run"
+msgstr "One · if it stops, the panel and API stop with it, and servers keep running what they run"
+
+msgid "Opens every secret the store keeps"
+msgstr "Opens every secret the store keeps"
+
+msgid "Panel and API"
+msgstr "Panel and API"
+
+msgid "Panel, API and scheduler for this install"
+msgstr "Panel, API and scheduler for this install"
+
+#. placeholder {0}: own.name
+msgid "Panel, API and scheduler for this install · one replica, on {0}"
+msgstr "Panel, API and scheduler for this install · one replica, on {0}"
+
+msgid "Panel, API and scheduler for {name}"
+msgstr "Panel, API and scheduler for {name}"
+
+#. placeholder {0}: own.name
+msgid "Panel, API and scheduler for {name} · one replica, on {0}"
+msgstr "Panel, API and scheduler for {name} · one replica, on {0}"
+
+msgid "PostgreSQL"
+msgstr "PostgreSQL"
+
+msgid "Ready for more than one control plane"
+msgstr "Ready for more than one control plane"
+
+msgid "Releases"
+msgstr "Releases"
+
+msgid "Replicas"
+msgstr "Replicas"
+
+msgid "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+
+msgid "SQLite, on this server"
+msgstr "SQLite, on this server"
+
+msgctxt "on disk"
+msgid "Size"
+msgstr "Size"
+
+msgid "State store"
+msgstr "State store"
+
+msgid "The version that runs here is unknown"
+msgstr "The version that runs here is unknown"
+
+msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
+msgstr "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
+
+msgid "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
+msgstr "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
+
+msgid "This control plane"
+msgstr "This control plane"
+
+msgid "This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+
+msgid "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
+msgstr "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
+
+msgid "agent"
+msgstr "agent"
+
+msgid "agent · {versions}"
+msgstr "agent · {versions}"
+
+msgid "agents"
+msgstr "agents"
+
+msgid "agents · {versions}"
+msgstr "agents · {versions}"
+
+msgid "all on {short}"
+msgstr "all on {short}"
+
+msgid "hasn't connected yet"
+msgstr "hasn't connected yet"
+
+#. placeholder {0}: words.ago(timestampDate(s.lastSeenTime), now)
+msgid "not connected, last heard {0}"
+msgstr "not connected, last heard {0}"
+
+msgid "on loopback"
+msgstr "on loopback"
+
+#. placeholder {0}: shortVersion(s.agentBuild?.version ?? "")
+msgid "runs {0}"
+msgstr "runs {0}"
+
+msgid "under 0.1 ms"
+msgstr "under 0.1 ms"
+
+#. placeholder {0}: connected.length
+msgid "{0} connected"
+msgstr "{0} connected"
+
+#. placeholder {0}: formatFixed(trip, trip < 10 ? 1 : 0, i18n.locale)
+msgid "{0} ms"
+msgstr "{0} ms"
+
+#. placeholder {0}: count - behind.length
+#. placeholder {1}: behind.length
+msgid "{0} on {short}, {1} on another version"
+msgstr "{0} on {short}, {1} on another version"
+
+#. placeholder {0}: shortVersion(build.version)
+msgid "{0} runs here"
+msgstr "{0} runs here"
+
+#. placeholder {0}: formatBytes(memory, i18n.locale)
+#. placeholder {1}: formatBytes(BUDGET_BYTES, i18n.locale)
+msgid "{0} with its agent, of a {1} budget"
+msgstr "{0} with its agent, of a {1} budget"
+
+#. placeholder {0}: words.span(Math.max(0, now - started.getTime()))
+#. placeholder {1}: formatDay(started, i18n.locale)
+msgid "{0}, since {1}"
+msgstr "{0}, since {1}"
+
 msgid "A change goes on Activity, with what it replaced."
 msgstr "A change goes on Activity, with what it replaced."
 
@@ -7113,9 +7361,6 @@ msgstr "General"
 
 msgid "HTTPS"
 msgstr "HTTPS"
-
-msgid "How to change settings"
-msgstr "How to change settings"
 
 msgid "Language"
 msgstr "Language"
@@ -7180,14 +7425,467 @@ msgstr "With OpenRC, <0>export DOCKWELL_DOMAIN=…</0> in <1>/etc/conf.d/dockwel
 msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 msgstr "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 
+#. placeholder {0}: formatBytes(d.usedBytes, i18n.locale)
+msgid "1 backup, {0}"
+msgstr "1 backup, {0}"
+
+msgid "1 bucket · where backups go beside each server's disk"
+msgstr "1 bucket · where backups go beside each server's disk"
+
+msgid "1 connected · the services Dockwell sends backups to and routes behind"
+msgstr "1 connected · the services Dockwell sends backups to and routes behind"
+
+msgid "A backup didn't get here {when}"
+msgstr "A backup didn't get here {when}"
+
+msgid "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
+msgstr "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
+
+msgid "Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave."
+msgstr "Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave."
+
+msgid "Any DNS provider"
+msgstr "Any DNS provider"
+
+#. placeholder {0}: d.bucket
+msgid "Bucket <0>{0}</0> at <1>{host}</1>"
+msgstr "Bucket <0>{0}</0> at <1>{host}</1>"
+
+msgid "Cloud providers"
+msgstr "Cloud providers"
+
+msgid "Coming later"
+msgstr "Coming later"
+
+msgid "Connect"
+msgstr "Connect"
+
+msgid "Connect storage"
+msgstr "Connect storage"
+
+msgid "Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand."
+msgstr "Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand."
+
+msgid "DNS and proxies"
+msgstr "DNS and proxies"
+
+msgid "Dockwell can't list where backups go"
+msgstr "Dockwell can't list where backups go"
+
+msgid "Git"
+msgstr "Git"
+
+msgid "GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file."
+msgstr "GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file."
+
+msgid "Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket."
+msgstr "Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket."
+
+msgid "How to route behind it"
+msgstr "How to route behind it"
+
+msgid "Integrations"
+msgstr "Integrations"
+
+msgid "Loading where backups go"
+msgstr "Loading where backups go"
+
+msgid "Manage in Backups"
+msgstr "Manage in Backups"
+
+msgid "No backup yet"
+msgstr "No backup yet"
+
+msgid "Object storage"
+msgstr "Object storage"
+
+msgid "Open Domains"
+msgstr "Open Domains"
+
+msgid "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
+msgstr "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
+
+#. placeholder {0}: words.ago(uploaded, now)
+msgid "Received a backup {0}"
+msgstr "Received a backup {0}"
+
+msgid "Registries"
+msgstr "Registries"
+
+msgid "S3-compatible storage"
+msgstr "S3-compatible storage"
+
+msgid "Values your apps use live in <0>Variables and secrets</0>"
+msgstr "Values your apps use live in <0>Variables and secrets</0>"
+
+msgid "Works in front of routes"
+msgstr "Works in front of routes"
+
+msgid "in front of a server's routes"
+msgstr "in front of a server's routes"
+
+msgid "{connected} buckets · where backups go beside each server's disk"
+msgstr "{connected} buckets · where backups go beside each server's disk"
+
+msgid "{connected} connected · the services Dockwell sends backups to and routes behind"
+msgstr "{connected} connected · the services Dockwell sends backups to and routes behind"
+
+msgid "1 browser"
+msgstr "1 browser"
+
+msgid "1 passkey"
+msgstr "1 passkey"
+
+msgid "1 person signs in to this install, its owner · inviting others comes later"
+msgstr "1 person signs in to this install, its owner · inviting others comes later"
+
+msgid "<0>dockwell recover</0> on the control server"
+msgstr "<0>dockwell recover</0> on the control server"
+
+msgid "An install has one person today, the owner who claimed it, as nothing yet tells an admin, a developer or a viewer apart from them. Scripts and integrations sign in with API tokens. <0>What members and roles need</0>"
+msgstr "An install has one person today, the owner who claimed it, as nothing yet tells an admin, a developer or a viewer apart from them. Scripts and integrations sign in with API tokens. <0>What members and roles need</0>"
+
+msgid "Change the install's settings"
+msgstr "Change the install's settings"
+
+msgid "Deploy, and apply any plan"
+msgstr "Deploy, and apply any plan"
+
+msgid "Dockwell can't say who signs in"
+msgstr "Dockwell can't say who signs in"
+
+msgid "Everything, on every server. Admins, developers and viewers, each seeing and doing less and scoped by project, come with members."
+msgstr "Everything, on every server. Admins, developers and viewers, each seeing and doing less and scoped by project, come with members."
+
+msgid "How you sign in"
+msgstr "How you sign in"
+
+msgid "Inviting someone comes in a later release"
+msgstr "Inviting someone comes in a later release"
+
+msgid "Last active"
+msgstr "Last active"
+
+msgid "Last resort"
+msgstr "Last resort"
+
+msgid "Loading who signs in"
+msgstr "Loading who signs in"
+
+msgid "Locked after too many wrong codes, until you lift it in Profile and security"
+msgstr "Locked after too many wrong codes, until you lift it in Profile and security"
+
+msgid "Make and revoke API tokens"
+msgstr "Make and revoke API tokens"
+
+msgid "Manage servers and their files"
+msgstr "Manage servers and their files"
+
+msgid "Member"
+msgstr "Member"
+
+msgid "Members"
+msgstr "Members"
+
+msgid "No way in that works now"
+msgstr "No way in that works now"
+
+msgid "Now"
+msgstr "Now"
+
+msgid "OIDC comes in a later release"
+msgstr "OIDC comes in a later release"
+
+msgid "On, 1 recovery code left"
+msgstr "On, 1 recovery code left"
+
+#. placeholder {0}: member.recoveryCodesLeft
+msgid "On, {0} recovery codes left"
+msgstr "On, {0} recovery codes left"
+
+msgid "Passkey and authenticator app"
+msgstr "Passkey and authenticator app"
+
+msgid "Permission"
+msgstr "Permission"
+
+msgid "Read the audit log"
+msgstr "Read the audit log"
+
+msgid "Sign-in"
+msgstr "Sign-in"
+
+msgid "Signed in on"
+msgstr "Signed in on"
+
+msgid "Single sign-on"
+msgstr "Single sign-on"
+
+msgid "What the owner can do"
+msgstr "What the owner can do"
+
+msgid "Who signs in"
+msgstr "Who signs in"
+
+msgid "Who signs in to this install"
+msgstr "Who signs in to this install"
+
+msgid "You"
+msgstr "You"
+
+msgid "all sign in with a passkey"
+msgstr "all sign in with a passkey"
+
+#. placeholder {0}: member.sessions
+msgid "{0} browsers"
+msgstr "{0} browsers"
+
+#. placeholder {0}: m.passkeys
+msgid "{0} passkeys"
+msgstr "{0} passkeys"
+
+msgid "{count} people sign in to this install"
+msgstr "{count} people sign in to this install"
+
+msgid "{keys} and an authenticator app"
+msgstr "{keys} and an authenticator app"
+
+msgid "{keys}, with codes locked"
+msgstr "{keys}, with codes locked"
+
+msgid "{withPasskeys} of {count} sign in with a passkey"
+msgstr "{withPasskeys} of {count} sign in with a passkey"
+
 msgid "Account"
 msgstr "Account"
 
 msgid "Install"
 msgstr "Install"
 
+msgid "Platform"
+msgstr "Platform"
+
 msgid "Settings"
 msgstr "Settings"
+
+msgid "1 token"
+msgstr "1 token"
+
+msgid "Active tokens"
+msgstr "Active tokens"
+
+msgid "Copy this token now. It won't be shown again."
+msgstr "Copy this token now. It won't be shown again."
+
+msgid "Copy token"
+msgstr "Copy token"
+
+msgid "Create a token"
+msgstr "Create a token"
+
+msgid "Create token"
+msgstr "Create token"
+
+msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It doesn't expire."
+msgstr "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It doesn't expire."
+
+msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
+msgstr "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
+
+msgid "Dockwell can't list your tokens"
+msgstr "Dockwell can't list your tokens"
+
+msgid "Each new address it's used from goes in the <0>audit log</0>"
+msgstr "Each new address it's used from goes in the <0>audit log</0>"
+
+msgid "Expires"
+msgstr "Expires"
+
+msgid "Hide the token"
+msgstr "Hide the token"
+
+msgid "In 1 year"
+msgstr "In 1 year"
+
+msgid "In 30 days"
+msgstr "In 30 days"
+
+msgid "In 90 days"
+msgstr "In 90 days"
+
+msgid "Last used"
+msgstr "Last used"
+
+msgid "Loading tokens"
+msgstr "Loading tokens"
+
+msgid "Name the token after what will use it, such as GitHub Actions deploy."
+msgstr "Name the token after what will use it, such as GitHub Actions deploy."
+
+msgctxt "token expiry"
+msgid "Never"
+msgstr "Never"
+
+msgid "New"
+msgstr "New"
+
+msgid "No tokens yet. Make one for each script or integration below, so you can revoke one without stopping the rest."
+msgstr "No tokens yet. Make one for each script or integration below, so you can revoke one without stopping the rest."
+
+msgid "Plan and apply changes that can be undone. Never removes data or cuts off access."
+msgstr "Plan and apply changes that can be undone. Never removes data or cuts off access."
+
+msgid "Read apps' logs, which often hold what apps shouldn't print."
+msgstr "Read apps' logs, which often hold what apps shouldn't print."
+
+msgid "Read servers, apps, plans and activity. Every token can, and changes nothing."
+msgstr "Read servers, apps, plans and activity. Every token can, and changes nothing."
+
+msgid "Revoke"
+msgstr "Revoke"
+
+#. placeholder {0}: token.name
+msgid "Revoke {0}"
+msgstr "Revoke {0}"
+
+msgid "Scopes"
+msgstr "Scopes"
+
+msgid "Show the whole token"
+msgstr "Show the whole token"
+
+msgid "Start with read access, and add only what the job needs."
+msgstr "Start with read access, and add only what the job needs."
+
+msgid "The new token, partly hidden:"
+msgstr "The new token, partly hidden:"
+
+msgid "The token wasn't created"
+msgstr "The token wasn't created"
+
+msgid "Token"
+msgstr "Token"
+
+msgid "Token copied"
+msgstr "Token copied"
+
+msgid "Tokens act for you from CI, scripts and the CLI, with only the scope you give them"
+msgstr "Tokens act for you from CI, scripts and the CLI, with only the scope you give them"
+
+msgid "What will use this token?"
+msgstr "What will use this token?"
+
+msgid "Your API tokens"
+msgstr "Your API tokens"
+
+msgid "Your passkey confirms it. You see the token once, right after you create it."
+msgstr "Your passkey confirms it. You see the token once, right after you create it."
+
+#. placeholder {0}: token.lastAddress
+msgid "from <0>{0}</0>"
+msgstr "from <0>{0}</0>"
+
+#. placeholder {0}: words.span(Math.max(0, when.getTime() - now))
+msgid "in {0}"
+msgstr "in {0}"
+
+#. placeholder {0}: list.length
+msgid "{0} tokens"
+msgstr "{0} tokens"
+
+msgid "{count} · 1 expires soon"
+msgstr "{count} · 1 expires soon"
+
+msgid "{count} · {soon} expire soon"
+msgstr "{count} · {soon} expire soon"
+
+msgid "Manage"
+msgstr "Manage"
+
+msgid "None yet. Make one for each script or integration that calls the API."
+msgstr "None yet. Make one for each script or integration that calls the API."
+
+msgid "They're listed, made and revoked in <0>Settings, under API tokens</0>."
+msgstr "They're listed, made and revoked in <0>Settings, under API tokens</0>."
+
+#. placeholder {0}: list.length
+msgid "{0, plural, one {# acts for you} other {# act for you}}"
+msgstr "{0, plural, one {# acts for you} other {# act for you}}"
+
+msgid "{acting}, and {expiring}."
+msgstr "{acting}, and {expiring}."
+
+msgid "{acting}."
+msgstr "{acting}."
+
+msgid "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
+msgstr "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
+
+msgid "A change failed"
+msgstr "A change failed"
+
+msgid "A passkey may have been copied"
+msgstr "A passkey may have been copied"
+
+msgid "Applied a change"
+msgstr "Applied a change"
+
+msgid "Applied {summary}"
+msgstr "Applied {summary}"
+
+msgid "Confirmed with a passkey"
+msgstr "Confirmed with a passkey"
+
+msgid "Couldn't apply {summary}"
+msgstr "Couldn't apply {summary}"
+
+msgid "Couldn't confirm with a passkey"
+msgstr "Couldn't confirm with a passkey"
+
+msgid "Couldn't sign in"
+msgstr "Couldn't sign in"
+
+msgid "Discarded a change"
+msgstr "Discarded a change"
+
+msgid "Discarded {summary}"
+msgstr "Discarded {summary}"
+
+msgid "Planned a change"
+msgstr "Planned a change"
+
+msgid "Planned {summary}"
+msgstr "Planned {summary}"
+
+msgid "Refused a call this token can't make"
+msgstr "Refused a call this token can't make"
+
+msgid "Refused to renew a server's certificate"
+msgstr "Refused to renew a server's certificate"
+
+msgid "Refused to renew the certificate of {name}"
+msgstr "Refused to renew the certificate of {name}"
+
+msgid "Saving {path}"
+msgstr "Saving {path}"
+
+msgid "Saving {path} on {name}"
+msgstr "Saving {path} on {name}"
+
+msgid "Set up this install"
+msgstr "Set up this install"
+
+msgid "Signed out"
+msgstr "Signed out"
+
+msgid "Stopped sign-in with codes after too many wrong ones"
+msgstr "Stopped sign-in with codes after too many wrong ones"
+
+msgid "The passkey {name} may have been copied"
+msgstr "The passkey {name} may have been copied"
+
+msgid "Used from a new address"
+msgstr "Used from a new address"
 
 msgid "Check the control plane's status"
 msgstr "Check the control plane's status"
@@ -7339,9 +8037,6 @@ msgstr "Skip to content"
 msgid "All healthy"
 msgstr "All healthy"
 
-msgid "New"
-msgstr "New"
-
 msgid "{docker} can't read Docker"
 msgstr "{docker} can't read Docker"
 
@@ -7399,14 +8094,8 @@ msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and 
 msgid "Go"
 msgstr "Go"
 
-msgid "Platform"
-msgstr "Platform"
-
 msgid "The control plane is running"
 msgstr "The control plane is running"
-
-msgid "This control plane"
-msgstr "This control plane"
 
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."

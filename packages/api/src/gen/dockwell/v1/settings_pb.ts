@@ -7,16 +7,18 @@
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_dockwell_v1_options } from "./options_pb";
+import type { BuildInfo } from "./system_pb";
+import { file_dockwell_v1_system } from "./system_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
-import type { Timestamp } from "@bufbuild/protobuf/wkt";
-import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
+import type { Duration, Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_duration, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file dockwell/v1/settings.proto.
  */
 export const file_dockwell_v1_settings: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9zZXR0aW5ncy5wcm90bxILZG9ja3dlbGwudjEiFAoSR2V0U2V0dGluZ3NSZXF1ZXN0Ij4KE0dldFNldHRpbmdzUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyKGAQoIU2V0dGluZ3MSDAoEbmFtZRgBIAEoCRIRCgl0aW1lX3pvbmUYAiABKAkSKAoFcGFuZWwYAyABKAsyGS5kb2Nrd2VsbC52MS5QYW5lbFNlcnZpbmcSLwoLY3JlYXRlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIp8BCgxQYW5lbFNlcnZpbmcSDgoGbGlzdGVuGAEgASgJEg4KBmRvbWFpbhgCIAEoCRItCglzZXJ2ZWRfYnkYAyABKA4yGi5kb2Nrd2VsbC52MS5QYW5lbFNlcnZlZEJ5EhQKDGh0dHBzX2xpc3RlbhgEIAEoCRILCgN1cmwYBSABKAkSHQoVY2VydGlmaWNhdGVfYXV0aG9yaXR5GAYgASgJIiUKFVNldEluc3RhbGxOYW1lUmVxdWVzdBIMCgRuYW1lGAEgASgJIkEKFlNldEluc3RhbGxOYW1lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyInChJTZXRUaW1lWm9uZVJlcXVlc3QSEQoJdGltZV96b25lGAEgASgJIj4KE1NldFRpbWVab25lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyqFAQoNUGFuZWxTZXJ2ZWRCeRIfChtQQU5FTF9TRVJWRURfQllfVU5TUEVDSUZJRUQQABIYChRQQU5FTF9TRVJWRURfQllfTk9ORRABEhwKGFBBTkVMX1NFUlZFRF9CWV9ET0NLV0VMTBACEhsKF1BBTkVMX1NFUlZFRF9CWV9JTkdSRVNTEAMyygMKD1NldHRpbmdzU2VydmljZRKAAQoLR2V0U2V0dGluZ3MSHy5kb2Nrd2VsbC52MS5HZXRTZXR0aW5nc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5HZXRTZXR0aW5nc1Jlc3BvbnNlIi6QAgGguxgBqrsYDwoIc2V0dGluZ3MSA2dldILT5JMCDhIML3YxL3NldHRpbmdzEpoBCg5TZXRJbnN0YWxsTmFtZRIiLmRvY2t3ZWxsLnYxLlNldEluc3RhbGxOYW1lUmVxdWVzdBojLmRvY2t3ZWxsLnYxLlNldEluc3RhbGxOYW1lUmVzcG9uc2UiP6C7GAOquxgUCghzZXR0aW5ncxIIc2V0LW5hbWWwuxgBgtPkkwIZOgEqIhQvdjEvc2V0dGluZ3M6c2V0TmFtZRKWAQoLU2V0VGltZVpvbmUSHy5kb2Nrd2VsbC52MS5TZXRUaW1lWm9uZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5TZXRUaW1lWm9uZVJlc3BvbnNlIkSguxgDqrsYGQoIc2V0dGluZ3MSDXNldC10aW1lLXpvbmWC0+STAh06ASoiGC92MS9zZXR0aW5nczpzZXRUaW1lWm9uZUKmAQoPY29tLmRvY2t3ZWxsLnYxQg1TZXR0aW5nc1Byb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9zZXR0aW5ncy5wcm90bxILZG9ja3dlbGwudjEiFAoSR2V0U2V0dGluZ3NSZXF1ZXN0Ij4KE0dldFNldHRpbmdzUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyKGAQoIU2V0dGluZ3MSDAoEbmFtZRgBIAEoCRIRCgl0aW1lX3pvbmUYAiABKAkSKAoFcGFuZWwYAyABKAsyGS5kb2Nrd2VsbC52MS5QYW5lbFNlcnZpbmcSLwoLY3JlYXRlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIp8BCgxQYW5lbFNlcnZpbmcSDgoGbGlzdGVuGAEgASgJEg4KBmRvbWFpbhgCIAEoCRItCglzZXJ2ZWRfYnkYAyABKA4yGi5kb2Nrd2VsbC52MS5QYW5lbFNlcnZlZEJ5EhQKDGh0dHBzX2xpc3RlbhgEIAEoCRILCgN1cmwYBSABKAkSHQoVY2VydGlmaWNhdGVfYXV0aG9yaXR5GAYgASgJIiUKFVNldEluc3RhbGxOYW1lUmVxdWVzdBIMCgRuYW1lGAEgASgJIkEKFlNldEluc3RhbGxOYW1lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyInChJTZXRUaW1lWm9uZVJlcXVlc3QSEQoJdGltZV96b25lGAEgASgJIj4KE1NldFRpbWVab25lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyIYChZHZXRDb250cm9sUGxhbmVSZXF1ZXN0IksKF0dldENvbnRyb2xQbGFuZVJlc3BvbnNlEjAKDWNvbnRyb2xfcGxhbmUYASABKAsyGS5kb2Nrd2VsbC52MS5Db250cm9sUGxhbmUi0wIKDENvbnRyb2xQbGFuZRIlCgVidWlsZBgBIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbxIuCgpzdGFydF90aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghkYXRhX2RpchgDIAEoCRIQCghrZXlfZmlsZRgEIAEoCRImCgVzdG9yZRgFIAEoCzIXLmRvY2t3ZWxsLnYxLlN0YXRlU3RvcmUSKAoFcGFuZWwYBiABKAsyGS5kb2Nrd2VsbC52MS5QYW5lbFNlcnZpbmcSKgoGYWdlbnRzGAcgASgLMhouZG9ja3dlbGwudjEuQWdlbnRMaXN0ZW5lchIUCgxtZW1vcnlfYnl0ZXMYCCABKAMSNAoPc2VydmljZV9tYW5hZ2VyGAkgASgOMhsuZG9ja3dlbGwudjEuU2VydmljZU1hbmFnZXIioQEKClN0YXRlU3RvcmUSLQoGZW5naW5lGAEgASgOMh0uZG9ja3dlbGwudjEuU3RhdGVTdG9yZUVuZ2luZRIQCghsb2NhdGlvbhgCIAEoCRIPCgd2ZXJzaW9uGAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAMSLQoKcm91bmRfdHJpcBgFIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbiJBCg1BZ2VudExpc3RlbmVyEg4KBmxpc3RlbhgBIAEoCRILCgN1cmwYAiABKAkSEwoLcHVibGljX3VybHMYAyADKAkqhQEKDVBhbmVsU2VydmVkQnkSHwobUEFORUxfU0VSVkVEX0JZX1VOU1BFQ0lGSUVEEAASGAoUUEFORUxfU0VSVkVEX0JZX05PTkUQARIcChhQQU5FTF9TRVJWRURfQllfRE9DS1dFTEwQAhIbChdQQU5FTF9TRVJWRURfQllfSU5HUkVTUxADKoQBCg5TZXJ2aWNlTWFuYWdlchIfChtTRVJWSUNFX01BTkFHRVJfVU5TUEVDSUZJRUQQABIYChRTRVJWSUNFX01BTkFHRVJfTk9ORRABEhsKF1NFUlZJQ0VfTUFOQUdFUl9TWVNURU1EEAISGgoWU0VSVklDRV9NQU5BR0VSX09QRU5SQxADKnYKEFN0YXRlU3RvcmVFbmdpbmUSIgoeU1RBVEVfU1RPUkVfRU5HSU5FX1VOU1BFQ0lGSUVEEAASHQoZU1RBVEVfU1RPUkVfRU5HSU5FX1NRTElURRABEh8KG1NUQVRFX1NUT1JFX0VOR0lORV9QT1NUR1JFUxACMpcJCg9TZXR0aW5nc1NlcnZpY2USgAEKC0dldFNldHRpbmdzEh8uZG9ja3dlbGwudjEuR2V0U2V0dGluZ3NSZXF1ZXN0GiAuZG9ja3dlbGwudjEuR2V0U2V0dGluZ3NSZXNwb25zZSIukAIBoLsYAaq7GA8KCHNldHRpbmdzEgNnZXSC0+STAg4SDC92MS9zZXR0aW5ncxKaAQoOU2V0SW5zdGFsbE5hbWUSIi5kb2Nrd2VsbC52MS5TZXRJbnN0YWxsTmFtZVJlcXVlc3QaIy5kb2Nrd2VsbC52MS5TZXRJbnN0YWxsTmFtZVJlc3BvbnNlIj+guxgDqrsYFAoIc2V0dGluZ3MSCHNldC1uYW1lsLsYAYLT5JMCGToBKiIUL3YxL3NldHRpbmdzOnNldE5hbWUSlgEKC1NldFRpbWVab25lEh8uZG9ja3dlbGwudjEuU2V0VGltZVpvbmVSZXF1ZXN0GiAuZG9ja3dlbGwudjEuU2V0VGltZVpvbmVSZXNwb25zZSJEoLsYA6q7GBkKCHNldHRpbmdzEg1zZXQtdGltZS16b25lgtPkkwIdOgEqIhgvdjEvc2V0dGluZ3M6c2V0VGltZVpvbmUSlQEKD0dldENvbnRyb2xQbGFuZRIjLmRvY2t3ZWxsLnYxLkdldENvbnRyb2xQbGFuZVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5HZXRDb250cm9sUGxhbmVSZXNwb25zZSI3kAIBoLsYAaq7GBQKDWNvbnRyb2wtcGxhbmUSA2dldILT5JMCEhIQL3YxL2NvbnRyb2xQbGFuZRqyBKK7GIoCCghzZXR0aW5ncxL9AVRoZSBpbnN0YWxsJ3Mgc2V0dGluZ3MgYXJlIHdoYXQgaXQncyBjYWxsZWQsIHRoZSB0aW1lIHpvbmUgbmV3IHNjaGVkdWxlcyBzdGFydCBpbiwgYW5kIGhvdyBpdHMgcGFuZWwgaXMgc2VydmVkLiBUaGV5IGNoYW5nZSB3aGF0IERvY2t3ZWxsIHNheXMgYW5kIHN1Z2dlc3RzLCBub3Qgd2hhdCBydW5zLCBzbyBhIGNoYW5nZSBuZWVkcyBubyBwbGFuLCBhbmQgZWFjaCBpcyBvbiB0aGUgYWN0aXZpdHkgbG9nIHdpdGggd2hhdCBpdCByZXBsYWNlZC6iuxieAgoNY29udHJvbC1wbGFuZRKMAlRoZSBjb250cm9sIHBsYW5lIHNlcnZlcyB0aGUgcGFuZWwgYW5kIEFQSSwgYmVzaWRlIGFuIGFnZW50IG9mIGl0cyBvd24uIEl0IHNheXMgdGhlIGJ1aWxkIGl0IHJ1bnMsIHdoZXJlIGl0IGtlZXBzIGl0cyBzdGF0ZSBhbmQgdGhlIGluc3RhbGwncyBrZXksIHRoZSBhZGRyZXNzZXMgaXQgYW5zd2VycyBvbiwgYW5kIGhvdyBpdCdzIGRvaW5nLiBNb3N0IG9mIHRoYXQgY29tZXMgZnJvbSBob3cgZG9ja3dlbGwgcnVuIHdhcyBzdGFydGVkLCBhbmQgY2hhbmdlcyB0aGVyZS5CpgEKD2NvbS5kb2Nrd2VsbC52MUINU2V0dGluZ3NQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * GetSettingsRequest takes no parameters.
@@ -248,6 +250,212 @@ export const SetTimeZoneResponseSchema: GenMessage<SetTimeZoneResponse> = /*@__P
   messageDesc(file_dockwell_v1_settings, 7);
 
 /**
+ * GetControlPlaneRequest takes no parameters.
+ *
+ * @generated from message dockwell.v1.GetControlPlaneRequest
+ */
+export type GetControlPlaneRequest = Message<"dockwell.v1.GetControlPlaneRequest"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.GetControlPlaneRequest.
+ * Use `create(GetControlPlaneRequestSchema)` to create a new message.
+ */
+export const GetControlPlaneRequestSchema: GenMessage<GetControlPlaneRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_settings, 8);
+
+/**
+ * GetControlPlaneResponse describes the control plane that answers.
+ *
+ * @generated from message dockwell.v1.GetControlPlaneResponse
+ */
+export type GetControlPlaneResponse = Message<"dockwell.v1.GetControlPlaneResponse"> & {
+  /**
+   * The control plane.
+   *
+   * @generated from field: dockwell.v1.ControlPlane control_plane = 1;
+   */
+  controlPlane?: ControlPlane | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.GetControlPlaneResponse.
+ * Use `create(GetControlPlaneResponseSchema)` to create a new message.
+ */
+export const GetControlPlaneResponseSchema: GenMessage<GetControlPlaneResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_settings, 9);
+
+/**
+ * ControlPlane is the dockwell run that serves the panel and API, with the
+ * agent it runs beside them.
+ *
+ * @generated from message dockwell.v1.ControlPlane
+ */
+export type ControlPlane = Message<"dockwell.v1.ControlPlane"> & {
+  /**
+   * The build it runs.
+   *
+   * @generated from field: dockwell.v1.BuildInfo build = 1;
+   */
+  build?: BuildInfo | undefined;
+
+  /**
+   * When it started.
+   *
+   * @generated from field: google.protobuf.Timestamp start_time = 2;
+   */
+  startTime?: Timestamp | undefined;
+
+  /**
+   * The directory it keeps its files in, such as "/var/lib/dockwell". Empty
+   * for an API token.
+   *
+   * @generated from field: string data_dir = 3;
+   */
+  dataDir: string;
+
+  /**
+   * The install's key, which opens every secret the state store keeps, such
+   * as "/var/lib/dockwell/control/key". A backup of the store needs it too,
+   * kept apart. Empty for an API token.
+   *
+   * @generated from field: string key_file = 4;
+   */
+  keyFile: string;
+
+  /**
+   * Where it keeps its state.
+   *
+   * @generated from field: dockwell.v1.StateStore store = 5;
+   */
+  store?: StateStore | undefined;
+
+  /**
+   * How the panel is served.
+   *
+   * @generated from field: dockwell.v1.PanelServing panel = 6;
+   */
+  panel?: PanelServing | undefined;
+
+  /**
+   * Where servers' agents reach it.
+   *
+   * @generated from field: dockwell.v1.AgentListener agents = 7;
+   */
+  agents?: AgentListener | undefined;
+
+  /**
+   * The memory it holds, with its own agent's, in bytes: its resident set.
+   * Zero where the system doesn't say.
+   *
+   * @generated from field: int64 memory_bytes = 8;
+   */
+  memoryBytes: bigint;
+
+  /**
+   * What runs it as a service, and so stops and starts it.
+   *
+   * @generated from field: dockwell.v1.ServiceManager service_manager = 9;
+   */
+  serviceManager: ServiceManager;
+};
+
+/**
+ * Describes the message dockwell.v1.ControlPlane.
+ * Use `create(ControlPlaneSchema)` to create a new message.
+ */
+export const ControlPlaneSchema: GenMessage<ControlPlane> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_settings, 10);
+
+/**
+ * StateStore is the database the control plane keeps its state in.
+ *
+ * @generated from message dockwell.v1.StateStore
+ */
+export type StateStore = Message<"dockwell.v1.StateStore"> & {
+  /**
+   * What kind of database it is.
+   *
+   * @generated from field: dockwell.v1.StateStoreEngine engine = 1;
+   */
+  engine: StateStoreEngine;
+
+  /**
+   * Where it is: a SQLite file's path, or a Postgres URL without its
+   * password. Empty for an API token.
+   *
+   * @generated from field: string location = 2;
+   */
+  location: string;
+
+  /**
+   * The database's own version, such as "3.50.4" or "17.2".
+   *
+   * @generated from field: string version = 3;
+   */
+  version: string;
+
+  /**
+   * Its size on disk, in bytes.
+   *
+   * @generated from field: int64 size_bytes = 4;
+   */
+  sizeBytes: bigint;
+
+  /**
+   * How long a query that reads nothing took, just now.
+   *
+   * @generated from field: google.protobuf.Duration round_trip = 5;
+   */
+  roundTrip?: Duration | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.StateStore.
+ * Use `create(StateStoreSchema)` to create a new message.
+ */
+export const StateStoreSchema: GenMessage<StateStore> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_settings, 11);
+
+/**
+ * AgentListener is where servers' agents reach the control plane.
+ *
+ * @generated from message dockwell.v1.AgentListener
+ */
+export type AgentListener = Message<"dockwell.v1.AgentListener"> & {
+  /**
+   * The address it listens on, such as ":7443".
+   *
+   * @generated from field: string listen = 1;
+   */
+  listen: string;
+
+  /**
+   * The URL a server on the control server's own network reaches it at, as
+   * a join ticket names it, such as "https://192.0.2.10:7443". Empty for an
+   * API token.
+   *
+   * @generated from field: string url = 2;
+   */
+  url: string;
+
+  /**
+   * The URLs a server elsewhere reaches it at, in the order a ticket tries
+   * them. Empty when that isn't known, and for an API token.
+   *
+   * @generated from field: repeated string public_urls = 3;
+   */
+  publicUrls: string[];
+};
+
+/**
+ * Describes the message dockwell.v1.AgentListener.
+ * Use `create(AgentListenerSchema)` to create a new message.
+ */
+export const AgentListenerSchema: GenMessage<AgentListener> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_settings, 12);
+
+/**
  * PanelServedBy is what serves the panel over HTTPS on its domain.
  *
  * @generated from enum dockwell.v1.PanelServedBy
@@ -290,8 +498,81 @@ export const PanelServedBySchema: GenEnum<PanelServedBy> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_settings, 0);
 
 /**
+ * ServiceManager is what runs dockwell run as a service on the control server.
+ *
+ * @generated from enum dockwell.v1.ServiceManager
+ */
+export enum ServiceManager {
+  /**
+   * @generated from enum value: SERVICE_MANAGER_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Nothing: it was started by hand, or in a container, and stops as it was
+   * started.
+   *
+   * @generated from enum value: SERVICE_MANAGER_NONE = 1;
+   */
+  NONE = 1,
+
+  /**
+   * systemd, as the dockwell unit: systemctl stop dockwell.
+   *
+   * @generated from enum value: SERVICE_MANAGER_SYSTEMD = 2;
+   */
+  SYSTEMD = 2,
+
+  /**
+   * OpenRC, as the dockwell service: rc-service dockwell stop.
+   *
+   * @generated from enum value: SERVICE_MANAGER_OPENRC = 3;
+   */
+  OPENRC = 3,
+}
+
+/**
+ * Describes the enum dockwell.v1.ServiceManager.
+ */
+export const ServiceManagerSchema: GenEnum<ServiceManager> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_settings, 1);
+
+/**
+ * StateStoreEngine is a kind of database the control plane can keep its state in.
+ *
+ * @generated from enum dockwell.v1.StateStoreEngine
+ */
+export enum StateStoreEngine {
+  /**
+   * @generated from enum value: STATE_STORE_ENGINE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * A SQLite file beside the control plane, for one control plane.
+   *
+   * @generated from enum value: STATE_STORE_ENGINE_SQLITE = 1;
+   */
+  SQLITE = 1,
+
+  /**
+   * A Postgres database, ahead of running more than one.
+   *
+   * @generated from enum value: STATE_STORE_ENGINE_POSTGRES = 2;
+   */
+  POSTGRES = 2,
+}
+
+/**
+ * Describes the enum dockwell.v1.StateStoreEngine.
+ */
+export const StateStoreEngineSchema: GenEnum<StateStoreEngine> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_settings, 2);
+
+/**
  * SettingsService reads and changes the install's own settings: what it's
  * called, the time zone its schedules start in, and how its panel is served.
+ * It also says what the control plane is, and how it's doing.
  *
  * None of these is managed state: they change what Dockwell says and suggests,
  * not what runs on a server, so a change needs no plan. Each is on the activity
@@ -336,6 +617,22 @@ export const SettingsService: GenService<{
     methodKind: "unary";
     input: typeof SetTimeZoneRequestSchema;
     output: typeof SetTimeZoneResponseSchema;
+  },
+  /**
+   * GetControlPlane returns what serves the panel and API: its build, where it
+   * keeps its state, the addresses it answers on, and how it's doing. Most of
+   * it comes from how dockwell run was started, and changes there.
+   *
+   * A call with an API token gets no paths, no state store location and no
+   * agent URLs: they say where the key and the store are, and the panel needs
+   * them only for a person signed in, to say how to back the control plane up.
+   *
+   * @generated from rpc dockwell.v1.SettingsService.GetControlPlane
+   */
+  getControlPlane: {
+    methodKind: "unary";
+    input: typeof GetControlPlaneRequestSchema;
+    output: typeof GetControlPlaneResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_settings, 0);

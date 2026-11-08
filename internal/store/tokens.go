@@ -30,6 +30,10 @@ type APIToken struct {
 	LastUsedAt *time.Time
 	LastIP     string
 	RevokedAt  *time.Time
+	// LocalAccount is the shell account on the control server that asked for
+	// a token for the CLI's local access, as "mira@hz-1". Empty for every
+	// other token.
+	LocalAccount string
 }
 
 // Token scopes, as stored.
@@ -47,14 +51,14 @@ func (t *APIToken) HasGrant(grant string) bool { return slices.Contains(t.Grants
 // MaxTokenAddresses bounds the addresses kept for each token.
 const MaxTokenAddresses = 256
 
-const apiTokenColumns = `id, token_hash, user_id, name, hint, scope, created_at, expires_at, last_used_at, last_ip, revoked_at, grants` //nolint:gosec // column names
+const apiTokenColumns = `id, token_hash, user_id, name, hint, scope, created_at, expires_at, last_used_at, last_ip, revoked_at, grants, local_account` //nolint:gosec // column names
 
 func scanAPIToken(row interface{ Scan(...any) error }) (APIToken, error) {
 	var t APIToken
 	var created int64
 	var expires, used, revoked sql.NullInt64
 	var grants string
-	if err := row.Scan(&t.ID, &t.TokenHash, &t.UserID, &t.Name, &t.Hint, &t.Scope, &created, &expires, &used, &t.LastIP, &revoked, &grants); err != nil {
+	if err := row.Scan(&t.ID, &t.TokenHash, &t.UserID, &t.Name, &t.Hint, &t.Scope, &created, &expires, &used, &t.LastIP, &revoked, &grants, &t.LocalAccount); err != nil {
 		return APIToken{}, err
 	}
 	if grants != "" {
@@ -66,9 +70,10 @@ func scanAPIToken(row interface{ Scan(...any) error }) (APIToken, error) {
 
 // CreateAPIToken records a new token.
 func (t *Tx) CreateAPIToken(ctx context.Context, tok APIToken) error {
-	_, err := t.exec(ctx, `INSERT INTO api_tokens (id, token_hash, user_id, name, hint, scope, created_at, expires_at, grants)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		tok.ID, tok.TokenHash, tok.UserID, tok.Name, tok.Hint, tok.Scope, millis(tok.CreatedAt), nullMillis(tok.ExpiresAt), strings.Join(tok.Grants, ","))
+	_, err := t.exec(ctx, `INSERT INTO api_tokens (id, token_hash, user_id, name, hint, scope, created_at, expires_at, grants, local_account)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		tok.ID, tok.TokenHash, tok.UserID, tok.Name, tok.Hint, tok.Scope, millis(tok.CreatedAt), nullMillis(tok.ExpiresAt), strings.Join(tok.Grants, ","),
+		tok.LocalAccount)
 	if err != nil {
 		return fmt.Errorf("can't record API token %s: %w", tok.ID, err)
 	}

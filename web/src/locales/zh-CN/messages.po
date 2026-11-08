@@ -398,9 +398,6 @@ msgstr "显示更早的事件"
 msgid "Size"
 msgstr "大小"
 
-msgid "Someone"
-msgstr "某人"
-
 msgid "State"
 msgstr "状态"
 
@@ -445,6 +442,18 @@ msgstr "服务器筛选"
 
 msgid "{count, plural, one {{long} · # event} other {{long} · # events}}"
 msgstr "{count, plural, other {{long} · # 个事件}}"
+
+msgid "CLI on {host}"
+msgstr "{host} 上的 CLI"
+
+msgid "Local access token, read-only, {id}, made by {account}"
+msgstr "本地访问令牌，只读，{id}，由 {account} 创建"
+
+msgid "Local access token, read-write, {id}, made by {account}"
+msgstr "本地访问令牌，读写，{id}，由 {account} 创建"
+
+msgid "Someone"
+msgstr "某人"
 
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "无法从 {destination} 取回 {volume} 的备份"
@@ -2618,115 +2627,6 @@ msgstr "版本 <0>{0}</0>"
 msgid "You're not signed in"
 msgstr "你尚未登录"
 
-msgid "API tokens"
-msgstr "API 令牌"
-
-msgid "Also plans and applies changes that can be undone. Never removes data or cuts off access."
-msgstr "还能规划并应用可撤销的更改。绝不会删除数据或切断访问。"
-
-msgid "Can read logs"
-msgstr "可以读取日志"
-
-msgid "Copy this token now. It won't be shown again."
-msgstr "请立即复制这个令牌。它不会再次显示。"
-
-msgid "Copy token"
-msgstr "复制令牌"
-
-msgid "Create an API token"
-msgstr "创建 API 令牌"
-
-msgid "Create token"
-msgstr "创建令牌"
-
-msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It doesn't expire."
-msgstr "已创建 <0>{name}</0>。请在 Authorization 标头中发送 <1>Bearer</1> 加上令牌。它不会过期。"
-
-msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
-msgstr "已创建 <0>{name}</0>。请在 Authorization 标头中发送 <1>Bearer</1> 加上令牌。它将于 {expires} 过期。"
-
-msgid "Done"
-msgstr "完成"
-
-msgid "Expires"
-msgstr "过期时间"
-
-msgid "Expires in {remaining}"
-msgstr "{remaining}后过期"
-
-msgid "For a script, the CLI or an integration"
-msgstr "用于脚本、CLI 或集成"
-
-msgid "In 1 year"
-msgstr "1 年后"
-
-msgid "In 30 days"
-msgstr "30 天后"
-
-msgid "In 90 days"
-msgstr "90 天后"
-
-msgid "Loading tokens"
-msgstr "正在加载令牌"
-
-msgid "Logs often hold secrets that apps print, so a token reads them only if you say so here."
-msgstr "日志中常含有应用打印的密钥，因此令牌只有在此处勾选后才能读取。"
-
-msgid "Name the token after what will use it, such as GitHub Actions deploy."
-msgstr "用将要使用它的程序为令牌命名，例如 GitHub Actions deploy。"
-
-msgctxt "token expiry"
-msgid "Never"
-msgstr "从不"
-
-msgid "No tokens yet. Make one for each script or integration, so you can revoke one alone."
-msgstr "还没有令牌。为每个脚本或集成各创建一个，这样就能单独撤销其中一个。"
-
-msgid "Read and write"
-msgstr "读写"
-
-msgid "Read only"
-msgstr "只读"
-
-msgid "Reads logs"
-msgstr "可读取日志"
-
-msgid "Reads servers and their state. Changes nothing."
-msgstr "读取服务器及其状态，不做任何更改。"
-
-msgid "Revoke"
-msgstr "撤销"
-
-msgid "Revoke {name}"
-msgstr "撤销 {name}"
-
-msgid "Start with read only, and allow writes only when the job needs them."
-msgstr "先从只读开始，只在任务需要时才允许写入。"
-
-msgid "The token wasn't created"
-msgstr "令牌未创建"
-
-msgid "Token copied"
-msgstr "令牌已复制"
-
-msgid "Tokens act for you from scripts, the CLI and integrations. None can remove data, cut off access or change how you sign in."
-msgstr "令牌在脚本、CLI 和集成中代表你操作。任何令牌都不能删除数据、切断访问或更改你的登录方式。"
-
-msgid "What will use this token?"
-msgstr "什么将使用这个令牌？"
-
-msgid "You see the token once, right after you create it."
-msgstr "令牌只在创建后立即显示一次。"
-
-msgid "doesn't expire"
-msgstr "不会过期"
-
-msgid "expires {day}"
-msgstr "{day}过期"
-
-msgid "used {ago} from <0>{lastAddress}</0>"
-msgstr "{ago}从 <0>{lastAddress}</0> 使用过"
-
 msgid "Authenticator app"
 msgstr "身份验证器应用"
 
@@ -2831,8 +2731,8 @@ msgstr "{name} 还没有所有者"
 msgid "{browser} on {os}"
 msgstr "{os} 上的 {browser}"
 
-msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API 令牌不能删除数据、切断访问、显示密钥、访问服务器的文件或进程，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
+msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API 令牌不能删除数据、切断访问、显示密钥、访问服务器上的文件或进程、重命名此安装，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
 
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
 msgstr "添加通行密钥需要用你在此地址已有的通行密钥确认，而你在这里还没有。请退出登录，再用验证码、恢复码或 dockwell recover 给出的链接重新登录，然后在 10 分钟内添加。"
@@ -2849,11 +2749,11 @@ msgstr "通行密钥需要主机名，不能用 IP 地址。请在同一端口�
 msgid "Something went wrong. Try again."
 msgstr "出了点问题。请重试。"
 
-msgid "That API token is read-only, so it can't make changes. Create a read-write token under Profile and security."
-msgstr "这个 API 令牌是只读的，所以不能进行更改。请在“个人资料和安全”中创建读写令牌。"
+msgid "That API token is read-only, so it can't make changes. Create a read-write token in Settings, under API tokens."
+msgstr "这个 API 令牌是只读的，无法做出更改。请在设置的 API 令牌中创建一个可读写的令牌。"
 
-msgid "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one under Profile and security."
-msgstr "这个 API 令牌无法识别、已撤销或已过期。请检查是否完整复制了它，或在“个人资料和安全”中创建新令牌。"
+msgid "That API token is unknown, revoked or expired. Check you copied all of it, or create a new one in Settings, under API tokens."
+msgstr "这个 API 令牌无法识别、已被撤销或已过期。请检查是否完整复制，或在设置的 API 令牌中创建一个新的。"
 
 msgid "That code didn't work. Check the email and the code, then try again."
 msgstr "这个验证码无效。请检查邮箱和验证码，然后重试。"
@@ -3328,6 +3228,9 @@ msgstr "运行中应用的副本"
 
 msgid "Daily at {at}"
 msgstr "每天 {at}"
+
+msgid "Done"
+msgstr "完成"
 
 msgid "Exact copy"
 msgstr "精确副本"
@@ -7090,6 +6993,351 @@ msgstr "{provider} 的元数据服务给出此地址，{when}"
 msgid "up {uptime}"
 msgstr "已运行 {uptime}"
 
+msgid "1 event in the last 24 hours."
+msgstr "最近 24 小时内有 1 个事件。"
+
+msgid "1 event in the last 30 days."
+msgstr "最近 30 天内有 1 个事件。"
+
+msgid "1 event in the last 7 days."
+msgstr "最近 7 天内有 1 个事件。"
+
+msgid "1 event, all there is."
+msgstr "共 1 个事件，这是全部。"
+
+msgid "API"
+msgstr "API"
+
+msgid "API tokens"
+msgstr "API 令牌"
+
+msgid "Action"
+msgstr "操作"
+
+msgid "All sources"
+msgstr "所有来源"
+
+msgid "Applied by"
+msgstr "应用者"
+
+msgid "Audit log"
+msgstr "审计日志"
+
+msgid "CLI"
+msgstr "CLI"
+
+msgid "Detail"
+msgstr "详情"
+
+msgid "Dockwell can't read the audit log"
+msgstr "Dockwell 无法读取审计日志"
+
+msgid "Events"
+msgstr "事件"
+
+msgid "Every change and every way in, by people, tokens, servers and Dockwell · kept as long as this install exists"
+msgstr "人员、令牌、服务器和 Dockwell 的每一次变更与每一次访问 · 只要此安装存在就会一直保留"
+
+msgid "Everything"
+msgstr "全部"
+
+msgid "Export CSV"
+msgstr "导出 CSV"
+
+msgid "Filter by actor, action, target or address"
+msgstr "按执行者、操作、对象或地址筛选"
+
+msgid "Filter events"
+msgstr "筛选事件"
+
+#. placeholder {0}: event.action
+msgid "Hide details for {0} at {time}"
+msgstr "隐藏 {time} 的 {0} 详情"
+
+msgid "JSON lines"
+msgstr "JSON 行"
+
+msgid "Last 24 hours"
+msgstr "最近 24 小时"
+
+msgid "Last 30 days"
+msgstr "最近 30 天"
+
+msgid "Last 7 days"
+msgstr "最近 7 天"
+
+msgid "Loading the audit log"
+msgstr "正在加载审计日志"
+
+msgid "Loading the change"
+msgstr "正在加载变更"
+
+msgid "Not signed in"
+msgstr "未登录"
+
+msgid "Nothing happened in this range. Pick a longer one to see more."
+msgstr "这个时间范围内没有发生任何事。选择更长的范围以查看更多。"
+
+msgid "Nothing matches. Pick a longer range, or clear the filters."
+msgstr "没有匹配的事件。请选择更长的范围，或清除筛选条件。"
+
+msgid "Open in Activity"
+msgstr "在动态中打开"
+
+msgid "Panel"
+msgstr "面板"
+
+msgid "People"
+msgstr "人员"
+
+msgid "Pick a longer range to see more."
+msgstr "选择更长的范围以查看更多。"
+
+msgid "Recorded"
+msgstr "记录内容"
+
+msgid "Saved 1 event."
+msgstr "已保存 1 个事件。"
+
+msgid "Saved the newest {most} events. Narrow the filters to save the rest."
+msgstr "已保存最新的 {most} 条事件。缩小筛选范围以保存其余事件。"
+
+#. placeholder {0}: events.length
+msgid "Saved {0} events."
+msgstr "已保存 {0} 个事件。"
+
+msgid "Shells on the control server"
+msgstr "控制服务器上的 Shell"
+
+#. placeholder {0}: event.action
+msgid "Show details for {0} at {time}"
+msgstr "显示 {time} 的 {0} 详情"
+
+msgid "Target"
+msgstr "对象"
+
+msgid "The audit log, newest first"
+msgstr "审计日志，最新的在前"
+
+msgid "The newest {count} events. Show more for older ones."
+msgstr "最新的 {count} 个事件。显示更多以查看更早的事件。"
+
+msgid "Today · {day}"
+msgstr "今天 · {day}"
+
+msgid "What happened"
+msgstr "发生了什么"
+
+msgid "Yesterday · {day}"
+msgstr "昨天 · {day}"
+
+msgid "{count} events in the last 24 hours."
+msgstr "最近 24 小时内有 {count} 个事件。"
+
+msgid "{count} events in the last 30 days."
+msgstr "最近 30 天内有 {count} 个事件。"
+
+msgid "{count} events in the last 7 days."
+msgstr "最近 7 天内有 {count} 个事件。"
+
+msgid "{count} events, all there are."
+msgstr "共 {count} 个事件，这是全部。"
+
+msgid "{name} and {more} more"
+msgstr "{name} 等 {more} 项"
+
+msgid "A file beside the control plane, for one control plane"
+msgstr "控制平面旁的一个文件，适用于单个控制平面"
+
+msgid "A server that joined upgrades the same way: run the install script again on it."
+msgstr "已加入的服务器以同样方式升级：在它上面再次运行安装脚本。"
+
+msgid "Agents"
+msgstr "代理"
+
+msgid "Agents connect to"
+msgstr "代理连接到"
+
+msgid "Answering"
+msgstr "正在响应"
+
+msgid "Answers in"
+msgstr "响应时间"
+
+msgid "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
+msgstr "应用的卷和数据库有各自的备份，见<0>备份</0>。"
+
+msgid "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
+msgstr "像备份任何 Postgres 数据库一样用 <0>pg_dump</0> 备份它，并按下面的方法复制控制平面的文件夹和密钥。"
+
+msgid "Built from {commit}"
+msgstr "由 {commit} 构建"
+
+msgid "Built {built} from {commit}"
+msgstr "{built} 由 {commit} 构建"
+
+msgid "By hand, for now"
+msgstr "目前需手动"
+
+msgid "Dockwell can't say how its control plane is"
+msgstr "Dockwell 无法获知其控制平面的状态"
+
+msgid "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
+msgstr "Dockwell 还不会备份自己的状态。请把它复制到这台服务器之外，并把密钥分开存放：密钥能打开状态存储中的所有机密，没有密钥，存储的副本一个也打不开。"
+
+msgid "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
+msgstr "Dockwell 还不会检查新版本或自行升级。要安装特定版本，请将命令结尾改为 <0>sudo sh -s -- --version 0.4.0</0>。"
+
+msgid "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
+msgstr "Dockwell 在这里没有作为服务运行，所以请先停止 <0>dockwell run</0>：只有在没有任何写入时，存储才是完整的。然后以 root 身份运行以下命令，完成后再启动 Dockwell。"
+
+msgid "Engine"
+msgstr "引擎"
+
+msgid "From elsewhere"
+msgstr "从其他网络"
+
+msgid "From its network"
+msgstr "从它所在的网络"
+
+msgid "How to back it up and restore it"
+msgstr "如何备份和恢复"
+
+msgid "How to change settings"
+msgstr "如何更改设置"
+
+msgctxt "encryption"
+msgid "Key"
+msgstr "密钥"
+
+msgid "Location"
+msgstr "位置"
+
+msgid "One · if it stops, the panel and API stop with it, and servers keep running what they run"
+msgstr "一个 · 它停止时，面板和 API 随之停止，服务器上运行的内容照常运行"
+
+msgid "Opens every secret the store keeps"
+msgstr "能打开存储中的所有机密"
+
+msgid "Panel and API"
+msgstr "面板和 API"
+
+msgid "Panel, API and scheduler for this install"
+msgstr "这个安装的面板、API 和调度器"
+
+#. placeholder {0}: own.name
+msgid "Panel, API and scheduler for this install · one replica, on {0}"
+msgstr "这个安装的面板、API 和调度器 · 一个副本，位于 {0}"
+
+msgid "Panel, API and scheduler for {name}"
+msgstr "{name} 的面板、API 和调度器"
+
+#. placeholder {0}: own.name
+msgid "Panel, API and scheduler for {name} · one replica, on {0}"
+msgstr "{name} 的面板、API 和调度器 · 一个副本，位于 {0}"
+
+msgid "PostgreSQL"
+msgstr "PostgreSQL"
+
+msgid "Ready for more than one control plane"
+msgstr "可支持多个控制平面"
+
+msgid "Releases"
+msgstr "版本发布"
+
+msgid "Replicas"
+msgstr "副本"
+
+msgid "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "请以 root 身份运行。它会在复制前停止 Dockwell，以保证存储完整；如果停止失败，则不会复制任何内容。停止期间你的应用会继续提供服务，Dockwell 恢复后服务器会重新连接。"
+
+msgid "SQLite, on this server"
+msgstr "SQLite，在这台服务器上"
+
+msgctxt "on disk"
+msgid "Size"
+msgstr "磁盘占用"
+
+msgid "State store"
+msgstr "状态存储"
+
+msgid "The version that runs here is unknown"
+msgstr "无法得知这里运行的版本"
+
+msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
+msgstr "然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1> 移出服务器，分别存放在两个不同的地方。"
+
+msgid "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
+msgstr "这些取决于 Dockwell 的启动方式。面板的域名在<0>常规</0>中；其余的也以同样方式设置。"
+
+msgid "This control plane"
+msgstr "当前控制平面"
+
+msgid "This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "它会在复制前停止 Dockwell，以保证存储完整；如果停止失败，则不会复制任何内容。停止期间你的应用会继续提供服务，Dockwell 恢复后服务器会重新连接。"
+
+msgid "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
+msgstr "要升级，请以 root 身份在这台服务器上再次运行安装脚本。如果有新版本，它会验证并安装，然后重启 Dockwell。你的应用照常提供服务。"
+
+msgid "agent"
+msgstr "个代理"
+
+msgid "agent · {versions}"
+msgstr "个代理 · {versions}"
+
+msgid "agents"
+msgstr "个代理"
+
+msgid "agents · {versions}"
+msgstr "个代理 · {versions}"
+
+msgid "all on {short}"
+msgstr "全部为 {short}"
+
+msgid "hasn't connected yet"
+msgstr "尚未连接"
+
+#. placeholder {0}: words.ago(timestampDate(s.lastSeenTime), now)
+msgid "not connected, last heard {0}"
+msgstr "未连接，最后一次联系在 {0}"
+
+msgid "on loopback"
+msgstr "在回环地址上"
+
+#. placeholder {0}: shortVersion(s.agentBuild?.version ?? "")
+msgid "runs {0}"
+msgstr "运行 {0}"
+
+msgid "under 0.1 ms"
+msgstr "不到 0.1 毫秒"
+
+#. placeholder {0}: connected.length
+msgid "{0} connected"
+msgstr "{0} 个已连接"
+
+#. placeholder {0}: formatFixed(trip, trip < 10 ? 1 : 0, i18n.locale)
+msgid "{0} ms"
+msgstr "{0} 毫秒"
+
+#. placeholder {0}: count - behind.length
+#. placeholder {1}: behind.length
+msgid "{0} on {short}, {1} on another version"
+msgstr "{0} 个为 {short}，{1} 个为其他版本"
+
+#. placeholder {0}: shortVersion(build.version)
+msgid "{0} runs here"
+msgstr "这里运行的是 {0}"
+
+#. placeholder {0}: formatBytes(memory, i18n.locale)
+#. placeholder {1}: formatBytes(BUDGET_BYTES, i18n.locale)
+msgid "{0} with its agent, of a {1} budget"
+msgstr "{0}（含其代理），预算为 {1}"
+
+#. placeholder {0}: words.span(Math.max(0, now - started.getTime()))
+#. placeholder {1}: formatDay(started, i18n.locale)
+msgid "{0}, since {1}"
+msgstr "{0}，自 {1} 起"
+
 msgid "A change goes on Activity, with what it replaced."
 msgstr "每次更改都会连同被替换的值记入动态。"
 
@@ -7113,9 +7361,6 @@ msgstr "常规"
 
 msgid "HTTPS"
 msgstr "HTTPS"
-
-msgid "How to change settings"
-msgstr "如何更改设置"
 
 msgid "Language"
 msgstr "语言"
@@ -7180,14 +7425,467 @@ msgstr "使用 OpenRC 时，在 <1>/etc/conf.d/dockwell</1> 中写入 <0>export 
 msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 msgstr "使用 systemd 时，用 <0>sudo systemctl edit dockwell</0> 添加 <1>Environment=DOCKWELL_DOMAIN=…</1> 这一行，然后运行 <2>sudo systemctl restart dockwell</2>。"
 
+#. placeholder {0}: formatBytes(d.usedBytes, i18n.locale)
+msgid "1 backup, {0}"
+msgstr "1 份备份，{0}"
+
+msgid "1 bucket · where backups go beside each server's disk"
+msgstr "1 个存储桶 · 备份在各服务器磁盘之外存放的地方"
+
+msgid "1 connected · the services Dockwell sends backups to and routes behind"
+msgstr "已连接 1 个 · Dockwell 发送备份的服务，以及路由所在的服务"
+
+msgid "A backup didn't get here {when}"
+msgstr "{when}有一份备份未能送达"
+
+msgid "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
+msgstr "路由可以位于 Cloudflare 代理之后并信任其地址，或位于 Cloudflare Tunnel 之后，由它终止 TLS。从 Dockwell 管理其 DNS 记录将在之后推出。"
+
+msgid "Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave."
+msgstr "Amazon S3、Cloudflare R2、Backblaze B2、MinIO 或任何 S3 API。备份在离开服务器之前就已加密封存。"
+
+msgid "Any DNS provider"
+msgstr "任何 DNS 服务商"
+
+#. placeholder {0}: d.bucket
+msgid "Bucket <0>{0}</0> at <1>{host}</1>"
+msgstr "存储桶 <0>{0}</0>，位于 <1>{host}</1>"
+
+msgid "Cloud providers"
+msgstr "云服务商"
+
+msgid "Coming later"
+msgstr "之后推出"
+
+msgid "Connect"
+msgstr "连接"
+
+msgid "Connect storage"
+msgstr "连接存储"
+
+msgid "Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand."
+msgstr "私有镜像的凭据。目前服务器只拉取公开镜像，不使用它的 docker login，因此私有镜像只有在有人手动在该服务器上拉取后才能运行。"
+
+msgid "DNS and proxies"
+msgstr "DNS 和代理"
+
+msgid "Dockwell can't list where backups go"
+msgstr "Dockwell 无法列出备份的去向"
+
+msgid "Git"
+msgstr "Git"
+
+msgid "GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file."
+msgstr "GitHub、GitLab 和 Gitea，在仓库变更时部署应用。目前应用运行的是镜像或 Compose 文件。"
+
+msgid "Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket."
+msgstr "Hetzner、DigitalOcean、Vultr 和 AWS，用于创建和替换服务器。目前服务器通过安装脚本和加入凭证加入。"
+
+msgid "How to route behind it"
+msgstr "如何在其后设置路由"
+
+msgid "Integrations"
+msgstr "集成"
+
+msgid "Loading where backups go"
+msgstr "正在加载备份去向"
+
+msgid "Manage in Backups"
+msgstr "在备份中管理"
+
+msgid "No backup yet"
+msgstr "尚无备份"
+
+msgid "Object storage"
+msgstr "对象存储"
+
+msgid "Open Domains"
+msgstr "打开域名"
+
+msgid "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
+msgstr "将域名记录指向服务器，Dockwell 就会为它获取证书。域名表单会说明要创建哪条记录，并持续跟踪 DNS 直到生效。"
+
+#. placeholder {0}: words.ago(uploaded, now)
+msgid "Received a backup {0}"
+msgstr "{0}收到一份备份"
+
+msgid "Registries"
+msgstr "镜像仓库"
+
+msgid "S3-compatible storage"
+msgstr "S3 兼容存储"
+
+msgid "Values your apps use live in <0>Variables and secrets</0>"
+msgstr "应用使用的值保存在<0>变量和机密</0>中"
+
+msgid "Works in front of routes"
+msgstr "可用于路由之前"
+
+msgid "in front of a server's routes"
+msgstr "位于服务器路由之前"
+
+msgid "{connected} buckets · where backups go beside each server's disk"
+msgstr "{connected} 个存储桶 · 备份在各服务器磁盘之外存放的地方"
+
+msgid "{connected} connected · the services Dockwell sends backups to and routes behind"
+msgstr "已连接 {connected} 个 · Dockwell 发送备份的服务，以及路由所在的服务"
+
+msgid "1 browser"
+msgstr "1 个浏览器"
+
+msgid "1 passkey"
+msgstr "1 个通行密钥"
+
+msgid "1 person signs in to this install, its owner · inviting others comes later"
+msgstr "1 人可以登录这个安装，即其所有者 · 邀请他人将在之后推出"
+
+msgid "<0>dockwell recover</0> on the control server"
+msgstr "在控制服务器上运行 <0>dockwell recover</0>"
+
+msgid "An install has one person today, the owner who claimed it, as nothing yet tells an admin, a developer or a viewer apart from them. Scripts and integrations sign in with API tokens. <0>What members and roles need</0>"
+msgstr "目前一个安装只有一个人，即认领它的所有者，因为还没有任何机制能把管理员、开发者或查看者与所有者区分开。脚本和集成使用 API 令牌登录。<0>成员和角色需要什么</0>"
+
+msgid "Change the install's settings"
+msgstr "更改这个安装的设置"
+
+msgid "Deploy, and apply any plan"
+msgstr "部署，并应用任何计划"
+
+msgid "Dockwell can't say who signs in"
+msgstr "Dockwell 无法得知谁可以登录"
+
+msgid "Everything, on every server. Admins, developers and viewers, each seeing and doing less and scoped by project, come with members."
+msgstr "在每台服务器上拥有全部权限。管理员、开发者和查看者各自能看到和执行的更少，并按项目划分范围，将随成员功能推出。"
+
+msgid "How you sign in"
+msgstr "你的登录方式"
+
+msgid "Inviting someone comes in a later release"
+msgstr "邀请他人将在之后的版本中推出"
+
+msgid "Last active"
+msgstr "上次活动"
+
+msgid "Last resort"
+msgstr "最后手段"
+
+msgid "Loading who signs in"
+msgstr "正在加载可以登录的人"
+
+msgid "Locked after too many wrong codes, until you lift it in Profile and security"
+msgstr "错误验证码过多，已锁定，可在“个人资料与安全”中解除"
+
+msgid "Make and revoke API tokens"
+msgstr "创建和撤销 API 令牌"
+
+msgid "Manage servers and their files"
+msgstr "管理服务器及其文件"
+
+msgid "Member"
+msgstr "成员"
+
+msgid "Members"
+msgstr "成员"
+
+msgid "No way in that works now"
+msgstr "当前没有可用的登录方式"
+
+msgid "Now"
+msgstr "现在"
+
+msgid "OIDC comes in a later release"
+msgstr "OIDC 将在之后的版本中推出"
+
+msgid "On, 1 recovery code left"
+msgstr "已开启，剩余 1 个恢复码"
+
+#. placeholder {0}: member.recoveryCodesLeft
+msgid "On, {0} recovery codes left"
+msgstr "已开启，剩余 {0} 个恢复码"
+
+msgid "Passkey and authenticator app"
+msgstr "通行密钥和身份验证器应用"
+
+msgid "Permission"
+msgstr "权限"
+
+msgid "Read the audit log"
+msgstr "读取审计日志"
+
+msgid "Sign-in"
+msgstr "登录"
+
+msgid "Signed in on"
+msgstr "已登录于"
+
+msgid "Single sign-on"
+msgstr "单点登录"
+
+msgid "What the owner can do"
+msgstr "所有者可以做什么"
+
+msgid "Who signs in"
+msgstr "谁可以登录"
+
+msgid "Who signs in to this install"
+msgstr "谁可以登录这个安装"
+
+msgid "You"
+msgstr "你"
+
+msgid "all sign in with a passkey"
+msgstr "全部使用通行密钥登录"
+
+#. placeholder {0}: member.sessions
+msgid "{0} browsers"
+msgstr "{0} 个浏览器"
+
+#. placeholder {0}: m.passkeys
+msgid "{0} passkeys"
+msgstr "{0} 个通行密钥"
+
+msgid "{count} people sign in to this install"
+msgstr "{count} 人可以登录这个安装"
+
+msgid "{keys} and an authenticator app"
+msgstr "{keys}和一个身份验证器应用"
+
+msgid "{keys}, with codes locked"
+msgstr "{keys}，验证码登录已锁定"
+
+msgid "{withPasskeys} of {count} sign in with a passkey"
+msgstr "{count} 人中有 {withPasskeys} 人使用通行密钥登录"
+
 msgid "Account"
 msgstr "账户"
 
 msgid "Install"
 msgstr "安装"
 
+msgid "Platform"
+msgstr "平台"
+
 msgid "Settings"
 msgstr "设置"
+
+msgid "1 token"
+msgstr "1 个令牌"
+
+msgid "Active tokens"
+msgstr "有效的令牌"
+
+msgid "Copy this token now. It won't be shown again."
+msgstr "请立即复制这个令牌。它不会再次显示。"
+
+msgid "Copy token"
+msgstr "复制令牌"
+
+msgid "Create a token"
+msgstr "创建令牌"
+
+msgid "Create token"
+msgstr "创建令牌"
+
+msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It doesn't expire."
+msgstr "已创建 <0>{name}</0>。请在 Authorization 请求头中以 <1>Bearer</1> 加令牌的形式发送。它不会过期。"
+
+msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
+msgstr "已创建 <0>{name}</0>。请在 Authorization 请求头中以 <1>Bearer</1> 加令牌的形式发送。它将于 {expires} 过期。"
+
+msgid "Dockwell can't list your tokens"
+msgstr "Dockwell 无法列出你的令牌"
+
+msgid "Each new address it's used from goes in the <0>audit log</0>"
+msgstr "每次从新地址使用都会记入<0>审计日志</0>"
+
+msgid "Expires"
+msgstr "过期时间"
+
+msgid "Hide the token"
+msgstr "隐藏令牌"
+
+msgid "In 1 year"
+msgstr "1 年后"
+
+msgid "In 30 days"
+msgstr "30 天后"
+
+msgid "In 90 days"
+msgstr "90 天后"
+
+msgid "Last used"
+msgstr "上次使用"
+
+msgid "Loading tokens"
+msgstr "正在加载令牌"
+
+msgid "Name the token after what will use it, such as GitHub Actions deploy."
+msgstr "用将要使用它的程序为令牌命名，例如 GitHub Actions deploy。"
+
+msgctxt "token expiry"
+msgid "Never"
+msgstr "从不"
+
+msgid "New"
+msgstr "新"
+
+msgid "No tokens yet. Make one for each script or integration below, so you can revoke one without stopping the rest."
+msgstr "还没有令牌。请在下方为每个脚本或集成各创建一个，这样撤销其中一个时不会影响其他。"
+
+msgid "Plan and apply changes that can be undone. Never removes data or cuts off access."
+msgstr "规划并应用可撤销的变更。绝不会删除数据或切断访问。"
+
+msgid "Read apps' logs, which often hold what apps shouldn't print."
+msgstr "读取应用日志，其中常含有应用不该打印的内容。"
+
+msgid "Read servers, apps, plans and activity. Every token can, and changes nothing."
+msgstr "读取服务器、应用、计划和动态。所有令牌都可以，且不做任何更改。"
+
+msgid "Revoke"
+msgstr "撤销"
+
+#. placeholder {0}: token.name
+msgid "Revoke {0}"
+msgstr "撤销 {0}"
+
+msgid "Scopes"
+msgstr "范围"
+
+msgid "Show the whole token"
+msgstr "显示完整令牌"
+
+msgid "Start with read access, and add only what the job needs."
+msgstr "从只读权限开始，只添加任务需要的权限。"
+
+msgid "The new token, partly hidden:"
+msgstr "新令牌，部分已隐藏："
+
+msgid "The token wasn't created"
+msgstr "令牌未创建"
+
+msgid "Token"
+msgstr "令牌"
+
+msgid "Token copied"
+msgstr "令牌已复制"
+
+msgid "Tokens act for you from CI, scripts and the CLI, with only the scope you give them"
+msgstr "令牌在 CI、脚本和 CLI 中代表你行事，权限仅限于你授予的范围"
+
+msgid "What will use this token?"
+msgstr "什么将使用这个令牌？"
+
+msgid "Your API tokens"
+msgstr "你的 API 令牌"
+
+msgid "Your passkey confirms it. You see the token once, right after you create it."
+msgstr "需要你的通行密钥确认。令牌只在创建后立即显示一次。"
+
+#. placeholder {0}: token.lastAddress
+msgid "from <0>{0}</0>"
+msgstr "来自 <0>{0}</0>"
+
+#. placeholder {0}: words.span(Math.max(0, when.getTime() - now))
+msgid "in {0}"
+msgstr "{0}后"
+
+#. placeholder {0}: list.length
+msgid "{0} tokens"
+msgstr "{0} 个令牌"
+
+msgid "{count} · 1 expires soon"
+msgstr "{count} · 1 个即将过期"
+
+msgid "{count} · {soon} expire soon"
+msgstr "{count} · {soon} 个即将过期"
+
+msgid "Manage"
+msgstr "管理"
+
+msgid "None yet. Make one for each script or integration that calls the API."
+msgstr "还没有。请为每个调用 API 的脚本或集成各创建一个。"
+
+msgid "They're listed, made and revoked in <0>Settings, under API tokens</0>."
+msgstr "令牌的列出、创建和撤销都在<0>设置的 API 令牌</0>中。"
+
+#. placeholder {0}: list.length
+msgid "{0, plural, one {# acts for you} other {# act for you}}"
+msgstr "{0, plural, other {# 个令牌代表你行事}}"
+
+msgid "{acting}, and {expiring}."
+msgstr "{acting}，其中 {expiring}。"
+
+msgid "{acting}."
+msgstr "{acting}。"
+
+msgid "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
+msgstr "{soon, plural, other {# 个将在两周内过期}}"
+
+msgid "A change failed"
+msgstr "一项变更失败"
+
+msgid "A passkey may have been copied"
+msgstr "某个通行密钥可能已被复制"
+
+msgid "Applied a change"
+msgstr "应用了一项变更"
+
+msgid "Applied {summary}"
+msgstr "已应用 {summary}"
+
+msgid "Confirmed with a passkey"
+msgstr "已用通行密钥确认"
+
+msgid "Couldn't apply {summary}"
+msgstr "无法应用 {summary}"
+
+msgid "Couldn't confirm with a passkey"
+msgstr "无法用通行密钥确认"
+
+msgid "Couldn't sign in"
+msgstr "登录失败"
+
+msgid "Discarded a change"
+msgstr "舍弃了一项变更"
+
+msgid "Discarded {summary}"
+msgstr "已舍弃 {summary}"
+
+msgid "Planned a change"
+msgstr "规划了一项变更"
+
+msgid "Planned {summary}"
+msgstr "已规划 {summary}"
+
+msgid "Refused a call this token can't make"
+msgstr "拒绝了此令牌无权发起的调用"
+
+msgid "Refused to renew a server's certificate"
+msgstr "拒绝续签某台服务器的证书"
+
+msgid "Refused to renew the certificate of {name}"
+msgstr "拒绝续签 {name} 的证书"
+
+msgid "Saving {path}"
+msgstr "正在保存 {path}"
+
+msgid "Saving {path} on {name}"
+msgstr "正在保存 {name} 上的 {path}"
+
+msgid "Set up this install"
+msgstr "创建了此安装"
+
+msgid "Signed out"
+msgstr "已退出登录"
+
+msgid "Stopped sign-in with codes after too many wrong ones"
+msgstr "错误次数过多，已停止使用验证码登录"
+
+msgid "The passkey {name} may have been copied"
+msgstr "通行密钥 {name} 可能已被复制"
+
+msgid "Used from a new address"
+msgstr "从新地址使用"
 
 msgid "Check the control plane's status"
 msgstr "查看控制平面状态"
@@ -7339,9 +8037,6 @@ msgstr "跳到主要内容"
 msgid "All healthy"
 msgstr "全部健康"
 
-msgid "New"
-msgstr "新建"
-
 msgid "{docker} can't read Docker"
 msgstr "{docker} 台无法读取 Docker"
 
@@ -7399,14 +8094,8 @@ msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方�
 msgid "Go"
 msgstr "Go"
 
-msgid "Platform"
-msgstr "平台"
-
 msgid "The control plane is running"
 msgstr "控制平面正在运行"
-
-msgid "This control plane"
-msgstr "当前控制平面"
 
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务器上的 <0>dockwell run</0> 仍在运行，然后重试。"

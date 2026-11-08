@@ -806,6 +806,68 @@ func testACopyThatFailsShowsOnTheTimeline(t *testing.T, backend store.Backend) {
 	}
 }
 
+// A destination that took a backup once, then stopped, says so: the newest that
+// didn't get there, when and why, beside the last that did, so nothing reads it as
+// healthy while its uploads fail. One that gets there again is newer than the failure.
+func TestADestinationSaysWhenItsUploadsFail(t *testing.T) {
+	storetest.Each(t, testADestinationSaysWhenItsUploadsFail)
+}
+
+func testADestinationSaysWhenItsUploadsFail(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c, bc := changeClient(b, b.origin), backupClient(b, b.origin)
+	volumeID, _ := webWithData(t, e, c)
+	bucket := s3test.New(t)
+	f.lastDocker.backups.HTTP = bucket.Client()
+	apply(t, c, propose(t, c, "Send backups to R2", destinationEdit(bucket, "wJalrXUtnFEMI-K7MDENG-the-secret")))
+	backUp := func() *dockwellv1.Backup {
+		t.Helper()
+		made, err := bc.CreateBackup(t.Context(), connect.NewRequest(&dockwellv1.CreateBackupRequest{VolumeId: volumeID, Destination: "r2"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return waitCopy(t, bc, made.Msg.GetBackup().GetId())
+	}
+	r2 := func() *dockwellv1.BackupDestinationInfo {
+		t.Helper()
+		res, err := bc.ListBackupDestinations(t.Context(), connect.NewRequest(&dockwellv1.ListBackupDestinationsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.Msg.GetDestinations()) != 1 {
+			t.Fatalf("destinations = %v, want r2", res.Msg.GetDestinations())
+		}
+		return res.Msg.GetDestinations()[0]
+	}
+
+	if got := backUp(); got.GetCopy() != dockwellv1.BackupCopy_BACKUP_COPY_STORED {
+		t.Fatalf("the first backup = %v, want it stored", got)
+	}
+	if d := r2(); d.GetLastUpload() == nil || d.GetLastFailure() != nil || d.GetLastFailureError() != "" {
+		t.Errorf("after one that got there, r2 reads %v, want an upload and no failure", d)
+	}
+
+	bucket.Refuse = "AccessDenied"
+	if got := backUp(); got.GetCopy() != dockwellv1.BackupCopy_BACKUP_COPY_FAILED {
+		t.Fatalf("the refused backup = %v, want its copy failed", got)
+	}
+	d := r2()
+	if d.GetLastFailure() == nil || !strings.Contains(d.GetLastFailureError(), "AccessDenied") || d.GetLastUpload() == nil ||
+		d.GetLastFailure().AsTime().Before(d.GetLastUpload().AsTime()) {
+		t.Errorf("after one that didn't get there, r2 reads %v, want a failure, with why, newer than its last upload", d)
+	}
+
+	bucket.Refuse = ""
+	if got := backUp(); got.GetCopy() != dockwellv1.BackupCopy_BACKUP_COPY_STORED {
+		t.Fatalf("the next backup = %v, want it stored", got)
+	}
+	if d := r2(); d.GetLastFailure() == nil || d.GetLastUpload().AsTime().Before(d.GetLastFailure().AsTime()) {
+		t.Errorf("once one gets there again, r2 reads %v, want its last upload newer than the failure", d)
+	}
+}
+
 // fakePostgres keeps its data as one file of SQL, and answers as the official
 // image's tools do.
 var fakePostgres = dockertest.Image{

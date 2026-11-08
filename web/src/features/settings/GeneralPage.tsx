@@ -194,26 +194,26 @@ function PanelServed({ settings }: { settings: Settings | undefined }) {
   }
   return (
     <Panel title={t`Panel address`} actions={domain ? <span className="settings-meta">{t`HTTPS`}</span> : null}>
-      <dl className="general-facts" aria-busy={settings === undefined}>
+      <dl className="settings-facts" aria-busy={settings === undefined}>
         <dt>{t`Address`}</dt>
         <dd>
           {domain ? (
-            <a href={url} className="general-mono general-link">
+            <a href={url} className="settings-mono settings-link">
               {url}
             </a>
           ) : (
-            <span className="general-muted">{t`Loopback only`}</span>
+            <span className="settings-muted">{t`Loopback only`}</span>
           )}
         </dd>
         <dt>{t`Served by`}</dt>
         <dd>{served}</dd>
         <dt>{t`Loopback`}</dt>
         <dd>
-          {panel?.listen ? <code>{panel.listen}</code> : <span className="general-muted">–</span>}
-          <span className="general-sub">{t`Always on, through an SSH tunnel to the server`}</span>
+          {panel?.listen ? <code>{panel.listen}</code> : <span className="settings-muted">–</span>}
+          <span className="settings-sub">{t`Always on, through an SSH tunnel to the server`}</span>
         </dd>
       </dl>
-      <div className="general-how">
+      <div className="settings-how">
         <p>
           {domain ? (
             <Trans>
@@ -253,7 +253,7 @@ function PanelServed({ settings }: { settings: Settings | undefined }) {
             domain won't work on the new one: over SSH, run <code>dockwell recover</code> on the server, open its link
             on the new domain, and add a passkey there.
           </Trans>{" "}
-          <a href={CHANGE_SETTINGS} target="_blank" rel="noreferrer" className="general-link">
+          <a href={CHANGE_SETTINGS} target="_blank" rel="noreferrer" className="settings-link">
             <Trans>How to change settings</Trans>
           </a>
         </p>

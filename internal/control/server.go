@@ -41,6 +41,7 @@ import (
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/apidoc"
+	"github.com/dockwell/dockwell/internal/control/audit"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
@@ -55,6 +56,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
+	"github.com/dockwell/dockwell/internal/control/members"
 	"github.com/dockwell/dockwell/internal/control/processes"
 	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
@@ -104,14 +106,20 @@ type Config struct {
 	// Public serves the panel on its domain over HTTPS. Nil keeps the panel
 	// on loopback.
 	Public https.Source
-	// PanelListen is the loopback address the panel answers on, HTTPSListen
-	// where it serves Public's domain itself, PanelURL its address there, and
-	// PanelCA who issues its certificate, for the settings to say how the panel
-	// is served. PanelHandsOver is true when the server's ingress takes the
-	// public ports while the server has a route, and serves the panel's domain
-	// then (ADR 0024): the settings ask PublicPorts which holds them now.
-	PanelListen, HTTPSListen, PanelURL, PanelCA string
-	PanelHandsOver                              bool
+	// PanelListen is the loopback address the panel answers on, PanelURL its
+	// address on Public's domain while Dockwell serves it, and PanelCA who
+	// issues its certificate, for the settings to say how the panel is served.
+	// PanelHandsOver is true when the server's ingress takes the public ports
+	// while the server has a route, and serves the panel's domain then (ADR
+	// 0024): the settings ask PublicPorts which holds them now, and where.
+	PanelListen, PanelURL, PanelCA string
+	PanelHandsOver                 bool
+	// DataDir is the directory dockwell run keeps its files in, KeyFile the
+	// install's key there, AgentListen where servers' agents reach it, and
+	// ServiceManager what runs it as a service, for the settings to say what
+	// the control plane is, and how to stop it for a backup.
+	DataDir, KeyFile, AgentListen string
+	ServiceManager                dockwellv1.ServiceManager
 	// PublicAddress is this server's public IP address, shown on the claim
 	// screen for pointing a domain at. Empty when it isn't known.
 	PublicAddress string
@@ -240,14 +248,32 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	}
 	handle(dockwellv1connect.NewSystemServiceHandler(system.New(cfg.Build), opts...))
 	if cfg.Store != nil {
-		serving := settings.Serving{Listen: cfg.PanelListen, HTTPSListen: cfg.HTTPSListen, URL: cfg.PanelURL, CA: cfg.PanelCA}
+		serving := settings.Serving{Listen: cfg.PanelListen, URL: cfg.PanelURL, CA: cfg.PanelCA}
 		if cfg.Public != nil {
 			serving.Domain = cfg.Public.Domain()
+			serving.HTTPS = func() (string, bool) {
+				listen, ok := ports.Serving()
+				// A panel on ports of its own, beside the ingress, never hands them over.
+				return listen, ok || !cfg.PanelHandsOver
+			}
 		}
-		if cfg.PanelHandsOver {
-			serving.Proxied = func() bool { return !ports.Serving() }
+		plane := settings.Plane{
+			Build:          cfg.Build,
+			Started:        time.Now(),
+			DataDir:        cfg.DataDir,
+			KeyFile:        cfg.KeyFile,
+			AgentListen:    cfg.AgentListen,
+			ServiceManager: cfg.ServiceManager,
 		}
-		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving), opts...))
+		if cfg.Identity != nil {
+			plane.AgentURLs = agentURLs(cfg.Identity)
+		}
+		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving, plane), opts...))
+		// For a person signed in alone, as its events name where people signed in from.
+		if cfg.Auth != nil {
+			handle(dockwellv1connect.NewAuditServiceHandler(audit.New(cfg.Store, cfg.Changes, cfg.Logger), opts...))
+			handle(dockwellv1connect.NewMemberServiceHandler(members.New(cfg.Store, cfg.Auth, cfg.Logger), opts...))
+		}
 	}
 	if cfg.Auth != nil {
 		controlServer := func() *dockwellv1.Server { return nil }
@@ -378,6 +404,9 @@ type PublicPorts struct {
 	failed func(error)
 	stop   context.CancelFunc
 	done   *sync.WaitGroup
+	// listening is the address the HTTPS listener has while it serves, as
+	// bound, whether at the start or taken back from the ingress.
+	listening string
 	// ended says the server has stopped, so nothing starts from now on, and
 	// every is all that was started, for that stop to wait for.
 	ended bool
@@ -415,6 +444,9 @@ func (p *PublicPorts) serve(httpsLn, httpLn net.Listener) {
 	ctx, stop := context.WithCancel(p.base)
 	done := &sync.WaitGroup{}
 	p.stop, p.done = stop, done
+	if httpsLn != nil {
+		p.listening = httpsLn.Addr().String()
+	}
 	s := p.server
 	listeners := []struct {
 		ln   net.Listener
@@ -441,11 +473,11 @@ func (p *PublicPorts) serve(httpsLn, httpLn net.Listener) {
 }
 
 // Serving reports whether the control plane holds the public ports now,
-// rather than this server's proxy.
-func (p *PublicPorts) Serving() bool {
+// rather than this server's proxy, and where it serves HTTPS on them.
+func (p *PublicPorts) Serving() (httpsAddr string, ok bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.stop != nil
+	return p.listening, p.stop != nil
 }
 
 // Release stops serving on the public ports, and returns once they are free.
@@ -457,7 +489,7 @@ func (p *PublicPorts) Release(ctx context.Context) error {
 	}
 	p.mu.Lock()
 	stop, done := p.stop, p.done
-	p.stop, p.done = nil, nil
+	p.stop, p.done, p.listening = nil, nil, ""
 	p.mu.Unlock()
 	if stop == nil {
 		return nil
@@ -606,4 +638,24 @@ func fleetOf(cfg Config) domains.Servers {
 		return nil
 	}
 	return cfg.Fleet
+}
+
+// agentURLs says where agents reach the control plane, as its authority records it:
+// on the control server's own network, and from elsewhere.
+func agentURLs(a *identity.Authority) func(ctx context.Context) (string, []string, error) {
+	return func(ctx context.Context) (string, []string, error) {
+		local, err := a.AgentURL(ctx)
+		if err != nil {
+			return "", nil, err
+		}
+		public, err := a.PublicAgentURLs(ctx)
+		if err != nil {
+			return "", nil, err
+		}
+		urls := make([]string, 0, len(public))
+		for _, u := range public {
+			urls = append(urls, u.URL)
+		}
+		return local, urls, nil
+	}
 }

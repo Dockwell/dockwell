@@ -85,7 +85,7 @@ export function MorePage() {
         <Link to="/settings" className="more-row">
           <RowBody icon="settings" label={t`Settings`} />
         </Link>
-        <Link to="/status" className="more-row">
+        <Link to="/settings/control-plane" className="more-row">
           <RowBody icon="gauge" label={t`Control plane`} value={version ? shortVersion(version) : undefined} />
         </Link>
         <Link to="/profile" className="more-row">

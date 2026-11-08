@@ -107,6 +107,19 @@ func (h *Handler) ListBackupDestinations(ctx context.Context, _ *connect.Request
 					info.LastUpload = timestamppb.New(*b.FinishedAt)
 				}
 			}
+			// The newest that didn't get there, newest first as the list is, so
+			// someone sees a destination that stopped taking backups.
+			for i := range all {
+				b := &all[i]
+				if b.Destination == name && b.CopyKey == "" && b.CopyError != "" {
+					at := b.StartedAt
+					if b.FinishedAt != nil {
+						at = *b.FinishedAt
+					}
+					info.LastFailure, info.LastFailureError = timestamppb.New(at), b.CopyError
+					break
+				}
+			}
 			out.Destinations = append(out.Destinations, info)
 		}
 		return nil

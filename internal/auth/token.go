@@ -71,13 +71,13 @@ var (
 	// ErrTokenRejected covers an unknown, revoked or expired token, and one
 	// that isn't a token at all: whoever holds it can tell which.
 	ErrTokenRejected = errors.New("this API token is unknown, revoked or expired. " +
-		"Check that you copied all of it, or create a new one under Profile and security")
+		"Check that you copied all of it, or create a new one in Settings, under API tokens")
 	ErrTokenScope = errors.New("this API token is read-only, so it can't make changes. " +
-		"Create a read-write token under Profile and security")
+		"Create a read-write token in Settings, under API tokens")
 	// ErrTokenLogs is a token without the logs grant reading logs.
 	ErrTokenLogs = errors.New("this API token can't read logs, which often hold secrets that apps print. " +
-		"Create a token that can read logs under Profile and security")
-	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, or change how you sign in and your tokens. " +
+		"Create a token that can read logs in Settings, under API tokens")
+	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, rename the install, or change how you sign in and your tokens. " +
 		"Sign in and do it in the panel")
 )
 
@@ -153,7 +153,7 @@ func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope stri
 	if p.Token != nil || p.Session.ID == "" {
 		return NewToken{}, ErrNeedsSession
 	}
-	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), name, scope, grants, expires,
+	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), "", name, scope, grants, expires,
 		func() error { return s.confirmed(p, proof, StepUpCreateToken) })
 }
 
@@ -178,7 +178,7 @@ func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope strin
 			return u, errors.New("this install has no owner yet, so local access has nobody to act for. Claim it with the link from dockwell claim")
 		}
 		return u, err
-	}, actor, name, scope, []string{store.GrantLogs}, &expires, nil)
+	}, actor, strings.TrimPrefix(actor, "cli:"), name, scope, []string{store.GrantLogs}, &expires, nil)
 }
 
 // RevokeLocalToken revokes a token CreateLocalToken made, for whoever can
@@ -217,7 +217,9 @@ func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) (
 // that stores it. confirm, when set, is called once nothing else refuses
 // it, the most tokens included, and before anything is stored, to check it
 // may be made: it may spend a step-up's proof.
-func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, name, scope string, grants []string, expires *time.Time,
+// local is the shell account a token for the CLI's local access is for, or
+// empty for any other token.
+func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, local, name, scope string, grants []string, expires *time.Time,
 	confirm func() error,
 ) (NewToken, error) {
 	name = strings.Join(strings.Fields(cleanText(name)), " ")
@@ -251,6 +253,8 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		Grants:    slices.Compact(slices.Sorted(slices.Values(grants))),
 		CreatedAt: now,
 		ExpiresAt: expires,
+
+		LocalAccount: local,
 	}
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
 		user, err := who(tx)
