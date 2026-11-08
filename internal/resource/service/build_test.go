@@ -3,6 +3,7 @@
 package service
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -112,6 +113,10 @@ func TestAServicesWriterIsItsCode(t *testing.T) {
 		return func(b *resourcev1.ImageBuild) { b.GetGit().Commit = c }
 	}
 	base := d.WriterOf(built("https://github.com/acme/web", commit(strings.Repeat("a", 40))))
+	// A plan says it to people: the repository, and a digest of how it builds.
+	if !regexp.MustCompile(`^github\.com/acme/web@build:[0-9a-f]{16}$`).MatchString(base) {
+		t.Errorf("a build's writer reads %q", base)
+	}
 	if same := d.WriterOf(built("https://github.com/acme/web", commit(strings.Repeat("b", 40)))); same != base {
 		t.Errorf("a new commit of the branch is another writer: %s, %s", base, same)
 	}
