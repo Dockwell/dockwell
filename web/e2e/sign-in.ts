@@ -37,6 +37,7 @@ import { parseArgs } from "node:util";
 import { type Browser, type BrowserContext, chromium, type Locator, type Page } from "playwright-core";
 
 import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.ts";
+import { hostTools } from "./firewall-flow.ts";
 import { runFlows } from "./flows.ts";
 
 // A real binary asks nothing beyond this machine in a test.
@@ -52,6 +53,8 @@ const port = 7650 + Math.floor(Math.random() * 300);
 const origin = `http://localhost:${port}`;
 const data = mkdtempSync(join(tmpdir(), "dockwell-e2e-"));
 const catalogDir = mkdtempSync(join(tmpdir(), "dockwell-e2e-catalog-"));
+// The agent's stand-ins for the server's own tools, such as ufw, as a test runs none of the machine's.
+const tools = hostTools(mkdtempSync(join(tmpdir(), "dockwell-e2e-tools-")));
 
 let server: ChildProcess | undefined;
 let docker: ChildProcess | undefined;
@@ -149,6 +152,7 @@ async function start(): Promise<string> {
         ...engine,
         USER: "mira",
         DOCKWELL_CATALOG_DIR: catalogDir,
+        DOCKWELL_TEST_TOOLS: tools,
       },
     },
   );
@@ -885,4 +889,5 @@ try {
   server?.kill("SIGTERM");
   docker?.kill("SIGTERM");
   rmSync(data, { recursive: true, force: true });
+  rmSync(tools, { recursive: true, force: true });
 }

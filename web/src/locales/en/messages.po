@@ -5866,6 +5866,9 @@ msgstr "Copied {text}"
 msgid "Action"
 msgstr "Action"
 
+msgid "Address"
+msgstr "Address"
+
 msgid "Allow"
 msgstr "Allow"
 
@@ -5878,19 +5881,44 @@ msgstr "Anywhere, IPv6"
 msgid "Can't tell"
 msgstr "Can't tell"
 
-#. placeholder {0}: l.decidedBy
-msgid "Can't tell: {0} decides by names or rules it doesn't say the ports of"
-msgstr "Can't tell: {0} decides by names or rules it doesn't say the ports of"
+msgid "Can't tell: Docker isn't answering, and this may be a port it publishes, which {by} doesn't cover"
+msgstr "Can't tell: Docker isn't answering, and this may be a port it publishes, which {by} doesn't cover"
 
-#. placeholder {0}: l.decidedBy
-msgid "Closed by {0}"
-msgstr "Closed by {0}"
+msgid "Can't tell: Dockwell can't read {by}"
+msgstr "Can't tell: Dockwell can't read {by}"
+
+msgid "Can't tell: a {by} rule for it covers one interface alone"
+msgstr "Can't tell: a {by} rule for it covers one interface alone"
+
+msgid "Can't tell: a {by} rule names an app profile without saying its ports"
+msgstr "Can't tell: a {by} rule names an app profile without saying its ports"
+
+msgid "Can't tell: rules in {by} may drop it, and Dockwell doesn't weigh them one by one"
+msgstr "Can't tell: rules in {by} may drop it, and Dockwell doesn't weigh them one by one"
+
+msgid "Can't tell: {by} lets in a service Dockwell doesn't know the ports of"
+msgstr "Can't tell: {by} lets in a service Dockwell doesn't know the ports of"
+
+msgid "Can't tell: {by} lets it in to one of the server's addresses alone"
+msgstr "Can't tell: {by} lets it in to one of the server's addresses alone"
+
+msgid "Can't tell: {by}'s rich rules for it run first, and Dockwell doesn't weigh them"
+msgstr "Can't tell: {by}'s rich rules for it run first, and Dockwell doesn't weigh them"
+
+msgid "Can't tell: {by}'s zones treat it apart, by the interface traffic arrives on"
+msgstr "Can't tell: {by}'s zones treat it apart, by the interface traffic arrives on"
+
+msgid "Closed by {by}"
+msgstr "Closed by {by}"
+
+msgid "Default zone · read-only"
+msgstr "Default zone · read-only"
 
 msgid "Deny"
 msgstr "Deny"
 
-msgid "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them."
-msgstr "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them."
+msgid "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them, but for what Docker's proxy takes, as marked."
+msgstr "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them, but for what Docker's proxy takes, as marked."
 
 msgid "Every IPv4 address"
 msgstr "Every IPv4 address"
@@ -5913,6 +5941,15 @@ msgstr "It drops what no rule lets in."
 msgid "It lets in what no rule turns away."
 msgstr "It lets in what no rule turns away."
 
+msgid "It takes traffic from {sources}."
+msgstr "It takes traffic from {sources}."
+
+msgid "It takes traffic on {ifaces}."
+msgstr "It takes traffic on {ifaces}."
+
+msgid "It takes what no other zone does."
+msgstr "It takes what no other zone does."
+
 msgid "It turns away what no rule lets in."
 msgstr "It turns away what no rule lets in."
 
@@ -5926,20 +5963,26 @@ msgid "Note"
 msgstr "Note"
 
 #. placeholder {0}: server.name
-msgid "Nothing filters what comes in to {0}: it has no ufw, firewalld or nftables rules turned on."
-msgstr "Nothing filters what comes in to {0}: it has no ufw, firewalld or nftables rules turned on."
+msgid "Nothing filters what comes in to {0}: it has no ufw, firewalld, nftables or iptables rules that could."
+msgstr "Nothing filters what comes in to {0}: it has no ufw, firewalld, nftables or iptables rules that could."
 
 msgid "On · read-only, as Dockwell didn't make it"
 msgstr "On · read-only, as Dockwell didn't make it"
 
-#. placeholder {0}: l.sources.join(", ")
-#. placeholder {1}: l.decidedBy
-msgid "Only from {0}, as {1} says"
-msgstr "Only from {0}, as {1} says"
+msgid "Only from {sources}, as {by} says"
+msgstr "Only from {sources}, as {by} says"
 
-#. placeholder {0}: l.decidedBy
-msgid "Open, as {0} allows it"
-msgstr "Open, as {0} allows it"
+msgid "Only from {sources}, or on {ifaces}, as {by} says"
+msgstr "Only from {sources}, or on {ifaces}, as {by} says"
+
+msgid "Only on {ifaces}, as {by} says"
+msgstr "Only on {ifaces}, as {by} says"
+
+msgid "Open to what {by} always lets in on this port: DHCP replies, or local discovery"
+msgstr "Open to what {by} always lets in on this port: DHCP replies, or local discovery"
+
+msgid "Open, as {by} allows it"
+msgstr "Open, as {by} allows it"
 
 msgid "Open: nothing here closes it"
 msgstr "Open: nothing here closes it"
@@ -5960,15 +6003,32 @@ msgstr "Reading what filters {0}'s traffic"
 msgid "Reject"
 msgstr "Reject"
 
-msgid "Rules as it says them"
-msgstr "Rules as it says them"
+msgid "Rich rules, which run before the rest"
+msgstr "Rich rules, which run before the rest"
+
+msgid "Rules"
+msgstr "Rules"
 
 msgid "Rules of {title}"
 msgstr "Rules of {title}"
 
+msgid "Rules ufw, firewalld and Docker didn't make. A drop in any of them wins, and Dockwell doesn't weigh them one by one, so where they may drop what listens above, it says it can't tell."
+msgstr "Rules ufw, firewalld and Docker didn't make. A drop in any of them wins, and Dockwell doesn't weigh them one by one, so where they may drop what listens above, it says it can't tell."
+
+#. placeholder {0}: server.name
+#. placeholder {1}: server.name
+msgid "The agent on {0} is older than the control plane, so it can't read the firewall. Run the install script on {1} again to update it."
+msgstr "The agent on {0} is older than the control plane, so it can't read the firewall. Run the install script on {1} again to update it."
+
+msgid "The kernel's other rules"
+msgstr "The kernel's other rules"
+
 #. placeholder {0}: server.name
 msgid "What listens on {0}"
 msgstr "What listens on {0}"
+
+msgid "What they hold"
+msgstr "What they hold"
 
 msgid "firewalld"
 msgstr "firewalld"
@@ -5977,8 +6037,19 @@ msgstr "firewalld"
 msgid "firewalld, zone {0}"
 msgstr "firewalld, zone {0}"
 
+msgid "iptables"
+msgstr "iptables"
+
+#. placeholder {0}: tool.name
+msgid "iptables, {0}"
+msgstr "iptables, {0}"
+
 msgid "iptables-legacy"
 msgstr "iptables-legacy"
+
+#. placeholder {0}: tool.name
+msgid "iptables-legacy, {0}"
+msgstr "iptables-legacy, {0}"
 
 msgid "nftables"
 msgstr "nftables"
@@ -5986,6 +6057,9 @@ msgstr "nftables"
 #. placeholder {0}: tool.name
 msgid "nftables table {0}"
 msgstr "nftables table {0}"
+
+msgid "through Docker's proxy, so the input rules cover it"
+msgstr "through Docker's proxy, so the input rules cover it"
 
 msgid "ufw"
 msgstr "ufw"
@@ -5995,13 +6069,27 @@ msgstr "ufw"
 msgid "{0, plural, one {# port} other {# ports}}"
 msgstr "{0, plural, one {# port} other {# ports}}"
 
+#. placeholder {0}: tool.inputRules
 #. placeholder {0}: tool.ruleCount
-msgid "{0, plural, one {It holds # rule, which ufw, Docker or a person may have made. Dockwell doesn't weigh it, so what listens below may reach less far than it says.} other {It holds # rules, which ufw, Docker or a person may have made. Dockwell doesn't weigh them one by one, so what listens below may reach less far than it says.}}"
-msgstr "{0, plural, one {It holds # rule, which ufw, Docker or a person may have made. Dockwell doesn't weigh it, so what listens below may reach less far than it says.} other {It holds # rules, which ufw, Docker or a person may have made. Dockwell doesn't weigh them one by one, so what listens below may reach less far than it says.}}"
+msgid "{0, plural, one {# rule} other {# rules}}"
+msgstr "{0, plural, one {# rule} other {# rules}}"
+
+#. placeholder {0}: fw.dockerUserRules
+msgid "{0, plural, one {Docker's DOCKER-USER chain holds # rule, which filters these, and which Dockwell doesn't weigh.} other {Docker's DOCKER-USER chain holds # rules, which filter these, and which Dockwell doesn't weigh one by one.}}"
+msgstr "{0, plural, one {Docker's DOCKER-USER chain holds # rule, which filters these, and which Dockwell doesn't weigh.} other {Docker's DOCKER-USER chain holds # rules, which filter these, and which Dockwell doesn't weigh one by one.}}"
 
 #. placeholder {0}: server.name
 msgid "{0} isn't reporting, so what filters its traffic can't be read now."
 msgstr "{0} isn't reporting, so what filters its traffic can't be read now."
+
+msgid "{count}, none on what comes in."
+msgstr "{count}, none on what comes in."
+
+msgid "{count}, {input} of them on what comes in."
+msgstr "{count}, {input} of them on what comes in."
+
+msgid "{count}. Its input chain drops what no rule lets in."
+msgstr "{count}. Its input chain drops what no rule lets in."
 
 msgid "Loading servers"
 msgstr "Loading servers"
@@ -6360,9 +6448,6 @@ msgstr "A change goes on Activity, with what it replaced."
 
 msgid "A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with."
 msgstr "A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with."
-
-msgid "Address"
-msgstr "Address"
 
 msgid "Always on, through an SSH tunnel to the server"
 msgstr "Always on, through an SSH tunnel to the server"

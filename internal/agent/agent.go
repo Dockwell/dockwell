@@ -29,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/delivery"
@@ -73,6 +74,9 @@ type Config struct {
 	// Logs reads what this server's containers print. Nil reads none.
 	Logs LogReader
 	// Docker lists this server's containers. Nil lists none.
+	// Tools runs the server's own tools, such as ufw and nft, as ADR 0043 has
+	// it. Nil runs none, as in a test.
+	Tools  *hosttool.Runner
 	Docker *docker.Client
 	// Backups takes and removes backups of this server's volumes. Nil takes none.
 	Backups BackupTaker
@@ -312,7 +316,7 @@ func Run(ctx context.Context, cfg Config) error {
 		cfg.Collector = collect.New()
 	}
 	cfg.outlook = &outlook{}
-	cfg.firewall = &firewallReader{docker: cfg.Docker}
+	cfg.firewall = newFirewallReader(cfg)
 	if cfg.Drivers == nil {
 		cfg.Drivers = resource.NewRegistry()
 	}

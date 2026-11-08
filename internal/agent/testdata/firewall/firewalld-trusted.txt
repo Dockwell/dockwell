@@ -1,0 +1,14 @@
+trusted (active)
+  target: ACCEPT
+  icmp-block-inversion: no
+  interfaces: 
+  sources: 10.0.0.0/8 2001:db8:10::/48
+  services: 
+  ports: 
+  protocols: 
+  forward: yes
+  masquerade: no
+  forward-ports: 
+  source-ports: 
+  icmp-blocks: 
+  rich rules: 

@@ -51,6 +51,10 @@ func (h *Handler) GetServerFirewall(ctx context.Context, req *connect.Request[do
 			"the agent on %s isn't connected, so nothing can say what filters its traffic now. Check the server; this works again when its agent reconnects", srv.GetName()), authapi.ReasonUnavailable)
 	}
 	read, err := session.Firewall(ctx)
+	if errors.Is(err, agentapi.ErrAgentOutdated) {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
+			"the agent on %s is older than the control plane, so it can't read the firewall. Update it by running the install script on %s again", srv.GetName(), srv.GetName()), authapi.ReasonAgentOutdated)
+	}
 	if err != nil {
 		var se *resource.ServerError
 		if errors.As(err, &se) {

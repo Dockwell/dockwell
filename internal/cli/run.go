@@ -17,6 +17,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/backup"
@@ -87,7 +88,21 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
 	lookups(&cfg, stdio, g)
+	cfg.Tools = hostTools(stdio)
 	return agent.Run(ctx, cfg)
+}
+
+// hostTools runs the server's own tools, such as ufw and nft. A test runs none
+// of the machine's, only stand-ins from the folder DOCKWELL_TEST_TOOLS names,
+// laid out as the paths they stand in for, such as <folder>/usr/sbin/nft.
+func hostTools(stdio IO) *hosttool.Runner {
+	if !isSet(stdio.Getenv(envTest)) {
+		return &hosttool.Runner{}
+	}
+	if dir := stdio.Getenv(envTestTools); dir != "" {
+		return &hosttool.Runner{Root: dir}
+	}
+	return &hosttool.Runner{Off: true}
 }
 
 // lookups says how this server's agent finds out how the internet sees it: what the

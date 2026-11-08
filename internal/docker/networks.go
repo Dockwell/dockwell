@@ -9,12 +9,15 @@ import (
 
 // Network is a network as the engine reports it.
 type Network struct {
-	ID       string            `json:"Id"`
-	Name     string            `json:"Name"`
-	Driver   string            `json:"Driver"`
-	Internal bool              `json:"Internal"`
-	Options  map[string]string `json:"Options"`
-	Labels   map[string]string `json:"Labels"`
+	ID       string `json:"Id"`
+	Name     string `json:"Name"`
+	Driver   string `json:"Driver"`
+	Internal bool   `json:"Internal"`
+	// EnableIPv6 is true for a network that gives its containers IPv6, so
+	// Docker publishes their ports over IPv6 itself, not through its proxy.
+	EnableIPv6 bool              `json:"EnableIPv6"`
+	Options    map[string]string `json:"Options"`
+	Labels     map[string]string `json:"Labels"`
 	// IPAM is how it gives out addresses.
 	IPAM IPAM `json:"IPAM"`
 	// Containers on the network, by ID.

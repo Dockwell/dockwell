@@ -57,6 +57,10 @@ const (
 	// laid out as the server's own files are, which the agent reads updates with
 	// under DOCKWELL_TEST, and only then (ADR 0043).
 	envTestPackages = "DOCKWELL_TEST_PACKAGES"
+	// envTestTools names, in a test, a folder of stand-ins for the server's own
+	// tools, such as nft, laid out as the paths they stand in for. Without it, a
+	// test runs none of them.
+	envTestTools = "DOCKWELL_TEST_TOOLS"
 )
 
 // IO carries the streams and environment a command runs with, so tests can

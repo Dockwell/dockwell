@@ -1,12 +1,44 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// A server's Firewall tab, read-only: what filters its traffic as this machine has
-// it, which a CI runner's ufw, run without root, says it can't, and the ports
-// Docker publishes. Nothing is changed by looking (ADR 0052).
+// A server's Firewall tab, read-only: what filters its traffic, and the ports
+// Docker publishes. Under DOCKWELL_TEST the agent runs none of the machine's own
+// tools, only the stand-ins hostTools writes: a ufw that answers as Ubuntu's does
+// after ufw allow OpenSSH and ufw allow "Nginx Full", and an nft with nothing in
+// its ruleset. Nothing is changed by looking (ADR 0052).
+
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+/** ufw status verbose as ufw prints it, its rows "%-26s %-12s%-26s", app profiles named after their ports. */
+const ufwStatus = [
+  "Status: active",
+  "Logging: on (low)",
+  "Default: deny (incoming), allow (outgoing), disabled (routed)",
+  "New profiles: skip",
+  "",
+  "To                         Action      From",
+  "--                         ------      ----",
+  "22/tcp (OpenSSH)           ALLOW IN    Anywhere",
+  "80,443/tcp (Nginx Full)    ALLOW IN    Anywhere",
+  "22/tcp (OpenSSH (v6))      ALLOW IN    Anywhere (v6)",
+  "80,443/tcp (Nginx Full (v6)) ALLOW IN    Anywhere (v6)",
+  "",
+].join("\n");
+
+/**
+ * Writes stand-ins for the server's own tools into dir, laid out as the paths
+ * they stand in for, for DOCKWELL_TEST_TOOLS, and returns dir.
+ */
+export function hostTools(dir: string): string {
+  const sbin = join(dir, "usr", "sbin");
+  mkdirSync(sbin, { recursive: true });
+  writeFileSync(join(sbin, "ufw"), `#!/bin/sh\ncat <<'EOF'\n${ufwStatus}EOF\n`, { mode: 0o755 });
+  writeFileSync(join(sbin, "nft"), `#!/bin/sh\necho '{"nftables": []}'\n`, { mode: 0o755 });
+  return dir;
+}
 
 interface FirewallFlowOptions {
   origin: string;
@@ -29,11 +61,20 @@ export async function firewallFlow(page: Page, { origin, step, shoot }: Firewall
     .getByRole("link", { name: "Firewall" })
     .click();
   await page.waitForFunction((to) => window.location.pathname === to, `${link}/firewall`);
-  // Whatever this machine has: a firewall read or not, or nothing filtering.
-  await page
-    .getByText(/Nothing filters what comes in|read-only, as Dockwell didn't make it|needs root|failed:/)
+  // ufw's app profiles read as the ports they allow, as ufw status verbose says them.
+  const ufw = page.getByRole("region", { name: "ufw" });
+  await ufw.waitFor({ timeout: 15_000 });
+  await ufw
+    .getByRole("row", { name: /22\/tcp \(OpenSSH\)/ })
     .first()
-    .waitFor({ timeout: 15_000 });
+    .waitFor();
+  await ufw
+    .getByRole("row", { name: /80,443\/tcp \(Nginx Full\)/ })
+    .first()
+    .waitFor();
+  if ((await page.getByText(/Nothing filters what comes in/).count()) > 0) {
+    fail("the Firewall tab says nothing filters, beside ufw");
+  }
   if ((await page.getByRole("alert").count()) > 0) {
     fail(`the Firewall tab says something went wrong: ${await page.getByRole("alert").first().innerText()}`);
   }
