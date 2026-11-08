@@ -637,11 +637,19 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if len(p.Edits) == 0 {
 		return nil, fault.New(ErrInvalid, "the change has no edits. Add one for each resource to change")
 	}
+	if err := e.db.View(ctx, func(tx *store.Tx) error { return e.reachFirst(ctx, tx, p.Actor, p.Edits) }); err != nil {
+		return nil, err
+	}
 	items, err := e.items(ctx, p.Edits, rotate)
 	if err != nil {
 		return nil, err
 	}
-	if err := e.db.View(ctx, func(tx *store.Tx) error { return e.checkRoles(ctx, tx, p.Actor, nil, items, planning) }); err != nil {
+	if err := e.db.View(ctx, func(tx *store.Tx) error {
+		if err := e.checkRoles(ctx, tx, p.Actor, nil, items, planning); err != nil {
+			return err
+		}
+		return e.portsOutOfReach(ctx, tx, items)
+	}); err != nil {
 		return nil, err
 	}
 	changeID := id.New(id.Change)

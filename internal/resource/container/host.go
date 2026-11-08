@@ -1040,6 +1040,13 @@ func (d *Driver) CheckPlan(ctx context.Context, want resource.Desired, all []res
 
 // publishes reports whether a container publishes something that can't share a
 // server with p.
+// Publishes reports a container that publishes what p does on its server: the
+// same port and protocol, on an address that overlaps.
+func Publishes(c *resourcev1.Container, p *resourcev1.PortMapping) bool { return publishes(c, p) }
+
+// PortWords names a port on the server, as a refusal says it: "port 8080".
+func PortWords(p *resourcev1.PortMapping) string { return portWords(p) }
+
 func publishes(c *resourcev1.Container, p *resourcev1.PortMapping) bool {
 	return slices.ContainsFunc(c.GetPorts(), func(o *resourcev1.PortMapping) bool {
 		return o.GetHostPort() == p.GetHostPort() && protocolName(o.GetProtocol()) == protocolName(p.GetProtocol()) && overlap(o.GetHostIp(), p.GetHostIp())

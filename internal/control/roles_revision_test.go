@@ -244,6 +244,88 @@ func TestSomeoneElsesProtectedChangeIsApprovedWithAPasskey(t *testing.T) {
 	})
 }
 
+// Below an admin, nothing a proposal is answered with describes a project out
+// of reach: a project or an environment named in an edit is found among the
+// caller's alone, so one out of reach reads as one that isn't there; reach is
+// checked before what an edit asks of its environment; and a domain or a port
+// held out of reach is in use by a project they can't see, as is any name under
+// such a domain (ADR 0048, ADR 0049).
+func TestNoAnswerDescribesAnotherProject(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newReachStand(t, backend)
+		ctx := t.Context()
+		route := func(env, name, domain, service string) *dockwellv1.Edit {
+			return &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: env, Name: name},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: domain, Service: service, Port: 80}}}}
+		}
+		publishing := func(env, name string) *dockwellv1.Edit {
+			return &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: env, Name: name},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+					Image: "ghcr.io/acme/shop:1.4", Ports: []*resourcev1.PortMapping{{HostPort: 8080, ContainerPort: 80}},
+				}}}}}}
+		}
+		apply(t, s.c, propose(t, s.c, "Route shop", route(s.production, "shop", "shop.example.com", "web")))
+		apply(t, s.c, propose(t, s.c, "Publish 8080", publishing(s.production, "web")))
+
+		s.hold(in(s.blogID, store.RoleDeveloper))
+		try := func(edits ...*dockwellv1.Edit) error {
+			_, err := s.c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Try", Edits: edits}))
+			return err
+		}
+		says := func(what string, err error, words ...string) {
+			t.Helper()
+			for _, w := range words {
+				if err == nil || !strings.Contains(err.Error(), w) {
+					t.Errorf("%s: %v, want it to say %q", what, err, w)
+				}
+			}
+			for _, leak := range []string{"default", "web", "shop", s.production, "DB", "still holds", "isn't in its environment"} {
+				if err != nil && strings.Contains(strings.ReplaceAll(err.Error(), "shop.example.com", ""), leak) && !slices.Contains(words, leak) {
+					t.Errorf("%s says %q: %v", what, leak, err)
+				}
+			}
+		}
+		variable := func(project, env string) *dockwellv1.Edit {
+			return &dockwellv1.Edit{Project: project, Resource: &dockwellv1.ResourceRef{Kind: "variable", Scope: env, Name: "X"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: "1"}}}}
+		}
+
+		// A project or an environment by name: out of reach reads as missing.
+		missing, outside := try(variable("nosuch", "production")), try(variable("default", "production"))
+		if connect.CodeOf(missing) != connect.CodeOf(outside) || strings.ReplaceAll(missing.Error(), "nosuch", "default") != outside.Error() {
+			t.Errorf("a project out of reach answers %v, and one that isn't there %v", outside, missing)
+		}
+		says("an environment of a project out of reach", try(variable("default", "nosuch")), "there's no project default. The projects are blog", "default")
+		// By ID, reach comes before what the edit asks.
+		notFound(t, "deleting default's production", try(&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "environment", Scope: s.defaultID, Name: "production"}, Delete: true}))
+		for _, name := range []string{"web", "nope"} {
+			err := try(&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: s.production, Name: name}, Delete: true})
+			notFound(t, "deleting "+name+" in default's production", err)
+			says("deleting "+name+" in default's production", err)
+			err = try(route(s.production, "spy", "spy.example.com", name))
+			notFound(t, "a route in default's production to "+name, err)
+		}
+		notFound(t, "an edit in an environment that isn't there", try(variable("", "env_01JD6Z3R8M9QF2K7T4XW5BNCQQ")))
+		// What's held out of reach is in use by a project they can't see.
+		err := try(route(s.staging, "take", "shop.example.com", "api"))
+		says("a route taking default's domain", err, "shop.example.com is in use by a project you can't see")
+		err = try(route(s.staging, "under", "login.shop.example.com", "api"))
+		needsRole(t, "a route under default's domain", err)
+		says("a route under default's domain", err, "login.shop.example.com is under shop.example.com, in use by a project you can't see")
+		err = try(publishing(s.staging, "squat"))
+		says("a service publishing default's port", err, "Port 8080 on", "is in use by a project you can't see")
+
+		// An admin reads what holds them, and may take a name under another's domain.
+		s.hold(onInstall(store.RoleAdmin))
+		if err := try(route(s.staging, "take", "shop.example.com", "api")); err == nil || !strings.Contains(err.Error(), "already served by route shop in default's production") {
+			t.Errorf("an admin taking default's domain: %v, want what serves it", err)
+		}
+		if err := try(route(s.staging, "under", "login.shop.example.com", "api")); err != nil {
+			t.Errorf("an admin planning a route under default's domain: %v", err)
+		}
+	})
+}
+
 // The engine refuses a person's change that reaches it without who they are,
 // as the API's never does, rather than leave it unchecked. Dockwell's own isn't
 // checked.

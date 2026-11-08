@@ -5,9 +5,11 @@ package revision
 import (
 	"context"
 	"slices"
+	"strings"
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -65,6 +67,9 @@ func (e *Engine) checkClaims(ctx context.Context, tx *store.Tx, items []item) er
 				if err := e.conflict(ctx, tx, it, c, all[j], inChange[all[j].ref]); err != nil {
 					return err
 				}
+				if err := underAnothers(ctx, tx, items, it, c, all[j]); err != nil {
+					return err
+				}
 			}
 		}
 		for _, c := range e.kinds.Claims(it.ref.Kind, it.spec) {
@@ -80,9 +85,16 @@ func (e *Engine) conflict(ctx context.Context, tx *store.Tx, it *item, c resourc
 	case c.Key == other.claim.Key && sameChange:
 		return fault.New(ErrInvalid, "this change has %s %s and %s %s both claim %s, and only one can. Keep one of them",
 			other.ref.Kind, other.ref.Name, it.ref.Kind, it.ref.Name, c.Words)
+	case c.Key == other.claim.Key && !inReach(ctx, tx, other.ref.Scope):
+		// Words that don't name what's out of reach, nor where (ADR 0048).
+		return fault.New(ErrInvalid, "%s is in use by a project you can't see, so %s %s can't claim it. Choose another, or ask an admin",
+			c.Words, it.ref.Kind, it.ref.Name)
 	case c.Key == other.claim.Key:
 		return fault.New(ErrInvalid, "%s is already served by %s %s in %s, so %s %s can't claim it. Delete %s first, or in this change, or choose another path",
 			c.Words, other.ref.Kind, other.ref.Name, whichScope(ctx, tx, other.ref.Scope), it.ref.Kind, it.ref.Name, other.ref.Name)
+	case c.Group == other.claim.Group && it.ref.Scope != other.ref.Scope && !inReach(ctx, tx, other.ref.Scope):
+		return fault.New(ErrInvalid, "%s is in use by a project you can't see, so %s %s can't serve a path under it. Use another domain, or ask an admin",
+			c.GroupWords, it.ref.Kind, it.ref.Name)
 	case c.Group == other.claim.Group && it.ref.Scope != other.ref.Scope:
 		return fault.New(ErrInvalid, "%s belongs to %s, where %s %s serves it, so %s %s in %s can't serve a path under it: a domain lives in one environment. Move the domain's routes first, or in this change, or use another domain",
 			c.GroupWords, whichScope(ctx, tx, other.ref.Scope), other.ref.Kind, other.ref.Name, it.ref.Kind, it.ref.Name, whichScope(ctx, tx, it.ref.Scope))
@@ -91,6 +103,61 @@ func (e *Engine) conflict(ctx context.Context, tx *store.Tx, it *item, c resourc
 			c.GroupWords, other.ref.Kind, other.ref.Name, other.claim.MannerWords, it.ref.Kind, it.ref.Name, c.MannerWords)
 	}
 	return nil
+}
+
+// underAnothers refuses, below an admin, a name under a domain another project
+// holds: with wildcard DNS, a name such as login.shop.example.com receives the
+// cookies shop sets for its whole domain (ADR 0048). The same name is a
+// conflict already. An admin or the owner may take it.
+func underAnothers(ctx context.Context, tx *store.Tx, items []item, it *item, c resource.Claim, other held) error {
+	caller, ok := place.CallerFrom(ctx)
+	if !ok || c.Group == other.claim.Group || !strings.HasSuffix(c.Group, "."+other.claim.Group) {
+		return nil
+	}
+	if store.RoleRank(place.Holds(caller.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin) {
+		return nil
+	}
+	mine, theirs := projectOfScope(ctx, tx, items, it.ref.Scope), projectOfScope(ctx, tx, items, other.ref.Scope)
+	if mine != "" && mine == theirs {
+		return nil
+	}
+	holder := "a project you can't see"
+	if theirs != "" && place.Holds(caller.Grants, place.Place{Project: theirs}) != "" {
+		holder = "the project " + scopeName(ctx, tx, theirs)
+	}
+	return &Refusal{act: planning, Held: place.Holds(caller.Grants, place.Place{Project: mine}), Needs: store.RoleAdmin,
+		Why: c.Group + " is under " + other.claim.Group + ", in use by " + holder + ", and would get the cookies it sets for its whole domain"}
+}
+
+// projectOfScope is the project an environment is in, read from the change's
+// own items first, or a project's own ID; "" if it's neither.
+func projectOfScope(ctx context.Context, tx *store.Tx, items []item, id string) string {
+	for i := range items {
+		if items[i].id == id && items[i].ref.Kind == scope.EnvironmentKind {
+			return items[i].ref.Scope
+		}
+	}
+	r, err := tx.GetResourceByID(ctx, id)
+	switch {
+	case err != nil:
+		return ""
+	case r.Kind == string(scope.EnvironmentKind):
+		return r.Scope
+	case r.Kind == string(scope.ProjectKind):
+		return r.ID
+	}
+	return ""
+}
+
+// inReach reports a scope the person acting reaches: its project's, for an
+// environment or a project. With no one acting, or an admin, every scope is.
+func inReach(ctx context.Context, tx *store.Tx, id string) bool {
+	caller, ok := place.CallerFrom(ctx)
+	if !ok || store.RoleRank(place.Holds(caller.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin) {
+		return true
+	}
+	project := projectOfScope(ctx, tx, nil, id)
+	return project != "" && place.Holds(caller.Grants, place.Place{Project: project}) != ""
 }
 
 // scopeName is what a person calls a scope, or its ID if it can't be read.

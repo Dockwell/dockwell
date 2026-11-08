@@ -756,6 +756,7 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				if err != nil {
 					return err
 				}
+				loaded.Projects = inReach(ctx, loaded.Projects)
 				tree = &loaded
 			}
 			if ref.Scope, err = resolve(ctx, tx, tree, t.Level(), e.GetProject(), ref.Scope); err != nil {
@@ -817,6 +818,21 @@ func withInstallZone(ctx context.Context, tx *store.Tx, spec proto.Message) (pro
 	p = proto.Clone(p).(*resourcev1.BackupPolicy) //nolint:forcetypeassert // a clone has its original's type
 	p.TimeZone = string(zone)
 	return p, nil
+}
+
+// inReach are the projects the caller in ctx holds a role in, below an admin,
+// so an edit names a project or an environment by name among those alone: one
+// out of reach reads as one that isn't there, and no answer lists another
+// project or its environments (ADR 0049). An admin, the owner, and Dockwell's
+// own changes find every project.
+func inReach(ctx context.Context, projects []scope.Project) []scope.Project {
+	caller, ok := place.CallerFrom(ctx)
+	if !ok || store.RoleRank(place.Holds(caller.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin) {
+		return projects
+	}
+	return slices.DeleteFunc(projects, func(p scope.Project) bool {
+		return place.Holds(caller.Grants, place.Place{Project: p.ID}) == ""
+	})
 }
 
 // choiceAt is a choice a request left out, with the field of the request

@@ -7,14 +7,17 @@ package revision
 // came from, as docs/adr/0049-roles-and-invites-by-project.md says.
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -203,6 +206,110 @@ func (e *Engine) mountedIn(ctx context.Context, tx *store.Tx, env string, self r
 		}
 	}
 	return false, nil
+}
+
+// reachFirst checks, below an admin, that each edit is somewhere the person
+// acting may plan, before anything else about the edits is checked: out of
+// reach answers as missing does, a scope that isn't there answers the same,
+// and so no check that follows describes another project, such as what an
+// environment still holds or which route serves a domain (ADR 0049). An admin
+// reaches every place, so their edits get the checks' own words. What it
+// can't place yet, it leaves to checkRoles, once the change is planned.
+func (e *Engine) reachFirst(ctx context.Context, tx *store.Tx, actor string, edits []Edit) error {
+	caller, ok := place.CallerFrom(ctx)
+	if !ok || store.RoleRank(place.Holds(caller.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin) {
+		return nil
+	}
+	items := make([]item, 0, len(edits))
+	for i := range edits {
+		it, err := e.load(ctx, tx, edits[i].Ref)
+		if err != nil {
+			return err
+		}
+		it.id = cmp.Or(it.id, edits[i].ID)
+		it.spec = edits[i].Spec
+		items = append(items, it)
+	}
+	err := e.checkRoles(ctx, tx, actor, nil, items, planning)
+	if errors.Is(err, store.ErrNotFound) {
+		return fault.New(ErrOutOfReach, "%s", ErrOutOfReach.Error())
+	}
+	return err
+}
+
+// portsOutOfReach refuses, below an admin, a port on a server that something
+// out of the person's reach publishes there, in words that name neither it nor
+// its project, before the server's own check, which names what holds a port
+// (ADR 0048). What's in reach the server's check words as it always has.
+func (e *Engine) portsOutOfReach(ctx context.Context, tx *store.Tx, items []item) error {
+	caller, ok := place.CallerFrom(ctx)
+	if !ok || store.RoleRank(place.Holds(caller.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin) {
+		return nil
+	}
+	type wanted struct {
+		it     *item
+		server string
+		port   *resourcev1.PortMapping
+	}
+	var wants []wanted
+	inChange := make(map[resource.Ref]bool, len(items))
+	for i := range items {
+		inChange[items[i].ref] = true
+		for _, server := range items[i].servers {
+			for _, p := range runs(items[i].spec).GetPorts() {
+				if p.GetHostPort() != 0 {
+					wants = append(wants, wanted{it: &items[i], server: server, port: p})
+				}
+			}
+		}
+	}
+	if len(wants) == 0 {
+		return nil
+	}
+	for _, kind := range e.kinds.Kinds() {
+		if _, ok := e.imageNamer(kind); !ok {
+			continue
+		}
+		stored, err := tx.ListKind(ctx, string(kind))
+		if err != nil {
+			return err
+		}
+		for _, r := range stored {
+			ref := resource.Ref{Kind: kind, Scope: r.Scope, Name: r.Name}
+			if inChange[ref] || r.Spec == nil || inReach(ctx, tx, r.Scope) {
+				continue
+			}
+			spec, err := e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return err
+			}
+			holder := runs(spec)
+			for _, w := range wants {
+				if !container.Publishes(holder, w.port) {
+					continue
+				}
+				there, err := e.load(ctx, tx, ref)
+				if err != nil {
+					return err
+				}
+				if !slices.Contains(there.placed, w.server) {
+					continue
+				}
+				words := container.PortWords(w.port)
+				return fault.New(ErrInvalid, "%s%s on %s is in use by a project you can't see, so %s can't publish it. Choose another port on the server, or ask an admin",
+					strings.ToUpper(words[:1]), words[1:], serverName(ctx, tx, w.server), w.it.ref.Name)
+			}
+		}
+	}
+	return nil
+}
+
+// serverName is a server's name, or its ID if it can't be read.
+func serverName(ctx context.Context, tx *store.Tx, id string) string {
+	if s, err := tx.GetServer(ctx, id); err == nil {
+		return s.Name
+	}
+	return id
 }
 
 // installWide says what an item reaches that ADR 0048 makes an admin's,

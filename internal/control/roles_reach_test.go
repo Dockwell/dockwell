@@ -16,6 +16,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -39,7 +40,10 @@ func newReachStand(t *testing.T, backend store.Backend) *reachStand {
 	t.Helper()
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
-	e := f.addDockerServer(t)
+	// It serves routes too, in memory, so a domain can be held.
+	e := f.addServerWith(t, func() []resource.Type {
+		return []resource.Type{&route.Driver{Ingress: &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}}}
+	})
 	pullsAnything(e)
 	s := &reachStand{f: f, b: b, c: changeClient(b, b.origin)}
 	web := apply(t, s.c, propose(t, s.c, "Run web", runImage("ghcr.io/acme/shop:1.4")))
