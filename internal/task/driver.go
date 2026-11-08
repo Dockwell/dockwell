@@ -38,8 +38,10 @@ const (
 	// the clock is taken to have gone back.
 	clockSlack = 5 * time.Minute
 	// DrainWait is how long the agent waits, as it stops, for the runs it stopped
-	// to end and be kept.
-	DrainWait = stopGrace + 5*time.Second
+	// to end and be kept. Longer than the most a shell command takes to end once
+	// it's stopped: SIGTERM's grace before SIGKILL, then the output grace for what
+	// it left running, with time to keep the run after.
+	DrainWait = stopGrace + outputGraceAtMost + 5*time.Second
 )
 
 // lookEvery bounds how long the scheduler sleeps, so a clock that's set
@@ -456,7 +458,9 @@ func (d *Driver) start(ctx context.Context, k *kept, reason dockwellv1.TaskRunRe
 		DueTime: timestamppb.New(due), StartTime: timestamppb.New(now),
 		State: dockwellv1.TaskRunState_TASK_RUN_STATE_RUNNING,
 	}
-	d.running[key] = run
+	// The scheduler counts skipped slots on its own copy: what's returned is the
+	// caller's, which RunNow's caller reads outside mu.
+	d.running[key] = proto.CloneOf(run)
 	d.record(ctx, k.Ref, run)
 	d.markGoing(ctx, k.Ref, run)
 	d.runs.Add(1)

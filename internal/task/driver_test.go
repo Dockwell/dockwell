@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -203,6 +205,70 @@ func TestADetachedChildDoesntHoldTheRun(t *testing.T) {
 	if r.GetState() != dockwellv1.TaskRunState_TASK_RUN_STATE_SUCCEEDED || !slices.Contains(lines(r), "started") ||
 		!slices.ContainsFunc(lines(r), func(l string) bool { return strings.Contains(l, "still holds its output") }) {
 		t.Errorf("a command that left something running is %v", r)
+	}
+}
+
+// What a command leaves running prints on after the run has ended, and isn't ended
+// for it, as nothing reads what it prints: it runs on, as under cron.
+func TestWhatACommandLeavesRunsOnAfterItsRun(t *testing.T) {
+	grace := outputGrace
+	outputGrace = 200 * time.Millisecond
+	t.Cleanup(func() { outputGrace = grace })
+	d, _ := stand(t, t.TempDir(), time.Now())
+	mark := filepath.Join(t.TempDir(), "went-on")
+	ref := d.put(t, "leaves", shell(fmt.Sprintf("setsid sh -c 'sleep 1; echo late; touch %s' & echo started", mark), "@yearly"))
+	if _, err := d.RunNow(t.Context(), ref); err != nil {
+		t.Fatal(err)
+	}
+	r := d.ended(t, 1)[0]
+	if r.GetState() != dockwellv1.TaskRunState_TASK_RUN_STATE_SUCCEEDED || !r.GetAttempts()[0].GetOutputHeld() || slices.Contains(lines(r), "late") {
+		t.Errorf("the run is %v", r)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, err := os.Stat(mark); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("what the command left didn't go on past the line it printed after the run")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// Run now's answer is the caller's: slots skipped while it runs are counted on the
+// scheduler's own copy, which -race holds to.
+func TestRunNowsAnswerIsTheCallers(t *testing.T) {
+	d, c := stand(t, t.TempDir(), time.Date(2026, 11, 4, 10, 0, 0, 0, time.UTC))
+	ref := d.put(t, "slow", shell("sleep 1", "* * * * *"))
+	run, err := d.RunNow(t.Context(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 200 {
+			if _, err := proto.Marshal(run); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+	for m := 1; m <= 3; m++ {
+		c.set(time.Date(2026, 11, 4, 10, m, 0, 0, time.UTC))
+		d.tick(t.Context())
+	}
+	<-done
+	if r := d.ended(t, 1)[0]; r.GetSkippedSlots() != 3 || run.GetSkippedSlots() != 0 {
+		t.Errorf("the run counted %d skipped slots, and Run now's answer %d", r.GetSkippedSlots(), run.GetSkippedSlots())
+	}
+}
+
+// The agent waits for a stopped run longer than the most it takes to end and say so.
+func TestDrainingOutlastsAStoppedRun(t *testing.T) {
+	if DrainWait <= stopGrace+outputGraceAtMost {
+		t.Errorf("the agent waits %s for its runs, and one can take %s to end", DrainWait, stopGrace+outputGraceAtMost)
 	}
 }
 

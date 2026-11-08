@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -25,9 +26,12 @@ import (
 // stopGrace is how long a command has between SIGTERM and SIGKILL.
 const stopGrace = 10 * time.Second
 
-// outputGrace is how long what a shell command started has to finish printing once
-// the shell has ended. It's a variable for tests.
-var outputGrace = 5 * time.Second
+// outputGraceAtMost is how long what a shell command started has to finish
+// printing, once the shell has ended, for that to be in the run's output.
+const outputGraceAtMost = 5 * time.Second
+
+// outputGrace is outputGraceAtMost, a variable for tests.
+var outputGrace = outputGraceAtMost
 
 // attempt is how one try of a run went.
 type attempt struct {
@@ -49,8 +53,9 @@ var shellEnv = []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:
 // runShell runs a shell command on the server, as the agent's user, which is root,
 // in a process group of its own so a timeout stops all of it. The run is the
 // shell's: something it starts that leaves the group, as setsid does, runs on
-// after it, as under cron, and what that prints once the shell has ended is read
-// for outputGrace at most.
+// after it, as under cron. What that prints once the shell has ended is kept for
+// outputGrace at most, and read and let go of after, for as long as it prints, so
+// it never writes to a pipe nobody reads, which would end it.
 func runShell(ctx context.Context, s *resourcev1.TaskShell, timeout time.Duration, out *output) attempt {
 	dir := s.GetWorkingDir()
 	if dir == "" {
@@ -62,7 +67,6 @@ func runShell(ctx context.Context, s *resourcev1.TaskShell, timeout time.Duratio
 	if err != nil {
 		return attempt{exitCode: -1, err: fmt.Errorf("the agent can't make a pipe for the command's output: %w", err)}
 	}
-	defer pr.Close()
 	// The timeout below stops the whole group; a context's cancel would stop the
 	// shell alone.
 	cmd := exec.CommandContext(context.WithoutCancel(ctx), "/bin/sh", "-c", s.GetCommand()) //nolint:gosec // what a person approved with a passkey, to run as root (ADR 0053)
@@ -71,19 +75,23 @@ func runShell(ctx context.Context, s *resourcev1.TaskShell, timeout time.Duratio
 	err = cmd.Start()
 	_ = pw.Close() // the shell has its own; this one would keep the pipe open
 	if err != nil {
+		_ = pr.Close()
 		return attempt{exitCode: -1, err: fmt.Errorf("the server can't start /bin/sh in %s: %w", dir, err)}
 	}
+	// Read to the end, whoever holds the pipe, which is past the run for what runs
+	// on after it: kept until then, and let go of after.
+	sink := &afterRun{out: out}
 	read := make(chan struct{})
 	go func() {
-		_, _ = io.Copy(out, pr)
+		_, _ = io.Copy(sink, pr)
+		_ = pr.Close()
 		close(read)
 	}()
 	ended := func(a attempt) attempt {
 		select {
 		case <-read:
 		case <-time.After(outputGrace):
-			_ = pr.Close()
-			<-read
+			sink.letGo()
 			a.held = true
 			out.Line("Dockwell: something the command started still holds its output, and runs on after it.")
 		}
@@ -117,6 +125,30 @@ func runShell(ctx context.Context, s *resourcev1.TaskShell, timeout time.Duratio
 	a := ended(attempt{exitCode: -1, timedOut: timedOut, err: why, started: true})
 	out.Line("Dockwell: " + why.Error() + ".")
 	return a
+}
+
+// afterRun is where a shell command's output goes: into its run's output until the
+// run has ended, then nowhere, as what runs on after it may print for ever.
+type afterRun struct {
+	mu   sync.Mutex
+	out  io.Writer
+	gone bool
+}
+
+func (w *afterRun) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.gone {
+		return len(p), nil
+	}
+	return w.out.Write(p)
+}
+
+// letGo ends what reaches the run's output.
+func (w *afterRun) letGo() {
+	w.mu.Lock()
+	w.gone = true
+	w.mu.Unlock()
 }
 
 // shellEnded is how a command that ended went.
