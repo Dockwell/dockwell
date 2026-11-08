@@ -347,6 +347,9 @@ msgstr "来源"
 msgid "Health"
 msgstr "健康"
 
+msgid "How it ended"
+msgstr "结束方式"
+
 msgid "Its check said"
 msgstr "检查结果"
 
@@ -374,11 +377,17 @@ msgstr "打开文件"
 msgid "Open the variables and secrets"
 msgstr "打开变量和密钥"
 
+msgid "Opened"
+msgstr "打开时间"
+
 msgid "Plan"
 msgstr "计划"
 
 msgid "Proposed by"
 msgstr "提议者"
+
+msgid "Ran as"
+msgstr "运行身份"
 
 msgid "Review plan"
 msgstr "审查计划"
@@ -400,6 +409,9 @@ msgstr "大小"
 
 msgid "State"
 msgstr "状态"
+
+msgid "Terminal"
+msgstr "终端"
 
 msgid "Today"
 msgstr "今天"
@@ -427,6 +439,9 @@ msgstr "时间"
 
 msgid "Who"
 msgstr "执行者"
+
+msgid "Why"
+msgstr "原因"
 
 msgid "Why it failed"
 msgstr "失败原因"
@@ -482,6 +497,12 @@ msgstr "用身份验证器验证码登录后添加了通行密钥 {name}"
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "应用 {change} 时要求验证通行密钥，但未收到"
 
+msgid "Asked for a passkey to open a shell in {container} on {server}, and none came"
+msgstr "在 {server} 上的 {container} 中打开 shell 时要求验证通行密钥，但未收到"
+
+msgid "Asked for a passkey to open a terminal on {server}, and none came"
+msgstr "在 {server} 上打开终端时要求验证通行密钥，但未收到"
+
 msgid "Asked for a passkey to save {path} on {server}, and none came"
 msgstr "保存 {server} 上的 {path} 时要求验证通行密钥，但未收到"
 
@@ -502,6 +523,24 @@ msgstr "清除了新计划的时区（原为 {previous}），新计划改用 UTC
 
 msgid "Cleared this install's name, which was {previous}"
 msgstr "清除了这个安装的名称（原为 {previous}）"
+
+msgid "Closed a shell in {container} on {server}"
+msgstr "关闭了 {server} 上 {container} 中的 shell"
+
+msgid "Closed a shell in {container} on {server}, open {open}"
+msgstr "关闭了 {server} 上 {container} 中的 shell，共打开 {open}"
+
+msgid "Closed a terminal on {server}"
+msgstr "关闭了 {server} 上的终端"
+
+msgid "Closed a terminal on {server}, open {open}"
+msgstr "关闭了 {server} 上的终端，共打开 {open}"
+
+msgid "Couldn't open a shell in {container} on {server}"
+msgstr "无法在 {server} 上的 {container} 中打开 shell"
+
+msgid "Couldn't open a terminal on {server}"
+msgstr "无法在 {server} 上打开终端"
 
 msgid "Couldn't open {path} on {server}"
 msgstr "无法打开 {server} 上的 {path}"
@@ -556,6 +595,15 @@ msgstr "将这个安装命名为 {value}（原为 {previous}）"
 
 msgid "Not running"
 msgstr "没有运行"
+
+msgid "Opened a shell in {container} on {server}"
+msgstr "在 {server} 上的 {container} 中打开了 shell"
+
+msgid "Opened a terminal on {server}"
+msgstr "在 {server} 上打开了终端"
+
+msgid "Opened a terminal on {server}, as {as}"
+msgstr "在 {server} 上以 {as} 打开了终端"
 
 msgid "Read {path} on {server}"
 msgstr "已读取 {server} 上的 {path}"
@@ -1669,8 +1717,16 @@ msgstr "现在无法确定 {name} 的运行情况。"
 msgid "Nothing checks it, so this only means it started."
 msgstr "没有任何检查，因此这只表示它已启动。"
 
+#. placeholder {0}: server.container
+#. placeholder {1}: server.serverName
+msgid "Open a shell in {0} on {1}"
+msgstr "在 {1} 上的 {0} 中打开 shell"
+
 msgid "Reading how it runs."
 msgstr "正在读取运行情况。"
+
+msgid "Shell"
+msgstr "Shell"
 
 msgid "Someone paused it, so it serves nothing and no check runs. Unpause it with {command}."
 msgstr "有人暂停了它，因此它不提供服务，也不会运行检查。请用 {command} 恢复。"
@@ -2731,8 +2787,8 @@ msgstr "{name} 还没有所有者"
 msgid "{browser} on {os}"
 msgstr "{os} 上的 {browser}"
 
-msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API 令牌不能删除数据、切断访问、显示密钥、访问服务器上的文件或进程、重命名此安装，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
+msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, processes or terminal, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr ""
 
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
 msgstr "添加通行密钥需要用你在此地址已有的通行密钥确认，而你在这里还没有。请退出登录，再用验证码、恢复码或 dockwell recover 给出的链接重新登录，然后在 10 分钟内添加。"
@@ -6292,6 +6348,9 @@ msgstr "创建时间"
 msgid "Name as a service"
 msgstr "服务名称"
 
+msgid "Open a shell"
+msgstr "打开 shell"
+
 msgid "Plan taking it on"
 msgstr "计划接管"
 
@@ -8401,9 +8460,6 @@ msgstr "请说明它运行什么。"
 msgid "Server it runs on"
 msgstr "运行它的服务器"
 
-msgid "Shell"
-msgstr "Shell"
-
 msgid "Shell command"
 msgstr "Shell 命令"
 
@@ -8631,6 +8687,225 @@ msgstr "{method} {url} 没有响应。"
 
 msgid "{said}, {zone} time"
 msgstr "{said}（{zone} 时间）"
+
+msgid "Control"
+msgstr "Control 键"
+
+msgid "Ctrl"
+msgstr "Ctrl"
+
+msgid "Down arrow"
+msgstr "下箭头"
+
+msgid "Esc"
+msgstr "Esc"
+
+msgid "Escape"
+msgstr "Esc 键"
+
+msgid "Left arrow"
+msgstr "左箭头"
+
+msgid "Paste"
+msgstr "粘贴"
+
+msgid "Pipe"
+msgstr "竖线"
+
+msgid "Right arrow"
+msgstr "右箭头"
+
+msgid "Tab"
+msgstr "Tab"
+
+msgid "Terminal keys, scroll for more"
+msgstr "终端按键，滑动查看更多"
+
+msgid "Text size"
+msgstr "文字大小"
+
+msgid "Tilde"
+msgstr "波浪号"
+
+msgid "Up arrow"
+msgstr "上箭头"
+
+#. placeholder {0}: asking.container
+#. placeholder {1}: server.name
+msgid "<0>{0}</0> reaches as far as root on <1>{1}</1>: it's privileged, holds Docker's socket, shares the server's network, or mounts a system path, through a volume or a link too. A shell in it is as good as root there, so it takes your passkey."
+msgstr "<0>{0}</0> 在 <1>{1}</1> 上可达 root 权限：它是特权容器、持有 Docker 的套接字、共享服务器的网络，或挂载了系统路径（包括通过卷或链接）。在其中打开的 shell 等同于那里的 root，所以需要你的通行密钥。"
+
+#. placeholder {0}: server.name
+msgid "A shell in <0>{wanted}</0> runs in the container, as its own user, with the first of bash, ash and sh its image has. One in a container that reaches as far as root on <1>{0}</1> asks for your passkey."
+msgstr "<0>{wanted}</0> 中的 shell 在容器内以容器自己的用户运行，使用镜像中 bash、ash、sh 里找到的第一个。如果容器在 <1>{0}</1> 上的权限相当于 root，打开时会要求验证你的通行密钥。"
+
+#. placeholder {0}: server.name
+msgid "A terminal here is a root shell on <0>{0}</0>, through its agent, so it needs no SSH port. Opening one asks for your passkey."
+msgstr "这里的终端是 <0>{0}</0> 上的 root shell，通过它的代理连接，所以无需 SSH 端口。打开终端时会要求验证你的通行密钥。"
+
+msgid "Another tab or window attached to it, so what you type there goes to it. It goes on running."
+msgstr "另一个标签页或窗口连接了它，所以你在那里输入的内容会发送给它。它会继续运行。"
+
+msgid "Can't reach the terminal"
+msgstr "无法连接终端"
+
+msgid "Can't reach this terminal"
+msgstr "无法连接这个终端"
+
+msgid "Clear scrollback"
+msgstr "清空回滚记录"
+
+msgid "Close terminal"
+msgstr "关闭终端"
+
+msgid "Close this tab"
+msgstr "关闭这个标签"
+
+msgid "Confirm with your passkey"
+msgstr "用通行密钥确认"
+
+msgid "Connected through the agent"
+msgstr "已通过代理连接"
+
+msgid "Connecting through the agent"
+msgstr "正在通过代理连接"
+
+msgid "Copy selection"
+msgstr "复制所选内容"
+
+msgid "Ended"
+msgstr "已结束"
+
+msgid "Find in scrollback"
+msgstr "在回滚记录中查找"
+
+msgid "Find the one after"
+msgstr "查找下一个"
+
+msgid "Find the one before"
+msgstr "查找上一个"
+
+msgid "New session"
+msgstr "新会话"
+
+msgid "No shell open in <0>{wanted}</0>"
+msgstr "<0>{wanted}</0> 中没有打开的 shell"
+
+msgid "No terminal open"
+msgstr "没有打开的终端"
+
+msgid "No terminal opened"
+msgstr "没有打开终端"
+
+msgid "Not in what it keeps"
+msgstr "保留的记录中没有找到"
+
+msgid "Open a new terminal"
+msgstr "打开新终端"
+
+msgid "Open a terminal"
+msgstr "打开终端"
+
+msgid "Open somewhere else"
+msgstr "已在别处打开"
+
+msgid "Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
+msgstr "打开终端需要通行密钥，而你在这个地址上没有。请在“个人资料和安全”中添加一个，或通过 SSH 连接到 {name}。"
+
+msgid "Select text in the terminal to copy it"
+msgstr "在终端中选中文字即可复制"
+
+msgid "Session options"
+msgstr "会话选项"
+
+msgid "Show it here"
+msgstr "在这里显示"
+
+msgid "Stop finding"
+msgstr "停止查找"
+
+msgid "Terminal sessions"
+msgstr "终端会话"
+
+msgid "The passkey prompt closed, so no terminal opened. Open one when you're ready."
+msgstr "通行密钥提示已关闭，所以没有打开终端。准备好后再打开。"
+
+msgid "This shell takes your passkey"
+msgstr "这个 shell 需要你的通行密钥"
+
+msgid "This terminal is open somewhere else"
+msgstr "这个终端已在别处打开"
+
+msgid "Through the agent"
+msgstr "通过代理"
+
+msgid "what you type waits"
+msgstr "你输入的内容会等待发送"
+
+#. placeholder {0}: names.get(tab.id) ?? tab.title
+msgid "{0} output"
+msgstr "{0} 的输出"
+
+msgid "{inContainer} reaches as far as root on {name}, so a shell in it takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
+msgstr "{inContainer} 在 {name} 上的权限相当于 root，所以在其中打开 shell 需要通行密钥，而你在这个地址上没有。请在“个人资料和安全”中添加一个，或通过 SSH 连接到 {name}。"
+
+msgid "{title} · through the agent"
+msgstr "{title} · 通过代理"
+
+msgid "· no SSH port needed · opening it is on <0>Activity</0>, what you type isn't"
+msgstr "· 无需 SSH 端口 · 打开它会记入<0>动态</0>，你输入的内容不会"
+
+#. placeholder {0}: formatBytes(lost, i18n.locale)
+msgid "· {0} it printed while you were away is gone"
+msgstr "· 你离开期间输出的 {0} 已丢失"
+
+msgid "It ended while this page wasn't attached to it."
+msgstr "它在这个页面未连接时结束了。"
+
+msgid "It exited with code 0."
+msgstr "它以代码 0 退出。"
+
+msgid "It exited with code {code}."
+msgstr "它以代码 {code} 退出。"
+
+msgid "Its server was removed from Dockwell."
+msgstr "它所在的服务器已从 Dockwell 中移除。"
+
+msgid "Its shell hung up, as an SSH session does."
+msgstr "它的 shell 已挂断，与 SSH 会话结束时一样。"
+
+msgid "Nobody was connected to it for 10 minutes, so its shell hung up."
+msgstr "10 分钟内没有人连接它，所以它的 shell 已挂断。"
+
+msgid "Nothing was typed into it for an hour, so its shell hung up, rather than leave a root shell open."
+msgstr "一小时内没有输入任何内容，所以它的 shell 已挂断，以免 root shell 一直开着。"
+
+msgid "Nothing was typed into it for an hour, so its shell hung up, rather than leave it open."
+msgstr "一小时内没有任何输入，所以它的 shell 已挂断，而不是一直开着。"
+
+msgid "The control plane restarted."
+msgstr "控制平面已重启。"
+
+msgid "The server's agent restarted, and its shell with it."
+msgstr "服务器的代理已重启，它的 shell 也随之结束。"
+
+msgid "The session that opened it ended."
+msgstr "打开它的会话已结束。"
+
+msgid "The shell exited"
+msgstr "shell 已退出"
+
+msgid "This terminal closed"
+msgstr "这个终端已关闭"
+
+msgid "This terminal has ended"
+msgstr "这个终端已结束"
+
+msgid "This terminal stopped"
+msgstr "这个终端已停止"
+
+msgid "This terminal was closed"
+msgstr "这个终端已被关闭"
 
 msgid "Agent and control plane"
 msgstr "代理与控制平面"

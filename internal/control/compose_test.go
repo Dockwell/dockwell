@@ -105,6 +105,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		client:  client,
 		backups: backups,
 		tasks:   tasks,
+		mounts:  e.Mountinfo,
 	}
 	if root := f.onePanelRoot; root != "" {
 		s.onePanel = func(ctx context.Context) (*agentv1.ReadOnePanelResult, error) { return onepanel.Read(ctx, root) }
