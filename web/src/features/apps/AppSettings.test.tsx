@@ -23,7 +23,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, aRevision, places } from "../../test/apps";
-import { changeEvent, moved, since, snapshot, webPlanned } from "../../test/changes";
+import { changeEvent, moved, since, snapshot, watched, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -280,6 +280,67 @@ describe("an app's settings, where it could go wrong", () => {
       ),
     ).toBeVisible();
     expect(within(screen.getByRole("form", { name: "Edit Ports" })).getByDisplayValue("7070")).toBeVisible();
+  });
+
+  it("keeps what you typed when its own apply fails, with no word of anyone else, and plans again from the rollback", async () => {
+    const user = userEvent.setup();
+    let app = anEditedApp();
+    const proposals: ProposeChangeRequest[] = [];
+    const events = feed<WatchEventsResponse>();
+    events.push(snapshot([]));
+    const watch = feed<WatchChangeResponse>();
+    const base = api(() => app, proposals);
+    renderAt("/apps/svc_web/settings", {
+      ...base,
+      changes: {
+        ...base.changes,
+        watchChange: watch.stream,
+        applyChange: () => ({ change: moved(webPlanned(), { state: ChangeState.APPLYING }) }),
+      },
+      events: { watchEvents: events.stream, listEvents: () => ({}) },
+    });
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Edit Ports" }));
+    const form = screen.getByRole("form", { name: "Edit Ports" });
+    await user.click(within(form).getByRole("button", { name: "Add a port" }));
+    await user.type(within(form).getByRole("textbox", { name: "Port 2 on the server" }), "9090");
+    await user.type(within(form).getByRole("textbox", { name: "Port 2 in the app" }), "90");
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await user.click(await screen.findByRole("button", { name: /Apply plan/ }));
+
+    // The apply makes r5 and fails there.
+    app = anEditedApp();
+    app.revision = 5n;
+    const failed = moved(webPlanned(), {
+      state: ChangeState.FAILED,
+      error: "port 9090 is taken",
+      rolledBackBy: "chg_back",
+    });
+    events.push(since([changeEvent(failed)]));
+    watch.push(watched(failed));
+    const sheet = await screen.findByRole("dialog", { name: "Couldn't replace web" }, { timeout: 5000 });
+    expect(sheet).toHaveTextContent("port 9090 is taken");
+    await user.click(within(sheet).getByRole("button", { name: /Done/ }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    // Dockwell's rollback lands after, as r6: the app as it was.
+    app = anEditedApp();
+    app.revision = 6n;
+    events.push(
+      since([changeEvent(moved(webPlanned(), { id: "chg_back", state: ChangeState.APPLIED, rollback: true }))]),
+    );
+    await screen.findByText("r6", undefined, { timeout: 5000 });
+
+    const kept = screen.getByRole("form", { name: "Edit Ports" });
+    expect(within(kept).getByRole("textbox", { name: "Port 2 on the server" })).toHaveValue("9090");
+    expect(within(kept).getByRole("textbox", { name: "Port 2 in the app" })).toHaveValue("90");
+    expect(screen.queryByText(/changed after you started/)).toBeNull();
+
+    // The retry plans from the rollback, so it isn't refused as stale.
+    await user.click(within(kept).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(2));
+    expect(proposals[1]?.edits[0]?.baseRevision).toBe(6n);
+    expect(appOf(proposals[1])?.ports.map((p) => p.hostPort)).toEqual([8080, 9090]);
   });
 
   it("says in its own words that a plan came back stale", async () => {

@@ -71,8 +71,9 @@ export function AppSettings() {
   const sheet = useChangeSheet();
   // The section being edited, with the app as it was when Edit was pressed: the edit is
   // made from that, and its revision, so a change made meanwhile makes the plan stale
-  // rather than quietly undone.
-  const [editing, setEditing] = useState<{ id: SectionId; from: ServiceInfo; note?: string }>();
+  // rather than quietly undone. After this form's own apply fails, it follows the app
+  // until the next plan, as the rollback gives it a revision of its own.
+  const [editing, setEditing] = useState<Editing>();
   const latest = useRef(service);
   latest.current = service;
   const editButtons = useRef(new Map<SectionId, HTMLElement | null>());
@@ -81,6 +82,12 @@ export function AppSettings() {
   const name = nameOf(service);
   const moving = isMoving(state);
   const active = useCurrentSection(SECTIONS);
+
+  // The rollback of this form's own failed apply lands as a newer revision of the same
+  // spec. The form keeps what was typed and plans from that, or the retry is stale.
+  useEffect(() => {
+    if (editing?.own && editing.from.revision !== service.revision) setEditing({ ...editing, from: service });
+  }, [editing, service]);
 
   // Back from a form, focus is on its section's Edit, where it left from.
   useEffect(() => {
@@ -101,7 +108,9 @@ export function AppSettings() {
     setEditing(undefined);
     setReturnTo(id);
   };
-  const plan = (id: SectionId, from: ServiceInfo) => (summary: string, edits: Edits) =>
+  const plan = (id: SectionId, from: ServiceInfo) => (summary: string, edits: Edits) => {
+    // From here a change that lands is someone else's, as the form is planned again.
+    setEditing((e) => (e?.own ? { ...e, own: false } : e));
     sheet.open({
       kind: "propose",
       summary,
@@ -111,12 +120,19 @@ export function AppSettings() {
           close(id);
           return;
         }
+        // This form's own apply failed, and its revision and rollback moved the app: what
+        // was typed stays, to fix and try again.
+        if (change?.state === ChangeState.FAILED) {
+          setEditing((e) => (e?.id === id ? { ...e, from: latest.current, own: true } : e));
+          return;
+        }
         // Someone changed it meanwhile: the form starts again from what it is now.
         const now = latest.current;
         if (now.revision !== from.revision) {
           setEditing({
             id,
             from: now,
+            form: now.revision,
             note: t`${name} changed after you started, so the form shows it as it is now. Make your change again.`,
           });
         }
@@ -126,6 +142,7 @@ export function AppSettings() {
           ? t`${name} changed after you started, so this would undo that change. Close this, and the form shows it as it is now.`
           : undefined,
     });
+  };
 
   const label: Record<SectionId | "danger", string> = {
     general: t`General`,
@@ -147,10 +164,10 @@ export function AppSettings() {
         wide={id === "mounts"}
         editing={open !== undefined}
         editRef={(el) => editButtons.current.set(id, el)}
-        onEdit={() => setEditing({ id, from: service })}
+        onEdit={() => setEditing({ id, from: service, form: service.revision })}
       >
         {open ? (
-          <div key={`${from.revision}`}>
+          <div key={`${open.form}`}>
             {open.note ? (
               <Callout tone="info" className="app-settings-note">
                 {open.note}
@@ -240,6 +257,18 @@ export function AppSettings() {
       </div>
     </div>
   );
+}
+
+/**
+ * A section's form, open. form keys what the form holds: a new one starts it
+ * again from from. own marks a form whose own apply failed, until it plans again.
+ */
+interface Editing {
+  id: SectionId;
+  from: ServiceInfo;
+  form: bigint;
+  note?: string;
+  own?: boolean;
 }
 
 const SECTIONS: readonly SectionId[] = ["general", "health", "resources", "ports", "mounts"];
