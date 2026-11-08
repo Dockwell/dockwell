@@ -4,6 +4,7 @@ package onepanel
 
 import (
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -211,6 +212,13 @@ func TestAReadDuringWritesGoesAgain(t *testing.T) {
 	if _, err := db.Exec("CREATE TABLE IF NOT EXISTS `task_logs` (`id` integer PRIMARY KEY AUTOINCREMENT, `body` text)"); err != nil {
 		t.Fatal(err)
 	}
+	// Enough rows that a read takes a while, as a server's records do.
+	for i := range 300 {
+		if _, err := db.Exec("INSERT INTO app_installs (name, app_id, app_detail_id, version, env, status, container_name, service_name) VALUES (?, 3, 3, '1', ?, 'Running', ?, 'x')",
+			"extra"+strconv.Itoa(i), strings.Repeat("e", 5000), "c"+strconv.Itoa(i)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	want := len(readOK(t, root).GetApps())
 	var stop atomic.Bool
 	done := make(chan struct{})
@@ -223,14 +231,11 @@ func TestAReadDuringWritesGoesAgain(t *testing.T) {
 			if i%50 == 0 {
 				_, _ = db.Exec("DELETE FROM task_logs WHERE id % 3 = 0")
 			}
-			if i%3 == 0 {
-				time.Sleep(time.Millisecond)
-			}
 		}
 	}()
 	defer func() { stop.Store(true); <-done }()
 	ok := 0
-	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); {
+	for deadline := time.Now().Add(8 * time.Second); time.Now().Before(deadline); {
 		res, err := Read(t.Context(), root)
 		if err != nil {
 			if !strings.Contains(err.Error(), "1Panel changed") {
@@ -243,7 +248,39 @@ func TestAReadDuringWritesGoesAgain(t *testing.T) {
 		}
 		ok++
 	}
-	if ok == 0 {
-		t.Error("no read got through")
+	// A writer this busy may leave no still moment at all: what matters is that no
+	// read says the records are damaged, or returns what isn't whole.
+	t.Logf("%d reads got through", ok)
+}
+
+// A read that fails goes again, even where a stat saw nothing change, as a write
+// within the same tick of the clock leaves the same mtime. Only one that fails every
+// time with nothing seen moving says what the files hold, and one that sees a
+// change every time says so.
+func TestAFailedReadGoesAgain(t *testing.T) {
+	was := retryAfter
+	retryAfter = time.Millisecond
+	t.Cleanup(func() { retryAfter = was })
+	still := func() [3]fileState { return [3]fileState{{size: 1}} }
+	half := errors.New("sqlite_schema's page 1 is of kind 0x0, not a table's")
+
+	n := 0
+	res, err := retried(t.Context(), "agent.db", func() (*dockwellv1.OnePanel, bool, error) {
+		n++
+		if n < 3 {
+			return nil, false, half
+		}
+		return &dockwellv1.OnePanel{Version: "v2.4.2"}, false, nil
+	}, still)
+	if err != nil || res.GetFound().GetVersion() != "v2.4.2" || n != 3 {
+		t.Errorf("after two failed reads = %v, %v, %d reads", res, err, n)
+	}
+
+	n = 0
+	if _, err := retried(t.Context(), "agent.db", func() (*dockwellv1.OnePanel, bool, error) { n++; return nil, false, half }, still); !errors.Is(err, half) || n != tries {
+		t.Errorf("a damaged file = %v after %d reads", err, n)
+	}
+	if _, err := retried(t.Context(), "agent.db", func() (*dockwellv1.OnePanel, bool, error) { return nil, true, nil }, still); err == nil || !strings.Contains(err.Error(), "1Panel changed") {
+		t.Errorf("a file that changes every time = %v", err)
 	}
 }

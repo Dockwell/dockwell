@@ -58,29 +58,55 @@ func Read(ctx context.Context, root string) (*agentv1.ReadOnePanelResult, error)
 		return &agentv1.ReadOnePanelResult{NotHere: fmt.Sprintf(
 			"1Panel isn't installed here: there's no %s or %s", path.Join(dbDir, "agent.db"), path.Join(dbDir, "1Panel.db"))}, nil
 	}
-	last := fmt.Errorf("1Panel changed %s each of the %d times the agent read it, so what it read may mix two moments. Try again in a moment", records, tries)
+	at := filepath.Join(root, records)
+	return retried(ctx, records,
+		func() (*dockwellv1.OnePanel, bool, error) { return read(ctx, root, base, records, v1) },
+		func() [3]fileState { return stateOf(at) })
+}
+
+// said is a refusal of what the records say, read whole, which reading again
+// won't change.
+type said struct{ error }
+
+// retryAfter is how long a read waits before it goes again, doubling each time.
+var retryAfter = 100 * time.Millisecond
+
+// retried reads with attempt until a read gets through with nothing changed under
+// it, up to tries times. A read that fails goes again too: what a stat says can
+// miss a write within the same tick of the clock, so a page half written can look
+// like a file that held still. Only a read that failed every time, with no change
+// seen at all, says what the files hold, as a damaged file does.
+func retried(ctx context.Context, records string, attempt func() (*dockwellv1.OnePanel, bool, error), state func() [3]fileState) (*agentv1.ReadOnePanelResult, error) {
+	var failed error
+	moved := false
 	for i := range tries {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		before := stateOf(filepath.Join(root, records))
-		found, changed, err := read(ctx, root, base, records, v1)
-		switch {
-		case err == nil && !changed:
+		before := state()
+		found, changed, err := attempt()
+		if err == nil && !changed {
 			return &agentv1.ReadOnePanelResult{Found: found}, nil
-		// A read that failed on files that held still failed on what they hold. One
-		// whose files changed under it may have read a page half written, so it
-		// goes again, as one that read through a change does.
-		case err != nil && !changed && !errors.Is(err, sqlitefile.ErrWriting) && stateOf(filepath.Join(root, records)) == before:
-			return nil, err
+		}
+		if s := (said{}); errors.As(err, &s) && !changed {
+			return nil, s.error
+		}
+		if changed || errors.Is(err, sqlitefile.ErrWriting) || state() != before {
+			moved = true
+		}
+		if err != nil && !errors.Is(err, sqlitefile.ErrWriting) {
+			failed = err
 		}
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(time.Duration(100<<i) * time.Millisecond):
+		case <-time.After(retryAfter << i):
 		}
 	}
-	return nil, last
+	if failed != nil && !moved {
+		return nil, failed
+	}
+	return nil, fmt.Errorf("1Panel changed %s each of the %d times the agent read it, so what it read may mix two moments. Try again in a moment", records, tries)
 }
 
 // fileState is what a file's stat says of whether it changed.
@@ -126,6 +152,9 @@ func baseDir(root string) string {
 // read reads the records once, and says whether they changed underneath it.
 func read(ctx context.Context, root, base, records string, v1 bool) (*dockwellv1.OnePanel, bool, error) {
 	db, err := sqlitefile.Open(filepath.Join(root, records))
+	if errors.Is(err, sqlitefile.ErrNotSQLite) {
+		return nil, false, said{fmt.Errorf("the agent can't read 1Panel's records, %s: %w", records, err)}
+	}
 	if err != nil {
 		return nil, false, fmt.Errorf("the agent can't read 1Panel's records, %s: %w", records, err)
 	}
@@ -136,13 +165,13 @@ func read(ctx context.Context, root, base, records string, v1 bool) (*dockwellv1
 	// read: a table missing reads as empty otherwise, and says nothing of why.
 	for _, table := range coreTables {
 		if _, ok := db.Table(table); !ok {
-			return nil, false, fmt.Errorf("1Panel's records, %s, have no %s table, which every version this was written from has, so the agent can't tell how to read them. Update 1Panel, then try again", records, table)
+			return nil, false, said{fmt.Errorf("1Panel's records, %s, have no %s table, which every version this was written from has, so the agent can't tell how to read them. Update 1Panel, then try again", records, table)}
 		}
 	}
 	settings := r.settings()
 	found.Version = settings["SystemVersion"]
 	if found.Version == "" {
-		return nil, false, fmt.Errorf("1Panel's records, %s, say no version, so the agent can't tell how to read them. Update 1Panel, then try again", records)
+		return nil, false, said{fmt.Errorf("1Panel's records, %s, say no version, so the agent can't tell how to read them. Update 1Panel, then try again", records)}
 	}
 	found.KnownVersion = known.MatchString(found.Version)
 	if err := r.all(found, settings, v1); err != nil {
