@@ -1778,6 +1778,7 @@ func Kinds() []*apicli.Kind {
 			Long:  "Environment is a stage of a project, such as production or staging, with its own\nconfig. A project starts with one, named \"production\", which stays out of sight\nuntil there is a second.",
 			Fields: []apicli.Field{
 				{Path: "display_name", Help: "How the panel shows it, such as \"Staging\". Empty shows its name."},
+				{Path: "protection", Help: "Whether a developer's change here waits for an admin or the owner. Every environment Dockwell makes has it written: protected for one named production, open for any other. An edit that leaves it out keeps what's there. Unset, as on an environment from before, it reads as that default by its name (ADR 0049). Making one with other than the default, or changing it, is an admin's."},
 			},
 		},
 		{

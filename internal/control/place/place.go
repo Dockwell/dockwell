@@ -128,7 +128,7 @@ func (pl *Placer) Of(ctx context.Context, objectID string) ([]Place, error) {
 func (pl *Placer) itemPlace(ctx context.Context, it *store.ChangeItem, own map[string]*store.ChangeItem) (Place, error) {
 	switch it.Kind {
 	case string(scope.EnvironmentKind):
-		return Place{Project: it.Scope, Environment: it.ResourceID, Protected: protectedByName(it.Name)}, nil
+		return Place{Project: it.Scope, Environment: it.ResourceID, Protected: scope.ProtectedSpec(it.Name, it.Spec)}, nil
 	case string(scope.ProjectKind):
 		return Place{Project: it.ResourceID}, nil
 	}
@@ -145,7 +145,7 @@ func (pl *Placer) resourcePlace(ctx context.Context, r store.Resource) (Place, e
 	case string(scope.ProjectKind):
 		return Place{Project: r.ID}, nil
 	case string(scope.EnvironmentKind):
-		return Place{Project: r.Scope, Environment: r.ID, Protected: protectedByName(r.Name)}, nil
+		return Place{Project: r.Scope, Environment: r.ID, Protected: scope.ProtectedSpec(r.Name, r.Spec)}, nil
 	}
 	return pl.scoped(ctx, r.Scope)
 }
@@ -163,7 +163,7 @@ func (pl *Placer) scoped(ctx context.Context, scopeID string) (Place, error) {
 		if err != nil {
 			return Place{}, err
 		}
-		p := Place{Project: env.Scope, Environment: env.ID, Protected: protectedByName(env.Name)}
+		p := Place{Project: env.Scope, Environment: env.ID, Protected: scope.ProtectedSpec(env.Name, env.Spec)}
 		pl.scopes[scopeID] = p
 		return p, nil
 	case id.Project:
@@ -173,12 +173,6 @@ func (pl *Placer) scoped(ctx context.Context, scopeID string) (Place, error) {
 	}
 	return Place{}, fmt.Errorf("%w: a scope %s", ErrUnknown, scopeID)
 }
-
-// protectedByName is an environment's protection while it has none written: an
-// environment named production is protected (ADR 0049). Once Environment
-// carries protection, a written one is read first, and this only for one
-// without.
-func protectedByName(name string) bool { return name == "production" }
 
 // Holds is the role grants give at a place: the highest of a grant on the
 // install and one on the place's project. The install's own place counts only
@@ -311,12 +305,8 @@ func findResource(ctx context.Context, tx *store.Tx, reaches func(Place) bool, k
 				}
 				resourceID = r.ID
 			}
-			at, _, err := Environment(ctx, tx, p.ID, e.ID)
-			if err != nil {
-				return nil, err
-			}
 			out = append(out, Found{
-				Place:       at,
+				Place:       Place{Project: p.ID, Environment: e.ID, Protected: e.Protected},
 				ResourceID:  resourceID,
 				ProjectName: p.Name, EnvironmentName: e.Name,
 			})

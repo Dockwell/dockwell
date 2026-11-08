@@ -444,6 +444,24 @@ message CatalogPin {
 message Environment {
   // How the panel shows it, such as "Staging". Empty shows its name.
   string display_name = 1;
+  // Whether a developer's change here waits for an admin or the owner. Every
+  // environment Dockwell makes has it written: protected for one named
+  // production, open for any other. An edit that leaves it out keeps what's
+  // there. Unset, as on an environment from before, it reads as that default
+  // by its name (ADR 0049). Making one with other than the default, or
+  // changing it, is an admin's.
+  Protection protection = 2;
+}
+
+// Protection is whether a developer's change in an environment waits for an
+// admin or the owner.
+enum Protection {
+  PROTECTION_UNSPECIFIED = 0;
+  // A developer's change waits for an admin or the owner, who applies it with
+  // a passkey.
+  PROTECTION_PROTECTED = 1;
+  // A developer applies their own changes.
+  PROTECTION_OPEN = 2;
 }
 
 // Service is anything that runs in an environment, placed on servers: for

@@ -1024,6 +1024,13 @@ type ChangeChecker interface {
 	CheckInChange(current, desired proto.Message, others []Ref) error
 }
 
+// NewDefaulter is a kind whose new resources take a default from their ref
+// where their edit leaves it out, such as an environment's protection from its
+// name. An edit of one that's there keeps what's there instead (Keeper).
+type NewDefaulter interface {
+	DefaultNew(ref Ref, spec proto.Message)
+}
+
 // NewChecker is a kind that asks more of a new resource than Validate can of an edit,
 // where what an edit leaves out comes from what's there (Keeper).
 type NewChecker interface {
