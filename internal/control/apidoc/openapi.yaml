@@ -959,6 +959,70 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/databases:
+        get:
+            tags:
+                - DatabaseService
+            description: |-
+                ListDatabases returns every database, by name, with how each stands on each
+                 server it runs on, as far as each server can say within a few seconds, and
+                 the newest backup of its data.
+            operationId: DatabaseService_ListDatabases
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListDatabasesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/databases/{id}:
+        get:
+            tags:
+                - DatabaseService
+            description: |-
+                GetDatabase returns one database, by its service's ID or its name, with what
+                 it holds: the databases inside it, and who can sign in to it.
+            operationId: DatabaseService_GetDatabase
+            parameters:
+                - name: id
+                  in: path
+                  description: Its service, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: |-
+                    The project of a service named by name, by name or ID, when more than one
+                     has a service of that name.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: |-
+                    The environment of a service named by name, by name or ID, when its project
+                     has more than one.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetDatabaseResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/domains:
         get:
             tags:
@@ -4198,6 +4262,193 @@ components:
                         The secret, such as "dwt_…", 53 characters. Send it as
                          "Authorization: Bearer <secret>". It is shown only now; store it safely.
             description: CreateTokenResponse carries the new token and its secret.
+        Database:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: 'The service: its kind, its environment''s ID, and its name.'
+                engine:
+                    enum:
+                        - DATABASE_ENGINE_UNSPECIFIED
+                        - DATABASE_ENGINE_POSTGRESQL
+                        - DATABASE_ENGINE_MYSQL
+                        - DATABASE_ENGINE_MARIADB
+                        - DATABASE_ENGINE_REDIS
+                        - DATABASE_ENGINE_VALKEY
+                    type: string
+                    description: Which database it runs.
+                    format: enum
+                image:
+                    type: string
+                    description: The image it runs, such as "postgres:17.2".
+                version:
+                    type: string
+                    description: |-
+                        The version its image's tag names, such as "17.2", or the tag itself where
+                         it names none, such as "latest". What each server's database says is in
+                         readings.
+                volume:
+                    type: string
+                    description: |-
+                        The volume that holds its data, by name. Empty when none does, so its data
+                         is in the container, and goes when the container is replaced.
+                volumeId:
+                    type: string
+                    description: |-
+                        The volume's ID. Empty for a volume Dockwell didn't make, as one a container
+                         came with when it was taken on.
+                volumeExternal:
+                    type: boolean
+                    description: True when its data is in a volume Dockwell didn't make (Mount.external).
+                port:
+                    type: integer
+                    description: The port it listens on in its container, such as 5432.
+                    format: uint32
+                host:
+                    type: string
+                    description: 'The name the other services in its environment reach it by: its service''s.'
+                passwordSecret:
+                    type: string
+                    description: |-
+                        The environment's secret its first user's password is in, by name, when the
+                         service uses one, such as "POSTGRES_PASSWORD". Empty when the password is in
+                         its own environment, or there is none.
+                readings:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DatabaseReading'
+                    description: |-
+                        How it stands on each server it is placed on, as each said when asked, by
+                         server name.
+                newestBackup:
+                    allOf:
+                        - $ref: '#/components/schemas/Backup'
+                    description: |-
+                        Its volume's newest backup that's whole, on any server. Unset when there's
+                         none, or no volume.
+                latestBackup:
+                    allOf:
+                        - $ref: '#/components/schemas/Backup'
+                    description: |-
+                        Its volume's newest backup, whatever came of it, when that's newer than
+                         newest_backup: one running now, or one that failed.
+                beside:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The other services in its environment, by name, as those are what a Compose
+                         file or a catalog install puts beside a database to use it.
+                catalogEntry:
+                    type: string
+                    description: |-
+                        The catalog entry it was installed from, by ID, such as "postgres". Empty
+                         for anything else.
+            description: Database is a service that runs a database.
+        DatabaseAccount:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Their name, such as "shop".
+                host:
+                    type: string
+                    description: |-
+                        Where they may sign in from, for MySQL and MariaDB, such as "%" for
+                         anywhere.
+                superuser:
+                    type: boolean
+                    description: |-
+                        True for a user who can do anything, as PostgreSQL's postgres and MySQL's
+                         root can.
+                canSignIn:
+                    type: boolean
+                    description: False for a role that can't sign in, as PostgreSQL has for groups.
+                databases:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The databases that are theirs, by name: those they own, in PostgreSQL, or
+                         those they're granted on by name, in MySQL and MariaDB.
+                system:
+                    type: boolean
+                    description: True for one the server made for itself, such as mysql.sys.
+            description: |-
+                DatabaseAccount is someone who can sign in to a database server: a user, as
+                 MySQL and MariaDB call one, or a role, as PostgreSQL does.
+        DatabaseReading:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID.
+                serverName:
+                    type: string
+                    description: The server's name, such as "hz-1".
+                readTime:
+                    type: string
+                    description: |-
+                        When it was read. A reading is kept for a few seconds, so several readers
+                         ask the database once.
+                    format: date-time
+                unread:
+                    type: string
+                    description: |-
+                        Why it couldn't be read, for people, such as "PostgreSQL isn't running". The
+                         rest is then unset.
+                version:
+                    type: string
+                    description: The version it says it is, such as "17.2".
+                sizeBytes:
+                    type: string
+                    description: |-
+                        How much its data takes, in bytes: its databases on disk, or for Redis and
+                         Valkey, its data in memory.
+                connections:
+                    type: string
+                    description: How many clients are connected now.
+                maxConnections:
+                    type: string
+                    description: How many it takes at most. Zero where it says none.
+                user:
+                    type: string
+                    description: |-
+                        The user Dockwell signed in as, such as "postgres" or "root". Empty for
+                         Redis and Valkey.
+                uptimeSeconds:
+                    type: string
+                    description: How long it has been up, in seconds.
+                cacheHit:
+                    type: number
+                    description: |-
+                        Of what clients read since it started, how much came from memory rather than
+                         disk, from 0 to 1: PostgreSQL's shared buffers, InnoDB's buffer pool, or the
+                         keys Redis found. Unset until anything was read.
+                    format: double
+                databases:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/InnerDatabase'
+                    description: The databases in it, by name. Redis and Valkey have none of their own.
+                users:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DatabaseAccount'
+                    description: Who can sign in to it, by name. Redis and Valkey list none.
+                keys:
+                    type: string
+                    description: How many keys it holds, for Redis and Valkey.
+                unlisted:
+                    type: integer
+                    description: How many more databases or users it has than this lists.
+                    format: int32
+            description: DatabaseReading is what a database said of itself on one server.
         DeleteBackupResponse:
             type: object
             properties: {}
@@ -5258,6 +5509,14 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change.
             description: GetChangeResponse carries one change.
+        GetDatabaseResponse:
+            type: object
+            properties:
+                database:
+                    allOf:
+                        - $ref: '#/components/schemas/Database'
+                    description: The database.
+            description: GetDatabaseResponse is one database.
         GetServerResponse:
             type: object
             properties:
@@ -5678,6 +5937,24 @@ components:
                         True when the proxy isn't the version this server's Dockwell pins. It may
                          be missing security fixes, and moves on the server's next route change.
             description: IngressStatus is where a server's ingress stands, on a server with routes.
+        InnerDatabase:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, such as "shop".
+                owner:
+                    type: string
+                    description: The user that owns it, for PostgreSQL.
+                sizeBytes:
+                    type: string
+                    description: How much it takes on disk, in bytes.
+                system:
+                    type: boolean
+                    description: True for one the server made for itself, such as PostgreSQL's postgres.
+            description: |-
+                InnerDatabase is one database inside a database server, as PostgreSQL has
+                 them, or a schema, as MySQL and MariaDB call one.
         Input:
             type: object
             properties:
@@ -5941,6 +6218,15 @@ components:
                          be Dockwell's own or not. Zero while the list is whole.
                     format: int32
             description: ListContainersResponse lists a server's containers that Dockwell didn't make.
+        ListDatabasesResponse:
+            type: object
+            properties:
+                databases:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Database'
+                    description: The databases, by name.
+            description: ListDatabasesResponse lists them.
         ListDomainsResponse:
             type: object
             properties:
@@ -9320,6 +9606,17 @@ tags:
 
          A service's containers aren't here: they are the service's. ReadLogs and
          WatchLogs read what one of these prints, given its server.
+    - name: DatabaseService
+      description: |-
+        DatabaseService is the services that run a database Dockwell knows:
+         PostgreSQL, MySQL, MariaDB, Redis and Valkey, from their official images,
+         whether Dockwell made them or took them on. A database is a service, so it
+         changes as any service does, by a change with a plan. What this adds is what
+         the database itself says, read in its own container with its own tools, which
+         sign in with what its environment already holds, so no password passes
+         through Dockwell. See docs/adr/0038-databases.md.
+
+         Nothing here carries a password, nor a value of a database's environment.
     - name: DomainService
       description: |-
         DomainService says where the domains of your routes stand: what each sends

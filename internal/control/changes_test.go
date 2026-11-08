@@ -32,6 +32,7 @@ import (
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/pki"
@@ -140,6 +141,9 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	}
 	if s.backups != nil {
 		cfg.Backups = backup.Calls{Runner: s.backups}
+	}
+	if s.client != nil {
+		cfg.Databases = database.Reader{Client: s.client}
 	}
 	go func() {
 		_ = agent.Run(ctx, cfg)

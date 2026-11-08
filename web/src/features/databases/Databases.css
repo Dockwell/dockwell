@@ -1,0 +1,478 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* What every part of the section shares. */
+.databases-muted {
+  color: var(--ink-muted);
+}
+
+.databases-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.databases-sub {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+
+.databases-code {
+  font-size: 12px;
+}
+
+.databases-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.databases-servers {
+  font-size: 12px;
+}
+
+.databases-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.databases-section-head h2 {
+  margin: 0;
+}
+
+.databases-section-head .databases-muted {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.databases-panel-link {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--link);
+  text-decoration: none;
+  border-radius: var(--radius-xs);
+}
+
+.databases-panel-link:hover {
+  text-decoration: underline;
+}
+
+.databases-panel-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.databases-quiet {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* The list's table: a name over its engine, and a short bar for connections. */
+.databases-table tbody tr {
+  cursor: pointer;
+}
+
+.databases-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.databases-meter-bar {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.databases-meter-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--ink-muted);
+  transition: width var(--motion-base) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .databases-meter-fill {
+    transition: none;
+  }
+}
+
+/* Databases in containers Dockwell didn't make, each a link to where it's taken on. */
+.databases-strangers-line {
+  margin: 0 0 var(--space-2);
+}
+
+.databases-strangers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.databases-strangers li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.databases-stranger {
+  border-radius: var(--radius-xs);
+  color: var(--link);
+}
+
+.databases-stranger:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Making one, from the catalog's databases. */
+.databases-engines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.databases-engine-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.databases-engine-grid li {
+  display: flex;
+}
+
+.databases-engine-grid .databases-engine {
+  flex: 1 1 auto;
+}
+
+.databases-engine.dw-btn {
+  justify-content: flex-start;
+  padding: 0 12px 0 10px;
+  text-decoration: none;
+}
+
+.databases-engine-plus {
+  display: flex;
+  color: var(--ink-muted);
+}
+
+.databases-engine-fill {
+  flex: 1 1 auto;
+}
+
+.databases-engine-version {
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+/* Backups and recent activity, side by side where there's room. */
+.databases-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+.databases-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.databases-fact {
+  display: contents;
+}
+
+.databases-fact dt {
+  color: var(--ink-muted);
+}
+
+.databases-fact-name {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.databases-fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.databases-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* The list on a phone, as M-Apps draws a list. */
+.databases-phone .dw-panel-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.databases-phone .dw-panel-body > * + * {
+  border-top: 1px solid var(--line);
+}
+
+.databases-phone-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) 16px;
+  align-items: center;
+  column-gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.databases-phone-row.is-static {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.databases-phone-row:not(.is-static):active {
+  background: var(--surface-sunken);
+}
+
+.databases-phone-row:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--cobalt);
+}
+
+.databases-phone-glyph {
+  align-self: start;
+  display: flex;
+  padding-top: 5px;
+  color: var(--tone);
+}
+
+.databases-phone-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.databases-phone-name {
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.databases-phone-name.databases-name {
+  font-size: 14px;
+}
+
+.databases-phone-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-1);
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+
+.databases-phone-sub code {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.databases-phone-word {
+  flex: none;
+  color: var(--tone);
+}
+
+.databases-phone-chevron {
+  color: var(--ink-muted);
+}
+
+/* What's on its way, in the shape of what comes. Nothing shimmers: only three things in the system loop. */
+.databases-skeleton-bar {
+  display: block;
+  height: 12px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+}
+
+.databases-skeleton-bar.is-short {
+  width: 24%;
+  height: 10px;
+}
+
+.databases-skeleton-line {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 56px;
+  padding: 0 var(--space-4);
+}
+
+.databases-skeleton-line + .databases-skeleton-line {
+  border-top: 1px solid var(--line);
+}
+
+.databases-skeleton-block {
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.databases-skeleton-block.is-tabs {
+  height: 40px;
+  border-radius: var(--radius-sm);
+}
+
+.databases-skeleton-block.is-metrics {
+  height: 128px;
+}
+
+.databases-skeleton-block.is-panel {
+  height: 280px;
+}
+
+/* One database. */
+.database-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.database-crumb-slash {
+  color: var(--line-strong);
+}
+
+.database-crumb-name {
+  font: 400 12.5px / 18px var(--font-mono);
+  color: var(--ink);
+}
+
+.database-page .page-title.is-machine {
+  font-size: 21px;
+  font-weight: 550;
+  letter-spacing: -0.02em;
+}
+
+.database-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.database-panels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: stretch;
+}
+
+.database-backups {
+  display: flex;
+  flex: 2 1 560px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.database-connection {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.database-connection-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.database-line {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.database-line code {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.database-line a {
+  color: var(--link);
+}
+
+/* What a database or Docker said, which may hold a path or a command no space breaks. */
+.database-said {
+  overflow-wrap: anywhere;
+}
+
+.database-rule {
+  height: 1px;
+  background: var(--line);
+}
+
+.database-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.databases-schema {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.database-more {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.database-actionbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 639px) {
+  .database-panels {
+    gap: var(--space-4);
+  }
+
+  .database-overview {
+    gap: var(--space-4);
+  }
+
+  .database-actionbar .dw-btn {
+    flex: 1 1 auto;
+  }
+}
