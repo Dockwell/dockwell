@@ -1,0 +1,306 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// AlertService says what's wrong now and what was, the rules that decide it
+// and the channels that tell you. Rules and channels are resources, the kinds
+// alert.rule and alert.channel, so ChangeService plans each change to them, as
+// it does any edit. The control plane evaluates the rules from what it hears
+// of servers already, and an install starts with a rule for each condition,
+// which sends to every channel once there is one. Muting a rule or a server is
+// no change: it holds what's sent for a while, and goes on Activity. See
+// docs/adr/0044-alerts.md.
+service AlertService {
+  option (dockwell.v1.nouns) = {
+    name: "alerts"
+    help: "An alert is a rule holding for one thing, such as a server's disk, from when it fires until it resolves. Dockwell evaluates the rules on the control plane, from what it hears of servers already, and sends each alert to the rule's channels, and again when it resolves. ListAlerts shows what's firing and what was. MuteAlerts holds what a rule or a server sends for a while, with no change to apply, and goes on Activity."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "alert-rules"
+    help: "A rule is something Dockwell watches for, such as a disk above 90% for 5 minutes, and who it tells. An install starts with a rule for each condition, which sends to every channel once there is one. Rules are resources: creating, changing and deleting one is a change, with a plan, that undo takes back."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "alert-channels"
+    help: "A channel is somewhere alerts are sent, such as a webhook. What signs in to it is sealed, never shown again, and a plan says only that it changed. Channels are resources: creating, changing and deleting one is a change, with a plan, that undo takes back. TestAlertChannel sends a test message and says what the far end answered."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "alert-mutes"
+    help: "A mute holds what a rule or a server sends for a while, during an outage, with no change to apply. dockwell alerts mute starts one and dockwell alerts unmute ends it; both go on Activity."
+  };
+
+  // ListAlerts returns what's firing now, most severe and then newest first, and
+  // after it what fired and resolved, newest first, a page at a time.
+  rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/alerts"};
+  }
+
+  // ListAlertRules returns every rule, in the order Dockwell lists them, with
+  // what each is firing on now.
+  rpc ListAlertRules(ListAlertRulesRequest) returns (ListAlertRulesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/alert-rules"};
+  }
+
+  // ListAlertChannels returns every channel, with how its last message went, and
+  // never what signs in to it.
+  rpc ListAlertChannels(ListAlertChannelsRequest) returns (ListAlertChannelsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/alert-channels"};
+  }
+
+  // TestAlertChannel sends a test message through a channel, one that exists or
+  // one a form holds, and says what the far end answered. It changes nothing.
+  rpc TestAlertChannel(TestAlertChannelRequest) returns (TestAlertChannelResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/alert-channels:test"
+      body: "*"
+    };
+  }
+
+  // ListAlertMutes lists the mutes in force, soonest to end first, with who
+  // muted each, as Activity names them.
+  rpc ListAlertMutes(ListAlertMutesRequest) returns (ListAlertMutesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.command) = {
+      noun: "alert-mutes"
+      verb: "list"
+    };
+    option (google.api.http) = {get: "/v1/alert-mutes"};
+  }
+
+  // MuteAlerts holds what a rule or a server would send until a time. Alerts
+  // still open and close, on Activity and here, and one whose firing message went
+  // out still gets its resolved one. When the mute ends, what's still firing is
+  // sent. Muting again what's muted moves its end.
+  rpc MuteAlerts(MuteAlertsRequest) returns (MuteAlertsResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.command) = {
+      noun: "alerts"
+      verb: "mute"
+    };
+    option (google.api.http) = {
+      post: "/v1/alert-mutes"
+      body: "*"
+    };
+  }
+
+  // UnmuteAlerts ends a mute now, and sends what's still firing.
+  rpc UnmuteAlerts(UnmuteAlertsRequest) returns (UnmuteAlertsResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.command) = {
+      noun: "alerts"
+      verb: "unmute"
+    };
+    option (google.api.http) = {
+      post: "/v1/alert-mutes:end"
+      body: "*"
+    };
+  }
+}
+
+// AlertState is where an alert is.
+enum AlertState {
+  ALERT_STATE_UNSPECIFIED = 0;
+  // Its rule holds now.
+  ALERT_STATE_FIRING = 1;
+  // Its rule held, and no longer does.
+  ALERT_STATE_RESOLVED = 2;
+}
+
+// Alert is one rule holding for one thing, such as a server's disk, from when
+// it fired until it resolved.
+message Alert {
+  // The alert's ID, "alt_…".
+  string id = 1;
+  // The rule, by ID and by name. A deleted rule keeps its name here.
+  string rule_id = 2;
+  string rule_name = 3;
+  // What the rule watches for, and how much it matters, as it did when it fired.
+  dockwell.resource.v1alpha1.AlertRule.Condition condition = 4;
+  dockwell.resource.v1alpha1.AlertRule.Severity severity = 5;
+  // Where it is.
+  AlertState state = 6;
+  // What's wrong, in a line, such as "web-1's disk is 93% full".
+  string title = 7;
+  // What it means and what fixes it, in a sentence or two.
+  string detail = 8;
+  // The server it's on, when it's on one.
+  string server_id = 9;
+  string server_name = 10;
+  // What else it's about, by ID and name: a service, a domain, a volume or a
+  // change. Empty for a server's own.
+  string subject_id = 11;
+  string subject_name = 12;
+  // Where the panel shows it, such as "/servers/srv_…".
+  string path = 13;
+  // When it fired, and when it resolved.
+  google.protobuf.Timestamp open_time = 14;
+  google.protobuf.Timestamp resolve_time = 15;
+  // When a message last went out for it. Unset when none has: no channel yet,
+  // or a mute held it.
+  google.protobuf.Timestamp sent_time = 16;
+  // Whether a mute holds what it sends now.
+  bool muted = 17;
+}
+
+// ListAlertsRequest asks for a page of alerts.
+message ListAlertsRequest {
+  // How many to return: 50 unless set, and at most 500.
+  int32 page_size = 1;
+  // Where to start: the next_page_token of the page before.
+  string page_token = 2;
+  // Only what's firing now.
+  bool firing_only = 3;
+}
+
+// ListAlertsResponse is a page of alerts.
+message ListAlertsResponse {
+  // What's firing, then what resolved, as ListAlerts orders them.
+  repeated Alert alerts = 1;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 2;
+  // How many are firing now, on every page.
+  int32 firing = 3;
+}
+
+// AlertRuleInfo is a rule, as it stands, with what it's doing now.
+message AlertRuleInfo {
+  // The rule's ID, "alr_…", and its name.
+  string id = 1;
+  string name = 2;
+  // What it is.
+  dockwell.resource.v1alpha1.AlertRule spec = 3;
+  // What it watches for, in words, such as "Disk above 90%".
+  string title = 4;
+  // Its condition as an expression, such as "disk.percent > 90".
+  string expression = 5;
+  // How many alerts of it are firing now.
+  int32 firing = 6;
+  // When it last fired. Unset when it never has.
+  google.protobuf.Timestamp last_fired_time = 7;
+  // Until when a mute holds what it sends. Unset when none does.
+  google.protobuf.Timestamp muted_until = 8;
+  // Whether Dockwell made it, as one of an install's first rules.
+  bool built_in = 9;
+}
+
+// ListAlertRulesRequest asks for every rule.
+message ListAlertRulesRequest {}
+
+// ListAlertRulesResponse lists the rules.
+message ListAlertRulesResponse {
+  repeated AlertRuleInfo rules = 1;
+}
+
+// AlertDelivery is how one message to a channel went.
+message AlertDelivery {
+  // When it was sent.
+  google.protobuf.Timestamp time = 1;
+  // Whether the far end took it.
+  bool ok = 2;
+  // What the far end answered, in a line, such as "202 Accepted", or why it
+  // couldn't be reached. Nothing that signs in.
+  string said = 3;
+  // What it was, such as "Disk above 90% on web-1" or "Test message".
+  string about = 4;
+}
+
+// AlertChannelInfo is a channel, with nothing that signs in to it.
+message AlertChannelInfo {
+  // The channel's ID, "ach_…", and its name.
+  string id = 1;
+  string name = 2;
+  // What sort of channel it is, such as "webhook".
+  string type = 3;
+  // Where it sends, with nothing that signs in, such as the webhook's host.
+  string target = 4;
+  // How many rules send to it, naming it or naming none.
+  int32 rules = 5;
+  // How its last message went. Unset when it has sent none.
+  AlertDelivery last = 6;
+}
+
+// ListAlertChannelsRequest asks for every channel.
+message ListAlertChannelsRequest {}
+
+// ListAlertChannelsResponse lists the channels, by name.
+message ListAlertChannelsResponse {
+  repeated AlertChannelInfo channels = 1;
+}
+
+// TestAlertChannelRequest names a channel to test, or gives one a form holds.
+message TestAlertChannelRequest {
+  // A channel that exists, by name. With channel too, channel's fields that
+  // sign in, left empty, take this one's.
+  string name = 1;
+  // A channel as a form holds it, before it's planned.
+  dockwell.resource.v1alpha1.AlertChannel channel = 2;
+}
+
+// TestAlertChannelResponse says how the test went.
+message TestAlertChannelResponse {
+  AlertDelivery delivery = 1;
+}
+
+// AlertMute holds what a rule or a server sends, until a time.
+message AlertMute {
+  // The rule, by name, or the server, by ID and name: one of the two.
+  string rule = 1;
+  string server_id = 2;
+  string server_name = 3;
+  // When it ends.
+  google.protobuf.Timestamp until = 4;
+  // Who muted it, as Activity names them.
+  string by = 5;
+  // Why, in their words. Empty when they gave none.
+  string reason = 6;
+}
+
+// ListAlertMutesRequest asks for the mutes in force.
+message ListAlertMutesRequest {}
+
+// ListAlertMutesResponse lists them.
+message ListAlertMutesResponse {
+  repeated AlertMute mutes = 1;
+}
+
+// MuteAlertsRequest mutes a rule or a server.
+message MuteAlertsRequest {
+  // The rule to mute, by name. Give a rule or a server, not both.
+  string rule = 1;
+  // The server to mute, by ID or name: every rule's alerts on it.
+  string server = 2;
+  // For how long, such as "1h": at most 30 days.
+  string duration = 3;
+  // Why, for whoever reads Activity. Up to 200 characters, on one line.
+  string reason = 4;
+}
+
+// MuteAlertsResponse is the mute as it now stands.
+message MuteAlertsResponse {
+  AlertMute mute = 1;
+}
+
+// UnmuteAlertsRequest ends a rule's or a server's mute.
+message UnmuteAlertsRequest {
+  // The rule whose mute ends, by name. Give a rule or a server, not both.
+  string rule = 1;
+  // The server whose mute ends, by ID or name.
+  string server = 2;
+}
+
+// UnmuteAlertsResponse says nothing more.
+message UnmuteAlertsResponse {}

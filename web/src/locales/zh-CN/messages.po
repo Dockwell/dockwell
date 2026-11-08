@@ -299,6 +299,9 @@ msgstr "动态"
 msgid "Actor"
 msgstr "执行者"
 
+msgid "Alerts"
+msgstr "告警"
+
 msgid "All"
 msgstr "全部"
 
@@ -338,8 +341,8 @@ msgstr "事件类型"
 msgid "Events: {caption}"
 msgstr "事件：{caption}"
 
-msgid "Every change, server event, access grant, change of health and backup, newest first"
-msgstr "所有变更、服务器事件、访问授权、健康变化和备份，最新的在前"
+msgid "Every change, server event, access grant, change of health, backup and alert, newest first"
+msgstr "所有变更、服务器事件、访问授权、健康变化、备份和告警，最新的在前"
 
 msgid "From"
 msgstr "来源"
@@ -389,6 +392,9 @@ msgstr "回滚"
 msgid "Rolls back"
 msgstr "回滚"
 
+msgid "Rule"
+msgstr "规则"
+
 msgid "Server"
 msgstr "服务器"
 
@@ -425,11 +431,17 @@ msgstr "卷"
 msgid "What changed"
 msgstr "变更内容"
 
+msgid "What it said"
+msgstr "告警内容"
+
 msgid "When"
 msgstr "时间"
 
 msgid "Who"
 msgstr "执行者"
+
+msgid "Why"
+msgstr "原因"
 
 msgid "Why it failed"
 msgstr "失败原因"
@@ -448,6 +460,9 @@ msgstr "{count, plural, other {{long} · # 个事件}}"
 
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "无法从 {destination} 取回 {volume} 的备份"
+
+msgid "A change failed: {subject}"
+msgstr "变更失败：{subject}"
 
 msgid "A service"
 msgstr "某个服务"
@@ -469,6 +484,9 @@ msgstr "用恢复码登录后添加了通行密钥 {name}"
 
 msgid "Added the passkey {name} after signing in with an authenticator code"
 msgstr "用身份验证器验证码登录后添加了通行密钥 {name}"
+
+msgid "Alert opened: {title}"
+msgstr "告警触发：{title}"
 
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "应用 {change} 时要求验证通行密钥，但未收到"
@@ -509,6 +527,12 @@ msgstr "已删除 {volume} 的一份备份"
 msgid "Ended an authenticator app's setup after 5 wrong codes"
 msgstr "输错 5 次验证码后结束了身份验证器应用的设置"
 
+msgid "Ended the mute of the alert rule {rule}"
+msgstr "结束了告警规则 {rule} 的静音"
+
+msgid "Ended the mute of {server}'s alerts"
+msgstr "结束了 {server} 告警的静音"
+
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"
 
@@ -529,6 +553,12 @@ msgstr "生成了新的恢复码"
 
 msgid "May have saved {path} on {server}"
 msgstr "可能已保存 {server} 上的 {path}"
+
+msgid "Muted the alert rule {rule} until {until}"
+msgstr "将告警规则 {rule} 静音至 {until}"
+
+msgid "Muted the alerts of {server} until {until}"
+msgstr "将 {server} 的告警静音至 {until}"
 
 msgid "Named this install {value}"
 msgstr "将此安装命名为 {value}"
@@ -554,6 +584,9 @@ msgstr "移除了通行密钥 {name}"
 msgid "Removed {server} from the fleet"
 msgstr "从集群中移除了 {server}"
 
+msgid "Resolved: {title}"
+msgstr "已恢复：{title}"
+
 msgid "Revealed a secret"
 msgstr "显示了一个密钥"
 
@@ -578,6 +611,18 @@ msgstr "已保存 {server} 上的 {path}"
 msgid "Saved {path} on {server}, which can let someone back in"
 msgstr "已保存 {server} 上的 {path}，这个文件可能让他人重新进入服务器"
 
+msgid "Sent a test to a new {kind} channel at {host}, which arrived"
+msgstr "向 {host} 上新的 {kind} 渠道发送了测试，已送达"
+
+msgid "Sent a test to a new {kind} channel at {host}, which didn't arrive"
+msgstr "向 {host} 上新的 {kind} 渠道发送了测试，未送达"
+
+msgid "Sent a test to {name} ({kind}, {host}), which arrived"
+msgstr "向 {name}（{kind}，{host}）发送了测试，已送达"
+
+msgid "Sent a test to {name} ({kind}, {host}), which didn't arrive"
+msgstr "向 {name}（{kind}，{host}）发送了测试，未送达"
+
 msgid "Set the public address of {server} to {address}"
 msgstr "将 {server} 的公网地址设置为 {address}"
 
@@ -595,6 +640,15 @@ msgstr "登录了"
 
 msgid "Signed out other sessions"
 msgstr "退出了其他会话"
+
+msgid "The backup of {subject} didn't reach {where}"
+msgstr "{subject} 的备份未能送达 {where}"
+
+msgid "The backup of {subject} failed"
+msgstr "{subject} 的备份失败"
+
+msgid "The backup of {subject} is late"
+msgstr "{subject} 的备份已延误"
 
 msgid "The backup of {volume} didn't reach {destination}"
 msgstr "{volume} 的备份未能送达 {destination}"
@@ -676,6 +730,9 @@ msgstr "{name} 在 {server} 上变为不健康"
 msgid "{name} was paused on {server}"
 msgstr "{name} 在 {server} 上被暂停"
 
+msgid "{server} can't be reached"
+msgstr "无法连接到 {server}"
+
 msgid "{server} joined as the control server"
 msgstr "{server} 作为控制服务器加入"
 
@@ -685,8 +742,35 @@ msgstr "{server} 加入了集群"
 msgid "{server} renewed its certificate"
 msgstr "{server} 更新了证书"
 
+msgid "{server} uses {value}% of its memory"
+msgstr "{server} 的内存已用 {value}%"
+
+msgid "{server}'s disk {where} is {value}% full"
+msgstr "{server} 的磁盘 {where} 已用 {value}%"
+
+msgid "{subject} fails its health check on {server}"
+msgstr "{subject} 在 {server} 上未通过健康检查"
+
+msgid "{subject} has no certificate"
+msgstr "{subject} 没有证书"
+
+msgid "{subject} isn't running on {server}"
+msgstr "{subject} 未在 {server} 上运行"
+
+msgid "{subject} keeps going down on {server}"
+msgstr "{subject} 在 {server} 上反复宕机"
+
+msgid "{subject} keeps restarting on {server}"
+msgstr "{subject} 在 {server} 上不断重启"
+
+msgid "{subject}'s certificate has ended"
+msgstr "{subject} 的证书已过期"
+
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
+
+msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
+msgstr "{value, plural, other {{subject} 的证书将在 # 天内过期}}"
 
 msgid "A route runs on one server, as its certificate comes to the one its DNS points at."
 msgstr "一条路由只在一台服务器上运行，因为证书只会发到 DNS 指向的那台服务器。"
@@ -1621,11 +1705,17 @@ msgstr "要导出的内容"
 msgid "Checking"
 msgstr "正在检查"
 
+msgid "Finished"
+msgstr "已完成"
+
 msgid "It has no container on this server."
 msgstr "它在这台服务器上没有容器。"
 
 msgid "It isn't placed on a server."
 msgstr "它没有部署到任何服务器。"
+
+msgid "It ran to its end and exited 0, as a one-shot job does, so nothing restarts it."
+msgstr "它已运行完毕并以 0 退出，一次性任务就是这样，所以不会再被重启。"
 
 msgid "Its check hasn't finished yet."
 msgstr "它的检查还没有完成。"
@@ -3739,6 +3829,9 @@ msgstr "{name} 正在运行"
 
 msgid "{name} is starting"
 msgstr "{name} 正在启动"
+
+msgid "{name} ran to its end"
+msgstr "{name} 已运行完毕"
 
 msgid "{same} stays as it is"
 msgstr "{same} 保持不变"
@@ -6866,9 +6959,6 @@ msgstr "{unknown} 台状态未知"
 
 msgid "{waiting} waiting for an agent"
 msgstr "{waiting} 台等待代理连接"
-
-msgid "Alerts"
-msgstr "告警"
 
 msgid "Fleet actions"
 msgstr "集群操作"

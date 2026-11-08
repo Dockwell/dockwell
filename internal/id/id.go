@@ -38,6 +38,9 @@ const (
 	Secret       = "sec"
 	Route        = "rte"
 	Backup       = "bkp"
+	AlertRule    = "alr"
+	AlertChannel = "ach"
+	Alert        = "alt"
 
 	// Keys that seal what may be secret at rest (ADR 0022).
 	KeyEncryptionKey = "kek"

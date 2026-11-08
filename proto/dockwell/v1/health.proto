@@ -122,6 +122,10 @@ message InstanceHealth {
   // Its ID in Docker. A replace can keep a container's name and number, and only
   // this says it's another container. Empty from an older agent.
   string container_id = 12;
+  // It ran to its end: it exited 0, and Docker won't start it again, as its
+  // restart policy is no or on-failure. A one-shot job, such as a migration,
+  // that did its work. False from an older agent.
+  bool finished = 13;
 }
 
 // HealthResult is one check's result.

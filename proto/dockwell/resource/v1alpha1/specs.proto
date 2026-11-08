@@ -597,5 +597,85 @@ message Spec {
     BackupPolicy backup_policy = 20;
     // S3-compatible storage backups go to, kind "backup.destination".
     BackupDestination backup_destination = 21;
+    // What Dockwell watches for, and who it tells, kind "alert.rule". Numbered
+    // apart, as open work adds to this message.
+    AlertRule alert_rule = 110;
+    // Where alerts are sent, kind "alert.channel".
+    AlertChannel alert_channel = 111;
   }
+}
+
+// AlertRule is something Dockwell watches for, on every server or app it
+// applies to, and who it tells when it holds. It lives in the organization, and
+// the control plane evaluates it, from what it hears of servers already. See
+// docs/adr/0044-alerts.md.
+message AlertRule {
+  // What it watches for.
+  enum Condition {
+    CONDITION_UNSPECIFIED = 0;
+    // A service isn't running, or fails its health check.
+    CONDITION_SERVICE_DOWN = 1;
+    // The control plane hasn't heard from a server's agent.
+    CONDITION_SERVER_UNREACHABLE = 2;
+    // A server's disk is fuller than threshold percent.
+    CONDITION_DISK_FULL = 3;
+    // A server's memory is more in use than threshold percent.
+    CONDITION_MEMORY_HIGH = 4;
+    // A domain's certificate expires within threshold days.
+    CONDITION_CERTIFICATE_EXPIRING = 5;
+    // A domain's certificate couldn't be issued or renewed.
+    CONDITION_CERTIFICATE_FAILED = 6;
+    // A volume's last backup failed, or its copy didn't reach its destination.
+    CONDITION_BACKUP_FAILED = 7;
+    // A backup schedule's run is later than duration says it may be.
+    CONDITION_BACKUP_LATE = 8;
+    // A change failed or rolled back, a deploy among them.
+    CONDITION_CHANGE_FAILED = 9;
+  }
+  // How much it matters, which a message says and a channel can choose by.
+  enum Severity {
+    SEVERITY_UNSPECIFIED = 0;
+    // Someone should look soon. The default.
+    SEVERITY_WARNING = 1;
+    // Something is down, or is about to be.
+    SEVERITY_CRITICAL = 2;
+  }
+  // What it watches for.
+  Condition condition = 1;
+  // The level, for a condition that has one: a percent for disk and memory, 1 to
+  // 100, and days for a certificate, 1 to 90. Others leave it 0.
+  uint32 threshold = 2;
+  // How long the condition holds before the alert fires, such as "5m". Empty
+  // fires at once. For a late backup, how long after its time a run may start.
+  string duration = 3;
+  // How much it matters: warning unless set.
+  Severity severity = 4;
+  // The channels it sends to, by name. Empty sends to every channel, so a rule
+  // tells someone as soon as there is one.
+  repeated string channels = 5;
+  // Sends an alert that's still firing again this often, such as "4h". Empty
+  // sends it once, and once more when it resolves.
+  string repeat = 6;
+  // Keeps the rule without evaluating it.
+  bool disabled = 7;
+}
+
+// AlertChannel is somewhere alerts are sent. It lives in the organization. What
+// signs in to it is sealed, and a plan says only that it changed (ADR 0022).
+message AlertChannel {
+  // Where it sends.
+  oneof to {
+    // An HTTP endpoint of your own, sent JSON.
+    AlertWebhook webhook = 1;
+  }
+}
+
+// AlertWebhook sends each alert, and each that resolves, as JSON in a POST.
+message AlertWebhook {
+  // The URL, such as "https://hooks.example.com/dockwell". It may hold a token,
+  // so it's sealed, and lists show only its host.
+  string url = 1 [(sensitive) = true];
+  // What signs each request, in a Dockwell-Signature header, so the endpoint
+  // can tell it came from this install. Empty signs nothing.
+  string secret = 2 [(sensitive) = true];
 }

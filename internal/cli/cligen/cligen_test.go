@@ -384,3 +384,17 @@ func TestGenerateNamesNamesEveryCommand(t *testing.T) {
 		}
 	}
 }
+
+// A kind's verbs join a noun a service has, unless a method has one of them:
+// the two would be one command, and the help would name it twice.
+func TestAKindsVerbsJoinANounOnce(t *testing.T) {
+	kinds := []Kind{{Field: "secret", Noun: "secrets"}}
+	nouns, err := joinKinds([]Noun{{Name: "secrets", Short: "Reveal a secret", verbs: []string{"reveal"}}}, kinds)
+	if err != nil || nouns[0].Short != "Reveal, create, update or delete secrets" {
+		t.Errorf("joinKinds = %v, %v", nouns, err)
+	}
+	_, err = joinKinds([]Noun{{Name: "secrets", verbs: []string{"list", "create"}}}, kinds)
+	if err == nil || !strings.Contains(err.Error(), "dockwell secrets create is both a method's and the kind secret's") {
+		t.Errorf("a method with a kind's verb = %v, want it refused", err)
+	}
+}

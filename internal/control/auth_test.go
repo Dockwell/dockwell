@@ -43,6 +43,7 @@ import (
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
@@ -139,6 +140,13 @@ func startFullLogging(t *testing.T, backend store.Backend, public https.Source, 
 // of reading logs changed.
 func startFullWith(t *testing.T, backend store.Backend, public https.Source, logger *slog.Logger, ingress net.Listener, logs logapi.Options) *fullServer {
 	t.Helper()
+	return startFullConfig(t, backend, public, logger, ingress, logs, nil)
+}
+
+// startFullConfig is startFullWith, with tweak changing the control plane's
+// config before it starts.
+func startFullConfig(t *testing.T, backend store.Backend, public https.Source, logger *slog.Logger, ingress net.Listener, logs logapi.Options, tweak func(*Config)) *fullServer {
+	t.Helper()
 	dir := t.TempDir()
 	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
 	if err != nil {
@@ -164,7 +172,7 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
 		t.Fatal(err)
 	}
-	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{})
+	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, alert.Rule{}, alert.Channel{})
 	keeper := secretstest.Keeper(db, kinds)
 	agents := agentapi.NewAgents(kinds, logger)
 	engine := revision.New(db, kinds, agents, keeper, logger)
@@ -177,10 +185,16 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 		Logger:    logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
 		Changes: engine, Agents: agents, Store: db, Secrets: keeper, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
 		EventPoll: 200 * time.Millisecond, Logs: logs,
+		// The far ends of alert channels in these tests listen on loopback, which
+		// netguard keeps a test of a channel from, so they pass a client of their own.
+		AlertClient: &http.Client{},
 	}
 	if public != nil {
 		// As dockwell run says it of a domain on the public ports, which the ingress takes while there are routes.
 		config.HTTPSListen, config.PanelURL, config.PanelCA, config.PanelHandsOver = "[::]:443", "https://"+public.Domain(), "Let's Encrypt", true
+	}
+	if tweak != nil {
+		tweak(&config)
 	}
 	srv, err := New(config)
 	if err != nil {
