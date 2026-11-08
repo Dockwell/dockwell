@@ -7069,9 +7069,6 @@ msgstr "Permission"
 msgid "Read the audit log"
 msgstr "Read the audit log"
 
-msgid "Role"
-msgstr "Role"
-
 msgid "Sign-in"
 msgstr "Sign-in"
 

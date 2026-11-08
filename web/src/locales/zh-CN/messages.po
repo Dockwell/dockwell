@@ -7069,9 +7069,6 @@ msgstr "权限"
 msgid "Read the audit log"
 msgstr "读取审计日志"
 
-msgid "Role"
-msgstr "角色"
-
 msgid "Sign-in"
 msgstr "登录"
 
