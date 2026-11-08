@@ -45,11 +45,11 @@ type ImportServiceClient interface {
 	// ImportOnePanel reads what 1Panel keeps on a server: its apps from its store,
 	// runtimes, websites, certificates, databases and cron jobs. It says what
 	// Dockwell would do with each and why: take it on as it runs, make it again,
-	// or leave it, and which issue it waits for where Dockwell can't yet. With
-	// plan_only it records nothing. Planning the import itself comes next. The
-	// agent reads 1Panel's records read-only, and nothing secret comes back: no
-	// password, key, script, environment or URL path. So a read-only token can
-	// ask for a plan-only read.
+	// or leave it, and which issue it waits for where Dockwell can't yet. For now
+	// it records nothing and returns no change: planning the import, as a change
+	// a person applies, comes next. The agent reads 1Panel's records read-only,
+	// and nothing secret comes back: no password, key, script, environment or URL
+	// path. So a read-write token can ask, as for CheckCompose.
 	ImportOnePanel(context.Context, *connect.Request[v1.ImportOnePanelRequest]) (*connect.Response[v1.ImportOnePanelResponse], error)
 }
 
@@ -88,11 +88,11 @@ type ImportServiceHandler interface {
 	// ImportOnePanel reads what 1Panel keeps on a server: its apps from its store,
 	// runtimes, websites, certificates, databases and cron jobs. It says what
 	// Dockwell would do with each and why: take it on as it runs, make it again,
-	// or leave it, and which issue it waits for where Dockwell can't yet. With
-	// plan_only it records nothing. Planning the import itself comes next. The
-	// agent reads 1Panel's records read-only, and nothing secret comes back: no
-	// password, key, script, environment or URL path. So a read-only token can
-	// ask for a plan-only read.
+	// or leave it, and which issue it waits for where Dockwell can't yet. For now
+	// it records nothing and returns no change: planning the import, as a change
+	// a person applies, comes next. The agent reads 1Panel's records read-only,
+	// and nothing secret comes back: no password, key, script, environment or URL
+	// path. So a read-write token can ask, as for CheckCompose.
 	ImportOnePanel(context.Context, *connect.Request[v1.ImportOnePanelRequest]) (*connect.Response[v1.ImportOnePanelResponse], error)
 }
 

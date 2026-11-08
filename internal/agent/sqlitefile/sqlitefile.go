@@ -20,6 +20,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -45,7 +46,7 @@ type DB struct {
 	frames map[uint32]int64
 	// stamp is what Changed compares: the header's change counter, and the
 	// files' sizes and the WAL's salts.
-	stamp stamp
+	stamp  stamp
 	tables map[string]*Table
 }
 
@@ -170,7 +171,8 @@ func (db *DB) loadWAL(path string) error {
 	pending := map[uint32]int64{}
 	frame := make([]byte, 24+db.pageSize)
 	for at := int64(32); ; at += int64(len(frame)) {
-		if _, err := wal.ReadAt(frame, at); err != nil {
+		// A frame cut short, as one being written, ends what's committed.
+		if n, _ := wal.ReadAt(frame, at); n < len(frame) {
 			break
 		}
 		if [8]byte(frame[8:16]) != db.stamp.salt {
@@ -323,9 +325,9 @@ func (r Row) Text(column string) string {
 	case []byte:
 		return string(v)
 	case int64:
-		return fmt.Sprint(v)
+		return strconv.FormatInt(v, 10)
 	case float64:
-		return fmt.Sprint(v)
+		return strconv.FormatFloat(v, 'g', -1, 64)
 	}
 	return ""
 }
@@ -440,7 +442,7 @@ func (db *DB) leafCell(table *Table, page []byte, off int) (Row, error) {
 	if size > maxPayload {
 		return Row{}, fmt.Errorf("a row of %d bytes is more than this reads", size)
 	}
-	payload, err := db.payload(page, off, int(size)) //nolint:gosec // bounded above
+	payload, err := db.payload(page, off, int(size))
 	if err != nil {
 		return Row{}, err
 	}
@@ -559,7 +561,7 @@ func record(b []byte) ([]any, error) {
 func serialSize(t uint64) int {
 	switch {
 	case t <= 4:
-		return []int{0, 1, 2, 3, 4}[t]
+		return int(t)
 	case t == 5:
 		return 6
 	case t == 6, t == 7:
@@ -569,7 +571,7 @@ func serialSize(t uint64) int {
 	case t > 2*maxPayload:
 		return -1
 	}
-	return int((t - 12) / 2) //nolint:gosec // bounded above
+	return int((t - 12) / 2)
 }
 
 // signed reads a big-endian two's-complement integer of 1 to 8 bytes.

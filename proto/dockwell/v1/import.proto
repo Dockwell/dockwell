@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
@@ -16,11 +17,11 @@ service ImportService {
   // ImportOnePanel reads what 1Panel keeps on a server: its apps from its store,
   // runtimes, websites, certificates, databases and cron jobs. It says what
   // Dockwell would do with each and why: take it on as it runs, make it again,
-  // or leave it, and which issue it waits for where Dockwell can't yet. With
-  // plan_only it records nothing. Planning the import itself comes next. The
-  // agent reads 1Panel's records read-only, and nothing secret comes back: no
-  // password, key, script, environment or URL path. So a read-only token can
-  // ask for a plan-only read.
+  // or leave it, and which issue it waits for where Dockwell can't yet. For now
+  // it records nothing and returns no change: planning the import, as a change
+  // a person applies, comes next. The agent reads 1Panel's records read-only,
+  // and nothing secret comes back: no password, key, script, environment or URL
+  // path. So a read-write token can ask, as for CheckCompose.
   rpc ImportOnePanel(ImportOnePanelRequest) returns (ImportOnePanelResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (dockwell.v1.command) = {
@@ -38,9 +39,6 @@ service ImportService {
 message ImportOnePanelRequest {
   // The server running 1Panel, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
   string server_id = 1;
-  // To say what an import would do, and record nothing. It has to be set until
-  // the import itself can be planned.
-  bool plan_only = 2;
 }
 
 // ImportOnePanelResponse is what 1Panel keeps on the server, and what an import
@@ -51,6 +49,9 @@ message ImportOnePanelResponse {
   // What an import would do, a step for each thing found, in the order the
   // plan would take them.
   repeated ImportStep steps = 2;
+  // The change that takes on what can be taken now, planned for a person to
+  // apply. Empty for now: planning the import comes next.
+  Change change = 3;
 }
 
 // ImportStep is one thing found, and what an import would do with it.

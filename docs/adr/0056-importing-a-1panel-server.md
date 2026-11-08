@@ -59,7 +59,7 @@ The tables the importer reads, by the names GORM gives them:
 
 ### What it does with each thing
 
-Every import is a plan a person reviews and applies, and nothing on the server changes before that. A plan-only read, `dockwell import 1panel --plan-only` (`ImportService.ImportOnePanel` with `plan_only`), lists all of this and records nothing.
+Every import is a plan a person reviews and applies, and nothing on the server changes before that. `ImportService.ImportOnePanel` returns all of this, and `dockwell import 1panel --server-id <server> --plan-only` lists it. It records nothing yet: once it plans the import, it returns that change too, and `--plan-only` leaves it planned, as it does for every plan.
 
 **Taken on in place, with no restart** (ADR 0031):
 
@@ -117,7 +117,7 @@ The agent protocol takes 180 to 189 for this: `Hello.reads_onepanel`, and `read_
 ## Consequences
 
 - **A move is two plans, and a step between.** The apps come with no downtime. The websites come when a person hands over 80 and 443, with a minute down, which they choose when.
-- **Nothing secret leaves the server to be read.** A plan-only import reads no password and no key, so a read-only token can run it, and what it finds is what a plan would show.
+- **Nothing secret leaves the server to be read.** A plan-only import reads no password and no key, and what it finds is what a plan would show. So a read-write token can ask for one, as it can for `CheckCompose`. The import itself takes a person, as taking a container on does (ADR 0031).
 - **The agent reads a file format.** Its SQLite reader is small and read-only, and it's tested against databases SQLite itself writes, in WAL mode and not. A file it can't read is refused with why, never guessed at.
 - **What 1Panel adds next isn't known.** Columns are read by name, so most of what a new version adds passes by. A table renamed or split would read as empty, and a test against each version read here says so.
 - **Catalog installs come later.** A store app comes as a Compose project, named with its entry, until a move to the entry can carry its data.

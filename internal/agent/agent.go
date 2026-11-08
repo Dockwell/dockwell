@@ -87,6 +87,9 @@ type Config struct {
 	Files *files.Server
 	// Updates reads which package updates wait on this server. Nil reads none.
 	Updates *updates.Reader
+	// OnePanel reads what 1Panel keeps on this server, for an import (ADR 0056).
+	// Nil reads nothing.
+	OnePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
 	// CallGrace is how long a call gets to end once its time is up or its stream is
 	// going, before it's left behind. Zero means DefaultCallGrace.
 	CallGrace time.Duration
@@ -432,7 +435,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil, ReadsOnepanel: cfg.OnePanel != nil}
 	hello.Kinds, hello.Unavailable = offered.proto()
 	if cfg.Hello != nil {
 		cfg.Hello(hello)

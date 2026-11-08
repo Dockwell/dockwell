@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -20,15 +21,16 @@ import (
 // connection, so a WAL stays as it is until the test closes it.
 func sqliteAt(t *testing.T, path string, pragmas ...string) *sql.DB {
 	t.Helper()
-	dsn := "file:" + path
+	var dsn strings.Builder
+	dsn.WriteString("file:" + path)
 	for i, p := range pragmas {
 		sep := "&"
 		if i == 0 {
 			sep = "?"
 		}
-		dsn += sep + "_pragma=" + p
+		dsn.WriteString(sep + "_pragma=" + p)
 	}
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite", dsn.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +106,7 @@ func fill(t *testing.T, db *sql.DB, rows int) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := rand.New(rand.NewPCG(1, 2)) //nolint:gosec // a test's data
+	r := rand.New(rand.NewPCG(1, 2))
 	for i := range rows {
 		var n, f any
 		if i%7 != 0 {
@@ -151,7 +153,7 @@ func short(r row) row {
 // the tree, long ones over many pages, and values of every kind.
 func TestReadsWhatSQLiteWrote(t *testing.T) {
 	for _, size := range []int{512, 1024, 4096, 65536} {
-		t.Run(fmt.Sprint(size), func(t *testing.T) {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "agent.db")
 			db := sqliteAt(t, path, fmt.Sprintf("page_size(%d)", size))
 			fill(t, db, 3000)
@@ -275,7 +277,7 @@ func TestWhatIsntADatabaseIsRefused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := rand.New(rand.NewPCG(3, 4)) //nolint:gosec // a test's damage
+	r := rand.New(rand.NewPCG(3, 4))
 	for i := range 300 {
 		damaged := bytes.Clone(whole)
 		switch i % 3 {

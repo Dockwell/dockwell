@@ -35,7 +35,7 @@ const ctl = "/usr/local/bin/1pctl"
 const tries = 3
 
 // known are the versions this was written from: v2.0 to v2.4.2, and v1.10 LTS.
-var known = regexp.MustCompile(`^v?(2\.[0-3]\.\d+|2\.4\.[0-2]|1\.10\.\d+)(-lts)?$`)
+var known = regexp.MustCompile(`^v?(2\.[0-3]\.\d+|2\.4\.[012]|1\.10\.\d+)(-lts)?$`)
 
 // Read reads what 1Panel keeps on the server whose root is root: "/", but for a test.
 func Read(ctx context.Context, root string) (*agentv1.ReadOnePanelResult, error) {
@@ -76,7 +76,7 @@ func Read(ctx context.Context, root string) (*agentv1.ReadOnePanelResult, error)
 
 // baseDir is the folder 1Panel is installed under: what 1pctl says, or /opt.
 func baseDir(root string) string {
-	f, err := os.Open(filepath.Join(root, ctl))
+	f, err := os.Open(filepath.Join(root, ctl)) //nolint:gosec // 1Panel's own command, at its fixed path
 	if err != nil {
 		return "/opt"
 	}
