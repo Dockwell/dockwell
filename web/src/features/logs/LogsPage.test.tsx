@@ -863,6 +863,39 @@ describe("what a view says of itself", () => {
   });
 });
 
+/** A line some nanoseconds after T0. */
+function lineAt(text: string, nanos: bigint) {
+  return {
+    time: { seconds: T0 + nanos / 1_000_000_000n, nanos: Number(nanos % 1_000_000_000n) },
+    text,
+    level: LogLevel.UNSPECIFIED,
+  };
+}
+
+/**
+ * ReadLogs as the server answers it, over these lines of one source: those in
+ * the window, the newest page of them, oldest first.
+ */
+function readFrom(source: string, all: ReturnType<typeof lineAt>[]) {
+  const ns = (t: { seconds: bigint; nanos: number } | undefined) =>
+    t ? t.seconds * 1_000_000_000n + BigInt(t.nanos) : undefined;
+  return vi.fn(
+    (req: {
+      since?: { seconds: bigint; nanos: number };
+      until?: { seconds: bigint; nanos: number };
+      pageSize: number;
+    }) => {
+      const from = ns(req.since);
+      const to = ns(req.until);
+      const kept = all.filter((l) => {
+        const at = ns(l.time) ?? 0n;
+        return (from === undefined || at >= from) && (to === undefined || at <= to);
+      });
+      return { chunks: [{ sourceId: source, lines: kept.slice(-req.pageSize) }] };
+    },
+  );
+}
+
 describe("searching the lines loaded", () => {
   const lines = [line("cart one"), line("GET /other", 1), line("cart two", 2), line("CART three", 3)];
 
@@ -909,9 +942,11 @@ describe("searching the lines loaded", () => {
   });
 
   it("shows a match among the lines around it, and leaves the search as it was", async () => {
-    const readLogs = vi.fn(() => ({
-      chunks: [{ sourceId: running.id, lines: [line("before it"), line("cart one"), line("after it", 1)] }],
-    }));
+    const readLogs = readFrom(running.id, [
+      lineAt("before it", -1n),
+      lineAt("cart one", 0n),
+      lineAt("after it", 1_000_000_000n),
+    ]);
     const { container, user } = await withLines(lines, { readLogs });
     const field = screen.getByRole("textbox", { name: "Search logs" });
     await user.type(field, "cart");
@@ -928,9 +963,31 @@ describe("searching the lines loaded", () => {
     expect(asked[0].until).toBeDefined();
     expect(asked[0].query).toBe("");
     await waitFor(() => expect(sheet.querySelector(".dw-log-line.is-current")).toHaveTextContent("cart one"));
+    // Each line once: what led to it ends at it, and what came after starts after it.
+    expect(sheet.querySelectorAll(".dw-log-line")).toHaveLength(3);
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(field).toHaveValue("cart");
+  });
+
+  // A page is the newest of its window, so a window that ran seconds past a busy line
+  // could hold only what came after it, and the line never showed.
+  it("shows a match in a busy log among what led to it and what came straight after", async () => {
+    const after = Array.from({ length: 3000 }, (_, i) => lineAt(`after ${i}`, BigInt(i + 1) * 1_500_000n));
+    const readLogs = readFrom(running.id, [lineAt("before it", -1_000_000n), lineAt("cart one", 0n), ...after]);
+    const { container, user } = await withLines(lines, { readLogs });
+    await user.type(screen.getByRole("textbox", { name: "Search logs" }), "cart");
+    await waitFor(() => expect(screen.queryByText("GET /other")).toBeNull());
+    const row = Array.from(container.querySelectorAll<HTMLElement>(".dw-log-line")).find((el) =>
+      el.textContent?.includes("cart one"),
+    ) as HTMLElement;
+    await user.hover(row);
+    fireEvent.click(await within(row).findByRole("button", { name: "Show in context" }));
+    const sheet = await screen.findByRole("dialog");
+    await waitFor(() => expect(sheet.querySelector(".dw-log-line.is-current")).toHaveTextContent("cart one"));
+    expect(sheet).toHaveTextContent("before it");
+    // It narrowed what came after until a page reached back to the line.
+    expect(sheet).toHaveTextContent("after 0");
   });
 
   it("says how many it found to a screen reader once, after typing stops", async () => {
