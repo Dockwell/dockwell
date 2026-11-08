@@ -253,7 +253,22 @@ type Decision struct {
 	// reaches changing is easy to miss among a plan's fields. It never stops a plan,
 	// and the fingerprint covers the spec that says it.
 	Moves *RouteMove `json:",omitempty"`
+	// Build is what the step builds before it replaces what runs, when the server
+	// hasn't the image the spec names and the spec says how to build it. A build
+	// that fails leaves what runs as it was (ADR 0046). Its fingerprint covers it.
+	Build *BuildPlan `json:",omitempty"`
 }
+
+// BuildPlan is what a step builds: a commit of a repository, with a Dockerfile,
+// into an image of its own.
+type BuildPlan struct {
+	URL, Ref, Commit    string
+	Context, Dockerfile string `json:",omitempty"`
+	Image               string
+}
+
+// BuildBudget is the most a build may take, on top of what any step gets.
+const BuildBudget = 30 * time.Minute
 
 // RouteMove is a route leaving one service for another.
 type RouteMove struct {
@@ -412,6 +427,9 @@ func (d Decision) Budget() time.Duration {
 	b := max(d.Downtime, d.UntilHealthy)
 	if r := d.Rollout; r != nil {
 		b += r.HealthyWithin + r.Soak + r.Drain + r.StopGrace
+	}
+	if d.Build != nil {
+		b += BuildBudget
 	}
 	return b
 }

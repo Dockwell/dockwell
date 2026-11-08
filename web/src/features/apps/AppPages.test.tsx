@@ -2,12 +2,14 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { create } from "@bufbuild/protobuf";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ActorKind,
   type AddServicePortRequest,
+  BuildSchema,
+  BuildState,
   CertificateState,
   type Change,
   ChangeSchema,
@@ -18,6 +20,7 @@ import {
   DomainCheckState,
   FieldOp,
   HealthState,
+  ImageBuildSchema,
   IntentKind,
   NetworkShape,
   Protocol,
@@ -27,6 +30,8 @@ import {
   StepProgressSchema,
   StepState,
   Surface,
+  type WatchBuildResponse,
+  WatchBuildResponseSchema,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -3285,6 +3290,224 @@ describe("an app's overview", () => {
     const again = await screen.findByRole("dialog", { name: "Export as Compose" });
     await within(again).findByText(/nginx:2/);
     expect(again).not.toHaveTextContent("nginx:1");
+  });
+});
+
+describe("an app's deployments, for an app that builds from Git", () => {
+  const commit = "8be41d2c3f4a9b0e1d2c3b4a5968778695a4b3c2";
+  const image = `dockwell.invalid/svc_web:${commit.slice(0, 12)}-01kbzchg2`;
+  function builtApp() {
+    const app = anApp("web", image);
+    if (app.spec) {
+      app.spec.build = create(ImageBuildSchema, {
+        source: { case: "git", value: { url: "https://github.com/acme/web", ref: "main", commit } },
+      });
+    }
+    return app;
+  }
+  function aBuild(init: Partial<MessageInitShape<typeof BuildSchema>>) {
+    const base: MessageInitShape<typeof BuildSchema> = {
+      id: "bld_2",
+      state: BuildState.DONE,
+      url: "https://github.com/acme/web",
+      ref: "main",
+      commit,
+      commitSubject: "Add order export endpoint",
+      commitAuthor: "Leo Park",
+      serverName: "hz-1",
+      steps: 6,
+      cachedSteps: 4,
+      startTime: timestampFromDate(new Date(Date.now() - 3_700_000)),
+      endTime: timestampFromDate(new Date(Date.now() - 3_648_000)),
+    };
+    return create(BuildSchema, { ...base, ...init } as MessageInitShape<typeof BuildSchema>);
+  }
+
+  it("lists revisions by their commit, and shows a build's facts and its log", async () => {
+    const app = builtApp();
+    const { container } = renderAt(
+      "/apps/svc_web/deployments",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({
+            revisions: [aRevision(2n, image, { build: aBuild({}) }), aRevision(1n, "nginx:1.0")],
+          }),
+        },
+        builds: {
+          readBuildLog: () => ({
+            lines: [
+              { number: 1n, step: 0, text: "[1/6] FROM alpine:3.23" },
+              { number: 2n, step: 4, text: "installed for production" },
+            ],
+          }),
+        },
+      }),
+    );
+    const table = await screen.findByRole("table", { name: "Revisions of web" });
+    expect(within(table).getByRole("columnheader", { name: "Commit" })).toBeVisible();
+    const r2 = within(table).getByRole("row", { name: /r2/ });
+    expect(r2).toHaveTextContent("Add order export endpoint");
+    expect(r2).toHaveTextContent("8be41d2 · Leo Park");
+    const log = await screen.findByRole("log", { name: "Build log" });
+    await waitFor(() => expect(log).toHaveTextContent("installed for production"));
+    expect(screen.getByText("67%")).toBeVisible();
+    expect(screen.getByText("Built")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Cancel build" })).not.toBeInTheDocument();
+    await expectAccessible(container);
+  });
+
+  it("says a rollback followed a cancelled build, and how many lines a build's log dropped", async () => {
+    const app = builtApp();
+    renderAt(
+      "/apps/svc_web/deployments",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({
+            revisions: [
+              aRevision(3n, image, {
+                change: {
+                  id: "chg_3",
+                  summary: "Roll back",
+                  state: ChangeState.APPLIED,
+                  rollback: true,
+                  reverts: "chg_2",
+                },
+              }),
+              aRevision(2n, image, {
+                change: { id: "chg_2", summary: "Deploy", state: ChangeState.FAILED },
+                build: aBuild({ state: BuildState.CANCELLED, cancelledBy: "Mira Chen", logLinesDropped: 3n }),
+              }),
+              aRevision(1n, "nginx:1.0"),
+            ],
+          }),
+        },
+        builds: { readBuildLog: () => ({ lines: [{ number: 1n, step: 0, text: "[1/6] FROM alpine:3.23" }] }) },
+      }),
+    );
+    const table = await screen.findByRole("table", { name: "Revisions of web" });
+    expect(within(table).getByRole("row", { name: /r3/ })).toHaveTextContent("Rolled back after a cancelled build");
+    await userEvent.setup().click(within(table).getByRole("row", { name: /r2/ }));
+    const log = await screen.findByRole("log", { name: "Build log" });
+    await waitFor(() =>
+      expect(log).toHaveTextContent("3 lines dropped, as the build printed faster than its log could take them"),
+    );
+  });
+
+  it("says a deploy of the same commit built it again, and the plan in the reader's words", async () => {
+    const app = builtApp();
+    const again = `dockwell.invalid/svc_web:${commit.slice(0, 12)}-01kbzchg3`;
+    await activateLocale("zh-CN");
+    try {
+      renderAt(
+        "/apps/svc_web/deployments?revision=2",
+        api([app], {
+          services: {
+            listServices: () => ({ services: [app] }),
+            listServiceRevisions: () => ({
+              revisions: [
+                aRevision(2n, again, {
+                  changes: [{ path: "app.image", op: FieldOp.MODIFIED, from: image, to: again }],
+                  change: {
+                    id: "chg_3",
+                    summary: `Deploy ${commit.slice(0, 7)} to web`,
+                    state: ChangeState.APPLIED,
+                    plan: { intent: { kind: IntentKind.DEPLOY, image: again, commit } },
+                  },
+                }),
+                aRevision(1n, image),
+              ],
+            }),
+          },
+        }),
+      );
+      const table = await screen.findByRole("table");
+      expect(within(table).getAllByRole("row")[1]).not.toHaveTextContent(
+        `${commit.slice(0, 7)} → ${commit.slice(0, 7)}`,
+      );
+      // What changed says so too, beside the list.
+      expect(await screen.findAllByText(`${commit.slice(0, 7)}，重新构建`)).toHaveLength(2);
+      const plan = await screen.findByText("计划");
+      expect(plan.nextElementSibling).not.toHaveTextContent(/^Deploy /);
+    } finally {
+      await activateLocale("en");
+    }
+  });
+
+  it("says which commits a deploy moved between, in Chinese too", async () => {
+    const app = builtApp();
+    const before = `dockwell.invalid/svc_web:3f9c0a1b2c3d-01kbzchg1`;
+    await activateLocale("zh-CN");
+    try {
+      renderAt(
+        "/apps/svc_web/deployments",
+        api([app], {
+          services: {
+            listServices: () => ({ services: [app] }),
+            listServiceRevisions: () => ({
+              revisions: [
+                aRevision(2n, image, {
+                  changes: [{ path: "app.image", op: FieldOp.MODIFIED, from: before, to: image }],
+                  change: { id: "chg_2", summary: "Roll back", state: ChangeState.APPLIED, rollback: true },
+                }),
+                aRevision(1n, before),
+              ],
+            }),
+          },
+        }),
+      );
+      const r2 = await screen.findByRole("row", { name: /r2/ });
+      expect(r2).toHaveTextContent("3f9c0a1 → 8be41d2");
+      expect(r2).not.toHaveTextContent("dockwell.invalid");
+    } finally {
+      await activateLocale("en");
+    }
+  });
+
+  it("follows a build under way, and someone can cancel it", async () => {
+    const app = builtApp();
+    const lines = feed<WatchBuildResponse>();
+    const cancelled: string[] = [];
+    const building = aBuild({ state: BuildState.BUILDING, step: 4, stepName: "RUN npm ci", endTime: undefined });
+    lines.push(
+      create(WatchBuildResponseSchema, {
+        build: building,
+        lines: [{ number: 1n, step: 4, text: "npm warn deprecated inflight@1.0.6" }],
+      }),
+    );
+    renderAt(
+      "/apps/svc_web/deployments",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({
+            revisions: [
+              aRevision(2n, image, {
+                build: building,
+                change: { id: "chg_2", summary: "Deploy 8be41d2 to web", state: ChangeState.APPLYING },
+                deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.PENDING }],
+              }),
+              aRevision(1n, "nginx:1.0"),
+            ],
+          }),
+        },
+        builds: {
+          watchBuild: lines.stream,
+          cancelBuild: (req) => {
+            cancelled.push(req.id);
+            return { build: building };
+          },
+        },
+      }),
+    );
+    const table = await screen.findByRole("table", { name: "Revisions of web" });
+    expect(within(table).getByRole("row", { name: /r2/ })).toHaveTextContent("Building");
+    const log = await screen.findByRole("log", { name: "Build log" });
+    await waitFor(() => expect(log).toHaveTextContent("npm warn deprecated inflight@1.0.6"));
+    expect(screen.getByText(/Step 4\/6/)).toBeVisible();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Cancel build" }));
+    await waitFor(() => expect(cancelled).toEqual(["bld_2"]));
   });
 });
 

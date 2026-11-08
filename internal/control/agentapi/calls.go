@@ -97,6 +97,7 @@ type Agents struct {
 	health       map[string]health.Report
 	healthHearer func(server string, instances []*dockwellv1.InstanceHealth)
 	saveHearer   func(server string, ended *agentv1.SaveEnded)
+	buildHearer  func(server string, u *agentv1.BuildUpdate)
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
@@ -124,6 +125,25 @@ func (a *Agents) reportSaveEnded(server string, ended *agentv1.SaveEnded) {
 	a.mu.Unlock()
 	if hear != nil {
 		hear(server, ended)
+	}
+}
+
+// OnBuild calls fn with each update of how a build on a server is going, in the
+// order they come on one stream (ADR 0046). An agent speaks for its own server and
+// nothing more, so what it names has to be checked.
+func (a *Agents) OnBuild(fn func(server string, u *agentv1.BuildUpdate)) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.buildHearer = fn
+}
+
+// reportBuild passes on what an agent says of a build.
+func (a *Agents) reportBuild(server string, u *agentv1.BuildUpdate) {
+	a.mu.Lock()
+	hear := a.buildHearer
+	a.mu.Unlock()
+	if hear != nil {
+		hear(server, u)
 	}
 }
 
@@ -1317,6 +1337,16 @@ func (s *Session) DeleteBackup(ctx context.Context, call *agentv1.DeleteBackupCa
 		return nil, err
 	}
 	return r.GetDeleteBackup(), nil
+}
+
+// CancelBuild asks the server to stop a build that waits or runs, and says whether
+// there was one.
+func (s *Session) CancelBuild(ctx context.Context, call *agentv1.CancelBuildCall) (bool, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_CancelBuild{CancelBuild: call}}, PlanTimeout, nil)
+	if err != nil {
+		return false, err
+	}
+	return r.GetCancelBuild().GetStopping(), nil
 }
 
 // sealing readies a call that carries a destination, for each stream it goes out on.

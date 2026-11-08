@@ -95,6 +95,12 @@ type HostConfig struct {
 	UsernsMode string `json:"UsernsMode,omitempty"`
 	// SecurityOpt sets options such as no-new-privileges.
 	SecurityOpt []string `json:"SecurityOpt,omitempty"`
+	// CPUShares is its weight against other containers when the server's CPUs are
+	// busy, where 1024 is an ordinary container's. Zero takes that.
+	CPUShares int64 `json:"CpuShares,omitempty"`
+	// OomScoreAdj says how soon the kernel kills it when the server runs out of
+	// memory, from -1000, never, to 1000, first.
+	OomScoreAdj int `json:"OomScoreAdj,omitempty"`
 }
 
 // Mount is a volume, bind or tmpfs mount, as HostConfig.Mounts has it.

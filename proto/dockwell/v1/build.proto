@@ -1,0 +1,248 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// BuildService says how the builds of services that build from Git went, and
+// what each printed. A build is a step of the change that deploys what it
+// makes: the change's plan pins what it builds, and a build that fails or is
+// cancelled leaves what runs as it was. See docs/adr/0046-builds-from-git.md.
+//
+// A build's log is a log, so reading it needs the logs grant, as a Dockerfile's
+// step can print what an app shouldn't. The values of the build's secrets are
+// masked in it.
+service BuildService {
+  // ListBuilds returns a service's builds, newest first, a page at a time.
+  rpc ListBuilds(ListBuildsRequest) returns (ListBuildsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/services/{id}/builds"};
+    option (dockwell.v1.command) = {
+      noun: "builds"
+      verb: "list"
+    };
+  }
+
+  // GetBuild returns one build, as it stands now.
+  rpc GetBuild(GetBuildRequest) returns (GetBuildResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/builds/{id}"};
+  }
+
+  // ReadBuildLog returns what a build's log keeps: its first 1,000 lines and its
+  // last 9,000, with how many were left out between.
+  rpc ReadBuildLog(ReadBuildLogRequest) returns (ReadBuildLogResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_grant) = TOKEN_GRANT_LOGS;
+    option (google.api.http) = {get: "/v1/builds/{id}/log"};
+    option (dockwell.v1.command) = {
+      noun: "builds"
+      verb: "log"
+    };
+  }
+
+  // WatchBuild sends a build as it stands and what its log keeps, then each line
+  // and change of state as they come, until it ends.
+  rpc WatchBuild(WatchBuildRequest) returns (stream WatchBuildResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_grant) = TOKEN_GRANT_LOGS;
+    option (dockwell.v1.command) = {
+      noun: "builds"
+      verb: "follow"
+    };
+  }
+
+  // CancelBuild stops a build that is waiting or running. Its step fails as
+  // cancelled, before anything that runs is touched, so its change's rollback
+  // has nothing to do and what ran goes on running.
+  rpc CancelBuild(CancelBuildRequest) returns (CancelBuildResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/builds/{id}:cancel"
+      body: "*"
+    };
+  }
+}
+
+// Build is one build of a service's image, on one server, for one change.
+message Build {
+  // Its ID, such as "bld_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // The service's ID.
+  string service_id = 2;
+  // The service: its kind, its environment's ID and its name.
+  ResourceRef resource = 3;
+  // The change the build is a step of.
+  string change_id = 4;
+  // The revision whose image it makes.
+  int64 revision = 5;
+  // The server that builds, by ID.
+  string server_id = 6;
+  // The server that builds, by name, such as "hz-1", even once it has left.
+  string server_name = 7;
+  // Where it stands.
+  BuildState state = 8;
+  // The repository it builds, such as "https://github.com/acme/web.git".
+  string url = 9;
+  // The branch or tag its commit was read from, such as "main".
+  string ref = 10;
+  // The commit it builds, in full.
+  string commit = 11;
+  // The commit's subject, once its server has read it.
+  string commit_subject = 12;
+  // The commit's author, by name, once its server has read it.
+  string commit_author = 13;
+  // The image it makes, such as "dockwell.invalid/svc_…:8be41d2c3f4a-01k…".
+  string image = 14;
+  // When its server first said of it.
+  google.protobuf.Timestamp create_time = 15;
+  // When it began building, once it has.
+  google.protobuf.Timestamp start_time = 16;
+  // When it ended, once it has.
+  google.protobuf.Timestamp end_time = 17;
+  // How many steps it has, once BuildKit has said.
+  int32 steps = 18;
+  // How many of its steps came from the cache.
+  int32 cached_steps = 19;
+  // The step it is on, or that failed, from 1.
+  int32 step = 20;
+  // What that step does, such as "RUN npm ci".
+  string step_name = 21;
+  // Why it failed, in plain words, with what to do. Empty unless it failed.
+  string error = 22;
+  // The last line the failing step printed, with secrets masked.
+  string failed_line = 23;
+  // Who cancelled it, by name, when someone did.
+  string cancelled_by = 24;
+  // How many lines its log has.
+  int64 log_lines = 25;
+  // How many of those it doesn't keep, between its first 1,000 and its last
+  // 9,000.
+  int64 log_lines_left_out = 26;
+  // How many lines its server dropped, as the build wrote faster than the log
+  // could take.
+  int64 log_lines_dropped = 27;
+}
+
+// BuildState is where a build stands.
+enum BuildState {
+  BUILD_STATE_UNSPECIFIED = 0;
+  // It waits for its server: for another build there to end, or for the server
+  // to connect.
+  BUILD_STATE_QUEUED = 1;
+  // It is building.
+  BUILD_STATE_BUILDING = 2;
+  // It made its image.
+  BUILD_STATE_DONE = 3;
+  // It failed. error says why, and failed_line what the failing step said last.
+  BUILD_STATE_FAILED = 4;
+  // Someone cancelled it before it finished.
+  BUILD_STATE_CANCELLED = 5;
+  // Its server went away while it built, so how it ended isn't known.
+  BUILD_STATE_LOST = 6;
+}
+
+// BuildLine is one line of a build's log.
+message BuildLine {
+  // Its place in the log, from 1.
+  int64 number = 1;
+  // When the server read it.
+  google.protobuf.Timestamp time = 2;
+  // The step it came from, from 1, or 0 for what came before the first, such as
+  // the checkout.
+  int32 step = 3;
+  // What it says, with the build's secrets masked, and cut at 4 KiB.
+  string text = 4;
+}
+
+// ListBuildsRequest names a service.
+message ListBuildsRequest {
+  // The service, by ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or by name.
+  string id = 1;
+  // How many builds to return: 20 when unset, and at most 100.
+  int32 page_size = 2;
+  // Where to start: the next_page_token of the page before.
+  string page_token = 3;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 4;
+  // The environment of a service named by name, by name or ID, when its project
+  // has more than one.
+  string environment = 5;
+}
+
+// ListBuildsResponse is a page of a service's builds.
+message ListBuildsResponse {
+  // The builds, newest first.
+  repeated Build builds = 1;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 2;
+}
+
+// GetBuildRequest names a build.
+message GetBuildRequest {
+  // The build's ID.
+  string id = 1;
+}
+
+// GetBuildResponse is the build.
+message GetBuildResponse {
+  // The build.
+  Build build = 1;
+}
+
+// ReadBuildLogRequest names a build.
+message ReadBuildLogRequest {
+  // The build's ID.
+  string id = 1;
+}
+
+// ReadBuildLogResponse is what a build's log keeps.
+message ReadBuildLogResponse {
+  // The lines, oldest first.
+  repeated BuildLine lines = 1;
+  // How many lines aren't kept, between the first 1,000 and the rest.
+  int64 left_out = 2;
+  // How many lines its server dropped, as the build printed faster than its log
+  // could take them. Nothing says where they were.
+  int64 dropped = 3;
+}
+
+// WatchBuildRequest names a build to follow.
+message WatchBuildRequest {
+  // The build's ID.
+  string id = 1;
+}
+
+// WatchBuildResponse is how a build stands, and the lines its log gained.
+message WatchBuildResponse {
+  // The build as it stands now. The stream ends once it has ended.
+  Build build = 1;
+  // The lines since the last message, oldest first. The first message has what
+  // the log keeps.
+  repeated BuildLine lines = 2;
+  // How many lines aren't kept, between the first 1,000 and the rest, on the
+  // first message.
+  int64 left_out = 3;
+}
+
+// CancelBuildRequest names a build to stop.
+message CancelBuildRequest {
+  // The build's ID.
+  string id = 1;
+}
+
+// CancelBuildResponse is the build, as it stands once its server was asked.
+message CancelBuildResponse {
+  // The build.
+  Build build = 1;
+}

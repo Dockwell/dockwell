@@ -30,6 +30,7 @@ import (
 	agentupdates "github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/backup"
+	"github.com/dockwell/dockwell/internal/build"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/database"
@@ -91,6 +92,8 @@ type testServer struct {
 	backups *backup.Runner
 	// updates reads its package updates, when set.
 	updates *agentupdates.Reader
+	// builds builds its services' images, when it has Docker.
+	builds *build.Builder
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -138,6 +141,9 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
 		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates,
+	}
+	if s.builds != nil {
+		cfg.Builds = s.builds
 	}
 	if s.backups != nil {
 		cfg.Backups = backup.Calls{Runner: s.backups}

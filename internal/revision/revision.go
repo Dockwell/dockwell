@@ -126,12 +126,14 @@ type Agents interface {
 type Engine struct {
 	// onBackup hears of each backup a step takes.
 	onBackup func(context.Context, BackupStep)
-	db       *store.DB
-	kinds    *resource.Registry
-	agents   Agents
-	sealer   Sealer
-	logger   *slog.Logger
-	now      func() time.Time
+	// sources reads what a build's branch or tag names now (ADR 0046).
+	sources Sources
+	db      *store.DB
+	kinds   *resource.Registry
+	agents  Agents
+	sealer  Sealer
+	logger  *slog.Logger
+	now     func() time.Time
 	// mu makes commits take turns: checking again that nothing moved since
 	// the plan, and committing the revisions, happen together. Planning
 	// asks agents, so it happens outside mu, and so do the steps: a slow
@@ -311,6 +313,9 @@ type Intent struct {
 	Image    string `json:",omitempty"` // the image a deploy runs
 	Port     int    `json:",omitempty"` // the server's port that publishing opens
 	Revision int    `json:",omitempty"` // the revision a rollback puts back
+	// Commit and Ref are what a deploy builds, for a service that builds from Git.
+	Commit string `json:",omitempty"`
+	Ref    string `json:",omitempty"`
 }
 
 // Plan is what applying a change would do.
@@ -481,6 +486,8 @@ type item struct {
 	// reverses says this item undoes a change, so it takes what that change made
 	// and no more.
 	reverses bool
+	// observed says its spec is what a server has (Edit.Observed).
+	observed bool
 	ref      resource.Ref
 	level    resource.Level
 	// runs says the item's kind runs on servers: a host-level or
@@ -646,6 +653,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			restore.Change = changeID
 			items[i].restore = &restore
 		}
+	}
+	if err := e.pinBuilds(ctx, items, changeID); err != nil {
+		return nil, err
 	}
 	plan, err := e.plan(ctx, changeID, items, false)
 	if err != nil {
@@ -1097,7 +1107,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			if err != nil {
 				return err
 			}
-			it.pull, it.run, it.adopt, it.adoptName, it.reverses = ed.Pull, ed.Run, ed.Adopt, ed.AdoptName, ed.Reverses
+			it.pull, it.run, it.adopt, it.adoptName, it.reverses, it.observed = ed.Pull, ed.Run, ed.Adopt, ed.AdoptName, ed.Reverses, ed.Observed
 			if ed.Base != 0 && it.base != ed.Base {
 				return fault.New(ErrStale, "%s changed while this was being planned, and planning from what was read would undo that. Try again, to plan it from the latest", ed.Ref)
 			}

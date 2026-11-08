@@ -1145,6 +1145,10 @@ func (d *Docker) ensureImage(ctx context.Context, ref string) error {
 	if !docker.IsNotFound(err) {
 		return err
 	}
+	if docker.IsBuilt(ref) {
+		return resource.PlainlyBecause(resource.ReasonBuild, "This server hasn't the image "+ref+", which Dockwell builds, and nothing pulls one. Deploy again to build it",
+			fmt.Errorf("the image %s isn't on this server, and only its service's build makes it", ref))
+	}
 	resource.Progress(ctx, "Pulling "+ref)
 	err = d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "Pulling "+ref+": "+p) })
 	d.pulled(ref)
@@ -1317,6 +1321,10 @@ func (d *Docker) reportRan(ctx context.Context, c *docker.Container) {
 // file with build beside image often names one only the server it was built on
 // has. One the server has runs as it is, wherever it came from.
 func (d *Docker) checkImage(ctx context.Context, t Target, ref string) error {
+	if docker.IsBuilt(ref) {
+		// No registry has it: the service's step builds it (ADR 0046).
+		return nil
+	}
 	_, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
 	switch {
 	case err == nil:

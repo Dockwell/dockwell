@@ -854,7 +854,7 @@ function RecentDeployments() {
       ...(failed ? { tone: "critical" as const } : {}),
       // The state shows where it says something: on the one that is live, and on what didn't work.
       ...((i === 0 || failed) && look.status ? { status: look.status, statusLabel: look.word } : {}),
-      title: revisionTitle(rev).node,
+      title: revisionTitle(rev, revisions ?? []).node,
       revision: revisionName(rev.number),
       actor: who.name(change),
       time: time.ago(when, now),

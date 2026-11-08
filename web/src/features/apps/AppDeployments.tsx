@@ -5,9 +5,11 @@ import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
   ActorKind,
+  BuildState,
   ChangeState,
   DeploymentState,
   FieldOp,
+  IntentKind,
   type ServiceRevision,
   ServiceService,
   Surface,
@@ -31,7 +33,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { isValidElement, type ReactNode, useCallback, useMemo, useRef } from "react";
+import { isValidElement, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatDateTime } from "../../lib/format";
@@ -39,7 +41,7 @@ import { useTimeWords } from "../../lib/time";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { FailureNotice } from "../changes/FailureNotice";
 import { useFieldRows } from "../changes/fields";
-import { failedStep, wentOffline } from "../changes/plan";
+import { failedStep, intentOf, wentOffline } from "../changes/plan";
 import { RollbackLine, rollbackSubject } from "../changes/RollbackLine";
 import { useChangeWords } from "../changes/words";
 import { DeployLogLink } from "../logs/DeployLogLinks";
@@ -48,16 +50,19 @@ import { useApp, useRevisions } from "./AppContext";
 import { ListSkeleton } from "./AppsPage";
 import {
   bareImage,
+  builtCommit,
   canRollBackTo,
   fieldOfChange,
   imageChange,
   nameOf,
   revisionName,
   shortDigest,
+  shortImage,
   shortImages,
 } from "./app";
+import { BuildPart, shortCommit } from "./Build";
 import { ImageName, WholeImage } from "./ImageName";
-import { type Look, useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
+import { type Look, plansBuild, useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { useAppWords } from "./words";
 
 const DEPLOYMENT_LOOKS: Partial<Record<DeploymentState, Status>> = {
@@ -124,6 +129,16 @@ export function AppDeployments() {
   const history = useRevisions(service.id);
   const appName = nameOf(service);
   const { revisions } = history;
+  const builds = service.spec?.build !== undefined;
+  // A change that builds tells of its build once its server begins it; until then the list reads again.
+  const waitingForBuild = (revisions ?? []).some(
+    (r) => !r.build && r.change?.state === ChangeState.APPLYING && plansBuild(r.change),
+  );
+  useEffect(() => {
+    if (!waitingForBuild) return;
+    const again = setInterval(() => void history.refetch(), 2000);
+    return () => clearInterval(again);
+  }, [waitingForBuild, history.refetch]);
   const now = useAgoNow(revisions?.[0]?.createTime ? timestampDate(revisions[0].createTime) : undefined);
   const rollBack = useRollBack();
   const latest = service.revision;
@@ -168,9 +183,24 @@ export function AppDeployments() {
       },
       {
         key: "what",
-        header: t`What changed`,
+        header: builds ? t`Commit` : t`What changed`,
         render: (rev) => {
-          const title = revisionTitle(rev);
+          const title = revisionTitle(rev, revisions);
+          const built = rev.build;
+          if (built?.commitSubject) {
+            // A build reads as its commit, as a list of pushes does (App-Deployments).
+            return (
+              <span className="dw-cell">
+                <span className="dw-cell-title deploy-clip" title={built.commitSubject}>
+                  {built.commitSubject}
+                </span>
+                <span className="deploy-what">
+                  <code>{shortCommit(built.commit)}</code>
+                  {built.commitAuthor ? <span className="app-muted"> · {built.commitAuthor}</span> : null}
+                </span>
+              </span>
+            );
+          }
           return (
             <span className="dw-cell">
               <span className="dw-cell-title deploy-clip" title={title.text}>
@@ -234,7 +264,7 @@ export function AppDeployments() {
       },
     });
     return out;
-  }, [t, i18n, latest, look, state, revisionTitle, words, who, time, now, roomy]);
+  }, [t, i18n, latest, look, state, revisionTitle, revisions, words, who, time, now, roomy, builds]);
 
   const newest = revisions?.[0] ? revisionName(revisions[0].number) : undefined;
   const lastShown = revisions?.[revisions.length - 1];
@@ -282,7 +312,7 @@ export function AppDeployments() {
                       <RevisionLook look={look(rev, latest, state)} />
                       <span className="deploy-phone-time">{time.ago(when, now)}</span>
                     </span>
-                    <span className="deploy-phone-summary">{revisionTitle(rev).node}</span>
+                    <span className="deploy-phone-summary">{revisionTitle(rev, revisions).node}</span>
                     <span className="deploy-phone-by">{who.name(rev.change)}</span>
                   </button>
                 </li>
@@ -331,20 +361,21 @@ export function AppDeployments() {
           look={look(selected, latest, state)}
           onRollBack={rollBack}
           revisions={revisions ?? []}
+          onBuildEnded={() => void history.refetch()}
         />
       ) : null}
       {selected && phone ? (
         <Sheet
           open
           title={revisionName(selected.number)}
-          subtitle={revisionTitle(selected).node}
+          subtitle={revisionTitle(selected, revisions).node}
           onClose={() => select(undefined)}
           className="app-sheet is-phone"
           footer={
             <RollBackFoot rev={selected} latest={latest} revisions={revisions ?? []} onRollBack={rollBack} wide />
           }
         >
-          <RevisionBody rev={selected} />
+          <RevisionBody rev={selected} onBuildEnded={() => void history.refetch()} />
         </Sheet>
       ) : null}
     </div>
@@ -421,8 +452,10 @@ function ChangedLine({ rev }: { rev: ServiceRevision }) {
             ? first.to
             : first.op === FieldOp.REMOVED
               ? first.from
-              : name === "image"
-                ? shortImages(first.from, first.to)
+              : fieldOfChange(first.path) === "image"
+                ? sameBuild(first.from, first.to)
+                  ? t`${shortImage(first.to)}, built again`
+                  : shortImages(first.from, first.to)
                 : `${first.from} → ${first.to}`}
         </code>
       ) : null}
@@ -498,12 +531,14 @@ function RevisionPanel({
   look,
   revisions,
   onRollBack,
+  onBuildEnded,
 }: {
   rev: ServiceRevision;
   latest: bigint;
   look: Look;
   revisions: readonly ServiceRevision[];
   onRollBack: (rev: ServiceRevision) => void;
+  onBuildEnded: () => void;
 }) {
   const { i18n } = useLingui();
   const time = useTimeWords();
@@ -528,7 +563,7 @@ function RevisionPanel({
         flush
       >
         <div className="deploy-panel-body">
-          <RevisionBody rev={rev} />
+          <RevisionBody rev={rev} onBuildEnded={onBuildEnded} />
         </div>
         {foot ? (
           <div className="deploy-foot">
@@ -550,6 +585,12 @@ function DiffValue({ value }: { value: PlanValue | undefined }) {
   return isValidElement(value) ? value : <code>{value as ReactNode}</code>;
 }
 
+/** Two images Dockwell built of one commit, as a deploy that builds the same commit again makes. */
+function sameBuild(from: string, to: string): boolean {
+  const commit = builtCommit(from);
+  return commit !== undefined && commit === builtCommit(to);
+}
+
 /**
  * What a revision changed, in the plan's words: each field's old value, then
  * the new, read across as App-Deployments has them. Each value stays whole,
@@ -566,8 +607,12 @@ function RevisionDiff({ rev }: { rev: ServiceRevision }) {
           row.path === "image" && typeof row.from === "string" && typeof row.to === "string"
             ? imageChange(row.from, row.to)
             : undefined;
-        const from = image?.from ?? row.from;
-        const to = image?.to ?? row.to;
+        // The same commit built again moves the image's name, and nothing else. The
+        // rows say images as people read them, so the change itself says which.
+        const raw = row.path === "image" ? rev.changes.find((c) => fieldOfChange(c.path) === "image") : undefined;
+        const again = image !== undefined && raw !== undefined && sameBuild(raw.from, raw.to);
+        const from = again ? undefined : (image?.from ?? row.from);
+        const to = again ? t`${image?.to ?? ""}, built again` : (image?.to ?? row.to);
         const secret = isHidden(from) || isHidden(to);
         return (
           <div key={row.path} className="deploy-diff-row">
@@ -600,7 +645,7 @@ function RevisionDiff({ rev }: { rev: ServiceRevision }) {
 }
 
 /** What a revision did and how it went. */
-function RevisionBody({ rev }: { rev: ServiceRevision }) {
+function RevisionBody({ rev, onBuildEnded }: { rev: ServiceRevision; onBuildEnded: () => void }) {
   const { t, i18n } = useLingui();
   const { service } = useApp();
   const appName = nameOf(service);
@@ -619,6 +664,19 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
       ? change.proposedBy
       : undefined;
   const duration = took(rev);
+  // A deploy no one named has the summary the server wrote, in English: said here
+  // in the reader's words. One someone wrote stays as they wrote it.
+  const planWords = (c: NonNullable<typeof change>): string => {
+    const intent = intentOf(c.plan);
+    const name = appName;
+    if (intent?.kind === IntentKind.DEPLOY) {
+      const what = intent.commit ? intent.commit.slice(0, 7) : intent.image;
+      if (c.summary === `Deploy ${what} to ${name}`) {
+        return words.intent({ ...intent, image: shortImage(bareImage(intent.image)) }, "plan");
+      }
+    }
+    return c.summary;
+  };
   const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
   return (
     <div className="deploy-body">
@@ -628,7 +686,9 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
           subject={rollbackSubject(change.plan, { id: service.id, name: appName, changes: rev.changes })}
         />
       ) : null}
-      {(change?.state === ChangeState.FAILED || failed) && !wentOffline(change) ? (
+      {(change?.state === ChangeState.FAILED || failed) &&
+      !wentOffline(change) &&
+      rev.build?.state !== BuildState.CANCELLED ? (
         <FailureNotice message={failed?.error || change?.error || ""} detail={failedStep(change)?.detail} />
       ) : null}
       {rev.deleted || wentOffline(change) ? null : (
@@ -648,6 +708,21 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
           )}
         </div>
       )}
+      {rev.build ? (
+        <BuildPart build={rev.build} onEnded={onBuildEnded} />
+      ) : change?.state === ChangeState.APPLYING && plansBuild(change) ? (
+        <div className="deploy-part build-part">
+          <div className="build-head">
+            <h3 className="dw-text-label">
+              <Trans>Build</Trans>
+            </h3>
+            <StatusBadge status="unknown" label={t`Queued`} labelIsState />
+          </div>
+          <p className="app-note">
+            <Trans>Waiting for the server to begin the build.</Trans>
+          </p>
+        </div>
+      ) : null}
       <dl className="app-facts">
         <dt>{t`Who`}</dt>
         <dd>{who.name(change) || t`Someone`}</dd>
@@ -674,14 +749,15 @@ function RevisionBody({ rev }: { rev: ServiceRevision }) {
         {change?.summary && !change.rollback ? (
           <>
             <dt>{t`Plan`}</dt>
-            <dd>{change.summary}</dd>
+            <dd>{planWords(change)}</dd>
           </>
         ) : null}
         {rev.image ? (
           <>
             <dt>{t`Image`}</dt>
             <dd className="deploy-image">
-              <WholeImage image={bareImage(rev.image)} />
+              {/* An image Dockwell built says which commit it is; its name is in the title. */}
+              {builtCommit(rev.image) ? <ImageName image={rev.image} /> : <WholeImage image={bareImage(rev.image)} />}
               {digest ? (
                 <span className="deploy-digest app-muted" title={digest}>
                   {" "}

@@ -835,11 +835,17 @@ msgstr "What people connect to, such as 8080."
 msgid "{name} is still deploying. You can review this plan once that ends."
 msgstr "{name} is still deploying. You can review this plan once that ends."
 
+msgid "Build"
+msgstr "Build"
+
 msgid "Can't load the deployments"
 msgstr "Can't load the deployments"
 
 msgid "Changed, and hidden"
 msgstr "Changed, and hidden"
+
+msgid "Commit"
+msgstr "Commit"
 
 msgid "Deployed"
 msgstr "Deployed"
@@ -855,6 +861,9 @@ msgstr "Nothing in its spec changed. It moved, or came back as it was."
 
 msgid "Opens a plan to review first"
 msgstr "Opens a plan to review first"
+
+msgid "Queued"
+msgstr "Queued"
 
 msgid "Revision"
 msgstr "Revision"
@@ -892,6 +901,9 @@ msgstr "Took"
 msgid "Try again"
 msgstr "Try again"
 
+msgid "Waiting for the server to begin the build."
+msgstr "Waiting for the server to begin the build."
+
 msgid "and {more} more"
 msgstr "and {more} more"
 
@@ -901,6 +913,11 @@ msgstr "changed"
 #. placeholder {0}: Number(latest)
 msgid "{0, plural, one {# revision · newest first} other {# revisions · newest first}}"
 msgstr "{0, plural, one {# revision · newest first} other {# revisions · newest first}}"
+
+#. placeholder {0}: image?.to ?? ""
+#. placeholder {0}: shortImage(first.to)
+msgid "{0}, built again"
+msgstr "{0}, built again"
 
 msgid "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 msgstr "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
@@ -947,6 +964,11 @@ msgstr "Variable"
 msgid "Variable {from}"
 msgstr "Variable {from}"
 
+#. placeholder {0}: shownRepository(source.url)
+#. placeholder {1}: shortCommit(source.commit)
+msgid "<0>{0}</0> at <1>{1}</1>"
+msgstr "<0>{0}</0> at <1>{1}</1>"
+
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 
@@ -961,6 +983,13 @@ msgstr "Back"
 
 msgid "Breadcrumb"
 msgstr "Breadcrumb"
+
+msgid "Build cancelled"
+msgstr "Build cancelled"
+
+#. placeholder {0}: shownRepository(source.url)
+msgid "Building and deploying <0>{0}</0>, started {ago}"
+msgstr "Building and deploying <0>{0}</0>, started {ago}"
 
 msgid "Can't load this app"
 msgstr "Can't load this app"
@@ -1010,6 +1039,12 @@ msgstr "Putting <0>{image}</0> back failed, {ago}"
 
 msgid "Search logs"
 msgstr "Search logs"
+
+msgid "build cancelled {ago}"
+msgstr "build cancelled {ago}"
+
+msgid "default branch"
+msgstr "default branch"
 
 msgid "rolled back by Dockwell {ago}"
 msgstr "rolled back by Dockwell {ago}"
@@ -1405,6 +1440,78 @@ msgstr "{moving} deploying"
 msgid "{needing, plural, one {# needs a look} other {# need a look}}"
 msgstr "{needing, plural, one {# needs a look} other {# need a look}}"
 
+#. placeholder {0}: shownRepository(build.url)
+#. placeholder {1}: shownRef(build.ref)
+msgid "<0>{0}</0> on <1>{1}</1>"
+msgstr "<0>{0}</0> on <1>{1}</1>"
+
+msgid "Build log"
+msgstr "Build log"
+
+msgid "Building"
+msgstr "Building"
+
+msgid "Built"
+msgstr "Built"
+
+msgid "Built on"
+msgstr "Built on"
+
+msgid "Cache hit"
+msgstr "Cache hit"
+
+msgid "Can't read the build's log"
+msgstr "Can't read the build's log"
+
+msgid "Cancel build"
+msgstr "Cancel build"
+
+msgid "Cancelled"
+msgstr "Cancelled"
+
+#. placeholder {0}: build.cancelledBy
+msgid "Cancelled by {0}. Nothing was deployed, and what ran before runs on."
+msgstr "Cancelled by {0}. Nothing was deployed, and what ran before runs on."
+
+msgid "Couldn't cancel the build"
+msgstr "Couldn't cancel the build"
+
+msgid "Duration"
+msgstr "Duration"
+
+msgid "Failed"
+msgstr "Failed"
+
+msgid "Lost"
+msgstr "Lost"
+
+msgid "Source"
+msgstr "Source"
+
+#. placeholder {0}: build.stepName
+msgid "Step {step}, <0>{0}</0>"
+msgstr "Step {step}, <0>{0}</0>"
+
+msgid "The build printed nothing."
+msgstr "The build printed nothing."
+
+msgid "Waiting for the build's first line"
+msgstr "Waiting for the build's first line"
+
+msgid "Waiting its turn: a server runs one build at a time."
+msgstr "Waiting its turn: a server runs one build at a time."
+
+#. placeholder {0}: Number(dropped)
+msgid "{0, plural, one {# line dropped, as the build printed faster than its log could take it} other {# lines dropped, as the build printed faster than its log could take them}}"
+msgstr "{0, plural, one {# line dropped, as the build printed faster than its log could take it} other {# lines dropped, as the build printed faster than its log could take them}}"
+
+#. placeholder {0}: build.serverName
+msgid "{0} went away during the build, so how it ended isn't known."
+msgstr "{0} went away during the build, so how it ended isn't known."
+
+msgid "{count} lines left out"
+msgstr "{count} lines left out"
+
 msgid "<0>{current}</0> is still deploying. You can review this plan once that ends."
 msgstr "<0>{current}</0> is still deploying. You can review this plan once that ends."
 
@@ -1455,9 +1562,6 @@ msgstr "A tunnel or a proxy in front handles HTTPS"
 
 msgid "Expired"
 msgstr "Expired"
-
-msgid "Failed"
-msgstr "Failed"
 
 msgid "Issuing"
 msgstr "Issuing"
@@ -1714,6 +1818,15 @@ msgstr "<0>{project}</0> is here already, so the plan updates what's in it."
 msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
 msgstr "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
 
+msgid "A NAME=value a line, as docker build's --build-arg. They aren't secret: they stay in the image's history."
+msgstr "A NAME=value a line, as docker build's --build-arg. They aren't secret: they stay in the image's history."
+
+msgid "A URL has no spaces. Write it as https://github.com/acme/web."
+msgstr "A URL has no spaces. Write it as https://github.com/acme/web."
+
+msgid "A public repository, over HTTPS. Pushes don't deploy yet: Deploy builds the newest commit of the branch, or the default branch when you leave it empty."
+msgstr "A public repository, over HTTPS. Pushes don't deploy yet: Deploy builds the newest commit of the branch, or the default branch when you leave it empty."
+
 msgid "A volume such as data at /data, or a server path."
 msgstr "A volume such as data at /data, or a server path."
 
@@ -1741,11 +1854,23 @@ msgstr "Any image your server can pull, such as nginx:1.27."
 msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
 msgstr "Anyone who can read {holder}'s {where} can see the value of {names}."
 
+msgid "Branch"
+msgstr "Branch"
+
+msgid "Build arguments"
+msgstr "Build arguments"
+
+msgid "Build {repository} as {name}"
+msgstr "Build {repository} as {name}"
+
 msgid "Can't make a plan"
 msgstr "Can't make a plan"
 
 msgid "Can't read the file yet"
 msgstr "Can't read the file yet"
+
+msgid "Change"
+msgstr "Change"
 
 msgid "Check the image and its variables, then try again."
 msgstr "Check the image and its variables, then try again."
@@ -1771,8 +1896,14 @@ msgstr "Directory on the server"
 msgid "Discard"
 msgstr "Discard"
 
+msgid "Dockerfile"
+msgstr "Dockerfile"
+
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
+
+msgid "Done"
+msgstr "Done"
 
 msgid "Fix line {line} to review the plan"
 msgstr "Fix line {line} to review the plan"
@@ -1786,8 +1917,14 @@ msgstr "Fix the .env file to review the plan"
 msgid "Fix the file to review the plan"
 msgstr "Fix the file to review the plan"
 
+msgid "Folder"
+msgstr "Folder"
+
 msgid "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
 msgstr "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
+
+msgid "Git"
+msgstr "Git"
 
 msgid "Give each variable a value to review the plan"
 msgstr "Give each variable a value to review the plan"
@@ -1800,6 +1937,9 @@ msgstr "Hide"
 
 msgid "Hide the value"
 msgstr "Hide the value"
+
+msgid "In that folder."
+msgstr "In that folder."
 
 msgid "It can't be hidden there, so don't pass a secret there."
 msgstr "It can't be hidden there, so don't pass a secret there."
@@ -1857,6 +1997,9 @@ msgstr "Paste a Compose file to review its plan"
 msgid "Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan."
 msgstr "Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan."
 
+msgid "Paste the repository's URL, such as https://github.com/acme/web."
+msgstr "Paste the repository's URL, such as https://github.com/acme/web."
+
 msgid "Path in the app"
 msgstr "Path in the app"
 
@@ -1890,6 +2033,9 @@ msgstr "Remove this volume"
 msgid "Remove what isn't in this file"
 msgstr "Remove what isn't in this file"
 
+msgid "Repository"
+msgstr "Repository"
+
 msgid "Required"
 msgstr "Required"
 
@@ -1919,9 +2065,6 @@ msgstr "Show the apps"
 
 msgid "Show the value"
 msgstr "Show the value"
-
-msgid "Source"
-msgstr "Source"
 
 msgid "Such as 8080 on the server, to 80 in the app."
 msgstr "Such as 8080 on the server, to 80 in the app."
@@ -1962,6 +2105,9 @@ msgstr "Variables"
 msgid "Volume or server path"
 msgstr "Volume or server path"
 
+msgid "What the build starts from, in the repository."
+msgstr "What the build starts from, in the repository."
+
 msgid "What this file makes"
 msgstr "What this file makes"
 
@@ -1971,8 +2117,14 @@ msgstr "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such
 msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "Without a volume, what it writes is lost when its container is replaced."
 
+msgid "Write each as NAME=value, on a line of its own."
+msgstr "Write each as NAME=value, on a line of its own."
+
 msgid "You approve what it reaches in the plan"
 msgstr "You approve what it reaches in the plan"
+
+msgid "at <0>./{dockerfile}</0>"
+msgstr "at <0>./{dockerfile}</0>"
 
 msgid "command"
 msgstr "command"
@@ -2091,6 +2243,12 @@ msgstr "Pulling {pulled} again"
 msgid "Rolled back"
 msgstr "Rolled back"
 
+msgid "Rolled back after a cancelled build"
+msgstr "Rolled back after a cancelled build"
+
+msgid "Rolled back after a failed build"
+msgstr "Rolled back after a failed build"
+
 msgid "Rolled back after a failed deploy"
 msgstr "Rolled back after a failed deploy"
 
@@ -2099,6 +2257,12 @@ msgstr "Rolled back to {target}"
 
 msgid "Rolling back"
 msgstr "Rolling back"
+
+msgid "Rolling back after a cancelled build"
+msgstr "Rolling back after a cancelled build"
+
+msgid "Rolling back after a failed build"
+msgstr "Rolling back after a failed build"
 
 msgid "Rolling back after a failed deploy"
 msgstr "Rolling back after a failed deploy"
@@ -2626,9 +2790,6 @@ msgstr "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer<
 
 msgid "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
 msgstr "Created <0>{name}</0>. Send it in the Authorization header as <1>Bearer</1> and the token. It expires {expires}."
-
-msgid "Done"
-msgstr "Done"
 
 msgid "Expires"
 msgstr "Expires"
@@ -3956,8 +4117,20 @@ msgstr "block <0>{port}</0>, {proto}, from <1>{from}</1>"
 msgid "block <0>{port}</0>, {proto}, from anywhere"
 msgstr "block <0>{port}</0>, {proto}, from anywhere"
 
+msgid "branch"
+msgstr "branch"
+
+msgid "build folder"
+msgstr "build folder"
+
+msgid "build stage"
+msgstr "build stage"
+
 msgid "comment"
 msgstr "comment"
+
+msgid "commit"
+msgstr "commit"
 
 msgid "data"
 msgstr "data"
@@ -4028,6 +4201,9 @@ msgstr "read-only"
 msgid "replaced, and undoing this puts it back"
 msgstr "replaced, and undoing this puts it back"
 
+msgid "repository"
+msgstr "repository"
+
 msgid "restart"
 msgstr "restart"
 
@@ -4090,6 +4266,14 @@ msgstr "Anyone who can read this app can see it. Its value has a space, a quote 
 
 msgid "Anyone who can read this app can see it. Only a variable's value is hidden, so don't write a secret in its name."
 msgstr "Anyone who can read this app can see it. Only a variable's value is hidden, so don't write a secret in its name."
+
+#. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
+msgstr "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
+
+#. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} on {0} first. If the build fails, what runs stays as it is."
+msgstr "Builds {repository} at {commit} on {0} first. If the build fails, what runs stays as it is."
 
 msgid "Check that you have another way in, such as your provider's console, before you apply it."
 msgstr "Check that you have another way in, such as your provider's console, before you apply it."
@@ -4502,6 +4686,12 @@ msgstr "Anyone visiting {where} stops reaching it."
 msgid "Automatic"
 msgstr "Automatic"
 
+msgid "Build and deploy {commit}"
+msgstr "Build and deploy {commit}"
+
+msgid "Building and deploying {commit}"
+msgstr "Building and deploying {commit}"
+
 msgid "Check"
 msgstr "Check"
 
@@ -4516,6 +4706,9 @@ msgstr "Couldn't create"
 
 msgid "Couldn't delete"
 msgstr "Couldn't delete"
+
+msgid "Couldn't deploy {commit}"
+msgstr "Couldn't deploy {commit}"
 
 msgid "Couldn't deploy {image}"
 msgstr "Couldn't deploy {image}"
@@ -4564,6 +4757,9 @@ msgstr "Deleting"
 
 msgid "Deploy {image}"
 msgstr "Deploy {image}"
+
+msgid "Deployed {commit}"
+msgstr "Deployed {commit}"
 
 msgid "Deployed {image}"
 msgstr "Deployed {image}"
@@ -4717,9 +4913,6 @@ msgstr "Pulled {image} again"
 
 msgid "Pulling {image} again"
 msgstr "Pulling {image} again"
-
-msgid "Queued"
-msgstr "Queued"
 
 msgid "Recreates its container"
 msgstr "Recreates its container"
@@ -6298,9 +6491,6 @@ msgstr "Addresses"
 msgid "Can't read Docker"
 msgstr "Can't read Docker"
 
-msgid "Change"
-msgstr "Change"
-
 msgid "Connected"
 msgstr "Connected"
 
@@ -6828,9 +7018,6 @@ msgstr "(modified)"
 
 msgid "Check it from a terminal"
 msgstr "Check it from a terminal"
-
-msgid "Commit"
-msgstr "Commit"
 
 msgid "Committed"
 msgstr "Committed"

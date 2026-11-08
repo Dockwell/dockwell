@@ -171,7 +171,8 @@ smoke: build build-agent ## Start the built binaries: the full build serves the 
 .PHONY: e2e
 e2e: build ## Claim, sign in, run the panel's flows, follow logs, walk a server's files and read its updates in headless Chromium, with a virtual passkey and a fake Docker Engine (SHOTS=dir saves screenshots)
 	go build -o bin/fakedocker ./scripts/fakedocker
-	node web/e2e/sign-in.ts $(BIN) --fake-docker bin/fakedocker $(if $(SHOTS),--shots $(SHOTS))
+	go build -o bin/gitserve ./scripts/gitserve
+	DOCKWELL_E2E_GITSERVE=bin/gitserve node web/e2e/sign-in.ts $(BIN) --fake-docker bin/fakedocker $(if $(SHOTS),--shots $(SHOTS))
 	node web/e2e/logs.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
 	node web/e2e/files.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
 	node web/e2e/updates.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
@@ -189,8 +190,9 @@ logs-load: build-go build-agent ## Measure an agent's memory while a container f
 	scripts/logs-load.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: docker-e2e
-docker-e2e: build-go build-agent ## Run, change, undo and export a service through the CLI on this machine's Docker, import a Compose file, and run a container through the agent build
-	scripts/docker-e2e.sh $(BIN) $(AGENT_BIN)
+docker-e2e: build-go build-agent ## Run, change, undo and export a service through the CLI on this machine's Docker, import a Compose file, build from Git, and run a container through the agent build
+	go build -o bin/gitserve ./scripts/gitserve
+	GITSERVE=bin/gitserve scripts/docker-e2e.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: budgets
 budgets: build build-agent ## Fail if the builds are over their idle memory budgets; BASELINE=other/dockwell and BASELINE_AGENT=other/dockwell-agent measure those too (about 7 minutes)

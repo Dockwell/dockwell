@@ -15,6 +15,7 @@ import { cx, Glyph, type GlyphShape, STATUS, type ToneClass } from "@dockwell/ui
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
+import { shownImage } from "../../lib/built";
 import { keepTrying } from "../../lib/retry";
 import { useRunsNow } from "../apps/Health";
 import { type AppHealth, runsAsFarAsAnyoneKnows, useHealth } from "../apps/health";
@@ -98,7 +99,8 @@ export interface RollbackSubject {
 /** The image a change moved a resource from and to, under the name a plan or a revision gives it. */
 function imageChange(changes: readonly FieldChange[] | undefined): { previous?: string; next?: string } {
   const image = changes?.find((c) => c.op === FieldOp.MODIFIED && (c.path === "image" || c.path.endsWith(".image")));
-  return image ? { previous: image.from, next: image.to } : {};
+  // An image Dockwell built reads as its commit, as its name says nothing more (ADR 0046).
+  return image ? { previous: shownImage(image.from), next: shownImage(image.to) } : {};
 }
 
 /**

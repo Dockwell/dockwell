@@ -305,6 +305,34 @@ func WritesReferences(spec proto.Message) bool {
 // would otherwise take the digits out of a number, or the middle out of a word.
 const shortest = 6
 
+// Lines are the forms values take in what's read a line at a time, as a log is:
+// each value, without the white space at its ends, as a value stored with a newline
+// at its end is printed without it, and each line of one that has more than one, as
+// a key file prints line by line. A line too short to mask wherever it is stays
+// out, as it would mask words that aren't secret.
+func Lines(values []string) []string {
+	var out []string
+	for _, v := range values {
+		if v == "" {
+			continue
+		}
+		out = append(out, v)
+		if t := strings.TrimSpace(v); t != v && t != "" {
+			out = append(out, t)
+		}
+		if !strings.ContainsAny(v, "\r\n") {
+			continue
+		}
+		for _, line := range strings.FieldsFunc(v, func(r rune) bool { return r == '\n' || r == '\r' }) {
+			if t := strings.TrimSpace(line); len(t) >= shortest {
+				out = append(out, t)
+			}
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
 // Hide masks each of values in text that Docker or something else wrote, for a
 // container whose command holds them, before it goes anywhere a person reads. It
 // also finds a value as Go's %q would write it, as a runtime's errors quote what

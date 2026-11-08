@@ -1929,3 +1929,190 @@
 .app-env-hidden textarea {
   -webkit-text-security: disc;
 }
+
+/* An app that builds from Git: its repository and branch side by side, as Apps-New draws them (ADR 0046). */
+.git-source {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 168px;
+  gap: var(--space-3);
+}
+
+.git-hint {
+  margin: calc(-1 * var(--space-2)) 0 0;
+}
+
+/* How it builds, on one line, with the way to change it. */
+.git-build {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 4px 0 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font-size: 14px;
+}
+
+.git-build-check {
+  flex: none;
+  color: var(--healthy);
+}
+
+.git-build-spacer,
+.build-spacer {
+  flex: 1 1 auto;
+}
+
+.git-build-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.app-branch {
+  flex: none;
+}
+
+/* A revision's build: how it stands, its facts in a grid, then its log (App-Deployments). */
+.build-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: 28px;
+}
+
+.build-step {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+.build-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin: 0;
+}
+
+.build-facts .build-facts-wide {
+  grid-column: 1 / -1;
+}
+
+.build-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.build-facts dt {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+
+.build-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 550;
+}
+
+.build-facts-code,
+.build-facts .build-facts-wide dd {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.build-subject {
+  font-weight: 400;
+}
+
+/* The log: mono, in a box of its own that scrolls, each line with its step. */
+.build-log {
+  max-height: 320px;
+  overflow: auto;
+  padding: var(--space-2) 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font: 400 12px / 18px var(--font-mono);
+  overscroll-behavior: contain;
+}
+
+.build-log:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.build-log-line {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: 0 var(--space-3) 0 var(--space-2);
+}
+
+.build-log-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.build-log-line.is-failed {
+  background: var(--critical-soft);
+}
+
+.build-log-line.is-error .build-log-text {
+  color: var(--critical);
+}
+
+.build-log-step {
+  color: var(--ink-muted);
+  text-align: right;
+  user-select: none;
+}
+
+.build-log-gap,
+.build-log-empty {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+}
+
+.build-log-cursor {
+  width: 8px;
+  height: 14px;
+  margin: 2px 0 0 calc(40px + var(--space-2) + var(--space-2));
+  background: var(--ink-muted);
+  animation: build-blink 1s steps(2, start) infinite;
+}
+
+@keyframes build-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .build-log-cursor {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .git-source {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .build-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

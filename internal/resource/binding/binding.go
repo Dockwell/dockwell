@@ -18,7 +18,9 @@
 package binding
 
 import (
+	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"slices"
@@ -48,6 +50,10 @@ func Environment(ctx context.Context, svc *resourcev1.Service) (map[string]strin
 	}
 	values := resource.ValuesFrom(ctx)
 	for _, u := range uses {
+		if IsBuildUse(u.As) {
+			// A build's secret goes to its build alone, never into what runs.
+			continue
+		}
 		v, ok := values[u.As]
 		if !ok {
 			return nil, fmt.Errorf("the control plane sent no value for %s, which is %s %s; plan the change again", u.As, u.Kind, u.Name)
@@ -70,9 +76,49 @@ func Uses(svc *resourcev1.Service) []resource.Use {
 	}
 	add(variable.VariableKind, svc.GetVariables())
 	add(variable.SecretKind, svc.GetSecrets())
+	for id, name := range svc.GetBuild().GetSecrets() {
+		if name == "" {
+			name = id
+		}
+		as := BuildPrefix + id
+		out = append(out, resource.Use{As: as, Kind: variable.SecretKind, Name: name, Revision: int(svc.GetRevisions()[as])})
+	}
 	slices.SortFunc(out, func(a, b resource.Use) int { return strings.Compare(a.As, b.As) })
 	return out
 }
+
+// BuildPrefix starts the name a build's secret is used as, such as
+// "build:NPM_TOKEN", which no environment variable's name can be, so a value
+// meant for a build never reaches what runs (ADR 0046).
+const BuildPrefix = "build:"
+
+// IsBuildUse reports the name of a use that is a build's secret.
+func IsBuildUse(as string) bool { return strings.HasPrefix(as, BuildPrefix) }
+
+// BuildSecrets are the values of the secrets a service's build uses, by the ID a
+// Dockerfile names each by, from what the call brought. It fails, naming what is
+// missing but never a value, when one wasn't sent.
+func BuildSecrets(ctx context.Context, svc *resourcev1.Service) (map[string]string, error) {
+	ids := svc.GetBuild().GetSecrets()
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	values := resource.ValuesFrom(ctx)
+	out := make(map[string]string, len(ids))
+	for id, name := range ids {
+		v, ok := values[BuildPrefix+id]
+		if !ok {
+			return nil, fmt.Errorf("the control plane sent no value for the build's secret %s, which is the secret %s; plan the change again", id, cmp.Or(name, id))
+		}
+		out[id] = v
+	}
+	return out, nil
+}
+
+// BuildLabelKey is the container label that records how a service's image was
+// built, without its secrets, which LabelKey records by name, so the service reads
+// back as its spec.
+const BuildLabelKey = "dockwell.build"
 
 // LabelKey is the container label that records what a service uses: each
 // name it sees, the kind and name of what it uses, and the revision, such
@@ -104,7 +150,44 @@ func App(svc *resourcev1.Service, env map[string]string) *resourcev1.Container {
 		}
 		app.Labels[LabelKey] = label
 	}
+	if b := svc.GetBuild(); b != nil {
+		if app.Labels == nil {
+			app.Labels = map[string]string{}
+		}
+		app.Labels[BuildLabelKey] = buildLabel(b)
+	}
 	return app
+}
+
+// builtFrom is what the BuildLabelKey label holds: a build, with its secrets left
+// out. encoding/json sorts a map's keys, so one build always reads the same.
+type builtFrom struct {
+	URL        string            `json:"url,omitempty"`
+	Ref        string            `json:"ref,omitempty"`
+	Commit     string            `json:"commit,omitempty"`
+	Context    string            `json:"context,omitempty"`
+	Dockerfile string            `json:"dockerfile,omitempty"`
+	Args       map[string]string `json:"args,omitempty"`
+	Target     string            `json:"target,omitempty"`
+}
+
+// buildLabel is the BuildLabelKey label for a build.
+func buildLabel(b *resourcev1.ImageBuild) string {
+	g := b.GetGit()
+	out, _ := json.Marshal(builtFrom{URL: g.GetUrl(), Ref: g.GetRef(), Commit: g.GetCommit(), Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Args: b.GetArgs(), Target: b.GetTarget()})
+	return string(out)
+}
+
+// readBuildLabel reads a BuildLabelKey label back into the build it records.
+func readBuildLabel(label string) (*resourcev1.ImageBuild, error) {
+	var f builtFrom
+	if err := json.Unmarshal([]byte(label), &f); err != nil || f.URL == "" {
+		return nil, fmt.Errorf("the container can't be read back: its %s label isn't one Dockwell wrote", BuildLabelKey)
+	}
+	return &resourcev1.ImageBuild{
+		Source:  &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: f.URL, Ref: f.Ref, Commit: f.Commit}},
+		Context: f.Context, Dockerfile: f.Dockerfile, Args: f.Args, Target: f.Target,
+	}, nil
 }
 
 // ParseLabel reads a LabelKey label back into what it records.
@@ -150,6 +233,17 @@ func Use(svc *resourcev1.Service, u resource.Use) {
 // the container isn't running with it.
 func Restore(c *resourcev1.Container) (*resourcev1.Service, error) {
 	svc := &resourcev1.Service{Runs: &resourcev1.Service_App{App: c}}
+	if label, ok := c.GetLabels()[BuildLabelKey]; ok {
+		b, err := readBuildLabel(label)
+		if err != nil {
+			return nil, err
+		}
+		svc.Build = b
+		delete(c.Labels, BuildLabelKey)
+		if len(c.Labels) == 0 {
+			c.Labels = nil
+		}
+	}
 	label, ok := c.GetLabels()[LabelKey]
 	if !ok {
 		return svc, nil
@@ -163,6 +257,23 @@ func Restore(c *resourcev1.Container) (*resourcev1.Service, error) {
 		c.Labels = nil
 	}
 	for _, u := range uses {
+		if id, ok := strings.CutPrefix(u.As, BuildPrefix); ok {
+			// What the build used never reached what runs, so the label alone says it.
+			if svc.Build == nil {
+				continue
+			}
+			if svc.Build.Secrets == nil {
+				svc.Build.Secrets = map[string]string{}
+			}
+			svc.Build.Secrets[id] = u.Name
+			if u.Revision > 0 {
+				if svc.Revisions == nil {
+					svc.Revisions = map[string]int64{}
+				}
+				svc.Revisions[u.As] = int64(u.Revision)
+			}
+			continue
+		}
 		if _, ok := c.Env[u.As]; !ok {
 			continue
 		}

@@ -4,7 +4,7 @@ import { Callout } from "@dockwell/ui";
 import { Trans } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
-import { factAndRest, withoutIds } from "./plan";
+import { factAndRest, shownQuotes, withoutIds } from "./plan";
 
 /**
  * A path, an image, a revision, a port or a command in a sentence: "/srv/uploads",
@@ -57,7 +57,7 @@ export function FailureNotice({
   fix?: string | undefined;
   actions?: ReactNode;
 }) {
-  const [fact, rest] = factAndRest(withoutIds(message));
+  const [fact, rest] = factAndRest(withoutIds(message)).map(shownQuotes);
   return (
     <Callout tone="critical" title={<MachineWords>{fact}</MachineWords>} actions={actions} className="plan-failure">
       <MachineWords>{fix ?? rest}</MachineWords>

@@ -3,12 +3,23 @@
 import { cx } from "@dockwell/ui";
 import { Fragment } from "react";
 
+import { builtCommit } from "./app";
+
 /**
  * An image's name that keeps its end when it doesn't fit, as the last part and
  * the tag are what tell two apart: ten rows of the same registry otherwise read
  * as ten copies of it. The start clips first, and hovering says it whole.
  */
 export function ImageName({ image, className }: { image: string; className?: string | undefined }) {
+  const built = builtCommit(image);
+  if (built) {
+    // An image Dockwell built says which commit it is; its name says nothing more.
+    return (
+      <code className={cx("image-name", className)} title={image}>
+        <span className="image-name-end">{built}</span>
+      </code>
+    );
+  }
   const at = image.lastIndexOf("/") + 1;
   return (
     <code className={cx("image-name", className)} title={image}>

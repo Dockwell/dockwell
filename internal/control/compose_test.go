@@ -26,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentlogs "github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/backup"
+	"github.com/dockwell/dockwell/internal/build"
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -87,7 +88,13 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 	if f.volumes != nil {
 		volumeType = f.volumes(volumes)
 	}
-	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, volumeType, &network.Driver{Client: client}}
+	e.Registry[build.Image] = dockertest.Image{}
+	builder := &build.Builder{
+		Client: client, SecretsDir: t.TempDir(), InMemory: func(string) bool { return true },
+		Memory: func() (int64, int64, error) { return 4 << 30, 8 << 30, nil }, CPUs: func() int { return 4 },
+		DiskSize: func(string) (int64, error) { return 50 << 30, nil },
+	}
+	drivers := []resource.Type{&containers, &service.Driver{Containers: containers, Builds: builder}, volumeType, &network.Driver{Client: client}}
 	if more != nil {
 		drivers = append(drivers, more()...)
 	}
@@ -100,6 +107,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		logs:    &agentlogs.Reader{Client: client, Archive: archive, Logger: slog.New(slog.DiscardHandler)},
 		client:  client,
 		backups: backups,
+		builds:  builder,
 	}
 	s.connect(t, f)
 	f.lastDocker = s

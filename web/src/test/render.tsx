@@ -5,6 +5,7 @@ import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@c
 import {
   AuthService,
   BackupService,
+  BuildService,
   CatalogService,
   ChangeService,
   ComposeService,
@@ -60,6 +61,7 @@ export type Api = {
   settings?: Partial<ServiceImpl<typeof SettingsService>>;
   updates?: Partial<ServiceImpl<typeof UpdateService>>;
   databases?: Partial<ServiceImpl<typeof DatabaseService>>;
+  builds?: Partial<ServiceImpl<typeof BuildService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -115,6 +117,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
         ...api.backups,
       });
       service(DatabaseService, { listDatabases: () => ({}), ...api.databases });
+      service(BuildService, api.builds ?? {});
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );

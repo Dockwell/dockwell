@@ -79,6 +79,8 @@ type Config struct {
 	// Databases reads this server's databases, each in its own container (ADR
 	// 0038). Nil reads none.
 	Databases DatabaseReader
+	// Builds cancels the builds under way on this server. Nil cancels none.
+	Builds BuildCanceller
 	// Health says how this server's services are, which the agent tells the
 	// control plane as its stream opens, when a state changes, and every so
 	// often while checks run. Nil says nothing.
@@ -97,6 +99,13 @@ type Config struct {
 	// Hello changes what the agent says of itself as a stream opens, for a test
 	// that stands in for an agent of another version. Nil changes nothing.
 	Hello func(*agentv1.Hello)
+}
+
+// BuildCanceller stops a build under way (ADR 0046).
+type BuildCanceller interface {
+	// Cancel stops the build of svc for change, if one waits or runs, and says
+	// whether there was one. by is who asked, for its log.
+	Cancel(change string, svc resource.Ref, by string) bool
 }
 
 // HealthReporter says how a server's services are (ADR 0027).

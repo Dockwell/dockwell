@@ -31,6 +31,8 @@ const (
 	ReasonUnhealthy = "unhealthy" // it runs, and fails its health check
 	ReasonPort      = "port"      // a port it publishes is in use
 	ReasonMount     = "mount"     // a volume or a path it mounts
+	ReasonBuild     = "build"     // building its image from source failed
+	ReasonCancelled = "cancelled" // someone cancelled its build
 )
 
 func (f *Failure) Error() string { return f.Err.Error() }
