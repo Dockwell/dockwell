@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
 )
@@ -184,11 +185,27 @@ func TestTheTableLoadsInRealNftables(t *testing.T) {
 		DenyRest:         true,
 		DockerInterfaces: []string{"docker0"},
 	}
+	if err := fw.Probe(t.Context()); err != nil {
+		t.Fatal(err)
+	}
 	loaded, err := fw.Load(t.Context(), table)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = fw.Delete(context.Background()) })
+	if !loaded.Present || loaded.Fingerprint == "" {
+		t.Errorf("loaded %+v", loaded)
+	}
+	// The kernel holds the chains and the rules as written, comments and all.
+	res, err := fw.Run.Run(t.Context(), Tool, readWait, nil, "-j", "list", "table", Family, Name)
+	if err != nil || res.Code != 0 {
+		t.Fatalf("listing: %v, %s", err, res.Errs)
+	}
+	for _, want := range []string{`"name": "input"`, `"name": "forward"`, `"name": "published"`, `"comment": "pin ssh"`, `"comment": "rule db"`, `"comment": "policy deny everything else"`} {
+		if !strings.Contains(strings.ReplaceAll(string(res.Out), `":"`, `": "`), want) {
+			t.Errorf("the kernel's listing has no %s:\n%s", want, res.Out)
+		}
+	}
 	again, err := fw.Load(t.Context(), table)
 	if err != nil {
 		t.Fatal(err)
@@ -201,5 +218,98 @@ func TestTheTableLoadsInRealNftables(t *testing.T) {
 	}
 	if gone, err := fw.Read(t.Context()); err != nil || gone.Present {
 		t.Errorf("after delete: %+v, %v", gone, err)
+	}
+}
+
+// loadAs is a stand-in nft whose check passes, whose load does what load says,
+// and whose listing does what list says.
+func loadAs(t *testing.T, load, list string) (*hosttool.Runner, string) {
+	t.Helper()
+	return standIn(t, `case "$*" in
+-c*) exit 0 ;;
+"-f -") `+load+` ;;
+*list*) `+list+` ;;
+esac
+`)
+}
+
+const listed = "cat <<'EOF'\n" + `{"nftables": [{"table": {"family": "inet", "name": "dockwell", "handle": 1}}]}` + "\nEOF\n"
+
+// Once nft has the table, what goes wrong says the table may be live, so the
+// caller puts back what it last confirmed, rather than take it that nothing
+// changed (review of #306, finding 1).
+func TestALoadThatCantBeSeenThroughIsUnknown(t *testing.T) {
+	t.Cleanup(func() { loadWait = 15 * time.Second })
+	cases := map[string]struct{ load, list string }{
+		"the read back fails":        {"exit 0", `echo "Error: cache initialization failed: Interrupted system call" >&2; exit 1`},
+		"the kernel lists no table":  {"exit 0", `echo "Error: No such file or directory" >&2; exit 1`},
+		"nft runs past its deadline": {"sleep 5", listed},
+	}
+	for what, c := range cases {
+		run, _ := loadAs(t, c.load, c.list)
+		run.Grace = 100 * time.Millisecond
+		loadWait = 300 * time.Millisecond
+		_, err := (&Firewall{Run: run}).Load(t.Context(), Table{})
+		if !errors.Is(err, ErrUnknown) {
+			t.Errorf("%s: %v, want ErrUnknown", what, err)
+		}
+	}
+	loadWait = 15 * time.Second
+	// nft refusing the table itself changed nothing: its transaction is all or none.
+	run, _ := loadAs(t, `echo "Error: Could not process rule: No such file or directory" >&2; exit 1`, listed)
+	_, err := (&Firewall{Run: run}).Load(t.Context(), Table{})
+	if err == nil || errors.Is(err, ErrUnknown) || !strings.Contains(err.Error(), "nft refused the table, so nothing changed") {
+		t.Errorf("a refused load: %v", err)
+	}
+}
+
+// A caller that leaves while nft loads doesn't cut short the load or its read
+// back: the load says what the server holds.
+func TestALoadOutlastsItsCaller(t *testing.T) {
+	run, calls := loadAs(t, "sleep 0.5", listed)
+	ctx, cancel := context.WithCancel(t.Context())
+	time.AfterFunc(150*time.Millisecond, cancel)
+	loaded, err := (&Firewall{Run: run}).Load(ctx, Table{})
+	if err != nil || !loaded.Present {
+		t.Errorf("a load whose caller left: %+v, %v", loaded, err)
+	}
+	if got := callsOf(t, calls); strings.Join(got, "|") != "-c -f -|-f -|-j list table inet dockwell" {
+		t.Errorf("nft ran %q", got)
+	}
+}
+
+// No other tool runs between a load's check, the load and its read back.
+func TestALoadHoldsItsTurn(t *testing.T) {
+	run, calls := loadAs(t, "sleep 0.3", listed)
+	fw := &Firewall{Run: run}
+	done := make(chan error, 1)
+	go func() {
+		_, err := fw.Load(context.Background(), Table{})
+		done <- err
+	}()
+	time.Sleep(100 * time.Millisecond)
+	if _, err := fw.Read(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	got := callsOf(t, calls)
+	if strings.Join(got, "|") != "-c -f -|-f -|-j list table inet dockwell|-j list table inet dockwell" {
+		t.Errorf("nft ran %q, want the load's three before the other read", got)
+	}
+}
+
+// A kernel without nftables says so apart from one inside a container that
+// refuses it (review of #306, finding 8).
+func TestAKernelWithoutNftablesSaysSo(t *testing.T) {
+	run, _ := standIn(t, `echo "Error: Could not process rule: Operation not supported" >&2; exit 1
+`)
+	err := (&Firewall{Run: run, euid: func() int { return 0 }}).Probe(t.Context())
+	if !errors.Is(err, ErrRefused) || !strings.Contains(err.Error(), "modprobe nf_tables") || strings.Contains(err.Error(), "LXC or OpenVZ container can") {
+		t.Errorf("no nf_tables: %v", err)
+	}
+	if !strings.Contains(err.Error(), "so nothing changed") {
+		t.Errorf("a check that failed doesn't say nothing changed: %v", err)
 	}
 }

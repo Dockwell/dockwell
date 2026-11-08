@@ -122,12 +122,51 @@ func (r *Runner) Find(t Tool) (string, bool) {
 	return "", false
 }
 
+// Turn is a runner's turn, held across several runs that must not have another
+// tool run between them, such as checking a table, loading it and reading it
+// back.
+type Turn struct {
+	r    *Runner
+	done func()
+}
+
+// Turn waits for the runner's turn and holds it until Done.
+func (r *Runner) Turn(ctx context.Context) (*Turn, error) {
+	done, err := r.wait(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &Turn{r: r, done: done}, nil
+}
+
+// Done gives the turn back.
+func (t *Turn) Done() { t.done() }
+
+// Run runs a tool in the turn held, as Runner.Run does.
+func (t *Turn) Run(ctx context.Context, tool Tool, timeout time.Duration, stdin []byte, args ...string) (Result, error) {
+	return t.r.run(ctx, tool, timeout, stdin, args...)
+}
+
+// errOwnDeadline is a run's own deadline, told apart from its caller's.
+var errOwnDeadline = errors.New("the run's own deadline")
+
 // Run runs a tool with args, waits for it within timeout, and returns what it
 // printed. stdin is what it reads; nil reads /dev/null, so nothing can wait for
 // an answer. An exit status isn't an error here, as tools such as nft and dnf
 // say what they found with theirs: each caller decides. A run out of time gets
-// SIGTERM, with everything it started, and SIGKILL a grace later.
+// SIGTERM, with everything it started, and SIGKILL a grace later; whatever it
+// started that's still there when it ends goes too.
 func (r *Runner) Run(ctx context.Context, t Tool, timeout time.Duration, stdin []byte, args ...string) (Result, error) {
+	turn, err := r.Turn(ctx)
+	if err != nil {
+		return Result{Code: -1}, err
+	}
+	defer turn.Done()
+	return r.run(ctx, t, timeout, stdin, args...)
+}
+
+// run runs a tool in a turn its caller holds.
+func (r *Runner) run(ctx context.Context, t Tool, timeout time.Duration, stdin []byte, args ...string) (Result, error) {
 	if r.Off {
 		return Result{Code: -1}, fmt.Errorf("%s %w", t.Name, ErrOff)
 	}
@@ -135,12 +174,11 @@ func (r *Runner) Run(ctx context.Context, t Tool, timeout time.Duration, stdin [
 	if !ok {
 		return Result{Code: -1}, fmt.Errorf("%s %w: it isn't at %s", t.Name, ErrMissing, strings.Join(t.Paths, " or "))
 	}
-	done, err := r.wait(ctx)
-	if err != nil {
-		return Result{Code: -1}, err
+	// A caller that left while it waited its turn doesn't start the tool.
+	if ctx.Err() != nil {
+		return Result{Code: -1}, fmt.Errorf("%s didn't run, as its caller left: %w", t.Name, context.Cause(ctx))
 	}
-	defer done()
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, errOwnDeadline)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, r.path(path), args...) //nolint:gosec // a fixed path, with arguments its caller builds
 	cmd.Env = append(append([]string(nil), env...), t.Env...)
@@ -161,10 +199,12 @@ func (r *Runner) Run(ctx context.Context, t Tool, timeout time.Duration, stdin [
 	if r.Grace > 0 {
 		cmd.WaitDelay = r.Grace
 	}
-	err = cmd.Run()
-	// What the tool started and left holding its output, past the grace, goes
-	// too, as it would go on with nothing waiting for it.
-	if killed.Load() || errors.Is(err, exec.ErrWaitDelay) {
+	err := cmd.Run()
+	// What the tool started and left behind goes too, whether the tool ended by
+	// itself or was stopped, as nothing waits for it any more. The group's ID
+	// can't be anyone else's while one of its own is alive. What left the group
+	// with setsid() is out of reach without a cgroup of its own.
+	if cmd.Process != nil {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
 	res := Result{Out: out.buf.Bytes(), Errs: errs.String(), Code: -1}
@@ -174,9 +214,11 @@ func (r *Runner) Run(ctx context.Context, t Tool, timeout time.Duration, stdin [
 	switch {
 	case out.over:
 		return res, fmt.Errorf("%s %w", t.Name, ErrTooMuch)
-	case killed.Load() && errors.Is(ctx.Err(), context.DeadlineExceeded):
+	case killed.Load() && errors.Is(context.Cause(ctx), errOwnDeadline):
 		return res, fmt.Errorf("%s didn't finish within %s, so it was stopped%s: %w",
 			t.Name, human.Duration(timeout), Said(res.Errs), context.DeadlineExceeded)
+	case killed.Load() && errors.Is(ctx.Err(), context.DeadlineExceeded):
+		return res, fmt.Errorf("%s was stopped, as its caller's time ran out%s: %w", t.Name, Said(res.Errs), context.DeadlineExceeded)
 	case killed.Load():
 		return res, fmt.Errorf("%s was stopped, as its caller left: %w", t.Name, context.Cause(ctx))
 	case err != nil && res.Code < 0 && !errors.Is(err, exec.ErrWaitDelay):
@@ -206,11 +248,18 @@ func Said(errs string) string {
 	return ""
 }
 
+// marker is a line that only points at another, as nft's "^^^^" under the
+// part of a rule it refused.
+func marker(l string) bool {
+	return strings.Trim(l, "^~ ") == ""
+}
+
 // LastLines is the last n lines of s that hold something, joined with "; ".
+// Lines that only point at another line are left out.
 func LastLines(s string, n int) string {
 	var lines []string
 	for l := range strings.SplitSeq(s, "\n") {
-		if l = strings.TrimSpace(l); l != "" {
+		if l = strings.TrimSpace(l); l != "" && !marker(l) {
 			lines = append(lines, l)
 		}
 	}

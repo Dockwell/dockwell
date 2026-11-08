@@ -57,8 +57,10 @@ type Table struct {
 
 // keepsReachable is what every table lets in first, so the server stays
 // reachable whatever the rules say: connections already open, loopback,
-// ICMP's errors, IPv6's neighbour and router discovery, and DHCP's replies,
-// with invalid packets dropped.
+// ICMP's errors, IPv6's neighbour and router discovery, MLD from the link,
+// which keeps a snooping switch sending the host its neighbour discovery,
+// DHCP's replies, and ping, at most 5 a second, as RFC 4890 keeps echo; with
+// invalid packets dropped.
 var keepsReachable = []string{
 	"ct state established,related accept",
 	"ct state invalid drop",
@@ -66,13 +68,46 @@ var keepsReachable = []string{
 	"icmp type { destination-unreachable, time-exceeded, parameter-problem } accept",
 	"icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept",
 	"icmpv6 type { nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, nd-redirect } ip6 hoplimit 255 accept",
+	"icmpv6 type { mld-listener-query, mld-listener-report, mld-listener-done, mld2-listener-report } ip6 saddr fe80::/10 ip6 hoplimit 1 accept",
 	"udp sport 67 udp dport 68 accept",
 	"ip6 saddr fe80::/10 udp sport 547 udp dport 546 accept",
+	"icmp type echo-request limit rate 5/second burst 10 packets accept",
+	"icmpv6 type echo-request limit rate 5/second burst 10 packets accept",
 }
 
-// ifName is a network interface's name as Linux allows it, short of what
-// would need quoting in nft.
-var ifName = regexp.MustCompile(`^[A-Za-z0-9_.@-]{1,15}$`)
+// matchable says whether nft can match an interface by name: Linux's 15 bytes
+// at most, in quotes, which may hold anything but a quote or a control
+// character, and not end in *, which nft reads as a wildcard.
+func matchable(name string) bool {
+	if name == "" || len(name) > 15 || strings.HasSuffix(name, "*") {
+		return false
+	}
+	for _, r := range name {
+		if r == '"' || r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+// SkippedWords says what it means that one of Docker's interfaces has a name
+// the table can't match, and how to fix it.
+func SkippedWords(name string) string {
+	return fmt.Sprintf("Docker's interface %q has a name nftables can't match: it holds a quote or a control character, or ends in *. "+
+		"Its containers' traffic to the server is treated as from outside, and the ports they publish aren't filtered. "+
+		"Rename its network's bridge, with com.docker.network.bridge.name", name)
+}
+
+// Skipped are Docker's interfaces the table leaves out, as nft can't match their names.
+func (t Table) Skipped() []string {
+	var out []string
+	for _, name := range t.DockerInterfaces {
+		if !matchable(name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
 
 // ruleName is what a rule's comment may hold: printable, without what nft
 // would read as the comment's end, and shorter than nft's 128 bytes.
@@ -98,11 +133,6 @@ func (t Table) Validate() error {
 					return fmt.Errorf("rule %s has a source that isn't an address or a range", r.Name)
 				}
 			}
-		}
-	}
-	for _, name := range t.DockerInterfaces {
-		if !ifName.MatchString(name) {
-			return fmt.Errorf("the table can't match %q as one of Docker's interfaces, as Linux doesn't name one so", name)
 		}
 	}
 	return nil
@@ -137,8 +167,10 @@ func (t Table) Script() (string, error) {
 	// its networks, matched by the port it arrived on.
 	b.WriteString("\tchain forward {\n")
 	b.WriteString("\t\ttype filter hook forward priority filter; policy accept;\n")
+	// Docker's alone, so other port forwards on the server, such as libvirt's,
+	// LXD's or k3s's, aren't filtered as published ports.
 	if ifs := t.dockerSet(); ifs != "" {
-		fmt.Fprintf(&b, "\t\tct status dnat iifname != %s jump published\n", ifs)
+		fmt.Fprintf(&b, "\t\tct status dnat iifname != %s oifname %s jump published\n", ifs, ifs)
 	} else {
 		b.WriteString("\t\tct status dnat jump published\n")
 	}
@@ -234,15 +266,21 @@ func set(items []string) string {
 
 // dockerSet is Docker's interfaces as an nft set of names, or empty.
 func (t Table) dockerSet() string {
-	if len(t.DockerInterfaces) == 0 {
+	var names []string
+	for _, n := range t.DockerInterfaces {
+		if matchable(n) {
+			names = append(names, n)
+		}
+	}
+	if len(names) == 0 {
 		return ""
 	}
-	names := slices.Clone(t.DockerInterfaces)
 	slices.Sort(names)
 	names = slices.Compact(names)
 	quoted := make([]string, len(names))
 	for i, n := range names {
-		quoted[i] = strconv.Quote(n)
+		// nft takes what's between the quotes as it is, backslashes too.
+		quoted[i] = `"` + n + `"`
 	}
 	return "{ " + strings.Join(quoted, ", ") + " }"
 }

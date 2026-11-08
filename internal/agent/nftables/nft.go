@@ -19,8 +19,8 @@ import (
 // Tool is nft, at the paths the distributions put it.
 var Tool = hosttool.Tool{Name: "nft", Paths: []string{"/usr/sbin/nft", "/sbin/nft"}}
 
-// How long each nft run may take.
-const (
+// How long each nft run may take. Variables, for a test.
+var (
 	loadWait = 15 * time.Second
 	readWait = 10 * time.Second
 )
@@ -29,8 +29,13 @@ var (
 	// ErrNoNft is a server without nft, as Alpine and some minimal images ship.
 	ErrNoNft = errors.New("this server has no nft, so Dockwell can't write its firewall. Install the nftables package")
 	// ErrRefused is a kernel that won't load a table, as LXC and OpenVZ
-	// containers can refuse, or an agent without root.
+	// containers can refuse, one without nftables, or an agent without root.
 	ErrRefused = errors.New("this server won't let Dockwell load an nftables table")
+	// ErrUnknown is a load that went into the kernel and then couldn't be seen
+	// through: nft was stopped, or what it loaded couldn't be read back. The
+	// table may be live, so the caller puts back the table it last confirmed,
+	// rather than take it that nothing changed.
+	ErrUnknown = errors.New("the table may have loaded, and Dockwell can't tell")
 )
 
 // Firewall writes and reads inet dockwell with nft.
@@ -48,6 +53,9 @@ type Loaded struct {
 	// Fingerprint is a hash of the table's chains and rules as nft lists them,
 	// without the handles a reload renumbers.
 	Fingerprint string
+	// Skipped are Docker's interfaces the load left out, as nft can't match
+	// their names; SkippedWords says what that means.
+	Skipped []string
 }
 
 // Drifted says whether the table now differs from what was read back after
@@ -57,29 +65,81 @@ func (l Loaded) Drifted(now Loaded) bool {
 }
 
 // Load replaces inet dockwell with t in one transaction, after nft has checked
-// it without loading, and returns the table as nft lists it after.
+// it without loading, and returns the table as nft lists it after. No other
+// tool runs between the three.
+//
+// An error before the load says nothing changed. Once nft has the table, the
+// load and the read back run to their end whether the caller stays or not, and
+// what goes wrong from then on is ErrUnknown: nft's transaction either went in
+// whole or not at all, and Dockwell can't tell which. nft refusing the table
+// itself is the one failure there that changed nothing.
 func (f *Firewall) Load(ctx context.Context, t Table) (Loaded, error) {
 	script, err := t.Script()
 	if err != nil {
 		return Loaded{}, err
 	}
-	if err := f.nftIn(ctx, "check the table", []byte(script), "-c", "-f", "-"); err != nil {
+	turn, err := f.Run.Turn(ctx)
+	if err != nil {
 		return Loaded{}, err
 	}
-	if err := f.nftIn(ctx, "load the table", []byte(script), "-f", "-"); err != nil {
+	defer turn.Done()
+	if err := f.nftIn(ctx, turn, "check the table", []byte(script), "-c", "-f", "-"); err != nil {
 		return Loaded{}, err
 	}
-	return f.Read(ctx)
+	// From here the kernel may take the table, so the caller leaving doesn't
+	// cut short what tells whether it did.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), loadWait+readWait)
+	defer cancel()
+	res, err := turn.Run(ctx, Tool, loadWait, []byte(script), "-f", "-")
+	switch {
+	case err != nil:
+		return Loaded{}, fmt.Errorf("%w: nft was loading it: %w", ErrUnknown, err)
+	case res.Code != 0:
+		return Loaded{}, fmt.Errorf("nft refused the table, so nothing changed: %w", f.why("load the table", hosttool.Fail("nft", res), res))
+	}
+	loaded, err := f.read(ctx, turn)
+	switch {
+	case err != nil:
+		return Loaded{}, fmt.Errorf("%w: nft loaded it, then Dockwell couldn't read it back: %w", ErrUnknown, err)
+	case !loaded.Present:
+		return Loaded{}, fmt.Errorf("%w: nft loaded it, then the kernel listed no table %s %s", ErrUnknown, Family, Name)
+	}
+	loaded.Skipped = t.Skipped()
+	return loaded, nil
 }
 
-// Delete removes inet dockwell, whether it's there or not.
+// Delete removes inet dockwell, whether it's there or not. Once nft has the
+// transaction, it runs to its end whether the caller stays or not.
 func (f *Firewall) Delete(ctx context.Context) error {
-	return f.nftIn(ctx, "remove the table", []byte(DeleteScript()), "-f", "-")
+	turn, err := f.Run.Turn(ctx)
+	if err != nil {
+		return err
+	}
+	defer turn.Done()
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), loadWait)
+	defer cancel()
+	res, err := turn.Run(ctx, Tool, loadWait, []byte(DeleteScript()), "-f", "-")
+	switch {
+	case err != nil:
+		return fmt.Errorf("%w: nft was removing it: %w", ErrUnknown, err)
+	case res.Code != 0:
+		return fmt.Errorf("nft refused to remove the table, so nothing changed: %w", f.why("remove the table", hosttool.Fail("nft", res), res))
+	}
+	return nil
 }
 
 // Read lists inet dockwell as it is now.
 func (f *Firewall) Read(ctx context.Context) (Loaded, error) {
-	res, err := f.Run.Run(ctx, Tool, readWait, nil, "-j", "list", "table", Family, Name)
+	turn, err := f.Run.Turn(ctx)
+	if err != nil {
+		return Loaded{}, err
+	}
+	defer turn.Done()
+	return f.read(ctx, turn)
+}
+
+func (f *Firewall) read(ctx context.Context, turn *hosttool.Turn) (Loaded, error) {
+	res, err := turn.Run(ctx, Tool, readWait, nil, "-j", "list", "table", Family, Name)
 	if err != nil {
 		return Loaded{}, f.why("read the table", err, res)
 	}
@@ -100,18 +160,23 @@ func (f *Firewall) Read(ctx context.Context) (Loaded, error) {
 // Probe says whether this server can hold Dockwell's table: it has nft, and
 // its kernel lets the agent load a table, which nft checks without loading.
 func (f *Firewall) Probe(ctx context.Context) error {
-	return f.nftIn(ctx, "check that a table can load", []byte(fmt.Sprintf("table %s %s {}\n", Family, Name)), "-c", "-f", "-")
+	turn, err := f.Run.Turn(ctx)
+	if err != nil {
+		return err
+	}
+	defer turn.Done()
+	return f.nftIn(ctx, turn, "check that a table can load", []byte(fmt.Sprintf("table %s %s {}\n", Family, Name)), "-c", "-f", "-")
 }
 
-// nftIn runs nft with script on its standard input, and says what failed in
+// nftIn checks a script with nft, which changes nothing, and says what failed in
 // words a person can act on.
-func (f *Firewall) nftIn(ctx context.Context, what string, script []byte, args ...string) error {
-	res, err := f.Run.Run(ctx, Tool, loadWait, script, args...)
+func (f *Firewall) nftIn(ctx context.Context, turn *hosttool.Turn, what string, script []byte, args ...string) error {
+	res, err := turn.Run(ctx, Tool, loadWait, script, args...)
 	if err == nil && res.Code != 0 {
 		err = hosttool.Fail("nft", res)
 	}
 	if err != nil {
-		return f.why(what, err, res)
+		return fmt.Errorf("%w, so nothing changed", f.why(what, err, res))
 	}
 	return nil
 }
@@ -122,7 +187,7 @@ func (f *Firewall) why(what string, err error, res hosttool.Result) error {
 	switch {
 	case errors.Is(err, hosttool.ErrMissing):
 		return ErrNoNft
-	case refused(res.Errs):
+	case strings.Contains(res.Errs, "Operation not permitted"):
 		euid := os.Geteuid
 		if f.euid != nil {
 			euid = f.euid
@@ -130,20 +195,11 @@ func (f *Firewall) why(what string, err error, res hosttool.Result) error {
 		if euid() != 0 {
 			return fmt.Errorf("%w, as the agent doesn't run as root. Run it as root, as the install script does", ErrRefused)
 		}
-		return fmt.Errorf("%w: its kernel said %q, as an LXC or OpenVZ container can. Its host has to allow nftables in it", ErrRefused, hosttool.LastLines(res.Errs, 1))
+		return fmt.Errorf("%w: its kernel said %q, as it says inside an LXC or OpenVZ container. The container's host has to allow nftables in it", ErrRefused, hosttool.LastLines(res.Errs, 1))
+	case strings.Contains(res.Errs, "Operation not supported") || strings.Contains(res.Errs, "Protocol not supported"):
+		return fmt.Errorf("%w: its kernel said %q, as it says without nftables (the nf_tables module) or inside a container that doesn't offer it. Load nf_tables with modprobe nf_tables, or ask the container's host", ErrRefused, hosttool.LastLines(res.Errs, 1))
 	}
 	return fmt.Errorf("can't %s: %w", what, err)
-}
-
-// refused is what nft says when the kernel won't take a table: not permitted,
-// or no nf_tables in it.
-func refused(errs string) bool {
-	for _, s := range []string{"Operation not permitted", "Operation not supported", "Protocol not supported"} {
-		if strings.Contains(errs, s) {
-			return true
-		}
-	}
-	return false
 }
 
 // fingerprint hashes nft's JSON listing without its metainfo and handles, so

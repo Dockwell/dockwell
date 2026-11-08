@@ -43,8 +43,11 @@ table inet dockwell {
 		icmp type { destination-unreachable, time-exceeded, parameter-problem } accept
 		icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept
 		icmpv6 type { nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, nd-redirect } ip6 hoplimit 255 accept
+		icmpv6 type { mld-listener-query, mld-listener-report, mld-listener-done, mld2-listener-report } ip6 saddr fe80::/10 ip6 hoplimit 1 accept
 		udp sport 67 udp dport 68 accept
 		ip6 saddr fe80::/10 udp sport 547 udp dport 546 accept
+		icmp type echo-request limit rate 5/second burst 10 packets accept
+		icmpv6 type echo-request limit rate 5/second burst 10 packets accept
 		iifname { "br-1a2b3c4d5e6f", "docker0" } accept
 		ip saddr 203.0.113.7/32 tcp dport 22 accept comment "pin ssh"
 		ip6 saddr 2001:db8::7/128 tcp dport 22 accept comment "pin ssh"
@@ -54,7 +57,7 @@ table inet dockwell {
 	}
 	chain forward {
 		type filter hook forward priority filter; policy accept;
-		ct status dnat iifname != { "br-1a2b3c4d5e6f", "docker0" } jump published
+		ct status dnat iifname != { "br-1a2b3c4d5e6f", "docker0" } oifname { "br-1a2b3c4d5e6f", "docker0" } jump published
 	}
 	chain published {
 		ct state established,related accept
@@ -107,8 +110,6 @@ func TestValidateRefusesWhatNftWouldMisread(t *testing.T) {
 		"a protocol nft can't":    {Allows: []Rule{{Name: "rule a", Protocol: "icmp", Ports: []uint16{1}}}},
 		"no port":                 {Denies: []Rule{{Name: "rule b", Protocol: "tcp"}}},
 		"port 0":                  {Denies: []Rule{{Name: "rule c", Protocol: "udp", Ports: []uint16{0}}}},
-		"an interface with space": {Allows: []Rule{ok}, DockerInterfaces: []string{"br 1"}},
-		"an interface too long":   {Allows: []Rule{ok}, DockerInterfaces: []string{"br-0123456789abcdef"}},
 		"a source that isn't one": {Pins: []Rule{{Name: "pin ssh", Protocol: "tcp", Ports: []uint16{22}, Sources: []netip.Prefix{{}}}}},
 	}
 	for what, table := range cases {
@@ -118,5 +119,25 @@ func TestValidateRefusesWhatNftWouldMisread(t *testing.T) {
 	}
 	if _, err := (Table{Allows: []Rule{ok}, DockerInterfaces: []string{"docker0"}}).Script(); err != nil {
 		t.Errorf("a plain table: %v", err)
+	}
+}
+
+// An interface name nft can match in quotes stays, whatever it holds; one it
+// can't is left out and said, rather than refuse the whole table, which would
+// stop a rollback too (review of #306, finding 7).
+func TestInterfacesNftCantMatchAreSkipped(t *testing.T) {
+	table := Table{DockerInterfaces: []string{"br+lan", `br\lan`, "brücke", "docker0", `br"x`, "br\tx", "br*", "br-0123456789abcdef"}}
+	got, err := table.Script()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, `iifname { "br+lan", "br\lan", "brücke", "docker0" } accept`) {
+		t.Errorf("script:\n%s", got)
+	}
+	if skipped := table.Skipped(); strings.Join(skipped, "|") != `br"x|br`+"\t"+`x|br*|br-0123456789abcdef` {
+		t.Errorf("skipped %q", skipped)
+	}
+	if words := SkippedWords("br*"); !strings.Contains(words, "Rename its network's bridge") || !strings.Contains(words, "aren't filtered") {
+		t.Errorf("skipped words %q", words)
 	}
 }

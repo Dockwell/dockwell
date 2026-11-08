@@ -190,3 +190,120 @@ func TestFailSaysWhatTheToolSaid(t *testing.T) {
 		t.Errorf("fail says %q", got)
 	}
 }
+
+// gone waits for a process to be gone, or fails.
+func gone(t *testing.T, pidFile, what string) {
+	t.Helper()
+	b, err := os.ReadFile(pidFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	deadline := time.Now().Add(5 * time.Second)
+	for syscall.Kill(pid, 0) == nil {
+		if time.Now().After(deadline) {
+			t.Fatalf("%s, pid %d, outlived the run", what, pid)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// What a tool started goes with it when the tool ends by itself too: one that
+// keeps its output past an exit with a status, and one that let go of it past an
+// exit with 0 (review of #306, finding 2).
+func TestWhatAToolLeavesGoesWhenItEnds(t *testing.T) {
+	dir := t.TempDir()
+	holds, leftBehind := filepath.Join(dir, "holds"), filepath.Join(dir, "left")
+	r, tl := tool(t, "fails", "sleep 60 & echo $! > "+holds+"\nexit 1\n")
+	r.Grace = 200 * time.Millisecond
+	res, err := r.Run(t.Context(), tl, 10*time.Second, nil)
+	if err != nil || res.Code != 1 {
+		t.Errorf("a tool that exits 1 with a child holding its output: %+v, %v", res, err)
+	}
+	gone(t, holds, "a child holding the tool's output")
+	r, tl = tool(t, "leaves", "sleep 60 > /dev/null 2>&1 & echo $! > "+leftBehind+"\nexit 0\n")
+	if res, err := r.Run(t.Context(), tl, 10*time.Second, nil); err != nil || res.Code != 0 {
+		t.Errorf("a tool that exits 0 leaving a child: %+v, %v", res, err)
+	}
+	gone(t, leftBehind, "a child left behind")
+}
+
+// A caller that left while it waited its turn doesn't start the tool, and says
+// so; one whose own deadline ends the run hears that, not the tool's deadline.
+func TestACallerThatLeftSaysSo(t *testing.T) {
+	ran := filepath.Join(t.TempDir(), "ran")
+	r, tl := tool(t, "slow", "echo ran >> "+ran+"\nsleep 2\n")
+	turn, err := r.Turn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	errc := make(chan error, 1)
+	go func() {
+		_, err := r.Run(ctx, tl, 10*time.Second, nil)
+		errc <- err
+	}()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	turn.Done()
+	if err := <-errc; err == nil || !strings.Contains(err.Error(), "waited for another of the server's tools") {
+		t.Errorf("a caller that left before its turn: %v", err)
+	}
+	if _, err := os.Stat(ran); err == nil {
+		t.Error("the tool ran for a caller that had left")
+	}
+	// A turn taken with the caller already gone doesn't start it either.
+	gone, cancelGone := context.WithCancel(t.Context())
+	cancelGone()
+	held, err := r.Turn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = held.Run(gone, tl, 10*time.Second, nil)
+	held.Done()
+	if err == nil || !strings.Contains(err.Error(), "didn't run, as its caller left") {
+		t.Errorf("a run for a caller already gone: %v", err)
+	}
+	r.Grace = 100 * time.Millisecond
+	short, cancelShort := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancelShort()
+	_, err = r.Run(short, tl, 10*time.Second, nil)
+	if err == nil || !strings.Contains(err.Error(), "as its caller's time ran out") || strings.Contains(err.Error(), "within") {
+		t.Errorf("a caller's deadline reads as %v", err)
+	}
+}
+
+// A turn held runs several tools with no other between them.
+func TestATurnHoldsAcrossRuns(t *testing.T) {
+	log := filepath.Join(t.TempDir(), "log")
+	r, tl := tool(t, "step", "echo \"$1\" >> "+log+"\nsleep 0.1\n")
+	turn, err := r.Turn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := make(chan struct{})
+	go func() {
+		_, _ = r.Run(context.Background(), tl, 5*time.Second, nil, "other")
+		close(other)
+	}()
+	for _, step := range []string{"check", "load", "read"} {
+		if _, err := turn.Run(t.Context(), tl, 5*time.Second, nil, step); err != nil {
+			t.Fatal(err)
+		}
+	}
+	turn.Done()
+	<-other
+	b, _ := os.ReadFile(log)
+	if got := strings.Fields(string(b)); strings.Join(got, " ") != "check load read other" {
+		t.Errorf("runs went %v", got)
+	}
+}
+
+// What a tool says leaves out the lines that only point at another, as nft's
+// carets under a rule it refused.
+func TestFailLeavesOutMarkers(t *testing.T) {
+	res := Result{Code: 1, Errs: "Error: syntax error, unexpected string\ntcp dport 22 bogus;\n             ^^^^^\n"}
+	if got := Fail("nft", res).Error(); got != "nft ended with status 1: Error: syntax error, unexpected string; tcp dport 22 bogus;" {
+		t.Errorf("fail says %q", got)
+	}
+}
