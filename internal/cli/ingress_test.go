@@ -75,7 +75,7 @@ func TestRunLeavesThePortsToItsProxy(t *testing.T) {
 		"--acme-directory-url", "https://acme.invalid/directory")
 	defer stop()
 	socket := caddy.PanelSocket(d.Ingress())
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(startUp)
 	var info os.FileInfo
 	for time.Now().Before(deadline) {
 		if info, err = os.Stat(socket); err == nil {
@@ -96,7 +96,14 @@ func TestRunLeavesThePortsToItsProxy(t *testing.T) {
 	if run.Mode().Perm() != 0o700 {
 		t.Errorf("the socket's directory has mode %v, want 0700", run.Mode().Perm())
 	}
-	if !strings.Contains(logs.String(), "SSH tunnel") || !strings.Contains(logs.String(), "ssh -L ") {
+	// It says so once it has made the socket, so the line can come a moment after it.
+	tunnel := func() bool {
+		return strings.Contains(logs.String(), "SSH tunnel") && strings.Contains(logs.String(), "ssh -L ")
+	}
+	for deadline := time.Now().Add(startUp); !tunnel() && time.Now().Before(deadline); {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !tunnel() {
 		t.Errorf("the log doesn't say how to reach the panel if the proxy is down:\n%s", logs.String())
 	}
 }
@@ -224,9 +231,11 @@ func TestRunServesWhileSomethingFillsThePanelsSocket(t *testing.T) {
 		writers.Wait()
 	})
 	t.Cleanup(silence)
-	// Past how long start gets, so a run that waits for them fails, and doesn't wait for
-	// ever. This outlives a failure, as stopping dockwell run waits for it too.
-	watchdog := time.AfterFunc(12*time.Second, silence)
+	// Long enough for a loaded runner's start, and short enough that a run that waits for
+	// the writers doesn't fill tmp: then they stop, and the test says start waited. This
+	// outlives a failure, as stopping dockwell run waits for it too.
+	var timedOut atomic.Bool
+	watchdog := time.AfterFunc(30*time.Second, func() { timedOut.Store(true); silence() })
 	t.Cleanup(func() { watchdog.Stop() })
 
 	// out is only printed once the panel serves, so that is start finished.
@@ -238,6 +247,9 @@ func TestRunServesWhileSomethingFillsThePanelsSocket(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for wrote.Load() == at {
 		if time.Now().After(deadline) {
+			if timedOut.Load() {
+				t.Fatal("start took more than 30 s while something filled the panel's socket, so it may wait for it")
+			}
 			t.Fatal("the writers stopped before start finished, so this proves nothing")
 		}
 		time.Sleep(time.Millisecond)

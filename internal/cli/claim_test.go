@@ -79,8 +79,17 @@ func startRunOn(t *testing.T, terminal bool, dir, want string, args ...string) (
 		}
 	}
 	t.Cleanup(stop)
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(startUp)
 	for !strings.Contains(out.String(), want) {
+		select {
+		case code := <-done:
+			done <- code // for stop, which waits on it
+			if strings.Contains(out.String(), want) {
+				continue // it printed it, then exited: the caller decides what that means
+			}
+			t.Fatalf("dockwell run exited %d before it printed %q:\n%s\n%s", code, want, out.String(), errOut.String())
+		default:
+		}
 		if time.Now().After(deadline) {
 			t.Fatalf("dockwell run never printed %q:\n%s\n%s", want, out.String(), errOut.String())
 		}
@@ -474,7 +483,7 @@ var listenerRE = regexp.MustCompile(`"listener":"control plane","addr":"([^"]+)"
 // panelPort is the port the panel's listener logs it listens on, once it does.
 func panelPort(t *testing.T, logs *syncBuffer) string {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(startUp)
 	for {
 		if m := listenerRE.FindAllStringSubmatch(logs.String(), -1); len(m) > 0 {
 			_, port, _ := net.SplitHostPort(m[len(m)-1][1])
