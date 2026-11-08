@@ -66,8 +66,9 @@ func TestTheBuiltInEntries(t *testing.T) {
 		})
 	}
 	// The first set: a database with its admin tool, a reverse proxy's
-	// replacement, a tunnel, and something that runs AI agents. Then what the two
-	// real servers run beside those (#221).
+	// replacement, a tunnel, and something that runs AI agents. Then the tools
+	// people run beside a database, Coder for development environments, and the
+	// apps people self-host most (#221).
 	for _, want := range []string{
 		"postgres", "mysql", "nginx-proxy-manager", "cloudflared", "t3code",
 		"pgadmin", "redis", "mariadb", "coder",
