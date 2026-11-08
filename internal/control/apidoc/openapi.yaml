@@ -5721,6 +5721,12 @@ components:
                         Why the reach is what it is, when that needs saying: why the agent can't
                          tell, or that a firewall lets it in by a rule of its own.
                     format: enum
+                ipv6Only:
+                    type: boolean
+                    description: |-
+                        True for a socket on "::" that takes IPv6 alone, as something else on
+                         "0.0.0.0" holds the port's IPv4, here or as a port Docker publishes. A
+                         socket on "::" alone takes IPv4 too, as Linux has it by default.
             description: HostListener is a port something on the server listens on, beyond loopback.
         HttpCheck:
             type: object

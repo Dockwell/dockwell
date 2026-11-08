@@ -102,7 +102,7 @@ describe("a server's Firewall tab", () => {
       tools: [ufw],
       listening: [
         { ...at(22), reach: ListenerReach.OPEN, decidedBy: "ufw" },
-        { ...at(22, "::"), reach: ListenerReach.OPEN, decidedBy: "ufw" },
+        { ...at(22, "::"), reach: ListenerReach.OPEN, decidedBy: "ufw", ipv6Only: true },
         {
           ...at(68),
           protocol: "udp",
@@ -150,6 +150,47 @@ describe("a server's Firewall tab", () => {
     ]);
   });
 
+  it("says a socket on :: takes IPv6 alone as the agent says, with Docker's IPv4 socket left out as published", async () => {
+    await renderFirewall({
+      tools: [ufw],
+      published,
+      // Docker's proxy on IPv6, as the agent sends it: its IPv4 socket goes past the rules, so it isn't here.
+      listening: [
+        {
+          address: "::",
+          port: 8080,
+          protocol: "tcp",
+          ipv6Only: true,
+          reach: ListenerReach.CLOSED,
+          decidedBy: "firewalld",
+        },
+      ],
+    });
+    const panel = await screen.findByRole("region", { name: "What listens on hz-1" });
+    expect(rowsOf(panel)).toEqual(["8080/tcpEvery IPv6 addressClosed by firewalld"]);
+  });
+
+  it("says every port in words, in English and Chinese", async () => {
+    const anyPort = {
+      ...ufw,
+      rules: [
+        { verdict: FirewallVerdict.ALLOW, port: "Anywhere", source: "198.51.100.9" },
+        { verdict: FirewallVerdict.DENY, port: "Anywhere/udp", interface: "eth1" },
+      ],
+    };
+    const { unmount } = await renderFirewall({ tools: [anyPort] });
+    expect(rowsOf(await screen.findByRole("region", { name: "ufw" }))).toEqual([
+      "AllowAny port198.51.100.9",
+      "DenyAny udp port on eth1Anywhere",
+    ]);
+    unmount();
+    await activateLocale("zh-CN");
+    await renderFirewall({ tools: [anyPort] });
+    const rows = rowsOf(await screen.findByRole("region", { name: "ufw" }));
+    expect(rows[0]).toContain("任意端口");
+    expect(rows.join(" ")).not.toContain("Anywhere");
+  });
+
   it("lists the ports Docker publishes, what its proxy takes, and the rules in DOCKER-USER", async () => {
     await renderFirewall({ tools: [ufw], published, dockerUserRules: 2 });
     const panel = await screen.findByRole("region", { name: "Ports Docker publishes" });
@@ -161,7 +202,7 @@ describe("a server's Firewall tab", () => {
     );
     expect(rowsOf(panel)).toEqual([
       "8080/tcpEvery IPv4 addressshop-web-180",
-      "8080/tcpEvery IPv6 addressthrough Docker's proxy, so the input rules cover itshop-web-180",
+      "8080/tcpEvery IPv6 addressThrough Docker's proxy, so the input rules cover it.shop-web-180",
       "9100/tcp127.0.0.1metrics-19100",
     ]);
   });
@@ -318,6 +359,10 @@ describe("a server's Firewall tab", () => {
         .getAllByRole("columnheader")
         .map((h) => h.textContent),
     ).toEqual(["Port", "Container"]);
+    // Docker's proxy note sits on a line of its own, under the address.
+    const proxied = within(ports).getByText("Through Docker's proxy, so the input rules cover it.");
+    expect(proxied).toHaveClass("firewall-line");
+    expect(proxied.previousElementSibling).toHaveTextContent("Every IPv6 address");
   });
 
   it("passes axe, and speaks Simplified Chinese", async () => {

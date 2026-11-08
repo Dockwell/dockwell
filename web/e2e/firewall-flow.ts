@@ -12,6 +12,7 @@ import { join } from "node:path";
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+
 /** ufw status verbose as ufw prints it, its rows "%-26s %-12s%-26s", app profiles named after their ports. */
 const ufwStatus = [
   "Status: active",

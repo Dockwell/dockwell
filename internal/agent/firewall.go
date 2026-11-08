@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -172,6 +173,13 @@ func (f *firewallReader) readNow(ctx context.Context) *dockwellv1.ServerFirewall
 	}
 	found := listeners(proc)
 	ipv4Apart := boundOnIPv4(found)
+	// A port Docker publishes on every IPv4 address takes IPv4 apart too, with
+	// its proxy's socket or without it.
+	for _, p := range out.Published {
+		if !p.GetProxied() && (p.GetHostIp() == "0.0.0.0" || p.GetHostIp() == "") {
+			ipv4Apart[p.GetProtocol()+" "+strconv.Itoa(int(p.GetHostPort()))] = true
+		}
+	}
 	opts := reachOptions{dockerUnknown: out.GetPublishedUnreadable() != ""}
 	for _, l := range found {
 		// Docker's proxy listens on each port Docker publishes, but what reaches
@@ -181,7 +189,8 @@ func (f *firewallReader) readNow(ctx context.Context) *dockwellv1.ServerFirewall
 		if publishedPast(out.Published, l) {
 			continue
 		}
-		opts.dualStack = l.GetAddress() == "::" && !ipv4Apart[listenerKey(l)]
+		l.Ipv6Only = l.GetAddress() == "::" && ipv4Apart[listenerKey(l)]
+		opts.dualStack = l.GetAddress() == "::" && !l.GetIpv6Only()
 		reachOf(l, out.Tools, opts)
 		out.Listening = append(out.Listening, l)
 	}

@@ -509,7 +509,11 @@ type HostListener struct {
 	Interfaces []string `protobuf:"bytes,7,rep,name=interfaces,proto3" json:"interfaces,omitempty"`
 	// Why the reach is what it is, when that needs saying: why the agent can't
 	// tell, or that a firewall lets it in by a rule of its own.
-	Reason        ListenerReachReason `protobuf:"varint,8,opt,name=reason,proto3,enum=dockwell.v1.ListenerReachReason" json:"reason,omitempty"`
+	Reason ListenerReachReason `protobuf:"varint,8,opt,name=reason,proto3,enum=dockwell.v1.ListenerReachReason" json:"reason,omitempty"`
+	// True for a socket on "::" that takes IPv6 alone, as something else on
+	// "0.0.0.0" holds the port's IPv4, here or as a port Docker publishes. A
+	// socket on "::" alone takes IPv4 too, as Linux has it by default.
+	Ipv6Only      bool `protobuf:"varint,9,opt,name=ipv6_only,json=ipv6Only,proto3" json:"ipv6_only,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -598,6 +602,13 @@ func (x *HostListener) GetReason() ListenerReachReason {
 		return x.Reason
 	}
 	return ListenerReachReason_LISTENER_REACH_REASON_UNSPECIFIED
+}
+
+func (x *HostListener) GetIpv6Only() bool {
+	if x != nil {
+		return x.Ipv6Only
+	}
+	return false
 }
 
 // FirewallTool is one firewall on a server, and what it does.
@@ -981,7 +992,7 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\tpublished\x18\x03 \x03(\v2\x1a.dockwell.v1.PublishedPortR\tpublished\x127\n" +
 	"\tlistening\x18\x04 \x03(\v2\x19.dockwell.v1.HostListenerR\tlistening\x121\n" +
 	"\x14published_unreadable\x18\x05 \x01(\tR\x13publishedUnreadable\x12*\n" +
-	"\x11docker_user_rules\x18\x06 \x01(\rR\x0fdockerUserRules\"\x9d\x02\n" +
+	"\x11docker_user_rules\x18\x06 \x01(\rR\x0fdockerUserRules\"\xba\x02\n" +
 	"\fHostListener\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12\x1a\n" +
@@ -993,7 +1004,8 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\n" +
 	"interfaces\x18\a \x03(\tR\n" +
 	"interfaces\x128\n" +
-	"\x06reason\x18\b \x01(\x0e2 .dockwell.v1.ListenerReachReasonR\x06reason\"\xfd\x03\n" +
+	"\x06reason\x18\b \x01(\x0e2 .dockwell.v1.ListenerReachReasonR\x06reason\x12\x1b\n" +
+	"\tipv6_only\x18\t \x01(\bR\bipv6Only\"\xfd\x03\n" +
 	"\fFirewallTool\x121\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1d.dockwell.v1.FirewallToolKindR\x04kind\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
