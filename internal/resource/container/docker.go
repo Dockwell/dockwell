@@ -1169,6 +1169,27 @@ func (d *Docker) Inspect(ctx context.Context, t Target) (*resourcev1.Container, 
 	return d.projected(ctx, t, c)
 }
 
+// ImageAt is the image the container at t runs: its ID, and what its registry
+// calls it, as name@sha256:…, where one does. A container that's gone runs none.
+func (d *Docker) ImageAt(ctx context.Context, t Target) (resource.Image, error) {
+	c, err := d.current(ctx, t)
+	if err != nil || c == nil {
+		return resource.Image{}, err
+	}
+	out := resource.Image{ID: c.Image}
+	img, err := d.Client.InspectImage(ctx, c.Image)
+	switch {
+	case docker.IsNotFound(err):
+		return out, nil
+	case err != nil:
+		return resource.Image{}, err
+	}
+	if digest := img.Digest(c.Config.Image); digest != "" {
+		out.Digest = docker.Repository(c.Config.Image) + "@" + digest
+	}
+	return out, nil
+}
+
 // projected reads a container back into a spec, with its image's defaults.
 func (d *Docker) projected(ctx context.Context, t Target, c *docker.Container) (*resourcev1.Container, error) {
 	var defaults *docker.Config

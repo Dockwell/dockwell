@@ -3,9 +3,9 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
-	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -21,6 +21,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -69,6 +70,19 @@ func (s *sent) result(id uint64) *agentv1.CallResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.results[id]
+}
+
+// await is the result of call id, once it comes. A stream that stops sends no
+// error of a call that was still running, so a test waits for one before it stops.
+func (s *sent) await(t *testing.T, id uint64) *agentv1.CallResult {
+	t.Helper()
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		if r := s.result(id); r != nil {
+			return r
+		}
+	}
+	t.Fatalf("call %d never answered", id)
+	return nil
 }
 
 func applyCall(t *testing.T, id uint64, name string) *agentv1.Call {
@@ -272,69 +286,162 @@ func TestAStepCutShortByStoppingSendsNoResult(t *testing.T) {
 	}
 }
 
-// peeking is a Desired that notes what its context carries.
-type peeking struct {
-	mu     sync.Mutex
-	calls  int
-	values map[string]string
+// keeping is an agent's calls with a cache of desired state, and the service
+// it runs, which uses a secret.
+type keeping struct {
+	calls  *calls
+	out    *sent
+	store  *desired.Store
+	dir    string
+	key    *delivery.Key
+	docker *containertest.Fake
+	spec   []byte
+	svc    *resourcev1.Service
 }
 
-func (p *peeking) Applied(ctx context.Context, _ resource.Ref, _ proto.Message) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.calls++
-	if v := resource.ValuesFrom(ctx); v != nil {
-		p.values = maps.Clone(v) // the agent clears its own once the step ends
-	}
-	return nil
-}
+var keptWeb = resource.Ref{Kind: service.Kind, Scope: "env_A", Name: "web"}
 
-// The values of what a step's spec uses reach its driver, and never
-// Desired, which may keep what it hears, as #32's cache will: it hears
-// the step with a context that holds none.
-func TestDesiredHearsNoValues(t *testing.T) {
+func newKeeping(t *testing.T) *keeping {
+	t.Helper()
 	key, err := delivery.NewKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	docker, desired := containertest.NewFake(), &peeking{}
-	out := &sent{results: map[uint64]*agentv1.CallResult{}}
-	c := newCalls(context.Background(), Config{
-		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&service.Driver{Containers: container.Driver{Runtime: docker}}),
-		Desired: desired,
-	}, out.send, key)
-	web := resource.Ref{Kind: service.Kind, Scope: "env_A", Name: "web"}
-	svc := &resourcev1.Service{
+	k := &keeping{dir: t.TempDir(), key: key, docker: containertest.NewFake(), out: &sent{results: map[uint64]*agentv1.CallResult{}}}
+	if k.store, err = desired.Open(k.dir, "srv_1", nil); err != nil {
+		t.Fatal(err)
+	}
+	k.calls = newCalls(context.Background(), Config{
+		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&service.Driver{Containers: container.Driver{Runtime: k.docker}}),
+		Desired: k.store,
+	}, k.out.send, key)
+	k.svc = &resourcev1.Service{
 		Runs:      &resourcev1.Service_App{App: &resourcev1.Container{Image: "acme/web:1"}},
 		Secrets:   map[string]string{"TOKEN": "API_TOKEN"},
 		Revisions: map[string]int64{"TOKEN": 3},
 	}
-	if err := (&service.Driver{}).Validate(svc); err != nil {
+	if err := (&service.Driver{}).Validate(k.svc); err != nil {
 		t.Fatal(err)
 	}
-	spec, err := resource.Encode(svc)
+	if k.spec, err = resource.Encode(k.svc); err != nil {
+		t.Fatal(err)
+	}
+	return k
+}
+
+func (k *keeping) sealed(t *testing.T, token string) []byte {
+	t.Helper()
+	b, err := secrets.SealValues(k.key.Public(), "", keptWeb, map[string]string{"TOKEN": token})
 	if err != nil {
 		t.Fatal(err)
 	}
-	sealed, err := secrets.SealValues(key.Public(), "", web, map[string]string{"TOKEN": "s3cret-not-for-desired"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	step := resource.Step{Ref: web, Decision: resource.Decision{Action: resource.ActionCreate}}
-	c.start(&agentv1.Call{Id: 1, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Apply{Apply: &agentv1.ApplyCall{
-		Step: resourcepb.Step(step, ""), Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(web), Spec: spec}, Values: sealed,
+	return b
+}
+
+// What a step leaves a resource as is kept, with the values its spec uses, the
+// revision and change it ran toward, and the image it runs, sealed on disk.
+func TestDesiredKeepsWhatAStepLeft(t *testing.T) {
+	k := newKeeping(t)
+	step := resource.Step{Ref: keptWeb, Decision: resource.Decision{Action: resource.ActionCreate}}
+	k.calls.start(&agentv1.Call{Id: 1, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Apply{Apply: &agentv1.ApplyCall{
+		Step: resourcepb.Step(step, ""), Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(keptWeb), Spec: k.spec},
+		Values: k.sealed(t, "s3cret-for-the-cache"), Deploy: &agentv1.Deploy{Revision: 4, ChangeId: "chg_1"},
 	}}})
-	c.stop()
-	if r := out.result(1); r.GetApply() == nil {
+	k.calls.stop()
+	if r := k.out.result(1); r.GetApply() == nil {
 		t.Fatalf("the step ended with %v, want it applied", r)
 	}
-	if got, _ := docker.Inspect(t.Context(), service.Target(web)); got.GetEnv()["TOKEN"] != "s3cret-not-for-desired" {
-		t.Fatalf("the driver ran the container with %v; the test didn't send what it meant to", got.GetEnv())
+	got, ok, err := k.store.Read(keptWeb)
+	if err != nil || !ok {
+		t.Fatalf("kept nothing: %v, %v", ok, err)
 	}
-	desired.mu.Lock()
-	defer desired.mu.Unlock()
-	if desired.calls != 1 || desired.values != nil {
-		t.Errorf("Desired heard of %d steps, with values %v; want one, and no values", desired.calls, desired.values)
+	if got.Revision != 4 || got.Change != "chg_1" || got.Values["TOKEN"] != "s3cret-for-the-cache" || got.Image.ID != "sha256:fake-acme/web:1" {
+		t.Errorf("kept revision %d of %s with %v, running %+v", got.Revision, got.Change, got.Values, got.Image)
+	}
+	spec, err := k.calls.cfg.Drivers.Decode(service.Kind, got.Spec)
+	if err != nil || !proto.Equal(spec, k.svc) {
+		t.Errorf("kept the spec %v, %v, want %v", spec, err, k.svc)
+	}
+	records, _ := filepath.Glob(filepath.Join(k.dir, desired.Folder, "*"))
+	for _, f := range records {
+		if b, _ := os.ReadFile(f); bytes.Contains(b, []byte("s3cret-for-the-cache")) {
+			t.Errorf("%s has the secret in the clear", f)
+		}
+	}
+	// A step that deletes it forgets it.
+	gone := resource.Step{Ref: keptWeb, Decision: resource.Decision{Action: resource.ActionDelete}}
+	k.calls = newCalls(context.Background(), k.calls.cfg, k.out.send, k.key)
+	k.calls.start(&agentv1.Call{Id: 2, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Apply{Apply: &agentv1.ApplyCall{
+		Step: resourcepb.Step(gone, ""), Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(keptWeb)}, Deploy: &agentv1.Deploy{Revision: 5},
+	}}})
+	k.calls.stop()
+	if _, ok, err := k.store.Read(keptWeb); ok || err != nil {
+		t.Errorf("still keeps it once deleted: %v, %v", ok, err)
+	}
+}
+
+// A step that fails keeps nothing: only what passed is desired.
+func TestAFailedStepKeepsNothing(t *testing.T) {
+	k := newKeeping(t)
+	k.docker.Broken["acme/web:1"] = true
+	health := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		Image: "acme/web:1", Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "true"}, Interval: "1s", Timeout: "1s", StartPeriod: "1s", Retries: 1},
+	}}}
+	spec, err := resource.Encode(health)
+	if err != nil {
+		t.Fatal(err)
+	}
+	step := resource.Step{Ref: keptWeb, Decision: resource.Decision{Action: resource.ActionCreate}}
+	k.calls.start(&agentv1.Call{Id: 1, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Apply{Apply: &agentv1.ApplyCall{
+		Step: resourcepb.Step(step, ""), Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(keptWeb), Spec: spec}, Deploy: &agentv1.Deploy{Revision: 1},
+	}}})
+	r := k.out.await(t, 1)
+	k.calls.stop()
+	if r.GetError() == nil {
+		t.Fatalf("the step ended with %v, want it failed", r)
+	}
+	if _, ok, err := k.store.Read(keptWeb); ok || err != nil {
+		t.Errorf("kept a step that failed: %v, %v", ok, err)
+	}
+}
+
+// What the control plane has the agent remember is kept as what runs now, with its
+// values, unless the agent keeps a later revision.
+func TestRememberKeepsWhatRunsNow(t *testing.T) {
+	k := newKeeping(t)
+	remember := func(id uint64, revision int64, token string) *agentv1.CallResult {
+		calls := newCalls(context.Background(), k.calls.cfg, k.out.send, k.key)
+		calls.start(&agentv1.Call{Id: id, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Remember{Remember: &agentv1.RememberCall{
+			Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(keptWeb), Spec: k.spec}, Values: k.sealed(t, token),
+			Deploy: &agentv1.Deploy{Revision: revision, ChangeId: "chg_" + token},
+		}}})
+		defer calls.stop()
+		return k.out.await(t, id)
+	}
+	if r := remember(1, 3, "three"); !r.GetRemember().GetKept() {
+		t.Fatalf("revision 3: %v, want it kept", r)
+	}
+	if r := remember(2, 2, "two"); r.GetRemember() == nil || r.GetRemember().GetKept() {
+		t.Fatalf("revision 2 over 3: %v, want it answered and not kept", r)
+	}
+	got, _, err := k.store.Read(keptWeb)
+	if err != nil || got.Revision != 3 || got.Values["TOKEN"] != "three" {
+		t.Errorf("keeps revision %d with %v, %v; want 3 with its own value", got.Revision, got.Values, err)
+	}
+	if held := k.store.Holds().GetHeld(); len(held) != 1 || held[0].GetRevision() != 3 {
+		t.Errorf("its hello would say %v", held)
+	}
+	if r := remember(3, 0, "none"); r.GetError() == nil {
+		t.Errorf("no revision: %v, want it refused", r)
+	}
+	none := newCalls(context.Background(), Config{Logger: slog.New(slog.DiscardHandler)}, k.out.send, k.key)
+	none.start(&agentv1.Call{Id: 4, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Remember{Remember: &agentv1.RememberCall{
+		Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(keptWeb), Spec: k.spec}, Deploy: &agentv1.Deploy{Revision: 1},
+	}}})
+	r := k.out.await(t, 4)
+	none.stop()
+	if r.GetError() == nil {
+		t.Errorf("an agent that keeps nothing: %v, want it refused", r)
 	}
 }
 

@@ -75,6 +75,9 @@ type runFlags struct {
 	acmeDirector  string
 }
 
+// A stream's session is what the engine sends a server's desired state through.
+var _ revision.Rememberer = (*agentapi.Session)(nil)
+
 // runCommand makes dockwell run take the role the data directory gives
 // this server: the control plane with its own agent, or only the agent, of
 // the control plane it joined. It adds the control plane's flags to cmd.
@@ -283,6 +286,19 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		}
 	}
 	agents.OnConnect(func(string) { resume() })
+	// A server's agent keeps what the server runs, so it can put it back while the
+	// control plane is away. One that lacks some of it, as an agent from before it
+	// kept any does, is sent it as it connects (ADR 0054).
+	agents.OnConnect(func(server string) {
+		kept, err := engine.Remember(resumeCtx, server)
+		if err != nil {
+			logger.Warn("can't send a server's agent all of what the server runs, so it can't put all of it back while the control plane is away. "+
+				"Dockwell sends it again when the agent next connects", slog.String("server", server), slog.String("error", err.Error()))
+		}
+		if kept > 0 {
+			logger.Info("sent a server's agent what the server runs, for it to keep", slog.String("server", server), slog.Int("resources", kept))
+		}
+	})
 	// Tells the timeline when a service turns unhealthy or comes back, for as
 	// long as the control plane runs, and it stops with it.
 	recorder := &controlhealth.Recorder{DB: db, Logger: logger}

@@ -265,6 +265,10 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 		log.WarnContext(ctx, "the agent is from before a command could name a value, so nothing on this server that names one is read, planned or applied until you update the agent",
 			slog.String("agent", hello.GetBuild().GetVersion()))
 	}
+	if n := hello.GetDesired().GetDamaged(); n > 0 {
+		log.WarnContext(ctx, "the agent found records of what this server should run that don't open, as a power cut or an edit leaves one, and put them aside. "+
+			"The control plane sends it what it lacks now, and its own log says why each didn't open", slog.Uint64("records", uint64(n)))
+	}
 	// The engine reaches the agent's drivers over the stream from now on.
 	// Sends after the welcome go through the session, one at a time.
 	if h.agents != nil {

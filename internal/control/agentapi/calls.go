@@ -33,9 +33,10 @@ import (
 // observing read the server; applying may pull an image or wait for a
 // health check.
 const (
-	PlanTimeout    = time.Minute
-	ObserveTimeout = time.Minute
-	ApplyTimeout   = 10 * time.Minute
+	PlanTimeout     = time.Minute
+	ObserveTimeout  = time.Minute
+	ApplyTimeout    = 10 * time.Minute
+	RememberTimeout = time.Minute
 )
 
 // ErrLost means a server's stream ended while a call on it was waiting
@@ -407,6 +408,12 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 		pending:     map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
+	if d := hello.GetDesired(); d != nil {
+		s.keeps, s.held = true, make(map[resource.Ref]int64, len(d.GetHeld()))
+		for _, h := range d.GetHeld() {
+			s.held[resourcepb.FromRef(h.GetResource())] = h.GetRevision()
+		}
+	}
 	a.mu.Lock()
 	a.sessions[server] = s
 	delete(a.moved, server)
@@ -481,6 +488,10 @@ type Session struct {
 	containerTerminals bool
 	openTerminals      []string
 	opened             time.Time
+	// held is what the agent keeps of its desired state, by resource, as its
+	// hello said (ADR 0054), and keeps whether it keeps any at all.
+	held  map[resource.Ref]int64
+	keeps bool
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -1053,6 +1064,53 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	// period, comes on top of the time any step gets.
 	_, err = s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, ApplyTimeout+step.Budget(), seal)
 	return err
+}
+
+// Holds is what the agent kept of its desired state as its stream opened, by
+// resource and revision, and whether it keeps any at all: an agent from before
+// ADR 0054 keeps none, and is sent none to keep.
+func (s *Session) Holds() (map[resource.Ref]int64, bool) {
+	return maps.Clone(s.held), s.keeps
+}
+
+// Remember has the agent keep what ref runs now, as its latest revision live
+// there has it, with the values it uses sealed to this stream, as a step's are.
+// It changes nothing on the server. It says whether the agent kept it, which it
+// doesn't when it keeps a later revision.
+func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Message, revision int, change string) (bool, error) {
+	if err := s.supports(ref); err != nil {
+		return false, err
+	}
+	if err := s.checkWrites(ref, spec); err != nil {
+		return false, err
+	}
+	if err := s.checkReads(ctx, []resource.Ref{ref}); err != nil {
+		return false, err
+	}
+	dr, err := desiredProto(ref, spec)
+	if err != nil {
+		return false, err
+	}
+	dr.ScopeName = s.scopeName(ctx, ref)
+	values, uses, err := s.values(ctx, ref, spec)
+	if err != nil {
+		return false, err
+	}
+	defer clear(values)
+	call := &agentv1.RememberCall{Desired: dr, Deploy: &agentv1.Deploy{Revision: int64(revision), ChangeId: change}}
+	var seal func(*Session) error
+	if uses {
+		seal = func(on *Session) error {
+			sealed, err := on.seal(ref, values)
+			call.Values = sealed
+			return err
+		}
+	}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Remember{Remember: call}}, RememberTimeout, seal)
+	if err != nil {
+		return false, err
+	}
+	return r.GetRemember().GetKept(), nil
 }
 
 // scopeName is what people call ref's scope, for an environment's resource.

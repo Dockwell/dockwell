@@ -18,6 +18,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -476,7 +477,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 	}
 	switch {
 	case call.GetPlan() != nil:
-		desired := make([]resource.Desired, 0, len(call.GetPlan().GetDesired()))
+		wanted := make([]resource.Desired, 0, len(call.GetPlan().GetDesired()))
 		names := map[string]string{}
 		for _, d := range call.GetPlan().GetDesired() {
 			ref, spec, err := c.decode(d)
@@ -490,12 +491,12 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if r := d.GetRestore(); r != nil {
 				want.Restore = &resource.RestoreSource{Backup: r.GetBackupId(), Undoes: r.GetUndoes(), Change: r.GetChangeId()}
 			}
-			desired = append(desired, want)
+			wanted = append(wanted, want)
 			if n := d.GetScopeName(); n != "" {
 				names[ref.Scope] = n
 			}
 		}
-		steps, err := c.local.Plan(resource.WithScopeNames(ctx, names), desired)
+		steps, err := c.local.Plan(resource.WithScopeNames(ctx, names), wanted)
 		if err != nil {
 			return fail(err)
 		}
@@ -551,8 +552,8 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			})
 		}
 		// The values of what the spec uses, opened in memory for this
-		// step alone; they never reach a log, the disk or Desired, which
-		// hears of the step with the call's own context.
+		// step. They reach no log, and the disk only through Desired, which
+		// seals them (ADR 0054).
 		applyCtx := ctx
 		if sealed := call.GetApply().GetValues(); len(sealed) > 0 {
 			if c.delivery == nil {
@@ -569,8 +570,14 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		if c.cfg.Desired != nil {
-			if err := c.cfg.Desired.Applied(ctx, ref, spec); err != nil {
-				c.logger.Warn("applied a step, but can't keep its desired state", slog.String("resource", ref.String()), slog.String("error", err.Error()))
+			deploy := call.GetApply().GetDeploy()
+			r := desired.Record{
+				Ref: ref, ScopeName: call.GetApply().GetDesired().GetScopeName(), Revision: deploy.GetRevision(), Change: deploy.GetChangeId(),
+				Values: resource.ValuesFrom(applyCtx),
+			}
+			if err := c.keep(ctx, r, spec); err != nil {
+				c.logger.Warn("applied a step, but can't keep it as what this server should run, so the server can't put it back while the control plane is away",
+					slog.String("resource", ref.String()), slog.String("error", err.Error()))
 			}
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Apply{Apply: &agentv1.ApplyResult{}}}
@@ -630,6 +637,12 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_EndProcess{EndProcess: &agentv1.EndProcessResult{Killed: killed, Process: was}}}
+	case call.GetRemember() != nil:
+		kept, err := c.remember(ctx, call.GetRemember())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Remember{Remember: &agentv1.RememberResult{Kept: kept}}}
 	case call.GetAdoption() != nil:
 		found, err := c.adoption(ctx, call.GetAdoption())
 		if err != nil {
@@ -913,6 +926,65 @@ func (t *throttle) stop() {
 }
 
 // decode reads a desired resource with the agent's drivers.
+// keep has Desired keep r as what spec leaves its resource as, with the image it
+// runs, or forget it when spec is nil.
+func (c *calls) keep(ctx context.Context, r desired.Record, spec proto.Message) error {
+	if spec != nil {
+		b, err := resource.Encode(spec)
+		if err != nil {
+			return err
+		}
+		// An empty spec is set: only nil forgets.
+		r.Spec = append([]byte{}, b...)
+		if r.Image, err = c.local.RunsImage(ctx, r.Ref); err != nil {
+			return fmt.Errorf("can't tell which image %s runs: %w", r.Ref, err)
+		}
+	}
+	return c.cfg.Desired.Keep(r)
+}
+
+// remember keeps what the control plane says a resource on this server should be,
+// as it runs now, and says whether it was kept: it isn't when the agent keeps a
+// later revision, as of a step that ended after its stream did.
+func (c *calls) remember(ctx context.Context, call *agentv1.RememberCall) (bool, error) {
+	if c.cfg.Desired == nil {
+		return false, errors.New("this agent keeps nothing of what its server should run")
+	}
+	ref, spec, err := c.decode(call.GetDesired())
+	if err != nil {
+		return false, err
+	}
+	if spec == nil {
+		return false, fmt.Errorf("there's no spec to keep for %s", ref)
+	}
+	if call.GetDeploy().GetRevision() <= 0 {
+		return false, fmt.Errorf("there's no revision to keep %s at", ref)
+	}
+	scopeName := call.GetDesired().GetScopeName()
+	if scopeName != "" {
+		ctx = resource.WithScopeNames(ctx, map[string]string{ref.Scope: scopeName})
+	}
+	r := desired.Record{Ref: ref, ScopeName: scopeName, Revision: call.GetDeploy().GetRevision(), Change: call.GetDeploy().GetChangeId()}
+	if sealed := call.GetValues(); len(sealed) > 0 {
+		if c.delivery == nil {
+			return false, fmt.Errorf("this agent has no delivery key to open the values sent for %s", ref)
+		}
+		values, err := c.delivery.Open(c.server, ref, sealed)
+		if err != nil {
+			return false, err
+		}
+		defer clear(values)
+		r.Values = values
+	}
+	switch err := c.keep(ctx, r, spec); {
+	case errors.Is(err, desired.ErrOlder):
+		return false, nil
+	case err != nil:
+		return false, err
+	}
+	return true, nil
+}
+
 func (c *calls) decode(d *agentv1.DesiredResource) (resource.Ref, proto.Message, error) {
 	ref := resourcepb.FromRef(d.GetResource())
 	if d.Spec == nil {

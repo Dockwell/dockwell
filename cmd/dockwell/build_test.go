@@ -35,6 +35,7 @@ var agentPackages = []string{
 	"gen/dockwell/v1",
 	"internal/agent",
 	"internal/agent/collect",
+	"internal/agent/desired", // what the server should run, kept sealed (ADR 0054)
 	"internal/agent/enroll",
 	"internal/agent/files",      // a server's files, for a person (ADR 0032)
 	"internal/agent/logs",       // reading logs, and keeping those of removed containers (ADR 0025)
