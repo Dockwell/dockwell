@@ -22,6 +22,7 @@ export * from "./gen/dockwell/v1/domain_pb";
 export * from "./gen/dockwell/v1/event_pb";
 export * from "./gen/dockwell/v1/file_pb";
 export * from "./gen/dockwell/v1/health_pb";
+export * from "./gen/dockwell/v1/import_pb";
 export * from "./gen/dockwell/v1/log_pb";
 export * from "./gen/dockwell/v1/member_pb";
 export * from "./gen/dockwell/v1/options_pb";

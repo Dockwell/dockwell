@@ -5624,6 +5624,88 @@ msgstr "owned by <0>{owner}</0>"
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, one {# item} other {# items}}"
 
+msgid "1Panel"
+msgstr "1Panel"
+
+msgid "1Panel runs on this server"
+msgstr "1Panel runs on this server"
+
+#. placeholder {0}: panel.version
+#. placeholder {1}: panel.baseDir
+#. placeholder {2}: panel.records
+msgid "1Panel {0}, under <0>{1}</0>, read from <1>{2}</1>."
+msgstr "1Panel {0}, under <0>{1}</0>, read from <1>{2}</1>."
+
+msgid "A version of 1Panel this wasn't written from"
+msgstr "A version of 1Panel this wasn't written from"
+
+#. placeholder {0}: step.becomes
+msgid "Becomes {0}."
+msgstr "Becomes {0}."
+
+msgid "Certificate"
+msgstr "Certificate"
+
+msgid "Couldn't read what 1Panel keeps"
+msgstr "Couldn't read what 1Panel keeps"
+
+msgid "Cron job"
+msgstr "Cron job"
+
+msgid "Database server"
+msgstr "Database server"
+
+msgid "Dockwell can take on what it runs as it is, with no restart, and say what it would make again and what it would leave."
+msgstr "Dockwell can take on what it runs as it is, with no restart, and say what it would make again and what it would leave."
+
+#. placeholder {0}: server.name
+msgid "Dockwell reads what 1Panel keeps on {0}, from its own records, read-only, and plans taking on what runs as it is, with no restart. It says what it would make again, and what it would leave and why. Nothing changes on the server until you apply the plan."
+msgstr "Dockwell reads what 1Panel keeps on {0}, from its own records, read-only, and plans taking on what runs as it is, with no restart. It says what it would make again, and what it would leave and why. Nothing changes on the server until you apply the plan."
+
+msgid "It was read the same way, by its records' column names, so check what it found before you apply the plan."
+msgstr "It was read the same way, by its records' column names, so check what it found before you apply the plan."
+
+msgid "Leave as it is"
+msgstr "Leave as it is"
+
+msgid "Make again in Dockwell"
+msgstr "Make again in Dockwell"
+
+msgid "Move in from 1Panel"
+msgstr "Move in from 1Panel"
+
+msgid "Nothing is planned yet"
+msgstr "Nothing is planned yet"
+
+msgid "Read it again"
+msgstr "Read it again"
+
+msgid "Read what 1Panel keeps"
+msgstr "Read what 1Panel keeps"
+
+msgid "Review the plan"
+msgstr "Review the plan"
+
+msgid "Runtime"
+msgstr "Runtime"
+
+msgid "Take on, as it runs"
+msgstr "Take on, as it runs"
+
+#. placeholder {0}: step.waitsFor
+msgid "Waits for {0}"
+msgstr "Waits for {0}"
+
+msgid "Website"
+msgstr "Website"
+
+msgid "What would be taken on says why it isn't planned now."
+msgstr "What would be taken on says why it isn't planned now."
+
+#. placeholder {0}: steps.length
+msgid "{0, plural, one {# thing found} other {# things found}}"
+msgstr "{0, plural, one {# thing found} other {# things found}}"
+
 msgid "Read this deploy's logs"
 msgstr "Read this deploy's logs"
 
@@ -8665,9 +8747,6 @@ msgstr "{days, plural, one {certificate valid for # day} other {certificate vali
 msgid "{host} answers {code}"
 msgstr "{host} answers {code}"
 
-msgid "Certificate"
-msgstr "Certificate"
-
 msgid "Issued"
 msgstr "Issued"
 
@@ -9030,9 +9109,6 @@ msgstr "Static files from {root}"
 
 msgid "Visit site"
 msgstr "Visit site"
-
-msgid "Website"
-msgstr "Website"
 
 msgid "Website sections"
 msgstr "Website sections"
