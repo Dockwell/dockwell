@@ -46,34 +46,11 @@ export function BackupsPage() {
   const phone = useMediaQuery(PHONE_QUERY);
   const volumes = useVolumes();
   const query = useBackups();
-  const sheet = useChangeSheet();
-  const transport = useTransport();
-  const client = useMemo(() => createClient(BackupService, transport), [transport]);
   const [taking, setTaking] = useState(false);
   const [scheduling, setScheduling] = useState(false);
-  const [deleting, setDeleting] = useState<Backup>();
-  const [choosing, setChoosing] = useState<Backup>();
-  const [bringBackFailure, setBringBackFailure] = useState<string>();
-  const queries = useQueryClient();
   const backups = query.data?.backups ?? [];
   const policies = usePolicies().data?.policies ?? [];
   const destinations = useDestinations().data?.destinations ?? [];
-
-  const restore = (backup: Backup) => {
-    sheet.open({ kind: "plan", make: () => client.restoreBackup({ id: backup.id }) });
-  };
-  const bringBack = async (backup: Backup, server: string) => {
-    setChoosing(undefined);
-    setBringBackFailure(undefined);
-    try {
-      await client.fetchBackup({ id: backup.id, server });
-      await queries.invalidateQueries({
-        queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
-      });
-    } catch (error) {
-      setBringBackFailure(sentence(error));
-    }
-  };
   const action =
     volumes.length > 0 ? (
       <Button variant="primary" icon="archive" onClick={() => setTaking(true)}>
@@ -101,11 +78,6 @@ export function BackupsPage() {
           {sentence(query.error)}
         </Callout>
       ) : null}
-      {bringBackFailure ? (
-        <Callout tone="critical" title={t`This backup didn't come back`}>
-          {bringBackFailure}
-        </Callout>
-      ) : null}
       <div className="backups-columns">
         <div className="backups-main">
           {volumes.length > 0 ? <PoliciesPanel policies={policies} onAdd={() => setScheduling(true)} /> : null}
@@ -130,12 +102,7 @@ export function BackupsPage() {
                 <span className="backups-runs-lead">{runs}</span>
                 {phone ? action : null}
               </div>
-              <BackupsList
-                backups={backups}
-                onRestore={restore}
-                onFetch={(b) => (b.fetchOnto.length > 1 ? setChoosing(b) : void bringBack(b, b.fetchOnto[0] ?? ""))}
-                onDelete={setDeleting}
-              />
+              <BackupRows backups={backups} />
             </section>
           )}
         </div>
@@ -147,6 +114,53 @@ export function BackupsPage() {
       {scheduling ? (
         <PolicySheet volumes={volumes} destinations={destinations} onClose={() => setScheduling(false)} />
       ) : null}
+    </Page>
+  );
+}
+
+/**
+ * Backups as a list, newest first, each of which restores through a plan, comes
+ * back from a destination, or is deleted, with the sheets that do it. The Backups
+ * page shows every volume's; a database's page shows its volume's.
+ */
+export function BackupRows({ backups, caption }: { backups: readonly Backup[]; caption?: string }) {
+  const { t } = useLingui();
+  const sheet = useChangeSheet();
+  const transport = useTransport();
+  const client = useMemo(() => createClient(BackupService, transport), [transport]);
+  const queries = useQueryClient();
+  const [deleting, setDeleting] = useState<Backup>();
+  const [choosing, setChoosing] = useState<Backup>();
+  const [bringBackFailure, setBringBackFailure] = useState<string>();
+  const restore = (backup: Backup) => {
+    sheet.open({ kind: "plan", make: () => client.restoreBackup({ id: backup.id }) });
+  };
+  const bringBack = async (backup: Backup, server: string) => {
+    setChoosing(undefined);
+    setBringBackFailure(undefined);
+    try {
+      await client.fetchBackup({ id: backup.id, server });
+      await queries.invalidateQueries({
+        queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
+      });
+    } catch (error) {
+      setBringBackFailure(sentence(error));
+    }
+  };
+  return (
+    <>
+      {bringBackFailure ? (
+        <Callout tone="critical" title={t`This backup didn't come back`}>
+          {bringBackFailure}
+        </Callout>
+      ) : null}
+      <BackupsList
+        backups={backups}
+        caption={caption ?? t`Backups, newest first`}
+        onRestore={restore}
+        onFetch={(b) => (b.fetchOnto.length > 1 ? setChoosing(b) : void bringBack(b, b.fetchOnto[0] ?? ""))}
+        onDelete={setDeleting}
+      />
       {deleting ? <DeleteSheet backup={deleting} client={client} onClose={() => setDeleting(undefined)} /> : null}
       {choosing ? (
         <FetchSheet
@@ -155,17 +169,19 @@ export function BackupsPage() {
           onClose={() => setChoosing(undefined)}
         />
       ) : null}
-    </Page>
+    </>
   );
 }
 
 function BackupsList({
   backups,
+  caption,
   onRestore,
   onFetch,
   onDelete,
 }: {
   backups: readonly Backup[];
+  caption: string;
   onRestore: (backup: Backup) => void;
   onFetch: (backup: Backup) => void;
   onDelete: (backup: Backup) => void;
@@ -288,7 +304,7 @@ function BackupsList({
       </ul>
     );
   }
-  return <Table<Backup> className="backup-table" columns={columns} rows={backups} caption={t`Backups, newest first`} />;
+  return <Table<Backup> className="backup-table" columns={columns} rows={backups} caption={caption} />;
 }
 
 /** Deleting a backup can't be taken back, so it asks. */
