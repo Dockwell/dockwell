@@ -4240,7 +4240,7 @@ detected=$(dw builds detect --server e2e-agent --build "{\"git\":{\"url\":\"$git
 jq -e '.detection.builder == "BUILDER_RAILPACK" and (.detection.providers | index("node")) != null and .detection.startCommand == "npm run start"' <<<"$detected" >/dev/null ||
   fail "Railpack didn't read the node branch as a Node app that starts with npm run start: $detected"
 railpack_port=18094
-planned=$(dw services create e2e-railpack --environment "$build_env" --on e2e-agent --build-git-url "$git_url/web.git" --build-git-ref node \
+planned=$(dw services create e2e-railpack --environment "$build_env" --on "$agent_id" --build-git-url "$git_url/web.git" --build-git-ref node \
   --app-ports "{\"host_port\":$railpack_port,\"container_port\":8080}" --plan-only --json) || fail "planning an app Railpack builds failed"
 jq -e '[.change.plan.servers[].steps[] | select(.build)][0].build.detection | .builder == "BUILDER_RAILPACK" and (.providers | index("node")) != null' <<<"$planned" >/dev/null ||
   fail "the plan doesn't say what Railpack found: $planned"
@@ -4274,7 +4274,7 @@ for refused in "docs:Add a Dockerfile, or set both a build command and a start c
   "library:Set the build's start command" \
   "oldnode:RAILPACK_NODE_VERSION as a build argument"; do
   ref=${refused%%:*} fix=${refused#*:}
-  if out=$(dw services create "e2e-$ref" --environment "$build_env" --on e2e-agent --build-git-url "$git_url/web.git" --build-git-ref "$ref" --plan-only 2>&1); then
+  if out=$(dw services create "e2e-$ref" --environment "$build_env" --on "$agent_id" --build-git-url "$git_url/web.git" --build-git-ref "$ref" --plan-only 2>&1); then
     fail "a plan of the $ref branch, which Railpack can't build, wasn't refused: $out"
   fi
   grep -qF "$fix" <<<"$out" || fail "the plan of the $ref branch was refused without saying what to do: $out"
