@@ -125,8 +125,10 @@ func underAnothers(ctx context.Context, tx *store.Tx, items []item, it *item, c 
 	if theirs != "" && place.Holds(caller.Grants, place.Place{Project: theirs}) != "" {
 		holder = "the project " + scopeName(ctx, tx, theirs)
 	}
-	return &Refusal{act: planning, Held: place.Holds(caller.Grants, place.Place{Project: mine}), Needs: store.RoleAdmin,
-		Why: c.Group + " is under " + other.claim.Group + ", in use by " + holder + ", and would get the cookies it sets for its whole domain"}
+	return &Refusal{
+		act: planning, Held: place.Holds(caller.Grants, place.Place{Project: mine}), Needs: store.RoleAdmin,
+		Why: c.Group + " is under " + other.claim.Group + ", in use by " + holder + ", and would get the cookies it sets for its whole domain",
+	}
 }
 
 // projectOfScope is the project an environment is in, read from the change's

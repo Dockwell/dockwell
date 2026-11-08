@@ -199,8 +199,9 @@ func (e *Engine) mountedIn(ctx context.Context, tx *store.Tx, env string, self r
 			if err != nil {
 				return false, err
 			}
-			for _, a := range e.kinds.HostAccess(kind, spec) {
-				if a.Kind == resource.AccessExternalVolume && a.Path == name {
+			access := e.kinds.HostAccess(kind, spec)
+			for i := range access {
+				if access[i].Kind == resource.AccessExternalVolume && access[i].Path == name {
 					return true, nil
 				}
 			}

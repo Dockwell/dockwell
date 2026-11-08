@@ -2433,8 +2433,8 @@ func (e *Engine) keptWhileRunningElse(it *item, server string, reaches []resourc
 		return nil // what's new there gains what it reaches, and what goes runs nothing
 	}
 	var root, other []resource.Access
-	for _, a := range reaches {
-		switch led := a.Leading(leads[a.Path]); {
+	for i := range reaches {
+		switch led := reaches[i].Leading(leads[reaches[i].Path]); {
 		case led.AsGoodAsRoot():
 			root = append(root, led)
 		case installWide(led) != "":

@@ -255,14 +255,18 @@ func TestNoAnswerDescribesAnotherProject(t *testing.T) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
 		route := func(env, name, domain, service string) *dockwellv1.Edit {
-			return &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: env, Name: name},
-				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: domain, Service: service, Port: 80}}}}
+			return &dockwellv1.Edit{
+				Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: env, Name: name},
+				Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: domain, Service: service, Port: 80}}},
+			}
 		}
 		publishing := func(env, name string) *dockwellv1.Edit {
-			return &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: env, Name: name},
+			return &dockwellv1.Edit{
+				Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: env, Name: name},
 				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
 					Image: "ghcr.io/acme/shop:1.4", Ports: []*resourcev1.PortMapping{{HostPort: 8080, ContainerPort: 80}},
-				}}}}}}
+				}}}}},
+			}
 		}
 		apply(t, s.c, propose(t, s.c, "Route shop", route(s.production, "shop", "shop.example.com", "web")))
 		apply(t, s.c, propose(t, s.c, "Publish 8080", publishing(s.production, "web")))
@@ -286,8 +290,10 @@ func TestNoAnswerDescribesAnotherProject(t *testing.T) {
 			}
 		}
 		variable := func(project, env string) *dockwellv1.Edit {
-			return &dockwellv1.Edit{Project: project, Resource: &dockwellv1.ResourceRef{Kind: "variable", Scope: env, Name: "X"},
-				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: "1"}}}}
+			return &dockwellv1.Edit{
+				Project: project, Resource: &dockwellv1.ResourceRef{Kind: "variable", Scope: env, Name: "X"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: "1"}}},
+			}
 		}
 
 		// A project or an environment by name: out of reach reads as missing.
@@ -341,10 +347,12 @@ func TestARoleIsCheckedBeforeAnyPasskey(t *testing.T) {
 		}}}))
 		needsRole(t, "a developer adding a backup destination", err)
 
-		root := propose(t, s.c, "Run sock", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: s.staging, Name: "sock"},
+		root := propose(t, s.c, "Run sock", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: s.staging, Name: "sock"},
 			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
 				Image: "ghcr.io/acme/shop:1.4", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/var/run/docker.sock"}, Target: "/var/run/docker.sock"}},
-			}}}}}})
+			}}}}},
+		})
 		if !root.GetPlan().GetHostAccess() || root.GetWaits() == "" {
 			t.Fatalf("a developer's plan mounting Docker's socket: host access %v, waits %q", root.GetPlan().GetHostAccess(), root.GetWaits())
 		}
