@@ -123,10 +123,16 @@ func TestAnInviteMakesSomeoneNewWithItsRole(t *testing.T) {
 		if reasonOf(err) != "needs_step_up" {
 			t.Errorf("an invite with no passkey: %v, want needs_step_up", err)
 		}
-		wrong := stepUpFor(t, s.owner, dockwellv1.StepUpAction_STEP_UP_ACTION_INVITE, auth.InviteTarget("ada@example.com", store.RoleAdmin, store.Install))
-		_, err = s.members.CreateInvite(ctx, connect.NewRequest(&dockwellv1.CreateInviteRequest{Email: "ada@example.com", Role: dockwellv1.Role_ROLE_DEVELOPER, Project: "shop", Proof: wrong}))
-		if reasonOf(err) != "needs_step_up" {
-			t.Errorf("an invite with a passkey for another: %v, want needs_step_up", err)
+		for _, other := range []string{
+			auth.InviteTarget("ada@example.com", store.RoleViewer, shopID),           // another role
+			auth.InviteTarget("ada@example.com", store.RoleDeveloper, store.Install), // another place
+			auth.InviteTarget("bo@example.com", store.RoleDeveloper, shopID),         // someone else
+		} {
+			wrong := stepUpFor(t, s.owner, dockwellv1.StepUpAction_STEP_UP_ACTION_INVITE, other)
+			_, err = s.members.CreateInvite(ctx, connect.NewRequest(&dockwellv1.CreateInviteRequest{Email: "ada@example.com", Role: dockwellv1.Role_ROLE_DEVELOPER, Project: "shop", Proof: wrong}))
+			if reasonOf(err) != "needs_step_up" {
+				t.Errorf("an invite with a passkey for %q: %v, want needs_step_up", other, err)
+			}
 		}
 
 		made, err := s.invite(t, "Ada@Example.com", dockwellv1.Role_ROLE_DEVELOPER, "shop", shopID)
