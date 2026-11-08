@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: wordpress
+name: WordPress
+summary: Websites and blogs, with themes and plugins
+category: cms
+version: "7.1.3"
+release: 1
+homepage: https://wordpress.org
+license: AGPL-3.0-only
+appLicense: GPL-2.0-or-later
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/wordpress.yaml
+web:
+  service: wordpress
+firstSteps: >-
+  WordPress answers only on this server until you add a domain, as the first person
+  to open it sets up its admin account, and scanners watch public certificate logs
+  for new WordPress sites to take. So set it up first, through an SSH tunnel from
+  your computer: ssh -N -L 8085:127.0.0.1:8085 you@your-server, using the port you
+  gave it, then open http://localhost:8085. Add a domain on its page only after that,
+  over HTTPS or behind your tunnel, and change WordPress's address to it under
+  Settings, General, as it keeps the address it was set up at, http://localhost:8085.
+  WordPress keeps its own files on its volume, so it installs its own minor releases,
+  and you update it, its themes and its plugins from its dashboard, while an upgrade
+  here moves PHP and Apache on. Leave the MARIADB_PASSWORD secret as it is: its
+  database keeps the password it started with, and WordPress would then use one it
+  doesn't take.
+inputs:
+  - name: PORT
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
+    type: INPUT_TYPE_PORT
+    defaultValue: "8085"
+  - name: MARIADB_ROOT_PASSWORD
+    label: Database root password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+  - name: MARIADB_PASSWORD
+    label: Database password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+databases: [db]
+compose: |
+  services:
+    wordpress:
+      image: wordpress:7.1.3-apache@sha256:8901759bfbb7ebc567dbc44a244c0d96d720d0a67c17bc4f42ec355ddba2e863
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      environment:
+        WORDPRESS_DB_HOST: db
+        WORDPRESS_DB_USER: wordpress
+        WORDPRESS_DB_PASSWORD: ${MARIADB_PASSWORD}
+        WORDPRESS_DB_NAME: wordpress
+      ports:
+        - "127.0.0.1:${PORT}:80"
+      volumes:
+        - html:/var/www/html
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "8", "-o", "/dev/null", "http://127.0.0.1/wp-admin/install.php"]
+        interval: 10s
+        timeout: 10s
+        retries: 18
+        start_period: 20s
+    db:
+      image: mariadb:12.3.3@sha256:d46e102fa8b9b72bfcdeb56f9dd538742092119dc8b11f31fe662605cd234cd9
+      restart: unless-stopped
+      environment:
+        MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+        MARIADB_DATABASE: wordpress
+        MARIADB_USER: wordpress
+        MARIADB_PASSWORD: ${MARIADB_PASSWORD}
+        MARIADB_AUTO_UPGRADE: "1"
+      volumes:
+        - data:/var/lib/mysql
+      healthcheck:
+        test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+        interval: 5s
+        timeout: 5s
+        retries: 30
+        start_period: 30s
+  volumes:
+    html: {}
+    data: {}

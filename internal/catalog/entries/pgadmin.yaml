@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: pgadmin
+name: pgAdmin
+summary: Manage PostgreSQL databases from your browser
+category: databases
+version: "9.18"
+release: 1
+homepage: https://www.pgadmin.org
+license: AGPL-3.0-only
+appLicense: PostgreSQL
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/pgadmin.yaml
+web:
+  service: pgadmin
+firstSteps: >-
+  pgAdmin answers only on this server until you add a domain, as it signs in over
+  plain HTTP. Add a domain on its page, over HTTPS or behind your tunnel, and open it
+  there. To open it before that, use an SSH tunnel from your computer:
+  ssh -N -L 5050:127.0.0.1:5050 you@your-server, using the port you gave it, then open
+  http://localhost:5050. Sign in with your email and the password in the
+  PGADMIN_PASSWORD secret. That secret sets the password on first start only, so
+  changing it doesn't change what signs in. To change the password, choose Change
+  password in pgAdmin's user menu, then set the secret to match. To manage a PostgreSQL
+  this server runs with a port of its own, such as one another panel set up, register
+  host.docker.internal as its host, which is this server from inside pgAdmin. A
+  database installed from this catalog keeps to its own project, where its services
+  reach it by name, such as db, and publishes no port; connection names, which are on
+  the way, will let pgAdmin reach one in a click.
+inputs:
+  - name: ADMIN_EMAIL
+    label: Your email
+    hint: You sign in to pgAdmin with this.
+    type: INPUT_TYPE_EMAIL
+  - name: PORT
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
+    type: INPUT_TYPE_PORT
+    defaultValue: "5050"
+  - name: PGADMIN_PASSWORD
+    label: pgAdmin password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    pgadmin:
+      image: dpage/pgadmin4:9.18.0@sha256:c332c5f6dfba995d9ebc4af261d93506d6876085d712eaaa3defc8dd1a3f26de
+      restart: unless-stopped
+      environment:
+        PGADMIN_DEFAULT_EMAIL: ${ADMIN_EMAIL}
+        PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+        PGADMIN_LISTEN_ADDRESS: 0.0.0.0
+      ports:
+        - "127.0.0.1:${PORT}:80"
+      # This server, as pgAdmin reaches it, for a database it runs outside this project.
+      extra_hosts:
+        - host.docker.internal:host-gateway
+      volumes:
+        - data:/var/lib/pgadmin
+      healthcheck:
+        test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:80/misc/ping"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 20s
+  volumes:
+    data: {}

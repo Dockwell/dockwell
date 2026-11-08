@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: grafana
+name: Grafana
+summary: Dashboards for metrics and logs
+category: monitoring
+version: "13.2.4"
+release: 1
+homepage: https://grafana.com/oss/grafana/
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-only
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/grafana.yaml
+web:
+  service: grafana
+firstSteps: >-
+  Grafana answers only on this server until you add a domain, as it signs in over
+  plain HTTP. Add a domain on its page, over HTTPS or behind your tunnel, and open it
+  there. To open it before that, use an SSH tunnel from your computer: ssh -N -L
+  3000:127.0.0.1:3000 you@your-server, using the port you gave it, then open
+  http://localhost:3000. Sign in as user admin, with the password in the
+  GRAFANA_PASSWORD secret. That secret sets the password on first start only, so
+  changing it doesn't change what signs in. To change the password, choose Change
+  password in your Grafana profile, then set the secret to match. Leave the
+  GRAFANA_SECRET_KEY secret as it is: Grafana encrypts the passwords of your data
+  sources with it, and can't read them with another.
+inputs:
+  - name: PORT
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
+    type: INPUT_TYPE_PORT
+    defaultValue: "3000"
+  - name: GRAFANA_PASSWORD
+    label: Admin password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+  - name: GRAFANA_SECRET_KEY
+    label: Secret key
+    type: INPUT_TYPE_SECRET
+    generate: 40
+compose: |
+  services:
+    grafana:
+      image: grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
+      restart: unless-stopped
+      environment:
+        GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+        # Without one, Grafana encrypts with the key its documentation publishes.
+        GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY}
+      ports:
+        - "127.0.0.1:${PORT}:3000"
+      volumes:
+        - data:/var/lib/grafana
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "http://127.0.0.1:3000/api/health"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 20s
+  volumes:
+    data: {}

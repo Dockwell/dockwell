@@ -356,6 +356,7 @@ var keyedLists = map[protoreflect.Name]func(protoreflect.Value) string{
 	"cap_add":           word("capability "),
 	"cap_drop":          word("capability "),
 	"group_add":         word("group "),
+	"extra_hosts":       word("host "),
 }
 
 func word(what string) func(protoreflect.Value) string {

@@ -3347,14 +3347,14 @@ msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgid "Open {app}"
 msgstr "Open {app}"
 
-msgid "Open-source apps you can install in one step"
-msgstr "Open-source apps you can install in one step"
-
 msgid "Reading the catalog"
 msgstr "Reading the catalog"
 
 msgid "Search apps"
 msgstr "Search apps"
+
+msgid "Self-hosted apps you can install in one step"
+msgstr "Self-hosted apps you can install in one step"
 
 msgid "Update out"
 msgstr "Update out"
@@ -3368,14 +3368,20 @@ msgstr "{count, plural, one {Installed} other {# installed}}"
 msgid "{count} installed"
 msgstr "{count} installed"
 
+msgid "<0>{path}</0>, read-only"
+msgstr "<0>{path}</0>, read-only"
+
+msgid "App you open"
+msgstr "App you open"
+
 msgid "Couldn't read this app"
 msgstr "Couldn't read this app"
 
-msgid "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
-msgstr "Dockwell generates {inLog}, but {app} writes it in its log, which takes no passkey to read. Change it after you first sign in."
+msgid "Database"
+msgstr "Database"
 
-msgid "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
-msgstr "Dockwell generates {made} and keeps it sealed. You can reveal it with your passkey."
+msgid "Each image pinned by digest"
+msgstr "Each image pinned by digest"
 
 msgid "Give {missingLabel} a value to review the plan"
 msgstr "Give {missingLabel} a value to review the plan"
@@ -3395,8 +3401,37 @@ msgstr "Reading this app"
 msgid "Version {version}"
 msgstr "Version {version}"
 
+msgid "What it installs"
+msgstr "What it installs"
+
 msgid "What to do first"
 msgstr "What to do first"
+
+msgid "capability"
+msgstr "capability"
+
+msgid "group"
+msgstr "group"
+
+msgid "reaches"
+msgstr "reaches"
+
+msgid "server path"
+msgstr "server path"
+
+msgid "server's network"
+msgstr "server's network"
+
+msgid "the server's own"
+msgstr "the server's own"
+
+#. placeholder {0}: sealed.length
+msgid "{0, plural, one {Dockwell generates this and keeps it sealed, for you to reveal with your passkey: {made}} other {Dockwell generates these and keeps them sealed, for you to reveal with your passkey: {made}}}"
+msgstr "{0, plural, one {Dockwell generates this and keeps it sealed, for you to reveal with your passkey: {made}} other {Dockwell generates these and keeps them sealed, for you to reveal with your passkey: {made}}}"
+
+#. placeholder {0}: logged.length
+msgid "{0, plural, one {Dockwell generates this, but {app} writes it in its log, which takes no passkey to read, so change it after you first sign in: {inLog}} other {Dockwell generates these, but {app} writes them in its log, which takes no passkey to read, so change them after you first sign in: {inLog}}}"
+msgstr "{0, plural, one {Dockwell generates this, but {app} writes it in its log, which takes no passkey to read, so change it after you first sign in: {inLog}} other {Dockwell generates these, but {app} writes them in its log, which takes no passkey to read, so change them after you first sign in: {inLog}}}"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
@@ -3440,11 +3475,20 @@ msgstr "Databases"
 msgid "Developer tools"
 msgstr "Developer tools"
 
+msgid "Media"
+msgstr "Media"
+
 msgid "Monitoring"
 msgstr "Monitoring"
 
 msgid "Networking"
 msgstr "Networking"
+
+msgid "Notes"
+msgstr "Notes"
+
+msgid "Security"
+msgstr "Security"
 
 msgid "Storage"
 msgstr "Storage"
@@ -4039,9 +4083,6 @@ msgstr "rule"
 
 msgid "runs no entrypoint"
 msgstr "runs no entrypoint"
-
-msgid "server path"
-msgstr "server path"
 
 msgid "shared memory"
 msgstr "shared memory"
@@ -5014,9 +5055,6 @@ msgstr "<0>{serviceId}</0> may have been deleted, or it may no longer run a data
 
 msgid "Can't load this database"
 msgstr "Can't load this database"
-
-msgid "Database"
-msgstr "Database"
 
 msgid "Database sections"
 msgstr "Database sections"

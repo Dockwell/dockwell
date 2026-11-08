@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: ghost
+name: Ghost
+summary: Blogs, newsletters and memberships
+category: cms
+version: "6.72.0"
+release: 1
+homepage: https://ghost.org
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/ghost.yaml
+web:
+  service: ghost
+firstSteps: >-
+  Ghost answers only on this server until you add a domain, as the first person to
+  open /ghost makes its owner account. So make yours first, through an SSH tunnel
+  from your computer: ssh -N -L 2368:127.0.0.1:2368 you@your-server, using the port
+  you gave it, then open http://localhost:2368/ghost. Add a domain on its page only
+  after that, over HTTPS or behind your tunnel, as a new domain's certificate shows
+  in public logs within minutes, then set url on the ghost service to that address,
+  as Ghost links every page there. Ghost emails a code to sign in on each new device,
+  so set its mail__ settings on the ghost service before you need one. Leave the
+  MYSQL_PASSWORD secret as it is: its database keeps the password it started with,
+  and Ghost would then use one it doesn't take.
+inputs:
+  - name: PORT
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
+    type: INPUT_TYPE_PORT
+    defaultValue: "2368"
+  - name: URL
+    label: Site address
+    hint: >-
+      Ghost sends every visit here, your SSH tunnel's too. Leave it empty to make your
+      account through the tunnel first, then set url on the ghost service once its
+      domain is added.
+    type: INPUT_TYPE_TEXT
+    optional: true
+  - name: MYSQL_ROOT_PASSWORD
+    label: Database root password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+  - name: MYSQL_PASSWORD
+    label: Database password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+databases: [db]
+compose: |
+  services:
+    ghost:
+      image: ghost:6.72.0@sha256:c0d83a8d45222b3f37a897572000050ab8e6e507d3eee5a35b3ef8345c7293d6
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      environment:
+        url: ${URL:-http://localhost:${PORT}}
+        database__client: mysql
+        database__connection__host: db
+        database__connection__user: ghost
+        database__connection__password: ${MYSQL_PASSWORD}
+        database__connection__database: ghost
+      ports:
+        - "127.0.0.1:${PORT}:2368"
+      volumes:
+        - content:/var/lib/ghost/content
+      healthcheck:
+        # As the proxy in front asks, once url is HTTPS: Ghost sends an http request to its
+        # https address, out of the container, and trusts this header from loopback.
+        test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:2368/ghost/api/admin/site/', {headers: {'X-Forwarded-Proto': 'https'}, redirect: 'manual'}).then(r => process.exit(r.status === 200 ? 0 : 1), () => process.exit(1))"]
+        interval: 10s
+        timeout: 5s
+        retries: 24
+        start_period: 60s
+    db:
+      image: mysql:8.4.11@sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364
+      restart: unless-stopped
+      environment:
+        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+        MYSQL_DATABASE: ghost
+        MYSQL_USER: ghost
+        MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      volumes:
+        - data:/var/lib/mysql
+      healthcheck:
+        test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+        interval: 5s
+        timeout: 5s
+        retries: 30
+        start_period: 30s
+  volumes:
+    content: {}
+    data: {}

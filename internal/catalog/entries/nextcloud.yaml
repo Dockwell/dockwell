@@ -1,0 +1,104 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# On its first install, upstream's entrypoint gives occ the admin and database
+# passwords on its command line, for the seconds the install takes.
+id: nextcloud
+name: Nextcloud
+summary: Files, calendars and contacts
+category: storage
+version: "35.0.2"
+release: 1
+homepage: https://nextcloud.com
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-or-later
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/nextcloud.yaml
+web:
+  service: nextcloud
+firstSteps: >-
+  Nextcloud answers only on this server until you add a domain, as it signs in over
+  plain HTTP. Add a domain on its page, the one you gave, over HTTPS or behind your tunnel,
+  and open it there. To open it before that, use an SSH tunnel from your computer:
+  ssh -N -L 8084:127.0.0.1:8084 you@your-server, using the port you gave it, then
+  open http://localhost:8084. Behind a domain, set OVERWRITEPROTOCOL to https on the
+  nextcloud service, and TRUSTED_PROXIES to the range Dockwell's proxy reaches it
+  from, such as 172.16.0.0/12. Sign in as your admin user, with the password in the
+  NEXTCLOUD_ADMIN_PASSWORD secret. That secret sets the password on first start only,
+  so changing it doesn't change what signs in. To change the password, use
+  Nextcloud's personal settings, under Security, then set the secret to match.
+  Nextcloud reads the domain you gave on its first install only. To answer at
+  another, run php occ config:system:set trusted_domains 2 --value=cloud.example.com
+  as www-data in the nextcloud container. Leave the POSTGRES_PASSWORD secret as it
+  is: its database keeps the password it started with. The first start takes a minute
+  or two.
+inputs:
+  - name: PORT
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
+    type: INPUT_TYPE_PORT
+    defaultValue: "8084"
+  - name: DOMAIN
+    label: Domain you'll add
+    hint: >-
+      Nextcloud answers at this as well as on this server, such as cloud.example.com. It
+      reads this on its first install only.
+    type: INPUT_TYPE_TEXT
+    optional: true
+  - name: ADMIN_USER
+    label: Admin user
+    hint: You sign in to Nextcloud with this.
+    type: INPUT_TYPE_TEXT
+    defaultValue: admin
+  - name: NEXTCLOUD_ADMIN_PASSWORD
+    label: Admin password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+  - name: POSTGRES_PASSWORD
+    label: Database password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+databases: [db]
+compose: |
+  services:
+    nextcloud:
+      image: nextcloud:35.0.2-apache@sha256:d88929dc8386420b8963f86cabb667fdaf733eef9dcf8fc98e226801a32c023c
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      environment:
+        POSTGRES_HOST: db
+        POSTGRES_DB: nextcloud
+        POSTGRES_USER: nextcloud
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        NEXTCLOUD_ADMIN_USER: ${ADMIN_USER}
+        NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
+        NEXTCLOUD_TRUSTED_DOMAINS: ${DOMAIN}
+      ports:
+        - "127.0.0.1:${PORT}:80"
+      volumes:
+        - html:/var/www/html
+      healthcheck:
+        test: ["CMD-SHELL", "curl -fsS --max-time 8 -H 'Host: localhost' http://127.0.0.1/status.php | grep '\"installed\":true' | grep -q '\"maintenance\":false'"]
+        interval: 10s
+        timeout: 10s
+        retries: 30
+        start_period: 180s
+    db:
+      image: postgres:17.11@sha256:748a18a54d3842d43bc156f0840d78029b8d349e0feca98c12b9c4ce3404a6b3
+      restart: unless-stopped
+      environment:
+        POSTGRES_USER: nextcloud
+        POSTGRES_DB: nextcloud
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      volumes:
+        - data:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD", "pg_isready", "-U", "nextcloud", "-d", "nextcloud"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
+  volumes:
+    html: {}
+    data: {}

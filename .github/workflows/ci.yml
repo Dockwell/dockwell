@@ -231,6 +231,57 @@ jobs:
         if: steps.pick.outputs.run == 'true'
         run: make docker-e2e
 
+  catalog-docker:
+    name: Catalog on Docker (${{ matrix.apps }})
+    runs-on: ubuntu-24.04
+    # Each group takes up to 10 minutes, most of it pulling images, and runs beside
+    # the others, so a slow registry has room.
+    timeout-minutes: 25
+    # Each app in the catalog installs from its entry, answers and signs in with what
+    # Dockwell generated, upgrades from the version before it keeping its data, and
+    # goes again, on real Docker, with Dockwell as root, as on a server. The first five
+    # are in the Service end to end on Docker job, and internal/catalog's tests hold
+    # every entry to one of the two.
+    strategy:
+      fail-fast: false
+      matrix:
+        apps:
+          - pgadmin redis mariadb coder
+          - uptime-kuma n8n gitea vaultwarden
+          - nextcloud rustfs grafana umami
+          - plausible ghost wordpress memos
+          - adminer jellyfin home-assistant
+    env:
+      E2E_ROOT: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      - name: Docker
+        run: docker version
+      - name: The apps end to end
+        run: make catalog-e2e APPS="${{ matrix.apps }}"
+
+  # One check of a fixed name for every group above, which a branch rule can require:
+  # a matrix's own checks are named by their groups, which change as the catalog grows.
+  catalog-docker-all:
+    name: Catalog on Docker, every group
+    needs: catalog-docker
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every group passed
+        env:
+          RESULT: ${{ needs.catalog-docker.result }}
+        run: |
+          echo "The Catalog on Docker groups ended: $RESULT"
+          test "$RESULT" = success
+
   docker-panel:
     name: Panel end to end on Docker
     runs-on: ubuntu-24.04

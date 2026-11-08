@@ -65,6 +65,8 @@ type HostConfig struct {
 	NetworkMode   string                   `json:"NetworkMode,omitempty"`
 	Privileged    bool                     `json:"Privileged,omitempty"`
 	GroupAdd      []string                 `json:"GroupAdd,omitempty"`
+	// ExtraHosts are lines its /etc/hosts gains, as hostname:address.
+	ExtraHosts []string `json:"ExtraHosts,omitempty"`
 	// NanoCPUs limits it to this many billionths of a CPU, and
 	// MemoryReservation is the memory the engine tries to leave it when the server
 	// runs short. Zero has no limit.

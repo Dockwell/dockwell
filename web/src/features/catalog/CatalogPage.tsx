@@ -5,7 +5,7 @@ import { Callout, cx, Icon, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
@@ -40,7 +40,31 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
     const label = categoryLabel(category);
     return typeof label === "string" ? label : i18n._(label);
   };
-  const categories = useMemo(() => [...new Set((entries ?? []).map((e) => e.category))].sort(), [entries]);
+  // In the order the reader's language sorts their words, so zh-CN reads in pinyin.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: words reads only the locale, which is here
+  const categories = useMemo(() => {
+    const collator = new Intl.Collator(i18n.locale);
+    return [...new Set((entries ?? []).map((e) => e.category))].sort((a, b) => collator.compare(words(a), words(b)));
+  }, [entries, i18n.locale]);
+  const chips = useRef<HTMLFieldSetElement>(null);
+  const [more, setMore] = useState(false);
+  // A fade at the row's end while there's more of it to scroll to, as on a phone.
+  const measure = useCallback(() => {
+    const row = chips.current;
+    setMore(row !== null && row.scrollLeft + row.clientWidth < row.scrollWidth - 1);
+  }, []);
+  // The chosen category in view, as the row scrolls sideways on a phone, on arrival and on each choice.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a choice and the chips arriving are what it runs on
+  useEffect(() => {
+    chips.current
+      ?.querySelector<HTMLElement>('[aria-pressed="true"]')
+      ?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    measure();
+  }, [search.category, categories, measure]);
+  useEffect(() => {
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [measure]);
   const query = (search.q ?? "").trim().toLowerCase();
   const shown = (entries ?? []).filter(
     (e) =>
@@ -53,7 +77,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
       width="wide"
       title={t`Catalog`}
       back="/more"
-      lead={t`Open-source apps you can install in one step`}
+      lead={t`Self-hosted apps you can install in one step`}
       actions={
         count > 0 ? (
           <RouterButtonLink to="/apps" variant="secondary" icon="service">
@@ -74,7 +98,12 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
           />
         </div>
         {categories.length > 1 ? (
-          <fieldset className="catalog-chips" aria-label={t`Categories`}>
+          <fieldset
+            ref={chips}
+            className={cx("catalog-chips", more && "has-more")}
+            aria-label={t`Categories`}
+            onScroll={measure}
+          >
             <Chip on={!search.category} onClick={() => onSearch?.({ ...search, category: undefined })}>
               {t`All`}
             </Chip>

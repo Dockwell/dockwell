@@ -211,3 +211,57 @@
   font-size: 13px;
   line-height: 20px;
 }
+
+/* Under a rule, as the mock's plan is. */
+.catalog-parts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.catalog-parts-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.catalog-parts-head h3 {
+  margin: 0;
+  font: var(--text-label);
+  letter-spacing: var(--text-label-tracking);
+}
+
+.catalog-parts-head span {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+/* On a phone the categories keep to one row that scrolls sideways, as Activity's kinds
+   do, so the apps start near the top however many categories there are. */
+@media (max-width: 639.98px) {
+  .catalog-search {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .catalog-chips {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  /* While there's more of the row to scroll to, its end fades. */
+  .catalog-chips.has-more {
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  }
+
+  .catalog-chip {
+    flex: none;
+  }
+}

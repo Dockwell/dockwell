@@ -25,8 +25,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 
 	"go.yaml.in/yaml/v4"
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -74,8 +78,13 @@ func Load(commit string) (*Catalog, error) {
 	return out, nil
 }
 
+// sortEntries sorts by name as people read one, whatever its case and accents, so n8n
+// and pgAdmin sit among the others rather than after them all, and É with E. Two of
+// one name keep an order of their own, by ID.
 func sortEntries(entries []*catalogv1.Entry) {
-	slices.SortFunc(entries, func(a, b *catalogv1.Entry) int { return strings.Compare(a.GetName(), b.GetName()) })
+	slices.SortFunc(entries, func(a, b *catalogv1.Entry) int {
+		return cmp.Or(strings.Compare(sortKey(a.GetName()), sortKey(b.GetName())), strings.Compare(a.GetName(), b.GetName()), strings.Compare(a.GetId(), b.GetId()))
+	})
 }
 
 // BuiltIn returns the entries built into the binary alone, whatever DirEnv names,
@@ -92,6 +101,15 @@ func BuiltIn(commit string) (*Catalog, error) {
 		out.entries[i] = e
 	}
 	return out, nil
+}
+
+// sortKey is a name as it sorts: in lower case, with its accents taken off.
+func sortKey(name string) string {
+	folded, _, err := transform.String(transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC), name)
+	if err != nil {
+		folded = name
+	}
+	return strings.ToLower(folded)
 }
 
 // load reads every entry that matches a pattern.
@@ -197,6 +215,9 @@ func Check(e *catalogv1.Entry) error {
 	if images == 0 {
 		return errors.New("its Compose file names no image")
 	}
+	if err := checkDatabases(e); err != nil {
+		return err
+	}
 	seen := map[string]bool{}
 	for _, in := range e.GetInputs() {
 		name := in.GetName()
@@ -205,8 +226,8 @@ func Check(e *catalogv1.Entry) error {
 			return fmt.Errorf("the input %q needs a name a Compose file can use, in capitals, such as ADMIN_PORT", name)
 		case seen[name]:
 			return fmt.Errorf("two inputs are named %s. Rename one", name)
-		case !strings.Contains(e.GetCompose(), "${"+name+"}"):
-			return fmt.Errorf("its Compose file doesn't use the input %s. Use it as ${%s}, or remove it", name, name)
+		case !strings.Contains(e.GetCompose(), "${"+name+"}") && !strings.Contains(e.GetCompose(), "${"+name+":-"):
+			return fmt.Errorf("its Compose file doesn't use the input %s. Use it as ${%s}, or as ${%s:-default}, or remove it", name, name, name)
 		case in.GetType() == catalogv1.InputType_INPUT_TYPE_SECRET && in.GetDefaultValue() != "":
 			return fmt.Errorf("the secret %s has a default, which everyone who installs it would share. Set generate, or leave it to a person", name)
 		case in.GetGenerate() > 0 && in.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET:
@@ -219,6 +240,25 @@ func Check(e *catalogv1.Entry) error {
 			if err := standsAlone(e.GetCompose(), name); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+// checkDatabases refuses a database the entry marks that its Compose file doesn't run.
+func checkDatabases(e *catalogv1.Entry) error {
+	if len(e.GetDatabases()) == 0 {
+		return nil
+	}
+	var file struct {
+		Services map[string]any `yaml:"services"`
+	}
+	if err := yaml.Unmarshal([]byte(e.GetCompose()), &file); err != nil {
+		return fmt.Errorf("its Compose file isn't YAML: %w", err)
+	}
+	for _, name := range e.GetDatabases() {
+		if _, ok := file.Services[name]; !ok {
+			return fmt.Errorf("it marks %s as a database, which its Compose file doesn't run. Name one of its services", name)
 		}
 	}
 	return nil

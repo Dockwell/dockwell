@@ -69,6 +69,26 @@ func testInstallingFromTheCatalog(t *testing.T, backend store.Backend) {
 	if first.Msg.GetProject() != "postgres" || first.Msg.GetValues()["ADMIN_PORT"] != "8081" {
 		t.Errorf("GetCatalogEntry suggests %q and %v", first.Msg.GetProject(), first.Msg.GetValues())
 	}
+	// What it installs, part by part: what a person opens first, then the other apps,
+	// then the databases, each with its image by tag, its volumes and what it reaches
+	// on the server, which the plan marks red when it's as good as root.
+	for id, want := range map[string][]string{
+		"postgres":    {"adminer adminer:6.2.0 database=false opens=true [] []", "db postgres:17.11 database=true opens=false [data] []"},
+		"jellyfin":    {"jellyfin jellyfin/jellyfin:12.3 database=false opens=true [config cache] [HOST_ACCESS_KIND_SERVER_PATH /srv/media read-only from MEDIA_DIR]"},
+		"plausible":   {"plausible ghcr.io/plausible/community-edition:v3.2.1 database=false opens=true [data] []", "db postgres:17.11 database=true opens=false [db] []", "events clickhouse/clickhouse-server:24.12.6.70-alpine database=true opens=false [events] []"},
+		"coder":       {"coder ghcr.io/coder/coder:v2.38.6 database=false opens=true [home] [HOST_ACCESS_KIND_DOCKER_SOCKET /var/run/docker.sock root]", "db postgres:17.11 database=true opens=false [data] []"},
+		"cloudflared": {"tunnel cloudflare/cloudflared:2026.10.3 database=false opens=false [] [HOST_ACCESS_KIND_HOST_NETWORK  root]"},
+		// An input no one has given yet still says what it runs.
+		"nextcloud": {"nextcloud nextcloud:35.0.2-apache database=false opens=true [html] []", "db postgres:17.11 database=true opens=false [data] []"},
+	} {
+		got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: id}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if parts := describeParts(got.Msg.GetParts()); !slices.Equal(parts, want) {
+			t.Errorf("%s says it installs %q, want %q", id, parts, want)
+		}
+	}
 
 	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "postgres"})
 	if want := "Install PostgreSQL 17.11 as postgres"; planned.GetSummary() != want {
@@ -298,6 +318,148 @@ func testInstallRefusalsAndHostAccess(t *testing.T, backend store.Backend) {
 	}
 	if vars := list.Msg.GetVariables(); len(vars) != 1 || !vars[0].GetSecret() || vars[0].GetName() != "TUNNEL_TOKEN" {
 		t.Errorf("the project's secrets: %v", vars)
+	}
+}
+
+// describeParts says each part of an install in one line: its service, image, whether
+// it's a database or what a person opens, its volumes, and what it reaches on the
+// server, read-only or as good as root, with the input a path comes from.
+func describeParts(parts []*dockwellv1.CatalogPart) []string {
+	var out []string
+	for _, p := range parts {
+		var reaches []string
+		for _, a := range p.GetHostAccess() {
+			r := a.GetKind().String() + " " + a.GetPath()
+			if a.GetReadOnly() {
+				r += " read-only"
+			}
+			if a.GetSameAsRoot() {
+				r += " root"
+			}
+			if in := p.GetPathInputs()[a.GetPath()]; in != "" {
+				r += " from " + in
+			}
+			reaches = append(reaches, r)
+		}
+		out = append(out, fmt.Sprintf("%s %s database=%t opens=%t %v %v", p.GetService(), p.GetImage(), p.GetDatabase(), p.GetOpens(), p.GetVolumes(), reaches))
+	}
+	return out
+}
+
+// An entry whose parts can't be read still opens, with nothing said of its parts: what
+// it installs is something to read before the plan, which says it again.
+func TestAnEntryWhosePartsCantBeReadStillOpens(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	if err := os.WriteFile(filepath.Join(dir, "odd.yaml"), []byte(`id: odd
+name: Odd
+summary: Something whose parts don't read
+category: storage
+version: "1.0"
+release: 1
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+inputs:
+  - name: CPUS
+    label: CPUs
+    type: INPUT_TYPE_TEXT
+compose: |
+  services:
+    web:
+      image: nginx:1.27@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      cpus: ${CPUS}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	got, err := catalogClient(b).GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "odd"}))
+	if err != nil {
+		t.Fatalf("an entry whose parts don't read = %v, want it opened", err)
+	}
+	if got.Msg.GetEntry().GetName() != "Odd" || len(got.Msg.GetParts()) != 0 {
+		t.Errorf("it opens as %v, with parts %v", got.Msg.GetEntry().GetName(), got.Msg.GetParts())
+	}
+}
+
+// asRoot says, for each entry that reaches its server beyond its own containers,
+// whether that's as good as root, which takes a passkey to apply. One new to the
+// catalog needs a row here, so someone decides which it is.
+var asRoot = map[string]bool{
+	"cloudflared": true,  // the server's own network
+	"coder":       true,  // Docker's socket
+	"jellyfin":    false, // a media folder, read-only
+}
+
+// An entry that reaches its server beyond its containers waits for a person, on every
+// store: a token can plan its install, and is refused applying it with needs_session,
+// and a person with no passkey is asked for one when what it reaches is as good as root.
+func TestAnEntryThatReachesItsServerWaitsForAPerson(t *testing.T) {
+	storetest.Each(t, testAnEntryThatReachesItsServerWaitsForAPerson)
+}
+
+func testAnEntryThatReachesItsServerWaitsForAPerson(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pullsAnything(e)
+	token := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE), rt: b.client.Transport}
+	byToken := dockwellv1connect.NewCatalogServiceClient(token, b.origin, connect.WithProtoJSON())
+	tokenChanges, person := changeClient(token, b.origin), changeClient(b, b.origin)
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reaching := 0
+	for _, entry := range c.All() {
+		if entry.GetHostAccess() == "" {
+			continue
+		}
+		reaching++
+		t.Run(entry.GetId(), func(t *testing.T) {
+			root, known := asRoot[entry.GetId()]
+			if !known {
+				t.Fatalf("%s reaches its server, and asRoot doesn't say whether that's as good as root. Add it", entry.GetId())
+			}
+			values := map[string]string{}
+			for _, in := range entry.GetInputs() {
+				if catalog.Asks(in) && in.GetDefaultValue() == "" && !in.GetOptional() {
+					values[in.GetName()] = "someone@example.com"
+					if catalog.Secret(in) {
+						values[in.GetName()] = "typed-by-a-person-xyz"
+					}
+				}
+			}
+			res, err := byToken.InstallCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.InstallCatalogEntryRequest{Id: entry.GetId(), Values: values}))
+			if err != nil {
+				t.Fatalf("a token can't plan it: %v", err)
+			}
+			ch := res.Msg.GetChange()
+			if !ch.GetPlan().GetHostAccess() {
+				t.Errorf("its plan doesn't say it reaches the server: %v", ch.GetPlan())
+			}
+			fingerprint := ch.GetPlan().GetFingerprint()
+			if err := askedBy(t, tokenChanges, ch, fingerprint); reasonOf(err) != "needs_session" {
+				t.Errorf("a token applying it = %v, want needs_session", err)
+			}
+			err = askedBy(t, person, ch, fingerprint)
+			switch {
+			case root && reasonOf(err) != "needs_step_up":
+				t.Errorf("a person with no passkey applying it = %v, want needs_step_up", err)
+			case !root && err != nil:
+				t.Errorf("a person applying it = %v, want it applied, as it isn't as good as root", err)
+			}
+			if root {
+				if _, err := person.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: ch.GetId()})); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+	if reaching < len(asRoot) {
+		t.Errorf("%d entries reach their server, and asRoot names %d", reaching, len(asRoot))
 	}
 }
 

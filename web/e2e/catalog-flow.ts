@@ -74,11 +74,11 @@ async function chooseServer(sheet: Locator) {
 }
 
 export async function catalogFlow(page: Page, { origin, step, shoot, docker, catalogDir }: CatalogFlowOptions) {
-  step("catalog: the rail leads to it, and it lists the first set");
+  step("catalog: the rail leads to it, and it lists the apps, n8n and pgAdmin among them");
   await page.goto(`${origin}/apps`);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Catalog" }).click();
   await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
-  for (const app of ["PostgreSQL", "MySQL", "Nginx Proxy Manager", "Cloudflare Tunnel", "T3 Code"]) {
+  for (const app of ["PostgreSQL", "MySQL", "Nginx Proxy Manager", "Cloudflare Tunnel", "T3 Code", "pgAdmin", "n8n"]) {
     await page.getByRole("link", { name: `Install ${app}` }).waitFor();
   }
   await shoot(page, "catalog");
@@ -112,7 +112,24 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   if (drawn.card !== "1px" || drawn.fields !== "20px") {
     fail(`opened at its address, the catalog draws its cards' border and its fields' gap as ${JSON.stringify(drawn)}`);
   }
+
+  step("catalog: an app's page says what it installs before the plan, the app you open first, each by image");
+  const parts = direct.getByRole("region", { name: "What it installs" });
+  await parts.getByText("App you open").waitFor();
+  for (const image of ["adminer:6.2.0", "postgres:17.11"]) await parts.getByText(image, { exact: true }).waitFor();
+  const order = (await parts.textContent()) ?? "";
+  if (order.indexOf("adminer") > order.indexOf("postgres:17.11"))
+    fail(`What it installs puts the database before the app: ${order}`);
   await direct.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
+
+  step("catalog: what an app reaches on the server is among what it installs, in red when it's as good as root");
+  await page.goto(`${origin}/catalog/coder`);
+  const coder = page.getByRole("dialog", { name: "Install Coder" }).getByRole("region", { name: "What it installs" });
+  await coder.getByText("Docker's socket").waitFor();
+  const socket = coder.locator(".dw-diff-critical", { hasText: "/var/run/docker.sock" });
+  if ((await socket.count()) !== 1) fail("Coder's page doesn't mark Docker's socket in red among what it installs");
+  await page.getByRole("dialog", { name: "Install Coder" }).getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
 
   step("catalog: installing asks only what the app needs, starting from what's free");
@@ -124,7 +141,9 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   if (!/^\d+$/.test(port)) fail(`Adminer's port starts as "${port}"`);
   if ((await sheet.getByLabel("Name").inputValue()) !== "postgres") fail("its name doesn't start as postgres");
   if ((await sheet.getByLabel("Database password").count()) !== 0) fail("it asks for a password it generates");
-  await sheet.getByText(/Dockwell generates Database password and keeps it sealed/).waitFor();
+  await sheet
+    .getByText("Dockwell generates this and keeps it sealed, for you to reveal with your passkey: Database password")
+    .waitFor();
   await shoot(page, "catalog-install");
 
   step("catalog: its plan shows everything it makes, with the password as a secret and no value");

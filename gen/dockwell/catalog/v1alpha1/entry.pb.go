@@ -139,7 +139,11 @@ type Entry struct {
 	// What it reaches on its server beyond its own containers, in words, such as
 	// "The server's own network, to reach routes on loopback". A person approves
 	// it in the plan, which says exactly what. Empty when it reaches nothing.
-	HostAccess    string `protobuf:"bytes,15,opt,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
+	HostAccess string `protobuf:"bytes,15,opt,name=host_access,json=hostAccess,proto3" json:"host_access,omitempty"`
+	// The services its Compose file runs that are databases the app keeps its data
+	// in, by name, such as "db". A page names each as a database rather than an app.
+	// Empty leaves that to the images Dockwell knows as databases.
+	Databases     []string `protobuf:"bytes,16,rep,name=databases,proto3" json:"databases,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -277,6 +281,13 @@ func (x *Entry) GetHostAccess() string {
 		return x.HostAccess
 	}
 	return ""
+}
+
+func (x *Entry) GetDatabases() []string {
+	if x != nil {
+		return x.Databases
+	}
+	return nil
 }
 
 // Source is where an entry came from.
@@ -508,7 +519,7 @@ var File_dockwell_catalog_v1alpha1_entry_proto protoreflect.FileDescriptor
 
 const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\n" +
-	"%dockwell/catalog/v1alpha1/entry.proto\x12\x19dockwell.catalog.v1alpha1\"\xef\x03\n" +
+	"%dockwell/catalog/v1alpha1/entry.proto\x12\x19dockwell.catalog.v1alpha1\"\x8d\x04\n" +
 	"\x05Entry\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -528,7 +539,8 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\vfirst_steps\x18\x0e \x01(\tR\n" +
 	"firstSteps\x12\x1f\n" +
 	"\vhost_access\x18\x0f \x01(\tR\n" +
-	"hostAccess\"T\n" +
+	"hostAccess\x12\x1c\n" +
+	"\tdatabases\x18\x10 \x03(\tR\tdatabases\"T\n" +
 	"\x06Source\x12\x1e\n" +
 	"\n" +
 	"repository\x18\x01 \x01(\tR\n" +

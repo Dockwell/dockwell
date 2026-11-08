@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: rustfs
+name: RustFS
+summary: S3-compatible object storage, in place of MinIO
+category: storage
+version: "1.0.3"
+release: 1
+homepage: https://rustfs.com
+license: AGPL-3.0-only
+appLicense: Apache-2.0
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/rustfs.yaml
+web:
+  service: rustfs
+firstSteps: >-
+  RustFS answers only on this server until you add a domain, as its console signs in
+  over plain HTTP. Add a domain on its page for the console, over HTTPS or behind
+  your tunnel, and another for the S3 port if S3 clients elsewhere need it. To open
+  it before that, use an SSH tunnel from your computer: ssh -N -L 9001:127.0.0.1:9001
+  you@your-server, using the port you gave it, then open http://localhost:9001. Sign
+  in with your access key and the secret key in the RUSTFS_SECRET_KEY secret. S3
+  clients on this server reach it at 127.0.0.1 on the S3 port with the same pair, as
+  they would MinIO.
+inputs:
+  - name: CONSOLE_PORT
+    label: Console port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
+    type: INPUT_TYPE_PORT
+    defaultValue: "9001"
+  - name: S3_PORT
+    label: S3 port on this server
+    hint: S3 clients on this server reach it on 127.0.0.1 at this port, and others through a domain.
+    type: INPUT_TYPE_PORT
+    defaultValue: "9000"
+  - name: ACCESS_KEY
+    label: Access key
+    hint: Like a user name. You sign in with it and the secret key Dockwell makes.
+    type: INPUT_TYPE_TEXT
+    defaultValue: admin
+  - name: RUSTFS_SECRET_KEY
+    label: Secret key
+    type: INPUT_TYPE_SECRET
+    generate: 40
+compose: |
+  services:
+    rustfs:
+      image: rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b
+      restart: unless-stopped
+      environment:
+        RUSTFS_ACCESS_KEY: ${ACCESS_KEY}
+        RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+        RUSTFS_ADDRESS: 0.0.0.0:9000
+        RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+        RUSTFS_CONSOLE_ENABLE: "true"
+        RUSTFS_OBS_LOG_DIRECTORY: ""
+      ports:
+        - "127.0.0.1:${S3_PORT}:9000"
+        - "127.0.0.1:${CONSOLE_PORT}:9001"
+      volumes:
+        - data:/data
+      healthcheck:
+        test: ["CMD-SHELL", "curl -fsS --max-time 4 http://127.0.0.1:9000/health && curl -fsS --max-time 4 http://127.0.0.1:9001/rustfs/console/health"]
+        interval: 10s
+        timeout: 10s
+        retries: 12
+        start_period: 20s
+  volumes:
+    data: {}

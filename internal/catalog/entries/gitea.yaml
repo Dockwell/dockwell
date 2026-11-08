@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: gitea
+name: Gitea
+summary: Git hosting with code review
+category: developer tools
+version: "28.2.0"
+release: 1
+homepage: https://about.gitea.com
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/gitea.yaml
+web:
+  service: gitea
+firstSteps: >-
+  Gitea answers only on this server until you add a domain, as the first account
+  registered on it is its admin. So register yours first, through an SSH tunnel from
+  your computer: ssh -N -L 3000:127.0.0.1:3000 you@your-server, using the port you
+  gave it, then open http://localhost:3000. Then set
+  GITEA__service__DISABLE_REGISTRATION to true on the gitea service, so no one else
+  can. Add a domain on its page only after that, over HTTPS or behind your tunnel, as
+  a new domain's certificate shows in public logs within minutes, and set
+  GITEA__server__ROOT_URL on the gitea service to it, so clone links use it. Git over
+  SSH answers on this server's SSH port too, and to push from elsewhere, publish that
+  port on every address on its page. Leave the SECRET_KEY secret as it is: Gitea
+  encrypts two-factor secrets and the passwords of mirrors with it, and can't read
+  them with another.
+inputs:
+  - name: PORT
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
+    type: INPUT_TYPE_PORT
+    defaultValue: "3000"
+  - name: SSH_PORT
+    label: SSH port
+    hint: Git over SSH answers on this port of this server, as the server's own SSH has 22.
+    type: INPUT_TYPE_PORT
+    defaultValue: "2222"
+  - name: SECRET_KEY
+    label: Secret key
+    type: INPUT_TYPE_SECRET
+    generate: 64
+compose: |
+  services:
+    gitea:
+      image: gitea/gitea:28.2.0@sha256:30777c91280d973fa02be48b1ade735bd6859e8f6f7af3b4444d519437852504
+      restart: unless-stopped
+      environment:
+        GITEA__database__DB_TYPE: sqlite3
+        GITEA__security__INSTALL_LOCK: "true"
+        GITEA__server__SSH_PORT: ${SSH_PORT}
+        # Without one, Gitea encrypts with a key everyone knows, and can't change it later.
+        GITEA__security__SECRET_KEY: ${SECRET_KEY}
+      ports:
+        - "127.0.0.1:${PORT}:3000"
+        - "127.0.0.1:${SSH_PORT}:22"
+      volumes:
+        - data:/data
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "http://127.0.0.1:3000/api/healthz"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 20s
+  volumes:
+    data: {}

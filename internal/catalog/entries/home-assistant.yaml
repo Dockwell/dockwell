@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: home-assistant
+name: Home Assistant
+summary: Run your home's devices from one place, on your own server
+category: automation
+version: "2026.10.4"
+release: 1
+homepage: https://www.home-assistant.io
+license: AGPL-3.0-only
+appLicense: Apache-2.0
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/home-assistant.yaml
+web:
+  service: home-assistant
+firstSteps: >-
+  Home Assistant answers only on this server until you add a domain, as the first
+  person to open it makes its owner account. So make yours first, through an SSH
+  tunnel from your computer: ssh -N -L 8123:127.0.0.1:8123 you@your-server, using the
+  port you gave it, then open http://localhost:8123. Add a domain on its page only
+  after that, over HTTPS or behind your tunnel, as a new domain's certificate shows
+  in public logs within minutes. On its first start it writes a configuration.yaml
+  that trusts Dockwell's proxy, from the ranges Docker gives its networks, so it
+  answers through a domain. It runs on a network of its own rather than the server's,
+  so it doesn't find devices on yours by itself: add each by its address. It reaches
+  no USB or Bluetooth radio, so Zigbee, Z-Wave and Bluetooth devices need a hub on
+  the network.
+inputs:
+  - name: PORT
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
+    type: INPUT_TYPE_PORT
+    defaultValue: "8123"
+compose: |
+  services:
+    home-assistant:
+      image: ghcr.io/home-assistant/home-assistant:2026.10.4@sha256:23f4dfbb69ce76315dbc4de7915504f1c2dcecd7ca2648113a493a385972e133
+      restart: unless-stopped
+      ports:
+        - "127.0.0.1:${PORT}:8123"
+      # A starting configuration.yaml, written only when there's none: Home Assistant's
+      # own default, and trust for Dockwell's proxy, which reaches it on the ingress
+      # network, whose range Docker picks at the server's first route.
+      entrypoint: ["sh", "-c", "cd /config && if [ ! -e configuration.yaml ]; then printf '%s\\n' \"$$HA_STARTING_CONFIGURATION\" >configuration.yaml && printf '[]' >automations.yaml && : >scripts.yaml && : >scenes.yaml; fi && exec /init"]
+      environment:
+        HA_STARTING_CONFIGURATION: |
+          # Loads default set of integrations. Do not remove.
+          default_config:
+
+          # Load frontend themes from the themes folder
+          frontend:
+            themes: !include_dir_merge_named themes
+
+          automation: !include automations.yaml
+          script: !include scripts.yaml
+          scene: !include scenes.yaml
+
+          # Dockwell's proxy reaches Home Assistant from a range Docker gives its networks.
+          http:
+            use_x_forwarded_for: true
+            trusted_proxies:
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 10.0.0.0/8
+      volumes:
+        - config:/config
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "-o", "/dev/null", "http://127.0.0.1:8123/manifest.json"]
+        interval: 10s
+        timeout: 5s
+        retries: 24
+        start_period: 60s
+  volumes:
+    config: {}
