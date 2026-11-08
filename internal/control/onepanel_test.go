@@ -305,6 +305,17 @@ func TestAnImportGoesBesideWhatsThere(t *testing.T) {
 		}
 		return res.Msg
 	}
+	// A read that asks for no plan makes none, as the panel reads before anyone asks to review.
+	listed, err := importClient(b).ImportOnePanel(t.Context(), connect.NewRequest(&dockwellv1.ImportOnePanelRequest{ServerId: id, SkipPlan: true}))
+	if err != nil || listed.Msg.GetChange() != nil || len(listed.Msg.GetSteps()) == 0 {
+		t.Fatalf("a read with skip_plan = %v, %v", listed, err)
+	}
+	// It says what the plan would hold all the same.
+	for _, s := range listed.Msg.GetSteps() {
+		if s.GetKind() == dockwellv1.ImportKind_IMPORT_KIND_RUNTIME && s.GetName() == "api" && !strings.Contains(s.GetBecomes(), "the project api-1panel") {
+			t.Errorf("read with skip_plan, api becomes %q", s.GetBecomes())
+		}
+	}
 	first := read()
 	steps := map[string]*dockwellv1.ImportStep{}
 	for _, s := range first.GetSteps() {

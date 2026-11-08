@@ -120,9 +120,12 @@ What's taken on is let go of by deleting it before anything replaces it, which l
 
 ### The screen
 
-A server's Overview says 1Panel runs there when Docker runs containers 1Panel named (`1Panel-…`), and links to the import. The import page reads only when a person asks, as a read plans the change, then shows what it would take on, make again and leave, with why, and hands the plan to the plan sheet, which applies it or discards it. A plan nobody reviewed is discarded when the page reads again or is left. It's built from the system's components, as no mock has it.
+A server's Overview says containers 1Panel made run there when Docker runs any it named (`1Panel-…`) that are left to move: OpenResty aside, as it stays until websites move, and what Dockwell took on aside, as its own list leaves those out. It links to the import, and a person can put it away for that server with Not now, on that browser. The server's Move in tab is a way in that doesn't rest on the callout: it shows where the callout would, and on the import page. It's built from the system's components, as no mock has it.
 
-- **What each step says is the import's own words,** in English, as a plan's notes are, so a page in another language shows them so. The page's own words are translated.
+- **A read plans nothing.** The page asks with `skip_plan` when a person reads, which reads what taking each thing on would be, as a plan does, so each step says what the plan would hold, and proposes nothing. Review the plan opens the plan sheet with a plan the sheet makes itself, by asking again without it, so the plan is the sheet's from the start: closing it discards it, and so does leaving the page or reloading it, as the sheet discards any plan it made. Nothing is left planned that no one asked to review, and a plan someone opened from Activity in another tab is theirs, which the page never touches.
+- **Steps are grouped by when they move:** in this plan; later, once Dockwell has websites, databases, scheduled tasks or firewall rules, by the feature each waits for (`ImportWaitsFor`), folded to a count, as there can be many; in Dockwell already; and staying with 1Panel. Review the plan is at the top and where the list ends.
+- **What each step says is the import's own words,** in English, as a plan's notes are, so a page in another language shows them as they are, marked as English, and wraps none of them in words of its own. "Becomes" is a label beside them. The page's own words are translated. Typed reasons a page words in each language are #375's, before M5's pre-release.
+- **Where 1Panel isn't, it says so plainly,** as a fact, not a failure, and an unknown version says which versions the import was written from and which one the server runs.
 - **A test reads 1Panel under `DOCKWELL_TEST_ONEPANEL`,** a folder laid out as a server's root, and reads nothing of the machine it runs on without it, as `DOCKWELL_TEST_PACKAGES` does for updates.
 
 ### Numbers

@@ -41,6 +41,9 @@ service ImportService {
 message ImportOnePanelRequest {
   // The server running 1Panel, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
   string server_id = 1;
+  // Read and say what an import would do, and plan nothing, for a client that
+  // plans only when a person asks to review it.
+  bool skip_plan = 2;
 }
 
 // ImportOnePanelResponse is what 1Panel keeps on the server, and what an import

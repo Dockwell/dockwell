@@ -56,7 +56,7 @@ func Read(ctx context.Context, root string) (*agentv1.ReadOnePanelResult, error)
 	}
 	if records == "" {
 		return &agentv1.ReadOnePanelResult{NotHere: fmt.Sprintf(
-			"1Panel isn't installed here: there's no %s or %s", path.Join(dbDir, "agent.db"), path.Join(dbDir, "1Panel.db"))}, nil
+			"there's no %s or %s", path.Join(dbDir, "agent.db"), path.Join(dbDir, "1Panel.db"))}, nil
 	}
 	at := filepath.Join(root, records)
 	return retried(ctx, records,

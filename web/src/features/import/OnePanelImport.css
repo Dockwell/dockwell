@@ -88,3 +88,20 @@
 .onepanel-step-why {
   color: var(--ink-muted);
 }
+
+/* "Becomes", a label beside the import's own words, which stay as they are. */
+.onepanel-step-label {
+  margin-inline-end: var(--space-2);
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ink-muted);
+}
+
+/* The count, and Review the plan again, where a long list ends. */
+.onepanel-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}

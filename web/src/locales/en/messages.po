@@ -5627,8 +5627,8 @@ msgstr "{count, plural, one {# item} other {# items}}"
 msgid "1Panel"
 msgstr "1Panel"
 
-msgid "1Panel runs on this server"
-msgstr "1Panel runs on this server"
+msgid "1Panel isn't on this server"
+msgstr "1Panel isn't on this server"
 
 #. placeholder {0}: panel.version
 #. placeholder {1}: panel.baseDir
@@ -5639,12 +5639,20 @@ msgstr "1Panel {0}, under <0>{1}</0>, read from <1>{2}</1>."
 msgid "A version of 1Panel this wasn't written from"
 msgstr "A version of 1Panel this wasn't written from"
 
-#. placeholder {0}: step.becomes
-msgid "Becomes {0}."
-msgstr "Becomes {0}."
+msgid "Becomes"
+msgstr "Becomes"
 
 msgid "Certificate"
 msgstr "Certificate"
+
+msgid "Compose project"
+msgstr "Compose project"
+
+msgid "Containers"
+msgstr "Containers"
+
+msgid "Containers 1Panel made run on this server"
+msgstr "Containers 1Panel made run on this server"
 
 msgid "Couldn't read what 1Panel keeps"
 msgstr "Couldn't read what 1Panel keeps"
@@ -5655,27 +5663,45 @@ msgstr "Cron job"
 msgid "Database server"
 msgstr "Database server"
 
-msgid "Dockwell can take on what it runs as it is, with no restart, and say what it would make again and what it would leave."
-msgstr "Dockwell can take on what it runs as it is, with no restart, and say what it would make again and what it would leave."
+msgid "Dockwell can take on what 1Panel runs as it is, with no restart, and say what it would make again and what it would leave."
+msgstr "Dockwell can take on what 1Panel runs as it is, with no restart, and say what it would make again and what it would leave."
 
 #. placeholder {0}: server.name
-msgid "Dockwell reads what 1Panel keeps on {0}, from its own records, read-only, and plans taking on what runs as it is, with no restart. It says what it would make again, and what it would leave and why. Nothing changes on the server until you apply the plan."
-msgstr "Dockwell reads what 1Panel keeps on {0}, from its own records, read-only, and plans taking on what runs as it is, with no restart. It says what it would make again, and what it would leave and why. Nothing changes on the server until you apply the plan."
+msgid "Dockwell reads what 1Panel keeps on {0}, from its own records, read-only, and says what it would take on as it runs, with no restart, what it would make again, and what it would leave, and why. Review the plan to see each change. Nothing changes on the server until you apply it."
+msgstr "Dockwell reads what 1Panel keeps on {0}, from its own records, read-only, and says what it would take on as it runs, with no restart, what it would make again, and what it would leave, and why. Review the plan to see each change. Nothing changes on the server until you apply it."
 
-msgid "It was read the same way, by its records' column names, so check what it found before you apply the plan."
-msgstr "It was read the same way, by its records' column names, so check what it found before you apply the plan."
+msgid "Each thing below says whether it's in Dockwell already, what it waits for, or why it stays."
+msgstr "Each thing below says whether it's in Dockwell already, what it waits for, or why it stays."
 
-msgid "Leave as it is"
-msgstr "Leave as it is"
+msgid "Hide them"
+msgstr "Hide them"
 
-msgid "Make again in Dockwell"
-msgstr "Make again in Dockwell"
+msgid "In Dockwell already"
+msgstr "In Dockwell already"
+
+msgid "In this plan"
+msgstr "In this plan"
+
+msgid "Later, once Dockwell has databases"
+msgstr "Later, once Dockwell has databases"
+
+msgid "Later, once Dockwell has firewall rules"
+msgstr "Later, once Dockwell has firewall rules"
+
+msgid "Later, once Dockwell has scheduled tasks"
+msgstr "Later, once Dockwell has scheduled tasks"
+
+msgid "Later, once Dockwell has websites"
+msgstr "Later, once Dockwell has websites"
 
 msgid "Move in from 1Panel"
 msgstr "Move in from 1Panel"
 
-msgid "Nothing is planned yet"
-msgstr "Nothing is planned yet"
+msgid "Not now"
+msgstr "Not now"
+
+msgid "Nothing to plan now"
+msgstr "Nothing to plan now"
 
 msgid "Read it again"
 msgstr "Read it again"
@@ -5689,22 +5715,22 @@ msgstr "Review the plan"
 msgid "Runtime"
 msgstr "Runtime"
 
-msgid "Take on, as it runs"
-msgstr "Take on, as it runs"
+msgid "Stays with 1Panel"
+msgstr "Stays with 1Panel"
 
-#. placeholder {0}: step.waitsFor
-msgid "Waits for {0}"
-msgstr "Waits for {0}"
+#. placeholder {0}: panel.version
+msgid "This was written from 1Panel v2.0 to v2.4.2, and v1.10, and this server runs {0}. It was read the same way, by its records' column names, so check what it found before you apply the plan."
+msgstr "This was written from 1Panel v2.0 to v2.4.2, and v1.10, and this server runs {0}. It was read the same way, by its records' column names, so check what it found before you apply the plan."
 
 msgid "Website"
 msgstr "Website"
 
-msgid "What would be taken on says why it isn't planned now."
-msgstr "What would be taken on says why it isn't planned now."
-
 #. placeholder {0}: steps.length
 msgid "{0, plural, one {# thing found} other {# things found}}"
 msgstr "{0, plural, one {# thing found} other {# things found}}"
+
+msgid "{count, plural, one {Show it} other {Show all #}}"
+msgstr "{count, plural, one {Show it} other {Show all #}}"
 
 msgid "Read this deploy's logs"
 msgstr "Read this deploy's logs"
@@ -6232,9 +6258,6 @@ msgstr "Recent changes"
 
 msgid "Back to the server"
 msgstr "Back to the server"
-
-msgid "Compose project"
-msgstr "Compose project"
 
 msgid "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
 msgstr "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
@@ -6784,6 +6807,9 @@ msgstr "{name} isn't reporting"
 
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> may have been removed, or the link may be wrong."
+
+msgid "Move in"
+msgstr "Move in"
 
 msgid "No server with this ID"
 msgstr "No server with this ID"

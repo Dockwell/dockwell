@@ -234,7 +234,10 @@ func (ImportAction) EnumDescriptor() ([]byte, []int) {
 type ImportOnePanelRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The server running 1Panel, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
-	ServerId      string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// Read and say what an import would do, and plan nothing, for a client that
+	// plans only when a person asks to review it.
+	SkipPlan      bool `protobuf:"varint,2,opt,name=skip_plan,json=skipPlan,proto3" json:"skip_plan,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -274,6 +277,13 @@ func (x *ImportOnePanelRequest) GetServerId() string {
 		return x.ServerId
 	}
 	return ""
+}
+
+func (x *ImportOnePanelRequest) GetSkipPlan() bool {
+	if x != nil {
+		return x.SkipPlan
+	}
+	return false
 }
 
 // ImportOnePanelResponse is what 1Panel keeps on the server, and what an import
@@ -1561,9 +1571,10 @@ var File_dockwell_v1_import_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/import.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"4\n" +
+	"\x18dockwell/v1/import.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"Q\n" +
 	"\x15ImportOnePanelRequest\x12\x1b\n" +
-	"\tserver_id\x18\x01 \x01(\tR\bserverId\"\xa1\x01\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1b\n" +
+	"\tskip_plan\x18\x02 \x01(\bR\bskipPlan\"\xa1\x01\n" +
 	"\x16ImportOnePanelResponse\x12+\n" +
 	"\x05found\x18\x01 \x01(\v2\x15.dockwell.v1.OnePanelR\x05found\x12-\n" +
 	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\x12+\n" +

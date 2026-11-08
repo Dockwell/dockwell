@@ -85,17 +85,22 @@ func (h *Handler) ImportOnePanel(ctx context.Context, req *connect.Request[dockw
 	}
 	if out.GetFound() == nil {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
-			fmt.Errorf("%s doesn't run 1Panel: %s. Run this for a server where 1Panel is installed", srv.GetName(), out.GetNotHere()), "onepanel_not_found")
+			fmt.Errorf("%s doesn't run 1Panel: %s. Run this for a server where 1Panel is installed", srv.GetName(), strings.TrimPrefix(out.GetNotHere(), "1Panel isn't installed here: ")), "onepanel_not_found")
 	}
 	res := &dockwellv1.ImportOnePanelResponse{Found: out.GetFound(), Steps: Steps(out.GetFound())}
 	p, ok := authapi.PrincipalFrom(ctx)
 	if !ok || p.Token != nil {
 		return connect.NewResponse(res), nil
 	}
-	if res.Change, err = h.plan(ctx, srv, out.GetFound(), res.GetSteps()); err != nil {
+	// A read that asks for no plan still says what a plan would hold, app by app,
+	// and proposes nothing, so it leaves alone any plan someone is reviewing.
+	propose := !req.Msg.GetSkipPlan()
+	if res.Change, err = h.plan(ctx, srv, out.GetFound(), res.GetSteps(), propose); err != nil {
 		return nil, err
 	}
-	h.supersede(ctx, srv.GetId()+"/"+p.User.ID, res.GetChange().GetId())
+	if propose {
+		h.supersede(ctx, srv.GetId()+"/"+p.User.ID, res.GetChange().GetId())
+	}
 	return connect.NewResponse(res), nil
 }
 
@@ -132,8 +137,9 @@ func takesOn(s *dockwellv1.ImportStep) bool {
 // plan reads what taking on each app, runtime and Compose project would be, and
 // plans the ones nothing stands in the way of, in one change. One that can't come
 // says why, and stays, and so does its database server. One taken on already says
-// as what. Only when what the server runs can't be read is nothing planned.
-func (h *Handler) plan(ctx context.Context, srv *dockwellv1.Server, found *dockwellv1.OnePanel, steps []*dockwellv1.ImportStep) (*dockwellv1.Change, error) {
+// as what. Only when what the server runs can't be read is nothing planned. Without
+// propose, each step says what the plan would do, and nothing is planned.
+func (h *Handler) plan(ctx context.Context, srv *dockwellv1.Server, found *dockwellv1.OnePanel, steps []*dockwellv1.ImportStep, propose bool) (*dockwellv1.Change, error) {
 	r, err := h.taker.ReadRunning(ctx, srv.GetId())
 	if err != nil {
 		if connect.CodeOf(err) != connect.CodeUnavailable {
@@ -225,7 +231,7 @@ func (h *Handler) plan(ctx context.Context, srv *dockwellv1.Server, found *dockw
 				fmt.Sprintf("part of the project %s, taken on already with the app %s", done[app], app), "", 0
 		}
 	}
-	if len(takings) == 0 {
+	if len(takings) == 0 || !propose {
 		return nil, nil
 	}
 	also := changes.Also{Adopts: map[resource.Ref]changes.Adoption{}}

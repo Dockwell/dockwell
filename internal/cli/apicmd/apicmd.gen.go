@@ -771,6 +771,7 @@ func Methods() []*apicli.Method {
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server running 1Panel, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\"."},
+				{Path: "skip_plan", Help: "Read and say what an import would do, and plan nothing, for a client that plans only when a person asks to review it."},
 			},
 			Call: apicli.Unary[v1.ImportOnePanelRequest, v1.ImportOnePanelResponse](dockwellv1connect.ImportServiceImportOnePanelProcedure),
 		},
