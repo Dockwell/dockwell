@@ -89,6 +89,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		volumeType = f.volumes(volumes)
 	}
 	e.Registry[build.Image] = dockertest.Image{}
+	e.Registry[build.RailpackFrontend] = dockertest.Image{}
 	builder := &build.Builder{
 		Client: client, SecretsDir: t.TempDir(), InMemory: func(string) bool { return true },
 		Memory: func() (int64, int64, error) { return 4 << 30, 8 << 30, nil }, CPUs: func() int { return 4 },

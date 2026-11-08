@@ -1978,6 +1978,42 @@
   color: var(--healthy);
 }
 
+.git-build-muted {
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.git-build-alert {
+  flex: none;
+  color: var(--critical);
+}
+
+.git-build-headline {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* What Railpack runs, or why the repository couldn't be read, beneath the row. */
+.git-build-detail {
+  margin: 0;
+}
+
+.app-field .git-build-detail code {
+  color: var(--ink);
+}
+
+.git-build-quote {
+  color: var(--ink);
+}
+
+.git-commands {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
 .git-build-spacer,
 .build-spacer {
   flex: 1 1 auto;
@@ -2126,7 +2162,8 @@
 }
 
 @media (max-width: 640px) {
-  .git-source {
+  .git-source,
+  .git-commands {
     grid-template-columns: minmax(0, 1fr);
   }
 

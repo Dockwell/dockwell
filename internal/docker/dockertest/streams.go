@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -179,8 +180,16 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 	if !stdin {
 		in = strings.NewReader("")
 	}
-	if c.img.repo == BuildKitRepository {
-		code := e.fakeBuild(c, stdout, stderr)
+	if c.img.repo == BuildKitRepository || c.img.repo == RailpackRepository {
+		var code int
+		switch {
+		case c.img.repo == RailpackRepository:
+			code = e.fakeCopyRailpack(c, stderr)
+		case slices.Contains(c.Config.Cmd, "dockwell-detect"):
+			code = e.fakeDetect(c, stderr)
+		default:
+			code = e.fakeBuild(c, stdout, stderr)
+		}
 		e.mu.Lock()
 		c.State = docker.State{Status: "exited", ExitCode: code, StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC(), OOMKilled: c.State.OOMKilled}
 		close(c.exited)

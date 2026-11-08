@@ -94,84 +94,89 @@ func (e *Engine) fakeBuild(c *container, stdout, stderr io.Writer) (code int) {
 		i++
 	}
 
-	say("phase fetch")
-	src, err := os.MkdirTemp("", "dockertest-build")
-	if err != nil {
-		say("fail fetch")
-		return 3
+	co, code := checkout(envs, stderr)
+	if code != 0 {
+		return code
 	}
-	defer os.RemoveAll(src)
-	git := func(args ...string) error {
-		cmd := exec.CommandContext(context.Background(), "git", args...) //nolint:gosec // a test's own repository
-		cmd.Dir = src
-		cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			_, _ = stderr.Write(out)
-		}
-		return err
-	}
-	commit, ref := envs["DW_COMMIT"], envs["DW_REF"]
-	if ref == "" {
-		ref = "HEAD"
-	}
-	if git("init", "-q") != nil {
-		say("fail fetch")
-		return 3
-	}
-	// As the script does: the branch, and the commit only if the branch has it.
-	if ref == commit {
-		if git("fetch", "-q", "--depth", "1", envs["DW_URL"], commit) != nil {
-			say("fail fetch")
-			return 3
-		}
-	} else {
-		if git("fetch", "-q", envs["DW_URL"], ref) != nil {
-			say("fail fetch")
-			return 3
-		}
-		if exec.CommandContext(context.Background(), "git", "-C", src, "merge-base", "--is-ancestor", commit, "FETCH_HEAD").Run() != nil { //nolint:gosec // a test's own repository
-			say("fail notonref")
-			return 3
-		}
-	}
-	if git("-c", "advice.detachedHead=false", "checkout", "-q", commit) != nil {
-		say("fail fetch")
-		return 3
-	}
-	author, _ := exec.CommandContext(context.Background(), "git", "-C", src, "log", "-1", "--format=%an").Output() //nolint:gosec // as above
-	subject, _ := exec.CommandContext(context.Background(), "git", "-C", src, "log", "-1", "--format=%s").Output() //nolint:gosec // as above
-	say("commit " + base64.StdEncoding.EncodeToString(bytes.TrimSpace(author)) + " " + base64.StdEncoding.EncodeToString(bytes.TrimSpace(subject)))
-	ctxDir := filepath.Join(src, envs["DW_CONTEXT"])
-	if st, err := os.Stat(ctxDir); err != nil || !st.IsDir() {
-		say("fail context")
-		return 3
-	}
-	dockerfile, err := os.ReadFile(filepath.Join(ctxDir, envs["DW_DOCKERFILE"])) //nolint:gosec // as above
-	if err != nil {
+	defer os.RemoveAll(co.src)
+	ctxDir := co.context
+	railpack := envs["DW_BUILDER"] == "railpack" || envs["DW_BUILDER"] != "dockerfile" && co.dockerfile == ""
+	if !railpack && co.dockerfile == "" {
 		say("fail dockerfile")
 		return 3
 	}
-	say("phase start")
-	say("phase build")
-
-	all := parseDockerfile(string(dockerfile))
+	cfg := docker.Config{Env: []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}}
 	// BuildKit makes a step of what changes the filesystem, and none of what only
 	// says how the image runs, such as EXPOSE or CMD.
 	var steps, meta []step
-	for _, st := range all {
-		switch st.instr {
-		case "FROM", "RUN", "COPY", "ADD", "WORKDIR":
-			steps = append(steps, st)
-		default:
-			meta = append(meta, st)
+	if railpack {
+		if !e.hasRailpack(c) {
+			say("fail need-railpack")
+			return 4
+		}
+		say("builder railpack")
+		say("phase detect")
+		// Railpack takes build arguments and secrets as files, by name.
+		vars := map[string]string{}
+		if dir := e.hostPathOf(c, "/run/dockwell-secrets"); dir != "" {
+			entries, _ := os.ReadDir(dir)
+			for _, en := range entries {
+				name := en.Name()
+				if len(name) > 2 && (name[:2] == "a-" || name[:2] == "s-") {
+					b, _ := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec // a test's own file
+					vars[name[2:]] = string(b)
+				}
+			}
+		}
+		rp := fakePrepare(ctxDir, envs["DW_BUILD_CMD"], envs["DW_START_CMD"], vars)
+		for _, l := range rp.pretty {
+			_, _ = fmt.Fprintln(stderr, l)
+		}
+		say("railpack-info " + base64.StdEncoding.EncodeToString(rp.info))
+		if rp.plan != nil {
+			say("railpack-plan " + base64.StdEncoding.EncodeToString(rp.plan))
+		}
+		if !rp.ok {
+			say("fail railpack")
+			return 3
+		}
+		steps, buildArgs = rp.steps, vars
+		cfg.Entrypoint, cfg.WorkingDir = []string{"/bin/bash", "-c"}, "/app"
+		if rp.start != "" {
+			cfg.Cmd = []string{rp.start}
+		}
+		cfg.Env = append(cfg.Env, rp.env...)
+	} else {
+		say("builder dockerfile")
+		dockerfile, err := os.ReadFile(co.dockerfile)
+		if err != nil {
+			say("fail dockerfile")
+			return 3
+		}
+		for _, st := range parseDockerfile(string(dockerfile)) {
+			switch st.instr {
+			case "FROM", "RUN", "COPY", "ADD", "WORKDIR":
+				steps = append(steps, st)
+			default:
+				meta = append(meta, st)
+			}
 		}
 	}
+	say("phase start")
+	say("phase build")
+	// What a step is called: the Dockerfile frontend numbers its steps, and
+	// Railpack's names each by what it runs.
+	nameOf := func(i int, st step) string {
+		if railpack {
+			return st.line
+		}
+		return fmt.Sprintf("[%d/%d] %s", i+1, len(steps), st.line)
+	}
+
 	status := func(s map[string]any) {
 		b, _ := json.Marshal(s)
 		_, _ = stderr.Write(append(b, '\n'))
 	}
-	cfg := docker.Config{Env: []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}}
 	// BuildKit says what the whole build is before it starts any of it.
 	digests := make([]string, len(steps))
 	prev := sha256.Sum256(nil)
@@ -188,11 +193,18 @@ func (e *Engine) fakeBuild(c *container, stdout, stderr io.Writer) (code int) {
 		}
 		copy(prev[:], h.Sum(nil))
 		digests[i] = "sha256:" + hex.EncodeToString(prev[:])
-		graph = append(graph, map[string]any{"Digest": digests[i], "Name": fmt.Sprintf("[%d/%d] %s", i+1, len(steps), st.line)})
+		graph = append(graph, map[string]any{"Digest": digests[i], "Name": nameOf(i, st)})
+	}
+	if railpack {
+		// And what it does of its own, which isn't a step of the plan.
+		now := time.Now().UTC()
+		for _, name := range []string{"load build definition from railpack-plan.json", "docker-image://ghcr.io/railwayapp/railpack-builder:mise-2026.10.14", "[railpack] secrets hash"} {
+			graph = append(graph, map[string]any{"Digest": "sha256:" + hex.EncodeToString([]byte(name))[:32], "Name": name, "Started": now, "Completed": now})
+		}
 	}
 	status(map[string]any{"Vertexes": graph})
 	for i, st := range steps {
-		name := fmt.Sprintf("[%d/%d] %s", i+1, len(steps), st.line)
+		name := nameOf(i, st)
 		digest := digests[i]
 		now := time.Now().UTC()
 		e.mu.Lock()
@@ -468,4 +480,76 @@ func (e *Engine) loadImage(w http.ResponseWriter, r *http.Request) {
 		}
 		e.Loads++
 	}
+}
+
+// checkedOut is a commit the stand-in checked out: where, the build's folder in it,
+// and its Dockerfile, empty when it hasn't one where the build says.
+type checkedOut struct {
+	src, context, dockerfile string
+}
+
+// checkout does what the builder's script does first: it checks out the commit with
+// the real git, says what it is, and finds the build's folder and Dockerfile.
+func checkout(envs map[string]string, stderr io.Writer) (checkedOut, int) {
+	say := func(s string) { _, _ = fmt.Fprintf(stderr, "dockwell:%s\n", s) }
+	say("phase fetch")
+	src, err := os.MkdirTemp("", "dockertest-build")
+	if err != nil {
+		say("fail fetch")
+		return checkedOut{}, 3
+	}
+	git := func(args ...string) error {
+		cmd := exec.CommandContext(context.Background(), "git", args...) //nolint:gosec // a test's own repository
+		cmd.Dir = src
+		cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			_, _ = stderr.Write(out)
+		}
+		return err
+	}
+	commit, ref := envs["DW_COMMIT"], envs["DW_REF"]
+	if ref == "" {
+		ref = "HEAD"
+	}
+	failed := func(why string) (checkedOut, int) {
+		_ = os.RemoveAll(src)
+		say("fail " + why)
+		return checkedOut{}, 3
+	}
+	if git("init", "-q") != nil {
+		return failed("fetch")
+	}
+	// As the script does: the branch, and the commit only if the branch has it.
+	if ref == commit {
+		if git("fetch", "-q", "--depth", "1", envs["DW_URL"], commit) != nil {
+			return failed("fetch")
+		}
+	} else {
+		if git("fetch", "-q", envs["DW_URL"], ref) != nil {
+			return failed("fetch")
+		}
+		if exec.CommandContext(context.Background(), "git", "-C", src, "merge-base", "--is-ancestor", commit, "FETCH_HEAD").Run() != nil { //nolint:gosec // a test's own repository
+			return failed("notonref")
+		}
+	}
+	if git("-c", "advice.detachedHead=false", "checkout", "-q", commit) != nil {
+		return failed("fetch")
+	}
+	author, _ := exec.CommandContext(context.Background(), "git", "-C", src, "log", "-1", "--format=%an").Output() //nolint:gosec // as above
+	subject, _ := exec.CommandContext(context.Background(), "git", "-C", src, "log", "-1", "--format=%s").Output() //nolint:gosec // as above
+	say("commit " + base64.StdEncoding.EncodeToString(bytes.TrimSpace(author)) + " " + base64.StdEncoding.EncodeToString(bytes.TrimSpace(subject)))
+	ctxDir := filepath.Join(src, envs["DW_CONTEXT"])
+	if st, err := os.Stat(ctxDir); err != nil || !st.IsDir() {
+		_ = os.RemoveAll(src)
+		say("fail context")
+		return checkedOut{}, 3
+	}
+	co := checkedOut{src: src, context: ctxDir}
+	if p := filepath.Join(ctxDir, envs["DW_DOCKERFILE"]); envs["DW_DOCKERFILE"] != "" {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			co.dockerfile = p
+		}
+	}
+	return co, 0
 }

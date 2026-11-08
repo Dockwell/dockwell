@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
@@ -58,6 +59,22 @@ service BuildService {
     option (dockwell.v1.command) = {
       noun: "builds"
       verb: "follow"
+    };
+  }
+
+  // DetectBuild reads how a commit of a repository would build, on a server, as
+  // a build would read it: with its Dockerfile, or with Railpack and what
+  // Railpack found, such as Node 22 and npm run build. Nothing is built or
+  // changed. A plan that builds with Railpack says the same before it builds.
+  rpc DetectBuild(DetectBuildRequest) returns (DetectBuildResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (google.api.http) = {
+      post: "/v1/builds:detect"
+      body: "*"
+    };
+    option (dockwell.v1.command) = {
+      noun: "builds"
+      verb: "detect"
     };
   }
 
@@ -131,6 +148,9 @@ message Build {
   // How many lines its server dropped, as the build wrote faster than the log
   // could take.
   int64 log_lines_dropped = 27;
+  // What its server found as it read the commit: what built it, and with
+  // Railpack, what it installed and ran.
+  BuildDetection detection = 28;
 }
 
 // BuildState is where a build stands.
@@ -178,6 +198,37 @@ message ListBuildsRequest {
   // The environment of a service named by name, by name or ID, when its project
   // has more than one.
   string environment = 5;
+}
+
+// DetectBuildRequest names what to read: a service's build, or build settings
+// for an app that doesn't exist yet.
+message DetectBuildRequest {
+  // A service that builds, by ID or by name, to read its build as it is set.
+  // Unset, build says what to read.
+  string id = 1;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 2;
+  // The environment of a service named by name, by name or ID, when its project
+  // has more than one.
+  string environment = 3;
+  // The server that reads it, by name or ID. Unset, a service's own reads it,
+  // and build settings are read on the first server by name that is connected.
+  string server = 4;
+  // The build settings to read, when id is unset.
+  dockwell.resource.v1alpha1.ImageBuild build = 5;
+}
+
+// DetectBuildResponse says how the commit would build.
+message DetectBuildResponse {
+  // The commit that was read, in full.
+  string commit = 1;
+  // The branch or tag it was read from, such as "main".
+  string ref = 2;
+  // The server that read it, by name.
+  string server_name = 3;
+  // What it found.
+  BuildDetection detection = 4;
 }
 
 // ListBuildsResponse is a page of a service's builds.

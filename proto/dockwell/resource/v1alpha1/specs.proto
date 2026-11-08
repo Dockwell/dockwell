@@ -514,6 +514,27 @@ message ImageBuild {
   map<string, string> secrets = 5;
   // The stage to build, as docker build's --target. Empty builds the last.
   string target = 6;
+
+  // Builder is what turns the source into an image.
+  enum Builder {
+    // The Dockerfile, when the commit has one where dockerfile says, and
+    // Railpack when it hasn't.
+    BUILDER_UNSPECIFIED = 0;
+    // The Dockerfile, which the commit must have.
+    BUILDER_DOCKERFILE = 1;
+    // Railpack (railpack.com), which reads what the source is, such as a Node
+    // app from its package.json, and builds it with no Dockerfile. A plan says
+    // what it found before anything builds.
+    BUILDER_RAILPACK = 2;
+  }
+  // What builds the image. Unset takes the Dockerfile when there is one.
+  Builder builder = 7;
+  // With Railpack, the command that builds the app, such as "npm run build",
+  // in place of the one it finds.
+  string build_command = 8;
+  // With Railpack, the command the image starts with, such as "node server.js",
+  // in place of the one it finds.
+  string start_command = 9;
 }
 
 // GitSource is a Git repository Dockwell builds from.

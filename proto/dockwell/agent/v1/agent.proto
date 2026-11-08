@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.agent.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/build.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/container.proto";
@@ -137,6 +138,9 @@ message BuildUpdate {
   google.protobuf.Timestamp end_time = 15;
   // The image it makes.
   string image = 16;
+  // What the build found as it read the commit: its Dockerfile, or what
+  // Railpack makes of it. Sent once, before it builds.
+  dockwell.v1.BuildDetection detection = 17;
 }
 
 // Unstuck says something that held calls up on the agent ended.
@@ -469,6 +473,8 @@ message Call {
     // Stop a build under way. Numbered apart, as open work adds to this
     // message.
     CancelBuildCall cancel_build = 130;
+    // Reads how a commit would build, building nothing.
+    DetectBuildCall detect_build = 131;
   }
 }
 
@@ -930,6 +936,20 @@ message CancelBuildCall {
   string by = 3;
 }
 
+// DetectBuildCall reads a commit of a repository as a build would, in a
+// container of its own, and says how it would build. It builds nothing.
+message DetectBuildCall {
+  // What to read: the repository, its commit, the folder and the builder. The
+  // build's secrets aren't sent, and Railpack reads it without them.
+  dockwell.resource.v1alpha1.ImageBuild build = 1;
+}
+
+// DetectBuildResult is what reading the commit found.
+message DetectBuildResult {
+  // How it would build.
+  dockwell.v1.BuildDetection detection = 1;
+}
+
 // CancelBuildResult says whether there was such a build to stop.
 message CancelBuildResult {
   // True when the build was waiting or running, and is stopping.
@@ -991,6 +1011,8 @@ message CallResult {
     ProbeResult probe = 60;
     // Answers cancel_build. Numbered apart, as open work adds to this message.
     CancelBuildResult cancel_build = 130;
+    // What reading the commit found.
+    DetectBuildResult detect_build = 131;
   }
 }
 

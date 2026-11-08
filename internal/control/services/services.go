@@ -499,6 +499,36 @@ func (h *Handler) Find(ctx context.Context, named, project, environment string) 
 	return h.find(ctx, named, project, environment)
 }
 
+// BuildOf finds a service by ID or by name, as Find does, and gives its build
+// settings as it is set, its name, and the servers it runs on, by ID. A service
+// that runs an image has no build.
+func (h *Handler) BuildOf(ctx context.Context, named, project, environment string) (*resourcev1.ImageBuild, string, []string, error) {
+	r, err := h.find(ctx, named, project, environment)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	var svc *resourcev1.Service
+	var servers []string
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		decoded, unreadable, err := h.keeper.DecodeEach(ctx, tx, []store.StoredSpec{{At: store.InRevision(r.ID, r.Kind, r.Revision), Spec: r.Spec}})
+		if err != nil {
+			return err
+		}
+		if len(unreadable) > 0 && unreadable[0] != nil {
+			return unreadable[0]
+		}
+		if svc, err = asService(decoded[0]); err != nil {
+			return err
+		}
+		servers, err = tx.Placement(ctx, r.ID, r.Revision)
+		return err
+	})
+	if err != nil {
+		return nil, "", nil, err
+	}
+	return svc.GetBuild(), r.Name, servers, nil
+}
+
 // find reads the service a request names, by ID or by name. A name may need
 // its project or environment to say which, as two Compose files can each have
 // a service called db.

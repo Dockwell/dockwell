@@ -24,6 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
@@ -48,9 +49,11 @@ const (
 	sendLinesMax = 2000 // lines in one message of a follow
 )
 
-// Finder finds a service by ID or by name, as ServiceService does.
+// Finder finds a service by ID or by name, as ServiceService does, and reads its
+// build settings and where it runs.
 type Finder interface {
 	Find(ctx context.Context, named, project, environment string) (store.Resource, error)
+	BuildOf(ctx context.Context, named, project, environment string) (*resourcev1.ImageBuild, string, []string, error)
 }
 
 // Handler implements BuildService, and keeps what agents say of builds.
@@ -60,9 +63,11 @@ type Handler struct {
 	services Finder
 	logger   *slog.Logger
 	now      func() time.Time
+	sources  revision.Sources
 
 	mu       sync.Mutex
 	watchers map[string]map[chan []store.BuildLine]struct{}
+	detected map[string]detected
 }
 
 var _ dockwellv1connect.BuildServiceHandler = (*Handler)(nil)
@@ -70,7 +75,10 @@ var _ dockwellv1connect.BuildServiceHandler = (*Handler)(nil)
 // New returns a handler that hears of builds from agents, and finds services with
 // services.
 func New(db *store.DB, agents *agentapi.Agents, services Finder, logger *slog.Logger) *Handler {
-	h := &Handler{db: db, agents: agents, services: services, logger: logger, now: time.Now, watchers: map[string]map[chan []store.BuildLine]struct{}{}}
+	h := &Handler{
+		db: db, agents: agents, services: services, logger: logger, now: time.Now,
+		watchers: map[string]map[chan []store.BuildLine]struct{}{}, detected: map[string]detected{},
+	}
 	agents.OnBuild(h.record)
 	return h
 }
@@ -208,6 +216,11 @@ func merge(b *store.Build, u *agentv1.BuildUpdate) {
 	}
 	if v := u.GetFailedLine(); v != "" {
 		b.FailedLine = fit(v, maxLine)
+	}
+	if d := fitDetection(resourcepb.DetectionFrom(u.GetDetection())); d != nil && b.Detection == "" {
+		if j, err := json.Marshal(d); err == nil {
+			b.Detection = string(j)
+		}
 	}
 	b.Dropped += max(u.GetDropped(), 0)
 	if t := u.GetStartTime(); t != nil && b.StartedAt == nil {
@@ -385,6 +398,12 @@ func toProto(b store.Build, server string) *dockwellv1.Build {
 		Url: b.URL, Ref: b.Ref, Commit: b.Commit, CommitSubject: b.Subject, CommitAuthor: b.Author, Image: b.Image,
 		CreateTime: timestamppb.New(b.CreatedAt), Steps: int32(b.Steps), CachedSteps: int32(b.Cached), Step: int32(b.Step), StepName: b.StepName, //nolint:gosec // a build's steps are few
 		Error: b.Error, FailedLine: b.FailedLine, CancelledBy: b.CancelledBy, LogLines: b.Lines, LogLinesLeftOut: b.LeftOut, LogLinesDropped: b.Dropped,
+	}
+	if b.Detection != "" {
+		var d resource.BuildDetection
+		if json.Unmarshal([]byte(b.Detection), &d) == nil {
+			p.Detection = resourcepb.Detection(&d)
+		}
 	}
 	if b.StartedAt != nil {
 		p.StartTime = timestamppb.New(*b.StartedAt)

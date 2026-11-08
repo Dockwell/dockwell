@@ -3,7 +3,7 @@
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type Build, type BuildLine, BuildService, BuildState } from "@dockwell/api";
+import { type Build, type BuildLine, BuildService, BuildState, ImageBuild_Builder } from "@dockwell/api";
 import { Button, Callout, cx, type Status, StatusBadge } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -12,6 +12,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { shownRef } from "../../lib/built";
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
+import { useDetectionWords } from "./detection";
 import "./Apps.css";
 
 /** A build that waits or runs, which its server goes on telling of. */
@@ -126,6 +127,7 @@ export function BuildPart({ build: given, onEnded }: { build: Build; onEnded?: (
   const { t } = useLingui();
   const time = useTimeWords();
   const look = useBuildLook();
+  const detected = useDetectionWords();
   const transport = useTransport();
   const { build: shown, lines, leftOut, error } = useBuildFollow(given, onEnded);
   const build = shown ?? given;
@@ -212,6 +214,17 @@ export function BuildPart({ build: given, onEnded }: { build: Build; onEnded?: (
             {build.commitAuthor ? <span className="app-muted"> · {build.commitAuthor}</span> : null}
           </dd>
         </div>
+        {build.detection ? (
+          <div className="build-facts-wide">
+            <dt>{t`Built with`}</dt>
+            <dd>
+              {detected.headline(build.detection)}
+              {build.detection.builder === ImageBuild_Builder.RAILPACK && !build.detection.error ? (
+                <span className="app-muted build-detected"> {detected.steps(build.detection)}</span>
+              ) : null}
+            </dd>
+          </div>
+        ) : null}
         <div className="build-facts-wide">
           <dt>{t`Source`}</dt>
           <dd>

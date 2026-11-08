@@ -3,8 +3,9 @@
 // Builds from Git (ADR 0046), as a person does them: an app from a repository,
 // through its plan, built on its server and run; a deploy whose build fails, which
 // leaves what runs as it was and says which step and what it said last; and a build
-// someone cancels. The repository is scripts/gitserve's, and the build is fakedocker's
-// stand-in for BuildKit; CI's Docker job builds with the real one.
+// someone cancels; an app with no Dockerfile, which Railpack builds, and one it can't.
+// The repository is scripts/gitserve's, and the build is fakedocker's stand-in for
+// BuildKit and Railpack; CI's Docker job builds with the real ones.
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { join, resolve } from "node:path";
@@ -125,6 +126,48 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   if (after !== first) fail(`a cancelled build changed what runs, from ${first} to ${after}`);
   await shoot(page, "build-cancelled");
   await move(git, "stable");
+
+  step("an app with no Dockerfile builds with Railpack, and New app and the plan say what Railpack found first");
+  await page.goto(`${origin}/apps/new`);
+  const next = page.getByRole("dialog", { name: "New app" });
+  await next.getByLabel("Repository").fill(`${git}/web.git`);
+  await next.getByLabel("Branch").fill("node");
+  await next.getByLabel(/^Name/).fill("catalog");
+  const row = next.getByRole("status", { name: "Build" });
+  await row.getByText("Railpack · Node 22", { exact: true }).waitFor({ timeout: 60_000 });
+  await next.getByText("Runs npm install, npm run build, then starts with npm run start.", { exact: false }).waitFor();
+  await shoot(page, "build-railpack-new-app");
+  await next.getByRole("button", { name: "Review plan" }).click();
+  const railpackPlan = planSheet(page);
+  await railpackPlan.getByText(/^Builds .*web at [0-9a-f]{7} \(node\) on .* first\./).waitFor();
+  await railpackPlan.getByText("With Railpack, as Node 22.", { exact: false }).waitFor();
+  await shoot(page, "build-railpack-plan");
+  await railpackPlan.getByRole("button", { name: /Apply plan/ }).click();
+  const catalog = page.getByRole("dialog", { name: /^catalog is (live|deployed|running)$/ });
+  await catalog.waitFor({ timeout: 60_000 });
+  await catalog.getByRole("button", { name: "Open catalog" }).click();
+  await page.getByRole("heading", { level: 1, name: "catalog" }).waitFor();
+  await page.getByRole("link", { name: /Deployments/ }).click();
+  const builtWith = page.locator(".build-facts dt", { hasText: "Built with" }).locator("xpath=following-sibling::dd");
+  await builtWith.getByText("Railpack · Node 22", { exact: false }).waitFor();
+  // Railpack's build step, whether it ran or came from the cache, as Railpack names it.
+  await page.getByRole("log", { name: "Build log" }).getByText("npm run build", { exact: true }).waitFor();
+  await shoot(page, "build-railpack-deployed");
+
+  step("a repository Railpack can't read says so before anything builds, and its plan is refused");
+  await page.goto(`${origin}/apps/new`);
+  const docs = page.getByRole("dialog", { name: "New app" });
+  await docs.getByLabel("Repository").fill(`${git}/web.git`);
+  await docs.getByLabel("Branch").fill("docs");
+  await docs.getByLabel(/^Name/).fill("docs");
+  await docs
+    .getByRole("status", { name: "Build" })
+    .getByText("Railpack can't tell how to build it", { exact: true })
+    .waitFor({ timeout: 60_000 });
+  await docs.getByText("Add a Dockerfile, or set a start command under Change.", { exact: false }).waitFor();
+  await shoot(page, "build-railpack-cant");
+  await docs.getByRole("button", { name: "Review plan" }).click();
+  await docs.getByText(/Railpack can't tell how to build .*web at [0-9a-f]{7} for docs/).waitFor();
 }
 
 /**

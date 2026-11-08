@@ -26,6 +26,7 @@ func (c *calls) buildUpdates(change string, ref resource.Ref) func(resource.Buil
 		if !u.End.IsZero() {
 			msg.EndTime = timestamppb.New(u.End)
 		}
+		msg.Detection = resourcepb.Detection(u.Detection)
 		for _, l := range u.Lines {
 			msg.Lines = append(msg.Lines, &dockwellv1.BuildLine{Number: l.Number, Time: timestamppb.New(l.Time), Step: int32(l.Step), Text: l.Text}) //nolint:gosec // as above
 		}

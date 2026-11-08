@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
 )
@@ -174,9 +175,71 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 		p.BackupFirst = &dockwellv1.BackupFirst{BackupId: b.ID, Method: BackupMethod(b.Method), Database: b.Database, Stops: b.Stops, EstimateBytes: b.Estimate, Unmeasured: b.Unmeasured}
 	}
 	if b := s.Build; b != nil {
-		p.Build = &dockwellv1.BuildPlan{Url: b.URL, Ref: b.Ref, Commit: b.Commit, Context: b.Context, Dockerfile: b.Dockerfile, Image: b.Image}
+		p.Build = &dockwellv1.BuildPlan{
+			Url: b.URL, Ref: b.Ref, Commit: b.Commit, Context: b.Context, Dockerfile: b.Dockerfile, Image: b.Image,
+			Builder: Builder(b.Builder), Detection: Detection(b.Detection),
+		}
 	}
 	return p
+}
+
+// Builder is what builds an image, as the API has it.
+func Builder(b string) resourcev1.ImageBuild_Builder {
+	switch b {
+	case resource.BuilderDockerfile:
+		return resourcev1.ImageBuild_BUILDER_DOCKERFILE
+	case resource.BuilderRailpack:
+		return resourcev1.ImageBuild_BUILDER_RAILPACK
+	}
+	return resourcev1.ImageBuild_BUILDER_UNSPECIFIED
+}
+
+// BuilderFrom is what builds an image, from the API's.
+func BuilderFrom(b resourcev1.ImageBuild_Builder) string {
+	switch b {
+	case resourcev1.ImageBuild_BUILDER_DOCKERFILE:
+		return resource.BuilderDockerfile
+	case resourcev1.ImageBuild_BUILDER_RAILPACK:
+		return resource.BuilderRailpack
+	case resourcev1.ImageBuild_BUILDER_UNSPECIFIED:
+	}
+	return resource.BuilderAuto
+}
+
+// Detection is what reading a commit found, as the API has it.
+func Detection(d *resource.BuildDetection) *dockwellv1.BuildDetection {
+	if d == nil {
+		return nil
+	}
+	p := &dockwellv1.BuildDetection{
+		Builder: Builder(d.Builder), Dockerfile: d.Dockerfile, BaseImage: d.BaseImage, RailpackVersion: d.Railpack,
+		Providers: d.Providers, StartCommand: d.Start, Warnings: d.Warnings, Error: d.Error,
+	}
+	for _, pkg := range d.Packages {
+		p.Packages = append(p.Packages, &dockwellv1.DetectedPackage{Name: pkg.Name, Requested: pkg.Requested, Resolved: pkg.Resolved, Source: pkg.Source})
+	}
+	for _, st := range d.Steps {
+		p.Steps = append(p.Steps, &dockwellv1.DetectedStep{Name: st.Name, Commands: st.Commands})
+	}
+	return p
+}
+
+// DetectionFrom is what reading a commit found, from the API's.
+func DetectionFrom(p *dockwellv1.BuildDetection) *resource.BuildDetection {
+	if p == nil {
+		return nil
+	}
+	d := &resource.BuildDetection{
+		Builder: BuilderFrom(p.GetBuilder()), Dockerfile: p.GetDockerfile(), BaseImage: p.GetBaseImage(), Railpack: p.GetRailpackVersion(),
+		Providers: p.GetProviders(), Start: p.GetStartCommand(), Warnings: p.GetWarnings(), Error: p.GetError(),
+	}
+	for _, pkg := range p.GetPackages() {
+		d.Packages = append(d.Packages, resource.DetectedPackage{Name: pkg.GetName(), Requested: pkg.GetRequested(), Resolved: pkg.GetResolved(), Source: pkg.GetSource()})
+	}
+	for _, st := range p.GetSteps() {
+		d.Steps = append(d.Steps, resource.DetectedStep{Name: st.GetName(), Commands: st.GetCommands()})
+	}
+	return d
 }
 
 // backupMethods are how backups are taken, as the API has them.
@@ -433,7 +496,10 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		s.BackupFirst = &resource.BackupFirst{ID: b.GetBackupId(), Method: BackupMethodFrom(b.GetMethod()), Database: b.GetDatabase(), Stops: b.GetStops(), Estimate: b.GetEstimateBytes(), Unmeasured: b.GetUnmeasured()}
 	}
 	if b := p.GetBuild(); b != nil {
-		s.Build = &resource.BuildPlan{URL: b.GetUrl(), Ref: b.GetRef(), Commit: b.GetCommit(), Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Image: b.GetImage()}
+		s.Build = &resource.BuildPlan{
+			URL: b.GetUrl(), Ref: b.GetRef(), Commit: b.GetCommit(), Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Image: b.GetImage(),
+			Builder: BuilderFrom(b.GetBuilder()), Detection: DetectionFrom(b.GetDetection()),
+		}
 	}
 	return s, nil
 }

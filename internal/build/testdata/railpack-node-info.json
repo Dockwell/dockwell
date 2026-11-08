@@ -1,0 +1,55 @@
+{
+  "detectedProviders": ["node"],
+  "logs": [
+    {
+      "DocsPath": "",
+      "Level": "warn",
+      "Msg": "No node package manager detected, using npm"
+    },
+    {
+      "DocsPath": "/config/recommendations#specify-the-node-package-manager-version",
+      "Level": "suggestion",
+      "Msg": "Specify the package manager and version explicitly"
+    },
+    {
+      "DocsPath": "",
+      "Level": "info",
+      "Msg": "Detected Node"
+    },
+    {
+      "DocsPath": "",
+      "Level": "info",
+      "Msg": "Using npm package manager"
+    },
+    {
+      "DocsPath": "",
+      "Level": "info",
+      "Msg": "Custom start command detected, skipping Caddy start"
+    },
+    {
+      "DocsPath": "/architecture/recommendations",
+      "Level": "suggestion",
+      "Msg": "Add a `package-lock.json` for more deterministic installs"
+    },
+    {
+      "DocsPath": "/config/excluding-files",
+      "Level": "suggestion",
+      "Msg": "Applying default exclude patterns: `node_modules`. Add a `.dockerignore` to customize"
+    }
+  ],
+  "metadata": {
+    "nodePackageManager": "npm",
+    "nodeRuntime": "node",
+    "providers": "node"
+  },
+  "railpackVersion": "0.43.0",
+  "resolvedPackages": {
+    "node": {
+      "name": "node",
+      "requestedVersion": "22",
+      "resolvedVersion": "22.23.4",
+      "source": "package.json > engines > node"
+    }
+  },
+  "success": true
+}

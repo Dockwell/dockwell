@@ -49,13 +49,42 @@ type BuildRequest struct {
 	// Context, Dockerfile, Target and Args say how.
 	Context, Dockerfile, Target string
 	Args                        map[string]string
+	// Builder is what builds it: resource.BuilderAuto, BuilderDockerfile or
+	// BuilderRailpack. BuildCommand and StartCommand stand in for what Railpack
+	// finds.
+	Builder, BuildCommand, StartCommand string
 	// Secrets are the values of its secrets, by ID, which go no further than the
 	// build.
 	Secrets map[string]string
 }
 
+// Request is what a build of svc asks its server to build, all but its secrets.
+func Request(svc *resourcev1.Service) BuildRequest {
+	b := svc.GetBuild()
+	g := b.GetGit()
+	return BuildRequest{
+		Image: svc.GetApp().GetImage(),
+		URL:   g.GetUrl(), Ref: g.GetRef(), Commit: g.GetCommit(),
+		Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Target: b.GetTarget(), Args: b.GetArgs(),
+		Builder: builderOf(b.GetBuilder()), BuildCommand: b.GetBuildCommand(), StartCommand: b.GetStartCommand(),
+	}
+}
+
+// builderOf is what builds an image, as a request says it.
+func builderOf(b resourcev1.ImageBuild_Builder) string {
+	switch b {
+	case resourcev1.ImageBuild_BUILDER_DOCKERFILE:
+		return resource.BuilderDockerfile
+	case resourcev1.ImageBuild_BUILDER_RAILPACK:
+		return resource.BuilderRailpack
+	case resourcev1.ImageBuild_BUILDER_UNSPECIFIED:
+	}
+	return resource.BuilderAuto
+}
+
 // Bounds on a build's settings, so a spec stays a size a plan and a label can hold.
 const (
+	maxCommand    = 1024
 	maxURL        = 2048
 	maxRef        = 255
 	maxPath       = 1024
@@ -72,6 +101,12 @@ var (
 	target   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 	commitID = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
 )
+
+// CheckBuild checks build settings as a service's spec would hold them, and writes
+// them one way, as checkBuild does.
+func CheckBuild(b *resourcev1.ImageBuild) error {
+	return checkBuild(&resourcev1.Service{Build: b})
+}
 
 // checkBuild checks a service's build, and writes what means the same one way: a
 // URL as people paste it, such as github.com/acme/web, with its https://, and a
@@ -108,6 +143,23 @@ func checkBuild(svc *resourcev1.Service) error {
 	if b.Dockerfile == "Dockerfile" {
 		b.Dockerfile = ""
 	}
+	switch b.GetBuilder() {
+	case resourcev1.ImageBuild_BUILDER_UNSPECIFIED, resourcev1.ImageBuild_BUILDER_DOCKERFILE, resourcev1.ImageBuild_BUILDER_RAILPACK:
+	default:
+		return fmt.Errorf("%d isn't a builder: a build takes its Dockerfile, Railpack, or leaves it unset to take the Dockerfile when there is one", b.GetBuilder())
+	}
+	railpack := b.GetBuilder() == resourcev1.ImageBuild_BUILDER_RAILPACK
+	if b.GetBuilder() == resourcev1.ImageBuild_BUILDER_DOCKERFILE && (b.GetBuildCommand() != "" || b.GetStartCommand() != "") {
+		return errors.New("a build with its Dockerfile runs what the Dockerfile says, so it takes no build or start command. Put them in the Dockerfile, or build with Railpack")
+	}
+	for what, c := range map[string]string{"build command": b.GetBuildCommand(), "start command": b.GetStartCommand()} {
+		if len(c) > maxCommand || strings.ContainsAny(c, "\x00\n\r") {
+			return fmt.Errorf("the build's %s is one line of up to %d characters", what, maxCommand)
+		}
+	}
+	if railpack && (b.GetDockerfile() != "" || b.GetTarget() != "") {
+		return errors.New("a build with Railpack takes no Dockerfile path or stage, as Railpack builds with no Dockerfile. Leave them out, or build with the Dockerfile")
+	}
 	if t := b.GetTarget(); t != "" && (len(t) > maxArgName || !target.MatchString(t)) {
 		return fmt.Errorf("%q isn't a stage a Dockerfile can name. Use letters, digits, ., _ and -, as in FROM node:22 AS build", t)
 	}
@@ -120,6 +172,19 @@ func checkBuild(svc *resourcev1.Service) error {
 		}
 		if len(v) > maxArgValue || strings.ContainsRune(v, 0) {
 			return fmt.Errorf("the build argument %s holds up to %d bytes of text", k, maxArgValue)
+		}
+	}
+	if railpack {
+		// Railpack gives both to the build as environment variables.
+		for _, set := range []map[string]string{b.GetArgs(), b.GetSecrets()} {
+			for k := range set {
+				switch {
+				case !argName.MatchString(k):
+					return fmt.Errorf("%q can't name a build's secret or argument with Railpack, which gives them to the build as environment variables. Use letters, digits and _, starting with a letter or _", k)
+				case k == "PATH" || k == "HOME":
+					return fmt.Errorf("%s is the build's own, so a build with Railpack can't set it. Name it something else", k)
+				}
+			}
 		}
 	}
 	if len(b.GetSecrets()) > maxSecrets {
@@ -138,7 +203,7 @@ func checkBuild(svc *resourcev1.Service) error {
 	}
 	if len(b.GetArgs()) > 0 || b.GetTarget() != "" {
 		// The label that records the build has to fit on a container.
-		size := len(g.GetUrl()) + len(g.GetRef()) + len(b.GetContext()) + len(b.GetDockerfile())
+		size := len(g.GetUrl()) + len(g.GetRef()) + len(b.GetContext()) + len(b.GetDockerfile()) + len(b.GetBuildCommand()) + len(b.GetStartCommand())
 		for k, v := range b.GetArgs() {
 			size += len(k) + len(v)
 		}
@@ -269,7 +334,7 @@ var _ resource.WriterNamer = (*Driver)(nil)
 // runs an image is its image's repository, so another tag of it, as CI deploys, is
 // the same code. One that builds is its repository and how it builds: the folder,
 // the Dockerfile, the stage and the build arguments, as ARG BASE in FROM $BASE
-// reaches any image. A new commit of the branch it follows is the same code, as a
+// reaches any image, and with Railpack the builder and the commands it runs. A new commit of the branch it follows is the same code, as a
 // new tag is, and the build checks the commit is on the branch; a commit the build
 // names as its ref is checked against no branch, so each is code of its own.
 //
@@ -287,6 +352,11 @@ func (d *Driver) WriterOf(spec proto.Message) string {
 	}
 	g := b.GetGit()
 	parts := []string{"git", g.GetUrl(), "context=" + b.GetContext(), "dockerfile=" + b.GetDockerfile(), "target=" + b.GetTarget()}
+	// What builds it, and with Railpack the commands that build and start it, are
+	// its code as much as its Dockerfile is.
+	if b.GetBuilder() != resourcev1.ImageBuild_BUILDER_UNSPECIFIED || b.GetBuildCommand() != "" || b.GetStartCommand() != "" {
+		parts = append(parts, "builder="+builderOf(b.GetBuilder()), "build="+b.GetBuildCommand(), "start="+b.GetStartCommand())
+	}
 	for _, k := range slices.Sorted(maps.Keys(b.GetArgs())) {
 		parts = append(parts, "arg:"+k+"="+b.GetArgs()[k])
 	}
@@ -313,6 +383,7 @@ func buildPlan(svc *resourcev1.Service) *resource.BuildPlan {
 	return &resource.BuildPlan{
 		URL: g.GetUrl(), Ref: g.GetRef(), Commit: g.GetCommit(),
 		Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Image: svc.GetApp().GetImage(),
+		Builder: builderOf(b.GetBuilder()),
 	}
 }
 
@@ -337,13 +408,9 @@ func (d *Driver) build(ctx context.Context, step resource.Step, svc *resourcev1.
 		return err
 	}
 	defer clear(secrets)
-	g := b.GetGit()
-	err = d.Builds.Build(ctx, BuildRequest{
-		Service: step.Ref, Change: resource.DeployOf(ctx).Change, Image: svc.GetApp().GetImage(),
-		URL: g.GetUrl(), Ref: g.GetRef(), Commit: g.GetCommit(),
-		Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Target: b.GetTarget(), Args: b.GetArgs(),
-		Secrets: secrets,
-	})
+	req := Request(svc)
+	req.Service, req.Change, req.Secrets = step.Ref, resource.DeployOf(ctx).Change, secrets
+	err = d.Builds.Build(ctx, req)
 	if err != nil {
 		resource.Report(ctx, resource.Outcome{Untouched: true})
 	}

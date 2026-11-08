@@ -169,12 +169,24 @@ type builtFrom struct {
 	Dockerfile string            `json:"dockerfile,omitempty"`
 	Args       map[string]string `json:"args,omitempty"`
 	Target     string            `json:"target,omitempty"`
+	Builder    string            `json:"builder,omitempty"`
+	Build      string            `json:"build_command,omitempty"`
+	Start      string            `json:"start_command,omitempty"`
+}
+
+// builders are what builds an image, as a label names them.
+var builders = map[resourcev1.ImageBuild_Builder]string{
+	resourcev1.ImageBuild_BUILDER_DOCKERFILE: "dockerfile",
+	resourcev1.ImageBuild_BUILDER_RAILPACK:   "railpack",
 }
 
 // buildLabel is the BuildLabelKey label for a build.
 func buildLabel(b *resourcev1.ImageBuild) string {
 	g := b.GetGit()
-	out, _ := json.Marshal(builtFrom{URL: g.GetUrl(), Ref: g.GetRef(), Commit: g.GetCommit(), Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Args: b.GetArgs(), Target: b.GetTarget()})
+	out, _ := json.Marshal(builtFrom{
+		URL: g.GetUrl(), Ref: g.GetRef(), Commit: g.GetCommit(), Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Args: b.GetArgs(), Target: b.GetTarget(),
+		Builder: builders[b.GetBuilder()], Build: b.GetBuildCommand(), Start: b.GetStartCommand(),
+	})
 	return string(out)
 }
 
@@ -184,10 +196,17 @@ func readBuildLabel(label string) (*resourcev1.ImageBuild, error) {
 	if err := json.Unmarshal([]byte(label), &f); err != nil || f.URL == "" {
 		return nil, fmt.Errorf("the container can't be read back: its %s label isn't one Dockwell wrote", BuildLabelKey)
 	}
-	return &resourcev1.ImageBuild{
+	b := &resourcev1.ImageBuild{
 		Source:  &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: f.URL, Ref: f.Ref, Commit: f.Commit}},
 		Context: f.Context, Dockerfile: f.Dockerfile, Args: f.Args, Target: f.Target,
-	}, nil
+		BuildCommand: f.Build, StartCommand: f.Start,
+	}
+	for k, v := range builders {
+		if v == f.Builder {
+			b.Builder = k
+		}
+	}
+	return b, nil
 }
 
 // ParseLabel reads a LabelKey label back into what it records.

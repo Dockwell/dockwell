@@ -1418,6 +1418,9 @@ msgstr "已构建"
 msgid "Built on"
 msgstr "构建于"
 
+msgid "Built with"
+msgstr "构建工具"
+
 msgid "Cache hit"
 msgstr "缓存命中率"
 
@@ -1827,6 +1830,9 @@ msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权�
 msgid "A NAME=value a line, as docker build's --build-arg. They aren't secret: they stay in the image's history."
 msgstr "每行一个 NAME=value，相当于 docker build 的 --build-arg。它们不是机密：会留在镜像的历史记录中。"
 
+msgid "A NAME=value a line. A Dockerfile reads them as --build-arg, and Railpack as variables, such as RAILPACK_NODE_VERSION=20."
+msgstr "每行一个 NAME=value。Dockerfile 把它们当作 --build-arg 读取，Railpack 当作变量读取，比如 RAILPACK_NODE_VERSION=20。"
+
 msgid "A URL has no spaces. Write it as https://github.com/acme/web."
 msgstr "URL 中不能有空格。请写成 https://github.com/acme/web。"
 
@@ -1835,6 +1841,9 @@ msgstr "通过 HTTPS 访问的公开仓库。推送暂不会自动部署：点�
 
 msgid "A volume such as data at /data, or a server path."
 msgstr "可以是卷（例如挂载到 /data 的 data），也可以是服务器路径。"
+
+msgid "Add a Dockerfile, or set a start command under Change."
+msgstr "添加一个 Dockerfile，或在“更改”里设置启动命令。"
 
 msgid "Add an .env file"
 msgstr "添加 .env 文件"
@@ -1860,14 +1869,23 @@ msgstr "服务器能够拉取的任意镜像，例如 nginx:1.27。"
 msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
 msgstr "能读取 {holder} 的{where}的任何人，都能看到 {names} 的值。"
 
+msgid "Auto"
+msgstr "自动"
+
 msgid "Branch"
 msgstr "分支"
 
 msgid "Build arguments"
 msgstr "构建参数"
 
+msgid "Build command"
+msgstr "构建命令"
+
 msgid "Build {repository} as {name}"
 msgstr "将 {repository} 构建为 {name}"
+
+msgid "Builder"
+msgstr "构建工具"
 
 msgid "Can't make a plan"
 msgstr "无法生成计划"
@@ -1896,6 +1914,9 @@ msgstr "关闭并丢弃在此输入的内容？"
 msgid "Compose"
 msgstr "Compose"
 
+msgid "Couldn't read the repository"
+msgstr "无法读取仓库"
+
 msgid "Directory on the server"
 msgstr "服务器上的目录"
 
@@ -1904,6 +1925,9 @@ msgstr "丢弃"
 
 msgid "Dockerfile"
 msgstr "Dockerfile"
+
+msgid "Dockerfile or Railpack"
+msgstr "Dockerfile 或 Railpack"
 
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "如果卷 <0>{source}</0> 还不存在，Dockwell 会创建它。"
@@ -2021,11 +2045,27 @@ msgstr "项目"
 msgid "Project name"
 msgstr "项目名称"
 
+msgid "Railpack"
+msgstr "Railpack"
+
+msgid "Railpack can't tell how to build it"
+msgstr "Railpack 无法判断如何构建它"
+
+msgid "Railpack reads what the app is, such as Node from its package.json, and builds it with no Dockerfile."
+msgstr "Railpack 会识别应用的类型，比如从 package.json 识别出 Node，无需 Dockerfile 即可构建。"
+
+#. placeholder {0}: warned.join(" ")
+msgid "Railpack says: {0}"
+msgstr "Railpack 提示：{0}"
+
 msgid "Reaches {path}"
 msgstr "可访问 {path}"
 
 msgid "Reading the file"
 msgstr "正在读取文件"
+
+msgid "Reading the repository"
+msgstr "正在读取仓库"
 
 msgid "Remove this port"
 msgstr "移除此端口"
@@ -2072,8 +2112,17 @@ msgstr "查看应用"
 msgid "Show the value"
 msgstr "显示值"
 
+msgid "Start command"
+msgstr "启动命令"
+
 msgid "Such as 8080 on the server, to 80 in the app."
 msgstr "例如将服务器上的 8080 映射到应用内的 80。"
+
+msgid "The Dockerfile when the commit has one, and Railpack when it hasn't."
+msgstr "提交中有 Dockerfile 时用 Dockerfile，没有时用 Railpack。"
+
+msgid "The commit's Dockerfile builds it, and the build fails without one."
+msgstr "用该提交中的 Dockerfile 构建，没有 Dockerfile 时构建会失败。"
 
 msgid "The file uses these, and has no default for them."
 msgstr "文件用到了这些变量，且没有默认值。"
@@ -2114,11 +2163,17 @@ msgstr "卷或服务器路径"
 msgid "What the build starts from, in the repository."
 msgstr "构建在仓库中的起始位置。"
 
+msgid "What the image starts with."
+msgstr "镜像启动时运行的命令。"
+
 msgid "What this file makes"
 msgstr "此文件会创建的内容"
 
 msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
 msgstr "文件所在的位置，例如 <0>/opt/shop</0>。相对于它的路径（例如 <1>./data</1>）从这里开始，每个都是你在计划中批准的服务器路径。"
+
+msgid "With Railpack, in place of the one it finds."
+msgstr "用于 Railpack，替代它识别出的命令。"
 
 msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "没有卷时，容器被替换后写入的内容会丢失。"
@@ -2129,11 +2184,11 @@ msgstr "每个写成 NAME=value，各占一行。"
 msgid "You approve what it reaches in the plan"
 msgstr "你将在计划中批准它可访问的内容"
 
-msgid "at <0>./{dockerfile}</0>"
-msgstr "位于 <0>./{dockerfile}</0>"
-
 msgid "command"
 msgstr "命令"
+
+msgid "detected"
+msgstr "已识别"
 
 msgid "driver options"
 msgstr "驱动选项"
@@ -2146,6 +2201,9 @@ msgstr "环境变量名称"
 
 msgid "labels"
 msgstr "标签"
+
+msgid "read from the repository once you name it"
+msgstr "填写仓库后从中读取"
 
 msgid "the network {owner}"
 msgstr "网络 {owner}"
@@ -2177,6 +2235,29 @@ msgstr "{count, plural, other {显示}}"
 
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, other {# 个变量}}"
+
+msgid "Found nothing to start the app with: set a start command."
+msgstr "没有找到启动应用的命令：请设置启动命令。"
+
+#. placeholder {0}: codes(commands)
+msgid "Runs {0}, and found nothing to start the app with: set a start command."
+msgstr "运行 {0}，但没有找到启动应用的命令：请设置启动命令。"
+
+#. placeholder {0}: codes(commands)
+msgid "Runs {0}, then starts with <0>{start}</0>."
+msgstr "运行 {0}，然后以 <0>{start}</0> 启动。"
+
+msgid "Starts with <0>{start}</0>."
+msgstr "以 <0>{start}</0> 启动。"
+
+msgid "Static site"
+msgstr "静态网站"
+
+#. placeholder {0}: p.name
+#. placeholder {1}: p.resolved
+#. placeholder {2}: p.source
+msgid "{0} {1}, from {2}"
+msgstr "{0} {1}，来自 {2}"
 
 msgid "Changed {field}"
 msgstr "已更改 {field}"
@@ -4355,6 +4436,10 @@ msgstr "如果备份失败，升级会就此停止，不做其他操作。撤销
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "如果回滚 {name}，{names} 会保持原样：新版本写入的内容不会被撤销。"
 
+#. placeholder {0}: detected.packages(d).join("; ")
+msgid "Installs {0}."
+msgstr "安装 {0}。"
+
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "它来自 Compose 项目 {project}。在 Dockwell 更换它的镜像之前，运行该项目的工具会作用于这个容器。更换之后，再次启动该项目会启动第二个副本，使用相同的目录和相同的名称。如果是面板或脚本在运行它，使用其移除功能之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。如果是你自己运行的 docker compose，请不要再运行那个文件。"
 
@@ -4435,6 +4520,9 @@ msgstr "重新拉取 {image}，并且无论结果如何都会替换 {name}，因
 
 msgid "Pulls {image} again, and replaces {name} with what that names now, in place of the digest it's pinned to."
 msgstr "重新拉取 {image}，并用它现在指向的内容替换 {name}，不再固定于原来的摘要。"
+
+msgid "Railpack says: {warning}"
+msgstr "Railpack 提示：{warning}"
 
 msgid "Read it for the rest before you pass one a secret."
 msgstr "在向其中传入密钥之前，请先阅读文件中的其余部分。"
@@ -4556,6 +4644,29 @@ msgstr "在启用 SELinux 的服务器上，Docker 会把那里的所有内容�
 
 msgid "Where SELinux is enforced, Docker relabels everything there, to share it between containers."
 msgstr "在启用 SELinux 的服务器上，Docker 会重新标记那里的所有内容，以便在容器之间共享。"
+
+#. placeholder {0}: detected.what(d)
+msgid "With Railpack, as {0}."
+msgstr "使用 Railpack，识别为 {0}。"
+
+msgid "With Railpack, which reads the commit as the build starts."
+msgstr "使用 Railpack，在构建开始时读取该提交。"
+
+#. placeholder {0}: d.dockerfile
+#. placeholder {1}: d.baseImage
+msgid "With its Dockerfile at <0>{0}</0>, from <1>{1}</1>."
+msgstr "使用 <0>{0}</0> 处的 Dockerfile，基于 <1>{1}</1>。"
+
+#. placeholder {0}: d.dockerfile
+msgid "With its Dockerfile at <0>{0}</0>."
+msgstr "使用 <0>{0}</0> 处的 Dockerfile。"
+
+#. placeholder {0}: d.baseImage
+msgid "With its Dockerfile, from <0>{0}</0>."
+msgstr "使用其 Dockerfile，基于 <0>{0}</0>。"
+
+msgid "With its Dockerfile."
+msgstr "使用其 Dockerfile。"
 
 msgid "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
 msgstr "你选择了不备份。撤销会恢复旧版本，但不会恢复新版本对数据的改动，例如已迁移的数据库。请先备份不能丢失的内容。"

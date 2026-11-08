@@ -53,6 +53,8 @@ type Build struct {
 	Error         string
 	FailedLine    string
 	CancelledBy   string
+	// Detection is what it found as it read its commit, as JSON, or empty.
+	Detection string
 	// Lines is how many its log has had, LeftOut how many of those it doesn't keep,
 	// and Dropped how many its server dropped.
 	Lines, LeftOut, Dropped int64
@@ -74,14 +76,14 @@ type BuildLine struct {
 }
 
 const buildColumns = `id, change_id, resource_id, environment_id, service, server_id, revision, state, url, ref, commit_id, commit_subject, commit_author, image,
-	steps, cached_steps, step, step_name, error, failed_line, cancelled_by, log_lines, log_left_out, log_dropped, created_at, started_at, ended_at`
+	steps, cached_steps, step, step_name, error, failed_line, cancelled_by, log_lines, log_left_out, log_dropped, created_at, started_at, ended_at, detection`
 
 func scanBuild(row interface{ Scan(...any) error }) (Build, error) {
 	var b Build
 	var created int64
 	var started, ended sql.NullInt64
 	err := row.Scan(&b.ID, &b.ChangeID, &b.ResourceID, &b.EnvironmentID, &b.Service, &b.ServerID, &b.Revision, &b.State, &b.URL, &b.Ref, &b.Commit, &b.Subject, &b.Author, &b.Image,
-		&b.Steps, &b.Cached, &b.Step, &b.StepName, &b.Error, &b.FailedLine, &b.CancelledBy, &b.Lines, &b.LeftOut, &b.Dropped, &created, &started, &ended)
+		&b.Steps, &b.Cached, &b.Step, &b.StepName, &b.Error, &b.FailedLine, &b.CancelledBy, &b.Lines, &b.LeftOut, &b.Dropped, &created, &started, &ended, &b.Detection)
 	if err != nil {
 		return Build{}, err
 	}
@@ -103,9 +105,9 @@ func (t *Tx) CreateBuild(ctx context.Context, b Build) error {
 // UpdateBuild records where a build stands now.
 func (t *Tx) UpdateBuild(ctx context.Context, b Build) error {
 	_, err := t.exec(ctx, `UPDATE builds SET state = ?, commit_subject = ?, commit_author = ?, image = ?, steps = ?, cached_steps = ?, step = ?, step_name = ?,
-		error = ?, failed_line = ?, cancelled_by = ?, log_dropped = ?, started_at = ?, ended_at = ? WHERE id = ?`,
+		error = ?, failed_line = ?, cancelled_by = ?, log_dropped = ?, started_at = ?, ended_at = ?, detection = ? WHERE id = ?`,
 		b.State, b.Subject, b.Author, b.Image, b.Steps, b.Cached, b.Step, b.StepName, b.Error, b.FailedLine, b.CancelledBy, b.Dropped,
-		nullMillis(b.StartedAt), nullMillis(b.EndedAt), b.ID)
+		nullMillis(b.StartedAt), nullMillis(b.EndedAt), b.Detection, b.ID)
 	if err != nil {
 		return fmt.Errorf("can't record where build %s stands: %w", b.ID, err)
 	}

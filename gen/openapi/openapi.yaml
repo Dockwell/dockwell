@@ -400,6 +400,35 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/builds:detect:
+        post:
+            tags:
+                - BuildService
+            description: |-
+                DetectBuild reads how a commit of a repository would build, on a server, as
+                 a build would read it: with its Dockerfile, or with Railpack and what
+                 Railpack found, such as Node 22 and npm run build. Nothing is built or
+                 changed. A plan that builds with Railpack says the same before it builds.
+            operationId: BuildService_DetectBuild
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DetectBuildRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DetectBuildResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/catalog/entries:
         get:
             tags:
@@ -3909,7 +3938,69 @@ components:
                     description: |-
                         How many lines its server dropped, as the build wrote faster than the log
                          could take.
+                detection:
+                    allOf:
+                        - $ref: '#/components/schemas/BuildDetection'
+                    description: |-
+                        What its server found as it read the commit: what built it, and with
+                         Railpack, what it installed and ran.
             description: Build is one build of a service's image, on one server, for one change.
+        BuildDetection:
+            type: object
+            properties:
+                builder:
+                    enum:
+                        - BUILDER_UNSPECIFIED
+                        - BUILDER_DOCKERFILE
+                        - BUILDER_RAILPACK
+                    type: string
+                    description: 'What builds it: BUILDER_DOCKERFILE or BUILDER_RAILPACK.'
+                    format: enum
+                dockerfile:
+                    type: string
+                    description: |-
+                        The Dockerfile it builds with, as a path in the repository, when there is
+                         one.
+                railpackVersion:
+                    type: string
+                    description: The version of Railpack that read it, such as "0.43.0".
+                providers:
+                    type: array
+                    items:
+                        type: string
+                    description: What Railpack found the source is, such as "node", first what decides.
+                packages:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DetectedPackage'
+                    description: The languages and tools it installs, with their versions.
+                steps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DetectedStep'
+                    description: What it runs to build, step by step.
+                startCommand:
+                    type: string
+                    description: The command the image starts with.
+                warnings:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What Railpack warns of, such as "No node package manager detected, using
+                         npm", in its words.
+                error:
+                    type: string
+                    description: Why Railpack can't build it, in its words, when it can't.
+                baseImage:
+                    type: string
+                    description: |-
+                        With its Dockerfile, the image its last stage starts from, such as
+                         "node:22-alpine", unless a build argument names it.
+            description: |-
+                BuildDetection is what reading a commit of a repository found, before
+                 anything builds: whether it has a Dockerfile, and what Railpack makes of it.
+                 See docs/adr/0046-builds-from-git.md.
         BuildInfo:
             type: object
             properties:
@@ -3988,9 +4079,26 @@ components:
                 image:
                     type: string
                     description: The image it makes.
+                builder:
+                    enum:
+                        - BUILDER_UNSPECIFIED
+                        - BUILDER_DOCKERFILE
+                        - BUILDER_RAILPACK
+                    type: string
+                    description: |-
+                        What the build settings choose to build with. Unset takes the Dockerfile
+                         when the commit has one, and Railpack when it hasn't.
+                    format: enum
+                detection:
+                    allOf:
+                        - $ref: '#/components/schemas/BuildDetection'
+                    description: |-
+                        What reading the commit found: what builds it, and with Railpack, what it
+                         installs and runs. Empty when the build names its Dockerfile, or the server
+                         couldn't be asked; the build then reads it as it starts.
             description: |-
-                BuildPlan is what a step builds: a commit of a repository, with a Dockerfile,
-                 into an image of its own. See docs/adr/0046-builds-from-git.md.
+                BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or
+                 with Railpack, into an image of its own. See docs/adr/0046-builds-from-git.md.
         CancelBuildRequest:
             type: object
             properties:
@@ -5078,6 +5186,83 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: DeployServiceResponse carries the planned deploy.
+        DetectBuildRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: |-
+                        A service that builds, by ID or by name, to read its build as it is set.
+                         Unset, build says what to read.
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one
+                         has a service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its project
+                         has more than one.
+                server:
+                    type: string
+                    description: |-
+                        The server that reads it, by name or ID. Unset, a service's own reads it,
+                         and build settings are read on the first server by name that is connected.
+                build:
+                    allOf:
+                        - $ref: '#/components/schemas/ImageBuild'
+                    description: The build settings to read, when id is unset.
+            description: |-
+                DetectBuildRequest names what to read: a service's build, or build settings
+                 for an app that doesn't exist yet.
+        DetectBuildResponse:
+            type: object
+            properties:
+                commit:
+                    type: string
+                    description: The commit that was read, in full.
+                ref:
+                    type: string
+                    description: The branch or tag it was read from, such as "main".
+                serverName:
+                    type: string
+                    description: The server that read it, by name.
+                detection:
+                    allOf:
+                        - $ref: '#/components/schemas/BuildDetection'
+                    description: What it found.
+            description: DetectBuildResponse says how the commit would build.
+        DetectedPackage:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, such as "node".
+                requested:
+                    type: string
+                    description: |-
+                        The version the source asks for, such as "22", or empty for Railpack's
+                         default.
+                resolved:
+                    type: string
+                    description: The version that is installed, such as "22.11.0".
+                source:
+                    type: string
+                    description: Where the version came from, such as "package.json > engines > node".
+            description: DetectedPackage is a language or tool a Railpack build installs.
+        DetectedStep:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, such as "install" or "build".
+                commands:
+                    type: array
+                    items:
+                        type: string
+                    description: The commands, such as "npm ci", in order.
+            description: DetectedStep is a step of a Railpack build and the commands it runs.
         DisableTotpRequest:
             type: object
             properties:
@@ -6460,6 +6645,24 @@ components:
                 target:
                     type: string
                     description: The stage to build, as docker build's --target. Empty builds the last.
+                builder:
+                    enum:
+                        - BUILDER_UNSPECIFIED
+                        - BUILDER_DOCKERFILE
+                        - BUILDER_RAILPACK
+                    type: string
+                    description: What builds the image. Unset takes the Dockerfile when there is one.
+                    format: enum
+                buildCommand:
+                    type: string
+                    description: |-
+                        With Railpack, the command that builds the app, such as "npm run build",
+                         in place of the one it finds.
+                startCommand:
+                    type: string
+                    description: |-
+                        With Railpack, the command the image starts with, such as "node server.js",
+                         in place of the one it finds.
             description: |-
                 ImageBuild says how Dockwell builds a service's image from source, with
                  BuildKit and a Dockerfile.

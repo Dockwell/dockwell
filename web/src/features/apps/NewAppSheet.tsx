@@ -3,6 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  BuildService,
   type Change,
   ChangeService,
   ChangeState,
@@ -10,6 +11,7 @@ import {
   ComposeService,
   Connection,
   type ExposedVariable,
+  ImageBuild_Builder,
   ResourceService,
 } from "@dockwell/api";
 import {
@@ -38,6 +40,7 @@ import {
   type ClipboardEvent,
   type FormEvent,
   Fragment,
+  type ReactNode,
   type Ref,
   useEffect,
   useId,
@@ -64,9 +67,12 @@ import {
 } from "./app";
 import { shownRepository } from "./Build";
 import { composeRefusal, type RefusedAt, waitsForValues, withCode } from "./composeWords";
+import { useDetectionWords } from "./detection";
 import {
   appEdits,
+  buildOf,
   type EnvRow,
+  emptyGit,
   type FormErrors,
   fieldOf,
   type GitForm,
@@ -142,7 +148,7 @@ export function NewAppSheet({
   const [chosenServers, setChosenServers] = useState<readonly string[]>([]);
 
   const [image, setImage] = useState<ImageForm>({ image: "", name: "", ports: [], env: [], mounts: [] });
-  const [git, setGit] = useState<GitForm>({ url: "", ref: "", context: "", dockerfile: "", args: "" });
+  const [git, setGit] = useState<GitForm>(emptyGit);
   const [showBuild, setShowBuild] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [file, setFile] = useState("");
@@ -382,7 +388,8 @@ export function NewAppSheet({
         reasonOf(err) === "invalid"
           ? (source === "git" ? gitFieldOf(message) : "") || fieldOf(message, image, name)
           : "";
-      if (field === "git.dockerfile" || field === "git.context" || field === "git.args") setShowBuild(true);
+      // A field behind Change opens, so what's said of it shows.
+      if (field.startsWith("git.") && field !== "git.url" && field !== "git.ref") setShowBuild(true);
       if (field) {
         setErrors({ [field]: message });
         revealError();
@@ -562,6 +569,7 @@ export function NewAppSheet({
               setGit((was) => ({ ...was, ...next }));
               if (clear) setErrors(({ [clear]: _, ...rest }) => rest);
             }}
+            server={chosenServers[0] ?? ""}
             showBuild={showBuild}
             onShowBuild={setShowBuild}
             form={image}
@@ -745,9 +753,12 @@ function GitFields({
   update,
   onError,
   fieldRef,
+  server,
 }: {
   git: GitForm;
   onGit: (next: Partial<GitForm>, clear?: string) => void;
+  /** The server it runs on, when one is chosen, which reads how the repository builds. */
+  server: string;
   showBuild: boolean;
   onShowBuild: (shown: boolean) => void;
   fieldRef: Ref<HTMLInputElement & HTMLTextAreaElement>;
@@ -764,7 +775,6 @@ function GitFields({
     }
   };
   const placeholderName = nameFromRepository(git.url) || "web";
-  const dockerfile = [git.context.trim(), git.dockerfile.trim() || "Dockerfile"].filter(Boolean).join("/");
   return (
     <>
       <div className="git-source">
@@ -793,28 +803,37 @@ function GitFields({
           the default branch when you leave it empty.
         </Trans>
       </p>
-      <div className="app-field">
-        <span className="dw-field-label">
-          <Trans>Build</Trans>
-        </span>
-        <div className="git-build">
-          <Icon name="check" size={16} className="git-build-check" />
-          <span>
-            <Trans>Dockerfile</Trans>
-          </span>
-          <span className="app-muted">
-            <Trans>
-              at <code>./{dockerfile}</code>
-            </Trans>
-          </span>
-          <span className="git-build-spacer" />
-          <Button variant="ghost" size="sm" aria-expanded={showBuild} onClick={() => onShowBuild(!showBuild)}>
-            {showBuild ? <Trans>Done</Trans> : <Trans>Change</Trans>}
-          </Button>
-        </div>
-      </div>
+      <BuildRow git={git} server={server} showBuild={showBuild} onShowBuild={onShowBuild} />
       {showBuild ? (
         <div className="git-build-fields">
+          <div className="app-field">
+            <span id="builder-label" className="dw-field-label">
+              <Trans>Builder</Trans>
+            </span>
+            <div>
+              <SegmentedControl
+                label={t`Builder`}
+                value={git.builder || "auto"}
+                onChange={(value) => onGit({ builder: value === "auto" ? "" : (value as GitForm["builder"]) })}
+                options={[
+                  { value: "auto", label: t`Auto` },
+                  { value: "dockerfile", label: t`Dockerfile` },
+                  { value: "railpack", label: t`Railpack` },
+                ]}
+              />
+            </div>
+            <span className="dw-field-hint">
+              {git.builder === "dockerfile" ? (
+                <Trans>The commit's Dockerfile builds it, and the build fails without one.</Trans>
+              ) : git.builder === "railpack" ? (
+                <Trans>
+                  Railpack reads what the app is, such as Node from its package.json, and builds it with no Dockerfile.
+                </Trans>
+              ) : (
+                <Trans>The Dockerfile when the commit has one, and Railpack when it hasn't.</Trans>
+              )}
+            </span>
+          </div>
           <div className="git-source">
             <TextField
               label={t`Folder`}
@@ -826,17 +845,43 @@ function GitFields({
               hint={t`What the build starts from, in the repository.`}
               onChange={(event) => onGit({ context: event.target.value }, "git.context")}
             />
-            <TextField
-              label={t`Dockerfile`}
-              mono
-              optional
-              placeholder="Dockerfile"
-              value={git.dockerfile}
-              error={errors["git.dockerfile"]}
-              hint={t`In that folder.`}
-              onChange={(event) => onGit({ dockerfile: event.target.value }, "git.dockerfile")}
-            />
+            {git.builder === "railpack" ? null : (
+              <TextField
+                label={t`Dockerfile`}
+                mono
+                optional
+                placeholder="Dockerfile"
+                value={git.dockerfile}
+                error={errors["git.dockerfile"]}
+                hint={t`In that folder.`}
+                onChange={(event) => onGit({ dockerfile: event.target.value }, "git.dockerfile")}
+              />
+            )}
           </div>
+          {git.builder === "dockerfile" ? null : (
+            <div className="git-commands">
+              <TextField
+                label={t`Build command`}
+                mono
+                optional
+                placeholder="npm run build"
+                value={git.buildCommand}
+                error={errors["git.buildCommand"]}
+                hint={t`With Railpack, in place of the one it finds.`}
+                onChange={(event) => onGit({ buildCommand: event.target.value }, "git.buildCommand")}
+              />
+              <TextField
+                label={t`Start command`}
+                mono
+                optional
+                placeholder="node server.js"
+                value={git.startCommand}
+                error={errors["git.startCommand"]}
+                hint={t`What the image starts with.`}
+                onChange={(event) => onGit({ startCommand: event.target.value }, "git.startCommand")}
+              />
+            </div>
+          )}
           <CodeField
             label={t`Build arguments`}
             lines={3}
@@ -844,7 +889,11 @@ function GitFields({
             autoComplete="off"
             placeholder={"NODE_ENV=production"}
             error={errors["git.args"]}
-            hint={t`A NAME=value a line, as docker build's --build-arg. They aren't secret: they stay in the image's history.`}
+            hint={
+              git.builder === "dockerfile"
+                ? t`A NAME=value a line, as docker build's --build-arg. They aren't secret: they stay in the image's history.`
+                : t`A NAME=value a line. A Dockerfile reads them as --build-arg, and Railpack as variables, such as RAILPACK_NODE_VERSION=20.`
+            }
             onChange={(event) => onGit({ args: event.target.value }, "git.args")}
           />
         </div>
@@ -864,6 +913,143 @@ function GitFields({
       <EnvSection form={form} errors={errors} update={update} clear={clear} />
       <MountsSection form={form} errors={errors} update={update} clear={clear} />
     </>
+  );
+}
+
+/** A repository's URL that is worth reading: a host, then a path. */
+function looksLikeRepository(url: string): boolean {
+  return /^(https?:\/\/)?[^\s/]+[.:][^\s/]*\/[^\s]+$/.test(url.trim());
+}
+
+/**
+ * How the repository builds, read on a server as you type, as Apps-New shows it:
+ * "Dockerfile · node:22-alpine" or "Railpack · Node 22", detected, with what
+ * Railpack runs beneath. The plan reads it again at the commit it builds.
+ */
+function BuildRow({
+  git,
+  server,
+  showBuild,
+  onShowBuild,
+}: {
+  git: GitForm;
+  server: string;
+  showBuild: boolean;
+  onShowBuild: (shown: boolean) => void;
+}) {
+  const { t } = useLingui();
+  const words = useDetectionWords();
+  const wanted = JSON.stringify([
+    git.url,
+    git.ref,
+    git.context,
+    git.dockerfile,
+    git.builder,
+    git.buildCommand,
+    git.startCommand,
+    git.args,
+    server,
+  ]);
+  const [settled, setSettled] = useState(wanted);
+  useEffect(() => {
+    const id = setTimeout(() => setSettled(wanted), 600);
+    return () => clearTimeout(id);
+  }, [wanted]);
+  const [url, ref, context, dockerfile, builder, buildCommand, startCommand, args, on] = JSON.parse(settled) as [
+    string,
+    string,
+    string,
+    string,
+    GitForm["builder"],
+    string,
+    string,
+    string,
+    string,
+  ];
+  const ready = looksLikeRepository(url);
+  const read = useQuery(
+    BuildService.method.detectBuild,
+    { build: buildOf({ url, ref, context, dockerfile, builder, buildCommand, startCommand, args }), server: on },
+    { enabled: ready, retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
+  );
+  const reading = looksLikeRepository(git.url) && (settled !== wanted || read.isFetching);
+  const d = ready && !reading ? read.data?.detection : undefined;
+  const failed = ready && !reading && read.error ? sentence(read.error) : undefined;
+
+  let icon: ReactNode = <Icon name="branch" size={16} className="git-build-muted" />;
+  let headline: ReactNode;
+  let after: ReactNode = null;
+  let detail: ReactNode = null;
+  if (reading) {
+    icon = <Glyph shape="spinner" size={16} className="git-build-muted" />;
+    headline = <Trans>Reading the repository</Trans>;
+  } else if (failed) {
+    icon = <Icon name="alert" size={16} className="git-build-alert" />;
+    headline = <Trans>Couldn't read the repository</Trans>;
+    detail = failed;
+  } else if (d && d.builder === ImageBuild_Builder.RAILPACK && d.error) {
+    icon = <Icon name="alert" size={16} className="git-build-alert" />;
+    headline = <Trans>Railpack can't tell how to build it</Trans>;
+    detail = (
+      <>
+        <span className="git-build-quote">{words.cant(d)}</span>{" "}
+        <Trans>Add a Dockerfile, or set a start command under Change.</Trans>
+      </>
+    );
+  } else if (d) {
+    icon = <Icon name="check" size={16} className="git-build-check" />;
+    headline = words.headline(d);
+    after = (
+      <span className="app-muted">
+        <Trans>detected</Trans>
+      </span>
+    );
+    const warned = words.warnings(d);
+    detail =
+      d.builder === ImageBuild_Builder.RAILPACK ? (
+        <>
+          {words.steps(d)}
+          {warned.length > 0 ? (
+            <span className="git-build-warned"> {t`Railpack says: ${warned.join(" ")}`}</span>
+          ) : null}
+        </>
+      ) : null;
+  } else {
+    headline =
+      git.builder === "dockerfile" ? (
+        <Trans>Dockerfile</Trans>
+      ) : git.builder === "railpack" ? (
+        <Trans>Railpack</Trans>
+      ) : (
+        <Trans>Dockerfile or Railpack</Trans>
+      );
+    after = (
+      <span className="app-muted">
+        <Trans>read from the repository once you name it</Trans>
+      </span>
+    );
+  }
+  return (
+    <div className="app-field">
+      <span className="dw-field-label" id="build-label">
+        <Trans>Build</Trans>
+      </span>
+      <div className="git-build" role="status" aria-labelledby="build-label" aria-live="polite">
+        {icon}
+        <span className="git-build-headline">{headline}</span>
+        {after}
+        <span className="git-build-spacer" />
+        <Button variant="ghost" size="sm" aria-expanded={showBuild} onClick={() => onShowBuild(!showBuild)}>
+          {showBuild ? <Trans>Done</Trans> : <Trans>Change</Trans>}
+        </Button>
+      </div>
+      {detail ? (
+        <p className="dw-field-hint git-build-detail">
+          {/* One run of words: the hint lays out what's in it side by side. */}
+          <span>{detail}</span>
+        </p>
+      ) : null}
+    </div>
   );
 }
 

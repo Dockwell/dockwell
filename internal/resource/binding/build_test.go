@@ -62,6 +62,16 @@ func TestABuildsSecretsAndSettingsRoundTrip(t *testing.T) {
 	if !proto.Equal(back, svc) {
 		t.Errorf("Restore = %v, want %v", back, svc)
 	}
+	// And one with Railpack, with its commands.
+	svc.Build.Dockerfile, svc.Build.Builder = "", resourcev1.ImageBuild_BUILDER_RAILPACK
+	svc.Build.BuildCommand, svc.Build.StartCommand = "npm run build:prod", "node dist/server.js"
+	env, err = Environment(ctx, svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back, err := Restore(App(svc, env)); err != nil || !proto.Equal(back, svc) {
+		t.Errorf("Restore of a Railpack build = %v, %v, want %v", back, err, svc)
+	}
 	if _, err := Restore(&resourcev1.Container{Labels: map[string]string{BuildLabelKey: "{}"}}); err == nil {
 		t.Error("Restore read a build label Dockwell didn't write")
 	}

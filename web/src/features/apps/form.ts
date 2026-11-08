@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { type EditSchema, Protocol } from "@dockwell/api";
+import { type EditSchema, ImageBuild_Builder, Protocol } from "@dockwell/api";
 
 import { toLabel } from "./app";
 
@@ -50,7 +50,24 @@ export interface GitForm {
   dockerfile: string;
   /** Build arguments, a NAME=value a line. */
   args: string;
+  /** What builds it: "" takes the Dockerfile when there is one, and Railpack when there isn't. */
+  builder: "" | "dockerfile" | "railpack";
+  /** With Railpack, the commands that build and start it, in place of what it finds. */
+  buildCommand: string;
+  startCommand: string;
 }
+
+/** A Git form with nothing in it yet. */
+export const emptyGit: GitForm = {
+  url: "",
+  ref: "",
+  context: "",
+  dockerfile: "",
+  args: "",
+  builder: "",
+  buildCommand: "",
+  startCommand: "",
+};
 
 /** The app a repository makes, by default: its last part, without .git, as a name, such as web. */
 export function nameFromRepository(url: string): string {
@@ -66,17 +83,29 @@ export function nameFromRepository(url: string): string {
 export function buildOf(git: GitForm) {
   const args: Record<string, string> = {};
   for (const { name, value } of parseEnv(git.args) ?? []) args[name] = value;
+  const builder =
+    git.builder === "dockerfile"
+      ? ImageBuild_Builder.DOCKERFILE
+      : git.builder === "railpack"
+        ? ImageBuild_Builder.RAILPACK
+        : ImageBuild_Builder.UNSPECIFIED;
   return {
     source: { case: "git" as const, value: { url: git.url.trim(), ref: git.ref.trim() } },
     context: git.context.trim(),
-    dockerfile: git.dockerfile.trim(),
+    // Railpack takes no Dockerfile, and a Dockerfile no commands.
+    dockerfile: git.builder === "railpack" ? "" : git.dockerfile.trim(),
     args,
+    builder,
+    buildCommand: git.builder === "dockerfile" ? "" : git.buildCommand.trim(),
+    startCommand: git.builder === "dockerfile" ? "" : git.startCommand.trim(),
   };
 }
 
 /** The field of the Git form a refusal is about, by what it names, or "" for none of them. */
 export function gitFieldOf(message: string): string {
   const text = message.toLowerCase();
+  if (/start command/.test(text)) return "git.startCommand";
+  if (/build command/.test(text)) return "git.buildCommand";
   if (/\bdockerfile\b/.test(text)) return "git.dockerfile";
   if (/\bcontext\b|\bno folder\b/.test(text)) return "git.context";
   if (/\bbranch\b|\btag\b/.test(text)) return "git.ref";

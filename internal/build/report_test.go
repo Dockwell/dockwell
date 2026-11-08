@@ -14,12 +14,13 @@ import (
 
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
+	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
 // Steps that run at once and print lines with no end yet hold no more than
 // maxPartials between them.
 func TestUnfinishedLinesAreBoundedAcrossSteps(t *testing.T) {
-	r := newReport(t.Context(), nil, time.Now)
+	r := newReport(t.Context(), service.BuildRequest{}, time.Now)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for i := range 40 {
@@ -81,7 +82,7 @@ func fed(t *testing.T, secrets map[string]string, writes ...string) ([]string, f
 		}
 		dropped += u.Dropped
 	})
-	r := newReport(ctx, secrets, func() time.Time { return time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC) })
+	r := newReport(ctx, service.BuildRequest{Secrets: secrets}, func() time.Time { return time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC) })
 	stop := r.follow()
 	_, _ = r.Write([]byte(marker + "phase build\n"))
 	for _, w := range writes {

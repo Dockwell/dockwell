@@ -107,6 +107,9 @@ func (b *bench) final() resource.BuildUpdate {
 		if u.Error != "" {
 			out.Error, out.Step, out.StepName, out.FailedLine = u.Error, u.Step, u.StepName, u.FailedLine
 		}
+		if u.Detection != nil {
+			out.Detection = u.Detection
+		}
 	}
 	return out
 }
@@ -217,7 +220,7 @@ func TestABuildWithNoDockerfileSaysWhereItLooked(t *testing.T) {
 	b := newBench(t)
 	commit := b.repo.Commit("main", "No Dockerfile", map[string]string{"web/index.js": "1"})
 	req := b.request(commit, "chg_01KBZ00000000000000000000A")
-	req.Context = "web"
+	req.Context, req.Builder = "web", resource.BuilderDockerfile
 	err := b.builder.Build(b.ctx(), req)
 	plain, _ := resource.Explain(err)
 	if !strings.Contains(plain, "has no Dockerfile at web/Dockerfile") {

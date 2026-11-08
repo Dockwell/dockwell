@@ -126,14 +126,16 @@ type Agents interface {
 type Engine struct {
 	// onBackup hears of each backup a step takes.
 	onBackup func(context.Context, BackupStep)
-	// sources reads what a build's branch or tag names now (ADR 0046).
-	sources Sources
-	db      *store.DB
-	kinds   *resource.Registry
-	agents  Agents
-	sealer  Sealer
-	logger  *slog.Logger
-	now     func() time.Time
+	// sources reads what a build's branch or tag names now, and detector how its
+	// commit builds (ADR 0046).
+	sources  Sources
+	detector Detector
+	db       *store.DB
+	kinds    *resource.Registry
+	agents   Agents
+	sealer   Sealer
+	logger   *slog.Logger
+	now      func() time.Time
 	// mu makes commits take turns: checking again that nothing moved since
 	// the plan, and committing the revisions, happen together. Planning
 	// asks agents, so it happens outside mu, and so do the steps: a slow
@@ -659,6 +661,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	}
 	plan, err := e.plan(ctx, changeID, items, false)
 	if err != nil {
+		return nil, err
+	}
+	if err := e.detectBuilds(ctx, plan, items); err != nil {
 		return nil, err
 	}
 	if err := e.checkRestores(ctx, plan, items); err != nil {

@@ -79,6 +79,8 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 		buildLog(w, m)
 	case *dockwellv1.ListBuildsResponse:
 		buildsTable(w, m, now)
+	case *dockwellv1.DetectBuildResponse:
+		buildDetection(w, m)
 	case *dockwellv1.ExportComposeResponse:
 		// The file alone, so it pipes into docker compose -f -. Its comments
 		// say which variables it leaves out.

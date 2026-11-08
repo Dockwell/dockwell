@@ -138,9 +138,11 @@ type Engine struct {
 	// buildCache is what the stand-in for BuildKit has built, by step.
 	buildCache map[string]bool
 	builders   []docker.CreateRequest
-	execs      map[string]*execRun
-	helpers    []docker.CreateRequest
-	starts     map[string]int
+	// railpackCopies counts the containers that copied Railpack into its volume.
+	railpackCopies int
+	execs          map[string]*execRun
+	helpers        []docker.CreateRequest
+	starts         map[string]int
 	// volumeRoot is where what's in each volume is kept, once one is asked for.
 	volumeRoot string
 }
@@ -546,7 +548,9 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 
 // runsAttached reports an image whose containers run as a helper does: in the
 // engine, for as long as something attaches.
-func (i *image) runsAttached() bool { return i.imported || i.repo == BuildKitRepository }
+func (i *image) runsAttached() bool {
+	return i.imported || i.repo == BuildKitRepository || i.repo == RailpackRepository
+}
 
 // Builders are what was asked of each container of BuildKit's image.
 func (e *Engine) Builders() []docker.CreateRequest {

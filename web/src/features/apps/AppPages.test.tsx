@@ -20,6 +20,7 @@ import {
   DomainCheckState,
   FieldOp,
   HealthState,
+  ImageBuild_Builder,
   ImageBuildSchema,
   IntentKind,
   NetworkShape,
@@ -3331,7 +3332,20 @@ describe("an app's deployments, for an app that builds from Git", () => {
         services: {
           listServices: () => ({ services: [app] }),
           listServiceRevisions: () => ({
-            revisions: [aRevision(2n, image, { build: aBuild({}) }), aRevision(1n, "nginx:1.0")],
+            revisions: [
+              aRevision(2n, image, {
+                build: aBuild({
+                  detection: {
+                    builder: ImageBuild_Builder.RAILPACK,
+                    providers: ["node"],
+                    packages: [{ name: "node", requested: "", resolved: "22.23.4" }],
+                    steps: [{ name: "install", commands: ["npm ci"] }],
+                    startCommand: "npm run start",
+                  },
+                }),
+              }),
+              aRevision(1n, "nginx:1.0"),
+            ],
           }),
         },
         builds: {
@@ -3353,6 +3367,9 @@ describe("an app's deployments, for an app that builds from Git", () => {
     await waitFor(() => expect(log).toHaveTextContent("installed for production"));
     expect(screen.getByText("67%")).toBeVisible();
     expect(screen.getByText("Built")).toBeVisible();
+    expect(screen.getByText("Built with").nextElementSibling).toHaveTextContent(
+      "Railpack · Node 22 Runs npm ci, then starts with npm run start.",
+    );
     expect(screen.queryByRole("button", { name: "Cancel build" })).not.toBeInTheDocument();
     await expectAccessible(container);
   });

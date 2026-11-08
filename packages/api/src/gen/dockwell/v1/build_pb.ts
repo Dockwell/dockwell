@@ -6,7 +6,9 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { ResourceRef } from "./change_pb";
+import type { ImageBuild } from "../resource/v1alpha1/specs_pb";
+import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
+import type { BuildDetection, ResourceRef } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
@@ -18,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/build.proto.
  */
 export const file_dockwell_v1_build: GenFile = /*@__PURE__*/
-  fileDesc("Chdkb2Nrd2VsbC92MS9idWlsZC5wcm90bxILZG9ja3dlbGwudjEiiQUKBUJ1aWxkEgoKAmlkGAEgASgJEhIKCnNlcnZpY2VfaWQYAiABKAkSKgoIcmVzb3VyY2UYAyABKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhIRCgljaGFuZ2VfaWQYBCABKAkSEAoIcmV2aXNpb24YBSABKAMSEQoJc2VydmVyX2lkGAYgASgJEhMKC3NlcnZlcl9uYW1lGAcgASgJEiYKBXN0YXRlGAggASgOMhcuZG9ja3dlbGwudjEuQnVpbGRTdGF0ZRILCgN1cmwYCSABKAkSCwoDcmVmGAogASgJEg4KBmNvbW1pdBgLIAEoCRIWCg5jb21taXRfc3ViamVjdBgMIAEoCRIVCg1jb21taXRfYXV0aG9yGA0gASgJEg0KBWltYWdlGA4gASgJEi8KC2NyZWF0ZV90aW1lGA8gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpzdGFydF90aW1lGBAgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIsCghlbmRfdGltZRgRIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDQoFc3RlcHMYEiABKAUSFAoMY2FjaGVkX3N0ZXBzGBMgASgFEgwKBHN0ZXAYFCABKAUSEQoJc3RlcF9uYW1lGBUgASgJEg0KBWVycm9yGBYgASgJEhMKC2ZhaWxlZF9saW5lGBcgASgJEhQKDGNhbmNlbGxlZF9ieRgYIAEoCRIRCglsb2dfbGluZXMYGSABKAMSGgoSbG9nX2xpbmVzX2xlZnRfb3V0GBogASgDEhkKEWxvZ19saW5lc19kcm9wcGVkGBsgASgDImEKCUJ1aWxkTGluZRIOCgZudW1iZXIYASABKAMSKAoEdGltZRgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDAoEc3RlcBgDIAEoBRIMCgR0ZXh0GAQgASgJImwKEUxpc3RCdWlsZHNSZXF1ZXN0EgoKAmlkGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoBRISCgpwYWdlX3Rva2VuGAMgASgJEg8KB3Byb2plY3QYBCABKAkSEwoLZW52aXJvbm1lbnQYBSABKAkiUQoSTGlzdEJ1aWxkc1Jlc3BvbnNlEiIKBmJ1aWxkcxgBIAMoCzISLmRvY2t3ZWxsLnYxLkJ1aWxkEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSIdCg9HZXRCdWlsZFJlcXVlc3QSCgoCaWQYASABKAkiNQoQR2V0QnVpbGRSZXNwb25zZRIhCgVidWlsZBgBIAEoCzISLmRvY2t3ZWxsLnYxLkJ1aWxkIiEKE1JlYWRCdWlsZExvZ1JlcXVlc3QSCgoCaWQYASABKAkiYAoUUmVhZEJ1aWxkTG9nUmVzcG9uc2USJQoFbGluZXMYASADKAsyFi5kb2Nrd2VsbC52MS5CdWlsZExpbmUSEAoIbGVmdF9vdXQYAiABKAMSDwoHZHJvcHBlZBgDIAEoAyIfChFXYXRjaEJ1aWxkUmVxdWVzdBIKCgJpZBgBIAEoCSJwChJXYXRjaEJ1aWxkUmVzcG9uc2USIQoFYnVpbGQYASABKAsyEi5kb2Nrd2VsbC52MS5CdWlsZBIlCgVsaW5lcxgCIAMoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkTGluZRIQCghsZWZ0X291dBgDIAEoAyIgChJDYW5jZWxCdWlsZFJlcXVlc3QSCgoCaWQYASABKAkiOAoTQ2FuY2VsQnVpbGRSZXNwb25zZRIhCgVidWlsZBgBIAEoCzISLmRvY2t3ZWxsLnYxLkJ1aWxkKroBCgpCdWlsZFN0YXRlEhsKF0JVSUxEX1NUQVRFX1VOU1BFQ0lGSUVEEAASFgoSQlVJTERfU1RBVEVfUVVFVUVEEAESGAoUQlVJTERfU1RBVEVfQlVJTERJTkcQAhIUChBCVUlMRF9TVEFURV9ET05FEAMSFgoSQlVJTERfU1RBVEVfRkFJTEVEEAQSGQoVQlVJTERfU1RBVEVfQ0FOQ0VMTEVEEAUSFAoQQlVJTERfU1RBVEVfTE9TVBAGMvwECgxCdWlsZFNlcnZpY2USiAEKCkxpc3RCdWlsZHMSHi5kb2Nrd2VsbC52MS5MaXN0QnVpbGRzUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkxpc3RCdWlsZHNSZXNwb25zZSI5kAIBoLsYAaq7GA4KBmJ1aWxkcxIEbGlzdILT5JMCGhIYL3YxL3NlcnZpY2VzL3tpZH0vYnVpbGRzEmcKCEdldEJ1aWxkEhwuZG9ja3dlbGwudjEuR2V0QnVpbGRSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuR2V0QnVpbGRSZXNwb25zZSIekAIBoLsYAYLT5JMCERIPL3YxL2J1aWxkcy97aWR9EowBCgxSZWFkQnVpbGRMb2cSIC5kb2Nrd2VsbC52MS5SZWFkQnVpbGRMb2dSZXF1ZXN0GiEuZG9ja3dlbGwudjEuUmVhZEJ1aWxkTG9nUmVzcG9uc2UiN5ACAaC7GAGquxgNCgZidWlsZHMSA2xvZ7i7GAGC0+STAhUSEy92MS9idWlsZHMve2lkfS9sb2cScAoKV2F0Y2hCdWlsZBIeLmRvY2t3ZWxsLnYxLldhdGNoQnVpbGRSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuV2F0Y2hCdWlsZFJlc3BvbnNlIh+QAgGguxgBqrsYEAoGYnVpbGRzEgZmb2xsb3e4uxgBMAESdwoLQ2FuY2VsQnVpbGQSHy5kb2Nrd2VsbC52MS5DYW5jZWxCdWlsZFJlcXVlc3QaIC5kb2Nrd2VsbC52MS5DYW5jZWxCdWlsZFJlc3BvbnNlIiWguxgDgtPkkwIbOgEqIhYvdjEvYnVpbGRzL3tpZH06Y2FuY2VsQqMBCg9jb20uZG9ja3dlbGwudjFCCkJ1aWxkUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chdkb2Nrd2VsbC92MS9idWlsZC5wcm90bxILZG9ja3dlbGwudjEiuQUKBUJ1aWxkEgoKAmlkGAEgASgJEhIKCnNlcnZpY2VfaWQYAiABKAkSKgoIcmVzb3VyY2UYAyABKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhIRCgljaGFuZ2VfaWQYBCABKAkSEAoIcmV2aXNpb24YBSABKAMSEQoJc2VydmVyX2lkGAYgASgJEhMKC3NlcnZlcl9uYW1lGAcgASgJEiYKBXN0YXRlGAggASgOMhcuZG9ja3dlbGwudjEuQnVpbGRTdGF0ZRILCgN1cmwYCSABKAkSCwoDcmVmGAogASgJEg4KBmNvbW1pdBgLIAEoCRIWCg5jb21taXRfc3ViamVjdBgMIAEoCRIVCg1jb21taXRfYXV0aG9yGA0gASgJEg0KBWltYWdlGA4gASgJEi8KC2NyZWF0ZV90aW1lGA8gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpzdGFydF90aW1lGBAgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIsCghlbmRfdGltZRgRIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDQoFc3RlcHMYEiABKAUSFAoMY2FjaGVkX3N0ZXBzGBMgASgFEgwKBHN0ZXAYFCABKAUSEQoJc3RlcF9uYW1lGBUgASgJEg0KBWVycm9yGBYgASgJEhMKC2ZhaWxlZF9saW5lGBcgASgJEhQKDGNhbmNlbGxlZF9ieRgYIAEoCRIRCglsb2dfbGluZXMYGSABKAMSGgoSbG9nX2xpbmVzX2xlZnRfb3V0GBogASgDEhkKEWxvZ19saW5lc19kcm9wcGVkGBsgASgDEi4KCWRldGVjdGlvbhgcIAEoCzIbLmRvY2t3ZWxsLnYxLkJ1aWxkRGV0ZWN0aW9uImEKCUJ1aWxkTGluZRIOCgZudW1iZXIYASABKAMSKAoEdGltZRgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDAoEc3RlcBgDIAEoBRIMCgR0ZXh0GAQgASgJImwKEUxpc3RCdWlsZHNSZXF1ZXN0EgoKAmlkGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoBRISCgpwYWdlX3Rva2VuGAMgASgJEg8KB3Byb2plY3QYBCABKAkSEwoLZW52aXJvbm1lbnQYBSABKAkijQEKEkRldGVjdEJ1aWxkUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEg4KBnNlcnZlchgEIAEoCRI1CgVidWlsZBgFIAEoCzImLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkltYWdlQnVpbGQidwoTRGV0ZWN0QnVpbGRSZXNwb25zZRIOCgZjb21taXQYASABKAkSCwoDcmVmGAIgASgJEhMKC3NlcnZlcl9uYW1lGAMgASgJEi4KCWRldGVjdGlvbhgEIAEoCzIbLmRvY2t3ZWxsLnYxLkJ1aWxkRGV0ZWN0aW9uIlEKEkxpc3RCdWlsZHNSZXNwb25zZRIiCgZidWlsZHMYASADKAsyEi5kb2Nrd2VsbC52MS5CdWlsZBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiHQoPR2V0QnVpbGRSZXF1ZXN0EgoKAmlkGAEgASgJIjUKEEdldEJ1aWxkUmVzcG9uc2USIQoFYnVpbGQYASABKAsyEi5kb2Nrd2VsbC52MS5CdWlsZCIhChNSZWFkQnVpbGRMb2dSZXF1ZXN0EgoKAmlkGAEgASgJImAKFFJlYWRCdWlsZExvZ1Jlc3BvbnNlEiUKBWxpbmVzGAEgAygLMhYuZG9ja3dlbGwudjEuQnVpbGRMaW5lEhAKCGxlZnRfb3V0GAIgASgDEg8KB2Ryb3BwZWQYAyABKAMiHwoRV2F0Y2hCdWlsZFJlcXVlc3QSCgoCaWQYASABKAkicAoSV2F0Y2hCdWlsZFJlc3BvbnNlEiEKBWJ1aWxkGAEgASgLMhIuZG9ja3dlbGwudjEuQnVpbGQSJQoFbGluZXMYAiADKAsyFi5kb2Nrd2VsbC52MS5CdWlsZExpbmUSEAoIbGVmdF9vdXQYAyABKAMiIAoSQ2FuY2VsQnVpbGRSZXF1ZXN0EgoKAmlkGAEgASgJIjgKE0NhbmNlbEJ1aWxkUmVzcG9uc2USIQoFYnVpbGQYASABKAsyEi5kb2Nrd2VsbC52MS5CdWlsZCq6AQoKQnVpbGRTdGF0ZRIbChdCVUlMRF9TVEFURV9VTlNQRUNJRklFRBAAEhYKEkJVSUxEX1NUQVRFX1FVRVVFRBABEhgKFEJVSUxEX1NUQVRFX0JVSUxESU5HEAISFAoQQlVJTERfU1RBVEVfRE9ORRADEhYKEkJVSUxEX1NUQVRFX0ZBSUxFRBAEEhkKFUJVSUxEX1NUQVRFX0NBTkNFTExFRBAFEhQKEEJVSUxEX1NUQVRFX0xPU1QQBjKFBgoMQnVpbGRTZXJ2aWNlEogBCgpMaXN0QnVpbGRzEh4uZG9ja3dlbGwudjEuTGlzdEJ1aWxkc1JlcXVlc3QaHy5kb2Nrd2VsbC52MS5MaXN0QnVpbGRzUmVzcG9uc2UiOZACAaC7GAGquxgOCgZidWlsZHMSBGxpc3SC0+STAhoSGC92MS9zZXJ2aWNlcy97aWR9L2J1aWxkcxJnCghHZXRCdWlsZBIcLmRvY2t3ZWxsLnYxLkdldEJ1aWxkUmVxdWVzdBodLmRvY2t3ZWxsLnYxLkdldEJ1aWxkUmVzcG9uc2UiHpACAaC7GAGC0+STAhESDy92MS9idWlsZHMve2lkfRKMAQoMUmVhZEJ1aWxkTG9nEiAuZG9ja3dlbGwudjEuUmVhZEJ1aWxkTG9nUmVxdWVzdBohLmRvY2t3ZWxsLnYxLlJlYWRCdWlsZExvZ1Jlc3BvbnNlIjeQAgGguxgBqrsYDQoGYnVpbGRzEgNsb2e4uxgBgtPkkwIVEhMvdjEvYnVpbGRzL3tpZH0vbG9nEnAKCldhdGNoQnVpbGQSHi5kb2Nrd2VsbC52MS5XYXRjaEJ1aWxkUmVxdWVzdBofLmRvY2t3ZWxsLnYxLldhdGNoQnVpbGRSZXNwb25zZSIfkAIBoLsYAaq7GBAKBmJ1aWxkcxIGZm9sbG93uLsYATABEoYBCgtEZXRlY3RCdWlsZBIfLmRvY2t3ZWxsLnYxLkRldGVjdEJ1aWxkUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkRldGVjdEJ1aWxkUmVzcG9uc2UiNKC7GAKquxgQCgZidWlsZHMSBmRldGVjdILT5JMCFjoBKiIRL3YxL2J1aWxkczpkZXRlY3QSdwoLQ2FuY2VsQnVpbGQSHy5kb2Nrd2VsbC52MS5DYW5jZWxCdWlsZFJlcXVlc3QaIC5kb2Nrd2VsbC52MS5DYW5jZWxCdWlsZFJlc3BvbnNlIiWguxgDgtPkkwIbOgEqIhYvdjEvYnVpbGRzL3tpZH06Y2FuY2VsQqMBCg9jb20uZG9ja3dlbGwudjFCCkJ1aWxkUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * Build is one build of a service's image, on one server, for one change.
@@ -216,6 +218,14 @@ export type Build = Message<"dockwell.v1.Build"> & {
    * @generated from field: int64 log_lines_dropped = 27;
    */
   logLinesDropped: bigint;
+
+  /**
+   * What its server found as it read the commit: what built it, and with
+   * Railpack, what it installed and ran.
+   *
+   * @generated from field: dockwell.v1.BuildDetection detection = 28;
+   */
+  detection?: BuildDetection | undefined;
 };
 
 /**
@@ -320,6 +330,102 @@ export const ListBuildsRequestSchema: GenMessage<ListBuildsRequest> = /*@__PURE_
   messageDesc(file_dockwell_v1_build, 2);
 
 /**
+ * DetectBuildRequest names what to read: a service's build, or build settings
+ * for an app that doesn't exist yet.
+ *
+ * @generated from message dockwell.v1.DetectBuildRequest
+ */
+export type DetectBuildRequest = Message<"dockwell.v1.DetectBuildRequest"> & {
+  /**
+   * A service that builds, by ID or by name, to read its build as it is set.
+   * Unset, build says what to read.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The project of a service named by name, by name or ID, when more than one
+   * has a service of that name.
+   *
+   * @generated from field: string project = 2;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID, when its project
+   * has more than one.
+   *
+   * @generated from field: string environment = 3;
+   */
+  environment: string;
+
+  /**
+   * The server that reads it, by name or ID. Unset, a service's own reads it,
+   * and build settings are read on the first server by name that is connected.
+   *
+   * @generated from field: string server = 4;
+   */
+  server: string;
+
+  /**
+   * The build settings to read, when id is unset.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.ImageBuild build = 5;
+   */
+  build?: ImageBuild | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.DetectBuildRequest.
+ * Use `create(DetectBuildRequestSchema)` to create a new message.
+ */
+export const DetectBuildRequestSchema: GenMessage<DetectBuildRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_build, 3);
+
+/**
+ * DetectBuildResponse says how the commit would build.
+ *
+ * @generated from message dockwell.v1.DetectBuildResponse
+ */
+export type DetectBuildResponse = Message<"dockwell.v1.DetectBuildResponse"> & {
+  /**
+   * The commit that was read, in full.
+   *
+   * @generated from field: string commit = 1;
+   */
+  commit: string;
+
+  /**
+   * The branch or tag it was read from, such as "main".
+   *
+   * @generated from field: string ref = 2;
+   */
+  ref: string;
+
+  /**
+   * The server that read it, by name.
+   *
+   * @generated from field: string server_name = 3;
+   */
+  serverName: string;
+
+  /**
+   * What it found.
+   *
+   * @generated from field: dockwell.v1.BuildDetection detection = 4;
+   */
+  detection?: BuildDetection | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.DetectBuildResponse.
+ * Use `create(DetectBuildResponseSchema)` to create a new message.
+ */
+export const DetectBuildResponseSchema: GenMessage<DetectBuildResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_build, 4);
+
+/**
  * ListBuildsResponse is a page of a service's builds.
  *
  * @generated from message dockwell.v1.ListBuildsResponse
@@ -345,7 +451,7 @@ export type ListBuildsResponse = Message<"dockwell.v1.ListBuildsResponse"> & {
  * Use `create(ListBuildsResponseSchema)` to create a new message.
  */
 export const ListBuildsResponseSchema: GenMessage<ListBuildsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_build, 3);
+  messageDesc(file_dockwell_v1_build, 5);
 
 /**
  * GetBuildRequest names a build.
@@ -366,7 +472,7 @@ export type GetBuildRequest = Message<"dockwell.v1.GetBuildRequest"> & {
  * Use `create(GetBuildRequestSchema)` to create a new message.
  */
 export const GetBuildRequestSchema: GenMessage<GetBuildRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_build, 4);
+  messageDesc(file_dockwell_v1_build, 6);
 
 /**
  * GetBuildResponse is the build.
@@ -387,7 +493,7 @@ export type GetBuildResponse = Message<"dockwell.v1.GetBuildResponse"> & {
  * Use `create(GetBuildResponseSchema)` to create a new message.
  */
 export const GetBuildResponseSchema: GenMessage<GetBuildResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_build, 5);
+  messageDesc(file_dockwell_v1_build, 7);
 
 /**
  * ReadBuildLogRequest names a build.
@@ -408,7 +514,7 @@ export type ReadBuildLogRequest = Message<"dockwell.v1.ReadBuildLogRequest"> & {
  * Use `create(ReadBuildLogRequestSchema)` to create a new message.
  */
 export const ReadBuildLogRequestSchema: GenMessage<ReadBuildLogRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_build, 6);
+  messageDesc(file_dockwell_v1_build, 8);
 
 /**
  * ReadBuildLogResponse is what a build's log keeps.
@@ -444,7 +550,7 @@ export type ReadBuildLogResponse = Message<"dockwell.v1.ReadBuildLogResponse"> &
  * Use `create(ReadBuildLogResponseSchema)` to create a new message.
  */
 export const ReadBuildLogResponseSchema: GenMessage<ReadBuildLogResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_build, 7);
+  messageDesc(file_dockwell_v1_build, 9);
 
 /**
  * WatchBuildRequest names a build to follow.
@@ -465,7 +571,7 @@ export type WatchBuildRequest = Message<"dockwell.v1.WatchBuildRequest"> & {
  * Use `create(WatchBuildRequestSchema)` to create a new message.
  */
 export const WatchBuildRequestSchema: GenMessage<WatchBuildRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_build, 8);
+  messageDesc(file_dockwell_v1_build, 10);
 
 /**
  * WatchBuildResponse is how a build stands, and the lines its log gained.
@@ -502,7 +608,7 @@ export type WatchBuildResponse = Message<"dockwell.v1.WatchBuildResponse"> & {
  * Use `create(WatchBuildResponseSchema)` to create a new message.
  */
 export const WatchBuildResponseSchema: GenMessage<WatchBuildResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_build, 9);
+  messageDesc(file_dockwell_v1_build, 11);
 
 /**
  * CancelBuildRequest names a build to stop.
@@ -523,7 +629,7 @@ export type CancelBuildRequest = Message<"dockwell.v1.CancelBuildRequest"> & {
  * Use `create(CancelBuildRequestSchema)` to create a new message.
  */
 export const CancelBuildRequestSchema: GenMessage<CancelBuildRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_build, 10);
+  messageDesc(file_dockwell_v1_build, 12);
 
 /**
  * CancelBuildResponse is the build, as it stands once its server was asked.
@@ -544,7 +650,7 @@ export type CancelBuildResponse = Message<"dockwell.v1.CancelBuildResponse"> & {
  * Use `create(CancelBuildResponseSchema)` to create a new message.
  */
 export const CancelBuildResponseSchema: GenMessage<CancelBuildResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_build, 11);
+  messageDesc(file_dockwell_v1_build, 13);
 
 /**
  * BuildState is where a build stands.
@@ -661,6 +767,19 @@ export const BuildService: GenService<{
     methodKind: "server_streaming";
     input: typeof WatchBuildRequestSchema;
     output: typeof WatchBuildResponseSchema;
+  },
+  /**
+   * DetectBuild reads how a commit of a repository would build, on a server, as
+   * a build would read it: with its Dockerfile, or with Railpack and what
+   * Railpack found, such as Node 22 and npm run build. Nothing is built or
+   * changed. A plan that builds with Railpack says the same before it builds.
+   *
+   * @generated from rpc dockwell.v1.BuildService.DetectBuild
+   */
+  detectBuild: {
+    methodKind: "unary";
+    input: typeof DetectBuildRequestSchema;
+    output: typeof DetectBuildResponseSchema;
   },
   /**
    * CancelBuild stops a build that is waiting or running. Its step fails as

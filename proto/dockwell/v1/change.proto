@@ -1053,8 +1053,8 @@ message PlanStep {
   BuildPlan build = 130;
 }
 
-// BuildPlan is what a step builds: a commit of a repository, with a Dockerfile,
-// into an image of its own. See docs/adr/0046-builds-from-git.md.
+// BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or
+// with Railpack, into an image of its own. See docs/adr/0046-builds-from-git.md.
 message BuildPlan {
   // The repository, such as "https://github.com/acme/web.git".
   string url = 1;
@@ -1068,6 +1068,63 @@ message BuildPlan {
   string dockerfile = 5;
   // The image it makes.
   string image = 6;
+  // What the build settings choose to build with. Unset takes the Dockerfile
+  // when the commit has one, and Railpack when it hasn't.
+  dockwell.resource.v1alpha1.ImageBuild.Builder builder = 7;
+  // What reading the commit found: what builds it, and with Railpack, what it
+  // installs and runs. Empty when the build names its Dockerfile, or the server
+  // couldn't be asked; the build then reads it as it starts.
+  BuildDetection detection = 8;
+}
+
+// BuildDetection is what reading a commit of a repository found, before
+// anything builds: whether it has a Dockerfile, and what Railpack makes of it.
+// See docs/adr/0046-builds-from-git.md.
+message BuildDetection {
+  // What builds it: BUILDER_DOCKERFILE or BUILDER_RAILPACK.
+  dockwell.resource.v1alpha1.ImageBuild.Builder builder = 1;
+  // The Dockerfile it builds with, as a path in the repository, when there is
+  // one.
+  string dockerfile = 2;
+  // The version of Railpack that read it, such as "0.43.0".
+  string railpack_version = 3;
+  // What Railpack found the source is, such as "node", first what decides.
+  repeated string providers = 4;
+  // The languages and tools it installs, with their versions.
+  repeated DetectedPackage packages = 5;
+  // What it runs to build, step by step.
+  repeated DetectedStep steps = 6;
+  // The command the image starts with.
+  string start_command = 7;
+  // What Railpack warns of, such as "No node package manager detected, using
+  // npm", in its words.
+  repeated string warnings = 8;
+  // Why Railpack can't build it, in its words, when it can't.
+  string error = 9;
+  // With its Dockerfile, the image its last stage starts from, such as
+  // "node:22-alpine", unless a build argument names it.
+  string base_image = 10;
+}
+
+// DetectedPackage is a language or tool a Railpack build installs.
+message DetectedPackage {
+  // Its name, such as "node".
+  string name = 1;
+  // The version the source asks for, such as "22", or empty for Railpack's
+  // default.
+  string requested = 2;
+  // The version that is installed, such as "22.11.0".
+  string resolved = 3;
+  // Where the version came from, such as "package.json > engines > node".
+  string source = 4;
+}
+
+// DetectedStep is a step of a Railpack build and the commands it runs.
+message DetectedStep {
+  // Its name, such as "install" or "build".
+  string name = 1;
+  // The commands, such as "npm ci", in order.
+  repeated string commands = 2;
 }
 
 // BackupFirst is a backup a change takes before anything else it does, as a catalog

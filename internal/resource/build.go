@@ -46,6 +46,8 @@ type BuildUpdate struct {
 	Error, FailedLine string
 	Start, End        time.Time
 	Image             string
+	// Detection is what the build found as it read the commit, sent once.
+	Detection *BuildDetection
 }
 
 type buildsKey struct{}

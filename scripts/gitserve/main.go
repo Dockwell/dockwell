@@ -11,6 +11,8 @@
 //   - noisy builds a larger image and prints 20,000 lines, for an agent's memory;
 //   - secret reads the build secret NPM_TOKEN in two steps, and prints it in one;
 //   - secret-fails prints NPM_TOKEN in a step that then fails;
+//   - node is a Node app with no Dockerfile, which Railpack builds;
+//   - docs has nothing Railpack knows how to build;
 //   - stable stays where main began, for main to go back to.
 //
 // Each serves its commit's subject on port 8080 on real Docker.
@@ -53,10 +55,14 @@ EXPOSE 8080
 CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
 `
 
-var branches = []struct {
+// branch is a branch of web.git: its name, its commit's subject, and the files it
+// changes from main's.
+type branch struct {
 	name, subject string
 	files         map[string]string
-}{
+}
+
+var branches = []branch{
 	{"main", "Add order export endpoint", map[string]string{"Dockerfile": app, "index.html": "Add order export endpoint\n"}},
 	{"broken", "Move sessions to valkey", map[string]string{"Dockerfile": `FROM busybox:1.37
 WORKDIR /app
@@ -96,6 +102,24 @@ COPY . .
 RUN --mount=type=secret,id=NPM_TOKEN cat /run/secrets/NPM_TOKEN && exit 1
 CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
 `, "index.html": "Print the token, then fail\n"}},
+	{"node", "Serve the storefront with Railpack", node},
+	{"docs", "Write the storefront's docs", map[string]string{"Dockerfile": "", "index.html": "", "README.md": "# storefront\n"}},
+}
+
+// node is a Node app with no Dockerfile and no dependencies, which Railpack builds
+// with npm, and which serves its commit's subject on port 8080. An empty file is
+// one the branch removes.
+var node = map[string]string{
+	"Dockerfile": "", "index.html": "",
+	"package.json": `{
+  "name": "storefront",
+  "version": "1.0.0",
+  "scripts": { "build": "echo built the storefront", "start": "node server.js" },
+  "engines": { "node": "22" }
+}
+`,
+	"server.js": `require("http").createServer((q, s) => s.end("Serve the storefront with Railpack\n")).listen(Number(process.env.PORT) || 8080)
+`,
 }
 
 var name = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
@@ -189,6 +213,12 @@ func makeRepo(ctx context.Context, dir, bare string) error {
 			}
 		}
 		for p, body := range b.files {
+			if body == "" {
+				if err := os.Remove(filepath.Join(work, p)); err != nil && !errors.Is(err, os.ErrNotExist) { //nolint:gosec // this program's own files, in its own directory
+					return err
+				}
+				continue
+			}
 			if err := os.WriteFile(filepath.Join(work, p), []byte(body), 0o600); err != nil { //nolint:gosec // this program's own files, in its own directory
 				return err
 			}

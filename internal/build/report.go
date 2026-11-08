@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
+	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
 // Bounds on what a build's log sends, so a build can't crowd out the calls on the
@@ -78,6 +80,7 @@ type vertex struct {
 // the build: its log, line by line, where it stands, and how it failed.
 type report struct {
 	ctx     context.Context //nolint:containedctx // for the build's updates, for as long as it runs
+	req     service.BuildRequest
 	secrets []string
 	now     func() time.Time
 
@@ -102,10 +105,15 @@ type report struct {
 	spent    int
 	dropped  int64
 	start    time.Time
+	// builder is what builds it, once the script has said, and info and plan
+	// what Railpack wrote.
+	builder    string
+	info, plan []byte
+	detection  *resource.BuildDetection
 }
 
-func newReport(ctx context.Context, secrets map[string]string, now func() time.Time) *report {
-	return &report{ctx: ctx, now: now, vertices: map[string]*vertex{}, secrets: secretForms(secrets)}
+func newReport(ctx context.Context, req service.BuildRequest, now func() time.Time) *report {
+	return &report{ctx: ctx, req: req, now: now, vertices: map[string]*vertex{}, secrets: secretForms(req.Secrets)}
 }
 
 // secretForms are the forms a build's secrets take in its log (binding.Lines).
@@ -214,6 +222,20 @@ func (r *report) markerLine(rest string) {
 		r.add(0, "This server's AppArmor can't be reached from the builder, so the build's steps run under seccomp's profile alone")
 	case "fail":
 		r.failed = arg
+		if arg == "railpack" {
+			r.detected()
+		}
+	case "builder":
+		r.builder = arg
+		if arg == resource.BuilderDockerfile {
+			r.detection = &resource.BuildDetection{Builder: arg, Dockerfile: filepath.Join(r.req.Context, dockerfile(r.req.Dockerfile))}
+			resource.ReportBuild(r.ctx, resource.BuildUpdate{State: resource.BuildBuilding, Detection: r.detection})
+		}
+	case "railpack-info":
+		r.info, _ = base64.StdEncoding.DecodeString(arg)
+	case "railpack-plan":
+		r.plan, _ = base64.StdEncoding.DecodeString(arg)
+		r.detected()
 	case "commit":
 		a, s, _ := strings.Cut(arg, " ")
 		author, _ := base64.StdEncoding.DecodeString(a)
@@ -221,6 +243,60 @@ func (r *report) markerLine(rest string) {
 		r.author, r.subject = cut(string(author), 200), cut(string(subject), 500)
 		resource.ReportBuild(r.ctx, resource.BuildUpdate{State: resource.BuildBuilding, Author: r.author, Subject: r.subject})
 	}
+}
+
+// again readies the report for the builder run anew, once the server has Railpack:
+// its log goes on where it was.
+func (r *report) again() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.phase, r.failed, r.builder, r.info, r.plan, r.detection = "", "", "", nil, nil, nil
+	r.skipping, r.pruned = false, false
+	r.said, r.tail = nil, nil
+	r.add(0, "Getting Railpack, which builds an app with no Dockerfile, then checking out again")
+}
+
+// detected says what Railpack found, once it has written its plan, or failed to.
+func (r *report) detected() {
+	if r.detection != nil {
+		return
+	}
+	d := railpackDetection(r.info, r.plan)
+	d.Builder = resource.BuilderRailpack
+	if d.Error != "" {
+		// What Railpack said of a source it can't build is in its info, and the
+		// log says it as Railpack did.
+		for _, line := range strings.Split(d.Error, "\n") {
+			r.add(0, line)
+		}
+	}
+	r.detection = d
+	resource.ReportBuild(r.ctx, resource.BuildUpdate{State: resource.BuildBuilding, Detection: d})
+}
+
+// isStep reports a vertex that is one of the build's steps, as people count them:
+// a Dockerfile's instruction, or a command of Railpack's plan, and none of
+// BuildKit's own, such as loading the context or exporting the image.
+func (r *report) isStep(name string) bool {
+	if r.builder != resource.BuilderRailpack {
+		return stepName.MatchString(name)
+	}
+	if strings.HasPrefix(name, "[") {
+		return false
+	}
+	for _, p := range buildkitOwn {
+		if strings.HasPrefix(name, p) {
+			return false
+		}
+	}
+	return true
+}
+
+// buildkitOwn starts the names of the vertices BuildKit and Railpack's frontend
+// make of their own, which aren't the plan's steps.
+var buildkitOwn = []string{
+	"load build definition", "loading ", "docker-image://", "exporting", "resolve image config",
+	"sending tarball", "naming to", "copy /", "merge ", "local://",
 }
 
 // status reads one of BuildKit's updates.
@@ -231,7 +307,7 @@ func (r *report) status(s *solveStatus) {
 		if x == nil {
 			x = &vertex{name: r.hide(v.Name)}
 			r.vertices[v.Digest] = x
-			if stepName.MatchString(v.Name) {
+			if r.isStep(v.Name) {
 				r.order = append(r.order, v.Digest)
 				x.step = len(r.order)
 				moved = true
@@ -442,12 +518,13 @@ type facts struct {
 	failedOutOfSteps bool
 	memory           int64
 	pruned           bool
+	detection        *resource.BuildDetection
 }
 
 func (r *report) facts() facts {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	f := facts{failed: r.failed, subject: r.subject, author: r.author, said: r.said, tail: r.tail, start: r.start, stepError: r.stepErr, reachedBuildKit: r.phase == "build" || r.phase == "prune", pruned: r.pruned}
+	f := facts{failed: r.failed, subject: r.subject, author: r.author, said: r.said, tail: r.tail, start: r.start, stepError: r.stepErr, reachedBuildKit: r.phase == "build" || r.phase == "prune", pruned: r.pruned, detection: r.detection}
 	f.steps, f.cached, f.step, f.stepName = r.steps()
 	if x := r.failing; x != nil {
 		f.failedLine = x.last

@@ -306,6 +306,8 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		serviceHandler.Sources = sources
 		if cfg.Agents != nil {
 			buildHandler := builds.New(cfg.Store, cfg.Agents, serviceHandler, cfg.Logger)
+			buildHandler.SetSources(sources)
+			cfg.Changes.SetDetector(buildHandler)
 			serviceHandler.Builds = buildHandler
 			handle(dockwellv1connect.NewBuildServiceHandler(buildHandler, opts...))
 		}

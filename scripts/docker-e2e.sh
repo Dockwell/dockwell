@@ -162,6 +162,7 @@ cleanup() {
   docker images --format '{{.Repository}}:{{.Tag}}' | grep '^dockwell.invalid/' | xargs --no-run-if-empty docker rmi --force >/dev/null 2>&1 || true
   docker volume ls --quiet --filter label=dockwell.build-cache | xargs --no-run-if-empty docker volume rm >/dev/null 2>&1 || true
   docker network rm dockwell-build >/dev/null 2>&1 || true
+  docker volume rm dockwell-railpack >/dev/null 2>&1 || true
   [[ -z "$load_pid" ]] || kill "$load_pid" 2>/dev/null || true
   priv kill "$pid" 2>/dev/null || true
   for p in "${pebble_pids[@]:-}"; do
@@ -4233,6 +4234,38 @@ echo "docker-e2e: $words"
 ((peak - idle < 40 * 1024)) || fail "the agent grew by $(((peak - idle) / 1024)) MiB during a build: $words"
 move_main stable
 dw services delete "$built_id" --yes || fail "deleting e2e-built failed"
+
+step "Builds: an app with no Dockerfile builds with Railpack, and its plan says what Railpack found first"
+detected=$(dw builds detect --server e2e-agent --build "{\"git\":{\"url\":\"$git_url/web.git\",\"ref\":\"node\"}}" --json) || fail "reading how the node branch builds failed"
+jq -e '.detection.builder == "BUILDER_RAILPACK" and (.detection.providers | index("node")) != null and .detection.startCommand == "npm run start"' <<<"$detected" >/dev/null ||
+  fail "Railpack didn't read the node branch as a Node app that starts with npm run start: $detected"
+railpack_port=18094
+planned=$(dw services create e2e-railpack --environment "$build_env" --on e2e-agent --build-git-url "$git_url/web.git" --build-git-ref node \
+  --app-ports "{\"host_port\":$railpack_port,\"container_port\":8080}" --plan-only --json) || fail "planning an app Railpack builds failed"
+jq -e '[.change.plan.servers[].steps[] | select(.build)][0].build.detection | .builder == "BUILDER_RAILPACK" and (.providers | index("node")) != null' <<<"$planned" >/dev/null ||
+  fail "the plan doesn't say what Railpack found: $planned"
+idle=$(rss)
+dw changes apply "$(jq -r .change.id <<<"$planned")" --yes >"$git_dir/railpack-deploy" 2>&1 &
+railpack_pid=$!
+peak=$idle
+while kill -0 "$railpack_pid" 2>/dev/null; do
+  now=$(rss) || break
+  ((now > peak)) && peak=$now
+  sleep 0.2
+done
+wait "$railpack_pid" || fail "an app Railpack builds didn't deploy: $(cat "$git_dir/railpack-deploy")"
+served=$(curl -fsS --retry 10 --retry-connrefused --retry-delay 1 "http://127.0.0.1:$railpack_port/") || fail "what Railpack built doesn't answer on $railpack_port"
+[[ "$served" == "Serve the storefront with Railpack" ]] || fail "what Railpack built answers '$served'"
+railpack_id=$(service_id e2e-railpack)
+railpack_build=$(dw builds list "$railpack_id" --json | jq '.builds[0]')
+jq -e '.state == "BUILD_STATE_DONE" and .detection.builder == "BUILDER_RAILPACK"' <<<"$railpack_build" >/dev/null || fail "the Railpack build reads $railpack_build"
+dw builds log "$(jq -r .id <<<"$railpack_build")" | grep -q "built the storefront" || fail "the Railpack build's log doesn't have what its build command printed"
+words="the agent build read $((idle / 1024)) MiB before a Railpack build and $((peak / 1024)) MiB at most during it"
+echo "docker-e2e: $words"
+[[ -z "${GITHUB_STEP_SUMMARY:-}" ]] || echo "Railpack: $words." >>"$GITHUB_STEP_SUMMARY"
+((peak - idle < 40 * 1024)) || fail "the agent grew by $(((peak - idle) / 1024)) MiB during a Railpack build: $words"
+docker volume inspect dockwell-railpack >/dev/null || fail "Railpack isn't in its volume"
+dw services delete "$railpack_id" --yes || fail "deleting e2e-railpack failed"
 
 step "Builds: a build's secret reaches its steps, and never its log or its image"
 # On the control server, whose agent runs as root under systemd, with /run in memory.

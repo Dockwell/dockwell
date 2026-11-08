@@ -259,12 +259,58 @@ type Decision struct {
 	Build *BuildPlan `json:",omitempty"`
 }
 
-// BuildPlan is what a step builds: a commit of a repository, with a Dockerfile,
-// into an image of its own.
+// BuildPlan is what a step builds: a commit of a repository, with its Dockerfile
+// or with Railpack, into an image of its own.
 type BuildPlan struct {
 	URL, Ref, Commit    string
 	Context, Dockerfile string `json:",omitempty"`
 	Image               string
+	// Builder is what the build's settings choose: BuilderAuto, BuilderDockerfile
+	// or BuilderRailpack.
+	Builder string `json:",omitempty"`
+	// Detection is what reading the commit found, when the plan read it. A
+	// fingerprint leaves it out: the commit and the settings decide it.
+	Detection *BuildDetection `json:",omitempty"`
+}
+
+// What builds an image.
+const (
+	// BuilderAuto is the Dockerfile when the commit has one, and Railpack when
+	// it hasn't.
+	BuilderAuto       = ""
+	BuilderDockerfile = "dockerfile"
+	BuilderRailpack   = "railpack"
+)
+
+// BuildDetection is what reading a commit found before anything builds: what
+// builds it, and with Railpack, what it installs and runs.
+type BuildDetection struct {
+	// Builder is BuilderDockerfile or BuilderRailpack.
+	Builder string
+	// Dockerfile is the Dockerfile's path in the repository, when it has one,
+	// and BaseImage the image its last stage starts from, such as node:22-alpine.
+	Dockerfile string `json:",omitempty"`
+	BaseImage  string `json:",omitempty"`
+	// Railpack is the version of Railpack that read it.
+	Railpack  string            `json:",omitempty"`
+	Providers []string          `json:",omitempty"`
+	Packages  []DetectedPackage `json:",omitempty"`
+	Steps     []DetectedStep    `json:",omitempty"`
+	Start     string            `json:",omitempty"`
+	Warnings  []string          `json:",omitempty"`
+	// Error is why Railpack can't build it, in its words.
+	Error string `json:",omitempty"`
+}
+
+// DetectedPackage is a language or tool a Railpack build installs.
+type DetectedPackage struct {
+	Name, Requested, Resolved, Source string
+}
+
+// DetectedStep is a step of a Railpack build, and its commands.
+type DetectedStep struct {
+	Name     string
+	Commands []string
 }
 
 // BuildBudget is the most a build may take, on top of what any step gets.

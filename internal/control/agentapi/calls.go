@@ -1349,6 +1349,20 @@ func (s *Session) CancelBuild(ctx context.Context, call *agentv1.CancelBuildCall
 	return r.GetCancelBuild().GetStopping(), nil
 }
 
+// DetectBuild reads how a commit would build on the server, building nothing. The
+// first on a server fetches Railpack and mise, so it gets longer than a plan.
+func (s *Session) DetectBuild(ctx context.Context, call *agentv1.DetectBuildCall) (*dockwellv1.BuildDetection, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DetectBuild{DetectBuild: call}}, DetectTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetDetectBuild().GetDetection(), nil
+}
+
+// DetectTimeout bounds reading how a commit builds, which the agent bounds at three
+// minutes of its own.
+const DetectTimeout = 4 * time.Minute
+
 // sealing readies a call that carries a destination, for each stream it goes out on.
 func (s *Session) sealing(volume *dockwellv1.ResourceRef, destination map[string]string, set func([]byte)) func(*Session) error {
 	if len(destination) == 0 {

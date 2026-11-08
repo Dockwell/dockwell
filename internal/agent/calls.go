@@ -17,10 +17,12 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
 // errNoFiles answers a call for a server's files on an agent set up without them.
@@ -583,6 +585,20 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			stopping = c.cfg.Builds.Cancel(cb.GetChangeId(), resourcepb.FromRef(cb.GetResource()), cb.GetBy())
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_CancelBuild{CancelBuild: &agentv1.CancelBuildResult{Stopping: stopping}}}
+	case call.GetDetectBuild() != nil:
+		if c.cfg.Builds == nil {
+			return fail(errors.New("this agent can't read how a commit builds, as it has no Docker"))
+		}
+		b := call.GetDetectBuild().GetBuild()
+		if b.GetGit().GetCommit() == "" {
+			return fail(errors.New("reading how a commit builds needs the commit, in full"))
+		}
+		d, err := c.cfg.Builds.Detect(ctx, service.Request(&resourcev1.Service{Build: b}))
+		if err != nil {
+			plain, _ := resource.Explain(err)
+			return fail(errors.New(plain))
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DetectBuild{DetectBuild: &agentv1.DetectBuildResult{Detection: resourcepb.Detection(d)}}}
 	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil, call.GetFetchBackup() != nil, call.GetSendBackup() != nil:
 		if c.cfg.Backups == nil {
 			return fail(errors.New("this agent can't back up volumes, as it has no Docker driver"))

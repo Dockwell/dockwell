@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/human"
 )
@@ -142,4 +143,70 @@ func cmpOr(a, b string) string {
 // shownRef is a branch or a tag as people name it: main for refs/heads/main.
 func shownRef(ref string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(ref, "refs/heads/"), "refs/tags/")
+}
+
+// buildDetection says how a commit would build, as DetectBuild read it.
+func buildDetection(w io.Writer, m *dockwellv1.DetectBuildResponse) {
+	ref := ""
+	if m.GetRef() != "" && m.GetRef() != m.GetCommit() {
+		ref = " (" + terminalSafe(shownRef(m.GetRef()), false) + ")"
+	}
+	fmt.Fprintf(w, "%s read %s%s.\n", terminalSafe(m.GetServerName(), false), shortCommit(m.GetCommit()), ref)
+	detectionView(w, m.GetDetection())
+}
+
+// detectionView says what reading a commit found: its Dockerfile, or what
+// Railpack makes of it.
+func detectionView(w io.Writer, d *dockwellv1.BuildDetection) {
+	safe := func(s string) string { return terminalSafe(s, false) }
+	if d.GetBuilder() == resourcev1.ImageBuild_BUILDER_DOCKERFILE {
+		s := "Builds with its Dockerfile, " + safe(d.GetDockerfile())
+		if d.GetBaseImage() != "" {
+			s += ", from " + safe(d.GetBaseImage())
+		}
+		fmt.Fprintln(w, s+".")
+		return
+	}
+	if d.GetError() != "" {
+		fmt.Fprintln(w, "Railpack can't build it. It says:")
+		for _, line := range strings.Split(strings.TrimSpace(d.GetError()), "\n") {
+			fmt.Fprintln(w, "  "+safe(line))
+		}
+		fmt.Fprintln(w, "Add a Dockerfile, or set the build's start command.")
+		return
+	}
+	s := "Builds with Railpack"
+	if d.GetRailpackVersion() != "" {
+		s += " " + safe(d.GetRailpackVersion())
+	}
+	if len(d.GetProviders()) > 0 {
+		s += ", as " + safe(strings.Join(d.GetProviders(), ", "))
+	}
+	fmt.Fprintln(w, s+".")
+	t := newTable(w)
+	for _, p := range d.GetPackages() {
+		from := ""
+		if p.GetSource() != "" {
+			from = "from " + safe(p.GetSource())
+		}
+		fmt.Fprintf(t, "  %s\t%s\t%s\n", safe(p.GetName()), safe(orDash(p.GetResolved())), from)
+	}
+	for _, st := range d.GetSteps() {
+		for i, c := range st.GetCommands() {
+			name := ""
+			if i == 0 {
+				name = safe(st.GetName())
+			}
+			fmt.Fprintf(t, "  %s\t%s\t\n", name, safe(c))
+		}
+	}
+	start := d.GetStartCommand()
+	if start == "" {
+		start = "none found: set the build's start command"
+	}
+	fmt.Fprintf(t, "  starts\t%s\t\n", safe(start))
+	_ = t.Flush()
+	for _, warning := range d.GetWarnings() {
+		fmt.Fprintln(w, "Railpack warns: "+sentence(safe(warning)))
+	}
 }

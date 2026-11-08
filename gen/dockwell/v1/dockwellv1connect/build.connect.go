@@ -44,6 +44,9 @@ const (
 	BuildServiceReadBuildLogProcedure = "/dockwell.v1.BuildService/ReadBuildLog"
 	// BuildServiceWatchBuildProcedure is the fully-qualified name of the BuildService's WatchBuild RPC.
 	BuildServiceWatchBuildProcedure = "/dockwell.v1.BuildService/WatchBuild"
+	// BuildServiceDetectBuildProcedure is the fully-qualified name of the BuildService's DetectBuild
+	// RPC.
+	BuildServiceDetectBuildProcedure = "/dockwell.v1.BuildService/DetectBuild"
 	// BuildServiceCancelBuildProcedure is the fully-qualified name of the BuildService's CancelBuild
 	// RPC.
 	BuildServiceCancelBuildProcedure = "/dockwell.v1.BuildService/CancelBuild"
@@ -61,6 +64,11 @@ type BuildServiceClient interface {
 	// WatchBuild sends a build as it stands and what its log keeps, then each line
 	// and change of state as they come, until it ends.
 	WatchBuild(context.Context, *connect.Request[v1.WatchBuildRequest]) (*connect.ServerStreamForClient[v1.WatchBuildResponse], error)
+	// DetectBuild reads how a commit of a repository would build, on a server, as
+	// a build would read it: with its Dockerfile, or with Railpack and what
+	// Railpack found, such as Node 22 and npm run build. Nothing is built or
+	// changed. A plan that builds with Railpack says the same before it builds.
+	DetectBuild(context.Context, *connect.Request[v1.DetectBuildRequest]) (*connect.Response[v1.DetectBuildResponse], error)
 	// CancelBuild stops a build that is waiting or running. Its step fails as
 	// cancelled, before anything that runs is touched, so its change's rollback
 	// has nothing to do and what ran goes on running.
@@ -106,6 +114,12 @@ func NewBuildServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		detectBuild: connect.NewClient[v1.DetectBuildRequest, v1.DetectBuildResponse](
+			httpClient,
+			baseURL+BuildServiceDetectBuildProcedure,
+			connect.WithSchema(buildServiceMethods.ByName("DetectBuild")),
+			connect.WithClientOptions(opts...),
+		),
 		cancelBuild: connect.NewClient[v1.CancelBuildRequest, v1.CancelBuildResponse](
 			httpClient,
 			baseURL+BuildServiceCancelBuildProcedure,
@@ -121,6 +135,7 @@ type buildServiceClient struct {
 	getBuild     *connect.Client[v1.GetBuildRequest, v1.GetBuildResponse]
 	readBuildLog *connect.Client[v1.ReadBuildLogRequest, v1.ReadBuildLogResponse]
 	watchBuild   *connect.Client[v1.WatchBuildRequest, v1.WatchBuildResponse]
+	detectBuild  *connect.Client[v1.DetectBuildRequest, v1.DetectBuildResponse]
 	cancelBuild  *connect.Client[v1.CancelBuildRequest, v1.CancelBuildResponse]
 }
 
@@ -144,6 +159,11 @@ func (c *buildServiceClient) WatchBuild(ctx context.Context, req *connect.Reques
 	return c.watchBuild.CallServerStream(ctx, req)
 }
 
+// DetectBuild calls dockwell.v1.BuildService.DetectBuild.
+func (c *buildServiceClient) DetectBuild(ctx context.Context, req *connect.Request[v1.DetectBuildRequest]) (*connect.Response[v1.DetectBuildResponse], error) {
+	return c.detectBuild.CallUnary(ctx, req)
+}
+
 // CancelBuild calls dockwell.v1.BuildService.CancelBuild.
 func (c *buildServiceClient) CancelBuild(ctx context.Context, req *connect.Request[v1.CancelBuildRequest]) (*connect.Response[v1.CancelBuildResponse], error) {
 	return c.cancelBuild.CallUnary(ctx, req)
@@ -161,6 +181,11 @@ type BuildServiceHandler interface {
 	// WatchBuild sends a build as it stands and what its log keeps, then each line
 	// and change of state as they come, until it ends.
 	WatchBuild(context.Context, *connect.Request[v1.WatchBuildRequest], *connect.ServerStream[v1.WatchBuildResponse]) error
+	// DetectBuild reads how a commit of a repository would build, on a server, as
+	// a build would read it: with its Dockerfile, or with Railpack and what
+	// Railpack found, such as Node 22 and npm run build. Nothing is built or
+	// changed. A plan that builds with Railpack says the same before it builds.
+	DetectBuild(context.Context, *connect.Request[v1.DetectBuildRequest]) (*connect.Response[v1.DetectBuildResponse], error)
 	// CancelBuild stops a build that is waiting or running. Its step fails as
 	// cancelled, before anything that runs is touched, so its change's rollback
 	// has nothing to do and what ran goes on running.
@@ -202,6 +227,12 @@ func NewBuildServiceHandler(svc BuildServiceHandler, opts ...connect.HandlerOpti
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	buildServiceDetectBuildHandler := connect.NewUnaryHandler(
+		BuildServiceDetectBuildProcedure,
+		svc.DetectBuild,
+		connect.WithSchema(buildServiceMethods.ByName("DetectBuild")),
+		connect.WithHandlerOptions(opts...),
+	)
 	buildServiceCancelBuildHandler := connect.NewUnaryHandler(
 		BuildServiceCancelBuildProcedure,
 		svc.CancelBuild,
@@ -218,6 +249,8 @@ func NewBuildServiceHandler(svc BuildServiceHandler, opts ...connect.HandlerOpti
 			buildServiceReadBuildLogHandler.ServeHTTP(w, r)
 		case BuildServiceWatchBuildProcedure:
 			buildServiceWatchBuildHandler.ServeHTTP(w, r)
+		case BuildServiceDetectBuildProcedure:
+			buildServiceDetectBuildHandler.ServeHTTP(w, r)
 		case BuildServiceCancelBuildProcedure:
 			buildServiceCancelBuildHandler.ServeHTTP(w, r)
 		default:
@@ -243,6 +276,10 @@ func (UnimplementedBuildServiceHandler) ReadBuildLog(context.Context, *connect.R
 
 func (UnimplementedBuildServiceHandler) WatchBuild(context.Context, *connect.Request[v1.WatchBuildRequest], *connect.ServerStream[v1.WatchBuildResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.BuildService.WatchBuild is not implemented"))
+}
+
+func (UnimplementedBuildServiceHandler) DetectBuild(context.Context, *connect.Request[v1.DetectBuildRequest]) (*connect.Response[v1.DetectBuildResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.BuildService.DetectBuild is not implemented"))
 }
 
 func (UnimplementedBuildServiceHandler) CancelBuild(context.Context, *connect.Request[v1.CancelBuildRequest]) (*connect.Response[v1.CancelBuildResponse], error) {

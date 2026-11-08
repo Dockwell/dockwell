@@ -1418,6 +1418,9 @@ msgstr "Built"
 msgid "Built on"
 msgstr "Built on"
 
+msgid "Built with"
+msgstr "Built with"
+
 msgid "Cache hit"
 msgstr "Cache hit"
 
@@ -1827,6 +1830,9 @@ msgstr "<0>{source}</0> gives this app control of Docker on the server, the same
 msgid "A NAME=value a line, as docker build's --build-arg. They aren't secret: they stay in the image's history."
 msgstr "A NAME=value a line, as docker build's --build-arg. They aren't secret: they stay in the image's history."
 
+msgid "A NAME=value a line. A Dockerfile reads them as --build-arg, and Railpack as variables, such as RAILPACK_NODE_VERSION=20."
+msgstr "A NAME=value a line. A Dockerfile reads them as --build-arg, and Railpack as variables, such as RAILPACK_NODE_VERSION=20."
+
 msgid "A URL has no spaces. Write it as https://github.com/acme/web."
 msgstr "A URL has no spaces. Write it as https://github.com/acme/web."
 
@@ -1835,6 +1841,9 @@ msgstr "A public repository, over HTTPS. Pushes don't deploy yet: Deploy builds 
 
 msgid "A volume such as data at /data, or a server path."
 msgstr "A volume such as data at /data, or a server path."
+
+msgid "Add a Dockerfile, or set a start command under Change."
+msgstr "Add a Dockerfile, or set a start command under Change."
 
 msgid "Add an .env file"
 msgstr "Add an .env file"
@@ -1860,14 +1869,23 @@ msgstr "Any image your server can pull, such as nginx:1.27."
 msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
 msgstr "Anyone who can read {holder}'s {where} can see the value of {names}."
 
+msgid "Auto"
+msgstr "Auto"
+
 msgid "Branch"
 msgstr "Branch"
 
 msgid "Build arguments"
 msgstr "Build arguments"
 
+msgid "Build command"
+msgstr "Build command"
+
 msgid "Build {repository} as {name}"
 msgstr "Build {repository} as {name}"
+
+msgid "Builder"
+msgstr "Builder"
 
 msgid "Can't make a plan"
 msgstr "Can't make a plan"
@@ -1896,6 +1914,9 @@ msgstr "Close, and lose what you typed here?"
 msgid "Compose"
 msgstr "Compose"
 
+msgid "Couldn't read the repository"
+msgstr "Couldn't read the repository"
+
 msgid "Directory on the server"
 msgstr "Directory on the server"
 
@@ -1904,6 +1925,9 @@ msgstr "Discard"
 
 msgid "Dockerfile"
 msgstr "Dockerfile"
+
+msgid "Dockerfile or Railpack"
+msgstr "Dockerfile or Railpack"
 
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
@@ -2021,11 +2045,27 @@ msgstr "Project"
 msgid "Project name"
 msgstr "Project name"
 
+msgid "Railpack"
+msgstr "Railpack"
+
+msgid "Railpack can't tell how to build it"
+msgstr "Railpack can't tell how to build it"
+
+msgid "Railpack reads what the app is, such as Node from its package.json, and builds it with no Dockerfile."
+msgstr "Railpack reads what the app is, such as Node from its package.json, and builds it with no Dockerfile."
+
+#. placeholder {0}: warned.join(" ")
+msgid "Railpack says: {0}"
+msgstr "Railpack says: {0}"
+
 msgid "Reaches {path}"
 msgstr "Reaches {path}"
 
 msgid "Reading the file"
 msgstr "Reading the file"
+
+msgid "Reading the repository"
+msgstr "Reading the repository"
 
 msgid "Remove this port"
 msgstr "Remove this port"
@@ -2072,8 +2112,17 @@ msgstr "Show the apps"
 msgid "Show the value"
 msgstr "Show the value"
 
+msgid "Start command"
+msgstr "Start command"
+
 msgid "Such as 8080 on the server, to 80 in the app."
 msgstr "Such as 8080 on the server, to 80 in the app."
+
+msgid "The Dockerfile when the commit has one, and Railpack when it hasn't."
+msgstr "The Dockerfile when the commit has one, and Railpack when it hasn't."
+
+msgid "The commit's Dockerfile builds it, and the build fails without one."
+msgstr "The commit's Dockerfile builds it, and the build fails without one."
 
 msgid "The file uses these, and has no default for them."
 msgstr "The file uses these, and has no default for them."
@@ -2114,11 +2163,17 @@ msgstr "Volume or server path"
 msgid "What the build starts from, in the repository."
 msgstr "What the build starts from, in the repository."
 
+msgid "What the image starts with."
+msgstr "What the image starts with."
+
 msgid "What this file makes"
 msgstr "What this file makes"
 
 msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
 msgstr "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
+
+msgid "With Railpack, in place of the one it finds."
+msgstr "With Railpack, in place of the one it finds."
 
 msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "Without a volume, what it writes is lost when its container is replaced."
@@ -2129,11 +2184,11 @@ msgstr "Write each as NAME=value, on a line of its own."
 msgid "You approve what it reaches in the plan"
 msgstr "You approve what it reaches in the plan"
 
-msgid "at <0>./{dockerfile}</0>"
-msgstr "at <0>./{dockerfile}</0>"
-
 msgid "command"
 msgstr "command"
+
+msgid "detected"
+msgstr "detected"
 
 msgid "driver options"
 msgstr "driver options"
@@ -2146,6 +2201,9 @@ msgstr "environment variable names"
 
 msgid "labels"
 msgstr "labels"
+
+msgid "read from the repository once you name it"
+msgstr "read from the repository once you name it"
 
 msgid "the network {owner}"
 msgstr "the network {owner}"
@@ -2177,6 +2235,29 @@ msgstr "{count, plural, one {Show it} other {Show them}}"
 
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, one {# variable} other {# variables}}"
+
+msgid "Found nothing to start the app with: set a start command."
+msgstr "Found nothing to start the app with: set a start command."
+
+#. placeholder {0}: codes(commands)
+msgid "Runs {0}, and found nothing to start the app with: set a start command."
+msgstr "Runs {0}, and found nothing to start the app with: set a start command."
+
+#. placeholder {0}: codes(commands)
+msgid "Runs {0}, then starts with <0>{start}</0>."
+msgstr "Runs {0}, then starts with <0>{start}</0>."
+
+msgid "Starts with <0>{start}</0>."
+msgstr "Starts with <0>{start}</0>."
+
+msgid "Static site"
+msgstr "Static site"
+
+#. placeholder {0}: p.name
+#. placeholder {1}: p.resolved
+#. placeholder {2}: p.source
+msgid "{0} {1}, from {2}"
+msgstr "{0} {1}, from {2}"
 
 msgid "Changed {field}"
 msgstr "Changed {field}"
@@ -4355,6 +4436,10 @@ msgstr "If a backup fails, the upgrade stops there, with nothing else done. Undo
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 
+#. placeholder {0}: detected.packages(d).join("; ")
+msgid "Installs {0}."
+msgstr "Installs {0}."
+
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 
@@ -4435,6 +4520,9 @@ msgstr "Pulls {image} again, and replaces {name} whatever that finds, as more th
 
 msgid "Pulls {image} again, and replaces {name} with what that names now, in place of the digest it's pinned to."
 msgstr "Pulls {image} again, and replaces {name} with what that names now, in place of the digest it's pinned to."
+
+msgid "Railpack says: {warning}"
+msgstr "Railpack says: {warning}"
 
 msgid "Read it for the rest before you pass one a secret."
 msgstr "Read it for the rest before you pass one a secret."
@@ -4556,6 +4644,29 @@ msgstr "Where SELinux is enforced, Docker relabels everything there as private t
 
 msgid "Where SELinux is enforced, Docker relabels everything there, to share it between containers."
 msgstr "Where SELinux is enforced, Docker relabels everything there, to share it between containers."
+
+#. placeholder {0}: detected.what(d)
+msgid "With Railpack, as {0}."
+msgstr "With Railpack, as {0}."
+
+msgid "With Railpack, which reads the commit as the build starts."
+msgstr "With Railpack, which reads the commit as the build starts."
+
+#. placeholder {0}: d.dockerfile
+#. placeholder {1}: d.baseImage
+msgid "With its Dockerfile at <0>{0}</0>, from <1>{1}</1>."
+msgstr "With its Dockerfile at <0>{0}</0>, from <1>{1}</1>."
+
+#. placeholder {0}: d.dockerfile
+msgid "With its Dockerfile at <0>{0}</0>."
+msgstr "With its Dockerfile at <0>{0}</0>."
+
+#. placeholder {0}: d.baseImage
+msgid "With its Dockerfile, from <0>{0}</0>."
+msgstr "With its Dockerfile, from <0>{0}</0>."
+
+msgid "With its Dockerfile."
+msgstr "With its Dockerfile."
 
 msgid "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
 msgstr "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
