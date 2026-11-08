@@ -29,7 +29,9 @@ export function DeployLogLink({
   const sources = useQuery(
     LogService.method.listLogSources,
     { id: serviceId },
-    { retry: false, refetchOnWindowFocus: false },
+    // A cache read made before a container existed must not hide its logs when
+    // this deploy is opened again or Activity sees it finish.
+    { retry: false, refetchOnWindowFocus: false, refetchOnMount: "always" },
   );
   const data = sources.data;
   if (!data) return null;

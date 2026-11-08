@@ -735,6 +735,38 @@ describe("Activity", () => {
     expect(link).toHaveAttribute("href", `/apps/${service?.id}/logs?change=${done.id}`);
   });
 
+  it("finds a deploy's logs when it finishes after being selected before its container existed", async () => {
+    const planned = webPlanned();
+    const service = planned.plan?.resources[0];
+    if (service?.resource) service.resource.kind = "service";
+    const done = applied(planned, new Date(Date.now() - 60_000));
+    const running = moved(done, { state: ChangeState.APPLYING });
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot([changeEvent(running)]));
+    let hasContainer = false;
+    const listLogSources = vi.fn(() => ({
+      sources: hasContainer ? [{ id: "aaaaaaaaaaaa", changeId: done.id }] : [],
+    }));
+    renderAt(
+      `/activity?event=${running.id}`,
+      {
+        events: { watchEvents: watch.stream },
+        changes: { getChange: () => ({ change: hasContainer ? done : running }) },
+        logs: { listLogSources, watchLogs: quietLogs },
+      },
+      // Match the real panel: the empty answer is fresh for thirty seconds.
+      { staleTime: 30_000 },
+    );
+    await waitFor(() => expect(listLogSources).toHaveBeenCalledTimes(1));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
+    hasContainer = true;
+    act(() => watch.push(since([changeEvent(done)])));
+    const link = await screen.findByRole("link", { name: "Read this deploy's logs" });
+    expect(link).toHaveAttribute("href", `/apps/${service?.id}/logs?change=${done.id}`);
+    expect(listLogSources).toHaveBeenCalledTimes(2);
+  });
+
   it("offers no logs of a deploy that never made a container", async () => {
     const planned = webPlanned();
     const service = planned.plan?.resources[0];

@@ -795,7 +795,7 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
           ((change.state === ChangeState.FAILED && !wentOffline(change)) ||
             change.state === ChangeState.APPLIED ||
             change.state === ChangeState.APPLYING) ? (
-            <FailedDeployLogs change={full.data?.change ?? change} />
+            <FailedDeployLogs key={`${change.id}:${change.state}`} change={full.data?.change ?? change} />
           ) : null}
           {change ? (
             <div className="activity-detail-section">
