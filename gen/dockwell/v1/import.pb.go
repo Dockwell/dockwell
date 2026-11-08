@@ -281,8 +281,9 @@ type ImportOnePanelResponse struct {
 	// What an import would do, a step for each thing found, in the order the
 	// plan would take them.
 	Steps []*ImportStep `protobuf:"bytes,2,rep,name=steps,proto3" json:"steps,omitempty"`
-	// The change that takes on what can be taken now, planned for a person to
-	// apply. Empty for now: planning the import comes next.
+	// The change that takes on what can come now, planned for a person to apply.
+	// Empty for a token, where nothing can come, and where Dockwell can't read
+	// what runs on the server now.
 	Change        *Change `protobuf:"bytes,3,opt,name=change,proto3" json:"change,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

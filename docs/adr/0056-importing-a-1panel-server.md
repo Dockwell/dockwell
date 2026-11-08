@@ -62,7 +62,10 @@ The tables the importer reads, by the names GORM gives them:
 
 ### What it does with each thing
 
-Every import is a plan a person reviews and applies, and nothing on the server changes before that. `ImportService.ImportOnePanel` returns all of this, and `dockwell import 1panel --server-id <server> --plan-only` lists it. It records nothing yet: once it plans the import, it returns that change too, and `--plan-only` leaves it planned, as it does for every plan.
+Every import is a plan a person reviews and applies, and nothing on the server changes before that. `ImportService.ImportOnePanel` returns all of this. For a person it also plans one change that takes on every app and runtime that can come now. A token gets the list and no change, as a plan that takes a container on shows what a token can't read (ADR 0031), so `dockwell import 1panel --server-id <server> --plan-only` lists it, and the panel plans it.
+
+- **Each app is read as `AdoptCompose` reads a project,** container by container, by its Compose project, which is its install's name. What's in the way of one, such as a setting no spec holds, leaves that app with the refusal in its words, and the rest still come. An app 1Panel lists with no container left, and its database server, say so too.
+- **Where Dockwell can't read what runs on the server,** as its Docker is away, nothing is planned, and each app says why.
 
 **Taken on in place, with no restart** (ADR 0031):
 

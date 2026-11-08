@@ -117,7 +117,7 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 		notes = append(notes, revision.ManagedElsewhere(resource.Elsewhere{Manager: found.Manager, Container: c.GetName(), Project: p, Folder: found.Folder}))
 	}
 	change, err := h.changes.Propose(ctx, fmt.Sprintf("Take on %s as %s", c.GetName(), name), []*dockwellv1.Edit{edit}, nil, changes.Also{
-		Adopts: map[string]changes.Adoption{name: {ID: c.GetId(), Name: c.GetName()}},
+		Adopts: map[resource.Ref]changes.Adoption{{Kind: service.Kind, Scope: env.ID, Name: name}: {ID: c.GetId(), Name: c.GetName()}},
 		Notes:  notes,
 	})
 	if err != nil {

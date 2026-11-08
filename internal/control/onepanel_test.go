@@ -5,6 +5,7 @@ package control
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -18,6 +19,7 @@ import (
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
 	"github.com/dockwell/dockwell/internal/agent/onepanel/onepaneltest"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -88,7 +90,8 @@ func TestAPlanOnlyImportOf1Panel(t *testing.T) {
 		}
 	}
 	take, again, leave := dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON, dockwellv1.ImportAction_IMPORT_ACTION_MAKE, dockwellv1.ImportAction_IMPORT_ACTION_LEAVE
-	check("IMPORT_KIND_APP wordpress", take, "WordPress 6.7.1 from 1Panel's store", "a Compose project, wordpress", "/opt/1panel/apps/wordpress/wordpress")
+	// This server has no Docker for the agent to read, so nothing is planned, and it says so.
+	check("IMPORT_KIND_APP wordpress", take, "WordPress 6.7.1 from 1Panel's store", "a Compose project, wordpress", "/opt/1panel/apps/wordpress/wordpress", "can't read what runs on hz-1 now")
 	check("IMPORT_KIND_APP mysql", take, "Its data stays where it is")
 	check("IMPORT_KIND_APP openresty", leave, "ports 80 and 443", "stop it in 1Panel")
 	check("IMPORT_KIND_APP mine", take, "from your own store")
@@ -162,5 +165,91 @@ func TestNo1PanelOrAnOldAgentSaysSo(t *testing.T) {
 	}
 	if _, err := importClient(c).ImportOnePanel(t.Context(), connect.NewRequest(&dockwellv1.ImportOnePanelRequest{ServerId: "srv_nope"})); connect.CodeOf(err) != connect.CodeNotFound {
 		t.Errorf("no such server = %v", err)
+	}
+}
+
+// A person importing a server running 1Panel gets one change that takes on what
+// runs as it is, with nothing touched. What can't come says why and stays: an app
+// whose container holds what a spec can't, and one with no container at all.
+func TestImportingA1PanelServerTakesOnWhatRuns(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	f.onePanelRoot = onepaneltest.Make(t, "/opt", false)
+	e := f.addDockerServer(t)
+	e.AddNetwork(docker.Network{ID: "1pnet", Name: "1panel-network", Driver: "bridge"})
+	inPanel := func(project, service, name string) string {
+		return composeContainer(t, e, project, service, name, func(r *docker.CreateRequest) {
+			r.HostConfig.NetworkMode = "1panel-network"
+			r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"1panel-network": {Aliases: []string{service, name}}}
+			r.HostConfig.Binds = []string{"/opt/1panel/apps/" + project + "/" + project + "/data:/data"}
+		})
+	}
+	mysql := inPanel("mysql", "mysql", "1Panel-mysql-AbCd")
+	inPanel("wordpress", "wordpress", "1Panel-wordpress-IjKl")
+	e.Reports("1Panel-wordpress-IjKl", "HostConfig", map[string]any{"PublishAllPorts": true})
+	inPanel("openresty", "openresty", "1Panel-openresty-EfGh")
+	api := inPanel("api", "api", "api")
+	id := f.lastDocker.id.ServerID
+	seen := len(e.Seen())
+
+	res, err := importClient(b).ImportOnePanel(t.Context(), connect.NewRequest(&dockwellv1.ImportOnePanelRequest{ServerId: id}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps := map[string]*dockwellv1.ImportStep{}
+	for _, s := range res.Msg.GetSteps() {
+		steps[s.GetKind().String()+" "+s.GetName()] = s
+	}
+	take, leave := dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON, dockwellv1.ImportAction_IMPORT_ACTION_LEAVE
+	for key, want := range map[string]struct {
+		action dockwellv1.ImportAction
+		says   string
+	}{
+		"IMPORT_KIND_APP mysql":               {take, "the project mysql, taken on as it runs"},
+		"IMPORT_KIND_RUNTIME api":             {take, "the project api, taken on as it runs"},
+		"IMPORT_KIND_APP wordpress":           {leave, "publish_all_ports"},
+		"IMPORT_KIND_APP mine":                {leave, "Docker runs no container of its Compose project, mine"},
+		"IMPORT_KIND_APP openresty":           {leave, "ports 80 and 443"},
+		"IMPORT_KIND_DATABASE_SERVER mysql":   {take, "taken on with the app mysql"},
+		"IMPORT_KIND_DATABASE_SERVER reports": {leave, "another machine"},
+	} {
+		s := steps[key]
+		text := s.GetBecomes() + " | " + s.GetReason()
+		if s.GetAction() != want.action || !strings.Contains(text, want.says) {
+			t.Errorf("%s = %v %q, want %v saying %q", key, s.GetAction(), text, want.action, want.says)
+		}
+	}
+	planned := res.Msg.GetChange()
+	if planned.GetState() != dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
+		t.Fatalf("change = %v", planned)
+	}
+	took := map[string]bool{}
+	for _, server := range planned.GetPlan().GetServers() {
+		for _, step := range server.GetSteps() {
+			if step.GetAdopts() != "" {
+				took[step.GetAdopts()] = true
+			}
+		}
+	}
+	if !took[mysql] || !took[api] || len(took) != 2 {
+		t.Fatalf("the plan takes on %v, want mysql's and api's", took)
+	}
+	if !slices.ContainsFunc(planned.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool {
+		return n.GetReason() == "imports_onepanel" && strings.Contains(n.GetMessage(), "OpenResty stays 1Panel's")
+	}) {
+		t.Errorf("the plan says nothing of the import: %v", planned.GetPlan().GetNotes())
+	}
+	if s := planned.String(); strings.Contains(s, secretValue) {
+		t.Fatalf("the plan shows a value of an environment: %s", s)
+	}
+	applyConfirmed(t, changeClient(b, b.origin), planned)
+	if got := mutations(e, seen); len(got) != 0 {
+		t.Errorf("the import asked Docker to %v", got)
+	}
+
+	// A token gets what was found, and no plan, as taking on is a person's.
+	rw := map[string]string{"Authorization": "Bearer " + createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)}
+	if status, _, body := callREST(t, b, http.MethodPost, "/v1/servers/"+id+"/imports:onepanel", rw, `{}`); status != http.StatusOK || strings.Contains(body, `"change"`) {
+		t.Errorf("a token's import = %d %s", status, body)
 	}
 }

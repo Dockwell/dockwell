@@ -109,8 +109,9 @@ type Also struct {
 	Pull bool
 	// Run says this asks what's edited to run (revision.Edit).
 	Run bool
-	// Adopts is what each edit takes on, by the name of what's edited.
-	Adopts map[string]Adoption
+	// Adopts is what each edit takes on, by what's edited. A change can take on
+	// several projects, whose services may share a name.
+	Adopts map[resource.Ref]Adoption
 	// Intent is what the plan is for, when the method proposing it knows.
 	Intent *revision.Intent
 	// BackUp names resources to back up first (revision.Edit).
@@ -158,7 +159,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	}
 	for i := range edits {
 		edits[i].Base, edits[i].Pull, edits[i].Run = also.Base, also.Pull, also.Run
-		a := also.Adopts[edits[i].Ref.Name]
+		a := also.Adopts[edits[i].Ref]
 		edits[i].Adopt, edits[i].AdoptName = a.ID, a.Name
 		edits[i].Backup = slices.Contains(also.BackUp, edits[i].Ref)
 	}
