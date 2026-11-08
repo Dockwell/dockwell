@@ -1,0 +1,165 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// An app from a folder end to end (ADR 0058): New app takes a folder on the server on
+// a language's version, reads who owns it and what it holds, and a person approves the
+// plan, which reaches the folder. Docker runs the version's pinned image with the
+// folder at /app, as its owner. The app's page says what it runs on, and its version
+// changes through a plan; the Websites page's runtimes list the app on its language;
+// and deleting the app leaves its folder. On the fake engine of scripts/fakedocker the
+// image runs at 127.0.0.1, where this listens on the app's port, so its check passes; on
+// real Docker the app in the folder answers it. scripts/docker-e2e.sh runs one app of
+// each language on real Docker.
+
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer, type Server } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import type { Page } from "playwright-core";
+
+import type { DockerProbe } from "./docker-probe.ts";
+import type { Flow } from "./flows.ts";
+
+export interface RuntimesFlowOptions {
+  origin: string;
+  /** Reports each step. */
+  step: (what: string) => void;
+  /** Saves screenshots of a screen, if the run was asked to. */
+  shoot: (page: Page, name: string) => Promise<void>;
+  /** What Docker itself says runs. */
+  docker: DockerProbe;
+}
+
+function fail(message: string): never {
+  throw new Error(message);
+}
+
+/** Listens on a free port of 127.0.0.1, taking connections and saying nothing, as an app's port a check knocks at. */
+function listening(): Promise<{ server: Server; port: number }> {
+  return new Promise((done, failed) => {
+    const server = createServer((socket) => socket.end());
+    server.on("error", failed);
+    server.listen(0, "127.0.0.1", () => {
+      const at = server.address();
+      if (at === null || typeof at === "string") failed(new Error("the listener has no port"));
+      else done({ server, port: at.port });
+    });
+  });
+}
+
+/** Reads the plan sheet, applies it, and waits for it to end with the button that ends it. */
+async function applyPlan(page: Page, done: string) {
+  const plan = page.getByRole("dialog", { name: "Review plan" });
+  await plan.waitFor({ timeout: 30_000 });
+  await plan.getByRole("button", { name: /Apply plan|^Delete / }).click();
+  const finish = page.getByRole("button", { name: done, exact: true });
+  await finish.waitFor({ timeout: 180_000 });
+  await finish.click();
+}
+
+export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: RuntimesFlowOptions) {
+  const folder = mkdtempSync(join(tmpdir(), "dw-shop-"));
+  writeFileSync(
+    join(folder, "package.json"),
+    '{"name": "shop", "version": "1.0.0", "private": true, "scripts": {"start": "node server.js"}}\n',
+  );
+  writeFileSync(
+    join(folder, "server.js"),
+    'require("http").createServer((_, res) => res.end("shop")).listen(Number(process.env.PORT));\n',
+  );
+  const { server, port } = await listening();
+  const owner = `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`;
+  const name = "storefront";
+  try {
+    step("runtimes: New app takes a folder on a language's version, and reads who owns it and what it holds");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${origin}/apps/new`);
+    const sheet = page.getByRole("dialog", { name: "New app" });
+    await sheet.waitFor();
+    await sheet.getByRole("radio", { name: "Folder" }).click();
+    await sheet.getByRole("radio", { name: "Node.js" }).waitFor();
+    const version = sheet.getByRole("combobox", { name: "Version" });
+    const newest = await version.inputValue();
+    if (!/^\d+$/.test(newest)) fail(`New app starts Node.js on '${newest}'`);
+    const runsOn = sheet.getByRole("group", { name: "Runs on" });
+    if ((await runsOn.count()) > 0) await runsOn.getByRole("checkbox").first().check();
+    await sheet.getByRole("textbox", { name: "Folder", exact: true }).fill(folder);
+    await sheet.getByText("Holds package.json and 1 more.").waitFor({ timeout: 15_000 });
+    const runsAs = sheet.getByRole("textbox", { name: /^Runs as/ });
+    if ((await runsAs.inputValue()) !== owner) fail(`New app runs it as '${await runsAs.inputValue()}', want ${owner}`);
+    await sheet.getByRole("textbox", { name: /^Name/ }).fill(name);
+    await sheet.getByRole("textbox", { name: /^Port(?!s)/ }).fill(String(port));
+    await shoot(page, "app-new-folder");
+
+    step("runtimes: its plan names the folder it reaches, and a person applies it");
+    await sheet.getByRole("button", { name: /Review plan/ }).click();
+    const plan = page.getByRole("dialog", { name: "Review plan" });
+    await plan.waitFor({ timeout: 30_000 });
+    await plan.getByText(folder).filter({ visible: true }).first().waitFor();
+    await shoot(page, "app-plan-folder");
+    await applyPlan(page, `Open ${name}`);
+    await page.waitForURL(/\/apps\/svc_/);
+
+    step("runtimes: Docker runs the version's pinned image, with the folder at /app");
+    const ran = (await docker()).filter((c) => c.service === name);
+    if (ran.length !== 1 || !ran[0]?.image.startsWith(`node:${newest}.`) || !ran[0].image.includes("@sha256:")) {
+      fail(`Docker runs ${JSON.stringify(ran)} for ${name}, want node:${newest} pinned by digest`);
+    }
+
+    step("runtimes: the app's page says what it runs on and its folder, and its version changes through a plan");
+    await page.getByText(`Node.js ${newest} from`).first().waitFor({ timeout: 15_000 });
+    const config = page.getByRole("region", { name: "Configuration" });
+    await config.getByText(folder).waitFor();
+    await config.getByText("npm start").waitFor();
+    await shoot(page, "app-runtime");
+    await page.getByRole("button", { name: "Change version" }).first().click();
+    const change = page.getByRole("dialog", { name: `Change ${name}'s version` });
+    await change.waitFor();
+    const options = await change
+      .getByRole("combobox")
+      .locator("option")
+      .evaluateAll((all) => all.map((o) => (o as HTMLOptionElement).value));
+    const older = options.find((v) => v !== newest) ?? fail(`Node.js offers ${options.join(", ")} alone`);
+    await change.getByRole("combobox").selectOption(older);
+    await shoot(page, "app-runtime-version");
+    await change.getByRole("button", { name: /Review plan/ }).click();
+    await applyPlan(page, "Done");
+    await page.getByText(`Node.js ${older} from`).first().waitFor({ timeout: 30_000 });
+    const moved = (await docker()).filter((c) => c.service === name && c.running);
+    if (moved.length !== 1 || !moved[0]?.image.startsWith(`node:${older}.`)) {
+      fail(`after the change Docker runs ${JSON.stringify(moved)} for ${name}, want node:${older}`);
+    }
+
+    step("runtimes: the Websites page's runtimes list Node.js with the app on it");
+    await page.goto(`${origin}/websites`);
+    const runtimes = page.getByRole("region", { name: "Runtimes" });
+    const card = runtimes.locator("article", { has: page.getByRole("heading", { name: "Node.js" }) });
+    await card.getByText(`1 app · ${name} ${older}`).waitFor({ timeout: 15_000 });
+    await shoot(page, "websites-runtimes");
+
+    step("runtimes: on a phone, the app's page says what it runs on");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${origin}/apps`);
+    await page.getByText(`Node.js ${older} · ${folder}`).first().waitFor({ timeout: 15_000 });
+    await shoot(page, "apps-runtime-phone");
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    step("runtimes: deleting the app leaves its folder as it is");
+    await page.goto(`${origin}/apps`);
+    await page
+      .getByRole("link", { name: new RegExp(`^${name}`) })
+      .first()
+      .click();
+    await page.getByRole("button", { name: "Delete this app" }).click();
+    await applyPlan(page, "Done");
+    await page.getByRole("heading", { level: 1, name: "Apps", exact: true }).waitFor({ timeout: 30_000 });
+    if ((await docker()).some((c) => c.service === name)) fail(`${name} is still in Docker after it was deleted`);
+    step("  runtimes: a folder on Node.js, planned, approved, run, moved to another version and deleted");
+  } finally {
+    server.close();
+    rmSync(folder, { recursive: true, force: true });
+  }
+}
+
+/** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts): after Websites, whose runtimes it lists. */
+export const flow: Flow = { order: 66, run: (page, run) => runtimesFlow(page, run) };

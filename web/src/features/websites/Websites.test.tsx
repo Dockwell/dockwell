@@ -6,11 +6,13 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   CertificateState,
   ChangeSchema,
+  type ChangeServiceRuntimeRequest,
   ChangeState,
   type CreateWebsiteRequest,
   FileType,
   HealthState,
   PlanAction,
+  ServiceSchema,
   type UpdateWebsiteRequest,
   type WatchChangeResponse,
   type WatchLogsResponse,
@@ -766,12 +768,71 @@ describe("A PHP website", () => {
       }),
     );
     const runtimes = await screen.findByRole("region", { name: "Runtimes" });
-    expect(within(runtimes).getByText(/Node\.js, Python and other languages run as apps/)).toBeVisible();
+    expect(within(runtimes).getByText(/Other languages run as apps from an image/)).toBeVisible();
     const card = within(runtimes).getAllByRole("article")[1] as HTMLElement;
     expect(card).toHaveTextContent("shop.example.com runs an older build of 8.3");
     await user.click(within(card).getByRole("button", { name: "Update to 8.3.36" }));
     await waitFor(() => expect(asked?.id).toBe("prj_shop"));
     expect(asked?.website?.serves.case).toBe("php");
+  });
+
+  it("lists each language an app from a folder runs on, with the apps on it", async () => {
+    onWideScreen();
+    const user = userEvent.setup();
+    let asked: ChangeServiceRuntimeRequest | undefined;
+    const node = (version: string, release: string) => ({
+      id: "node",
+      language: "Node.js",
+      version,
+      release,
+      image: `node:${release}@sha256:${version}`,
+      start: "npm start",
+      port: 3000,
+      extensions: [],
+    });
+    const api24 = anApp(
+      "api",
+      "node:24.21.0@sha256:old",
+      {},
+      {
+        spec: create(ServiceSchema, {
+          runtime: { language: "node", version: "24", folder: "/srv/api", port: 3000, user: "1000:1000" },
+          runs: { case: "app", value: { image: "node:24.21.0@sha256:old" } },
+        }),
+      },
+    );
+    renderAt(
+      "/websites",
+      api([shop], {
+        websites: {
+          listWebsiteRuntimes: () => ({ runtimes: [...runtimes, node("26", "26.12.0"), node("24", "24.22.0")] }),
+        },
+        services: {
+          listServices: () => ({ services: [api24, webOfBlog] }),
+          changeServiceRuntime: (req) => {
+            asked = req;
+            return { change: planned };
+          },
+        },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const runtimesPanel = await screen.findByRole("region", { name: "Runtimes" });
+    const card = (await within(runtimesPanel).findByRole("heading", { name: "Node.js" })).closest(
+      "article",
+    ) as HTMLElement;
+    expect(card).toHaveTextContent("26.12.0 · 24.22.0");
+    expect(card).toHaveTextContent("1 app · api 24");
+    expect(card).toHaveTextContent("Versions26, 24");
+    expect(within(card).getByRole("link", { name: "New app on Node.js 26" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^\/apps\/new\?source=folder&language=node&version=(26|%2226%22)$/),
+    );
+    expect(card).toHaveTextContent("api runs an older build of 24");
+    await user.click(within(card).getByRole("button", { name: "Update to 24.22.0" }));
+    await waitFor(() =>
+      expect(asked).toMatchObject({ id: "svc_api", version: "24", summary: "Update api to Node.js 24.22.0" }),
+    );
   });
 
   it("says its pages answer 502 while its PHP is stopped", async () => {

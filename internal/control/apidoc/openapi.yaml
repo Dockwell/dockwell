@@ -2346,6 +2346,43 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/services/{id}:change-runtime:
+        post:
+            tags:
+                - ServiceService
+            description: |-
+                ChangeServiceRuntime plans running an app from a folder on another version
+                 of its language, or on the newest build of the version it has, with the
+                 rest of the service as it is: like DeployService, it needs no one to read
+                 the service's environment back. The plan replaces its container. See
+                 docs/adr/0058-runtimes-an-app-from-a-folder.md.
+            operationId: ServiceService_ChangeServiceRuntime
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ChangeServiceRuntimeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ChangeServiceRuntimeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services/{id}:deploy:
         post:
             tags:
@@ -3347,9 +3384,11 @@ paths:
             tags:
                 - WebsiteService
             description: |-
-                ListWebsiteRuntimes says what a website can run its code with: each version of
-                 PHP Dockwell offers, with the image it runs and the extensions that has. Each
-                 PHP website runs its own, so one site's upgrade moves no other.
+                ListWebsiteRuntimes says what code on a server can run with: each version of
+                 PHP Dockwell offers a website, with the image it runs and the extensions that
+                 has, and each version of Node.js, Python, Go and Java an app from a folder
+                 runs on (ADR 0058). Each website and app runs its own, so one's upgrade moves
+                 no other.
             operationId: WebsiteService_ListWebsiteRuntimes
             responses:
                 "200":
@@ -4493,6 +4532,41 @@ components:
             description: |-
                 Change is one action's worth of edits to managed resources: planned,
                  then applied, failed or discarded.
+        ChangeServiceRuntimeRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service, by ID or by name.
+                version:
+                    type: string
+                    description: |-
+                        The version, such as "24" for Node.js, which ListWebsiteRuntimes lists.
+                         Empty, or the one it has, takes the newest build of that version.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it changes.
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one
+                         has a service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its
+                         project has more than one.
+            description: |-
+                ChangeServiceRuntimeRequest names an app from a folder and the version to run
+                 it on.
+        ChangeServiceRuntimeResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: ChangeServiceRuntimeResponse carries the planned change.
         CheckClaimRequest:
             type: object
             properties:
@@ -9758,6 +9832,60 @@ components:
                 run:
                     $ref: '#/components/schemas/TaskRun'
             description: RunTaskResponse is the run, started.
+        Runtime:
+            type: object
+            properties:
+                language:
+                    type: string
+                    description: 'The language: "node", "python", "go" or "java".'
+                version:
+                    type: string
+                    description: |-
+                        Its version, such as "24" for Node.js or "3.14" for Python. Empty takes the
+                         newest, and is written as it.
+                folder:
+                    type: string
+                    description: |-
+                        The folder on the server that holds the app, such as "/srv/shop". It's
+                         mounted at /app, read-write, as what the app installs goes there. A folder
+                         that isn't there is made as user's.
+                install:
+                    type: string
+                    description: |-
+                        What installs what the app needs, run in /app before each start, such as
+                         "npm ci". Empty takes the language's: npm ci or npm install, a virtual
+                         environment and pip install -r requirements.txt, go build, or ./mvnw
+                         package. "-" installs nothing.
+                start:
+                    type: string
+                    description: |-
+                        What starts the app, in /app, such as "npm start". Empty takes the
+                         language's: npm start, python app.py, the binary go build made, or java
+                         -jar app.jar.
+                port:
+                    type: integer
+                    description: |-
+                        The port the app listens on, which its domain sends to and its check
+                         knocks at, given to it as PORT: 3000 for Node.js, 8000 for Python and 8080
+                         for Go and Java unless set.
+                    format: uint32
+                user:
+                    type: string
+                    description: |-
+                        Who it runs as, as uid:gid, such as "1000:1000": the folder owner's, as
+                         the panel fills it in. Never root's.
+                wrote:
+                    readOnly: true
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        What the runtime wrote into the app's environment, by name: PORT, HOME and
+                         where the language's tools keep caches, where the app sets nothing of its own.
+                         None of it is secret. Dockwell writes it each time the spec is checked.
+            description: |-
+                Runtime is an app from a folder on the server, run in a language's official
+                 image of the version chosen, as a person who edits it there wants it.
         SaveFileRequest:
             type: object
             properties:
@@ -10460,6 +10588,18 @@ components:
                          the service sees it as. Dockwell sets it when a change is planned, so a
                          service whose variable or secret changes gets a revision of its own,
                          and restarts with the new value. An edit's is ignored.
+                runtime:
+                    allOf:
+                        - $ref: '#/components/schemas/Runtime'
+                    description: |-
+                        How an app from a folder on the server runs: a language's official image of
+                         a version, with the folder mounted, and the commands that install and start
+                         it. With it, the parts of app it decides are written from it whenever the
+                         spec is checked, whatever an edit sends there: the image, command,
+                         entrypoint, working folder, user, the mount at /app, PORT, what's exposed,
+                         the check and the capabilities dropped. The rest of app, such as its
+                         environment, ports and networks, is the app's own, as an image app's is. See
+                         docs/adr/0058-runtimes-an-app-from-a-folder.md.
             description: |-
                 Service is anything that runs in an environment, placed on servers: for
                  now an app from an image, run as one container on each server it is
@@ -11822,7 +11962,7 @@ components:
             properties:
                 language:
                     type: string
-                    description: The language, such as "PHP".
+                    description: The language as people call it, such as "PHP" or "Node.js".
                 version:
                     type: string
                     description: The version a website names, such as "8.3".
@@ -11837,7 +11977,34 @@ components:
                     items:
                         type: string
                     description: The extensions it has beyond the language's own, such as "mysqli".
-            description: WebsiteRuntime is one version of a language a website can run.
+                id:
+                    type: string
+                    description: |-
+                        The language as a spec names it: "php" for a website, and "node",
+                         "python", "go" or "java" for an app's runtime.
+                install:
+                    type: string
+                    description: |-
+                        What an app on it installs and starts with, and the port it listens on,
+                         unless the app says. Empty for PHP, which a website runs.
+                start:
+                    type: string
+                port:
+                    type: integer
+                    format: uint32
+                env:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What it gives an app in its environment, by name, beside what the app sets:
+                         PORT, HOME and where its tools keep caches. Empty for PHP.
+                retired:
+                    type: boolean
+                    description: |-
+                        True when Dockwell no longer offers the version: an app on it keeps running
+                         and changing, and no new app runs on it.
+            description: WebsiteRuntime is one version of a language a website or an app can run.
 tags:
     - name: AuditService
       description: |-

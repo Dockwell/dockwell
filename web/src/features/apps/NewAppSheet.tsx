@@ -50,6 +50,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
+import { useRuntimes } from "../websites/website";
 import {
   appOf,
   environmentOf,
@@ -63,9 +64,11 @@ import {
   toLabel,
 } from "./app";
 import { composeRefusal, type RefusedAt, waitsForValues, withCode } from "./composeWords";
+import { FolderFields, nameFromFolder, useFolderChecks } from "./FolderFields";
 import {
   appEdits,
   type EnvRow,
+  type FolderForm,
   type FormErrors,
   fieldOf,
   type ImageForm,
@@ -79,7 +82,7 @@ import {
 } from "./form";
 import { usePlaces, useServices } from "./useServices";
 
-export type NewAppSource = "image" | "compose";
+export type NewAppSource = "image" | "compose" | "folder";
 
 /** A running count that gives each row of the form a key of its own. */
 let rowKeys = 0;
@@ -102,15 +105,19 @@ const ENV_LINES = 6;
  * its name; ports, variables and volumes wait behind a button each, and
  * where it runs shows only once there is a choice. A Compose file gets a
  * project of its own, named from the file (ADR 0026); it is read as you type,
- * says what it would make, and says at the line what Dockwell can't run. Git
+ * says what it would make, and says at the line what Dockwell can't run. A folder
+ * on the server runs on a language's version, as Dockwell keeps it (ADR 0058). Git
  * sources come in phase 2, and the catalog has a page of its own.
  */
 export function NewAppSheet({
   source,
+  runtime,
   onSource,
   onClose,
 }: {
   source: NewAppSource;
+  /** The language and version a runtime's card asked for, for a folder. */
+  runtime?: { language: string; version?: string | undefined } | undefined;
   onSource: (source: NewAppSource) => void;
   onClose: () => void;
 }) {
@@ -137,6 +144,17 @@ export function NewAppSheet({
   const [chosenServers, setChosenServers] = useState<readonly string[]>([]);
 
   const [image, setImage] = useState<ImageForm>({ image: "", name: "", ports: [], env: [], mounts: [] });
+  const [folder, setFolder] = useState<FolderForm>({
+    language: runtime?.language ?? "node",
+    version: runtime?.version ?? "",
+    folder: "",
+    install: "",
+    start: "",
+    port: "",
+    user: "",
+  });
+  const runtimes = useRuntimes().data;
+  const folderChecks = useFolderChecks();
   const [errors, setErrors] = useState<FormErrors>({});
   const [file, setFile] = useState("");
   const [typedProject, setTypedProject] = useState<string>();
@@ -175,7 +193,7 @@ export function NewAppSheet({
 
   const volumes = useQuery(ResourceService.method.listResources, { kind: "volume", scope }, { enabled: scope !== "" })
     .data?.resources;
-  const name = image.name.trim() || nameFromImage(image.image);
+  const name = image.name.trim() || (source === "folder" ? nameFromFolder(folder.folder) : nameFromImage(image.image));
 
   const inEnvironment = useMemo(
     () => (services ?? []).filter((s) => !scope || environmentOf(s) === scope),
@@ -207,13 +225,17 @@ export function NewAppSheet({
     setImage((was) => ({ ...was, ...next }));
     if (clear) setErrors(({ [clear]: _, ...rest }) => rest);
   };
+  const clearError = (key: string) => setErrors(({ [key]: _, ...rest }) => rest);
 
   /** Checks what a person can fix here, before asking the API. */
   const validate = (): FormErrors => {
-    const out: Record<string, string> = {};
-    if (image.image.trim() === "") out["image"] = t`Name the image to run, such as nginx:1.27.`;
-    else if (/\s/.test(image.image.trim())) out["image"] = t`An image has no spaces. Write it as nginx:1.27.`;
-    if (image.image.trim() !== "" && !SERVICE_NAME.test(name)) {
+    const out: Record<string, string> = source === "folder" ? folderChecks(folder) : {};
+    if (source === "image") {
+      if (image.image.trim() === "") out["image"] = t`Name the image to run, such as nginx:1.27.`;
+      else if (/\s/.test(image.image.trim())) out["image"] = t`An image has no spaces. Write it as nginx:1.27.`;
+    }
+    const named = source === "folder" ? folder.folder.trim() !== "" : image.image.trim() !== "";
+    if (named && !SERVICE_NAME.test(name)) {
       out["name"] = t`Use lowercase letters, digits and dashes, starting with a letter, such as web.`;
     } else if (inEnvironment.some((s) => nameOf(s) === name)) {
       out["name"] = t`An app named ${name} already runs here. Choose another name, or deploy to it from its page.`;
@@ -281,7 +303,10 @@ export function NewAppSheet({
         ) {
           if (after?.state === ChangeState.FAILED) {
             const message = failedAtField(after, name, fix);
-            if (source === "image") {
+            if (source === "folder") {
+              setErrors({ [folderFieldOf(message, folder) || "folder"]: message });
+              revealAfter.current = true;
+            } else if (source === "image") {
               // What ran is what to change, unless it says what else was wrong.
               setErrors({ [fieldOf(message, image, name) || "image"]: message });
               revealAfter.current = true;
@@ -343,18 +368,29 @@ export function NewAppSheet({
     setBusy(true);
     try {
       const wanted = image.image.trim();
+      const path = folder.folder.trim();
       const res = await changes.proposeChange({
-        summary: t`Run ${wanted} as ${name}`,
-        edits: appEdits(image, name, {
-          environment: choosesEnvironment ? scope : "",
-          servers: chosenServers,
-          volumes: (volumes ?? []).map((v) => v.resource?.name ?? ""),
-        }),
+        summary: source === "folder" ? t`Run ${name} from ${path}` : t`Run ${wanted} as ${name}`,
+        edits: appEdits(
+          source === "folder" ? { ...image, mounts: [] } : image,
+          name,
+          {
+            environment: choosesEnvironment ? scope : "",
+            servers: chosenServers,
+            volumes: (volumes ?? []).map((v) => v.resource?.name ?? ""),
+          },
+          source === "folder" ? folder : undefined,
+        ),
       });
       review(res.change, "app");
     } catch (err) {
       const message = tidyMessage(sentence(err));
-      const field = reasonOf(err) === "invalid" ? fieldOf(message, image, name) : "";
+      const invalid = reasonOf(err) === "invalid";
+      const field = !invalid
+        ? ""
+        : source === "folder"
+          ? folderFieldOf(message, folder) || fieldOf(message, { ...image, mounts: [] }, name)
+          : fieldOf(message, image, name);
       if (field) {
         setErrors({ [field]: message });
         revealError();
@@ -366,6 +402,7 @@ export function NewAppSheet({
 
   // What took typing isn't lost to a stray click on the scrim, or a stray Escape.
   const typed =
+    folder.folder !== "" ||
     image.image !== "" ||
     image.name !== "" ||
     image.ports.length > 0 ||
@@ -426,7 +463,9 @@ export function NewAppSheet({
     target?.focus();
   };
 
-  const hostReach = source === "image" && image.mounts.some((m) => pathReach(m.source));
+  const hostReach =
+    (source === "image" && image.mounts.some((m) => pathReach(m.source))) ||
+    (source === "folder" && folder.folder.trim() !== "");
   const fileReach =
     source === "compose" &&
     (check.data?.services ?? []).some((s) => (appOf(s)?.mounts ?? []).some((m) => m.source.case === "hostPath"));
@@ -512,12 +551,13 @@ export function NewAppSheet({
               onChange={onSource}
               options={[
                 { value: "image", label: t`Image`, icon: "layers" },
+                { value: "folder", label: t`Folder`, icon: "folder" },
                 { value: "compose", label: t`Compose`, icon: "file" },
               ]}
             />
           </div>
         </div>
-        {source === "image" && choosesEnvironment ? (
+        {source !== "compose" && choosesEnvironment ? (
           <SelectField
             label={places.showsEnvironment ? t`Environment` : t`Project`}
             value={scope}
@@ -527,6 +567,29 @@ export function NewAppSheet({
         ) : null}
         {source === "image" ? (
           <ImageFields form={image} errors={errors} update={update} onError={setErrors} fieldRef={firstField} />
+        ) : source === "folder" ? (
+          <>
+            <FolderFields
+              form={folder}
+              name={image.name}
+              errors={errors}
+              runtimes={runtimes}
+              servers={
+                only
+                  ? [{ id: only.id, name: only.name }]
+                  : chosenServers.map((id) => ({ id, name: servers?.find((s) => s.id === id)?.name ?? id }))
+              }
+              fieldRef={firstField}
+              update={({ name: typedName, ...next }, clear) => {
+                if (typedName !== undefined) setImage((was) => ({ ...was, name: typedName }));
+                setFolder((was) => ({ ...was, ...next }));
+                if (clear) setErrors(({ [clear]: _, ...rest }) => rest);
+              }}
+            />
+            <div className="app-rule" />
+            <PortsSection form={image} errors={errors} update={update} clear={clearError} />
+            <EnvSection form={image} errors={errors} update={update} clear={clearError} />
+          </>
         ) : (
           <ComposeFields
             file={file}
@@ -1534,4 +1597,14 @@ export function RunsOnField({
       ) : null}
     </fieldset>
   );
+}
+
+/** Which of a folder's fields a refusal is about, from what it says, or "" for none of them. */
+function folderFieldOf(message: string, form: FolderForm): string {
+  const text = message.toLowerCase();
+  const path = form.folder.trim().toLowerCase();
+  if ((path !== "" && text.includes(path)) || /\bfolder\b/.test(text)) return "folder";
+  if (/\buid:gid\b|\broot\b/.test(text)) return "user";
+  if (/\bruntime's port\b|\bport is from\b/.test(text)) return "port";
+  return "";
 }

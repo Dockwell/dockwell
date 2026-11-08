@@ -30,7 +30,7 @@ import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
-import { useWebsites } from "../websites/website";
+import { useRuntimes, useWebsites } from "../websites/website";
 import {
   type AppGroup,
   appState,
@@ -54,7 +54,8 @@ import { useDomainNames } from "./domains";
 import { ExportSheet } from "./ExportSheet";
 import { HealthBadge, phoneWordClass, useHealthWords } from "./Health";
 import { type AppHealth, type HealthView, healthNeedsALook, type Unread, useHealth, worstHealth } from "./health";
-import { ImageName } from "./ImageName";
+import { WhatRuns } from "./ImageName";
+import { runtimeOf, runtimeWords } from "./runtime";
 import { usePlaces, useServices } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
@@ -659,7 +660,7 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }
             >
               {name}
             </Link>
-            <ImageName image={imageOf(service)} className="dw-cell-sub" />
+            <WhatRuns service={service} className="dw-cell-sub" />
           </span>
         );
       },
@@ -765,6 +766,7 @@ function PhoneList({
   const { servers, fleet } = useFleetView();
   const words = useAppWords();
   const healthWords = useHealthWords();
+  const runtimes = useRuntimes().data;
   return (
     <Panel flush className="apps-phone">
       {rows.map((row) => {
@@ -805,7 +807,8 @@ function PhoneList({
         const service = row.service as ServiceInfo;
         const state = appState(service, servers);
         const runs = health.of(service);
-        const image = imageOf(service);
+        const runtime = runtimeOf(service);
+        const image = runtime ? `${runtimeWords(runtime, runtimes)} · ${runtime.folder}` : imageOf(service);
         const where = service.deployments.map((d) => d.serverName).join(", ");
         return (
           <Link
@@ -833,7 +836,7 @@ function PhoneList({
                 <code className="apps-phone-rev">{revisionName(service.revision)}</code>
                 <span aria-hidden="true">·</span>
                 <span className="apps-phone-image" title={fleet ? where : image}>
-                  {fleet ? where : shortImage(image)}
+                  {fleet ? where : runtime ? image : shortImage(image)}
                 </span>
               </span>
             </span>

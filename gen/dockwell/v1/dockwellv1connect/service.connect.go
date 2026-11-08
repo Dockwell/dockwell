@@ -50,6 +50,9 @@ const (
 	// ServiceServiceAddServicePortProcedure is the fully-qualified name of the ServiceService's
 	// AddServicePort RPC.
 	ServiceServiceAddServicePortProcedure = "/dockwell.v1.ServiceService/AddServicePort"
+	// ServiceServiceChangeServiceRuntimeProcedure is the fully-qualified name of the ServiceService's
+	// ChangeServiceRuntime RPC.
+	ServiceServiceChangeServiceRuntimeProcedure = "/dockwell.v1.ServiceService/ChangeServiceRuntime"
 )
 
 // ServiceServiceClient is a client for the dockwell.v1.ServiceService service.
@@ -81,6 +84,12 @@ type ServiceServiceClient interface {
 	// service as it is: like DeployService, it needs no one to read the service's
 	// environment back.
 	AddServicePort(context.Context, *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error)
+	// ChangeServiceRuntime plans running an app from a folder on another version
+	// of its language, or on the newest build of the version it has, with the
+	// rest of the service as it is: like DeployService, it needs no one to read
+	// the service's environment back. The plan replaces its container. See
+	// docs/adr/0058-runtimes-an-app-from-a-folder.md.
+	ChangeServiceRuntime(context.Context, *connect.Request[v1.ChangeServiceRuntimeRequest]) (*connect.Response[v1.ChangeServiceRuntimeResponse], error)
 }
 
 // NewServiceServiceClient constructs a client for the dockwell.v1.ServiceService service. By
@@ -126,6 +135,12 @@ func NewServiceServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(serviceServiceMethods.ByName("AddServicePort")),
 			connect.WithClientOptions(opts...),
 		),
+		changeServiceRuntime: connect.NewClient[v1.ChangeServiceRuntimeRequest, v1.ChangeServiceRuntimeResponse](
+			httpClient,
+			baseURL+ServiceServiceChangeServiceRuntimeProcedure,
+			connect.WithSchema(serviceServiceMethods.ByName("ChangeServiceRuntime")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -136,6 +151,7 @@ type serviceServiceClient struct {
 	deployService        *connect.Client[v1.DeployServiceRequest, v1.DeployServiceResponse]
 	rollBackService      *connect.Client[v1.RollBackServiceRequest, v1.RollBackServiceResponse]
 	addServicePort       *connect.Client[v1.AddServicePortRequest, v1.AddServicePortResponse]
+	changeServiceRuntime *connect.Client[v1.ChangeServiceRuntimeRequest, v1.ChangeServiceRuntimeResponse]
 }
 
 // ListServices calls dockwell.v1.ServiceService.ListServices.
@@ -161,6 +177,11 @@ func (c *serviceServiceClient) RollBackService(ctx context.Context, req *connect
 // AddServicePort calls dockwell.v1.ServiceService.AddServicePort.
 func (c *serviceServiceClient) AddServicePort(ctx context.Context, req *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error) {
 	return c.addServicePort.CallUnary(ctx, req)
+}
+
+// ChangeServiceRuntime calls dockwell.v1.ServiceService.ChangeServiceRuntime.
+func (c *serviceServiceClient) ChangeServiceRuntime(ctx context.Context, req *connect.Request[v1.ChangeServiceRuntimeRequest]) (*connect.Response[v1.ChangeServiceRuntimeResponse], error) {
+	return c.changeServiceRuntime.CallUnary(ctx, req)
 }
 
 // ServiceServiceHandler is an implementation of the dockwell.v1.ServiceService service.
@@ -192,6 +213,12 @@ type ServiceServiceHandler interface {
 	// service as it is: like DeployService, it needs no one to read the service's
 	// environment back.
 	AddServicePort(context.Context, *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error)
+	// ChangeServiceRuntime plans running an app from a folder on another version
+	// of its language, or on the newest build of the version it has, with the
+	// rest of the service as it is: like DeployService, it needs no one to read
+	// the service's environment back. The plan replaces its container. See
+	// docs/adr/0058-runtimes-an-app-from-a-folder.md.
+	ChangeServiceRuntime(context.Context, *connect.Request[v1.ChangeServiceRuntimeRequest]) (*connect.Response[v1.ChangeServiceRuntimeResponse], error)
 }
 
 // NewServiceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -233,6 +260,12 @@ func NewServiceServiceHandler(svc ServiceServiceHandler, opts ...connect.Handler
 		connect.WithSchema(serviceServiceMethods.ByName("AddServicePort")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serviceServiceChangeServiceRuntimeHandler := connect.NewUnaryHandler(
+		ServiceServiceChangeServiceRuntimeProcedure,
+		svc.ChangeServiceRuntime,
+		connect.WithSchema(serviceServiceMethods.ByName("ChangeServiceRuntime")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ServiceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServiceServiceListServicesProcedure:
@@ -245,6 +278,8 @@ func NewServiceServiceHandler(svc ServiceServiceHandler, opts ...connect.Handler
 			serviceServiceRollBackServiceHandler.ServeHTTP(w, r)
 		case ServiceServiceAddServicePortProcedure:
 			serviceServiceAddServicePortHandler.ServeHTTP(w, r)
+		case ServiceServiceChangeServiceRuntimeProcedure:
+			serviceServiceChangeServiceRuntimeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -272,4 +307,8 @@ func (UnimplementedServiceServiceHandler) RollBackService(context.Context, *conn
 
 func (UnimplementedServiceServiceHandler) AddServicePort(context.Context, *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServiceService.AddServicePort is not implemented"))
+}
+
+func (UnimplementedServiceServiceHandler) ChangeServiceRuntime(context.Context, *connect.Request[v1.ChangeServiceRuntimeRequest]) (*connect.Response[v1.ChangeServiceRuntimeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServiceService.ChangeServiceRuntime is not implemented"))
 }

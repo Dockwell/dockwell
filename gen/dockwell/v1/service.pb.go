@@ -1151,6 +1151,138 @@ func (x *AddServicePortResponse) GetChange() *Change {
 	return nil
 }
 
+// ChangeServiceRuntimeRequest names an app from a folder and the version to run
+// it on.
+type ChangeServiceRuntimeRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service, by ID or by name.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The version, such as "24" for Node.js, which ListWebsiteRuntimes lists.
+	// Empty, or the one it has, takes the newest build of that version.
+	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	// What the change is for, for the timeline. Empty says what it changes.
+	Summary string `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	// The project of a service named by name, by name or ID, when more than one
+	// has a service of that name.
+	Project string `protobuf:"bytes,4,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment of a service named by name, by name or ID, when its
+	// project has more than one.
+	Environment   string `protobuf:"bytes,5,opt,name=environment,proto3" json:"environment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChangeServiceRuntimeRequest) Reset() {
+	*x = ChangeServiceRuntimeRequest{}
+	mi := &file_dockwell_v1_service_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangeServiceRuntimeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangeServiceRuntimeRequest) ProtoMessage() {}
+
+func (x *ChangeServiceRuntimeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangeServiceRuntimeRequest.ProtoReflect.Descriptor instead.
+func (*ChangeServiceRuntimeRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ChangeServiceRuntimeRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ChangeServiceRuntimeRequest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ChangeServiceRuntimeRequest) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *ChangeServiceRuntimeRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *ChangeServiceRuntimeRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+// ChangeServiceRuntimeResponse carries the planned change.
+type ChangeServiceRuntimeResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The change, planned, with its plan.
+	Change        *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChangeServiceRuntimeResponse) Reset() {
+	*x = ChangeServiceRuntimeResponse{}
+	mi := &file_dockwell_v1_service_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangeServiceRuntimeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangeServiceRuntimeResponse) ProtoMessage() {}
+
+func (x *ChangeServiceRuntimeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangeServiceRuntimeResponse.ProtoReflect.Descriptor instead.
+func (*ChangeServiceRuntimeResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ChangeServiceRuntimeResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
 var File_dockwell_v1_service_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_service_proto_rawDesc = "" +
@@ -1237,20 +1369,29 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\aproject\x18\a \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\b \x01(\tR\venvironment\"E\n" +
 	"\x16AddServicePortResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x9d\x01\n" +
+	"\x1bChangeServiceRuntimeRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12\x18\n" +
+	"\asummary\x18\x03 \x01(\tR\asummary\x12\x18\n" +
+	"\aproject\x18\x04 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x05 \x01(\tR\venvironment\"K\n" +
+	"\x1cChangeServiceRuntimeResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change*\xaa\x01\n" +
 	"\x0fDeploymentState\x12 \n" +
 	"\x1cDEPLOYMENT_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18DEPLOYMENT_STATE_PENDING\x10\x01\x12\x19\n" +
 	"\x15DEPLOYMENT_STATE_LIVE\x10\x02\x12\x1b\n" +
 	"\x17DEPLOYMENT_STATE_FAILED\x10\x03\x12\x1f\n" +
-	"\x1bDEPLOYMENT_STATE_SUPERSEDED\x10\x042\xc8\x05\n" +
+	"\x1bDEPLOYMENT_STATE_SUPERSEDED\x10\x042\xfb\x06\n" +
 	"\x0eServiceService\x12p\n" +
 	"\fListServices\x12 .dockwell.v1.ListServicesRequest\x1a!.dockwell.v1.ListServicesResponse\"\x1b\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/services\x90\x02\x01\x12\xa6\x01\n" +
 	"\x14ListServiceRevisions\x12(.dockwell.v1.ListServiceRevisionsRequest\x1a).dockwell.v1.ListServiceRevisionsResponse\"9\xa0\xbb\x18\x01\xaa\xbb\x18\v\x12\trevisions\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/services/{id}/revisions\x90\x02\x01\x12\x7f\n" +
 	"\rDeployService\x12!.dockwell.v1.DeployServiceRequest\x1a\".dockwell.v1.DeployServiceResponse\"'\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/services/{id}:deploy\x12\x87\x01\n" +
 	"\x0fRollBackService\x12#.dockwell.v1.RollBackServiceRequest\x1a$.dockwell.v1.RollBackServiceResponse\")\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/services/{id}:rollback\x12\x8f\x01\n" +
 	"\x0eAddServicePort\x12\".dockwell.v1.AddServicePortRequest\x1a#.dockwell.v1.AddServicePortResponse\"4\xa0\xbb\x18\x02\xaa\xbb\x18\n" +
-	"\x12\badd-port\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/services/{id}/portsB\xa5\x01\n" +
+	"\x12\badd-port\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/services/{id}/ports\x12\xb0\x01\n" +
+	"\x14ChangeServiceRuntime\x12(.dockwell.v1.ChangeServiceRuntimeRequest\x1a).dockwell.v1.ChangeServiceRuntimeResponse\"C\xa0\xbb\x18\x02\xaa\xbb\x18\x10\x12\x0echange-runtime\x82\xd3\xe4\x93\x02%:\x01*\" /v1/services/{id}:change-runtimeB\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fServiceProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -1266,7 +1407,7 @@ func file_dockwell_v1_service_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_dockwell_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_dockwell_v1_service_proto_goTypes = []any{
 	(DeploymentState)(0),                 // 0: dockwell.v1.DeploymentState
 	(*ListServicesRequest)(nil),          // 1: dockwell.v1.ListServicesRequest
@@ -1282,47 +1423,52 @@ var file_dockwell_v1_service_proto_goTypes = []any{
 	(*RollBackServiceResponse)(nil),      // 11: dockwell.v1.RollBackServiceResponse
 	(*AddServicePortRequest)(nil),        // 12: dockwell.v1.AddServicePortRequest
 	(*AddServicePortResponse)(nil),       // 13: dockwell.v1.AddServicePortResponse
-	(*ResourceRef)(nil),                  // 14: dockwell.v1.ResourceRef
-	(*timestamppb.Timestamp)(nil),        // 15: google.protobuf.Timestamp
-	(*v1alpha1.Service)(nil),             // 16: dockwell.resource.v1alpha1.Service
-	(ChangeState)(0),                     // 17: dockwell.v1.ChangeState
-	(*Change)(nil),                       // 18: dockwell.v1.Change
-	(*FieldChange)(nil),                  // 19: dockwell.v1.FieldChange
-	(v1alpha1.Protocol)(0),               // 20: dockwell.resource.v1alpha1.Protocol
+	(*ChangeServiceRuntimeRequest)(nil),  // 14: dockwell.v1.ChangeServiceRuntimeRequest
+	(*ChangeServiceRuntimeResponse)(nil), // 15: dockwell.v1.ChangeServiceRuntimeResponse
+	(*ResourceRef)(nil),                  // 16: dockwell.v1.ResourceRef
+	(*timestamppb.Timestamp)(nil),        // 17: google.protobuf.Timestamp
+	(*v1alpha1.Service)(nil),             // 18: dockwell.resource.v1alpha1.Service
+	(ChangeState)(0),                     // 19: dockwell.v1.ChangeState
+	(*Change)(nil),                       // 20: dockwell.v1.Change
+	(*FieldChange)(nil),                  // 21: dockwell.v1.FieldChange
+	(v1alpha1.Protocol)(0),               // 22: dockwell.resource.v1alpha1.Protocol
 }
 var file_dockwell_v1_service_proto_depIdxs = []int32{
 	3,  // 0: dockwell.v1.ListServicesResponse.services:type_name -> dockwell.v1.ServiceInfo
-	14, // 1: dockwell.v1.ServiceInfo.resource:type_name -> dockwell.v1.ResourceRef
-	15, // 2: dockwell.v1.ServiceInfo.update_time:type_name -> google.protobuf.Timestamp
-	16, // 3: dockwell.v1.ServiceInfo.spec:type_name -> dockwell.resource.v1alpha1.Service
+	16, // 1: dockwell.v1.ServiceInfo.resource:type_name -> dockwell.v1.ResourceRef
+	17, // 2: dockwell.v1.ServiceInfo.update_time:type_name -> google.protobuf.Timestamp
+	18, // 3: dockwell.v1.ServiceInfo.spec:type_name -> dockwell.resource.v1alpha1.Service
 	4,  // 4: dockwell.v1.ServiceInfo.deployments:type_name -> dockwell.v1.ServiceDeployment
-	17, // 5: dockwell.v1.ServiceInfo.change_state:type_name -> dockwell.v1.ChangeState
+	19, // 5: dockwell.v1.ServiceInfo.change_state:type_name -> dockwell.v1.ChangeState
 	0,  // 6: dockwell.v1.ServiceDeployment.state:type_name -> dockwell.v1.DeploymentState
-	15, // 7: dockwell.v1.ServiceDeployment.update_time:type_name -> google.protobuf.Timestamp
+	17, // 7: dockwell.v1.ServiceDeployment.update_time:type_name -> google.protobuf.Timestamp
 	7,  // 8: dockwell.v1.ListServiceRevisionsResponse.revisions:type_name -> dockwell.v1.ServiceRevision
-	15, // 9: dockwell.v1.ServiceRevision.create_time:type_name -> google.protobuf.Timestamp
-	18, // 10: dockwell.v1.ServiceRevision.change:type_name -> dockwell.v1.Change
-	19, // 11: dockwell.v1.ServiceRevision.changes:type_name -> dockwell.v1.FieldChange
+	17, // 9: dockwell.v1.ServiceRevision.create_time:type_name -> google.protobuf.Timestamp
+	20, // 10: dockwell.v1.ServiceRevision.change:type_name -> dockwell.v1.Change
+	21, // 11: dockwell.v1.ServiceRevision.changes:type_name -> dockwell.v1.FieldChange
 	4,  // 12: dockwell.v1.ServiceRevision.deployments:type_name -> dockwell.v1.ServiceDeployment
-	18, // 13: dockwell.v1.DeployServiceResponse.change:type_name -> dockwell.v1.Change
-	18, // 14: dockwell.v1.RollBackServiceResponse.change:type_name -> dockwell.v1.Change
-	20, // 15: dockwell.v1.AddServicePortRequest.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
-	18, // 16: dockwell.v1.AddServicePortResponse.change:type_name -> dockwell.v1.Change
-	1,  // 17: dockwell.v1.ServiceService.ListServices:input_type -> dockwell.v1.ListServicesRequest
-	5,  // 18: dockwell.v1.ServiceService.ListServiceRevisions:input_type -> dockwell.v1.ListServiceRevisionsRequest
-	8,  // 19: dockwell.v1.ServiceService.DeployService:input_type -> dockwell.v1.DeployServiceRequest
-	10, // 20: dockwell.v1.ServiceService.RollBackService:input_type -> dockwell.v1.RollBackServiceRequest
-	12, // 21: dockwell.v1.ServiceService.AddServicePort:input_type -> dockwell.v1.AddServicePortRequest
-	2,  // 22: dockwell.v1.ServiceService.ListServices:output_type -> dockwell.v1.ListServicesResponse
-	6,  // 23: dockwell.v1.ServiceService.ListServiceRevisions:output_type -> dockwell.v1.ListServiceRevisionsResponse
-	9,  // 24: dockwell.v1.ServiceService.DeployService:output_type -> dockwell.v1.DeployServiceResponse
-	11, // 25: dockwell.v1.ServiceService.RollBackService:output_type -> dockwell.v1.RollBackServiceResponse
-	13, // 26: dockwell.v1.ServiceService.AddServicePort:output_type -> dockwell.v1.AddServicePortResponse
-	22, // [22:27] is the sub-list for method output_type
-	17, // [17:22] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	20, // 13: dockwell.v1.DeployServiceResponse.change:type_name -> dockwell.v1.Change
+	20, // 14: dockwell.v1.RollBackServiceResponse.change:type_name -> dockwell.v1.Change
+	22, // 15: dockwell.v1.AddServicePortRequest.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
+	20, // 16: dockwell.v1.AddServicePortResponse.change:type_name -> dockwell.v1.Change
+	20, // 17: dockwell.v1.ChangeServiceRuntimeResponse.change:type_name -> dockwell.v1.Change
+	1,  // 18: dockwell.v1.ServiceService.ListServices:input_type -> dockwell.v1.ListServicesRequest
+	5,  // 19: dockwell.v1.ServiceService.ListServiceRevisions:input_type -> dockwell.v1.ListServiceRevisionsRequest
+	8,  // 20: dockwell.v1.ServiceService.DeployService:input_type -> dockwell.v1.DeployServiceRequest
+	10, // 21: dockwell.v1.ServiceService.RollBackService:input_type -> dockwell.v1.RollBackServiceRequest
+	12, // 22: dockwell.v1.ServiceService.AddServicePort:input_type -> dockwell.v1.AddServicePortRequest
+	14, // 23: dockwell.v1.ServiceService.ChangeServiceRuntime:input_type -> dockwell.v1.ChangeServiceRuntimeRequest
+	2,  // 24: dockwell.v1.ServiceService.ListServices:output_type -> dockwell.v1.ListServicesResponse
+	6,  // 25: dockwell.v1.ServiceService.ListServiceRevisions:output_type -> dockwell.v1.ListServiceRevisionsResponse
+	9,  // 26: dockwell.v1.ServiceService.DeployService:output_type -> dockwell.v1.DeployServiceResponse
+	11, // 27: dockwell.v1.ServiceService.RollBackService:output_type -> dockwell.v1.RollBackServiceResponse
+	13, // 28: dockwell.v1.ServiceService.AddServicePort:output_type -> dockwell.v1.AddServicePortResponse
+	15, // 29: dockwell.v1.ServiceService.ChangeServiceRuntime:output_type -> dockwell.v1.ChangeServiceRuntimeResponse
+	24, // [24:30] is the sub-list for method output_type
+	18, // [18:24] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_service_proto_init() }
@@ -1338,7 +1484,7 @@ func file_dockwell_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_service_proto_rawDesc), len(file_dockwell_v1_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   13,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

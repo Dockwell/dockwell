@@ -440,10 +440,10 @@ func (x *ListWebsiteRuntimesResponse) GetRuntimes() []*WebsiteRuntime {
 	return nil
 }
 
-// WebsiteRuntime is one version of a language a website can run.
+// WebsiteRuntime is one version of a language a website or an app can run.
 type WebsiteRuntime struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The language, such as "PHP".
+	// The language as people call it, such as "PHP" or "Node.js".
 	Language string `protobuf:"bytes,1,opt,name=language,proto3" json:"language,omitempty"`
 	// The version a website names, such as "8.3".
 	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
@@ -452,7 +452,21 @@ type WebsiteRuntime struct {
 	// The image, pinned by digest.
 	Image string `protobuf:"bytes,4,opt,name=image,proto3" json:"image,omitempty"`
 	// The extensions it has beyond the language's own, such as "mysqli".
-	Extensions    []string `protobuf:"bytes,5,rep,name=extensions,proto3" json:"extensions,omitempty"`
+	Extensions []string `protobuf:"bytes,5,rep,name=extensions,proto3" json:"extensions,omitempty"`
+	// The language as a spec names it: "php" for a website, and "node",
+	// "python", "go" or "java" for an app's runtime.
+	Id string `protobuf:"bytes,6,opt,name=id,proto3" json:"id,omitempty"`
+	// What an app on it installs and starts with, and the port it listens on,
+	// unless the app says. Empty for PHP, which a website runs.
+	Install string `protobuf:"bytes,7,opt,name=install,proto3" json:"install,omitempty"`
+	Start   string `protobuf:"bytes,8,opt,name=start,proto3" json:"start,omitempty"`
+	Port    uint32 `protobuf:"varint,9,opt,name=port,proto3" json:"port,omitempty"`
+	// What it gives an app in its environment, by name, beside what the app sets:
+	// PORT, HOME and where its tools keep caches. Empty for PHP.
+	Env []string `protobuf:"bytes,10,rep,name=env,proto3" json:"env,omitempty"`
+	// True when Dockwell no longer offers the version: an app on it keeps running
+	// and changing, and no new app runs on it.
+	Retired       bool `protobuf:"varint,11,opt,name=retired,proto3" json:"retired,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -520,6 +534,48 @@ func (x *WebsiteRuntime) GetExtensions() []string {
 		return x.Extensions
 	}
 	return nil
+}
+
+func (x *WebsiteRuntime) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *WebsiteRuntime) GetInstall() string {
+	if x != nil {
+		return x.Install
+	}
+	return ""
+}
+
+func (x *WebsiteRuntime) GetStart() string {
+	if x != nil {
+		return x.Start
+	}
+	return ""
+}
+
+func (x *WebsiteRuntime) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *WebsiteRuntime) GetEnv() []string {
+	if x != nil {
+		return x.Env
+	}
+	return nil
+}
+
+func (x *WebsiteRuntime) GetRetired() bool {
+	if x != nil {
+		return x.Retired
+	}
+	return false
 }
 
 // PreviewWebsiteRequest is what a website would serve.
@@ -1021,7 +1077,7 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\tphp_image\x18\x17 \x01(\tR\bphpImage\"\x1c\n" +
 	"\x1aListWebsiteRuntimesRequest\"V\n" +
 	"\x1bListWebsiteRuntimesResponse\x127\n" +
-	"\bruntimes\x18\x01 \x03(\v2\x1b.dockwell.v1.WebsiteRuntimeR\bruntimes\"\x96\x01\n" +
+	"\bruntimes\x18\x01 \x03(\v2\x1b.dockwell.v1.WebsiteRuntimeR\bruntimes\"\x96\x02\n" +
 	"\x0eWebsiteRuntime\x12\x1a\n" +
 	"\blanguage\x18\x01 \x01(\tR\blanguage\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x18\n" +
@@ -1029,7 +1085,14 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\x05image\x18\x04 \x01(\tR\x05image\x12\x1e\n" +
 	"\n" +
 	"extensions\x18\x05 \x03(\tR\n" +
-	"extensions\"V\n" +
+	"extensions\x12\x0e\n" +
+	"\x02id\x18\x06 \x01(\tR\x02id\x12\x18\n" +
+	"\ainstall\x18\a \x01(\tR\ainstall\x12\x14\n" +
+	"\x05start\x18\b \x01(\tR\x05start\x12\x12\n" +
+	"\x04port\x18\t \x01(\rR\x04port\x12\x10\n" +
+	"\x03env\x18\n" +
+	" \x03(\tR\x03env\x12\x18\n" +
+	"\aretired\x18\v \x01(\bR\aretired\"V\n" +
 	"\x15PreviewWebsiteRequest\x12=\n" +
 	"\awebsite\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\"o\n" +
 	"\x16PreviewWebsiteResponse\x12=\n" +

@@ -266,7 +266,15 @@ func (h *Handler) ListWebsiteRuntimes(context.Context, *connect.Request[dockwell
 	res := &dockwellv1.ListWebsiteRuntimesResponse{}
 	for _, r := range website.PHPRuntimes() {
 		res.Runtimes = append(res.Runtimes, &dockwellv1.WebsiteRuntime{
-			Language: "PHP", Version: r.Version, Release: r.Release, Image: r.Image, Extensions: slices.Clone(website.PHPExtensions),
+			Id: "php", Language: "PHP", Version: r.Version, Release: r.Release, Image: r.Image, Extensions: slices.Clone(website.PHPExtensions),
+		})
+	}
+	// And the languages an app from a folder runs on (ADR 0058).
+	for _, r := range service.Runtimes() {
+		lang, _ := service.LanguageOf(r.Language)
+		res.Runtimes = append(res.Runtimes, &dockwellv1.WebsiteRuntime{
+			Id: r.Language, Language: lang.Name, Version: r.Version, Release: r.Release, Image: r.Image,
+			Install: lang.Install, Start: lang.Start, Port: lang.Port, Env: lang.EnvNames(), Retired: r.Retired,
 		})
 	}
 	return connect.NewResponse(res), nil

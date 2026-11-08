@@ -1034,6 +1034,17 @@ describe("what runs, from what the server says", () => {
     await waitFor(() => expect(panel).toHaveTextContent("已暂停"));
     await activateLocale("en");
   });
+
+  it("says a port check that passed in Chinese, as the agent says it the same each time", async () => {
+    await activateLocale("zh-CN");
+    renderAt(
+      "/apps/svc_web",
+      api([web], reading({ state: HealthState.HEALTHY, said: "a connection to port 3000 was taken", passed: true })),
+    );
+    const panel = await screen.findByRole("region", { name: "运行内容" });
+    await waitFor(() => expect(panel).toHaveTextContent("连接端口 3000 成功。"));
+    await activateLocale("en");
+  });
 });
 
 describe("a health check on the overview", () => {

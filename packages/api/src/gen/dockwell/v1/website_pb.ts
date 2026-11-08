@@ -20,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/website.proto.
  */
 export const file_dockwell_v1_website: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS93ZWJzaXRlLnByb3RvEgtkb2Nrd2VsbC52MSJeCgxXZWJzaXRlUmVhY2gSEAoIYW5zd2VyZWQYASABKAgSDAoEc2FpZBgCIAEoCRIuCgpjaGVja190aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIVChNMaXN0V2Vic2l0ZXNSZXF1ZXN0IkIKFExpc3RXZWJzaXRlc1Jlc3BvbnNlEioKCHdlYnNpdGVzGAEgAygLMhguZG9ja3dlbGwudjEuV2Vic2l0ZUluZm8i/gIKC1dlYnNpdGVJbmZvEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGZG9tYWluGAMgASgJEjEKBHNwZWMYBCABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEhYKDmVudmlyb25tZW50X2lkGAUgASgJEhIKCnNlcnZpY2VfaWQYBiABKAkSEAoIcm91dGVfaWQYByABKAkSLwoLdXBkYXRlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCXNlcnZlcl9pZBgJIAEoCRITCgtzZXJ2ZXJfbmFtZRgKIAEoCRIWCg5waHBfc2VydmljZV9pZBgLIAEoCRIOCgZjb25maWcYFCABKAkSFgoOY29uZmlnX2RpZmZlcnMYFSABKAgSKAoFcmVhY2gYFiABKAsyGS5kb2Nrd2VsbC52MS5XZWJzaXRlUmVhY2gSEQoJcGhwX2ltYWdlGBcgASgJIhwKGkxpc3RXZWJzaXRlUnVudGltZXNSZXF1ZXN0IkwKG0xpc3RXZWJzaXRlUnVudGltZXNSZXNwb25zZRItCghydW50aW1lcxgBIAMoCzIbLmRvY2t3ZWxsLnYxLldlYnNpdGVSdW50aW1lImcKDldlYnNpdGVSdW50aW1lEhAKCGxhbmd1YWdlGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSDwoHcmVsZWFzZRgDIAEoCRINCgVpbWFnZRgEIAEoCRISCgpleHRlbnNpb25zGAUgAygJIk0KFVByZXZpZXdXZWJzaXRlUmVxdWVzdBI0Cgd3ZWJzaXRlGAEgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuV2Vic2l0ZSJeChZQcmV2aWV3V2Vic2l0ZVJlc3BvbnNlEjQKB3dlYnNpdGUYASABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEg4KBmNvbmZpZxgCIAEoCSK+AQoUQ3JlYXRlV2Vic2l0ZVJlcXVlc3QSDgoGZG9tYWluGAEgASgJEjQKB3dlYnNpdGUYAiABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEgsKA3RscxgDIAEoCRIXCg90cnVzdGVkX3Byb3hpZXMYBCADKAkSGAoQcGxhaW5fZm9yX2FueW9uZRgFIAEoCBIPCgdzZXJ2ZXJzGAYgAygJEg8KB3N1bW1hcnkYByABKAkiPAoVQ3JlYXRlV2Vic2l0ZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJpChRVcGRhdGVXZWJzaXRlUmVxdWVzdBIKCgJpZBgBIAEoCRI0Cgd3ZWJzaXRlGAIgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuV2Vic2l0ZRIPCgdzdW1tYXJ5GAMgASgJIjwKFVVwZGF0ZVdlYnNpdGVSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiMwoURGVsZXRlV2Vic2l0ZVJlcXVlc3QSCgoCaWQYASABKAkSDwoHc3VtbWFyeRgCIAEoCSI8ChVEZWxldGVXZWJzaXRlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlMqIGCg5XZWJzaXRlU2VydmljZRJwCgxMaXN0V2Vic2l0ZXMSIC5kb2Nrd2VsbC52MS5MaXN0V2Vic2l0ZXNSZXF1ZXN0GiEuZG9ja3dlbGwudjEuTGlzdFdlYnNpdGVzUmVzcG9uc2UiG5ACAaC7GAGC0+STAg4SDC92MS93ZWJzaXRlcxKmAQoTTGlzdFdlYnNpdGVSdW50aW1lcxInLmRvY2t3ZWxsLnYxLkxpc3RXZWJzaXRlUnVudGltZXNSZXF1ZXN0GiguZG9ja3dlbGwudjEuTGlzdFdlYnNpdGVSdW50aW1lc1Jlc3BvbnNlIjyQAgGguxgBqrsYFAoId2Vic2l0ZXMSCHJ1bnRpbWVzgtPkkwIXEhUvdjEvd2Vic2l0ZXMvcnVudGltZXMSfgoOUHJldmlld1dlYnNpdGUSIi5kb2Nrd2VsbC52MS5QcmV2aWV3V2Vic2l0ZVJlcXVlc3QaIy5kb2Nrd2VsbC52MS5QcmV2aWV3V2Vic2l0ZVJlc3BvbnNlIiOguxgBgtPkkwIZOgEqIhQvdjEvd2Vic2l0ZXM6cHJldmlldxJzCg1DcmVhdGVXZWJzaXRlEiEuZG9ja3dlbGwudjEuQ3JlYXRlV2Vic2l0ZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5DcmVhdGVXZWJzaXRlUmVzcG9uc2UiG6C7GAKC0+STAhE6ASoiDC92MS93ZWJzaXRlcxJ/Cg1VcGRhdGVXZWJzaXRlEiEuZG9ja3dlbGwudjEuVXBkYXRlV2Vic2l0ZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5VcGRhdGVXZWJzaXRlUmVzcG9uc2UiJ6C7GAKC0+STAh06ASoiGC92MS93ZWJzaXRlcy97aWR9OnVwZGF0ZRJ/Cg1EZWxldGVXZWJzaXRlEiEuZG9ja3dlbGwudjEuRGVsZXRlV2Vic2l0ZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5EZWxldGVXZWJzaXRlUmVzcG9uc2UiJ6C7GAKC0+STAh06ASoiGC92MS93ZWJzaXRlcy97aWR9OmRlbGV0ZUKlAQoPY29tLmRvY2t3ZWxsLnYxQgxXZWJzaXRlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chlkb2Nrd2VsbC92MS93ZWJzaXRlLnByb3RvEgtkb2Nrd2VsbC52MSJeCgxXZWJzaXRlUmVhY2gSEAoIYW5zd2VyZWQYASABKAgSDAoEc2FpZBgCIAEoCRIuCgpjaGVja190aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIVChNMaXN0V2Vic2l0ZXNSZXF1ZXN0IkIKFExpc3RXZWJzaXRlc1Jlc3BvbnNlEioKCHdlYnNpdGVzGAEgAygLMhguZG9ja3dlbGwudjEuV2Vic2l0ZUluZm8i/gIKC1dlYnNpdGVJbmZvEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGZG9tYWluGAMgASgJEjEKBHNwZWMYBCABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEhYKDmVudmlyb25tZW50X2lkGAUgASgJEhIKCnNlcnZpY2VfaWQYBiABKAkSEAoIcm91dGVfaWQYByABKAkSLwoLdXBkYXRlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCXNlcnZlcl9pZBgJIAEoCRITCgtzZXJ2ZXJfbmFtZRgKIAEoCRIWCg5waHBfc2VydmljZV9pZBgLIAEoCRIOCgZjb25maWcYFCABKAkSFgoOY29uZmlnX2RpZmZlcnMYFSABKAgSKAoFcmVhY2gYFiABKAsyGS5kb2Nrd2VsbC52MS5XZWJzaXRlUmVhY2gSEQoJcGhwX2ltYWdlGBcgASgJIhwKGkxpc3RXZWJzaXRlUnVudGltZXNSZXF1ZXN0IkwKG0xpc3RXZWJzaXRlUnVudGltZXNSZXNwb25zZRItCghydW50aW1lcxgBIAMoCzIbLmRvY2t3ZWxsLnYxLldlYnNpdGVSdW50aW1lIr8BCg5XZWJzaXRlUnVudGltZRIQCghsYW5ndWFnZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEg8KB3JlbGVhc2UYAyABKAkSDQoFaW1hZ2UYBCABKAkSEgoKZXh0ZW5zaW9ucxgFIAMoCRIKCgJpZBgGIAEoCRIPCgdpbnN0YWxsGAcgASgJEg0KBXN0YXJ0GAggASgJEgwKBHBvcnQYCSABKA0SCwoDZW52GAogAygJEg8KB3JldGlyZWQYCyABKAgiTQoVUHJldmlld1dlYnNpdGVSZXF1ZXN0EjQKB3dlYnNpdGUYASABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlIl4KFlByZXZpZXdXZWJzaXRlUmVzcG9uc2USNAoHd2Vic2l0ZRgBIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUSDgoGY29uZmlnGAIgASgJIr4BChRDcmVhdGVXZWJzaXRlUmVxdWVzdBIOCgZkb21haW4YASABKAkSNAoHd2Vic2l0ZRgCIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUSCwoDdGxzGAMgASgJEhcKD3RydXN0ZWRfcHJveGllcxgEIAMoCRIYChBwbGFpbl9mb3JfYW55b25lGAUgASgIEg8KB3NlcnZlcnMYBiADKAkSDwoHc3VtbWFyeRgHIAEoCSI8ChVDcmVhdGVXZWJzaXRlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlImkKFFVwZGF0ZVdlYnNpdGVSZXF1ZXN0EgoKAmlkGAEgASgJEjQKB3dlYnNpdGUYAiABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEg8KB3N1bW1hcnkYAyABKAkiPAoVVXBkYXRlV2Vic2l0ZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSIzChREZWxldGVXZWJzaXRlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdzdW1tYXJ5GAIgASgJIjwKFURlbGV0ZVdlYnNpdGVSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UyogYKDldlYnNpdGVTZXJ2aWNlEnAKDExpc3RXZWJzaXRlcxIgLmRvY2t3ZWxsLnYxLkxpc3RXZWJzaXRlc1JlcXVlc3QaIS5kb2Nrd2VsbC52MS5MaXN0V2Vic2l0ZXNSZXNwb25zZSIbkAIBoLsYAYLT5JMCDhIML3YxL3dlYnNpdGVzEqYBChNMaXN0V2Vic2l0ZVJ1bnRpbWVzEicuZG9ja3dlbGwudjEuTGlzdFdlYnNpdGVSdW50aW1lc1JlcXVlc3QaKC5kb2Nrd2VsbC52MS5MaXN0V2Vic2l0ZVJ1bnRpbWVzUmVzcG9uc2UiPJACAaC7GAGquxgUCgh3ZWJzaXRlcxIIcnVudGltZXOC0+STAhcSFS92MS93ZWJzaXRlcy9ydW50aW1lcxJ+Cg5QcmV2aWV3V2Vic2l0ZRIiLmRvY2t3ZWxsLnYxLlByZXZpZXdXZWJzaXRlUmVxdWVzdBojLmRvY2t3ZWxsLnYxLlByZXZpZXdXZWJzaXRlUmVzcG9uc2UiI6C7GAGC0+STAhk6ASoiFC92MS93ZWJzaXRlczpwcmV2aWV3EnMKDUNyZWF0ZVdlYnNpdGUSIS5kb2Nrd2VsbC52MS5DcmVhdGVXZWJzaXRlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkNyZWF0ZVdlYnNpdGVSZXNwb25zZSIboLsYAoLT5JMCEToBKiIML3YxL3dlYnNpdGVzEn8KDVVwZGF0ZVdlYnNpdGUSIS5kb2Nrd2VsbC52MS5VcGRhdGVXZWJzaXRlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLlVwZGF0ZVdlYnNpdGVSZXNwb25zZSInoLsYAoLT5JMCHToBKiIYL3YxL3dlYnNpdGVzL3tpZH06dXBkYXRlEn8KDURlbGV0ZVdlYnNpdGUSIS5kb2Nrd2VsbC52MS5EZWxldGVXZWJzaXRlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkRlbGV0ZVdlYnNpdGVSZXNwb25zZSInoLsYAoLT5JMCHToBKiIYL3YxL3dlYnNpdGVzL3tpZH06ZGVsZXRlQqUBCg9jb20uZG9ja3dlbGwudjFCDFdlYnNpdGVQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * WebsiteReach is whether what a website sends to answers, from its server: the
@@ -261,13 +261,13 @@ export const ListWebsiteRuntimesResponseSchema: GenMessage<ListWebsiteRuntimesRe
   messageDesc(file_dockwell_v1_website, 5);
 
 /**
- * WebsiteRuntime is one version of a language a website can run.
+ * WebsiteRuntime is one version of a language a website or an app can run.
  *
  * @generated from message dockwell.v1.WebsiteRuntime
  */
 export type WebsiteRuntime = Message<"dockwell.v1.WebsiteRuntime"> & {
   /**
-   * The language, such as "PHP".
+   * The language as people call it, such as "PHP" or "Node.js".
    *
    * @generated from field: string language = 1;
    */
@@ -300,6 +300,48 @@ export type WebsiteRuntime = Message<"dockwell.v1.WebsiteRuntime"> & {
    * @generated from field: repeated string extensions = 5;
    */
   extensions: string[];
+
+  /**
+   * The language as a spec names it: "php" for a website, and "node",
+   * "python", "go" or "java" for an app's runtime.
+   *
+   * @generated from field: string id = 6;
+   */
+  id: string;
+
+  /**
+   * What an app on it installs and starts with, and the port it listens on,
+   * unless the app says. Empty for PHP, which a website runs.
+   *
+   * @generated from field: string install = 7;
+   */
+  install: string;
+
+  /**
+   * @generated from field: string start = 8;
+   */
+  start: string;
+
+  /**
+   * @generated from field: uint32 port = 9;
+   */
+  port: number;
+
+  /**
+   * What it gives an app in its environment, by name, beside what the app sets:
+   * PORT, HOME and where its tools keep caches. Empty for PHP.
+   *
+   * @generated from field: repeated string env = 10;
+   */
+  env: string[];
+
+  /**
+   * True when Dockwell no longer offers the version: an app on it keeps running
+   * and changing, and no new app runs on it.
+   *
+   * @generated from field: bool retired = 11;
+   */
+  retired: boolean;
 };
 
 /**
@@ -575,9 +617,11 @@ export const WebsiteService: GenService<{
     output: typeof ListWebsitesResponseSchema;
   },
   /**
-   * ListWebsiteRuntimes says what a website can run its code with: each version of
-   * PHP Dockwell offers, with the image it runs and the extensions that has. Each
-   * PHP website runs its own, so one site's upgrade moves no other.
+   * ListWebsiteRuntimes says what code on a server can run with: each version of
+   * PHP Dockwell offers a website, with the image it runs and the extensions that
+   * has, and each version of Node.js, Python, Go and Java an app from a folder
+   * runs on (ADR 0058). Each website and app runs its own, so one's upgrade moves
+   * no other.
    *
    * @generated from rpc dockwell.v1.WebsiteService.ListWebsiteRuntimes
    */

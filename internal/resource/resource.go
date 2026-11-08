@@ -1024,6 +1024,13 @@ type ChangeChecker interface {
 	CheckInChange(current, desired proto.Message, others []Ref) error
 }
 
+// WriterNamer is a kind whose code isn't its image's alone: it names what writes
+// what a spec mounts read-write, for a person to approve, in place of the image's
+// repository. Empty says the image's repository is.
+type WriterNamer interface {
+	WriterOf(spec proto.Message) string
+}
+
 // NewChecker is a kind that asks more of a new resource than Validate can of an edit,
 // where what an edit leaves out comes from what's there (Keeper).
 type NewChecker interface {
@@ -1297,6 +1304,43 @@ func (r *Registry) HostAccess(kind Kind, spec proto.Message) []Access {
 		return h.HostAccess(spec)
 	}
 	return nil
+}
+
+// ControlOnly is a kind whose spec says something only the control plane keeps,
+// such as how an app from a folder was made (ADR 0058). Its servers never see
+// that, so they neither plan on it nor read it back, and drift is what differs
+// without it.
+type ControlOnly interface {
+	// OnServer is a copy of spec without what only the control plane keeps, or
+	// spec itself when it has none of that.
+	OnServer(spec proto.Message) proto.Message
+	// Readopted is what a server has, read back as observed, with what only the
+	// control plane keeps of current put back, where that still holds of it: as
+	// drift that's kept becomes the latest revision.
+	Readopted(current, observed proto.Message) proto.Message
+}
+
+// OnServer is spec as its server sees it (ControlOnly).
+func (r *Registry) OnServer(kind Kind, spec proto.Message) proto.Message {
+	if spec == nil {
+		return nil
+	}
+	if c, ok := r.types[kind].(ControlOnly); ok {
+		return c.OnServer(spec)
+	}
+	return spec
+}
+
+// Readopted is what a server has, with what only the control plane keeps of
+// current put back where that still holds (ControlOnly).
+func (r *Registry) Readopted(kind Kind, current, observed proto.Message) proto.Message {
+	if current == nil || observed == nil {
+		return observed
+	}
+	if c, ok := r.types[kind].(ControlOnly); ok {
+		return c.Readopted(current, observed)
+	}
+	return observed
 }
 
 // Readier is a driver that can't always run, such as one that needs

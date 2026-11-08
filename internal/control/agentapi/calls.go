@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
@@ -399,7 +400,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), readsOnePanel: hello.GetReadsOnepanel(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), readsOnePanel: hello.GetReadsOnepanel(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
 		followsPace: hello.GetFollowsPace(),
 		pending:     map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
@@ -463,6 +464,8 @@ type Session struct {
 	deliveryKey []byte
 	// writesReferences says the agent writes a container's references in.
 	writesReferences bool
+	// makesFolders says the agent makes a mount's missing folder as its owner.
+	makesFolders bool
 	// guardsWaysIn says the agent asks for a passkey before saving a way in.
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
@@ -940,7 +943,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		if err := s.supports(d.Ref); err != nil {
 			return nil, err
 		}
-		dr, err := desiredProto(d.Ref, d.Spec)
+		dr, err := desiredProto(d.Ref, s.agents.kinds.OnServer(d.Ref.Kind, d.Spec))
 		if err != nil {
 			return nil, err
 		}
@@ -1015,10 +1018,13 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err := s.checkWrites(step.Ref, desired); err != nil {
 		return err
 	}
+	if err := s.checkFolders(step.Ref, desired); err != nil {
+		return err
+	}
 	if err := s.checkReads(ctx, []resource.Ref{step.Ref}); err != nil {
 		return err
 	}
-	dr, err := desiredProto(step.Ref, desired)
+	dr, err := desiredProto(step.Ref, s.agents.kinds.OnServer(step.Ref.Kind, desired))
 	if err != nil {
 		return err
 	}
@@ -1132,14 +1138,55 @@ func (s *Session) checkReads(ctx context.Context, refs []resource.Ref) error {
 		"Nothing on %s that names a value is read, planned or applied until you update the agent there", resource.ErrAgentTooOld, s.name, named[0].Name, s.name)
 }
 
-// checkAllWrites is checkWrites for all a plan asks of this agent.
+// checkAllWrites is checkWrites and checkFolders for all a plan asks of this
+// agent.
 func (s *Session) checkAllWrites(desired []resource.Desired) error {
 	for _, d := range desired {
 		if err := s.checkWrites(d.Ref, d.Spec); err != nil {
 			return err
 		}
+		if err := s.checkFolders(d.Ref, d.Spec); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// checkFolders refuses a spec with a mount that makes its missing folder as an
+// owner, for an agent that doesn't say it does: it would make the folder root's,
+// which what runs as that owner can't write.
+func (s *Session) checkFolders(ref resource.Ref, spec proto.Message) error {
+	if s.makesFolders || spec == nil || !makesFolder(spec.ProtoReflect()) {
+		return nil
+	}
+	return fmt.Errorf("%w: the agent on %s is from before Dockwell made a missing folder as its owner, which %s asks for, so it would be root's. Update the agent on %s",
+		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
+}
+
+// makesFolder reports a spec with a mount that names an owner to make it as.
+func makesFolder(m protoreflect.Message) bool {
+	found := false
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		switch {
+		case fd.Name() == "make_owner" && fd.Kind() == protoreflect.StringKind:
+			found = v.String() != ""
+		case fd.IsList() && fd.Message() != nil:
+			for i := range v.List().Len() {
+				if makesFolder(v.List().Get(i).Message()) {
+					found = true
+				}
+			}
+		case fd.IsMap() && fd.MapValue().Message() != nil:
+			v.Map().Range(func(_ protoreflect.MapKey, e protoreflect.Value) bool {
+				found = found || makesFolder(e.Message())
+				return !found
+			})
+		case fd.Message() != nil && !fd.IsList() && !fd.IsMap():
+			found = makesFolder(v.Message())
+		}
+		return !found
+	})
+	return found
 }
 
 func (s *Session) noDeliveryKey(ref resource.Ref) error {

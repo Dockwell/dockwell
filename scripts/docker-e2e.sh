@@ -2853,6 +2853,140 @@ gone=$(dw websites delete "$php_site" --yes 2>&1) || fail "websites delete faile
 # What PHP wrote is www-data's, which only root removes.
 "${as_dockwell[@]}" rm -rf "$php_parent" || fail "can't remove $php_parent"
 
+step "Runtimes: an app from a folder runs on each language's pinned image with its default commands, installing as its folder's owner, keeps its own environment through another version, and isn't drift"
+rt_parent=$(mktemp -d) || fail "can't make a folder for the runtimes"
+chmod 755 "$rt_parent" || fail "can't open $rt_parent to everyone"
+rt_user="$(id -u):$(id -g)"
+# Each language's app answers with its version, from what it's given as PORT.
+mkdir -m 755 "$rt_parent/node" "$rt_parent/python" "$rt_parent/go" "$rt_parent/java" || fail "can't make the apps' folders"
+cat >"$rt_parent/node/package.json" <<'EOF'
+{"name": "e2e", "version": "1.0.0", "private": true, "scripts": {"start": "node server.js"}}
+EOF
+# A lockfile, so the default install is npm ci; it asks the registry for nothing.
+cat >"$rt_parent/node/package-lock.json" <<'EOF'
+{"name": "e2e", "version": "1.0.0", "lockfileVersion": 3, "requires": true, "packages": {"": {"name": "e2e", "version": "1.0.0"}}}
+EOF
+cat >"$rt_parent/node/server.js" <<'EOF'
+require("http").createServer((_, res) => res.end(`node-${process.versions.node.split(".")[0]}:${process.env.GREETING ?? ""}`)).listen(Number(process.env.PORT));
+EOF
+# A requirements.txt the default install reads, with nothing to fetch.
+printf '# nothing beyond the standard library\n' >"$rt_parent/python/requirements.txt"
+cat >"$rt_parent/python/app.py" <<'EOF'
+import http.server, os, sys
+class Answer(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(("python-%d.%d:%s" % (sys.version_info[0], sys.version_info[1], sys.prefix)).encode())
+http.server.HTTPServer(("", int(os.environ["PORT"])), Answer).serve_forever()
+EOF
+printf 'module example.com/e2e\n\ngo 1.26\n' >"$rt_parent/go/go.mod"
+cat >"$rt_parent/go/main.go" <<'EOF'
+package main
+
+import (
+	"net/http"
+	"os"
+	"runtime"
+)
+
+func main() {
+	http.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("go-" + runtime.Version())) })
+	_ = http.ListenAndServe(":"+os.Getenv("PORT"), nil)
+}
+EOF
+cat >"$rt_parent/java/App.java" <<'EOF'
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetSocketAddress;
+
+public class App {
+  public static void main(String[] args) throws Exception {
+    HttpServer server = HttpServer.create(new InetSocketAddress(Integer.parseInt(System.getenv("PORT"))), 0);
+    server.createContext("/", exchange -> {
+      byte[] body = ("java-" + Runtime.version().feature()).getBytes();
+      exchange.sendResponseHeaders(200, body.length);
+      exchange.getResponseBody().write(body);
+      exchange.close();
+    });
+    server.start();
+  }
+}
+EOF
+# A stand-in for the Maven wrapper, which would fetch Maven: it builds what the
+# wrapper's package does, a jar named for the project in target, beside the -plain
+# one Spring Boot leaves, which the default install passes over.
+cat >"$rt_parent/java/mvnw" <<'EOF'
+#!/bin/sh
+set -e
+mkdir -p target/classes
+javac -d target/classes App.java
+jar --create --file target/e2e-1.0.jar --main-class App -C target/classes .
+jar --create --file target/e2e-1.0-plain.jar -C target/classes .
+EOF
+chmod 755 "$rt_parent/java/mvnw" || fail "can't make the Maven wrapper's stand-in runnable"
+chmod -R a+rX "$rt_parent" || fail "can't open the apps' files to everyone"
+# The images are pulled first, so how long an apply takes is the app's own start.
+offered=$(dw websites runtimes --json) || fail "websites runtimes failed"
+for language in node python go java; do
+  image=$(jq -r --arg l "$language" '[.runtimes[] | select(.id == $l)][0].image' <<<"$offered")
+  [[ "$image" == *@sha256:* ]] || fail "$language's newest runtime is '$image', want an image pinned by digest: $offered"
+  docker pull -q "$image" >/dev/null || fail "can't pull $image"
+done
+# rt_answers waits for an app to answer what it should, from its container's address.
+rt_answers() {
+  local ctr address body=""
+  for _ in $(seq 600); do
+    # While a new version takes over there can be two, or none for a moment.
+    ctr=$(docker ps --filter "label=com.docker.compose.project=$project" --filter "label=com.docker.compose.service=e2e-$1" --format '{{.Names}}' | head -n 1)
+    address=""
+    [[ -z "$ctr" ]] || address=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$ctr" 2>/dev/null | awk '{ print $1 }')
+    if [[ -n "$address" ]]; then
+      body=$(curl -sS --max-time 2 "http://$address:$2/" 2>/dev/null) && [[ "$body" == "$3"* ]] && return 0
+    fi
+    sleep 0.5
+  done
+  fail "e2e-$1 says '$body' at port $2, want $3: $(docker logs --tail 30 "$ctr" 2>&1)"
+}
+rt_create() {
+  local name=$1 planned status
+  shift
+  set +e
+  planned=$(dw services create "e2e-$name" --runtime-language "$name" --runtime-folder "$rt_parent/$name" --runtime-user "$rt_user" "$@" --yes 2>&1)
+  status=$?
+  set -e
+  # The folder is read-write from the server, so a person approves it, as any is.
+  [[ "$status" == 4 ]] || fail "an app from a folder exited $status, want 4: it waits for a person: $planned"
+  [[ "$planned" == *"$rt_parent/$name"* ]] || fail "the plan doesn't name the folder it reaches: $planned"
+  person_apply "$(dw changes list --json | jq -r '.changes[0].id')"
+}
+rt_create node --app-env GREETING=hi
+rt_create python
+rt_create go
+rt_create java
+newest() { jq -r --arg l "$1" '[.runtimes[] | select(.id == $l)][0].version' <<<"$offered"; }
+rt_answers node 3000 "node-$(newest node):hi"
+rt_answers python 8000 "python-$(newest python):/app/.venv"
+rt_answers go 8080 "go-go$(newest go)"
+rt_answers java 8080 "java-$(newest java)"
+# It runs as the folder's owner, with every capability dropped, and what it installs is theirs.
+node_ctr=$(named_container e2e-node)
+hardened=$(docker inspect --format '{{.Config.User}} {{json .HostConfig.CapDrop}} {{.Config.WorkingDir}}' "$node_ctr") || fail "docker inspect $node_ctr failed"
+[[ "$hardened" == "$rt_user "'["ALL"] /app' ]] || fail "the Node.js app runs as $hardened, want $rt_user in /app, with every capability dropped"
+installed=$(stat -c '%u:%g' "$rt_parent/python/.venv") || fail "Python's install left no .venv in its folder"
+[[ "$installed" == "$rt_user" ]] || fail "what Python installed is $installed's, want $rt_user's"
+# The server never has the runtime, so an app from a folder isn't drift.
+[[ "$(drifted)" == "$drift_before" ]] || fail "drift after apps from folders: $(dw drift list --json), and before it was $drift_before"
+# Another version is the same image's other tag, the same reach, so a token applies it,
+# and what's the app's own, its environment, stays.
+older=$(jq -r '[.runtimes[] | select(.id == "node")][1].version' <<<"$offered")
+moved=$(dw services change-runtime e2e-node --version "$older" --yes 2>&1) || fail "moving the Node.js app to $older failed: $moved"
+rt_answers node 3000 "node-$older:hi"
+for language in node python go java; do
+  gone=$(dw services delete "e2e-$language" --yes 2>&1) || fail "services delete e2e-$language failed: $gone"
+done
+[[ -f "$rt_parent/node/server.js" ]] || fail "deleting the app took its folder's files"
+"${as_dockwell[@]}" rm -rf "$rt_parent" || fail "can't remove $rt_parent"
+
 step "Ingress: a route with a certificate takes port 443 beside them, and frees it as it goes"
 took=$(dw routes create www --domain "$domain" --service web --port 80 --yes 2>&1) || fail "routes create www failed: $took"
 [[ "$took" == *"takes ports 443/tcp and 443/udp too"* ]] || fail "the plan doesn't say Caddy takes port 443: $took"

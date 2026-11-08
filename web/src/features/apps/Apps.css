@@ -1947,3 +1947,65 @@
 .app-env-hidden textarea {
   -webkit-text-security: disc;
 }
+
+/* An app from a folder in New app: its port and who it runs as share a row, and the folder's note sits under its field. */
+.app-folder-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .app-folder-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.app-folder-holds {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.app-folder-holds a,
+.app-folder-note a {
+  color: var(--link);
+}
+
+/* What an app from a folder runs on, in its Configuration. */
+.app-runtime,
+.app-runtime-folder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.app-runtime-older {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.app-facts .app-runtime-note {
+  grid-column: 1 / -1;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+/* With several servers, the folder's note under each one's name. */
+.app-folder-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.app-folder-on {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}

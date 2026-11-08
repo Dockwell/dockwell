@@ -8,6 +8,7 @@ import { EmptyState } from "../shell/EmptyState";
 import { useAllVariables } from "../variables/VariablesPage";
 import { useApp } from "./AppContext";
 import { environmentOf, type ServiceValue, valuesOf } from "./app";
+import { runtimeEnv } from "./runtime";
 
 /**
  * What one app runs with: the variables and secrets of its environment it uses,
@@ -19,7 +20,8 @@ export function AppEnvironment() {
   const { t } = useLingui();
   const { service } = useApp();
   const phone = useMediaQuery(PHONE_QUERY);
-  const rows = valuesOf(service);
+  const fromRuntime = runtimeEnv(service);
+  const rows = valuesOf(service, new Set(fromRuntime.keys()));
   const environment = environmentOf(service);
   const usesAny = rows.some((row) => row.kind !== "own");
   const hasOwn = rows.some((row) => row.kind === "own");
@@ -44,9 +46,14 @@ export function AppEnvironment() {
         return named ? t`Secret ${from}` : t`Secret`;
       case "own":
         return t`Set on this app`;
+      case "runtime":
+        return t`Set by its runtime`;
     }
   };
   const value = (row: ServiceValue) => {
+    // What the runtime wrote isn't secret, so its value shows.
+    const wrote = row.kind === "runtime" ? fromRuntime.get(row.name) : undefined;
+    if (wrote !== undefined) return <code className="app-env-value">{wrote}</code>;
     if (row.kind !== "variable") return <span className="app-muted">{t`Hidden`}</span>;
     const found = list.data?.variables.find((v) => v.name === row.from && !v.secret);
     if (found) return <code className="app-env-value">{found.value}</code>;

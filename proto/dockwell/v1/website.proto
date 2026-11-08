@@ -24,9 +24,11 @@ service WebsiteService {
     option (google.api.http) = {get: "/v1/websites"};
   }
 
-  // ListWebsiteRuntimes says what a website can run its code with: each version of
-  // PHP Dockwell offers, with the image it runs and the extensions that has. Each
-  // PHP website runs its own, so one site's upgrade moves no other.
+  // ListWebsiteRuntimes says what code on a server can run with: each version of
+  // PHP Dockwell offers a website, with the image it runs and the extensions that
+  // has, and each version of Node.js, Python, Go and Java an app from a folder
+  // runs on (ADR 0058). Each website and app runs its own, so one's upgrade moves
+  // no other.
   rpc ListWebsiteRuntimes(ListWebsiteRuntimesRequest) returns (ListWebsiteRuntimesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
@@ -156,9 +158,9 @@ message ListWebsiteRuntimesResponse {
   repeated WebsiteRuntime runtimes = 1;
 }
 
-// WebsiteRuntime is one version of a language a website can run.
+// WebsiteRuntime is one version of a language a website or an app can run.
 message WebsiteRuntime {
-  // The language, such as "PHP".
+  // The language as people call it, such as "PHP" or "Node.js".
   string language = 1;
   // The version a website names, such as "8.3".
   string version = 2;
@@ -168,6 +170,20 @@ message WebsiteRuntime {
   string image = 4;
   // The extensions it has beyond the language's own, such as "mysqli".
   repeated string extensions = 5;
+  // The language as a spec names it: "php" for a website, and "node",
+  // "python", "go" or "java" for an app's runtime.
+  string id = 6;
+  // What an app on it installs and starts with, and the port it listens on,
+  // unless the app says. Empty for PHP, which a website runs.
+  string install = 7;
+  string start = 8;
+  uint32 port = 9;
+  // What it gives an app in its environment, by name, beside what the app sets:
+  // PORT, HOME and where its tools keep caches. Empty for PHP.
+  repeated string env = 10;
+  // True when Dockwell no longer offers the version: an app on it keeps running
+  // and changing, and no new app runs on it.
+  bool retired = 11;
 }
 
 // PreviewWebsiteRequest is what a website would serve.

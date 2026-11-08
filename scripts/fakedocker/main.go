@@ -15,6 +15,8 @@
 //   - a server path under /readonly can't be mounted;
 //   - the tag "prints" writes "legacy says hello" as it starts, as a container
 //     run by hand has something in its log;
+//   - a language's image that an app from a folder runs on (ADR 0058) runs at
+//     127.0.0.1, so its check reaches what the test listens with on its port;
 //   - postgres keeps its data as one file, and dumps and loads it as its tools do,
 //     for a backup to go through a database's own dump, and answers a reading of
 //     itself as psql would, for the Databases section;
@@ -34,6 +36,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -41,6 +44,7 @@ import (
 
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
 // tb is what dockertest asks of a test: a place for the socket, and what to
@@ -149,6 +153,11 @@ func main() {
 			img.Address = "127.0.0.2"
 		case strings.HasSuffix(ref, ":prints"):
 			img.Prints = []string{"legacy says hello"}
+		}
+		if slices.ContainsFunc(service.Runtimes(), func(r service.Runtime) bool {
+			return ref == r.Image || strings.HasPrefix(r.Image, ref+"@")
+		}) {
+			img.Address = "127.0.0.1"
 		}
 		return img, true
 	}

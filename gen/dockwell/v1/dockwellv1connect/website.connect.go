@@ -59,9 +59,11 @@ const (
 type WebsiteServiceClient interface {
 	// ListWebsites returns every website, sorted by domain.
 	ListWebsites(context.Context, *connect.Request[v1.ListWebsitesRequest]) (*connect.Response[v1.ListWebsitesResponse], error)
-	// ListWebsiteRuntimes says what a website can run its code with: each version of
-	// PHP Dockwell offers, with the image it runs and the extensions that has. Each
-	// PHP website runs its own, so one site's upgrade moves no other.
+	// ListWebsiteRuntimes says what code on a server can run with: each version of
+	// PHP Dockwell offers a website, with the image it runs and the extensions that
+	// has, and each version of Node.js, Python, Go and Java an app from a folder
+	// runs on (ADR 0058). Each website and app runs its own, so one's upgrade moves
+	// no other.
 	ListWebsiteRuntimes(context.Context, *connect.Request[v1.ListWebsiteRuntimesRequest]) (*connect.Response[v1.ListWebsiteRuntimesResponse], error)
 	// PreviewWebsite says what a website's own web server would run for what it
 	// serves, planning nothing. It refuses what can't be served as CreateWebsite
@@ -177,9 +179,11 @@ func (c *websiteServiceClient) DeleteWebsite(ctx context.Context, req *connect.R
 type WebsiteServiceHandler interface {
 	// ListWebsites returns every website, sorted by domain.
 	ListWebsites(context.Context, *connect.Request[v1.ListWebsitesRequest]) (*connect.Response[v1.ListWebsitesResponse], error)
-	// ListWebsiteRuntimes says what a website can run its code with: each version of
-	// PHP Dockwell offers, with the image it runs and the extensions that has. Each
-	// PHP website runs its own, so one site's upgrade moves no other.
+	// ListWebsiteRuntimes says what code on a server can run with: each version of
+	// PHP Dockwell offers a website, with the image it runs and the extensions that
+	// has, and each version of Node.js, Python, Go and Java an app from a folder
+	// runs on (ADR 0058). Each website and app runs its own, so one's upgrade moves
+	// no other.
 	ListWebsiteRuntimes(context.Context, *connect.Request[v1.ListWebsiteRuntimesRequest]) (*connect.Response[v1.ListWebsiteRuntimesResponse], error)
 	// PreviewWebsite says what a website's own web server would run for what it
 	// serves, planning nothing. It refuses what can't be served as CreateWebsite
