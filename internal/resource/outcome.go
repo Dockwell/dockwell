@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -37,6 +38,34 @@ type Outcome struct {
 	Did *Action
 	// Backup is the backup the step took.
 	Backup *BackupTaken
+	// Waits is what the step waits for, once a change to the firewall has loaded
+	// and waits for its confirmation (ADR 0052).
+	Waits *AccessWait
+}
+
+// AccessVerdict is what came of a change to who reaches a server that waited for
+// its confirmation.
+type AccessVerdict int
+
+// Verdicts.
+const (
+	// AccessKept is a change confirmed in time, which the server keeps.
+	AccessKept AccessVerdict = iota + 1
+	// AccessRolledBack is a change whose time ran out, or whose agent restarted,
+	// first: the server put back what it had.
+	AccessRolledBack
+	// AccessNotWaiting is a change the server knows nothing waiting of.
+	AccessNotWaiting
+)
+
+// AccessWait is a change to who reaches a server that waits for the person who
+// applied it to confirm they still can, before the server puts back what it had.
+type AccessWait struct {
+	// Deadline is when the server puts back what it had, unless confirmed first.
+	Deadline time.Time `json:"deadline"`
+	// SSHPorts are the ports SSH listens on now, for the test the person runs:
+	// a new SSH session, from where they are, with their key.
+	SSHPorts []uint32 `json:"ssh_ports,omitempty"`
 }
 
 // Did is what Outcome.Did holds.

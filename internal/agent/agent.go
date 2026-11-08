@@ -41,6 +41,12 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
+// AccessConfirmer keeps a change to the firewall that waits for its
+// confirmation (ADR 0052).
+type AccessConfirmer interface {
+	Confirm(ctx context.Context, change string) resource.AccessVerdict
+}
+
 // Config configures Run.
 type Config struct {
 	Logger *slog.Logger
@@ -78,6 +84,9 @@ type Config struct {
 	// Tools runs the server's own tools, such as ufw and nft, as ADR 0043 has
 	// it. Nil runs none, as in a test.
 	Tools *hosttool.Runner
+	// Access keeps a change to the firewall that waits for its confirmation,
+	// when the control plane confirms it. Nil keeps none.
+	Access AccessConfirmer
 	// Docker lists this server's containers. Nil lists none.
 	Docker *docker.Client
 	// Backups takes and removes backups of this server's volumes. Nil takes none.

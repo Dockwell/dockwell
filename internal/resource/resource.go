@@ -118,6 +118,22 @@ const (
 	WarningMayLockOut Warning = iota + 1
 )
 
+// AccessGuard is a kind that decides who reaches a server, as firewall.rule
+// does, and so applies under the firewall's timer: a change to one waits for
+// the person who applied it to confirm they can still reach the server, and
+// puts back what was there if nobody does in time. Every change to one claims
+// the server's access too, so only one waits on a server at a time, and it
+// takes a person and a passkey (ADR 0052).
+type AccessGuard interface {
+	GuardsAccess()
+}
+
+// GuardsAccess says whether a kind applies under the firewall's timer.
+func GuardsAccess(t Type) bool {
+	_, ok := t.(AccessGuard)
+	return ok
+}
+
 // Decision is a driver's judgement of one step.
 type Decision struct {
 	// PlannedLeads says where the server paths the resource mounts led when this

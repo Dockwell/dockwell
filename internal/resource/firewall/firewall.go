@@ -35,12 +35,46 @@ type Backend interface {
 	Delete(ctx context.Context, name string) error
 }
 
+// Checker is a backend that refuses, when a change is planned, a rule or a
+// policy the server can't take safely: one that would narrow SSH with nobody's
+// address to keep, or deny the control plane's own ports (ADR 0052).
+type Checker interface {
+	CheckRule(desired *resourcev1.FirewallRule) error
+	CheckPolicy(desired *resourcev1.FirewallPolicy) error
+}
+
+// Waiter is a backend whose changes wait for their confirmation: the change's
+// last step on the server ends once it's kept, or fails once the server put
+// back what it had (ADR 0052).
+type Waiter interface {
+	Wait(ctx context.Context) error
+}
+
 // Driver manages firewall rules.
 type Driver struct {
 	Backend Backend
 }
 
-var _ resource.Driver = (*Driver)(nil)
+var (
+	_ resource.Driver      = (*Driver)(nil)
+	_ resource.AccessGuard = (*Driver)(nil)
+	_ resource.Readier     = (*Driver)(nil)
+)
+
+// GuardsAccess marks a rule as deciding who reaches the server: it applies
+// under the firewall's timer.
+func (*Driver) GuardsAccess() {}
+
+// Ready says whether the server can hold Dockwell's firewall, when the backend
+// can say.
+func (d *Driver) Ready(ctx context.Context) error { return ready(ctx, d.Backend) }
+
+func ready(ctx context.Context, backend any) error {
+	if r, ok := backend.(resource.Readier); ok {
+		return r.Ready(ctx)
+	}
+	return nil
+}
 
 // Kind returns "firewall.rule".
 func (*Driver) Kind() resource.Kind { return Kind }
@@ -93,8 +127,9 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 	return r, nil
 }
 
-// Plan never has downtime, but flags a rule that may cut off SSH.
-func (*Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
+// Plan never has downtime, but flags a rule that may cut off access, and lets
+// the backend refuse one the server can't take safely.
+func (d *Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
 	var dec resource.Decision
 	switch {
 	case actual == nil:
@@ -104,8 +139,15 @@ func (*Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resourc
 	default:
 		dec.Action = resource.ActionUpdate
 	}
-	if r, ok := desired.(*resourcev1.FirewallRule); ok && blocksSSH(r) {
-		dec.Warnings = append(dec.Warnings, resource.WarningMayLockOut)
+	if r, ok := desired.(*resourcev1.FirewallRule); ok {
+		if blocksSSH(r) || r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY {
+			dec.Warnings = append(dec.Warnings, resource.WarningMayLockOut)
+		}
+		if c, ok := d.Backend.(Checker); ok {
+			if err := c.CheckRule(r); err != nil {
+				return dec, err
+			}
+		}
 	}
 	return dec, nil
 }
@@ -140,6 +182,15 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 	}
 }
 
-// Verify has nothing to check beyond the rule being there: a rule has no
-// health of its own.
-func (*Driver) Verify(context.Context, resource.Ref, proto.Message) error { return nil }
+// Verify waits, on a backend whose changes wait for their confirmation, for
+// the change to be kept. A rule has no health of its own.
+func (d *Driver) Verify(ctx context.Context, _ resource.Ref, _ proto.Message) error {
+	return wait(ctx, d.Backend)
+}
+
+func wait(ctx context.Context, backend any) error {
+	if w, ok := backend.(Waiter); ok {
+		return w.Wait(ctx)
+	}
+	return nil
+}

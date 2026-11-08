@@ -137,6 +137,20 @@ service ChangeService {
     };
   }
 
+  // ConfirmChange keeps a change to a server's firewall that waits for its
+  // confirmation (Change.confirmation), once you have checked that you can
+  // still reach the server as the confirmation says. Only the person who
+  // applied it may confirm it, in the session they applied it from. Without a
+  // confirmation in time, the server puts back its firewall as it was, and the
+  // change rolls back (ADR 0052).
+  rpc ConfirmChange(ConfirmChangeRequest) returns (ConfirmChangeResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/changes/{id}:confirm"
+      body: "*"
+    };
+  }
+
   // DiscardChange drops a planned change without applying it. The change
   // stays on record as discarded.
   rpc DiscardChange(DiscardChangeRequest) returns (DiscardChangeResponse) {
@@ -343,6 +357,32 @@ message ApplyChangeRequest {
   // can apply one. Call without it first: it checks everything else, then
   // refuses with the reason needs_step_up.
   string proof = 3;
+}
+
+// ConfirmChangeRequest names a change that waits for its confirmation.
+message ConfirmChangeRequest {
+  // The change's ID.
+  string id = 1;
+}
+
+// ConfirmChangeResponse carries the change, which goes on applying, or ends
+// applied, once the server has kept what it waited for.
+message ConfirmChangeResponse {
+  // The change.
+  Change change = 1;
+}
+
+// ChangeConfirmation is what a change to a server's firewall waits for: that
+// the person who applied it confirms they can still reach the server, before
+// the server's timer runs out and it puts back its firewall as it was.
+message ChangeConfirmation {
+  // The server whose firewall changed.
+  string server_id = 1;
+  // When the server puts back its firewall, unless confirmed first.
+  google.protobuf.Timestamp deadline = 2;
+  // The ports the server's SSH listens on now, for the test the person runs
+  // before confirming: a new SSH session, from where they are, with their key.
+  repeated uint32 ssh_ports = 3;
 }
 
 // ApplyChangeResponse carries the change as it starts applying.
@@ -573,6 +613,10 @@ message Change {
   // planned for them". Empty when they may apply it, and for a viewer, who
   // applies nothing.
   string waits = 23;
+  // What the change waits for, while a change to a server's firewall waits
+  // for its confirmation (ConfirmChange). Unset otherwise. Numbered apart, as
+  // open work adds to this message.
+  ChangeConfirmation confirmation = 40;
 }
 
 // RollbackStatus is how the rollback of a failed change is going, for
@@ -1546,6 +1590,10 @@ message StepProgress {
   // it's done, for a step that failed, and for one a run that stopped partway had
   // done already.
   PlanAction did = 14;
+  // What the step waits for, while a change to who reaches its server waits
+  // for the person who applied it to confirm they still can (ConfirmChange).
+  // Numbered apart, as open work adds to this message.
+  ChangeConfirmation confirmation = 40;
 }
 
 // StepState is how a step is going.

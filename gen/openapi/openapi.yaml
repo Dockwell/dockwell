@@ -893,6 +893,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/changes/{id}:confirm:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                ConfirmChange keeps a change to a server's firewall that waits for its
+                 confirmation (Change.confirmation), once you have checked that you can
+                 still reach the server as the confirmation says. Only the person who
+                 applied it may confirm it, in the session they applied it from. Without a
+                 confirmation in time, the server puts back its firewall as it was, and the
+                 change rolls back (ADR 0052).
+            operationId: ChangeService_ConfirmChange
+            parameters:
+                - name: id
+                  in: path
+                  description: The change's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ConfirmChangeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConfirmChangeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/changes/{id}:discard:
         post:
             tags:
@@ -5827,9 +5865,38 @@ components:
                          protected environment, an admin or the owner applies this. Leave it
                          planned for them". Empty when they may apply it, and for a viewer, who
                          applies nothing.
+                confirmation:
+                    allOf:
+                        - $ref: '#/components/schemas/ChangeConfirmation'
+                    description: |-
+                        What the change waits for, while a change to a server's firewall waits
+                         for its confirmation (ConfirmChange). Unset otherwise. Numbered apart, as
+                         open work adds to this message.
             description: |-
                 Change is one action's worth of edits to managed resources: planned,
                  then applied, failed or discarded.
+        ChangeConfirmation:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server whose firewall changed.
+                deadline:
+                    type: string
+                    description: When the server puts back its firewall, unless confirmed first.
+                    format: date-time
+                sshPorts:
+                    type: array
+                    items:
+                        type: integer
+                        format: uint32
+                    description: |-
+                        The ports the server's SSH listens on now, for the test the person runs
+                         before confirming: a new SSH session, from where they are, with their key.
+            description: |-
+                ChangeConfirmation is what a change to a server's firewall waits for: that
+                 the person who applied it confirms they can still reach the server, before
+                 the server's timer runs out and it puts back its firewall as it was.
         CheckClaimRequest:
             type: object
             properties:
@@ -6012,6 +6079,23 @@ components:
                     type: boolean
                     description: True when it needs a value, as the file gives it no default.
             description: ComposeVariable is a variable a Compose file uses, such as ${TAG}.
+        ConfirmChangeRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The change's ID.
+            description: ConfirmChangeRequest names a change that waits for its confirmation.
+        ConfirmChangeResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change.
+            description: |-
+                ConfirmChangeResponse carries the change, which goes on applying, or ends
+                 applied, once the server has kept what it waited for.
         ConfirmTotpSetupRequest:
             type: object
             properties:
@@ -8101,6 +8185,20 @@ components:
                     type: string
                     description: How many files and folders that made.
             description: FinishUploadResponse is what an upload put in place.
+        FirewallPolicy:
+            type: object
+            properties:
+                denyEverythingElse:
+                    type: boolean
+                    description: |-
+                        Drop inbound traffic no rule lets in. What keeps the server reachable is
+                         still let in: connections already open, SSH from where people come in now,
+                         and on the control server its own ports.
+            description: |-
+                FirewallPolicy is what a server's firewall does with inbound traffic no rule
+                 lets in, kind "firewall.policy", named "default", one for each server.
+                 Without one, or with deny_everything_else off, what no rule drops comes in,
+                 as it did before Dockwell (ADR 0052).
         FirewallRule:
             type: object
             properties:
@@ -13167,6 +13265,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/FirewallRule'
                     description: A firewall rule on a server, kind "firewall.rule".
+                firewallPolicy:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallPolicy'
+                    description: |-
+                        What a server's firewall does with what no rule lets in, kind
+                         "firewall.policy". Numbered apart, as open work adds to this message.
                 volume:
                     allOf:
                         - $ref: '#/components/schemas/Volume'
@@ -13353,6 +13457,13 @@ components:
                          it's done, for a step that failed, and for one a run that stopped partway had
                          done already.
                     format: enum
+                confirmation:
+                    allOf:
+                        - $ref: '#/components/schemas/ChangeConfirmation'
+                    description: |-
+                        What the step waits for, while a change to who reaches its server waits
+                         for the person who applied it to confirm they still can (ConfirmChange).
+                         Numbered apart, as open work adds to this message.
             description: StepProgress is one step of an applying change, and how it is going.
         Task:
             type: object

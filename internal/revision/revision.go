@@ -3338,6 +3338,16 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		_, u := e.step(c.ID, q.index, StepWaiting, msg)
 		waits = append(waits, u)
 	}
+	// Each server's last step of a kind under the firewall's timer waits for the
+	// change's confirmation there, so one confirmation covers all of that
+	// server's steps (ADR 0052). A change to several servers waits on each in
+	// turn, as its steps run server by server.
+	lastAccess := map[string]int{}
+	for qi, q := range queue {
+		if e.guardsAccess(q.step.Ref.Kind) {
+			lastAccess[q.server] = qi
+		}
+	}
 	done := map[at]bool{}
 	for qi, q := range queue {
 		if e.isStopping() {
@@ -3371,11 +3381,15 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			told.Digest, told.Note, told.Untouched = cmp.Or(o.Digest, told.Digest), cmp.Or(told.Note, o.Note), told.Untouched || o.Untouched
 			told.Did = cmp.Or(o.Did, told.Did)
 			told.Backup = cmp.Or(o.Backup, told.Backup)
+			if o.Waits != nil {
+				e.awaits(c.ID, index, *o.Waits)
+			}
 			if o.Replacing {
 				e.pulledNewer(ctx, c.ID, items, it, q.server, o)
 			}
 		})
-		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c)})
+		last, guarded := lastAccess[q.server]
+		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c), LastAccess: guarded && last == qi})
 		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
 		called()
 		switch {
@@ -4241,6 +4255,19 @@ func (e *Engine) checkRestores(ctx context.Context, plan *Plan, items []item) er
 // deploy of one that started meanwhile would run on data that's being replaced.
 func (e *Engine) holdsToo(ctx context.Context, tx *store.Tx, items []item) ([]item, error) {
 	held := items
+	// A change to who reaches a server waits for its confirmation, and claims the
+	// server's access as it does, so only one waits there at a time: two that
+	// waited at once would each put back a firewall without the other's change
+	// when its timer ran out (ADR 0052).
+	claimed := map[string]bool{}
+	for i := range items {
+		server := items[i].ref.Scope
+		if !e.guardsAccess(items[i].ref.Kind) || claimed[server] {
+			continue
+		}
+		claimed[server] = true
+		held = append(held, item{id: "access " + server, ref: resource.Ref{Kind: "server.access", Scope: server, Name: "this server's firewall"}})
+	}
 	for i := range items {
 		if items[i].restore == nil {
 			continue
@@ -4255,6 +4282,43 @@ func (e *Engine) holdsToo(ctx context.Context, tx *store.Tx, items []item) ([]it
 		}
 	}
 	return held, nil
+}
+
+// TouchesAccess says whether a plan changes who reaches a server: it has a step
+// of a kind under the firewall's timer, so it waits for a confirmation, and
+// takes a person and a passkey to apply.
+func (e *Engine) TouchesAccess(p *Plan) bool {
+	return p != nil && slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return e.guardsAccess(r.Ref.Kind) })
+}
+
+// AccessConfirmer is an agent that can keep a change to its server's firewall
+// that waits for its confirmation.
+type AccessConfirmer interface {
+	ConfirmAccess(ctx context.Context, changeID string) (resource.AccessVerdict, error)
+}
+
+// ConfirmAccess confirms a change that waits on a server for its confirmation,
+// through that server's agent, and says what the agent did.
+func (e *Engine) ConfirmAccess(ctx context.Context, changeID string) (resource.AccessVerdict, error) {
+	server, _ := e.Awaiting(changeID)
+	if server == "" {
+		return resource.AccessNotWaiting, nil
+	}
+	agent, online := e.agents.Agent(server)
+	if !online {
+		return 0, fault.New(ErrOffline, "the server's agent isn't connected, so nothing can confirm the change there. Its timer puts back the firewall as it was")
+	}
+	confirmer, ok := agent.(AccessConfirmer)
+	if !ok {
+		return 0, errors.New("the server's agent can't confirm a change")
+	}
+	return confirmer.ConfirmAccess(ctx, changeID)
+}
+
+// guardsAccess says whether a kind applies under the firewall's timer.
+func (e *Engine) guardsAccess(kind resource.Kind) bool {
+	t, err := e.kinds.Type(kind)
+	return err == nil && resource.GuardsAccess(t)
 }
 
 // undoRestore plans putting back what a change's restore replaced, which is all

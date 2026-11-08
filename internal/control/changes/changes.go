@@ -56,6 +56,11 @@ type Handler struct {
 	auth   *auth.Service
 	db     *store.DB
 	logger *slog.Logger
+
+	mu sync.Mutex
+	// appliedIn is the session each change to who reaches a server was applied
+	// from, as only that session may confirm it.
+	appliedIn map[string]string
 }
 
 var _ dockwellv1connect.ChangeServiceHandler = (*Handler)(nil)
@@ -63,7 +68,7 @@ var _ dockwellv1connect.ChangeServiceHandler = (*Handler)(nil)
 // New returns a handler over engine, which reads db. people checks the passkey a
 // plan that's as good as root takes.
 func New(engine *revision.Engine, people *auth.Service, db *store.DB, logger *slog.Logger) *Handler {
-	return &Handler{engine: engine, auth: people, db: db, logger: logger}
+	return &Handler{engine: engine, auth: people, db: db, logger: logger, appliedIn: map[string]string{}}
 }
 
 // by is who is calling, and from where, as auth.Client.Surface says: a
@@ -310,6 +315,10 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
 			fmt.Errorf("%s %s, which a person approves, so no API token may apply it. %s", r.ID, accessWords(r.Plan), signIn),
 			authapi.ReasonNeedsSession)
+	case r.State == store.ChangePlanned && h.engine.TouchesAccess(r.Plan) && p.Token != nil:
+		return nil, authapi.ReasonError(connect.CodePermissionDenied,
+			fmt.Errorf("%s changes who reaches a server, which waits for the person who applied it to confirm they still can, so no API token may apply it. %s", r.ID, signIn),
+			authapi.ReasonNeedsSession)
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && fp == "":
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s destroys data, may cut off access to a server, or lets two containers write to one place, and undo may not bring everything back. Review the plan, then apply it with its fingerprint, %s, to confirm", r.ID, r.Fingerprint),
@@ -322,6 +331,7 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	// The proof is asked for once nothing else here refuses, and held until the
 	// engine takes the change, as it can still refuse: busy, offline or out of date.
 	giveBack := func() {}
+	access := r.State == store.ChangePlanned && h.engine.TouchesAccess(r.Plan)
 	switch {
 	case approve.Protected && approve.Theirs:
 		// One passkey approves the plan, root's included: it's bound to its fingerprint.
@@ -332,13 +342,18 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, target)
 		}
 		giveBack = back
-	case r.State == store.ChangePlanned && r.Plan.AsGoodAsRoot():
+	case r.State == store.ChangePlanned && (r.Plan.AsGoodAsRoot() || access):
 		back, err := h.auth.HoldStepUp(p, req.Msg.GetProof(), auth.StepUpApplyRootChange, r.ID)
 		if err != nil {
 			h.auth.AskedForStepUp(p, auth.StepUpApplyRootChange, r.ID, func() { h.noteUnconfirmed(r.ID, who) })
 			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, r.ID)
 		}
 		giveBack = back
+	}
+	if access {
+		h.mu.Lock()
+		h.appliedIn[r.ID] = p.Session.ID
+		h.mu.Unlock()
 	}
 	if err := h.engine.Start(ctx, r.ID, who); err != nil {
 		giveBack()
@@ -359,6 +374,55 @@ func stepUpNeeded(err error, action dockwellv1.StepUpAction, target string) erro
 		cerr.AddDetail(d)
 	}
 	return cerr
+}
+
+// ConfirmChange keeps a change to who reaches a server that waits for its
+// confirmation, for the person who applied it, in that session.
+func (h *Handler) ConfirmChange(ctx context.Context, req *connect.Request[dockwellv1.ConfirmChangeRequest]) (*connect.Response[dockwellv1.ConfirmChangeResponse], error) {
+	_, p, err := by(ctx)
+	if err != nil {
+		return nil, err
+	}
+	changeID := req.Msg.GetId()
+	h.mu.Lock()
+	session, known := h.appliedIn[changeID]
+	h.mu.Unlock()
+	if p.Token != nil || !known || session != p.Session.ID {
+		return nil, authapi.ReasonError(connect.CodePermissionDenied,
+			fmt.Errorf("only the person who applied %s may confirm it, in the session they applied it from, as they check they can still reach the server", changeID), "not_yours")
+	}
+	r, err := h.engine.Change(ctx, changeID)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	if r.State != store.ChangeApplying {
+		// It's over, so nothing of it waits on any of its servers now.
+		h.mu.Lock()
+		delete(h.appliedIn, changeID)
+		h.mu.Unlock()
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s is %s, so there's nothing of it to confirm", changeID, r.State), "not_waiting")
+	}
+	verdict, err := h.engine.ConfirmAccess(ctx, changeID)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	switch verdict {
+	case resource.AccessKept:
+		// A change to several servers waits on each in turn, so the session stays
+		// the one to confirm it until it's over.
+	case resource.AccessRolledBack:
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("the server's time for %s ran out before the confirmation reached it, so it put back its firewall as it was, and the change rolls back", changeID), "rolled_back")
+	case resource.AccessNotWaiting:
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("nothing of %s waits for a confirmation on its server now. Watch the change to see how it ended", changeID), "not_waiting")
+	}
+	c, err := h.change(ctx, changeID)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.ConfirmChangeResponse{Change: c}), nil
 }
 
 // noteUnconfirmed puts on record a plan as good as root that someone tried to apply,
@@ -455,6 +519,7 @@ func (h *Handler) WatchChange(ctx context.Context, req *connect.Request[dockwell
 					for i := range u.Progress.Steps {
 						c.Steps = append(c.Steps, stepProto(&u.Progress.Steps[i]))
 					}
+					c.Confirmation = confirmationOf(c.Steps)
 				}
 				msg.Event = &dockwellv1.WatchChangeResponse_Change{Change: c}
 			}
@@ -1011,7 +1076,19 @@ func Proto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dockwellv1
 	for i := range r.Progress.Steps {
 		c.Steps = append(c.Steps, stepProto(&r.Progress.Steps[i]))
 	}
+	c.Confirmation = confirmationOf(c.Steps)
 	return c
+}
+
+// confirmationOf is what a change waits for: the confirmation one of its
+// running steps waits for, if any.
+func confirmationOf(steps []*dockwellv1.StepProgress) *dockwellv1.ChangeConfirmation {
+	for _, s := range steps {
+		if s.GetConfirmation() != nil {
+			return s.GetConfirmation()
+		}
+	}
+	return nil
 }
 
 // planProto is a change's plan: in full when the record has it, and in
@@ -1092,6 +1169,9 @@ func stepProto(s *revision.StepProgress) *dockwellv1.StepProgress {
 		p.FinishTime = timestamppb.New(s.Finished)
 	}
 	p.Did = resourcepb.Did(s.Did)
+	if w := s.Confirm; w != nil {
+		p.Confirmation = &dockwellv1.ChangeConfirmation{ServerId: s.Server, Deadline: timestamppb.New(w.Deadline), SshPorts: w.SSHPorts}
+	}
 	return p
 }
 
