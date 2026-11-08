@@ -6985,6 +6985,17 @@ components:
                     type: string
                     description: Total size, in bytes.
             description: DiskUsage is one filesystem's use.
+        DockwellFirewallRule:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, as the firewall.rule resource has it.
+                rule:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallRule'
+                    description: The rule.
+            description: DockwellFirewallRule is one of Dockwell's own rules for a server.
         DockwellRelease:
             type: object
             properties:
@@ -8507,6 +8518,19 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/ServerFirewall'
                     description: The firewall, as the agent read it.
+                rules:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockwellFirewallRule'
+                    description: |-
+                        Dockwell's own rules for the server, as applied, by name. Each is a
+                         firewall.rule resource in the server's scope, which a change edits.
+                policy:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallPolicy'
+                    description: |-
+                        Dockwell's policy for the server, as applied: what it does with what no
+                         rule lets in. Unset when it has none, which lets in what no rule drops.
             description: GetServerFirewallResponse is what filters the server's inbound traffic.
         GetServerResponse:
             type: object

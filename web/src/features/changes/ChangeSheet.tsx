@@ -10,6 +10,7 @@ import {
   BackupService,
   CatalogService,
   type Change,
+  type ChangeConfirmation,
   ChangeService,
   ChangeState,
   Connection,
@@ -76,6 +77,7 @@ import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { ConfirmAccess } from "./ConfirmAccess";
 import { BecauseNotice, FailureNotice, MachineWords } from "./FailureNotice";
 import { useFieldRows } from "./fields";
 import { followChange } from "./follow";
@@ -773,7 +775,11 @@ function ChangeSheet({
     footer = (
       <>
         <span className="dw-sheet-note">
-          <Trans>It keeps applying if you close this.</Trans>
+          {confirmationOf(change) ? (
+            <Trans>If you close this without keeping it, the change goes back on its own.</Trans>
+          ) : (
+            <Trans>It keeps applying if you close this.</Trans>
+          )}
         </span>
         <Button variant="ghost" size={size} onClick={close}>
           <Trans>Close</Trans>
@@ -1091,6 +1097,7 @@ function PlanBody({
   const setOut = phase === "failed" ? t`What it set out to do` : t`What it would have done`;
   const stepsDone = steps.filter((s) => s.state === StepState.DONE).length;
   const nothingNewer = foundNothingNewer(change);
+  const confirmation = phase === "applying" ? confirmationOf(change) : undefined;
 
   return (
     <div className="plan-body">
@@ -1100,6 +1107,8 @@ function PlanBody({
           {opening.fix?.(reasonOf(failure)) ?? <MachineWords>{refusal(failure, plan)}</MachineWords>}
         </Callout>
       ) : null}
+      {/* A change to who reaches a server waits for you to say you still can: that comes first. */}
+      {confirmation && change ? <ConfirmAccess changeId={change.id} wait={confirmation} /> : null}
       {/* A change Dockwell made on its own says why first, as nobody asked for it. */}
       {change?.because ? <BecauseNotice because={change.because} /> : null}
       {/* A plan that waits for an admin says why, in the server's words, which name what it reaches. */}
@@ -2146,4 +2155,13 @@ function Effects({
       ) : null}
     </>
   );
+}
+
+/**
+ * What a change waits for, while a change to who reaches a server waits for you
+ * to confirm you still can: on the change once it's read again, and on its step
+ * as the watch tells it.
+ */
+function confirmationOf(change: Change | undefined): ChangeConfirmation | undefined {
+  return change?.confirmation ?? change?.steps.find((s) => s.confirmation)?.confirmation;
 }

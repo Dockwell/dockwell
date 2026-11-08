@@ -570,3 +570,45 @@ func TestADeveloperCantPlanAFirewallKind(t *testing.T) {
 		needsRole(t, "a developer's token planning "+name, err)
 	}
 }
+
+// The Firewall tab reads Dockwell's own rules and policy for the server, as
+// applied, beside what the agent reads.
+func TestTheFirewallSaysDockwellsOwnRules(t *testing.T) {
+	storetest.Each(t, testTheFirewallSaysDockwellsOwnRules)
+}
+
+func testTheFirewallSaysDockwellsOwnRules(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	srv, _ := f.addFirewallServer(t, "hz-1", time.Minute)
+	c := changeClient(b, b.origin)
+	policy := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(firewall.PolicyKind), Scope: srv.id.ServerID, Name: firewall.PolicyName},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_FirewallPolicy{FirewallPolicy: &resourcev1.FirewallPolicy{DenyEverythingElse: true}}},
+	}
+	for _, edit := range []*dockwellv1.Edit{ruleOn(srv.id.ServerID, "http", 80), policy} {
+		ch := propose(t, c, "Change the firewall", edit)
+		w := watch(t, c, ch.GetId())
+		// Deny everything else may cut off access, so it applies with its plan's fingerprint.
+		if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint()}); err != nil {
+			t.Fatal(err)
+		}
+		wait := waitingFor(t, c, ch.GetId())
+		if _, err := c.ConfirmChange(t.Context(), confirmation(ch.GetId(), wait)); err != nil {
+			t.Fatal(err)
+		}
+		waitWatch(t, w)
+	}
+	fc := dockwellv1connect.NewFirewallServiceClient(b, b.origin, connect.WithProtoJSON())
+	got, err := fc.GetServerFirewall(t.Context(), connect.NewRequest(&dockwellv1.GetServerFirewallRequest{ServerId: srv.id.ServerID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rules := got.Msg.GetRules()
+	if len(rules) != 1 || rules[0].GetName() != "http" || rules[0].GetRule().GetPort() != 80 {
+		t.Errorf("Dockwell's rules %v", rules)
+	}
+	if !got.Msg.GetPolicy().GetDenyEverythingElse() {
+		t.Errorf("Dockwell's policy %v", got.Msg.GetPolicy())
+	}
+}

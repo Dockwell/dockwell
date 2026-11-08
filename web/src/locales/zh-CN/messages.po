@@ -4609,6 +4609,9 @@ msgstr "如果失败，每个应用都会回滚到当前运行的版本"
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "此计划要求的一切都已就绪，没有需要应用的内容。"
 
+msgid "If you close this without keeping it, the change goes back on its own."
+msgstr "如果你不保留就关闭，这项更改会自动撤回。"
+
 msgid "In environment <0>{environment}</0>"
 msgstr "位于环境 <0>{environment}</0>"
 
@@ -4833,6 +4836,24 @@ msgstr "{subject} 已接管"
 
 msgid "{verb} {name}"
 msgstr "{verb} {name}"
+
+msgid "Check you can still reach {name}"
+msgstr "确认你仍能访问 {name}"
+
+msgid "Keep the change"
+msgstr "保留更改"
+
+msgid "Only the person who applied this change can keep it, from where they applied it."
+msgstr "只有应用这项更改的人，在应用它的会话中，才能保留它。"
+
+msgid "Open a new SSH session to port {port} from where you are now, with your key. If it works, keep the change."
+msgstr "从你现在所在的位置，用你的密钥向端口 {port} 打开一个新的 SSH 会话。如果能连上，就保留这项更改。"
+
+msgid "{name} is putting back its firewall as it was."
+msgstr "{name} 正在把防火墙恢复为原样。"
+
+msgid "{name} puts back its firewall as it was in {left} s unless you keep it."
+msgstr "除非你保留这项更改，{name} 将在 {left} 秒后把防火墙恢复为原样。"
 
 msgid "Details"
 msgstr "详细信息"
@@ -8319,6 +8340,63 @@ msgstr "{count}，其中 {input} 作用于入站流量。"
 
 msgid "{count}. Its input chain drops what no rule lets in."
 msgstr "{count}。其 input 链会丢弃没有规则放行的流量。"
+
+msgid "Add a rule"
+msgstr "添加规则"
+
+#. placeholder {0}: server.name
+msgid "Add a rule to {0}"
+msgstr "为 {0} 添加规则"
+
+msgid "Addresses or ranges, such as 203.0.113.0/24, apart by commas. Empty is anywhere."
+msgstr "地址或地址段，例如 203.0.113.0/24，用逗号分隔。留空表示任意来源。"
+
+msgid "Allow {n}/{protocol} on {serverName}"
+msgstr "在 {serverName} 上允许 {n}/{protocol}"
+
+msgid "As {name} starts, these are off until its agent is up, a few seconds in, which loads them again. Nothing is lost, and nobody is locked out, as they only narrow what comes in."
+msgstr "{name} 启动时，这些规则会暂时失效，直到几秒后它的代理启动并重新加载它们。不会丢失任何设置，也不会把任何人锁在外面，因为这些规则只会收窄入站流量。"
+
+msgid "Deny everything else"
+msgstr "拒绝其他一切流量"
+
+msgid "Deny everything else on {name}"
+msgstr "在 {name} 上拒绝其他一切流量"
+
+msgid "Deny {n}/{protocol} on {serverName}"
+msgstr "在 {serverName} 上拒绝 {n}/{protocol}"
+
+msgid "Dockwell has no rules for {name} yet. What comes in is as the server's own firewall leaves it."
+msgstr "Dockwell 还没有为 {name} 设置规则。入站流量取决于服务器自己的防火墙。"
+
+msgid "Dockwell's rules"
+msgstr "Dockwell 的规则"
+
+msgid "Drops what no rule lets in. Connections already open, SSH from where people come in now, and on the control server its own ports, stay let in."
+msgstr "丢弃没有规则放行的流量。已建立的连接、来自当前登录来源的 SSH，以及控制服务器上它自己的端口，仍然放行。"
+
+msgid "It applies as a plan, and stays only once you confirm you can still reach the server"
+msgstr "它以计划的形式应用，只有在你确认仍能访问服务器后才会保留"
+
+msgid "Let in what no rule drops on {name}"
+msgstr "在 {name} 上放行没有规则丢弃的流量"
+
+msgid "Name a port from 1 to 65535, such as 443."
+msgstr "请填写 1 到 65535 之间的端口，例如 443。"
+
+msgid "Plan it"
+msgstr "生成计划"
+
+#. placeholder {0}: r.name
+msgid "Remove the rule {0}"
+msgstr "移除规则 {0}"
+
+#. placeholder {0}: rule.name
+msgid "Remove the rule {0} from {name}"
+msgstr "从 {name} 移除规则 {0}"
+
+msgid "Why the rule is there, shown beside it."
+msgstr "说明这条规则的用途，显示在它旁边。"
 
 msgid "Loading servers"
 msgstr "正在加载服务器"

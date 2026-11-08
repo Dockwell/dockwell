@@ -20,6 +20,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { reasonOf, sentence } from "../../lib/errors";
+import { DockwellRules } from "./FirewallRules";
 import { ServerFrame } from "./ServerFrame";
 import "./FirewallPage.css";
 
@@ -83,6 +84,12 @@ function Firewall({ server }: { server: Server }) {
   const filtered = primary.some((tool) => tool.active && !tool.unreadable);
   return (
     <div className="firewall">
+      <DockwellRules
+        server={server}
+        rules={read.data?.rules ?? []}
+        policy={read.data?.policy}
+        onChanged={() => void read.refetch()}
+      />
       {there.length === 0 ? (
         <Panel title={t`Inbound traffic`}>
           <p className="firewall-note">

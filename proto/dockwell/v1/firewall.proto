@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
@@ -44,6 +45,20 @@ message GetServerFirewallRequest {
 message GetServerFirewallResponse {
   // The firewall, as the agent read it.
   ServerFirewall firewall = 1;
+  // Dockwell's own rules for the server, as applied, by name. Each is a
+  // firewall.rule resource in the server's scope, which a change edits.
+  repeated DockwellFirewallRule rules = 2;
+  // Dockwell's policy for the server, as applied: what it does with what no
+  // rule lets in. Unset when it has none, which lets in what no rule drops.
+  dockwell.resource.v1alpha1.FirewallPolicy policy = 3;
+}
+
+// DockwellFirewallRule is one of Dockwell's own rules for a server.
+message DockwellFirewallRule {
+  // Its name, as the firewall.rule resource has it.
+  string name = 1;
+  // The rule.
+  dockwell.resource.v1alpha1.FirewallRule rule = 2;
 }
 
 // ServerFirewall is what filters a server's inbound traffic, as its agent read it.

@@ -9,6 +9,7 @@
 package dockwellv1
 
 import (
+	v1alpha1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -350,7 +351,13 @@ func (x *GetServerFirewallRequest) GetServerId() string {
 type GetServerFirewallResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The firewall, as the agent read it.
-	Firewall      *ServerFirewall `protobuf:"bytes,1,opt,name=firewall,proto3" json:"firewall,omitempty"`
+	Firewall *ServerFirewall `protobuf:"bytes,1,opt,name=firewall,proto3" json:"firewall,omitempty"`
+	// Dockwell's own rules for the server, as applied, by name. Each is a
+	// firewall.rule resource in the server's scope, which a change edits.
+	Rules []*DockwellFirewallRule `protobuf:"bytes,2,rep,name=rules,proto3" json:"rules,omitempty"`
+	// Dockwell's policy for the server, as applied: what it does with what no
+	// rule lets in. Unset when it has none, which lets in what no rule drops.
+	Policy        *v1alpha1.FirewallPolicy `protobuf:"bytes,3,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -392,6 +399,75 @@ func (x *GetServerFirewallResponse) GetFirewall() *ServerFirewall {
 	return nil
 }
 
+func (x *GetServerFirewallResponse) GetRules() []*DockwellFirewallRule {
+	if x != nil {
+		return x.Rules
+	}
+	return nil
+}
+
+func (x *GetServerFirewallResponse) GetPolicy() *v1alpha1.FirewallPolicy {
+	if x != nil {
+		return x.Policy
+	}
+	return nil
+}
+
+// DockwellFirewallRule is one of Dockwell's own rules for a server.
+type DockwellFirewallRule struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its name, as the firewall.rule resource has it.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The rule.
+	Rule          *v1alpha1.FirewallRule `protobuf:"bytes,2,opt,name=rule,proto3" json:"rule,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DockwellFirewallRule) Reset() {
+	*x = DockwellFirewallRule{}
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DockwellFirewallRule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DockwellFirewallRule) ProtoMessage() {}
+
+func (x *DockwellFirewallRule) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DockwellFirewallRule.ProtoReflect.Descriptor instead.
+func (*DockwellFirewallRule) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *DockwellFirewallRule) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DockwellFirewallRule) GetRule() *v1alpha1.FirewallRule {
+	if x != nil {
+		return x.Rule
+	}
+	return nil
+}
+
 // ServerFirewall is what filters a server's inbound traffic, as its agent read it.
 type ServerFirewall struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -420,7 +496,7 @@ type ServerFirewall struct {
 
 func (x *ServerFirewall) Reset() {
 	*x = ServerFirewall{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[2]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -432,7 +508,7 @@ func (x *ServerFirewall) String() string {
 func (*ServerFirewall) ProtoMessage() {}
 
 func (x *ServerFirewall) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[2]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -445,7 +521,7 @@ func (x *ServerFirewall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerFirewall.ProtoReflect.Descriptor instead.
 func (*ServerFirewall) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ServerFirewall) GetTime() *timestamppb.Timestamp {
@@ -520,7 +596,7 @@ type HostListener struct {
 
 func (x *HostListener) Reset() {
 	*x = HostListener{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[3]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -532,7 +608,7 @@ func (x *HostListener) String() string {
 func (*HostListener) ProtoMessage() {}
 
 func (x *HostListener) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[3]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -545,7 +621,7 @@ func (x *HostListener) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostListener.ProtoReflect.Descriptor instead.
 func (*HostListener) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *HostListener) GetAddress() string {
@@ -654,7 +730,7 @@ type FirewallTool struct {
 
 func (x *FirewallTool) Reset() {
 	*x = FirewallTool{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[4]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -666,7 +742,7 @@ func (x *FirewallTool) String() string {
 func (*FirewallTool) ProtoMessage() {}
 
 func (x *FirewallTool) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[4]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -679,7 +755,7 @@ func (x *FirewallTool) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FirewallTool.ProtoReflect.Descriptor instead.
 func (*FirewallTool) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *FirewallTool) GetKind() FirewallToolKind {
@@ -800,7 +876,7 @@ type FirewallSeenRule struct {
 
 func (x *FirewallSeenRule) Reset() {
 	*x = FirewallSeenRule{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[5]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -812,7 +888,7 @@ func (x *FirewallSeenRule) String() string {
 func (*FirewallSeenRule) ProtoMessage() {}
 
 func (x *FirewallSeenRule) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[5]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -825,7 +901,7 @@ func (x *FirewallSeenRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FirewallSeenRule.ProtoReflect.Descriptor instead.
 func (*FirewallSeenRule) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *FirewallSeenRule) GetVerdict() FirewallVerdict {
@@ -907,7 +983,7 @@ type PublishedPort struct {
 
 func (x *PublishedPort) Reset() {
 	*x = PublishedPort{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[6]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -919,7 +995,7 @@ func (x *PublishedPort) String() string {
 func (*PublishedPort) ProtoMessage() {}
 
 func (x *PublishedPort) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[6]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -932,7 +1008,7 @@ func (x *PublishedPort) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublishedPort.ProtoReflect.Descriptor instead.
 func (*PublishedPort) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *PublishedPort) GetContainer() string {
@@ -981,11 +1057,16 @@ var File_dockwell_v1_firewall_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\n" +
-	"\x1adockwell/v1/firewall.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"7\n" +
+	"\x1adockwell/v1/firewall.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"7\n" +
 	"\x18GetServerFirewallRequest\x12\x1b\n" +
-	"\tserver_id\x18\x01 \x01(\tR\bserverId\"T\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\"\xd1\x01\n" +
 	"\x19GetServerFirewallResponse\x127\n" +
-	"\bfirewall\x18\x01 \x01(\v2\x1b.dockwell.v1.ServerFirewallR\bfirewall\"\xc3\x02\n" +
+	"\bfirewall\x18\x01 \x01(\v2\x1b.dockwell.v1.ServerFirewallR\bfirewall\x127\n" +
+	"\x05rules\x18\x02 \x03(\v2!.dockwell.v1.DockwellFirewallRuleR\x05rules\x12B\n" +
+	"\x06policy\x18\x03 \x01(\v2*.dockwell.resource.v1alpha1.FirewallPolicyR\x06policy\"h\n" +
+	"\x14DockwellFirewallRule\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12<\n" +
+	"\x04rule\x18\x02 \x01(\v2(.dockwell.resource.v1alpha1.FirewallRuleR\x04rule\"\xc3\x02\n" +
 	"\x0eServerFirewall\x12.\n" +
 	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12/\n" +
 	"\x05tools\x18\x02 \x03(\v2\x19.dockwell.v1.FirewallToolR\x05tools\x128\n" +
@@ -1093,7 +1174,7 @@ func file_dockwell_v1_firewall_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_firewall_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_dockwell_v1_firewall_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_dockwell_v1_firewall_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_dockwell_v1_firewall_proto_goTypes = []any{
 	(ListenerReachReason)(0),          // 0: dockwell.v1.ListenerReachReason
 	(ListenerReach)(0),                // 1: dockwell.v1.ListenerReach
@@ -1101,33 +1182,39 @@ var file_dockwell_v1_firewall_proto_goTypes = []any{
 	(FirewallVerdict)(0),              // 3: dockwell.v1.FirewallVerdict
 	(*GetServerFirewallRequest)(nil),  // 4: dockwell.v1.GetServerFirewallRequest
 	(*GetServerFirewallResponse)(nil), // 5: dockwell.v1.GetServerFirewallResponse
-	(*ServerFirewall)(nil),            // 6: dockwell.v1.ServerFirewall
-	(*HostListener)(nil),              // 7: dockwell.v1.HostListener
-	(*FirewallTool)(nil),              // 8: dockwell.v1.FirewallTool
-	(*FirewallSeenRule)(nil),          // 9: dockwell.v1.FirewallSeenRule
-	(*PublishedPort)(nil),             // 10: dockwell.v1.PublishedPort
-	(*timestamppb.Timestamp)(nil),     // 11: google.protobuf.Timestamp
+	(*DockwellFirewallRule)(nil),      // 6: dockwell.v1.DockwellFirewallRule
+	(*ServerFirewall)(nil),            // 7: dockwell.v1.ServerFirewall
+	(*HostListener)(nil),              // 8: dockwell.v1.HostListener
+	(*FirewallTool)(nil),              // 9: dockwell.v1.FirewallTool
+	(*FirewallSeenRule)(nil),          // 10: dockwell.v1.FirewallSeenRule
+	(*PublishedPort)(nil),             // 11: dockwell.v1.PublishedPort
+	(*v1alpha1.FirewallPolicy)(nil),   // 12: dockwell.resource.v1alpha1.FirewallPolicy
+	(*v1alpha1.FirewallRule)(nil),     // 13: dockwell.resource.v1alpha1.FirewallRule
+	(*timestamppb.Timestamp)(nil),     // 14: google.protobuf.Timestamp
 }
 var file_dockwell_v1_firewall_proto_depIdxs = []int32{
-	6,  // 0: dockwell.v1.GetServerFirewallResponse.firewall:type_name -> dockwell.v1.ServerFirewall
-	11, // 1: dockwell.v1.ServerFirewall.time:type_name -> google.protobuf.Timestamp
-	8,  // 2: dockwell.v1.ServerFirewall.tools:type_name -> dockwell.v1.FirewallTool
-	10, // 3: dockwell.v1.ServerFirewall.published:type_name -> dockwell.v1.PublishedPort
-	7,  // 4: dockwell.v1.ServerFirewall.listening:type_name -> dockwell.v1.HostListener
-	1,  // 5: dockwell.v1.HostListener.reach:type_name -> dockwell.v1.ListenerReach
-	0,  // 6: dockwell.v1.HostListener.reason:type_name -> dockwell.v1.ListenerReachReason
-	2,  // 7: dockwell.v1.FirewallTool.kind:type_name -> dockwell.v1.FirewallToolKind
-	3,  // 8: dockwell.v1.FirewallTool.default_inbound:type_name -> dockwell.v1.FirewallVerdict
-	9,  // 9: dockwell.v1.FirewallTool.rules:type_name -> dockwell.v1.FirewallSeenRule
-	3,  // 10: dockwell.v1.FirewallTool.input_policy:type_name -> dockwell.v1.FirewallVerdict
-	3,  // 11: dockwell.v1.FirewallSeenRule.verdict:type_name -> dockwell.v1.FirewallVerdict
-	4,  // 12: dockwell.v1.FirewallService.GetServerFirewall:input_type -> dockwell.v1.GetServerFirewallRequest
-	5,  // 13: dockwell.v1.FirewallService.GetServerFirewall:output_type -> dockwell.v1.GetServerFirewallResponse
-	13, // [13:14] is the sub-list for method output_type
-	12, // [12:13] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	7,  // 0: dockwell.v1.GetServerFirewallResponse.firewall:type_name -> dockwell.v1.ServerFirewall
+	6,  // 1: dockwell.v1.GetServerFirewallResponse.rules:type_name -> dockwell.v1.DockwellFirewallRule
+	12, // 2: dockwell.v1.GetServerFirewallResponse.policy:type_name -> dockwell.resource.v1alpha1.FirewallPolicy
+	13, // 3: dockwell.v1.DockwellFirewallRule.rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
+	14, // 4: dockwell.v1.ServerFirewall.time:type_name -> google.protobuf.Timestamp
+	9,  // 5: dockwell.v1.ServerFirewall.tools:type_name -> dockwell.v1.FirewallTool
+	11, // 6: dockwell.v1.ServerFirewall.published:type_name -> dockwell.v1.PublishedPort
+	8,  // 7: dockwell.v1.ServerFirewall.listening:type_name -> dockwell.v1.HostListener
+	1,  // 8: dockwell.v1.HostListener.reach:type_name -> dockwell.v1.ListenerReach
+	0,  // 9: dockwell.v1.HostListener.reason:type_name -> dockwell.v1.ListenerReachReason
+	2,  // 10: dockwell.v1.FirewallTool.kind:type_name -> dockwell.v1.FirewallToolKind
+	3,  // 11: dockwell.v1.FirewallTool.default_inbound:type_name -> dockwell.v1.FirewallVerdict
+	10, // 12: dockwell.v1.FirewallTool.rules:type_name -> dockwell.v1.FirewallSeenRule
+	3,  // 13: dockwell.v1.FirewallTool.input_policy:type_name -> dockwell.v1.FirewallVerdict
+	3,  // 14: dockwell.v1.FirewallSeenRule.verdict:type_name -> dockwell.v1.FirewallVerdict
+	4,  // 15: dockwell.v1.FirewallService.GetServerFirewall:input_type -> dockwell.v1.GetServerFirewallRequest
+	5,  // 16: dockwell.v1.FirewallService.GetServerFirewall:output_type -> dockwell.v1.GetServerFirewallResponse
+	16, // [16:17] is the sub-list for method output_type
+	15, // [15:16] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_firewall_proto_init() }
@@ -1142,7 +1229,7 @@ func file_dockwell_v1_firewall_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_firewall_proto_rawDesc), len(file_dockwell_v1_firewall_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
