@@ -134,3 +134,9 @@ func aRole(role string) string {
 	}
 	return "a " + role
 }
+
+// View runs fn in a read transaction of the store, for checks the API makes of
+// what a call names, such as where an object belongs.
+func (s *Service) View(ctx context.Context, fn func(*store.Tx) error) error {
+	return s.db.View(ctx, fn)
+}

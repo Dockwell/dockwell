@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/grpchealth"
@@ -378,8 +379,8 @@ var tokenAccess = func() map[string]auth.Access {
 // rule is what a procedure needs of a role (ADR 0049): the lowest role it
 // needs anywhere, which the interceptor checks first, and what its objects are.
 type rule struct {
-	needs dockwellv1.Needs
-	reach dockwellv1.Reach
+	needs, needsProtected dockwellv1.Needs
+	reach                 dockwellv1.Reach
 }
 
 // roleRules maps each procedure of dockwell.v1 to its rule, from its
@@ -393,8 +394,9 @@ var roleRules = func() map[string]rule {
 			for j := range sd.Methods().Len() {
 				md := sd.Methods().Get(j)
 				needs, _ := proto.GetExtension(md.Options(), dockwellv1.E_MinRole).(dockwellv1.Needs)
+				protected, _ := proto.GetExtension(md.Options(), dockwellv1.E_MinRoleProtected).(dockwellv1.Needs)
 				reach, _ := proto.GetExtension(md.Options(), dockwellv1.E_Reach).(dockwellv1.Reach)
-				m["/"+string(sd.FullName())+"/"+string(md.Name())] = rule{needs: needs, reach: reach}
+				m["/"+string(sd.FullName())+"/"+string(md.Name())] = rule{needs: needs, needsProtected: protected, reach: reach}
 			}
 		}
 		return true
@@ -521,26 +523,99 @@ func atLeast(role string) string {
 
 func (i *interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		ctx, err := i.authorize(ctx, req.Spec().Procedure)
+		procedure := req.Spec().Procedure
+		ctx, err := i.authorize(ctx, procedure)
 		if err != nil {
 			return nil, err
 		}
+		if err := i.checkScope(ctx, procedure, req.Any()); err != nil {
+			return nil, err
+		}
 		res, err := next(ctx, req)
-		if err == nil && trims(ctx, req.Spec().Procedure) {
+		if err != nil {
+			return res, err
+		}
+		if _, err := i.filter(ctx, procedure, res.Any()); err != nil {
+			i.logger.ErrorContext(ctx, "can't narrow a response to what its caller may see", slog.Any("error", err))
+			return nil, ReasonError(connect.CodeUnavailable, errors.New("can't check what you may see right now. Try again in a moment"), ReasonUnavailable)
+		}
+		if trims(ctx, procedure) {
 			trim(res.Any())
 		}
-		return res, err
+		return res, nil
 	}
 }
 
-// trimConn trims what a stream sends to names and states, for someone below an
-// admin reading what projects name.
-type trimConn struct {
+// scopedConn checks what a stream's request names, narrows what it sends to the
+// caller's places, and trims it to names and states for someone below an admin
+// reading what projects name. Each recheck reads the caller's grants again and
+// checks the request against them.
+type scopedConn struct {
 	connect.StreamingHandlerConn
+	i    *interceptor
+	trim bool
+
+	mu    sync.Mutex
+	ctx   context.Context //nolint:containedctx // the stream's own, with the grants last read
+	req   any             // the request, once received
+	ended error           // why a recheck ended the stream
 }
 
-func (c trimConn) Send(m any) error {
-	trim(m)
+func (c *scopedConn) Receive(m any) error {
+	if err := c.StreamingHandlerConn.Receive(m); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.req != nil {
+		return nil
+	}
+	c.req = m
+	return c.i.checkScope(c.ctx, c.Spec().Procedure, m)
+}
+
+// recheck reads the caller's grants again, as the gate does, and checks the
+// request against them. What it read narrows what the stream sends next.
+func (c *scopedConn) recheck(ctx context.Context, p auth.Principal) error {
+	procedure := c.Spec().Procedure
+	gated, err := c.i.gate(ctx, p, procedure)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err == nil && c.req != nil {
+		err = c.i.checkScope(gated, procedure, c.req)
+	}
+	if err != nil {
+		c.ended = err
+		return err
+	}
+	// The stream's own context, with the grants just read.
+	if grants, ok := grantsFrom(gated); ok {
+		c.ctx = context.WithValue(c.ctx, grantsKey{}, grants)
+	}
+	return nil
+}
+
+// endedBy is why a recheck ended the stream, or nil when it didn't.
+func (c *scopedConn) endedBy() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.ended
+}
+
+func (c *scopedConn) Send(m any) error {
+	c.mu.Lock()
+	ctx := c.ctx
+	c.mu.Unlock()
+	skip, err := c.i.filter(ctx, c.Spec().Procedure, m)
+	if err != nil {
+		return ReasonError(connect.CodeUnavailable, errors.New("can't check what you may see right now. Try again in a moment"), ReasonUnavailable)
+	}
+	if skip {
+		return nil
+	}
+	if c.trim {
+		trim(m)
+	}
 	return c.StreamingHandlerConn.Send(m)
 }
 
@@ -562,21 +637,17 @@ func (i *interceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) co
 		}
 		client, _ := ClientFrom(ctx)
 		procedure := conn.Spec().Procedure
-		// Each recheck asks the gate again, so a stream ends once its caller's role,
-		// or a token's maker's, no longer lets them make it (ADR 0048).
-		still := func(ctx context.Context) error {
-			_, err := i.gate(ctx, p, procedure)
-			return err
-		}
+		scoped := &scopedConn{StreamingHandlerConn: conn, i: i, trim: trims(ctx, procedure), ctx: ctx}
+		// Each recheck asks the gate and the request's places again, so a stream
+		// ends once its caller's role, or a token's maker's, no longer lets them
+		// make it, or reach what it names (ADR 0048).
+		still := func(recheck context.Context) error { return scoped.recheck(recheck, p) }
 		tracked, stop := i.svc.Track(ctx, client, p, still)
 		defer stop()
-		if trims(ctx, procedure) {
-			conn = trimConn{conn}
-		}
-		err = next(tracked, conn)
+		err = next(tracked, scoped)
 		if ctx.Err() == nil && tracked.Err() != nil {
-			if _, gated := i.gate(ctx, p, procedure); gated != nil {
-				return gated
+			if ended := scoped.endedBy(); ended != nil {
+				return ended
 			}
 			if p.Token != nil {
 				return ReasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)

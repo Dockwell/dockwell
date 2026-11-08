@@ -140,3 +140,67 @@ func scoped(ctx context.Context, tx *store.Tx, scopeID string) (Place, error) {
 // carries protection, a written one is read first, and this only for one
 // without.
 func protectedByName(name string) bool { return name == "production" }
+
+// Holds is the role grants give at a place: the highest of a grant on the
+// install and one on the place's project. The install's own place counts only
+// grants on the install. Empty is none: the place is out of reach.
+func Holds(grants []store.Grant, p Place) string {
+	best := ""
+	for _, g := range grants {
+		if g.ProjectID != store.Install && (p.Project == "" || g.ProjectID != p.Project) {
+			continue
+		}
+		if store.RoleRank(g.Role) > store.RoleRank(best) {
+			best = g.Role
+		}
+	}
+	return best
+}
+
+// Project finds a project by its ID or its name, or ErrNotFound.
+func Project(ctx context.Context, tx *store.Tx, ref string) (string, error) {
+	if strings.HasPrefix(ref, id.Project+"_") {
+		return ref, nil
+	}
+	all, err := tx.ListKind(ctx, string(scope.ProjectKind))
+	if err != nil {
+		return "", err
+	}
+	for i := range all {
+		if all[i].Name == ref {
+			return all[i].ID, nil
+		}
+	}
+	return "", store.ErrNotFound
+}
+
+// Environment finds an environment of a project by its ID or its name, or, with
+// none named, the project's only one. It's ErrNotFound for none, and ok false
+// when the project has several and none is named.
+func Environment(ctx context.Context, tx *store.Tx, projectID, ref string) (Place, bool, error) {
+	if strings.HasPrefix(ref, id.Environment+"_") {
+		got, err := Of(ctx, tx, ref)
+		if err != nil || len(got) != 1 {
+			return Place{}, false, err
+		}
+		return got[0], true, nil
+	}
+	envs, err := tx.ListResources(ctx, projectID, string(scope.EnvironmentKind))
+	if err != nil {
+		return Place{}, false, err
+	}
+	var found []store.Resource
+	for i := range envs {
+		if ref == "" || envs[i].Name == ref {
+			found = append(found, envs[i])
+		}
+	}
+	switch {
+	case len(found) == 1:
+		p, err := resourcePlace(ctx, tx, found[0])
+		return p, err == nil, err
+	case len(found) == 0:
+		return Place{}, false, store.ErrNotFound
+	}
+	return Place{}, false, nil
+}
