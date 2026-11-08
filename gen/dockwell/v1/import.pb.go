@@ -46,20 +46,26 @@ const (
 	ImportKind_IMPORT_KIND_CRON_JOB ImportKind = 7
 	// What the panel keeps for itself, such as its firewall's or its own settings.
 	ImportKind_IMPORT_KIND_PANEL ImportKind = 8
+	// A Compose project made on the panel's Containers page, outside its store.
+	ImportKind_IMPORT_KIND_COMPOSE_PROJECT ImportKind = 9
+	// Containers the panel started on their own, which it keeps no record of.
+	ImportKind_IMPORT_KIND_CONTAINERS ImportKind = 10
 )
 
 // Enum value maps for ImportKind.
 var (
 	ImportKind_name = map[int32]string{
-		0: "IMPORT_KIND_UNSPECIFIED",
-		1: "IMPORT_KIND_APP",
-		2: "IMPORT_KIND_RUNTIME",
-		3: "IMPORT_KIND_WEBSITE",
-		4: "IMPORT_KIND_CERTIFICATE",
-		5: "IMPORT_KIND_DATABASE_SERVER",
-		6: "IMPORT_KIND_DATABASE",
-		7: "IMPORT_KIND_CRON_JOB",
-		8: "IMPORT_KIND_PANEL",
+		0:  "IMPORT_KIND_UNSPECIFIED",
+		1:  "IMPORT_KIND_APP",
+		2:  "IMPORT_KIND_RUNTIME",
+		3:  "IMPORT_KIND_WEBSITE",
+		4:  "IMPORT_KIND_CERTIFICATE",
+		5:  "IMPORT_KIND_DATABASE_SERVER",
+		6:  "IMPORT_KIND_DATABASE",
+		7:  "IMPORT_KIND_CRON_JOB",
+		8:  "IMPORT_KIND_PANEL",
+		9:  "IMPORT_KIND_COMPOSE_PROJECT",
+		10: "IMPORT_KIND_CONTAINERS",
 	}
 	ImportKind_value = map[string]int32{
 		"IMPORT_KIND_UNSPECIFIED":     0,
@@ -71,6 +77,8 @@ var (
 		"IMPORT_KIND_DATABASE":        6,
 		"IMPORT_KIND_CRON_JOB":        7,
 		"IMPORT_KIND_PANEL":           8,
+		"IMPORT_KIND_COMPOSE_PROJECT": 9,
+		"IMPORT_KIND_CONTAINERS":      10,
 	}
 )
 
@@ -398,7 +406,9 @@ type OnePanel struct {
 	// The databases on them.
 	Databases []*OnePanelDatabase `protobuf:"bytes,10,rep,name=databases,proto3" json:"databases,omitempty"`
 	// Its cron jobs.
-	CronJobs      []*OnePanelCronJob `protobuf:"bytes,11,rep,name=cron_jobs,json=cronJobs,proto3" json:"cron_jobs,omitempty"`
+	CronJobs []*OnePanelCronJob `protobuf:"bytes,11,rep,name=cron_jobs,json=cronJobs,proto3" json:"cron_jobs,omitempty"`
+	// The Compose projects made on its Containers page, outside its store.
+	Composes      []*OnePanelCompose `protobuf:"bytes,12,rep,name=composes,proto3" json:"composes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -510,6 +520,69 @@ func (x *OnePanel) GetCronJobs() []*OnePanelCronJob {
 	return nil
 }
 
+func (x *OnePanel) GetComposes() []*OnePanelCompose {
+	if x != nil {
+		return x.Composes
+	}
+	return nil
+}
+
+// OnePanelCompose is a Compose project made on 1Panel's Containers page, which
+// runs with its name as its project's.
+type OnePanelCompose struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its name, which is its Compose project's.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Its Compose file.
+	File          string `protobuf:"bytes,2,opt,name=file,proto3" json:"file,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OnePanelCompose) Reset() {
+	*x = OnePanelCompose{}
+	mi := &file_dockwell_v1_import_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OnePanelCompose) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OnePanelCompose) ProtoMessage() {}
+
+func (x *OnePanelCompose) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_import_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OnePanelCompose.ProtoReflect.Descriptor instead.
+func (*OnePanelCompose) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *OnePanelCompose) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *OnePanelCompose) GetFile() string {
+	if x != nil {
+		return x.File
+	}
+	return ""
+}
+
 // OnePanelApp is an install of an app from 1Panel's store.
 type OnePanelApp struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -540,7 +613,7 @@ type OnePanelApp struct {
 
 func (x *OnePanelApp) Reset() {
 	*x = OnePanelApp{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[4]
+	mi := &file_dockwell_v1_import_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -552,7 +625,7 @@ func (x *OnePanelApp) String() string {
 func (*OnePanelApp) ProtoMessage() {}
 
 func (x *OnePanelApp) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[4]
+	mi := &file_dockwell_v1_import_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -565,7 +638,7 @@ func (x *OnePanelApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelApp.ProtoReflect.Descriptor instead.
 func (*OnePanelApp) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *OnePanelApp) GetName() string {
@@ -663,7 +736,7 @@ type OnePanelRuntime struct {
 
 func (x *OnePanelRuntime) Reset() {
 	*x = OnePanelRuntime{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[5]
+	mi := &file_dockwell_v1_import_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -675,7 +748,7 @@ func (x *OnePanelRuntime) String() string {
 func (*OnePanelRuntime) ProtoMessage() {}
 
 func (x *OnePanelRuntime) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[5]
+	mi := &file_dockwell_v1_import_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -688,7 +761,7 @@ func (x *OnePanelRuntime) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelRuntime.ProtoReflect.Descriptor instead.
 func (*OnePanelRuntime) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *OnePanelRuntime) GetName() string {
@@ -784,7 +857,7 @@ type OnePanelWebsite struct {
 
 func (x *OnePanelWebsite) Reset() {
 	*x = OnePanelWebsite{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[6]
+	mi := &file_dockwell_v1_import_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -796,7 +869,7 @@ func (x *OnePanelWebsite) String() string {
 func (*OnePanelWebsite) ProtoMessage() {}
 
 func (x *OnePanelWebsite) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[6]
+	mi := &file_dockwell_v1_import_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -809,7 +882,7 @@ func (x *OnePanelWebsite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelWebsite.ProtoReflect.Descriptor instead.
 func (*OnePanelWebsite) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *OnePanelWebsite) GetAlias() string {
@@ -918,7 +991,7 @@ type OnePanelDomain struct {
 
 func (x *OnePanelDomain) Reset() {
 	*x = OnePanelDomain{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[7]
+	mi := &file_dockwell_v1_import_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -930,7 +1003,7 @@ func (x *OnePanelDomain) String() string {
 func (*OnePanelDomain) ProtoMessage() {}
 
 func (x *OnePanelDomain) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[7]
+	mi := &file_dockwell_v1_import_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -943,7 +1016,7 @@ func (x *OnePanelDomain) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelDomain.ProtoReflect.Descriptor instead.
 func (*OnePanelDomain) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *OnePanelDomain) GetDomain() string {
@@ -995,7 +1068,7 @@ type OnePanelCertificate struct {
 
 func (x *OnePanelCertificate) Reset() {
 	*x = OnePanelCertificate{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[8]
+	mi := &file_dockwell_v1_import_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1007,7 +1080,7 @@ func (x *OnePanelCertificate) String() string {
 func (*OnePanelCertificate) ProtoMessage() {}
 
 func (x *OnePanelCertificate) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[8]
+	mi := &file_dockwell_v1_import_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1020,7 +1093,7 @@ func (x *OnePanelCertificate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelCertificate.ProtoReflect.Descriptor instead.
 func (*OnePanelCertificate) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *OnePanelCertificate) GetPrimaryDomain() string {
@@ -1094,7 +1167,7 @@ type OnePanelDatabaseServer struct {
 
 func (x *OnePanelDatabaseServer) Reset() {
 	*x = OnePanelDatabaseServer{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[9]
+	mi := &file_dockwell_v1_import_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1106,7 +1179,7 @@ func (x *OnePanelDatabaseServer) String() string {
 func (*OnePanelDatabaseServer) ProtoMessage() {}
 
 func (x *OnePanelDatabaseServer) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[9]
+	mi := &file_dockwell_v1_import_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1119,7 +1192,7 @@ func (x *OnePanelDatabaseServer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelDatabaseServer.ProtoReflect.Descriptor instead.
 func (*OnePanelDatabaseServer) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *OnePanelDatabaseServer) GetName() string {
@@ -1184,7 +1257,7 @@ type OnePanelDatabase struct {
 
 func (x *OnePanelDatabase) Reset() {
 	*x = OnePanelDatabase{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[10]
+	mi := &file_dockwell_v1_import_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1196,7 +1269,7 @@ func (x *OnePanelDatabase) String() string {
 func (*OnePanelDatabase) ProtoMessage() {}
 
 func (x *OnePanelDatabase) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[10]
+	mi := &file_dockwell_v1_import_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1209,7 +1282,7 @@ func (x *OnePanelDatabase) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelDatabase.ProtoReflect.Descriptor instead.
 func (*OnePanelDatabase) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *OnePanelDatabase) GetName() string {
@@ -1292,7 +1365,7 @@ type OnePanelCronJob struct {
 
 func (x *OnePanelCronJob) Reset() {
 	*x = OnePanelCronJob{}
-	mi := &file_dockwell_v1_import_proto_msgTypes[11]
+	mi := &file_dockwell_v1_import_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1304,7 +1377,7 @@ func (x *OnePanelCronJob) String() string {
 func (*OnePanelCronJob) ProtoMessage() {}
 
 func (x *OnePanelCronJob) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_import_proto_msgTypes[11]
+	mi := &file_dockwell_v1_import_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1317,7 +1390,7 @@ func (x *OnePanelCronJob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnePanelCronJob.ProtoReflect.Descriptor instead.
 func (*OnePanelCronJob) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{11}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *OnePanelCronJob) GetName() string {
@@ -1437,7 +1510,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x06action\x18\x04 \x01(\x0e2\x19.dockwell.v1.ImportActionR\x06action\x12\x18\n" +
 	"\abecomes\x18\x05 \x01(\tR\abecomes\x12\x16\n" +
 	"\x06reason\x18\x06 \x01(\tR\x06reason\x12\x1b\n" +
-	"\twaits_for\x18\a \x01(\tR\bwaitsFor\"\xae\x04\n" +
+	"\twaits_for\x18\a \x01(\tR\bwaitsFor\"\xe8\x04\n" +
 	"\bOnePanel\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x19\n" +
 	"\bbase_dir\x18\x02 \x01(\tR\abaseDir\x12\x18\n" +
@@ -1450,7 +1523,11 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x10database_servers\x18\t \x03(\v2#.dockwell.v1.OnePanelDatabaseServerR\x0fdatabaseServers\x12;\n" +
 	"\tdatabases\x18\n" +
 	" \x03(\v2\x1d.dockwell.v1.OnePanelDatabaseR\tdatabases\x129\n" +
-	"\tcron_jobs\x18\v \x03(\v2\x1c.dockwell.v1.OnePanelCronJobR\bcronJobs\"\x8f\x02\n" +
+	"\tcron_jobs\x18\v \x03(\v2\x1c.dockwell.v1.OnePanelCronJobR\bcronJobs\x128\n" +
+	"\bcomposes\x18\f \x03(\v2\x1c.dockwell.v1.OnePanelComposeR\bcomposes\"9\n" +
+	"\x0fOnePanelCompose\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04file\x18\x02 \x01(\tR\x04file\"\x8f\x02\n" +
 	"\vOnePanelApp\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x17\n" +
 	"\aapp_key\x18\x02 \x01(\tR\x06appKey\x12\x19\n" +
@@ -1533,7 +1610,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"scriptPath\x12 \n" +
 	"\vinterpreter\x18\f \x01(\tR\vinterpreter\x12\x12\n" +
 	"\x04user\x18\r \x01(\tR\x04user\x12#\n" +
-	"\rdatabase_type\x18\x0e \x01(\tR\fdatabaseType*\xf9\x01\n" +
+	"\rdatabase_type\x18\x0e \x01(\tR\fdatabaseType*\xb6\x02\n" +
 	"\n" +
 	"ImportKind\x12\x1b\n" +
 	"\x17IMPORT_KIND_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -1544,7 +1621,10 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x1bIMPORT_KIND_DATABASE_SERVER\x10\x05\x12\x18\n" +
 	"\x14IMPORT_KIND_DATABASE\x10\x06\x12\x18\n" +
 	"\x14IMPORT_KIND_CRON_JOB\x10\a\x12\x15\n" +
-	"\x11IMPORT_KIND_PANEL\x10\b*y\n" +
+	"\x11IMPORT_KIND_PANEL\x10\b\x12\x1f\n" +
+	"\x1bIMPORT_KIND_COMPOSE_PROJECT\x10\t\x12\x1a\n" +
+	"\x16IMPORT_KIND_CONTAINERS\x10\n" +
+	"*y\n" +
 	"\fImportAction\x12\x1d\n" +
 	"\x19IMPORT_ACTION_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15IMPORT_ACTION_TAKE_ON\x10\x01\x12\x16\n" +
@@ -1568,7 +1648,7 @@ func file_dockwell_v1_import_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_import_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_dockwell_v1_import_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_dockwell_v1_import_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_dockwell_v1_import_proto_goTypes = []any{
 	(ImportKind)(0),                // 0: dockwell.v1.ImportKind
 	(ImportAction)(0),              // 1: dockwell.v1.ImportAction
@@ -1576,39 +1656,41 @@ var file_dockwell_v1_import_proto_goTypes = []any{
 	(*ImportOnePanelResponse)(nil), // 3: dockwell.v1.ImportOnePanelResponse
 	(*ImportStep)(nil),             // 4: dockwell.v1.ImportStep
 	(*OnePanel)(nil),               // 5: dockwell.v1.OnePanel
-	(*OnePanelApp)(nil),            // 6: dockwell.v1.OnePanelApp
-	(*OnePanelRuntime)(nil),        // 7: dockwell.v1.OnePanelRuntime
-	(*OnePanelWebsite)(nil),        // 8: dockwell.v1.OnePanelWebsite
-	(*OnePanelDomain)(nil),         // 9: dockwell.v1.OnePanelDomain
-	(*OnePanelCertificate)(nil),    // 10: dockwell.v1.OnePanelCertificate
-	(*OnePanelDatabaseServer)(nil), // 11: dockwell.v1.OnePanelDatabaseServer
-	(*OnePanelDatabase)(nil),       // 12: dockwell.v1.OnePanelDatabase
-	(*OnePanelCronJob)(nil),        // 13: dockwell.v1.OnePanelCronJob
-	(*Change)(nil),                 // 14: dockwell.v1.Change
-	(*timestamppb.Timestamp)(nil),  // 15: google.protobuf.Timestamp
+	(*OnePanelCompose)(nil),        // 6: dockwell.v1.OnePanelCompose
+	(*OnePanelApp)(nil),            // 7: dockwell.v1.OnePanelApp
+	(*OnePanelRuntime)(nil),        // 8: dockwell.v1.OnePanelRuntime
+	(*OnePanelWebsite)(nil),        // 9: dockwell.v1.OnePanelWebsite
+	(*OnePanelDomain)(nil),         // 10: dockwell.v1.OnePanelDomain
+	(*OnePanelCertificate)(nil),    // 11: dockwell.v1.OnePanelCertificate
+	(*OnePanelDatabaseServer)(nil), // 12: dockwell.v1.OnePanelDatabaseServer
+	(*OnePanelDatabase)(nil),       // 13: dockwell.v1.OnePanelDatabase
+	(*OnePanelCronJob)(nil),        // 14: dockwell.v1.OnePanelCronJob
+	(*Change)(nil),                 // 15: dockwell.v1.Change
+	(*timestamppb.Timestamp)(nil),  // 16: google.protobuf.Timestamp
 }
 var file_dockwell_v1_import_proto_depIdxs = []int32{
 	5,  // 0: dockwell.v1.ImportOnePanelResponse.found:type_name -> dockwell.v1.OnePanel
 	4,  // 1: dockwell.v1.ImportOnePanelResponse.steps:type_name -> dockwell.v1.ImportStep
-	14, // 2: dockwell.v1.ImportOnePanelResponse.change:type_name -> dockwell.v1.Change
+	15, // 2: dockwell.v1.ImportOnePanelResponse.change:type_name -> dockwell.v1.Change
 	0,  // 3: dockwell.v1.ImportStep.kind:type_name -> dockwell.v1.ImportKind
 	1,  // 4: dockwell.v1.ImportStep.action:type_name -> dockwell.v1.ImportAction
-	6,  // 5: dockwell.v1.OnePanel.apps:type_name -> dockwell.v1.OnePanelApp
-	7,  // 6: dockwell.v1.OnePanel.runtimes:type_name -> dockwell.v1.OnePanelRuntime
-	8,  // 7: dockwell.v1.OnePanel.websites:type_name -> dockwell.v1.OnePanelWebsite
-	10, // 8: dockwell.v1.OnePanel.certificates:type_name -> dockwell.v1.OnePanelCertificate
-	11, // 9: dockwell.v1.OnePanel.database_servers:type_name -> dockwell.v1.OnePanelDatabaseServer
-	12, // 10: dockwell.v1.OnePanel.databases:type_name -> dockwell.v1.OnePanelDatabase
-	13, // 11: dockwell.v1.OnePanel.cron_jobs:type_name -> dockwell.v1.OnePanelCronJob
-	9,  // 12: dockwell.v1.OnePanelWebsite.domains:type_name -> dockwell.v1.OnePanelDomain
-	15, // 13: dockwell.v1.OnePanelCertificate.expires:type_name -> google.protobuf.Timestamp
-	2,  // 14: dockwell.v1.ImportService.ImportOnePanel:input_type -> dockwell.v1.ImportOnePanelRequest
-	3,  // 15: dockwell.v1.ImportService.ImportOnePanel:output_type -> dockwell.v1.ImportOnePanelResponse
-	15, // [15:16] is the sub-list for method output_type
-	14, // [14:15] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	7,  // 5: dockwell.v1.OnePanel.apps:type_name -> dockwell.v1.OnePanelApp
+	8,  // 6: dockwell.v1.OnePanel.runtimes:type_name -> dockwell.v1.OnePanelRuntime
+	9,  // 7: dockwell.v1.OnePanel.websites:type_name -> dockwell.v1.OnePanelWebsite
+	11, // 8: dockwell.v1.OnePanel.certificates:type_name -> dockwell.v1.OnePanelCertificate
+	12, // 9: dockwell.v1.OnePanel.database_servers:type_name -> dockwell.v1.OnePanelDatabaseServer
+	13, // 10: dockwell.v1.OnePanel.databases:type_name -> dockwell.v1.OnePanelDatabase
+	14, // 11: dockwell.v1.OnePanel.cron_jobs:type_name -> dockwell.v1.OnePanelCronJob
+	6,  // 12: dockwell.v1.OnePanel.composes:type_name -> dockwell.v1.OnePanelCompose
+	10, // 13: dockwell.v1.OnePanelWebsite.domains:type_name -> dockwell.v1.OnePanelDomain
+	16, // 14: dockwell.v1.OnePanelCertificate.expires:type_name -> google.protobuf.Timestamp
+	2,  // 15: dockwell.v1.ImportService.ImportOnePanel:input_type -> dockwell.v1.ImportOnePanelRequest
+	3,  // 16: dockwell.v1.ImportService.ImportOnePanel:output_type -> dockwell.v1.ImportOnePanelResponse
+	16, // [16:17] is the sub-list for method output_type
+	15, // [15:16] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_import_proto_init() }
@@ -1624,7 +1706,7 @@ func file_dockwell_v1_import_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_import_proto_rawDesc), len(file_dockwell_v1_import_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

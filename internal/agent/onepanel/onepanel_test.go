@@ -78,6 +78,9 @@ func TestReadsWhat1PanelKeeps(t *testing.T) {
 	if d := found.GetDatabases(); len(d) != 2 || d[0].GetName() != "wp" || d[0].GetUser() != "wp_user" || d[1].GetType() != "postgresql" {
 		t.Errorf("databases = %v", d)
 	}
+	if c := found.GetComposes(); len(c) != 1 || c[0].GetName() != "stack" || c[0].GetFile() != "/opt/1panel/docker/compose/stack/docker-compose.yml" {
+		t.Errorf("Compose projects = %v", c)
+	}
 	jobs := map[string]*dockwellv1.OnePanelCronJob{}
 	for _, j := range found.GetCronJobs() {
 		jobs[j.GetName()] = j

@@ -36,6 +36,23 @@ func Steps(found *dockwellv1.OnePanel) []*dockwellv1.ImportStep {
 	for _, a := range found.GetApps() {
 		add(appStep(a))
 	}
+	for _, c := range found.GetComposes() {
+		add(&dockwellv1.ImportStep{
+			Kind: dockwellv1.ImportKind_IMPORT_KIND_COMPOSE_PROJECT, Name: c.GetName(),
+			Summary: "a Compose project made on 1Panel's Containers page, from " + c.GetFile(),
+			Action:  dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON,
+			Becomes: fmt.Sprintf("a Compose project, %s, taken on as it runs, with no restart", c.GetName()),
+			Reason:  "What it binds stays where its Compose file says. Leave it alone in 1Panel afterwards, and change it from Dockwell.",
+		})
+	}
+	// 1Panel runs a container it started on its own with no record of it.
+	add(&dockwellv1.ImportStep{
+		Kind: dockwellv1.ImportKind_IMPORT_KIND_CONTAINERS, Name: "Other containers",
+		Summary: "containers 1Panel started on their own, outside an app or a Compose project",
+		Action:  dockwellv1.ImportAction_IMPORT_ACTION_LEAVE,
+		Reason: "1Panel keeps no record of a container it started on its own, so this can't list one. " +
+			"The server's Containers page lists every container Dockwell didn't make, and takes one on from there.",
+	})
 	sites := map[string][]*dockwellv1.OnePanelWebsite{}
 	for _, w := range found.GetWebsites() {
 		if w.GetRuntime() != "" {
