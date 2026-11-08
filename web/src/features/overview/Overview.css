@@ -191,3 +191,8 @@
   color: var(--ink-muted);
   font-size: 12px;
 }
+
+/* A phone's callout action fills the row under its words. */
+.overview-callout-action {
+  flex: 1 1 0;
+}

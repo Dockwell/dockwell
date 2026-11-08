@@ -2,7 +2,7 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Connection, type Server } from "@dockwell/api";
-import { Callout, type Tone } from "@dockwell/ui";
+import { Callout, PHONE_QUERY, type Tone, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
@@ -29,18 +29,23 @@ interface Notice {
 export function FleetCallout({ servers }: { servers: readonly Server[] }) {
   const { t } = useLingui();
   const notice = useNotice(servers);
+  // On a phone, as M-Overview-Fleet has it, a full button under the words.
+  const phone = useMediaQuery(PHONE_QUERY);
   if (!notice) return null;
+  const button = phone
+    ? ({ size: "md", variant: "secondary", className: "overview-callout-action" } as const)
+    : ({ size: "sm", variant: "ghost" } as const);
   return (
     <Callout
       tone={notice.tone}
       title={notice.title}
       actions={
         notice.serverId ? (
-          <RouterButtonLink to="/servers/$serverId" params={{ serverId: notice.serverId }} size="sm" variant="ghost">
+          <RouterButtonLink to="/servers/$serverId" params={{ serverId: notice.serverId }} {...button}>
             {t`Inspect`}
           </RouterButtonLink>
         ) : (
-          <RouterButtonLink to="/servers" size="sm" variant="ghost">
+          <RouterButtonLink to="/servers" {...button}>
             {t`Inspect`}
           </RouterButtonLink>
         )
