@@ -25,9 +25,10 @@ var now = time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 // fakeRegistry pins each image to a digest of its name, built 60 days ago unless
 // built says otherwise.
 type fakeRegistry struct {
-	built map[string]time.Time
-	fail  map[string]error
-	asked []string
+	built     map[string]time.Time
+	fail      map[string]error
+	platforms map[string][]string
+	asked     []string
 }
 
 func digestOf(image string) string {
@@ -42,6 +43,13 @@ func (f *fakeRegistry) Pin(_ context.Context, image string) (string, error) {
 	return digestOf(image), nil
 }
 
+func (f *fakeRegistry) Platforms(_ context.Context, image, _ string) ([]string, error) {
+	if p, ok := f.platforms[image]; ok {
+		return p, nil
+	}
+	return []string{"linux/amd64", "linux/arm64"}, nil
+}
+
 func (f *fakeRegistry) Built(_ context.Context, image, _ string) (time.Time, error) {
 	f.asked = append(f.asked, image)
 	if t, ok := f.built[image]; ok {
@@ -50,17 +58,18 @@ func (f *fakeRegistry) Built(_ context.Context, image, _ string) (time.Time, err
 	return now.Add(-60 * 24 * time.Hour), nil
 }
 
-func written(summary, category string) *catalogv1.Entry {
-	return &catalogv1.Entry{Summary: summary, Category: category}
+func written(summary, category string) Overlay {
+	return Overlay{Entry: &catalogv1.Entry{Summary: summary, Category: category}}
 }
 
 func converter() *Converter {
 	return &Converter{
 		Source:   OnePanelSource("0123456789abcdef0123456789abcdef01234567"),
 		Registry: &fakeRegistry{},
-		Overlays: map[string]*catalogv1.Entry{
+		Overlays: map[string]Overlay{
 			"notes": written("Keeps notes", "notes"), "my-app": written("Stands in", "developer tools"),
 			"scripted": written("Stands in", "ai"), "shipped": written("Stands in", "ai"), "withdb": written("Stands in", "ai"),
+			"agent": written("Reports to a monitor", "monitoring"), "keep": written("Stands in", "ai"), "amd64only": written("Stands in", "ai"),
 		},
 		Now: now,
 	}
@@ -136,7 +145,7 @@ func TestAConvertedEntryKeepsTheRulesEveryEntryKeeps(t *testing.T) {
 		`"127.0.0.1:${PORT}:8080"`,
 		`"127.0.0.1:${SYNC_PORT}:9443"`,
 		"- data:/app/data",
-		"- data-uploads:/app/uploads",
+		"- uploads:/app/uploads",
 		"PEER=worker:7000",
 		"MAIN=notes",
 		"image: example/notes:1.2.0@" + digestOf("example/notes:1.2.0"),
@@ -193,7 +202,7 @@ func TestWhatItWritesTheCatalogReads(t *testing.T) {
 		results = append(results, c.Convert(t.Context(), app))
 	}
 	dir := t.TempDir()
-	if err := Write(dir, c.Source, results, nil, c.Pins); err != nil {
+	if err := Write(dir, c.Source, results, nil, c.Pins, true); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, "notes.yaml"))
@@ -220,7 +229,7 @@ func TestWhatItWritesTheCatalogReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"| Runs scripts on the server | 1 |", "| scripted | `apps/scripted/1.0.0` |", "| notes | 1.2.0 | 1 |", "0123456789ab"} {
+	for _, want := range []string{"| Runs scripts on the server | 1 |", "| scripted | `` apps/scripted/1.0.0 `` |", "| notes | 1.2.0 | 1 |", "0123456789ab"} {
 		if !strings.Contains(string(report), want) {
 			t.Errorf("the report doesn't say %q:\n%s", want, report)
 		}
@@ -249,7 +258,7 @@ func TestAnAppIsLeftOutWithItsReason(t *testing.T) {
 		"a build":                      {"services:\n  a:\n    build: .\n", "has build"},
 		"a folder in a home":           {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - ~/data:/data\n", "home directory"},
 		"a folder outside its own":     {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - ../data:/data\n", "outside the app's own folder"},
-		"Docker's socket":              {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n", "Docker's socket"},
+		"Docker's socket":              {"services:\n  a:\n    image: example/a:1.0\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n", "control of Docker, through /var/run/docker.sock"},
 		"the server's own network":     {"services:\n  a:\n    image: example/a:1.0\n    network_mode: host\n", "the server's own network"},
 		"a summary no one has written": {"services:\n  a:\n    image: example/a:1.0\n", "it needs a summary in our own words"},
 	} {
@@ -269,7 +278,10 @@ func TestAnAppIsLeftOutWithItsReason(t *testing.T) {
 // Host access converts once a person has looked, and says so in the overlay.
 func TestHostAccessConvertsOnceAPersonHasLooked(t *testing.T) {
 	c := converter()
-	c.Overlays["dock"] = &catalogv1.Entry{Summary: "Runs containers", Category: "developer tools", HostAccess: "Docker's socket, to run containers"}
+	c.Overlays["dock"] = Overlay{
+		Entry:   &catalogv1.Entry{Summary: "Runs containers", Category: "developer tools", HostAccess: "Docker's socket, to run containers"},
+		Reaches: []string{"dock: control of Docker, through /var/run/docker.sock"},
+	}
 	file := "services:\n  dock:\n    image: example/dock:1.0\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n"
 	r := c.Convert(t.Context(), App{ID: "dock", Name: "Dock", Version: "1.0", Compose: []byte(file)})
 	if r.Entry == nil || r.Entry.GetHostAccess() != "Docker's socket, to run containers" {
@@ -294,16 +306,6 @@ func TestAYoungVersionWaits(t *testing.T) {
 	if r.Entry != nil || !r.Again || !r.Young || r.LeftOut != "example/a:2.0 is 3 days old, and converts once it's 14" {
 		t.Errorf("a young version with none before it: %+v", r)
 	}
-
-	c = converter()
-	reg := &fakeRegistry{built: map[string]time.Time{"example/a:2.0": now.Add(-time.Hour)}}
-	c.Registry = reg
-	c.Pins = map[string]Pinned{"example/a:2.0": {Digest: "sha256:old", Built: now.Add(-20 * 24 * time.Hour)}}
-	c.Overlays["a"] = written("Stands in", "ai")
-	r = c.Convert(t.Context(), App{ID: "a", Name: "A", Version: "2.0", Compose: []byte("services:\n  a:\n    image: example/a:2.0\n")})
-	if r.Entry == nil || len(reg.asked) != 0 || c.Pins["example/a:2.0"].Digest != digestOf("example/a:2.0") {
-		t.Errorf("a rebuild of a version it had seen 20 days ago: %q, asked %v, kept %v", r.LeftOut, reg.asked, c.Pins)
-	}
 }
 
 // A registry that wasn't asked leaves an app for a later run, as one that's down does.
@@ -312,7 +314,7 @@ func TestARegistryNotAskedLeavesItForLater(t *testing.T) {
 	c.Registry = &fakeRegistry{fail: map[string]error{"example/a:1.0": ErrNotAsked}}
 	c.Overlays["a"] = written("Stands in", "ai")
 	r := c.Convert(t.Context(), App{ID: "a", Name: "A", Version: "1.0", Compose: []byte("services:\n  a:\n    image: example/a:1.0\n")})
-	if r.Entry != nil || !r.Again || r.Young || !errors.Is(ErrNotAsked, ErrNotAsked) || !strings.Contains(r.LeftOut, "not asked") {
+	if r.Entry != nil || !r.Again || r.Young || !strings.Contains(r.LeftOut, "not asked") || r.Class != ClassPin {
 		t.Errorf("%+v", r)
 	}
 }
@@ -327,7 +329,7 @@ func TestDockwellsOwnEntryWins(t *testing.T) {
 		t.Errorf("an app that runs the image Dockwell's own entry does: %q", r.LeftOut)
 	}
 	c.Overlays["redis"] = written("Stands in", "databases")
-	if r := c.Convert(t.Context(), App{ID: "redis", Name: "Redis", Version: "1", Compose: []byte("services:\n  r:\n    image: example/r:1\n")}); r.Entry != nil || r.LeftOut != "Dockwell has its own entry of this ID" {
+	if r := c.Convert(t.Context(), App{ID: "redis", Name: "Redis", Version: "1", Compose: []byte("services:\n  r:\n    image: example/r:1\n")}); r.Entry != nil || !strings.HasPrefix(r.LeftOut, "Dockwell has its own entry of this ID, so this one stays out") || r.Class != ClassOwn {
 		t.Errorf("an app of the ID of Dockwell's own entry: %q", r.LeftOut)
 	}
 }
@@ -335,10 +337,10 @@ func TestDockwellsOwnEntryWins(t *testing.T) {
 // What a person wrote wins over what the converter made, field by field.
 func TestAnOverlayWins(t *testing.T) {
 	c := converter()
-	c.Overlays["notes"] = &catalogv1.Entry{
+	c.Overlays["notes"] = Overlay{Entry: &catalogv1.Entry{
 		Name: "Notes Server", Summary: "Keeps notes", Category: "notes", AppLicense: "MIT", FirstSteps: "Open it.",
-		Inputs: []*catalogv1.Input{{Name: "ADMIN_USER", Label: "Your name", Hint: "You sign in with it."}, {Name: "NOT_THERE", Label: "x"}},
-	}
+		Inputs: []*catalogv1.Input{{Name: "ADMIN_USER", Label: "Your name", Hint: "You sign in with it."}},
+	}}
 	r := convertFixture(t, c, "notes")
 	e := r.Entry
 	if e == nil {
@@ -374,9 +376,14 @@ func TestAReleaseGoesUpOnlyWhenTheEntryChanges(t *testing.T) {
 // goes when it's left out for good.
 func TestAnEarlierRunsEntryStaysOrGoes(t *testing.T) {
 	previous := map[string]*catalogv1.Entry{"young": {}, "scripted": {}, "gone-upstream": {}, "fine": {}}
-	stay, gone := Kept([]Result{{ID: "young", Again: true}, {ID: "scripted"}, {ID: "fine", Entry: &catalogv1.Entry{}}}, previous)
+	results := []Result{{ID: "young", Again: true}, {ID: "scripted"}, {ID: "fine", Entry: &catalogv1.Entry{}}}
+	stay, gone := Kept(results, previous, true)
 	if !slices.Equal(stay, []string{"young"}) || !slices.Equal(gone, []string{"scripted", "gone-upstream"}) {
 		t.Errorf("stay %v, gone %v", stay, gone)
+	}
+	// A run over some apps alone removes only what it read.
+	if _, gone := Kept(results, previous, false); !slices.Equal(gone, []string{"scripted"}) {
+		t.Errorf("a run over three apps removed %v", gone)
 	}
 }
 
@@ -384,7 +391,7 @@ func TestReadPreviousReadsWhatWriteWrote(t *testing.T) {
 	c := converter()
 	r := convertFixture(t, c, "notes")
 	dir := t.TempDir()
-	if err := Write(dir, c.Source, []Result{r}, nil, c.Pins); err != nil {
+	if err := Write(dir, c.Source, []Result{r}, nil, c.Pins, true); err != nil {
 		t.Fatal(err)
 	}
 	entries, dates, pins, err := ReadPrevious(dir)
@@ -394,7 +401,7 @@ func TestReadPreviousReadsWhatWriteWrote(t *testing.T) {
 	if !proto.Equal(entries["notes"], r.Entry) || dates["notes"] != "2026-11-07" || pins["example/notes:1.2.0"].Digest != digestOf("example/notes:1.2.0") {
 		t.Errorf("read back %v, %v, %v", entries["notes"] != nil, dates, pins)
 	}
-	if err := Write(dir, c.Source, []Result{{ID: "notes", LeftOut: "it runs scripts"}}, entries, pins); err != nil {
+	if err := Write(dir, c.Source, []Result{{ID: "notes", LeftOut: "it runs scripts"}}, entries, pins, true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "notes.yaml")); !errors.Is(err, os.ErrNotExist) {

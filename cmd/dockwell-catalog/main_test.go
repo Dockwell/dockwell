@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/dockwell/dockwell/internal/catalog/convert"
 )
 
 // The command says what it needs, and does nothing without it.
@@ -31,23 +33,24 @@ func TestItSaysWhatItNeeds(t *testing.T) {
 	}
 }
 
-// An overlay is read by its file's name, and one the format can't read stops the run.
+// An overlay is read by its file's name, with what a person looked at, and one the
+// format can't read stops the run.
 func TestItReadsOverlays(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "notes.yaml"), []byte("summary: Keeps notes\ncategory: notes\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "notes.yaml"), []byte("summary: Keeps notes\ncategory: notes\nreaches:\n  - \"notes: the server's own network\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("not an overlay"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got, err := readOverlays(dir)
-	if err != nil || len(got) != 1 || got["notes"].GetSummary() != "Keeps notes" {
-		t.Errorf("readOverlays = %v, %v", got, err)
+	got, err := convert.ReadOverlays(dir)
+	if err != nil || len(got) != 1 || got["notes"].Entry.GetSummary() != "Keeps notes" || len(got["notes"].Reaches) != 1 {
+		t.Errorf("ReadOverlays = %v, %v", got, err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "bad.yaml"), []byte("not_a_field: 1\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := readOverlays(dir); err == nil || !strings.Contains(err.Error(), "the overlay bad.yaml") {
-		t.Errorf("readOverlays read a field the format hasn't: %v", err)
+	if _, err := convert.ReadOverlays(dir); err == nil || !strings.Contains(err.Error(), "the overlay bad.yaml") {
+		t.Errorf("ReadOverlays read a field the format hasn't: %v", err)
 	}
 }

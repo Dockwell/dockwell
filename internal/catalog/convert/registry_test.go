@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -15,6 +16,9 @@ import (
 
 // registry answers as a registry that signs nothing in does: a challenge first, then
 // with the token it gave.
+// hubAsks counts what the fake Docker Hub API was asked.
+var hubAsks atomic.Int32
+
 func registry(t *testing.T, built time.Time) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var gets atomic.Int32
@@ -54,7 +58,11 @@ func registry(t *testing.T, built time.Time) (*httptest.Server, *atomic.Int32) {
 		}
 	})
 	mux.HandleFunc("/v2/namespaces/library/repositories/redis/tags/8.0", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"tag_last_pushed": built, "last_updated": built.Add(time.Hour)})
+		hubAsks.Add(1)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"tag_last_pushed": built, "last_updated": built.Add(time.Hour), "digest": "sha256:hubindex",
+			"images": []map[string]string{{"os": "linux", "architecture": "arm64"}, {"os": "linux", "architecture": "amd64"}, {"os": "unknown", "architecture": "unknown"}},
+		})
 	})
 	srv = httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -89,6 +97,28 @@ func TestOCIAsksDockerHubsAPIForAnAge(t *testing.T) {
 	got, err := o.Built(t.Context(), "redis:8.0", "sha256:anything")
 	if err != nil || !got.Equal(built) {
 		t.Errorf("Built = %v, %v, want %v", got, err, built)
+	}
+}
+
+// What an image runs on comes from its index, or from Docker Hub's API, which says it
+// beside the push time, in one answer, and counts no pull.
+func TestOCISaysWhatAnImageRunsOn(t *testing.T) {
+	srv, _ := registry(t, time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC))
+	o := &OCI{Client: srv.Client(), HubAPI: srv.URL}
+	got, err := o.Platforms(t.Context(), strings.TrimPrefix(srv.URL, "http://")+"/example/app:1.0", "sha256:index")
+	if err != nil || !slices.Equal(got, []string{"linux/amd64", "linux/arm64"}) {
+		t.Errorf("from the index: %v, %v", got, err)
+	}
+	hubAsks.Store(0)
+	if _, err := o.Built(t.Context(), "redis:8.0", "sha256:hubindex"); err != nil {
+		t.Fatal(err)
+	}
+	got, err = o.Platforms(t.Context(), "redis:8.0", "sha256:hubindex")
+	if err != nil || !slices.Equal(got, []string{"linux/amd64", "linux/arm64"}) {
+		t.Errorf("from Docker Hub's API: %v, %v", got, err)
+	}
+	if n := hubAsks.Load(); n != 1 {
+		t.Errorf("Docker Hub's API was asked %d times for one tag", n)
 	}
 }
 

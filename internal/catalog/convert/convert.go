@@ -25,6 +25,8 @@ import (
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	networkdriver "github.com/dockwell/dockwell/internal/resource/network"
+	volumedriver "github.com/dockwell/dockwell/internal/resource/volume"
 )
 
 // HoldBack is how long a version is out before an entry takes it, as the repository
@@ -52,6 +54,9 @@ type App struct {
 	// Category is the adapter's guess from the source's tags, which a person's
 	// overlay can change. Empty when it has none.
 	Category string
+	// Web says a person opens it in a browser, as the source says, so its first
+	// steps tell them how, and a domain fits it.
+	Web bool
 	// Path is where the app's version is in the source, such as apps/memos/1.0.
 	Path string
 	// Compose is its Compose file, as the source wrote it.
@@ -61,10 +66,12 @@ type App struct {
 	// Shipped says whether a path relative to the Compose file is a file or folder
 	// the source ships beside it, as opposed to one the app makes as it runs.
 	Shipped func(rel string) bool
-	// LeftOut is why the adapter couldn't read the app, when it couldn't.
+	// LeftOut is why the adapter couldn't read the app, when it couldn't, and Class
+	// what the report counts it as.
 	LeftOut string
+	Class   Class
 	// Older is the version before, where the source keeps one, which converts in
-	// this one's place while this one is too young.
+	// this one's place while this one is too young, within its major version.
 	Older *App
 }
 
@@ -92,7 +99,7 @@ type Field struct {
 	Optional bool
 	// Choices are the values a source's select offers, in its order.
 	Choices []string
-	// Web says this port is the one a person opens.
+	// Web says this port is the one a person opens in a browser.
 	Web bool
 }
 
@@ -104,8 +111,12 @@ type Result struct {
 	Entry *catalogv1.Entry
 	// Date is when this release of the entry was made.
 	Date string
-	// LeftOut says why it wasn't converted.
+	// LeftOut says why it wasn't converted, and Class what the report counts it as.
 	LeftOut string
+	Class   Class
+	// Held says why an earlier release stays in place of this run's, when it does:
+	// Entry is that release.
+	Held string
 	// Again says a later run may convert it with nothing changed, as when its
 	// version is still young or a registry wasn't asked.
 	Again bool
@@ -115,12 +126,15 @@ type Result struct {
 	Notes []string
 }
 
-// Pinned is what the converter keeps of an image's tag between runs, so a version's
-// age counts from the first build it saw, and a rebuild of that version, such as for
-// its base image's updates, doesn't start it again.
+// Pinned is what the converter keeps of an image's tag between runs. Entries pin
+// Digest, built at Built. A tag pushed again names a new build, Next, which entries
+// move to once it's HoldBack old too, as a tag that moves under a version can carry
+// anything.
 type Pinned struct {
-	Digest string    `json:"digest"`
-	Built  time.Time `json:"built"`
+	Digest    string    `json:"digest"`
+	Built     time.Time `json:"built"`
+	Next      string    `json:"next,omitempty"`
+	NextBuilt time.Time `json:"nextBuilt,omitzero"`
 }
 
 // Converter converts apps from one source.
@@ -128,11 +142,11 @@ type Converter struct {
 	Source   Source
 	Registry Registry
 	// Overlays are what a person wrote for each app, by ID: the summary and the
-	// category in our own words, as ADR 0029 asks, and anything they've looked at,
-	// such as the host access an app needs.
-	Overlays map[string]*catalogv1.Entry
+	// category in our own words, as ADR 0029 asks, and what they've looked at, such
+	// as what the app reaches on its server.
+	Overlays map[string]Overlay
 	// Previous are the entries the last run wrote, by ID, so an entry's release goes
-	// up only when it changes.
+	// up only when it changes, and never back or past a major version.
 	Previous map[string]*catalogv1.Entry
 	// PreviousDates are the dates of those entries' releases.
 	PreviousDates map[string]string
@@ -145,11 +159,30 @@ type Converter struct {
 	Now time.Time
 }
 
-// Convert converts one app, or says why it's left out. A version too young to take
-// falls back to the one before, where the source keeps one.
+// Convert converts one app, or says why it's left out. While its newest version is
+// under HoldBack old, an entry an earlier run wrote stays as it is, and with none, the
+// version before converts, within the newest's major. An entry never moves back, or
+// across a major version, until the format can mark a release that old data won't
+// survive (#248).
 func (c *Converter) Convert(ctx context.Context, app App) Result {
+	was := c.Previous[app.ID]
 	r := c.convert(ctx, app)
-	for at := app.Older; r.Young && at != nil; at = at.Older {
+	switch {
+	case r.Entry != nil && was != nil:
+		if held, class := hold(was, r.Entry); held != "" {
+			return c.keep(app.ID, was, held, class)
+		}
+		return r
+	case r.Entry != nil || !r.Young:
+		return r
+	case was != nil:
+		return c.keep(app.ID, was, r.LeftOut, ClassYoung)
+	}
+	major := majorOf(app.Version)
+	for at := app.Older; at != nil; at = at.Older {
+		if major == "" || majorOf(at.Version) != major {
+			continue
+		}
 		older := c.convert(ctx, *at)
 		if older.Entry != nil {
 			older.Notes = append(older.Notes, "took "+at.Version+", as "+app.Version+" is under 14 days old")
@@ -159,38 +192,58 @@ func (c *Converter) Convert(ctx context.Context, app App) Result {
 	return r
 }
 
+// hold says why an earlier entry stays in place of a new one: it would go back, or
+// move to a new major version, which old data may not survive.
+func hold(was, now *catalogv1.Entry) (string, Class) {
+	switch {
+	case compareVersions(now.GetVersion(), was.GetVersion()) < 0:
+		return fmt.Sprintf("it would go back from %s to %s, which no upgrade may", was.GetVersion(), now.GetVersion()), ClassBack
+	case majorOf(now.GetVersion()) != majorOf(was.GetVersion()):
+		return fmt.Sprintf("it moves from %s to %s, a new major version, which old data may not survive. It waits for the format to mark such a release (#248)", was.GetVersion(), now.GetVersion()), ClassMajor
+	}
+	return "", ""
+}
+
+// keep keeps an earlier run's entry, as it was.
+func (c *Converter) keep(id string, was *catalogv1.Entry, why string, class Class) Result {
+	return Result{ID: id, Path: was.GetSource().GetPath(), Entry: was, Date: c.PreviousDates[id], Held: why, Class: class}
+}
+
 func (c *Converter) convert(ctx context.Context, app App) Result {
 	r := Result{ID: app.ID, Path: app.Path}
+	fail := func(err error, fallback Class) Result {
+		r.LeftOut, r.Class = err.Error(), classOf(err, fallback)
+		return r
+	}
 	if app.LeftOut != "" {
-		r.LeftOut = app.LeftOut
+		r.LeftOut, r.Class = app.LeftOut, cmp.Or(app.Class, ClassCantSay)
 		return r
 	}
 	if err := resource.CheckLabel("catalog entry", app.ID, "postgres"); err != nil {
-		r.LeftOut = "its ID " + err.Error()
-		return r
+		return fail(leave(ClassCantSay, "its ID %s", err), "")
 	}
 	for _, own := range c.Own {
 		if own.GetId() == app.ID {
-			r.LeftOut = "Dockwell has its own entry of this ID"
-			return r
+			return fail(leave(ClassOwn, "Dockwell has its own entry of this ID, so this one stays out, as one would take over from the other. "+
+				"If they're different apps, the reviewed list gives this one an ID of its own"), "")
 		}
 	}
-	file, inputs, notes, err := rewrite(app)
+	rw, err := rewrite(app)
 	if err != nil {
-		r.LeftOut = err.Error()
-		return r
+		return fail(err, ClassCantSay)
 	}
-	r.Notes = notes
-	file, again, err := c.pin(ctx, file)
+	r.Notes = rw.notes
+	file, notes, err := c.pin(ctx, rw.file)
 	if err != nil {
 		var young youngError
-		r.LeftOut, r.Again, r.Young = err.Error(), again, errors.As(err, &young)
-		return r
+		r.Young = errors.As(err, &young)
+		r.Again = r.Young || forNow(err)
+		if r.Young {
+			return fail(err, ClassYoung)
+		}
+		return fail(err, ClassPin)
 	}
-	if own := c.ownImage(file, inputs); own != "" {
-		r.LeftOut = "it runs " + own + ", as Dockwell's own entry does. The reviewed list says whether they're one app"
-		return r
-	}
+	r.Notes = append(r.Notes, notes...)
 	e := &catalogv1.Entry{
 		Id:       app.ID,
 		Name:     app.Name,
@@ -201,18 +254,24 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 		License:  c.Source.License,
 		Source:   &catalogv1.Source{Repository: c.Source.Repository, Path: app.Path, Commit: c.Source.Commit},
 		Compose:  string(file),
-		Inputs:   inputs,
+		Inputs:   rw.inputs,
 	}
-	web := webService(file, inputs)
-	others := slices.ContainsFunc(inputs, func(in *catalogv1.Input) bool {
-		return in.GetType() == catalogv1.InputType_INPUT_TYPE_PORT && in.GetName() != "PORT"
-	})
-	if web.service != "" {
-		e.Web = &catalogv1.Web{Service: web.service}
+	if svc := serviceOf(file, rw.web); svc != "" {
+		e.Web = &catalogv1.Web{Service: svc}
 	}
-	e.FirstSteps = firstSteps(app.Name, web.port, others)
+	if own := c.ownImage(e); own != "" {
+		return fail(leave(ClassOwn, "it runs %s, as Dockwell's own entry does, so it stays out until the reviewed list says whether they're one app", own), "")
+	}
 	overlay := c.Overlays[app.ID]
-	applyOverlay(e, overlay)
+	if overlay.Entry == nil {
+		overlay.Entry = &catalogv1.Entry{}
+	}
+	if err := applyOverlay(e, overlay); err != nil {
+		return fail(err, ClassOverlay)
+	}
+	if overlay.Entry.GetFirstSteps() == "" {
+		e.FirstSteps = firstSteps(e, app.Name)
+	}
 	// What only a person writes is checked last, so an app waiting for it is one
 	// that converts once they have.
 	var needs []string
@@ -222,13 +281,11 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	if e.GetCategory() == "" {
 		needs, e.Category = append(needs, "a category"), "stand-in"
 	}
-	if err := check(ctx, e, overlay); err != nil {
-		r.LeftOut = err.Error()
-		return r
+	if err := check(ctx, e, overlay, rw.reaches); err != nil {
+		return fail(err, ClassCheck)
 	}
 	if len(needs) > 0 {
-		r.LeftOut = "it needs " + strings.Join(needs, ", and ") + ", in its overlay"
-		return r
+		return fail(leave(ClassWords, "it needs %s, in its overlay", strings.Join(needs, ", and ")), "")
 	}
 	r.Entry, r.Date = e, c.Now.UTC().Format(time.DateOnly)
 	if was := c.Previous[app.ID]; was != nil {
@@ -255,68 +312,144 @@ func same(a, b *catalogv1.Entry) bool {
 	return proto.Equal(a, b)
 }
 
-// pin pins every image by digest, and holds back a version younger than HoldBack.
-func (c *Converter) pin(ctx context.Context, file []byte) ([]byte, bool, error) {
+// The platforms every entry runs on: the owner's servers are amd64 and arm64.
+var platforms = []string{"linux/amd64", "linux/arm64"}
+
+// pin pins every image by digest, and holds back a build younger than HoldBack: a new
+// version, or a tag pushed again, whose new build waits its own 14 days while entries
+// keep the one before. A build that says no believable date counts from when the
+// converter first saw it.
+func (c *Converter) pin(ctx context.Context, file []byte) ([]byte, []string, error) {
 	doc, err := parseFile(file)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
+	var notes []string
 	for _, name := range serviceNames(doc) {
-		svc := service(doc, name)
-		img := mapGet(svc, "image")
+		img := mapGet(service(doc, name), "image")
 		if img == nil {
-			return nil, false, fmt.Errorf("its service %s names no image, and the converter doesn't build one", name)
+			return nil, nil, leave(ClassCantSay, "its service %s names no image, and the converter doesn't build one", name)
 		}
 		image := img.Value
 		if strings.Contains(image, "$") {
-			return nil, false, fmt.Errorf("its service %s's image comes from a variable, %s, so no digest can pin it", name, image)
-		}
-		if strings.Contains(image, "@") {
-			continue
+			return nil, nil, leave(ClassCantSay, "its service %s's image comes from a variable, %s, so no digest can pin it", name, image)
 		}
 		r, err := parseRef(image)
 		if err != nil {
-			return nil, false, err
+			return nil, nil, leave(ClassNoVersion, "%s", err)
 		}
-		if unversioned[r.tag] {
-			return nil, false, fmt.Errorf("its service %s's image is %s, which names no version", name, image)
+		if r.digest == "" && unversioned[r.tag] {
+			return nil, nil, leave(ClassNoVersion, "its service %s's image is %s, which names no version", name, image)
 		}
-		digest, err := c.Registry.Pin(ctx, image)
+		current, err := c.Registry.Pin(ctx, image)
 		if err != nil {
-			return nil, true, fmt.Errorf("pinning %s: %w", image, err)
+			return nil, nil, leaveForNow(ClassPin, "pinning %s: %v. It converts on a later run", image, err)
 		}
-		kept, ok := c.Pins[image]
-		if !ok || kept.Built.IsZero() {
-			built, err := c.Registry.Built(ctx, image, digest)
+		kept, had := c.Pins[image]
+		switch {
+		case had && kept.Digest == current:
+		case had && kept.Next == current:
+		default:
+			built, note, err := c.built(ctx, image, current)
 			if err != nil {
-				return nil, true, fmt.Errorf("%s's age isn't known: %w. It converts on a later run", image, err)
+				return nil, nil, err
 			}
-			kept = Pinned{Built: built}
+			if note != "" {
+				notes = append(notes, note)
+			}
+			if had {
+				kept.Next, kept.NextBuilt = current, built
+			} else {
+				kept = Pinned{Digest: current, Built: built}
+			}
 		}
-		kept.Digest = digest
+		if kept.Next != "" && c.Now.Sub(kept.NextBuilt) >= HoldBack {
+			kept = Pinned{Digest: kept.Next, Built: kept.NextBuilt}
+		}
 		if c.Pins == nil {
 			c.Pins = map[string]Pinned{}
 		}
 		c.Pins[image] = kept
 		if age := c.Now.Sub(kept.Built); age < HoldBack {
-			return nil, true, youngError(fmt.Sprintf("%s is %d days old, and converts once it's %d", image, int(age.Hours()/24), int(HoldBack.Hours()/24)))
+			return nil, nil, youngError(fmt.Sprintf("%s is %d days old, and converts once it's %d", image, int(age.Hours()/24), int(HoldBack.Hours()/24)))
+		}
+		if kept.Next != "" {
+			notes = append(notes, fmt.Sprintf("pins %s's build of %s, as the tag's build of %s waits until %s",
+				image, kept.Built.Format(time.DateOnly), kept.NextBuilt.Format(time.DateOnly), kept.NextBuilt.Add(HoldBack).Format(time.DateOnly)))
+		}
+		has, err := c.Registry.Platforms(ctx, image, kept.Digest)
+		if err != nil {
+			return nil, nil, leaveForNow(ClassAgeUnknown, "the platforms %s runs on aren't known: %v. It converts on a later run", image, err)
+		}
+		if missing := slices.DeleteFunc(slices.Clone(platforms), func(p string) bool { return slices.Contains(has, p) }); len(missing) > 0 {
+			return nil, nil, leave(ClassArch, "%s runs on %s, and not %s, where an entry runs on amd64 and arm64 both", image, strings.Join(has, " and "), strings.Join(missing, " or "))
 		}
 		// Plain, as the catalog reads a pin by its line.
-		img.Value, img.Style = image+"@"+digest, 0
+		if r.digest == "" {
+			img.Value = image + "@" + kept.Digest
+		}
+		img.Style = 0
 	}
 	out, err := encodeFile(doc)
-	return out, false, err
+	return out, notes, err
+}
+
+// built says when a build was made, as its registry says. A date before 2013, when
+// Docker began, or after now, is no date at all, as reproducible builds write the
+// epoch, so such a build counts from when the converter first saw it: now.
+func (c *Converter) built(ctx context.Context, image, digest string) (time.Time, string, error) {
+	t, err := c.Registry.Built(ctx, image, digest)
+	if err != nil {
+		return time.Time{}, "", leaveForNow(ClassAgeUnknown, "%s's age isn't known: %v. It converts on a later run", image, err)
+	}
+	if t.Year() < 2013 || t.After(c.Now) {
+		return c.Now, fmt.Sprintf("counts %s's age from %s, when the converter first saw it, as its build says %s", image, c.Now.Format(time.DateOnly), t.Format(time.DateOnly)), nil
+	}
+	return t, "", nil
+}
+
+// serviceOf finds the service that publishes a port, by the input it's named by.
+func serviceOf(file []byte, port string) string {
+	doc, err := parseFile(file)
+	if err != nil || port == "" {
+		return ""
+	}
+	for _, name := range serviceNames(doc) {
+		if ports := mapGet(service(doc, name), "ports"); ports != nil && strings.Contains(nodeText(ports), "${"+port+"}") {
+			return name
+		}
+	}
+	return ""
+}
+
+// webPort is the default of the port a person opens a service on: the first port
+// input the service publishes.
+func webPort(e *catalogv1.Entry) string {
+	doc, err := parseFile([]byte(e.GetCompose()))
+	if err != nil || e.GetWeb().GetService() == "" {
+		return ""
+	}
+	ports := mapGet(service(doc, e.GetWeb().GetService()), "ports")
+	if ports == nil {
+		return ""
+	}
+	text := nodeText(ports)
+	for _, in := range e.GetInputs() {
+		if in.GetType() == catalogv1.InputType_INPUT_TYPE_PORT && strings.Contains(text, "${"+in.GetName()+"}") {
+			return in.GetDefaultValue()
+		}
+	}
+	return ""
 }
 
 // ownImage names the image of Dockwell's own entry that the app's web service runs,
 // if one does, as two entries of one app would show twice.
-func (c *Converter) ownImage(file []byte, inputs []*catalogv1.Input) string {
-	web := webService(file, inputs)
-	doc, err := parseFile(file)
-	if err != nil || web.service == "" {
+func (c *Converter) ownImage(e *catalogv1.Entry) string {
+	doc, err := parseFile([]byte(e.GetCompose()))
+	if err != nil || e.GetWeb().GetService() == "" {
 		return ""
 	}
-	image := repoOf(mapGet(service(doc, web.service), "image").Value)
+	image := repoOf(mapGet(service(doc, e.GetWeb().GetService()), "image").Value)
 	for _, own := range c.Own {
 		ownDoc, err := parseFile([]byte(own.GetCompose()))
 		if err != nil {
@@ -340,39 +473,16 @@ func repoOf(image string) string {
 	return r.host + "/" + r.name
 }
 
-// applyOverlay takes what a person wrote over what the converter made: each field
-// they set, and each input's words by its name.
-func applyOverlay(e, o *catalogv1.Entry) {
-	for to, from := range map[*string]string{
-		&e.Name: o.GetName(), &e.Summary: o.GetSummary(), &e.Category: o.GetCategory(), &e.Homepage: o.GetHomepage(),
-		&e.AppLicense: o.GetAppLicense(), &e.FirstSteps: o.GetFirstSteps(), &e.HostAccess: o.GetHostAccess(),
-	} {
-		if from != "" {
-			*to = from
-		}
-	}
-	if o.GetWeb() != nil {
-		e.Web = proto.CloneOf(o.GetWeb())
-	}
-	for _, in := range o.GetInputs() {
-		i := slices.IndexFunc(e.GetInputs(), func(have *catalogv1.Input) bool { return have.GetName() == in.GetName() })
-		if i < 0 {
-			continue
-		}
-		have := e.GetInputs()[i]
-		have.Label = cmp.Or(in.GetLabel(), have.GetLabel())
-		have.Hint = cmp.Or(in.GetHint(), have.GetHint())
-		have.DefaultValue = cmp.Or(in.GetDefaultValue(), have.GetDefaultValue())
-		have.Optional = have.GetOptional() || in.GetOptional()
-	}
-}
-
 // check reads an entry as the catalog and an install would, and refuses one that
-// reaches its server unless a person has looked: its overlay says what it reaches.
-func check(ctx context.Context, e, overlay *catalogv1.Entry) error {
+// reaches its server unless a person has looked: its overlay says what it reaches in
+// words, and lists exactly what the converter finds it reaches now. That's what its
+// services reach, what its volumes and networks reach, as the plan counts them, and
+// what a value a person types can reach.
+func check(ctx context.Context, e *catalogv1.Entry, overlay Overlay, typed []string) error {
 	if err := catalog.Check(e); err != nil {
 		return err
 	}
+	unlooked := overlay.Entry.GetHostAccess() == "" || len(overlay.Reaches) == 0
 	given := map[string]string{}
 	for _, in := range e.GetInputs() {
 		if catalog.Asks(in) && in.GetDefaultValue() == "" && !in.GetOptional() {
@@ -384,10 +494,15 @@ func check(ctx context.Context, e, overlay *catalogv1.Entry) error {
 		return fmt.Errorf("filling in its form: %w", err)
 	}
 	stack, err := compose.Read(ctx, compose.Input{File: []byte(e.GetCompose()), Variables: filled.Variables})
-	if err != nil {
-		return fmt.Errorf("its Compose file, as an install reads it: %w", err)
+	switch {
+	case err != nil && len(typed) > 0 && unlooked:
+		// What a value a person types reaches needs no reading of the file to say, and
+		// a person looks at it first, whatever the file's stand-ins read as.
+		return leave(ClassReaches, "it reaches its server, so a person looks first. Once they have, write what it reaches in host_access in its overlay, and list under reaches what they looked at: %s", quoted(typed))
+	case err != nil:
+		return leave(ClassCantRun, "Dockwell can't run what its Compose file asks yet: %s", forCatalog(err.Error()))
 	}
-	var reaches []string
+	reaches := slices.Clone(typed)
 	for i := range stack.Services {
 		s := &stack.Services[i]
 		access := container.ServiceAccess(s.Spec.GetApp())
@@ -396,14 +511,53 @@ func check(ctx context.Context, e, overlay *catalogv1.Entry) error {
 		}
 		for _, p := range s.Spec.GetApp().GetPorts() {
 			if addr := p.GetHostIp(); addr != "127.0.0.1" {
-				return fmt.Errorf("its service %s publishes port %d on %q, where every entry publishes on loopback until it has a domain", s.Name, p.GetContainerPort(), addr)
+				return leave(ClassCantSay, "its service %s publishes port %d on %q, where every entry publishes on loopback until it has a domain", s.Name, p.GetContainerPort(), addr)
 			}
 		}
 	}
-	if len(reaches) > 0 && overlay.GetHostAccess() == "" {
-		return fmt.Errorf("it reaches its server (%s), so a person looks first. Once they have, say what it reaches in host_access in its overlay", strings.Join(reaches, "; "))
+	for i := range stack.Volumes {
+		v := &stack.Volumes[i]
+		access := (&volumedriver.Driver{}).HostAccess(v.Spec)
+		for j := range access {
+			reaches = append(reaches, "volume "+v.Name+": "+words(&access[j]))
+		}
+	}
+	for i := range stack.Networks {
+		n := &stack.Networks[i]
+		access := (&networkdriver.Driver{}).HostAccess(n.Spec)
+		for j := range access {
+			reaches = append(reaches, "network "+n.Name+": "+words(&access[j]))
+		}
+	}
+	slices.Sort(reaches)
+	reaches = slices.Compact(reaches)
+	looked := slices.Sorted(slices.Values(overlay.Reaches))
+	switch {
+	case len(reaches) == 0 && len(looked) == 0:
+		return nil
+	case len(reaches) > 0 && unlooked:
+		return leave(ClassReaches, "it reaches its server, so a person looks first. Once they have, write what it reaches in host_access in its overlay, and list under reaches what they looked at: %s", quoted(reaches))
+	case !slices.Equal(reaches, looked):
+		added := slices.DeleteFunc(slices.Clone(reaches), func(r string) bool { return slices.Contains(looked, r) })
+		gone := slices.DeleteFunc(slices.Clone(looked), func(r string) bool { return slices.Contains(reaches, r) })
+		var diff []string
+		if len(added) > 0 {
+			diff = append(diff, "it now reaches "+quoted(added))
+		}
+		if len(gone) > 0 {
+			diff = append(diff, "it no longer reaches "+quoted(gone))
+		}
+		return leave(ClassReaches, "%s, where its overlay lists what a person looked at. Once they've looked again, write host_access and reaches as it is now", strings.Join(diff, ", and "))
 	}
 	return nil
+}
+
+func quoted(list []string) string {
+	out := make([]string, len(list))
+	for i, s := range list {
+		out[i] = fmt.Sprintf("%q", s)
+	}
+	return strings.Join(out, ", ")
 }
 
 // standIn is a value for a required input with no default, for reading the file.
@@ -420,27 +574,49 @@ func standIn(in *catalogv1.Input) string {
 	return "stand-in"
 }
 
-// words says what an access reaches, for the report.
+// words says what an access reaches, for the report and an overlay's reaches.
 func words(a *resource.Access) string {
-	what := map[resource.AccessKind]string{
-		resource.AccessPath:            "the server path",
-		resource.AccessDocker:          "Docker's socket",
-		resource.AccessNetwork:         "the server's own network",
-		resource.AccessExternalNetwork: "a network Dockwell didn't make",
-		resource.AccessCapability:      "a capability",
-		resource.AccessPrivileged:      "every privilege",
-		resource.AccessExternalVolume:  "a volume Dockwell didn't make",
-	}[a.Kind]
-	if what == "" {
-		what = "something beyond its containers"
+	var what string
+	switch a.Kind {
+	case resource.AccessPath:
+		what = "the server path " + a.Path
+	case resource.AccessDocker:
+		// Docker's socket, or a folder that holds it, such as /.
+		what = "control of Docker, through " + a.Path
+	case resource.AccessNetwork:
+		what = "the server's own network"
+	case resource.AccessExternalNetwork:
+		what = "a network Dockwell didn't make, " + a.Path
+	case resource.AccessCapability:
+		what = "the capability " + a.Path
+	case resource.AccessPrivileged:
+		what = "every privilege"
+	case resource.AccessExternalVolume:
+		what = "a volume Dockwell didn't make, " + a.Path
+	case resource.AccessMount:
+		what = strings.TrimSpace("a mount " + strings.Join(slices.DeleteFunc([]string{a.Type, a.Driver, a.Address, a.Path}, func(s string) bool { return s == "" }), " "))
+	case resource.AccessNetworkDriver:
+		what = strings.TrimSpace("the " + a.Driver + " network driver " + strings.TrimSpace(a.Path+" "+a.Detail))
+	default:
+		what = strings.TrimSpace(fmt.Sprintf("what Dockwell counts as %v, %s", a.Kind, a.Path))
 	}
-	return strings.TrimSpace(what + " " + a.Path)
+	if a.ReadOnly {
+		what += ", read-only"
+	}
+	return what
 }
 
-// firstSteps says how to reach an app, as every entry does: on loopback until it
-// has a domain, and through an SSH tunnel for whoever makes its first account.
-func firstSteps(name, port string, others bool) string {
-	const more = " Its other ports answer only on this server too. Add a port on its page for one that something elsewhere must reach."
+// firstSteps says how to reach an app, as every entry does: on loopback until it has
+// a domain, and, for one a person opens in a browser, through an SSH tunnel for
+// whoever makes its first account.
+func firstSteps(e *catalogv1.Entry, name string) string {
+	others := 0
+	for _, in := range e.GetInputs() {
+		if in.GetType() == catalogv1.InputType_INPUT_TYPE_PORT {
+			others++
+		}
+	}
+	port := webPort(e)
 	if port == "" {
 		return name + " answers only on this server. Add a port on its page for anything elsewhere that must reach it."
 	}
@@ -449,51 +625,20 @@ func firstSteps(name, port string, others bool) string {
 		"ssh -N -L %[2]s:127.0.0.1:%[2]s you@your-server, using the port you gave it, then open "+
 		"http://localhost:%[2]s. Add a domain on its page only after that, over HTTPS or behind your tunnel, "+
 		"as a new domain's certificate shows in public logs within minutes.", name, port)
-	if others {
-		steps += more
+	if others > 1 {
+		steps += " Its other ports answer only on this server too. Add a port on its page for one that something elsewhere must reach."
 	}
 	return steps
 }
 
-// webPort is the service a person opens and its port's default.
-type webPort struct{ service, port string }
-
-// webService finds the service that publishes the port a person opens: PORT, or the
-// first port the form asks for.
-func webService(file []byte, inputs []*catalogv1.Input) webPort {
-	doc, err := parseFile(file)
-	if err != nil {
-		return webPort{}
-	}
-	var web *catalogv1.Input
-	for _, in := range inputs {
-		if in.GetType() == catalogv1.InputType_INPUT_TYPE_PORT && (web == nil || in.GetName() == "PORT") {
-			web = in
-		}
-	}
-	if web == nil {
-		return webPort{}
-	}
-	for _, name := range serviceNames(doc) {
-		ports := mapGet(service(doc, name), "ports")
-		if ports == nil {
-			continue
-		}
-		for _, p := range ports.Content {
-			if strings.Contains(nodeText(p), "${"+web.GetName()+"}") {
-				return webPort{service: name, port: web.GetDefaultValue()}
-			}
-		}
-	}
-	return webPort{}
-}
-
 // Kept says which of the earlier run's entries stay, and which go: an entry left out
 // for a reason a later run may not have stays as it was, and one left out for good
-// goes, with its reason in the report.
-func Kept(results []Result, previous map[string]*catalogv1.Entry) (stay, gone []string) {
+// goes, with its reason in the report. Only the IDs read count: an entry of one this
+// run didn't read stays.
+func Kept(results []Result, previous map[string]*catalogv1.Entry, all bool) (stay, gone []string) {
 	seen := map[string]bool{}
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		seen[r.ID] = true
 		if r.Entry != nil || previous[r.ID] == nil {
 			continue
@@ -504,9 +649,11 @@ func Kept(results []Result, previous map[string]*catalogv1.Entry) (stay, gone []
 			gone = append(gone, r.ID)
 		}
 	}
-	for _, id := range slices.Sorted(maps.Keys(previous)) {
-		if !seen[id] {
-			gone = append(gone, id)
+	if all {
+		for _, id := range slices.Sorted(maps.Keys(previous)) {
+			if !seen[id] {
+				gone = append(gone, id)
+			}
 		}
 	}
 	return stay, gone

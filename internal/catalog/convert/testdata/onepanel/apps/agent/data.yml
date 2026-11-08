@@ -1,0 +1,4 @@
+name: Agent
+additionalProperties:
+  key: agent
+  type: tool

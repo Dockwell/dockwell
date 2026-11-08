@@ -18,12 +18,10 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
-	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/catalog/convert"
 )
@@ -87,7 +85,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if *only != "" {
+	all := *only == ""
+	if !all {
 		ids := strings.Split(*only, ",")
 		apps = slices.DeleteFunc(apps, func(a convert.App) bool { return !slices.Contains(ids, a.ID) })
 	}
@@ -95,11 +94,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	written, err := readOverlays(*overlays)
+	written, err := convert.ReadOverlays(*overlays)
 	if err != nil {
 		return err
 	}
-	own, err := catalog.Load("")
+	// Dockwell's own entries are the binary's, and never a folder DOCKWELL_CATALOG_DIR
+	// names, which may be this run's own output.
+	own, err := catalog.BuiltIn("")
 	if err != nil {
 		return err
 	}
@@ -122,38 +123,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		}
 		results = append(results, r)
 	}
-	if err := convert.Write(*out, src, results, previous, c.Pins); err != nil {
+	if err := convert.Write(*out, src, results, previous, c.Pins, all); err != nil {
 		return err
 	}
 	fmt.Fprintf(stdout, "Converted %d of %d apps from %s into %s. %s says why the rest were left out.\n",
 		converted, len(results), src.Name, *out, convert.ReportFile)
 	return nil
-}
-
-// readOverlays reads what people wrote for each app, one file each, named by its ID.
-func readOverlays(dir string) (map[string]*catalogv1.Entry, error) {
-	out := map[string]*catalogv1.Entry{}
-	if dir == "" {
-		return out, nil
-	}
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("reading the overlays: %w", err)
-	}
-	for _, f := range files {
-		id, ok := strings.CutSuffix(f.Name(), ".yaml")
-		if !ok {
-			continue
-		}
-		raw, err := os.ReadFile(filepath.Join(dir, f.Name())) //nolint:gosec // an overlay in the folder the person running it names
-		if err != nil {
-			return nil, err
-		}
-		e, err := catalog.Decode(raw)
-		if err != nil {
-			return nil, fmt.Errorf("the overlay %s: %w", f.Name(), err)
-		}
-		out[id] = e
-	}
-	return out, nil
 }

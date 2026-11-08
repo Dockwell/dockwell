@@ -4,12 +4,14 @@ package convert
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"maps"
 	"path"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -18,25 +20,44 @@ import (
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 )
 
+// rewritten is a source's Compose file as an entry may say it, with its inputs.
+type rewritten struct {
+	file   []byte
+	inputs []*catalogv1.Input
+	// notes are what the converter changed beyond the rules every entry follows.
+	notes []string
+	// reaches is what the file reaches through a value a person types, such as a
+	// folder of theirs, which no reading of the file with stand-ins can see.
+	reaches []string
+	// web is the input that names the port a person opens, empty for none.
+	web string
+}
+
 // rewrite turns a source's Compose file into what an entry may say, and its form
 // into the entry's inputs:
 //
-//   - no container_name, as Dockwell names each container from its project;
+//   - no container_name, as Dockwell names each container from its project, and a
+//     name another service reached it by becomes the service's own;
 //   - no network the source's platform makes, which an entry can't reach, so each
 //     service joins its project's own;
 //   - every port on loopback, as every entry publishes until it has a domain;
 //   - a folder the app makes as it runs, bound relative to the file, as a named
-//     volume, which Dockwell backs up before an upgrade;
+//     volume of its own, which Dockwell backs up before an upgrade;
 //   - the source's variables under plainer names, each one a field fills.
 //
 // A file it can't make into one is an error that says why, which leaves the app out.
-func rewrite(app App) ([]byte, []*catalogv1.Input, []string, error) {
+func rewrite(app App) (rewritten, error) {
+	var out rewritten
 	doc, err := parseFile(app.Compose)
 	if err != nil {
-		return nil, nil, nil, err
+		return out, err
+	}
+	if err := expandAliases(doc); err != nil {
+		return out, err
 	}
 	root := doc.Content[0]
-	var notes []string
+	// Compose reads $NAME as ${NAME}, and the rest of this reads the second.
+	walkScalars(root, func(n *yaml.Node) { n.Value = braceVars(n.Value) })
 	externals := map[string]bool{}
 	if nets := mapGet(root, "networks"); nets != nil {
 		for i := 0; i+1 < len(nets.Content); i += 2 {
@@ -53,22 +74,24 @@ func rewrite(app App) ([]byte, []*catalogv1.Input, []string, error) {
 	}
 	mapDel(root, "version")
 	volumes := mapGet(root, "volumes")
-	// What a container was named from the platform's variables, by the service it
-	// names, as another service or the app itself reaches it by that name, which
-	// Docker answers to by the service's own on the project's network.
+	// What a container was named, by the service it names, as another service or the
+	// app itself reaches it by that name, which Docker answers to by the service's own
+	// on the project's network.
 	named := map[string]string{}
 	names := serviceNames(doc)
 	if len(names) == 0 {
-		return nil, nil, nil, errors.New("its Compose file runs no service")
+		return out, leave(ClassFile, "its Compose file runs no service")
 	}
+	// The folders bound as volumes, by the volume each became.
+	folders := map[string]string{}
 	for _, name := range names {
 		svc := service(doc, name)
 		for _, key := range []string{"build", "env_file", "extends"} {
 			if mapGet(svc, key) != nil {
-				return nil, nil, nil, fmt.Errorf("its service %s has %s, which an entry can't carry", name, key)
+				return out, leave(ClassCantSay, "its service %s has %s, which an entry can't carry", name, key)
 			}
 		}
-		if n := mapGet(svc, "container_name"); n != nil && strings.Contains(n.Value, "$") {
+		if n := mapGet(svc, "container_name"); n != nil {
 			named[n.Value] = name
 		}
 		mapDel(svc, "container_name")
@@ -100,28 +123,30 @@ func rewrite(app App) ([]byte, []*catalogv1.Input, []string, error) {
 		if ports := mapGet(svc, "ports"); ports != nil {
 			for _, p := range ports.Content {
 				if err := loopback(p); err != nil {
-					return nil, nil, nil, fmt.Errorf("its service %s's port %s: %w", name, nodeText(p), err)
+					return out, leave(ClassCantSay, "its service %s's port %s %s", name, nodeText(p), err)
 				}
 			}
 		}
 		if vols := mapGet(svc, "volumes"); vols != nil {
 			kept := vols.Content[:0]
 			for _, v := range vols.Content {
-				named, drop, err := volume(app, v)
+				vol, err := volume(app, v, folders)
 				if err != nil {
-					return nil, nil, nil, fmt.Errorf("its service %s's volume %s: %w", name, nodeText(v), err)
+					return out, fmt.Errorf("its service %s's volume %s: %w", name, nodeText(v), err)
 				}
-				if drop != "" {
-					notes = append(notes, drop)
+				switch {
+				case vol.dropped != "":
+					out.notes = append(out.notes, vol.dropped)
 					continue
-				}
-				if named != "" {
+				case vol.reaches != "":
+					out.reaches = append(out.reaches, name+": "+vol.reaches)
+				case vol.named != "":
 					if volumes == nil {
 						volumes = &yaml.Node{Kind: yaml.MappingNode}
 						root.Content = append(root.Content, scalar("volumes"), volumes)
 					}
-					if mapGet(volumes, named) == nil {
-						volumes.Content = append(volumes.Content, scalar(named), &yaml.Node{Kind: yaml.MappingNode, Style: yaml.FlowStyle})
+					if mapGet(volumes, vol.named) == nil {
+						volumes.Content = append(volumes.Content, scalar(vol.named), &yaml.Node{Kind: yaml.MappingNode, Style: yaml.FlowStyle})
 					}
 				}
 				kept = append(kept, v)
@@ -132,21 +157,54 @@ func rewrite(app App) ([]byte, []*catalogv1.Input, []string, error) {
 			}
 		}
 	}
-	byLength := slices.SortedFunc(maps.Keys(named), func(a, b string) int { return len(b) - len(a) })
-	walkScalars(root, func(n *yaml.Node) {
-		for _, text := range byLength {
-			n.Value = strings.ReplaceAll(n.Value, text, named[text])
+	if err := nested(folders); err != nil {
+		return out, err
+	}
+	images := imageNodes(doc)
+	// Longest first, so ${CONTAINER_NAME}-worker is renamed before ${CONTAINER_NAME}
+	// is, and in one order every run.
+	byLength := slices.SortedFunc(maps.Keys(named), func(a, b string) int { return cmp.Or(len(b)-len(a), strings.Compare(a, b)) })
+	for _, text := range byLength {
+		to := named[text]
+		if text == to {
+			continue
 		}
-	})
+		if strings.Contains(text, "$") {
+			// A name made of the platform's variables is written only where the
+			// platform's name for the container is meant.
+			walkScalars(root, func(n *yaml.Node) {
+				if !images[n] {
+					n.Value = strings.ReplaceAll(n.Value, text, to)
+				}
+			})
+			continue
+		}
+		hosts(root, images, text, to)
+	}
 	if err := dashServices(doc); err != nil {
-		return nil, nil, nil, err
+		return out, err
 	}
 	renames := renamesOf(app.Fields)
 	walkScalars(root, func(n *yaml.Node) { n.Value = renameVars(n.Value, renames) })
-	inputs := inputsOf(app.Fields, renames, root)
+	for i := range out.reaches {
+		out.reaches[i] = renameVars(out.reaches[i], renames)
+	}
+	out.inputs = inputsOf(app.Fields, renames, root)
 	asked := map[string]bool{}
-	for _, in := range inputs {
+	for _, in := range out.inputs {
 		asked[in.GetName()] = true
+	}
+	for _, f := range app.Fields {
+		if f.Web && f.Kind == Port {
+			if to, ok := renames[f.Name]; ok {
+				out.web = to
+			} else {
+				out.web = f.Name
+			}
+		}
+	}
+	if !asked[out.web] {
+		out.web = ""
 	}
 	var missing []string
 	walkScalars(root, func(n *yaml.Node) {
@@ -158,15 +216,114 @@ func rewrite(app App) ([]byte, []*catalogv1.Input, []string, error) {
 	})
 	if len(missing) > 0 {
 		slices.Sort(missing)
-		return nil, nil, nil, fmt.Errorf("its Compose file uses %s, which its platform fills in and no field asks for", strings.Join(missing, ", "))
+		return out, leave(ClassPlatform, "its Compose file uses %s, which its platform fills in and no field asks for", strings.Join(missing, ", "))
 	}
-	out, err := encodeFile(doc)
-	return out, inputs, notes, err
+	out.file, err = encodeFile(doc)
+	return out, err
+}
+
+// maxNodes bounds what expanding a file's aliases makes, as a few aliases of aliases
+// can stand for more than any Compose file says.
+const maxNodes = 100000
+
+// expandAliases writes out each YAML alias as what it stands for, and each merge key
+// into the mapping it's in, as Compose reads them, so nothing the rest of this reads
+// hides behind one.
+func expandAliases(doc *yaml.Node) error {
+	count := 0
+	var expand func(n *yaml.Node) (*yaml.Node, error)
+	expand = func(n *yaml.Node) (*yaml.Node, error) {
+		count++
+		if count > maxNodes {
+			return nil, leave(ClassFile, "its Compose file's aliases stand for over %d nodes, more than any Compose file says", maxNodes)
+		}
+		if n.Kind == yaml.AliasNode {
+			return expand(n.Alias)
+		}
+		c := *n
+		c.Anchor = ""
+		c.Content = make([]*yaml.Node, 0, len(n.Content))
+		for _, child := range n.Content {
+			e, err := expand(child)
+			if err != nil {
+				return nil, err
+			}
+			c.Content = append(c.Content, e)
+		}
+		if c.Kind == yaml.MappingNode {
+			merge(&c)
+		}
+		return &c, nil
+	}
+	for i, n := range doc.Content {
+		e, err := expand(n)
+		if err != nil {
+			return err
+		}
+		doc.Content[i] = e
+	}
+	return nil
+}
+
+// merge writes a mapping's merge keys into it: each key of what it merges that the
+// mapping doesn't set itself, in order.
+func merge(m *yaml.Node) {
+	var from []*yaml.Node
+	own := m.Content[:0:0]
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == "<<" && m.Content[i].Tag != "!!str" {
+			v := m.Content[i+1]
+			if v.Kind == yaml.SequenceNode {
+				from = append(from, v.Content...)
+			} else {
+				from = append(from, v)
+			}
+			continue
+		}
+		own = append(own, m.Content[i], m.Content[i+1])
+	}
+	m.Content = own
+	for _, f := range from {
+		for i := 0; f.Kind == yaml.MappingNode && i+1 < len(f.Content); i += 2 {
+			if mapGet(m, f.Content[i].Value) == nil {
+				m.Content = append(m.Content, f.Content[i], f.Content[i+1])
+			}
+		}
+	}
+}
+
+// imageNodes are the values that name images, which are their publishers' names and
+// never a service's.
+func imageNodes(doc *yaml.Node) map[*yaml.Node]bool {
+	out := map[*yaml.Node]bool{}
+	for _, name := range serviceNames(doc) {
+		if img := mapGet(service(doc, name), "image"); img != nil {
+			out[img] = true
+		}
+	}
+	return out
+}
+
+// hosts renames a host where a value names one: the whole value, or the name after
+// //, @, = or a space, followed by its end, a port or a path, as in
+// http://act_runner:8080. A path that ends in the name, as /usr/local/bin/act_runner
+// does, stays as it is.
+func hosts(root *yaml.Node, images map[*yaml.Node]bool, from, to string) {
+	host := regexp.MustCompile(`(^|//|[@=\s,])` + regexp.QuoteMeta(from) + `($|[:/\s,])`)
+	walkScalars(root, func(n *yaml.Node) {
+		if images[n] {
+			return
+		}
+		// Twice, as a match takes the character either side of it.
+		for range 2 {
+			n.Value = host.ReplaceAllString(n.Value, "${1}"+to+"${2}")
+		}
+	})
 }
 
 // dashServices renames a service whose name has an underscore, which a container's
 // name can't take, and what reaches it by that name: its depends_on, and a value
-// that names it whole, such as http://act_runner:8080, but never an image.
+// that names it as a host, but never an image or a path.
 func dashServices(doc *yaml.Node) error {
 	services := mapGet(doc.Content[0], "services")
 	renamed := map[string]string{}
@@ -174,37 +331,40 @@ func dashServices(doc *yaml.Node) error {
 		key := services.Content[i]
 		if to := strings.ReplaceAll(key.Value, "_", "-"); to != key.Value {
 			if mapGet(services, to) != nil {
-				return fmt.Errorf("its services %s and %s would have one name", key.Value, to)
+				return leave(ClassCantSay, "its services %s and %s would have one name", key.Value, to)
 			}
 			renamed[key.Value], key.Value = to, to
 		}
 	}
-	if len(renamed) == 0 {
-		return nil
-	}
+	images := imageNodes(doc)
 	for from, to := range renamed {
-		whole := regexp.MustCompile(`\b` + regexp.QuoteMeta(from) + `\b`)
 		for _, name := range serviceNames(doc) {
-			if deps := mapGet(service(doc, name), "depends_on"); deps != nil {
-				for _, d := range deps.Content {
-					if d.Value == from {
-						d.Value = to
-					}
+			deps := mapGet(service(doc, name), "depends_on")
+			if deps == nil {
+				continue
+			}
+			for i, d := range deps.Content {
+				// A list's names, or a mapping's keys.
+				if d.Value == from && (deps.Kind == yaml.SequenceNode || i%2 == 0) {
+					d.Value = to
 				}
 			}
 		}
-		images := map[*yaml.Node]bool{}
-		for _, name := range serviceNames(doc) {
-			if img := mapGet(service(doc, name), "image"); img != nil {
-				images[img] = true
+		hosts(doc.Content[0], images, from, to)
+	}
+	return nil
+}
+
+// nested refuses a folder bound inside another, as Docker shares what's in it and two
+// volumes wouldn't.
+func nested(folders map[string]string) error {
+	rels := slices.Sorted(maps.Values(folders))
+	for i, a := range rels {
+		for _, b := range rels[i+1:] {
+			if strings.HasPrefix(b, a+"/") {
+				return leave(ClassCantSay, "it binds ./%s inside ./%s, which two volumes can't share as one folder does", b, a)
 			}
 		}
-		walkScalars(doc.Content[0], func(n *yaml.Node) {
-			// An image is named by its publisher, as gitea/act_runner is.
-			if !images[n] {
-				n.Value = whole.ReplaceAllString(n.Value, to)
-			}
-		})
 	}
 	return nil
 }
@@ -259,37 +419,59 @@ func splitPort(s string) []string {
 	return append(out, s[start:])
 }
 
+// mounted is what came of one of a service's volumes.
+type mounted struct {
+	// named is the volume a folder became, which the file declares.
+	named string
+	// dropped says what the converter took away, and why.
+	dropped string
+	// reaches says what it reaches on the server through a value a person types.
+	reaches string
+}
+
 // volume reads one of a service's volumes. A folder the app makes, bound relative to
-// the file, becomes a named volume, which it returns. A file the source ships can't
-// be said by an entry yet. A read-only mount of the server's time zone goes, as the
-// container's own is UTC and the mount is host access a person would have to approve
-// for nothing more.
-func volume(app App, v *yaml.Node) (named, dropped string, err error) {
+// the file, becomes a named volume of its own. A file the source ships can't be said
+// by an entry yet. A read-only mount of the server's time zone goes, as the container's
+// own is UTC and the mount is host access a person would have to approve for nothing
+// more. A folder a person names reaches the server, whatever its default.
+func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
 	source, set := volumeSource(v)
 	if source == "" {
-		return "", "", nil
+		return mounted{}, nil
 	}
 	switch {
 	case source == "/etc/localtime" || source == "/etc/timezone":
 		if readOnly(v) {
-			return "", "the server's " + source + ", which only set the container's time zone", nil
+			return mounted{dropped: "the server's " + source + ", which only set the container's time zone"}, nil
 		}
-		return "", "", nil
+		return mounted{}, nil
+	case strings.HasPrefix(source, "$"):
+		return mounted{reaches: "a server path a person names, " + source}, nil
 	case strings.HasPrefix(source, "~"):
-		return "", "", errors.New("it binds a folder in a home directory, which an entry can't know")
+		return mounted{}, leave(ClassCantSay, "it binds a folder in a home directory, which an entry can't know")
 	case !strings.HasPrefix(source, "./") && !strings.HasPrefix(source, "../") && source != ".":
-		return "", "", nil
+		return mounted{}, nil
 	}
 	rel := path.Clean(source)
-	if strings.HasPrefix(rel, "..") {
-		return "", "", fmt.Errorf("it binds %s, outside the app's own folder", source)
+	switch {
+	case rel == ".":
+		return mounted{}, leave(ClassCantSay, "it binds its own folder, with its Compose file in it, which an entry has none of")
+	case strings.HasPrefix(rel, ".."):
+		return mounted{}, leave(ClassCantSay, "it binds %s, outside the app's own folder", source)
+	case app.Shipped != nil && app.Shipped(rel):
+		return mounted{}, leave(ClassShipped, "it ships %s beside its Compose file, which an entry can't declare yet", rel)
 	}
-	if app.Shipped != nil && app.Shipped(rel) {
-		return "", "", fmt.Errorf("it ships %s beside its Compose file, which an entry can't declare yet", rel)
+	named := volumeName(rel)
+	if named == "" {
+		named = "data"
 	}
-	named = volumeName(rel)
+	// One volume to a folder, so ./data-db and ./data/db stay two.
+	for base, i := named, 2; folders[named] != "" && folders[named] != rel; i++ {
+		named = base + "-" + strconv.Itoa(i)
+	}
+	folders[named] = rel
 	set(named)
-	return named, "", nil
+	return mounted{named: named}, nil
 }
 
 // volumeSource finds what a volume mounts, and how to change it.
@@ -437,6 +619,7 @@ func inputsOf(fields []Field, renames map[string]string, root *yaml.Node) []*cat
 			used[u.name] = true
 		}
 	})
+	published := publishedVars(root)
 	var out []*catalogv1.Input
 	for _, f := range fields {
 		name := f.Name
@@ -447,17 +630,21 @@ func inputsOf(fields []Field, renames map[string]string, root *yaml.Node) []*cat
 			continue
 		}
 		in := &catalogv1.Input{Name: name, Label: sentenceCase(f.Label), DefaultValue: f.Default, Optional: f.Optional}
-		switch f.Kind {
-		case Port:
+		switch {
+		case f.Kind == Port && !published[name]:
+			// A port of something else, such as the server an agent reports to, which
+			// is no port on this server and no port Dockwell may move.
+			in.Type = catalogv1.InputType_INPUT_TYPE_TEXT
+		case f.Kind == Port:
 			in.Type = catalogv1.InputType_INPUT_TYPE_PORT
-			in.Label = portLabel(in.GetLabel(), name == "PORT")
+			in.Label = portLabel(in.GetLabel(), f.Web)
 			in.Hint = "Only this server reaches it."
-			if name == "PORT" {
+			if f.Web {
 				in.Hint += " To reach it from elsewhere, add a domain once it runs."
 			}
-		case Secret:
+		case f.Kind == Secret:
 			in.Type, in.DefaultValue = catalogv1.InputType_INPUT_TYPE_SECRET, ""
-		case Generated:
+		case f.Kind == Generated:
 			in.Type, in.DefaultValue, in.Generate, in.Optional = catalogv1.InputType_INPUT_TYPE_SECRET, "", 32, false
 		default:
 			in.Type = catalogv1.InputType_INPUT_TYPE_TEXT
@@ -469,6 +656,36 @@ func inputsOf(fields []Field, renames map[string]string, root *yaml.Node) []*cat
 			in.Label = name
 		}
 		out = append(out, in)
+	}
+	return out
+}
+
+// publishedVars are the variables a file publishes a port of this server by.
+func publishedVars(root *yaml.Node) map[string]bool {
+	out := map[string]bool{}
+	services := mapGet(root, "services")
+	for i := 1; services != nil && i < len(services.Content); i += 2 {
+		ports := mapGet(services.Content[i], "ports")
+		if ports == nil {
+			continue
+		}
+		for _, p := range ports.Content {
+			host := ""
+			switch p.Kind {
+			case yaml.ScalarNode:
+				if parts := splitPort(p.Value); len(parts) == 3 {
+					host = parts[1]
+				}
+			case yaml.MappingNode:
+				if pub := mapGet(p, "published"); pub != nil {
+					host = pub.Value
+				}
+			default:
+			}
+			for _, u := range usesOf(host) {
+				out[u.name] = true
+			}
+		}
 	}
 	return out
 }
@@ -503,10 +720,10 @@ func sentenceCase(s string) string {
 func parseFile(file []byte) (*yaml.Node, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(file, &doc); err != nil {
-		return nil, fmt.Errorf("its Compose file isn't YAML: %w", err)
+		return nil, leave(ClassFile, "its Compose file isn't YAML: %v", err)
 	}
 	if len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
-		return nil, errors.New("its Compose file isn't a mapping")
+		return nil, leave(ClassFile, "its Compose file isn't a mapping")
 	}
 	return &doc, nil
 }
@@ -592,5 +809,16 @@ func nodeText(n *yaml.Node) string {
 	if err != nil {
 		return "?"
 	}
-	return strings.Join(strings.Fields(string(out)), " ")
+	text := []rune(strings.Join(strings.Fields(string(out)), " "))
+	if len(text) > 80 {
+		text = append(text[:77], []rune("...")...)
+	}
+	return string(text)
+}
+
+var bareVar = regexp.MustCompile(`(^|[^$])\$([A-Za-z_][A-Za-z0-9_]*)`)
+
+// braceVars writes $NAME as ${NAME}, which Compose reads the same.
+func braceVars(s string) string {
+	return bareVar.ReplaceAllString(s, "${1}$${${2}}")
 }

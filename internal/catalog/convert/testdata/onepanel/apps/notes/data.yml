@@ -8,5 +8,9 @@ additionalProperties:
     - Tool
     - Website
   shortDescEn: A stand-in app for the converter's tests
+  type: website
+  architectures:
+    - amd64
+    - arm64
   website: https://notes.example.com
   github: https://github.com/example/notes

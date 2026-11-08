@@ -1,0 +1,4 @@
+name: Only Latest
+additionalProperties:
+  key: onlylatest
+  type: website

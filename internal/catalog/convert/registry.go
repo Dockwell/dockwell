@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,8 @@ type Registry interface {
 	Pin(ctx context.Context, image string) (string, error)
 	// Built says when the image a digest names was built, from its config.
 	Built(ctx context.Context, image, digest string) (time.Time, error)
+	// Platforms says what the image a digest names runs on, such as linux/arm64.
+	Platforms(ctx context.Context, image, digest string) ([]string, error)
 }
 
 // ErrNotAsked says the converter didn't ask, to keep within what a registry allows.
@@ -51,6 +54,19 @@ type OCI struct {
 	mu     sync.Mutex
 	tokens map[string]string
 	gets   int
+	hub    map[string]hubTag
+}
+
+// hubTag is what Docker Hub's API says of a tag: when it was last pushed, the index it
+// names, and the platforms that index holds.
+type hubTag struct {
+	Pushed  time.Time `json:"tag_last_pushed"`
+	Updated time.Time `json:"last_updated"`
+	Digest  string    `json:"digest"`
+	Images  []struct {
+		OS           string `json:"os"`
+		Architecture string `json:"architecture"`
+	} `json:"images"`
 }
 
 // Pin asks for the digest a tag points at, with a HEAD, which no registry counts.
@@ -140,8 +156,31 @@ func (o *OCI) Built(ctx context.Context, image, digest string) (time.Time, error
 
 // hubPushed asks Docker Hub's own API when a tag was last pushed, which it doesn't
 // count as a pull, as a manifest GET is. A rebuild of the version pushes it again,
-// so it's no earlier than the version's release, and holds a version back no less.
+// so it's no earlier than the build's own date, and holds a build back no less.
 func (o *OCI) hubPushed(ctx context.Context, r ref) (time.Time, error) {
+	tag, err := o.hubTag(ctx, r)
+	if err != nil {
+		return time.Time{}, err
+	}
+	pushed := tag.Pushed
+	if pushed.IsZero() {
+		pushed = tag.Updated
+	}
+	if pushed.IsZero() {
+		return time.Time{}, fmt.Errorf("no push time for %s:%s on Docker Hub", r.name, r.tag)
+	}
+	return pushed, nil
+}
+
+// hubTag asks Docker Hub's API of a tag, once a run.
+func (o *OCI) hubTag(ctx context.Context, r ref) (hubTag, error) {
+	key := r.name + ":" + r.tag
+	o.mu.Lock()
+	tag, ok := o.hub[key]
+	o.mu.Unlock()
+	if ok {
+		return tag, nil
+	}
 	client := o.Client
 	if client == nil {
 		client = http.DefaultClient
@@ -153,30 +192,81 @@ func (o *OCI) hubPushed(ctx context.Context, r ref) (time.Time, error) {
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u+"/v2/namespaces/"+namespace+"/repositories/"+repo+"/tags/"+url.PathEscape(r.tag), http.NoBody)
 	if err != nil {
-		return time.Time{}, err
+		return hubTag{}, err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("asking Docker Hub for %s: %w", r.name, err)
+		return hubTag{}, fmt.Errorf("asking Docker Hub for %s: %w", r.name, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return time.Time{}, fmt.Errorf("asking Docker Hub for %s:%s: it answered %s", r.name, r.tag, resp.Status)
-	}
-	var tag struct {
-		Pushed  time.Time `json:"tag_last_pushed"`
-		Updated time.Time `json:"last_updated"`
+		return hubTag{}, fmt.Errorf("asking Docker Hub for %s:%s: it answered %s", r.name, r.tag, resp.Status)
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&tag); err != nil {
-		return time.Time{}, fmt.Errorf("reading Docker Hub's answer for %s: %w", r.name, err)
+		return hubTag{}, fmt.Errorf("reading Docker Hub's answer for %s: %w", r.name, err)
 	}
-	if tag.Pushed.IsZero() {
-		tag.Pushed = tag.Updated
+	o.mu.Lock()
+	if o.hub == nil {
+		o.hub = map[string]hubTag{}
 	}
-	if tag.Pushed.IsZero() {
-		return time.Time{}, fmt.Errorf("no push time for %s:%s on Docker Hub", r.name, r.tag)
+	o.hub[key] = tag
+	o.mu.Unlock()
+	return tag, nil
+}
+
+// Platforms says what an image runs on: from Docker Hub's API where the tag still
+// names that build, which counts nothing, and from its index elsewhere.
+func (o *OCI) Platforms(ctx context.Context, image, digest string) ([]string, error) {
+	r, err := parseRef(image)
+	if err != nil {
+		return nil, err
 	}
-	return tag.Pushed, nil
+	if r.host == dockerHub && r.tag != "" {
+		if tag, err := o.hubTag(ctx, r); err == nil && tag.Digest == digest && len(tag.Images) > 0 {
+			var out []string
+			for _, img := range tag.Images {
+				out = append(out, img.OS+"/"+img.Architecture)
+			}
+			return compactPlatforms(out), nil
+		}
+	}
+	var m struct {
+		Manifests []struct {
+			Platform struct {
+				OS           string `json:"os"`
+				Architecture string `json:"architecture"`
+			} `json:"platform"`
+		} `json:"manifests"`
+		Config struct {
+			Digest string `json:"digest"`
+		} `json:"config"`
+	}
+	if err := o.getJSON(ctx, r, "manifests/"+digest, manifestTypes, &m); err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, one := range m.Manifests {
+		out = append(out, one.Platform.OS+"/"+one.Platform.Architecture)
+	}
+	if len(m.Manifests) == 0 && m.Config.Digest != "" {
+		var config struct {
+			OS           string `json:"os"`
+			Architecture string `json:"architecture"`
+		}
+		if err := o.getJSON(ctx, r, "blobs/"+m.Config.Digest, "*/*", &config); err != nil {
+			return nil, err
+		}
+		out = append(out, config.OS+"/"+config.Architecture)
+	}
+	return compactPlatforms(out), nil
+}
+
+// compactPlatforms sorts platforms, once each, leaving out the attestations an index
+// lists as unknown/unknown.
+func compactPlatforms(list []string) []string {
+	list = slices.DeleteFunc(list, func(p string) bool { return p == "unknown/unknown" || p == "/" })
+	slices.Sort(list)
+	return slices.Compact(list)
 }
 
 func (o *OCI) getJSON(ctx context.Context, r ref, path, accept string, into any) error {

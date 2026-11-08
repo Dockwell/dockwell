@@ -10,7 +10,7 @@ services:
       - 0.0.0.0:${PANEL_APP_PORT_SYNC}:9443
     volumes:
       - ./data:/app/data
-      - ./data/uploads:/app/uploads
+      - ./uploads:/app/uploads
       - /etc/localtime:/etc/localtime:ro
     environment:
       - ADMIN_USER=${ADMIN_USER}

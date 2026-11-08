@@ -5,8 +5,7 @@ package convert
 import (
 	"cmp"
 	"fmt"
-	"os"
-	"path/filepath"
+	"path"
 	"regexp"
 	"slices"
 	"strconv"
@@ -31,8 +30,11 @@ type onePanelApp struct {
 	More struct {
 		Key     string   `yaml:"key"`
 		Tags    []string `yaml:"tags"`
+		Type    string   `yaml:"type"`
 		Website string   `yaml:"website"`
 		Github  string   `yaml:"github"`
+		// Architectures are the platforms 1Panel says the app runs on.
+		Architectures []string `yaml:"architectures"`
 	} `yaml:"additionalProperties"`
 }
 
@@ -74,22 +76,27 @@ var onePanelCategories = map[string]string{
 	"Media": "media", "Security": "security", "Storage": "storage", "Website": "cms",
 }
 
+// onePanelWeb are 1Panel's types of app that a person opens in a browser.
+var onePanelWeb = []string{"website", "aiwebsite"}
+
 // OnePanel reads the apps in a checkout of 1Panel's app store, each at its newest
 // version: apps/<key>/data.yml says what the app is, and the version's folder has
-// its form, data.yml, and its docker-compose.yml.
+// its form, data.yml, and its docker-compose.yml. It reads only regular files and
+// folders inside the checkout, each up to MaxFile.
 func OnePanel(root string) ([]App, error) {
-	dirs, err := os.ReadDir(filepath.Join(root, "apps"))
+	t, err := openTree(root)
+	if err != nil {
+		return nil, fmt.Errorf("reading 1Panel's app store: %w. Name the folder of a checkout of github.com/1Panel-dev/appstore", err)
+	}
+	defer t.Close()
+	dirs, err := t.readDir("apps")
 	if err != nil {
 		return nil, fmt.Errorf("reading 1Panel's app store: %w. Name the folder of a checkout of github.com/1Panel-dev/appstore", err)
 	}
 	var out []App
 	for _, d := range dirs {
-		if !d.IsDir() {
-			continue
-		}
-		app, ok := onePanelRead(root, d.Name())
-		if ok {
-			out = append(out, app)
+		if d.IsDir() {
+			out = append(out, onePanelRead(t, d.Name()))
 		}
 	}
 	if len(out) == 0 {
@@ -98,81 +105,103 @@ func OnePanel(root string) ([]App, error) {
 	return out, nil
 }
 
-func onePanelRead(root, dir string) (App, bool) {
-	appDir := filepath.Join(root, "apps", dir)
-	app := App{ID: strings.ToLower(dir)}
-	versions, err := os.ReadDir(appDir)
-	if err != nil {
-		return app, false
-	}
-	var names []string
-	for _, v := range versions {
-		if _, err := os.Stat(filepath.Join(appDir, v.Name(), "docker-compose.yml")); err == nil && v.IsDir() && v.Name() != "latest" {
-			names = append(names, v.Name())
-		}
-	}
-	if len(names) == 0 {
-		return app, false
-	}
-	slices.SortFunc(names, compareVersions)
-	var meta onePanelApp
-	if err := readYAML(filepath.Join(appDir, "data.yml"), &meta); err != nil {
-		app.LeftOut = err.Error()
-		return app, true
-	}
+func onePanelRead(t *tree, dir string) App {
+	appDir := path.Join("apps", dir)
 	// An entry's ID takes dashes where 1Panel's keys take underscores.
+	app := App{ID: strings.ReplaceAll(strings.ToLower(dir), "_", "-"), Name: dir, Path: appDir}
+	var meta onePanelApp
+	if err := readYAML(t, path.Join(appDir, "data.yml"), &meta); err != nil {
+		app.LeftOut, app.Class = err.Error(), ClassFile
+		return app
+	}
 	app.ID = strings.ReplaceAll(strings.ToLower(cmp.Or(meta.More.Key, dir)), "_", "-")
 	app.Name = cmp.Or(meta.Name, dir)
 	app.Homepage = cmp.Or(meta.More.Website, meta.More.Github)
+	app.Web = slices.Contains(onePanelWeb, strings.TrimSpace(meta.More.Type))
 	for _, tag := range meta.More.Tags {
 		if c := onePanelCategories[tag]; c != "" {
 			app.Category = c
 			break
 		}
 	}
-	// Each version, newest first, so one that's too young falls back to the one before.
+	versions, err := t.readDir(appDir)
+	if err != nil {
+		app.LeftOut, app.Class = err.Error(), ClassFile
+		return app
+	}
+	var names []string
+	latest := false
+	for _, v := range versions {
+		if !v.IsDir() || !t.isFile(path.Join(appDir, v.Name(), "docker-compose.yml")) {
+			continue
+		}
+		if unversioned[v.Name()] {
+			latest = true
+			continue
+		}
+		names = append(names, v.Name())
+	}
+	switch {
+	case len(names) == 0 && latest:
+		app.LeftOut, app.Class = "it has only a version named latest, which moves, so no entry could pin it", ClassNoVersion
+		return app
+	case len(names) == 0:
+		app.LeftOut, app.Class = "it has no version with a Compose file of its own", ClassFile
+		return app
+	}
+	if arch := meta.More.Architectures; len(arch) > 0 && (!slices.Contains(arch, "amd64") || !slices.Contains(arch, "arm64")) {
+		app.LeftOut, app.Class = fmt.Sprintf("1Panel says it runs on %s alone, where an entry runs on amd64 and arm64 both", strings.Join(arch, " and ")), ClassArch
+		return app
+	}
+	slices.SortFunc(names, compareVersions)
+	// Each version, newest first, so one that's too young can fall back to the one
+	// before, within its major version.
 	var newest *App
 	for i := len(names) - 1; i >= 0; i-- {
-		v := onePanelVersion(app, appDir, dir, names[i])
+		v := onePanelVersion(t, app, appDir, names[i])
 		if newest == nil {
 			newest = &v
-		} else {
-			last := newest
-			for last.Older != nil {
-				last = last.Older
-			}
-			last.Older = &v
+			continue
 		}
+		last := newest
+		for last.Older != nil {
+			last = last.Older
+		}
+		last.Older = &v
 	}
-	return *newest, true
+	return *newest
 }
 
 // onePanelVersion reads one version of an app.
-func onePanelVersion(app App, appDir, dir, version string) App {
+func onePanelVersion(t *tree, app App, appDir, version string) App {
 	app.Version = version
-	versionDir := filepath.Join(appDir, version)
-	app.Path = filepath.ToSlash(filepath.Join("apps", dir, version))
+	versionDir := path.Join(appDir, version)
+	app.Path = versionDir
+	if t.isDir(path.Join(versionDir, "scripts")) {
+		app.LeftOut, app.Class = "it runs scripts on the server as it installs or upgrades, which an entry can't, as a plan couldn't show what they do", ClassScripts
+		return app
+	}
 	var err error
-	if fi, err := os.Stat(filepath.Join(versionDir, "scripts")); err == nil && fi.IsDir() {
-		app.LeftOut = "it runs scripts on the server as it installs or upgrades, which an entry can't, as a plan couldn't show what they do"
+	if app.Compose, err = t.readFile(path.Join(versionDir, "docker-compose.yml")); err != nil {
+		app.LeftOut, app.Class = err.Error(), ClassFile
 		return app
 	}
-	app.Compose, err = os.ReadFile(filepath.Join(versionDir, "docker-compose.yml")) //nolint:gosec // a file of the checkout the person running it names
+	shipped, err := t.shipped(versionDir)
 	if err != nil {
-		app.LeftOut = err.Error()
+		app.LeftOut, app.Class = err.Error(), ClassFile
 		return app
 	}
-	app.Shipped = func(rel string) bool {
-		_, err := os.Stat(filepath.Join(versionDir, filepath.FromSlash(rel)))
-		return err == nil
+	for _, own := range []string{"docker-compose.yml", "data.yml", "README.md", "README_en.md"} {
+		delete(shipped, own)
 	}
+	app.Shipped = func(rel string) bool { return shipped[rel] }
 	var form struct {
 		More struct {
 			Fields []onePanelField `yaml:"formFields"`
 		} `yaml:"additionalProperties"`
 	}
-	if err := readYAML(filepath.Join(versionDir, "data.yml"), &form); err != nil {
-		app.LeftOut = err.Error()
+	if err := readYAML(t, path.Join(versionDir, "data.yml"), &form); err != nil {
+		app.LeftOut, app.Class = err.Error(), ClassFile
 		return app
 	}
 	for i := range form.More.Fields {
@@ -181,30 +210,38 @@ func onePanelVersion(app App, appDir, dir, version string) App {
 			continue
 		}
 		if f.Type == "service" || f.Type == "apps" {
-			app.LeftOut = fmt.Sprintf("it uses %s from another app, which the converter can't bring into its own project yet", cmp.Or(f.Key, "a service"))
+			what := cmp.Or(f.Key, f.LabelEn, f.EnvKey)
+			app.LeftOut, app.Class = fmt.Sprintf("it uses %s from another app, for its %s, which the converter can't bring into its own project yet", what, f.EnvKey), ClassAnotherApp
 			return app
 		}
-		app.Fields = append(app.Fields, onePanelFieldOf(f))
+		app.Fields = append(app.Fields, onePanelFieldOf(f, app.Web))
 	}
 	return app
 }
 
-func onePanelFieldOf(f *onePanelField) Field {
+// secretName says a field holds a secret, by its name: a password, a key, a salt or
+// a token, which 1Panel sometimes types as text.
+var secretName = regexp.MustCompile(`PASSWORD|PASSWD|(^|_)PWD($|_)|SECRET|TOKEN|(^|_)SALT($|_)|(^|_)KEY($|_)`)
+
+func onePanelFieldOf(f *onePanelField, web bool) Field {
 	out := Field{
 		Name:     f.EnvKey,
 		Label:    cmp.Or(f.Label["en"], f.LabelEn, f.EnvKey),
 		Optional: !f.Required,
-		Web:      f.EnvKey == "PANEL_APP_PORT_HTTP",
+		Web:      web && f.EnvKey == "PANEL_APP_PORT_HTTP",
 	}
 	if f.Default != nil {
 		out.Default = fmt.Sprint(f.Default)
 	}
+	secret := f.Type == "password" || secretName.MatchString(strings.ToUpper(f.EnvKey))
 	switch {
 	case f.Rule == "paramPort" || strings.HasPrefix(f.EnvKey, "PANEL_APP_PORT_"):
 		out.Kind = Port
-	case f.Type == "password" && f.Random:
+	case secret && f.Random:
+		// 1Panel makes one up at each install, which an entry generates and seals,
+		// in place of the default it would otherwise share with everyone.
 		out.Kind = Generated
-	case f.Type == "password":
+	case secret:
 		out.Kind = Secret
 	default:
 		out.Kind = Text
@@ -215,13 +252,13 @@ func onePanelFieldOf(f *onePanelField) Field {
 	return out
 }
 
-func readYAML(file string, into any) error {
-	raw, err := os.ReadFile(file) //nolint:gosec // a file of the checkout the person running it names
+func readYAML(t *tree, file string, into any) error {
+	raw, err := t.readFile(file)
 	if err != nil {
 		return err
 	}
 	if err := yaml.Unmarshal(raw, into); err != nil {
-		return fmt.Errorf("reading %s: %w", filepath.Base(file), err)
+		return fmt.Errorf("reading %s: %w", file, err)
 	}
 	return nil
 }
@@ -259,4 +296,22 @@ func compareVersions(a, b string) int {
 		}
 	}
 	return cmp.Compare(len(pa), len(pb))
+}
+
+// majorOf is a version's major: its first number, as 13 of 13.23-alpine, or its
+// first two where the first is 0, as semantic versions read 0.31 as one.
+func majorOf(v string) string {
+	var nums []string
+	for _, p := range versionPart.FindAllString(trimV(v), -1) {
+		if _, err := strconv.Atoi(p); err == nil {
+			nums = append(nums, p)
+		}
+	}
+	switch {
+	case len(nums) == 0:
+		return ""
+	case nums[0] == "0" && len(nums) > 1:
+		return "0." + nums[1]
+	}
+	return nums[0]
 }
