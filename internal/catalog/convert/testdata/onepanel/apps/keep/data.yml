@@ -1,0 +1,4 @@
+name: Keep
+additionalProperties:
+  key: keep
+  type: website

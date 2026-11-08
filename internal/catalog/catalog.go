@@ -54,15 +54,9 @@ const DirEnv = "DOCKWELL_CATALOG_DIR"
 // Load returns the catalog: what's built in, and what DirEnv adds. commit is the
 // build's, which an entry built in takes as the commit it came from.
 func Load(commit string) (*Catalog, error) {
-	c, err := builtIn()
+	out, err := BuiltIn(commit)
 	if err != nil {
 		return nil, err
-	}
-	out := &Catalog{entries: make([]*catalogv1.Entry, len(c.entries))}
-	for i, e := range c.entries {
-		e = proto.CloneOf(e)
-		e.GetSource().Commit = cmp.Or(e.GetSource().GetCommit(), commit)
-		out.entries[i] = e
 	}
 	dir := os.Getenv(DirEnv)
 	if dir == "" {
@@ -82,6 +76,22 @@ func Load(commit string) (*Catalog, error) {
 
 func sortEntries(entries []*catalogv1.Entry) {
 	slices.SortFunc(entries, func(a, b *catalogv1.Entry) int { return strings.Compare(a.GetName(), b.GetName()) })
+}
+
+// BuiltIn returns the entries built into the binary alone, whatever DirEnv names,
+// for what must tell Dockwell's own entries from any other.
+func BuiltIn(commit string) (*Catalog, error) {
+	c, err := builtIn()
+	if err != nil {
+		return nil, err
+	}
+	out := &Catalog{entries: make([]*catalogv1.Entry, len(c.entries))}
+	for i, e := range c.entries {
+		e = proto.CloneOf(e)
+		e.GetSource().Commit = cmp.Or(e.GetSource().GetCommit(), commit)
+		out.entries[i] = e
+	}
+	return out, nil
 }
 
 // load reads every entry that matches a pattern.
@@ -113,6 +123,16 @@ func load(dir fs.FS, pattern string) (*Catalog, error) {
 // it. A field the schema doesn't have is refused, as it would otherwise do
 // nothing without a word.
 func Parse(raw []byte) (*catalogv1.Entry, error) {
+	e, err := Decode(raw)
+	if err != nil {
+		return nil, err
+	}
+	return e, Check(e)
+}
+
+// Decode reads an entry from YAML as Parse does, and checks nothing beyond its
+// fields, for part of one, such as what a converter adds to an entry it makes.
+func Decode(raw []byte) (*catalogv1.Entry, error) {
 	var tree any
 	if err := yaml.Unmarshal(raw, &tree); err != nil {
 		return nil, fmt.Errorf("reading its YAML: %w", err)
@@ -125,7 +145,7 @@ func Parse(raw []byte) (*catalogv1.Entry, error) {
 	if err := protojson.Unmarshal(asJSON, e); err != nil {
 		return nil, fmt.Errorf("reading its fields: %w", err)
 	}
-	return e, Check(e)
+	return e, nil
 }
 
 // All returns every entry, sorted by name. They're the catalog's: read them, and

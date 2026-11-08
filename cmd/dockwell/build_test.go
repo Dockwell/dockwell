@@ -257,3 +257,15 @@ func TestTheFullBuildLinksTheControlPlane(t *testing.T) {
 		}
 	}
 }
+
+// Neither build reads another catalog's format: the converter runs where the catalog
+// is built, as its own program, never in the control plane (ADR 0029).
+func TestNeitherBuildLinksTheCatalogConverter(t *testing.T) {
+	for _, tags := range []string{"", "agent"} {
+		for _, p := range goList(t, "amd64", tags) {
+			if strings.HasPrefix(p.ImportPath, module+"/internal/catalog/convert") {
+				t.Errorf("the build with tags %q links %s, which reads other catalogs' formats. Only cmd/dockwell-catalog may", tags, p.ImportPath)
+			}
+		}
+	}
+}

@@ -1,0 +1,5 @@
+services:
+  a:
+    image: example/a:1.0.0
+    ports:
+      - ${PANEL_APP_PORT_HTTP}:80

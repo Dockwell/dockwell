@@ -1,0 +1,5 @@
+name: shipped
+additionalProperties:
+  key: shipped
+  tags:
+    - Tool

@@ -1,0 +1,14 @@
+additionalProperties:
+  formFields:
+    - default: 8000
+      envKey: PANEL_APP_PORT_HTTP
+      labelEn: Port
+      required: true
+      rule: paramPort
+      type: number
+    - default: ""
+      envKey: PANEL_DB_HOST
+      key: postgresql
+      labelEn: Database
+      required: true
+      type: service

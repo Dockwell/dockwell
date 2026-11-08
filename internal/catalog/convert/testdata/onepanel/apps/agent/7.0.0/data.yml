@@ -1,0 +1,25 @@
+additionalProperties:
+  formFields:
+    - default: 10050
+      envKey: PANEL_APP_PORT_HTTP
+      labelEn: Agent Port
+      required: true
+      rule: paramPort
+      type: number
+    - default: 10051
+      envKey: SERVER_PORT
+      labelEn: Server Port
+      required: true
+      rule: paramPort
+      type: number
+    - default: AGENTKEY
+      envKey: AGENT_KEY
+      labelEn: Agent Key
+      random: true
+      required: true
+      type: text
+    - default: token
+      envKey: REGISTRATION_TOKEN
+      labelEn: Registration Token
+      required: true
+      type: text

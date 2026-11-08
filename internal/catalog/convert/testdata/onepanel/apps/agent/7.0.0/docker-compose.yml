@@ -1,0 +1,9 @@
+services:
+  agent:
+    image: example/agent:7.0.0
+    ports:
+      - ${PANEL_APP_PORT_HTTP}:10050
+    environment:
+      - SERVER=monitor.example.com:${SERVER_PORT}
+      - KEY=${AGENT_KEY}
+      - TOKEN=${REGISTRATION_TOKEN}
