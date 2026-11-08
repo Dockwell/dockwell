@@ -400,18 +400,28 @@ describe("an app's frame", () => {
     const { container } = renderAt("/apps/svc_web", api());
     expect(await screen.findByRole("heading", { level: 1, name: "web" })).toBeVisible();
     expect(screen.getByText("r3 · Checking · web:1.5")).toBeVisible();
-    expect(container.querySelector(".app-actionbar")).toHaveTextContent(/^RestartDeploy$/);
+    // As M-App has it, Logs first, with Restart kept between.
+    const bar = container.querySelector(".app-actionbar") as HTMLElement;
+    expect(bar).toHaveTextContent(/^LogsRestartDeploy$/);
+    expect(within(bar).getByRole("link", { name: "Logs" })).toHaveAttribute("href", "/apps/svc_web/logs");
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/apps");
     await expectAccessible(container);
   });
 
-  it("has one way to the logs, its tab", async () => {
-    renderAt("/apps/svc_web", api());
+  it("goes to the logs from its tab, and from the header beside Restart and Deploy but on the logs", async () => {
+    const { router } = renderAt("/apps/svc_web", api());
     await screen.findByRole("heading", { level: 1, name: "web" });
-    expect(screen.getAllByRole("link", { name: "Logs" })).toHaveLength(1);
-    expect(
-      within(screen.getByRole("navigation", { name: "App sections" })).getByRole("link", { name: "Logs" }),
-    ).toBeVisible();
+    const tab = within(screen.getByRole("navigation", { name: "App sections" })).getByRole("link", { name: "Logs" });
+    expect(tab).toBeVisible();
+    const links = screen.getAllByRole("link", { name: "Logs" });
+    expect(links).toHaveLength(2);
+    const header = links.find((l) => l !== tab) as HTMLElement;
+    expect(header).toHaveAttribute("href", "/apps/svc_web/logs");
+    // Between Restart and Deploy, as App-Overview has it.
+    expect(header.previousElementSibling).toHaveTextContent("Restart");
+    expect(header.nextElementSibling).toHaveTextContent("Deploy");
+    await act(() => router.navigate({ to: "/apps/$serviceId/logs", params: { serviceId: "svc_web" } }));
+    await waitFor(() => expect(screen.getAllByRole("link", { name: "Logs" })).toHaveLength(1));
   });
 
   it("shows the project it's in, once there is more than one", async () => {

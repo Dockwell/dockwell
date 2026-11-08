@@ -256,6 +256,12 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
               <Trans>Restart</Trans>
             </Button>
           ) : null}
+          {/* As App-Overview has it, beside Restart and Deploy: where to look next, from any tab but itself. */}
+          {onLogs ? null : (
+            <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal">
+              <Trans>Logs</Trans>
+            </RouterButtonLink>
+          )}
           {changeable ? (
             <Button variant="primary" icon="deploy" onClick={() => setDeploying(true)}>
               <Trans>Deploy</Trans>
@@ -302,6 +308,9 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       {/* The logs tab has a bar of its own on a phone: Download and Copy. */}
       {phone && !onLogs && changeable ? (
         <div className="app-actionbar">
+          <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal" size="lg">
+            <Trans>Logs</Trans>
+          </RouterButtonLink>
           {restartable ? (
             <Button icon="refresh" size="lg" onClick={restart}>
               <Trans>Restart</Trans>
