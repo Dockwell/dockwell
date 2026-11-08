@@ -260,6 +260,26 @@ describe("scheduled tasks", () => {
     expect(within(table).getAllByRole("row")[1]).toHaveTextContent("Every 5 minutes, Pacific/Chatham time");
   });
 
+  it("keeps a run's time on the timeline near the end of the day", async () => {
+    const late = aTask();
+    const on = late.servers[0];
+    if (on) {
+      on.nextRun = at(23 * 3_600_000);
+      on.upcoming = [at(23 * 3_600_000)];
+    }
+    const { container } = renderAt("/scheduled-tasks", api([late]));
+    await screen.findByRole("table", { name: "Scheduled tasks" });
+    const label = await waitFor(() => {
+      const found = container.querySelector<HTMLElement>(".tasks-lane-label");
+      if (!found) throw new Error("no label yet");
+      return found;
+    });
+    // Before its mark, measured from the right, so it ends on the track.
+    expect(label).toHaveClass("is-before");
+    expect(label.style.right).not.toBe("");
+    expect(label.style.left).toBe("");
+  });
+
   it("says a server that isn't connected runs its tasks all the same", async () => {
     const away = aTask();
     const first = away.servers[0];

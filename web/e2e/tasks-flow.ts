@@ -56,8 +56,9 @@ export async function tasksFlow(page: Page, { origin, step, shoot }: TasksFlowOp
   const panel = page.getByRole("region", { name: "Say hello" });
   await panel.getByText("It hasn't run yet. Run it now to see what it does.").waitFor();
   await panel.getByRole("button", { name: "Run now" }).click();
-  await panel.getByText("hello-from-a-task").waitFor({ timeout: 30_000 });
-  await panel.getByText("and-on-stderr").waitFor();
+  // The lines it printed, which the command above them names too.
+  await panel.getByText("hello-from-a-task", { exact: true }).waitFor({ timeout: 30_000 });
+  await panel.getByText("and-on-stderr", { exact: true }).waitFor();
   await row.getByText("Succeeded").waitFor({ timeout: 20_000 });
   await shoot(page, "tasks-list");
 

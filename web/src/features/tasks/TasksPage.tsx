@@ -282,7 +282,11 @@ function NextDay({ tasks, chosen, now }: { tasks: readonly TaskInfo[]; chosen: T
                   marks.map((ms) => <span key={ms} className="tasks-lane-mark" style={{ left: `${at(ms)}%` }} />)
                 )}
                 {runs === 1 && first !== undefined ? (
-                  <span className="tasks-lane-label" style={{ left: `${at(first)}%` }}>
+                  // Near the end of the day, the label goes before its mark, so it stays on the track.
+                  <span
+                    className={at(first) > 75 ? "tasks-lane-label is-before" : "tasks-lane-label"}
+                    style={at(first) > 75 ? { right: `${100 - at(first)}%` } : { left: `${at(first)}%` }}
+                  >
                     {time.format(first)}
                   </span>
                 ) : null}

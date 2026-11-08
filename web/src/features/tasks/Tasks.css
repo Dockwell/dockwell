@@ -149,6 +149,11 @@ code.tasks-sub,
   white-space: nowrap;
 }
 
+.tasks-lane-label.is-before {
+  margin-left: 0;
+  margin-right: 8px;
+}
+
 .tasks-lane.is-chosen .tasks-lane-label {
   color: var(--cobalt);
 }
