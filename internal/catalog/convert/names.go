@@ -23,14 +23,14 @@ var aboutWords = []string{
 	"TTL", "EXPIRY", "EXPIRE", "EXPIRES", "EXPIRATION", "TIMEOUT", "LIFETIME",
 	"TYPE", "NAME", "ID", "HEADER", "PREFIX", "ALGORITHM", "ALG",
 	"COUNT", "LIMIT", "ENABLED", "ENABLE", "DISABLED", "REQUIRED", "POLICY", "MODE",
-	"USER", "USERS", "USERNAME", "PORT", "PROVIDER", "INTERVAL", "SCOPE", "RESET",
+	"USER", "USERS", "USERNAME", "PORT", "PROVIDER", "INTERVAL", "SCOPE", "RESET", "VERSION",
 }
 
 // joinedSecrets are the endings of a word that holds a secret's word joined to another,
 // as PGPASSWORD, JWTSECRET and SERVICEACCOUNTTOKEN do, and the joined words that are one.
 var (
 	joinedSecrets = []string{"PASSWORD", "PASSWD", "SECRET", "TOKEN"}
-	joinedWords   = []string{"SECRETKEY", "PRIVATEKEY", "APIKEY", "ACCESSTOKEN"}
+	joinedWords   = []string{"SECRETKEY", "PRIVATEKEY", "APIKEY", "ACCESSTOKEN", "PASSCODE", "ACCESSCODE"}
 )
 
 // listsSecrets says a variable holds secrets, more than one, by its name's words:
@@ -63,7 +63,9 @@ func secretNamed(name string) bool {
 	}
 	for i, w := range words {
 		token := w == "TOKEN" || strings.HasSuffix(w, "TOKEN")
-		secret := slices.Contains(secretWords, w) || slices.Contains(joinedWords, w) ||
+		// A code is a secret where it's one to get in with, as lobe-chat's ACCESS_CODE is.
+		code := w == "CODE" && i > 0 && (words[i-1] == "ACCESS" || words[i-1] == "PASS")
+		secret := code || slices.Contains(secretWords, w) || slices.Contains(joinedWords, w) ||
 			slices.ContainsFunc(joinedSecrets, func(end string) bool { return strings.HasSuffix(w, end) })
 		if !secret {
 			continue

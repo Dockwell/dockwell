@@ -221,7 +221,9 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 			}
 			fields = append(fields, f)
 		case made == nil:
-			literal[key] = localHTTP(text)
+			if literal[key], err = writtenOut(key, localHTTP(text)); err != nil {
+				return nil, nil, err
+			}
 		case claimed[made.id] != "":
 			literal[key] = "${" + claimed[made.id] + "}"
 		case !inputLike.MatchString(key):
@@ -252,7 +254,9 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 		case err != nil:
 			return nil, nil, fmt.Errorf("its template's %s %w", name, err)
 		case made == nil:
-			literal[name] = localHTTP(text)
+			if literal[name], err = writtenOut(name, localHTTP(text)); err != nil {
+				return nil, nil, err
+			}
 		case claimed[made.id] != "":
 			literal[name] = "${" + claimed[made.id] + "}"
 		default:
@@ -320,6 +324,24 @@ func ownTerms(shipped map[string]bool) string {
 	}
 	return ""
 }
+
+// writtenOut is what a value a template writes out stands as in the file: itself, or,
+// for a secret, the variable it's held in with the value as its default, so it keeps
+// its name wherever the file uses it. rewrite then generates it in its place, as it
+// does any secret's default, and the catalog refuses it inside a longer value, as in
+// redis-server --requirepass ${REDIS_PASSWORD}.
+func writtenOut(name, value string) (string, error) {
+	if !secretNamed(name) || !literalSecret(value) {
+		return value, nil
+	}
+	if !composeVar.MatchString(name) || strings.ContainsAny(value, "{}") {
+		return "", leave(ClassCantSay, "its template's secret %s is written out, in a form the converter can't keep apart from the file's own", name)
+	}
+	return "${" + name + ":-" + strings.TrimSpace(value) + "}", nil
+}
+
+// composeVar is a name Compose reads as a variable's.
+var composeVar = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // labelOf names an input from its variable until a person does: ADMIN_PASSWORD reads
 // Admin password.

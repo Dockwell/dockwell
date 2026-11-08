@@ -428,3 +428,35 @@ func TestASecretInsideALongerValue(t *testing.T) {
 		}
 	}
 }
+
+// A secret a Dokploy template writes out keeps its name wherever the file uses it, so
+// it's generated in a command as anywhere else, and the catalog refuses it inside a
+// longer one. A code to get in with is a secret too (the narrow check of #327).
+func TestADokploySecretKeepsItsName(t *testing.T) {
+	results := convertTree(t, Dokploy, DokploySource("abc"), map[string]string{
+		"blueprints/redis/docker-compose.yml": "services:\n  web:\n    image: example/web:1.0.0\n  cache:\n    image: example/cache:1.0.0\n" +
+			"    command: redis-server --requirepass ${REDIS_PASSWORD}\n",
+		"blueprints/redis/template.toml":     dokployVars + "[config]\nenv = [\"REDIS_PASSWORD=hunter22\"]\n" + dokployRoute,
+		"blueprints/auth/docker-compose.yml": "services:\n  web:\n    image: example/web:1.0.0\n    environment:\n      APP_DB_AUTH: ${DB_PASSWORD}\n",
+		"blueprints/auth/template.toml":      dokployVars + "[config]\nenv = [\"DB_PASSWORD=hunter22\"]\n" + dokployRoute,
+		"blueprints/lobe/docker-compose.yml": "services:\n  web:\n    image: example/web:1.0.0\n    environment:\n      ACCESS_CODE: lobe66\n",
+		"blueprints/lobe/template.toml":      dokployVars + dokployRoute,
+	})
+	if r := results["redis"]; r.Entry != nil || !strings.Contains(r.LeftOut, "REDIS_PASSWORD") || strings.Contains(r.LeftOut, "hunter22") {
+		t.Errorf("a secret in a command: %s, %q", r.Class, r.LeftOut)
+	}
+	auth := entryOf(t, results, "auth")
+	if in := inputsByName(auth)["DB_PASSWORD"]; in.GetGenerate() != 32 || strings.Contains(auth.GetCompose(), "hunter22") ||
+		!strings.Contains(auth.GetCompose(), "APP_DB_AUTH: ${DB_PASSWORD}") {
+		t.Errorf("DB_PASSWORD is %v, and its file:\n%s", in, auth.GetCompose())
+	}
+	lobe := entryOf(t, results, "lobe")
+	if in := inputsByName(lobe)["ACCESS_CODE"]; in.GetGenerate() != 32 || strings.Contains(lobe.GetCompose(), "lobe66") {
+		t.Errorf("ACCESS_CODE is %v, and its file:\n%s", in, lobe.GetCompose())
+	}
+	for name, want := range map[string]bool{"ACCESS_CODE": true, "PASS_CODE": true, "PASSCODE": true, "ACCESSCODE": true, "COUNTRY_CODE": false, "CODE": false, "EXIT_CODE": false, "STORAGE_ENCRYPTION_KEY_VERSION": false} {
+		if got := secretNamed(name); got != want {
+			t.Errorf("secretNamed(%s) = %v, want %v", name, got, want)
+		}
+	}
+}
