@@ -136,3 +136,21 @@ func TestAStreamRidesOutAFailedGrantsRead(t *testing.T) {
 		t.Errorf("failed read %d: %v, want the stream ended as unavailable", failedRechecks, err)
 	}
 }
+
+// The failed reads that end a stream are in a row: one that works starts the
+// count again.
+func TestAStreamsFailedReadsCountInARow(t *testing.T) {
+	i, ada, db := gated(t, store.RoleViewer)
+	ctx := t.Context()
+	c := &scopedConn{StreamingHandlerConn: fakeStream{procedure: "/" + dockwellv1connect.EventServiceName + "/WatchEvents"}, i: i, ctx: ctx}
+	c.failed = failedRechecks - 1 // one short of ending it
+	if err := c.recheck(ctx, ada); err != nil {
+		t.Fatalf("a recheck that reads the grants: %v", err)
+	}
+	_ = db.Close()
+	for n := 1; n < failedRechecks; n++ {
+		if err := c.recheck(ctx, ada); err != nil {
+			t.Fatalf("failed read %d since one that worked ended the stream: %v", n, err)
+		}
+	}
+}

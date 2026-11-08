@@ -32,9 +32,10 @@ var (
 )
 
 // RequireRoles has the engine refuse a person's or an API token's change whose
-// context carries no caller (place.WithCaller), as the API's always does. Without
-// it, as in the engine's own tests, only a change with a caller is checked.
-// Dockwell's own changes are never checked.
+// context carries no caller (place.WithCaller), as the API's always does.
+// control.New asks it of the engine it serves, so the control plane and its
+// tests both have it. Without it, as in the engine's own tests, only a change
+// with a caller is checked. Dockwell's own changes are never checked.
 func (e *Engine) RequireRoles() { e.roles = true }
 
 // act is what a check of roles is for.

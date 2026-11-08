@@ -326,6 +326,33 @@ func TestNoAnswerDescribesAnotherProject(t *testing.T) {
 	})
 }
 
+// What belongs to no project is an admin's to plan, and a role is checked
+// before any passkey, so nobody confirms with one what their role refuses: a
+// developer's own plan that's as good as root is refused as theirs to apply,
+// not asked for the passkey applying it would take (ADR 0049).
+func TestARoleIsCheckedBeforeAnyPasskey(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newReachStand(t, backend)
+		ctx := t.Context()
+		s.hold(in(s.blogID, store.RoleDeveloper))
+		_, err := s.c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Add offsite", Edits: []*dockwellv1.Edit{{
+			Resource: &dockwellv1.ResourceRef{Kind: "backup.destination", Name: "offsite"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_BackupDestination{BackupDestination: &resourcev1.BackupDestination{}}},
+		}}}))
+		needsRole(t, "a developer adding a backup destination", err)
+
+		root := propose(t, s.c, "Run sock", &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: s.staging, Name: "sock"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+				Image: "ghcr.io/acme/shop:1.4", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/var/run/docker.sock"}, Target: "/var/run/docker.sock"}},
+			}}}}}})
+		if !root.GetPlan().GetHostAccess() || root.GetWaits() == "" {
+			t.Fatalf("a developer's plan mounting Docker's socket: host access %v, waits %q", root.GetPlan().GetHostAccess(), root.GetWaits())
+		}
+		_, err = s.c.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: root.GetId(), Fingerprint: root.GetPlan().GetFingerprint()}))
+		needsRole(t, "a developer applying their own plan that's as good as root, with no passkey", err)
+	})
+}
+
 // The engine refuses a person's change that reaches it without who they are,
 // as the API's never does, rather than leave it unchecked. Dockwell's own isn't
 // checked.

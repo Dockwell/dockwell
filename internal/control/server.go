@@ -206,6 +206,11 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cfg.Changes != nil {
+		// Every change through the API carries who makes it, so the engine
+		// refuses a person's that comes without (ADR 0049).
+		cfg.Changes.RequireRoles()
+	}
 	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
 	ports.server = s
 	s.ports = ports

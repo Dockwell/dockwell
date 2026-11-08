@@ -300,6 +300,88 @@ func TestWhatRunsUnderHostAccessIsAnAdminsToChange(t *testing.T) {
 	})
 }
 
+// An item's environment is protected if it is so before the change or after
+// it: a new production protects what's made in it, and deleting an empty
+// production is protected as it was. One from before protection was written,
+// brought back by an undo, reads as its name has it (ADR 0049).
+func TestProtectionIsCheckedBeforeAndAfter(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, db := setup(t, b, "srv_A")
+		e.RequireRoles()
+		ctx := t.Context()
+		var org string
+		_ = db.View(ctx, func(tx *store.Tx) error {
+			tr, err := scope.Load(ctx, tx)
+			org = tr.Organization.ID
+			return err
+		})
+		as := func(user string, grants ...store.Grant) context.Context {
+			return place.WithCaller(ctx, place.Caller{UserID: user, Grants: grants})
+		}
+		mira := as("usr_mira", store.Grant{UserID: "usr_mira", ProjectID: store.Install, Role: store.RoleOwner})
+		plan := func(who context.Context, actor string, edits ...Edit) *Plan {
+			t.Helper()
+			p, err := e.Propose(who, Proposal{Summary: "Change", Actor: actor, Edits: edits})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return p
+		}
+		applied := func(who context.Context, actor string, edits ...Edit) *Plan {
+			t.Helper()
+			p := plan(who, actor, edits...)
+			if err := e.ApplyBy(who, p.Change, By{Actor: actor}); err != nil {
+				t.Fatal(err)
+			}
+			return p
+		}
+		// shop starts with staging alone, then gets a production from before
+		// protection was written, as an undo makes one: nothing written.
+		shop := "prj_01JD6Z3R8M9QF2K7T4XW5BNC5H"
+		applied(mira, "user:usr_mira",
+			Edit{Ref: resource.Ref{Kind: scope.ProjectKind, Scope: org, Name: "shop"}, ID: shop, Spec: &resourcev1.Project{}},
+			Edit{Ref: resource.Ref{Kind: scope.EnvironmentKind, Scope: shop, Name: "staging"}, Spec: &resourcev1.Environment{}})
+		old := applied(mira, "user:usr_mira", Edit{Ref: resource.Ref{Kind: scope.EnvironmentKind, Scope: shop, Name: "production"}, Spec: &resourcev1.Environment{}, Reverses: true})
+		if p := old.Resources[0]; p.Ref.Name != "production" {
+			t.Fatalf("made %v", p.Ref)
+		}
+		gone := applied(mira, "user:usr_mira", Edit{Ref: resource.Ref{Kind: scope.EnvironmentKind, Scope: shop, Name: "production"}})
+		ada := as("usr_ada", store.Grant{UserID: "usr_ada", ProjectID: shop, Role: store.RoleDeveloper})
+
+		// A developer brings it back: theirs to plan, as it reads protected by its
+		// name, not made open; applying is an admin's.
+		back, err := e.Undo(ada, gone.Change, By{Actor: "user:usr_ada"})
+		if err != nil {
+			t.Fatalf("a developer undoing the deletion of a production with no protection written: %v", err)
+		}
+		if err := e.ApplyBy(ada, back.Change, By{Actor: "user:usr_ada"}); !errors.Is(err, ErrNeedsRole) || !strings.Contains(err.Error(), "in a protected environment") {
+			t.Errorf("a developer applying it: %v, want ErrNeedsRole for a protected environment", err)
+		}
+		if err := e.Discard(ada, back.Change, By{Actor: "user:usr_ada"}); err != nil {
+			t.Fatal(err)
+		}
+
+		// A new production protects what's made in it in the same change.
+		env := old.Resources[0].ID // made again, it keeps its ID
+		made := plan(ada, "user:usr_ada",
+			Edit{Ref: resource.Ref{Kind: scope.EnvironmentKind, Scope: shop, Name: "production"}, Spec: &resourcev1.Environment{}},
+			Edit{Ref: resource.Ref{Kind: "variable", Scope: env, Name: "X"}, Spec: &resourcev1.Variable{Value: "1"}})
+		if err := e.ApplyBy(ada, made.Change, By{Actor: "user:usr_ada"}); !errors.Is(err, ErrNeedsRole) {
+			t.Errorf("a developer applying a new production with a variable in it: %v, want ErrNeedsRole", err)
+		}
+		if err := e.ApplyBy(mira, made.Change, By{Actor: "user:usr_mira"}); err != nil {
+			t.Fatal(err)
+		}
+		// Deleting it is protected as it was, though nothing's left after.
+		emptied := plan(ada, "user:usr_ada",
+			Edit{Ref: resource.Ref{Kind: "variable", Scope: env, Name: "X"}},
+			Edit{Ref: resource.Ref{Kind: scope.EnvironmentKind, Scope: shop, Name: "production"}})
+		if err := e.ApplyBy(ada, emptied.Change, By{Actor: "user:usr_ada"}); !errors.Is(err, ErrNeedsRole) {
+			t.Errorf("a developer deleting production and what's in it: %v, want ErrNeedsRole", err)
+		}
+	})
+}
+
 // envProjectOf is the project an environment is in.
 func envProjectOf(t *testing.T, db *store.DB, env string) string {
 	t.Helper()

@@ -276,7 +276,6 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	// names them.
 	agents := agentapi.NewAgents(kinds, logger)
 	engine := revision.New(db, kinds, agents, keeper, logger)
-	engine.RequireRoles()
 	resumeCtx := context.WithoutCancel(ctx)
 	resume := func() {
 		if err := engine.Resume(resumeCtx); err != nil {

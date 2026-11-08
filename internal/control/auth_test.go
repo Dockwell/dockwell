@@ -179,7 +179,6 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	keeper := secretstest.Keeper(db, kinds)
 	agents := agentapi.NewAgents(kinds, logger)
 	engine := revision.New(db, kinds, agents, keeper, logger)
-	engine.RequireRoles()
 	agents.OnConnect(func(string) { _ = engine.Resume(context.Background()) })
 	t.Cleanup(engine.Wait)
 	// No test resolves a real name: what each says is a name's is set on f.names.
