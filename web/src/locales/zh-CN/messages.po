@@ -399,7 +399,7 @@ msgid "Show earlier events"
 msgstr "显示更早的事件"
 
 msgid "Size"
-msgstr "规格"
+msgstr "大小"
 
 msgid "Someone"
 msgstr "某人"
