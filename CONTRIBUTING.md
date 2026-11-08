@@ -48,7 +48,7 @@ make budgets # idle memory of an agent, and of a control plane with its agent, a
 make install-test  # the install script in Debian, Ubuntu, AlmaLinux and Alpine containers (needs Docker and cosign v3)
 ```
 
-The Install workflow runs the last two, as well as the install script under systemd on the runner and, nightly, the time from install to a running panel on one CPU. [docs/install.md](docs/install.md#how-it-is-tested) describes how.
+The Install workflow runs the last two, as well as the install script under systemd on the runner and, nightly, the time from install to a running panel on one CPU. On a pull request, CI and Install run only the jobs its files need, as [`scripts/ci-jobs.sh`](scripts/ci-jobs.sh) picks them ([ADR 0050](docs/adr/0050-ci-runs-what-a-change-needs.md)): the budgets and three install legs for a change to Go code, and every leg for one to the install script, its tests or the release. [docs/install.md](docs/install.md#how-it-is-tested) describes how.
 
 The first start prints a one-time link that claims the install: open it to create your owner account with a passkey. With `make dev`, open it on port 5173 instead of 7600. Run `dockwell claim --data-dir <dir>` for a new link, and `dockwell recover` to sign in without your passkey.
 
@@ -56,7 +56,19 @@ The control plane's store runs on SQLite and on Postgres, and the tests that tou
 
 Run `make` on its own to list every target. Developer tools such as buf and golangci-lint are pinned in `tools/go.mod` and run with `go tool -modfile=tools/go.mod <tool>`, so there is nothing else to install.
 
-The panel's text goes through Lingui: write it in English inside `<Trans>` or `` t`…` ``, run `make i18n` to extract it, and add the Simplified Chinese translation to `web/src/locales/zh-CN/messages.po`. CI fails on a missing translation.
+The panel's text goes through Lingui: write it in English inside `<Trans>` or `` t`…` ``, run `make i18n` to extract it, and add the Simplified Chinese translation to `web/src/locales/zh-CN/messages.po`. CI fails on a missing translation. The catalogs keep each file's messages together, so pull requests in different features rarely conflict there ([ADR 0051](docs/adr/0051-files-that-merge-without-conflicts.md)).
+
+After any merge, rebase or cherry-pick that touches the catalogs, conflicted or not, run `make i18n-merge`: a merge git makes on its own can leave a message in twice, or lose one with its translation. It reads both sides' catalogs from git, keeps every message and translation, and puts them in order. After a rebase that finished, run `make i18n-merge FROM=ORIG_HEAD`, and after a cherry-pick, `FROM=` the commit you picked.
+
+A panel flow for `make e2e` is a file of its own, `web/e2e/<name>-flow.ts`, which exports a `flow`: where it runs among the others, and how. `web/e2e/flows.ts` runs them all, in order, so `sign-in.ts` doesn't change:
+
+```ts
+export const flow: Flow = { order: 85, run: (page, run) => serverOverviewFlow(page, { ...run, breakdown: true }) };
+```
+
+Pick an order between its neighbours: apps 10, plan 20, health 30, catalog 40, backups 50, domains 60, containers 70, network 80, settings 90. `run` holds what every flow gets, such as `origin`, `step` and `docker`; put anything else the flow needs in the call, as `breakdown` is here. `pnpm --filter @dockwell/web typecheck` checks the flows too, and fails on an option left out.
+
+Rebasing a pull request from before this onto it: take main's `sign-in.ts`, then put back the pull request's other edits to it, such as an environment variable its flow needs, and move the flow's call, with its options, into the `flow` export as above.
 
 The API schema lives in `proto/`. Code generated from it goes to `gen/` (Go) and `packages/api/src/gen/` (TypeScript). After changing the schema, run `make generate` and commit the result. Run it through make rather than `buf generate` on its own, which empties `gen/` and deletes `gen/LICENSE`. Files in `proto/`, `gen/` and all of `packages/api/` start with `SPDX-License-Identifier: Apache-2.0`, and generated files take that header from their `.proto` file. Every method must set `(dockwell.v1.effect)`, and a test fails the build when one doesn't. The CLI's API commands are generated from the schema too, with help from its comments, so write each method's comment as its name and a verb, such as "ListServers returns every server". A method whose command would take a name that is already used sets `(dockwell.v1.command)`, a request field whose flag would take one of the CLI's own, such as `--token`, sets `(dockwell.v1.flag)`, and a service whose commands have more than one noun describes each with `(dockwell.v1.nouns)` ([ADR 0019](docs/adr/0019-a-cli-generated-from-the-schema.md)).
 

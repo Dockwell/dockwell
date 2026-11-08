@@ -13,12 +13,10 @@
 // applies it, and undoes it from Activity. The CLI plans a project with local
 // access, and the panel applies it at the address the CLI sends a person to,
 // /changes/<id>. It adds a secret in the panel, reveals it with the passkey, and
-// checks an API token can't. Then it runs the app screens from apps-flow.ts, the
-// plan sheet's every state from plan-flow.ts, an install from catalog-flow.ts, a
-// backup and a restore of what that made from backups-flow.ts, the Domains
-// section from domains-flow.ts, and Settings from settings-flow.ts, on the fake
-// Docker Engine of
-// scripts/fakedocker. Everything
+// checks an API token can't. Then it runs every *-flow.ts in this folder, in
+// the order each one's flow says (flows.ts), on the fake Docker Engine of
+// scripts/fakedocker: the app screens, the plan sheet's every state, an install
+// from the catalog, backups, domains, Settings, and the rest. Everything
 // after the claim goes through the panel shell: the rail's link to your
 // profile on wide screens, More on phones. With --shots <dir> it also saves
 // screenshots of every screen at 1440, 800, 390 and 360 px, light and dark.
@@ -36,18 +34,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
+import { type Browser, type BrowserContext, chromium, type Locator, type Page } from "playwright-core";
 
-import { appsFlow } from "./apps-flow.ts";
-import { backupsFlow } from "./backups-flow.ts";
-import { catalogFlow } from "./catalog-flow.ts";
-import { containersFlow } from "./containers-flow.ts";
 import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.ts";
-import { domainsFlow } from "./domains-flow.ts";
-import { healthFlow } from "./health-flow.ts";
-import { networkFlow } from "./network-flow.ts";
-import { planFlow } from "./plan-flow.ts";
-import { settingsFlow } from "./settings-flow.ts";
+import { runFlows } from "./flows.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -76,7 +66,7 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
-async function expectText(page: Page, text: string, timeout = 10_000) {
+async function expectText(page: Page | Locator, text: string, timeout = 10_000) {
   await page.getByText(text, { exact: false }).first().waitFor({ timeout });
 }
 
@@ -819,28 +809,19 @@ async function main() {
   );
   if (fakeSocket !== "") {
     const before = await dockerMade(fakeSocket);
-    await appsFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket), failing: "nginx:broken" });
-    await planFlow(page, {
+    await runFlows(page, {
       origin,
+      step,
+      shoot,
       browser,
       context,
-      step,
-      shoot,
-      stopByHand: (id) => dockerStop(fakeSocket, id),
-      docker: dockerProbe(fakeSocket),
-    });
-    await healthFlow(page, {
-      origin,
-      step,
-      shoot,
       docker: dockerProbe(fakeSocket),
       socket: fakeSocket,
-      fake: true,
       bin,
       data,
       env: { DOCKER_HOST: `unix://${fakeSocket}` },
-      browser,
-      context,
+      catalogDir,
+      stopByHand: (id) => dockerStop(fakeSocket, id),
       // A daemon that hangs, as a stuck storage driver makes Docker: it takes calls and answers none.
       hangDocker: () => {
         docker?.kill("SIGSTOP");
@@ -853,19 +834,6 @@ async function main() {
         return () => server?.kill("SIGCONT");
       },
     });
-    await catalogFlow(page, { origin, step, shoot, docker: dockerProbe(fakeSocket), catalogDir });
-    await backupsFlow(page, { origin, step, shoot });
-    await domainsFlow(page, { origin, step, shoot });
-    await containersFlow(page, {
-      origin,
-      step,
-      shoot,
-      socket: fakeSocket,
-      docker: dockerProbe(fakeSocket),
-      image: "acme/legacy:prints",
-    });
-    await networkFlow(page, { origin, step, shoot });
-    await settingsFlow(page, { origin, step, shoot });
     // What make docker-panel-e2e does at its end, where only CI could see it.
     step("Docker: what the run made comes off, networks and volumes too");
     const made = await dockerMade(fakeSocket);

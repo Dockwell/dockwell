@@ -10,6 +10,7 @@
 
 import type { Page } from "playwright-core";
 
+import type { Flow } from "./flows.ts";
 import { bytes, number } from "./wire.ts";
 
 export interface DomainsFlowOptions {
@@ -347,3 +348,6 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   await page.unroute(health);
   await page.unroute(stubbed);
 }
+
+/** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */
+export const flow: Flow = { order: 60, run: (page, run) => domainsFlow(page, run) };

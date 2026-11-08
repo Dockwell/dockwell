@@ -43,13 +43,20 @@ jobs:
       DOCKWELL_TEST_POSTGRES: postgres://postgres:dockwell-ci@127.0.0.1:5432/postgres?sslmode=disable
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs go
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
         with:
           go-version-file: go.mod
           cache-dependency-path: |
             go.sum
             tools/go.sum
       - name: Modules are tidy
+        if: steps.pick.outputs.run == 'true'
         run: |
           go mod tidy -diff
           (cd tools && go mod tidy -diff)
@@ -57,26 +64,34 @@ jobs:
       # as it compiles them (docs/adr/0023-a-full-build-and-an-agent-build.md).
       # go list finds them once, for the steps after this one.
       - name: The agent build's packages
+        if: steps.pick.outputs.run == 'true'
         run: |
           pkgs=$(scripts/agent-packages.sh)
           echo "AGENT_PKGS=$(echo $pkgs)" >>"$GITHUB_ENV"
       - name: Vet
+        if: steps.pick.outputs.run == 'true'
         run: |
           go vet ./...
           go vet -tags agent $AGENT_PKGS
       - name: Lint
+        if: steps.pick.outputs.run == 'true'
         run: |
           $GOTOOL golangci-lint run
           $GOTOOL golangci-lint run --build-tags agent $AGENT_PKGS
       - name: Formatting
+        if: steps.pick.outputs.run == 'true'
         run: $GOTOOL golangci-lint fmt --diff
       - name: Test
+        if: steps.pick.outputs.run == 'true'
         run: go test -race -coverprofile=coverage.out ./...
       - name: Test the agent build
+        if: steps.pick.outputs.run == 'true'
         run: go test -race -tags agent $AGENT_PKGS
       - name: Coverage summary
+        if: steps.pick.outputs.run == 'true'
         run: go tool cover -func=coverage.out | tail -1 >> "$GITHUB_STEP_SUMMARY"
       - name: Static builds of both builds
+        if: steps.pick.outputs.run == 'true'
         run: |
           for arch in amd64 arm64; do
             CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -o "bin/dockwell-linux-$arch" ./cmd/dockwell
@@ -84,6 +99,7 @@ jobs:
           done
           ls -lh bin/
       - name: The agent build joins the full build
+        if: steps.pick.outputs.run == 'true'
         run: scripts/smoke-agent.sh bin/dockwell-linux-amd64 bin/dockwell-agent-linux-amd64
 
   # What needs a real Docker Engine or a real Caddy, in four jobs that run side by
@@ -101,7 +117,13 @@ jobs:
       DOCKWELL_TEST_DOCKER: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs docker-go
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
         with:
           go-version-file: go.mod
           cache-dependency-path: |
@@ -110,6 +132,7 @@ jobs:
       # The runner image's docker compose changes under the tests, so they
       # run with a version of our own, as docker compose's release has it.
       - name: Docker Compose v2.38.2
+        if: steps.pick.outputs.run == 'true'
         run: |
           mkdir -p ~/.docker/cli-plugins
           curl -fsSL -o ~/.docker/cli-plugins/docker-compose \
@@ -117,16 +140,19 @@ jobs:
           echo "486b3ffc0f806ca2efbc430cef89955386011662f0c76bad17c103d059cfa9cf  $HOME/.docker/cli-plugins/docker-compose" | sha256sum -c -
           chmod +x ~/.docker/cli-plugins/docker-compose
       - name: Docker
+        if: steps.pick.outputs.run == 'true'
         run: |
           docker version
           docker compose version
       # A disk of a few MiB, for what the log archive does as one fills or turns
       # read-only, which the tests remount.
       - name: A small disk
+        if: steps.pick.outputs.run == 'true'
         run: |
           sudo mkdir -p /mnt/dockwell-small
           sudo mount -t tmpfs -o size=2m,mode=1777 tmpfs /mnt/dockwell-small
       - name: Tests against Docker
+        if: steps.pick.outputs.run == 'true'
         env:
           DOCKWELL_TEST_SMALL_DISK: /mnt/dockwell-small
         run: go test -race -run 'OnRealDocker' -v ./internal/...
@@ -140,18 +166,26 @@ jobs:
     # Docker (ADR 0024).
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs caddy-go
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
         with:
           go-version-file: go.mod
           cache-dependency-path: |
             go.sum
             tools/go.sum
       - name: Caddy and Pebble, pinned by SHA-256
+        if: steps.pick.outputs.run == 'true'
         run: |
           scripts/ingress-tools.sh "$RUNNER_TEMP/ingress-tools"
           echo "DOCKWELL_TEST_CADDY=$RUNNER_TEMP/ingress-tools/caddy" >> "$GITHUB_ENV"
           echo "DOCKWELL_TEST_PEBBLE=$RUNNER_TEMP/ingress-tools" >> "$GITHUB_ENV"
       - name: Tests against Caddy
+        if: steps.pick.outputs.run == 'true'
         run: go test -race -run 'OnRealCaddy' -v ./internal/ingress/...
 
   docker-e2e:
@@ -168,13 +202,20 @@ jobs:
       E2E_ROOT: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs docker-e2e
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
         with:
           go-version-file: go.mod
           cache-dependency-path: |
             go.sum
             tools/go.sum
       - name: Docker Compose v2.38.2
+        if: steps.pick.outputs.run == 'true'
         run: |
           mkdir -p ~/.docker/cli-plugins
           curl -fsSL -o ~/.docker/cli-plugins/docker-compose \
@@ -182,10 +223,12 @@ jobs:
           echo "486b3ffc0f806ca2efbc430cef89955386011662f0c76bad17c103d059cfa9cf  $HOME/.docker/cli-plugins/docker-compose" | sha256sum -c -
           chmod +x ~/.docker/cli-plugins/docker-compose
       - name: Docker
+        if: steps.pick.outputs.run == 'true'
         run: |
           docker version
           docker compose version
       - name: A service end to end
+        if: steps.pick.outputs.run == 'true'
         run: make docker-e2e
 
   docker-panel:
@@ -197,7 +240,13 @@ jobs:
     # has, with certificates from Pebble.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs docker-panel
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
         with:
           go-version-file: go.mod
           cache-dependency-path: |
@@ -205,15 +254,19 @@ jobs:
             tools/go.sum
       # The script fetches Caddy too, which this doesn't use.
       - name: Caddy and Pebble, pinned by SHA-256
+        if: steps.pick.outputs.run == 'true'
         run: |
           scripts/ingress-tools.sh "$RUNNER_TEMP/ingress-tools"
           echo "DOCKWELL_TEST_PEBBLE=$RUNNER_TEMP/ingress-tools" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: steps.pick.outputs.run == 'true'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.pick.outputs.run == 'true'
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - name: The app screens end to end
+        if: steps.pick.outputs.run == 'true'
         env:
           CHROMIUM_PATH: /usr/bin/google-chrome
         run: make docker-panel-e2e
@@ -224,7 +277,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs logs-load
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
         with:
           go-version-file: go.mod
           cache-dependency-path: |
@@ -233,6 +292,7 @@ jobs:
       # The agent build under a flood, a stuck reader and searches of a million
       # lines, on a fake Docker, held to limits of memory and CPU (ADR 0025).
       - name: An agent's memory and CPU under load
+        if: steps.pick.outputs.run == 'true'
         run: make logs-load
 
   containers-load:
@@ -241,7 +301,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs containers-load
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
         with:
           go-version-file: go.mod
           cache-dependency-path: |
@@ -250,6 +316,7 @@ jobs:
       # The agent build with 500 containers, listed again and again, on a fake
       # Docker, held to its memory budget (ADR 0031).
       - name: An agent's memory with hundreds of containers
+        if: steps.pick.outputs.run == 'true'
         run: make containers-load
 
   e2e:
@@ -260,7 +327,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs e2e
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
         with:
           go-version-file: go.mod
           cache-dependency-path: |
@@ -268,11 +341,14 @@ jobs:
             tools/go.sum
       # The panel's flows, in headless Chrome, on a fake Docker Engine.
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: steps.pick.outputs.run == 'true'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.pick.outputs.run == 'true'
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - name: The panel's flows end to end
+        if: steps.pick.outputs.run == 'true'
         env:
           CHROMIUM_PATH: /usr/bin/google-chrome
         run: make e2e
@@ -285,24 +361,36 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs schema
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
         with:
           go-version-file: go.mod
           cache-dependency-path: tools/go.sum
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: steps.pick.outputs.run == 'true'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.pick.outputs.run == 'true'
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+        if: steps.pick.outputs.run == 'true'
       - name: Lint
+        if: steps.pick.outputs.run == 'true'
         run: $GOTOOL buf lint
       - name: Formatting
+        if: steps.pick.outputs.run == 'true'
         run: $GOTOOL buf format --diff --exit-code
       - name: OpenAPI document is valid
+        if: steps.pick.outputs.run == 'true'
         run: make check-openapi
       - name: No breaking changes
-        if: github.event_name == 'pull_request'
+        if: steps.pick.outputs.run == 'true' && github.event_name == 'pull_request'
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -312,8 +400,10 @@ jobs:
             echo "The base branch has no schema yet, so there is nothing to break."
           fi
       - name: Generated code is current
+        if: steps.pick.outputs.run == 'true'
         run: make check-generated
       - name: TypeScript client typechecks
+        if: steps.pick.outputs.run == 'true'
         run: pnpm -r --if-present typecheck
 
   panel:
@@ -322,32 +412,54 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs panel
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
         with:
           go-version-file: go.mod
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: steps.pick.outputs.run == 'true'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.pick.outputs.run == 'true'
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+        if: steps.pick.outputs.run == 'true'
       - name: Lint and format
+        if: steps.pick.outputs.run == 'true'
         run: pnpm exec biome ci .
       - name: Typecheck
+        if: steps.pick.outputs.run == 'true'
         run: pnpm -r --if-present typecheck
       - name: Tokens match the design system
+        if: steps.pick.outputs.run == 'true'
         run: pnpm --filter @dockwell/ui tokens:check
       - name: Translations are complete
+        if: steps.pick.outputs.run == 'true'
         run: pnpm --filter @dockwell/web i18n:check
       - name: Test
+        if: steps.pick.outputs.run == 'true'
         run: pnpm -r --if-present test
       - name: Build the binary with the panel
+        if: steps.pick.outputs.run == 'true'
         run: make build
       - name: Route tree is current
+        if: steps.pick.outputs.run == 'true'
         run: git diff --exit-code -- web/src/routeTree.gen.ts
       - name: The binary serves the API and the panel
+        if: steps.pick.outputs.run == 'true'
         run: scripts/smoke.sh bin/dockwell
+      # The control plane reads the whole build at start, so its size is memory.
+      - name: The panel build is within its size
+        if: steps.pick.outputs.run == 'true'
+        run: scripts/check-panel-size.sh
       - name: Bundle size
+        if: steps.pick.outputs.run == 'true'
         run: |
           {
             echo "| Asset | Size | Brotli |"
@@ -377,3 +489,6 @@ jobs:
         run: go run ./scripts/checklinks
       - name: Release configuration is valid
         run: go tool -modfile=tools/go.mod goreleaser check
+      # What each job's first step asks: whether this change needs it.
+      - name: The job picker holds to its examples
+        run: scripts/ci-jobs-test.sh

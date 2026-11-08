@@ -15,6 +15,10 @@
 # numbers that the Memory budgets job uploaded, and the sentence that says
 # which build each came from, which it posts only as plain words. It posts them
 # only on the pull request whose head is the commit they were measured on.
+#
+# A pull request that changes no Go code doesn't run the Memory budgets job
+# (scripts/ci-jobs.sh), so its comment, if it has one, stays as it was for
+# the last commit that did, which it names.
 name: Footprint comment
 
 on:
@@ -31,7 +35,9 @@ concurrency:
 jobs:
   comment:
     name: Post the memory figures
-    if: ${{ github.event.workflow_run.event == 'pull_request' }}
+    # A cancelled Install run was replaced by one for a newer push, whose figures
+    # are the ones to post.
+    if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'cancelled' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
