@@ -48,6 +48,10 @@ export function useAuditWords(): (event: AuditEvent) => Said {
           return { title: t`Couldn't confirm with a passkey`, tone: "warning" };
         case "token.refuse":
           return { title: t`Refused a call this token can't make`, tone: "warning" };
+        case "role.refuse":
+          return { title: t`Refused a call their role doesn't cover`, tone: "warning" };
+        case "owner.transfer":
+          return { title: name ? t`Made ${name} the owner` : t`Moved ownership of this install` };
         case "token.use":
           return { title: t`Used from a new address` };
         case "install.create":

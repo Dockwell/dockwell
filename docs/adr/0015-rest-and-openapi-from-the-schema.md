@@ -60,6 +60,7 @@ That left these questions open:
 - A browser sends some requests to another site without asking first: GETs, and POSTs of forms or plain text. Connect's procedure paths never accept those content types, but REST paths are meant to be simple, so the guard can't lean on that.
 - The guard applies its origin checks to `/v1/` exactly as to procedure paths. A request whose `Origin` isn't the panel's, or whose `Sec-Fetch-Site` says another site, is refused with the reason `origin`, before Vanguard reads it.
 - The interceptor runs on the call Vanguard makes, so a write that comes with the session cookie must still carry the panel's `Origin` or `Sec-Fetch-Site: same-origin`.
+  - Its checks of who calls and their role also run before Vanguard reads the request: the REST handler finds the method from the same `google.api.http` rules. Someone signed out gets 401, and a role that doesn't cover the call 403, however malformed the query or body ([ADR 0049](0049-roles-and-invites-by-project.md)). So a cookie's `text/plain` POST with no `Origin` is refused for its origin before Vanguard's 415.
 - GETs reach only reads with no side effects, which the test above enforces. A cookie's GET with no fetch metadata is let through, as for a URL typed into the address bar, and only reads.
 - Vanguard also refuses request bodies that aren't JSON with 415. That is a second barrier, not the one relied on.
 - A request with an API token skips the origin checks; [ADR 0016](0016-scoped-api-tokens.md) says why.

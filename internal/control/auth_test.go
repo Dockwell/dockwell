@@ -123,6 +123,10 @@ func (f *fullServer) execSQL(t *testing.T, query string) {
 // askWait is how long these tests give a step-up that was asked for.
 const askWait = 200 * time.Millisecond
 
+// streamRecheck is how often an open stream checks its caller again in these
+// tests: auth's own 30 seconds unless a test that waits for one sets it.
+var streamRecheck time.Duration
+
 func startFull(t *testing.T, backend store.Backend, public https.Source) *fullServer {
 	t.Helper()
 	return startFullLogging(t, backend, public, slog.New(slog.DiscardHandler))
@@ -157,7 +161,7 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	if public != nil {
 		sites.Domain = public.Domain()
 	}
-	people, err := auth.New(auth.Config{DB: db, Key: key, Logger: logger, Sites: sites, AskWait: askWait})
+	people, err := auth.New(auth.Config{DB: db, Key: key, Logger: logger, Sites: sites, AskWait: askWait, StreamRecheck: streamRecheck})
 	if err != nil {
 		t.Fatal(err)
 	}

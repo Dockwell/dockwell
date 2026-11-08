@@ -175,7 +175,7 @@ func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope strin
 	return s.createToken(ctx, func(tx *store.Tx) (store.User, error) {
 		u, err := tx.Owner(ctx)
 		if errors.Is(err, store.ErrNotFound) {
-			return u, errors.New("this install has no owner yet, so local access has nobody to act for. Claim it with the link from dockwell claim")
+			return u, errNoOwner(ctx, tx, "local access has nobody to act for")
 		}
 		return u, err
 	}, actor, strings.TrimPrefix(actor, "cli:"), name, scope, []string{store.GrantLogs}, &expires, nil)

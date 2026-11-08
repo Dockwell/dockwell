@@ -51,7 +51,7 @@ func restMethods(t *testing.T) []restMethod {
 					continue
 				}
 				rule, _ := proto.GetExtension(opts, annotations.E_Http).(*annotations.HttpRule)
-				verb, path := httpRule(rule)
+				verb, path := restRule(rule)
 				out = append(out, restMethod{
 					procedure: "/" + string(sd.FullName()) + "/" + string(md.Name()),
 					verb:      verb, path: path, body: rule.GetBody(), md: md,
@@ -64,24 +64,6 @@ func restMethods(t *testing.T) []restMethod {
 		t.Fatal("no REST paths in dockwell.v1; is the generated package linked in?")
 	}
 	return out
-}
-
-func httpRule(rule *annotations.HttpRule) (verb, path string) {
-	switch p := rule.GetPattern().(type) {
-	case *annotations.HttpRule_Get:
-		return http.MethodGet, p.Get
-	case *annotations.HttpRule_Post:
-		return http.MethodPost, p.Post
-	case *annotations.HttpRule_Put:
-		return http.MethodPut, p.Put
-	case *annotations.HttpRule_Patch:
-		return http.MethodPatch, p.Patch
-	case *annotations.HttpRule_Delete:
-		return http.MethodDelete, p.Delete
-	case *annotations.HttpRule_Custom:
-		return p.Custom.GetKind(), p.Custom.GetPath()
-	}
-	return "", ""
 }
 
 // fillPath puts a value in every variable of a path template.
@@ -214,6 +196,62 @@ func TestEveryMethodHasARESTPath(t *testing.T) {
 	if methods < 25 {
 		t.Errorf("checked only %d methods", methods)
 	}
+}
+
+// Each REST path leads to its own method before Vanguard reads the request, so
+// the caller and their role are checked first.
+func TestEveryRESTPathFindsItsMethod(t *testing.T) {
+	routes := newRESTRoutes()
+	for _, m := range restMethods(t) {
+		if got := routes.match(m.verb, fillPath(m.path)); got != m.procedure {
+			t.Errorf("%s %s leads to %q, want %s", m.verb, fillPath(m.path), got, m.procedure)
+		}
+	}
+	for _, call := range [][2]string{
+		{http.MethodGet, "/v1/nothing/here"},
+		{http.MethodPost, "/v1/servers"},
+		{http.MethodGet, "/v1/servers//"},
+		{http.MethodPost, "/v1/settings:nothing"},
+	} {
+		if got := routes.match(call[0], call[1]); got != "" {
+			t.Errorf("%s %s leads to %s, want none", call[0], call[1], got)
+		}
+	}
+}
+
+// Who calls a REST path, and their role, are checked before its query and body
+// are read: someone signed out learns they're signed out, and someone whose
+// role doesn't cover the call learns that, however wrong the request.
+func TestRESTChecksTheCallerBeforeTheRequest(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		anon := newBrowser(t, b.origin, f.api, nil)
+		hold := aMember(t, f)
+		hold(onInstall(store.RoleViewer))
+		for _, tt := range []struct {
+			who            *browser
+			verb, path     string
+			body           string
+			status         int
+			reason, saying string
+		}{
+			{anon, http.MethodGet, "/v1/auditEvents?pageSize=notanumber", "", http.StatusUnauthorized, "unauthenticated", ""},
+			{anon, http.MethodPost, "/v1/settings:setTimeZone", "{not json", http.StatusUnauthorized, "unauthenticated", ""},
+			{b, http.MethodGet, "/v1/auditEvents?pageSize=notanumber", "", http.StatusForbidden, "needs_role", "only an admin or the owner can do this, and you're a viewer"},
+			{b, http.MethodPost, "/v1/settings:setTimeZone", "{not json", http.StatusForbidden, "needs_role", "only an admin or the owner"},
+			{b, http.MethodPost, "/v1/servers/srv_nothere:setPublicAddress", `{"ipv4":{"address":"192.0.2.10"}}`, http.StatusForbidden, "needs_role", ""},
+			// What the caller may make is still read as Vanguard reads it.
+			{b, http.MethodGet, "/v1/events?pageSize=notanumber", "", http.StatusBadRequest, "", ""},
+		} {
+			status, reason, body := callREST(t, tt.who, tt.verb, tt.path, nil, tt.body)
+			var said rpcStatus
+			_ = json.Unmarshal([]byte(body), &said)
+			if status != tt.status || reason != tt.reason || !strings.Contains(said.Message, tt.saying) {
+				t.Errorf("%s %s: %d %q %s, want %d %q saying %q", tt.verb, tt.path, status, reason, body, tt.status, tt.reason, tt.saying)
+			}
+		}
+	})
 }
 
 func TestRESTPathsWithASession(t *testing.T) { storetest.Each(t, testRESTPathsWithASession) }
@@ -358,9 +396,11 @@ func testRESTRefusesCrossSiteRequests(t *testing.T, backend store.Backend) {
 			"", http.StatusForbidden, authapi.ReasonOrigin,
 		},
 		{
+			// Who's asking is checked before what they sent, so it's refused for
+			// its origin before Vanguard refuses its content type.
 			"a text/plain post with the cookie and no origin", http.MethodPost, "/v1/sessions:revokeOthers",
 			map[string]string{"Origin": "", "Sec-Fetch-Site": "", "Content-Type": "text/plain"},
-			"{}", http.StatusUnsupportedMediaType, "",
+			"{}", http.StatusForbidden, authapi.ReasonOrigin,
 		},
 		{
 			"a proxy's Basic credentials don't stand in for a token", http.MethodPost, "/v1/sessions:revokeOthers",

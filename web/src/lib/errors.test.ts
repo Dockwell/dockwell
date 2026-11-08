@@ -3,7 +3,7 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { describe, expect, it } from "vitest";
 
-import { isSessionEnded, sentence } from "./errors";
+import { isRoleRefusal, isSessionEnded, sentence } from "./errors";
 
 const refused = (code: Code, reason?: string) =>
   new ConnectError("refused", code, reason ? new Headers({ "Dockwell-Error": reason }) : undefined);
@@ -20,6 +20,14 @@ describe("sentence", () => {
     );
     expect(said("shop2 runs a service web already")).toBe("shop2 runs a service web already.");
     expect(said("app.example.com doesn't lead here")).toBe("app.example.com doesn't lead here.");
+  });
+
+  it("says a role refusal in the panel's own words, from any call", () => {
+    const refusal = refused(Code.PermissionDenied, "needs_role");
+    expect(isRoleRefusal(refusal)).toBe(true);
+    expect(sentence(refusal)).toBe("Your role doesn't let you do this here. Ask an admin to change your role.");
+    expect(isRoleRefusal(refused(Code.PermissionDenied, "needs_session"))).toBe(false);
+    expect(isRoleRefusal(new Error("network down"))).toBe(false);
   });
 });
 

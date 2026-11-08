@@ -2,11 +2,10 @@
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { BackupCopy, type BackupPolicyInfo, BackupState } from "@dockwell/api";
-import { Button, Callout, Panel, type Status, StatusBadge } from "@dockwell/ui";
+import { Button, Panel, type Status, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo, useState } from "react";
 
-import { sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
@@ -17,6 +16,7 @@ import { useBackups, useVolumesRead } from "../backups/useBackups";
 import { useControlPlaneNow } from "../servers/useFleet";
 import "../apps/Apps.css";
 import "./Overview.css";
+import { ReadFailed } from "../shell/ReadFailed";
 
 /** How the schedules stand, worst first: one that failed outweighs one that's fine. */
 function useScheduleState(policies: readonly BackupPolicyInfo[]): { status: Status; label: string } {
@@ -78,8 +78,8 @@ export function OverviewBackups() {
   if (failed) {
     return (
       <Panel title={t`Backups`}>
-        <Callout
-          tone="critical"
+        <ReadFailed
+          error={failed}
           title={t`Dockwell can't read its backups`}
           actions={
             <Button
@@ -94,9 +94,7 @@ export function OverviewBackups() {
               <Trans>Try again</Trans>
             </Button>
           }
-        >
-          {sentence(failed)}
-        </Callout>
+        />
       </Panel>
     );
   }

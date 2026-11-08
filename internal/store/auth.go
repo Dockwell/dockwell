@@ -84,7 +84,8 @@ func (t *Tx) CreateUser(ctx context.Context, u User) error {
 	if u.Role == "" {
 		return nil
 	}
-	return t.SetGrant(ctx, Grant{UserID: u.ID, ProjectID: Install, Role: u.Role, CreatedAt: u.CreatedAt, CreatedBy: "dockwell"})
+	// The one who claims the install is its owner; there is one, which the index holds.
+	return t.setGrant(ctx, Grant{UserID: u.ID, ProjectID: Install, Role: u.Role, CreatedAt: u.CreatedAt, CreatedBy: "dockwell"})
 }
 
 func (t *Tx) getUser(ctx context.Context, where string, arg any) (User, error) {

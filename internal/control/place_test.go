@@ -6,6 +6,10 @@ import (
 	"errors"
 	"testing"
 
+	"connectrpc.com/connect"
+
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -24,7 +28,30 @@ func TestEveryObjectHasAPlace(t *testing.T) {
 		web := done.GetPlan().GetResources()[0]
 		envID := web.GetResource().GetScope()
 
-		err := f.store.View(t.Context(), func(tx *store.Tx) error {
+		// A planned import into a project and an environment that aren't there yet is
+		// in them, as its items make them, before any is in the store.
+		imported, err := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON()).ImportCompose(t.Context(),
+			connect.NewRequest(&dockwellv1.ImportComposeRequest{Project: "shop", Environment: "staging", Compose: "services:\n  db:\n    image: ghcr.io/acme/shop:1.4\n"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		staged := imported.Msg.GetChange()
+		made := map[string]string{}
+		for _, r := range staged.GetPlan().GetResources() {
+			made[r.GetResource().GetKind()] = r.GetId()
+		}
+
+		err = f.store.View(t.Context(), func(tx *store.Tx) error {
+			got, err := place.Of(t.Context(), tx, staged.GetId())
+			want := place.Place{Project: made["project"], Environment: made["environment"]}
+			if err != nil || len(got) == 0 || want.Project == "" || want.Environment == "" {
+				t.Errorf("a planned import into a new project and environment is in %v, %v; want %v", got, err, want)
+			}
+			for _, p := range got {
+				if p.Project != want.Project || (p.Environment != "" && p.Environment != want.Environment) {
+					t.Errorf("a planned import into a new project and environment is in %v, want %v", got, want)
+				}
+			}
 			env, err := tx.GetResourceByID(t.Context(), envID)
 			if err != nil {
 				return err

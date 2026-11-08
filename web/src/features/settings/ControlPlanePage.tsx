@@ -11,11 +11,10 @@ import {
   SettingsService,
   StateStoreEngine,
 } from "@dockwell/api";
-import { Button, Callout, Glyph, Icon, Panel, STATUS, StatusBadge } from "@dockwell/ui";
+import { Button, Glyph, Icon, Panel, STATUS, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 
-import { sentence } from "../../lib/errors";
 import { formatBytes, formatDay, formatFixed } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { serverStatus } from "../servers/server";
@@ -24,6 +23,7 @@ import { Page } from "../shell/Page";
 import { shortVersion } from "../shell/version";
 import { CopyCommand } from "../system/CopyCommand";
 import "./Settings.css";
+import { ReadFailed } from "../shell/ReadFailed";
 
 /**
  * How to install, and so to upgrade: the same command again, as root
@@ -60,17 +60,15 @@ export function ControlPlanePage() {
   return (
     <Page width="narrow" title={t`Control plane`} lead={lead} back="/settings" className="control-plane">
       {got.error ? (
-        <Callout
-          tone="critical"
+        <ReadFailed
+          error={got.error}
           title={t`Dockwell can't say how its control plane is`}
           actions={
             <Button size="sm" icon="refresh" loading={got.isFetching} onClick={() => void got.refetch()}>
               <Trans>Try again</Trans>
             </Button>
           }
-        >
-          {sentence(got.error)}
-        </Callout>
+        />
       ) : null}
       <Replicas cp={cp} own={own} />
       <div className="cp-panels">

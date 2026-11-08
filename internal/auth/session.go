@@ -296,11 +296,16 @@ func (s *Service) RevokeOtherSessions(ctx context.Context, p Principal) (int, er
 // revoking commits, then ends the session's registered streams. Either the
 // stream was registered by then and is ended, or the check here reads the
 // committed revocation.
-func (s *Service) Track(ctx context.Context, client Client, p Principal) (context.Context, func()) {
+//
+// still, when set, is asked too, at the start and on each recheck, whether the
+// caller may still make the stream, as their role says now: a stream ends
+// when it errs, as it does once a role is gone (ADR 0048).
+func (s *Service) Track(ctx context.Context, client Client, p Principal, still func(context.Context) error) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	credential := p.credential()
 	entry := s.streams.add(credential, cancel)
-	if !s.stillLive(ctx, client, p) {
+	may := func() bool { return still == nil || still(ctx) == nil }
+	if !s.stillLive(ctx, client, p) || !may() {
 		cancel()
 	}
 	done := make(chan struct{})
@@ -316,6 +321,11 @@ func (s *Service) Track(ctx context.Context, client Client, p Principal) (contex
 			case <-t.C:
 				if !s.stillLive(ctx, client, p) {
 					s.logger.DebugContext(ctx, "closing a stream whose session or token ended", slog.String("credential", credential))
+					cancel()
+					return
+				}
+				if !may() {
+					s.logger.DebugContext(ctx, "closing a stream its caller may no longer make", slog.String("credential", credential))
 					cancel()
 					return
 				}

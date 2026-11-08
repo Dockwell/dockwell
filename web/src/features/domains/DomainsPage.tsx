@@ -22,7 +22,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
-import { sentence } from "../../lib/errors";
+import { isRoleRefusal, sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import type { Unread } from "../../lib/online";
 import { useTimeWords } from "../../lib/time";
@@ -50,6 +50,7 @@ import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { ReadFailed } from "../shell/ReadFailed";
 // The add sheet's form and the list's filters are the apps' own, and this page can be where you land.
 import "../apps/Apps.css";
 import "./Domains.css";
@@ -233,6 +234,8 @@ export function DomainsPage({
   let body: ReactNode;
   if (pending) {
     body = <ListSkeleton label={t`Loading domains`} />;
+  } else if (all === undefined && isRoleRefusal(domains.error)) {
+    body = <ReadFailed error={domains.error} title={t`Can't load the domains`} />;
   } else if (all === undefined) {
     body = (
       <Callout
