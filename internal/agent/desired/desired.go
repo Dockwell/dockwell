@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
@@ -23,6 +24,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -51,6 +53,11 @@ const info = "dockwell.desired.v1"
 // keySize is the key's length: AES-256.
 const keySize = 32
 
+// TombstoneLife is how long a deletion holds back what the control plane sends
+// of the resource: far longer than any fill, whose calls each end within a
+// minute, so a fill that read what ran before the deletion can't bring it back.
+const TombstoneLife = 7 * 24 * time.Hour
+
 // Record is one resource as its server should hold it.
 type Record struct {
 	Ref resource.Ref
@@ -62,7 +69,7 @@ type Record struct {
 	Revision int64
 	Change   string
 	// Spec is the spec, encoded as its kind's message. Nil means the resource
-	// was deleted, which removes its record.
+	// was deleted, which leaves a tombstone, so an empty spec is an empty slice.
 	Spec []byte
 	// Values are the values of the variables and secrets the spec uses, at
 	// the revisions it pins.
@@ -76,10 +83,26 @@ type sealed struct {
 	ScopeName string            `json:"scope_name,omitempty"`
 	Revision  int64             `json:"revision"`
 	Change    string            `json:"change,omitempty"`
-	Spec      []byte            `json:"spec"`
+	Spec      []byte            `json:"spec,omitempty"`
 	Values    map[string]string `json:"values,omitempty"`
 	Image     string            `json:"image,omitempty"`
 	Digest    string            `json:"digest,omitempty"`
+	// Gone marks a tombstone: the resource was deleted at Revision, at At, in
+	// Unix seconds. It holds nothing else.
+	Gone bool  `json:"gone,omitempty"`
+	At   int64 `json:"at,omitempty"`
+}
+
+// entry is what the store knows of a resource without opening its record.
+type entry struct {
+	revision int64
+	// gone is a tombstone's, written at.
+	gone bool
+	at   time.Time
+	// unusable is a record that no longer says what runs, as a step passed and
+	// it couldn't be replaced, and couldn't be removed either. Nothing reads it,
+	// and no hello lists it, so the control plane sends it again.
+	unusable bool
 }
 
 // Store is an agent's cache of desired state.
@@ -87,21 +110,24 @@ type Store struct {
 	dir    string
 	server string
 	aead   cipher.AEAD
+	cache  string
 	logger *slog.Logger
+	now    func() time.Time
 
-	mu sync.Mutex
-	// held is the revision of each record, which the store knows without
-	// opening it.
-	held    map[resource.Ref]int64
+	mu      sync.Mutex
+	held    map[resource.Ref]entry
 	damaged int
 }
 
-// ErrOlder says a record is for a revision older than the one kept.
-var ErrOlder = errors.New("the agent keeps a later revision")
+// errDamaged says a record doesn't open: it was changed, cut short, sealed with
+// another key or for another server, or is of another format. Anything else that
+// stops a read, such as a disk error, isn't damage.
+var errDamaged = errors.New("damaged")
 
-// Open opens the cache in dir, the agent's data folder, for server: it makes
-// the key on first use, opens every record, and moves aside any that doesn't
-// open, which it then acts on no more.
+// Open opens the cache in dir, the agent's data folder, for server: it makes the
+// key on first use, opens every record, and moves aside any that doesn't open,
+// which it then acts on no more. A record it can't read now, as for a disk error,
+// fails Open instead, as it may open later.
 func Open(dir, server string, logger *slog.Logger) (*Store, error) {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
@@ -116,12 +142,14 @@ func Open(dir, server string, logger *slog.Logger) (*Store, error) {
 	if err := os.Chmod(folder, 0o700); err != nil { //nolint:gosec // a folder, for the agent alone
 		return nil, fmt.Errorf("can't keep %s to the agent alone: %w", folder, err)
 	}
-	key, err := loadKey(filepath.Join(dir, KeyFile))
+	clearTemps(dir, "."+KeyFile+".")
+	clearTemps(folder, ".")
+	key, err := loadKey(dir, logger)
 	if err != nil {
 		return nil, err
 	}
+	defer clear(key)
 	block, err := aes.NewCipher(key)
-	clear(key)
 	if err != nil {
 		return nil, err
 	}
@@ -129,40 +157,87 @@ func Open(dir, server string, logger *slog.Logger) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Store{dir: folder, server: server, aead: aead, logger: logger, held: map[resource.Ref]int64{}}
+	s := &Store{dir: folder, server: server, aead: aead, cache: cacheID(key), logger: logger, now: time.Now, held: map[resource.Ref]entry{}}
 	if err := s.load(); err != nil {
 		return nil, err
 	}
 	return s, nil
 }
 
-// loadKey reads the key, or makes it if there's none. A key of the wrong length
-// is put aside and a new one made, which leaves every record unreadable: they
-// go aside too, and the control plane fills the cache again.
-func loadKey(path string) ([]byte, error) {
-	b, err := os.ReadFile(path) //nolint:gosec // the key's place in the agent's own folder
-	switch {
-	case err == nil && len(b) == keySize:
-		return b, nil
-	case err == nil:
-		if err := os.Rename(path, path+".damaged"); err != nil {
-			return nil, fmt.Errorf("can't put aside %s, which isn't a key: %w", path, err)
-		}
-	case !errors.Is(err, fs.ErrNotExist):
-		return nil, fmt.Errorf("can't read the key to this server's desired state, %s: %w", path, err)
-	}
-	key := make([]byte, keySize)
-	if _, err := rand.Read(key); err != nil {
-		return nil, err
-	}
-	if err := writeDurably(path, key); err != nil {
-		return nil, fmt.Errorf("can't keep the key to this server's desired state in %s: %w", path, err)
-	}
-	return key, nil
+// cacheID names this cache, for the control plane to tell a new one: it is
+// derived from the key, so it changes when the key does and says nothing of it.
+func cacheID(key []byte) string {
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte("dockwell.desired.cache.v1"))
+	return hex.EncodeToString(mac.Sum(nil)[:8])
 }
 
-// load opens every record, keeping its resource and revision, and moves aside
-// those that don't open.
+// clearTemps removes what a power cut left of a write in dir: the temporary
+// files, which start with prefix, that never took the place of what they wrote.
+func clearTemps(dir, prefix string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasPrefix(e.Name(), prefix) {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
+}
+
+// loadKey reads the key, or makes it if there's none. A key of the wrong length
+// is put aside and a new one made, which leaves every record unreadable: they
+// go aside too, and the control plane fills the cache again. Two agents that
+// start on one folder at once agree on one key: the second to make one reads
+// the first's.
+func loadKey(dir string, logger *slog.Logger) ([]byte, error) {
+	path := filepath.Join(dir, KeyFile)
+	for range 3 {
+		b, err := os.ReadFile(path) //nolint:gosec // the key's place in the agent's own folder
+		switch {
+		case err == nil && len(b) == keySize:
+			if info, err := os.Stat(path); err == nil && info.Mode().Perm() != 0o600 {
+				if err := os.Chmod(path, 0o600); err != nil {
+					return nil, fmt.Errorf("the key to this server's desired state, %s, is %v, and can't be made the agent's alone: %w", path, info.Mode().Perm(), err)
+				}
+				logger.Warn("the key to this server's desired state could be read by others, so the agent made it its own alone again",
+					slog.String("key", path), slog.String("was", info.Mode().Perm().String()))
+			}
+			return b, nil
+		case err == nil:
+			if err := os.Rename(path, path+".damaged"); err != nil {
+				return nil, fmt.Errorf("can't put aside %s, which isn't a key: %w", path, err)
+			}
+		case !errors.Is(err, fs.ErrNotExist):
+			return nil, fmt.Errorf("can't read the key to this server's desired state, %s: %w", path, err)
+		}
+		key := make([]byte, keySize)
+		if _, err := rand.Read(key); err != nil {
+			return nil, err
+		}
+		// Written beside it, then linked into place, which fails if another
+		// start made one first. That one is the key then.
+		tmp, err := writeTemp(dir, "."+KeyFile+".", key)
+		if err != nil {
+			return nil, fmt.Errorf("can't keep the key to this server's desired state in %s: %w", dir, err)
+		}
+		err = os.Link(tmp, path)
+		_ = os.Remove(tmp)
+		switch {
+		case err == nil:
+			return key, syncDir(dir)
+		case !errors.Is(err, fs.ErrExist) && !errors.Is(err, fs.ErrNotExist):
+			// Another start made the key first, or cleared this one's
+			// temporary file as it started: either way, read again.
+			return nil, fmt.Errorf("can't keep the key to this server's desired state in %s: %w", path, err)
+		}
+	}
+	return nil, fmt.Errorf("can't settle on a key to this server's desired state in %s, as something keeps changing it", path)
+}
+
+// load opens every record, keeping its resource and revision, moves aside those
+// that don't open, and removes tombstones past their life.
 func (s *Store) load() error {
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
@@ -174,15 +249,27 @@ func (s *Store) load() error {
 			continue
 		}
 		path := filepath.Join(s.dir, name)
-		r, err := s.read(path)
+		r, in, err := s.read(path)
 		if err == nil && fileName(r.Ref) != name {
-			err = errors.New("its name isn't its resource's")
+			err = fmt.Errorf("%w: its name isn't its resource's", errDamaged)
 		}
-		if err != nil {
+		switch {
+		case errors.Is(err, errDamaged):
 			s.putAside(path, err)
 			continue
+		case err != nil:
+			return fmt.Errorf("can't read %s, a record of this server's desired state: %w. Check the disk and the agent's data folder", path, err)
 		}
-		s.held[r.Ref] = r.Revision
+		if in.Gone {
+			at := time.Unix(in.At, 0)
+			if s.now().Sub(at) > TombstoneLife {
+				_ = os.Remove(path)
+				continue
+			}
+			s.held[r.Ref] = entry{revision: r.Revision, gone: true, at: at}
+			continue
+		}
+		s.held[r.Ref] = entry{revision: r.Revision}
 	}
 	return nil
 }
@@ -205,48 +292,123 @@ func (s *Store) putAside(path string, why error) {
 		"The control plane sends what it lacks when it connects", slog.String("record", filepath.Base(path)), slog.String("why", why.Error()))
 }
 
-// Keep keeps r, or removes its record when its spec is nil, so an empty spec is
-// an empty slice. A record for a revision older than the one kept is refused
-// with ErrOlder, so a late or repeated message can't put the past back. A
+// Keep keeps what a step that passed on this server left a resource as. A step
+// says what runs, so it's kept whatever revision the cache held, which a control
+// plane's store that went back can number lower. A nil spec leaves a tombstone,
+// which holds back what the control plane sends of the resource (Remember). A
 // revision of zero, as a step that acts on a resource as it is has, keeps the
-// revision there.
+// revision there. If it can't be kept, what was kept of the resource goes too,
+// as it no longer says what runs, and the error says so.
 func (s *Store) Keep(r Record) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	was, kept := s.held[r.Ref]
-	if kept && r.Revision != 0 && r.Revision < was {
-		return fmt.Errorf("%w: it keeps %s at revision %d, and this is revision %d", ErrOlder, r.Ref, was, r.Revision)
-	}
 	if r.Revision == 0 {
-		r.Revision = was
+		r.Revision = s.held[r.Ref].revision
 	}
-	path := filepath.Join(s.dir, fileName(r.Ref))
-	if r.Spec == nil {
-		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("can't forget %s, which was deleted: %w", r.Ref, err)
-		}
-		delete(s.held, r.Ref)
-		return syncDir(s.dir)
+	if err := s.write(r); err != nil {
+		return s.dropLocked(r.Ref, fmt.Errorf("can't keep %s as this server runs it now: %w", r.Ref, err))
 	}
-	b, err := s.seal(r)
-	if err != nil {
-		return err
-	}
-	if err := writeDurably(path, b); err != nil {
-		return fmt.Errorf("can't keep %s as this server should run it: %w", r.Ref, err)
-	}
-	s.held[r.Ref] = r.Revision
 	return nil
 }
 
-// Read opens the record of ref, or says there's none.
+// Remember keeps what the control plane says a resource on this server runs, and
+// says whether it did. It doesn't over a later revision, as of a step that ended
+// after its stream did, nor at or below a deletion's revision, so a fill that read
+// what ran before a deletion can't bring it back.
+func (s *Store) Remember(r Record) (bool, error) {
+	if r.Revision <= 0 {
+		return false, fmt.Errorf("there's no revision to keep %s at", r.Ref)
+	}
+	if r.Spec == nil {
+		return false, fmt.Errorf("there's no spec to keep for %s", r.Ref)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if was, ok := s.held[r.Ref]; ok && !was.unusable && (r.Revision < was.revision || was.gone && r.Revision <= was.revision) {
+		return false, nil
+	}
+	if err := s.write(r); err != nil {
+		return false, s.dropLocked(r.Ref, fmt.Errorf("can't keep %s as this server runs it: %w", r.Ref, err))
+	}
+	return true, nil
+}
+
+// Forget removes the record of a resource the control plane says this server no
+// longer runs, if it still holds it at revision, the one the control plane saw,
+// and says whether it did. A step since then has the say.
+func (s *Store) Forget(ref resource.Ref, revision int64) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	was, ok := s.held[ref]
+	if !ok || was.gone || was.unusable || was.revision != revision {
+		return false, nil
+	}
+	if err := os.Remove(filepath.Join(s.dir, fileName(ref))); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return false, fmt.Errorf("can't forget %s, which this server no longer runs: %w", ref, err)
+	}
+	delete(s.held, ref)
+	return true, syncDir(s.dir)
+}
+
+// Drop forgets what the cache holds of ref, as it no longer says what runs: a
+// step passed, and what it left couldn't be kept.
+func (s *Store) Drop(ref resource.Ref, why error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.dropLocked(ref, why)
+}
+
+// dropLocked removes the record of ref, or, if it can't, marks it unusable, so
+// nothing reads it and no hello lists it. It returns why, with what came of it.
+func (s *Store) dropLocked(ref resource.Ref, why error) error {
+	was, ok := s.held[ref]
+	if !ok {
+		return why
+	}
+	err := os.Remove(filepath.Join(s.dir, fileName(ref)))
+	if err == nil || errors.Is(err, fs.ErrNotExist) {
+		delete(s.held, ref)
+		_ = syncDir(s.dir)
+		return fmt.Errorf("%w, so the agent forgot what it kept of it. Check that the agent's data folder is writable", why)
+	}
+	was.unusable = true
+	s.held[ref] = was
+	return fmt.Errorf("%w, nor can what it kept of it be removed (%w), so the agent reads it no more. Check that the agent's data folder is writable", why, err)
+}
+
+// write seals r into its record, or a tombstone for a nil spec, and indexes it.
+func (s *Store) write(r Record) error {
+	in := sealed{ScopeName: r.ScopeName, Revision: r.Revision, Change: r.Change, Spec: r.Spec, Values: r.Values, Image: r.Image.ID, Digest: r.Image.Digest}
+	at := s.now()
+	if r.Spec == nil {
+		in = sealed{Revision: r.Revision, Gone: true, At: at.Unix()}
+	} else if in.Spec == nil {
+		in.Spec = []byte{}
+	}
+	b, err := s.seal(r.Ref, in)
+	if err != nil {
+		return err
+	}
+	if err := writeDurably(filepath.Join(s.dir, fileName(r.Ref)), b); err != nil {
+		return err
+	}
+	if r.Spec == nil {
+		s.held[r.Ref] = entry{revision: r.Revision, gone: true, at: time.Unix(at.Unix(), 0)}
+	} else {
+		s.held[r.Ref] = entry{revision: r.Revision}
+	}
+	return nil
+}
+
+// Read opens the record of ref, or says there's none, as for a resource deleted
+// or never kept, or one whose record no longer says what runs.
 func (s *Store) Read(ref resource.Ref) (Record, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.held[ref]; !ok {
+	if e, ok := s.held[ref]; !ok || e.gone || e.unusable {
 		return Record{}, false, nil
 	}
-	r, err := s.read(filepath.Join(s.dir, fileName(ref)))
+	r, _, err := s.read(filepath.Join(s.dir, fileName(ref)))
 	if err != nil {
 		return Record{}, false, err
 	}
@@ -256,18 +418,21 @@ func (s *Store) Read(ref resource.Ref) (Record, bool, error) {
 	return r, true, nil
 }
 
-// Holds says what the cache keeps, for the agent's hello.
+// Holds says what the cache keeps, for the agent's hello: each resource it holds
+// a record of, and not those deleted or unusable.
 func (s *Store) Holds() *agentv1.DesiredHeld {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := &agentv1.DesiredHeld{Damaged: uint32(min(s.damaged, 1<<31))} //nolint:gosec // at most 1<<31
+	out := &agentv1.DesiredHeld{Damaged: uint32(min(s.damaged, 1<<31)), Cache: s.cache} //nolint:gosec // at most 1<<31
 	refs := make([]resource.Ref, 0, len(s.held))
-	for ref := range s.held {
-		refs = append(refs, ref)
+	for ref, e := range s.held {
+		if !e.gone && !e.unusable {
+			refs = append(refs, ref)
+		}
 	}
 	slices.SortFunc(refs, func(a, b resource.Ref) int { return strings.Compare(a.String(), b.String()) })
 	for _, ref := range refs {
-		out.Held = append(out.Held, &agentv1.HeldResource{Resource: resourcepb.Ref(ref), Revision: s.held[ref]})
+		out.Held = append(out.Held, &agentv1.HeldResource{Resource: resourcepb.Ref(ref), Revision: s.held[ref].revision})
 	}
 	return out
 }
@@ -285,20 +450,17 @@ func (s *Store) additional(ref resource.Ref) []byte {
 	return []byte(info + "\x00" + s.server + "\x00" + string(ref.Kind) + "\x00" + ref.Scope + "\x00" + ref.Name)
 }
 
-// seal writes r as a record: the magic, its resource in the clear, then its
-// nonce and what it holds, sealed.
-func (s *Store) seal(r Record) ([]byte, error) {
-	payload, err := json.Marshal(sealed{
-		ScopeName: r.ScopeName, Revision: r.Revision, Change: r.Change, Spec: r.Spec, Values: r.Values,
-		Image: r.Image.ID, Digest: r.Image.Digest,
-	})
+// seal writes a record: the magic, its resource in the clear, then its nonce and
+// what it holds, sealed.
+func (s *Store) seal(ref resource.Ref, in sealed) ([]byte, error) {
+	payload, err := json.Marshal(in)
 	if err != nil {
 		return nil, err
 	}
 	defer clear(payload)
 	var out bytes.Buffer
 	out.Write(magic)
-	for _, part := range []string{string(r.Ref.Kind), r.Ref.Scope, r.Ref.Name} {
+	for _, part := range []string{string(ref.Kind), ref.Scope, ref.Name} {
 		out.Write(binary.AppendUvarint(nil, uint64(len(part))))
 		out.WriteString(part)
 	}
@@ -307,7 +469,7 @@ func (s *Store) seal(r Record) ([]byte, error) {
 		return nil, err
 	}
 	out.Write(nonce)
-	out.Write(s.aead.Seal(nil, nonce, payload, s.additional(r.Ref)))
+	out.Write(s.aead.Seal(nil, nonce, payload, s.additional(ref)))
 	return out.Bytes(), nil
 }
 
@@ -315,53 +477,83 @@ func (s *Store) seal(r Record) ([]byte, error) {
 // each, which no resource comes near.
 const maxRecord = 16 << 20
 
-// read opens the record at path.
-func (s *Store) read(path string) (Record, error) {
+// read opens the record at path. What doesn't open is errDamaged; anything else
+// that stops it, such as a disk error, isn't.
+func (s *Store) read(path string) (Record, sealed, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return Record{}, err
+		return Record{}, sealed{}, err
 	}
 	if info.Size() > maxRecord {
-		return Record{}, fmt.Errorf("it's %d bytes, more than a record can be", info.Size())
+		return Record{}, sealed{}, fmt.Errorf("%w: it's %d bytes, more than a record can be", errDamaged, info.Size())
 	}
 	b, err := os.ReadFile(path) //nolint:gosec // a record in the agent's own folder, named by a hash
 	if err != nil {
-		return Record{}, err
+		return Record{}, sealed{}, err
 	}
 	rest, ok := bytes.CutPrefix(b, magic)
 	if !ok {
-		return Record{}, errors.New("it isn't a record of this format")
+		return Record{}, sealed{}, fmt.Errorf("%w: it isn't a record of this format", errDamaged)
 	}
 	var parts [3]string
 	for i := range parts {
 		n, size := binary.Uvarint(rest)
 		if size <= 0 || n > uint64(len(rest)-size) { //nolint:gosec // size is at most len(rest), so this is never negative
-			return Record{}, errors.New("it ends before its resource does")
+			return Record{}, sealed{}, fmt.Errorf("%w: it ends before its resource does", errDamaged)
 		}
 		parts[i] = string(rest[size : size+int(n)]) //nolint:gosec // n fits in rest
 		rest = rest[size+int(n):]                   //nolint:gosec // n fits in rest
 	}
 	ref := resource.Ref{Kind: resource.Kind(parts[0]), Scope: parts[1], Name: parts[2]}
 	if len(rest) < s.aead.NonceSize() {
-		return Record{}, errors.New("it ends before its sealing does")
+		return Record{}, sealed{}, fmt.Errorf("%w: it ends before its sealing does", errDamaged)
 	}
 	nonce, box := rest[:s.aead.NonceSize()], rest[s.aead.NonceSize():]
 	payload, err := s.aead.Open(nil, nonce, box, s.additional(ref))
 	if err != nil {
-		return Record{}, errors.New("its sealing doesn't open: it was changed, cut short, sealed with another key, or for another server")
+		return Record{}, sealed{}, fmt.Errorf("%w: its sealing doesn't open: it was changed, cut short, sealed with another key, or for another server", errDamaged)
 	}
 	defer clear(payload)
 	var in sealed
 	if err := json.Unmarshal(payload, &in); err != nil {
-		return Record{}, fmt.Errorf("what it holds doesn't read: %w", err)
+		return Record{}, sealed{}, fmt.Errorf("%w: what it holds doesn't read: %w", errDamaged, err)
 	}
-	if in.Spec == nil {
-		in.Spec = []byte{}
-	}
-	return Record{
-		Ref: ref, ScopeName: in.ScopeName, Revision: in.Revision, Change: in.Change, Spec: in.Spec, Values: in.Values,
+	r := Record{
+		Ref: ref, ScopeName: in.ScopeName, Revision: in.Revision, Change: in.Change, Values: in.Values,
 		Image: resource.Image{ID: in.Image, Digest: in.Digest},
-	}, nil
+	}
+	if !in.Gone {
+		r.Spec = in.Spec
+		if r.Spec == nil {
+			r.Spec = []byte{}
+		}
+	}
+	return r, in, nil
+}
+
+// writeTemp writes b to a new temporary file in dir whose name starts with
+// prefix, synced and the agent's alone, and returns its path.
+func writeTemp(dir, prefix string, b []byte) (string, error) {
+	f, err := os.CreateTemp(dir, prefix+"*")
+	if err != nil {
+		return "", err
+	}
+	tmp := f.Name()
+	if err := f.Chmod(0o600); err == nil {
+		if _, err = f.Write(b); err == nil {
+			err = f.Sync()
+		}
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+		if err == nil {
+			return tmp, nil
+		}
+	} else {
+		_ = f.Close()
+	}
+	_ = os.Remove(tmp)
+	return "", err
 }
 
 // writeDurably writes b to path, so a power cut leaves what was there or b: a
@@ -369,28 +561,12 @@ func (s *Store) read(path string) (Record, error) {
 // file is the agent's alone.
 func writeDurably(path string, b []byte) error {
 	dir := filepath.Dir(path)
-	f, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*")
+	tmp, err := writeTemp(dir, "."+filepath.Base(path)+".", b)
 	if err != nil {
 		return err
 	}
-	tmp := f.Name()
-	defer func() { _ = os.Remove(tmp) }()
-	if err := f.Chmod(0o600); err != nil {
-		_ = f.Close()
-		return err
-	}
-	if _, err := f.Write(b); err != nil {
-		_ = f.Close()
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
 	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
 		return err
 	}
 	return syncDir(dir)

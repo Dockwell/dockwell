@@ -22,6 +22,7 @@ import (
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	volumekind "github.com/dockwell/dockwell/internal/resource/volume"
 )
 
 // errNoFiles answers a call for a server's files on an agent set up without them.
@@ -576,8 +577,10 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 				Values: resource.ValuesFrom(applyCtx),
 			}
 			if err := c.keep(ctx, r, spec); err != nil {
-				c.logger.Warn("applied a step, but can't keep it as what this server should run, so the server can't put it back while the control plane is away",
+				c.logger.Warn("applied a step, but can't keep it as what this server runs, so the server can't put it back while the control plane is away. "+
+					"The control plane sends it again when the agent next connects. Check that the agent's data folder is writable",
 					slog.String("resource", ref.String()), slog.String("error", err.Error()))
+				return &agentv1.CallResult{Result: &agentv1.CallResult_Apply{Apply: &agentv1.ApplyResult{Unkept: true}}}
 			}
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Apply{Apply: &agentv1.ApplyResult{}}}
@@ -925,27 +928,38 @@ func (t *throttle) stop() {
 	}
 }
 
-// decode reads a desired resource with the agent's drivers.
-// keep has Desired keep r as what spec leaves its resource as, with the image it
-// runs, or forget it when spec is nil.
+// record is r with what spec leaves its resource as, and the image it runs; a nil
+// spec leaves r's spec nil.
+func (c *calls) record(ctx context.Context, r desired.Record, spec proto.Message) (desired.Record, error) {
+	if spec == nil {
+		return r, nil
+	}
+	b, err := resource.Encode(volumekind.WithoutOptions(spec))
+	if err != nil {
+		return r, err
+	}
+	// An empty spec is set: only nil is a deletion.
+	r.Spec = append([]byte{}, b...)
+	if r.Image, err = c.local.RunsImage(ctx, r.Ref); err != nil {
+		return r, fmt.Errorf("can't tell which image %s runs: %w", r.Ref, err)
+	}
+	return r, nil
+}
+
+// keep has Desired keep what a step that passed left r's resource as, or a
+// tombstone when spec is nil. What can't be kept is forgotten, as it no longer
+// says what runs, and the error says so.
 func (c *calls) keep(ctx context.Context, r desired.Record, spec proto.Message) error {
-	if spec != nil {
-		b, err := resource.Encode(spec)
-		if err != nil {
-			return err
-		}
-		// An empty spec is set: only nil forgets.
-		r.Spec = append([]byte{}, b...)
-		if r.Image, err = c.local.RunsImage(ctx, r.Ref); err != nil {
-			return fmt.Errorf("can't tell which image %s runs: %w", r.Ref, err)
-		}
+	r, err := c.record(ctx, r, spec)
+	if err != nil {
+		return c.cfg.Desired.Drop(r.Ref, err)
 	}
 	return c.cfg.Desired.Keep(r)
 }
 
-// remember keeps what the control plane says a resource on this server should be,
-// as it runs now, and says whether it was kept: it isn't when the agent keeps a
-// later revision, as of a step that ended after its stream did.
+// remember keeps what the control plane says a resource on this server runs, or,
+// for one with no spec, forgets it, and says whether it did: it doesn't over a
+// later revision or a deletion, nor forget what a step changed since.
 func (c *calls) remember(ctx context.Context, call *agentv1.RememberCall) (bool, error) {
 	if c.cfg.Desired == nil {
 		return false, errors.New("this agent keeps nothing of what its server should run")
@@ -954,17 +968,18 @@ func (c *calls) remember(ctx context.Context, call *agentv1.RememberCall) (bool,
 	if err != nil {
 		return false, err
 	}
-	if spec == nil {
-		return false, fmt.Errorf("there's no spec to keep for %s", ref)
+	revision := call.GetDeploy().GetRevision()
+	if revision <= 0 {
+		return false, fmt.Errorf("there's no revision to keep or forget %s at", ref)
 	}
-	if call.GetDeploy().GetRevision() <= 0 {
-		return false, fmt.Errorf("there's no revision to keep %s at", ref)
+	if spec == nil {
+		return c.cfg.Desired.Forget(ref, revision)
 	}
 	scopeName := call.GetDesired().GetScopeName()
 	if scopeName != "" {
 		ctx = resource.WithScopeNames(ctx, map[string]string{ref.Scope: scopeName})
 	}
-	r := desired.Record{Ref: ref, ScopeName: scopeName, Revision: call.GetDeploy().GetRevision(), Change: call.GetDeploy().GetChangeId()}
+	r := desired.Record{Ref: ref, ScopeName: scopeName, Revision: revision, Change: call.GetDeploy().GetChangeId()}
 	if sealed := call.GetValues(); len(sealed) > 0 {
 		if c.delivery == nil {
 			return false, fmt.Errorf("this agent has no delivery key to open the values sent for %s", ref)
@@ -976,15 +991,13 @@ func (c *calls) remember(ctx context.Context, call *agentv1.RememberCall) (bool,
 		defer clear(values)
 		r.Values = values
 	}
-	switch err := c.keep(ctx, r, spec); {
-	case errors.Is(err, desired.ErrOlder):
-		return false, nil
-	case err != nil:
+	if r, err = c.record(ctx, r, spec); err != nil {
 		return false, err
 	}
-	return true, nil
+	return c.cfg.Desired.Remember(r)
 }
 
+// decode reads a desired resource with the agent's drivers.
 func (c *calls) decode(d *agentv1.DesiredResource) (resource.Ref, proto.Message, error) {
 	ref := resourcepb.FromRef(d.GetResource())
 	if d.Spec == nil {

@@ -320,6 +320,10 @@ message DesiredHeld {
   // another server's, or of a format it doesn't know. It acts on none of them,
   // and can't tell which resources they were.
   uint32 damaged = 2;
+  // Names this cache, derived from its key, so it changes when the key does: a
+  // control plane that hears a new one says so as it sends the cache what it
+  // lacks, as after a reinstall, or another holder of the server's identity.
+  string cache = 3;
 }
 
 // HeldResource is one resource an agent keeps.
@@ -728,11 +732,14 @@ message TerminalResponse {
 
 // RememberCall gives an agent what one resource on its server should be, from
 // its latest revision placed and applied there, for the agent to keep while the
-// control plane is away (ADR 0054). It changes nothing on the server. The
-// control plane sends it for each resource an agent doesn't keep at that
-// revision, as it connects.
+// control plane is away (ADR 0054), or has it forget one its server no longer
+// runs. It changes nothing on the server. The control plane sends it as an agent
+// connects, for each resource the agent doesn't keep at that revision, and each
+// it keeps that isn't placed there.
 message RememberCall {
-  // The resource, its spec and its scope's name, as a step's are.
+  // The resource, its spec and its scope's name, as a step's are. With no spec,
+  // the agent forgets the resource, if it keeps it at deploy's revision, the
+  // one the control plane saw: a step since then has the say.
   DesiredResource desired = 1;
   // The revision, and the change that made it.
   Deploy deploy = 2;
@@ -743,7 +750,9 @@ message RememberCall {
 
 // RememberResult answers a RememberCall.
 message RememberResult {
-  // False when the agent kept what it had, as it holds a later revision.
+  // False when the agent kept what it had: a later revision, as of a step that
+  // ended after its stream did, or a deletion at or above it. For a forget, false
+  // when it no longer held the resource at that revision.
   bool kept = 1;
 }
 
@@ -1444,7 +1453,13 @@ message UnmanagedMounts {
 }
 
 // ApplyResult says a step was carried out and verified.
-message ApplyResult {}
+message ApplyResult {
+  // True when the step passed but the agent couldn't keep what it left as what
+  // its server runs, as for a full disk, so it forgot what it kept of the
+  // resource (ADR 0054). The control plane sends it again as the agent next
+  // connects.
+  bool unkept = 162;
+}
 
 // ObserveResult carries an observe call's resources.
 message ObserveResult {

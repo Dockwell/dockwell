@@ -274,6 +274,43 @@ describe("Activity", () => {
     await screen.findByRole("row", { name: /Set the public address of hz-1 to 198\.51\.100\.7(?!,)/ });
   });
 
+  it("says when a server's agent was sent variables and secrets to keep, and what a new cache can mean", async () => {
+    const on = { id: "srv_1", name: "hz-1" };
+    const events = [
+      auditEvent({
+        id: "evt_new",
+        action: "server.desired_sent",
+        kind: EventKind.SERVER,
+        subject: on,
+        desiredSent: { resources: 4, withValues: 1, newCache: true, serverName: "hz-1" },
+      }),
+      auditEvent({
+        id: "evt_sent",
+        action: "server.desired_sent",
+        kind: EventKind.SERVER,
+        time: timestampFromDate(new Date(Date.now() - HOUR)),
+        subject: on,
+        desiredSent: { resources: 5, withValues: 3, serverName: "hz-1" },
+      }),
+    ];
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot(events));
+    renderActivity(watch, {}, "/activity?event=evt_new");
+    await screen.findByRole("row", {
+      name: /Sent hz-1's agent the variables and secrets of 3 resources it runs, to keep while the control plane is away/,
+    });
+    await screen.findByRole("row", {
+      name: /hz-1's agent has a new cache, and was sent the variables and secrets of 1 resource it runs/,
+    });
+    const detail = await screen.findByRole("region", { name: /hz-1's agent has a new cache/ });
+    expect(within(detail).getByText("4")).toBeVisible();
+    expect(
+      within(detail).getByText(
+        /If neither happened, something else may hold this server's identity: remove hz-1 from the fleet and join it again/,
+      ),
+    ).toBeVisible();
+  });
+
   it("says what the install's settings were set to, and what they were, so they can be put back", async () => {
     const at = (hours: number) => timestampFromDate(new Date(Date.now() - hours * HOUR));
     const events = [

@@ -723,3 +723,66 @@ func (s *syncWriter) Write(p []byte) (int, error) {
 	defer s.mu.Unlock()
 	return s.w.Write(p)
 }
+
+// A remember with no spec forgets what the server no longer runs, if the agent
+// still holds it at the revision the control plane saw.
+func TestRememberWithNoSpecForgets(t *testing.T) {
+	k := newKeeping(t)
+	call := func(id uint64, desired *agentv1.DesiredResource, revision int64) *agentv1.CallResult {
+		calls := newCalls(context.Background(), k.calls.cfg, k.out.send, k.key)
+		calls.start(&agentv1.Call{Id: id, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Remember{Remember: &agentv1.RememberCall{
+			Desired: desired, Values: k.sealed(t, "kept"), Deploy: &agentv1.Deploy{Revision: revision},
+		}}})
+		defer calls.stop()
+		return k.out.await(t, id)
+	}
+	if r := call(1, &agentv1.DesiredResource{Resource: resourcepb.Ref(keptWeb), Spec: k.spec}, 3); !r.GetRemember().GetKept() {
+		t.Fatalf("remembering it: %v", r)
+	}
+	forget := &agentv1.DesiredResource{Resource: resourcepb.Ref(keptWeb)}
+	if r := call(2, forget, 2); r.GetRemember() == nil || r.GetRemember().GetKept() {
+		t.Fatalf("forgetting it at 2, when it's held at 3: %v, want it answered and kept", r)
+	}
+	if r := call(3, forget, 3); !r.GetRemember().GetKept() {
+		t.Fatalf("forgetting it at 3: %v", r)
+	}
+	if _, ok, err := k.store.Read(keptWeb); ok || err != nil {
+		t.Errorf("still keeps it: %v, %v", ok, err)
+	}
+}
+
+// A step that passes but can't be kept says so, so the control plane sends it
+// again, and forgets the older record, which no longer says what runs.
+func TestAStepThatCantBeKeptSaysSo(t *testing.T) {
+	k := newKeeping(t)
+	apply := func(id uint64, revision int64) *agentv1.CallResult {
+		calls := newCalls(context.Background(), k.calls.cfg, k.out.send, k.key)
+		step := resource.Step{Ref: keptWeb, Decision: resource.Decision{Action: resource.ActionCreate}}
+		calls.start(&agentv1.Call{Id: id, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Apply{Apply: &agentv1.ApplyCall{
+			Step: resourcepb.Step(step, ""), Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(keptWeb), Spec: k.spec},
+			Values: k.sealed(t, "s3cret"), Deploy: &agentv1.Deploy{Revision: revision},
+		}}})
+		defer calls.stop()
+		return k.out.await(t, id)
+	}
+	if r := apply(1, 1); r.GetApply() == nil || r.GetApply().GetUnkept() {
+		t.Fatalf("the first step: %v", r)
+	}
+	// Nothing can be renamed over a folder, so the next record can't be written.
+	records, _ := filepath.Glob(filepath.Join(k.dir, desired.Folder, "*.rec"))
+	if len(records) != 1 {
+		t.Fatalf("records %v", records)
+	}
+	if err := os.Remove(records[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(records[0], 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if r := apply(2, 2); r.GetApply() == nil || !r.GetApply().GetUnkept() {
+		t.Fatalf("a step that can't be kept: %v, want it applied and said unkept", r)
+	}
+	if _, ok, err := k.store.Read(keptWeb); ok || err != nil || len(k.store.Holds().GetHeld()) != 0 {
+		t.Errorf("still keeps the older record: %v, %v, %v", ok, err, k.store.Holds().GetHeld())
+	}
+}

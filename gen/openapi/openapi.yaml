@@ -6061,6 +6061,12 @@ components:
                         What became of a scheduled task's run, for a task event. Its subject is the
                          task. Numbered in the block scheduled tasks hold, as open work adds to this
                          message.
+                desiredSent:
+                    allOf:
+                        - $ref: '#/components/schemas/EventDesiredSent'
+                    description: |-
+                        What the control plane sent a server's agent to keep as what the server
+                         runs, for an event with the action "server.desired_sent" (ADR 0054).
             description: Event is one thing that happened.
         EventBackup:
             type: object
@@ -6093,6 +6099,31 @@ components:
                     type: string
                     description: The destination it went to or didn't, by name.
             description: EventBackup is what became of one backup.
+        EventDesiredSent:
+            type: object
+            properties:
+                resources:
+                    type: integer
+                    description: How many resources the agent was sent.
+                    format: uint32
+                withValues:
+                    type: integer
+                    description: How many of them came with the values of variables and secrets.
+                    format: uint32
+                newCache:
+                    type: boolean
+                    description: |-
+                        True when the agent's cache is new to the control plane: one made since the
+                         control plane last sent it anything, as after a reinstall or a lost key, or
+                         one of another holder of the server's identity.
+                serverName:
+                    type: string
+                    description: The server's name.
+            description: |-
+                EventDesiredSent says what the control plane sent a server's agent to keep, as
+                 what the server runs, when some of it held the values of variables and secrets.
+                 An agent keeps those so its server can be put back while the control plane is
+                 away, and is sent them as it connects without them.
         EventHealth:
             type: object
             properties:

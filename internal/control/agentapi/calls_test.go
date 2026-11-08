@@ -456,8 +456,8 @@ func TestAnAgentKeepsWhatItsServerRuns(t *testing.T) {
 	drivers := resource.NewRegistry(&service.Driver{Containers: container.Driver{Runtime: containertest.NewFake()}})
 	stop := runKeepingAgent(t, s, id, drivers, store)
 	session := waitForAgent(t, s.agents, id.ServerID, true).(*agentapi.Session)
-	if held, keeps := session.Holds(); !keeps || len(held) != 0 {
-		t.Fatalf("a new agent's hello says it keeps %v, %t; want nothing, and that it keeps", held, keeps)
+	if held, cache, keeps := session.Holds(); !keeps || len(held) != 0 || cache == "" || cache != store.Holds().GetCache() {
+		t.Fatalf("a new agent's hello says it keeps %v in %q, %t; want nothing, in its cache, and that it keeps", held, cache, keeps)
 	}
 	web := resource.Ref{Kind: service.Kind, Scope: "env_01JD6Z3R8M9QF2K7T4XW5BNC0V", Name: "web"}
 	svc := &resourcev1.Service{
@@ -476,6 +476,10 @@ func TestAnAgentKeepsWhatItsServerRuns(t *testing.T) {
 	if err != nil || !ok || got.Revision != 2 || got.Change != "chg_2" || got.Values["TOKEN"] != "kept-s3cret" {
 		t.Fatalf("after the step it keeps %+v, %v, %v", got, ok, err)
 	}
+	// The session knows it too, so a fill on this stream doesn't send it again.
+	if held, _, _ := session.Holds(); held[web] != 2 {
+		t.Fatalf("after the step the session says it keeps %v, want web at 2", held)
+	}
 
 	// A restart: the next hello says what it keeps.
 	stop()
@@ -485,7 +489,7 @@ func TestAnAgentKeepsWhatItsServerRuns(t *testing.T) {
 	}
 	runKeepingAgent(t, s, id, drivers, store)
 	session = waitForAgent(t, s.agents, id.ServerID, true).(*agentapi.Session)
-	if held, keeps := session.Holds(); !keeps || held[web] != 2 {
+	if held, _, keeps := session.Holds(); !keeps || held[web] != 2 {
 		t.Fatalf("after a restart its hello says it keeps %v, %t; want web at 2", held, keeps)
 	}
 	s.agents.SendValues(fixedValues{"TOKEN": "rotated"})
@@ -498,6 +502,64 @@ func TestAnAgentKeepsWhatItsServerRuns(t *testing.T) {
 	if got, _, err := store.Read(web); err != nil || got.Revision != 3 || got.Change != "chg_3" || got.Values["TOKEN"] != "rotated" {
 		t.Errorf("it keeps %+v, %v; want revision 3 with the rotated value", got, err)
 	}
+	if held, _, _ := session.Holds(); held[web] != 3 {
+		t.Errorf("after remembering 3 the session says it keeps %v", held)
+	}
+	// Forgetting goes only at the revision the control plane saw.
+	if gone, err := session.Forget(t.Context(), web, 2); err != nil || gone {
+		t.Fatalf("forgetting at 2 = %t, %v; want it answered, and kept", gone, err)
+	}
+	if gone, err := session.Forget(t.Context(), web, 3); err != nil || !gone {
+		t.Fatalf("forgetting at 3 = %t, %v", gone, err)
+	}
+	if held, _, _ := session.Holds(); len(held) != 0 {
+		t.Errorf("after forgetting it the session says it keeps %v", held)
+	}
+	if _, ok, err := store.Read(web); ok || err != nil {
+		t.Errorf("the agent still keeps it: %v, %v", ok, err)
+	}
+}
+
+// A step that passes but can't be kept leaves the session saying the agent lacks
+// it, so the next fill sends it again.
+func TestAStepThatCantBeKeptIsLacking(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	dir := t.TempDir()
+	store, err := desired.Open(dir, id.ServerID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runKeepingAgent(t, s, id, resource.NewRegistry(&container.Driver{Runtime: containertest.NewFake()}), store)
+	session := waitForAgent(t, s.agents, id.ServerID, true).(*agentapi.Session)
+	web := resource.Ref{Kind: container.Kind, Scope: id.ServerID, Name: "web"}
+	spec := &resourcev1.Container{Image: "nginx:1.27"}
+	step := func(revision int) {
+		t.Helper()
+		ctx := resource.WithDeploy(t.Context(), resource.Deploy{Revision: revision, Change: "chg"})
+		if err := session.Apply(ctx, resource.Step{Ref: web, Decision: resource.Decision{Action: resource.ActionCreate}}, spec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	step(1)
+	if held, _, _ := session.Holds(); held[web] != 1 {
+		t.Fatalf("after the first step the session says %v", held)
+	}
+	records, _ := filepath.Glob(filepath.Join(dir, desired.Folder, "*.rec"))
+	if len(records) != 1 {
+		t.Fatalf("records %v", records)
+	}
+	// Nothing can be renamed over a folder, so the next record can't be written.
+	if err := os.Remove(records[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(records[0], 0o700); err != nil {
+		t.Fatal(err)
+	}
+	step(2)
+	if held, _, _ := session.Holds(); len(held) != 0 {
+		t.Errorf("after a step that couldn't be kept the session says %v, want nothing", held)
+	}
 }
 
 // An agent with no cache says so by saying nothing, and is sent nothing to keep.
@@ -506,8 +568,8 @@ func TestAnAgentThatKeepsNothingSaysSo(t *testing.T) {
 	id := s.enrollLocal(t)
 	runAgent(t, s, id, resource.NewRegistry(&service.Driver{Containers: container.Driver{Runtime: containertest.NewFake()}}))
 	session := waitForAgent(t, s.agents, id.ServerID, true).(*agentapi.Session)
-	if held, keeps := session.Holds(); keeps || held != nil {
-		t.Errorf("an agent with no cache: %v, %t; want nothing kept, and that it keeps none", held, keeps)
+	if held, cache, keeps := session.Holds(); keeps || held != nil || cache != "" {
+		t.Errorf("an agent with no cache: %v in %q, %t; want nothing kept, and that it keeps none", held, cache, keeps)
 	}
 }
 

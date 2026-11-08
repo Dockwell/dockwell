@@ -26,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	volumekind "github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/secrets"
 )
 
@@ -409,7 +410,7 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	if d := hello.GetDesired(); d != nil {
-		s.keeps, s.held = true, make(map[resource.Ref]int64, len(d.GetHeld()))
+		s.keeps, s.cache, s.held = true, d.GetCache(), make(map[resource.Ref]int64, len(d.GetHeld()))
 		for _, h := range d.GetHeld() {
 			s.held[resourcepb.FromRef(h.GetResource())] = h.GetRevision()
 		}
@@ -489,9 +490,12 @@ type Session struct {
 	openTerminals      []string
 	opened             time.Time
 	// held is what the agent keeps of its desired state, by resource, as its
-	// hello said (ADR 0054), and keeps whether it keeps any at all.
-	held  map[resource.Ref]int64
-	keeps bool
+	// hello said and each step, remember and forget since has changed it (ADR
+	// 0054); cache names the agent's cache, and keeps says whether it keeps any.
+	heldMu sync.Mutex
+	held   map[resource.Ref]int64
+	cache  string
+	keeps  bool
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -1062,15 +1066,46 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	}
 	// What a step waits on by design, such as a health check with a long start
 	// period, comes on top of the time any step gets.
-	_, err = s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, ApplyTimeout+step.Budget(), seal)
-	return err
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, ApplyTimeout+step.Budget(), seal)
+	if err != nil {
+		return err
+	}
+	// What the agent keeps now, as a step that passed is kept whatever it held,
+	// unless it couldn't be, when the next connect sends it again.
+	switch {
+	case r.GetApply().GetUnkept() || desired == nil:
+		s.forgot(step.Ref)
+	default:
+		s.kept(step.Ref, call.GetDeploy().GetRevision())
+	}
+	return nil
 }
 
-// Holds is what the agent kept of its desired state as its stream opened, by
-// resource and revision, and whether it keeps any at all: an agent from before
-// ADR 0054 keeps none, and is sent none to keep.
-func (s *Session) Holds() (map[resource.Ref]int64, bool) {
-	return maps.Clone(s.held), s.keeps
+// kept notes that the agent keeps ref at revision, or at what it kept for a step
+// with no revision of its own.
+func (s *Session) kept(ref resource.Ref, revision int64) {
+	s.heldMu.Lock()
+	defer s.heldMu.Unlock()
+	if s.keeps && revision > 0 {
+		s.held[ref] = revision
+	}
+}
+
+// forgot notes that the agent keeps nothing of ref.
+func (s *Session) forgot(ref resource.Ref) {
+	s.heldMu.Lock()
+	defer s.heldMu.Unlock()
+	delete(s.held, ref)
+}
+
+// Holds is what the agent keeps of its desired state, by resource and revision,
+// as its hello said and what was sent or applied since has changed it; its
+// cache's ID; and whether it keeps any at all: an agent from before ADR 0054
+// keeps none, and is sent none to keep.
+func (s *Session) Holds() (held map[resource.Ref]int64, cache string, keeps bool) {
+	s.heldMu.Lock()
+	defer s.heldMu.Unlock()
+	return maps.Clone(s.held), s.cache, s.keeps
 }
 
 // Remember has the agent keep what ref runs now, as its latest revision live
@@ -1087,6 +1122,9 @@ func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Mes
 	if err := s.checkReads(ctx, []resource.Ref{ref}); err != nil {
 		return false, err
 	}
+	// A volume is never made again alone, so its record needs no options, which
+	// can hold a share's password: they aren't sent.
+	spec = volumekind.WithoutOptions(spec)
 	dr, err := desiredProto(ref, spec)
 	if err != nil {
 		return false, err
@@ -1109,6 +1147,23 @@ func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Mes
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Remember{Remember: call}}, RememberTimeout, seal)
 	if err != nil {
 		return false, err
+	}
+	if r.GetRemember().GetKept() {
+		s.kept(ref, int64(revision))
+	}
+	return r.GetRemember().GetKept(), nil
+}
+
+// Forget has the agent forget ref, which its server no longer runs, if it still
+// keeps it at revision, the one this session saw, and says whether it did.
+func (s *Session) Forget(ctx context.Context, ref resource.Ref, revision int64) (bool, error) {
+	call := &agentv1.RememberCall{Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(ref)}, Deploy: &agentv1.Deploy{Revision: revision}}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Remember{Remember: call}}, RememberTimeout, nil)
+	if err != nil {
+		return false, err
+	}
+	if r.GetRemember().GetKept() {
+		s.forgot(ref)
 	}
 	return r.GetRemember().GetKept(), nil
 }

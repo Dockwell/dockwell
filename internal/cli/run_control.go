@@ -290,13 +290,14 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	// control plane is away. One that lacks some of it, as an agent from before it
 	// kept any does, is sent it as it connects (ADR 0054).
 	agents.OnConnect(func(server string) {
-		kept, err := engine.Remember(resumeCtx, server)
+		filled, err := engine.Remember(resumeCtx, server)
 		if err != nil {
 			logger.Warn("can't send a server's agent all of what the server runs, so it can't put all of it back while the control plane is away. "+
 				"Dockwell sends it again when the agent next connects", slog.String("server", server), slog.String("error", err.Error()))
 		}
-		if kept > 0 {
-			logger.Info("sent a server's agent what the server runs, for it to keep", slog.String("server", server), slog.Int("resources", kept))
+		if filled.Kept > 0 || filled.Forgot > 0 {
+			logger.Info("sent a server's agent what the server runs, for it to keep", slog.String("server", server),
+				slog.Int("resources", filled.Kept), slog.Int("with_values", filled.WithValues), slog.Int("forgotten", filled.Forgot), slog.Bool("new_cache", filled.NewCache))
 		}
 	})
 	// Tells the timeline when a service turns unhealthy or comes back, for as

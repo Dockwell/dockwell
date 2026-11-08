@@ -96,6 +96,29 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             icon: "server",
           };
         }
+        case "server.desired_sent": {
+          // What the server's agent keeps, so the server can be put back while the
+          // control plane is away (ADR 0054). A new cache is worth a look: it can be
+          // a reinstall, or another holder of the server's identity.
+          const sent = event.desiredSent;
+          const count = sent?.withValues ?? 0;
+          return sent?.newCache
+            ? {
+                title: plural(count, {
+                  one: `${server}'s agent has a new cache, and was sent the variables and secrets of # resource it runs`,
+                  other: `${server}'s agent has a new cache, and was sent the variables and secrets of # resources it runs`,
+                }),
+                icon: "server",
+                tone: "warning",
+              }
+            : {
+                title: plural(count, {
+                  one: `Sent ${server}'s agent the variables and secrets of # resource it runs, to keep while the control plane is away`,
+                  other: `Sent ${server}'s agent the variables and secrets of # resources it runs, to keep while the control plane is away`,
+                }),
+                icon: "server",
+              };
+        }
         case "server.public_address_clear": {
           const previous = event.publicAddress?.previous ?? "";
           return { title: t`Cleared the public address of ${server}, which was ${previous}`, icon: "server" };

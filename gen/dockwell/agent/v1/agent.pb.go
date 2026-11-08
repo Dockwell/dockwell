@@ -1372,7 +1372,11 @@ type DesiredHeld struct {
 	// How many records it found it couldn't open as it started: torn, edited,
 	// another server's, or of a format it doesn't know. It acts on none of them,
 	// and can't tell which resources they were.
-	Damaged       uint32 `protobuf:"varint,2,opt,name=damaged,proto3" json:"damaged,omitempty"`
+	Damaged uint32 `protobuf:"varint,2,opt,name=damaged,proto3" json:"damaged,omitempty"`
+	// Names this cache, derived from its key, so it changes when the key does: a
+	// control plane that hears a new one says so as it sends the cache what it
+	// lacks, as after a reinstall, or another holder of the server's identity.
+	Cache         string `protobuf:"bytes,3,opt,name=cache,proto3" json:"cache,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1419,6 +1423,13 @@ func (x *DesiredHeld) GetDamaged() uint32 {
 		return x.Damaged
 	}
 	return 0
+}
+
+func (x *DesiredHeld) GetCache() string {
+	if x != nil {
+		return x.Cache
+	}
+	return ""
 }
 
 // HeldResource is one resource an agent keeps.
@@ -3984,12 +3995,15 @@ func (x *TerminalResponse) GetRows() uint32 {
 
 // RememberCall gives an agent what one resource on its server should be, from
 // its latest revision placed and applied there, for the agent to keep while the
-// control plane is away (ADR 0054). It changes nothing on the server. The
-// control plane sends it for each resource an agent doesn't keep at that
-// revision, as it connects.
+// control plane is away (ADR 0054), or has it forget one its server no longer
+// runs. It changes nothing on the server. The control plane sends it as an agent
+// connects, for each resource the agent doesn't keep at that revision, and each
+// it keeps that isn't placed there.
 type RememberCall struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The resource, its spec and its scope's name, as a step's are.
+	// The resource, its spec and its scope's name, as a step's are. With no spec,
+	// the agent forgets the resource, if it keeps it at deploy's revision, the
+	// one the control plane saw: a step since then has the say.
 	Desired *DesiredResource `protobuf:"bytes,1,opt,name=desired,proto3" json:"desired,omitempty"`
 	// The revision, and the change that made it.
 	Deploy *Deploy `protobuf:"bytes,2,opt,name=deploy,proto3" json:"deploy,omitempty"`
@@ -4054,7 +4068,9 @@ func (x *RememberCall) GetValues() []byte {
 // RememberResult answers a RememberCall.
 type RememberResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// False when the agent kept what it had, as it holds a later revision.
+	// False when the agent kept what it had: a later revision, as of a step that
+	// ended after its stream did, or a deletion at or above it. For a forget, false
+	// when it no longer held the resource at that revision.
 	Kept          bool `protobuf:"varint,1,opt,name=kept,proto3" json:"kept,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -8041,7 +8057,12 @@ func (x *UnmanagedMounts) GetRoot() bool {
 
 // ApplyResult says a step was carried out and verified.
 type ApplyResult struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// True when the step passed but the agent couldn't keep what it left as what
+	// its server runs, as for a full disk, so it forgot what it kept of the
+	// resource (ADR 0054). The control plane sends it again as the agent next
+	// connects.
+	Unkept        bool `protobuf:"varint,162,opt,name=unkept,proto3" json:"unkept,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8074,6 +8095,13 @@ func (x *ApplyResult) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ApplyResult.ProtoReflect.Descriptor instead.
 func (*ApplyResult) Descriptor() ([]byte, []int) {
 	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{101}
+}
+
+func (x *ApplyResult) GetUnkept() bool {
+	if x != nil {
+		return x.Unkept
+	}
+	return false
 }
 
 // ObserveResult carries an observe call's resources.
@@ -8254,10 +8282,11 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0eopen_terminals\x183 \x03(\tR\ropenTerminals\x12/\n" +
 	"\x13container_terminals\x184 \x01(\bR\x12containerTerminals\x12&\n" +
 	"\x0ereads_onepanel\x18\xb4\x01 \x01(\bR\rreadsOnepanel\x129\n" +
-	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\"\\\n" +
+	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\"r\n" +
 	"\vDesiredHeld\x123\n" +
 	"\x04held\x18\x01 \x03(\v2\x1f.dockwell.agent.v1.HeldResourceR\x04held\x12\x18\n" +
-	"\adamaged\x18\x02 \x01(\rR\adamaged\"`\n" +
+	"\adamaged\x18\x02 \x01(\rR\adamaged\x12\x14\n" +
+	"\x05cache\x18\x03 \x01(\tR\x05cache\"`\n" +
 	"\fHeldResource\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\x03R\brevision\"\xee\x02\n" +
@@ -8703,8 +8732,9 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0fUnmanagedMounts\x12\x12\n" +
 	"\x04name\x18d \x01(\tR\x04name\x12\x14\n" +
 	"\x05paths\x18e \x03(\tR\x05paths\x12\x12\n" +
-	"\x04root\x18f \x01(\bR\x04root\"\r\n" +
-	"\vApplyResult\"R\n" +
+	"\x04root\x18f \x01(\bR\x04root\"&\n" +
+	"\vApplyResult\x12\x17\n" +
+	"\x06unkept\x18\xa2\x01 \x01(\bR\x06unkept\"R\n" +
 	"\rObserveResult\x12A\n" +
 	"\tresources\x18\x01 \x03(\v2#.dockwell.agent.v1.ObservedResourceR\tresources\"4\n" +
 	"\x10ObservedResource\x12\x17\n" +

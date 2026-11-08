@@ -4,19 +4,25 @@ package desired
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
-var web = resource.Ref{Kind: "service", Scope: "env_01TEST", Name: "web"}
+var (
+	web = resource.Ref{Kind: "service", Scope: "env_01TEST", Name: "web"}
+	api = resource.Ref{Kind: "service", Scope: "env_01TEST", Name: "api"}
+)
 
 func record(revision int64) Record {
 	return Record{
@@ -44,11 +50,47 @@ func held(s *Store) map[string]int64 {
 	return out
 }
 
-func TestARecordOutlivesARestart(t *testing.T) {
-	dir := t.TempDir()
-	if err := open(t, dir, "srv_1").Keep(record(4)); err != nil {
+func keep(t *testing.T, s *Store, r Record) {
+	t.Helper()
+	if err := s.Keep(r); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func remember(t *testing.T, s *Store, r Record) bool {
+	t.Helper()
+	kept, err := s.Remember(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return kept
+}
+
+func revisionOf(t *testing.T, s *Store, ref resource.Ref) (int64, string) {
+	t.Helper()
+	r, ok, err := s.Read(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		return 0, ""
+	}
+	return r.Revision, r.Values["DATABASE_PASSWORD"]
+}
+
+func write(t *testing.T, path string, b []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func path(dir string, ref resource.Ref) string { return filepath.Join(dir, Folder, fileName(ref)) }
+
+func TestARecordOutlivesARestart(t *testing.T) {
+	dir := t.TempDir()
+	first := open(t, dir, "srv_1")
+	keep(t, first, record(4))
 	s := open(t, dir, "srv_1")
 	if got := held(s); !reflect.DeepEqual(got, map[string]int64{"web": 4}) || s.Holds().GetDamaged() != 0 {
 		t.Fatalf("after a restart it holds %v, %d damaged", got, s.Holds().GetDamaged())
@@ -57,17 +99,18 @@ func TestARecordOutlivesARestart(t *testing.T) {
 	if err != nil || !ok || !reflect.DeepEqual(got, record(4)) {
 		t.Fatalf("read %+v, %v, %v, want %+v", got, ok, err, record(4))
 	}
-	if _, ok, err := s.Read(resource.Ref{Kind: "service", Scope: "env_01TEST", Name: "api"}); ok || err != nil {
+	if _, ok, err := s.Read(api); ok || err != nil {
 		t.Errorf("read what it doesn't keep: %v, %v", ok, err)
+	}
+	if c := s.Holds().GetCache(); c == "" || c != first.Holds().GetCache() {
+		t.Errorf("the cache is %q after a restart, %q before; want one ID that stays", c, first.Holds().GetCache())
 	}
 }
 
 func TestNothingOnDiskIsInTheClear(t *testing.T) {
 	dir := t.TempDir()
-	if err := open(t, dir, "srv_1").Keep(record(1)); err != nil {
-		t.Fatal(err)
-	}
-	b, err := os.ReadFile(filepath.Join(dir, Folder, fileName(web)))
+	keep(t, open(t, dir, "srv_1"), record(1))
+	b, err := os.ReadFile(path(dir, web))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,9 +120,9 @@ func TestNothingOnDiskIsInTheClear(t *testing.T) {
 		}
 	}
 	for path, want := range map[string]os.FileMode{
-		filepath.Join(dir, Folder):                0o700 | os.ModeDir,
-		filepath.Join(dir, KeyFile):               0o600,
-		filepath.Join(dir, Folder, fileName(web)): 0o600,
+		filepath.Join(dir, Folder):  0o700 | os.ModeDir,
+		filepath.Join(dir, KeyFile): 0o600,
+		path(dir, web):              0o600,
 	} {
 		info, err := os.Stat(path)
 		if err != nil || info.Mode() != want {
@@ -88,56 +131,160 @@ func TestNothingOnDiskIsInTheClear(t *testing.T) {
 	}
 }
 
-func TestOnlyALaterRevisionReplacesOne(t *testing.T) {
+// A step says what runs, so it's kept whatever revision the cache held: a control
+// plane's store that went back numbers lower. Only what the control plane sends
+// to fill the cache is held to the revision kept.
+func TestAStepAlwaysWinsAndAFillDoesntGoBack(t *testing.T) {
 	s := open(t, t.TempDir(), "srv_1")
-	if err := s.Keep(record(5)); err != nil {
-		t.Fatal(err)
+	keep(t, s, record(9))
+	keep(t, s, record(3))
+	if rev, _ := revisionOf(t, s, web); rev != 3 {
+		t.Fatalf("a step at 3 over 9 keeps %d, want 3", rev)
 	}
-	if err := s.Keep(record(3)); !errors.Is(err, ErrOlder) {
-		t.Fatalf("an older revision: %v, want ErrOlder", err)
+	rotated := record(5)
+	rotated.Values["DATABASE_PASSWORD"] = "rotated"
+	if !remember(t, s, rotated) {
+		t.Fatal("a fill at 5 over 3 wasn't kept")
 	}
-	newer := record(6)
-	newer.Values["DATABASE_PASSWORD"] = "rotated"
-	if err := s.Keep(newer); err != nil {
-		t.Fatal(err)
+	if remember(t, s, record(4)) {
+		t.Error("a fill at 4 over 5 was kept")
+	}
+	if !remember(t, s, rotated) {
+		t.Error("the same fill again wasn't kept")
 	}
 	// A restart acts on the resource as it is, with no revision of its own.
 	restarted := record(0)
 	restarted.Values["DATABASE_PASSWORD"] = "rotated"
-	if err := s.Keep(restarted); err != nil {
-		t.Fatal(err)
+	keep(t, s, restarted)
+	if rev, value := revisionOf(t, s, web); rev != 5 || value != "rotated" {
+		t.Errorf("keeps revision %d with %q, want 5 with the rotated value", rev, value)
 	}
-	got, _, err := s.Read(web)
-	if err != nil || got.Revision != 6 || got.Values["DATABASE_PASSWORD"] != "rotated" {
-		t.Errorf("keeps revision %d with %q, %v; want 6 with the rotated value", got.Revision, got.Values["DATABASE_PASSWORD"], err)
+	if _, err := s.Remember(Record{Ref: web, Spec: []byte{}}); err == nil {
+		t.Error("a fill with no revision was taken")
 	}
 }
 
-func TestADeletionForgetsIt(t *testing.T) {
+// A deletion leaves a tombstone: nothing reads it or lists it, and a fill at or
+// below its revision, read before the deletion, can't bring the record back. A
+// step can, and a later fill can, and a tombstone goes once it has outlived any fill.
+func TestADeletionHoldsBackALateFill(t *testing.T) {
 	dir := t.TempDir()
 	s := open(t, dir, "srv_1")
-	if err := s.Keep(record(2)); err != nil {
+	keep(t, s, record(5))
+	keep(t, s, Record{Ref: web, Revision: 6})
+	if _, ok, err := s.Read(web); ok || err != nil {
+		t.Fatalf("a deleted resource reads %v, %v", ok, err)
+	}
+	if got := held(s); len(got) != 0 {
+		t.Fatalf("its hello lists %v", got)
+	}
+	for _, late := range []int64{5, 6} {
+		if remember(t, s, record(late)) {
+			t.Errorf("a fill at %d after the deletion at 6 brought it back", late)
+		}
+	}
+	b, _ := os.ReadFile(path(dir, web))
+	if bytes.Contains(b, []byte("correct-horse")) {
+		t.Error("the tombstone has the value in the clear")
+	}
+	// It outlives a restart.
+	s = open(t, dir, "srv_1")
+	if remember(t, s, record(6)) {
+		t.Error("after a restart, a fill at 6 brought it back")
+	}
+	if !remember(t, s, record(7)) {
+		t.Error("a fill at 7, after the deletion at 6, wasn't kept")
+	}
+	keep(t, s, Record{Ref: web, Revision: 8})
+	keep(t, s, record(2))
+	if rev, _ := revisionOf(t, s, web); rev != 2 {
+		t.Errorf("a step at 2 after the deletion keeps %d, want 2", rev)
+	}
+	// Once it has outlived any fill, it goes.
+	keep(t, s, Record{Ref: web, Revision: 9})
+	s = open(t, dir, "srv_1")
+	s.now = func() time.Time { return time.Now().Add(TombstoneLife + time.Hour) }
+	if err := s.load(); err != nil {
 		t.Fatal(err)
 	}
-	gone := Record{Ref: web, Revision: 3}
-	if err := s.Keep(gone); err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(path(dir, web)); !os.IsNotExist(err) {
+		t.Errorf("a tombstone past its life is still there: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, Folder, fileName(web))); !os.IsNotExist(err) {
+}
+
+// What the control plane has the agent forget goes only if the agent holds it
+// at the revision the control plane saw: a step since then has the say.
+func TestForgetTakesOnlyWhatTheControlPlaneSaw(t *testing.T) {
+	dir := t.TempDir()
+	s := open(t, dir, "srv_1")
+	keep(t, s, record(4))
+	if gone, err := s.Forget(web, 3); err != nil || gone {
+		t.Fatalf("forget at 3 of what's held at 4 = %v, %v", gone, err)
+	}
+	if gone, err := s.Forget(web, 4); err != nil || !gone {
+		t.Fatalf("forget at 4 = %v, %v", gone, err)
+	}
+	if _, err := os.Stat(path(dir, web)); !os.IsNotExist(err) {
 		t.Errorf("the record is still there: %v", err)
 	}
-	if got := held(open(t, dir, "srv_1")); len(got) != 0 {
-		t.Errorf("after a restart it holds %v", got)
+	if gone, err := s.Forget(web, 4); err != nil || gone {
+		t.Errorf("forget again = %v, %v", gone, err)
 	}
+	keep(t, s, Record{Ref: api, Revision: 2})
+	if gone, err := s.Forget(api, 2); err != nil || gone {
+		t.Errorf("forget a tombstone = %v, %v", gone, err)
+	}
+}
+
+// A step that passed and can't be kept leaves nothing that says what ran
+// before: the older record goes, or, if it can't, nothing reads it.
+func TestAFailedKeepForgetsTheOlderRecord(t *testing.T) {
+	t.Run("the record can go", func(t *testing.T) {
+		dir := t.TempDir()
+		s := open(t, dir, "srv_1")
+		keep(t, s, record(1))
+		// Nothing can be renamed over a folder, which can be removed.
+		if err := os.Remove(path(dir, web)); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(path(dir, web), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Keep(record(2)); err == nil || !strings.Contains(err.Error(), "so the agent forgot what it kept of it") {
+			t.Fatalf("Keep = %v, want it failed, and the older record forgotten", err)
+		}
+		if _, ok, _ := s.Read(web); ok || len(held(s)) != 0 {
+			t.Errorf("still reads it, or lists %v", held(s))
+		}
+	})
+	t.Run("it can't", func(t *testing.T) {
+		if os.Getuid() == 0 {
+			t.Skip("root writes anything")
+		}
+		dir := t.TempDir()
+		s := open(t, dir, "srv_1")
+		keep(t, s, record(1))
+		if err := os.Chmod(filepath.Join(dir, Folder), 0o500); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(filepath.Join(dir, Folder), 0o700) })
+		if err := s.Keep(record(2)); err == nil || !strings.Contains(err.Error(), "so the agent reads it no more") {
+			t.Fatalf("Keep = %v, want it failed, and the older record unread", err)
+		}
+		if _, ok, _ := s.Read(web); ok || len(held(s)) != 0 {
+			t.Errorf("still reads it, or lists %v", held(s))
+		}
+		if _, err := s.Remember(record(2)); err == nil {
+			t.Error("a fill into a read-only folder said it kept it")
+		}
+	})
 }
 
 func TestAnEmptySpecIsKept(t *testing.T) {
 	s := open(t, t.TempDir(), "srv_1")
 	empty := record(1)
 	empty.Spec = []byte{}
-	if err := s.Keep(empty); err != nil {
-		t.Fatal(err)
-	}
+	keep(t, s, empty)
 	got, ok, err := s.Read(web)
 	if err != nil || !ok || got.Spec == nil || len(got.Spec) != 0 {
 		t.Errorf("read %v, %v, %v, want an empty spec", got.Spec, ok, err)
@@ -146,16 +293,16 @@ func TestAnEmptySpecIsKept(t *testing.T) {
 
 // Each way a record can come to not open: it's put aside, counted, and not held.
 func TestARecordThatDoesntOpenIsPutAside(t *testing.T) {
-	api := resource.Ref{Kind: "service", Scope: "env_01TEST", Name: "api"}
-	for name, spoil := range map[string]func(t *testing.T, dir, path string){
+	spoil := map[string]func(t *testing.T, dir, path string){
 		"a byte changed": func(t *testing.T, _, path string) {
 			b, _ := os.ReadFile(path)
 			b[len(b)-3] ^= 1
 			write(t, path, b)
 		},
-		"cut short": func(t *testing.T, _, path string) {
+		"a byte of its resource changed": func(t *testing.T, _, path string) {
 			b, _ := os.ReadFile(path)
-			write(t, path, b[:len(b)/2])
+			b[bytes.Index(b, []byte("web"))+2] = 'c'
+			write(t, path, b)
 		},
 		"another format": func(t *testing.T, _, path string) {
 			b, _ := os.ReadFile(path)
@@ -178,14 +325,19 @@ func TestARecordThatDoesntOpenIsPutAside(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
-	} {
+	}
+	for _, n := range []int{0, 1, 4, 5, 20} {
+		spoil[fmt.Sprintf("cut to %d bytes", n)] = func(t *testing.T, _, path string) {
+			b, _ := os.ReadFile(path)
+			write(t, path, b[:n])
+		}
+	}
+	for name, spoil := range spoil {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
 			s := open(t, dir, "srv_1")
-			if err := s.Keep(record(1)); err != nil {
-				t.Fatal(err)
-			}
-			spoil(t, dir, filepath.Join(dir, Folder, fileName(web)))
+			keep(t, s, record(1))
+			spoil(t, dir, path(dir, web))
 			s = open(t, dir, "srv_1")
 			if got := held(s); len(got) != 0 || s.Holds().GetDamaged() != 1 {
 				t.Fatalf("holds %v with %d damaged, want nothing held and 1 damaged", got, s.Holds().GetDamaged())
@@ -197,37 +349,179 @@ func TestARecordThatDoesntOpenIsPutAside(t *testing.T) {
 				t.Errorf("put aside %v, want the record", aside)
 			}
 			// It keeps again, with whatever key it has now.
-			if err := s.Keep(record(1)); err != nil {
-				t.Fatal(err)
-			}
+			keep(t, s, record(1))
 			if got := held(open(t, dir, "srv_1")); got["web"] != 1 {
 				t.Errorf("kept again, a restart holds %v", got)
 			}
 		})
 	}
+	t.Run("two records swapped", func(t *testing.T) {
+		dir := t.TempDir()
+		s := open(t, dir, "srv_1")
+		keep(t, s, record(1))
+		other := record(1)
+		other.Ref = api
+		keep(t, s, other)
+		a, b := path(dir, web), path(dir, api)
+		if err := os.Rename(a, a+".x"); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(b, a); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(a+".x", b); err != nil {
+			t.Fatal(err)
+		}
+		s = open(t, dir, "srv_1")
+		if got := held(s); len(got) != 0 || s.Holds().GetDamaged() != 2 {
+			t.Errorf("holds %v with %d damaged, want both put aside", got, s.Holds().GetDamaged())
+		}
+	})
+}
+
+// A record that can't be read now, as for a disk error, isn't damage: it's left
+// where it is, and the cache doesn't open, so the agent says why.
+func TestARecordItCantReadNowIsntDamage(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads anything")
+	}
+	dir := t.TempDir()
+	keep(t, open(t, dir, "srv_1"), record(1))
+	if err := os.Chmod(path(dir, web), 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(dir, "srv_1", nil); err == nil || !strings.Contains(err.Error(), "Check the disk") {
+		t.Fatalf("Open = %v, want it to fail and say why", err)
+	}
+	if aside, _ := filepath.Glob(filepath.Join(dir, Folder, Damaged, "*")); len(aside) != 0 {
+		t.Errorf("put aside %v", aside)
+	}
+	if err := os.Chmod(path(dir, web), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := held(open(t, dir, "srv_1")); got["web"] != 1 {
+		t.Errorf("once it reads again, holds %v", got)
+	}
 }
 
 func TestAnotherServersRecordDoesntOpen(t *testing.T) {
 	dir := t.TempDir()
-	if err := open(t, dir, "srv_1").Keep(record(1)); err != nil {
-		t.Fatal(err)
-	}
+	keep(t, open(t, dir, "srv_1"), record(1))
 	s := open(t, dir, "srv_2")
 	if got := held(s); len(got) != 0 || s.Holds().GetDamaged() != 1 {
 		t.Errorf("another server holds %v, %d damaged", got, s.Holds().GetDamaged())
 	}
 }
 
-func TestItNeedsTheServer(t *testing.T) {
-	if _, err := Open(t.TempDir(), "", nil); err == nil {
-		t.Error("opened with no server")
+// What the sealing doesn't do, as the threat model says: a copy of the whole
+// data folder, key and all, opens anywhere for the same server, and an older
+// copy of a record from this server opens, at its own revision.
+func TestWhatTheSealingDoesntStop(t *testing.T) {
+	dir := t.TempDir()
+	s := open(t, dir, "srv_1")
+	keep(t, s, record(3))
+	older, _ := os.ReadFile(path(dir, web))
+	keep(t, s, record(5))
+
+	elsewhere := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(elsewhere, Folder), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{KeyFile, filepath.Join(Folder, fileName(web))} {
+		b, err := os.ReadFile(filepath.Join(dir, f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		write(t, filepath.Join(elsewhere, f), b)
+	}
+	if rev, value := revisionOf(t, open(t, elsewhere, "srv_1"), web); rev != 5 || value != "correct-horse-battery-staple" {
+		t.Errorf("the folder copied elsewhere reads revision %d with %q", rev, value)
+	}
+
+	write(t, path(dir, web), older)
+	if rev, _ := revisionOf(t, open(t, dir, "srv_1"), web); rev != 3 {
+		t.Errorf("an older copy put back reads revision %d, want 3", rev)
 	}
 }
 
-func write(t *testing.T, path string, b []byte) {
-	t.Helper()
-	if err := os.WriteFile(path, b, 0o600); err != nil {
+// A key others can read is made the agent's alone again, and the log says so.
+func TestTheKeyIsTheAgentsAlone(t *testing.T) {
+	dir := t.TempDir()
+	keep(t, open(t, dir, "srv_1"), record(1))
+	if err := os.Chmod(filepath.Join(dir, KeyFile), 0o644); err != nil {
 		t.Fatal(err)
+	}
+	var log bytes.Buffer
+	s, err := Open(dir, "srv_1", slog.New(slog.NewTextHandler(io.MultiWriter(&log), nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(filepath.Join(dir, KeyFile))
+	if err != nil || info.Mode().Perm() != 0o600 || !strings.Contains(log.String(), "could be read by others") || held(s)["web"] != 1 {
+		t.Errorf("the key is %v after, %v, holding %v, and the log says %q", info.Mode(), err, held(s), log.String())
+	}
+}
+
+// Starts on one folder at once settle on one key, so none seals with a key that lost.
+func TestStartsAtOnceAgreeOnAKey(t *testing.T) {
+	for round := range 20 {
+		dir := t.TempDir()
+		stores := make([]*Store, 4)
+		var wg sync.WaitGroup
+		for i := range stores {
+			wg.Go(func() {
+				s, err := Open(dir, "srv_1", nil)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				stores[i] = s
+			})
+		}
+		wg.Wait()
+		for i, s := range stores {
+			if s == nil {
+				t.FailNow()
+			}
+			r := record(1)
+			r.Ref.Name = fmt.Sprintf("web-%d", i)
+			keep(t, s, r)
+		}
+		if s := open(t, dir, "srv_1"); s.Holds().GetDamaged() != 0 || len(held(s)) != 4 {
+			t.Fatalf("round %d: %d records sealed with a key that lost, %v held", round, s.Holds().GetDamaged(), held(s))
+		}
+	}
+}
+
+// What a power cut leaves of a write goes as the cache opens.
+func TestAPowerCutsLeftoversGo(t *testing.T) {
+	dir := t.TempDir()
+	keep(t, open(t, dir, "srv_1"), record(1))
+	write(t, filepath.Join(dir, Folder, "."+fileName(web)+".123456"), []byte("sealed bytes"))
+	write(t, filepath.Join(dir, "."+KeyFile+".987"), bytes.Repeat([]byte{1}, keySize))
+	s := open(t, dir, "srv_1")
+	left, _ := filepath.Glob(filepath.Join(dir, Folder, ".*"))
+	keys, _ := filepath.Glob(filepath.Join(dir, "."+KeyFile+".*"))
+	if len(left) != 0 || len(keys) != 0 || held(s)["web"] != 1 {
+		t.Errorf("left %v and %v, holding %v", left, keys, held(s))
+	}
+}
+
+// The cache's ID changes with its key, so the control plane can tell a new cache.
+func TestANewKeyIsANewCache(t *testing.T) {
+	dir := t.TempDir()
+	before := open(t, dir, "srv_1").Holds().GetCache()
+	if err := os.Remove(filepath.Join(dir, KeyFile)); err != nil {
+		t.Fatal(err)
+	}
+	if after := open(t, dir, "srv_1").Holds().GetCache(); after == before || len(after) != 16 {
+		t.Errorf("the cache was %q, and is %q with a new key", before, after)
+	}
+}
+
+func TestItNeedsTheServer(t *testing.T) {
+	if _, err := Open(t.TempDir(), "", nil); err == nil {
+		t.Error("opened with no server")
 	}
 }
 
@@ -241,14 +535,12 @@ func TestTheIndexIsAllThatStaysInMemory(t *testing.T) {
 	for i := range 1000 {
 		r := record(1)
 		r.Ref.Name = fmt.Sprintf("web-%04d", i)
-		r.Spec = []byte(big)
-		r.Values = map[string]string{"DATABASE_PASSWORD": big}
 		// Sealed as Keep seals it, without its syncs, which take a while on a busy disk.
-		b, err := s.seal(r)
+		b, err := s.seal(r.Ref, sealed{Revision: 1, Spec: []byte(big), Values: map[string]string{"DATABASE_PASSWORD": big}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		write(t, filepath.Join(dir, Folder, fileName(r.Ref)), b)
+		write(t, path(dir, r.Ref), b)
 	}
 	var before, after runtime.MemStats
 	runtime.GC()
@@ -259,7 +551,7 @@ func TestTheIndexIsAllThatStaysInMemory(t *testing.T) {
 	if n := len(reopened.Holds().GetHeld()); n != 1000 {
 		t.Fatalf("holds %d", n)
 	}
-	grew := int64(after.HeapAlloc) - int64(before.HeapAlloc) //nolint:gosec // heap sizes fit
+	grew := int64(after.HeapAlloc) - int64(before.HeapAlloc)
 	t.Logf("1,000 records, %d KiB of specs and values on disk, hold %d KiB in memory", 1000*8, grew>>10)
 	if grew > 1<<20 {
 		t.Errorf("1,000 records hold %d KiB in memory, want under 1 MiB", grew>>10)

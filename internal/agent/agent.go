@@ -204,11 +204,21 @@ type DatabaseReader interface {
 // back while the control plane is away (ADR 0054). The agent has it keep what
 // each step it applies and verifies leaves a resource as, with the values the
 // spec uses, which it seals on disk, and what the control plane has it remember
-// of what already runs. Its hello says what it keeps.
+// or forget of what runs. Its hello says what it keeps.
 type Desired interface {
-	// Keep keeps r, or forgets it when its spec is nil. It refuses a revision
-	// older than the one it keeps with desired.ErrOlder.
+	// Keep keeps what a step that passed left a resource as, whatever revision
+	// it held, or a tombstone when the spec is nil. What it can't keep it
+	// forgets, and says so.
 	Keep(r desired.Record) error
+	// Remember keeps what the control plane says a resource runs, unless it
+	// keeps a later revision or a deletion at or above it, and says whether it did.
+	Remember(r desired.Record) (bool, error)
+	// Forget forgets a resource its server no longer runs, if it keeps it at
+	// revision, and says whether it did.
+	Forget(ref resource.Ref, revision int64) (bool, error)
+	// Drop forgets what it keeps of a resource, as a step passed and what it
+	// left can't be kept, for why, which the error it returns says.
+	Drop(ref resource.Ref, why error) error
 	// Holds says what it keeps.
 	Holds() *agentv1.DesiredHeld
 }

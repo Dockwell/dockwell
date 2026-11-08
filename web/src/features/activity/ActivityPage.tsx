@@ -10,6 +10,7 @@ import {
   ChangeState,
   type Event,
   type EventBackup,
+  type EventDesiredSent,
   EventKind,
   type EventTerminal,
   ResourceService,
@@ -721,6 +722,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
             {event.health ? <HealthFacts event={event} /> : null}
             {event.backup ? <BackupFacts backup={event.backup} /> : null}
             {event.terminal ? <TerminalFacts terminal={event.terminal} /> : null}
+            {event.desiredSent ? <DesiredSentFacts sent={event.desiredSent} /> : null}
           </dl>
           {change?.because ? <BecauseNotice because={change.because} /> : null}
           {change?.state === ChangeState.FAILED ? (
@@ -856,6 +858,32 @@ function TerminalFacts({ terminal }: { terminal: EventTerminal }) {
         <>
           <dt>{t`Why`}</dt>
           <dd>{terminal.error}</dd>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * What a server's agent was sent to keep, in the facts of its event: how many
+ * resources, and, for a cache new to the control plane, what that can mean and
+ * what to do. Never a value.
+ */
+function DesiredSentFacts({ sent }: { sent: EventDesiredSent }) {
+  const { t } = useLingui();
+  const server = sent.serverName;
+  return (
+    <>
+      <dt>{t`Resources sent`}</dt>
+      <dd>{sent.resources}</dd>
+      <dt>{t`With variables and secrets`}</dt>
+      <dd>{sent.withValues}</dd>
+      {sent.newCache ? (
+        <>
+          <dt>{t`New cache`}</dt>
+          <dd>
+            {t`${server}'s agent keeps its cache under a key it made since the control plane last sent it anything, as after a reinstall, or a data folder that was lost. If neither happened, something else may hold this server's identity: remove ${server} from the fleet and join it again, which gives it a new one.`}
+          </dd>
         </>
       ) : null}
     </>
