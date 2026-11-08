@@ -842,7 +842,8 @@ export type OnePanelCronJob = Message<"dockwell.v1.OnePanelCronJob"> & {
   interpreter: string;
 
   /**
-   * Who a shell job runs as in its container, where 1Panel says.
+   * Who a shell job runs as, in its container or on the server, where 1Panel
+   * says.
    *
    * @generated from field: string user = 13;
    */

@@ -412,13 +412,14 @@ func (r *reader) shell(job *dockwellv1.OnePanelCronJob, row sqlitefile.Row, libr
 		job.ScriptLines = uint32(min(bytes.Count([]byte(strings.TrimRight(script, "\n")), []byte("\n"))+1, 1<<20)) //nolint:gosec // bounded
 	}
 	// What 1Panel runs it with: the command in a container, sh where none's
-	// given, and the executor on the server, bash where none's given.
+	// given, and the executor on the server, bash where none's given. Either
+	// runs as its user where it names one, with sudo on the server.
 	if job.Container != "" {
 		job.Interpreter = cmp.Or(row.Text("command"), "sh")
-		job.User = row.Text("user")
 	} else {
 		job.Interpreter = cmp.Or(row.Text("executor"), "bash")
 	}
+	job.User = row.Text("user")
 }
 
 // schedules is a job's schedules, a line each: 1Panel joins several with "&&",

@@ -7882,7 +7882,9 @@ components:
                     description: What runs a shell job's script, such as "bash" or "python3".
                 user:
                     type: string
-                    description: Who a shell job runs as in its container, where 1Panel says.
+                    description: |-
+                        Who a shell job runs as, in its container or on the server, where 1Panel
+                         says.
                 databaseType:
                     type: string
                     description: |-

@@ -346,6 +346,11 @@ func cronJobStep(j *dockwellv1.OnePanelCronJob) *dockwellv1.ImportStep {
 		run := j.GetInterpreter()
 		switch j.GetScriptFrom() {
 		case "library":
+			// 1Panel can't run one whose script its library no longer has, either.
+			if j.GetScriptName() == "" {
+				return leave("a script from 1Panel's library, on "+schedule,
+					"1Panel's library no longer has its script, so 1Panel can't run it either. Make it again from Dockwell's scheduled tasks.")
+			}
 			s.Summary = fmt.Sprintf("the script %s from 1Panel's library, %s, run by %s", j.GetScriptName(), lines(j.GetScriptLines()), run)
 			s.Becomes = "a scheduled task running the same script"
 		case "select":
@@ -358,10 +363,10 @@ func cronJobStep(j *dockwellv1.OnePanelCronJob) *dockwellv1.ImportStep {
 		if c := j.GetContainer(); c != "" {
 			s.Summary += ", in the container " + c
 			s.Becomes += ", in the container " + c
-			if u := j.GetUser(); u != "" {
-				s.Summary += " as " + u
-				s.Becomes += " as " + u
-			}
+		}
+		if u := j.GetUser(); u != "" {
+			s.Summary += ", as " + u
+			s.Becomes += ", as " + u
 		}
 		s.Summary += ", on " + schedule
 	case "curl":

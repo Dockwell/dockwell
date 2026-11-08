@@ -337,7 +337,8 @@ message OnePanelCronJob {
   string script_path = 11;
   // What runs a shell job's script, such as "bash" or "python3".
   string interpreter = 12;
-  // Who a shell job runs as in its container, where 1Panel says.
+  // Who a shell job runs as, in its container or on the server, where 1Panel
+  // says.
   string user = 13;
   // The kind of database a database backup is of, as 1Panel says it: "mysql",
   // "mariadb", "postgresql" or "mongodb".

@@ -1414,7 +1414,8 @@ type OnePanelCronJob struct {
 	ScriptPath string `protobuf:"bytes,11,opt,name=script_path,json=scriptPath,proto3" json:"script_path,omitempty"`
 	// What runs a shell job's script, such as "bash" or "python3".
 	Interpreter string `protobuf:"bytes,12,opt,name=interpreter,proto3" json:"interpreter,omitempty"`
-	// Who a shell job runs as in its container, where 1Panel says.
+	// Who a shell job runs as, in its container or on the server, where 1Panel
+	// says.
 	User string `protobuf:"bytes,13,opt,name=user,proto3" json:"user,omitempty"`
 	// The kind of database a database backup is of, as 1Panel says it: "mysql",
 	// "mariadb", "postgresql" or "mongodb".
