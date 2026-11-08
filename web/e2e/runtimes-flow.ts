@@ -129,6 +129,7 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
     if (moved.length !== 1 || !moved[0]?.image.startsWith(`node:${older}.`)) {
       fail(`after the change Docker runs ${JSON.stringify(moved)} for ${name}, want node:${older}`);
     }
+    const appURL = page.url();
 
     step("runtimes: the Websites page's runtimes list Node.js with the app on it");
     await page.goto(`${origin}/websites`);
@@ -139,8 +140,10 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
 
     step("runtimes: on a phone, the app's page says what it runs on");
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`${origin}/apps`);
-    await page.getByText(`Node.js ${older} · ${folder}`).first().waitFor({ timeout: 15_000 });
+    await page.goto(appURL);
+    const phoneConfig = page.getByRole("region", { name: "Configuration" });
+    await phoneConfig.getByText(`Node.js ${older}`).waitFor({ timeout: 15_000 });
+    await phoneConfig.getByText(folder, { exact: true }).waitFor();
     await shoot(page, "apps-runtime-phone");
     await page.setViewportSize({ width: 1440, height: 900 });
 
