@@ -493,17 +493,25 @@ func TestStartsAtOnceAgreeOnAKey(t *testing.T) {
 	}
 }
 
-// What a power cut leaves of a write goes as the cache opens.
+// What a power cut leaves of a write goes as the cache opens, once it's old
+// enough not to be another start's, writing now.
 func TestAPowerCutsLeftoversGo(t *testing.T) {
 	dir := t.TempDir()
 	keep(t, open(t, dir, "srv_1"), record(1))
-	write(t, filepath.Join(dir, Folder, "."+fileName(web)+".123456"), []byte("sealed bytes"))
-	write(t, filepath.Join(dir, "."+KeyFile+".987"), bytes.Repeat([]byte{1}, keySize))
+	old := time.Now().Add(-2 * leftoverAge)
+	for _, path := range []string{filepath.Join(dir, Folder, "."+fileName(web)+".123456"), filepath.Join(dir, "."+KeyFile+".987")} {
+		write(t, path, bytes.Repeat([]byte{1}, keySize))
+		if err := os.Chtimes(path, old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	young := filepath.Join(dir, "."+KeyFile+".654")
+	write(t, young, bytes.Repeat([]byte{2}, keySize))
 	s := open(t, dir, "srv_1")
 	left, _ := filepath.Glob(filepath.Join(dir, Folder, ".*"))
 	keys, _ := filepath.Glob(filepath.Join(dir, "."+KeyFile+".*"))
-	if len(left) != 0 || len(keys) != 0 || held(s)["web"] != 1 {
-		t.Errorf("left %v and %v, holding %v", left, keys, held(s))
+	if len(left) != 0 || len(keys) != 1 || keys[0] != young || held(s)["web"] != 1 {
+		t.Errorf("left %v and %v, holding %v; want only %s, which another start may be writing", left, keys, held(s), young)
 	}
 }
 

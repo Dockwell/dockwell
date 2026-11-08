@@ -142,8 +142,8 @@ func Open(dir, server string, logger *slog.Logger) (*Store, error) {
 	if err := os.Chmod(folder, 0o700); err != nil { //nolint:gosec // a folder, for the agent alone
 		return nil, fmt.Errorf("can't keep %s to the agent alone: %w", folder, err)
 	}
-	clearTemps(dir, "."+KeyFile+".")
-	clearTemps(folder, ".")
+	clearTemps(dir, "."+KeyFile+".", time.Now())
+	clearTemps(folder, ".", time.Now())
 	key, err := loadKey(dir, logger)
 	if err != nil {
 		return nil, err
@@ -172,15 +172,24 @@ func cacheID(key []byte) string {
 	return hex.EncodeToString(mac.Sum(nil)[:8])
 }
 
+// leftoverAge is how old a temporary file is before it's taken for what a power
+// cut left. A younger one may be another start's, writing its key now: clearing
+// it made that start's link fail, and three in a row left it with no key.
+const leftoverAge = time.Minute
+
 // clearTemps removes what a power cut left of a write in dir: the temporary
-// files, which start with prefix, that never took the place of what they wrote.
-func clearTemps(dir, prefix string) {
+// files, which start with prefix, that never took the place of what they wrote,
+// and are at least leftoverAge old at now. A younger one goes at a later start.
+func clearTemps(dir, prefix string, now time.Time) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
 	}
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), prefix) {
+		if e.IsDir() || !strings.HasPrefix(e.Name(), prefix) {
+			continue
+		}
+		if info, err := e.Info(); err == nil && now.Sub(info.ModTime()) >= leftoverAge {
 			_ = os.Remove(filepath.Join(dir, e.Name()))
 		}
 	}
@@ -228,8 +237,8 @@ func loadKey(dir string, logger *slog.Logger) ([]byte, error) {
 		case err == nil:
 			return key, syncDir(dir)
 		case !errors.Is(err, fs.ErrExist) && !errors.Is(err, fs.ErrNotExist):
-			// Another start made the key first, or cleared this one's
-			// temporary file as it started: either way, read again.
+			// Another start made the key first, or something took this one's
+			// temporary file away: either way, read again.
 			return nil, fmt.Errorf("can't keep the key to this server's desired state in %s: %w", path, err)
 		}
 	}
