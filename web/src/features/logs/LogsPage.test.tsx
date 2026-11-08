@@ -1093,3 +1093,137 @@ describe("replicaLabel", () => {
     expect(replicaLabel({ serverName: "hz-1", replica: 2 })).toBe("hz-1-2");
   });
 });
+
+describe("a logs tab out of sight", () => {
+  const seen = (state: "hidden" | "visible") => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+    document.dispatchEvent(new Event("visibilitychange"));
+  };
+  afterEach(() => {
+    vi.useRealTimers();
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+  });
+
+  it("keeps a pause through a tab out of sight, and counts what came", async () => {
+    const { logs, stream, requests } = api();
+    renderAt(URL, { logs });
+    await screen.findByRole("log");
+    await act(() =>
+      stream.send(
+        message({
+          sources: [running],
+          chunks: [{ sourceId: running.id, lines: [line("before")] }],
+          resumeToken: "place-1",
+          caughtUp: true,
+        }),
+      ),
+    );
+    await screen.findByText("before");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Pause" }));
+    await act(() =>
+      stream.send(
+        message({ chunks: [{ sourceId: running.id, lines: [line("while paused", 1)] }], resumeToken: "place-2" }),
+      ),
+    );
+    await screen.findByRole("button", { name: "1 new line" });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    act(() => seen("hidden"));
+    await act(() => vi.advanceTimersByTimeAsync(31_000));
+    const n = requests.length;
+    act(() => seen("visible"));
+    await waitFor(() => expect(requests.length).toBe(n + 1));
+    expect(requests.at(-1)?.resumeToken).toBe("place-2");
+    await act(() =>
+      stream.send(
+        message({
+          chunks: [{ sourceId: running.id, lines: [line("while away", 2), line("while away 2", 3)] }],
+          resumeToken: "place-3",
+          caughtUp: true,
+        }),
+      ),
+    );
+    await screen.findByRole("button", { name: "3 new lines" });
+    expect(document.querySelector(".dw-live.is-paused")).not.toBeNull();
+    expect(screen.queryByText("while away")).toBeNull();
+    expect(screen.queryByText("Reconnecting to the control server")).toBeNull();
+    await userEvent
+      .setup({ advanceTimers: vi.advanceTimersByTime })
+      .click(screen.getByRole("button", { name: "Follow" }));
+    await screen.findByText("while away 2");
+    expect(screen.getAllByText("while paused")).toHaveLength(1);
+  });
+
+  it("following, shows the lines that came while away once each", async () => {
+    const { logs, stream, requests } = api();
+    renderAt(URL, { logs });
+    await screen.findByRole("log");
+    await act(() =>
+      stream.send(
+        message({
+          sources: [running],
+          chunks: [{ sourceId: running.id, lines: [line("before")] }],
+          resumeToken: "place-1",
+          caughtUp: true,
+        }),
+      ),
+    );
+    await screen.findByText("before");
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    act(() => seen("hidden"));
+    await act(() => vi.advanceTimersByTimeAsync(31_000));
+    const n = requests.length;
+    act(() => seen("visible"));
+    await waitFor(() => expect(requests.length).toBe(n + 1));
+    await act(() =>
+      stream.send(
+        message({
+          sources: [running],
+          chunks: [{ sourceId: running.id, lines: [line("while away", 2)] }],
+          resumeToken: "place-2",
+          caughtUp: true,
+        }),
+      ),
+    );
+    await screen.findByText("while away");
+    expect(screen.getAllByText("before")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Pause" })).toBeEnabled();
+  });
+
+  it("after long away, starts again from the newest, says what it didn't read, and reads that time on asking", async () => {
+    const { logs, stream, requests } = api();
+    const { router } = renderAt(URL, { logs });
+    await screen.findByRole("log");
+    await act(() =>
+      stream.send(
+        message({
+          sources: [running],
+          chunks: [{ sourceId: running.id, lines: [line("before")] }],
+          resumeToken: "place-1",
+          caughtUp: true,
+        }),
+      ),
+    );
+    await screen.findByText("before");
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    act(() => seen("hidden"));
+    await act(() => vi.advanceTimersByTimeAsync(31_000 + 11 * 60_000));
+    const n = requests.length;
+    act(() => seen("visible"));
+    await waitFor(() => expect(requests.length).toBe(n + 1));
+    // From the newest: hours of lines through the tunnel would come first.
+    expect(requests.at(-1)?.resumeToken).toBe("");
+    // The note above says so, and the log marks where.
+    await waitFor(() => expect(screen.getAllByText(/^This tab was away from/)).toHaveLength(2));
+    await userEvent
+      .setup({ advanceTimers: vi.advanceTimersByTime })
+      .click(screen.getByRole("button", { name: "Read what came then" }));
+    await waitFor(() =>
+      expect(router.state.location.search).toEqual(
+        expect.objectContaining({ from: expect.any(Number), to: expect.any(Number) }),
+      ),
+    );
+    await waitFor(() => expect(requests.at(-1)?.once).toBe(true));
+    expect(requests.at(-1)?.since).toBeDefined();
+    expect(requests.at(-1)?.until).toBeDefined();
+  });
+});

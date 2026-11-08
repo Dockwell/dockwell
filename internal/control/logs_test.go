@@ -891,3 +891,35 @@ func TestLogsREST(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A log that had printed nothing by the time its reader caught up still has a
+// place: the token comes with caught up, and a reader back from away reads from
+// when it began, every line written meanwhile, not just a tail's worth.
+func TestAQuietLogResumesFromWhereItBegan(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		e := f.addDockerServer(t)
+		c := changeClient(b, b.origin)
+		lc := logClient(b, b.origin)
+		done := apply(t, c, propose(t, c, "Run web", runImage("ghcr.io/acme/shop:1.4")))
+		name := docker.ContainerName(docker.Project(done.GetPlan().GetResources()[0].GetResource().GetScope()), "web")
+
+		r := follow(t, lc, &dockwellv1.WatchLogsRequest{Id: "web", Tail: 2})
+		r.waitCaughtUp()
+		r.mu.Lock()
+		token := r.token
+		r.mu.Unlock()
+		if token == "" {
+			t.Fatal("a log with no line caught up with no resume token")
+		}
+		r.cancel()
+		if err := <-r.done; connect.CodeOf(err) != connect.CodeCanceled {
+			t.Errorf("a stream whose reader left = %v", err)
+		}
+
+		e.Print(name, docker.Stdout, "a", "b", "c")
+		again := follow(t, lc, &dockwellv1.WatchLogsRequest{Id: "web", Tail: 2, ResumeToken: token})
+		again.waitLines("a", "b", "c")
+	})
+}

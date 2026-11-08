@@ -489,3 +489,26 @@
   font: var(--text-caption);
   color: var(--ink-muted);
 }
+
+/* A way on from a note, written as a link in its sentence. */
+.logs-note-link {
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--link);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--link) 45%, transparent);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.logs-note-link:hover {
+  text-decoration-color: currentColor;
+}
+
+.logs-note-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

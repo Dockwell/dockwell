@@ -5684,6 +5684,9 @@ msgstr "{down} couldn't be searched, so its lines aren't in this."
 msgid "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
 msgstr "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
 
+msgid "{rangeLabel}, to {to}."
+msgstr "{rangeLabel}, to {to}."
+
 msgid "{rangeLabel}, to {to}. Refresh for newer lines."
 msgstr "{rangeLabel}, to {to}. Refresh for newer lines."
 
@@ -5711,6 +5714,9 @@ msgstr "<0>{revision}</0> failed at {finished} and was rolled back."
 msgid "<0>{revision}</0> was replaced at {finished}."
 msgstr "<0>{revision}</0> was replaced at {finished}."
 
+msgid "Catching up"
+msgstr "Catching up"
+
 msgid "It ran as <0>{ranAs}</0>."
 msgstr "It ran as <0>{ranAs}</0>."
 
@@ -5729,6 +5735,15 @@ msgstr "Its agent isn't connected, so its logs can't be read now. Its containers
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 
+msgid "Rather than read all that came then through the network before showing anything, it started again from the newest lines."
+msgstr "Rather than read all that came then through the network before showing anything, it started again from the newest lines."
+
+msgid "Read what came then"
+msgstr "Read what came then"
+
+msgid "Reading what came while this tab was away. It follows live again once it has."
+msgstr "Reading what came while this tab was away. It follows live again once it has."
+
 msgid "Reconnecting to the control server"
 msgstr "Reconnecting to the control server"
 
@@ -5744,6 +5759,9 @@ msgstr "The lines written meanwhile arrive once it answers, with none twice."
 #. placeholder {0}: wild.serverName
 msgid "This container's log has no limit on {0}"
 msgstr "This container's log has no limit on {0}"
+
+msgid "This tab was away from {from} to {to}"
+msgstr "This tab was away from {from} to {to}"
 
 #. placeholder {0}: failing.serverName
 msgid "{0} can't read a container's log"
@@ -5835,6 +5853,9 @@ msgstr "Errors in this log"
 
 msgid "Filter log lines"
 msgstr "Filter log lines"
+
+msgid "From {spanWords}"
+msgstr "From {spanWords}"
 
 msgid "Info"
 msgstr "Info"
@@ -6019,6 +6040,9 @@ msgstr "{number} of {count}"
 
 msgid "{runningNow, plural, one {# container} other {# containers}}"
 msgstr "{runningNow, plural, one {# container} other {# containers}}"
+
+msgid "This tab was away from {from} to {to}, so what came then isn't all here. The note above reads it."
+msgstr "This tab was away from {from} to {to}, so what came then isn't all here. The note above reads it."
 
 #. placeholder {0}: e.left
 msgid "{0, plural, one {{count} line came while this view was paused, and left it unseen.} other {{count} lines came while this view was paused, and left it unseen.}}"

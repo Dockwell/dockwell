@@ -78,6 +78,7 @@ export function LogNote({
   rolledBackTo,
   noCurrent,
   locale,
+  onReadMissed,
 }: {
   name: string;
   stream: StreamState;
@@ -91,6 +92,8 @@ export function LogNote({
   rolledBackTo: string | undefined;
   noCurrent: boolean;
   locale: string;
+  /** Reads what came while this tab was away for long, as a time range of its own. */
+  onReadMissed?: () => void;
 }) {
   const { t } = useLingui();
   const first = down[0];
@@ -112,6 +115,30 @@ export function LogNote({
     return (
       <LogCallout tone="warning" title={t`Reconnecting to the control server`}>
         <Trans>The lines written meanwhile arrive once it answers, with none twice.</Trans>
+      </LogCallout>
+    );
+  }
+  if (stream.missed) {
+    const from = formatClock(new Date(stream.missed.from), locale);
+    const to = formatClock(new Date(stream.missed.to), locale);
+    return (
+      <LogCallout tone="info" title={t`This tab was away from ${from} to ${to}`}>
+        <Trans>
+          Rather than read all that came then through the network before showing anything, it started again from the
+          newest lines.
+        </Trans>{" "}
+        {onReadMissed ? (
+          <button type="button" className="logs-note-link" onClick={onReadMissed}>
+            <Trans>Read what came then</Trans>
+          </button>
+        ) : null}
+      </LogCallout>
+    );
+  }
+  if (stream.catchingUp) {
+    return (
+      <LogCallout tone="info" title={t`Catching up`}>
+        <Trans>Reading what came while this tab was away. It follows live again once it has.</Trans>
       </LogCallout>
     );
   }

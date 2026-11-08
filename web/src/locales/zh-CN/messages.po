@@ -5684,6 +5684,9 @@ msgstr "无法搜索 {down}，结果中不含它的日志。"
 msgid "{matches, plural, one {{count} match in {lines} lines, back to {at}.} other {{count} matches in {lines} lines, back to {at}.}}"
 msgstr "{matches, plural, other {在 {lines} 行中找到 {count} 处匹配，最早到 {at}。}}"
 
+msgid "{rangeLabel}, to {to}."
+msgstr "{rangeLabel}，到 {to}。"
+
 msgid "{rangeLabel}, to {to}. Refresh for newer lines."
 msgstr "{rangeLabel}，截至 {to}。刷新可查看更新的日志。"
 
@@ -5711,6 +5714,9 @@ msgstr "<0>{revision}</0> 于 {finished} 失败，已回滚。"
 msgid "<0>{revision}</0> was replaced at {finished}."
 msgstr "<0>{revision}</0> 于 {finished} 被替换。"
 
+msgid "Catching up"
+msgstr "正在补读"
+
 msgid "It ran as <0>{ranAs}</0>."
 msgstr "它曾以 <0>{ranAs}</0> 运行。"
 
@@ -5729,6 +5735,15 @@ msgstr "它的 Agent 未连接，所以现在无法读取它的日志。它的�
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "其容器在 {at} 停止，退出码为 {code}。这是最后的日志，再次启动后会显示新日志。"
 
+msgid "Rather than read all that came then through the network before showing anything, it started again from the newest lines."
+msgstr "为了不必先通过网络读完那段时间的所有日志再显示，它从最新的日志重新开始。"
+
+msgid "Read what came then"
+msgstr "读取那段时间的日志"
+
+msgid "Reading what came while this tab was away. It follows live again once it has."
+msgstr "正在读取这个标签页不在前台时产生的日志。读完后会重新实时跟随。"
+
 msgid "Reconnecting to the control server"
 msgstr "正在重新连接控制服务器"
 
@@ -5744,6 +5759,9 @@ msgstr "恢复响应后，期间写入的日志会到达，不会重复。"
 #. placeholder {0}: wild.serverName
 msgid "This container's log has no limit on {0}"
 msgstr "此容器在 {0} 上的日志没有大小限制"
+
+msgid "This tab was away from {from} to {to}"
+msgstr "这个标签页从 {from} 到 {to} 不在前台"
 
 #. placeholder {0}: failing.serverName
 msgid "{0} can't read a container's log"
@@ -5835,6 +5853,9 @@ msgstr "此日志中的错误"
 
 msgid "Filter log lines"
 msgstr "筛选日志"
+
+msgid "From {spanWords}"
+msgstr "从 {spanWords} 起"
 
 msgid "Info"
 msgstr "信息"
@@ -6019,6 +6040,9 @@ msgstr "第 {number} 个，共 {count} 个"
 
 msgid "{runningNow, plural, one {# container} other {# containers}}"
 msgstr "{runningNow, plural, other {# 个容器}}"
+
+msgid "This tab was away from {from} to {to}, so what came then isn't all here. The note above reads it."
+msgstr "这个标签页从 {from} 到 {to} 不在前台，所以那段时间的日志没有全部显示在这里。上方的提示可以读取它们。"
 
 #. placeholder {0}: e.left
 msgid "{0, plural, one {{count} line came while this view was paused, and left it unseen.} other {{count} lines came while this view was paused, and left it unseen.}}"
