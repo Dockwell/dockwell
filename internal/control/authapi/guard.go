@@ -381,6 +381,7 @@ var tokenAccess = func() map[string]auth.Access {
 type rule struct {
 	needs, needsProtected dockwellv1.Needs
 	reach                 dockwellv1.Reach
+	effect                dockwellv1.Effect
 }
 
 // roleRules maps each procedure of dockwell.v1 to its rule, from its
@@ -396,7 +397,8 @@ var roleRules = func() map[string]rule {
 				needs, _ := proto.GetExtension(md.Options(), dockwellv1.E_MinRole).(dockwellv1.Needs)
 				protected, _ := proto.GetExtension(md.Options(), dockwellv1.E_MinRoleProtected).(dockwellv1.Needs)
 				reach, _ := proto.GetExtension(md.Options(), dockwellv1.E_Reach).(dockwellv1.Reach)
-				m["/"+string(sd.FullName())+"/"+string(md.Name())] = rule{needs: needs, needsProtected: protected, reach: reach}
+				effect, _ := proto.GetExtension(md.Options(), dockwellv1.E_Effect).(dockwellv1.Effect)
+				m["/"+string(sd.FullName())+"/"+string(md.Name())] = rule{needs: needs, needsProtected: protected, reach: reach, effect: effect}
 			}
 		}
 		return true
@@ -531,14 +533,30 @@ func (i *interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 		if err := i.checkScope(ctx, procedure, req.Any()); err != nil {
 			return nil, err
 		}
+		if err := i.openPage(ctx, procedure, req.Any()); err != nil {
+			return nil, err
+		}
 		res, err := next(ctx, req)
+		// Each question of which project, such as one an edit of a change asks,
+		// answered for someone who holds one alone.
+		for range 16 {
+			again, cerr := i.theirProject(ctx, procedure, req.Any(), err)
+			if cerr != nil {
+				return nil, cerr
+			}
+			if !again {
+				break
+			}
+			res, err = next(ctx, req)
+		}
 		if err != nil {
-			return res, err
+			return res, i.narrowChoice(ctx, procedure, err)
 		}
 		if _, err := i.filter(ctx, procedure, res.Any()); err != nil {
 			i.logger.ErrorContext(ctx, "can't narrow a response to what its caller may see", slog.Any("error", err))
 			return nil, ReasonError(connect.CodeUnavailable, errors.New("can't check what you may see right now. Try again in a moment"), ReasonUnavailable)
 		}
+		i.sealPage(ctx, procedure, res.Any())
 		if trims(ctx, procedure) {
 			trim(res.Any())
 		}
@@ -571,7 +589,10 @@ func (c *scopedConn) Receive(m any) error {
 		return nil
 	}
 	c.req = m
-	return c.i.checkScope(c.ctx, c.Spec().Procedure, m)
+	if err := c.i.checkScope(c.ctx, c.Spec().Procedure, m); err != nil {
+		return err
+	}
+	return c.i.openPage(c.ctx, c.Spec().Procedure, m)
 }
 
 // recheck reads the caller's grants again, as the gate does, and checks the
@@ -613,6 +634,7 @@ func (c *scopedConn) Send(m any) error {
 	if skip {
 		return nil
 	}
+	c.i.sealPage(ctx, c.Spec().Procedure, m)
 	if c.trim {
 		trim(m)
 	}
@@ -644,7 +666,7 @@ func (i *interceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) co
 		still := func(recheck context.Context) error { return scoped.recheck(recheck, p) }
 		tracked, stop := i.svc.Track(ctx, client, p, still)
 		defer stop()
-		err = next(tracked, scoped)
+		err = i.narrowChoice(ctx, procedure, next(tracked, scoped))
 		if ctx.Err() == nil && tracked.Err() != nil {
 			if ended := scoped.endedBy(); ended != nil {
 				return ended

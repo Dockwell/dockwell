@@ -271,6 +271,14 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	}
 	fp := req.Msg.GetFingerprint()
 	switch {
+	case r.State == store.ChangePlanned && r.Plan.HostAccess() &&
+		store.RoleRank(authapi.InstallRole(ctx)) < store.RoleRank(store.RoleAdmin):
+		// What reaches past a container reaches the server every project on it
+		// shares, so it's an admin's, whatever a project's grants say (ADR 0048).
+		// Until internal/revision checks each item's role, this holds it here.
+		return nil, authapi.ReasonError(connect.CodePermissionDenied,
+			fmt.Errorf("%s %s, which reaches the server every project on it shares, so only an admin or the owner can apply it, and it didn't happen. Ask one of them to review and apply it", r.ID, accessWords(r.Plan)),
+			authapi.ReasonNeedsRole)
 	case fp != "" && fp != r.Fingerprint:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s's plan has fingerprint %s, not %s, so it isn't the plan you reviewed. Review it again, then apply it", r.ID, r.Fingerprint, fp),

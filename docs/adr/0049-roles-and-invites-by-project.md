@@ -50,9 +50,23 @@ The resolver (ADR 0048) says where each object a call names belongs: **(project,
 2. **Install-level, but named by projects:** servers, as placement, a backup's `server`, `CheckDomain` and log filters name them; backup destinations, as a policy names them; and domains held by a project. A project role sees these **by name and state only**: a server's name, whether it's up, and its public address; a destination's name. Inventory, containers, processes, files and terminals stay an admin's.
 3. **Install-level only:** everything else in no project, as ADR 0048 lists it. An admin's or the owner's.
 
-**The resolver works in the interceptor,** for every call that isn't a change, from the request's own fields. An ID field, or a `project`, `environment` or `server` holding an ID, is placed by its ID. A `project` or `environment` named by name is found by name. A service named by name in `id`, as the CLI names it, is in the project and environment beside it. Someone who holds projects alone, and names something by name without its project, gets their one project filled in, or is asked which one, so a name never reaches another project's object.
+**The resolver works in the interceptor,** for every call that isn't a change, from the request's own fields. An ID field, or a `project`, `environment` or `server` holding an ID, is placed by its ID. A `project` or `environment` named by name is found by name. A service named by name in `id`, or in `service` where a call reads one, as the CLI names it, is in the project and environment beside it. A server or a destination is named, not placed (class 2).
 
-**Lists and streams are narrowed for someone who holds projects alone,** as a grant on the install covers every project. Each element is placed by its change, its own ID, its environment, its resource's scope or what it's about, and left out when it isn't in their places. A change shows only when all its items are. What a response holds about the one thing its request named is left whole, as the request was checked: a change's steps, a service's log chunks and its servers, a Compose file's variables. A test fails on a list whose elements can't be placed. A log call given a server reads a container Dockwell didn't make, which is the install's. An open stream reads the caller's grants again on each recheck, checks what its request named against them, and narrows what it sends next by them; it ends, not found, once what it named leaves their places.
+**Below an admin, a grant on the install covers every project's places, never the install's own.** Something in no project, such as a container Dockwell didn't make or an access event, needs an admin, whatever the call needs where projects are; out of all of a caller's grants it's not found, as anything out of reach is. Admins and the owner hold every place.
+
+**A name never reaches past the caller's places.** Below an admin:
+
+- something named by name without its project is found among the caller's places, as the API finds it, and the request is made to name where it is; found in several, they're asked which of theirs;
+- a plan that names no project goes in their one project, for someone who holds projects alone, or they're asked which of theirs, not to the default project or a new one;
+- a handler's own question of which project is answered with their one project, or asked again listing only theirs.
+
+So no answer names a project out of reach.
+
+**Lists and streams are narrowed for everyone below an admin.** Each element is placed by its change, its own ID, its environment, its resource's scope or what it's about, and left out when it isn't in their places, the install's included. A domain keeps the routes in their places. A change shows only when all its items are. A stream doesn't send a message the narrowing emptied, nor say a change out of reach was removed. A narrowed list's page token is sealed for its caller, as it says where the next page starts, which may be out of their reach; pages may come back short.
+
+**What's about the one thing a request named is left whole,** as the request was checked: a change's steps, a service's log sources and chunks and its servers, a service's revisions, what a Compose file makes and the variables it exposes. A log call given a server reads a container Dockwell didn't make, which is the install's. An open stream reads the caller's grants again on each recheck, checks what its request named against them, and narrows what it sends next by them; it ends, not found, once what it named leaves their places. A test fails on a list whose elements can't be placed, and another reads every project's list as a viewer of the install and as an admin, and compares them.
+
+**Out of reach answers as missing does,** with the same code, reason and words. It isn't the same time: placing what was found takes a fraction of a millisecond more, measured at about 0.1 ms on loopback. IDs can't be guessed, and a name found by timing says only that the name is used somewhere, so this is accepted, and checked again if names come to matter more.
 
 **Placement is any server,** for a developer as for an admin, until an admin can choose each project's servers or pool. That's the PRD Team tier's "client and project isolation".
 
@@ -106,6 +120,7 @@ The interceptor checks `min_role` against the caller's highest grant anywhere, a
 
 - `internal/revision` checks each item's protection, at propose, apply, discard, undo and rollback, by the stricter of before and after. A change with any item in a protected environment waits as a whole.
 - The resolver gives every other call its object's protection, for `min_role_protected`. That covers revealing a secret, and making, fetching or deleting a backup.
+- A plan with host access (ADR 0021), a privileged container or a server path among them, reaches the server every project on it shares, so it's an admin's to apply, whatever a project's grants say (ADR 0048). `internal/revision` checks it with each item; `ApplyChange` refuses it below an admin as well.
 
 ### Waiting for an admin in production
 
