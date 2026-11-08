@@ -21,6 +21,9 @@ service WebsiteService {
   rpc ListWebsites(ListWebsitesRequest) returns (ListWebsitesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/websites"};
   }
 
@@ -30,6 +33,9 @@ service WebsiteService {
   rpc ListWebsiteRuntimes(ListWebsiteRuntimesRequest) returns (ListWebsiteRuntimesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SHARED;
     option (dockwell.v1.command) = {
       noun: "websites"
       verb: "runtimes"
@@ -42,6 +48,9 @@ service WebsiteService {
   // would, so you can check settings before you plan them.
   rpc PreviewWebsite(PreviewWebsiteRequest) returns (PreviewWebsiteResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SHARED;
     option (google.api.http) = {
       post: "/v1/websites:preview"
       body: "*"
@@ -53,6 +62,9 @@ service WebsiteService {
   // reaches past containers, so a person applies it.
   rpc CreateWebsite(CreateWebsiteRequest) returns (CreateWebsiteResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (google.api.http) = {
       post: "/v1/websites"
       body: "*"
@@ -64,6 +76,9 @@ service WebsiteService {
   // those as for any route.
   rpc UpdateWebsite(UpdateWebsiteRequest) returns (UpdateWebsiteResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/websites/{id}:update"
       body: "*"
@@ -75,6 +90,9 @@ service WebsiteService {
   // one, stays where it is.
   rpc DeleteWebsite(DeleteWebsiteRequest) returns (DeleteWebsiteResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/websites/{id}:delete"
       body: "*"

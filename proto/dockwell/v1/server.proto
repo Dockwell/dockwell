@@ -59,6 +59,9 @@ service ServerService {
   rpc GetServerDiskUse(GetServerDiskUseRequest) returns (GetServerDiskUseResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.command) = {verb: "disk-use"};
     option (google.api.http) = {get: "/v1/servers/{id}/diskUse"};
   }

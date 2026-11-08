@@ -66,12 +66,16 @@ FileService.ListFiles                          read         admin      admin    
 FileService.ReadFile                           read         admin      admin      install  session
 FileService.SaveFile                           destructive  admin      admin      install  session
 HealthService.ListHealth                       read         viewer     viewer     project
+ImportService.ImportOnePanel                   plan         admin      admin      install
 LogService.ListLogSources                      read         viewer     viewer     project
 LogService.ReadLogs                            read         viewer     viewer     project
 LogService.WatchLogs                           read         viewer     viewer     project
 MemberService.ListMembers                      read         admin      admin      install  session
+ProcessService.EndProcess                      destructive  admin      admin      install  session
+ProcessService.WatchProcesses                  read         admin      admin      install  session
 ResourceService.ListResources                  read         viewer     viewer     project
 ServerService.GetServer                        read         viewer     viewer     named
+ServerService.GetServerDiskUse                 read         admin      admin      install
 ServerService.ListServers                      read         viewer     viewer     named
 ServerService.SetServerPublicAddress           apply        admin      admin      install
 ServerService.WatchServers                     read         viewer     viewer     named
@@ -92,3 +96,9 @@ UpdateService.CheckServerUpdates               read         admin      admin    
 UpdateService.GetServerUpdates                 read         admin      admin      install
 VariableService.ListVariables                  read         viewer     viewer     project
 VariableService.RevealSecret                   read         developer  admin      project  session
+WebsiteService.CreateWebsite                   plan         admin      admin      install
+WebsiteService.DeleteWebsite                   plan         developer  developer  project
+WebsiteService.ListWebsiteRuntimes             read         viewer     viewer     shared
+WebsiteService.ListWebsites                    read         viewer     viewer     project
+WebsiteService.PreviewWebsite                  read         viewer     viewer     shared
+WebsiteService.UpdateWebsite                   plan         developer  developer  project
