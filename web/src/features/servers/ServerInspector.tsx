@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
-import { ActorKind, Connection, type Server } from "@dockwell/api";
+import { ActorKind, Connection, EventKind, type Server } from "@dockwell/api";
 import { Button, Icon, Metric, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -23,6 +23,9 @@ import { useControlPlaneNow } from "./useFleet";
 
 /** How many of a server's events the inspector shows; its page and Activity have the rest. */
 const RECENT = 3;
+
+/** What happened on a server, as the inspector tells it: not who looked at its files. */
+const HAPPENED: EventKind[] = [EventKind.CHANGE, EventKind.SERVER, EventKind.HEALTH, EventKind.BACKUP];
 
 /**
  * One server, beside the list, as Servers-List inspects it: why it isn't well, where
@@ -222,12 +225,12 @@ function RunsHere({ server }: { server: Server }) {
   );
 }
 
-/** The newest events on this server, as Activity draws them. */
+/** The newest of what happened on this server, as Activity draws it. */
 function Recent({ server }: { server: Server }) {
   const { t } = useLingui();
   const now = useControlPlaneNow(15_000);
   const filter = useMemo<EventFilter>(
-    () => ({ kinds: [], serverId: server.id, resourceId: "", actorId: "", actorKind: ActorKind.UNSPECIFIED }),
+    () => ({ kinds: HAPPENED, serverId: server.id, resourceId: "", actorId: "", actorKind: ActorKind.UNSPECIFIED }),
     [server.id],
   );
   const { state } = useEvents(filter);

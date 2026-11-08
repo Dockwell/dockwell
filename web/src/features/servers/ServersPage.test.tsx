@@ -7,6 +7,7 @@ import {
   CloudProvider,
   Connection,
   DeploymentState,
+  EventKind,
   type Server,
   ServerInventorySchema,
   type WatchServersResponse,
@@ -124,7 +125,15 @@ describe("Servers", () => {
 
   it("inspects the server chosen from its tile or its row, and keeps it in the URL", async () => {
     const user = userEvent.setup();
-    const { router } = renderServers([web1, web2()]);
+    const asked: { kinds: EventKind[]; serverId: string }[] = [];
+    const { router } = renderServers([web1, web2()], "/servers", {
+      events: {
+        listEvents: (req: { kinds: EventKind[]; serverId: string }) => {
+          asked.push(req);
+          return { events: [] };
+        },
+      },
+    });
 
     await user.click(await screen.findByRole("button", { name: "web-1, Healthy, CPU 23%" }));
     const inspector = await screen.findByRole("complementary", { name: "web-1" });
@@ -135,6 +144,15 @@ describe("Servers", () => {
     expect(inspector).toHaveTextContent("Agent0.2.1Control server");
     expect(within(inspector).getByText("CPU")).toBeVisible();
     expect(within(inspector).getAllByText("Last 15 s")).toHaveLength(2);
+    // What happened there, not who read its files.
+    await waitFor(() =>
+      expect(asked).toContainEqual(
+        expect.objectContaining({
+          serverId: "srv_1",
+          kinds: [EventKind.CHANGE, EventKind.SERVER, EventKind.HEALTH, EventKind.BACKUP],
+        }),
+      ),
+    );
 
     const table = screen.getByRole("table", { name: "Servers, sorted by name" });
     await user.click(within(table).getByText("web-2"));
