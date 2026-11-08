@@ -368,7 +368,9 @@ func TestAPathThatStopsAnsweringLeavesTheServerOnline(t *testing.T) {
 	gone := make(chan struct{})
 	t.Cleanup(func() { close(gone) })
 	disk := agentfiles.New(server.dataDir, nil, nil)
-	disk.AnswerWithin = 50 * time.Millisecond
+	// Long enough for a healthy read on a loaded machine: the dead path never answers
+	// until the test ends, so the bound is all it waits (#307).
+	disk.AnswerWithin = 3 * time.Second
 	disk.Touching = func(p string) {
 		if strings.HasPrefix(p, dead) {
 			<-gone
@@ -563,26 +565,32 @@ func TestAnAgentThatDoesntGuardWaysInIsntSavedThrough(t *testing.T) {
 	}
 }
 
-// heldWrite is a server whose agent holds each save as it begins to write, past where
-// it can stop, with a person signed in to save.
-func heldWrite(t *testing.T, f *fullServer, answerWithin time.Duration) (server *testServer, reached chan struct{}, release func()) {
+// heldWrite adds a server whose agent reads and saves as any does, and hold, which
+// gives it an agent whose saves stop as they're about to write, until release, and
+// which gives up waiting on a path after answerWithin. Hold comes after the test has
+// read what it saves over, so a read that's slow on a loaded machine doesn't run out
+// of that time before the save it's about (#307).
+func heldWrite(t *testing.T, f *fullServer, answerWithin time.Duration) (server *testServer, hold func(), reached chan struct{}, release func()) {
 	t.Helper()
 	server = f.addServer(t, false)
-	server.stop()
-	waitConnected(t, f, server.id.ServerID, false)
 	reached = make(chan struct{}, 1)
 	gone := make(chan struct{})
 	release = sync.OnceFunc(func() { close(gone) })
 	t.Cleanup(release)
-	disk := agentfiles.New(server.dataDir, nil, nil)
-	disk.AnswerWithin = answerWithin
-	disk.Writing = func(string) {
-		reached <- struct{}{}
-		<-gone
+	hold = func() {
+		t.Helper()
+		server.stop()
+		waitConnected(t, f, server.id.ServerID, false)
+		disk := agentfiles.New(server.dataDir, nil, nil)
+		disk.AnswerWithin = answerWithin
+		disk.Writing = func(string) {
+			reached <- struct{}{}
+			<-gone
+		}
+		server.disk = disk
+		server.connect(t, f)
 	}
-	server.disk = disk
-	server.connect(t, f)
-	return server, reached, release
+	return server, hold, reached, release
 }
 
 // waitForFileEvent waits for the timeline to have an action on a path.
@@ -612,7 +620,9 @@ func TestASaveThatMayHaveLandedSaysSoThenHowItEnded(t *testing.T) {
 func testASaveThatMayHaveLandedSaysSoThenHowItEnded(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
-	server, reached, release := heldWrite(t, f, 50*time.Millisecond)
+	// The save is held until release, so its deadline always runs out while it's
+	// held. Two seconds leaves what comes before the hold room on a loaded runner.
+	server, hold, reached, release := heldWrite(t, f, 2*time.Second)
 	id := server.id.ServerID
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -629,6 +639,7 @@ func testASaveThatMayHaveLandedSaysSoThenHowItEnded(t *testing.T, backend store.
 	if err != nil {
 		t.Fatal(err)
 	}
+	hold()
 	_, err = c.SaveFile(t.Context(), connect.NewRequest(&dockwellv1.SaveFileRequest{ServerId: id, Path: via, Content: "after", Version: read.Msg.GetVersion()}))
 	if reasonOf(err) != "save_may_land" || !strings.Contains(err.Error(), "may still land") {
 		t.Fatalf("a save left behind as it wrote = %v", err)
@@ -655,7 +666,7 @@ func testASaveThatMayHaveLandedSaysSoThenHowItEnded(t *testing.T, backend store.
 func TestASaveWhoseStreamDropsMayHaveLanded(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
-	server, reached, release := heldWrite(t, f, time.Minute)
+	server, hold, reached, release := heldWrite(t, f, time.Minute)
 	id := server.id.ServerID
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -668,6 +679,7 @@ func TestASaveWhoseStreamDropsMayHaveLanded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	hold()
 	saved := make(chan error, 1)
 	go func() {
 		_, err := c.SaveFile(context.Background(), connect.NewRequest(&dockwellv1.SaveFileRequest{ServerId: id, Path: config, Content: "after", Version: read.Msg.GetVersion()}))
