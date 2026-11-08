@@ -352,12 +352,17 @@ func TestAFailedDeployShowsAsRolledBack(t *testing.T) {
 			t.Errorf("after the rollback the service is %v", after)
 		}
 		// The API says how it went, and what it put back, for a panel and a CLI that won't guess:
-		// nothing, as this one rolled, so what ran never stopped.
-		read, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: deployed.Msg.GetChange().GetId()}))
-		if err != nil {
-			t.Fatal(err)
-		}
-		status := read.Msg.GetChange().GetRollbackStatus()
+		// nothing, as this one rolled, so what ran never stopped. The rollback's own record says
+		// applied a moment after the service is live again, so wait for that too.
+		var status *dockwellv1.RollbackStatus
+		waitFor(t, "the rollback's record to say how it ended", func() bool {
+			read, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: deployed.Msg.GetChange().GetId()}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			status = read.Msg.GetChange().GetRollbackStatus()
+			return status.GetState() != dockwellv1.RollbackState_ROLLBACK_STATE_APPLYING
+		})
 		if status.GetId() != got.GetRolledBackBy() || status.GetState() != dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED || status.GetSteps() != 1 || len(status.GetRestored()) != 0 {
 			t.Errorf("the rollback's status is %v", status)
 		}
