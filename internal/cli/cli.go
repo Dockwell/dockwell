@@ -53,6 +53,10 @@ const (
 	// said would depend on where it ran. The Makefile and CI set it for everything
 	// they start.
 	envTest = "DOCKWELL_TEST"
+	// envTestPackages names a folder of stand-ins for a server's package manager,
+	// laid out as the server's own files are, which the agent reads updates with
+	// under DOCKWELL_TEST, and only then (ADR 0043).
+	envTestPackages = "DOCKWELL_TEST_PACKAGES"
 )
 
 // IO carries the streams and environment a command runs with, so tests can

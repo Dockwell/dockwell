@@ -1,0 +1,5 @@
+ALSA-2024:10232 Important/Sec. kernel-5.14.0-503.15.1.el9_5.x86_64
+ALSA-2024:10232 Important/Sec. kernel-core-5.14.0-503.15.1.el9_5.x86_64
+ALSA-2024:9473  Moderate/Sec.  openssl-1:3.2.2-6.el9_5.x86_64
+ALSA-2024:9473  Moderate/Sec.  openssl-libs-1:3.2.2-6.el9_5.x86_64
+ALSA-2024:9999  Critical/Sec.  openssl-libs-1:3.2.2-6.el9_5.x86_64

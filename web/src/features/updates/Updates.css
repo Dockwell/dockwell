@@ -1,0 +1,419 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Server-Updates.dc.html: what waits on the left, how the server updates and Docker's and Dockwell's versions on the right. */
+.updates-layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-6);
+}
+
+.updates-main {
+  display: flex;
+  flex: 1 1 600px;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.updates-side {
+  display: flex;
+  flex: 0 1 352px;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: min(300px, 100%);
+}
+
+.updates-waiting {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.updates-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.updates-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.updates-section-head .heading {
+  margin: 0;
+}
+
+.updates-meta {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.updates-grow {
+  flex: 1 1 auto;
+}
+
+.updates-note {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.updates-note-warning {
+  color: var(--ink);
+}
+
+.updates-note-warning::before {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-2);
+  border-radius: 2px;
+  background: var(--warning);
+  content: "";
+  vertical-align: 1px;
+}
+
+.updates-clear {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* A package: its name in mono, its description beneath. */
+.updates-name {
+  color: var(--ink);
+  font: 550 13px / 18px var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.updates-summary {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.updates-installed {
+  color: var(--ink-muted);
+  font: 400 12px / 18px var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.updates-version {
+  font: 400 12px / 18px var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* What changed of the version, as a diff's addition. */
+.updates-changed {
+  margin: 0 -2px;
+  padding: 1px 2px;
+  border-radius: 3px;
+  background: var(--diff-add-soft);
+  color: var(--diff-add);
+}
+
+.updates-effect-strong {
+  font-weight: 550;
+}
+
+/* Other updates: a panel that opens on its own row. */
+.updates-other-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 14px var(--space-4);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.updates-other-toggle:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: -2px;
+}
+
+.updates-other-chevron {
+  display: flex;
+  color: var(--ink-muted);
+}
+
+.updates-other-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.updates-other-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.updates-other-sub {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.updates-other-show {
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.updates-other-body {
+  border-top: 1px solid var(--line);
+}
+
+.updates-dd-sub {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+/* Docker and Dockwell: a row each, its version beneath its name. */
+.updates-versions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.updates-versions-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: 14px var(--space-3) 14px var(--space-4);
+}
+
+.updates-versions-row + .updates-versions-row {
+  border-top: 1px solid var(--line);
+}
+
+.updates-versions-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.updates-versions-name {
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 20px;
+}
+
+.updates-versions-mono {
+  font: 400 12px / 20px var(--font-mono);
+}
+
+.updates-versions-new {
+  color: var(--ink);
+  font-weight: 550;
+}
+
+.updates-versions-words {
+  color: var(--ink-muted);
+  font: 400 12.5px / 20px var(--font-sans);
+}
+
+.updates-arrow {
+  color: var(--ink-faint);
+}
+
+.updates-summary code,
+.updates-dd-sub code {
+  font-size: 11.5px;
+}
+
+/* On a phone, a package a row: name and description, versions, what installing does. */
+.updates-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.updates-list-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+}
+
+.updates-list-row + .updates-list-row {
+  border-top: 1px solid var(--line);
+}
+
+.updates-list-versions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+
+.updates-effect {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.updates-effect.updates-effect-strong {
+  color: var(--ink);
+}
+
+/* Inside Other updates, the table or list takes the panel's border. */
+.updates-other-body .dw-table-wrap,
+.updates-other-body .updates-list {
+  border: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/* The overview's card, as Overview-Single.dc.html has it. */
+.updates-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.updates-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.updates-card-glyph {
+  display: flex;
+  padding-top: 5px;
+}
+
+.updates-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.updates-card-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.updates-card-sub {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+/* M-Overview-Single.dc.html: one link, its glyph, two lines, and Review. */
+.updates-phone-card {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-3);
+  min-height: 64px;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  box-sizing: border-box;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.updates-phone-card .updates-card-glyph {
+  align-self: start;
+}
+
+.updates-phone-title {
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 20px;
+}
+
+.updates-phone-sub {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 16px;
+}
+
+.updates-phone-review {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.updates-phone-review span {
+  display: flex;
+  color: var(--ink-muted);
+}
+
+.updates-tone-warning {
+  color: var(--warning);
+}
+
+.updates-tone-healthy {
+  color: var(--healthy);
+}
+
+.updates-tone-unknown {
+  color: var(--ink-faint);
+}
+
+/* A reason's detail, as the server said it. */
+.updates-detail {
+  overflow-wrap: anywhere;
+}
+
+/* A command to run, on one line, which scrolls rather than wraps mid-flag. */
+.updates-update {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.updates-command-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.updates-command {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 2px var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font: 400 12px / 18px var(--font-mono);
+  white-space: nowrap;
+}
+
+.dw-callout .updates-command {
+  margin-top: var(--space-1);
+}

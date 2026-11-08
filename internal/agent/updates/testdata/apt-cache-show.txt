@@ -1,0 +1,18 @@
+Package: linux-modules-6.8.0-49-generic
+Architecture: amd64
+Version: 6.8.0-49.49
+Priority: optional
+Section: kernel
+Source: linux
+Description: Linux kernel extra modules for version 6.8.0
+ Contains the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+
+Package: linux-image-6.8.0-49-generic
+Architecture: amd64
+Version: 6.8.0-49.49
+Description-en: Signed kernel image generic
+ A kernel image for generic.  This has been signed with the Ubuntu EFI CA
+ certificate.
+

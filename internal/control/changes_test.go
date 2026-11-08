@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
+	agentupdates "github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/buildinfo"
@@ -87,6 +88,8 @@ type testServer struct {
 	dataDir string
 	// backups takes its backups, when it has Docker.
 	backups *backup.Runner
+	// updates reads its package updates, when set.
+	updates *agentupdates.Reader
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -133,7 +136,7 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	cfg := agent.Config{
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk,
+		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates,
 	}
 	if s.backups != nil {
 		cfg.Backups = backup.Calls{Runner: s.backups}

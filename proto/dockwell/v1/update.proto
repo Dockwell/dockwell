@@ -1,0 +1,204 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// UpdateService says which package updates wait on a server, through its
+// agent, which reads them with the server's own package manager: apt, dnf or
+// apk. Nothing is read while nobody asks, and a server's package lists are
+// refreshed at most daily. See docs/adr/0043-package-updates-on-a-server.md.
+service UpdateService {
+  // GetServerUpdates says which package updates wait on a server, which are
+  // security fixes, whether the server needs a reboot, and Dockwell's own
+  // version against its newest release. An answer stands for 10 minutes. Past
+  // that, or with none yet, this asks the server's agent, and answers with what
+  // it had and checking set when the agent takes more than a few seconds: ask
+  // again for the rest. The agent refreshes the server's package lists first
+  // when they're more than a day old.
+  rpc GetServerUpdates(GetServerUpdatesRequest) returns (GetServerUpdatesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.command) = {
+      noun: "updates"
+      verb: "get"
+    };
+    option (google.api.http) = {get: "/v1/servers/{id}/updates"};
+  }
+
+  // CheckServerUpdates refreshes a server's package lists now, whatever their
+  // age, and reads what waits again. It answers at once, with checking set, and
+  // GetServerUpdates has the result. A server is refreshed this way at most once
+  // a minute: asking again sooner answers with the refresh under way, or the
+  // last one. It has the server reach its mirrors, so it takes a person: no API
+  // token can call it.
+  rpc CheckServerUpdates(CheckServerUpdatesRequest) returns (CheckServerUpdatesResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "updates"
+      verb: "check"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{id}/updates:check"
+      body: "*"
+    };
+  }
+}
+
+// GetServerUpdatesRequest names a server.
+message GetServerUpdatesRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+}
+
+// GetServerUpdatesResponse is what waits on a server.
+message GetServerUpdatesResponse {
+  // The server's package updates.
+  ServerUpdates updates = 1;
+  // Dockwell's version on the server and the control plane, and its newest
+  // release.
+  DockwellRelease dockwell = 2;
+}
+
+// CheckServerUpdatesRequest names a server.
+message CheckServerUpdatesRequest {
+  // The server's ID.
+  string id = 1;
+}
+
+// CheckServerUpdatesResponse is what's known as the refresh starts.
+message CheckServerUpdatesResponse {
+  // The server's package updates as they stood, with checking set.
+  ServerUpdates updates = 1;
+}
+
+// ServerUpdates is what a server's package manager says waits.
+message ServerUpdates {
+  // The server's ID.
+  string server_id = 1;
+  // The package manager that read them. Unspecified when none could.
+  PackageManager manager = 2;
+  // Set when Dockwell can't read updates on this server, saying why, such as
+  // that it has none of apt, dnf and apk. Nothing else is then set, but reason.
+  string unavailable = 3;
+  // The updates that wait, security fixes first, then by name.
+  repeated PackageUpdate packages = 4;
+  // Packages with a newer version that an upgrade holds back, by name, such as
+  // one of Ubuntu's phased updates that hasn't reached this server yet.
+  repeated string held = 5;
+  // False where the distribution doesn't mark security fixes, as Alpine
+  // doesn't: no package is then marked, whatever it fixes.
+  bool marks_security = 6;
+  // True when the server needs a reboot now, for what's already installed.
+  bool reboot_required = 7;
+  // What the server says asked for the reboot, by package, where it says.
+  repeated string reboot_packages = 8;
+  // When the server's package lists were last refreshed, by anyone. Unset when
+  // they never were.
+  google.protobuf.Timestamp lists_time = 9;
+  // When the agent read these.
+  google.protobuf.Timestamp read_time = 10;
+  // True while the agent reads them, or refreshes the lists first: what's here
+  // is from before, and asking again gives what it finds.
+  bool checking = 11;
+  // True while the lists are being refreshed, as part of checking.
+  bool refreshing = 12;
+  // Why the last read failed, if it did. What's here is from the one before.
+  string error = 13;
+  // Why refreshing the lists failed, if it did. What's here was read from the
+  // lists as they were, at lists_time.
+  string refresh_error = 14;
+  // Whether the server installs updates by itself.
+  AutomaticUpdates automatic = 15;
+  // True when Docker keeps containers running while it restarts (live-restore),
+  // so updating Docker's engine stops none.
+  bool docker_live_restore = 16;
+  // Why what's here isn't a read that's current, for a client to word: one of
+  // "unsupported" (no package manager Dockwell reads, with unavailable saying
+  // which), "agent_outdated" (the server's agent reads no updates; update it),
+  // "server_offline" (its agent isn't connected; what's here is from before), and
+  // "read_failed" (the last read failed, with error saying why). Empty otherwise.
+  string reason = 17;
+}
+
+// PackageManager is the tool a server installs packages with.
+enum PackageManager {
+  PACKAGE_MANAGER_UNSPECIFIED = 0;
+  // apt, on Debian, Ubuntu and what's built on them.
+  PACKAGE_MANAGER_APT = 1 [(dockwell.v1.word) = "apt"];
+  // dnf, on AlmaLinux, Rocky Linux, RHEL and Fedora.
+  PACKAGE_MANAGER_DNF = 2 [(dockwell.v1.word) = "dnf"];
+  // apk, on Alpine.
+  PACKAGE_MANAGER_APK = 3 [(dockwell.v1.word) = "apk"];
+}
+
+// PackageUpdate is one package with a newer version waiting.
+message PackageUpdate {
+  // The package's name, such as "openssl".
+  string name = 1;
+  // Its architecture, where the package manager names one, such as "x86_64".
+  string architecture = 2;
+  // What it is, in the package's own words, such as "Secure Sockets Layer
+  // toolkit".
+  string summary = 3;
+  // The version installed. Empty for a package that installing brings in new,
+  // such as the next kernel.
+  string installed = 4;
+  // The version it would get.
+  string available = 5;
+  // Where that version comes from: apt's suite, such as "noble-security", or
+  // dnf's repository, such as "baseos". Empty where the tool doesn't say.
+  string origin = 6;
+  // True when the distribution marks it a security fix.
+  bool security = 7;
+  // The advisory that names it, such as "ALSA-2024:9473", where there is one.
+  string advisory = 8;
+  // The advisory's severity, in its own words, such as "Important".
+  string severity = 9;
+  // What installing it does beyond replacing its files.
+  PackageEffect effect = 10;
+}
+
+// PackageEffect is what installing a package needs beyond replacing its files.
+enum PackageEffect {
+  // Nothing more that's known before installing.
+  PACKAGE_EFFECT_UNSPECIFIED = 0;
+  // It takes effect only after the server reboots: a kernel, libc, systemd or
+  // D-Bus.
+  PACKAGE_EFFECT_REBOOT = 1;
+  // It restarts Docker's engine, and with it every container, unless Docker
+  // keeps them running (ServerUpdates.docker_live_restore).
+  PACKAGE_EFFECT_DOCKER_RESTART = 2;
+}
+
+// AutomaticUpdates is whether a server installs updates by itself, as the
+// distribution's own tool for that is set.
+message AutomaticUpdates {
+  // The tool, such as "unattended-upgrades" or "dnf-automatic". Empty when
+  // there's none.
+  string tool = 1;
+  // True when it's on.
+  bool on = 2;
+}
+
+// DockwellRelease is Dockwell's version on a server and its control plane, and
+// the newest release.
+message DockwellRelease {
+  // The server's agent's version, such as "0.9.4".
+  string agent = 1;
+  // The control plane's version.
+  string control_plane = 2;
+  // The newest release, as the releases URL says. Empty when that isn't known:
+  // the control plane couldn't read it, or doesn't, as in tests.
+  string newest = 3;
+  // When the control plane read it.
+  google.protobuf.Timestamp newest_time = 4;
+  // Where it read it from, such as
+  // "https://github.com/Dockwell/dockwell/releases".
+  string releases = 5;
+}

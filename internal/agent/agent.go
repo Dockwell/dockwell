@@ -29,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -81,6 +82,8 @@ type Config struct {
 	Health HealthReporter
 	// Files reads this server's disk for a person. Nil reads nothing.
 	Files *files.Server
+	// Updates reads which package updates wait on this server. Nil reads none.
+	Updates *updates.Reader
 	// CallGrace is how long a call gets to end once its time is up or its stream is
 	// going, before it's left behind. Zero means DefaultCallGrace.
 	CallGrace time.Duration
@@ -419,7 +422,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil}
 	hello.Kinds, hello.Unavailable = offered.proto()
 	if cfg.Hello != nil {
 		cfg.Hello(hello)

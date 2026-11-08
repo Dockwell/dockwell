@@ -1,0 +1,4 @@
+Installed:                                Available:
+busybox-1.36.1-r29                      < 1.36.1-r30
+openssl-3.3.2-r0                        < 3.3.2-r1
+py3-foo-bar-1.2.3-r0                    < 1.2.4-r0

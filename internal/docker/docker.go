@@ -222,6 +222,8 @@ type Info struct {
 	LoggingDriver string
 	// SecurityOptions lists how it runs, such as name=rootless.
 	SecurityOptions []string
+	// LiveRestoreEnabled says containers keep running while the engine restarts.
+	LiveRestoreEnabled bool
 }
 
 // Rootless reports an engine that runs as an ordinary user, whose host

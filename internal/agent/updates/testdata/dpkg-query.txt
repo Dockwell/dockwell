@@ -1,0 +1,6 @@
+libssl3t64	amd64	Secure Sockets Layer toolkit - shared libraries
+openssl	amd64	Secure Sockets Layer toolkit - cryptographic utility
+libssh-4	amd64	tiny C SSH library (OpenSSL flavor)
+linux-image-virtual	amd64	Virtual Linux kernel image
+systemd	amd64	system and service manager
+docker-ce	amd64	Docker: the open-source application container engine

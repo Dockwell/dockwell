@@ -576,6 +576,13 @@ put() {
 }
 
 write_service() {
+	# A mirror stays the service's, so the control plane reads Dockwell's newest
+	# release where this install came from. systemd reads % as a specifier.
+	mirror_env=
+	[ -z "${mirror:-}" ] || mirror_env="Environment=\"DOCKWELL_MIRROR=$(printf '%s' "$mirror" | sed 's/%/%%/g')\""
+	openrc_mirror=
+	[ -z "${mirror:-}" ] || openrc_mirror=": \"\${DOCKWELL_MIRROR:=$mirror}\"
+export DOCKWELL_MIRROR"
 	case $init in
 	systemd)
 		put "$UNIT" 0644 <<EOF
@@ -594,6 +601,7 @@ Type=simple
 ExecStart=$BIN run
 # A soft limit sized from the 250 MB budget for the control plane and its agent.
 Environment=GOMEMLIMIT=$MEMORY_LIMIT
+$mirror_env
 Restart=always
 RestartSec=5s
 # The control plane reads a Compose file in a child it limits, and the kernel may
@@ -622,6 +630,7 @@ error_log="$OPENRC_LOG"
 # A soft limit sized from the 250 MB budget for the control plane and its agent.
 : "\${GOMEMLIMIT:=$MEMORY_LIMIT}"
 export GOMEMLIMIT
+$openrc_mirror
 
 depend() {
 	use net

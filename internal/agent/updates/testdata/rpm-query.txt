@@ -1,0 +1,6 @@
+kernel.x86_64	5.14.0-427.13.1.el9_4	The Linux kernel, based on version 5.14.0, heavily modified with backports
+kernel.x86_64	5.14.0-503.11.1.el9_5	The Linux kernel, based on version 5.14.0, heavily modified with backports
+openssl.x86_64	1:3.2.2-5.el9_5	Utilities from the general purpose cryptography library with TLS implementation
+openssl-libs.x86_64	1:3.2.2-5.el9_5	A general purpose cryptography library with TLS implementation
+package python3-dnf-plugin-versionlock-and-a-long-name.noarch is not installed
+vim-minimal.x86_64	2:8.2.2637-20.el9_1	A minimal version of the VIM editor

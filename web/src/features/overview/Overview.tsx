@@ -15,6 +15,7 @@ import { useServerWords } from "../servers/server";
 import { useFleet, useFleetUnread } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { UpdatesCard, UpdatesPhoneCard } from "../updates/UpdatesCard";
 import { OverviewApps } from "./OverviewApps";
 import { OverviewBackups } from "./OverviewBackups";
 import { RecentChanges } from "./RecentChanges";
@@ -22,9 +23,9 @@ import "./Overview.css";
 
 /**
  * The first screen: is everything OK? With one server, that server's health,
- * live, then what runs on it, what changed and how its backups stand, as
- * Overview-Single has them. With none, how to add one. From the second server
- * on, every server in a list, until the fleet overview exists.
+ * live, then what runs on it, what changed, how its backups stand and which
+ * updates wait, as Overview-Single has them. With none, how to add one. From the
+ * second server on, every server in a list, until the fleet overview exists.
  */
 export function Overview() {
   const { t } = useLingui();
@@ -97,10 +98,13 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
       <div className="overview-columns">
         <div className="overview-main">
           <OverviewApps />
+          {/* On a phone, the updates follow what runs, as M-Overview-Single has them. */}
+          {phone ? <UpdatesPhoneCard server={server} /> : null}
         </div>
         <div className="overview-side">
           <RecentChanges />
           <OverviewBackups />
+          {phone ? null : <UpdatesCard server={server} />}
         </div>
       </div>
     </Page>

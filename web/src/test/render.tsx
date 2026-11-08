@@ -21,6 +21,7 @@ import {
   SettingsService,
   SystemService,
   TokenService,
+  UpdateService,
   VariableService,
 } from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
@@ -56,6 +57,7 @@ export type Api = {
   files?: Partial<ServiceImpl<typeof FileService>>;
   backups?: Partial<ServiceImpl<typeof BackupService>>;
   settings?: Partial<ServiceImpl<typeof SettingsService>>;
+  updates?: Partial<ServiceImpl<typeof UpdateService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -103,6 +105,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
       service(FileService, api.files ?? {});
       service(SettingsService, { getSettings: () => ({ settings: { timeZone: "UTC" } }), ...api.settings });
+      service(UpdateService, api.updates ?? {});
       service(BackupService, {
         listBackups: () => ({}),
         listBackupPolicies: () => ({}),
