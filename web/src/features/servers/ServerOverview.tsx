@@ -3,15 +3,21 @@
 import { PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 
 import { ContainersPanel } from "./ContainersPanel";
+import { DiskUsePanel } from "./DiskUse";
 import { FleetUnreadNote } from "./FleetNotes";
+import { PhoneServer } from "./PhoneServer";
+import { RunsHere } from "./RunsHere";
 import { ServerCallout } from "./ServerCallout";
 import { ServerFrame } from "./ServerFrame";
 import { ServerMetrics } from "./ServerMetrics";
-import { AgentPanel, DisksPanel, NetworkPanel, SystemPanel } from "./ServerPanels";
+import { AgentPanel, NetworkPanel, SystemPanel } from "./ServerPanels";
 import { useFleetUnread } from "./useFleet";
 import "./ServerOverview.css";
 
-/** One server's overview: its live numbers, its disks, what it is, how to reach it, and its agent. */
+/**
+ * One server's overview, as Server-Overview.dc.html has it: its live numbers, what
+ * runs on it, what takes its disk, what it is, how to reach it, and its agent.
+ */
 export function ServerOverview({ id }: { id: string }) {
   const phone = useMediaQuery(PHONE_QUERY);
   const unread = useFleetUnread();
@@ -20,10 +26,23 @@ export function ServerOverview({ id }: { id: string }) {
       {(server) => (
         <>
           {/* What it last said of itself can't stand, so that is what it says, and nothing it last said instead. */}
-          {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <ServerCallout server={server} />}
-          <ServerMetrics server={server} fourth="load" compact={phone} />
+          {unread ? (
+            <FleetUnreadNote why={unread.why} heard={unread.heard} />
+          ) : phone ? null : (
+            <ServerCallout server={server} />
+          )}
+          {/* A phone leads with M-Server.dc.html's: how it is, what runs, and what happened. */}
+          {phone ? (
+            <PhoneServer server={server} unread={unread !== undefined} />
+          ) : (
+            <>
+              <ServerMetrics server={server} fourth="load" />
+              <RunsHere server={server} />
+            </>
+          )}
+          {/* What fills the disks, beside the containers Dockwell didn't make once the page has room for both. */}
           <div className="server-pair">
-            <DisksPanel server={server} />
+            <DiskUsePanel server={server} />
             <ContainersPanel server={server} />
           </div>
           <div className="server-panels">

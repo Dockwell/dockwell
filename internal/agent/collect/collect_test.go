@@ -25,7 +25,8 @@ ID=ubuntu
 `)},
 		"proc/sys/kernel/osrelease": {Data: []byte("6.8.0-48-generic\n")},
 		"proc/cpuinfo":              {Data: []byte(strings.Repeat("processor\t: 0\nmodel name\t: AMD EPYC 7763 64-Core Processor\n\n", 4))},
-		"proc/meminfo":              {Data: []byte("MemTotal:        8388608 kB\nMemFree:          524288 kB\nMemAvailable:    6291456 kB\n")},
+		"proc/meminfo":              {Data: []byte("MemTotal:        8388608 kB\nMemFree:          524288 kB\nMemAvailable:    6291456 kB\nSwapTotal:       2097152 kB\nSwapFree:        1572864 kB\n")},
+		"proc/self/status":          {Data: []byte("Name:\tdockwell\nVmPeak:\t 1300000 kB\nVmRSS:\t   19456 kB\nThreads:\t9\n")},
 		"proc/loadavg":              {Data: []byte("0.52 0.41 0.30 2/345 12345\n")},
 		"proc/uptime":               {Data: []byte("86400.42 340000.00\n")},
 		"proc/stat":                 {Data: []byte(stat)},
@@ -112,6 +113,16 @@ func TestStatsRates(t *testing.T) {
 	if len(first.GetDisks()) != 2 {
 		t.Errorf("disk usage = %v", first.GetDisks())
 	}
+	if first.GetSwapTotalBytes() != 2<<30 || first.GetSwapUsedBytes() != 512<<20 {
+		t.Errorf("swap = %d of %d", first.GetSwapUsedBytes(), first.GetSwapTotalBytes())
+	}
+	if first.GetAgentMemoryBytes() != 19<<20 {
+		t.Errorf("the agent's own memory = %d, want 19 MiB, its VmRSS", first.GetAgentMemoryBytes())
+	}
+	// What physical interfaces moved since boot, without lo, docker0 and veths.
+	if first.GetNetworkRxBytes() != 1000 || first.GetNetworkTxBytes() != 2000 {
+		t.Errorf("traffic since boot = %d in, %d out", first.GetNetworkRxBytes(), first.GetNetworkTxBytes())
+	}
 
 	// 5 s later: 300 of 1000 new jiffies were busy, and eth0 moved 5 KB in, 10 KB out.
 	fsys["proc/stat"].Data = []byte("cpu 300 0 200 1500 0 0 0 0 0 0\n")
@@ -173,7 +184,29 @@ func TestOnThisMachine(t *testing.T) {
 	_ = c.Stats(time.Now())
 	time.Sleep(50 * time.Millisecond)
 	st := c.Stats(time.Now())
-	if st.GetMemoryTotalBytes() == 0 || st.GetUptime().AsDuration() <= 0 || st.GetCpuPercent() < 0 || st.GetCpuPercent() > 100 {
+	if st.GetMemoryTotalBytes() == 0 || st.GetUptime().AsDuration() <= 0 || st.GetCpuPercent() < 0 || st.GetCpuPercent() > 100 || st.GetAgentMemoryBytes() == 0 {
 		t.Errorf("stats of this machine look wrong: %v", st)
+	}
+}
+
+func TestDiskOf(t *testing.T) {
+	c := newFixtureCollector(fixture("cpu 1 0 1 8 0 0 0 0 0 0\n", netdev(0, 0)))
+	for path, want := range map[string]string{
+		"/var/lib/docker":          "/",
+		"/mnt/data disk/docker":    "/mnt/data disk",
+		"/mnt/data disk":           "/mnt/data disk",
+		"/mnt/data diskette/other": "/",
+	} {
+		mount, size, used, ok := c.DiskOf(path)
+		if !ok || mount != want {
+			t.Errorf("DiskOf(%q) = %q, %v; want %q", path, mount, ok, want)
+			continue
+		}
+		if size == 0 || used == 0 || used > size {
+			t.Errorf("DiskOf(%q) reads %d of %d", path, used, size)
+		}
+	}
+	if _, _, _, ok := c.DiskOf("relative/path"); ok {
+		t.Error("a relative path is on no disk")
 	}
 }

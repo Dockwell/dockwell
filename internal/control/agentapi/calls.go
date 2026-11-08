@@ -97,6 +97,11 @@ type Agents struct {
 	health       map[string]health.Report
 	healthHearer func(server string, instances []*dockwellv1.InstanceHealth)
 	saveHearer   func(server string, ended *agentv1.SaveEnded)
+	// pace is how often agents should send stats, as last set, and paceGen counts
+	// each setting, so a stream never hears an older pace after a newer one. Zero
+	// before it's set, when the welcome's pace stands.
+	pace    time.Duration
+	paceGen uint64
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
@@ -376,7 +381,8 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
-		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
+		followsPace: hello.GetFollowsPace(),
+		pending:     map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	a.mu.Lock()
@@ -384,9 +390,29 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	delete(a.moved, server)
 	close(a.opened)
 	a.opened = make(chan struct{})
+	// The pace may have changed since the welcome said it.
+	pace, gen := a.pace, a.paceGen
 	a.mu.Unlock()
+	if gen > 0 {
+		go s.tellPace(pace, gen)
+	}
 	a.connected(server)
 	return s
+}
+
+// SetPace tells every agent how often to send stats from now on, as people start
+// and stop watching (ADR 0040).
+func (a *Agents) SetPace(pace time.Duration) {
+	a.mu.Lock()
+	a.pace = pace
+	a.paceGen++
+	gen := a.paceGen
+	sessions := slices.Collect(maps.Values(a.sessions))
+	a.mu.Unlock()
+	for _, s := range sessions {
+		// Apart, so a stream that's slow to take a message holds up no other.
+		go s.tellPace(pace, gen)
+	}
 }
 
 // connected runs the OnConnect hooks for server, each in its own
@@ -422,6 +448,9 @@ type Session struct {
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
 	readsUpdates bool
+	// followsPace says the agent sends stats at the pace each Pace says. One
+	// that doesn't is never told one.
+	followsPace bool
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -431,6 +460,11 @@ type Session struct {
 	// draining stops calls once the agent said it is moving to a new
 	// stream: they go to the next one.
 	draining bool
+
+	// paceMu keeps the paces this stream hears in order, and paceGen is the
+	// latest it heard.
+	paceMu  sync.Mutex
+	paceGen uint64
 
 	mu      sync.Mutex
 	next    uint64
@@ -586,6 +620,71 @@ func (s *Session) writeCall(msg *agentv1.ConnectResponse) error {
 	}
 	return s.send(msg)
 }
+
+// tellPace tells the agent the pace setting gen says, unless it heard a later one
+// or doesn't follow a pace.
+func (s *Session) tellPace(pace time.Duration, gen uint64) {
+	if !s.followsPace {
+		return
+	}
+	s.paceMu.Lock()
+	defer s.paceMu.Unlock()
+	if gen <= s.paceGen {
+		return
+	}
+	s.paceGen = gen
+	// A stream that has ended takes nothing, and its next hears the pace as it opens.
+	_ = s.write(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Pace{Pace: &agentv1.Pace{StatsInterval: durationpb.New(pace)}}})
+}
+
+// DiskUseTimeout bounds a disk use call: the agent's own bound, and room for its
+// answer to come back.
+const DiskUseTimeout = 70 * time.Second
+
+// DiskUse asks the agent what takes the room on the disk that holds Docker's data.
+func (s *Session) DiskUse(ctx context.Context) (*dockwellv1.ServerDiskUse, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DiskUse{DiskUse: &agentv1.DiskUseCall{}}}, DiskUseTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetDiskUse() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetDiskUse(), nil
+}
+
+// Processes asks the agent what runs on its server.
+func (s *Session) Processes(ctx context.Context) (*dockwellv1.ProcessList, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Processes{Processes: &agentv1.ProcessesCall{}}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetProcesses() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetProcesses().GetList(), nil
+}
+
+// EndProcessTimeout bounds ending a process: SIGTERM's 10 s, SIGKILL's 5, and room
+// for the answer to come back.
+const EndProcessTimeout = 20 * time.Second
+
+// EndProcess asks the agent to end a process, and says what it was and whether it
+// took SIGKILL.
+func (s *Session) EndProcess(ctx context.Context, pid uint32, start uint64) (*agentv1.EndProcessResult, error) {
+	call := &agentv1.EndProcessCall{Pid: pid, StartTicks: start}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_EndProcess{EndProcess: call}}, EndProcessTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetEndProcess() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetEndProcess(), nil
+}
+
+// ErrOlderAgent is an agent that doesn't know a call, as one from before it.
+var ErrOlderAgent = errors.New("its agent is older than the control plane, and doesn't know how. Upgrade it by running the install script on the server again")
 
 // leftMoving reports a session that ended as its agent moved to a new stream.
 func (s *Session) leftMoving() bool {

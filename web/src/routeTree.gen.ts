@@ -46,6 +46,7 @@ import { Route as ShellDatabasesServiceIdBackupsRouteImport } from './routes/_sh
 import { Route as ShellDatabasesServiceIdUsersRouteImport } from './routes/_shell/databases.$serviceId.users'
 import { Route as ShellServersServerIdIndexRouteImport } from './routes/_shell/servers.$serverId.index'
 import { Route as ShellServersServerIdFilesRouteImport } from './routes/_shell/servers.$serverId.files'
+import { Route as ShellServersServerIdProcessesRouteImport } from './routes/_shell/servers.$serverId.processes'
 import { Route as ShellServersServerIdUpdatesRouteImport } from './routes/_shell/servers.$serverId.updates'
 import { Route as ShellWebsitesWebsiteIdIndexRouteImport } from './routes/_shell/websites.$websiteId.index'
 import { Route as ShellWebsitesWebsiteIdCertificateRouteImport } from './routes/_shell/websites.$websiteId.certificate'
@@ -246,6 +247,12 @@ const ShellServersServerIdFilesRoute =
     path: '/servers/$serverId/files',
     getParentRoute: () => ShellRoute,
   } as any)
+const ShellServersServerIdProcessesRoute =
+  ShellServersServerIdProcessesRouteImport.update({
+    id: '/servers/$serverId/processes',
+    path: '/servers/$serverId/processes',
+    getParentRoute: () => ShellRoute,
+  } as any)
 const ShellServersServerIdUpdatesRoute =
   ShellServersServerIdUpdatesRouteImport.update({
     id: '/servers/$serverId/updates',
@@ -321,6 +328,7 @@ export interface FileRoutesByFullPath {
   '/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
   '/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
   '/servers/$serverId/updates': typeof ShellServersServerIdUpdatesRoute
   '/websites/$websiteId/certificate': typeof ShellWebsitesWebsiteIdCertificateRoute
   '/websites/$websiteId/configuration': typeof ShellWebsitesWebsiteIdConfigurationRoute
@@ -362,6 +370,7 @@ export interface FileRoutesByTo {
   '/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
   '/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
   '/servers/$serverId/updates': typeof ShellServersServerIdUpdatesRoute
   '/websites/$websiteId/certificate': typeof ShellWebsitesWebsiteIdCertificateRoute
   '/websites/$websiteId/configuration': typeof ShellWebsitesWebsiteIdConfigurationRoute
@@ -409,6 +418,7 @@ export interface FileRoutesById {
   '/_shell/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
   '/_shell/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/_shell/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/_shell/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
   '/_shell/servers/$serverId/updates': typeof ShellServersServerIdUpdatesRoute
   '/_shell/websites/$websiteId/certificate': typeof ShellWebsitesWebsiteIdCertificateRoute
   '/_shell/websites/$websiteId/configuration': typeof ShellWebsitesWebsiteIdConfigurationRoute
@@ -455,6 +465,7 @@ export interface FileRouteTypes {
     | '/databases/$serviceId/backups'
     | '/databases/$serviceId/users'
     | '/servers/$serverId/files'
+    | '/servers/$serverId/processes'
     | '/servers/$serverId/updates'
     | '/websites/$websiteId/certificate'
     | '/websites/$websiteId/configuration'
@@ -496,6 +507,7 @@ export interface FileRouteTypes {
     | '/databases/$serviceId/backups'
     | '/databases/$serviceId/users'
     | '/servers/$serverId/files'
+    | '/servers/$serverId/processes'
     | '/servers/$serverId/updates'
     | '/websites/$websiteId/certificate'
     | '/websites/$websiteId/configuration'
@@ -542,6 +554,7 @@ export interface FileRouteTypes {
     | '/_shell/databases/$serviceId/backups'
     | '/_shell/databases/$serviceId/users'
     | '/_shell/servers/$serverId/files'
+    | '/_shell/servers/$serverId/processes'
     | '/_shell/servers/$serverId/updates'
     | '/_shell/websites/$websiteId/certificate'
     | '/_shell/websites/$websiteId/configuration'
@@ -824,6 +837,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersServerIdFilesRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/servers/$serverId/processes': {
+      id: '/_shell/servers/$serverId/processes'
+      path: '/servers/$serverId/processes'
+      fullPath: '/servers/$serverId/processes'
+      preLoaderRoute: typeof ShellServersServerIdProcessesRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/servers/$serverId/updates': {
       id: '/_shell/servers/$serverId/updates'
       path: '/servers/$serverId/updates'
@@ -973,6 +993,7 @@ interface ShellRouteChildren {
   ShellServersIndexRoute: typeof ShellServersIndexRoute
   ShellWebsitesIndexRoute: typeof ShellWebsitesIndexRoute
   ShellServersServerIdFilesRoute: typeof ShellServersServerIdFilesRoute
+  ShellServersServerIdProcessesRoute: typeof ShellServersServerIdProcessesRoute
   ShellServersServerIdUpdatesRoute: typeof ShellServersServerIdUpdatesRoute
   ShellServersServerIdIndexRoute: typeof ShellServersServerIdIndexRoute
   ShellServersServerIdContainersNameRoute: typeof ShellServersServerIdContainersNameRoute
@@ -1000,6 +1021,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellServersIndexRoute: ShellServersIndexRoute,
   ShellWebsitesIndexRoute: ShellWebsitesIndexRoute,
   ShellServersServerIdFilesRoute: ShellServersServerIdFilesRoute,
+  ShellServersServerIdProcessesRoute: ShellServersServerIdProcessesRoute,
   ShellServersServerIdUpdatesRoute: ShellServersServerIdUpdatesRoute,
   ShellServersServerIdIndexRoute: ShellServersServerIdIndexRoute,
   ShellServersServerIdContainersNameRoute:

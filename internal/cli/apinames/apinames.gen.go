@@ -35,6 +35,7 @@ func Commands() []string {
 		"logs",
 		"networks",
 		"passkeys",
+		"processes",
 		"projects",
 		"resources",
 		"routes",

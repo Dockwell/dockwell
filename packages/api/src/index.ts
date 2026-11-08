@@ -23,6 +23,7 @@ export * from "./gen/dockwell/v1/file_pb";
 export * from "./gen/dockwell/v1/health_pb";
 export * from "./gen/dockwell/v1/log_pb";
 export * from "./gen/dockwell/v1/options_pb";
+export * from "./gen/dockwell/v1/process_pb";
 export * from "./gen/dockwell/v1/resource_pb";
 export * from "./gen/dockwell/v1/server_pb";
 export * from "./gen/dockwell/v1/service_pb";
