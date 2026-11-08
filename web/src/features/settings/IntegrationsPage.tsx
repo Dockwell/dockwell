@@ -55,7 +55,7 @@ export function IntegrationsPage() {
     </Button>
   );
   return (
-    <Page title={t`Integrations`} lead={lead} phoneSub={lead} back="/settings" actions={variables}>
+    <Page width="narrow" title={t`Integrations`} lead={lead} phoneSub={lead} back="/settings" actions={variables}>
       <section className="integrations-section" aria-labelledby="integrations-storage">
         <div className="cp-section-head">
           <h2 id="integrations-storage" className="dw-text-heading">

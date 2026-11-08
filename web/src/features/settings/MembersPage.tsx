@@ -67,6 +67,7 @@ export function MembersPage() {
 
   return (
     <Page
+      width="narrow"
       title={t`Members`}
       lead={
         // Said once the list is read, never as nobody while it loads or can't be read.
