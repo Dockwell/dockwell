@@ -125,7 +125,7 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
     .click();
   const checked = await only("checked");
   await everywhere("checked", "Healthy", "healthy");
-  const config = page.getByRole("region", { name: "Configuration" });
+  const config = page.getByRole("region", { name: "Health check" });
   await config.getByText("test ! -f /tmp/sick").waitFor();
 
   step("health: its check starts failing, and it reads unhealthy, with what the check said");
@@ -133,6 +133,8 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
   else await dockerExec(socket, checked.id, ["touch", "/tmp/sick"]);
   await pageSays("Unhealthy");
   await page.locator(".dw-callout").getByText("checked fails its health check").waitFor();
+  // The check's own panel says so too, by how the server reads, as the head does.
+  await page.getByRole("region", { name: "Health check" }).getByText("Failing", { exact: true }).waitFor();
   await shoot(page, "health-unhealthy");
   await goToList();
   await listSays("checked", "Unhealthy");
@@ -242,7 +244,7 @@ services:
     .getByText("Nothing checks it, so this only means it started.")
     .waitFor();
   await page
-    .getByRole("region", { name: "Configuration" })
+    .getByRole("region", { name: "Health check" })
     .getByText(/^None\./)
     .waitFor();
 

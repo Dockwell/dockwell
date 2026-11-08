@@ -424,6 +424,10 @@ msgstr "{errors, plural, one {{count} error} other {{count} errors}}"
 msgid "{failed, plural, one {# failed} other {# failed}}"
 msgstr "{failed, plural, one {# failed} other {# failed}}"
 
+#: src/features/apps/AppOverview.tsx
+msgid "{failing} of {total} failing"
+msgstr "{failing} of {total} failing"
+
 #: src/features/logs/LogsPage.tsx
 msgid "{first} couldn't be searched"
 msgstr "{first} couldn't be searched"
@@ -804,6 +808,10 @@ msgstr "{out}, with {detail}"
 #: src/features/servers/ContainersPanel.tsx
 msgid "{own, plural, one {Dockwell runs # more container here, which isn't listed.} other {Dockwell runs # more containers here, which aren't listed.}}"
 msgstr "{own, plural, one {Dockwell runs # more container here, which isn't listed.} other {Dockwell runs # more containers here, which aren't listed.}}"
+
+#: src/features/apps/AppOverview.tsx
+msgid "{passing} of {total} passing"
+msgstr "{passing} of {total} passing"
 
 #: src/features/changes/words.ts
 msgid "{path} as a proxy it believes on where a request came from"
@@ -2222,6 +2230,10 @@ msgstr "Checking again."
 msgid "Checking your session"
 msgstr "Checking your session"
 
+#: src/features/apps/AppOverview.tsx
+msgid "Checks"
+msgstr "Checks"
+
 #: src/features/apps/NewAppSheet.tsx
 msgid "Choose a file"
 msgstr "Choose a file"
@@ -3529,6 +3541,11 @@ msgstr "Failed"
 msgid "Failing"
 msgstr "Failing"
 
+#: src/features/apps/AppOverview.tsx
+msgctxt "health check"
+msgid "Failing"
+msgstr "Failing"
+
 #: src/features/backups/BackupsPage.tsx
 msgid "Fetch"
 msgstr "Fetch"
@@ -4161,6 +4178,10 @@ msgstr "It runs through the Compose project {project}. Until Dockwell changes it
 #: src/features/changes/notices.tsx
 msgid "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
 msgstr "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
+
+#: src/features/apps/AppOverview.tsx
+msgid "It said"
+msgstr "It said"
 
 #: src/features/apps/AppOverview.tsx
 msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
@@ -5646,6 +5667,10 @@ msgstr "Panel address"
 #: src/features/changes/RollbackLine.tsx
 msgid "Parts of it may still be on the server. Check what is there, then try again, or remove them by hand."
 msgstr "Parts of it may still be on the server. Check what is there, then try again, or remove them by hand."
+
+#: src/features/apps/AppOverview.tsx
+msgid "Passing"
+msgstr "Passing"
 
 #: src/features/auth/PasskeysPanel.tsx
 msgid "Passkey"
@@ -8477,6 +8502,7 @@ msgid "Unhealthy"
 msgstr "Unhealthy"
 
 #: src/app/Providers.tsx
+#: src/features/apps/AppOverview.tsx
 #: src/features/apps/Health.tsx
 #: src/features/apps/words.ts
 #: src/features/backups/words.ts
@@ -8785,6 +8811,10 @@ msgstr "Waiting for DNS"
 #: src/features/servers/ServersPanel.tsx
 msgid "Waiting for its agent"
 msgstr "Waiting for its agent"
+
+#: src/features/apps/AppOverview.tsx
+msgid "Waiting for its first result."
+msgstr "Waiting for its first result."
 
 #: src/features/apps/words.ts
 msgid "Waiting for server"

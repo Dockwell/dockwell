@@ -25,6 +25,7 @@ import {
   Icon,
   Panel,
   PHONE_QUERY,
+  StatusBadge,
   Tag,
   Timeline,
   type TimelineEvent,
@@ -33,7 +34,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
@@ -68,8 +69,8 @@ import {
 import { DomainFacts, DomainNote, useSilent } from "./DomainNote";
 import { type DomainRead, lookOf, mayBeBehind, routeWhere, useAppDomains, visitorUrl } from "./domains";
 import { ExportSheet } from "./ExportSheet";
-import { HealthBadge, RunsOnServers, useRunsNow } from "./Health";
-import { type AppHealth, runsAsFarAsAnyoneKnows, useHealth } from "./health";
+import { HealthBadge, RunsOnServers, useHealthWords, useRunsNow } from "./Health";
+import { type AppHealth, type RunsOnServer, runsAsFarAsAnyoneKnows, useHealth } from "./health";
 import { ImageName, WholeImage } from "./ImageName";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { usePlaces } from "./useServices";
@@ -97,6 +98,7 @@ export function AppOverview() {
       </div>
       <div className="app-aside">
         <ConfigurationPanel />
+        <HealthCheckPanel />
         <VolumesPanel app={appOf(service)} />
         <AppBackups service={service} app={appOf(service)} />
         <RunsWithPanel />
@@ -916,10 +918,133 @@ function RecentDeployments() {
   );
 }
 
+/**
+ * What checks the app and what its check last said, in a panel of its own as
+ * App-Overview has it, with how many of its servers pass. Healthy only ever
+ * means a check passed, so with no check there's no badge.
+ */
+function HealthCheckPanel() {
+  const { t } = useLingui();
+  const { service, health } = useApp();
+  const words = useHealthWords();
+  const time = useTimeWords();
+  const now = useControlPlaneNow(15_000);
+  const app = appOf(service);
+  const check = app?.healthcheck;
+  const test = check?.test ?? [];
+  const read = health.read === "read";
+  // Whether anything checks it: what its spec sets, or what the servers say the image has.
+  const hasCheck =
+    test[0] !== "NONE" &&
+    (check?.http !== undefined ||
+      check?.tcp !== undefined ||
+      test.length > 0 ||
+      health.check === HealthCheckKind.COMMAND ||
+      health.check === HealthCheckKind.HTTP ||
+      health.check === HealthCheckKind.TCP);
+  // Every server it's placed on counts, whether or not it has answered.
+  const placed = [
+    ...new Set([...service.deployments.map((d) => d.serverId), ...health.servers.map((s) => s.serverId)]),
+  ];
+  const byId = new Map(health.servers.map((s) => [s.serverId, s] as const));
+  let passing = 0;
+  let failing = 0;
+  let unread = 0;
+  for (const id of placed) {
+    const server = byId.get(id);
+    // What can't be heard from passes nothing, however it last read.
+    if (!read || !server || server.stale || server.kind === "unknown") unread += 1;
+    else if (server.kind === "healthy") passing += 1;
+    else if (server.kind === "unhealthy") failing += 1;
+  }
+  const total = placed.length;
+  const several = total > 1;
+  // The badge goes by how each server reads, as the head does, never by a single
+  // check's result: a check can fail below its retries and the app still read healthy.
+  let badge: ReactNode = null;
+  if (hasCheck && unread > 0) {
+    badge = (
+      <StatusBadge status="unknown" label={several ? t`${passing} of ${total} passing` : t`Unknown`} labelIsState />
+    );
+  } else if (hasCheck && failing > 0) {
+    badge = (
+      <StatusBadge
+        status="degraded"
+        label={several ? t`${failing} of ${total} failing` : t({ message: "Failing", context: "health check" })}
+        labelIsState
+      />
+    );
+  } else if (hasCheck && passing > 0) {
+    badge = (
+      <StatusBadge
+        status={passing === total ? "healthy" : health.status}
+        label={several ? t`${passing} of ${total} passing` : t`Passing`}
+        labelIsState
+      />
+    );
+  }
+  // What to say it said: the newest failing server's, or else the newest of any,
+  // and during a rollout what the latest revision's container said.
+  const heard = read ? health.servers : [];
+  const at = (s: RunsOnServer) => (s.newest ?? s).last?.at?.getTime() ?? 0;
+  const failingFirst = heard.filter((s) => s.kind === "unhealthy").sort((a, b) => at(b) - at(a));
+  const chosen = failingFirst[0] ?? [...heard].sort((a, b) => at(b) - at(a))[0];
+  const about = chosen?.newest ? { ...chosen, kind: chosen.newest.kind, last: chosen.newest.last } : chosen;
+  const waiting =
+    hasCheck &&
+    heard.length > 0 &&
+    heard.every((s) => !(s.newest ?? s).last && (s.kind === "healthy" || s.kind === "starting"));
+  const said = !about || !hasCheck ? "" : waiting ? t`Waiting for its first result.` : words.says(about, now);
+  return (
+    <Panel title={t`Health check`} actions={badge}>
+      <dl className="app-facts">
+        <dt>{t`Checks`}</dt>
+        <dd className="app-health-check">
+          {check?.http ? (
+            <span>
+              <code>GET {check.http.path || "/"}</code> <Trans>on port {check.http.port}</Trans>
+            </span>
+          ) : check?.tcp ? (
+            <span>
+              <Trans>A connection to port {check.tcp.port}</Trans>
+            </span>
+          ) : test[0] === "NONE" ? (
+            <span className="app-muted">{t`Turned off. Without one, Running only means it started.`}</span>
+          ) : test.length > 0 ? (
+            <code>{test.filter((part) => part !== "CMD" && part !== "CMD-SHELL").join(" ")}</code>
+          ) : health.check === HealthCheckKind.COMMAND ? (
+            <span>
+              <Trans>The image's own</Trans>
+            </span>
+          ) : health.check === HealthCheckKind.NONE ? (
+            <span className="app-muted">{t`None. Without one, Running only means it started.`}</span>
+          ) : (
+            <span className="app-muted">{t`None set here. The image may have one.`}</span>
+          )}
+        </dd>
+        {said ? (
+          <>
+            <dt>{t`It said`}</dt>
+            <dd className="app-check-said">
+              <span>{said}</span>
+              {about?.last?.at && !waiting ? (
+                <span className="app-muted">
+                  {several && about ? `${about.serverName} · ` : ""}
+                  {time.ago(about.last.at, now)}
+                </span>
+              ) : null}
+            </dd>
+          </>
+        ) : null}
+      </dl>
+    </Panel>
+  );
+}
+
 /** How it is set up, as far as that isn't the image's own. */
 function ConfigurationPanel() {
   const { t } = useLingui();
-  const { service, health } = useApp();
+  const { service } = useApp();
   const words = useAppWords();
   const [exporting, setExporting] = useState(false);
   const app = appOf(service);
@@ -927,8 +1052,6 @@ function ConfigurationPanel() {
   const secrets = values.filter((v) => v.kind === "secret").length;
   const plain = values.length - secrets;
   const networks = app?.networks ?? [];
-  const check = app?.healthcheck;
-  const test = check?.test ?? [];
   return (
     <Panel
       title={t`Configuration`}
@@ -973,30 +1096,6 @@ function ConfigurationPanel() {
         ) : null}
         <dt>{t`Restarts`}</dt>
         <dd>{words.restart(app?.restart ?? 0)}</dd>
-        <dt>{t`Health check`}</dt>
-        <dd className="app-health-check">
-          {check?.http ? (
-            <span>
-              <code>GET {check.http.path || "/"}</code> <Trans>on port {check.http.port}</Trans>
-            </span>
-          ) : check?.tcp ? (
-            <span>
-              <Trans>A connection to port {check.tcp.port}</Trans>
-            </span>
-          ) : test[0] === "NONE" ? (
-            <span className="app-muted">{t`Turned off. Without one, Running only means it started.`}</span>
-          ) : test.length > 0 ? (
-            <code>{test.filter((part) => part !== "CMD" && part !== "CMD-SHELL").join(" ")}</code>
-          ) : health.check === HealthCheckKind.COMMAND ? (
-            <span>
-              <Trans>The image's own</Trans>
-            </span>
-          ) : health.check === HealthCheckKind.NONE ? (
-            <span className="app-muted">{t`None. Without one, Running only means it started.`}</span>
-          ) : (
-            <span className="app-muted">{t`None set here. The image may have one.`}</span>
-          )}
-        </dd>
         <dt>{t`Environment`}</dt>
         <dd>
           {values.length > 0 ? (

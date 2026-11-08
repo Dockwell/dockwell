@@ -92,6 +92,27 @@ export interface RunsOnServer {
   containers: number;
   /** Since when its agent can't read Docker, on the server's clock, while it is connected and can't. */
   dockerUnreadableSince: Date | undefined;
+  /**
+   * While a rollout has two containers here, how the newest is and what its check
+   * last said: the latest revision's, which the server's own state may not be yet.
+   */
+  newest: { kind: HealthKind; last: LastCheck | undefined } | undefined;
+}
+
+/** A name a replace gives what it swaps in, newer than the container of that number it replaces. */
+const SWAPPED_IN = /^[0-9a-f]{12}_/;
+
+/**
+ * The newest of a server's containers, by the rollout's own rule: numbers only
+ * go up, one swapped in is newer than the one of its number it replaces, and
+ * one being stopped is on its way out.
+ */
+function newestOf(instances: readonly ServerHealth["instances"][number][]) {
+  const staying = instances.filter((i) => !i.container.startsWith("stopping_"));
+  const pool = staying.length > 0 ? staying : instances;
+  return [...pool].sort(
+    (a, b) => b.number - a.number || Number(SWAPPED_IN.test(b.container)) - Number(SWAPPED_IN.test(a.container)),
+  )[0];
 }
 
 /**
@@ -138,6 +159,18 @@ function onServer(server: ServerHealth): RunsOnServer {
     containers: server.instances.length,
     scannedAt: date(server.scannedAt),
     dockerUnreadableSince: date(server.dockerUnreadableSince),
+    newest: newestBy(server),
+  };
+}
+
+function newestBy(server: ServerHealth): RunsOnServer["newest"] {
+  if (server.instances.length < 2) return undefined;
+  const instance = newestOf(server.instances);
+  if (!instance) return undefined;
+  const last = instance.last;
+  return {
+    kind: KINDS[instance.state],
+    last: last ? { passed: last.passed, output: last.output, at: date(last.time) } : undefined,
   };
 }
 

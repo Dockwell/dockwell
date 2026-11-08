@@ -827,6 +827,15 @@
   text-decoration: underline;
 }
 
+/* What a check last said, then where and when, on a line under it. */
+.app-check-said {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .app-tags {
   display: flex;
   flex-wrap: wrap;
