@@ -24,6 +24,8 @@ func (e *Engine) parse(said []byte) (*dockwellv1.DatabaseReading, error) {
 		return parsePostgres(said)
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
 		return parseMySQL(e, said)
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
+		return parseMongo(said)
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
 		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
 	}
@@ -71,6 +73,77 @@ func parsePostgres(said []byte) (*dockwellv1.DatabaseReading, error) {
 	}
 	for _, u := range s.Users {
 		r.Users = append(r.Users, &dockwellv1.DatabaseAccount{Name: u.Name, Superuser: u.Super, CanSignIn: u.Login, Databases: owns[u.Name]})
+	}
+	r.Unlisted = int32(max(0, s.DatabaseCount-len(s.Databases)) + max(0, s.UserCount-len(s.Users))) //nolint:gosec // two counts of at most what a server holds
+	return r, nil
+}
+
+// mongoSaid is what mongoRead prints.
+type mongoSaid struct {
+	Version        string `json:"version"`
+	User           string `json:"user"`
+	Uptime         int64  `json:"uptime"`
+	Connections    int64  `json:"connections"`
+	MaxConnections int64  `json:"max_connections"`
+	Requested      int64  `json:"requested"`
+	Read           int64  `json:"read"`
+	Size           int64  `json:"size"`
+	FCV            string `json:"fcv"`
+	ReplicaSet     string `json:"replica_set"`
+	Auth           bool   `json:"auth"`
+	DatabaseCount  int    `json:"database_count"`
+	UserCount      int    `json:"user_count"`
+	Databases      []struct {
+		Name string `json:"name"`
+		Size int64  `json:"size"`
+	} `json:"databases"`
+	Users []struct {
+		Name  string `json:"name"`
+		DB    string `json:"db"`
+		Roles []struct {
+			Role string `json:"role"`
+			DB   string `json:"db"`
+		} `json:"roles"`
+	} `json:"users"`
+}
+
+// mongoSystem are the databases MongoDB keeps for itself.
+var mongoSystem = []string{"admin", "config", "local"}
+
+// mongoDatabaseRoles are the roles that make a database a user's, in the database
+// they name.
+var mongoDatabaseRoles = []string{"dbOwner", "readWrite", "read", "dbAdmin", "userAdmin"}
+
+func parseMongo(said []byte) (*dockwellv1.DatabaseReading, error) {
+	// mongosh can print a warning first; the reading is its last line.
+	lines := bytes.Split(bytes.TrimSpace(said), []byte("\n"))
+	var s mongoSaid
+	if err := json.Unmarshal(lines[len(lines)-1], &s); err != nil {
+		return nil, fmt.Errorf("it isn't the JSON asked for: %w", err)
+	}
+	if s.Version == "" {
+		return nil, errors.New("it didn't say its version")
+	}
+	read := min(max(s.Read, 0), max(s.Requested, 0))
+	r := &dockwellv1.DatabaseReading{
+		Version: s.Version, User: s.User, SizeBytes: s.Size,
+		Connections: s.Connections, MaxConnections: s.MaxConnections, UptimeSeconds: s.Uptime,
+		CacheHit: share(max(s.Requested, 0)-read, read), FeatureCompatibility: s.FCV, ReplicaSet: s.ReplicaSet, ChecksNoOne: !s.Auth,
+	}
+	for _, d := range s.Databases {
+		r.Databases = append(r.Databases, &dockwellv1.InnerDatabase{Name: d.Name, SizeBytes: d.Size, System: slices.Contains(mongoSystem, d.Name)})
+	}
+	for _, u := range s.Users {
+		a := &dockwellv1.DatabaseAccount{Name: u.Name, AuthDatabase: u.DB, CanSignIn: true}
+		for _, role := range u.Roles {
+			switch {
+			case role.Role == "root" || role.Role == "__system":
+				a.Superuser = true
+			case slices.Contains(mongoDatabaseRoles, role.Role) && !slices.Contains(a.Databases, role.DB):
+				a.Databases = append(a.Databases, role.DB)
+			}
+		}
+		r.Users = append(r.Users, a)
 	}
 	r.Unlisted = int32(max(0, s.DatabaseCount-len(s.Databases)) + max(0, s.UserCount-len(s.Users))) //nolint:gosec // two counts of at most what a server holds
 	return r, nil

@@ -30,6 +30,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
@@ -647,6 +648,12 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			items[i].restore = &restore
 		}
 	}
+	// Before planning, which pulls what the servers don't have: a move that skips
+	// a release is refused without one.
+	moves, err := databaseMoves(items)
+	if err != nil {
+		return nil, err
+	}
 	plan, err := e.plan(ctx, changeID, items, false)
 	if err != nil {
 		return nil, err
@@ -654,6 +661,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err := e.checkRestores(ctx, plan, items); err != nil {
 		return nil, err
 	}
+	p.Notes = append(p.Notes, moves...)
 	if p.Unpinned != nil && plan.imageGone() {
 		return e.propose(ctx, *p.Unpinned, reverts, rotate)
 	}
@@ -3933,6 +3941,37 @@ func (e *Engine) restore(ctx context.Context, ref resource.Ref, source resource.
 		summary = "Restore " + ref.Name
 	}
 	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: ref, Spec: it.current, Restore: &source}}}, reverts, false)
+}
+
+// databaseMoves are a plan's notes on the databases it moves from one release to
+// another, or why it's refused: MongoDB moves one major release at a time, and
+// raises the features its data may use first (ADR 0038).
+func databaseMoves(items []item) ([]Note, error) {
+	var out []Note
+	for i := range items {
+		it := &items[i]
+		current, ok := it.current.(*resourcev1.Service)
+		if !ok {
+			continue
+		}
+		desired, ok := it.spec.(*resourcev1.Service)
+		if !ok {
+			continue
+		}
+		move, err := database.MoveOf(it.ref.Name, current, desired)
+		if err != nil {
+			return nil, fault.New(ErrInvalid, "%w", err)
+		}
+		if move == nil || !move.RaisesFeatures {
+			continue
+		}
+		out = append(out, Note{
+			Reason: "raises_features", Ref: it.ref, Names: []string{move.From, move.To}, Named: true, IfItChanges: true,
+			Message: fmt.Sprintf("Before %s moves to %s %s, its feature compatibility version goes up to %s where it's lower, so its data may use %s's features. "+
+				"Undoing this puts back %s, which still runs that data; the release before %s can't.", it.ref.Name, move.Engine.Name, move.To, move.From, move.From, move.From, move.From),
+		})
+	}
+	return out, nil
 }
 
 // checkRestores refuses a plan without the step it was made for: an agent from

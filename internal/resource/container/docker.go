@@ -78,6 +78,10 @@ type Docker struct {
 	// Soak is how long a new container must stay healthy before anything moves to
 	// it: DefaultSoak when zero, and none when negative.
 	Soak time.Duration
+	// BeforeReplace runs before a container is replaced by one of spec, with the
+	// one there, as a database's move to another release asks (ADR 0038): an
+	// error stops the change there, with the old one as it was. Nil runs nothing.
+	BeforeReplace func(ctx context.Context, old *docker.Container, spec *resourcev1.Container) error
 	// ResolvePath says where a server path leads. Nil follows its links on this
 	// server.
 	ResolvePath func(path string) (string, error)
@@ -1410,6 +1414,11 @@ func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, 
 	} else if c != nil {
 		if err := owned(t, c); err != nil {
 			return err
+		}
+		if d.BeforeReplace != nil {
+			if err := d.BeforeReplace(ctx, c, spec); err != nil {
+				return err
+			}
 		}
 	}
 	return d.roll(ctx, t, spec, dec)

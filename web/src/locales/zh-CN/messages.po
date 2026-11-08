@@ -4181,6 +4181,9 @@ msgstr "测量耗时过长。如果一小时不够，操作会在此停止，其
 msgid "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 msgstr "它的环境变量会加密后一同进入 Dockwell。任何计划或日志都不会显示其值，容器也会继续运行。"
 
+msgid "Its feature compatibility version goes up to {from} where it's lower, so its data may use {from}'s features. Undoing this puts back {from}, which still runs that data; the release before it can't."
+msgstr "如果它的功能兼容版本低于 {from}，会先提升到 {from}，此后它的数据可能用到 {from} 的功能。撤销会放回 {from}，它仍能运行这些数据；更早的版本则不能。"
+
 msgid "Its volumes are backed up first"
 msgstr "它的卷会先备份"
 
@@ -4430,6 +4433,9 @@ msgstr "{name} 在 {server} 上停止 {path} 的 HTTPS"
 
 msgid "{name} takes on the container {path} on {server}"
 msgstr "{name} 在 {server} 上接管容器 {path}"
+
+msgid "{name}'s features go up to {from} before it moves to {to}"
+msgstr "{name} 在升级到 {to} 之前，功能先提升到 {from}"
 
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们。"
@@ -5075,11 +5081,23 @@ msgstr "外部访问"
 msgid "Internal URL"
 msgstr "内部地址"
 
+msgid "It runs alone, without a replica set, so a backup isn't one moment if something writes while it runs."
+msgstr "它单独运行，没有副本集，因此备份期间若有写入，备份就不是同一时刻的快照。"
+
+msgid "It runs without --auth, so anything that reaches its port signs in as anyone, with no password. To close it, make a user with the root role in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1> on its app to that user's, which turns --auth on."
+msgstr "它在没有 --auth 的情况下运行，因此任何能访问其端口的程序都能以任意用户身份登录，无需密码。要关闭它，请在其中创建一个具有 root 角色的用户，然后在其应用上将 <0>MONGO_INITDB_ROOT_USERNAME</0> 和 <1>MONGO_INITDB_ROOT_PASSWORD</1> 设为该用户的值，这样就会开启 --auth。"
+
+msgid "It runs {version} with {features}'s features, so {features} can still run its data. Its next upgrade raises them first."
+msgstr "它运行 {version}，使用 {features} 的功能，因此 {features} 仍能运行它的数据。下次升级会先提升它们。"
+
 msgid "It sets no most"
 msgstr "未设置上限"
 
 msgid "It takes no password Dockwell keeps."
 msgstr "它没有使用 Dockwell 保存的密码。"
+
+msgid "It's a member of the replica set {set}, so each backup is one moment."
+msgstr "它是副本集 {set} 的成员，因此每次备份都是同一时刻的快照。"
 
 msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
 msgstr "它的数据在 <0>{volume}</0> 中，这个卷不是 Dockwell 创建的，因此 Dockwell 不会备份它。请在它原来的地方备份，或把数据移到该应用自己的卷中。"
@@ -5178,6 +5196,9 @@ msgstr "{databases, plural, other {磁盘占用，共 # 个数据库}}"
 msgid "{dumpOf}'s own dump, while it runs: nothing stops"
 msgstr "{dumpOf} 自带的转储，运行中进行：不会停止任何服务"
 
+msgid "{engine} checks no one"
+msgstr "{engine} 不检查任何人"
+
 msgid "{engine} didn't say how it is"
 msgstr "{engine} 没有报告它的状况"
 
@@ -5202,6 +5223,9 @@ msgstr "{name} 中的数据库"
 msgid "Granted on"
 msgstr "已授权"
 
+msgid "Has roles in"
+msgstr "拥有角色于"
+
 msgid "Its own"
 msgstr "系统自带"
 
@@ -5222,6 +5246,9 @@ msgstr "角色"
 
 msgid "Signs in"
 msgstr "可登录"
+
+msgid "Signs in to"
+msgstr "登录到"
 
 msgid "Users of {name}"
 msgstr "{name} 的用户"

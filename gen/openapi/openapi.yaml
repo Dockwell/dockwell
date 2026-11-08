@@ -4280,6 +4280,7 @@ components:
                         - DATABASE_ENGINE_MARIADB
                         - DATABASE_ENGINE_REDIS
                         - DATABASE_ENGINE_VALKEY
+                        - DATABASE_ENGINE_MONGODB
                     type: string
                     description: Which database it runs.
                     format: enum
@@ -4379,6 +4380,11 @@ components:
                 system:
                     type: boolean
                     description: True for one the server made for itself, such as mysql.sys.
+                authDatabase:
+                    type: string
+                    description: |-
+                        The database they sign in to, for MongoDB, as an app names it in authSource,
+                         such as "admin" for its root user.
             description: |-
                 DatabaseAccount is someone who can sign in to a database server: a user, as
                  MySQL and MariaDB call one, or a role, as PostgreSQL does.
@@ -4428,8 +4434,9 @@ components:
                     type: number
                     description: |-
                         Of what clients read since it started, how much came from memory rather than
-                         disk, from 0 to 1: PostgreSQL's shared buffers, InnoDB's buffer pool, or the
-                         keys Redis found. Unset until anything was read.
+                         disk, from 0 to 1: PostgreSQL's shared buffers, InnoDB's buffer pool,
+                         MongoDB's WiredTiger cache, or the keys Redis found. Unset until anything
+                         was read.
                     format: double
                 databases:
                     type: array
@@ -4448,6 +4455,23 @@ components:
                     type: integer
                     description: How many more databases or users it has than this lists.
                     format: int32
+                featureCompatibility:
+                    type: string
+                    description: |-
+                        MongoDB's feature compatibility version, such as "7.0": the release whose
+                         features its data may use. An upgrade leaves it where it was, so the release
+                         before can still run the data, and the next upgrade raises it first.
+                replicaSet:
+                    type: string
+                    description: |-
+                        The replica set it's a member of, by name, for MongoDB. Empty for one that
+                         runs alone, whose backups aren't one moment if something writes while they
+                         run.
+                checksNoOne:
+                    type: boolean
+                    description: |-
+                        True when it checks no one, as MongoDB does without --auth: anything that
+                         reaches its port signs in as anyone.
             description: DatabaseReading is what a database said of itself on one server.
         DeleteBackupResponse:
             type: object
@@ -6902,8 +6926,10 @@ components:
                          changes too, which stays, "upgrade_dropped" for what they changed that it
                          drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
                          whose data stays as the new version left it, and "tmpfs_no_size" for a Compose
-                         file's tmpfs that nothing stops taking half the server's memory. Another reason
-                         may come: its message says what it means.
+                         file's tmpfs that nothing stops taking half the server's memory, and
+                         "raises_features" for a MongoDB this moves to its next release, whose feature
+                         compatibility version goes up first. Another reason may come: its message
+                         says what it means.
                 message:
                     type: string
                     description: 'What it says, for people: the fact, what it means, and what to do.'
@@ -6919,7 +6945,8 @@ components:
                         The names it is about: the variable, then the field that holds it, for
                          "exposed_variable"; the project, then the services it runs, for
                          "updates_project"; the volumes and server paths for "volumes_stay"; the path
-                         for "tmpfs_no_size"; the
+                         for "tmpfs_no_size"; the release it leaves, then the one it moves to, for
+                         "raises_features"; the
                          variables and secrets, by the names the service sees, for "values_latest";
                          the image, the revision and its digest for "digest_pinned" and "digest_gone",
                          and the image and the revision for "digest_differs"; the container_name, or
@@ -9609,7 +9636,7 @@ tags:
     - name: DatabaseService
       description: |-
         DatabaseService is the services that run a database Dockwell knows:
-         PostgreSQL, MySQL, MariaDB, Redis and Valkey, from their official images,
+         PostgreSQL, MySQL, MariaDB, Redis, Valkey and MongoDB, from their official images,
          whether Dockwell made them or took them on. A database is a service, so it
          changes as any service does, by a change with a plan. What this adds is what
          the database itself says, read in its own container with its own tools, which

@@ -42,7 +42,18 @@ const KeepFor = volume.KeepFor
 const (
 	formatArchive = "tar.gz"
 	formatDump    = "sql.gz"
+	// formatMongoDump is mongodump's archive, gzipped.
+	formatMongoDump = "archive.gz"
 )
+
+// dumpFormats are what a database's own dump is kept as.
+var dumpFormats = []string{formatDump, formatMongoDump}
+
+// isDump says a backup is a database's own dump, which loads into a running one.
+func isDump(format string) bool { return slices.Contains(dumpFormats, format) }
+
+// formats are every format a backup is kept as.
+var formats = append([]string{formatArchive}, dumpFormats...)
 
 // stopWait is how long what stops for a backup or a restore has to stop before
 // Docker kills it. A database needs time to finish writing.
@@ -249,7 +260,7 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 		return nil, fmt.Errorf("can't make a place for the backup: %w", err)
 	}
 	if db := users.database(); db != nil && db.running {
-		m.Method, m.Format, m.Database, m.Image = resource.BackupDump, formatDump, db.kind.name, db.image
+		m.Method, m.Format, m.Database, m.Image = resource.BackupDump, db.kind.dumpFormat(), db.kind.name, db.image
 		err = r.write(take.Ref, m, func(w io.Writer) (int64, error) {
 			if m.Unpacked, err = r.dump(ctx, take.Ref, db, w); err != nil {
 				return 0, err
@@ -459,7 +470,11 @@ func (r *Runner) Delete(ctx context.Context, ref resource.Ref, id, key string, d
 		return "", fmt.Errorf("%q isn't a backup's ID", id)
 	}
 	dir := r.dir(ref)
-	for _, name := range []string{id + "." + formatArchive, id + "." + formatDump, id + ".json", id + ".partial"} {
+	names := []string{id + ".json", id + ".partial"}
+	for _, format := range formats {
+		names = append(names, id+"."+format)
+	}
+	for _, name := range names {
 		if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("can't remove the backup: %w", err)
 		}

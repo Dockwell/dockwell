@@ -40,6 +40,8 @@ const (
 	DatabaseEngine_DATABASE_ENGINE_REDIS DatabaseEngine = 4
 	// Valkey, from the image valkey/valkey.
 	DatabaseEngine_DATABASE_ENGINE_VALKEY DatabaseEngine = 5
+	// MongoDB, from the image mongo.
+	DatabaseEngine_DATABASE_ENGINE_MONGODB DatabaseEngine = 6
 )
 
 // Enum value maps for DatabaseEngine.
@@ -51,6 +53,7 @@ var (
 		3: "DATABASE_ENGINE_MARIADB",
 		4: "DATABASE_ENGINE_REDIS",
 		5: "DATABASE_ENGINE_VALKEY",
+		6: "DATABASE_ENGINE_MONGODB",
 	}
 	DatabaseEngine_value = map[string]int32{
 		"DATABASE_ENGINE_UNSPECIFIED": 0,
@@ -59,6 +62,7 @@ var (
 		"DATABASE_ENGINE_MARIADB":     3,
 		"DATABASE_ENGINE_REDIS":       4,
 		"DATABASE_ENGINE_VALKEY":      5,
+		"DATABASE_ENGINE_MONGODB":     6,
 	}
 )
 
@@ -309,8 +313,9 @@ type DatabaseReading struct {
 	// How long it has been up, in seconds.
 	UptimeSeconds int64 `protobuf:"varint,10,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
 	// Of what clients read since it started, how much came from memory rather than
-	// disk, from 0 to 1: PostgreSQL's shared buffers, InnoDB's buffer pool, or the
-	// keys Redis found. Unset until anything was read.
+	// disk, from 0 to 1: PostgreSQL's shared buffers, InnoDB's buffer pool,
+	// MongoDB's WiredTiger cache, or the keys Redis found. Unset until anything
+	// was read.
 	CacheHit *float64 `protobuf:"fixed64,11,opt,name=cache_hit,json=cacheHit,proto3,oneof" json:"cache_hit,omitempty"`
 	// The databases in it, by name. Redis and Valkey have none of their own.
 	Databases []*InnerDatabase `protobuf:"bytes,12,rep,name=databases,proto3" json:"databases,omitempty"`
@@ -319,7 +324,18 @@ type DatabaseReading struct {
 	// How many keys it holds, for Redis and Valkey.
 	Keys int64 `protobuf:"varint,14,opt,name=keys,proto3" json:"keys,omitempty"`
 	// How many more databases or users it has than this lists.
-	Unlisted      int32 `protobuf:"varint,15,opt,name=unlisted,proto3" json:"unlisted,omitempty"`
+	Unlisted int32 `protobuf:"varint,15,opt,name=unlisted,proto3" json:"unlisted,omitempty"`
+	// MongoDB's feature compatibility version, such as "7.0": the release whose
+	// features its data may use. An upgrade leaves it where it was, so the release
+	// before can still run the data, and the next upgrade raises it first.
+	FeatureCompatibility string `protobuf:"bytes,16,opt,name=feature_compatibility,json=featureCompatibility,proto3" json:"feature_compatibility,omitempty"`
+	// The replica set it's a member of, by name, for MongoDB. Empty for one that
+	// runs alone, whose backups aren't one moment if something writes while they
+	// run.
+	ReplicaSet string `protobuf:"bytes,17,opt,name=replica_set,json=replicaSet,proto3" json:"replica_set,omitempty"`
+	// True when it checks no one, as MongoDB does without --auth: anything that
+	// reaches its port signs in as anyone.
+	ChecksNoOne   bool `protobuf:"varint,18,opt,name=checks_no_one,json=checksNoOne,proto3" json:"checks_no_one,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -459,6 +475,27 @@ func (x *DatabaseReading) GetUnlisted() int32 {
 	return 0
 }
 
+func (x *DatabaseReading) GetFeatureCompatibility() string {
+	if x != nil {
+		return x.FeatureCompatibility
+	}
+	return ""
+}
+
+func (x *DatabaseReading) GetReplicaSet() string {
+	if x != nil {
+		return x.ReplicaSet
+	}
+	return ""
+}
+
+func (x *DatabaseReading) GetChecksNoOne() bool {
+	if x != nil {
+		return x.ChecksNoOne
+	}
+	return false
+}
+
 // InnerDatabase is one database inside a database server, as PostgreSQL has
 // them, or a schema, as MySQL and MariaDB call one.
 type InnerDatabase struct {
@@ -551,7 +588,10 @@ type DatabaseAccount struct {
 	// those they're granted on by name, in MySQL and MariaDB.
 	Databases []string `protobuf:"bytes,5,rep,name=databases,proto3" json:"databases,omitempty"`
 	// True for one the server made for itself, such as mysql.sys.
-	System        bool `protobuf:"varint,6,opt,name=system,proto3" json:"system,omitempty"`
+	System bool `protobuf:"varint,6,opt,name=system,proto3" json:"system,omitempty"`
+	// The database they sign in to, for MongoDB, as an app names it in authSource,
+	// such as "admin" for its root user.
+	AuthDatabase  string `protobuf:"bytes,10,opt,name=auth_database,json=authDatabase,proto3" json:"auth_database,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -626,6 +666,13 @@ func (x *DatabaseAccount) GetSystem() bool {
 		return x.System
 	}
 	return false
+}
+
+func (x *DatabaseAccount) GetAuthDatabase() string {
+	if x != nil {
+		return x.AuthDatabase
+	}
+	return ""
 }
 
 // ListDatabasesRequest asks for the databases.
@@ -845,7 +892,7 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\rnewest_backup\x18\r \x01(\v2\x13.dockwell.v1.BackupR\fnewestBackup\x128\n" +
 	"\rlatest_backup\x18\x0e \x01(\v2\x13.dockwell.v1.BackupR\flatestBackup\x12\x16\n" +
 	"\x06beside\x18\x0f \x03(\tR\x06beside\x12#\n" +
-	"\rcatalog_entry\x18\x10 \x01(\tR\fcatalogEntry\"\xad\x04\n" +
+	"\rcatalog_entry\x18\x10 \x01(\tR\fcatalogEntry\"\xa7\x05\n" +
 	"\x0fDatabaseReading\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -864,7 +911,11 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\tdatabases\x18\f \x03(\v2\x1a.dockwell.v1.InnerDatabaseR\tdatabases\x122\n" +
 	"\x05users\x18\r \x03(\v2\x1c.dockwell.v1.DatabaseAccountR\x05users\x12\x12\n" +
 	"\x04keys\x18\x0e \x01(\x03R\x04keys\x12\x1a\n" +
-	"\bunlisted\x18\x0f \x01(\x05R\bunlistedB\f\n" +
+	"\bunlisted\x18\x0f \x01(\x05R\bunlisted\x123\n" +
+	"\x15feature_compatibility\x18\x10 \x01(\tR\x14featureCompatibility\x12\x1f\n" +
+	"\vreplica_set\x18\x11 \x01(\tR\n" +
+	"replicaSet\x12\"\n" +
+	"\rchecks_no_one\x18\x12 \x01(\bR\vchecksNoOneB\f\n" +
 	"\n" +
 	"_cache_hit\"p\n" +
 	"\rInnerDatabase\x12\x12\n" +
@@ -872,14 +923,16 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x05owner\x18\x02 \x01(\tR\x05owner\x12\x1d\n" +
 	"\n" +
 	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x16\n" +
-	"\x06system\x18\x04 \x01(\bR\x06system\"\xad\x01\n" +
+	"\x06system\x18\x04 \x01(\bR\x06system\"\xd2\x01\n" +
 	"\x0fDatabaseAccount\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04host\x18\x02 \x01(\tR\x04host\x12\x1c\n" +
 	"\tsuperuser\x18\x03 \x01(\bR\tsuperuser\x12\x1e\n" +
 	"\vcan_sign_in\x18\x04 \x01(\bR\tcanSignIn\x12\x1c\n" +
 	"\tdatabases\x18\x05 \x03(\tR\tdatabases\x12\x16\n" +
-	"\x06system\x18\x06 \x01(\bR\x06system\"\x16\n" +
+	"\x06system\x18\x06 \x01(\bR\x06system\x12#\n" +
+	"\rauth_database\x18\n" +
+	" \x01(\tR\fauthDatabase\"\x16\n" +
 	"\x14ListDatabasesRequest\"L\n" +
 	"\x15ListDatabasesResponse\x123\n" +
 	"\tdatabases\x18\x01 \x03(\v2\x15.dockwell.v1.DatabaseR\tdatabases\"`\n" +
@@ -888,7 +941,7 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x03 \x01(\tR\venvironment\"H\n" +
 	"\x13GetDatabaseResponse\x121\n" +
-	"\bdatabase\x18\x01 \x01(\v2\x15.dockwell.v1.DatabaseR\bdatabase*\xff\x01\n" +
+	"\bdatabase\x18\x01 \x01(\v2\x15.dockwell.v1.DatabaseR\bdatabase*\xa9\x02\n" +
 	"\x0eDatabaseEngine\x12\x1f\n" +
 	"\x1bDATABASE_ENGINE_UNSPECIFIED\x10\x00\x12.\n" +
 	"\x1aDATABASE_ENGINE_POSTGRESQL\x10\x01\x1a\x0e\xa2\xbb\x18\n" +
@@ -897,7 +950,8 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x17DATABASE_ENGINE_MARIADB\x10\x03\x1a\v\xa2\xbb\x18\aMariaDB\x12$\n" +
 	"\x15DATABASE_ENGINE_REDIS\x10\x04\x1a\t\xa2\xbb\x18\x05Redis\x12&\n" +
 	"\x16DATABASE_ENGINE_VALKEY\x10\x05\x1a\n" +
-	"\xa2\xbb\x18\x06Valkey2\xfc\x01\n" +
+	"\xa2\xbb\x18\x06Valkey\x12(\n" +
+	"\x17DATABASE_ENGINE_MONGODB\x10\x06\x1a\v\xa2\xbb\x18\aMongoDB2\xfc\x01\n" +
 	"\x0fDatabaseService\x12t\n" +
 	"\rListDatabases\x12!.dockwell.v1.ListDatabasesRequest\x1a\".dockwell.v1.ListDatabasesResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/databases\x90\x02\x01\x12s\n" +
 	"\vGetDatabase\x12\x1f.dockwell.v1.GetDatabaseRequest\x1a .dockwell.v1.GetDatabaseResponse\"!\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/databases/{id}\x90\x02\x01B\xa6\x01\n" +

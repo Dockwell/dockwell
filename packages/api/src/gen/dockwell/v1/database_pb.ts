@@ -20,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/database.proto.
  */
 export const file_dockwell_v1_database: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9kYXRhYmFzZS5wcm90bxILZG9ja3dlbGwudjEirwMKCERhdGFiYXNlEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSKwoGZW5naW5lGAMgASgOMhsuZG9ja3dlbGwudjEuRGF0YWJhc2VFbmdpbmUSDQoFaW1hZ2UYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIOCgZ2b2x1bWUYBiABKAkSEQoJdm9sdW1lX2lkGAcgASgJEhcKD3ZvbHVtZV9leHRlcm5hbBgIIAEoCBIMCgRwb3J0GAkgASgNEgwKBGhvc3QYCiABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAsgASgJEi4KCHJlYWRpbmdzGAwgAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VSZWFkaW5nEioKDW5ld2VzdF9iYWNrdXAYDSABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXASKgoNbGF0ZXN0X2JhY2t1cBgOIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIOCgZiZXNpZGUYDyADKAkSFQoNY2F0YWxvZ19lbnRyeRgQIAEoCSKTAwoPRGF0YWJhc2VSZWFkaW5nEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRItCglyZWFkX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBnVucmVhZBgEIAEoCRIPCgd2ZXJzaW9uGAUgASgJEhIKCnNpemVfYnl0ZXMYBiABKAMSEwoLY29ubmVjdGlvbnMYByABKAMSFwoPbWF4X2Nvbm5lY3Rpb25zGAggASgDEgwKBHVzZXIYCSABKAkSFgoOdXB0aW1lX3NlY29uZHMYCiABKAMSFgoJY2FjaGVfaGl0GAsgASgBSACIAQESLQoJZGF0YWJhc2VzGAwgAygLMhouZG9ja3dlbGwudjEuSW5uZXJEYXRhYmFzZRIrCgV1c2VycxgNIAMoCzIcLmRvY2t3ZWxsLnYxLkRhdGFiYXNlQWNjb3VudBIMCgRrZXlzGA4gASgDEhAKCHVubGlzdGVkGA8gASgFQgwKCl9jYWNoZV9oaXQiUAoNSW5uZXJEYXRhYmFzZRIMCgRuYW1lGAEgASgJEg0KBW93bmVyGAIgASgJEhIKCnNpemVfYnl0ZXMYAyABKAMSDgoGc3lzdGVtGAQgASgIIngKD0RhdGFiYXNlQWNjb3VudBIMCgRuYW1lGAEgASgJEgwKBGhvc3QYAiABKAkSEQoJc3VwZXJ1c2VyGAMgASgIEhMKC2Nhbl9zaWduX2luGAQgASgIEhEKCWRhdGFiYXNlcxgFIAMoCRIOCgZzeXN0ZW0YBiABKAgiFgoUTGlzdERhdGFiYXNlc1JlcXVlc3QiQQoVTGlzdERhdGFiYXNlc1Jlc3BvbnNlEigKCWRhdGFiYXNlcxgBIAMoCzIVLmRvY2t3ZWxsLnYxLkRhdGFiYXNlIkYKEkdldERhdGFiYXNlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJIj4KE0dldERhdGFiYXNlUmVzcG9uc2USJwoIZGF0YWJhc2UYASABKAsyFS5kb2Nrd2VsbC52MS5EYXRhYmFzZSr/AQoORGF0YWJhc2VFbmdpbmUSHwobREFUQUJBU0VfRU5HSU5FX1VOU1BFQ0lGSUVEEAASLgoaREFUQUJBU0VfRU5HSU5FX1BPU1RHUkVTUUwQARoOorsYClBvc3RncmVTUUwSJAoVREFUQUJBU0VfRU5HSU5FX01ZU1FMEAIaCaK7GAVNeVNRTBIoChdEQVRBQkFTRV9FTkdJTkVfTUFSSUFEQhADGguiuxgHTWFyaWFEQhIkChVEQVRBQkFTRV9FTkdJTkVfUkVESVMQBBoJorsYBVJlZGlzEiYKFkRBVEFCQVNFX0VOR0lORV9WQUxLRVkQBRoKorsYBlZhbGtleTL8AQoPRGF0YWJhc2VTZXJ2aWNlEnQKDUxpc3REYXRhYmFzZXMSIS5kb2Nrd2VsbC52MS5MaXN0RGF0YWJhc2VzUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkxpc3REYXRhYmFzZXNSZXNwb25zZSIckAIBoLsYAYLT5JMCDxINL3YxL2RhdGFiYXNlcxJzCgtHZXREYXRhYmFzZRIfLmRvY2t3ZWxsLnYxLkdldERhdGFiYXNlUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkdldERhdGFiYXNlUmVzcG9uc2UiIZACAaC7GAGC0+STAhQSEi92MS9kYXRhYmFzZXMve2lkfUKmAQoPY29tLmRvY2t3ZWxsLnYxQg1EYXRhYmFzZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9kYXRhYmFzZS5wcm90bxILZG9ja3dlbGwudjEirwMKCERhdGFiYXNlEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSKwoGZW5naW5lGAMgASgOMhsuZG9ja3dlbGwudjEuRGF0YWJhc2VFbmdpbmUSDQoFaW1hZ2UYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIOCgZ2b2x1bWUYBiABKAkSEQoJdm9sdW1lX2lkGAcgASgJEhcKD3ZvbHVtZV9leHRlcm5hbBgIIAEoCBIMCgRwb3J0GAkgASgNEgwKBGhvc3QYCiABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAsgASgJEi4KCHJlYWRpbmdzGAwgAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VSZWFkaW5nEioKDW5ld2VzdF9iYWNrdXAYDSABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXASKgoNbGF0ZXN0X2JhY2t1cBgOIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIOCgZiZXNpZGUYDyADKAkSFQoNY2F0YWxvZ19lbnRyeRgQIAEoCSLeAwoPRGF0YWJhc2VSZWFkaW5nEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRItCglyZWFkX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBnVucmVhZBgEIAEoCRIPCgd2ZXJzaW9uGAUgASgJEhIKCnNpemVfYnl0ZXMYBiABKAMSEwoLY29ubmVjdGlvbnMYByABKAMSFwoPbWF4X2Nvbm5lY3Rpb25zGAggASgDEgwKBHVzZXIYCSABKAkSFgoOdXB0aW1lX3NlY29uZHMYCiABKAMSFgoJY2FjaGVfaGl0GAsgASgBSACIAQESLQoJZGF0YWJhc2VzGAwgAygLMhouZG9ja3dlbGwudjEuSW5uZXJEYXRhYmFzZRIrCgV1c2VycxgNIAMoCzIcLmRvY2t3ZWxsLnYxLkRhdGFiYXNlQWNjb3VudBIMCgRrZXlzGA4gASgDEhAKCHVubGlzdGVkGA8gASgFEh0KFWZlYXR1cmVfY29tcGF0aWJpbGl0eRgQIAEoCRITCgtyZXBsaWNhX3NldBgRIAEoCRIVCg1jaGVja3Nfbm9fb25lGBIgASgIQgwKCl9jYWNoZV9oaXQiUAoNSW5uZXJEYXRhYmFzZRIMCgRuYW1lGAEgASgJEg0KBW93bmVyGAIgASgJEhIKCnNpemVfYnl0ZXMYAyABKAMSDgoGc3lzdGVtGAQgASgIIo8BCg9EYXRhYmFzZUFjY291bnQSDAoEbmFtZRgBIAEoCRIMCgRob3N0GAIgASgJEhEKCXN1cGVydXNlchgDIAEoCBITCgtjYW5fc2lnbl9pbhgEIAEoCBIRCglkYXRhYmFzZXMYBSADKAkSDgoGc3lzdGVtGAYgASgIEhUKDWF1dGhfZGF0YWJhc2UYCiABKAkiFgoUTGlzdERhdGFiYXNlc1JlcXVlc3QiQQoVTGlzdERhdGFiYXNlc1Jlc3BvbnNlEigKCWRhdGFiYXNlcxgBIAMoCzIVLmRvY2t3ZWxsLnYxLkRhdGFiYXNlIkYKEkdldERhdGFiYXNlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJIj4KE0dldERhdGFiYXNlUmVzcG9uc2USJwoIZGF0YWJhc2UYASABKAsyFS5kb2Nrd2VsbC52MS5EYXRhYmFzZSqpAgoORGF0YWJhc2VFbmdpbmUSHwobREFUQUJBU0VfRU5HSU5FX1VOU1BFQ0lGSUVEEAASLgoaREFUQUJBU0VfRU5HSU5FX1BPU1RHUkVTUUwQARoOorsYClBvc3RncmVTUUwSJAoVREFUQUJBU0VfRU5HSU5FX01ZU1FMEAIaCaK7GAVNeVNRTBIoChdEQVRBQkFTRV9FTkdJTkVfTUFSSUFEQhADGguiuxgHTWFyaWFEQhIkChVEQVRBQkFTRV9FTkdJTkVfUkVESVMQBBoJorsYBVJlZGlzEiYKFkRBVEFCQVNFX0VOR0lORV9WQUxLRVkQBRoKorsYBlZhbGtleRIoChdEQVRBQkFTRV9FTkdJTkVfTU9OR09EQhAGGguiuxgHTW9uZ29EQjL8AQoPRGF0YWJhc2VTZXJ2aWNlEnQKDUxpc3REYXRhYmFzZXMSIS5kb2Nrd2VsbC52MS5MaXN0RGF0YWJhc2VzUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkxpc3REYXRhYmFzZXNSZXNwb25zZSIckAIBoLsYAYLT5JMCDxINL3YxL2RhdGFiYXNlcxJzCgtHZXREYXRhYmFzZRIfLmRvY2t3ZWxsLnYxLkdldERhdGFiYXNlUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkdldERhdGFiYXNlUmVzcG9uc2UiIZACAaC7GAGC0+STAhQSEi92MS9kYXRhYmFzZXMve2lkfUKmAQoPY29tLmRvY2t3ZWxsLnYxQg1EYXRhYmFzZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * Database is a service that runs a database.
@@ -241,8 +241,9 @@ export type DatabaseReading = Message<"dockwell.v1.DatabaseReading"> & {
 
   /**
    * Of what clients read since it started, how much came from memory rather than
-   * disk, from 0 to 1: PostgreSQL's shared buffers, InnoDB's buffer pool, or the
-   * keys Redis found. Unset until anything was read.
+   * disk, from 0 to 1: PostgreSQL's shared buffers, InnoDB's buffer pool,
+   * MongoDB's WiredTiger cache, or the keys Redis found. Unset until anything
+   * was read.
    *
    * @generated from field: optional double cache_hit = 11;
    */
@@ -275,6 +276,32 @@ export type DatabaseReading = Message<"dockwell.v1.DatabaseReading"> & {
    * @generated from field: int32 unlisted = 15;
    */
   unlisted: number;
+
+  /**
+   * MongoDB's feature compatibility version, such as "7.0": the release whose
+   * features its data may use. An upgrade leaves it where it was, so the release
+   * before can still run the data, and the next upgrade raises it first.
+   *
+   * @generated from field: string feature_compatibility = 16;
+   */
+  featureCompatibility: string;
+
+  /**
+   * The replica set it's a member of, by name, for MongoDB. Empty for one that
+   * runs alone, whose backups aren't one moment if something writes while they
+   * run.
+   *
+   * @generated from field: string replica_set = 17;
+   */
+  replicaSet: string;
+
+  /**
+   * True when it checks no one, as MongoDB does without --auth: anything that
+   * reaches its port signs in as anyone.
+   *
+   * @generated from field: bool checks_no_one = 18;
+   */
+  checksNoOne: boolean;
 };
 
 /**
@@ -378,6 +405,14 @@ export type DatabaseAccount = Message<"dockwell.v1.DatabaseAccount"> & {
    * @generated from field: bool system = 6;
    */
   system: boolean;
+
+  /**
+   * The database they sign in to, for MongoDB, as an app names it in authSource,
+   * such as "admin" for its root user.
+   *
+   * @generated from field: string auth_database = 10;
+   */
+  authDatabase: string;
 };
 
 /**
@@ -526,6 +561,13 @@ export enum DatabaseEngine {
    * @generated from enum value: DATABASE_ENGINE_VALKEY = 5;
    */
   VALKEY = 5,
+
+  /**
+   * MongoDB, from the image mongo.
+   *
+   * @generated from enum value: DATABASE_ENGINE_MONGODB = 6;
+   */
+  MONGODB = 6,
 }
 
 /**
@@ -536,7 +578,7 @@ export const DatabaseEngineSchema: GenEnum<DatabaseEngine> = /*@__PURE__*/
 
 /**
  * DatabaseService is the services that run a database Dockwell knows:
- * PostgreSQL, MySQL, MariaDB, Redis and Valkey, from their official images,
+ * PostgreSQL, MySQL, MariaDB, Redis, Valkey and MongoDB, from their official images,
  * whether Dockwell made them or took them on. A database is a service, so it
  * changes as any service does, by a change with a plan. What this adds is what
  * the database itself says, read in its own container with its own tools, which

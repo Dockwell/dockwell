@@ -3363,8 +3363,10 @@ type PlanNote struct {
 	// changes too, which stays, "upgrade_dropped" for what they changed that it
 	// drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
 	// whose data stays as the new version left it, and "tmpfs_no_size" for a Compose
-	// file's tmpfs that nothing stops taking half the server's memory. Another reason
-	// may come: its message says what it means.
+	// file's tmpfs that nothing stops taking half the server's memory, and
+	// "raises_features" for a MongoDB this moves to its next release, whose feature
+	// compatibility version goes up first. Another reason may come: its message
+	// says what it means.
 	Reason string `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
 	// What it says, for people: the fact, what it means, and what to do.
 	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
@@ -3373,7 +3375,8 @@ type PlanNote struct {
 	// The names it is about: the variable, then the field that holds it, for
 	// "exposed_variable"; the project, then the services it runs, for
 	// "updates_project"; the volumes and server paths for "volumes_stay"; the path
-	// for "tmpfs_no_size"; the
+	// for "tmpfs_no_size"; the release it leaves, then the one it moves to, for
+	// "raises_features"; the
 	// variables and secrets, by the names the service sees, for "values_latest";
 	// the image, the revision and its digest for "digest_pinned" and "digest_gone",
 	// and the image and the revision for "digest_differs"; the container_name, or

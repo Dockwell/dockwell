@@ -265,7 +265,14 @@ func (e *Engine) createExec(w http.ResponseWriter, r *http.Request, c *container
 }
 
 // startExec runs a command, with its streams on the connection.
-func (e *Engine) startExec(w http.ResponseWriter, _ *http.Request, id string) {
+func (e *Engine) startExec(w http.ResponseWriter, r *http.Request, id string) {
+	// The engine reads what starting it says, {"Detach":false,"Tty":false}, before
+	// the connection carries the process's streams: left unread, it would reach the
+	// process as the start of its stdin.
+	if _, err := io.Copy(io.Discard, r.Body); err != nil {
+		fail(w, http.StatusBadRequest, "%v", err)
+		return
+	}
 	e.mu.Lock()
 	x := e.execs[id]
 	if x == nil {

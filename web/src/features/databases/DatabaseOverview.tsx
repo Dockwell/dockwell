@@ -46,7 +46,9 @@ export function DatabaseOverview() {
   return (
     <div className="database-overview">
       {reading && !read ? <UnreadNote db={db} reading={reading} /> : null}
+      {read?.checksNoOne ? <ChecksNoOne db={db} /> : null}
       <FromServer db={db} reading={reading} />
+      {db.engine === DatabaseEngine.MONGODB && read ? <MongoLine read={read} /> : null}
       <Numbers db={db} read={read} />
       <div className="database-panels">
         <BackupsPanel db={db} />
@@ -60,6 +62,48 @@ export function DatabaseOverview() {
       ) : null}
     </div>
   );
+}
+
+/**
+ * A MongoDB that runs without --auth, as its image does with no root user set:
+ * anything that reaches its port signs in as anyone.
+ */
+function ChecksNoOne({ db }: { db: Database }) {
+  const { t } = useLingui();
+  const engine = engineName(db.engine);
+  return (
+    <Callout tone="warning" title={t`${engine} checks no one`}>
+      <Trans>
+        It runs without --auth, so anything that reaches its port signs in as anyone, with no password. To close it,
+        make a user with the root role in it, then set <code>MONGO_INITDB_ROOT_USERNAME</code> and{" "}
+        <code>MONGO_INITDB_ROOT_PASSWORD</code> on its app to that user's, which turns --auth on.
+      </Trans>
+    </Callout>
+  );
+}
+
+/**
+ * What MongoDB says of its upgrades and its backups: the features its data may use,
+ * which the release before can still run, and whether a backup is one moment.
+ */
+function MongoLine({ read }: { read: DatabaseReading }) {
+  const { t } = useLingui();
+  const version = read.version;
+  const features = read.featureCompatibility;
+  const release = version.split(".").slice(0, 2).join(".");
+  const lines: string[] = [];
+  if (features && features !== release) {
+    lines.push(
+      t`It runs ${version} with ${features}'s features, so ${features} can still run its data. Its next upgrade raises them first.`,
+    );
+  }
+  const set = read.replicaSet;
+  lines.push(
+    set
+      ? t`It's a member of the replica set ${set}, so each backup is one moment.`
+      : t`It runs alone, without a replica set, so a backup isn't one moment if something writes while it runs.`,
+  );
+  return <p className="database-line">{lines.join(" ")}</p>;
 }
 
 /** On a database that runs on several servers, which one its numbers are from. */

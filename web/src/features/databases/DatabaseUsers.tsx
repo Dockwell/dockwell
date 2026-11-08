@@ -69,6 +69,7 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
   const phone = useMediaQuery(PHONE_QUERY);
   const users = read.users.filter((u) => !u.system);
   const mysql = db.engine === DatabaseEngine.MYSQL || db.engine === DatabaseEngine.MARIADB;
+  const mongo = db.engine === DatabaseEngine.MONGODB;
   const name = db.resource?.name ?? "";
   const role = (u: DatabaseAccount) =>
     u.superuser ? t`Can do anything` : u.canSignIn ? t`Signs in` : t`Can't sign in`;
@@ -94,10 +95,21 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
           },
         ]
       : []),
+    ...(mongo
+      ? [
+          {
+            key: "authDatabase",
+            header: t`Signs in to`,
+            width: 160,
+            render: (u: DatabaseAccount) => <code className="databases-code">{u.authDatabase}</code>,
+          },
+        ]
+      : []),
     { key: "role", header: t`Role`, width: 180, render: role },
-    { key: "databases", header: mysql ? t`Granted on` : t`Owns`, width: 280, render: theirs },
+    { key: "databases", header: mysql ? t`Granted on` : mongo ? t`Has roles in` : t`Owns`, width: 280, render: theirs },
   ];
-  const rows = users.map((u) => ({ ...u, id: `${u.name}@${u.host}` }));
+  // A MongoDB user's name is theirs in one database, so two can share one.
+  const rows = users.map((u) => ({ ...u, id: `${u.name}@${u.host || u.authDatabase}` }));
   const count = users.length;
   // A PostgreSQL group is a role that can't sign in, so it's a user here, and says so.
   const signIn = users.filter((u) => u.canSignIn).length;
@@ -115,7 +127,9 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
           rows={rows.map((u) => ({
             id: u.id,
             name: u.name,
-            sub: [mysql ? u.host : "", role(u), u.databases.join(", ")].filter(Boolean).join(" · "),
+            sub: [mysql ? u.host : mongo ? u.authDatabase : "", role(u), u.databases.join(", ")]
+              .filter(Boolean)
+              .join(" · "),
           }))}
         />
       ) : (

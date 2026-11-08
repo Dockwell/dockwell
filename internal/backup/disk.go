@@ -165,7 +165,7 @@ func (r *Runner) roomToRestore(ctx context.Context, ref resource.Ref, t volume.T
 			human.Size(d.free), ref.Name, human.Size(copying), human.Size(d.reserve)), "Delete old backups or free some space, then try again")
 	}
 	bringing := m.Unpacked
-	if m.Format == formatDump {
+	if isDump(m.Format) {
 		bringing = max(bringing-v.Bytes, 0)
 	}
 	free, keep := v.Free, int64(0)

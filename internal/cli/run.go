@@ -186,7 +186,10 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		},
 	}
 	archive := &logs.Archive{Dir: filepath.Join(dir.Agent(), "kept-logs"), Client: client, Logger: logger}
-	containers := container.Driver{Runtime: &container.Docker{Client: client, Deleted: kept, Logger: logger, Paths: paths, Ingress: routes, Logs: archive}}
+	containers := container.Driver{Runtime: &container.Docker{
+		Client: client, Deleted: kept, Logger: logger, Paths: paths, Ingress: routes, Logs: archive,
+		BeforeReplace: database.Reader{Client: client}.BeforeReplace,
+	}}
 	volumes := &volume.Docker{Client: client, Kept: kept, Paths: paths}
 	go volumes.KeepPruned(ctx, logger)
 	backups := &backup.Runner{Client: client, Root: filepath.Join(dir.Agent(), "backups"), Paths: paths, Logger: logger}

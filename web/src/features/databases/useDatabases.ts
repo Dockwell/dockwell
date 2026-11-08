@@ -36,13 +36,14 @@ const ENGINES: Readonly<Record<DatabaseEngine, string>> = {
   [DatabaseEngine.MARIADB]: "MariaDB",
   [DatabaseEngine.REDIS]: "Redis",
   [DatabaseEngine.VALKEY]: "Valkey",
+  [DatabaseEngine.MONGODB]: "MongoDB",
 };
 
 export function engineName(engine: DatabaseEngine): string {
   return ENGINES[engine];
 }
 
-/** Whether an engine has databases and users of its own, as SQL ones do. */
+/** Whether an engine has databases and users of its own, as SQL ones and MongoDB do. */
 export function speaksSQL(engine: DatabaseEngine): boolean {
   return engine !== DatabaseEngine.REDIS && engine !== DatabaseEngine.VALKEY;
 }
@@ -55,6 +56,7 @@ const SCHEMES: Readonly<Record<DatabaseEngine, string>> = {
   [DatabaseEngine.MARIADB]: "mysql",
   [DatabaseEngine.REDIS]: "redis",
   [DatabaseEngine.VALKEY]: "redis",
+  [DatabaseEngine.MONGODB]: "mongodb",
 };
 
 /** The first user each engine's image makes, where a reading hasn't said. */
@@ -65,6 +67,7 @@ const FIRST_USER: Readonly<Record<DatabaseEngine, string>> = {
   [DatabaseEngine.MARIADB]: "root",
   [DatabaseEngine.REDIS]: "",
   [DatabaseEngine.VALKEY]: "",
+  [DatabaseEngine.MONGODB]: "",
 };
 
 /** What a database's first server said, which is the one there is for nearly all. */
@@ -98,6 +101,11 @@ export function internalURL(db: Database, reading = readOf(firstReading(db)), ma
   const where = `${db.host}:${db.port}`;
   const password = masked ? ":••••" : "";
   if (!speaksSQL(db.engine)) return `${scheme}://${db.passwordSecret && masked ? ":••••@" : ""}${where}`;
+  if (db.engine === DatabaseEngine.MONGODB) {
+    // Its root user is in admin, which an app names as where it signs in.
+    if (!user || reading?.checksNoOne) return `${scheme}://${where}`;
+    return `${scheme}://${user}${password}@${where}/?authSource=admin`;
+  }
   const name = db.engine === DatabaseEngine.POSTGRESQL ? `/${firstDatabase(reading) || "postgres"}` : "";
   return `${scheme}://${user}${password}@${where}${name}`;
 }
@@ -119,6 +127,7 @@ const IMAGES: Readonly<Record<string, DatabaseEngine>> = {
   mariadb: DatabaseEngine.MARIADB,
   redis: DatabaseEngine.REDIS,
   "valkey/valkey": DatabaseEngine.VALKEY,
+  mongo: DatabaseEngine.MONGODB,
 };
 
 /** The engine an image runs, as the control plane tells (internal/database.Recognise), or undefined. */

@@ -683,6 +683,14 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           title: t`No backup is taken first`,
           detail: t`You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first.`,
         };
+      case "raises_features": {
+        const [from = "", to = ""] = note.names;
+        return {
+          key,
+          title: t`${name}'s features go up to ${from} before it moves to ${to}`,
+          detail: t`Its feature compatibility version goes up to ${from} where it's lower, so its data may use ${from}'s features. Undoing this puts back ${from}, which still runs that data; the release before it can't.`,
+        };
+      }
       case "tmpfs_no_size": {
         const [target = ""] = note.names;
         return {

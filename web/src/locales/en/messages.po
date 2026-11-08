@@ -4181,6 +4181,9 @@ msgstr "It took too long to measure. If an hour is too short, this stops there, 
 msgid "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 msgstr "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 
+msgid "Its feature compatibility version goes up to {from} where it's lower, so its data may use {from}'s features. Undoing this puts back {from}, which still runs that data; the release before it can't."
+msgstr "Its feature compatibility version goes up to {from} where it's lower, so its data may use {from}'s features. Undoing this puts back {from}, which still runs that data; the release before it can't."
+
 msgid "Its volumes are backed up first"
 msgstr "Its volumes are backed up first"
 
@@ -4430,6 +4433,9 @@ msgstr "{name} stops HTTPS on {path} on {server}"
 
 msgid "{name} takes on the container {path} on {server}"
 msgstr "{name} takes on the container {path} on {server}"
+
+msgid "{name}'s features go up to {from} before it moves to {to}"
+msgstr "{name}'s features go up to {from} before it moves to {to}"
 
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
@@ -5075,11 +5081,23 @@ msgstr "External access"
 msgid "Internal URL"
 msgstr "Internal URL"
 
+msgid "It runs alone, without a replica set, so a backup isn't one moment if something writes while it runs."
+msgstr "It runs alone, without a replica set, so a backup isn't one moment if something writes while it runs."
+
+msgid "It runs without --auth, so anything that reaches its port signs in as anyone, with no password. To close it, make a user with the root role in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1> on its app to that user's, which turns --auth on."
+msgstr "It runs without --auth, so anything that reaches its port signs in as anyone, with no password. To close it, make a user with the root role in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1> on its app to that user's, which turns --auth on."
+
+msgid "It runs {version} with {features}'s features, so {features} can still run its data. Its next upgrade raises them first."
+msgstr "It runs {version} with {features}'s features, so {features} can still run its data. Its next upgrade raises them first."
+
 msgid "It sets no most"
 msgstr "It sets no most"
 
 msgid "It takes no password Dockwell keeps."
 msgstr "It takes no password Dockwell keeps."
+
+msgid "It's a member of the replica set {set}, so each backup is one moment."
+msgstr "It's a member of the replica set {set}, so each backup is one moment."
 
 msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
 msgstr "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
@@ -5178,6 +5196,9 @@ msgstr "{databases, plural, one {On disk, in # database} other {On disk, across 
 msgid "{dumpOf}'s own dump, while it runs: nothing stops"
 msgstr "{dumpOf}'s own dump, while it runs: nothing stops"
 
+msgid "{engine} checks no one"
+msgstr "{engine} checks no one"
+
 msgid "{engine} didn't say how it is"
 msgstr "{engine} didn't say how it is"
 
@@ -5202,6 +5223,9 @@ msgstr "Databases in {name}"
 msgid "Granted on"
 msgstr "Granted on"
 
+msgid "Has roles in"
+msgstr "Has roles in"
+
 msgid "Its own"
 msgstr "Its own"
 
@@ -5222,6 +5246,9 @@ msgstr "Role"
 
 msgid "Signs in"
 msgstr "Signs in"
+
+msgid "Signs in to"
+msgstr "Signs in to"
 
 msgid "Users of {name}"
 msgstr "Users of {name}"
