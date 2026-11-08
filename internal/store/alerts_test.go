@@ -1,0 +1,91 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package store_test
+
+import (
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
+)
+
+// The outbox holds one message of a status an alert owes a channel at a time, has
+// due what's due, and forgets, past retention, alerts that closed with nothing
+// left owed, what they sent, and messages to channels.
+func TestTheAlertsOutbox(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		t0 := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+		old, recent := t0.Add(-100*24*time.Hour), t0.Add(-time.Hour)
+		err := db.Update(ctx, func(tx *store.Tx) error {
+			for _, a := range []store.Alert{
+				{ID: "alt_old", RuleID: "alr_1", RuleName: "app-down", Thing: "svc:a", Title: "a", Detail: "", OpenedAt: old, ResolvedAt: &old},
+				{ID: "alt_owes", RuleID: "alr_1", RuleName: "app-down", Thing: "svc:b", Title: "b", Detail: "", OpenedAt: old, ResolvedAt: &old},
+				{ID: "alt_new", RuleID: "alr_1", RuleName: "app-down", Thing: "svc:c", Title: "c", Detail: "", OpenedAt: recent},
+			} {
+				if err := tx.OpenAlert(ctx, a); err != nil {
+					return err
+				}
+			}
+			for _, s := range []store.AlertSend{
+				{ID: "snd_1", AlertID: "alt_old", RuleID: "alr_1", ChannelID: "ach_1", Status: "firing", QueuedAt: old, DueAt: old},
+				{ID: "snd_2", AlertID: "alt_owes", RuleID: "alr_1", ChannelID: "ach_1", Status: "resolved", QueuedAt: old, DueAt: t0.Add(time.Minute)},
+				{ID: "snd_3", AlertID: "alt_new", RuleID: "alr_1", ChannelID: "ach_1", Status: "firing", QueuedAt: recent, DueAt: recent},
+			} {
+				if err := tx.QueueSend(ctx, s); err != nil {
+					return err
+				}
+			}
+			again := store.AlertSend{ID: "snd_4", AlertID: "alt_new", RuleID: "alr_1", ChannelID: "ach_1", Status: "firing", QueuedAt: t0, DueAt: t0}
+			if err := tx.QueueSend(ctx, again); !errors.Is(err, store.ErrConflict) {
+				t.Errorf("a second firing message owed to one channel = %v, want ErrConflict", err)
+			}
+			if err := tx.FinishSend(ctx, "snd_1", old, true, "200 OK"); err != nil {
+				return err
+			}
+			return tx.AddAlertDelivery(ctx, store.AlertDelivery{ID: "dlv_1", ChannelID: "ach_1", ChannelName: "ops", At: old, OK: true, Said: "200 OK", About: "a"})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = db.Update(ctx, func(tx *store.Tx) error {
+			due, err := tx.DueSends(ctx, t0, 10)
+			if err != nil {
+				return err
+			}
+			if len(due) != 1 || due[0].ID != "snd_3" {
+				t.Errorf("due at %v: %+v, want the recent firing message alone", t0, due)
+			}
+			if err := tx.RetrySend(ctx, "snd_3", t0.Add(10*time.Second), "503 Service Unavailable"); err != nil {
+				return err
+			}
+			if due, _ := tx.DueSends(ctx, t0, 10); len(due) != 0 {
+				t.Errorf("a message tried again later is due now: %+v", due)
+			}
+			gone, err := tx.PruneAlerts(ctx, t0.Add(-90*24*time.Hour))
+			if err != nil {
+				return err
+			}
+			if gone != 1 {
+				t.Errorf("pruning forgot %d alerts, want the old one that owes nothing", gone)
+			}
+			left, err := tx.AlertsByID(ctx, []string{"alt_old", "alt_owes", "alt_new"})
+			if err != nil {
+				return err
+			}
+			if len(left) != 2 {
+				t.Errorf("after pruning, %d of the alerts are left, want the one that still owes a message, and the recent one", len(left))
+			}
+			if d, _ := tx.RecentDeliveries(ctx, 10); len(d) != 0 {
+				t.Errorf("an old message to a channel was kept: %+v", d)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+}

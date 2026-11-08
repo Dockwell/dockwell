@@ -480,8 +480,9 @@ func testPlanApplyAndUndoThroughTheAPI(t *testing.T, backend store.Backend) {
 			break
 		}
 	}
-	if len(all) != 5 || all[0].GetId() != undo.GetId() || all[4].GetProposedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL {
-		t.Errorf("ListChanges gave %d changes, newest %s; want 5, newest %s, oldest by Dockwell", len(all), all[0].GetId(), undo.GetId())
+	// The oldest two are Dockwell's own: the default project, and the first alert rules.
+	if len(all) != 6 || all[0].GetId() != undo.GetId() || all[4].GetProposedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL || all[5].GetProposedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL {
+		t.Errorf("ListChanges gave %d changes, newest %s; want 6, newest %s, the oldest two by Dockwell", len(all), all[0].GetId(), undo.GetId())
 	}
 
 	// The audit log has each step for the timeline: the change, who, from

@@ -888,6 +888,8 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
           return t`${name} isn't running`;
         case "paused":
           return t`${name} is paused`;
+        case "finished":
+          return t`${name} ran to its end`;
         case "unknown":
       }
     }

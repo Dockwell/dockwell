@@ -319,3 +319,59 @@ var worstFirst = map[dockwellv1.HealthState]int{
 	dockwellv1.HealthState_HEALTH_STATE_NO_CHECK:    2,
 	dockwellv1.HealthState_HEALTH_STATE_HEALTHY:     1,
 }
+
+// placedChunk bounds the services one read of their placements names, under what
+// either database takes in one query.
+const placedChunk = 500
+
+// Placed returns how every service is on each server it's placed on, as ListHealth
+// says it, reading the store a few times however many there are, for what watches
+// them all, such as alerts.
+func (h *Handler) Placed(ctx context.Context) ([]*dockwellv1.ServiceHealth, error) {
+	var out []*dockwellv1.ServiceHealth
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		list, err := tx.ListKind(ctx, string(service.Kind))
+		if err != nil {
+			return err
+		}
+		servers, err := tx.ListServers(ctx)
+		if err != nil {
+			return err
+		}
+		byID := make(map[string]*store.Server, len(servers))
+		for i := range servers {
+			byID[servers[i].ID] = &servers[i]
+		}
+		for start := 0; start < len(list); start += placedChunk {
+			chunk := list[start:min(start+placedChunk, len(list))]
+			ids := make([]string, len(chunk))
+			for i := range chunk {
+				ids[i] = chunk[i].ID
+			}
+			placed, err := tx.LatestDeployments(ctx, ids)
+			if err != nil {
+				return err
+			}
+			for i := range chunk {
+				r := &chunk[i]
+				s := &dockwellv1.ServiceHealth{Id: r.ID, Resource: resourcepb.Ref(resource.Ref{Kind: service.Kind, Scope: r.Scope, Name: r.Name})}
+				project := docker.Project(r.Scope)
+				var states []dockwellv1.HealthState
+				for j := range placed[r.ID] {
+					d := &placed[r.ID][j]
+					srv := byID[d.Server]
+					if srv == nil || srv.RevokedAt != nil {
+						continue
+					}
+					on := h.onServer(d.Server, srv.Name, project, r.Name)
+					s.Servers = append(s.Servers, on)
+					states = append(states, on.GetState())
+				}
+				s.State = Worst(states)
+				out = append(out, s)
+			}
+		}
+		return nil
+	})
+	return out, err
+}

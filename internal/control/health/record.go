@@ -107,6 +107,13 @@ type track struct {
 	// settled says it has stopped changing, and the timeline hasn't heard how it
 	// ended up, which its event may have said already, as what it kept falling to.
 	settled bool
+	// downSince is when it went down, for alerts: since it was last good for Dwell.
+	downSince time.Time
+	// downIn are the containers it had when it went down, and ids those of the
+	// last report, by ID, for telling a replace from a restart (cameBack).
+	downIn, ids []string
+	// finished says it's a one-shot job that ran to its end.
+	finished bool
 }
 
 // flap is the one event that stands for a service that keeps changing.
@@ -144,15 +151,48 @@ func (r *Recorder) Heard(server string, instances []*dockwellv1.InstanceHealth) 
 			t = &track{state: dockwellv1.HealthState_HEALTH_STATE_UNSPECIFIED, since: now}
 			r.tracked[k] = t
 		}
+		t.ids = containerIDs(list)
+		t.cameBack()
+		t.finished = allFinished(list)
 		t.see(Best(list), lastOutput(list), bestContainer(list), now)
 	}
 	// A service with no container left doesn't run, if it is there at all, which
-	// recording it finds out.
+	// recording it finds out. A job that finished stays finished when its container
+	// is removed, as docker system prune removes every stopped one.
 	for k, t := range r.tracked {
 		if k.server == server && byService[k] == nil {
+			t.ids = nil
 			t.see(dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING, "the service has no container on this server", "", now)
 		}
 	}
+}
+
+// cameBack forgets a fall the service came back from in other containers than it
+// had when it went down: a deploy or a restart that replaced them, as Docker's own
+// restarts never do, which keep the container. So a slow start after a stop-first
+// deploy isn't down, and a crash loop still is. A report without container IDs, as
+// an older agent's, forgets nothing.
+func (t *track) cameBack() {
+	if t.downSince.IsZero() || len(t.ids) == 0 {
+		return
+	}
+	for _, id := range t.ids {
+		if slices.Contains(t.downIn, id) {
+			return
+		}
+	}
+	t.downSince, t.downIn = time.Time{}, nil
+}
+
+// containerIDs are the IDs of the containers a report has.
+func containerIDs(list []*dockwellv1.InstanceHealth) []string {
+	var out []string
+	for _, i := range list {
+		if c := i.GetContainerId(); c != "" {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func (t *track) see(state dockwellv1.HealthState, output, container string, now time.Time) {
@@ -166,6 +206,9 @@ func (t *track) see(state dockwellv1.HealthState, output, container string, now 
 		if good(state) {
 			t.goodIn = container
 		}
+		// A state can stay as it is and still go down: a job that finished, run
+		// again, that failed before anyone saw it running.
+		t.markDown(state, now)
 		return
 	}
 	if good(state) || bad(state) {
@@ -188,6 +231,75 @@ func (t *track) see(state dockwellv1.HealthState, output, container string, now 
 		}
 	}
 	t.state, t.since = state, now
+	t.markDown(state, now)
+}
+
+// markDown notes when a service went down, for alerts, and in which containers: a
+// bad state, unless someone paused it or it's a job that finished.
+func (t *track) markDown(state dockwellv1.HealthState, now time.Time) {
+	if bad(state) && state != dockwellv1.HealthState_HEALTH_STATE_PAUSED && !t.finished && t.downSince.IsZero() {
+		t.downSince, t.downIn = now, slices.Clone(t.ids)
+	}
+}
+
+// allFinished reports a service whose every container ran to its end: a one-shot
+// job that did its work.
+func allFinished(list []*dockwellv1.InstanceHealth) bool {
+	for _, i := range list {
+		if i.GetState() != dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING || !i.GetFinished() {
+			return false
+		}
+	}
+	return len(list) > 0
+}
+
+// Standing is how a service stands on a server, for alerts: whether it's down,
+// and since when, as this control plane has heard it (ADR 0044). It folds a
+// service that keeps going down and coming back, as the timeline does, so
+// Alerts and an app's page agree on what "down" means.
+type Standing struct {
+	// Heard says this control plane has heard of it since it started.
+	Heard bool
+	// Down says it isn't serving: it went bad and hasn't stayed good for Dwell
+	// since, whatever it went through between, or it keeps changing.
+	Down bool
+	// Since is when it went down.
+	Since time.Time
+	// State is the state it's in now.
+	State dockwellv1.HealthState
+	// Flapping says it keeps going between good and bad.
+	Flapping bool
+	// Finished says it's a one-shot job that ran to its end, which isn't down.
+	Finished bool
+}
+
+// Standing says how a service stands on a server now.
+func (r *Recorder) Standing(server, project, svc string) Standing {
+	now := r.now()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	t := r.tracked[key{server, project, svc}]
+	if t == nil || t.state == dockwellv1.HealthState_HEALTH_STATE_UNSPECIFIED {
+		return Standing{}
+	}
+	st := Standing{Heard: true, State: t.state, Finished: t.finished}
+	recent := t.flipsWithin(now)
+	switch {
+	case t.state == dockwellv1.HealthState_HEALTH_STATE_PAUSED || t.finished:
+		// Someone paused it, or it did its work: neither is it down.
+		t.downSince, t.downIn = time.Time{}, nil
+	case recent >= flapsToTell:
+		since := t.flips[len(t.flips)-recent]
+		if !t.downSince.IsZero() && t.downSince.Before(since) {
+			since = t.downSince
+		}
+		st.Down, st.Since, st.Flapping = true, since, true
+	case good(t.state) && now.Sub(t.since) >= Dwell:
+		t.downSince, t.downIn = time.Time{}, nil
+	case !t.downSince.IsZero():
+		st.Down, st.Since = true, t.downSince
+	}
+	return st
 }
 
 // replaced reports that it stands well in another container than it last did.

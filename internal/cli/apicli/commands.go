@@ -261,9 +261,9 @@ func carriesChange(md protoreflect.MessageDescriptor) bool {
 
 // kindVerbs are the commands for a kind of resource.
 var kindVerbs = []struct{ verb, short, long string }{
-	{"create", "Create a %s", "Proposes a change that creates %s %s, shows its plan and asks before applying it."},
-	{"update", "Change a %s's spec", "Proposes a change that sets the whole spec of %s %s: a field you leave out is cleared. It shows the plan, which says what changes, and asks before applying it."},
-	{"delete", "Delete a %s", "Proposes a change that deletes %s %s, shows its plan and asks before applying it."},
+	{"create", "Create %s", "Proposes a change that creates %s %s, shows its plan and asks before applying it."},
+	{"update", "Change %s's spec", "Proposes a change that sets the whole spec of %s %s: a field you leave out is cleared. It shows the plan, which says what changes, and asks before applying it."},
+	{"delete", "Delete %s", "Proposes a change that deletes %s %s, shows its plan and asks before applying it."},
 }
 
 // kindCommand makes a kind's verbs, under parent with its options, or
@@ -301,7 +301,7 @@ func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.C
 	for _, v := range kindVerbs {
 		cmd := &cobra.Command{
 			Use:   v.verb + " <name>",
-			Short: fmt.Sprintf(v.short, what),
+			Short: fmt.Sprintf(v.short, withArticle(what)),
 			Long:  fmt.Sprintf(v.long, what, "<name>"),
 		}
 		cmd.Args = func(cmd *cobra.Command, args []string) error {
@@ -468,4 +468,13 @@ func (r *runner) kind(cmd *cobra.Command, req *dockwellv1.ProposeChangeRequest, 
 			c.GetId(), strings.ToLower(word(c.GetState())), c.GetId())
 	}
 	return r.planned(ctx, res, c)
+}
+
+// withArticle puts a or an before a kind's name, as English says it: "an alert
+// rule", "a service".
+func withArticle(what string) string {
+	if what != "" && strings.ContainsRune("aeiou", rune(what[0])) {
+		return "an " + what
+	}
+	return "a " + what
 }
