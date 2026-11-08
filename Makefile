@@ -91,7 +91,8 @@ generate: deps ## Regenerate code and the OpenAPI document from proto/, and the 
 
 .PHONY: test
 test: deps ## Run the Go and TypeScript tests, the agent build's with its tag too
-	go test -race -coverprofile=coverage.out ./...
+	# The control package's accumulated race tests can exceed Go's default ten minutes.
+	go test -timeout 20m -race -coverprofile=coverage.out ./...
 	go test -race -tags agent $(AGENT_PKGS)
 	pnpm -r --if-present test
 
