@@ -77,7 +77,8 @@ export function ServersPage({
 
   if (fleet.status === "connecting") {
     return (
-      <Page title={t`Servers`}>
+      // At the width it takes once the fleet arrives, so the page doesn't change size then.
+      <Page width="wide" title={t`Servers`}>
         <Connecting error={fleet.error} />
       </Page>
     );
@@ -91,7 +92,10 @@ export function ServersPage({
   const select = (id: string | undefined) => onSearch(id ? { server: id } : { closed: true });
 
   return (
+    // The list with its inspector beside it, as Servers-List lays them out, uses the room: a wide page
+    // (Layout in design/system/README.md).
     <Page
+      width="wide"
       title={t`Servers`}
       lead={lead}
       phoneSub={lead}
@@ -181,6 +185,7 @@ function ServersTable({ servers, tiles, chosen, select }: ListProps & { tiles: r
   const beyond = chosen ? servers.findIndex((s) => s.id === chosen.id) >= TABLE_PAGE : false;
   const rows = all || beyond ? servers : servers.slice(0, TABLE_PAGE);
   const count = servers.length;
+  const shown = rows.length;
   return (
     <section className="servers-table" aria-label={t`Server list`}>
       <Table<Server>
@@ -251,7 +256,7 @@ function ServersTable({ servers, tiles, chosen, select }: ListProps & { tiles: r
           <>
             <span>
               <Trans>
-                Showing {rows.length} of {count} · sorted by name
+                Showing {shown} of {count} · sorted by name
               </Trans>
             </span>
             <Button variant="ghost" size="sm" onClick={() => setAll(true)}>

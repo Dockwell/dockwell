@@ -7279,16 +7279,16 @@ msgid "Make a ticket on the control server"
 msgstr "在控制服务器上生成票据"
 
 msgid "Make a ticket on {name}"
-msgstr ""
+msgstr "在 {name} 上生成票据"
 
 msgid "On any Linux server, run the install script of the release the control plane runs, with <0>--join</0> and the ticket. It installs the agent, joins, and starts."
-msgstr ""
+msgstr "在任意 Linux 服务器上，运行控制平面所用版本的安装脚本，加上 <0>--join</0> 和票据。它会安装代理、加入并启动。"
 
 msgid "On any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the control plane's version of the agent, joins, and starts."
-msgstr ""
+msgstr "在任意 Linux 服务器上运行：其他云服务商、家庭实验室或虚拟机都可以。把 <0><ticket></0> 换成票据。它会安装与控制平面相同版本的代理、加入并启动。"
 
 msgid "Over SSH, as the user that runs Dockwell, with <0>sudo</0> in front when it runs as the system service. The ticket works once, for an hour."
-msgstr ""
+msgstr "通过 SSH，以运行 Dockwell 的用户身份执行；Dockwell 作为系统服务运行时，在前面加上 <0>sudo</0>。票据只能使用一次，有效期一小时。"
 
 msgid "Run one command on the new server"
 msgstr "在新服务器上运行一条命令"
@@ -7857,7 +7857,7 @@ msgid "Its agent is connected, but Docker doesn't answer, so nobody can say how 
 msgstr "它的代理已连接，但 Docker 没有响应，所以无法得知上面运行的内容状况如何。"
 
 msgid "Its agent last reported {seen}. Check that <0>dockwell run</0> is still running on the server."
-msgstr ""
+msgstr "它的代理最后一次上报于 {seen}。请检查该服务器上的 <0>dockwell run</0> 是否仍在运行。"
 
 msgid "Last {span}"
 msgstr "最近 {span}"
@@ -8044,11 +8044,10 @@ msgid "Servers, sorted by name"
 msgstr "服务器，按名称排序"
 
 msgid "Show all {count}"
-msgstr ""
+msgstr "显示全部 {count} 台"
 
-#. placeholder {0}: rows.length
-msgid "Showing {0} of {count} · sorted by name"
-msgstr ""
+msgid "Showing {shown} of {count} · sorted by name"
+msgstr "显示 {count} 台中的 {shown} 台 · 按名称排序"
 
 msgid "sorted by name"
 msgstr "按名称排序"

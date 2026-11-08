@@ -8046,9 +8046,8 @@ msgstr "Servers, sorted by name"
 msgid "Show all {count}"
 msgstr "Show all {count}"
 
-#. placeholder {0}: rows.length
-msgid "Showing {0} of {count} · sorted by name"
-msgstr "Showing {0} of {count} · sorted by name"
+msgid "Showing {shown} of {count} · sorted by name"
+msgstr "Showing {shown} of {count} · sorted by name"
 
 msgid "sorted by name"
 msgstr "sorted by name"
