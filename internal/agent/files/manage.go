@@ -161,6 +161,14 @@ func (s *Server) wayInAt(tg *target, st *unix.Stat_t, dir bool) bool {
 	if ways.listed(tg.where, s.dataDir, inVolume) {
 		return true
 	}
+	// Spelled as the rule knows it too, where the walk went through another name
+	// for a home, as a bind mount gives it.
+	written := ways.asWritten(tg.w.steps, "/"+tg.name)
+	for _, as := range written {
+		if ways.listed(as, s.dataDir, inVolume) {
+			return true
+		}
+	}
 	for i := from; i < len(tg.w.steps); i++ {
 		if ways.dirs[tg.w.steps[i].id] {
 			return true
@@ -178,7 +186,9 @@ func (s *Server) wayInAt(tg *target, st *unix.Stat_t, dir bool) bool {
 	if st != nil && (ways.dirs[identify(st)] || ways.everyoneIDs[identify(st)]) {
 		return true
 	}
-	holds := func(p string) bool { return mounts.Holds(tg.where, p) }
+	holds := func(p string) bool {
+		return mounts.Holds(tg.where, p) || slices.ContainsFunc(written, func(as string) bool { return mounts.Holds(as, p) })
+	}
 	return slices.ContainsFunc(ways.everyone, holds) || slices.ContainsFunc(ways.adminDirs, holds)
 }
 

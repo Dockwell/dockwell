@@ -85,6 +85,9 @@ type Server struct {
 	// homeRoot is where people's homes are, as the rule for logins has it, which a
 	// server can have lead elsewhere.
 	homeRoot string
+	// identityOf says what's at a path, by device and inode. A test stands in for
+	// a bind mount with it, as giving one place two names takes root.
+	identityOf func(path string) (identity, bool)
 	// saving keeps saves of roots to one at a time.
 	saving sync.Mutex
 	// claimed holds the entries of Recently deleted a call has. It's mu that guards it.
@@ -104,7 +107,7 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 	s := &Server{
 		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots),
 		stuck: map[*trail]string{}, mounts: mounts.Read, savesEnded: make(chan *agentv1.SaveEnded, maxStuck),
-		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts, homeRoot: "/home",
+		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts, homeRoot: "/home", identityOf: statIdentity,
 		claimed: map[string]bool{}, pruneNow: make(chan struct{}, 1), now: time.Now,
 	}
 	s.roots = s.loadRoots()

