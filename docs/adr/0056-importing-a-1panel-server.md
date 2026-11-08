@@ -120,7 +120,10 @@ What's taken on is let go of by deleting it before anything replaces it, which l
 
 ### The screen
 
-A server running 1Panel says so on its page, with what an import would take on, make again and leave, from the same read, and the plan to start. It's built from the system's components, as no mock has it, and it comes with the plan that takes things on.
+A server's Overview says 1Panel runs there when Docker runs containers 1Panel named (`1Panel-…`), and links to the import. The import page reads only when a person asks, as a read plans the change, then shows what it would take on, make again and leave, with why, and hands the plan to the plan sheet, which applies it or discards it. A plan nobody reviewed is discarded when the page reads again or is left. It's built from the system's components, as no mock has it.
+
+- **What each step says is the import's own words,** in English, as a plan's notes are, so a page in another language shows them so. The page's own words are translated.
+- **A test reads 1Panel under `DOCKWELL_TEST_ONEPANEL`,** a folder laid out as a server's root, and reads nothing of the machine it runs on without it, as `DOCKWELL_TEST_PACKAGES` does for updates.
 
 ### Numbers
 
