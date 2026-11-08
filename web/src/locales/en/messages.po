@@ -299,6 +299,9 @@ msgstr "Activity"
 msgid "Actor"
 msgstr "Actor"
 
+msgid "Alerts"
+msgstr "Alerts"
+
 msgid "All"
 msgstr "All"
 
@@ -338,8 +341,8 @@ msgstr "Event type"
 msgid "Events: {caption}"
 msgstr "Events: {caption}"
 
-msgid "Every change, server event, access grant, change of health and backup, newest first"
-msgstr "Every change, server event, access grant, change of health and backup, newest first"
+msgid "Every change, server event, access grant, change of health, backup and alert, newest first"
+msgstr "Every change, server event, access grant, change of health, backup and alert, newest first"
 
 msgid "From"
 msgstr "From"
@@ -389,6 +392,9 @@ msgstr "Rollback"
 msgid "Rolls back"
 msgstr "Rolls back"
 
+msgid "Rule"
+msgstr "Rule"
+
 msgid "Server"
 msgstr "Server"
 
@@ -422,11 +428,17 @@ msgstr "Volume"
 msgid "What changed"
 msgstr "What changed"
 
+msgid "What it said"
+msgstr "What it said"
+
 msgid "When"
 msgstr "When"
 
 msgid "Who"
 msgstr "Who"
+
+msgid "Why"
+msgstr "Why"
 
 msgid "Why it failed"
 msgstr "Why it failed"
@@ -458,6 +470,9 @@ msgstr "Someone"
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "A backup of {volume} couldn't be fetched from {destination}"
 
+msgid "A change failed: {subject}"
+msgstr "A change failed: {subject}"
+
 msgid "A service"
 msgstr "A service"
 
@@ -478,6 +493,9 @@ msgstr "Added the passkey {name} after signing in with a recovery code"
 
 msgid "Added the passkey {name} after signing in with an authenticator code"
 msgstr "Added the passkey {name} after signing in with an authenticator code"
+
+msgid "Alert opened: {title}"
+msgstr "Alert opened: {title}"
 
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "Asked for a passkey to apply {change}, and none came"
@@ -524,6 +542,12 @@ msgstr "Deleted a backup of {volume}"
 msgid "Ended an authenticator app's setup after 5 wrong codes"
 msgstr "Ended an authenticator app's setup after 5 wrong codes"
 
+msgid "Ended the mute of the alert rule {rule}"
+msgstr "Ended the mute of the alert rule {rule}"
+
+msgid "Ended the mute of {server}'s alerts"
+msgstr "Ended the mute of {server}'s alerts"
+
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"
 
@@ -547,6 +571,12 @@ msgstr "Made new recovery codes"
 
 msgid "May have saved {path} on {server}"
 msgstr "May have saved {path} on {server}"
+
+msgid "Muted the alert rule {rule} until {until}"
+msgstr "Muted the alert rule {rule} until {until}"
+
+msgid "Muted the alerts of {server} until {until}"
+msgstr "Muted the alerts of {server} until {until}"
 
 msgid "Named this install {value}"
 msgstr "Named this install {value}"
@@ -572,6 +602,9 @@ msgstr "Removed the passkey {name}"
 msgid "Removed {server} from the fleet"
 msgstr "Removed {server} from the fleet"
 
+msgid "Resolved: {title}"
+msgstr "Resolved: {title}"
+
 msgid "Revealed a secret"
 msgstr "Revealed a secret"
 
@@ -596,6 +629,18 @@ msgstr "Saved {path} on {server}"
 msgid "Saved {path} on {server}, which can let someone back in"
 msgstr "Saved {path} on {server}, which can let someone back in"
 
+msgid "Sent a test to a new {kind} channel at {host}, which arrived"
+msgstr "Sent a test to a new {kind} channel at {host}, which arrived"
+
+msgid "Sent a test to a new {kind} channel at {host}, which didn't arrive"
+msgstr "Sent a test to a new {kind} channel at {host}, which didn't arrive"
+
+msgid "Sent a test to {name} ({kind}, {host}), which arrived"
+msgstr "Sent a test to {name} ({kind}, {host}), which arrived"
+
+msgid "Sent a test to {name} ({kind}, {host}), which didn't arrive"
+msgstr "Sent a test to {name} ({kind}, {host}), which didn't arrive"
+
 msgid "Set the public address of {server} to {address}"
 msgstr "Set the public address of {server} to {address}"
 
@@ -616,6 +661,15 @@ msgstr "Signed out other sessions"
 
 msgid "Stopped {what} (PID {pid}) on {server}"
 msgstr "Stopped {what} (PID {pid}) on {server}"
+
+msgid "The backup of {subject} didn't reach {where}"
+msgstr "The backup of {subject} didn't reach {where}"
+
+msgid "The backup of {subject} failed"
+msgstr "The backup of {subject} failed"
+
+msgid "The backup of {subject} is late"
+msgstr "The backup of {subject} is late"
 
 msgid "The backup of {volume} didn't reach {destination}"
 msgstr "The backup of {volume} didn't reach {destination}"
@@ -697,6 +751,9 @@ msgstr "{name} turned unhealthy on {server}"
 msgid "{name} was paused on {server}"
 msgstr "{name} was paused on {server}"
 
+msgid "{server} can't be reached"
+msgstr "{server} can't be reached"
+
 msgid "{server} joined as the control server"
 msgstr "{server} joined as the control server"
 
@@ -706,8 +763,35 @@ msgstr "{server} joined the fleet"
 msgid "{server} renewed its certificate"
 msgstr "{server} renewed its certificate"
 
+msgid "{server} uses {value}% of its memory"
+msgstr "{server} uses {value}% of its memory"
+
+msgid "{server}'s disk {where} is {value}% full"
+msgstr "{server}'s disk {where} is {value}% full"
+
+msgid "{subject} fails its health check on {server}"
+msgstr "{subject} fails its health check on {server}"
+
+msgid "{subject} has no certificate"
+msgstr "{subject} has no certificate"
+
+msgid "{subject} isn't running on {server}"
+msgstr "{subject} isn't running on {server}"
+
+msgid "{subject} keeps going down on {server}"
+msgstr "{subject} keeps going down on {server}"
+
+msgid "{subject} keeps restarting on {server}"
+msgstr "{subject} keeps restarting on {server}"
+
+msgid "{subject}'s certificate has ended"
+msgstr "{subject}'s certificate has ended"
+
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
+
+msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
+msgstr "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 
 msgid "A route runs on one server, as its certificate comes to the one its DNS points at."
 msgstr "A route runs on one server, as its certificate comes to the one its DNS points at."
@@ -1645,11 +1729,17 @@ msgstr "You name what connects to this server."
 msgid "Checking"
 msgstr "Checking"
 
+msgid "Finished"
+msgstr "Finished"
+
 msgid "It has no container on this server."
 msgstr "It has no container on this server."
 
 msgid "It isn't placed on a server."
 msgstr "It isn't placed on a server."
+
+msgid "It ran to its end and exited 0, as a one-shot job does, so nothing restarts it."
+msgstr "It ran to its end and exited 0, as a one-shot job does, so nothing restarts it."
 
 msgid "Its check hasn't finished yet."
 msgstr "Its check hasn't finished yet."
@@ -3657,6 +3747,9 @@ msgstr "{name} is running"
 
 msgid "{name} is starting"
 msgstr "{name} is starting"
+
+msgid "{name} ran to its end"
+msgstr "{name} ran to its end"
 
 msgid "{same} stays as it is"
 msgstr "{same} stays as it is"
@@ -8181,9 +8274,6 @@ msgstr "{unknown} in an unknown state"
 
 msgid "{waiting} waiting for an agent"
 msgstr "{waiting} waiting for an agent"
-
-msgid "Alerts"
-msgstr "Alerts"
 
 msgid "Fleet actions"
 msgstr "Fleet actions"
