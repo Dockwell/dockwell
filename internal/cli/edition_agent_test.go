@@ -144,8 +144,14 @@ func TestTheAgentBuildJoinsAndRunsTheAgent(t *testing.T) {
 			}
 			break
 		}
+		select {
+		case code := <-done:
+			done <- code // for whatever waits on it after
+			t.Fatalf("dockwell run exited %d before the agent connected:\n%s", code, logs.String())
+		default:
+		}
 		if time.Now().After(deadline) {
-			t.Fatalf("the agent didn't connect within 10 s:\n%s", logs.String())
+			t.Fatalf("the agent didn't connect within %v:\n%s", startUp, logs.String())
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -206,8 +212,16 @@ func TestTheAgentBuildRunsContainers(t *testing.T) {
 		}
 		if a, ok := agents.Agent(server); ok {
 			agent = a
-		} else if time.Now().After(deadline) {
-			t.Fatalf("the agent didn't connect within 10 s:\n%s", logs.String())
+			continue
+		}
+		select {
+		case code := <-done:
+			done <- code // for the cleanup, which waits on it
+			t.Fatalf("dockwell run exited %d before the agent connected:\n%s", code, logs.String())
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the agent didn't connect within %v:\n%s", startUp, logs.String())
 		}
 	}
 

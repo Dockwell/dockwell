@@ -84,6 +84,9 @@ func startRunOn(t *testing.T, terminal bool, dir, want string, args ...string) (
 		select {
 		case code := <-done:
 			done <- code // for stop, which waits on it
+			if strings.Contains(out.String(), want) {
+				continue // it printed it, then exited: the caller decides what that means
+			}
 			t.Fatalf("dockwell run exited %d before it printed %q:\n%s\n%s", code, want, out.String(), errOut.String())
 		default:
 		}
