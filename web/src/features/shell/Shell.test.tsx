@@ -140,6 +140,7 @@ describe("the shell on wide screens", () => {
 
   it("lays out every section of the design's rail, in its order", async () => {
     await renderWith("/", hz1);
+    await within(rail()).findByRole("link", { name: "Dockwell 0.4.0: control plane status" });
     const names = within(rail()).getAllByRole("link").map(shown);
     expect(names).toEqual([
       "0.4.0",
