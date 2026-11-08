@@ -4176,8 +4176,16 @@ docker volume inspect "dockwell-build-cache-${build_env,,}" >/dev/null || fail "
 step "Builds: a build that fails leaves what runs as it was, and says which step and what it said last"
 move_main broken
 if said=$(dw services deploy "$built_id" --yes 2>&1); then fail "a build that fails deployed: $said"; fi
-[[ "$said" == *'The build failed at step 4 of 4'*'its log marks what it printed last'* ]] || fail "a failed build says: $said"
-failed_line=$(dw builds list "$built_id" --json | jq -r '.builds[0].failedLine')
+# BuildKit may announce its vertices in any order; Dockwell numbers them as they arrive.
+# The failure must identify the instruction, using the same step as the saved build.
+failed_build=$(dw builds list "$built_id" --json | jq -c '.builds[0]') || fail "listing the failed build failed"
+jq -e '.state == "BUILD_STATE_FAILED" and .steps == 4 and .step >= 1 and .step <= .steps and
+  .stepName == "RUN echo \"npm ERR! missing script: build\" && exit 1"' <<<"$failed_build" >/dev/null ||
+  fail "the failed build doesn't identify its instruction and step: $failed_build"
+failed_step=$(jq -r '.step' <<<"$failed_build")
+failed_command=$(jq -c '.stepName' <<<"$failed_build")
+[[ "$said" == *"The build failed at step $failed_step of 4, $failed_command: its log marks what it printed last"* ]] || fail "a failed build says: $said"
+failed_line=$(jq -r '.failedLine' <<<"$failed_build")
 [[ "$failed_line" == "npm ERR! missing script: build" ]] || fail "the failed build says its step printed '$failed_line' last"
 [[ "$(built_container)" == "$first_container" ]] || fail "a failed build replaced what runs"
 [[ "$(curl -fsS "http://127.0.0.1:$built_port/")" == "Add order export endpoint" ]] || fail "after a failed build, what runs answers something else"
