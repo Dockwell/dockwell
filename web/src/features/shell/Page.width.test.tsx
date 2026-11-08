@@ -39,6 +39,7 @@ describe("a page's width by its kind", () => {
     ["/profile", "Profile and security", "narrow"],
     // A table of few columns reads at a detail page's width, its head and table sharing their edges.
     ["/apps", "Apps", "standard"],
+    ["/websites", "Websites", "standard"],
     ["/domains", "Domains", "standard"],
     ["/backups", "Backups", "standard"],
     ["/activity", "Activity", "standard"],

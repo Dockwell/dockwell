@@ -571,11 +571,11 @@ describe("the shell in Simplified Chinese", () => {
 
   it("translates the not-yet page", async () => {
     await activateLocale("zh-CN");
-    renderAt("/websites", {
+    renderAt("/connections", {
       system: { getVersion: () => create(GetVersionResponseSchema, {}) },
       servers: { watchServers: feed<WatchServersResponse>().stream },
     });
-    expect(await screen.findByRole("heading", { level: 1, name: "网站" })).toBeVisible();
+    expect(await screen.findByRole("heading", { level: 1, name: "连接" })).toBeVisible();
     expect(screen.getByRole("heading", { level: 2, name: "此版本尚未提供" })).toBeVisible();
   });
 });

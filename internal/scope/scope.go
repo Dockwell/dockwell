@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/website"
 )
 
 // Kinds.
@@ -61,21 +62,53 @@ func (ProjectType) IDPrefix() string { return id.Project }
 // New returns an empty Project.
 func (ProjectType) New() proto.Message { return &resourcev1.Project{} }
 
-// Validate trims the display name.
+// Validate trims the display name, and checks what a website serves.
 func (ProjectType) Validate(spec proto.Message) error {
 	p := spec.(*resourcev1.Project)
 	p.DisplayName = strings.TrimSpace(p.GetDisplayName())
+	if p.GetWebsite() != nil {
+		return website.Check(p.GetWebsite())
+	}
 	return nil
 }
 
-// Keep holds on to what a project is pinned to, as an edit replaces a whole spec and
-// no one renaming a project means to forget where it came from.
+// Keep holds on to what a project is pinned to, and what it serves as a website, as
+// an edit replaces a whole spec and no one renaming a project means to forget where
+// it came from or what it is.
 func (ProjectType) Keep(current, desired proto.Message) (resource.Kept, error) {
-	if d := desired.(*resourcev1.Project); d.GetCatalog() == nil {
-		d.Catalog = current.(*resourcev1.Project).GetCatalog()
+	d, c := desired.(*resourcev1.Project), current.(*resourcev1.Project)
+	if d.GetCatalog() == nil {
+		d.Catalog = c.GetCatalog()
+	}
+	if d.GetWebsite() == nil {
+		d.Website = c.GetWebsite()
 	}
 	return resource.Kept{}, nil
 }
+
+// CheckInChange keeps what a website serves in step with what serves it: a change
+// to Project.website comes with the route WebsiteService writes for it, so a plain
+// edit of the project can't leave it saying one thing while its web server runs
+// another.
+func (ProjectType) CheckInChange(current, desired proto.Message, others []resource.Ref) error {
+	var was *resourcev1.Website
+	if c, ok := current.(*resourcev1.Project); ok {
+		was = c.GetWebsite()
+	}
+	d, _ := desired.(*resourcev1.Project)
+	if proto.Equal(was, d.GetWebsite()) {
+		return nil
+	}
+	for _, r := range others {
+		if r.Kind == routeKind && r.Name == website.RouteName {
+			return nil
+		}
+	}
+	return errors.New("what a website serves changes through Websites, or dockwell websites update, which writes its route and web server with it. Leave website out of the project's edit to keep what it serves")
+}
+
+// routeKind is the route kind, which this package can't import.
+const routeKind resource.Kind = "route"
 
 // CheckName requires a DNS label, fit for URLs and the CLI.
 func (ProjectType) CheckName(name string) error { return resource.CheckLabel("project", name, "shop") }

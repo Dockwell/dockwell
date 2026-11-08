@@ -48,5 +48,6 @@ func Commands() []string {
 		"updates",
 		"variables",
 		"volumes",
+		"websites",
 	}
 }

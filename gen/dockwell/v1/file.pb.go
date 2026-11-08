@@ -91,7 +91,12 @@ type ListFilesRequest struct {
 	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
 	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	// The directory's absolute path, without . or .. in it, such as "/var/www".
-	Path          string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// Says a form is looking whether a folder is there as you type, such as a
+	// website's: a listing it can't have goes on no Activity, as it's a guess at a
+	// path, not a person opening one. Files never sets it. Numbered apart, as open
+	// work adds to this message.
+	Lookup        bool `protobuf:"varint,60,opt,name=lookup,proto3" json:"lookup,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -138,6 +143,13 @@ func (x *ListFilesRequest) GetPath() string {
 		return x.Path
 	}
 	return ""
+}
+
+func (x *ListFilesRequest) GetLookup() bool {
+	if x != nil {
+		return x.Lookup
+	}
+	return false
 }
 
 // ListFilesResponse is what a directory holds.
@@ -570,8 +582,13 @@ type FileEntry struct {
 	Refused bool `protobuf:"varint,10,opt,name=refused,proto3" json:"refused,omitempty"`
 	// True when its name isn't UTF-8, so name can't reach it.
 	UnreadableName bool `protobuf:"varint,11,opt,name=unreadable_name,json=unreadableName,proto3" json:"unreadable_name,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// The user and the group that own it, by number, whatever names the server has
+	// for them, as what runs in a container goes by the number. Numbered apart, as
+	// open work adds to this message.
+	Uid           uint32 `protobuf:"varint,60,opt,name=uid,proto3" json:"uid,omitempty"`
+	Gid           uint32 `protobuf:"varint,61,opt,name=gid,proto3" json:"gid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *FileEntry) Reset() {
@@ -681,14 +698,29 @@ func (x *FileEntry) GetUnreadableName() bool {
 	return false
 }
 
+func (x *FileEntry) GetUid() uint32 {
+	if x != nil {
+		return x.Uid
+	}
+	return 0
+}
+
+func (x *FileEntry) GetGid() uint32 {
+	if x != nil {
+		return x.Gid
+	}
+	return 0
+}
+
 var File_dockwell_v1_file_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\n" +
-	"\x16dockwell/v1/file.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"C\n" +
+	"\x16dockwell/v1/file.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"[\n" +
 	"\x10ListFilesRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
-	"\x04path\x18\x02 \x01(\tR\x04path\"\xad\x01\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
+	"\x06lookup\x18< \x01(\bR\x06lookup\"\xad\x01\n" +
 	"\x11ListFilesResponse\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x124\n" +
 	"\tdirectory\x18\x02 \x01(\v2\x16.dockwell.v1.FileEntryR\tdirectory\x120\n" +
@@ -716,7 +748,7 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12*\n" +
 	"\x04file\x18\x02 \x01(\v2\x16.dockwell.v1.FileEntryR\x04file\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1e\n" +
-	"\vway_back_in\x18\x04 \x01(\bR\twayBackIn\"\xfe\x02\n" +
+	"\vway_back_in\x18\x04 \x01(\bR\twayBackIn\"\xa2\x03\n" +
 	"\tFileEntry\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12)\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x15.dockwell.v1.FileTypeR\x04type\x12\x1d\n" +
@@ -732,7 +764,9 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\tlink_type\x18\t \x01(\x0e2\x15.dockwell.v1.FileTypeR\blinkType\x12\x18\n" +
 	"\arefused\x18\n" +
 	" \x01(\bR\arefused\x12'\n" +
-	"\x0funreadable_name\x18\v \x01(\bR\x0eunreadableName*~\n" +
+	"\x0funreadable_name\x18\v \x01(\bR\x0eunreadableName\x12\x10\n" +
+	"\x03uid\x18< \x01(\rR\x03uid\x12\x10\n" +
+	"\x03gid\x18= \x01(\rR\x03gid*~\n" +
 	"\bFileType\x12\x19\n" +
 	"\x15FILE_TYPE_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eFILE_TYPE_FILE\x10\x01\x12\x17\n" +

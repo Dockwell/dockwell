@@ -63,7 +63,9 @@ export function MorePage() {
         <Link to="/variables" className="more-row">
           <RowBody icon="key" label={t`Variables and secrets`} />
         </Link>
-        {section("websites")}
+        <Link to="/websites" className="more-row">
+          <RowBody icon="browser" label={t`Websites`} />
+        </Link>
         <Link to="/databases" className="more-row">
           <RowBody icon="database" label={t`Databases`} />
         </Link>

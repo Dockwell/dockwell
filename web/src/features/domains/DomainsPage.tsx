@@ -50,6 +50,7 @@ import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { useWebsiteOfEnvironment } from "../websites/website";
 // The add sheet's form and the list's filters are the apps' own, and this page can be where you land.
 import "../apps/Apps.css";
 import "./Domains.css";
@@ -84,6 +85,8 @@ interface Row {
   silent: boolean;
   /** The app it reaches, by its environment, as a name means something only in one. */
   service: ServiceInfo | undefined;
+  /** The website it is, by its ID, when what it reaches is a website's own (ADR 0039). */
+  website: string | undefined;
   /** The first of its domain here, which says once what's wrong with all of them. */
   first: boolean;
 }
@@ -111,6 +114,7 @@ export function DomainsPage({
   const phone = useMediaQuery(PHONE_QUERY);
   const domains = useAllDomains();
   const services = useServices();
+  const websiteOf = useWebsiteOfEnvironment();
   const { reconnecting } = useServicesWatch();
   const { servers, fleet } = useFleetView();
   const places = usePlaces();
@@ -133,7 +137,8 @@ export function DomainsPage({
   const all = domains.last?.domains;
   const sayWhere = places.showsEnvironment || places.severalProjects;
   const apps = useMemo(() => {
-    const out = services.data ?? [];
+    // A website's own services get their domain from Websites.
+    const out = (services.data ?? []).filter((s) => !websiteOf?.(environmentOf(s)));
     const several = new Set(out.map(environmentOf)).size > 1;
     return out
       .map((service): AppChoice => {
@@ -141,7 +146,7 @@ export function DomainsPage({
         return { service, label: several ? `${name} (${places.label(environmentOf(service))})` : name };
       })
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [services.data, places.label]);
+  }, [services.data, places.label, websiteOf]);
   const now = useControlPlaneNow(NOW_EVERY_MS);
   const silentOf = useSilence(now);
   const standings = (all ?? []).map((domain): Standing => {
@@ -184,12 +189,16 @@ export function DomainsPage({
       ];
       if (!said.join(" ").toLowerCase().includes(wanted)) continue;
       const service = byName.get(appKey(domain.environmentId, route.service));
-      rows.push({ id: route.id, domain, route, look, silent, service, first });
+      const website = websiteOf?.(domain.environmentId)?.id;
+      rows.push({ id: route.id, domain, route, look, silent, service, website, first });
       first = false;
     }
   }
 
-  const open = (id: string) => void navigate({ to: "/apps/$serviceId", params: { serviceId: id } });
+  const open = (row: Row) => {
+    if (row.website) void navigate({ to: "/websites/$websiteId", params: { websiteId: row.website } });
+    else if (row.service) void navigate({ to: "/apps/$serviceId", params: { serviceId: row.service.id } });
+  };
   const clear = () => {
     setTyped("");
     onSearch?.({});
@@ -523,8 +532,17 @@ function Reaches({
         className={cx("domains-reaches-mark", row.route.service ? "is-app" : "is-server")}
       />
       <span className="dw-cell">
-        {row.service ? (
+        {row.website ? (
           // The row takes the keyboard; the link is for a new tab, and for screen readers' lists of links.
+          <Link
+            to="/websites/$websiteId"
+            params={{ websiteId: row.website }}
+            className="dw-cell-title apps-name domains-target"
+            tabIndex={-1}
+          >
+            {target}
+          </Link>
+        ) : row.service ? (
           <Link
             to="/apps/$serviceId"
             params={{ serviceId: row.service.id }}
@@ -564,7 +582,7 @@ function DomainsTable({
   fleet: boolean;
   environment: ((id: string) => string) | undefined;
   onMoveBehind: (row: Row) => void;
-  onOpen: (id: string) => void;
+  onOpen: (row: Row) => void;
 }) {
   const { t } = useLingui();
   const columns = useMemo<TableColumn<Row>[]>(
@@ -598,9 +616,9 @@ function DomainsTable({
       columns={columns}
       rows={rows}
       caption={t`Domains`}
-      rowClickable={(row) => row.service !== undefined}
+      rowClickable={(row) => row.service !== undefined || row.website !== undefined}
       onRowClick={(row) => {
-        if (row.service) onOpen(row.service.id);
+        if (row.service || row.website) onOpen(row);
       }}
     />
   );
@@ -669,14 +687,18 @@ function PhoneRow({
           </span>
         ) : null}
       </span>
-      {row.service ? <Icon name="chevron-right" size={16} className="apps-phone-chevron" /> : <span />}
+      {row.service || row.website ? <Icon name="chevron-right" size={16} className="apps-phone-chevron" /> : <span />}
     </>
   );
   // The note can hold a link of its own, so it's beside the row's rather than in it.
   return (
     <div>
       <div className="domains-phone-row">
-        {row.service ? (
+        {row.website ? (
+          <Link to="/websites/$websiteId" params={{ websiteId: row.website }} className="apps-phone-row">
+            {body}
+          </Link>
+        ) : row.service ? (
           <Link to="/apps/$serviceId" params={{ serviceId: row.service.id }} className="apps-phone-row">
             {body}
           </Link>

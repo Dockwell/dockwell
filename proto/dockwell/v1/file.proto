@@ -72,6 +72,11 @@ message ListFilesRequest {
   string server_id = 1;
   // The directory's absolute path, without . or .. in it, such as "/var/www".
   string path = 2;
+  // Says a form is looking whether a folder is there as you type, such as a
+  // website's: a listing it can't have goes on no Activity, as it's a guess at a
+  // path, not a person opening one. Files never sets it. Numbered apart, as open
+  // work adds to this message.
+  bool lookup = 60;
 }
 
 // ListFilesResponse is what a directory holds.
@@ -190,4 +195,9 @@ message FileEntry {
   bool refused = 10;
   // True when its name isn't UTF-8, so name can't reach it.
   bool unreadable_name = 11;
+  // The user and the group that own it, by number, whatever names the server has
+  // for them, as what runs in a container goes by the number. Numbered apart, as
+  // open work adds to this message.
+  uint32 uid = 60;
+  uint32 gid = 61;
 }

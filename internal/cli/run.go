@@ -98,6 +98,7 @@ func lookups(cfg *agent.Config, stdio IO, g *globalFlags) {
 	cfg.NoLookup = g.noStun
 	if isSet(stdio.Getenv(envTest)) {
 		cfg.NoLookup, cfg.Collector.Metadata = true, collect.ClosedMetadata
+		cfg.Probe = agent.LoopbackProbe
 	}
 	cfg.Collector.Outbound = func(ctx context.Context) string {
 		return ingress.OwnAddress(collect.OutboundAddress(ctx))
@@ -186,7 +187,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		},
 	}
 	archive := &logs.Archive{Dir: filepath.Join(dir.Agent(), "kept-logs"), Client: client, Logger: logger}
-	containers := container.Driver{Runtime: &container.Docker{Client: client, Deleted: kept, Logger: logger, Paths: paths, Ingress: routes, Logs: archive}}
+	containers := container.Driver{Runtime: &container.Docker{Client: client, Deleted: kept, Logger: logger, Paths: paths, Folders: container.HostFolders{}, Ingress: routes, Logs: archive}}
 	volumes := &volume.Docker{Client: client, Kept: kept, Paths: paths}
 	go volumes.KeepPruned(ctx, logger)
 	backups := &backup.Runner{Client: client, Root: filepath.Join(dir.Agent(), "backups"), Paths: paths, Logger: logger}

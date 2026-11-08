@@ -19,6 +19,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -63,6 +64,15 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 		driftTable(w, m)
 	case *dockwellv1.ListLogSourcesResponse:
 		sourcesTable(w, m, now)
+	case *dockwellv1.ListWebsitesResponse:
+		websitesTable(w, m.GetWebsites(), now)
+	case *dockwellv1.PreviewWebsiteResponse:
+		// Where it sends, then the config as its web server runs it, untouched.
+		fmt.Fprintln(w, "Sends to "+sendsTo(m.GetWebsite()))
+		if m.GetConfig() != "" {
+			fmt.Fprintln(w)
+			_, _ = io.WriteString(w, m.GetConfig())
+		}
 	case *dockwellv1.ExportComposeResponse:
 		// The file alone, so it pipes into docker compose -f -. Its comments
 		// say which variables it leaves out.
@@ -1402,3 +1412,28 @@ var finalSteps = []dockwellv1.StepState{
 }
 
 func finalStep(s dockwellv1.StepState) bool { return slices.Contains(finalSteps, s) }
+
+func websitesTable(w io.Writer, sites []*dockwellv1.WebsiteInfo, now time.Time) {
+	if len(sites) == 0 {
+		fmt.Fprintln(w, "No websites yet. Add one with dockwell websites create.")
+		return
+	}
+	tw := newTable(w)
+	row(tw, "Domain", "Sends to", "Server", "Changed")
+	for _, s := range sites {
+		row(tw, orDash(s.GetDomain()), sendsTo(s.GetSpec()), orDash(s.GetServerName()), orDash(when(s.GetUpdateTime(), now)))
+	}
+	_ = tw.Flush()
+}
+
+// sendsTo is where a website sends its requests, in a few words.
+func sendsTo(w *resourcev1.Website) string {
+	p := w.GetProxy()
+	switch {
+	case p.GetPort() != 0:
+		return fmt.Sprintf("port %d on the server", p.GetPort())
+	case p.GetUrl() != "":
+		return p.GetUrl()
+	}
+	return "-"
+}

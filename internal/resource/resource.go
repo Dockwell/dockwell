@@ -1010,6 +1010,15 @@ type Keeper interface {
 	Keep(current, desired proto.Message) (Kept, error)
 }
 
+// ChangeChecker is a kind that checks an edit against the rest of its change, as a
+// website's project changes what it serves only with the route that serves it.
+// current is nil for a resource the change makes, and others are what the change's
+// other edits are of. Like Keep, it's for what a caller wrote, so adopting drift and
+// putting back a revision don't ask it.
+type ChangeChecker interface {
+	CheckInChange(current, desired proto.Message, others []Ref) error
+}
+
 // NewChecker is a kind that asks more of a new resource than Validate can of an edit,
 // where what an edit leaves out comes from what's there (Keeper).
 type NewChecker interface {

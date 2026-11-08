@@ -193,6 +193,11 @@ message Mount {
   // shares what it holds, so mounting one is host access, which a person approves.
   // A container on its own names Docker's volumes already, so it takes none.
   bool external = 6;
+  // For a server path: when it isn't there, the folder Dockwell makes for it
+  // before the container starts, owned by this user and group, as "uid:gid", such
+  // as "82:82", with mode 0755. Docker would make it root's. A folder that's there
+  // keeps its owner. Numbered apart, as open work adds to this message.
+  string make_owner = 60;
 }
 
 // Relabel is how Docker labels a server path for SELinux when it mounts
@@ -327,6 +332,87 @@ message Project {
   // The catalog entry this project was installed from. Unset for any other
   // project. See docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md.
   CatalogPin catalog = 2;
+  // What this project serves, for a project made as a website. Dockwell writes
+  // the route and the services of its environment from it. Unset for any other
+  // project. See docs/adr/0039-websites-as-projects-of-their-own.md.
+  Website website = 3;
+}
+
+// Website is what a website serves at its domain, as a person chose it.
+message Website {
+  // What it serves: one of these.
+  oneof serves {
+    // Sends its requests on to a URL, or to a port on the server.
+    WebsiteProxy proxy = 1;
+    // Serves the files in a folder on the server, as they are.
+    WebsiteFolder folder = 2;
+    // Runs the PHP in a folder on the server, and serves its other files.
+    WebsitePhp php = 3;
+  }
+}
+
+// WebsitePhp runs the PHP in a folder on the server with PHP-FPM, of the version
+// chosen, and serves its other files as they are. Its web server mounts the folder
+// read-only and PHP read-write, so a person approves it.
+message WebsitePhp {
+  // The folder, as an absolute path on the server, such as "/var/www/shop".
+  string root = 1;
+  // The PHP version, such as "8.3": one Dockwell offers, as ListWebsiteRuntimes
+  // says. Empty takes the newest.
+  string version = 2;
+  // The files a request for a folder gets, the first there is. Empty takes
+  // index.php, then index.html.
+  repeated string index = 3;
+  // Answers a path with no file of its own with a 404, rather than sending it to
+  // the folder's index.php, as WordPress, Laravel and most PHP apps want.
+  bool files_only = 4;
+  // The most a request may send, in MiB, as PHP's M counts, such as an upload: what
+  // PHP takes and what the web server lets through. 0 takes 64.
+  uint32 upload_limit_mb = 5;
+  // Who PHP runs as, as "uid:gid", such as "1000:1000": the folder's owner, so PHP
+  // can write in it, and what it writes, such as uploads, keeps its owner. A number
+  // alone is taken for both. Empty is www-data, "82:82". Never root's, nor root's
+  // group. PHP-FPM's master runs as it too. A folder that isn't there is made as
+  // its.
+  string user = 6;
+}
+
+// WebsiteFolder serves the files in a folder on the server, as they are. Its web
+// server mounts the folder read-only, so a person approves it, and edits to the
+// files show at once, with nothing to deploy.
+message WebsiteFolder {
+  // The folder, as an absolute path on the server, such as "/var/www/blog". Its
+  // web server reads it as nobody's user, so what it serves must be readable by
+  // everyone. Docker makes a folder that isn't there, empty and owned by root.
+  string root = 1;
+  // The files a request for a folder gets, the first there is, such as
+  // "index.html". Empty takes index.html, then index.htm.
+  repeated string index = 2;
+  // Answers a path with no file of its own with the index at the folder's top, as
+  // an app that routes in the browser needs, rather than with a 404.
+  bool single_page_app = 3;
+  // Who owns the folder Dockwell makes when it isn't there, as "uid:gid", such as
+  // "1000:1000", so you can put the site's files in it as yourself. Empty leaves
+  // it to Docker, which makes it root's. A folder that's there keeps its owner.
+  string owner = 4;
+}
+
+// WebsiteProxy sends a website's requests on, to a URL or to a port on the
+// server itself. Give one of url and port.
+message WebsiteProxy {
+  // Where to send them, such as "https://backend.example.com" or
+  // "http://10.0.0.5:8080/app": http or https, a host, and a port and a path if
+  // it needs them, with no query. A path goes in front of each request's own.
+  // It's reached from a container, as any app reaches the internet, so it
+  // can't be the server's own loopback: give port for that.
+  string url = 1;
+  // A port on the server itself, such as 3000, in place of url. Whatever listens
+  // there sees every visitor as local, so a person approves it.
+  uint32 port = 2;
+  // Sends the url's own host as the Host header, in place of the website's
+  // domain, as a target that serves several names needs, such as another site
+  // over HTTPS. For a url only.
+  bool send_target_host = 3;
 }
 
 // CatalogPin is what an install is pinned to: updates come from there, and each

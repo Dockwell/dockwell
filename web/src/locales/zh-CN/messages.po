@@ -691,23 +691,11 @@ msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
 msgid "A route runs on one server, as its certificate comes to the one its DNS points at."
 msgstr "一条路由只在一台服务器上运行，因为证书只会发到 DNS 指向的那台服务器。"
 
-msgid "A tunnel on this server"
-msgstr "此服务器上的隧道"
-
 msgid "Add a domain"
 msgstr "添加域名"
 
 msgid "Add a domain to {name}"
 msgstr "为 {name} 添加域名"
-
-msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
-msgstr "地址或范围，例如隧道在桥接网络上时的 10.77.0.0/24。该代理需要自己的网络，而不是 Docker 默认的 bridge。多个之间用逗号分隔。"
-
-msgid "Another proxy"
-msgstr "其他代理"
-
-msgid "Anyone who can reach this server"
-msgstr "任何能访问此服务器的人"
 
 msgid "App"
 msgstr "应用"
@@ -718,23 +706,11 @@ msgstr "选择应用"
 msgid "Choose the app this domain reaches."
 msgstr "请选择这个域名要到达的应用。"
 
-msgid "Cloudflare connects to this server's port 80."
-msgstr "Cloudflare 连接此服务器的 80 端口。"
-
-msgid "Cloudflare's proxy"
-msgstr "Cloudflare 代理"
-
 msgid "Domain"
 msgstr "域名"
 
 msgid "Edit and try again"
 msgstr "修改后重试"
-
-msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
-msgstr "用于前面没有任何代理的私有网络。否则，发往服务器自身地址的请求会得到 404。"
-
-msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
-msgstr "它会通过明文 HTTP 响应任何能访问 80 端口的人，绕过前面的任何代理。你需要在计划中批准此项。"
 
 msgid "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
 msgstr "它在服务器自身的网络上，因此填写它在那里监听的端口，例如 8080。80 端口由代理占用。"
@@ -778,29 +754,11 @@ msgstr "服务器上的端口"
 msgid "Send {wanted} to {name}"
 msgstr "将 {wanted} 发送到 {name}"
 
-msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-msgstr "例如在服务器自身网络上的 cloudflared。你的应用能读取访问者的地址和 https。桥接网络上的隧道在这里算作其他代理，用该网络的范围来指定。"
-
-msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
-msgstr "这段路径在 Cloudflare 与此服务器之间以未加密方式经过公共互联网。它需要 Cloudflare 的 Flexible 模式，而隧道是更好的方式。"
-
-msgid "This server takes no certificate, and traffic reaches it unencrypted."
-msgstr "此服务器不使用证书，流量以未加密方式到达。"
-
 msgid "Use a port from 1 to 65535."
 msgstr "请使用 1 到 65535 之间的端口。"
 
-msgid "What connects to this server"
-msgstr "连接此服务器的来源"
-
 msgid "What the app listens on, such as 80."
 msgstr "应用监听的端口，例如 80。"
-
-msgid "What's in front"
-msgstr "前面是什么"
-
-msgid "You name what connects to this server."
-msgstr "由你写明连接此服务器的来源。"
 
 msgid "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {leavesApp}."
 msgstr "{typed} 目前指向 {leavesApp}。继续操作会将它移到这里，并离开 {leavesApp}。"
@@ -1617,6 +1575,51 @@ msgstr "此应用"
 
 msgid "What to export"
 msgstr "要导出的内容"
+
+msgid "A tunnel on this server"
+msgstr "此服务器上的隧道"
+
+msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
+msgstr "地址或范围，例如隧道在桥接网络上时的 10.77.0.0/24。该代理需要自己的网络，而不是 Docker 默认的 bridge。多个之间用逗号分隔。"
+
+msgid "Another proxy"
+msgstr "其他代理"
+
+msgid "Anyone who can reach this server"
+msgstr "任何能访问此服务器的人"
+
+msgid "Cloudflare connects to this server's port 80."
+msgstr "Cloudflare 连接此服务器的 80 端口。"
+
+msgid "Cloudflare's proxy"
+msgstr "Cloudflare 代理"
+
+msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
+msgstr "用于前面没有任何代理的私有网络。否则，发往服务器自身地址的请求会得到 404。"
+
+msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
+msgstr "它会通过明文 HTTP 响应任何能访问 80 端口的人，绕过前面的任何代理。你需要在计划中批准此项。"
+
+msgid "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+msgstr "例如在服务器自身网络上运行的 cloudflared。网站转发到的目标能读取访问者的地址和 https。在桥接网络上的隧道在这里算作其他代理，按该网络的范围填写。"
+
+msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+msgstr "例如在服务器自身网络上的 cloudflared。你的应用能读取访问者的地址和 https。桥接网络上的隧道在这里算作其他代理，用该网络的范围来指定。"
+
+msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
+msgstr "这段路径在 Cloudflare 与此服务器之间以未加密方式经过公共互联网。它需要 Cloudflare 的 Flexible 模式，而隧道是更好的方式。"
+
+msgid "This server takes no certificate, and traffic reaches it unencrypted."
+msgstr "此服务器不使用证书，流量以未加密方式到达。"
+
+msgid "What connects to this server"
+msgstr "连接此服务器的来源"
+
+msgid "What's in front"
+msgstr "前面是什么"
+
+msgid "You name what connects to this server."
+msgstr "由你写明连接此服务器的来源。"
 
 msgid "Checking"
 msgstr "正在检查"
@@ -6774,6 +6777,9 @@ msgstr "打开服务器列表"
 msgid "Open the variables and secrets of {name}"
 msgstr "打开 {name} 的变量和密钥"
 
+msgid "Open the websites"
+msgstr "打开网站"
+
 msgid "Open your profile and security settings"
 msgstr "打开你的个人资料和安全设置"
 
@@ -7359,6 +7365,586 @@ msgstr "作为 {0}"
 
 msgid "value"
 msgstr "值"
+
+msgid "A PHP site, such as WordPress: PHP-FPM of the version you choose runs its code, and its other files are served as they are. You approve the folder in the plan."
+msgstr "PHP 网站，例如 WordPress：由你选择版本的 PHP-FPM 运行它的代码，其他文件原样提供。你需要在计划中批准该文件夹。"
+
+msgid "A static site: the files in a folder on this server, as they are. You approve the folder in the plan."
+msgstr "静态网站：原样提供此服务器上某个文件夹中的文件。你需要在计划中批准该文件夹。"
+
+msgid "A website runs on one server, as its certificate comes to the one its DNS points at."
+msgstr "网站运行在一台服务器上，因为证书只会颁发给其 DNS 指向的那一台。"
+
+msgid "Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on."
+msgstr "另一个站点，或你网络中的某个地址，例如 http://10.0.0.5:8080。由它自己的小型 Web 服务器转发每个请求。"
+
+msgid "Choose a server"
+msgstr "选择服务器"
+
+msgid "Choose the server it runs on."
+msgstr "请选择它运行的服务器。"
+
+msgid "Name the domain, such as blog.example.com."
+msgstr "请填写域名，例如 blog.example.com。"
+
+msgid "New website"
+msgstr "新建网站"
+
+msgid "People reach it at its domain, over HTTPS"
+msgstr "访问者通过 HTTPS 在其域名上访问它"
+
+msgid "People reach it at its domain, over plain HTTP"
+msgstr "访问者通过明文 HTTP 在其域名上访问它"
+
+msgid "People reach it at its domain, through what's in front of this server"
+msgstr "访问者经由此服务器前面的隧道或代理在其域名上访问它"
+
+msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
+msgstr "将它的 DNS 指向此服务器，之前或之后均可。指向后证书会自动签发。"
+
+msgid "Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan."
+msgstr "服务器本身上监听的程序，例如端口 3000。它会把每个访问者都视为本机，所以需要你在计划中批准。"
+
+msgid "What it serves"
+msgstr "提供的内容"
+
+#. placeholder {0}: runtime.version
+msgid "<0>{name}</0> runs an older build of {0}"
+msgstr "<0>{name}</0> 运行的是 {0} 的旧构建"
+
+msgid "Build"
+msgstr "构建"
+
+msgid "Extensions"
+msgstr "扩展"
+
+#. placeholder {0}: runtime.version
+msgid "New website on {0}"
+msgstr "用 {0} 新建网站"
+
+msgid "No website yet"
+msgstr "还没有网站"
+
+msgid "Node.js, Python and other languages run as apps, from an image or from the <0>Catalog</0>, with a domain of their own."
+msgstr "Node.js、Python 等其他语言以应用的形式运行，来自镜像或<0>应用目录</0>，并有自己的域名。"
+
+msgid "Not used"
+msgstr "未使用"
+
+msgid "Runtimes"
+msgstr "运行环境"
+
+#. placeholder {0}: runtime.release
+msgid "Update to {0}"
+msgstr "更新到 {0}"
+
+#. placeholder {0}: runtime.release
+msgid "Update {name}'s PHP to {0}"
+msgstr "将 {name} 的 PHP 更新到 {0}"
+
+#. placeholder {0}: sites.length
+msgid "{0, plural, one {# website} other {# websites}}"
+msgstr "{0, plural, other {# 个网站}}"
+
+msgid "{extra, plural, one {and # more} other {and # more}}"
+msgstr "{extra, plural, other {以及另外 # 个}}"
+
+msgid "{inUse, plural, one {# in use · each PHP website runs its own} other {# in use · each PHP website runs its own}}"
+msgstr "{inUse, plural, other {# 个正在使用 · 每个 PHP 网站各自运行一个}}"
+
+msgid "{more, plural, one {and # more} other {and # more}}"
+msgstr "{more, plural, other {以及另外 # 个}}"
+
+msgid "Can't reach {host}"
+msgstr "无法访问 {host}"
+
+msgid "No domain"
+msgstr "没有域名"
+
+msgid "Not serving"
+msgstr "未在服务"
+
+#. placeholder {0}: proxy.port
+msgid "Nothing listens on port {0}"
+msgstr "端口 {0} 上没有任何程序在监听"
+
+msgid "PHP stopped · pages answer 502"
+msgstr "PHP 已停止 · 页面返回 502"
+
+msgid "certificate expired"
+msgstr "证书已过期"
+
+msgid "certificate failed"
+msgstr "证书获取失败"
+
+msgid "certificate on its way"
+msgstr "证书正在签发"
+
+msgid "certificate renewal failing"
+msgstr "证书续期失败"
+
+msgid "certificate valid"
+msgstr "证书有效"
+
+msgid "plain HTTP"
+msgstr "明文 HTTP"
+
+msgid "{days, plural, one {# day left} other {# days left}}"
+msgstr "{days, plural, other {还剩 # 天}}"
+
+msgid "{days, plural, one {certificate valid for # day} other {certificate valid for # days}}"
+msgstr "{days, plural, other {证书有效期还有 # 天}}"
+
+msgid "{host} answers {code}"
+msgstr "{host} 返回 {code}"
+
+msgid "Certificate"
+msgstr "证书"
+
+msgid "Issued"
+msgstr "已签发"
+
+msgid "It comes from Let's Encrypt over HTTP-01 or TLS-ALPN-01 once DNS points here, and renews by itself."
+msgstr "DNS 指向这里后，它会通过 HTTP-01 或 TLS-ALPN-01 从 Let's Encrypt 获取，并自动续期。"
+
+msgid "It says"
+msgstr "它说"
+
+msgid "No domain, so no certificate"
+msgstr "没有域名，因此没有证书"
+
+msgid "No route gives this website a domain now. Delete the website, and add it again with one."
+msgstr "目前没有路由为此网站提供域名。请删除这个网站，再带上域名重新添加。"
+
+msgid "None, as TLS ends in front"
+msgstr "无，TLS 在前端终止"
+
+msgid "Not known yet"
+msgstr "尚不清楚"
+
+msgid "On its way"
+msgstr "正在签发"
+
+msgid "TLS ends before this server, at a tunnel or a proxy in front, so it asks for no certificate here."
+msgstr "TLS 在此服务器之前、由前面的隧道或代理终止，所以这里不申请证书。"
+
+#. placeholder {0}: server.serverName
+msgid "{state}, as {0} last said"
+msgstr "{state}（{0} 上次报告）"
+
+msgid "A small web server of its own sends each request on"
+msgstr "由它自己的小型 Web 服务器转发每个请求"
+
+msgid "Copy the config"
+msgstr "复制配置"
+
+msgid "Delete this website"
+msgstr "删除此网站"
+
+msgid "Delete website"
+msgstr "删除网站"
+
+msgid "Differs"
+msgstr "不一致"
+
+msgid "Go to the websites"
+msgstr "前往网站"
+
+msgid "Its route and its web server go, and the folder stays on the server as it is. Undo from Activity brings them back."
+msgstr "它的路由和 Web 服务器会被删除，文件夹原样保留在服务器上。在“动态”中撤销即可恢复。"
+
+msgid "Its route and its web server go. Undo from Activity brings them back."
+msgstr "它的路由和 Web 服务器会被删除。在“动态”中撤销即可恢复。"
+
+msgid "Its route goes, and what listens on the port keeps running. Undo from Activity brings it back."
+msgstr "它的路由会被删除，端口上监听的程序继续运行。在“动态”中撤销即可恢复。"
+
+msgid "Its route, its web server and PHP go, and the folder stays on the server with what PHP wrote there. Undo from Activity brings them back."
+msgstr "它的路由、Web 服务器和 PHP 会被删除，文件夹连同 PHP 写入的内容保留在服务器上。在“动态”中撤销即可恢复。"
+
+msgid "Its web server"
+msgstr "它的 Web 服务器"
+
+msgid "Its web server serves the files as they are, and an edit shows at once"
+msgstr "它的 Web 服务器原样提供这些文件，修改会立即生效"
+
+msgid "No route gives it a domain now"
+msgstr "目前没有路由为它提供域名"
+
+msgid "Not valid"
+msgstr "无效"
+
+msgid "Open in Domains"
+msgstr "在“域名”中打开"
+
+msgid "Over HTTPS, with its own certificate"
+msgstr "通过 HTTPS，使用它自己的证书"
+
+msgid "Over plain HTTP, to anyone who reaches the server"
+msgstr "通过明文 HTTP，任何能访问到服务器的人都可以访问"
+
+msgid "PHP-FPM runs its code beside a web server that serves its other files"
+msgstr "PHP-FPM 运行它的代码，旁边的 Web 服务器提供其他文件"
+
+msgid "Reached"
+msgstr "访问方式"
+
+msgid "Route"
+msgstr "路由"
+
+msgid "Sends to"
+msgstr "转发到"
+
+msgid "Serves"
+msgstr "提供内容"
+
+msgid "The ingress sends each request straight to the port"
+msgstr "入口代理将每个请求直接发送到该端口"
+
+msgid "The ingress sends each request straight to the port, with nothing of its own between, so there's no config here to show. Whatever listens there sees every visitor as local."
+msgstr "入口代理将每个请求直接发送到该端口，中间没有它自己的服务器，所以这里没有配置可显示。在那里监听的程序会把每个访问者都视为本机。"
+
+msgid "The web server's config"
+msgstr "Web 服务器的配置"
+
+msgid "Through a tunnel or a proxy in front, which ends TLS"
+msgstr "通过前面终止 TLS 的隧道或代理"
+
+#. placeholder {0}: servesWords[was.serves]
+#. placeholder {0}: was.index
+#. placeholder {0}: was.root
+msgid "Was {0}"
+msgstr "原为 {0}"
+
+msgid "its web server runs a config these settings don't write, as a change edited it outside Websites. Review plan puts them back."
+msgstr "它的 Web 服务器运行的配置与这些设置不符，因为有变更在“网站”之外修改了它。审查计划可将其恢复。"
+
+msgid "written by Dockwell from these settings"
+msgstr "由 Dockwell 根据这些设置生成"
+
+msgid "{changes, plural, one {# change} other {# changes}}"
+msgstr "{changes, plural, other {# 处更改}}"
+
+#. placeholder {0}: shut.name
+#. placeholder {1}: shut.mode
+msgid "<0>{0}</0> is <1>{1}</1>, closed to everyone but its owner, so the web server can't read it. Run <2>chmod o+r</2> on it, and on the folder's other files."
+msgstr "<0>{0}</0> 的权限是 <1>{1}</1>，只有所有者可读，所以 Web 服务器读不到它。请对它以及该文件夹中的其他文件运行 <2>chmod o+r</2>。"
+
+msgid "<0>{path}</0> holds <1>index.php</1>. Files in a folder run no script, and hide every one, as its source can hold passwords, so those addresses answer 404."
+msgstr "<0>{path}</0> 中有 <1>index.php</1>。文件夹中的文件不会运行任何脚本，并且会隐藏所有脚本，因为脚本源码中可能有密码，所以这些地址会返回 404。"
+
+msgid "<0>{path}</0> is a file, not a folder. Give the folder that holds the site's files."
+msgstr "<0>{path}</0> 是文件，不是文件夹。请填写存放网站文件的文件夹。"
+
+msgid "<0>{path}</0> is root's, and PHP never runs as root, so it can't write there: uploads, caches and updates fail. Run <1>sudo chown -R {user} {path}</1>, or give the folder to the user PHP runs as."
+msgstr "<0>{path}</0> 归 root 所有，而 PHP 从不以 root 运行，所以无法在其中写入：上传、缓存和更新都会失败。请运行 <1>sudo chown -R {user} {path}</1>，或把文件夹交给 PHP 运行时所用的用户。"
+
+msgid "A URL"
+msgstr "URL"
+
+msgid "A port on this server"
+msgstr "此服务器上的端口"
+
+msgid "Answers a path with no file of its own with the index, as an app that routes in the browser needs. Off, it gets a 404."
+msgstr "没有对应文件的路径用首页文件响应，在浏览器中处理路由的应用需要这样。关闭时返回 404。"
+
+msgid "As WordPress, Laravel and most PHP apps want, for their own addresses"
+msgstr "WordPress、Laravel 等大多数 PHP 应用需要这样处理自己的地址"
+
+msgid "Files in a folder"
+msgstr "文件夹中的文件"
+
+msgid "Folder"
+msgstr "文件夹"
+
+msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
+msgstr "适用于承载多个域名的站点，例如通过 HTTPS 访问的另一个站点。关闭时，它收到的是此网站的域名。"
+
+msgid "Gets a 404"
+msgstr "返回 404"
+
+msgid "Give a number of MiB, such as 64."
+msgstr "请填写 MiB 数，例如 64。"
+
+msgid "Give the URL to send to, such as https://backend.example.com."
+msgstr "请填写要转发到的 URL，例如 https://backend.example.com。"
+
+msgid "Give the folder from the top, starting with /, such as /var/www/blog."
+msgstr "请从根目录写起，以 / 开头，例如 /var/www/blog。"
+
+msgid "Give the folder that holds its files, such as /var/www/blog."
+msgstr "请填写存放网站文件的文件夹，例如 /var/www/blog。"
+
+msgid "Give the user by number, such as 1000."
+msgstr "请用数字填写用户，例如 1000。"
+
+msgid "Goes to index.php"
+msgstr "交给 index.php"
+
+msgid "Holds {found}."
+msgstr "包含 {found}。"
+
+msgid "Index files"
+msgstr "首页文件"
+
+msgid "Nothing is at <0>{path}</0> or <1>{up}</1> yet, so the folder would be made root's, and no one else could put the site's files in it. Make it first, as yours, with <2>sudo install -d -o $(id -u) -g $(id -g) {path}</2>."
+msgstr "<0>{path}</0> 和 <1>{up}</1> 都还不存在，所以文件夹会归 root 所有，其他人无法向其中放入网站文件。请先用 <2>sudo install -d -o $(id -u) -g $(id -g) {path}</2> 以你自己的身份创建它。"
+
+#. placeholder {0}: parent?.owner || owner
+msgid "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{0}</1> as <2>{up}</2> is, so put the site's files in it as that user, with scp or rsync."
+msgstr "<0>{path}</0> 还不存在。应用计划时 Dockwell 会创建它，所有者与 <2>{up}</2> 相同，为 <1>{0}</1>，请以该用户身份用 scp 或 rsync 放入网站文件。"
+
+msgid "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{user}</1>, the user PHP runs as, so its code can write there. Put the site's files in it with <2>sudo rsync</2>, then <3>sudo chown -R {user} {path}</3>."
+msgstr "<0>{path}</0> 还不存在。应用计划时 Dockwell 会创建它，所有者为 PHP 运行时所用的用户 <1>{user}</1>，以便其代码可以写入。请用 <2>sudo rsync</2> 放入网站文件，然后运行 <3>sudo chown -R {user} {path}</3>。"
+
+msgid "On the server. Its web server reads it as nobody's user, so what's in it must be readable by everyone."
+msgstr "位于服务器上。它的 Web 服务器以 nobody 用户读取，所以其中的内容必须所有人可读。"
+
+msgid "On the server. PHP reads and writes it as the user below, and its web server reads it as nobody's user, so its files must be readable by everyone."
+msgstr "位于服务器上。PHP 以下面的用户读写它，它的 Web 服务器以 nobody 用户读取，所以其中的文件必须所有人可读。"
+
+msgid "Only what's in the folder answers"
+msgstr "只有文件夹中的文件会响应"
+
+msgid "Open in Files"
+msgstr "在“文件”中打开"
+
+msgid "PHP"
+msgstr "PHP"
+
+#. placeholder {0}: directory.mode
+msgid "PHP runs as <0>{user}</0>, and <1>{path}</1> is <2>{theirs}</2>'s, <3>{0}</3>, so PHP can't write there: uploads, caches and updates fail. Run it as <4>{theirs}</4>, or run <5>sudo chown -R {user} {path}</5>."
+msgstr "PHP 以 <0>{user}</0> 运行，而 <1>{path}</1> 归 <2>{theirs}</2> 所有，权限为 <3>{0}</3>，所以 PHP 无法在其中写入：上传、缓存和更新都会失败。请以 <4>{theirs}</4> 运行，或运行 <5>sudo chown -R {user} {path}</5>。"
+
+msgid "PHP version"
+msgstr "PHP 版本"
+
+#. placeholder {0}: php.version
+#. placeholder {0}: r.version
+msgid "PHP {0}"
+msgstr "PHP {0}"
+
+#. placeholder {0}: r.version
+#. placeholder {1}: r.release
+msgid "PHP {0} · {1}"
+msgstr "PHP {0} · {1}"
+
+msgid "Runs as"
+msgstr "运行用户"
+
+msgid "Runs in PHP-FPM of its own, so no other website moves with it"
+msgstr "在它自己的 PHP-FPM 中运行，其他网站不受影响"
+
+msgid "Send the URL's own name as Host"
+msgstr "将 URL 自己的主机名作为 Host 发送"
+
+msgid "Single-page app"
+msgstr "单页应用"
+
+msgid "Start it with http:// or https://, such as https://backend.example.com."
+msgstr "请以 http:// 或 https:// 开头，例如 https://backend.example.com。"
+
+msgid "The first of these in a folder answers for it."
+msgstr "文件夹中按顺序找到的第一个文件用来响应该文件夹。"
+
+msgid "The first of these in a folder answers for it. A script among them runs, and the rest are sent as they are."
+msgstr "文件夹中按顺序找到的第一个文件用来响应该文件夹。其中的脚本会被执行，其余文件原样发送。"
+
+msgid "The folder owner's user and group, as uid:gid, so PHP can write there, and what it writes keeps its owner. stat -c %u:%g on the folder says it. Empty runs it as www-data, 82:82. Never root."
+msgstr "文件夹所有者的用户和组，写作 uid:gid，以便 PHP 可以在其中写入，且写入的内容保持该所有者。对文件夹运行 stat -c %u:%g 可查看。留空则以 www-data（82:82）运行。绝不以 root 运行。"
+
+msgid "The most a request may send, such as a file uploaded, in MiB, as PHP counts it. Empty takes 64."
+msgstr "单个请求最多可发送的大小，例如上传的文件，单位为 MiB，与 PHP 的计法相同。留空则为 64。"
+
+msgid "The web server reads the folder as nobody's user, and <0>{path}</0> is <1>{mode}</1>, closed to everyone else, so it answers 403. Run <2>chmod o+x {path}</2>, and <3>o+r</3> on its files."
+msgstr "Web 服务器以 nobody 用户读取该文件夹，而 <0>{path}</0> 的权限为 <1>{mode}</1>，对其他人关闭，所以会返回 403。请运行 <2>chmod o+x {path}</2>，并对其中的文件加上 <3>o+r</3>。"
+
+msgid "There's no <0>{first}</0> in <1>{path}</1>, so its address answers 404 until there is. Add one, or name the index the site has."
+msgstr "<1>{path}</1> 中没有 <0>{first}</0>，所以在添加之前访问它会返回 404。请添加一个，或填写网站已有的首页文件。"
+
+msgid "URL"
+msgstr "URL"
+
+msgid "Upload limit"
+msgstr "上传上限"
+
+msgid "Was 82:82, www-data"
+msgstr "原为 82:82（www-data）"
+
+msgid "Was PHP {wasVersion} · only PHP restarts, with no downtime"
+msgstr "原为 PHP {wasVersion} · 只有 PHP 会重启，不会中断服务"
+
+msgid "Was a 404"
+msgstr "原为返回 404"
+
+msgid "Was index.html index.htm"
+msgstr "原为 index.html index.htm"
+
+msgid "Was index.php"
+msgstr "原为交给 index.php"
+
+msgid "Was index.php index.html"
+msgstr "原为 index.php index.html"
+
+#. placeholder {0}: Number(was.uploadMB) || 64
+msgid "Was {0} MiB"
+msgstr "原为 {0} MiB"
+
+#. placeholder {0}: was.port
+msgid "Was {0} · whatever listens there sees every visitor as local"
+msgstr "原为 {0} · 在那里监听的程序会把每个访问者都视为本机"
+
+msgid "What isn't a file"
+msgstr "不是文件的路径"
+
+msgid "What listens on the server itself, on 127.0.0.1 or every address. It sees every visitor as local, so you approve it in the plan."
+msgstr "服务器本身上监听的程序，监听 127.0.0.1 或所有地址。它会把每个访问者都视为本机，所以需要你在计划中批准。"
+
+msgid "With a path, such as /app, each request goes under it."
+msgstr "带路径时（例如 /app），每个请求都会放在该路径下。"
+
+msgid "{others, plural, one {Holds {found} and # more.} other {Holds {found} and # more.}}"
+msgstr "{others, plural, other {包含 {found} 以及另外 # 项。}}"
+
+msgid "Changed"
+msgstr "更改于"
+
+msgid "Loading its files"
+msgstr "正在加载文件"
+
+msgid "Mode"
+msgstr "权限"
+
+msgid "No folder of its own"
+msgstr "没有自己的文件夹"
+
+msgid "Put the site's files in it with scp or rsync. Files edits files that are there."
+msgstr "请用 scp 或 rsync 把网站文件放进去。“文件”只能编辑已有的文件。"
+
+msgid "The folder is empty"
+msgstr "文件夹是空的"
+
+msgid "This website sends its requests on, so it has no files here. What it sends to keeps its own."
+msgstr "这个网站把请求转发出去，所以这里没有它的文件。转发目标保存自己的文件。"
+
+msgid "What's in {root}"
+msgstr "{root} 中的内容"
+
+msgid "<0>{websiteId}</0> may have been deleted, or the link may be wrong."
+msgstr "<0>{websiteId}</0> 可能已被删除，或链接有误。"
+
+msgid "Can't load this website"
+msgstr "无法加载此网站"
+
+msgid "Dockwell can't read what this website serves"
+msgstr "Dockwell 无法读取此网站提供的内容"
+
+msgid "Edit files"
+msgstr "编辑文件"
+
+msgid "Loading the website"
+msgstr "正在加载网站"
+
+msgid "No website with this ID"
+msgstr "没有此 ID 的网站"
+
+#. placeholder {0}: site.spec?.serves.case === "php" ? site.spec.serves.value.version : ""
+msgid "PHP {0} from {root}"
+msgstr "来自 {root} 的 PHP {0}"
+
+msgid "Reverse proxy to port {port} on the server"
+msgstr "反向代理到服务器上的端口 {port}"
+
+msgid "Reverse proxy to {root}"
+msgstr "反向代理到 {root}"
+
+msgid "Static files from {root}"
+msgstr "来自 {root} 的静态文件"
+
+msgid "Visit site"
+msgstr "访问网站"
+
+msgid "Website"
+msgstr "网站"
+
+msgid "Website sections"
+msgstr "网站分区"
+
+msgid "Nothing here writes logs"
+msgstr "这里没有写日志的程序"
+
+msgid "The ingress sends this website straight to port {port} on the server, with nothing of its own between. What listens there keeps its own logs."
+msgstr "入口代理将此网站直接发送到服务器上的端口 {port}，中间没有它自己的服务器。在那里监听的程序自己保存日志。"
+
+msgid "This website has no web server of its own now, so there's nothing of its own to read."
+msgstr "此网站目前没有自己的 Web 服务器，因此没有它自己的日志可读。"
+
+msgid "Web server"
+msgstr "Web 服务器"
+
+msgid "Whose logs"
+msgstr "谁的日志"
+
+msgid "Change it"
+msgstr "修改"
+
+msgid "How it serves"
+msgstr "提供方式"
+
+msgid "Port"
+msgstr "端口"
+
+msgid "Sends each request straight to the port, with nothing of its own between"
+msgstr "将每个请求直接发送到该端口，中间没有它自己的服务器"
+
+msgid "The ingress"
+msgstr "入口代理"
+
+#. placeholder {0}: p.uploadLimitMb || 64
+msgid "{0} MiB"
+msgstr "{0} MiB"
+
+msgid "Can't load the websites"
+msgstr "无法加载网站"
+
+msgid "Loading websites"
+msgstr "正在加载网站"
+
+msgid "No websites yet"
+msgstr "还没有网站"
+
+msgid "PHP {version}"
+msgstr "PHP {version}"
+
+msgid "Port {port} on the server"
+msgstr "服务器上的端口 {port}"
+
+msgid "Reverse proxy"
+msgstr "反向代理"
+
+msgid "Send a domain to a URL, or to a port on your server. You review a plan before anything changes."
+msgstr "将域名转发到某个 URL，或你服务器上的某个端口。任何变更之前，你都会先审查计划。"
+
+msgid "Static files"
+msgstr "静态文件"
+
+msgid "Type"
+msgstr "类型"
+
+#. placeholder {0}: only.name
+msgid "Websites on {0}"
+msgstr "{0} 上的网站"
+
+msgid "What your websites serve isn't affected."
+msgstr "网站提供的服务不受影响。"
+
+#. placeholder {0}: only.name
+#. placeholder {1}: only.name
+msgid "{count, plural, one {# site on {0}} other {# sites on {1}}}"
+msgstr "{count, plural, other {{1} 上有 # 个网站}}"
+
+msgid "{count, plural, one {# site} other {# sites}}"
+msgstr "{count, plural, other {# 个网站}}"
 
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, other {# 天}}"

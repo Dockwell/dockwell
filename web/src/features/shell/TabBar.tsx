@@ -28,6 +28,7 @@ export function tabOf(pathname: string): Tab {
     segment === "catalog" ||
     segment === "domains" ||
     segment === "databases" ||
+    segment === "websites" ||
     (isUpcoming(segment) && UPCOMING[segment].inMore)
   )
     return "more";

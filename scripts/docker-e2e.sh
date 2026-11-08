@@ -2621,6 +2621,238 @@ set -e
 [[ "$status" != 0 ]] || fail "a route went through to Docker's API"
 [[ "$own" == *"Docker's API"* ]] || fail "the refusal of Docker's API says: $own"
 
+step "Websites: one sends to a URL through a web server of its own, moves to a port a person approves, and goes"
+# What a website sends to: something elsewhere, which a container published on the
+# server's own address stands for, as the website's web server is on a network of its
+# own and reaches no other bridge, and something on the server's own port.
+url_port=$((web_port + 5))
+docker run -d --name e2e-site-url -p "$url_port:80" nginx:1.27-alpine sh -c 'echo from-the-url >/usr/share/nginx/html/index.html && exec nginx -g "daemon off;"' >/dev/null ||
+  fail "can't run what the website sends to"
+upstream=$(ip -4 route get 192.0.2.1 | awk '{ for (i = 1; i < NF; i++) if ($i == "src") print $(i + 1) }')
+[[ -n "$upstream" ]] || fail "this server has no address of its own to send to: $(ip -4 route get 192.0.2.1)"
+upstream="$upstream:$url_port"
+site_port=$((web_port + 4))
+docker run -d --name e2e-site-port -p "127.0.0.1:$site_port:80" nginx:1.27-alpine sh -c 'echo from-the-port >/usr/share/nginx/html/index.html && exec nginx -g "daemon off;"' >/dev/null ||
+  fail "can't run something on port $site_port"
+site=site.e2e-dockwell.example.net
+site_says() {
+  local body="" until=$((SECONDS + 90))
+  while ((SECONDS < until)); do
+    body=$(curl -sS --max-time 2 --resolve "$site:80:127.0.0.1" "http://$site/" 2>/dev/null) && [[ "$body" == *"$1"* ]] && return 0
+    sleep 0.2
+  done
+  fail "http://$site/ says '$body', want $1"
+}
+# A URL reaches what any container reaches, so a token's plan is a token's to apply.
+made=$(dw websites create --domain "$site" --website "{\"proxy\":{\"url\":\"http://$upstream/\"}}" --tls off --yes 2>&1) ||
+  fail "websites create failed: $made"
+listed=$(dw websites list --json) || fail "websites list failed"
+[[ "$(jq -r --arg d "$site" '.websites[] | select(.domain == $d) | .serviceId' <<<"$listed")" == svc_* ]] ||
+  fail "the website has no web server: $listed"
+site_says from-the-url
+site_web=$(docker ps --filter label=com.docker.compose.service=web --format '{{.Names}} {{.Image}}' | awk '$2 ~ /^caddy:/ { print $1 }')
+[[ -n "$site_web" && "$site_web" != *$'\n'* ]] || fail "Docker runs '$site_web' for the website's web server, want one: $(docker ps --format '{{.Names}} {{.Image}}')"
+# Caddy's binary carries NET_BIND_SERVICE as a file capability, which it can't start
+# without, so that one stays, and it runs as nobody's user.
+runs_as=$(docker inspect --format '{{.Config.User}} {{json .HostConfig.CapDrop}}' "$site_web") || fail "docker inspect $site_web failed"
+[[ "$runs_as" == "65532 "*NET_RAW* && "$runs_as" == *SETUID* && "$runs_as" != *NET_BIND_SERVICE* ]] ||
+  fail "the website's web server runs as $runs_as"
+# It's on a network of its own and the ingress's, never Docker's default bridge, whose
+# containers could say who a visitor is, and it may use no more than 128 MB.
+on=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}{{.HostConfig.Memory}}' "$site_web") ||
+  fail "docker inspect $site_web failed"
+[[ "$on" == *_site\ * && "$on" == *dockwell_ingress* && "$on" != *"bridge "* && "$on" == *" 134217728" ]] ||
+  fail "the website's web server joins and may use $on, want its own network, the ingress's and 128 MB"
+# The visitor's address goes on to what it sends to, past the ingress and the web server.
+curl -sS --max-time 5 -o /dev/null --resolve "$site:80:127.0.0.1" "http://$site/" || fail "http://$site/ didn't answer"
+sleep 0.5
+seen=$(docker logs --tail 1 e2e-site-url 2>&1) || fail "docker logs e2e-site-url failed"
+[[ "$seen" == *'"127.0.0.1, '* ]] || fail "what the website sends to doesn't read the visitor in X-Forwarded-For: $seen"
+# A port on the server sees every visitor as local, so only a person applies it.
+set +e
+planned=$(dw websites update "$site" --website "{\"proxy\":{\"port\":$site_port}}" --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a website to a port on the server exited $status, want 4: it waits for a person: $planned"
+[[ "$planned" == *"127.0.0.1:$site_port"* ]] || fail "the plan doesn't name the port: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+moving=$(jq -r '.changes[0].id' <<<"$changes")
+token_refused "$moving"
+person_apply "$moving"
+site_says from-the-port
+# Its server says whether anything listens there, apart from deploys.
+reach=""
+for _ in $(seq 60); do
+  reach=$(dw websites list --json | jq -c --arg d "$site" '.websites[] | select(.domain == $d) | .reach // {}')
+  [[ "$reach" == *'"answered":true'* ]] && break
+  sleep 1
+done
+[[ "$reach" == *'"answered":true'* && "$reach" == *"listens on port $site_port"* ]] || fail "the website's port reads $reach, want something listening"
+docker stop e2e-site-port >/dev/null || fail "can't stop what listens on port $site_port"
+for _ in $(seq 60); do
+  reach=$(dw websites list --json | jq -c --arg d "$site" '.websites[] | select(.domain == $d) | .reach // {}')
+  [[ "$reach" == *"nothing listens on port $site_port"* ]] && break
+  sleep 1
+done
+[[ "$reach" == *"nothing listens on port $site_port"* && "$reach" != *'"answered":true'* ]] ||
+  fail "with nothing on port $site_port, the website reads $reach"
+docker start e2e-site-port >/dev/null || fail "can't start what listens on port $site_port again"
+for _ in $(seq 100); do
+  docker inspect "$site_web" >/dev/null 2>&1 || break
+  sleep 0.1
+done
+if docker inspect "$site_web" >/dev/null 2>&1; then fail "the web server stayed once the website sent to a port"; fi
+# Deleting it takes its route, and the name answers as one with no route.
+gone=$(dw websites delete "$site" --yes 2>&1) || fail "websites delete failed: $gone"
+answer=""
+for _ in $(seq 100); do
+  answer=$(curl -sS --max-time 5 --resolve "$site:80:127.0.0.1" "http://$site/" 2>/dev/null) && [[ "$answer" == *"no site at this address"* ]] && break
+  sleep 0.1
+done
+[[ "$answer" == *"no site at this address"* ]] || fail "a deleted website still answers: $answer"
+[[ "$(dw websites list --json | jq '.websites // [] | length')" == 0 ]] || fail "websites list still has it: $(dw websites list --json)"
+[[ "$(drifted)" == "$drift_before" ]] || fail "drift after a website: $(dw drift list --json), and before it was $drift_before"
+docker rm --force e2e-site-url e2e-site-port >/dev/null || fail "can't remove what the website sent to"
+
+step "Websites: one serves a folder a person approves, made as its owner's, and an edit through Files shows with nothing to deploy"
+# The folder isn't there yet: Dockwell makes it for its owner, here whoever runs this,
+# who then puts the site's files in it without sudo, as scp or rsync would.
+site_parent=$(mktemp -d) || fail "can't make a folder for the website"
+chmod 755 "$site_parent" || fail "can't open $site_parent to everyone"
+site_root="$site_parent/site"
+owner="$(id -u):$(id -g)"
+folder_site=folder.e2e-dockwell.example.net
+folder_says() {
+  local body="" until=$((SECONDS + 90))
+  while ((SECONDS < until)); do
+    body=$(curl -sS --max-time 2 --resolve "$folder_site:80:127.0.0.1" "http://$folder_site/" 2>/dev/null) && [[ "$body" == *"$1"* ]] && return 0
+    sleep 0.2
+  done
+  fail "http://$folder_site/ says '$body', want $1"
+}
+set +e
+planned=$(dw websites create --domain "$folder_site" --website "{\"folder\":{\"root\":\"$site_root\",\"owner\":\"$owner\"}}" --tls off --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a website that serves a folder exited $status, want 4: it waits for a person: $planned"
+[[ "$planned" == *"$site_root"* ]] || fail "the plan doesn't name the folder: $planned"
+[[ "$planned" == *"$site_root is made, owned by $owner"* ]] || fail "the plan doesn't say the folder is made for its owner: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+serving=$(jq -r '.changes[0].id' <<<"$changes")
+token_refused "$serving"
+person_apply "$serving"
+made=$(stat -c '%u:%g %a' "$site_root") || fail "Dockwell didn't make $site_root"
+[[ "$made" == "$owner 755" ]] || fail "Dockwell made $site_root as $made, want $owner 755"
+if ! { printf 'from-the-folder\n' >"$site_root/index.html" && chmod 644 "$site_root/index.html"; }; then
+  fail "its owner can't put the website's files in $site_root"
+fi
+folder_says from-the-folder
+# Scripts and dotfiles stay hidden; .well-known is served.
+if ! { mkdir -p "$site_root/.well-known" && chmod 755 "$site_root/.well-known"; }; then fail "can't make .well-known"; fi
+if ! { printf 'Contact: mailto:security@example.com\n' >"$site_root/.well-known/security.txt" && chmod 644 "$site_root/.well-known/security.txt"; }; then
+  fail "can't write security.txt"
+fi
+if ! { printf '<?php echo %s;\n' '"secret"' >"$site_root/config.php" && chmod 644 "$site_root/config.php"; }; then fail "can't write config.php"; fi
+for want in "config.php 404" ".well-known/security.txt 200"; do
+  got=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' --resolve "$folder_site:80:127.0.0.1" "http://$folder_site/${want% *}") ||
+    fail "http://$folder_site/${want% *} didn't answer"
+  [[ "$got" == "${want#* }" ]] || fail "http://$folder_site/${want% *} answers $got, want ${want#* }"
+done
+missing=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' --resolve "$folder_site:80:127.0.0.1" "http://$folder_site/nothing-here") ||
+  fail "http://$folder_site/nothing-here didn't answer"
+[[ "$missing" == 404 ]] || fail "a path the folder hasn't got answers $missing, want 404"
+folder_web=$(docker ps --filter label=com.docker.compose.service=web --format '{{.Names}} {{.Image}}' | awk '$2 ~ /^caddy:/ { print $1 }')
+[[ -n "$folder_web" && "$folder_web" != *$'\n'* ]] || fail "Docker runs '$folder_web' for the folder's web server, want one"
+mounted=$(docker inspect --format '{{range .Mounts}}{{.Source}}:{{.Destination}}:{{.RW}} {{end}}' "$folder_web") || fail "docker inspect $folder_web failed"
+[[ "$mounted" == *"$site_root:/srv:false"* ]] || fail "the folder's web server mounts $mounted, want $site_root at /srv, read-only"
+# A person edits the file in Files, and the next request has it, with nothing deployed.
+server_id=$(dw servers list --json | jq -r '.servers[0].id') || fail "servers list failed"
+opened=$(person_call FileService/ReadFile "$(jq -nc --arg s "$server_id" --arg p "$site_root/index.html" '{serverId: $s, path: $p}')") ||
+  fail "a person can't read the website's index"
+version=$(jq -r '.version' <<<"$opened")
+person_call FileService/SaveFile "$(jq -nc --arg s "$server_id" --arg p "$site_root/index.html" --arg v "$version" '{serverId: $s, path: $p, content: "edited-in-files\n", version: $v}')" >/dev/null ||
+  fail "a person can't save the website's index"
+folder_says edited-in-files
+# Deleting the website leaves its folder as it was.
+gone=$(dw websites delete "$folder_site" --yes 2>&1) || fail "websites delete failed: $gone"
+[[ "$(cat "$site_root/index.html")" == edited-in-files ]] || fail "deleting the website touched its folder: $(ls -la "$site_root")"
+[[ "$(drifted)" == "$drift_before" ]] || fail "drift after a folder's website: $(dw drift list --json), and before it was $drift_before"
+rm -rf "$site_parent"
+
+step "Websites: a PHP site starts with no folder, made as PHP's, runs as www-data with nothing of root's, writes what it writes as that, and moves to another version"
+php_parent=$(mktemp -d) || fail "can't make a folder for the PHP site"
+chmod 755 "$php_parent" || fail "can't open $php_parent to everyone"
+php_root="$php_parent/site"
+php_site=php.e2e-dockwell.example.net
+# As root, as in CI, Dockwell makes the folder for www-data, 82:82, whom PHP runs as by
+# default. A Dockwell that isn't root can't give a folder away, so it gets one of
+# this user's, and PHP runs as this user.
+php_user=82:82
+php_spec() { jq -nc --arg r "$php_root" --arg v "$1" '{php: {root: $r, version: $v}}'; }
+if [[ -z "${E2E_ROOT:-}" ]]; then
+  php_user="$(id -u):$(id -g)"
+  mkdir -m 755 "$php_root" || fail "can't make $php_root"
+  php_spec() { jq -nc --arg r "$php_root" --arg v "$1" --arg u "$php_user" '{php: {root: $r, version: $v, user: $u}}'; }
+fi
+# Each poll gives up in 90 seconds, well inside the job's time.
+php_says() {
+  local body="" until=$((SECONDS + 90))
+  while ((SECONDS < until)); do
+    body=$(curl -sS --max-time 2 --resolve "$php_site:80:127.0.0.1" "http://$php_site$1" 2>/dev/null) && [[ "$body" == "$2"* ]] && return 0
+    sleep 0.2
+  done
+  fail "http://$php_site$1 says '$body', want $2"
+}
+set +e
+planned=$(dw websites create --domain "$php_site" --website "$(php_spec 8.3)" --tls off --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a PHP website exited $status, want 4: it waits for a person: $planned"
+[[ "$planned" == *"$php_root is made, owned by $php_user, the user PHP runs as,"* ]] || fail "the plan doesn't say the folder is made for PHP: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+php_change=$(jq -r '.changes[0].id' <<<"$changes")
+person_apply "$php_change"
+made=$(stat -c '%u:%g %a' "$php_root") || fail "Dockwell didn't make $php_root"
+[[ "$made" == "$php_user 755" ]] || fail "$php_root is $made, want $php_user 755"
+php_fpm=$(docker ps --filter label=com.docker.compose.service=php --format '{{.Names}}')
+[[ -n "$php_fpm" && "$php_fpm" != *$'\n'* ]] || fail "Docker runs '$php_fpm' for the site's PHP, want one"
+# PHP-FPM's master runs as PHP's user too, with every capability dropped, and /tmp in memory.
+master=$(docker exec "$php_fpm" sh -c 'grep "^Uid:" /proc/1/status') || fail "can't read who PHP-FPM's master is"
+[[ "$master" =~ ^Uid:[[:space:]]+${php_user%%:*}[[:space:]] ]] || fail "PHP-FPM's master runs as $master, want ${php_user%%:*}"
+hardened=$(docker inspect --format '{{.Config.User}} {{json .HostConfig.CapDrop}} {{json .HostConfig.Tmpfs}}' "$php_fpm") || fail "docker inspect $php_fpm failed"
+[[ "$hardened" == "$php_user "'["ALL"]'* && "$hardened" == *'"/tmp"'* ]] || fail "PHP runs as $hardened, want $php_user, with every capability dropped and /tmp in memory"
+php_mount=$(docker inspect --format '{{range .Mounts}}{{.Source}}:{{.Destination}}:{{.RW}} {{end}}' "$php_fpm") || fail "docker inspect $php_fpm failed"
+[[ "$php_mount" == *"$php_root:/var/www/html:true"* ]] || fail "PHP mounts $php_mount, want $php_root at /var/www/html, read-write"
+# The site's code goes in as PHP's user, as a deploy of it would.
+docker exec -i "$php_fpm" sh -c 'cat >/var/www/html/index.php' <<'PHPEOF' || fail "can't put the PHP site's code in its folder"
+<?php
+if (isset($_GET['write'])) { file_put_contents(__DIR__ . '/written.txt', 'written by PHP'); }
+echo 'php-' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION . ':' . parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+PHPEOF
+docker exec "$php_fpm" sh -c 'printf "a-plain-file\n" >/var/www/html/plain.txt' || fail "can't put a plain file in the PHP site's folder"
+php_says / "php-8.3:/"
+php_says /shop/cart "php-8.3:/shop/cart"
+php_says /plain.txt a-plain-file
+# What PHP writes is its user's, on the server.
+php_says "/?write=1" "php-8.3:/"
+written=$(stat -c '%u:%g' "$php_root/written.txt") || fail "PHP wrote nothing in $php_root"
+[[ "$written" == "$php_user" ]] || fail "what PHP wrote is $written's, want $php_user's"
+source=$(curl -sS --max-time 5 --resolve "$php_site:80:127.0.0.1" "http://$php_site/index.php") || fail "http://$php_site/index.php didn't answer"
+if [[ "$source" == *"<?php"* ]]; then fail "a script's source was sent as a file: $source"; fi
+# What PHP-FPM and its web server take, at rest, for the record.
+php_web=$(docker ps --filter label=com.docker.compose.service=web --format '{{.Names}} {{.Image}}' | awk '$2 ~ /^caddy:/ { print $1 }')
+taken=$(docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' "$php_fpm" "$php_web") || fail "docker stats failed"
+printf 'memory at rest:\n%s\n' "$taken"
+# Another version is PHP's image alone, the same reach, so a token applies it.
+moved=$(dw websites update "$php_site" --website "$(php_spec 8.4)" --yes 2>&1) || fail "moving the PHP site to 8.4 failed: $moved"
+php_says / "php-8.4:/"
+gone=$(dw websites delete "$php_site" --yes 2>&1) || fail "websites delete failed: $gone"
+[[ -z "$(docker ps -a --filter label=com.docker.compose.service=php --format '{{.Names}}')" ]] || fail "PHP stayed once its website went"
+[[ -f "$php_root/written.txt" ]] || fail "deleting the website took what PHP wrote"
+[[ "$(drifted)" == "$drift_before" ]] || fail "drift after a PHP website: $(dw drift list --json), and before it was $drift_before"
+# What PHP wrote is www-data's, which only root removes.
+"${as_dockwell[@]}" rm -rf "$php_parent" || fail "can't remove $php_parent"
+
 step "Ingress: a route with a certificate takes port 443 beside them, and frees it as it goes"
 took=$(dw routes create www --domain "$domain" --service web --port 80 --yes 2>&1) || fail "routes create www failed: $took"
 [[ "$took" == *"takes ports 443/tcp and 443/udp too"* ]] || fail "the plan doesn't say Caddy takes port 443: $took"

@@ -420,6 +420,22 @@ message Call {
     // Say what each of the server's databases says of itself. Numbered apart, as
     // open work adds to this message.
     DatabaseCall database = 30;
+    // Ask whether what a website sends to answers, from the server. Numbered in
+    // the websites' block, as open work adds to this message.
+    ProbeCall probe = 60;
+  }
+}
+
+// ProbeCall asks whether something answers, from the server, as a website's
+// traffic would find it: a port on the server, as the ingress dials it, or a URL,
+// as a website's web server sends to it. It reads nothing of what answers but its
+// status line, and sends to no link-local address.
+message ProbeCall {
+  oneof target {
+    // A TCP port on the server's loopback, as a route to a port dials it.
+    uint32 port = 1;
+    // An http or https URL, asked with a GET that follows no redirect.
+    string url = 2;
   }
 }
 
@@ -908,7 +924,19 @@ message CallResult {
     // What a database call read. Numbered apart, as open work adds to this
     // message.
     DatabaseResult database = 30;
+    // What a probe found.
+    ProbeResult probe = 60;
   }
+}
+
+// ProbeResult says whether what a probe asked answered.
+message ProbeResult {
+  // Whether it answered: a port that took a connection, or a URL that gave an
+  // HTTP answer below 500.
+  bool answered = 1;
+  // What it said, in a line, such as "200 OK" or "503 Service Unavailable", or
+  // why nothing did, such as "connection refused".
+  string said = 2;
 }
 
 // AdoptionResult is a container as the spec of a service.
