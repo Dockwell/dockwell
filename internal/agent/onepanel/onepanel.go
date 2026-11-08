@@ -7,9 +7,10 @@ package onepanel
 
 import (
 	"bufio"
-	"cmp"
 	"bytes"
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -32,6 +33,9 @@ import (
 
 // ctl is 1Panel's own command, which names the folder it's installed under.
 const ctl = "/usr/local/bin/1pctl"
+
+// coreTables are the tables every version this was written from has.
+var coreTables = []string{"settings", "apps", "app_installs", "runtimes", "websites", "website_domains", "website_ssls", "databases", "cronjobs"}
 
 // tries is how many times a read starts again when 1Panel writes as it reads.
 const tries = 5
@@ -60,14 +64,14 @@ func Read(ctx context.Context, root string) (*agentv1.ReadOnePanelResult, error)
 			return nil, err
 		}
 		before := stateOf(filepath.Join(root, records))
-		found, changed, err := read(root, base, records, v1)
+		found, changed, err := read(ctx, root, base, records, v1)
 		switch {
 		case err == nil && !changed:
 			return &agentv1.ReadOnePanelResult{Found: found}, nil
 		// A read that failed on files that held still failed on what they hold. One
 		// whose files changed under it may have read a page half written, so it
 		// goes again, as one that read through a change does.
-		case err != nil && !changed && stateOf(filepath.Join(root, records)) == before:
+		case err != nil && !changed && !errors.Is(err, sqlitefile.ErrWriting) && stateOf(filepath.Join(root, records)) == before:
 			return nil, err
 		}
 		select {
@@ -85,11 +89,11 @@ type fileState struct {
 	ino                uint64
 }
 
-// stateOf is the state of a database and its WAL, so a read that failed can tell
+// stateOf is the state of a database, its WAL and its journal, so a read that failed can tell
 // a file that's damaged from one written as it read.
-func stateOf(db string) [2]fileState {
-	var out [2]fileState
-	for i, p := range []string{db, db + "-wal"} {
+func stateOf(db string) [3]fileState {
+	var out [3]fileState
+	for i, p := range []string{db, db + "-wal", db + "-journal"} {
 		var st unix.Stat_t
 		if unix.Stat(p, &st) == nil {
 			out[i] = fileState{size: st.Size, mtime: st.Mtim.Nano(), ctime: st.Ctim.Nano(), ino: st.Ino}
@@ -120,16 +124,26 @@ func baseDir(root string) string {
 }
 
 // read reads the records once, and says whether they changed underneath it.
-func read(root, base, records string, v1 bool) (*dockwellv1.OnePanel, bool, error) {
+func read(ctx context.Context, root, base, records string, v1 bool) (*dockwellv1.OnePanel, bool, error) {
 	db, err := sqlitefile.Open(filepath.Join(root, records))
 	if err != nil {
 		return nil, false, fmt.Errorf("the agent can't read 1Panel's records, %s: %w", records, err)
 	}
 	defer db.Close()
-	r := &reader{db: db, base: base}
+	r := &reader{ctx: ctx, db: db, base: base}
 	found := &dockwellv1.OnePanel{BaseDir: base, Records: records}
+	// What every version has, a version this doesn't know has too, or it isn't
+	// read: a table missing reads as empty otherwise, and says nothing of why.
+	for _, table := range coreTables {
+		if _, ok := db.Table(table); !ok {
+			return nil, false, fmt.Errorf("1Panel's records, %s, have no %s table, which every version this was written from has, so the agent can't tell how to read them. Update 1Panel, then try again", records, table)
+		}
+	}
 	settings := r.settings()
 	found.Version = settings["SystemVersion"]
+	if found.Version == "" {
+		return nil, false, fmt.Errorf("1Panel's records, %s, say no version, so the agent can't tell how to read them. Update 1Panel, then try again", records)
+	}
 	found.KnownVersion = known.MatchString(found.Version)
 	if err := r.all(found, settings, v1); err != nil {
 		return nil, db.Changed(), fmt.Errorf("the agent can't read 1Panel's records, %s: %w", records, err)
@@ -138,6 +152,7 @@ func read(root, base, records string, v1 bool) (*dockwellv1.OnePanel, bool, erro
 }
 
 type reader struct {
+	ctx  context.Context //nolint:containedctx // it lives as long as one read
 	db   *sqlitefile.DB
 	base string
 }
@@ -148,7 +163,14 @@ func (r *reader) rows(table string, each func(sqlitefile.Row)) error {
 	if !ok {
 		return nil
 	}
+	n := 0
 	return r.db.Scan(t, func(row sqlitefile.Row) error {
+		n++
+		if n%1024 == 0 {
+			if err := r.ctx.Err(); err != nil {
+				return err
+			}
+		}
 		each(row)
 		return nil
 	})

@@ -6721,10 +6721,15 @@ components:
                     type: string
                     description: Why, and what a person can do about it, where that isn't plain.
                 waitsFor:
+                    enum:
+                        - IMPORT_WAITS_FOR_UNSPECIFIED
+                        - IMPORT_WAITS_FOR_WEBSITES
+                        - IMPORT_WAITS_FOR_DATABASES
+                        - IMPORT_WAITS_FOR_SCHEDULED_TASKS
+                        - IMPORT_WAITS_FOR_FIREWALL
                     type: string
-                    description: |-
-                        The issue whose feature it waits for, such as "#206", where Dockwell can't
-                         take it yet.
+                    description: The part of Dockwell it waits for, where Dockwell can't take it yet.
+                    format: enum
             description: ImportStep is one thing found, and what an import would do with it.
         IngressEffect:
             type: object

@@ -15,18 +15,35 @@ import (
 func importView(w io.Writer, res *dockwellv1.ImportOnePanelResponse) {
 	found := res.GetFound()
 	fmt.Fprintf(w, "1Panel %s, under %s, read from %s. Nothing was changed.\n", found.GetVersion(), found.GetBaseDir(), found.GetRecords())
-	groups := []struct {
-		action dockwellv1.ImportAction
-		title  string
-	}{
-		{dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON, "Take on, as it runs, with no restart"},
-		{dockwellv1.ImportAction_IMPORT_ACTION_MAKE, "Make again in Dockwell"},
-		{dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, "Leave as it is"},
+	// Grouped by when each moves: in this plan, later once Dockwell has what it
+	// needs, or not at all.
+	type group struct {
+		title string
+		in    func(*dockwellv1.ImportStep) bool
 	}
+	groups := []group{
+		{"In this plan, taken on as it runs, with no restart", func(s *dockwellv1.ImportStep) bool {
+			return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON && s.GetWaitsFor() == 0
+		}},
+		{"In this plan, made again in Dockwell", func(s *dockwellv1.ImportStep) bool {
+			return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_MAKE && s.GetWaitsFor() == 0
+		}},
+	}
+	for _, wf := range []dockwellv1.ImportWaitsFor{
+		dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_WEBSITES, dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_DATABASES,
+		dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_SCHEDULED_TASKS, dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_FIREWALL,
+	} {
+		groups = append(groups, group{"Later, once Dockwell has " + waitsForWords(wf), func(s *dockwellv1.ImportStep) bool {
+			return s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE && s.GetWaitsFor() == wf
+		}})
+	}
+	groups = append(groups, group{"Stays with 1Panel", func(s *dockwellv1.ImportStep) bool {
+		return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_LEAVE
+	}})
 	for _, g := range groups {
 		var steps []*dockwellv1.ImportStep
 		for _, s := range res.GetSteps() {
-			if s.GetAction() == g.action {
+			if g.in(s) {
 				steps = append(steps, s)
 			}
 		}
@@ -42,11 +59,24 @@ func importView(w io.Writer, res *dockwellv1.ImportOnePanelResponse) {
 			if r := s.GetReason(); r != "" {
 				fmt.Fprintf(w, "    %s\n", r)
 			}
-			if wf := s.GetWaitsFor(); wf != "" {
-				fmt.Fprintf(w, "    Waits for %s, which isn't in Dockwell yet.\n", wf)
-			}
 		}
 	}
+}
+
+// waitsForWords names a part of Dockwell an imported thing waits for.
+func waitsForWords(wf dockwellv1.ImportWaitsFor) string {
+	switch wf {
+	case dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_WEBSITES:
+		return "websites"
+	case dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_DATABASES:
+		return "databases"
+	case dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_SCHEDULED_TASKS:
+		return "scheduled tasks"
+	case dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_FIREWALL:
+		return "firewall rules"
+	case dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_UNSPECIFIED:
+	}
+	return "what it needs"
 }
 
 // kindWord names a kind of thing an import finds, in a word or two.

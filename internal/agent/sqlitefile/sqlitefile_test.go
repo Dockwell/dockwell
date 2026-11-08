@@ -5,6 +5,8 @@ package sqlitefile
 import (
 	"bytes"
 	"database/sql"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -327,5 +329,79 @@ func TestColumnsOfATable(t *testing.T) {
 		if !reflect.DeepEqual(cols, c.cols) || rowid != c.rowid || ok != c.ok {
 			t.Errorf("columns(%s) = %v, %d, %v, want %v, %d, %v", c.sql, cols, rowid, ok, c.cols, c.rowid, c.ok)
 		}
+	}
+}
+
+// In the rollback journal's mode, a write under way is in its journal: opening
+// then says so, and one that starts after opening reads as a change.
+func TestAWriteInRollbackModeSaysSo(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "rollback.db")
+	db := sqliteAt(t, path, "journal_mode(PERSIST)")
+	fill(t, db, 10)
+	r, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if r.Changed() {
+		t.Fatal("changed with nothing written")
+	}
+	// A journal kept between writes, as PERSIST keeps it, holds nothing under way.
+	if err := os.WriteFile(path+"-journal", make([]byte, 512), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if r.Changed() {
+		t.Error("a zeroed journal reads as a write")
+	}
+	if err := os.WriteFile(path+"-journal", append(bytes.Clone(journalMagic), make([]byte, 504)...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Changed() {
+		t.Error("a write under way reads as no change")
+	}
+	if _, err := Open(path); !errors.Is(err, ErrWriting) {
+		t.Errorf("opening during a write = %v", err)
+	}
+}
+
+// A table whose pages loop is damaged, and says so, rather than read for ever.
+func TestAPageReachedTwiceIsDamage(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "loop.db")
+	db := sqliteAt(t, path, "journal_mode(DELETE)")
+	fill(t, db, 2000)
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	table, ok := r.Table("things")
+	if !ok {
+		t.Fatal("no table things")
+	}
+	page, err := r.page(table.root, make([]byte, r.pageSize))
+	if err != nil || page[0] != 0x05 {
+		t.Fatalf("the table's root isn't an interior page: %v", err)
+	}
+	r.Close()
+	// Its last child is itself.
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var self [4]byte
+	binary.BigEndian.PutUint32(self[:], table.root)
+	if _, err := f.WriteAt(self[:], int64(table.root-1)*int64(r.pageSize)+8); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	r, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if err := r.Scan(table, func(Row) error { return nil }); err == nil || !strings.Contains(err.Error(), "twice") {
+		t.Errorf("a loop = %v", err)
 	}
 }
