@@ -8128,9 +8128,6 @@ msgstr "Change it"
 msgid "How it serves"
 msgstr "How it serves"
 
-msgid "Port"
-msgstr "Port"
-
 msgid "Sends each request straight to the port, with nothing of its own between"
 msgstr "Sends each request straight to the port, with nothing of its own between"
 

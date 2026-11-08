@@ -8128,9 +8128,6 @@ msgstr "修改"
 msgid "How it serves"
 msgstr "提供方式"
 
-msgid "Port"
-msgstr "端口"
-
 msgid "Sends each request straight to the port, with nothing of its own between"
 msgstr "将每个请求直接发送到该端口，中间没有它自己的服务器"
 
