@@ -49,7 +49,7 @@ Each of these is its own decision, and together they are the record that replace
 One interceptor can't enforce a project's scope: it sees which method is called, not what it touches. A call can name an object by its ID; a change can touch several projects; applying, discarding and undoing act on a change someone else proposed; and lists and streams return everything. So there are two checks, and one resolver every other call goes through:
 
 1. **The interceptor checks the lowest role a method needs anywhere.** Reading needs a viewer's grant somewhere, proposing a developer's somewhere, and what's install-wide, below, an admin's. Each method's rule sits beside its effect and its token scope (ADR 0016). A method with no rule is the owner's, so a new service is closed until it says.
-2. **`internal/revision` checks every item, for everything done to a change,** against the person doing it: its project, whether its environment is protected ([ADR 0049](0049-roles-and-invites-by-project.md)), and what it reaches beyond its project (`host_access`, below):
+2. **`internal/revision` checks every item, for everything done to a change,** against the person doing it: its project, whether its environment is protected ([ADR 0049](0049-roles-and-invites-by-project.md)), what it reaches beyond its project (`host_access`, below), and the names it takes, domains and server ports, which another environment may hold (below):
    - proposing it, against the proposer;
    - applying, discarding or undoing it, and rolling a service back, against whoever does that, who may be someone else, or may have lost the role since;
    - an undo or a rollback item by item, as the change it plans, as a new change is.
@@ -105,6 +105,12 @@ Anything else that isn't one project's:
 **What a developer may use,** of what `host_access` also marks, are their own project's ordinary needs: a domain for a route, and a route over plain HTTP. A developer's route names a service in its own environment and a port of its container. Each still needs a person to approve it, as host access always has.
 
 **A domain another project holds is refused when the change is planned,** as taken, with words that don't name the project that holds it: "shop.example.com is in use by a project you can't see. Ask an admin". So is any name under it, as with wildcard DNS a name such as `login.blog.example.com` would receive cookies `blog` sets for its whole domain. A domain another environment of the same project held within the undo window stays theirs to take back, as today.
+
+**A server's ports are names too, held as domains are.** Placement is any server, so without this a developer in `blog`, or in `shop/staging`, could publish a port production publishes, or the one an admin's `host_port` route dials, and whichever container binds first after a deploy, a crash or a reboot would take production's traffic, and leave production's container unable to start.
+
+- **A port on a server is held by an environment** when one of its services publishes it in its latest revision, on any address, `127.0.0.1` included, or when one of its `host_port` routes dials it.
+- **An admin's `host_port` route to a port no service publishes** holds it for the route's environment.
+- **Check 2 refuses, when the change is planned, a port another environment holds on that server,** as taken: "Port 5432 on web-1 is in use by another environment. Choose another port, or ask an admin". For another project, the words don't name it, as for domains.
 
 A developer can read their project's secrets through a container they deploy, as the container is given them (ADR 0022). A role that deploys can read what it deploys. A viewer can't, as a viewer runs nothing.
 

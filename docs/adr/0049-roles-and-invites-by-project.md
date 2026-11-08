@@ -56,8 +56,8 @@ The resolver (ADR 0048) says where each object a call names belongs: **(project,
 
 Every method declares two roles, as method options beside `effect`:
 
-- **`min_role`**, the lowest role it needs where its objects are in an open environment, or in no environment;
-- **`min_role_protected`**, the lowest it needs where any of its objects is in a protected environment. It defaults to admin for any effect but read, and for `RevealSecret`.
+- **`min_role`** (option 50104), the lowest role it needs where its objects are in an open environment, or in no environment;
+- **`min_role_protected`** (option 50105), the lowest it needs where any of its objects is in a protected environment. It defaults to admin for any effect but read, and for `RevealSecret`.
 
 The interceptor checks `min_role` against the person's highest grant anywhere, as a first gate (ADR 0048, check 1). The resolver then checks both against the grants on each object's place (check 3). `internal/revision` checks each item of a change (check 2). Each check uses the stricter of an item's place before and after the change.
 
