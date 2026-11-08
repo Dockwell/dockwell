@@ -278,6 +278,8 @@ func TestAServerThatIsntThereSaysSo(t *testing.T) {
 	cc := containerClient(b, b.origin)
 	f.addDockerServer(t)
 	f.lastDocker.stop()
+	// Stopping it ends its stream; the control plane sees that a moment later.
+	waitConnected(t, f, f.lastDocker.id.ServerID, false)
 	_, err := cc.ListContainers(t.Context(), connect.NewRequest(&dockwellv1.ListContainersRequest{Server: "hz-1"}))
 	if connect.CodeOf(err) != connect.CodeUnavailable || !strings.Contains(err.Error(), "isn't connected") {
 		t.Errorf("err = %v", err)
