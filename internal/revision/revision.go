@@ -2205,6 +2205,11 @@ func (e *Engine) writtenAs(kind resource.Kind, spec proto.Message, list []resour
 		return
 	}
 	writer, detail, user := docker.Repository(images.ImageOf(spec)), "", ""
+	// A service that builds its image is named by its code, which its image's
+	// repository, one for each service, doesn't say (ADR 0046).
+	if w, ok := t.(resource.WriterNamer); ok {
+		writer = w.WriterOf(spec)
+	}
 	switch as, name := docker.UserRunsAs(users.UserOf(spec)); as {
 	case docker.RunsAsOther:
 	case docker.RunsAsRoot:

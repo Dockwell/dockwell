@@ -4,6 +4,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"maps"
@@ -270,6 +272,10 @@ var _ resource.WriterNamer = (*Driver)(nil)
 // reaches any image. A new commit of the branch it follows is the same code, as a
 // new tag is, and the build checks the commit is on the branch; a commit the build
 // names as its ref is checked against no branch, so each is code of its own.
+//
+// A plan says it to people, so a build reads as its repository and a digest of how
+// it builds, such as github.com/acme/web@build:5d41402abc4b2a76: 64 bits, which no
+// one can choose a build's settings to match another's by.
 func (d *Driver) WriterOf(spec proto.Message) string {
 	svc, ok := spec.(*resourcev1.Service)
 	if !ok {
@@ -291,7 +297,13 @@ func (d *Driver) WriterOf(spec proto.Message) string {
 	for i := range parts {
 		parts[i] = strconv.Quote(parts[i])
 	}
-	return strings.Join(parts, " ")
+	sum := sha256.Sum256([]byte(strings.Join(parts, " ")))
+	return shownRepo(g.GetUrl()) + "@build:" + hex.EncodeToString(sum[:8])
+}
+
+// shownRepo is a repository's URL as people read it, with no scheme or .git.
+func shownRepo(repo string) string {
+	return strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(repo, "https://"), "http://"), ".git")
 }
 
 // buildPlan is what building a service's image takes, as a plan says it.

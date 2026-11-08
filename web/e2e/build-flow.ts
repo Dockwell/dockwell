@@ -82,7 +82,9 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   const failed = page.getByRole("dialog", { name: /^Couldn't deploy [0-9a-f]{7}$/ });
   await failed.waitFor({ timeout: 60_000 });
   // The step, quoted; what it printed last is the log's, for whoever may read logs.
-  await failed.getByText(/The build failed at step 4 of 4, "RUN echo .*": its log marks what it printed last/).waitFor();
+  await failed
+    .getByText(/The build failed at step 4 of 4, "RUN echo .*": its log marks what it printed last/)
+    .waitFor();
   await failed.getByText(new RegExp(`^storefront stay(s|ed) on ${first}$`)).waitFor();
   await shoot(page, "build-failed-sheet");
   await failed.getByRole("button", { name: "Done" }).click();
@@ -154,7 +156,8 @@ export const flow: Flow = {
   order: 15,
   run: async (page, run) => {
     const path = process.env["DOCKWELL_E2E_GITSERVE"];
-    if (!path) fail("DOCKWELL_E2E_GITSERVE names no scripts/gitserve build, which the build flow needs. Run it with make e2e");
+    if (!path)
+      fail("DOCKWELL_E2E_GITSERVE names no scripts/gitserve build, which the build flow needs. Run it with make e2e");
     const git = await startGitServer(path, join(run.data, "git"));
     try {
       await buildFlow(page, { ...run, git: git.url });

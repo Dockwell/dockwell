@@ -5294,9 +5294,6 @@ msgstr "A copy of its files, which stops it for an exact copy unless you choose 
 msgid "Asking its server"
 msgstr "Asking its server"
 
-msgid "Cache hit"
-msgstr "Cache hit"
-
 msgid "Connection"
 msgstr "Connection"
 

@@ -1419,7 +1419,7 @@ msgid "Built on"
 msgstr "构建于"
 
 msgid "Cache hit"
-msgstr "缓存命中"
+msgstr "缓存命中率"
 
 msgid "Can't read the build's log"
 msgstr "无法读取构建日志"
@@ -5293,9 +5293,6 @@ msgstr "复制它的文件：为得到精确副本会先停止它，除非你选
 
 msgid "Asking its server"
 msgstr "正在询问它的服务器"
-
-msgid "Cache hit"
-msgstr "缓存命中率"
 
 msgid "Connection"
 msgstr "连接方式"
