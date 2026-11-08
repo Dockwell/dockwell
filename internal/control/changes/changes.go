@@ -893,10 +893,25 @@ func (h *Handler) protos(ctx context.Context, records ...*revision.Record) ([]*d
 				return err
 			}
 			out[i].Protected = slices.ContainsFunc(places, func(p place.Place) bool { return p.Protected })
+			if err := ForCaller(ctx, tx, h.engine, r.ID, out[i]); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
 	return out, err
+}
+
+// ForCaller says on a planned change what applying it asks of whoever reads
+// it: whether it approves someone else's, and why it waits if their role
+// doesn't cover it, as ApplyChange would answer them.
+func ForCaller(ctx context.Context, tx *store.Tx, engine *revision.Engine, changeID string, out *dockwellv1.Change) error {
+	applying, err := engine.ApplyingOf(ctx, tx, changeID)
+	if err != nil {
+		return err
+	}
+	out.Approves, out.Waits = applying.Approves, applying.Waits
+	return nil
 }
 
 // Surfaces maps where a change or an audit event came from, as the store

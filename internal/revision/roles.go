@@ -494,12 +494,17 @@ type Applying struct {
 	Waits string
 }
 
-// ApplyingOf says, within tx, what applying c asks of the caller in ctx, as
-// ApplyChange would ask it, so a plan can say so before anyone tries. A context
-// with no caller, or a change that isn't planned, asks nothing.
-func (e *Engine) ApplyingOf(ctx context.Context, tx *store.Tx, c store.Change) (Applying, error) {
-	if _, ok := place.CallerFrom(ctx); !ok || c.State != store.ChangePlanned {
+// ApplyingOf says, within tx, what applying changeID asks of the caller in ctx,
+// as ApplyChange would ask it, so a plan can say so before anyone tries. A
+// context with no caller, or a change that isn't planned, asks nothing.
+func (e *Engine) ApplyingOf(ctx context.Context, tx *store.Tx, changeID string) (Applying, error) {
+	if _, ok := place.CallerFrom(ctx); !ok {
 		return Applying{}, nil
+	}
+	// Read whole: a list's changes come without their items and plan.
+	c, err := tx.GetChange(ctx, changeID)
+	if err != nil || c.State != store.ChangePlanned {
+		return Applying{}, err
 	}
 	items, err := e.placed(ctx, tx, c)
 	if err != nil {

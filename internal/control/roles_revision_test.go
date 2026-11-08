@@ -5,8 +5,10 @@ package control
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -160,8 +162,9 @@ func TestSomeoneElsesProtectedChangeIsApprovedWithAPasskey(t *testing.T) {
 			t.Errorf("the refusal asks for %v, want approving %s:%s", asked, theirs.Change, theirs.Fingerprint)
 		}
 		got, gerr := s.c.GetChange(ctx, connect.NewRequest(&dockwellv1.GetChangeRequest{Id: theirs.Change}))
-		if gerr != nil || !got.Msg.GetChange().GetProtected() {
-			t.Errorf("the owner's plan in production reads protected %v, %v, want true", got.Msg.GetChange().GetProtected(), gerr)
+		if gerr != nil || !got.Msg.GetChange().GetProtected() || !got.Msg.GetChange().GetApproves() || got.Msg.GetChange().GetWaits() != "" {
+			t.Errorf("the owner's plan in production reads protected %v, approves %v, waits %q, %v; want protected, approved by the admin reading it",
+				got.Msg.GetChange().GetProtected(), got.Msg.GetChange().GetApproves(), got.Msg.GetChange().GetWaits(), gerr)
 		}
 		token := createToken(t, s.b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
 		if err := applyIt(changeClient(bearer{token: token, rt: s.b.client.Transport}, s.b.origin), theirs.Fingerprint, ""); reasonOf(err) != "needs_session" {
@@ -185,6 +188,58 @@ func TestSomeoneElsesProtectedChangeIsApprovedWithAPasskey(t *testing.T) {
 		own := propose(t, s.c, "Set B", variableEdit(s.production, "B", "1"))
 		if _, err := changeClient(bearer{token: token, rt: s.b.client.Transport}, s.b.origin).ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: own.GetId()})); err != nil {
 			t.Errorf("an admin's token applying their own change in production: %v", err)
+		}
+		// So does one they planned with their token and apply in the panel.
+		mine := propose(t, changeClient(bearer{token: token, rt: s.b.client.Transport}, s.b.origin), "Set D", variableEdit(s.production, "D", "1"))
+		if mine.GetApproves() {
+			t.Errorf("the admin's plan with their own token reads as one they approve")
+		}
+		if _, err := s.c.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: mine.GetId(), Fingerprint: mine.GetPlan().GetFingerprint()})); err != nil {
+			t.Errorf("an admin applying in the panel what they planned with their token: %v", err)
+		}
+
+		// Someone else's plan made with their API token, as the CLI does, is
+		// theirs as much as one made in the panel: the admin reads that applying
+		// it approves it, and approves it with a passkey.
+		keepers := "tok_01JD6Z3R8M9QF2K7T4XW5BNCKP"
+		if err := s.f.store.Update(ctx, func(tx *store.Tx) error {
+			return tx.CreateAPIToken(ctx, store.APIToken{ID: keepers, TokenHash: []byte("keeper's"), UserID: "usr_keeper", Name: "deploy", Scope: "read_write", CreatedAt: time.Now()})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		keeper := place.WithCaller(ctx, place.Caller{UserID: "usr_keeper", Grants: []store.Grant{{UserID: "usr_keeper", ProjectID: store.Install, Role: store.RoleOwner}}})
+		viaToken, err := s.f.engine.Propose(keeper, revision.Proposal{Summary: "Set E", Actor: "token:" + keepers, Via: revision.ViaAPI, Edits: []revision.Edit{{
+			Ref: resource.Ref{Kind: "variable", Scope: s.production, Name: "E"}, Spec: &resourcev1.Variable{Value: "1"},
+		}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		read, err := s.c.GetChange(ctx, connect.NewRequest(&dockwellv1.GetChangeRequest{Id: viaToken.Change}))
+		if err != nil || !read.Msg.GetChange().GetApproves() {
+			t.Errorf("the owner's plan made with a token reads approves %v, %v, want true", read.Msg.GetChange().GetApproves(), err)
+		}
+		_, err = s.c.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: viaToken.Change, Fingerprint: viaToken.Fingerprint}))
+		if reasonOf(err) != "needs_step_up" {
+			t.Errorf("applying the owner's token-made plan with no passkey: %v, want needs_step_up", err)
+		}
+
+		// Below an admin, it waits, and says why, there and on Activity.
+		waiting := byTheOwner(t, s, s.production, "C")
+		s.hold(in(s.defaultID, store.RoleDeveloper))
+		read, err = s.c.GetChange(ctx, connect.NewRequest(&dockwellv1.GetChangeRequest{Id: waiting.Change}))
+		if err != nil || read.Msg.GetChange().GetApproves() || !strings.Contains(read.Msg.GetChange().GetWaits(), "it changes C in a protected environment, an admin or the owner applies this") {
+			t.Errorf("a developer reading the owner's plan in production: approves %v, waits %q, %v", read.Msg.GetChange().GetApproves(), read.Msg.GetChange().GetWaits(), err)
+		}
+		events, err := dockwellv1connect.NewEventServiceClient(s.b, s.b.origin, connect.WithProtoJSON()).ListEvents(ctx, connect.NewRequest(&dockwellv1.ListEventsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		i := slices.IndexFunc(events.Msg.GetEvents(), func(e *dockwellv1.Event) bool { return e.GetChange().GetId() == waiting.Change })
+		if i < 0 {
+			t.Fatalf("Activity doesn't list %s", waiting.Change)
+		}
+		if c := events.Msg.GetEvents()[i].GetChange(); !c.GetProtected() || c.GetWaits() == "" || c.GetApproves() {
+			t.Errorf("Activity shows the owner's plan in production to a developer as protected %v, waits %q, approves %v", c.GetProtected(), c.GetWaits(), c.GetApproves())
 		}
 	})
 }

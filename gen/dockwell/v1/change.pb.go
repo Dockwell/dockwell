@@ -2799,7 +2799,17 @@ type Change struct {
 	// True on a planned change with an item in a protected environment: a
 	// developer's waits for an admin or the owner to apply it, and someone
 	// else's is approved with a passkey (ADR 0049).
-	Protected     bool `protobuf:"varint,21,opt,name=protected,proto3" json:"protected,omitempty"`
+	Protected bool `protobuf:"varint,21,opt,name=protected,proto3" json:"protected,omitempty"`
+	// On a planned change, for whoever reads it: true when applying it approves
+	// someone else's change in a protected environment, which takes a session,
+	// the plan's fingerprint and a passkey (STEP_UP_ACTION_APPROVE_CHANGE),
+	// whether they planned it in the panel or with an API token.
+	Approves bool `protobuf:"varint,22,opt,name=approves,proto3" json:"approves,omitempty"`
+	// On a planned change, for whoever reads it: why their role doesn't let them
+	// apply it, and who does, such as "As it changes web in a protected
+	// environment, an admin or the owner applies this. Leave it planned for
+	// them". Empty when they may apply it.
+	Waits         string `protobuf:"bytes,23,opt,name=waits,proto3" json:"waits,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2979,6 +2989,20 @@ func (x *Change) GetProtected() bool {
 		return x.Protected
 	}
 	return false
+}
+
+func (x *Change) GetApproves() bool {
+	if x != nil {
+		return x.Approves
+	}
+	return false
+}
+
+func (x *Change) GetWaits() string {
+	if x != nil {
+		return x.Waits
+	}
+	return ""
 }
 
 // RollbackStatus is how the rollback of a failed change is going, for
@@ -5987,7 +6011,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
 	"resourceId\"A\n" +
 	"\x12AdoptDriftResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xf2\x06\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xa4\a\n" +
 	"\x06Change\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\asummary\x18\x02 \x01(\tR\asummary\x12.\n" +
@@ -6015,7 +6039,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0frollback_status\x18\x12 \x01(\v2\x1b.dockwell.v1.RollbackStatusR\x0erollbackStatus\x12\x18\n" +
 	"\abecause\x18\x13 \x01(\tR\abecause\x12\x18\n" +
 	"\arestart\x18\x14 \x01(\bR\arestart\x12\x1c\n" +
-	"\tprotected\x18\x15 \x01(\bR\tprotected\"\xd3\x01\n" +
+	"\tprotected\x18\x15 \x01(\bR\tprotected\x12\x1a\n" +
+	"\bapproves\x18\x16 \x01(\bR\bapproves\x12\x14\n" +
+	"\x05waits\x18\x17 \x01(\tR\x05waits\"\xd3\x01\n" +
 	"\x0eRollbackStatus\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x120\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x1a.dockwell.v1.RollbackStateR\x05state\x12\x14\n" +

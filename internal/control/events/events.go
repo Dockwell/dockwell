@@ -486,6 +486,9 @@ func (h *Handler) render(ctx context.Context, tx *store.Tx, names *actors.Names,
 					return nil, err
 				}
 				out[i].Change.Protected = slices.ContainsFunc(places, func(p place.Place) bool { return p.Protected })
+				if err := changes.ForCaller(ctx, tx, h.engine, r.ID, out[i].Change); err != nil {
+					return nil, err
+				}
 			}
 		} else {
 			out[i] = FromAudit(e.Event, look)
