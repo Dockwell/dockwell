@@ -295,6 +295,7 @@ func sharedSecrets(root *yaml.Node, fields []Field, images map[*yaml.Node]bool) 
 	byValue := map[string]string{} // a value, by the secret it becomes
 	byVar := map[string]string{}   // a variable, by the secret it becomes
 	var out []Field
+	var listed error
 	secret := func(value, name string) string {
 		value = strings.TrimSpace(value)
 		if input, ok := byValue[value]; ok {
@@ -312,6 +313,11 @@ func sharedSecrets(root *yaml.Node, fields []Field, images map[*yaml.Node]bool) 
 			value = strings.TrimPrefix(value, key+"=")
 		}
 		uses := usesOf(value)
+		if inEnv && listed == nil && listsSecrets(key) && (len(uses) == 0 && literalSecret(value) ||
+			len(uses) == 1 && (uses[0].op == ":-" || uses[0].op == "-") && literalSecret(defaultOf(value, uses[0]))) {
+			listed = leave(ClassCantSay, "its %s writes out secrets every install would share, in a form of its app's own, "+
+				"which one generated secret can't take yet", key)
+		}
 		if inEnv && len(uses) == 0 && secretNamed(key) && literalSecret(value) {
 			ref := "${" + secret(value, key) + "}"
 			if n.Value != value {
@@ -339,6 +345,9 @@ func sharedSecrets(root *yaml.Node, fields []Field, images map[*yaml.Node]bool) 
 			}
 		}
 	})
+	if listed != nil {
+		return nil, listed
+	}
 	if len(out) == 0 {
 		return nil, nil
 	}

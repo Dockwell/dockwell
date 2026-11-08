@@ -84,6 +84,9 @@ func TestASecretTheTemplateWritesIsGenerated(t *testing.T) {
 		"blueprints/inurl/template.toml": dokployVars + dokployRoute,
 	})
 	coolify := convertTree(t, Coolify, CoolifySource("abc"), map[string]string{
+		"templates/compose/listed.yaml": coolifyHead + "services:\n  web:\n    image: example/web:1.0.0\n    environment:\n" +
+			"      - SERVICE_URL_WEB_3000\n      - INIT_CLIENT_API_TOKENS=default:development.unleash-insecure-api-token\n" +
+			"      - LT_API_KEYS=true\n",
 		"templates/compose/defaults.yaml": coolifyHead + "services:\n  web:\n    image: example/web:1.0.0\n    environment:\n" +
 			"      - SERVICE_URL_WEB_3000\n      - DB_PASS=${DB_PASS:-abc}\n      - PGPASSWORD=${PGPASSWORD:-abc}\n" +
 			"      - ROOT_PASSWORD=${ROOT_PASSWORD:-123456}\n      - MAX_TOKENS=${MAX_TOKENS}\n      - BYPASS_CACHE=${BYPASS_CACHE}\n" +
@@ -121,6 +124,11 @@ func TestASecretTheTemplateWritesIsGenerated(t *testing.T) {
 	}
 	if r := dokploy["inurl"]; r.Entry != nil || r.Class != ClassInside || !strings.Contains(r.LeftOut, "postgres://app:example@db/app") {
 		t.Errorf("a secret written in a URL too: %s, %q", r.Class, r.LeftOut)
+	}
+
+	// Secrets in a list of the app's own form, as Unleash's tokens are, leave it out.
+	if r := coolify["listed"]; r.Entry != nil || r.Class != ClassCantSay || !strings.Contains(r.LeftOut, "INIT_CLIENT_API_TOKENS writes out secrets") {
+		t.Errorf("Unleash's tokens: %s, %q", r.Class, r.LeftOut)
 	}
 
 	def := entryOf(t, coolify, "defaults")
@@ -404,6 +412,14 @@ func TestASecretInsideALongerValue(t *testing.T) {
 	} {
 		if got := secretNamed(name); got != want {
 			t.Errorf("secretNamed(%s) = %v, want %v", name, got, want)
+		}
+	}
+	for name, want := range map[string]bool{
+		"INIT_CLIENT_API_TOKENS": true, "INIT_FRONTEND_API_TOKENS": true, "LT_API_KEYS": true, "APIKEYS": true,
+		"LT_API_KEYS_DB_PATH": false, "KEYS_STORAGE": false, "NGINX_CACHE_KEYS_ZONE_SIZE": false, "MAX_TOKENS_PER_USER": false, "ADMIN_PASSWORD": false,
+	} {
+		if got := listsSecrets(name); got != want {
+			t.Errorf("listsSecrets(%s) = %v, want %v", name, got, want)
 		}
 	}
 	for value, want := range map[string]bool{"0": false, "1": false, "null": false, "123456": true, "abc": true, "/run/secrets/db": false} {

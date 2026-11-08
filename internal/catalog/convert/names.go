@@ -33,6 +33,22 @@ var (
 	joinedWords   = []string{"SECRETKEY", "PRIVATEKEY", "APIKEY", "ACCESSTOKEN"}
 )
 
+// listsSecrets says a variable holds secrets, more than one, by its name's words:
+// TOKENS, SECRETS, PASSWORDS or APIKEYS, or KEYS after API, as in Unleash's
+// INIT_CLIENT_API_TOKENS, and no word after it that says the name is about them, as
+// in LT_API_KEYS_DB_PATH. Such a list has a form of its app's own, which one
+// generated secret can't take.
+func listsSecrets(name string) bool {
+	words := strings.FieldsFunc(strings.ToUpper(name), func(r rune) bool { return r == '_' || r == '-' || r == '.' })
+	for i, w := range words {
+		plural := slices.Contains([]string{"TOKENS", "SECRETS", "PASSWORDS", "APIKEYS"}, w) || w == "KEYS" && i > 0 && words[i-1] == "API"
+		if plural && !slices.ContainsFunc(words[i+1:], func(after string) bool { return slices.Contains(aboutWords, after) }) {
+			return true
+		}
+	}
+	return false
+}
+
 // secretNamed says a variable holds a secret, by its name's words: one is a secret's
 // word, whole, as in ADMIN_PASSWORD, RABBITMQ_DEFAULT_PASS or SECRET_KEY_BASE, or
 // joined to another, as in PGPASSWORD or MINIO_SECRETKEY, and none after it says the
