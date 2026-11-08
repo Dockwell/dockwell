@@ -301,7 +301,7 @@ func TestAYoungVersionNeverGoesBackOrAcrossAMajor(t *testing.T) {
 		t.Errorf("13.23 went back to %s: %q", r.Entry.GetVersion(), r.Held)
 	}
 	// A 0.x minor is a major.
-	if majorOf("0.31.0") == majorOf("0.30.4") || majorOf("v2.1") != majorOf("2.9") || majorOf("13.23-alpine") != "13" {
+	if majorOf("0.31.0") == majorOf("0.30.4") || majorOf("v2.1") != majorOf("2.9") || majorOf("13.23-alpine") != "13-alpine" {
 		t.Errorf("majors: %q %q %q %q %q", majorOf("0.31.0"), majorOf("0.30.4"), majorOf("v2.1"), majorOf("2.9"), majorOf("13.23-alpine"))
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -281,7 +282,7 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	if e.GetCategory() == "" {
 		needs, e.Category = append(needs, "a category"), "stand-in"
 	}
-	if err := check(ctx, e, overlay, rw.reaches); err != nil {
+	if err := check(ctx, e, overlay, rw.reaches, rw.typed); err != nil {
 		return fail(err, ClassCheck)
 	}
 	if len(needs) > 0 {
@@ -371,7 +372,7 @@ func (c *Converter) pin(ctx context.Context, file []byte) ([]byte, []string, err
 		}
 		c.Pins[image] = kept
 		if age := c.Now.Sub(kept.Built); age < HoldBack {
-			return nil, nil, youngError(fmt.Sprintf("%s is %d days old, and converts once it's %d", image, int(age.Hours()/24), int(HoldBack.Hours()/24)))
+			return nil, nil, youngError(fmt.Sprintf("%s is %s old, and converts once it's %d days old", image, days(age), int(HoldBack.Hours()/24)))
 		}
 		if kept.Next != "" {
 			notes = append(notes, fmt.Sprintf("pins %s's build of %s, as the tag's build of %s waits until %s",
@@ -478,7 +479,7 @@ func repoOf(image string) string {
 // words, and lists exactly what the converter finds it reaches now. That's what its
 // services reach, what its volumes and networks reach, as the plan counts them, and
 // what a value a person types can reach.
-func check(ctx context.Context, e *catalogv1.Entry, overlay Overlay, typed []string) error {
+func check(ctx context.Context, e *catalogv1.Entry, overlay Overlay, typed []string, typedResources map[string]bool) error {
 	if err := catalog.Check(e); err != nil {
 		return err
 	}
@@ -517,6 +518,10 @@ func check(ctx context.Context, e *catalogv1.Entry, overlay Overlay, typed []str
 	}
 	for i := range stack.Volumes {
 		v := &stack.Volumes[i]
+		if typedResources["volume "+v.Name] {
+			// What a person types, which typed says, and not what a stand-in reads as.
+			continue
+		}
 		access := (&volumedriver.Driver{}).HostAccess(v.Spec)
 		for j := range access {
 			reaches = append(reaches, "volume "+v.Name+": "+words(&access[j]))
@@ -524,6 +529,9 @@ func check(ctx context.Context, e *catalogv1.Entry, overlay Overlay, typed []str
 	}
 	for i := range stack.Networks {
 		n := &stack.Networks[i]
+		if typedResources["network "+n.Name] {
+			continue
+		}
 		access := (&networkdriver.Driver{}).HostAccess(n.Spec)
 		for j := range access {
 			reaches = append(reaches, "network "+n.Name+": "+words(&access[j]))
@@ -661,6 +669,14 @@ func Kept(results []Result, previous map[string]*catalogv1.Entry, all bool) (sta
 
 // unversioned are tags that name a branch rather than a version, which moves.
 var unversioned = map[string]bool{"latest": true, "stable": true, "main": true, "master": true, "nightly": true, "dev": true, "develop": true, "edge": true, "beta": true, "server": true}
+
+// days says an age in whole days, as people say one.
+func days(age time.Duration) string {
+	if n := int(age.Hours() / 24); n != 1 {
+		return strconv.Itoa(n) + " days"
+	}
+	return "1 day"
+}
 
 // youngError says a version is too young to take yet.
 type youngError string

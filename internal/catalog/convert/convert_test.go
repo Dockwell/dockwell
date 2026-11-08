@@ -303,7 +303,7 @@ func TestAYoungVersionWaits(t *testing.T) {
 	c.Registry = &fakeRegistry{built: map[string]time.Time{"example/a:2.0": now.Add(-3 * 24 * time.Hour)}}
 	c.Overlays["a"] = written("Stands in", "ai")
 	r = c.Convert(t.Context(), App{ID: "a", Name: "A", Version: "2.0", Compose: []byte("services:\n  a:\n    image: example/a:2.0\n")})
-	if r.Entry != nil || !r.Again || !r.Young || r.LeftOut != "example/a:2.0 is 3 days old, and converts once it's 14" {
+	if r.Entry != nil || !r.Again || !r.Young || r.LeftOut != "example/a:2.0 is 3 days old, and converts once it's 14 days old" {
 		t.Errorf("a young version with none before it: %+v", r)
 	}
 }

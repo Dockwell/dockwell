@@ -31,6 +31,9 @@ type rewritten struct {
 	reaches []string
 	// web is the input that names the port a person opens, empty for none.
 	web string
+	// typed are the volumes and networks whose driver or options a person types, as
+	// "volume data", which a reading of the file with stand-ins can't speak for.
+	typed map[string]bool
 }
 
 // rewrite turns a source's Compose file into what an entry may say, and its form
@@ -55,6 +58,8 @@ func rewrite(app App) (rewritten, error) {
 	if err := expandAliases(doc); err != nil {
 		return out, err
 	}
+	// A source's comments are its own, and what follows moves the lines they sat on.
+	dropComments(doc)
 	root := doc.Content[0]
 	// Compose reads $NAME as ${NAME}, and the rest of this reads the second.
 	walkScalars(root, func(n *yaml.Node) { n.Value = braceVars(n.Value) })
@@ -160,6 +165,7 @@ func rewrite(app App) (rewritten, error) {
 	if err := nested(folders); err != nil {
 		return out, err
 	}
+	out.reaches, out.typed = append(out.reaches, typedAccess(root)...), typedResources(root)
 	images := imageNodes(doc)
 	// Longest first, so ${CONTAINER_NAME}-worker is renamed before ${CONTAINER_NAME}
 	// is, and in one order every run.
@@ -220,6 +226,14 @@ func rewrite(app App) (rewritten, error) {
 	}
 	out.file, err = encodeFile(doc)
 	return out, err
+}
+
+// dropComments takes every comment off a file.
+func dropComments(n *yaml.Node) {
+	n.HeadComment, n.LineComment, n.FootComment = "", "", ""
+	for _, c := range n.Content {
+		dropComments(c)
+	}
 }
 
 // maxNodes bounds what expanding a file's aliases makes, as a few aliases of aliases
@@ -353,6 +367,84 @@ func dashServices(doc *yaml.Node) error {
 		hosts(doc.Content[0], images, from, to)
 	}
 	return nil
+}
+
+// hostFields are a service's fields that decide what it reaches on its server, so one
+// a person types reaches it, whatever its default.
+var hostFields = []string{
+	"privileged", "network_mode", "pid", "ipc", "userns_mode", "cgroup_parent", "runtime",
+	"cap_add", "devices", "security_opt", "sysctls", "group_add", "volumes_from",
+}
+
+// typedAccess says what a file reaches through values a person types: a field of a
+// service's that decides what it reaches, and a volume's or a network's driver, its
+// options, or the name of one the server has.
+func typedAccess(root *yaml.Node) []string {
+	var out []string
+	services := mapGet(root, "services")
+	for i := 0; services != nil && i+1 < len(services.Content); i += 2 {
+		name, svc := services.Content[i].Value, services.Content[i+1]
+		for _, field := range hostFields {
+			if v := mapGet(svc, field); v != nil && typedNode(v) {
+				out = append(out, fmt.Sprintf("%s: its %s, as a person sets it, %s", name, field, nodeText(v)))
+			}
+		}
+	}
+	for _, kind := range []string{"volumes", "networks"} {
+		top := mapGet(root, kind)
+		for i := 0; top != nil && i+1 < len(top.Content); i += 2 {
+			name, spec := top.Content[i].Value, top.Content[i+1]
+			what := strings.TrimSuffix(kind, "s") + " " + name
+			for _, field := range []string{"driver", "name", "external"} {
+				if v := mapGet(spec, field); v != nil && typedNode(v) {
+					out = append(out, fmt.Sprintf("%s: its %s, as a person sets it, %s", what, field, nodeText(v)))
+				}
+			}
+			opts := mapGet(spec, "driver_opts")
+			for j := 0; opts != nil && j+1 < len(opts.Content); j += 2 {
+				key, v := opts.Content[j].Value, opts.Content[j+1]
+				switch {
+				case !typedNode(v):
+				case key == "device" || key == "mountpoint":
+					out = append(out, fmt.Sprintf("%s: a server path a person names, %s", what, nodeText(v)))
+				default:
+					out = append(out, fmt.Sprintf("%s: its driver's %s, as a person sets it, %s", what, key, nodeText(v)))
+				}
+			}
+		}
+	}
+	return out
+}
+
+// typedResources are the volumes and networks typedAccess speaks for.
+func typedResources(root *yaml.Node) map[string]bool {
+	out := map[string]bool{}
+	for _, kind := range []string{"volumes", "networks"} {
+		top := mapGet(root, kind)
+		for i := 0; top != nil && i+1 < len(top.Content); i += 2 {
+			spec := top.Content[i+1]
+			for _, field := range []string{"driver", "driver_opts", "name", "external"} {
+				if v := mapGet(spec, field); v != nil && typedNode(v) {
+					out[strings.TrimSuffix(kind, "s")+" "+top.Content[i].Value] = true
+				}
+			}
+		}
+	}
+	return out
+}
+
+// typedNode says a person types some of a value: it uses a variable.
+func typedNode(n *yaml.Node) bool {
+	typed := false
+	walkScalars(n, func(s *yaml.Node) {
+		if len(usesOf(braceVars(s.Value))) > 0 {
+			typed = true
+		}
+	})
+	if n.Kind == yaml.ScalarNode {
+		typed = len(usesOf(braceVars(n.Value))) > 0
+	}
+	return typed
 }
 
 // nested refuses a folder bound inside another, as Docker shares what's in it and two

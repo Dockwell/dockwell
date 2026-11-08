@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"go.yaml.in/yaml/v4"
 )
@@ -219,10 +220,6 @@ func onePanelVersion(t *tree, app App, appDir, version string) App {
 	return app
 }
 
-// secretName says a field holds a secret, by its name: a password, a key, a salt or
-// a token, which 1Panel sometimes types as text.
-var secretName = regexp.MustCompile(`PASSWORD|PASSWD|(^|_)PWD($|_)|SECRET|TOKEN|(^|_)SALT($|_)|(^|_)KEY($|_)`)
-
 func onePanelFieldOf(f *onePanelField, web bool) Field {
 	out := Field{
 		Name:     f.EnvKey,
@@ -233,7 +230,13 @@ func onePanelFieldOf(f *onePanelField, web bool) Field {
 	if f.Default != nil {
 		out.Default = fmt.Sprint(f.Default)
 	}
-	secret := f.Type == "password" || secretName.MatchString(strings.ToUpper(f.EnvKey))
+	// A default written as an example in another language, as some of 1Panel's are,
+	// is no value to start from.
+	if strings.IndexFunc(out.Default, func(r rune) bool { return r > unicode.MaxASCII }) >= 0 {
+		out.Default = ""
+	}
+	// 1Panel sometimes types a secret as text, so its name says too.
+	secret := f.Type == "password" || secretNamed(f.EnvKey)
 	switch {
 	case f.Rule == "paramPort" || strings.HasPrefix(f.EnvKey, "PANEL_APP_PORT_"):
 		out.Kind = Port
@@ -263,7 +266,97 @@ func readYAML(t *tree, file string, into any) error {
 	return nil
 }
 
-var versionPart = regexp.MustCompile(`\d+|[^\d.\-_]+`)
+// version is a version as the converter reads one: 0.8.7-pg13 is the numbers 0 8 7,
+// in the variant pg13, and 2.0.0-beta.1 is 2.0.0's pre-release.
+type version struct {
+	// nums are its numbers before any word, or all of them if a word comes first,
+	// as nvidia-0.33.0 does.
+	nums []int
+	// variant are the words that name what it's built on or with, each with the
+	// number written right after it: pg13, alpine3, postgres, standalone.
+	variant []string
+	// pre is the word that makes it a pre-release, such as beta, empty for none.
+	pre string
+	// calendar says it's dated, as 20250803 or 2026.10.4 are, which moves on as one
+	// line: a new date is no new major.
+	calendar bool
+}
+
+var (
+	versionToken = regexp.MustCompile(`\d+|[A-Za-z]+`)
+	// A build's commit, as in 2024.10.22-7ca5933, which says nothing of what it is.
+	commitPart  = regexp.MustCompile(`^[0-9a-f]*[a-f][0-9a-f]*$`)
+	preReleases = []string{"alpha", "beta", "rc", "pre", "preview", "dev", "snapshot", "nightly", "canary", "next"}
+)
+
+func parseVersion(v string) version {
+	v = trimV(v)
+	var kept []string
+	for i, part := range strings.FieldsFunc(v, func(r rune) bool { return r == '-' || r == '+' }) {
+		if i > 0 && len(part) >= 7 && commitPart.MatchString(strings.ToLower(part)) {
+			continue
+		}
+		kept = append(kept, part)
+	}
+	v = strings.Join(kept, "-")
+	var out version
+	var after []int
+	word := false
+	idx := versionToken.FindAllStringIndex(v, -1)
+	for i := 0; i < len(idx); i++ {
+		tok := v[idx[i][0]:idx[i][1]]
+		n, err := strconv.Atoi(tok)
+		if err == nil {
+			if word {
+				after = append(after, n)
+			} else {
+				out.nums = append(out.nums, n)
+			}
+			continue
+		}
+		word = true
+		lower := strings.ToLower(tok)
+		if slices.Contains(preReleases, lower) {
+			out.pre = lower
+			continue
+		}
+		// A word written right against a number names that version of something,
+		// as pg13 does.
+		if i+1 < len(idx) && idx[i+1][0] == idx[i][1] {
+			if _, err := strconv.Atoi(v[idx[i+1][0]:idx[i+1][1]]); err == nil {
+				lower += v[idx[i+1][0]:idx[i+1][1]]
+				i++
+			}
+		}
+		out.variant = append(out.variant, lower)
+	}
+	if len(out.nums) == 0 {
+		out.nums = after
+	}
+	if len(out.nums) > 0 {
+		first := out.nums[0]
+		out.calendar = first >= 1990 && first <= 2100 || first >= 19900101 && first <= 21001231
+	}
+	return out
+}
+
+// major is what an entry may move within without the breaking marker: a calendar
+// line, or the first number, or the first two where the first is 0, as semantic
+// versions read 0.31 as one, with the variant it's built on.
+func (v version) major() string {
+	var m string
+	switch {
+	case v.calendar:
+		m = "calendar"
+	case len(v.nums) == 0:
+		m = ""
+	case v.nums[0] == 0 && len(v.nums) > 1:
+		m = "0." + strconv.Itoa(v.nums[1])
+	default:
+		m = strconv.Itoa(v.nums[0])
+	}
+	return strings.Join(append([]string{m}, v.variant...), "-")
+}
 
 // trimV takes the v off a version such as v2.0, which counts as 2.0.
 func trimV(v string) string {
@@ -274,44 +367,31 @@ func trimV(v string) string {
 }
 
 // compareVersions orders versions as people read them, by each number in turn, so
-// 1.10 comes after 1.9.
+// 1.10 comes after 1.9, and a pre-release before its release.
 func compareVersions(a, b string) int {
-	pa, pb := versionPart.FindAllString(trimV(a), -1), versionPart.FindAllString(trimV(b), -1)
-	for i := 0; i < len(pa) && i < len(pb); i++ {
-		na, ea := strconv.Atoi(pa[i])
-		nb, eb := strconv.Atoi(pb[i])
-		switch {
-		case ea == nil && eb == nil:
-			if c := cmp.Compare(na, nb); c != 0 {
-				return c
-			}
-		case ea == nil:
-			return 1
-		case eb == nil:
-			return -1
-		default:
-			if c := strings.Compare(pa[i], pb[i]); c != 0 {
-				return c
-			}
+	va, vb := parseVersion(a), parseVersion(b)
+	for i := range max(len(va.nums), len(vb.nums)) {
+		var na, nb int
+		if i < len(va.nums) {
+			na = va.nums[i]
 		}
-	}
-	return cmp.Compare(len(pa), len(pb))
-}
-
-// majorOf is a version's major: its first number, as 13 of 13.23-alpine, or its
-// first two where the first is 0, as semantic versions read 0.31 as one.
-func majorOf(v string) string {
-	var nums []string
-	for _, p := range versionPart.FindAllString(trimV(v), -1) {
-		if _, err := strconv.Atoi(p); err == nil {
-			nums = append(nums, p)
+		if i < len(vb.nums) {
+			nb = vb.nums[i]
+		}
+		if c := cmp.Compare(na, nb); c != 0 {
+			return c
 		}
 	}
 	switch {
-	case len(nums) == 0:
-		return ""
-	case nums[0] == "0" && len(nums) > 1:
-		return "0." + nums[1]
+	case va.pre == "" && vb.pre != "":
+		return 1
+	case va.pre != "" && vb.pre == "":
+		return -1
 	}
-	return nums[0]
+	return cmp.Or(strings.Compare(va.pre, vb.pre), strings.Compare(strings.Join(va.variant, "-"), strings.Join(vb.variant, "-")), strings.Compare(a, b))
+}
+
+// majorOf is a version's major, as version.major says.
+func majorOf(v string) string {
+	return parseVersion(v).major()
 }
