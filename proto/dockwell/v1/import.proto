@@ -124,6 +124,8 @@ enum ImportAction {
   IMPORT_ACTION_MAKE = 2;
   // Left as it is, with the reason.
   IMPORT_ACTION_LEAVE = 3;
+  // In Dockwell already, from an import before: becomes says as what.
+  IMPORT_ACTION_DONE = 4;
 }
 
 // OnePanel is what 1Panel keeps on a server, as its records say, with nothing

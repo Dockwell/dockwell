@@ -181,6 +181,8 @@ const (
 	ImportAction_IMPORT_ACTION_MAKE ImportAction = 2
 	// Left as it is, with the reason.
 	ImportAction_IMPORT_ACTION_LEAVE ImportAction = 3
+	// In Dockwell already, from an import before: becomes says as what.
+	ImportAction_IMPORT_ACTION_DONE ImportAction = 4
 )
 
 // Enum value maps for ImportAction.
@@ -190,12 +192,14 @@ var (
 		1: "IMPORT_ACTION_TAKE_ON",
 		2: "IMPORT_ACTION_MAKE",
 		3: "IMPORT_ACTION_LEAVE",
+		4: "IMPORT_ACTION_DONE",
 	}
 	ImportAction_value = map[string]int32{
 		"IMPORT_ACTION_UNSPECIFIED": 0,
 		"IMPORT_ACTION_TAKE_ON":     1,
 		"IMPORT_ACTION_MAKE":        2,
 		"IMPORT_ACTION_LEAVE":       3,
+		"IMPORT_ACTION_DONE":        4,
 	}
 )
 
@@ -1692,12 +1696,13 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x11IMPORT_KIND_PANEL\x10\b\x12\x1f\n" +
 	"\x1bIMPORT_KIND_COMPOSE_PROJECT\x10\t\x12\x1a\n" +
 	"\x16IMPORT_KIND_CONTAINERS\x10\n" +
-	"*y\n" +
+	"*\x91\x01\n" +
 	"\fImportAction\x12\x1d\n" +
 	"\x19IMPORT_ACTION_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15IMPORT_ACTION_TAKE_ON\x10\x01\x12\x16\n" +
 	"\x12IMPORT_ACTION_MAKE\x10\x02\x12\x17\n" +
-	"\x13IMPORT_ACTION_LEAVE\x10\x032\xb8\x01\n" +
+	"\x13IMPORT_ACTION_LEAVE\x10\x03\x12\x16\n" +
+	"\x12IMPORT_ACTION_DONE\x10\x042\xb8\x01\n" +
 	"\rImportService\x12\xa6\x01\n" +
 	"\x0eImportOnePanel\x12\".dockwell.v1.ImportOnePanelRequest\x1a#.dockwell.v1.ImportOnePanelResponse\"K\xa0\xbb\x18\x02\xaa\xbb\x18\x10\n" +
 	"\x06import\x12\x061panel\x82\xd3\xe4\x93\x02-:\x01*\"(/v1/servers/{server_id}/imports:onepanelB\xa4\x01\n" +

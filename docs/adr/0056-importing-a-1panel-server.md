@@ -62,7 +62,12 @@ The tables the importer reads, by the names GORM gives them:
 
 ### What it does with each thing
 
-Every import is a plan a person reviews and applies, and nothing on the server changes before that. `ImportService.ImportOnePanel` returns all of this. For a person it also plans one change that takes on every app and runtime that can come now. A token gets the list and no change, as a plan that takes a container on shows what a token can't read (ADR 0031), so `dockwell import 1panel --server-id <server> --plan-only` lists it, and the panel plans it.
+Every import is a plan a person reviews and applies, and nothing on the server changes before that. `ImportService.ImportOnePanel` returns all of this. For a person it also plans one change that takes on every app, runtime and Compose project that can come now. A token gets the list and no change, as a plan that takes a container on shows what a token can't read (ADR 0031), so `dockwell import 1panel --server-id <server> --plan-only` lists it, says so, and the panel plans it.
+
+- **One thing that can't come doesn't stop the rest.** Each that can't be read, or has something in the way, stays with its reason, and the others are planned. Only when what the server runs can't be read at all is nothing planned, and each says why. What the server runs is read once for the whole import.
+- **Each comes into a project of its own.** An app goes into a project named after it, or, where Dockwell has a project of that name already, `<name>-1panel` and on, so nothing is planned into a person's own project and the import never needs a choice of project.
+- **What was taken on before says so.** A container taken on keeps its name, so an app or runtime whose container Dockwell runs reads as in Dockwell already, as the project it went into (`IMPORT_ACTION_DONE`), and isn't planned again. Its database server says the same.
+- **A new plan stands in for the last.** A person's import of a server discards the plan their last import of it made, where that's still planned, so reading again leaves one plan, not a pile. It's kept in memory, so after a restart an old plan stays until someone discards it.
 
 - **Each app is read as `AdoptCompose` reads a project,** container by container, by its Compose project, which is its install's name. What's in the way of one, such as a setting no spec holds, leaves that app with the refusal in its words, and the rest still come. An app 1Panel lists with no container left, and its database server, say so too.
 - **Where Dockwell can't read what runs on the server,** as its Docker is away, nothing is planned, and each app says why.
