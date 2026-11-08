@@ -10,6 +10,10 @@
 #   scripts/ci-jobs-test.sh
 set -euo pipefail
 
+# In CI these name the step's own files, and the script writes its answers there
+# rather than printing them, so an example that forgot to clear them read nothing.
+unset GITHUB_OUTPUT GITHUB_STEP_SUMMARY
+
 jobs=$(cd "$(dirname "$0")" && pwd)/ci-jobs.sh
 root=$(cd "$(dirname "$0")/.." && pwd)
 failed=0
