@@ -5,6 +5,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type Client, createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
+  ActorKind,
   BackupService,
   CatalogService,
   type Change,
@@ -22,6 +23,7 @@ import {
   PlanAction,
   type PlannedResource,
   ResourceService,
+  Role,
   StepState,
   StepUpAction,
   VariableService,
@@ -69,6 +71,7 @@ import { readHealthSoon, useHealth } from "../apps/health";
 import { readServicesAgain, useServices } from "../apps/useServices";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
+import { useSignedInUser } from "../auth/useAuthState";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
@@ -515,6 +518,17 @@ function ChangeSheet({
     })
     .map((s) => s.serverName);
   const canApply = confirmed && offline.length === 0;
+  // A plan in a protected environment is an admin's or the owner's to apply.
+  // Someone else's, they approve, with a passkey (ADR 0049).
+  const user = useSignedInUser();
+  const admin = user?.role === Role.ADMIN || user?.role === Role.OWNER;
+  const waits = phase === "review" && change?.protected === true && !admin;
+  const approves =
+    phase === "review" &&
+    change?.protected === true &&
+    admin &&
+    change.proposedBy?.kind === ActorKind.USER &&
+    change.proposedBy.id !== user?.id;
 
   const apply = useCallback(async () => {
     if (!change || !canApply || busy) return;
@@ -636,8 +650,30 @@ function ChangeSheet({
     </span>
   );
 
+  // Leaving a plan that waits keeps it planned, for an admin to find on Activity.
+  const leaveForAdmin = useCallback(() => {
+    const held = proposal.current;
+    if (held) held.keep = true;
+    close();
+  }, [close]);
+
   let footer: ReactNode;
-  if (phase === "planning" || phase === "unplanned" || phase === "nothing") {
+  if (waits) {
+    footer = (
+      <>
+        <span className="dw-sheet-note">
+          <Icon name="shield" size={14} />
+          <Trans>This changes a protected environment, so an admin or the owner applies it</Trans>
+        </span>
+        <Button variant="ghost" size={size} onClick={close}>
+          <Trans>Discard</Trans>
+        </Button>
+        <Button variant="primary" size={size} onClick={leaveForAdmin} ref={primary}>
+          <Trans>Leave it for an admin</Trans>
+        </Button>
+      </>
+    );
+  } else if (phase === "planning" || phase === "unplanned" || phase === "nothing") {
     footer = (
       <Button variant="secondary" size={size} onClick={close} ref={primary}>
         <Trans>Close</Trans>
@@ -671,7 +707,7 @@ function ChangeSheet({
         />
         <div className="plan-gate-note">
           {undoNote}
-          {needsPasskey(plan) ? (
+          {needsPasskey(plan) || approves ? (
             <span className="dw-sheet-note">
               <Icon name="key" size={14} />
               <Trans>Applying this asks for your passkey</Trans>
@@ -688,6 +724,11 @@ function ChangeSheet({
         {offline.length > 0 ? (
           <span className="dw-sheet-note">
             <Trans>{offline.join(", ")} has to reconnect first</Trans>
+          </span>
+        ) : approves ? (
+          <span className="dw-sheet-note">
+            <Icon name="key" size={14} />
+            <Trans>Applying this approves {change?.proposedBy?.name}'s change, with your passkey</Trans>
           </span>
         ) : (
           undoNote

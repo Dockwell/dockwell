@@ -14,6 +14,7 @@ import {
   PlanAction,
   PlannedResourceSchema,
   ResourceSchema,
+  Role,
   StepProgressSchema,
   StepState,
   Surface,
@@ -29,6 +30,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { authState, mira as signedIn } from "../../test/auth";
 import {
   applied,
   auditEvent,
@@ -763,6 +765,20 @@ describe("Activity", () => {
     expect(screen.getByRole("row", { name: /Created the API token/ })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Show earlier events" }));
     await waitFor(() => expect(pages).toEqual(["page-2", "page-3"]));
+  });
+
+  it("says someone else's plan in a protected environment waits for an admin, or for you", async () => {
+    const waiting = moved(webPlanned(), { protected: true });
+    const { unmount } = renderAt("/activity", { events: { watchEvents: feedOf(snapshot([changeEvent(waiting)])) } });
+    expect(await screen.findByRole("row", { name: /Update web/ })).toHaveTextContent("Waits for your approval");
+    unmount();
+    renderAt("/activity", {
+      events: { watchEvents: feedOf(snapshot([changeEvent(waiting)])) },
+      auth: { getAuthState: () => authState({ user: { ...signedIn, role: Role.DEVELOPER } }) },
+    });
+    const row = await screen.findByRole("row", { name: /Update web/ });
+    expect(row).toHaveTextContent("Waits for an admin");
+    expect(row).not.toHaveTextContent("Waits for your approval");
   });
 
   it("links a failed deploy to the logs of what it deployed", async () => {

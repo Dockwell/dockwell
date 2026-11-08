@@ -13,6 +13,7 @@ import {
   EventKind,
   type EventTerminal,
   ResourceService,
+  Role,
 } from "@dockwell/api";
 import {
   Button,
@@ -40,6 +41,7 @@ import { sentence } from "../../lib/errors";
 import { formatBytes, formatClock, formatDateTime, formatWeekday } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { useSignedInUser } from "../auth/useAuthState";
 import { initials } from "../auth/user";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { BecauseNotice, FailureNotice, MachineWords } from "../changes/FailureNotice";
@@ -368,6 +370,8 @@ function useMeta() {
   const progress = useProgress();
   const rollbackWord = useRollbackWord();
   const health = useHealthEventWords();
+  const user = useSignedInUser();
+  const admin = user?.role === Role.ADMIN || user?.role === Role.OWNER;
   return useCallback(
     (event: Event): { look: StepLook | undefined; parts: string[] } => {
       const change = event.change;
@@ -381,11 +385,18 @@ function useMeta() {
       const brief = steps || counts(change);
       if (brief) parts.push(brief);
       if (change.undoneBy) parts.push(t`Undone`);
+      // A planned change in a protected environment is an admin's or the owner's to
+      // apply, and someone else's, theirs to approve (ADR 0049).
+      if (change.state === ChangeState.PLANNED && change.protected) {
+        if (!admin) parts.push(t`Waits for an admin`);
+        else if (change.proposedBy?.kind === ActorKind.USER && change.proposedBy.id !== user?.id)
+          parts.push(t`Waits for your approval`);
+      }
       const rollback = rollbackWord(change);
       if (rollback) parts.push(rollback);
       return { look: words.state(change.state), parts };
     },
-    [t, words, counts, progress, rollbackWord, health],
+    [t, words, counts, progress, rollbackWord, health, admin, user],
   );
 }
 

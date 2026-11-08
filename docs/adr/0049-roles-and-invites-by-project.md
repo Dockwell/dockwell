@@ -119,6 +119,8 @@ The interceptor checks `min_role` against the caller's highest grant anywhere, a
 **Enforcement is where every other check is:**
 
 - `internal/revision` checks each item's protection, at propose, apply, discard, undo and rollback, by the stricter of before and after. A change with any item in a protected environment waits as a whole.
+  - It checks every item of every change, wherever the change comes from: ProposeChange's edits, an undo, a restore, a catalog install, a Compose import. Out of reach is not found, as the interceptor says it. A project, and anything in no project, is an admin's to make, change or delete.
+  - The API carries the caller, with the grants the gate read, in each call's context, and the engine reads it there. The control plane has the engine refuse a person's change that comes without one. Dockwell's own changes aren't checked.
 - The resolver gives every other call its object's protection, for `min_role_protected`. That covers revealing a secret, and making, fetching or deleting a backup.
 - A plan with host access (ADR 0021), a privileged container or a server path among them, reaches the server every project on it shares, so it's an admin's to apply, whatever a project's grants say (ADR 0048). `internal/revision` checks it with each item; `ApplyChange` refuses it below an admin as well.
 
@@ -127,6 +129,7 @@ The interceptor checks `min_role` against the caller's highest grant anywhere, a
 - **A developer proposes in a protected environment, and the change waits** as planned, on Activity and in the plan sheet, as "waiting for an admin".
 - **An admin or the owner applies it** in a session, with the fingerprint of the plan they reviewed, which is required there, and a passkey step-up bound to the change and that fingerprint: `STEP_UP_ACTION_APPROVE_CHANGE` (114). That's the PRD's "approve with a passkey". The method that does it needs a session (`needs_session`), so no token approves anyone else's change.
 - **An admin's or the owner's own change** in a protected environment applies as any change does, in a session or with a read-write token they made, so CI can deploy production with an admin's token.
+- **How it shows.** A planned change with an item in a protected environment reads `protected`. Someone below an admin who plans one leaves it for an admin from the plan sheet, rather than discarding it, and Activity says it waits for one. A step-up refusal says which step-up it takes, in a `StepUpNeeded` detail: for approving, `STEP_UP_ACTION_APPROVE_CHANGE` with the target `chg_…:fingerprint`. One passkey approves the plan, root's included. "Someone else's" means another person's: a plan Dockwell made needs no approval.
 - **Discarding someone else's plan** is the proposer's, a developer's of the project in an open environment, or an admin's in a protected one.
 
 This is the mock's "Plans for production wait for an owner or admin", built on what Dockwell has: one person proposes, another applies, as the CLI's plans already do. It isn't the Organization edition's approval counts, approver rules and deploy windows.

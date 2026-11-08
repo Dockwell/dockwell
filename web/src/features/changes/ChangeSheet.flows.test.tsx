@@ -21,6 +21,7 @@ import {
   PlannedResourceSchema,
   PlanPlaceSchema,
   PlanSummarySchema,
+  Role,
   RollbackState,
   RollbackStatusSchema,
   RouteAnswersSchema,
@@ -29,6 +30,7 @@ import {
   StepProgressSchema,
   StepState,
   StepUpAction,
+  StepUpNeededSchema,
   type WatchChangeResponse,
 } from "@dockwell/api";
 import { CommandBar } from "@dockwell/ui";
@@ -39,7 +41,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { authError, requestOptions, stubPasskeys } from "../../test/auth";
+import { authError, authState, requestOptions, mira as signedIn, stubPasskeys } from "../../test/auth";
 import { applied, mira, moved, watched, webPlanned } from "../../test/changes";
 import { feed, renderWithApi } from "../../test/render";
 import { ChangeSheetProvider, type Opening, useChangeSheet } from "./ChangeSheet";
@@ -1500,5 +1502,78 @@ describe("in Chinese", () => {
     const sheet = await screen.findByRole("dialog", { name: "审查计划" });
     expect(await within(sheet).findByRole("button", { name: /还会创建项目 blog/ })).toBeVisible();
     await expectAccessible(document.body);
+  });
+});
+
+describe("a plan in a protected environment", () => {
+  const protectedPlan = () => moved(webPlanned(), { protected: true });
+
+  it("tells someone below an admin that it waits for one, and leaves it planned for them", async () => {
+    const discardChange = vi.fn(() => ({}));
+    const change = protectedPlan();
+    renderWithApi(
+      <ChangeSheetProvider>
+        <Opener opening={{ kind: "plan", make: () => Promise.resolve({ change }) } as Opening} />
+      </ChangeSheetProvider>,
+      {
+        changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange } as never,
+        auth: { getAuthState: () => authState({ user: { ...signedIn, role: Role.DEVELOPER } }) },
+      },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(
+      await within(sheet).findByText("This changes a protected environment, so an admin or the owner applies it"),
+    ).toBeVisible();
+    expect(within(sheet).queryByRole("button", { name: /Apply plan/ })).toBeNull();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Leave it for an admin" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Review plan" })).toBeNull());
+    expect(discardChange).not.toHaveBeenCalled();
+  });
+
+  it("approves someone else's with the passkey the refusal asks for, bound to its plan", async () => {
+    stubPasskeys();
+    const change = protectedPlan();
+    const target = `${change.id}:${change.plan?.fingerprint}`;
+    const beginStepUp = vi.fn(() => ({ ceremonyId: "cer_1", optionsJson: requestOptions }));
+    const applies: ApplyChangeRequest[] = [];
+    renderWithApi(
+      <ChangeSheetProvider>
+        <Opener opening={{ kind: "plan", make: () => Promise.resolve({ change }) } as Opening} />
+      </ChangeSheetProvider>,
+      {
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          applyChange: (req: ApplyChangeRequest) => {
+            applies.push(req);
+            if (!req.proof) {
+              throw new ConnectError(
+                "approving it takes your passkey",
+                Code.PermissionDenied,
+                new Headers({ "Dockwell-Error": "needs_step_up" }),
+                [
+                  {
+                    desc: StepUpNeededSchema,
+                    value: create(StepUpNeededSchema, { action: StepUpAction.APPROVE_CHANGE, target }),
+                  },
+                ],
+              );
+            }
+            return { change: moved(change, { state: ChangeState.APPLYING }) };
+          },
+        } as never,
+        auth: { getAuthState: () => authState(), beginStepUp, finishStepUp: () => ({ proof: "proof_1" }) },
+      },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(
+      await within(sheet).findByText("Applying this approves Mira Chen's change, with your passkey"),
+    ).toBeVisible();
+    await userEvent.click(within(sheet).getByRole("button", { name: /Apply plan/ }));
+    await waitFor(() => expect(applies).toHaveLength(2));
+    expect(beginStepUp).toHaveBeenCalledWith(
+      expect.objectContaining({ action: StepUpAction.APPROVE_CHANGE, target }),
+      expect.anything(),
+    );
+    expect(applies[1]).toMatchObject({ id: change.id, proof: "proof_1", fingerprint: change.plan?.fingerprint });
   });
 });

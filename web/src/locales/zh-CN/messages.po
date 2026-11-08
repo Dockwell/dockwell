@@ -434,6 +434,12 @@ msgstr "撤销者"
 msgid "Volume"
 msgstr "卷"
 
+msgid "Waits for an admin"
+msgstr "等待管理员"
+
+msgid "Waits for your approval"
+msgstr "等待你批准"
+
 msgid "What changed"
 msgstr "变更内容"
 
@@ -3539,6 +3545,10 @@ msgstr "只有信任它运行的内容时才应用。"
 msgid "Applying"
 msgstr "正在应用"
 
+#. placeholder {0}: change?.proposedBy?.name
+msgid "Applying this approves {0}'s change, with your passkey"
+msgstr "应用此计划即批准 {0} 的变更，需要验证你的通行密钥"
+
 msgid "Applying this asks for your passkey"
 msgstr "应用此计划时会要求验证你的通行密钥"
 
@@ -3586,6 +3596,9 @@ msgstr "关闭这里后它会继续应用。"
 
 msgid "Keep this only if you trust what it runs."
 msgstr "请仅在信任其运行内容时保留。"
+
+msgid "Leave it for an admin"
+msgstr "留给管理员处理"
 
 msgid "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
 msgstr "接下来，将 {on} 上的隧道指向 http://127.0.0.1:80。使用 https:// 会失败，因为此路由不使用证书。"
@@ -3655,6 +3668,9 @@ msgstr "通行密钥提示已关闭，所以没有应用任何内容，计划仍
 
 msgid "The plan didn't work"
 msgstr "计划没有成功"
+
+msgid "This changes a protected environment, so an admin or the owner applies it"
+msgstr "此计划会更改受保护的环境，因此由管理员或所有者应用"
 
 msgid "Took {took}"
 msgstr "用时 {took}"

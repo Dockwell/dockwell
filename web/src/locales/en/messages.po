@@ -434,6 +434,12 @@ msgstr "Undone by"
 msgid "Volume"
 msgstr "Volume"
 
+msgid "Waits for an admin"
+msgstr "Waits for an admin"
+
+msgid "Waits for your approval"
+msgstr "Waits for your approval"
+
 msgid "What changed"
 msgstr "What changed"
 
@@ -3539,6 +3545,10 @@ msgstr "Apply this only if you trust what it runs."
 msgid "Applying"
 msgstr "Applying"
 
+#. placeholder {0}: change?.proposedBy?.name
+msgid "Applying this approves {0}'s change, with your passkey"
+msgstr "Applying this approves {0}'s change, with your passkey"
+
 msgid "Applying this asks for your passkey"
 msgstr "Applying this asks for your passkey"
 
@@ -3586,6 +3596,9 @@ msgstr "It keeps applying if you close this."
 
 msgid "Keep this only if you trust what it runs."
 msgstr "Keep this only if you trust what it runs."
+
+msgid "Leave it for an admin"
+msgstr "Leave it for an admin"
 
 msgid "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
 msgstr "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
@@ -3655,6 +3668,9 @@ msgstr "The passkey prompt closed, so nothing was applied and the plan is still 
 
 msgid "The plan didn't work"
 msgstr "The plan didn't work"
+
+msgid "This changes a protected environment, so an admin or the owner applies it"
+msgstr "This changes a protected environment, so an admin or the owner applies it"
 
 msgid "Took {took}"
 msgstr "Took {took}"
