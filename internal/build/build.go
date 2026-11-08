@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -185,7 +186,19 @@ func (b *Builder) Has(ctx context.Context, image string) (bool, error) {
 
 // Build makes req.Image from its source, unless the server has it, then removes the
 // service's older built images. It waits for any other build on the server first.
-func (b *Builder) Build(ctx context.Context, req service.BuildRequest) error {
+func (b *Builder) Build(ctx context.Context, req service.BuildRequest) (err error) {
+	defer func() {
+		// Nothing a repository holds may take the agent down: a build that goes
+		// wrong this way fails, and says so.
+		if p := recover(); p != nil {
+			b.logger().Error("a build failed unexpectedly", "change", req.Change, "service", req.Service.Name, "panic", fmt.Sprint(p), "stack", string(debug.Stack()))
+			err = b.ended(ctx, req, facts{}, unexpected(p))
+		}
+	}()
+	return b.build(ctx, req)
+}
+
+func (b *Builder) build(ctx context.Context, req service.BuildRequest) error {
 	b.init()
 	if has, err := b.Has(ctx, req.Image); err != nil || has {
 		return err
@@ -371,9 +384,13 @@ func (b *Builder) readFor(ctx context.Context, req service.BuildRequest, rep *re
 	rep.reading()
 	read := req
 	read.Secrets, read.SecretIDs = nil, slices.Sorted(mapsKeys(req.Secrets))
-	d, plan, err := b.read(ctx, read)
+	// It holds the build slot already, so it takes no reading's place.
+	d, plan, err := b.read(ctx, read, true)
 	if err != nil {
 		return "", nil, err
+	}
+	if d == nil {
+		return "", nil, errors.New("the reading said nothing of how the commit builds")
 	}
 	if d.Builder == resource.BuilderDockerfile {
 		rep.detectedAs(d)
@@ -685,7 +702,12 @@ func (b *Builder) writeSecrets(files map[string]string, secret bool) (dir string
 	}
 	dir, err = b.folderIn(parent, secret)
 	if err != nil && !secret {
-		dir, err = b.folderIn(filepath.Join(os.TempDir(), "dockwell-builds"), false)
+		// A folder of its own, made now, and none it finds there, which anyone
+		// could have made, or pointed elsewhere.
+		dir, err = os.MkdirTemp(os.TempDir(), "dockwell-build-")
+		if err != nil {
+			err = secretsRefused(os.TempDir(), err)
+		}
 	}
 	if err != nil {
 		return "", cleanup, err

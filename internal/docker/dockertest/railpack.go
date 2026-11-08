@@ -112,10 +112,12 @@ func (e *Engine) hasRailpack(c *container) bool {
 
 // fakeDetect stands in for a detect container: it checks out the commit, and says
 // whether it has its Dockerfile, with its FROM lines, or what Railpack makes of it.
-func (e *Engine) fakeDetect(c *container, stderr io.Writer) int {
+// What it says of itself goes to stdout, as the script's own descriptor does, and
+// git's words to stderr.
+func (e *Engine) fakeDetect(c *container, stdout, stderr io.Writer) int {
 	envs := envOf(c)
-	say := func(s string) { _, _ = fmt.Fprintf(stderr, "dockwell:%s\n", s) }
-	co, code := checkout(envs, stderr)
+	say := func(s string) { _, _ = fmt.Fprintf(stdout, "dockwell:%s\n", s) }
+	co, code := checkout(envs, stderr, say)
 	if code != 0 {
 		return code
 	}

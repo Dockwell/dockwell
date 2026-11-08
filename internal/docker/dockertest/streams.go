@@ -188,7 +188,7 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 		case slices.Contains(c.Config.Cmd, "dockwell-railpack-seed"):
 			code = e.fakeSeedMise(c, stderr)
 		case slices.Contains(c.Config.Cmd, "dockwell-detect"):
-			code = e.fakeDetect(c, stderr)
+			code = e.fakeDetect(c, stdout, stderr)
 		default:
 			code = e.fakeBuild(c, stdout, stderr)
 		}

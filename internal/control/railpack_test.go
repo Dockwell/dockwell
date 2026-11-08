@@ -3,10 +3,14 @@
 package control
 
 import (
+	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -253,4 +257,43 @@ func TestReadingsOfACommitAreFewAndWhereItBuilds(t *testing.T) {
 			t.Errorf("a reading with two servers and none named = %v", err)
 		}
 	})
+}
+
+// One caller has at most two readings under way: a server reads few at once for
+// everyone, so no one keeps it reading.
+func TestACallerHasFewReadingsUnderWay(t *testing.T) {
+	g := newGitBench(t, store.SQLite)
+	g.repo.Commit("main", "Works", nodeApp)
+	release := make(chan struct{})
+	var held atomic.Int64
+	g.e.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/containers/create") && strings.HasPrefix(r.URL.Query().Get("name"), "dockwell-detect-") {
+			held.Add(1)
+			<-release
+		}
+		return nil
+	})
+	read := func(n int) error {
+		b := &resourcev1.ImageBuild{
+			Source: &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: g.repo.URL, Ref: "main"}},
+			Args:   map[string]string{"N": strconv.Itoa(n)},
+		}
+		_, err := g.builds.DetectBuild(t.Context(), connect.NewRequest(&dockwellv1.DetectBuildRequest{Build: b}))
+		return err
+	}
+	var wg sync.WaitGroup
+	for n := range 2 {
+		wg.Go(func() { _ = read(n) })
+	}
+	for held.Load() < 2 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := read(3); reasonOf(err) != "too_many_readings" || !strings.Contains(err.Error(), "you have 2 readings under way already") {
+		t.Errorf("a third reading at once = %v", err)
+	}
+	close(release)
+	wg.Wait()
+	if err := read(4); err != nil {
+		t.Errorf("a reading once the others ended = %v", err)
+	}
 }

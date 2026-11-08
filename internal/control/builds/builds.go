@@ -70,6 +70,8 @@ type Handler struct {
 	watchers map[string]map[chan []store.BuildLine]struct{}
 	detected map[string]detected
 	reading  map[string]*reading
+	// readers counts each caller's readings under way, by the audit log's name.
+	readers map[string]int
 }
 
 var _ dockwellv1connect.BuildServiceHandler = (*Handler)(nil)
@@ -79,7 +81,7 @@ var _ dockwellv1connect.BuildServiceHandler = (*Handler)(nil)
 func New(db *store.DB, agents *agentapi.Agents, services Finder, logger *slog.Logger) *Handler {
 	h := &Handler{
 		db: db, agents: agents, services: services, logger: logger, now: time.Now,
-		watchers: map[string]map[chan []store.BuildLine]struct{}{}, detected: map[string]detected{}, reading: map[string]*reading{},
+		watchers: map[string]map[chan []store.BuildLine]struct{}{}, detected: map[string]detected{}, reading: map[string]*reading{}, readers: map[string]int{},
 	}
 	agents.OnBuild(h.record)
 	return h

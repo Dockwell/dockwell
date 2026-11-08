@@ -28,10 +28,12 @@ import (
 )
 
 // What reading how a commit builds keeps, so a form's reading and the plan that
-// follows it read the commit once.
+// follows it read the commit once; and how many readings one caller may have under
+// way at once, as a server reads few at a time for everyone.
 const (
 	detectedFor  = 15 * time.Minute
 	detectedKept = 64
+	readsEach    = 2
 )
 
 // ErrServerOffline says a server's agent isn't connected, so it couldn't read how a
@@ -43,6 +45,14 @@ type detected struct {
 	at time.Time
 	d  *resource.BuildDetection
 }
+
+// callerKey holds who asked for a reading through DetectBuild, by the audit log's
+// name, whose readings under way are counted.
+type callerKey struct{}
+
+// errTooManyReadings refuses a caller a reading beyond readsEach under way.
+var errTooManyReadings = authapi.ReasonError(connect.CodeResourceExhausted,
+	fmt.Errorf("you have %d readings under way already. Wait for one to end, then read again", readsEach), "too_many_readings")
 
 // reading is a reading under way, which the same request waits for rather than
 // read the commit again (H2 of #336's review: a reading runs as you type).
@@ -86,6 +96,23 @@ func (h *Handler) Detect(ctx context.Context, server string, b *resourcev1.Image
 		if !errors.Is(r.err, context.Canceled) {
 			return r.d, r.err
 		}
+	}
+	// A new reading counts against its caller's, as one already under way doesn't.
+	caller, _ := ctx.Value(callerKey{}).(string)
+	if caller != "" {
+		if h.readers[caller] >= readsEach {
+			h.mu.Unlock()
+			return nil, errTooManyReadings
+		}
+		h.readers[caller]++
+		defer func() {
+			h.mu.Lock()
+			h.readers[caller]--
+			if h.readers[caller] <= 0 {
+				delete(h.readers, caller)
+			}
+			h.mu.Unlock()
+		}()
 	}
 	r := &reading{done: make(chan struct{})}
 	h.reading[k] = r
@@ -140,6 +167,8 @@ func (h *Handler) keep(k string, d *resource.BuildDetection) {
 
 // DetectBuild reads how a commit would build, on a server, building nothing.
 func (h *Handler) DetectBuild(ctx context.Context, req *connect.Request[dockwellv1.DetectBuildRequest]) (*connect.Response[dockwellv1.DetectBuildResponse], error) {
+	_, caller := h.caller(ctx)
+	ctx = context.WithValue(ctx, callerKey{}, caller)
 	m := req.Msg
 	var b *resourcev1.ImageBuild
 	var placed []string
@@ -195,6 +224,8 @@ func (h *Handler) DetectBuild(ctx context.Context, req *connect.Request[dockwell
 	}
 	d, err := h.Detect(ctx, server, b, ownCommand)
 	switch {
+	case errors.Is(err, errTooManyReadings):
+		return nil, errTooManyReadings
 	case errors.Is(err, ErrServerOffline):
 		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s's agent isn't connected, so it can't read how the commit builds. Try again once it reconnects, or name another server", name), "server_offline")
 	case err != nil:

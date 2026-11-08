@@ -13,8 +13,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -198,6 +200,11 @@ func (b *Builder) copyRailpack(ctx context.Context) error {
 
 // runOnce runs a container to its end, says what it printed to out, and removes it.
 func (b *Builder) runOnce(ctx context.Context, name string, create *docker.CreateRequest, out *bytes.Buffer) (int, error) {
+	return b.run2(ctx, name, create, out, out)
+}
+
+// run2 is runOnce with what the container printed to stdout and to stderr apart.
+func (b *Builder) run2(ctx context.Context, name string, create *docker.CreateRequest, stdout, stderr *bytes.Buffer) (int, error) {
 	id, err := b.Client.CreateContainer(ctx, name, create)
 	if err != nil {
 		return 0, fmt.Errorf("docker can't make the container %s: %w", name, err)
@@ -209,8 +216,11 @@ func (b *Builder) runOnce(ctx context.Context, name string, create *docker.Creat
 			b.logger().Warn("can't remove a container a build used; the agent removes it when it next starts", "container", id, "error", err.Error())
 		}
 	}()
-	w := &capped{buf: out, max: 1 << 20}
-	code, err := b.Client.RunAttached(ctx, id, docker.Streams{Stdout: w, Stderr: w})
+	var o, e io.Writer = &capped{buf: stdout, max: 1 << 20}, &capped{buf: stderr, max: 1 << 20}
+	if stdout == stderr {
+		e = o
+	}
+	code, err := b.Client.RunAttached(ctx, id, docker.Streams{Stdout: o, Stderr: e})
 	if err != nil {
 		if ctx.Err() != nil {
 			return 0, ctx.Err()
@@ -242,34 +252,74 @@ func lastLine(s string) string {
 }
 
 // detectScript reads a commit as a build would, in BuildKit's image, which has
-// git: it checks out the commit, and says whether the Dockerfile is where the build
-// says, with its FROM lines. Without one, or when the build names Railpack, it has
-// Railpack say what it makes of the source and write the plan a build builds, or
-// says it needs Railpack first. Railpack runs from RailpackVolume, read-only, with
-// mise from there too, and keeps all it writes in memory. Its arguments are
-// Railpack's: an -e flag for each build argument, and each secret by its name, and
-// --error-missing-start. Every value comes from the environment or the arguments,
-// never from the script's words.
+// git, and checks it out only when Railpack must read it. It fetches the commit's
+// trees and none of its files, checks the commit is on its branch as a build does,
+// and finds the build's folder and its Dockerfile in the trees, following symlinks
+// within the commit, as a checkout would, and none that leads out of it: so a
+// Dockerfile build reads only its Dockerfile, however large the repository. Without
+// one, or when the build names Railpack, it checks the commit out, in memory, and
+// has Railpack say what it makes of the source and write the plan a build builds,
+// or says it needs Railpack first. Railpack runs from RailpackVolume, read-only, with
+// mise from there too.
+//
+// What it says of itself goes to its own descriptor, 3, the container's stdout, a
+// marker at the start of each line; git's and Railpack's words go to stderr, and
+// neither has descriptor 3, so nothing a repository or its server holds reads as a
+// marker. Its arguments are Railpack's: an -e flag for each build argument, and each
+// secret by its name, and --error-missing-start. Every value comes from the
+// environment or the arguments, never from the script's words.
 const detectScript = `set -eu
-say() { printf '` + marker + `%s\n' "$*" >&2; }
-export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false
-` + fetchScript + `
-if [ "$DW_BUILDER" = dockerfile ] && [ -z "$df" ]; then say fail dockerfile; exit 3; fi
-if [ -n "$df" ] && [ "$DW_BUILDER" != railpack ]; then
+exec 3>&1 1>&2
+say() { printf '` + marker + `%s\n' "$*" >&3; }
+export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false HOME=/tmp
+say phase fetch
+mkdir -p ` + sourceDir + ` && cd ` + sourceDir + `
+git init -q 3>&-
+git remote add origin "$DW_URL"
+git config remote.origin.promisor true
+git config remote.origin.partialclonefilter blob:none
+f() { git fetch -q --filter=blob:none "$@" 3>&-; }
+on() { git merge-base --is-ancestor "$DW_COMMIT" "FETCH_HEAD^{commit}" 2>/dev/null 3>&-; }
+if [ "$DW_REF" = "$DW_COMMIT" ]; then
+  if ! f --depth 1 origin "$DW_COMMIT" 2>/tmp/fetch.log; then tail -n 5 /tmp/fetch.log; say fail fetch; exit 3; fi
+elif f --depth 1 origin "${DW_REF:-HEAD}" 2>/tmp/fetch.log && on; then :
+elif f --depth 200 origin "${DW_REF:-HEAD}" 2>>/tmp/fetch.log && on; then :
+elif f --unshallow origin "${DW_REF:-HEAD}" 2>>/tmp/fetch.log && on; then :
+elif git cat-file -e "FETCH_HEAD^{commit}" 2>/dev/null 3>&-; then say fail notonref; exit 3
+else tail -n 5 /tmp/fetch.log; say fail fetch; exit 3
+fi
+# The object a path names in the commit, if it is one of type $1, through symlinks
+# within the commit; none for one that leads out of it.
+obj() {
+  out=$(printf '%s:%s\n' "$DW_COMMIT" "$2" | git cat-file --batch-check --follow-symlinks 3>&- | head -n 1)
+  if printf '%s\n' "$out" | grep -Eq "^[0-9a-f]+ $1 [0-9]+\$"; then printf '%s' "${out%% *}"; fi
+}
+if [ -z "$(obj tree "$DW_CONTEXT")" ]; then say fail context; exit 3; fi
+dfobj=$(obj blob "${DW_CONTEXT:+$DW_CONTEXT/}$DW_DOCKERFILE")
+if [ "$DW_BUILDER" = dockerfile ] && [ -z "$dfobj" ]; then say fail dockerfile; exit 3; fi
+if [ -n "$dfobj" ] && [ "$DW_BUILDER" != railpack ]; then
   say dockerfile yes
-  say from "$(grep -i '^[[:space:]]*from[[:space:]]' "$df" | head -n 50 | base64 | tr -d '\n')"
+  say from "$(git cat-file blob "$dfobj" 3>&- | head -c 1048576 | grep -i '^[[:space:]]*from[[:space:]]' | head -n 50 | base64 | tr -d '\n')"
   exit 0
 fi
 if [ ! -x "` + detectBin + `" ]; then say fail need-railpack; exit 4; fi
+# Railpack reads the source, so it's checked out, in memory: git can stop short
+# of the end, as a full folder lets it, so what's left is checked too.
+say phase checkout
+git -c advice.detachedHead=false checkout -q "$DW_COMMIT" 3>&-
+avail=$(df -k ` + sourceDir + ` | awk 'NR == 2 { print $4 }')
+if [ "${avail:-0}" -lt 1024 ]; then say fail toolarge; exit 3; fi
+ctx=$(cd "` + sourceDir + `/$DW_CONTEXT" && pwd -P)
+case "$ctx" in ` + sourceDir + `|` + sourceDir + `/*) ;; *) say fail context; exit 3;; esac
 mkdir -p ` + railpackHome + `/mise /work
 for f in ` + railpackRO + `/mise/mise-*; do if [ -f "$f" ]; then ln -sf "$f" ` + railpackHome + `/mise/; fi; done
 set -- prepare "$ctx" --plan-out /work/railpack-plan.json --info-out /work/railpack-info.json --hide-pretty-plan "$@"
 if [ -n "$DW_BUILD_CMD" ]; then set -- "$@" --build-cmd "$DW_BUILD_CMD"; fi
 if [ -n "$DW_START_CMD" ]; then set -- "$@" --start-cmd "$DW_START_CMD"; fi
-"` + detectBin + `" "$@" >/tmp/railpack.log 2>&1 || true
+"` + detectBin + `" "$@" >/tmp/railpack.log 2>&1 3>&- || true
 if [ -s /work/railpack-info.json ]; then say railpack-info "$(base64 </work/railpack-info.json | tr -d '\n')"; fi
 if [ -s /work/railpack-plan.json ]; then say railpack-plan "$(base64 </work/railpack-plan.json | tr -d '\n')"; fi
-if [ ! -s /work/railpack-info.json ]; then tail -n 5 /tmp/railpack.log >&2; say fail railpack; fi
+if [ ! -s /work/railpack-info.json ]; then tail -n 5 /tmp/railpack.log; say fail railpack; fi
 exit 0
 `
 
@@ -277,25 +327,41 @@ exit 0
 // Dockerfile, or with Railpack and what Railpack found. It builds nothing, and runs
 // beside a build.
 func (b *Builder) Detect(ctx context.Context, req service.BuildRequest) (*resource.BuildDetection, error) {
-	d, _, err := b.read(ctx, req)
+	d, _, err := b.read(ctx, req, false)
 	return d, err
 }
 
 // read reads a commit, as Detect does, and gives the plan Railpack wrote, when it
-// builds with Railpack. A server reads detectsAtOnce commits at a time.
-func (b *Builder) read(ctx context.Context, req service.BuildRequest) (*resource.BuildDetection, []byte, error) {
+// builds with Railpack. A server reads detectsAtOnce commits at a time for anyone
+// who asks; a build's own reading takes no place among them, as it holds the
+// server's build slot already, so no number of readings asked for keeps a build
+// waiting. Whatever goes wrong comes back as an error, and never as nothing.
+func (b *Builder) read(ctx context.Context, req service.BuildRequest, ownSlot bool) (d *resource.BuildDetection, plan []byte, err error) {
 	b.init()
+	defer func() {
+		// Nothing a repository holds may take the agent down.
+		if p := recover(); p != nil {
+			b.logger().Error("reading a commit failed unexpectedly", "panic", fmt.Sprint(p), "stack", string(debug.Stack()))
+			d, plan, err = nil, nil, unexpected(p)
+		}
+	}()
 	if err := checkRef(req.Ref); err != nil {
 		return nil, nil, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, detectWait)
 	defer cancel()
-	select {
-	case b.reading <- struct{}{}:
-	case <-ctx.Done():
-		return nil, nil, b.readTimedOut(ctx, ctx.Err())
+	if !ownSlot {
+		select {
+		case b.reading <- struct{}{}:
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return nil, nil, resource.PlainlyBecause(resource.ReasonBuild,
+					"This server was reading other commits for all of "+human.Duration(detectWait)+", so it didn't read this one. Try again in a moment", ctx.Err())
+			}
+			return nil, nil, ctx.Err()
+		}
+		defer func() { <-b.reading }()
 	}
-	defer func() { <-b.reading }()
 	if err := b.checkPlain(ctx, req.URL); err != nil {
 		return nil, nil, err
 	}
@@ -309,11 +375,26 @@ func (b *Builder) read(ctx context.Context, req service.BuildRequest) (*resource
 	}
 	d, plan, need, err := b.detect(ctx, req)
 	if err == nil && need {
-		if err = b.ensureRailpack(ctx); err == nil {
-			d, plan, _, err = b.detect(ctx, req)
+		if err := b.ensureRailpack(ctx); err != nil {
+			return nil, nil, err
+		}
+		if d, plan, need, err = b.detect(ctx, req); err == nil && need {
+			return nil, nil, resource.PlainlyBecause(resource.ReasonBuild,
+				"The reading still found no Railpack once the agent put it in "+RailpackVolume+". Check the server's disk has room, then try again",
+				errors.New("the reading needed railpack twice"))
 		}
 	}
+	if err == nil && d == nil {
+		return nil, nil, errors.New("the reading said nothing of how the commit builds")
+	}
 	return d, plan, err
+}
+
+// unexpected is a panic, as an error that says to report it.
+func unexpected(p any) error {
+	return resource.PlainlyBecause(resource.ReasonBuild,
+		"Something went wrong in the agent while it read or built the commit, so it built nothing. Try again, and report it, with the agent's log, if it happens again",
+		fmt.Errorf("panic: %v", p))
 }
 
 // readTimedOut is a reading that ran out of time, which may have waited for others.
@@ -367,6 +448,8 @@ func (b *Builder) detect(ctx context.Context, req service.BuildRequest) (*resour
 			CPUShares: cpuShares, OomScoreAdj: 1000, PidsLimit: detectPids,
 			LogConfig: &docker.LogConfig{Type: "none"},
 			Mounts:    []docker.Mount{{Type: "volume", Source: RailpackVolume, Target: railpackRO, ReadOnly: true}},
+			// Nothing it writes reaches Docker's disk.
+			ReadonlyRootfs: true,
 			// All it writes is in memory, counted against its own. Docker makes a
 			// tmpfs noexec, as the checkout stays; /tmp runs the mise a reading
 			// fetches for itself, on a server whose volume hasn't one.
@@ -377,36 +460,48 @@ func (b *Builder) detect(ctx context.Context, req service.BuildRequest) (*resour
 			},
 		},
 	}
-	var said bytes.Buffer
+	// What the script says of itself is on stdout, and all else on stderr.
+	var says, said bytes.Buffer
 	name := "dockwell-detect-" + randomHex()
-	code, err := b.runOnce(ctx, name, create, &said)
+	code, err := b.run2(ctx, name, create, &says, &said)
 	if err != nil {
 		return nil, nil, false, b.readTimedOut(ctx, err)
 	}
-	if strings.Contains(said.String(), marker+"fail need-railpack") {
+	if slices.Contains(markerLines(says.String()), "fail need-railpack") {
 		return nil, nil, true, nil
 	}
-	d, plan, err := readDetection(req, said.String(), code)
+	d, plan, err := readDetection(req, says.String(), said.String(), code)
 	return d, plan, false, err
 }
 
-// readDetection reads what a detect container said, and the plan Railpack wrote.
-func readDetection(req service.BuildRequest, said string, code int) (*resource.BuildDetection, []byte, error) {
+// markerLines are what a script said of itself: each line that starts with marker,
+// without it.
+func markerLines(s string) []string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		if rest, ok := strings.CutPrefix(line, marker); ok {
+			out = append(out, rest)
+		}
+	}
+	return out
+}
+
+// readDetection reads what a detect container said: says, its markers, from its
+// stdout, and said, git's and Railpack's words, from its stderr.
+func readDetection(req service.BuildRequest, says, said string, code int) (*resource.BuildDetection, []byte, error) {
 	var info, plan, from []byte
 	var failed string
 	hasDockerfile := false
 	var tail []string
 	for _, line := range strings.Split(said, "\n") {
-		rest, ok := strings.CutPrefix(line, marker)
-		if !ok {
-			if strings.TrimSpace(line) != "" {
-				tail = append(tail, line)
-				if len(tail) > 5 {
-					tail = tail[1:]
-				}
+		if strings.TrimSpace(line) != "" {
+			tail = append(tail, line)
+			if len(tail) > 5 {
+				tail = tail[1:]
 			}
-			continue
 		}
+	}
+	for _, rest := range markerLines(says) {
 		verb, arg, _ := strings.Cut(rest, " ")
 		switch verb {
 		case "fail":
@@ -423,7 +518,7 @@ func readDetection(req service.BuildRequest, said string, code int) (*resource.B
 	}
 	f := facts{failed: failed, tail: tail}
 	switch {
-	case slices.ContainsFunc(tail, func(l string) bool { return strings.Contains(l, "No space left on device") }):
+	case failed == "toolarge" || slices.ContainsFunc(tail, outOfRoom):
 		// The fetch, or the checkout after it, which writes far more.
 		return nil, nil, resource.PlainlyBecause(resource.ReasonBuild,
 			fmt.Sprintf("The commit is larger than reading it may take on this server, %s, so Dockwell can't say how it builds. Choose the Dockerfile as its builder, which reads nothing first, or make the repository smaller", human.Size(detectCheckout)),
@@ -454,6 +549,18 @@ func readDetection(req service.BuildRequest, said string, code int) (*resource.B
 	}
 	d.Builder = resource.BuilderRailpack
 	return d, plan, nil
+}
+
+// outOfRoom reports what git says when a checkout fills its folder: "error: unable
+// to write file …", "fatal: … write error. Out of diskspace", or the system's own
+// words.
+func outOfRoom(line string) bool {
+	for _, w := range []string{"Out of diskspace", "No space left on device", "unable to write file", "unable to write new index file"} {
+		if strings.Contains(line, w) {
+			return true
+		}
+	}
+	return false
 }
 
 // baseImage is the image a Dockerfile's last stage starts from, as its FROM lines

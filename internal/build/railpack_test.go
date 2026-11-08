@@ -3,9 +3,18 @@
 package build
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -323,12 +332,126 @@ func TestARailpackBuildRefusesASecretItCantTake(t *testing.T) {
 }
 
 // A commit that checks out larger than a reading may hold says so, rather than
-// fill the server's disk.
+// fill the server's disk: in git's own words for a full folder, and when git stops
+// short and exits 0, by what's left.
 func TestAReadingTooLargeForItsMemorySaysSo(t *testing.T) {
-	said := "dockwell:phase fetch\nfatal: write error: No space left on device\n"
-	_, _, err := readDetection(service.BuildRequest{URL: "https://github.com/acme/web"}, said, 128)
-	if plain, _ := resource.Explain(err); !strings.Contains(plain, "larger than reading it may take on this server, 512 MB") {
-		t.Errorf("a checkout too large says %q", plain)
+	req := service.BuildRequest{URL: "https://github.com/acme/web"}
+	for _, c := range []struct {
+		says, said string
+		code       int
+	}{
+		{"dockwell:phase fetch\ndockwell:phase checkout\n", "error: unable to write file big.txt\nfatal: sha1 file '/src/.git/index.lock' write error. Out of diskspace\n", 128},
+		{"dockwell:phase fetch\ndockwell:phase checkout\ndockwell:fail toolarge\n", "", 3},
+	} {
+		_, _, err := readDetection(req, c.says, c.said, c.code)
+		if plain, _ := resource.Explain(err); !strings.Contains(plain, "larger than reading it may take on this server, 512 MB") {
+			t.Errorf("a checkout too large, %q, says %q", c.said, plain)
+		}
+	}
+}
+
+// What a reading says of itself is only what its script says, at the start of a
+// line of its own descriptor: words git prints from a repository or its server,
+// as the name of a file it couldn't write, never read as one.
+func TestOnlyTheReadingsScriptSpeaksForIt(t *testing.T) {
+	said := "error: unable to write file dockwell:fail need-railpack\nfatal: remote error: dockwell:fail need-railpack\ndockwell:fail need-railpack\n"
+	if lines := markerLines(said); !slices.Equal(lines, []string{"fail need-railpack"}) {
+		t.Errorf("markers mid-line read as the script's: %q", lines)
+	}
+	// And a reading's stderr, where all of git's words go, says nothing for it.
+	server := "fatal: remote error: dockwell:fail need-railpack\ndockwell:fail need-railpack\n"
+	d, _, err := readDetection(service.BuildRequest{URL: "https://github.com/acme/web"}, "dockwell:phase fetch\n", server, 128)
+	if plain, _ := resource.Explain(err); d != nil || !strings.HasPrefix(plain, "Reading the commit failed, with code 128") {
+		t.Errorf("what git printed spoke for the reading: %+v, %q", d, plain)
+	}
+}
+
+// A repository's server whose error names the reading's own words can't make it
+// say nothing, nor take the agent down with a build of it.
+func TestARepositorysServerCantSpeakForTheReading(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/x-git-upload-pack-advertisement")
+		msg := "ERR dockwell:fail need-railpack\n"
+		_, _ = fmt.Fprintf(w, "%04x%s", len(msg)+4, msg)
+	}))
+	defer srv.Close()
+	b := withRailpack(newBench(t))
+	req := b.request(strings.Repeat("a", 40), "chg_01KBZ00000000000000000000A")
+	req.URL = srv.URL + "/acme/web.git"
+	if d, err := b.builder.Detect(t.Context(), req); d != nil || err == nil {
+		t.Errorf("reading what the server refused gave %+v, %v", d, err)
+	}
+	if err := b.builder.Build(b.ctx(), req); err == nil {
+		t.Error("a build of what the server refused built")
+	}
+}
+
+// Nothing a build meets takes the agent down: a panic fails the build, and says so.
+func TestABuildThatPanicsFailsAndSaysSo(t *testing.T) {
+	b := &Builder{} // no Docker, so the first call to it panics
+	err := b.Build(t.Context(), service.BuildRequest{Image: "dockwell.invalid/svc_x:aaaaaaaaaaaa-chg", URL: "https://github.com/acme/web"})
+	if plain, _ := resource.Explain(err); !strings.Contains(plain, "Something went wrong in the agent") {
+		t.Errorf("a build that panicked says %q", plain)
+	}
+}
+
+// Readings asked for, however many, take no place a build needs: a build reads its
+// commit in the slot it holds already.
+func TestReadingsAskedForDontKeepABuildWaiting(t *testing.T) {
+	b := withRailpack(newBench(t))
+	warm := b.repo.Commit("main", "warm", nodeApp)
+	if _, err := b.builder.Detect(t.Context(), b.request(warm, "")); err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	var held atomic.Int64
+	b.engine.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/containers/create") &&
+			strings.HasPrefix(r.URL.Query().Get("name"), "dockwell-detect-") && held.Add(1) <= detectsAtOnce {
+			<-release
+		}
+		return nil
+	})
+	defer close(release)
+	for i := range detectsAtOnce {
+		c := b.repo.Commit("main", fmt.Sprintf("held %d", i), map[string]string{"held": strconv.Itoa(i)})
+		go func() { _, _ = b.builder.Detect(context.WithoutCancel(t.Context()), b.request(c, "")) }()
+	}
+	for held.Load() < detectsAtOnce {
+		time.Sleep(10 * time.Millisecond)
+	}
+	commit := b.repo.Commit("main", "real build", nodeApp)
+	ctx, cancel := context.WithTimeout(b.ctx(), 20*time.Second)
+	defer cancel()
+	if err := b.builder.Build(ctx, b.request(commit, "chg_01KBZ00000000000000000000A")); err != nil {
+		t.Errorf("a build behind %d held readings: %v", detectsAtOnce, err)
+	}
+}
+
+// A build's plan and arguments with nowhere in /run go to a folder made for them,
+// never to one someone else made in the temporary folder, or pointed elsewhere.
+func TestTheTemporaryFolderTakesNothingItFinds(t *testing.T) {
+	tmp, elsewhere := t.TempDir(), t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	if err := os.Symlink(elsewhere, filepath.Join(tmp, "dockwell-builds")); err != nil {
+		t.Fatal(err)
+	}
+	b := &Builder{SecretsDir: "/proc/dockwell-builds", InMemory: func(string) bool { return true }}
+	dir, cleanup, err := b.writeSecrets(map[string]string{planFile: "{}"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	resolved, _ := filepath.EvalSymlinks(dir)
+	parent, _ := filepath.EvalSymlinks(tmp)
+	if filepath.Dir(resolved) != parent || !strings.HasPrefix(filepath.Base(dir), "dockwell-build-") {
+		t.Errorf("the plan went to %s, which is %s", dir, resolved)
+	}
+	if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
+		t.Errorf("the plan's folder is %v, %v", info, err)
+	}
+	if _, _, err := b.writeSecrets(map[string]string{"s-X": "x"}, true); err == nil {
+		t.Error("a secret went outside memory")
 	}
 }
 
@@ -403,8 +526,8 @@ func TestBaseImageFollowsStages(t *testing.T) {
 
 // A reading of a commit that isn't on its branch says so, as a build does.
 func TestAReadingOfACommitOffItsBranchSaysSo(t *testing.T) {
-	said := "dockwell:phase fetch\ndockwell:fail notonref\n"
-	_, _, err := readDetection(service.BuildRequest{URL: "https://github.com/acme/web", Ref: "refs/heads/main", Commit: strings.Repeat("a", 40)}, said, 3)
+	says := "dockwell:phase fetch\ndockwell:fail notonref\n"
+	_, _, err := readDetection(service.BuildRequest{URL: "https://github.com/acme/web", Ref: "refs/heads/main", Commit: strings.Repeat("a", 40)}, says, "", 3)
 	if plain, _ := resource.Explain(err); !strings.Contains(plain, "isn't on refs/heads/main of github.com/acme/web, so Dockwell won't build it") {
 		t.Errorf("a commit off its branch reads %q", plain)
 	}
@@ -438,5 +561,94 @@ func TestARailpackBuildWithNoSecretNeedsNoRoot(t *testing.T) {
 	req.Image += "x"
 	if plain, _ := resource.Explain(b.builder.Build(b.ctx(), req)); !strings.Contains(plain, "nowhere in memory") {
 		t.Errorf("a build with a secret and nowhere in memory for it says %q", plain)
+	}
+}
+
+// runReading runs the reading's own script, as a reading's container would, with
+// this machine's shell and git, in a folder of its own, and gives what it said of
+// itself, what else it printed, and its code.
+func runReading(t *testing.T, env ...string) (says, said string, code int, src string) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git here")
+	}
+	dir := t.TempDir()
+	src = filepath.Join(dir, "src")
+	script := strings.NewReplacer(sourceDir, src, "/tmp/", dir+"/t/", "/work", dir+"/work").Replace(detectScript)
+	if err := os.MkdirAll(dir+"/t", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.CommandContext(t.Context(), "sh", "-c", script, "dockwell-detect")
+	cmd.Env = append(os.Environ(), env...)
+	var out, errs strings.Builder
+	cmd.Stdout, cmd.Stderr = &out, &errs
+	err := cmd.Run()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		code = exit.ExitCode()
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	return out.String(), errs.String(), code, src
+}
+
+// A reading finds a Dockerfile in the commit's trees, following symlinks within the
+// commit and none out of it, and checks nothing out: a Dockerfile build of a
+// repository however large reads only its Dockerfile.
+func TestAReadingFindsTheDockerfileWithoutACheckout(t *testing.T) {
+	b := newBench(t)
+	commit := b.repo.Commit("main", "Something", map[string]string{
+		"web/Dockerfile": "FROM node:22-alpine AS build\nRUN npm ci\nFROM nginx:1.27\n",
+		"web/big.txt":    strings.Repeat("a line of the catalogue\n", 4096),
+		"Dockerfile":     "",
+	})
+	env := []string{"DW_URL=" + b.repo.URL, "DW_REF=refs/heads/main", "DW_COMMIT=" + commit, "DW_DOCKERFILE=Dockerfile", "DW_BUILDER="}
+	says, said, code, src := runReading(t, append(env, "DW_CONTEXT=web")...)
+	d, _, err := readDetection(service.BuildRequest{Context: "web"}, says, said, code)
+	if err != nil || d.Builder != resource.BuilderDockerfile || d.BaseImage != "nginx:1.27" {
+		t.Fatalf("the reading found %+v, %v, saying %q and %q", d, err, says, said)
+	}
+	entries, _ := os.ReadDir(src)
+	for _, e := range entries {
+		if e.Name() != ".git" {
+			t.Errorf("the reading checked out %s", e.Name())
+		}
+	}
+	if strings.Contains(said, marker) {
+		t.Errorf("the script spoke on stderr: %q", said)
+	}
+}
+
+// A Dockerfile that is a symlink out of the commit isn't one, as a build's checkout
+// finds it isn't: the reading asks for Railpack, which this machine hasn't.
+func TestAReadingFollowsNoSymlinkOutOfTheCommit(t *testing.T) {
+	b := newBench(t)
+	b.repo.Commit("main", "Something", map[string]string{"package.json": "{}"})
+	work := t.TempDir()
+	for _, args := range [][]string{
+		{"clone", "-q", b.repo.URL, work},
+		{"-C", work, "checkout", "-q", "main"},
+	} {
+		if out, err := exec.CommandContext(t.Context(), "git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	if err := os.Symlink("/etc/passwd", filepath.Join(work, "Dockerfile")); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"-C", work, "add", "Dockerfile"},
+		{"-C", work, "-c", "user.name=Leo Park", "-c", "user.email=leo@example.com", "commit", "-q", "-m", "Point the Dockerfile out"},
+		{"-C", work, "push", "-q", "origin", "main"},
+	} {
+		if out, err := exec.CommandContext(t.Context(), "git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	out, _ := exec.CommandContext(t.Context(), "git", "-C", work, "rev-parse", "HEAD").Output()
+	commit := strings.TrimSpace(string(out))
+	says, _, code, _ := runReading(t, "DW_URL="+b.repo.URL, "DW_REF=refs/heads/main", "DW_COMMIT="+commit, "DW_DOCKERFILE=Dockerfile", "DW_BUILDER=", "DW_CONTEXT=")
+	if !slices.Contains(markerLines(says), "fail need-railpack") || code != 4 {
+		t.Errorf("a Dockerfile that leads out of the commit read as %q, code %d", says, code)
 	}
 }

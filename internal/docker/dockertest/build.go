@@ -502,8 +502,11 @@ type checkedOut struct {
 
 // checkout does what the builder's script does first: it checks out the commit with
 // the real git, says what it is, and finds the build's folder and Dockerfile.
-func checkout(envs map[string]string, stderr io.Writer) (checkedOut, int) {
+func checkout(envs map[string]string, stderr io.Writer, says ...func(string)) (checkedOut, int) {
 	say := func(s string) { _, _ = fmt.Fprintf(stderr, "dockwell:%s\n", s) }
+	if len(says) > 0 {
+		say = says[0]
+	}
 	say("phase fetch")
 	src, err := os.MkdirTemp("", "dockertest-build")
 	if err != nil {
