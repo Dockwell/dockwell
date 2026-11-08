@@ -164,7 +164,9 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
     .getByRole("status", { name: "Build" })
     .getByText("Railpack can't tell how to build it", { exact: true })
     .waitFor({ timeout: 60_000 });
-  await docs.getByText("Add a Dockerfile, or set a start command under Change.", { exact: false }).waitFor();
+  await docs
+    .getByText("Add a Dockerfile, or set both a build command and a start command under Change.", { exact: false })
+    .waitFor();
   await shoot(page, "build-railpack-cant");
   await docs.getByRole("button", { name: "Review plan" }).click();
   await docs.getByText(/Railpack can't tell how to build .*web at [0-9a-f]{7} for docs/).waitFor();

@@ -18,15 +18,52 @@ import (
 // runs as internal/build does: one copies the railpack binary into a volume.
 const RailpackRepository = "ghcr.io/railwayapp/railpack-frontend"
 
-// railpackBin finds the path a builder's script runs railpack from, which names
-// its version.
-var railpackBin = regexp.MustCompile(`/tmp/railpack/bin/railpack-[0-9A-Za-z.\-]+`)
+// railpackBin finds the path a script runs railpack from, which names its version:
+// where the container that copies it puts it, or where a reading runs it from.
+var railpackBin = regexp.MustCompile(`(/tmp/railpack|/opt/dockwell-railpack)/bin/railpack-[0-9A-Za-z.\-]+`)
+
+// Where a reading mounts Railpack's volume, read-only, and mise's version, as
+// Railpack 0.43.0 fetches it.
+const (
+	railpackRO  = "/opt/dockwell-railpack"
+	miseVersion = "2026.10.14"
+)
 
 // RailpackCopies counts the containers that copied Railpack into its volume.
 func (e *Engine) RailpackCopies() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.railpackCopies
+}
+
+// MiseSeeds counts the containers that had Railpack fetch mise into its volume.
+func (e *Engine) MiseSeeds() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.miseSeeds
+}
+
+// fakeSeedMise stands in for a container that has Railpack fetch mise into its
+// volume, mounted where Railpack keeps it.
+func (e *Engine) fakeSeedMise(c *container, stderr io.Writer) int {
+	e.mu.Lock()
+	dir, ok := e.mountsOf(c)["/tmp/railpack"]
+	e.miseSeeds++
+	e.mu.Unlock()
+	if !ok {
+		_, _ = fmt.Fprintln(stderr, "no volume at /tmp/railpack")
+		return 1
+	}
+	p := filepath.Join(dir, "mise", "mise-"+miseVersion)
+	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if err := os.WriteFile(p, []byte("mise"), 0o750); err != nil { //nolint:gosec // a stand-in for a binary
+		_, _ = fmt.Fprintln(stderr, err)
+		return 1
+	}
+	return 0
 }
 
 // fakeCopyRailpack stands in for a container of Railpack's image copying its
@@ -54,17 +91,22 @@ func (e *Engine) fakeCopyRailpack(c *container, stderr io.Writer) int {
 	return 0
 }
 
-// hasRailpack reports whether the volume a builder mounts at /tmp/railpack has the
-// binary its script runs.
+// hasRailpack reports whether a reading mounts Railpack's volume read-only, as it
+// must, with the binary its script runs.
 func (e *Engine) hasRailpack(c *container) bool {
 	bin := railpackBin.FindString(strings.Join(c.Config.Cmd, " "))
 	e.mu.Lock()
-	dir, ok := e.mountsOf(c)["/tmp/railpack"]
-	e.mu.Unlock()
+	defer e.mu.Unlock()
+	dir, ok := e.mountsOf(c)[railpackRO]
 	if bin == "" || !ok {
 		return false
 	}
-	_, err := os.Stat(filepath.Join(dir, strings.TrimPrefix(bin, "/tmp/railpack")))
+	for _, m := range c.HostConfig.Mounts {
+		if m.Target == railpackRO && !m.ReadOnly {
+			return false
+		}
+	}
+	_, err := os.Stat(filepath.Join(dir, strings.TrimPrefix(bin, railpackRO)))
 	return err == nil
 }
 
@@ -100,6 +142,7 @@ func (e *Engine) fakeDetect(c *container, stderr io.Writer) int {
 	}
 	vars := map[string]string{}
 	args := c.Config.Cmd
+	needStart := slices.Contains(args, "--error-missing-start")
 	for i := 0; i+1 < len(args); i++ {
 		if args[i] == "-e" {
 			k, v, _ := strings.Cut(args[i+1], "=")
@@ -107,7 +150,7 @@ func (e *Engine) fakeDetect(c *container, stderr io.Writer) int {
 			i++
 		}
 	}
-	rp := fakePrepare(co.context, envs["DW_BUILD_CMD"], envs["DW_START_CMD"], vars)
+	rp := fakePrepare(co.context, envs["DW_BUILD_CMD"], envs["DW_START_CMD"], vars, needStart)
 	say("railpack-info " + base64.StdEncoding.EncodeToString(rp.info))
 	if rp.plan != nil {
 		say("railpack-plan " + base64.StdEncoding.EncodeToString(rp.plan))
@@ -129,7 +172,7 @@ type prepared struct {
 // fakePrepare stands in for railpack prepare, for what tests build: a Node app, by
 // its package.json; a Python app, by its requirements.txt; and a static site, by
 // its index.html. It writes what Railpack would, in the shape it writes it.
-func fakePrepare(dir, buildCmd, startCmd string, vars map[string]string) prepared {
+func fakePrepare(dir, buildCmd, startCmd string, vars map[string]string, needStart bool) prepared {
 	exists := func(name string) bool { _, err := os.Stat(filepath.Join(dir, name)); return err == nil }
 	type pkg struct{ Name, RequestedVersion, ResolvedVersion, Source string }
 	var (
@@ -255,6 +298,11 @@ func fakePrepare(dir, buildCmd, startCmd string, vars map[string]string) prepare
 		out, _ := json.Marshal(map[string]any{"railpackVersion": "0.43.0", "logs": logs, "success": false})
 		return prepared{info: out, pretty: []string{"✖ Railpack could not determine how to build the app."}}
 	}
+	if start == "" && needStart {
+		logs = append(logs, map[string]string{"Level": "error", "Msg": "No start command detected. Specify a start command: https://railpack.com/config/file#deploy"})
+		out, _ := json.Marshal(map[string]any{"railpackVersion": "0.43.0", "detectedProviders": providers, "logs": logs, "success": false})
+		return prepared{info: out}
+	}
 	if start == "" {
 		warn("No start command was found")
 	}
@@ -272,9 +320,16 @@ func fakePrepare(dir, buildCmd, startCmd string, vars map[string]string) prepare
 		"metadata": map[string]string{"providers": strings.Join(providers, ",")}, "logs": logs, "success": true,
 	})
 	deployVars := map[string]string{"RAILPACK_VERSION": "0.43.0"}
+	// What the stand-in for BuildKit runs of the plan, which a real plan says as
+	// BuildKit's layers.
+	var fake []map[string]string
+	for _, st := range run {
+		fake = append(fake, map[string]string{"instr": st.instr, "args": st.args, "line": st.line})
+	}
 	planJSON, _ := json.Marshal(map[string]any{
 		"steps": steps, "secrets": secrets,
-		"deploy": map[string]any{"startCommand": start, "variables": deployVars},
+		"deploy":            map[string]any{"startCommand": start, "variables": deployVars},
+		"dockwellFakeSteps": fake,
 	})
 	pretty := []string{"╭─────────────────╮", "│ Railpack 0.43.0 │", "╰─────────────────╯", ""}
 	for _, l := range logs {

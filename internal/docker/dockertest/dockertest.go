@@ -140,9 +140,11 @@ type Engine struct {
 	builders   []docker.CreateRequest
 	// railpackCopies counts the containers that copied Railpack into its volume.
 	railpackCopies int
-	execs          map[string]*execRun
-	helpers        []docker.CreateRequest
-	starts         map[string]int
+	// miseSeeds counts the containers that fetched mise into it.
+	miseSeeds int
+	execs     map[string]*execRun
+	helpers   []docker.CreateRequest
+	starts    map[string]int
 	// volumeRoot is where what's in each volume is kept, once one is asked for.
 	volumeRoot string
 }

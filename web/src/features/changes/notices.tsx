@@ -921,28 +921,35 @@ export function useAsides(plan: Plan | undefined): Notice[] {
             : t`Builds ${repository} at ${commit} on ${server.serverName} first. If the build fails, what runs stays as it is.`,
         });
         // What it builds with, on a line of its own after the build.
+        // One span, so its words and code flow as a sentence in the note's row.
         const builtWith = d ? (
           railpack ? (
-            <>
+            <span>
               <Trans>With Railpack, as {detected.what(d)}.</Trans> {detected.steps(d)}
               {detected.packages(d).length > 0 ? ` ${t`Installs ${detected.packages(d).join("; ")}.`}` : null}
-            </>
+            </span>
           ) : d.dockerfile === "Dockerfile" ? (
             d.baseImage ? (
-              <Trans>
-                With its Dockerfile, from <code>{d.baseImage}</code>.
-              </Trans>
+              <span>
+                <Trans>
+                  With its Dockerfile, from <code>{d.baseImage}</code>.
+                </Trans>
+              </span>
             ) : (
               <Trans>With its Dockerfile.</Trans>
             )
           ) : d.baseImage ? (
-            <Trans>
-              With its Dockerfile at <code>{d.dockerfile}</code>, from <code>{d.baseImage}</code>.
-            </Trans>
+            <span>
+              <Trans>
+                With its Dockerfile at <code>{d.dockerfile}</code>, from <code>{d.baseImage}</code>.
+              </Trans>
+            </span>
           ) : (
-            <Trans>
-              With its Dockerfile at <code>{d.dockerfile}</code>.
-            </Trans>
+            <span>
+              <Trans>
+                With its Dockerfile at <code>{d.dockerfile}</code>.
+              </Trans>
+            </span>
           )
         ) : step.build.builder === ImageBuild_Builder.RAILPACK ? (
           <Trans>With Railpack, which reads the commit as the build starts.</Trans>

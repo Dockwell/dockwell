@@ -593,7 +593,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if b.GetGit().GetCommit() == "" {
 			return fail(errors.New("reading how a commit builds needs the commit, in full"))
 		}
-		d, err := c.cfg.Builds.Detect(ctx, service.Request(&resourcev1.Service{Build: b}))
+		req := service.Request(&resourcev1.Service{Build: b})
+		req.OwnCommand = call.GetDetectBuild().GetOwnCommand()
+		d, err := c.cfg.Builds.Detect(ctx, req)
 		if err != nil {
 			plain, _ := resource.Explain(err)
 			return fail(errors.New(plain))

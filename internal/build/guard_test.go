@@ -92,7 +92,7 @@ func TestABuildStopsWhenTheDiskFallsUnderItsFloorAndFreesWhatItWrote(t *testing.
 	if err := b.builder.Build(b.ctx(), b.request(next, "chg_01KBZ00000000000000000000B")); err != nil {
 		t.Fatalf("the build after one the disk stopped = %v", err)
 	}
-	builders := b.engine.Builders()
+	builders := b.made("dockwell-build")
 	if _, ok := envOf(builders[len(builders)-1], "DW_PRUNE_FIRST"); ok {
 		t.Error("the build after a cache was removed prunes first")
 	}
@@ -149,7 +149,7 @@ func TestEachEnvironmentBuildsWithACacheOfItsOwn(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	builders := b.engine.Builders()
+	builders := b.made("dockwell-build")
 	volumes := map[string]bool{}
 	for _, req := range builders {
 		for _, m := range req.HostConfig.Mounts {
@@ -180,7 +180,7 @@ func TestBuildsRunOnANetworkWhereNoContainerReachesAnother(t *testing.T) {
 	if err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A")); err != nil {
 		t.Fatal(err)
 	}
-	if mode := b.engine.Builders()[0].HostConfig.NetworkMode; mode != Network {
+	if mode := b.made("dockwell-build")[0].HostConfig.NetworkMode; mode != Network {
 		t.Errorf("the builder runs on %q, not %s", mode, Network)
 	}
 	n := b.engine.Network(Network)
@@ -215,7 +215,7 @@ func TestStepsRunUnderDockersAppArmorProfileWhereThereIsOne(t *testing.T) {
 		if err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A")); err != nil {
 			t.Fatal(err)
 		}
-		if got, _ := envOf(b.engine.Builders()[0], "DW_APPARMOR"); got != c.want {
+		if got, _ := envOf(b.made("dockwell-build")[0], "DW_APPARMOR"); got != c.want {
 			t.Errorf("with %q loaded, the steps run under %q, not %q", c.profiles, got, c.want)
 		}
 	}
@@ -241,7 +241,7 @@ func TestAfterACrashEachCachePrunesFirst(t *testing.T) {
 	if err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A")); err != nil {
 		t.Fatal(err)
 	}
-	builders := b.engine.Builders()
+	builders := b.made("dockwell-build")
 	if _, ok := envOf(builders[len(builders)-1], "DW_PRUNE_FIRST"); !ok {
 		t.Error("the first build after a crash doesn't prune first")
 	}

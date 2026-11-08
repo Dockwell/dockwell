@@ -166,7 +166,7 @@ func TestBuildsACommitIntoAnImageDockerRuns(t *testing.T) {
 	if !slices.Contains(b.lines(), "installed production") {
 		t.Errorf("the log doesn't have what the step printed, with its build argument: %q", b.lines())
 	}
-	builder := b.engine.Builders()[0]
+	builder := b.made("dockwell-build")[0]
 	if !builder.HostConfig.Privileged || builder.HostConfig.LogConfig == nil || builder.HostConfig.LogConfig.Type != "none" {
 		t.Errorf("the builder runs with %+v, not privileged with its logging off", builder.HostConfig)
 	}
@@ -285,7 +285,7 @@ func TestABuildsSecretsReachItAsFilesAndNeverItsLog(t *testing.T) {
 	if !slices.Contains(b.lines(), binding.Hide("npm_s3cr3t-value", []string{"npm_s3cr3t-value"})) {
 		t.Errorf("the step that printed the secret doesn't show it masked: %q", b.lines())
 	}
-	builder := b.engine.Builders()[0]
+	builder := b.made("dockwell-build")[0]
 	for _, kv := range builder.Env {
 		if strings.Contains(kv, "npm_s3cr3t-value") {
 			t.Errorf("the secret is in the builder's environment: %s", kv)
@@ -354,7 +354,8 @@ func TestABuildWithSecretsNeedsSomewhereInMemoryForThem(t *testing.T) {
 	if plain, _ := resource.Explain(err); !strings.Contains(plain, "nowhere in memory") {
 		t.Errorf("a server with nowhere in memory for secrets says %q", plain)
 	}
-	if len(b.engine.Builders()) != 0 {
+	// The reading before it has none of their values, and may run.
+	if len(b.made("dockwell-build")) != 0 {
 		t.Error("a build ran with nowhere to keep its secrets")
 	}
 }
@@ -439,7 +440,7 @@ func TestABuildsLimitsLeaveRoomForWhatRuns(t *testing.T) {
 			if err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A")); err != nil {
 				t.Fatal(err)
 			}
-			h := b.engine.Builders()[0].HostConfig
+			h := b.made("dockwell-build")[0].HostConfig
 			if h.Memory != c.wantMemory || h.MemorySwap != c.wantMemory || h.NanoCPUs != c.wantNs {
 				t.Errorf("the builder may use %d bytes, %d with swap, and %d nano-CPUs; want %d, no swap, and %d", h.Memory, h.MemorySwap, h.NanoCPUs, c.wantMemory, c.wantNs)
 			}
@@ -510,7 +511,7 @@ func TestAnImageTheServerHasIsntBuiltAgain(t *testing.T) {
 	if err := b.builder.Build(b.ctx(), req); err != nil {
 		t.Fatal(err)
 	}
-	if n := len(b.engine.Builders()); n != 1 {
+	if n := len(b.made("dockwell-build")); n != 1 {
 		t.Errorf("building an image the server has ran %d builders, not 1", n)
 	}
 }

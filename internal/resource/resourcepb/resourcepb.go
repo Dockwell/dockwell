@@ -214,6 +214,7 @@ func Detection(d *resource.BuildDetection) *dockwellv1.BuildDetection {
 	p := &dockwellv1.BuildDetection{
 		Builder: Builder(d.Builder), Dockerfile: d.Dockerfile, BaseImage: d.BaseImage, RailpackVersion: d.Railpack,
 		Providers: d.Providers, StartCommand: d.Start, Warnings: d.Warnings, Error: d.Error,
+		Problem: detectionProblems[d.Problem], ProblemTool: d.ProblemTool,
 	}
 	for _, pkg := range d.Packages {
 		p.Packages = append(p.Packages, &dockwellv1.DetectedPackage{Name: pkg.Name, Requested: pkg.Requested, Resolved: pkg.Resolved, Source: pkg.Source})
@@ -232,7 +233,9 @@ func DetectionFrom(p *dockwellv1.BuildDetection) *resource.BuildDetection {
 	d := &resource.BuildDetection{
 		Builder: BuilderFrom(p.GetBuilder()), Dockerfile: p.GetDockerfile(), BaseImage: p.GetBaseImage(), Railpack: p.GetRailpackVersion(),
 		Providers: p.GetProviders(), Start: p.GetStartCommand(), Warnings: p.GetWarnings(), Error: p.GetError(),
+		ProblemTool: p.GetProblemTool(),
 	}
+	d.Problem, _ = from(detectionProblems, p.GetProblem())
 	for _, pkg := range p.GetPackages() {
 		d.Packages = append(d.Packages, resource.DetectedPackage{Name: pkg.GetName(), Requested: pkg.GetRequested(), Resolved: pkg.GetResolved(), Source: pkg.GetSource()})
 	}
@@ -240,6 +243,15 @@ func DetectionFrom(p *dockwellv1.BuildDetection) *resource.BuildDetection {
 		d.Steps = append(d.Steps, resource.DetectedStep{Name: st.GetName(), Commands: st.GetCommands()})
 	}
 	return d
+}
+
+// detectionProblems are what stops Railpack building a commit, as the API has them.
+var detectionProblems = map[string]dockwellv1.DetectionProblem{
+	resource.ProblemNoProvider: dockwellv1.DetectionProblem_DETECTION_PROBLEM_NO_PROVIDER,
+	resource.ProblemVersion:    dockwellv1.DetectionProblem_DETECTION_PROBLEM_VERSION,
+	resource.ProblemNoStart:    dockwellv1.DetectionProblem_DETECTION_PROBLEM_NO_START,
+	resource.ProblemNetwork:    dockwellv1.DetectionProblem_DETECTION_PROBLEM_NETWORK,
+	resource.ProblemOther:      dockwellv1.DetectionProblem_DETECTION_PROBLEM_OTHER,
 }
 
 // backupMethods are how backups are taken, as the API has them.

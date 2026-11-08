@@ -9,6 +9,7 @@ import {
   ChangeState,
   CheckComposeResponseSchema,
   type DetectBuildRequest,
+  DetectionProblem,
   HostAccessKind,
   ImageBuild_Builder,
   type ImportComposeRequest,
@@ -193,6 +194,7 @@ describe("New app, from Git", () => {
               builder: ImageBuild_Builder.RAILPACK,
               error:
                 "Railpack could not determine how to build the app.\n\nThe following languages are supported:\n- Node",
+              problem: DetectionProblem.NO_PROVIDER,
             },
           }),
         },
@@ -208,8 +210,88 @@ describe("New app, from Git", () => {
       { timeout: 3000 },
     );
     expect(sheet).toHaveTextContent(
-      "Railpack could not determine how to build the app. Add a Dockerfile, or set a start command under Change.",
+      "Railpack could not determine how to build the app. Add a Dockerfile, or set both a build command and a start command under Change.",
     );
+  });
+
+  it("reads the repository only once you choose which of several servers builds it", async () => {
+    const user = userEvent.setup();
+    const read: string[] = [];
+    renderAt(
+      "/apps/new",
+      api(
+        {
+          builds: {
+            detectBuild: (req) => {
+              read.push(req.server);
+              return {
+                commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+                serverName: "hz-2",
+                detection: {
+                  builder: ImageBuild_Builder.DOCKERFILE,
+                  dockerfile: "Dockerfile",
+                  baseImage: "node:22-alpine",
+                },
+              };
+            },
+          },
+        },
+        hz1,
+        aServer({ id: "srv_2", name: "hz-2" }),
+      ),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/web");
+    const status = within(sheet).getByRole("status", { name: "Build" });
+    await waitFor(() => expect(status).toHaveTextContent("read from the repository once you choose a server"));
+    await new Promise((r) => setTimeout(r, 800));
+    expect(read).toEqual([]);
+    await user.click(
+      within(await within(sheet).findByRole("group", { name: "Runs on" })).getByRole("checkbox", { name: "hz-2" }),
+    );
+    await waitFor(() => expect(status).toHaveTextContent("Dockerfile · node:22-alpine"), { timeout: 3000 });
+    expect(read).toEqual(["srv_2"]);
+  });
+
+  it("says what to do by what Railpack said: a version it can't find, or nothing that starts the app", async () => {
+    const user = userEvent.setup();
+    let problem = DetectionProblem.VERSION;
+    renderAt(
+      "/apps/new",
+      api({
+        builds: {
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            serverName: "hz-1",
+            detection: {
+              builder: ImageBuild_Builder.RAILPACK,
+              error:
+                problem === DetectionProblem.VERSION
+                  ? "failed to resolve version 99 of node"
+                  : "No start command detected. Specify a start command: https://railpack.com/config/file#deploy",
+              problem,
+              problemTool: problem === DetectionProblem.VERSION ? "node" : "",
+            },
+          }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    const status = () => within(sheet).getByRole("status", { name: "Build" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/web");
+    await waitFor(() => expect(status()).toHaveTextContent("Railpack can't find a version the repository asks for"), {
+      timeout: 3000,
+    });
+    expect(sheet).toHaveTextContent(
+      "failed to resolve version 99 of node. Change the version the repository asks for, or set RAILPACK_NODE_VERSION as a build argument under Change.",
+    );
+    problem = DetectionProblem.NO_START;
+    await user.type(within(sheet).getByLabelText("Repository"), "2");
+    await waitFor(() => expect(status()).toHaveTextContent("Railpack found nothing that starts the app"), {
+      timeout: 3000,
+    });
+    expect(sheet).toHaveTextContent("Set a start command under Change, or add a start script to the repository.");
+    expect(sheet).not.toHaveTextContent("No start command detected");
   });
 
   it("says when the repository can't be read", async () => {

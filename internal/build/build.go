@@ -105,9 +105,13 @@ type Builder struct {
 
 	once sync.Once
 	slot chan struct{}
+	// reading holds a place for each reading of a commit under way.
+	reading chan struct{}
 
 	railpackMu    sync.Mutex
 	railpackReady bool
+	miseSeeded    bool
+	seededAt      time.Time
 	keyOnce       sync.Once
 	hashKey       []byte
 
@@ -141,6 +145,7 @@ var _ service.Builder = (*Builder)(nil)
 func (b *Builder) init() {
 	b.once.Do(func() {
 		b.slot = make(chan struct{}, 1)
+		b.reading = make(chan struct{}, detectsAtOnce)
 		b.running = map[key]*run{}
 	})
 }
@@ -232,14 +237,18 @@ func (b *Builder) Build(ctx context.Context, req service.BuildRequest) error {
 	}
 	stopWatching := b.watchDisk(root, cancel)
 	rep := newReport(ctx, req, b.now)
-	f, err := b.run(ctx, req, rep)
-	if err == nil && f.failed == "need-railpack" {
-		// The commit has no Dockerfile, and the build names no builder: it
-		// builds with Railpack, which this server gets now, once.
-		if err = b.ensureRailpack(ctx); err == nil {
-			rep.again()
-			f, err = b.run(ctx, req, rep)
-		}
+	builder, plan := req.Builder, []byte(nil)
+	var f facts
+	var err error
+	if builder != resource.BuilderDockerfile {
+		builder, plan, err = b.readFor(ctx, req, rep)
+	}
+	if err == nil {
+		f, err = b.run(ctx, req, rep, builder, plan)
+	} else {
+		// What the reading said is in the log too.
+		rep.send()
+		f = rep.facts()
 	}
 	stopWatching()
 	if err != nil {
@@ -353,7 +362,57 @@ func (b *Builder) Cancel(change string, svc resource.Ref, by string) bool {
 
 // run builds in a builder, and loads what it makes into Docker. rep hears what the
 // builder says.
-func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report) (facts, error) {
+// readFor reads the commit before a build that may use Railpack, as a plan does,
+// and says what builds it: with no Dockerfile, Railpack, whose plan the reading
+// wrote, unprivileged, for the builder to build. The builder never runs Railpack,
+// nor mounts what it runs from (ADR 0046). The reading has the build's secrets'
+// names, and none of their values.
+func (b *Builder) readFor(ctx context.Context, req service.BuildRequest, rep *report) (string, []byte, error) {
+	rep.reading()
+	read := req
+	read.Secrets, read.SecretIDs = nil, slices.Sorted(mapsKeys(req.Secrets))
+	d, plan, err := b.read(ctx, read)
+	if err != nil {
+		return "", nil, err
+	}
+	if d.Builder == resource.BuilderDockerfile {
+		rep.detectedAs(d)
+		return resource.BuilderDockerfile, nil, nil
+	}
+	if err := service.RailpackNames(req.Args, read.SecretIDs); err != nil {
+		return "", nil, resource.PlainlyBecause(resource.ReasonBuild, sentence(err.Error()), err)
+	}
+	rep.detectedAs(d)
+	if d.Error != "" {
+		return "", nil, railpackFailure(req, d)
+	}
+	if len(plan) == 0 {
+		return "", nil, resource.PlainlyBecause(resource.ReasonBuild, "Railpack read the commit and wrote no plan, so there's nothing to build. Deploy again, and report it if it happens again",
+			errors.New("the reading wrote no plan"))
+	}
+	return resource.BuilderRailpack, plan, nil
+}
+
+// railpackFailure is a build Railpack can't make, in words chosen by what it said.
+func railpackFailure(req service.BuildRequest, d *resource.BuildDetection) error {
+	where := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(req.URL, "https://"), "http://"), ".git")
+	short := req.Commit
+	if len(short) > 7 {
+		short = short[:7]
+	}
+	return resource.PlainlyBecause(resource.ReasonBuild, resource.RailpackRefusal(d, where+" at "+short),
+		fmt.Errorf("railpack can't build %s at %s: %s", req.URL, req.Commit, firstLine(d.Error)))
+}
+
+// sentence is an error's words as a sentence starts.
+func sentence(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report, builder string, plan []byte) (facts, error) {
 	if err := b.ensureImage(ctx); err != nil {
 		return facts{}, err
 	}
@@ -369,14 +428,9 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 	if err := b.ensureNetwork(ctx); err != nil {
 		return facts{}, err
 	}
-	// A build that names Railpack gets it first. One that names no builder gets
-	// it only if the commit turns out to have no Dockerfile, as the script says.
-	railpack := req.Builder != resource.BuilderDockerfile
-	if req.Builder == resource.BuilderRailpack {
-		if err := b.ensureRailpack(ctx); err != nil {
-			return facts{}, err
-		}
-	}
+	// What builds it is what the reading said, for a build that may use Railpack.
+	railpack := builder == resource.BuilderRailpack
+	req.Builder = builder
 	files := map[string]string{}
 	for id, v := range req.Secrets {
 		files[secretFile(id)] = v
@@ -392,6 +446,13 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 		return facts{}, err
 	}
 	defer cleanup()
+	planDir, planCleanup := "", func() {}
+	if railpack {
+		if planDir, planCleanup, err = b.writeSecrets(map[string]string{planFile: string(plan)}, false); err != nil {
+			return facts{}, err
+		}
+	}
+	defer planCleanup()
 
 	cmd := append([]string{"-c", script, "dockwell-build"}, args(req)...)
 	labels := map[string]string{docker.LabelBuilder: req.Change}
@@ -401,8 +462,8 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 	}
 	environment := env(req, keep)
 	if railpack {
-		mounts = append(mounts, docker.Mount{Type: "volume", Source: RailpackVolume, Target: railpackMount})
-		environment = append(environment, "DW_SECRETS_HASH="+b.secretsHash(req))
+		mounts = append(mounts, docker.Mount{Type: "bind", Source: planDir, Target: planMount, ReadOnly: true})
+		environment = append(environment, "DW_SECRETS_HASH="+b.secretsHash(req), "DW_CACHE_KEY="+b.cacheKey(req))
 	}
 	create := &docker.CreateRequest{
 		Config: docker.Config{
@@ -466,8 +527,6 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 		return f, ctx.Err()
 	case runErr != nil:
 		return f, fmt.Errorf("docker stopped answering about the build's container: %w", runErr)
-	case f.failed == "need-railpack":
-		return f, nil
 	case code != 0 || oom:
 		return f, failure(req, f, code, oom)
 	case loadErr != nil:
@@ -518,15 +577,8 @@ func failure(req service.BuildRequest, f facts, code int, oom bool) error {
 		return plain(fmt.Sprintf("%s has no folder %s at %s. Check the build's context", where, req.Context, short))
 	case f.failed == "dockerfile":
 		return plain(fmt.Sprintf("%s has no Dockerfile at %s at %s. Check the build's Dockerfile path, add one, or build with Railpack", where, filepath.Join(req.Context, dockerfile(req.Dockerfile)), short))
-	case f.failed == "railpack":
-		why := "it said nothing"
-		if d := f.detection; d != nil && d.Error != "" {
-			why = firstLine(d.Error)
-		} else if w := lastWords(f.tail); w != "" {
-			why = w
-		}
-		// In quotes, as they're Railpack's words.
-		return plain(fmt.Sprintf("Railpack can't tell how to build %s at %s: %s. Add a Dockerfile, or set the build's start command", where, short, strconv.Quote(why)))
+	case f.failed == "noplan":
+		return plain("The builder had no plan from Railpack to build, so it built nothing. Deploy again, and report it if it happens again")
 	case f.failed == "buildkitd":
 		return plain("BuildKit didn't start on this server: " + strconv.Quote(cmpOr(lastWords(f.tail), "it said nothing")) + ". Check Docker can run privileged containers here")
 	case f.step > 0 && f.stepName != "":
@@ -617,9 +669,11 @@ func (b *Builder) cacheBound(ctx context.Context) int64 {
 	return min(max(total/10, minCache), maxCache)
 }
 
-// writeSecrets writes a build's secrets, and with Railpack its build arguments, to
-// files, by name, in a directory of their own, which goes when cleanup is called.
-// With a secret among them, it must be in memory. None gives no directory.
+// writeSecrets writes a build's secrets, and with Railpack its build arguments and
+// its plan, to files, by name, in a directory of their own, which goes when cleanup
+// is called. With a secret among them, it must be in memory. With none, an agent
+// that can't write RuntimeDir, as one that doesn't run as root, writes them in the
+// system's temporary folder. None gives no directory.
 func (b *Builder) writeSecrets(files map[string]string, secret bool) (dir string, cleanup func(), err error) {
 	cleanup = func() {}
 	if len(files) == 0 {
@@ -629,19 +683,12 @@ func (b *Builder) writeSecrets(files map[string]string, secret bool) (dir string
 	if parent == "" {
 		parent = RuntimeDir
 	}
-	if err := os.MkdirAll(parent, 0o700); err != nil {
-		return "", cleanup, secretsRefused(parent, err)
+	dir, err = b.folderIn(parent, secret)
+	if err != nil && !secret {
+		dir, err = b.folderIn(filepath.Join(os.TempDir(), "dockwell-builds"), false)
 	}
-	inMemory := b.InMemory
-	if inMemory == nil {
-		inMemory = isTmpfs
-	}
-	if secret && !inMemory(parent) {
-		return "", cleanup, secretsRefused(parent, errors.New("it isn't in memory"))
-	}
-	dir, err = os.MkdirTemp(parent, "build-")
 	if err != nil {
-		return "", cleanup, secretsRefused(parent, err)
+		return "", cleanup, err
 	}
 	cleanup = func() {
 		if err := os.RemoveAll(dir); err != nil {
@@ -655,6 +702,26 @@ func (b *Builder) writeSecrets(files map[string]string, secret bool) (dir string
 		}
 	}
 	return dir, cleanup, nil
+}
+
+// folderIn makes a folder of a build's own in parent, which must be in memory for
+// a secret.
+func (b *Builder) folderIn(parent string, secret bool) (string, error) {
+	if err := os.MkdirAll(parent, 0o700); err != nil {
+		return "", secretsRefused(parent, err)
+	}
+	inMemory := b.InMemory
+	if inMemory == nil {
+		inMemory = isTmpfs
+	}
+	if secret && !inMemory(parent) {
+		return "", secretsRefused(parent, errors.New("it isn't in memory"))
+	}
+	dir, err := os.MkdirTemp(parent, "build-")
+	if err != nil {
+		return "", secretsRefused(parent, err)
+	}
+	return dir, nil
 }
 
 func secretsRefused(dir string, err error) error {

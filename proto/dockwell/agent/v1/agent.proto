@@ -940,8 +940,11 @@ message CancelBuildCall {
 // container of its own, and says how it would build. It builds nothing.
 message DetectBuildCall {
   // What to read: the repository, its commit, the folder and the builder. The
-  // build's secrets aren't sent, and Railpack reads it without them.
+  // build's secrets' values aren't sent: Railpack reads it with their names.
   dockwell.resource.v1alpha1.ImageBuild build = 1;
+  // True when the service starts with a command of its own, so the commit
+  // needn't say what starts it.
+  bool own_command = 2;
 }
 
 // DetectBuildResult is what reading the commit found.

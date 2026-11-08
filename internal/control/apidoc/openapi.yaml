@@ -3997,6 +3997,20 @@ components:
                     description: |-
                         With its Dockerfile, the image its last stage starts from, such as
                          "node:22-alpine", unless a build argument names it.
+                problem:
+                    enum:
+                        - DETECTION_PROBLEM_UNSPECIFIED
+                        - DETECTION_PROBLEM_NO_PROVIDER
+                        - DETECTION_PROBLEM_VERSION
+                        - DETECTION_PROBLEM_NO_START
+                        - DETECTION_PROBLEM_NETWORK
+                        - DETECTION_PROBLEM_OTHER
+                    type: string
+                    description: What kind of problem error is, which says what to do about it.
+                    format: enum
+                problemTool:
+                    type: string
+                    description: With DETECTION_PROBLEM_VERSION, the language or tool, such as "node".
             description: |-
                 BuildDetection is what reading a commit of a repository found, before
                  anything builds: whether it has a Dockerfile, and what Railpack makes of it.

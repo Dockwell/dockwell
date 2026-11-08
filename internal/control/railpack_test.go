@@ -5,6 +5,7 @@ package control
 import (
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -132,7 +133,7 @@ func TestAPlanRailpackCantBuildIsRefused(t *testing.T) {
 		g.repo.Commit("main", "Docs only", map[string]string{"README.md": "# storefront"})
 		_, err := g.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Make web", Edits: []*dockwellv1.Edit{g.buildEdit("main", nil)}}))
 		if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), `Railpack can't tell how to build`) ||
-			!strings.Contains(err.Error(), `"Railpack could not determine how to build the app."`) || !strings.Contains(err.Error(), "Add a Dockerfile, or set the build's start command") {
+			!strings.Contains(err.Error(), `"Railpack could not determine how to build the app."`) || !strings.Contains(err.Error(), "Add a Dockerfile, or set both a build command and a start command") {
 			t.Errorf("planning what Railpack can't build = %v", err)
 		}
 		if n := len(g.e.Containers()); n != 0 {
@@ -166,6 +167,90 @@ func TestDetectBuildSaysWhatItCantRead(t *testing.T) {
 		}
 		if err := detect(nil); connect.CodeOf(err) != connect.CodeInvalidArgument {
 			t.Errorf("nothing to read = %v", err)
+		}
+	})
+}
+
+// A plan refuses, with what to do, what Railpack would refuse once it built: a
+// commit with nothing that starts the app, unless the service starts with its own
+// command; build and start commands a Dockerfile makes do nothing; and a secret
+// Railpack can't take, for a build that turns out to use Railpack.
+func TestAPlanRefusesWhatARailpackBuildWouldFailOn(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		propose := func(e *dockwellv1.Edit) error {
+			_, err := g.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Make web", Edits: []*dockwellv1.Edit{e}}))
+			return err
+		}
+		g.repo.Commit("main", "A library", map[string]string{"package.json": `{"name":"lib","scripts":{"build":"tsc"}}`})
+		if err := propose(g.buildEdit("main", nil)); connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "Railpack found nothing that starts") ||
+			!strings.Contains(err.Error(), "Set the build's start command") {
+			t.Errorf("a commit with nothing to start = %v", err)
+		}
+		own := g.buildEdit("main", nil)
+		own.GetSpec().GetService().GetApp().Command = []string{"node", "lib.js"}
+		if err := propose(own); err != nil {
+			t.Errorf("a service with its own command = %v", err)
+		}
+
+		g.repo.Commit("main", "A Dockerfile", map[string]string{"Dockerfile": webDockerfile})
+		commands := g.buildEdit("main", nil)
+		commands.GetSpec().GetService().GetBuild().StartCommand = "node server.js"
+		if err := propose(commands); connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "its build and start commands would do nothing") {
+			t.Errorf("a start command with a Dockerfile = %v", err)
+		}
+
+		// Another repository, as a commit keeps what the one before it had.
+		api := g.git.Repo("api")
+		api.Commit("main", "No Dockerfile", nodeApp)
+		npm := &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "secret", Name: "NPM"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: "npm_s3cr3t-value"}}},
+		}
+		_, err := g.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Make web", Edits: []*dockwellv1.Edit{npm, func() *dockwellv1.Edit {
+				e := g.buildEdit("main", map[string]string{"npm.token": "NPM"})
+				e.GetSpec().GetService().GetBuild().GetGit().Url = api.URL
+				return e
+			}()},
+		}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "builds with Railpack, and the build's secret npm.token can't reach Railpack") {
+			t.Errorf("a secret Railpack can't take = %v", err)
+		}
+	})
+}
+
+// The same reading asked for at once, as a form asks while you type, reads the
+// commit once; and with more than one server, a reading waits to be told which
+// builds the app, rather than read where it may never run.
+func TestReadingsOfACommitAreFewAndWhereItBuilds(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		g.repo.Commit("main", "Works", nodeApp)
+		build := &resourcev1.ImageBuild{Source: &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: g.repo.URL, Ref: "main"}}}
+		var wg sync.WaitGroup
+		errs := make([]error, 4)
+		for i := range errs {
+			wg.Go(func() {
+				_, errs[i] = g.builds.DetectBuild(t.Context(), connect.NewRequest(&dockwellv1.DetectBuildRequest{Build: build}))
+			})
+		}
+		wg.Wait()
+		for _, err := range errs {
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		// The first on a server reads twice: once to find there's no Dockerfile,
+		// and again once Railpack is there.
+		if n := g.detects(); n > 2 {
+			t.Errorf("four readings of one commit at once read it %d times", n)
+		}
+
+		g.f.addDockerServer(t)
+		_, err := g.builds.DetectBuild(t.Context(), connect.NewRequest(&dockwellv1.DetectBuildRequest{Build: build}))
+		if reasonOf(err) != "choose_server" || !strings.Contains(err.Error(), "there are 2 servers, so say which builds the app") {
+			t.Errorf("a reading with two servers and none named = %v", err)
 		}
 	})
 }

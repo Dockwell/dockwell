@@ -104,6 +104,8 @@ export function buildOf(git: GitForm) {
 /** The field of the Git form a refusal is about, by what it names, or "" for none of them. */
 export function gitFieldOf(message: string): string {
   const text = message.toLowerCase();
+  // A build's secrets are the environment's, which New app doesn't set.
+  if (/build's secret|as a secret/.test(text)) return "";
   if (/start command/.test(text)) return "git.startCommand";
   if (/build command/.test(text)) return "git.buildCommand";
   if (/\bdockerfile\b/.test(text)) return "git.dockerfile";

@@ -4947,8 +4947,11 @@ func (x *CancelBuildCall) GetBy() string {
 type DetectBuildCall struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What to read: the repository, its commit, the folder and the builder. The
-	// build's secrets aren't sent, and Railpack reads it without them.
-	Build         *v1alpha1.ImageBuild `protobuf:"bytes,1,opt,name=build,proto3" json:"build,omitempty"`
+	// build's secrets' values aren't sent: Railpack reads it with their names.
+	Build *v1alpha1.ImageBuild `protobuf:"bytes,1,opt,name=build,proto3" json:"build,omitempty"`
+	// True when the service starts with a command of its own, so the commit
+	// needn't say what starts it.
+	OwnCommand    bool `protobuf:"varint,2,opt,name=own_command,json=ownCommand,proto3" json:"own_command,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4988,6 +4991,13 @@ func (x *DetectBuildCall) GetBuild() *v1alpha1.ImageBuild {
 		return x.Build
 	}
 	return nil
+}
+
+func (x *DetectBuildCall) GetOwnCommand() bool {
+	if x != nil {
+		return x.OwnCommand
+	}
+	return false
 }
 
 // DetectBuildResult is what reading the commit found.
@@ -6973,9 +6983,11 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0fCancelBuildCall\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x0e\n" +
-	"\x02by\x18\x03 \x01(\tR\x02by\"O\n" +
+	"\x02by\x18\x03 \x01(\tR\x02by\"p\n" +
 	"\x0fDetectBuildCall\x12<\n" +
-	"\x05build\x18\x01 \x01(\v2&.dockwell.resource.v1alpha1.ImageBuildR\x05build\"N\n" +
+	"\x05build\x18\x01 \x01(\v2&.dockwell.resource.v1alpha1.ImageBuildR\x05build\x12\x1f\n" +
+	"\vown_command\x18\x02 \x01(\bR\n" +
+	"ownCommand\"N\n" +
 	"\x11DetectBuildResult\x129\n" +
 	"\tdetection\x18\x01 \x01(\v2\x1b.dockwell.v1.BuildDetectionR\tdetection\"/\n" +
 	"\x11CancelBuildResult\x12\x1a\n" +

@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
@@ -23,6 +22,9 @@ const marker = "dockwell:"
 const (
 	cacheMount   = "/var/lib/buildkit"
 	secretsMount = "/run/dockwell-secrets" //nolint:gosec // a path, not a credential
+	// planMount holds the plan Railpack wrote when it read the commit, read-only.
+	planMount    = "/run/dockwell-plan"
+	planFile     = "railpack-plan.json"
 	sourceDir    = "/src"
 	buildkitSock = "unix:///run/buildkit/buildkitd.sock"
 )
@@ -60,12 +62,12 @@ fi`
 
 // script is what a builder runs, in BuildKit's image, with BusyBox's sh. It checks
 // out the commit and says what it is. With the Dockerfile, which must be where the
-// build says, it builds with BuildKit's Dockerfile frontend. With Railpack, the
-// builder when the build says so, or when there is no Dockerfile and the build
-// names no builder, it has Railpack write a plan, says what the plan is, and builds
-// it with Railpack's frontend. It starts BuildKit through its image's own
-// entrypoint, which gives it a cgroup namespace of its own where it needs one, and
-// writes the image to standard out as Docker's image archive. Its arguments are
+// build says, it builds with BuildKit's Dockerfile frontend. With Railpack, it
+// builds the plan Railpack wrote when the agent read the commit, unprivileged,
+// which is in planMount, with Railpack's frontend: nothing of Railpack's runs here,
+// outside BuildKit's sandbox (ADR 0046). It starts BuildKit through its image's
+// own entrypoint, which gives it a cgroup namespace of its own where it needs one,
+// and writes the image to standard out as Docker's image archive. Its arguments are
 // buildctl's for the Dockerfile: build arguments, the target and secrets. Railpack
 // takes its build arguments and secrets from files: a-NAME and s-NAME in the
 // secrets' folder. Every value comes from the environment or a file, never from
@@ -76,30 +78,12 @@ export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false
 ` + fetchScript + `
 sec=` + secretsMount + `
 builder=dockerfile
-if [ "$DW_BUILDER" = railpack ] || { [ "$DW_BUILDER" != dockerfile ] && [ -z "$df" ]; }; then builder=railpack
+if [ "$DW_BUILDER" = railpack ]; then
+  builder=railpack
+  if [ ! -s "` + planMount + `/` + planFile + `" ]; then say fail noplan; exit 3; fi
 elif [ -z "$df" ]; then say fail dockerfile; exit 3
 fi
-if [ "$builder" = railpack ] && [ ! -x "` + railpackBin + `" ]; then say fail need-railpack; exit 4; fi
 say builder "$builder"
-if [ "$builder" = railpack ]; then
-  say phase detect
-  mkdir -p /work
-  prepare() {
-    set -- prepare "$ctx" --plan-out /work/railpack-plan.json --info-out /work/railpack-info.json
-    if [ -n "$DW_BUILD_CMD" ]; then set -- "$@" --build-cmd "$DW_BUILD_CMD"; fi
-    if [ -n "$DW_START_CMD" ]; then set -- "$@" --start-cmd "$DW_START_CMD"; fi
-    for f in "$sec"/a-*; do [ -f "$f" ] || continue; set -- "$@" -e "${f##*/a-}=$(cat "$f")"; done
-    for f in "$sec"/s-*; do [ -f "$f" ] || continue; n=${f##*/s-}; export "$n=$(cat "$f")"; set -- "$@" -e "$n"; done
-    exec "` + railpackBin + `" "$@"
-  }
-  set +e
-  ( prepare ) >&2
-  rc=$?
-  set -e
-  if [ -s /work/railpack-info.json ]; then say railpack-info "$(base64 </work/railpack-info.json | tr -d '\n')"; fi
-  if [ -s /work/railpack-plan.json ]; then say railpack-plan "$(base64 </work/railpack-plan.json | tr -d '\n')"; fi
-  if [ "$rc" -ne 0 ] || [ ! -s /work/railpack-plan.json ]; then say fail railpack; exit 3; fi
-fi
 say phase start
 mkdir -p /etc/buildkit
 aa=""
@@ -127,7 +111,7 @@ if [ "$builder" = railpack ]; then
   set -- --opt build-arg:cache-key="$DW_CACHE_KEY" --opt build-arg:secrets-hash="$DW_SECRETS_HASH"
   for f in "$sec"/a-* "$sec"/s-*; do [ -f "$f" ] || continue; n=${f##*/}; set -- "$@" --secret "id=${n#?-},src=$f"; done
   buildctl --addr ` + buildkitSock + ` build --progress rawjson --frontend gateway.v0 --opt source="$DW_RAILPACK_FRONTEND" \
-    --local context="$ctx" --local dockerfile=/work --opt filename=railpack-plan.json \
+    --local context="$ctx" --local dockerfile=` + planMount + ` --opt filename=` + planFile + ` \
     --output type=docker,name="$DW_IMAGE" "$@"
 else
   buildctl --addr ` + buildkitSock + ` build --progress rawjson --frontend dockerfile.v0 \
@@ -159,8 +143,6 @@ func env(req service.BuildRequest, keep int64) []string {
 		"DW_BUILD_CMD=" + req.BuildCommand,
 		"DW_START_CMD=" + req.StartCommand,
 		"DW_RAILPACK_FRONTEND=" + RailpackFrontend,
-		// Railpack's caches are the service's own, so one app's can't reach another's.
-		"DW_CACHE_KEY=" + strings.TrimPrefix(imageRepository(req.Image), docker.BuiltRegistry+"/"),
 	}
 }
 

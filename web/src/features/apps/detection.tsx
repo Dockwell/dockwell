@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type BuildDetection, type DetectedPackage, ImageBuild_Builder } from "@dockwell/api";
+import { type BuildDetection, type DetectedPackage, DetectionProblem, ImageBuild_Builder } from "@dockwell/api";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Fragment, type ReactNode, useCallback } from "react";
 
@@ -125,5 +125,42 @@ export function useDetectionWords() {
   const warnings = useCallback((d: BuildDetection): string[] => d.warnings.map(asSentence), []);
   /** Why Railpack can't build it: the first line of what it said. */
   const cant = useCallback((d: BuildDetection): string => asSentence(d.error.trim().split("\n")[0] ?? ""), []);
-  return { what, headline, steps, packages, warnings, cant };
+  /** What stops Railpack, as a headline, and what to do about it, by what it said. */
+  const refusal = useCallback(
+    (d: BuildDetection): { headline: string; fix: string } => {
+      switch (d.problem) {
+        case DetectionProblem.NO_PROVIDER:
+          return {
+            headline: t`Railpack can't tell how to build it`,
+            fix: t`Add a Dockerfile, or set both a build command and a start command under Change.`,
+          };
+        case DetectionProblem.VERSION: {
+          const variable = `RAILPACK_${d.problemTool.toUpperCase().replace(/[-.]/g, "_")}_VERSION`;
+          return {
+            headline: t`Railpack can't find a version the repository asks for`,
+            fix: d.problemTool
+              ? t`Change the version the repository asks for, or set ${variable} as a build argument under Change.`
+              : t`Change the version the repository asks for.`,
+          };
+        }
+        case DetectionProblem.NO_START:
+          return {
+            headline: t`Railpack found nothing that starts the app`,
+            fix: t`Set a start command under Change, or add a start script to the repository.`,
+          };
+        case DetectionProblem.NETWORK:
+          return {
+            headline: t`Railpack couldn't reach where versions are listed`,
+            fix: t`Check the server reaches github.com. A plan goes ahead, and the build reads it again.`,
+          };
+        default:
+          return {
+            headline: t`Railpack can't build it`,
+            fix: t`Fix what it says in the repository, or add a Dockerfile.`,
+          };
+      }
+    },
+    [t],
+  );
+  return { what, headline, steps, packages, warnings, cant, refusal };
 }

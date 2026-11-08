@@ -503,6 +503,13 @@ func (h *Handler) Find(ctx context.Context, named, project, environment string) 
 // settings as it is set, its name, and the servers it runs on, by ID. A service
 // that runs an image has no build.
 func (h *Handler) BuildOf(ctx context.Context, named, project, environment string) (*resourcev1.ImageBuild, string, []string, error) {
+	svc, name, servers, err := h.ServiceOf(ctx, named, project, environment)
+	return svc.GetBuild(), name, servers, err
+}
+
+// ServiceOf finds a service by ID or by name, as Find does, and gives its spec as
+// it is set, its name, and the servers it runs on, by ID.
+func (h *Handler) ServiceOf(ctx context.Context, named, project, environment string) (*resourcev1.Service, string, []string, error) {
 	r, err := h.find(ctx, named, project, environment)
 	if err != nil {
 		return nil, "", nil, err
@@ -526,7 +533,7 @@ func (h *Handler) BuildOf(ctx context.Context, named, project, environment strin
 	if err != nil {
 		return nil, "", nil, err
 	}
-	return svc.GetBuild(), r.Name, servers, nil
+	return svc, r.Name, servers, nil
 }
 
 // find reads the service a request names, by ID or by name. A name may need

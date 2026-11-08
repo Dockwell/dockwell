@@ -94,13 +94,22 @@ func (e *Engine) fakeBuild(c *container, stdout, stderr io.Writer) (code int) {
 		i++
 	}
 
+	// A builder runs privileged, so it never mounts what Railpack runs from: the
+	// agent reads the commit first, unprivileged, and hands it Railpack's plan.
+	e.mu.Lock()
+	_, mountsRailpack := e.mountsOf(c)["/tmp/railpack"]
+	e.mu.Unlock()
+	if mountsRailpack {
+		_, _ = fmt.Fprintln(stderr, "dockertest: a builder mounts Railpack's volume, which only readings may")
+		return 99
+	}
 	co, code := checkout(envs, stderr)
 	if code != 0 {
 		return code
 	}
 	defer os.RemoveAll(co.src)
 	ctxDir := co.context
-	railpack := envs["DW_BUILDER"] == "railpack" || envs["DW_BUILDER"] != "dockerfile" && co.dockerfile == ""
+	railpack := envs["DW_BUILDER"] == "railpack"
 	if !railpack && co.dockerfile == "" {
 		say("fail dockerfile")
 		return 3
@@ -110,12 +119,24 @@ func (e *Engine) fakeBuild(c *container, stdout, stderr io.Writer) (code int) {
 	// says how the image runs, such as EXPOSE or CMD.
 	var steps, meta []step
 	if railpack {
-		if !e.hasRailpack(c) {
-			say("fail need-railpack")
-			return 4
+		// It builds the plan the reading wrote, as the script does.
+		planPath := e.hostPathOf(c, "/run/dockwell-plan/railpack-plan.json")
+		raw, err := os.ReadFile(planPath) //nolint:gosec // a test's own file
+		if planPath == "" || err != nil {
+			say("fail noplan")
+			return 3
+		}
+		var plan struct {
+			Deploy struct {
+				StartCommand string `json:"startCommand"`
+			} `json:"deploy"`
+			Fake []map[string]string `json:"dockwellFakeSteps"`
+		}
+		if json.Unmarshal(raw, &plan) != nil {
+			say("fail noplan")
+			return 3
 		}
 		say("builder railpack")
-		say("phase detect")
 		// Railpack takes build arguments and secrets as files, by name.
 		vars := map[string]string{}
 		if dir := e.hostPathOf(c, "/run/dockwell-secrets"); dir != "" {
@@ -128,24 +149,15 @@ func (e *Engine) fakeBuild(c *container, stdout, stderr io.Writer) (code int) {
 				}
 			}
 		}
-		rp := fakePrepare(ctxDir, envs["DW_BUILD_CMD"], envs["DW_START_CMD"], vars)
-		for _, l := range rp.pretty {
-			_, _ = fmt.Fprintln(stderr, l)
+		for _, st := range plan.Fake {
+			steps = append(steps, step{instr: st["instr"], args: st["args"], line: st["line"]})
 		}
-		say("railpack-info " + base64.StdEncoding.EncodeToString(rp.info))
-		if rp.plan != nil {
-			say("railpack-plan " + base64.StdEncoding.EncodeToString(rp.plan))
-		}
-		if !rp.ok {
-			say("fail railpack")
-			return 3
-		}
-		steps, buildArgs = rp.steps, vars
+		buildArgs = vars
 		cfg.Entrypoint, cfg.WorkingDir = []string{"/bin/bash", "-c"}, "/app"
-		if rp.start != "" {
-			cfg.Cmd = []string{rp.start}
+		if plan.Deploy.StartCommand != "" {
+			cfg.Cmd = []string{plan.Deploy.StartCommand}
 		}
-		cfg.Env = append(cfg.Env, rp.env...)
+		cfg.Env = append(cfg.Env, "RAILPACK_VERSION=0.43.0")
 	} else {
 		say("builder dockerfile")
 		dockerfile, err := os.ReadFile(co.dockerfile)

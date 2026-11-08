@@ -54,6 +54,7 @@ const (
 type Finder interface {
 	Find(ctx context.Context, named, project, environment string) (store.Resource, error)
 	BuildOf(ctx context.Context, named, project, environment string) (*resourcev1.ImageBuild, string, []string, error)
+	ServiceOf(ctx context.Context, named, project, environment string) (*resourcev1.Service, string, []string, error)
 }
 
 // Handler implements BuildService, and keeps what agents say of builds.
@@ -68,6 +69,7 @@ type Handler struct {
 	mu       sync.Mutex
 	watchers map[string]map[chan []store.BuildLine]struct{}
 	detected map[string]detected
+	reading  map[string]*reading
 }
 
 var _ dockwellv1connect.BuildServiceHandler = (*Handler)(nil)
@@ -77,7 +79,7 @@ var _ dockwellv1connect.BuildServiceHandler = (*Handler)(nil)
 func New(db *store.DB, agents *agentapi.Agents, services Finder, logger *slog.Logger) *Handler {
 	h := &Handler{
 		db: db, agents: agents, services: services, logger: logger, now: time.Now,
-		watchers: map[string]map[chan []store.BuildLine]struct{}{}, detected: map[string]detected{},
+		watchers: map[string]map[chan []store.BuildLine]struct{}{}, detected: map[string]detected{}, reading: map[string]*reading{},
 	}
 	agents.OnBuild(h.record)
 	return h

@@ -105,11 +105,10 @@ type report struct {
 	spent    int
 	dropped  int64
 	start    time.Time
-	// builder is what builds it, once the script has said, and info and plan
-	// what Railpack wrote.
-	builder    string
-	info, plan []byte
-	detection  *resource.BuildDetection
+	// builder is what builds it, once the reading or the script has said, and
+	// detection what the reading found.
+	builder   string
+	detection *resource.BuildDetection
 }
 
 func newReport(ctx context.Context, req service.BuildRequest, now func() time.Time) *report {
@@ -222,20 +221,12 @@ func (r *report) markerLine(rest string) {
 		r.add(0, "This server's AppArmor can't be reached from the builder, so the build's steps run under seccomp's profile alone")
 	case "fail":
 		r.failed = arg
-		if arg == "railpack" {
-			r.detected()
-		}
 	case "builder":
 		r.builder = arg
-		if arg == resource.BuilderDockerfile {
+		if arg == resource.BuilderDockerfile && r.detection == nil {
 			r.detection = &resource.BuildDetection{Builder: arg, Dockerfile: filepath.Join(r.req.Context, dockerfile(r.req.Dockerfile))}
 			resource.ReportBuild(r.ctx, resource.BuildUpdate{State: resource.BuildBuilding, Detection: r.detection})
 		}
-	case "railpack-info":
-		r.info, _ = base64.StdEncoding.DecodeString(arg)
-	case "railpack-plan":
-		r.plan, _ = base64.StdEncoding.DecodeString(arg)
-		r.detected()
 	case "commit":
 		a, s, _ := strings.Cut(arg, " ")
 		author, _ := base64.StdEncoding.DecodeString(a)
@@ -245,33 +236,60 @@ func (r *report) markerLine(rest string) {
 	}
 }
 
-// again readies the report for the builder run anew, once the server has Railpack:
-// its log goes on where it was.
-func (r *report) again() {
+// reading says the build reads the commit first, to say how it builds.
+func (r *report) reading() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.phase, r.failed, r.builder, r.info, r.plan, r.detection = "", "", "", nil, nil, nil
-	r.skipping, r.pruned = false, false
-	r.said, r.tail = nil, nil
-	r.add(0, "Getting Railpack, which builds an app with no Dockerfile, then checking out again")
+	r.add(0, "Reading the commit, to say how it builds")
 }
 
-// detected says what Railpack found, once it has written its plan, or failed to.
-func (r *report) detected() {
-	if r.detection != nil {
-		return
-	}
-	d := railpackDetection(r.info, r.plan)
-	d.Builder = resource.BuilderRailpack
-	if d.Error != "" {
-		// What Railpack said of a source it can't build is in its info, and the
-		// log says it as Railpack did.
+// detectedAs says what reading the commit found, with the build's secrets masked in
+// all of it, as Railpack's words can hold what it read: the log says what Railpack
+// warned of, and why it can't build it, as Railpack said.
+func (r *report) detectedAs(d *resource.BuildDetection) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	d = r.hideDetection(d)
+	r.builder, r.detection = d.Builder, d
+	if d.Builder == resource.BuilderRailpack {
+		r.add(0, "Railpack "+cmpOr(d.Railpack, RailpackVersion)+" read it: "+cmpOr(strings.Join(d.Providers, ", "), "nothing it knows"))
+		for _, w := range d.Warnings {
+			r.add(0, w)
+		}
 		for _, line := range strings.Split(d.Error, "\n") {
-			r.add(0, line)
+			if strings.TrimSpace(line) != "" {
+				r.add(0, line)
+			}
 		}
 	}
-	r.detection = d
 	resource.ReportBuild(r.ctx, resource.BuildUpdate{State: resource.BuildBuilding, Detection: d})
+}
+
+// hideDetection is d with the build's secrets masked in each of its words.
+func (r *report) hideDetection(d *resource.BuildDetection) *resource.BuildDetection {
+	out := *d
+	out.Providers = slices.Clone(d.Providers)
+	out.Warnings = slices.Clone(d.Warnings)
+	out.Packages = slices.Clone(d.Packages)
+	out.Steps = make([]resource.DetectedStep, len(d.Steps))
+	for i := range out.Providers {
+		out.Providers[i] = r.hide(out.Providers[i])
+	}
+	for i := range out.Warnings {
+		out.Warnings[i] = r.hide(out.Warnings[i])
+	}
+	for i := range out.Packages {
+		p := &out.Packages[i]
+		p.Name, p.Requested, p.Resolved, p.Source = r.hide(p.Name), r.hide(p.Requested), r.hide(p.Resolved), r.hide(p.Source)
+	}
+	for i, st := range d.Steps {
+		out.Steps[i] = resource.DetectedStep{Name: r.hide(st.Name), Commands: slices.Clone(st.Commands)}
+		for j := range out.Steps[i].Commands {
+			out.Steps[i].Commands[j] = r.hide(out.Steps[i].Commands[j])
+		}
+	}
+	out.Dockerfile, out.BaseImage, out.Start, out.Error = r.hide(d.Dockerfile), r.hide(d.BaseImage), r.hide(d.Start), r.hide(d.Error)
+	return &out
 }
 
 // isStep reports a vertex that is one of the build's steps, as people count them:

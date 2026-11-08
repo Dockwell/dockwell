@@ -44,31 +44,70 @@ type detected struct {
 	d  *resource.BuildDetection
 }
 
+// reading is a reading under way, which the same request waits for rather than
+// read the commit again (H2 of #336's review: a reading runs as you type).
+type reading struct {
+	done chan struct{}
+	d    *resource.BuildDetection
+	err  error
+}
+
 // SetSources has the handler read what a build's branch names with s.
 func (h *Handler) SetSources(s revision.Sources) { h.sources = s }
 
 var _ revision.Detector = (*Handler)(nil)
 
 // Detect reads how a commit would build on a server, building nothing, and keeps
-// what it found for a while. b names the commit in full.
-func (h *Handler) Detect(ctx context.Context, server string, b *resourcev1.ImageBuild) (*resource.BuildDetection, error) {
+// what it found for a while. b names the commit in full. The same request while
+// one is under way waits for it, and reads nothing more.
+func (h *Handler) Detect(ctx context.Context, server string, b *resourcev1.ImageBuild, ownCommand bool) (*resource.BuildDetection, error) {
 	key, err := proto.MarshalOptions{Deterministic: true}.Marshal(b)
 	if err != nil {
 		return nil, err
 	}
-	k := server + "\x00" + string(key)
-	h.mu.Lock()
-	if got, ok := h.detected[k]; ok && h.now().Sub(got.at) < detectedFor {
+	k := fmt.Sprintf("%s\x00%t\x00%s", server, ownCommand, key)
+	for {
+		h.mu.Lock()
+		if got, ok := h.detected[k]; ok && h.now().Sub(got.at) < detectedFor {
+			h.mu.Unlock()
+			return got.d, nil
+		}
+		r, ok := h.reading[k]
+		if !ok {
+			break // with h.mu held
+		}
 		h.mu.Unlock()
-		return got.d, nil
+		select {
+		case <-r.done:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		// The one that read went away, as a form does when you type on: read anew.
+		if !errors.Is(r.err, context.Canceled) {
+			return r.d, r.err
+		}
+	}
+	r := &reading{done: make(chan struct{})}
+	h.reading[k] = r
+	h.mu.Unlock()
+	r.d, r.err = h.read(ctx, server, b, ownCommand)
+	h.mu.Lock()
+	delete(h.reading, k)
+	if r.err == nil {
+		h.keep(k, r.d)
 	}
 	h.mu.Unlock()
+	close(r.done)
+	return r.d, r.err
+}
 
+// read asks the server's agent to read a commit.
+func (h *Handler) read(ctx context.Context, server string, b *resourcev1.ImageBuild, ownCommand bool) (*resource.BuildDetection, error) {
 	session, ok := h.agents.SessionPastMove(ctx, server, agentapi.MoveGrace)
 	if !ok {
 		return nil, ErrServerOffline
 	}
-	p, err := session.DetectBuild(ctx, &agentv1.DetectBuildCall{Build: b})
+	p, err := session.DetectBuild(ctx, &agentv1.DetectBuildCall{Build: b, OwnCommand: ownCommand})
 	if err != nil {
 		return nil, err
 	}
@@ -76,8 +115,11 @@ func (h *Handler) Detect(ctx context.Context, server string, b *resourcev1.Image
 	if d == nil {
 		return nil, errors.New("the server said nothing of how the commit builds")
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	return d, nil
+}
+
+// keep keeps a reading, and forgets the oldest past detectedKept. h.mu is held.
+func (h *Handler) keep(k string, d *resource.BuildDetection) {
 	now := h.now()
 	for key, got := range h.detected {
 		if now.Sub(got.at) >= detectedFor {
@@ -94,7 +136,6 @@ func (h *Handler) Detect(ctx context.Context, server string, b *resourcev1.Image
 		delete(h.detected, oldest)
 	}
 	h.detected[k] = detected{at: now, d: d}
-	return d, nil
 }
 
 // DetectBuild reads how a commit would build, on a server, building nothing.
@@ -102,14 +143,17 @@ func (h *Handler) DetectBuild(ctx context.Context, req *connect.Request[dockwell
 	m := req.Msg
 	var b *resourcev1.ImageBuild
 	var placed []string
+	ownCommand := false
 	if m.GetId() != "" {
-		got, name, servers, err := h.services.BuildOf(ctx, m.GetId(), m.GetProject(), m.GetEnvironment())
+		svc, name, servers, err := h.services.ServiceOf(ctx, m.GetId(), m.GetProject(), m.GetEnvironment())
 		if err != nil {
 			return nil, err
 		}
+		got := svc.GetBuild()
 		if got == nil {
 			return nil, authapi.Invalid(fmt.Errorf("%s runs an image, so it builds nothing. Read build settings for it by passing them instead", name))
 		}
+		ownCommand = len(svc.GetApp().GetCommand()) > 0 || len(svc.GetApp().GetEntrypoint()) > 0
 		b = proto.Clone(got).(*resourcev1.ImageBuild) //nolint:forcetypeassert // a clone is its own type
 		// What a deploy would build: what the branch names now.
 		if g := b.GetGit(); g != nil && g.GetRef() != g.GetCommit() {
@@ -149,7 +193,7 @@ func (h *Handler) DetectBuild(ctx context.Context, req *connect.Request[dockwell
 			g.Ref = branch
 		}
 	}
-	d, err := h.Detect(ctx, server, b)
+	d, err := h.Detect(ctx, server, b, ownCommand)
 	switch {
 	case errors.Is(err, ErrServerOffline):
 		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s's agent isn't connected, so it can't read how the commit builds. Try again once it reconnects, or name another server", name), "server_offline")
@@ -160,8 +204,9 @@ func (h *Handler) DetectBuild(ctx context.Context, req *connect.Request[dockwell
 }
 
 // reader is the server that reads a commit: the one named, by ID or by name, or
-// one the service runs on, or with neither, the first by name whose agent is
-// connected.
+// one the service runs on, or with neither, the only server. With more than one,
+// and none named, it reads nothing until someone says where the app runs: a
+// reading pulls Railpack, and checks out, on a server that may never run it.
 func (h *Handler) reader(ctx context.Context, named string, placed []string) (id, name string, err error) {
 	var servers []store.Server
 	err = h.db.View(ctx, func(tx *store.Tx) error {
@@ -186,6 +231,9 @@ func (h *Handler) reader(ctx context.Context, named string, placed []string) (id
 				return s.ID, s.Name, nil
 			}
 		}
+	case len(servers) > 1:
+		return "", "", authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("there are %d servers, so say which builds the app, and Dockwell reads the commit there", len(servers)), "choose_server")
 	}
 	connected := h.agents.Connected()
 	for i := range servers {
@@ -210,6 +258,11 @@ func fitDetection(d *resource.BuildDetection) *resource.BuildDetection {
 	}
 	if d.Builder != resource.BuilderDockerfile && d.Builder != resource.BuilderRailpack {
 		d.Builder = resource.BuilderRailpack
+	}
+	if d.Error != "" {
+		// What kind of problem it is, read here too, as an older agent doesn't say.
+		d.Problem, d.ProblemTool = resource.RailpackProblem(d.Error)
+		d.ProblemTool = fit(d.ProblemTool, 64)
 	}
 	fitAll := func(in []string, n int) []string {
 		var out []string

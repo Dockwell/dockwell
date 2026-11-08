@@ -3368,7 +3368,7 @@ describe("an app's deployments, for an app that builds from Git", () => {
     expect(screen.getByText("67%")).toBeVisible();
     expect(screen.getByText("Built")).toBeVisible();
     expect(screen.getByText("Built with").nextElementSibling).toHaveTextContent(
-      "Railpack · Node 22 Runs npm ci, then starts with npm run start.",
+      "Railpack · Node 22. Runs npm ci, then starts with npm run start.",
     );
     expect(screen.queryByRole("button", { name: "Cancel build" })).not.toBeInTheDocument();
     await expectAccessible(container);

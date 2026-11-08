@@ -54,20 +54,34 @@ type BuildRequest struct {
 	// finds.
 	Builder, BuildCommand, StartCommand string
 	// Secrets are the values of its secrets, by ID, which go no further than the
-	// build.
-	Secrets map[string]string
+	// build. SecretIDs are their IDs, which a reading of the commit has without
+	// their values.
+	Secrets   map[string]string
+	SecretIDs []string
+	// OwnCommand says the service starts with a command of its own, so the
+	// commit needn't say what starts it.
+	OwnCommand bool
 }
 
 // Request is what a build of svc asks its server to build, all but its secrets.
 func Request(svc *resourcev1.Service) BuildRequest {
 	b := svc.GetBuild()
 	g := b.GetGit()
+	app := svc.GetApp()
 	return BuildRequest{
-		Image: svc.GetApp().GetImage(),
+		Image: app.GetImage(),
 		URL:   g.GetUrl(), Ref: g.GetRef(), Commit: g.GetCommit(),
 		Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Target: b.GetTarget(), Args: b.GetArgs(),
 		Builder: builderOf(b.GetBuilder()), BuildCommand: b.GetBuildCommand(), StartCommand: b.GetStartCommand(),
+		SecretIDs:  slices.Sorted(maps.Keys(b.GetSecrets())),
+		OwnCommand: len(app.GetCommand()) > 0 || len(app.GetEntrypoint()) > 0,
 	}
+}
+
+// RailpackNames checks that a build's arguments and secrets can reach Railpack
+// (resource.RailpackNames).
+func RailpackNames(args map[string]string, secrets []string) error {
+	return resource.RailpackNames(args, secrets)
 }
 
 // builderOf is what builds an image, as a request says it.
@@ -176,14 +190,14 @@ func checkBuild(svc *resourcev1.Service) error {
 	}
 	if railpack {
 		// Railpack gives both to the build as environment variables.
-		for _, set := range []map[string]string{b.GetArgs(), b.GetSecrets()} {
-			for k := range set {
-				switch {
-				case !argName.MatchString(k):
-					return fmt.Errorf("%q can't name a build's secret or argument with Railpack, which gives them to the build as environment variables. Use letters, digits and _, starting with a letter or _", k)
-				case k == "PATH" || k == "HOME":
-					return fmt.Errorf("%s is the build's own, so a build with Railpack can't set it. Name it something else", k)
-				}
+		if err := RailpackNames(b.GetArgs(), slices.Sorted(maps.Keys(b.GetSecrets()))); err != nil {
+			return err
+		}
+	} else if b.GetBuilder() == resourcev1.ImageBuild_BUILDER_UNSPECIFIED {
+		// It may build with Railpack, which the plan says once it reads the commit.
+		for _, id := range slices.Sorted(maps.Keys(b.GetSecrets())) {
+			if err := resource.RailpackSecret(id); err != nil {
+				return err
 			}
 		}
 	}
@@ -362,6 +376,12 @@ func (d *Driver) WriterOf(spec proto.Message) string {
 	}
 	if ref := strings.ToLower(g.GetRef()); commitID.MatchString(ref) {
 		parts = append(parts, "commit="+ref)
+	}
+	// What the image starts is part of its code: the service's own command and
+	// entrypoint take the place of the start command its build gave it.
+	app := svc.GetApp()
+	if len(app.GetCommand()) > 0 || len(app.GetEntrypoint()) > 0 {
+		parts = append(parts, "command="+strconv.Quote(strings.Join(app.GetCommand(), "\x00")), "entrypoint="+strconv.Quote(strings.Join(app.GetEntrypoint(), "\x00")))
 	}
 	// Each part quoted, so no value can make two builds read the same.
 	for i := range parts {

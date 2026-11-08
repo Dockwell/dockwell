@@ -298,8 +298,147 @@ type BuildDetection struct {
 	Steps     []DetectedStep    `json:",omitempty"`
 	Start     string            `json:",omitempty"`
 	Warnings  []string          `json:",omitempty"`
-	// Error is why Railpack can't build it, in its words.
-	Error string `json:",omitempty"`
+	// Error is why Railpack can't build it, in its words, and Problem what kind of
+	// problem that is (RailpackProblem), with the tool, for a version.
+	Error       string `json:",omitempty"`
+	Problem     string `json:",omitempty"`
+	ProblemTool string `json:",omitempty"`
+}
+
+// What stops Railpack building a commit, by what it said (RailpackProblem).
+const (
+	// ProblemNoProvider is a source Railpack can't tell the language of.
+	ProblemNoProvider = "no_provider"
+	// ProblemVersion is a version of a language or tool it can't find.
+	ProblemVersion = "version"
+	// ProblemNoStart is nothing that starts the app, with --error-missing-start.
+	ProblemNoStart = "no_start"
+	// ProblemNetwork is a server that couldn't reach where versions are listed:
+	// the commit may build once it can.
+	ProblemNetwork = "network"
+	// ProblemOther is anything else Railpack refuses.
+	ProblemOther = "other"
+)
+
+var (
+	versionNotFound = regexp.MustCompile("failed to resolve version (\\S+) of (\\S+)|package `([^`]+)` not available in Mise")
+	// What a lookup that couldn't reach the internet says, from mise or Go.
+	offlineWords = []string{
+		"temporary failure fetching", "failed to ensure mise is installed", "error sending request", "dns error",
+		"no such host", "temporary failure in name resolution", "timed out", "timeout", "connection refused",
+		"connection reset", "network is unreachable", "tls handshake", "rate limit",
+	}
+)
+
+// RailpackProblem reads what Railpack said it can't do, and says what kind of
+// problem it is, with the tool, for a version.
+func RailpackProblem(said string) (problem, tool string) {
+	lower := strings.ToLower(said)
+	switch {
+	case strings.Contains(lower, "could not determine how to build"):
+		return ProblemNoProvider, ""
+	case strings.Contains(lower, "no start command detected"):
+		return ProblemNoStart, ""
+	}
+	for _, w := range offlineWords {
+		if strings.Contains(lower, w) {
+			return ProblemNetwork, ""
+		}
+	}
+	if m := versionNotFound.FindStringSubmatch(said); m != nil {
+		return ProblemVersion, strings.Trim(m[2]+m[3], "`")
+	}
+	if strings.Contains(lower, "failed to get latest version for package") {
+		if i := strings.Index(said, "package `"); i >= 0 {
+			if name, _, ok := strings.Cut(said[i+len("package `"):], "`"); ok {
+				return ProblemVersion, name
+			}
+		}
+		return ProblemVersion, ""
+	}
+	return ProblemOther, ""
+}
+
+// RailpackRefusal says why Railpack can't build what, such as
+// "github.com/acme/web at 8be41d2", and what to do, by what it said.
+func RailpackRefusal(d *BuildDetection, what string) string {
+	why := strings.TrimSpace(d.Error)
+	if i := strings.IndexByte(why, '\n'); i >= 0 {
+		why = strings.TrimSpace(why[:i])
+	}
+	quoted := strconv.Quote(why)
+	problem, tool := d.Problem, d.ProblemTool
+	if problem == "" {
+		problem, tool = RailpackProblem(d.Error)
+	}
+	switch problem {
+	case ProblemNoProvider:
+		return fmt.Sprintf("Railpack can't tell how to build %s: %s. Add a Dockerfile, or set both a build command and a start command", what, quoted)
+	case ProblemVersion:
+		if tool == "" {
+			return fmt.Sprintf("Railpack can't find a version %s asks for: %s. Change the version the repository asks for", what, quoted)
+		}
+		return fmt.Sprintf("Railpack can't find the version of %s that %s asks for: %s. Change the version the repository asks for, or set %s as a build argument",
+			tool, what, quoted, VersionVariable(tool))
+	case ProblemNoStart:
+		return fmt.Sprintf("Railpack found nothing that starts %s. Set the build's start command, or add a start script to the repository", what)
+	case ProblemNetwork:
+		return fmt.Sprintf("Railpack couldn't read %s, as it couldn't reach where versions are listed: %s. Check the server reaches github.com, then try again", what, quoted)
+	}
+	return fmt.Sprintf("Railpack can't build %s: %s. Fix what it says in the repository, or add a Dockerfile", what, quoted)
+}
+
+// variableName is a name a shell takes for a variable.
+var variableName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// RailpackNames checks that a build's arguments and secrets can reach Railpack,
+// which gives each to the build as an environment variable: a variable's name, not
+// the build's own PATH or HOME, and for a secret, nothing Railpack reads as its own
+// settings, which would change what it installs and starts unseen by the plan.
+func RailpackNames(args map[string]string, secrets []string) error {
+	for _, k := range slices.Sorted(maps.Keys(args)) {
+		if err := railpackName("build argument", k); err != nil {
+			return err
+		}
+	}
+	for _, id := range secrets {
+		if err := railpackName("secret", id); err != nil {
+			return err
+		}
+		if err := RailpackSecret(id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func railpackName(what, k string) error {
+	switch {
+	case !variableName.MatchString(k):
+		return fmt.Errorf("the build's %s %s can't reach Railpack, which gives it to the build as an environment variable. Name it with letters, digits and _, starting with a letter or _", what, k)
+	case k == "PATH" || k == "HOME":
+		return fmt.Errorf("%s is the build's own, so a build with Railpack can't set it. Name the %s something else", k, what)
+	}
+	return nil
+}
+
+// RailpackSecret refuses a secret Railpack would read as its own settings, such as
+// RAILPACK_START_CMD: what it installs and starts would change unseen by the plan,
+// and the writer, and be kept with the build unmasked. As a build argument it's
+// seen, and counted.
+func RailpackSecret(id string) error {
+	for _, p := range []string{"RAILPACK_", "NIXPACKS_"} {
+		if strings.HasPrefix(strings.ToUpper(id), p) {
+			return fmt.Errorf("%s is one of Railpack's own settings, so a build that may use Railpack can't take it as a secret: what it changes would be out of the plan's sight. Set it as a build argument", id)
+		}
+	}
+	return nil
+}
+
+// VersionVariable is the build argument that chooses a tool's version for
+// Railpack, such as RAILPACK_NODE_VERSION.
+func VersionVariable(tool string) string {
+	return "RAILPACK_" + strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(tool)) + "_VERSION"
 }
 
 // DetectedPackage is a language or tool a Railpack build installs.

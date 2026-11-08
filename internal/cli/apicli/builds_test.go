@@ -79,7 +79,7 @@ func TestWhatDetectFoundReadsAsAPlan(t *testing.T) {
 	Render(&out, &dockwellv1.DetectBuildResponse{Commit: commit, ServerName: "web-1", Detection: &dockwellv1.BuildDetection{
 		Builder: resourcev1.ImageBuild_BUILDER_RAILPACK, Error: "Railpack could not determine how to build the app.\n\nThe following languages are supported:\n- Node",
 	}}, time.Now())
-	if got := out.String(); !strings.Contains(got, "Railpack can't build it. It says:\n  Railpack could not determine how to build the app.\n") || !strings.HasSuffix(got, "Add a Dockerfile, or set the build's start command.\n") {
+	if got := out.String(); !strings.Contains(got, "Railpack can't build it. It says:\n  Railpack could not determine how to build the app.\n") || !strings.HasSuffix(got, "Add a Dockerfile, or set both a build command and a start command.\n") {
 		t.Errorf("what Railpack can't build reads %q", got)
 	}
 }

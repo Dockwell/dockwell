@@ -1842,9 +1842,6 @@ msgstr "A public repository, over HTTPS. Pushes don't deploy yet: Deploy builds 
 msgid "A volume such as data at /data, or a server path."
 msgstr "A volume such as data at /data, or a server path."
 
-msgid "Add a Dockerfile, or set a start command under Change."
-msgstr "Add a Dockerfile, or set a start command under Change."
-
 msgid "Add an .env file"
 msgstr "Add an .env file"
 
@@ -2048,9 +2045,6 @@ msgstr "Project name"
 msgid "Railpack"
 msgstr "Railpack"
 
-msgid "Railpack can't tell how to build it"
-msgstr "Railpack can't tell how to build it"
-
 msgid "Railpack reads what the app is, such as Node from its package.json, and builds it with no Dockerfile."
 msgstr "Railpack reads what the app is, such as Node from its package.json, and builds it with no Dockerfile."
 
@@ -2202,6 +2196,9 @@ msgstr "environment variable names"
 msgid "labels"
 msgstr "labels"
 
+msgid "read from the repository once you choose a server"
+msgstr "read from the repository once you choose a server"
+
 msgid "read from the repository once you name it"
 msgstr "read from the repository once you name it"
 
@@ -2236,8 +2233,38 @@ msgstr "{count, plural, one {Show it} other {Show them}}"
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, one {# variable} other {# variables}}"
 
+msgid "Add a Dockerfile, or set both a build command and a start command under Change."
+msgstr "Add a Dockerfile, or set both a build command and a start command under Change."
+
+msgid "Change the version the repository asks for, or set {variable} as a build argument under Change."
+msgstr "Change the version the repository asks for, or set {variable} as a build argument under Change."
+
+msgid "Change the version the repository asks for."
+msgstr "Change the version the repository asks for."
+
+msgid "Check the server reaches github.com. A plan goes ahead, and the build reads it again."
+msgstr "Check the server reaches github.com. A plan goes ahead, and the build reads it again."
+
+msgid "Fix what it says in the repository, or add a Dockerfile."
+msgstr "Fix what it says in the repository, or add a Dockerfile."
+
 msgid "Found nothing to start the app with: set a start command."
 msgstr "Found nothing to start the app with: set a start command."
+
+msgid "Railpack can't build it"
+msgstr "Railpack can't build it"
+
+msgid "Railpack can't find a version the repository asks for"
+msgstr "Railpack can't find a version the repository asks for"
+
+msgid "Railpack can't tell how to build it"
+msgstr "Railpack can't tell how to build it"
+
+msgid "Railpack couldn't reach where versions are listed"
+msgstr "Railpack couldn't reach where versions are listed"
+
+msgid "Railpack found nothing that starts the app"
+msgstr "Railpack found nothing that starts the app"
 
 #. placeholder {0}: codes(commands)
 msgid "Runs {0}, and found nothing to start the app with: set a start command."
@@ -2246,6 +2273,9 @@ msgstr "Runs {0}, and found nothing to start the app with: set a start command."
 #. placeholder {0}: codes(commands)
 msgid "Runs {0}, then starts with <0>{start}</0>."
 msgstr "Runs {0}, then starts with <0>{start}</0>."
+
+msgid "Set a start command under Change, or add a start script to the repository."
+msgstr "Set a start command under Change, or add a start script to the repository."
 
 msgid "Starts with <0>{start}</0>."
 msgstr "Starts with <0>{start}</0>."

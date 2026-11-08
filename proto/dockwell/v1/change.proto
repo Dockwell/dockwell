@@ -1104,6 +1104,28 @@ message BuildDetection {
   // With its Dockerfile, the image its last stage starts from, such as
   // "node:22-alpine", unless a build argument names it.
   string base_image = 10;
+  // What kind of problem error is, which says what to do about it.
+  DetectionProblem problem = 11;
+  // With DETECTION_PROBLEM_VERSION, the language or tool, such as "node".
+  string problem_tool = 12;
+}
+
+// DetectionProblem is what kind of problem stops Railpack building a commit.
+enum DetectionProblem {
+  DETECTION_PROBLEM_UNSPECIFIED = 0;
+  // It can't tell what language the source is: add a Dockerfile, or set both
+  // a build and a start command.
+  DETECTION_PROBLEM_NO_PROVIDER = 1;
+  // It can't find a version of a language or tool the source asks for: change
+  // the version, or set RAILPACK_<TOOL>_VERSION as a build argument.
+  DETECTION_PROBLEM_VERSION = 2;
+  // Nothing starts the app: set the build's start command.
+  DETECTION_PROBLEM_NO_START = 3;
+  // The server couldn't reach where versions are listed. A plan goes ahead
+  // without the reading, and a build fails until the server can.
+  DETECTION_PROBLEM_NETWORK = 4;
+  // Anything else, in Railpack's words.
+  DETECTION_PROBLEM_OTHER = 5;
 }
 
 // DetectedPackage is a language or tool a Railpack build installs.

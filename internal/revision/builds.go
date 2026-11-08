@@ -6,9 +6,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"regexp"
-	"strconv"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -34,7 +36,9 @@ func (e *Engine) SetSources(s Sources) { e.sources = s }
 // Detector reads how a commit would build, on a server, building nothing (package
 // builds). b names the commit in full.
 type Detector interface {
-	Detect(ctx context.Context, server string, b *resourcev1.ImageBuild) (*resource.BuildDetection, error)
+	// Detect reads b's commit on server. ownCommand says the service starts with
+	// a command of its own, so the commit needn't say what starts it.
+	Detect(ctx context.Context, server string, b *resourcev1.ImageBuild, ownCommand bool) (*resource.BuildDetection, error)
 }
 
 // SetDetector has the engine read how a build's commit builds with d.
@@ -61,6 +65,15 @@ func (e *Engine) detectBuilds(ctx context.Context, plan *Plan, items []item) err
 	}
 	ctx, cancel := context.WithTimeout(ctx, detectWait)
 	defer cancel()
+	// Each reads at once, so one slow server or commit spends no other's time.
+	type read struct {
+		st     *resource.Step
+		svc    *resourcev1.Service
+		server string
+		d      *resource.BuildDetection
+		err    error
+	}
+	var reads []*read
 	for i := range plan.Servers {
 		sp := &plan.Servers[i]
 		if sp.Offline || sp.Removed {
@@ -72,22 +85,55 @@ func (e *Engine) detectBuilds(ctx context.Context, plan *Plan, items []item) err
 			if st.Build == nil || st.Build.Builder == resource.BuilderDockerfile || svc == nil {
 				continue
 			}
-			d, err := e.detector.Detect(ctx, sp.Server, svc.GetBuild())
-			if err != nil {
-				e.logger.WarnContext(ctx, "can't read how a build's commit builds, so its plan doesn't say; the build reads it as it starts",
-					slog.String("service", st.Ref.Name), slog.String("server", sp.Name), slog.String("error", err.Error()))
-				continue
-			}
-			if d.Builder == resource.BuilderRailpack && d.Error != "" {
-				why := strings.TrimSpace(d.Error)
-				if k := strings.IndexByte(why, '\n'); k >= 0 {
-					why = strings.TrimSpace(why[:k])
-				}
-				return fault.New(ErrInvalid, "Railpack can't tell how to build %s at %s for %s: %s. Add a Dockerfile, or set the build's start command",
-					shownRepository(st.Build.URL), shortCommit(st.Build.Commit), st.Ref.Name, strconv.Quote(why))
-			}
-			st.Build.Detection = d
+			reads = append(reads, &read{st: st, svc: svc, server: sp.Name})
 		}
+	}
+	servers := map[*read]string{}
+	for i := range plan.Servers {
+		for j := range plan.Servers[i].Steps {
+			for _, r := range reads {
+				if r.st == &plan.Servers[i].Steps[j] {
+					servers[r] = plan.Servers[i].Server
+				}
+			}
+		}
+	}
+	var wg sync.WaitGroup
+	for _, r := range reads {
+		wg.Go(func() {
+			app := r.svc.GetApp()
+			r.d, r.err = e.detector.Detect(ctx, servers[r], r.svc.GetBuild(), len(app.GetCommand()) > 0 || len(app.GetEntrypoint()) > 0)
+		})
+	}
+	wg.Wait()
+	for _, r := range reads {
+		st, d := r.st, r.d
+		what := fmt.Sprintf("%s at %s for %s", shownRepository(st.Build.URL), shortCommit(st.Build.Commit), st.Ref.Name)
+		if r.err != nil {
+			e.logger.WarnContext(ctx, "can't read how a build's commit builds, so its plan doesn't say; the build reads it as it starts",
+				slog.String("service", st.Ref.Name), slog.String("server", r.server), slog.String("error", r.err.Error()))
+			continue
+		}
+		b := r.svc.GetBuild()
+		switch {
+		case d.Builder == resource.BuilderDockerfile && (b.GetBuildCommand() != "" || b.GetStartCommand() != ""):
+			// Only Railpack runs them, and they count in what writes its folders.
+			return fault.New(ErrInvalid, "%s has a Dockerfile, which %s builds with, so its build and start commands would do nothing. Remove them, or choose Railpack as its builder",
+				what, st.Ref.Name)
+		case d.Builder != resource.BuilderRailpack:
+		case d.Error != "" && d.Problem == resource.ProblemNetwork:
+			// As for a server that can't be reached: the build reads it again.
+			e.logger.WarnContext(ctx, "Railpack couldn't reach where versions are listed, so the plan doesn't say what it found; the build reads it as it starts",
+				slog.String("service", st.Ref.Name), slog.String("server", r.server), slog.String("error", d.Error))
+			continue
+		case d.Error != "":
+			return fault.New(ErrInvalid, "%s", resource.RailpackRefusal(d, what))
+		default:
+			if err := resource.RailpackNames(b.GetArgs(), slices.Sorted(maps.Keys(b.GetSecrets()))); err != nil {
+				return fault.New(ErrInvalid, "%s has no Dockerfile, so it builds with Railpack, and %w", what, err)
+			}
+		}
+		st.Build.Detection = d
 	}
 	return nil
 }

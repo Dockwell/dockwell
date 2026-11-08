@@ -13,6 +13,8 @@
 //   - secret-fails prints NPM_TOKEN in a step that then fails;
 //   - node is a Node app with no Dockerfile, which Railpack builds;
 //   - docs has nothing Railpack knows how to build;
+//   - library is a Node app with nothing that starts it, which Railpack refuses;
+//   - oldnode asks for a Node that isn't, 99, which Railpack can't find;
 //   - stable stays where main began, for main to go back to.
 //
 // Each serves its commit's subject on port 8080 on real Docker.
@@ -104,6 +106,15 @@ CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
 `, "index.html": "Print the token, then fail\n"}},
 	{"node", "Serve the storefront with Railpack", node},
 	{"docs", "Write the storefront's docs", map[string]string{"Dockerfile": "", "index.html": "", "README.md": "# storefront\n"}},
+	{"library", "Ship the pricing library", map[string]string{
+		"Dockerfile": "", "index.html": "", "server.js": "",
+		"package.json": `{"name":"pricing","version":"1.0.0","scripts":{"build":"echo built the library"}}` + "\n",
+	}},
+	{"oldnode", "Pin a Node that isn't", map[string]string{
+		"Dockerfile": "", "index.html": "",
+		"package.json": `{"name":"storefront","scripts":{"start":"node server.js"},"engines":{"node":"99"}}` + "\n",
+		"server.js":    "require('http').createServer((q, s) => s.end('ok')).listen(8080)\n",
+	}},
 }
 
 // node is a Node app with no Dockerfile and no dependencies, which Railpack builds

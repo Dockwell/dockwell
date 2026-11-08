@@ -4267,6 +4267,24 @@ echo "docker-e2e: $words"
 docker volume inspect dockwell-railpack >/dev/null || fail "Railpack isn't in its volume"
 dw services delete "$railpack_id" --yes || fail "deleting e2e-railpack failed"
 
+step "Builds: what real Railpack can't build is refused before anything builds, with what to do"
+# Each by what Railpack said: a source it can't read, nothing that starts the app,
+# and a version it can't find.
+for refused in "docs:Add a Dockerfile, or set both a build command and a start command" \
+  "library:Set the build's start command" \
+  "oldnode:RAILPACK_NODE_VERSION as a build argument"; do
+  ref=${refused%%:*} fix=${refused#*:}
+  if out=$(dw services create "e2e-$ref" --environment "$build_env" --on e2e-agent --build-git-url "$git_url/web.git" --build-git-ref "$ref" --plan-only 2>&1); then
+    fail "a plan of the $ref branch, which Railpack can't build, wasn't refused: $out"
+  fi
+  grep -qF "$fix" <<<"$out" || fail "the plan of the $ref branch was refused without saying what to do: $out"
+done
+# A builder never mounts what Railpack runs from: only the agent's own containers
+# write the volume, and a reading mounts it read-only.
+if docker ps -a --filter label=dev.dockwell.builder --format '{{.Mounts}}' | grep -q dockwell-railpack; then
+  fail "a container left on the server mounts dockwell-railpack"
+fi
+
 step "Builds: a build's secret reaches its steps, and never its log or its image"
 # On the control server, whose agent runs as root under systemd, with /run in memory.
 control_id=$(dw servers list --json | jq -r --arg agent "$agent_id" '[.servers[] | select(.id != $agent) | .id] | first // empty') || fail "servers list failed"

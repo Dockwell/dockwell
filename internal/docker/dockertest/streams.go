@@ -185,6 +185,8 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 		switch {
 		case c.img.repo == RailpackRepository:
 			code = e.fakeCopyRailpack(c, stderr)
+		case slices.Contains(c.Config.Cmd, "dockwell-railpack-seed"):
+			code = e.fakeSeedMise(c, stderr)
 		case slices.Contains(c.Config.Cmd, "dockwell-detect"):
 			code = e.fakeDetect(c, stderr)
 		default:

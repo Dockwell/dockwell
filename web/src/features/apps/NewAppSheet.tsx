@@ -10,6 +10,7 @@ import {
   type CheckComposeResponse,
   ComposeService,
   Connection,
+  DetectionProblem,
   type ExposedVariable,
   ImageBuild_Builder,
   ResourceService,
@@ -570,6 +571,8 @@ export function NewAppSheet({
               if (clear) setErrors(({ [clear]: _, ...rest }) => rest);
             }}
             server={chosenServers[0] ?? ""}
+            waitForServer={needsPlace}
+            serversKnown={servers !== undefined}
             showBuild={showBuild}
             onShowBuild={setShowBuild}
             form={image}
@@ -754,11 +757,17 @@ function GitFields({
   onError,
   fieldRef,
   server,
+  waitForServer,
+  serversKnown,
 }: {
   git: GitForm;
   onGit: (next: Partial<GitForm>, clear?: string) => void;
   /** The server it runs on, when one is chosen, which reads how the repository builds. */
   server: string;
+  /** True while there's more than one server and none is chosen: nothing reads it yet. */
+  waitForServer: boolean;
+  /** False until the panel knows the servers, and so whether one must be chosen. */
+  serversKnown: boolean;
   showBuild: boolean;
   onShowBuild: (shown: boolean) => void;
   fieldRef: Ref<HTMLInputElement & HTMLTextAreaElement>;
@@ -803,7 +812,13 @@ function GitFields({
           the default branch when you leave it empty.
         </Trans>
       </p>
-      <BuildRow git={git} server={server} showBuild={showBuild} onShowBuild={onShowBuild} />
+      <BuildRow
+        git={git}
+        server={server}
+        waitForServer={waitForServer || !serversKnown}
+        showBuild={showBuild}
+        onShowBuild={onShowBuild}
+      />
       {showBuild ? (
         <div className="git-build-fields">
           <div className="app-field">
@@ -929,11 +944,13 @@ function looksLikeRepository(url: string): boolean {
 function BuildRow({
   git,
   server,
+  waitForServer,
   showBuild,
   onShowBuild,
 }: {
   git: GitForm;
   server: string;
+  waitForServer: boolean;
   showBuild: boolean;
   onShowBuild: (shown: boolean) => void;
 }) {
@@ -949,30 +966,24 @@ function BuildRow({
     git.startCommand,
     git.args,
     server,
+    waitForServer,
   ]);
   const [settled, setSettled] = useState(wanted);
   useEffect(() => {
     const id = setTimeout(() => setSettled(wanted), 600);
     return () => clearTimeout(id);
   }, [wanted]);
-  const [url, ref, context, dockerfile, builder, buildCommand, startCommand, args, on] = JSON.parse(settled) as [
-    string,
-    string,
-    string,
-    string,
-    GitForm["builder"],
-    string,
-    string,
-    string,
-    string,
-  ];
-  const ready = looksLikeRepository(url);
+  const [url, ref, context, dockerfile, builder, buildCommand, startCommand, args, on, waiting] = JSON.parse(
+    settled,
+  ) as [string, string, string, string, GitForm["builder"], string, string, string, string, boolean];
+  // A reading checks out on the server that will build it, and none is chosen yet.
+  const ready = looksLikeRepository(url) && !waiting;
   const read = useQuery(
     BuildService.method.detectBuild,
     { build: buildOf({ url, ref, context, dockerfile, builder, buildCommand, startCommand, args }), server: on },
     { enabled: ready, retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
   );
-  const reading = looksLikeRepository(git.url) && (settled !== wanted || read.isFetching);
+  const reading = looksLikeRepository(git.url) && !waitForServer && (settled !== wanted || read.isFetching);
   const d = ready && !reading ? read.data?.detection : undefined;
   const failed = ready && !reading && read.error ? sentence(read.error) : undefined;
 
@@ -988,12 +999,13 @@ function BuildRow({
     headline = <Trans>Couldn't read the repository</Trans>;
     detail = failed;
   } else if (d && d.builder === ImageBuild_Builder.RAILPACK && d.error) {
+    const refusal = words.refusal(d);
     icon = <Icon name="alert" size={16} className="git-build-alert" />;
-    headline = <Trans>Railpack can't tell how to build it</Trans>;
+    headline = refusal.headline;
     detail = (
       <>
-        <span className="git-build-quote">{words.cant(d)}</span>{" "}
-        <Trans>Add a Dockerfile, or set a start command under Change.</Trans>
+        {d.problem === DetectionProblem.NO_START ? null : <span className="git-build-quote">{words.cant(d)}</span>}{" "}
+        {refusal.fix}
       </>
     );
   } else if (d) {
@@ -1025,7 +1037,11 @@ function BuildRow({
       );
     after = (
       <span className="app-muted">
-        <Trans>read from the repository once you name it</Trans>
+        {waitForServer && looksLikeRepository(git.url) ? (
+          <Trans>read from the repository once you choose a server</Trans>
+        ) : (
+          <Trans>read from the repository once you name it</Trans>
+        )}
       </span>
     );
   }

@@ -1842,9 +1842,6 @@ msgstr "通过 HTTPS 访问的公开仓库。推送暂不会自动部署：点�
 msgid "A volume such as data at /data, or a server path."
 msgstr "可以是卷（例如挂载到 /data 的 data），也可以是服务器路径。"
 
-msgid "Add a Dockerfile, or set a start command under Change."
-msgstr "添加一个 Dockerfile，或在“更改”里设置启动命令。"
-
 msgid "Add an .env file"
 msgstr "添加 .env 文件"
 
@@ -2048,9 +2045,6 @@ msgstr "项目名称"
 msgid "Railpack"
 msgstr "Railpack"
 
-msgid "Railpack can't tell how to build it"
-msgstr "Railpack 无法判断如何构建它"
-
 msgid "Railpack reads what the app is, such as Node from its package.json, and builds it with no Dockerfile."
 msgstr "Railpack 会识别应用的类型，比如从 package.json 识别出 Node，无需 Dockerfile 即可构建。"
 
@@ -2202,6 +2196,9 @@ msgstr "环境变量名称"
 msgid "labels"
 msgstr "标签"
 
+msgid "read from the repository once you choose a server"
+msgstr "选择服务器后从仓库中读取"
+
 msgid "read from the repository once you name it"
 msgstr "填写仓库后从中读取"
 
@@ -2236,8 +2233,38 @@ msgstr "{count, plural, other {显示}}"
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, other {# 个变量}}"
 
+msgid "Add a Dockerfile, or set both a build command and a start command under Change."
+msgstr "添加 Dockerfile，或在“更改”中同时设置构建命令和启动命令。"
+
+msgid "Change the version the repository asks for, or set {variable} as a build argument under Change."
+msgstr "修改仓库要求的版本，或在“更改”中把 {variable} 设为构建参数。"
+
+msgid "Change the version the repository asks for."
+msgstr "修改仓库要求的版本。"
+
+msgid "Check the server reaches github.com. A plan goes ahead, and the build reads it again."
+msgstr "请检查服务器能否访问 github.com。计划照常进行，构建时会再读取一次。"
+
+msgid "Fix what it says in the repository, or add a Dockerfile."
+msgstr "按它所说在仓库中修复，或添加 Dockerfile。"
+
 msgid "Found nothing to start the app with: set a start command."
 msgstr "没有找到启动应用的命令：请设置启动命令。"
+
+msgid "Railpack can't build it"
+msgstr "Railpack 无法构建它"
+
+msgid "Railpack can't find a version the repository asks for"
+msgstr "Railpack 找不到仓库要求的版本"
+
+msgid "Railpack can't tell how to build it"
+msgstr "Railpack 无法判断如何构建它"
+
+msgid "Railpack couldn't reach where versions are listed"
+msgstr "Railpack 无法访问版本列表所在的地址"
+
+msgid "Railpack found nothing that starts the app"
+msgstr "Railpack 没有找到启动应用的方式"
 
 #. placeholder {0}: codes(commands)
 msgid "Runs {0}, and found nothing to start the app with: set a start command."
@@ -2246,6 +2273,9 @@ msgstr "运行 {0}，但没有找到启动应用的命令：请设置启动命�
 #. placeholder {0}: codes(commands)
 msgid "Runs {0}, then starts with <0>{start}</0>."
 msgstr "运行 {0}，然后以 <0>{start}</0> 启动。"
+
+msgid "Set a start command under Change, or add a start script to the repository."
+msgstr "在“更改”中设置启动命令，或在仓库中添加启动脚本。"
 
 msgid "Starts with <0>{start}</0>."
 msgstr "以 <0>{start}</0> 启动。"

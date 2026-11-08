@@ -220,7 +220,10 @@ export function BuildPart({ build: given, onEnded }: { build: Build; onEnded?: (
             <dd>
               {detected.headline(build.detection)}
               {build.detection.builder === ImageBuild_Builder.RAILPACK && !build.detection.error ? (
-                <span className="app-muted build-detected"> {detected.steps(build.detection)}</span>
+                <>
+                  {/* A full stop between what it is and what it runs, which read as one otherwise. */}.{" "}
+                  <span className="app-muted build-detected">{detected.steps(build.detection)}</span>
+                </>
               ) : null}
             </dd>
           </div>

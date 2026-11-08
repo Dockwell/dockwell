@@ -11,6 +11,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 // buildFollow prints what a follow of a build gained: its lines, and how it ended
@@ -172,7 +173,7 @@ func detectionView(w io.Writer, d *dockwellv1.BuildDetection) {
 		for _, line := range strings.Split(strings.TrimSpace(d.GetError()), "\n") {
 			fmt.Fprintln(w, "  "+safe(line))
 		}
-		fmt.Fprintln(w, "Add a Dockerfile, or set the build's start command.")
+		fmt.Fprintln(w, railpackFix(d))
 		return
 	}
 	s := "Builds with Railpack"
@@ -202,11 +203,44 @@ func detectionView(w io.Writer, d *dockwellv1.BuildDetection) {
 	}
 	start := d.GetStartCommand()
 	if start == "" {
-		start = "none found: set the build's start command"
+		start = "none found, so it starts with the service's own command"
 	}
 	fmt.Fprintf(t, "  starts\t%s\t\n", safe(start))
 	_ = t.Flush()
 	for _, warning := range d.GetWarnings() {
 		fmt.Fprintln(w, "Railpack warns: "+sentence(safe(warning)))
 	}
+}
+
+// railpackFix says what to do about what stops Railpack, by what it said.
+func railpackFix(d *dockwellv1.BuildDetection) string {
+	problem := d.GetProblem()
+	if problem == dockwellv1.DetectionProblem_DETECTION_PROBLEM_UNSPECIFIED {
+		// An older control plane doesn't say; its words do.
+		switch kind, tool := resource.RailpackProblem(d.GetError()); kind {
+		case resource.ProblemNoProvider:
+			problem = dockwellv1.DetectionProblem_DETECTION_PROBLEM_NO_PROVIDER
+		case resource.ProblemVersion:
+			problem, d = dockwellv1.DetectionProblem_DETECTION_PROBLEM_VERSION, &dockwellv1.BuildDetection{ProblemTool: tool}
+		case resource.ProblemNoStart:
+			problem = dockwellv1.DetectionProblem_DETECTION_PROBLEM_NO_START
+		case resource.ProblemNetwork:
+			problem = dockwellv1.DetectionProblem_DETECTION_PROBLEM_NETWORK
+		}
+	}
+	switch problem {
+	case dockwellv1.DetectionProblem_DETECTION_PROBLEM_NO_PROVIDER:
+		return "Add a Dockerfile, or set both a build command and a start command."
+	case dockwellv1.DetectionProblem_DETECTION_PROBLEM_VERSION:
+		if tool := d.GetProblemTool(); tool != "" {
+			return "Change the version the repository asks for, or set " + resource.VersionVariable(tool) + " as a build argument."
+		}
+		return "Change the version the repository asks for."
+	case dockwellv1.DetectionProblem_DETECTION_PROBLEM_NO_START:
+		return "Set the build's start command, or add a start script to the repository."
+	case dockwellv1.DetectionProblem_DETECTION_PROBLEM_NETWORK:
+		return "The server couldn't reach where versions are listed. Check it reaches github.com, then try again."
+	case dockwellv1.DetectionProblem_DETECTION_PROBLEM_UNSPECIFIED, dockwellv1.DetectionProblem_DETECTION_PROBLEM_OTHER:
+	}
+	return "Fix what it says in the repository, or add a Dockerfile."
 }

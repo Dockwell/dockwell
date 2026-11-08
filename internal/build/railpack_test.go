@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -24,6 +25,19 @@ var nodeApp = map[string]string{
 func withRailpack(b *bench) *bench {
 	b.engine.Registry[RailpackFrontend] = dockertest.Image{}
 	return b
+}
+
+// made is what was asked of each container of BuildKit's image that ran what, such
+// as "dockwell-build" or "dockwell-detect".
+func (b *bench) made(what string) []docker.CreateRequest {
+	var out []docker.CreateRequest
+	all := b.engine.Builders()
+	for i := range all {
+		if slices.Contains(all[i].Cmd, what) {
+			out = append(out, all[i])
+		}
+	}
+	return out
 }
 
 func TestAnAppWithNoDockerfileBuildsWithRailpack(t *testing.T) {
@@ -56,16 +70,49 @@ func TestAnAppWithNoDockerfileBuildsWithRailpack(t *testing.T) {
 	if len(d.Packages) != 1 || d.Packages[0] != (resource.DetectedPackage{Name: "node", Requested: "22", Resolved: "22.23.4", Source: "package.json > engines > node"}) {
 		t.Errorf("the build found the packages %+v, not Node 22 from package.json", d.Packages)
 	}
-	if !slices.Contains(b.lines(), "built the storefront") || !slices.Contains(b.lines(), "  ↳ Detected Node") {
-		t.Errorf("the log doesn't have what Railpack said and what the build printed: %q", b.lines())
+	if !slices.Contains(b.lines(), "built the storefront") || !slices.Contains(b.lines(), "Railpack 0.43.0 read it: node") {
+		t.Errorf("the log doesn't have what Railpack found and what the build printed: %q", b.lines())
 	}
-	builder := b.engine.Builders()[0]
-	if !slices.ContainsFunc(builder.HostConfig.Mounts, func(m docker.Mount) bool { return m.Source == RailpackVolume && m.Target == railpackMount }) {
-		t.Errorf("the builder doesn't mount Railpack's volume: %+v", builder.HostConfig.Mounts)
+	// The builder, privileged, builds the plan the reading wrote, read-only, and
+	// never mounts what Railpack runs from (the fake engine fails one that does).
+	builders := b.made("dockwell-build")
+	if len(builders) != 1 {
+		t.Fatalf("%d builders ran", len(builders))
 	}
-	// The script asked for Railpack once, and it came in a container of its own.
+	if slices.ContainsFunc(builders[0].HostConfig.Mounts, func(m docker.Mount) bool { return m.Source == RailpackVolume }) ||
+		!slices.ContainsFunc(builders[0].HostConfig.Mounts, func(m docker.Mount) bool { return m.Target == planMount && m.ReadOnly }) {
+		t.Errorf("the builder mounts %+v", builders[0].HostConfig.Mounts)
+	}
+	// The reading ran unprivileged, with Railpack's volume read-only, and all it
+	// wrote in memory.
+	// The first on a server reads twice: once to find there's no Dockerfile, and
+	// again once Railpack is there.
+	readings := b.made("dockwell-detect")
+	if len(readings) == 0 || len(readings) > 2 {
+		t.Fatalf("%d readings ran before the build", len(readings))
+	}
+	r := readings[len(readings)-1].HostConfig
+	if r.Privileged || !slices.ContainsFunc(r.Mounts, func(m docker.Mount) bool { return m.Source == RailpackVolume && m.Target == railpackRO && m.ReadOnly }) ||
+		r.Tmpfs[sourceDir] == "" || r.Tmpfs["/tmp"] == "" || r.Tmpfs["/work"] == "" {
+		t.Errorf("the reading ran with %+v", r)
+	}
+	// Railpack came once, in a container of its own, and mise once, in another.
 	if n := b.engine.RailpackCopies(); n != 1 {
 		t.Errorf("Railpack was copied into its volume %d times, not once", n)
+	}
+	if n := b.engine.MiseSeeds(); n != 1 {
+		t.Errorf("mise was fetched into Railpack's volume %d times, not once", n)
+	}
+	// A Railpack build's cache is keyed by the service, under the server's key, so
+	// no Dockerfile can name it.
+	key := ""
+	for _, kv := range builders[0].Env {
+		if v, ok := strings.CutPrefix(kv, "DW_CACHE_KEY="); ok {
+			key = v
+		}
+	}
+	if len(key) != 32 || strings.Contains(req.Image, key) || key != b.builder.cacheKey(req) {
+		t.Errorf("the build's cache key is %q", key)
 	}
 
 	// The next build has it already.
@@ -73,8 +120,8 @@ func TestAnAppWithNoDockerfileBuildsWithRailpack(t *testing.T) {
 	if err := b.builder.Build(b.ctx(), b.request(next, "chg_01KBZ00000000000000000000B")); err != nil {
 		t.Fatal(err)
 	}
-	if n := b.engine.RailpackCopies(); n != 1 {
-		t.Errorf("a second build copied Railpack again: %d copies", n)
+	if n := b.engine.RailpackCopies(); n != 1 || b.engine.MiseSeeds() != 1 {
+		t.Errorf("a second build copied Railpack again: %d copies, %d of mise", n, b.engine.MiseSeeds())
 	}
 }
 
@@ -116,8 +163,11 @@ func TestASourceRailpackCantReadSaysSoAndBuildsNothing(t *testing.T) {
 	err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A"))
 	plain, _ := resource.Explain(err)
 	if !strings.Contains(plain, `Railpack can't tell how to build`) || !strings.Contains(plain, `"Railpack could not determine how to build the app."`) ||
-		!strings.Contains(plain, "Add a Dockerfile, or set the build's start command") {
+		!strings.Contains(plain, "Add a Dockerfile, or set both a build command and a start command") {
 		t.Errorf("a source Railpack can't read says %q", plain)
+	}
+	if n := len(b.made("dockwell-build")); n != 0 {
+		t.Errorf("%d builders ran for a commit Railpack can't read", n)
 	}
 	if !slices.Contains(b.lines(), "Railpack could not determine how to build the app.") {
 		t.Errorf("the log doesn't say what Railpack said: %q", b.lines())
@@ -141,10 +191,17 @@ func TestARailpackBuildTakesArgumentsAndSecretsAsFiles(t *testing.T) {
 	if !slices.Contains(b.lines(), "token ••• for staging") {
 		t.Errorf("the log doesn't have the step's words with the secret masked: %q", b.lines())
 	}
-	builder := b.engine.Builders()[0]
+	builder := b.made("dockwell-build")[0]
 	all := strings.Join(append(slices.Clone(builder.Cmd), builder.Env...), " ")
 	if strings.Contains(all, "npm_s3cretvalue") {
 		t.Error("a secret's value is in the builder's command or environment")
+	}
+	// The reading has the secret's name, and a stand-in for its value.
+	readings := b.made("dockwell-detect")
+	reading := readings[len(readings)-1]
+	if all := strings.Join(append(slices.Clone(reading.Cmd), reading.Env...), " "); strings.Contains(all, "npm_s3cretvalue") ||
+		!slices.Contains(reading.Cmd, "NPM_TOKEN="+secretPlaceholder) {
+		t.Errorf("the reading has %q", reading.Cmd)
 	}
 	hash := ""
 	for _, kv := range builder.Env {
@@ -194,7 +251,7 @@ func TestDetectSaysADockerfileAndWhatItStartsFrom(t *testing.T) {
 	if n := b.engine.RailpackCopies(); n != 0 {
 		t.Errorf("reading a commit with a Dockerfile got Railpack: %d copies", n)
 	}
-	detector := b.engine.Builders()[0]
+	detector := b.made("dockwell-detect")[0]
 	if detector.HostConfig.Privileged || detector.HostConfig.Memory > detectMemory || detector.HostConfig.Memory == 0 {
 		t.Errorf("the detect container runs with %+v, not unprivileged within its memory", detector.HostConfig)
 	}
@@ -223,6 +280,55 @@ func TestDetectAsksRailpackWithNoDockerfile(t *testing.T) {
 	}
 	if n := b.engine.RailpackCopies(); n != 1 {
 		t.Errorf("Railpack was copied %d times, not once", n)
+	}
+}
+
+// Railpack is asked to refuse a commit with nothing that starts the app, unless the
+// service starts with its own command: an image with no start command runs bash,
+// which exits at once.
+func TestDetectRefusesACommitWithNothingToStart(t *testing.T) {
+	b := withRailpack(newBench(t))
+	commit := b.repo.Commit("main", "A library", map[string]string{"package.json": `{"name":"lib","scripts":{"build":"tsc"}}`})
+	req := b.request(commit, "")
+	d, err := b.builder.Detect(t.Context(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Problem != resource.ProblemNoStart || !strings.Contains(resource.RailpackRefusal(d, "web"), "Set the build's start command") {
+		t.Errorf("a commit with nothing to start reads as %+v", d)
+	}
+	req.OwnCommand = true
+	if d, err := b.builder.Detect(t.Context(), req); err != nil || d.Error != "" {
+		t.Errorf("a service with its own command reads as %+v, %v", d, err)
+	}
+	// A build refuses it too, before anything builds.
+	build := b.request(commit, "chg_01KBZ00000000000000000000A")
+	err = b.builder.Build(b.ctx(), build)
+	if plain, _ := resource.Explain(err); !strings.Contains(plain, "Railpack found nothing that starts") || len(b.made("dockwell-build")) != 0 {
+		t.Errorf("building a commit with nothing to start: %q, %d builders", plain, len(b.made("dockwell-build")))
+	}
+}
+
+// A build that turns out to use Railpack refuses a secret Railpack can't take,
+// rather than fail in its reading as a shell would.
+func TestARailpackBuildRefusesASecretItCantTake(t *testing.T) {
+	b := withRailpack(newBench(t))
+	commit := b.repo.Commit("main", "Something", nodeApp)
+	req := b.request(commit, "chg_01KBZ00000000000000000000A")
+	req.Secrets = map[string]string{"npm.token": "npm_s3cretvalue"}
+	err := b.builder.Build(b.ctx(), req)
+	if plain, _ := resource.Explain(err); !strings.Contains(plain, "The build's secret npm.token can't reach Railpack") {
+		t.Errorf("a secret Railpack can't take: %q", plain)
+	}
+}
+
+// A commit that checks out larger than a reading may hold says so, rather than
+// fill the server's disk.
+func TestAReadingTooLargeForItsMemorySaysSo(t *testing.T) {
+	said := "dockwell:phase fetch\nfatal: write error: No space left on device\n"
+	_, _, err := readDetection(service.BuildRequest{URL: "https://github.com/acme/web"}, said, 128)
+	if plain, _ := resource.Explain(err); !strings.Contains(plain, "larger than reading it may take on this server, 512 MB") {
+		t.Errorf("a checkout too large says %q", plain)
 	}
 }
 
@@ -292,5 +398,45 @@ func TestBaseImageFollowsStages(t *testing.T) {
 		if got := baseImage(from); got != want {
 			t.Errorf("baseImage(%q) = %q, not %q", from, got, want)
 		}
+	}
+}
+
+// A reading of a commit that isn't on its branch says so, as a build does.
+func TestAReadingOfACommitOffItsBranchSaysSo(t *testing.T) {
+	said := "dockwell:phase fetch\ndockwell:fail notonref\n"
+	_, _, err := readDetection(service.BuildRequest{URL: "https://github.com/acme/web", Ref: "refs/heads/main", Commit: strings.Repeat("a", 40)}, said, 3)
+	if plain, _ := resource.Explain(err); !strings.Contains(plain, "isn't on refs/heads/main of github.com/acme/web, so Dockwell won't build it") {
+		t.Errorf("a commit off its branch reads %q", plain)
+	}
+}
+
+// What a build keeps of its reading has its secrets masked, as its log does.
+func TestABuildsReadingKeepsNoSecret(t *testing.T) {
+	r := newReport(t.Context(), service.BuildRequest{Secrets: map[string]string{"NPM_TOKEN": "npm_s3cretvalue"}}, time.Now)
+	d := r.hideDetection(&resource.BuildDetection{
+		Builder: resource.BuilderRailpack, Start: "node server.js --token=npm_s3cretvalue",
+		Steps:    []resource.DetectedStep{{Name: "build", Commands: []string{"echo npm_s3cretvalue"}}},
+		Warnings: []string{"npm_s3cretvalue"},
+	})
+	if strings.Contains(d.Start+d.Steps[0].Commands[0]+d.Warnings[0], "npm_s3cretvalue") {
+		t.Errorf("the reading kept a secret: %+v", d)
+	}
+}
+
+// An agent that can't write where secrets go, as one that doesn't run as root,
+// still builds with Railpack what has none: its plan and arguments aren't secret.
+func TestARailpackBuildWithNoSecretNeedsNoRoot(t *testing.T) {
+	b := withRailpack(newBench(t))
+	b.builder.SecretsDir = "/proc/dockwell-builds"
+	commit := b.repo.Commit("main", "Add order export endpoint", nodeApp)
+	req := b.request(commit, "chg_01KBZ00000000000000000000A")
+	req.Args = map[string]string{"NODE_ENV": "production"}
+	if err := b.builder.Build(b.ctx(), req); err != nil {
+		t.Fatal(err)
+	}
+	req.Change, req.Secrets = "chg_01KBZ00000000000000000000B", map[string]string{"NPM_TOKEN": "npm_s3cretvalue"}
+	req.Image += "x"
+	if plain, _ := resource.Explain(b.builder.Build(b.ctx(), req)); !strings.Contains(plain, "nowhere in memory") {
+		t.Errorf("a build with a secret and nowhere in memory for it says %q", plain)
 	}
 }
