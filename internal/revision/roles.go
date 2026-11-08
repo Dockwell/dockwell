@@ -221,10 +221,37 @@ func sameProposer(ctx context.Context, tx *store.Tx, caller place.Caller, actor 
 	return false, nil
 }
 
+// placed are a change's items as far as checking roles needs: each as it is
+// now, with what the change asks of an environment. Unlike current, it reads a
+// plan that went stale, as discarding one has to work.
+func (e *Engine) placed(ctx context.Context, tx *store.Tx, c store.Change) ([]item, error) {
+	items := make([]item, 0, len(c.Items))
+	for i := range c.Items {
+		ci := &c.Items[i]
+		ref := resource.Ref{Kind: resource.Kind(ci.Kind), Scope: ci.Scope, Name: ci.Name}
+		it, err := e.load(ctx, tx, ref)
+		if err != nil {
+			return nil, err
+		}
+		if it.id == "" {
+			it.id = ci.ResourceID
+		}
+		if ref.Kind == scope.EnvironmentKind && ci.Spec != nil {
+			// An environment's spec holds nothing sealed. One that can't be read
+			// counts as protected after.
+			if it.spec, err = e.kinds.Decode(ref.Kind, ci.Spec); err != nil {
+				it.spec = &resourcev1.Environment{Protection: resourcev1.Protection_PROTECTION_PROTECTED}
+			}
+		}
+		items = append(items, it)
+	}
+	return items, nil
+}
+
 // protectedChange reports a change with an item in a protected environment,
 // before or after, for the API's approval of someone else's change.
 func (e *Engine) protectedChange(ctx context.Context, tx *store.Tx, c store.Change) (bool, error) {
-	items, err := e.current(ctx, tx, c)
+	items, err := e.placed(ctx, tx, c)
 	if err != nil {
 		return false, err
 	}

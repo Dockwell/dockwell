@@ -4114,7 +4114,7 @@ func (e *Engine) Discard(ctx context.Context, changeID string, by By) error {
 		case c.State != store.ChangePlanned:
 			return fault.New(ErrNotPlanned, "%s is %s, and only a planned change can be discarded", changeID, c.State)
 		}
-		items, err := e.current(ctx, tx.Tx, c)
+		items, err := e.placed(ctx, tx.Tx, c)
 		if err != nil {
 			return err
 		}

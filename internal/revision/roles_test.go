@@ -86,6 +86,16 @@ func TestTheEngineChecksTheRolesOfEachItem(t *testing.T) {
 			t.Errorf("the owner applying their own change in production: %v", err)
 		}
 
+		// A plan gone stale can still be discarded.
+		stale := mustPlan(ada, "user:usr_ada", value(stagingID, "S"))
+		moved := mustPlan(mira, "user:usr_mira", value(stagingID, "S"))
+		if err := e.ApplyBy(mira, moved.Change, By{Actor: "user:usr_mira"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := e.Discard(ada, stale.Change, By{Actor: "user:usr_ada"}); err != nil {
+			t.Errorf("a developer discarding their plan that went stale: %v", err)
+		}
+
 		// Out of reach is not found; a project, or a container on a server alone, is an admin's.
 		if _, err := plan(stranger, "user:usr_sam", value(production, "C")); !errors.Is(err, ErrOutOfReach) {
 			t.Errorf("someone of another project planning in default: %v, want ErrOutOfReach", err)
