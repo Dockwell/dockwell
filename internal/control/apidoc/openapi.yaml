@@ -1775,6 +1775,46 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/imports:onepanel:
+        post:
+            tags:
+                - ImportService
+            description: |-
+                ImportOnePanel reads what 1Panel keeps on a server: its apps from its store,
+                 runtimes, websites, certificates, databases and cron jobs. It says what
+                 Dockwell would do with each and why: take it on as it runs, make it again,
+                 or leave it, and which issue it waits for where Dockwell can't yet. With
+                 plan_only it records nothing. Planning the import itself comes next. The
+                 agent reads 1Panel's records read-only, and nothing secret comes back: no
+                 password, key, script, environment or URL path. So a read-only token can
+                 ask for a plan-only read.
+            operationId: ImportService_ImportOnePanel
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server running 1Panel, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ImportOnePanelRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ImportOnePanelResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services:
         get:
             tags:
@@ -5859,6 +5899,81 @@ components:
                     type: boolean
                     description: True when the file writes more than exposed_variables lists.
             description: ImportComposeResponse carries the planned change.
+        ImportOnePanelRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server running 1Panel, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                planOnly:
+                    type: boolean
+                    description: |-
+                        To say what an import would do, and record nothing. It has to be set until
+                         the import itself can be planned.
+            description: ImportOnePanelRequest names the server to import from.
+        ImportOnePanelResponse:
+            type: object
+            properties:
+                found:
+                    allOf:
+                        - $ref: '#/components/schemas/OnePanel'
+                    description: What was found, as 1Panel's records say.
+                steps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ImportStep'
+                    description: |-
+                        What an import would do, a step for each thing found, in the order the
+                         plan would take them.
+            description: |-
+                ImportOnePanelResponse is what 1Panel keeps on the server, and what an import
+                 would do with each.
+        ImportStep:
+            type: object
+            properties:
+                kind:
+                    enum:
+                        - IMPORT_KIND_UNSPECIFIED
+                        - IMPORT_KIND_APP
+                        - IMPORT_KIND_RUNTIME
+                        - IMPORT_KIND_WEBSITE
+                        - IMPORT_KIND_CERTIFICATE
+                        - IMPORT_KIND_DATABASE_SERVER
+                        - IMPORT_KIND_DATABASE
+                        - IMPORT_KIND_CRON_JOB
+                        - IMPORT_KIND_PANEL
+                    type: string
+                    description: What it is.
+                    format: enum
+                name:
+                    type: string
+                    description: Its name, as 1Panel shows it, such as "wordpress" or "blog.example.com".
+                summary:
+                    type: string
+                    description: What it is, in a few words, such as "mysql 8.4.3 from 1Panel's store".
+                action:
+                    enum:
+                        - IMPORT_ACTION_UNSPECIFIED
+                        - IMPORT_ACTION_TAKE_ON
+                        - IMPORT_ACTION_MAKE
+                        - IMPORT_ACTION_LEAVE
+                    type: string
+                    description: What an import would do with it.
+                    format: enum
+                becomes:
+                    type: string
+                    description: |-
+                        What it would become, in a few words, such as "a Compose project, wordpress,
+                         taken on as it runs".
+                reason:
+                    type: string
+                    description: Why, and what a person can do about it, where that isn't plain.
+                waitsFor:
+                    type: string
+                    description: |-
+                        The issue whose feature it waits for, such as "#206", where Dockwell can't
+                         take it yet.
+            description: ImportStep is one thing found, and what an import would do with it.
         IngressEffect:
             type: object
             properties:
@@ -6683,6 +6798,301 @@ components:
                  by name, as a Compose file's networks. A service reaches another on a
                  network they share by the other's name. Docker can't change a network,
                  so its spec can't change once it is made.
+        OnePanel:
+            type: object
+            properties:
+                version:
+                    type: string
+                    description: Its version, from its own records, such as "v2.4.2".
+                baseDir:
+                    type: string
+                    description: The folder it's installed under, "/opt" unless the person chose another.
+                records:
+                    type: string
+                    description: Its database, such as "/opt/1panel/db/agent.db".
+                knownVersion:
+                    type: boolean
+                    description: |-
+                        True when its version is one this importer was written from: v2.0 to v2.4.2,
+                         and v1.10. Another is read the same way, by column names.
+                apps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelApp'
+                    description: Its apps from its store, the database servers it runs among them.
+                runtimes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelRuntime'
+                    description: Its runtimes.
+                websites:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelWebsite'
+                    description: Its websites.
+                certificates:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelCertificate'
+                    description: Its certificates.
+                databaseServers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelDatabaseServer'
+                    description: Its database servers.
+                databases:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelDatabase'
+                    description: The databases on them.
+                cronJobs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelCronJob'
+                    description: Its cron jobs.
+            description: |-
+                OnePanel is what 1Panel keeps on a server, as its records say, with nothing
+                 secret in it.
+        OnePanelApp:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The install's name, which is its folder's and its Compose project's.
+                appKey:
+                    type: string
+                    description: The store's key for the app, such as "mysql".
+                appName:
+                    type: string
+                    description: The app's name in the store, such as "MySQL".
+                version:
+                    type: string
+                    description: The version installed.
+                status:
+                    type: string
+                    description: What 1Panel last saw it doing, such as "Running" or "Stopped".
+                store:
+                    type: string
+                    description: |-
+                        Which store it came from: "remote", 1Panel's own; "local", one of the
+                         person's; or "custom".
+                folder:
+                    type: string
+                    description: Its folder, with its Compose file.
+                container:
+                    type: string
+                    description: Its main container's name.
+                httpPort:
+                    type: integer
+                    description: The port it publishes for HTTP, where it has one.
+                    format: uint32
+                httpsPort:
+                    type: integer
+                    description: The port it publishes for HTTPS, where it has one.
+                    format: uint32
+            description: OnePanelApp is an install of an app from 1Panel's store.
+        OnePanelCertificate:
+            type: object
+            properties:
+                primaryDomain:
+                    type: string
+                    description: Its first domain.
+                domains:
+                    type: array
+                    items:
+                        type: string
+                    description: The other domains it covers.
+                kind:
+                    type: string
+                    description: |-
+                        How it was got: "autoSSL", "dnsAccount", "dnsManual", "http", "manual" or
+                         "selfSigned", as 1Panel says it.
+                provider:
+                    type: string
+                    description: The ACME provider, where it came from one.
+                expires:
+                    type: string
+                    description: When it ends.
+                    format: date-time
+                autoRenew:
+                    type: boolean
+                    description: True when 1Panel renews it.
+            description: |-
+                OnePanelCertificate is a certificate 1Panel keeps for websites. Its key and
+                 chain aren't read.
+        OnePanelCronJob:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name.
+                type:
+                    type: string
+                    description: |-
+                        Its kind, as 1Panel says it: "shell", "curl", "app", "website",
+                         "database", "directory", "snapshot", "log", "ntp", "cutWebsiteLog",
+                         "clean", "cleanLog" or "syncIpGroup".
+                schedule:
+                    type: string
+                    description: When it runs, as a cron schedule. 1Panel can keep several, a line each.
+                status:
+                    type: string
+                    description: What 1Panel last saw it doing, such as "Enable" or "Disable".
+                container:
+                    type: string
+                    description: The container a shell job runs in, where it runs in one.
+                target:
+                    type: string
+                    description: |-
+                        What it backs up or acts on: an app's, a website's or a database's name,
+                         or a folder.
+                urlHost:
+                    type: string
+                    description: The host a URL job calls, without its path or query.
+                scriptLines:
+                    type: integer
+                    description: How many lines a shell job's script has.
+                    format: uint32
+            description: |-
+                OnePanelCronJob is a job 1Panel's own scheduler runs. Its script, command and
+                 URL path aren't read.
+        OnePanelDatabase:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The database's name.
+                server:
+                    type: string
+                    description: The server it's on, by its name in 1Panel.
+                type:
+                    type: string
+                    description: Its server's kind.
+                user:
+                    type: string
+                    description: The user 1Panel made for it.
+                format:
+                    type: string
+                    description: Its character set or encoding, such as "utf8mb4".
+            description: |-
+                OnePanelDatabase is a database on one of 1Panel's database servers, and the
+                 user 1Panel made for it. The user's password isn't read.
+        OnePanelDatabaseServer:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name in 1Panel.
+                type:
+                    type: string
+                    description: Its kind, such as "mysql", "mariadb", "postgresql", "redis" or "mongodb".
+                version:
+                    type: string
+                    description: Its version.
+                local:
+                    type: boolean
+                    description: True when it runs on this server, as one of 1Panel's apps.
+                app:
+                    type: string
+                    description: The app it is, by install name, when it's local.
+                port:
+                    type: integer
+                    description: Its port.
+                    format: uint32
+            description: |-
+                OnePanelDatabaseServer is a database server 1Panel knows: one of its store's,
+                 or one on another machine.
+        OnePanelDomain:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain.
+                port:
+                    type: integer
+                    description: The port.
+                    format: uint32
+                https:
+                    type: boolean
+                    description: True when it's served over HTTPS.
+            description: OnePanelDomain is a domain a website answers, on a port.
+        OnePanelRuntime:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name.
+                type:
+                    type: string
+                    description: 'Its language: "php", "node", "java", "go", "python" or "dotnet".'
+                version:
+                    type: string
+                    description: The language's version.
+                status:
+                    type: string
+                    description: What 1Panel last saw it doing.
+                image:
+                    type: string
+                    description: The image it runs.
+                folder:
+                    type: string
+                    description: Its folder, with its Compose file.
+                codeFolder:
+                    type: string
+                    description: The folder of the code it runs, where it has one.
+                container:
+                    type: string
+                    description: Its container's name.
+            description: 'OnePanelRuntime is a runtime: a Compose project that runs a language.'
+        OnePanelWebsite:
+            type: object
+            properties:
+                alias:
+                    type: string
+                    description: Its alias, which names its folder and its config.
+                primaryDomain:
+                    type: string
+                    description: Its first domain.
+                type:
+                    type: string
+                    description: |-
+                        What it is: "static", "runtime" for PHP and the like, "proxy",
+                         "deployment" for an app's site, "subsite" or "stream".
+                domains:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelDomain'
+                    description: The domains and ports it answers.
+                folder:
+                    type: string
+                    description: |-
+                        The folder it serves: its own folder's "index", or the folder under it it
+                         runs from, such as "index/public" for a Laravel site.
+                proxy:
+                    type: string
+                    description: Where a proxy sends, as a scheme, host and port, with no path.
+                runtime:
+                    type: string
+                    description: The runtime it runs on, by name.
+                app:
+                    type: string
+                    description: The app it serves, by install name.
+                certificate:
+                    type: string
+                    description: The certificate it uses, by its first domain.
+                rewrite:
+                    type: boolean
+                    description: True when it has rewrite rules.
+                https:
+                    type: boolean
+                    description: True when it's served over HTTPS.
+                status:
+                    type: string
+                    description: What 1Panel last saw it doing, such as "Running" or "Stopped".
+                parent:
+                    type: string
+                    description: The site it's under, for a subsite.
+            description: OnePanelWebsite is a website 1Panel's OpenResty serves.
         PackageUpdate:
             type: object
             properties:
@@ -9663,6 +10073,12 @@ tags:
 
          Reading it needs the read scope alone, as what a check printed is cut short
          and has what the container's environment holds masked. It isn't a log.
+    - name: ImportService
+      description: |-
+        ImportService moves what another panel runs on a server into Dockwell: what
+         can run as it is is taken on with no restart, what can't is made again, and
+         the rest is left with why. Each import is a plan a person applies. See
+         docs/adr/0056-importing-a-1panel-server.md.
     - name: LogService
       description: |-
         LogService reads what a service's containers print: live, or from what

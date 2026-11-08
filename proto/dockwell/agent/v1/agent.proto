@@ -10,6 +10,7 @@ import "dockwell/v1/database.proto";
 import "dockwell/v1/domain.proto";
 import "dockwell/v1/file.proto";
 import "dockwell/v1/health.proto";
+import "dockwell/v1/import.proto";
 import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/server.proto";
@@ -248,6 +249,9 @@ message Hello {
   // to them at once: the terminal 50 to 52, and updates 53, so the next of either
   // takes 54.
   bool updates = 53;
+  // True when the agent reads what 1Panel keeps on the server (ReadOnePanelCall).
+  // The importer takes 180 to 189 in agent messages.
+  bool reads_onepanel = 180;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -420,6 +424,8 @@ message Call {
     // Say what each of the server's databases says of itself. Numbered apart, as
     // open work adds to this message.
     DatabaseCall database = 30;
+    // Read what 1Panel keeps on the server. The importer takes 180 to 189.
+    ReadOnePanelCall read_onepanel = 180;
   }
 }
 
@@ -461,6 +467,20 @@ message ListUpdatesCall {
 // checking nor error: those are the control plane's.
 message ListUpdatesResult {
   dockwell.v1.ServerUpdates updates = 1;
+}
+
+// ReadOnePanelCall asks what 1Panel keeps on the server, read from its records,
+// read-only, with nothing secret in what comes back. See
+// docs/adr/0056-importing-a-1panel-server.md.
+message ReadOnePanelCall {}
+
+// ReadOnePanelResult is what 1Panel keeps, or why there's nothing to read.
+message ReadOnePanelResult {
+  // What it keeps, when it's there.
+  dockwell.v1.OnePanel found = 1;
+  // Why there's nothing, such as that 1Panel isn't installed here, when it isn't
+  // there. A record that can't be read is the call's error.
+  string not_here = 2;
 }
 
 // SendBackupCall asks to send a backup that's on the server to its destination, as a
@@ -908,6 +928,8 @@ message CallResult {
     // What a database call read. Numbered apart, as open work adds to this
     // message.
     DatabaseResult database = 30;
+    // What read_onepanel found.
+    ReadOnePanelResult read_onepanel = 180;
   }
 }
 

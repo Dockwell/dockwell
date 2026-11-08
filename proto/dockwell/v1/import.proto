@@ -1,0 +1,295 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// ImportService moves what another panel runs on a server into Dockwell: what
+// can run as it is is taken on with no restart, what can't is made again, and
+// the rest is left with why. Each import is a plan a person applies. See
+// docs/adr/0056-importing-a-1panel-server.md.
+service ImportService {
+  // ImportOnePanel reads what 1Panel keeps on a server: its apps from its store,
+  // runtimes, websites, certificates, databases and cron jobs. It says what
+  // Dockwell would do with each and why: take it on as it runs, make it again,
+  // or leave it, and which issue it waits for where Dockwell can't yet. With
+  // plan_only it records nothing. Planning the import itself comes next. The
+  // agent reads 1Panel's records read-only, and nothing secret comes back: no
+  // password, key, script, environment or URL path. So a read-only token can
+  // ask for a plan-only read.
+  rpc ImportOnePanel(ImportOnePanelRequest) returns (ImportOnePanelResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.command) = {
+      noun: "import"
+      verb: "1panel"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/imports:onepanel"
+      body: "*"
+    };
+  }
+}
+
+// ImportOnePanelRequest names the server to import from.
+message ImportOnePanelRequest {
+  // The server running 1Panel, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // To say what an import would do, and record nothing. It has to be set until
+  // the import itself can be planned.
+  bool plan_only = 2;
+}
+
+// ImportOnePanelResponse is what 1Panel keeps on the server, and what an import
+// would do with each.
+message ImportOnePanelResponse {
+  // What was found, as 1Panel's records say.
+  OnePanel found = 1;
+  // What an import would do, a step for each thing found, in the order the
+  // plan would take them.
+  repeated ImportStep steps = 2;
+}
+
+// ImportStep is one thing found, and what an import would do with it.
+message ImportStep {
+  // What it is.
+  ImportKind kind = 1;
+  // Its name, as 1Panel shows it, such as "wordpress" or "blog.example.com".
+  string name = 2;
+  // What it is, in a few words, such as "mysql 8.4.3 from 1Panel's store".
+  string summary = 3;
+  // What an import would do with it.
+  ImportAction action = 4;
+  // What it would become, in a few words, such as "a Compose project, wordpress,
+  // taken on as it runs".
+  string becomes = 5;
+  // Why, and what a person can do about it, where that isn't plain.
+  string reason = 6;
+  // The issue whose feature it waits for, such as "#206", where Dockwell can't
+  // take it yet.
+  string waits_for = 7;
+}
+
+// ImportKind is a kind of thing another panel keeps.
+enum ImportKind {
+  IMPORT_KIND_UNSPECIFIED = 0;
+  // An app from the panel's store, which runs as a Compose project.
+  IMPORT_KIND_APP = 1;
+  // A runtime: PHP, Node, Java, Go, Python or .NET.
+  IMPORT_KIND_RUNTIME = 2;
+  // A website.
+  IMPORT_KIND_WEBSITE = 3;
+  // A certificate for a website.
+  IMPORT_KIND_CERTIFICATE = 4;
+  // A database server, local or remote.
+  IMPORT_KIND_DATABASE_SERVER = 5;
+  // A database on a server, with its user.
+  IMPORT_KIND_DATABASE = 6;
+  // A job the panel runs on a schedule.
+  IMPORT_KIND_CRON_JOB = 7;
+  // What the panel keeps for itself, such as its firewall's or its own settings.
+  IMPORT_KIND_PANEL = 8;
+}
+
+// ImportAction is what an import does with a thing it found.
+enum ImportAction {
+  IMPORT_ACTION_UNSPECIFIED = 0;
+  // Taken on as it runs, with no restart (docs/adr/0031-containers-dockwell-didnt-make.md).
+  IMPORT_ACTION_TAKE_ON = 1;
+  // Made again in Dockwell, as what it was.
+  IMPORT_ACTION_MAKE = 2;
+  // Left as it is, with the reason.
+  IMPORT_ACTION_LEAVE = 3;
+}
+
+// OnePanel is what 1Panel keeps on a server, as its records say, with nothing
+// secret in it.
+message OnePanel {
+  // Its version, from its own records, such as "v2.4.2".
+  string version = 1;
+  // The folder it's installed under, "/opt" unless the person chose another.
+  string base_dir = 2;
+  // Its database, such as "/opt/1panel/db/agent.db".
+  string records = 3;
+  // True when its version is one this importer was written from: v2.0 to v2.4.2,
+  // and v1.10. Another is read the same way, by column names.
+  bool known_version = 4;
+  // Its apps from its store, the database servers it runs among them.
+  repeated OnePanelApp apps = 5;
+  // Its runtimes.
+  repeated OnePanelRuntime runtimes = 6;
+  // Its websites.
+  repeated OnePanelWebsite websites = 7;
+  // Its certificates.
+  repeated OnePanelCertificate certificates = 8;
+  // Its database servers.
+  repeated OnePanelDatabaseServer database_servers = 9;
+  // The databases on them.
+  repeated OnePanelDatabase databases = 10;
+  // Its cron jobs.
+  repeated OnePanelCronJob cron_jobs = 11;
+}
+
+// OnePanelApp is an install of an app from 1Panel's store.
+message OnePanelApp {
+  // The install's name, which is its folder's and its Compose project's.
+  string name = 1;
+  // The store's key for the app, such as "mysql".
+  string app_key = 2;
+  // The app's name in the store, such as "MySQL".
+  string app_name = 3;
+  // The version installed.
+  string version = 4;
+  // What 1Panel last saw it doing, such as "Running" or "Stopped".
+  string status = 5;
+  // Which store it came from: "remote", 1Panel's own; "local", one of the
+  // person's; or "custom".
+  string store = 6;
+  // Its folder, with its Compose file.
+  string folder = 7;
+  // Its main container's name.
+  string container = 8;
+  // The port it publishes for HTTP, where it has one.
+  uint32 http_port = 9;
+  // The port it publishes for HTTPS, where it has one.
+  uint32 https_port = 10;
+}
+
+// OnePanelRuntime is a runtime: a Compose project that runs a language.
+message OnePanelRuntime {
+  // Its name.
+  string name = 1;
+  // Its language: "php", "node", "java", "go", "python" or "dotnet".
+  string type = 2;
+  // The language's version.
+  string version = 3;
+  // What 1Panel last saw it doing.
+  string status = 4;
+  // The image it runs.
+  string image = 5;
+  // Its folder, with its Compose file.
+  string folder = 6;
+  // The folder of the code it runs, where it has one.
+  string code_folder = 7;
+  // Its container's name.
+  string container = 8;
+}
+
+// OnePanelWebsite is a website 1Panel's OpenResty serves.
+message OnePanelWebsite {
+  // Its alias, which names its folder and its config.
+  string alias = 1;
+  // Its first domain.
+  string primary_domain = 2;
+  // What it is: "static", "runtime" for PHP and the like, "proxy",
+  // "deployment" for an app's site, "subsite" or "stream".
+  string type = 3;
+  // The domains and ports it answers.
+  repeated OnePanelDomain domains = 4;
+  // The folder it serves: its own folder's "index", or the folder under it it
+  // runs from, such as "index/public" for a Laravel site.
+  string folder = 5;
+  // Where a proxy sends, as a scheme, host and port, with no path.
+  string proxy = 6;
+  // The runtime it runs on, by name.
+  string runtime = 7;
+  // The app it serves, by install name.
+  string app = 8;
+  // The certificate it uses, by its first domain.
+  string certificate = 9;
+  // True when it has rewrite rules.
+  bool rewrite = 10;
+  // True when it's served over HTTPS.
+  bool https = 11;
+  // What 1Panel last saw it doing, such as "Running" or "Stopped".
+  string status = 12;
+  // The site it's under, for a subsite.
+  string parent = 13;
+}
+
+// OnePanelDomain is a domain a website answers, on a port.
+message OnePanelDomain {
+  // The domain.
+  string domain = 1;
+  // The port.
+  uint32 port = 2;
+  // True when it's served over HTTPS.
+  bool https = 3;
+}
+
+// OnePanelCertificate is a certificate 1Panel keeps for websites. Its key and
+// chain aren't read.
+message OnePanelCertificate {
+  // Its first domain.
+  string primary_domain = 1;
+  // The other domains it covers.
+  repeated string domains = 2;
+  // How it was got: "autoSSL", "dnsAccount", "dnsManual", "http", "manual" or
+  // "selfSigned", as 1Panel says it.
+  string kind = 3;
+  // The ACME provider, where it came from one.
+  string provider = 4;
+  // When it ends.
+  google.protobuf.Timestamp expires = 5;
+  // True when 1Panel renews it.
+  bool auto_renew = 6;
+}
+
+// OnePanelDatabaseServer is a database server 1Panel knows: one of its store's,
+// or one on another machine.
+message OnePanelDatabaseServer {
+  // Its name in 1Panel.
+  string name = 1;
+  // Its kind, such as "mysql", "mariadb", "postgresql", "redis" or "mongodb".
+  string type = 2;
+  // Its version.
+  string version = 3;
+  // True when it runs on this server, as one of 1Panel's apps.
+  bool local = 4;
+  // The app it is, by install name, when it's local.
+  string app = 5;
+  // Its port.
+  uint32 port = 6;
+}
+
+// OnePanelDatabase is a database on one of 1Panel's database servers, and the
+// user 1Panel made for it. The user's password isn't read.
+message OnePanelDatabase {
+  // The database's name.
+  string name = 1;
+  // The server it's on, by its name in 1Panel.
+  string server = 2;
+  // Its server's kind.
+  string type = 3;
+  // The user 1Panel made for it.
+  string user = 4;
+  // Its character set or encoding, such as "utf8mb4".
+  string format = 5;
+}
+
+// OnePanelCronJob is a job 1Panel's own scheduler runs. Its script, command and
+// URL path aren't read.
+message OnePanelCronJob {
+  // Its name.
+  string name = 1;
+  // Its kind, as 1Panel says it: "shell", "curl", "app", "website",
+  // "database", "directory", "snapshot", "log", "ntp", "cutWebsiteLog",
+  // "clean", "cleanLog" or "syncIpGroup".
+  string type = 2;
+  // When it runs, as a cron schedule. 1Panel can keep several, a line each.
+  string schedule = 3;
+  // What 1Panel last saw it doing, such as "Enable" or "Disable".
+  string status = 4;
+  // The container a shell job runs in, where it runs in one.
+  string container = 5;
+  // What it backs up or acts on: an app's, a website's or a database's name,
+  // or a folder.
+  string target = 6;
+  // The host a URL job calls, without its path or query.
+  string url_host = 7;
+  // How many lines a shell job's script has.
+  uint32 script_lines = 8;
+}
