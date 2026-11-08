@@ -22,7 +22,8 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { type Browser, chromium, type Page } from "playwright-core";
-import { describePages, watchPage } from "./report.ts";
+
+import { describePages, watchBrowser } from "./report.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -156,11 +157,17 @@ async function main() {
     recover.match(/(http:\/\/localhost:\d+\/recover#[A-Za-z0-9_-]{43})/)?.[1] ??
     fail(`dockwell recover printed:\n${recover}`);
 
-  browser = await chromium.launch({ executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium" });
+  browser = await chromium.launch({
+    executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
+    // /dev/shm is small in a container and shared by every browser on the machine; Chromium crashes when it fills.
+    args: ["--disable-dev-shm-usage"],
+  });
+  watchBrowser(browser);
   const context = await browser.newContext({ viewport: { width: 1440, height: 970 }, colorScheme: "light" });
-  const page = watchPage(await context.newPage());
+  const page = await context.newPage();
   lastPage = page;
-  page.on("pageerror", (err) => fail(`the page threw: ${err.message}`));
+  // A throw in a listener would end the process and skip the report and the cleaning up.
+  page.on("pageerror", (err) => pageThrew(new Error(`the page threw: ${err.message}`)));
   await page.goto(signIn);
   await page.getByText("You signed in with a one-time link").first().waitFor();
 
@@ -399,7 +406,12 @@ async function finish(code: number): Promise<never> {
   process.exit(code);
 }
 
-main().then(
+let pageThrew: (err: Error) => void = () => {};
+const pageError = new Promise<never>((_, threw) => {
+  pageThrew = threw;
+});
+
+Promise.race([main(), pageError]).then(
   () => finish(0),
   async (err: unknown) => {
     console.error(err);

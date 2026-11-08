@@ -16,11 +16,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { type Browser, chromium } from "playwright-core";
+
 import { appsFlow } from "./apps-flow.ts";
 import { containersFlow } from "./containers-flow.ts";
 import { dockerMade, dockerProbe, removeMade } from "./docker-probe.ts";
 import { healthFlow } from "./health-flow.ts";
-import { describePages, watchContext, watchPage } from "./report.ts";
+import { describePages, watchBrowser } from "./report.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -138,10 +139,13 @@ try {
   if (claim === "") throw new Error(`dockwell claim printed no claim link:\n${claimed}`);
   browser = await chromium.launch({
     executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
+    // /dev/shm is small in a container and shared by every browser on the machine; Chromium crashes when it fills.
+    args: ["--disable-dev-shm-usage"],
     headless: true,
   });
-  const context = watchContext(await browser.newContext({ viewport: { width: 1440, height: 900 } }));
-  const page = watchPage(await context.newPage());
+  watchBrowser(browser);
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
   // A throw in here would end the process and skip the cleaning up.
   const pageThrew = new Promise<never>((_, threw) => {
     page.on("pageerror", (err) => threw(new Error(`the page threw: ${err.message}`)));

@@ -23,7 +23,8 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
-import { describePages, watchPage } from "./report.ts";
+
+import { describePages, watchBrowser } from "./report.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -319,16 +320,19 @@ async function main() {
 
   browser = await chromium.launch({
     executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
-    args: ["--enable-precise-memory-info"],
+    // /dev/shm is small in a container and shared by every browser on the machine; Chromium crashes when it fills.
+    args: ["--disable-dev-shm-usage", "--enable-precise-memory-info"],
   });
+  watchBrowser(browser);
   const context: BrowserContext = await browser.newContext({
     viewport: { width: 1440, height: 970 },
     colorScheme: "dark",
   });
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  const page = watchPage(await context.newPage());
+  const page = await context.newPage();
   lastPage = page;
-  page.on("pageerror", (err) => fail(`the page threw: ${err.message}`));
+  // A throw in a listener would end the process and skip the report and the cleaning up.
+  page.on("pageerror", (err) => pageThrew(new Error(`the page threw: ${err.message}`)));
   await page.goto(signIn);
   await page.getByText("You signed in with a one-time link").first().waitFor();
   const url = `${origin}/apps/${serviceId}/logs`;
@@ -1006,7 +1010,7 @@ async function main() {
     locale: "zh-CN",
     storageState: await context.storageState(),
   });
-  const zhPage = watchPage(await zh.newPage());
+  const zhPage = await zh.newPage();
   await zhPage.goto(url);
   await zhPage.getByRole("status").first().waitFor();
   await post("/print", "2026-11-04 14:20:00 ERROR 上游服务连接被重置 connection reset");
@@ -1025,7 +1029,12 @@ async function finish(code: number) {
   process.exit(code);
 }
 
-main().then(
+let pageThrew: (err: Error) => void = () => {};
+const pageError = new Promise<never>((_, threw) => {
+  pageThrew = threw;
+});
+
+Promise.race([main(), pageError]).then(
   () => finish(0),
   async (err: unknown) => {
     console.error(err);
@@ -1033,7 +1042,7 @@ main().then(
     // What the page says of itself, as a step can fail for want of a button that a state took away.
     const said = await lastPage
       ?.evaluate(() => ({
-        url: location.href,
+        url: location.href.replace(/#.+$/, "#<token>"),
         head: document.querySelector(".dw-log-head")?.textContent,
         foot: document.querySelector(".dw-log-foot")?.textContent,
         notes: [...document.querySelectorAll(".logs-note, [role=alert]")].map((el) => el.textContent),
