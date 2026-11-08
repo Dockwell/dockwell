@@ -304,11 +304,11 @@ func (h *Handler) EndProcess(ctx context.Context, req *connect.Request[dockwellv
 		return nil, authapi.Invalid(fmt.Errorf("there's no PID %d: Linux gives PIDs up to %d. Pick the process from the list", m.GetPid(), MaxPID))
 	}
 	target := Target(srv.GetId(), m.GetPid(), m.GetStartTicks())
-	record := h.recorder(ctx, p, srv)
+	rec := h.recorder(ctx, p, srv)
 	if m.GetProof() == "" {
 		// Not a failure, as every end starts here. What matters is whether a passkey follows.
 		h.auth.AskedForStepUp(p, auth.StepUpEndProcess, target, func() {
-			if err := record(EventEndUnconfirmed, Detail{PID: m.GetPid()}); err != nil {
+			if err := rec.record(EventEndUnconfirmed, Detail{PID: m.GetPid()}); err != nil {
 				h.logger.WarnContext(ctx, "can't record an end that wasn't confirmed", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
 			}
 		})
@@ -334,11 +334,11 @@ func (h *Handler) EndProcess(ctx context.Context, req *connect.Request[dockwellv
 		}
 		err = h.endError(srv, m.GetPid(), err)
 		if reason != collect.ReasonProcessGone {
-			h.note(ctx, record, Detail{PID: m.GetPid(), Error: message(err)})
+			h.note(ctx, rec, Detail{PID: m.GetPid(), Error: message(err)})
 		}
 		return nil, err
 	}
-	if err := record(EventEnd, detailOf(m.GetPid(), out)); err != nil {
+	if err := rec.record(EventEnd, detailOf(m.GetPid(), out)); err != nil {
 		// It has ended, and the person hears so.
 		h.logger.ErrorContext(ctx, "ended a process, and can't record that it did", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
 	}
@@ -397,28 +397,36 @@ func detailOf(pid uint32, out *agentv1.EndProcessResult) Detail {
 	return d
 }
 
-// recorder writes a server's audit events for what p does to its processes. It
-// writes whether or not the caller stays.
-func (h *Handler) recorder(ctx context.Context, p auth.Principal, srv *dockwellv1.Server) func(action string, d Detail) error {
+// recorder writes a server's audit events whether or not the caller stays.
+type recorder struct {
+	h      *Handler
+	ctx    context.Context //nolint:containedctx // outlives the call, as what's recorded must
+	p      auth.Principal
+	client auth.Client
+	srv    *dockwellv1.Server
+}
+
+func (h *Handler) recorder(ctx context.Context, p auth.Principal, srv *dockwellv1.Server) *recorder {
 	client, _ := authapi.ClientFrom(ctx)
-	ctx = context.WithoutCancel(ctx)
-	return func(action string, d Detail) error {
-		b, err := json.Marshal(d)
-		if err != nil {
-			return err
-		}
-		return h.db.Update(ctx, func(tx *store.Tx) error {
-			return tx.RecordEvent(ctx, store.Event{
-				ID: id.New(id.Event), At: h.now(), Actor: p.Actor(), Action: action, Subject: strconv.FormatUint(uint64(d.PID), 10),
-				Target: srv.GetId(), Surface: client.Surface(p), Detail: string(b),
-			})
-		})
+	return &recorder{h: h, ctx: context.WithoutCancel(ctx), p: p, client: client, srv: srv}
+}
+
+func (r *recorder) record(action string, d Detail) error {
+	b, err := json.Marshal(d)
+	if err != nil {
+		return err
 	}
+	return r.h.db.Update(r.ctx, func(tx *store.Tx) error {
+		return tx.RecordEvent(r.ctx, store.Event{
+			ID: id.New(id.Event), At: r.h.now(), Actor: r.p.Actor(), Action: action, Subject: strconv.FormatUint(uint64(d.PID), 10),
+			Target: r.srv.GetId(), Surface: r.client.Surface(r.p), Detail: string(b),
+		})
+	})
 }
 
 // note puts on record a process someone couldn't end, and why.
-func (h *Handler) note(ctx context.Context, record func(string, Detail) error, d Detail) {
-	if err := record(EventEndFailed, d); err != nil {
+func (h *Handler) note(ctx context.Context, rec *recorder, d Detail) {
+	if err := rec.record(EventEndFailed, d); err != nil {
 		h.logger.WarnContext(ctx, "can't record a process that wasn't ended", slog.String("error", err.Error()))
 	}
 }
