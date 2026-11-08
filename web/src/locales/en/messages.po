@@ -7353,8 +7353,11 @@ msgstr "Releases"
 msgid "Replicas"
 msgstr "Replicas"
 
-msgid "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgid "Run this as root, in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "Run this as root, in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+
+msgid "Run this in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgstr "Run this in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
 
 msgid "SQLite, on this server"
 msgstr "SQLite, on this server"
@@ -7377,9 +7380,6 @@ msgstr "These come from how Dockwell was started. The panel's domain is under <0
 
 msgid "This control plane"
 msgstr "This control plane"
-
-msgid "This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
 
 msgid "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
 msgstr "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
@@ -7962,6 +7962,18 @@ msgstr "Planned a change"
 msgid "Planned {summary}"
 msgstr "Planned {summary}"
 
+msgid "Read a container's logs"
+msgstr "Read a container's logs"
+
+msgid "Read a container's logs on {name}"
+msgstr "Read a container's logs on {name}"
+
+msgid "Read logs"
+msgstr "Read logs"
+
+msgid "Read the logs of {name}"
+msgstr "Read the logs of {name}"
+
 msgid "Refused a call this token can't make"
 msgstr "Refused a call this token can't make"
 
@@ -7979,6 +7991,9 @@ msgstr "Saving {path} on {name}"
 
 msgid "Set up this install"
 msgstr "Set up this install"
+
+msgid "Signed in with a recovery code"
+msgstr "Signed in with a recovery code"
 
 msgid "Signed out"
 msgstr "Signed out"
