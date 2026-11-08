@@ -6340,9 +6340,6 @@ msgstr "正在统计磁盘占用"
 msgid "Adding up what takes the disk Docker keeps its data on."
 msgstr "正在统计 Docker 数据所在磁盘的占用。"
 
-msgid "Containers"
-msgstr "容器"
-
 msgid "Disk usage"
 msgstr "磁盘占用"
 

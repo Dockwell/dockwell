@@ -6340,9 +6340,6 @@ msgstr "Adding up what takes the disk"
 msgid "Adding up what takes the disk Docker keeps its data on."
 msgstr "Adding up what takes the disk Docker keeps its data on."
 
-msgid "Containers"
-msgstr "Containers"
-
 msgid "Disk usage"
 msgstr "Disk usage"
 
