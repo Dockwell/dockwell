@@ -620,7 +620,9 @@ func TestASaveThatMayHaveLandedSaysSoThenHowItEnded(t *testing.T) {
 func testASaveThatMayHaveLandedSaysSoThenHowItEnded(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
-	server, hold, reached, release := heldWrite(t, f, 50*time.Millisecond)
+	// The save is held until release, so its deadline always runs out while it's
+	// held. Two seconds leaves what comes before the hold room on a loaded runner.
+	server, hold, reached, release := heldWrite(t, f, 2*time.Second)
 	id := server.id.ServerID
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {

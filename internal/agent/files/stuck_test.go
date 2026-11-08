@@ -153,7 +153,7 @@ func TestWhatsLeftBehindIsBounded(t *testing.T) {
 	well := filepath.Join(d.root, "well")
 	write(t, well, "fine")
 	s := d.server
-	s.AnswerWithin = 20 * time.Millisecond
+	s.AnswerWithin = roomy
 	gone := make(chan struct{})
 	var once sync.Once
 	back := func() { once.Do(func() { close(gone) }) }
@@ -254,7 +254,7 @@ func TestTheLimitHoldsWithCallsInFlight(t *testing.T) {
 	d := newDisk(t)
 	dead := filepath.Join(d.root, "mnt")
 	s := d.server
-	s.AnswerWithin = 200 * time.Millisecond
+	s.AnswerWithin = roomy
 	gone := make(chan struct{})
 	var once sync.Once
 	back := func() { once.Do(func() { close(gone) }) }
@@ -544,7 +544,7 @@ func TestACallThatComesBackAsItsLeftAnswers(t *testing.T) {
 	p := filepath.Join(d.root, "app", "conf")
 	write(t, p, "before")
 	gone := make(chan struct{})
-	d.server.AnswerWithin = 20 * time.Millisecond
+	d.server.AnswerWithin = roomy
 	d.server.Touching = func(at string) {
 		if at == p {
 			<-gone
