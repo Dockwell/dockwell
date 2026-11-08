@@ -285,9 +285,9 @@ const REPEAT_MS = 10 * 60_000;
 
 /**
  * Runs of the same access, newest first, as one row each: the same actor doing the
- * same thing to the same subject, each within REPEAT_MS of the one after, such as
- * reading one file again and again. Changes, health and the rest each say something
- * new. Each run is under its newest.
+ * same thing to the same subject from the same surface, each within REPEAT_MS of
+ * the one after, on the same local day. Changes, health and the rest each say
+ * something new. Each run is under its newest.
  */
 export function collapseRepeats(events: readonly Event[]): { shown: Event[]; repeats: Map<string, Event[]> } {
   const shown: Event[] = [];
@@ -295,7 +295,9 @@ export function collapseRepeats(events: readonly Event[]): { shown: Event[]; rep
   const sameness = (e: Event) =>
     e.kind !== EventKind.ACCESS
       ? undefined
-      : [e.kind, e.action, e.actor?.kind, e.actor?.id, e.subject?.id, e.subject?.path, e.subject?.name].join("|");
+      : [e.kind, e.action, e.surface, e.actor?.kind, e.actor?.id, e.subject?.id, e.subject?.path, e.subject?.name].join(
+          "|",
+        );
   let run: Event[] | undefined;
   let runKey: string | undefined;
   for (const event of events) {
@@ -306,6 +308,7 @@ export function collapseRepeats(events: readonly Event[]): { shown: Event[]; rep
       last &&
       key !== undefined &&
       key === runKey &&
+      dayKey(happenedAt(last)) === dayKey(happenedAt(event)) &&
       happenedAt(last).getTime() - happenedAt(event).getTime() <= REPEAT_MS
     ) {
       run.push(event);
@@ -319,12 +322,16 @@ export function collapseRepeats(events: readonly Event[]): { shown: Event[]; rep
   return { shown, repeats };
 }
 
+function dayKey(date: Date): string {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
 /** Events by the local day they happened on, newest day first, as they come. */
 function byDay(events: readonly Event[]): Day[] {
   const out: Day[] = [];
   for (const event of events) {
     const date = event.time ? timestampDate(event.time) : new Date(0);
-    const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    const key = dayKey(date);
     const last = out[out.length - 1];
     if (last?.key === key) last.events.push(event);
     else out.push({ key, date, events: [event] });
@@ -847,7 +854,6 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
   );
 }
 
-/** What became of a backup, in the facts of an event: of what, where, and why it failed. */
 /** How often the same was done again, and over what time, for a row that stands for a run. */
 function RepeatFacts({ run }: { run: readonly Event[] }) {
   const { t, i18n } = useLingui();
@@ -862,6 +868,7 @@ function RepeatFacts({ run }: { run: readonly Event[] }) {
   );
 }
 
+/** What became of a backup, in the facts of an event: of what, where, and why it failed. */
 function BackupFacts({ backup }: { backup: EventBackup }) {
   const { t, i18n } = useLingui();
   return (

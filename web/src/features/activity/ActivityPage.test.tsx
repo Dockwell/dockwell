@@ -354,6 +354,60 @@ describe("Activity", () => {
     expect(detail).toHaveTextContent("Times3, from 11:56 to 11:59");
   });
 
+  it("keeps repeated reads on their own local calendar day", async () => {
+    const today = new Date(Date.now());
+    today.setHours(0, 2, 0, 0);
+    const read = (id: string, at: Date) =>
+      auditEvent({
+        id,
+        action: "file.read",
+        time: timestampFromDate(at),
+        subject: { id: "srv_1", name: "hz-1", path: "/etc/os-release" },
+      });
+    renderAt("/activity", {
+      events: {
+        watchEvents: feedOf(
+          snapshot([read("evt_today", today), read("evt_yesterday", new Date(today.getTime() - 4 * 60_000))]),
+        ),
+        listEvents: () => ({}),
+      },
+    });
+    expect(await screen.findAllByRole("row", { name: /Read \/etc\/os-release on hz-1/ })).toHaveLength(2);
+    for (const day of ["Today", "Yesterday"]) {
+      const section = screen.getByRole("region", { name: day });
+      expect(within(section).getByText(/· 1 event$/)).toBeVisible();
+      expect(within(section).getByRole("row", { name: /Read \/etc\/os-release on hz-1/ })).not.toHaveTextContent(
+        "times",
+      );
+    }
+  });
+
+  it("keeps reads from different surfaces separate so their From label stays true", async () => {
+    renderAt("/activity", {
+      events: {
+        watchEvents: feedOf(
+          snapshot(
+            [Surface.PANEL, Surface.CLI].map((surface, i) =>
+              auditEvent({
+                id: `evt_read_${i}`,
+                action: "file.read",
+                surface,
+                time: timestampFromDate(new Date(Date.now() - i * 60_000)),
+                subject: { id: "srv_1", name: "hz-1", path: "/etc/os-release" },
+              }),
+            ),
+          ),
+        ),
+        listEvents: () => ({}),
+      },
+    });
+    const rows = await screen.findAllByRole("row", { name: /Read \/etc\/os-release on hz-1/ });
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("From the panel");
+    expect(rows[1]).toHaveTextContent("From the CLI");
+    for (const row of rows) expect(row).not.toHaveTextContent("times");
+  });
+
   it("shows what was read of a server and what wasn't, and leads to the file", async () => {
     const user = userEvent.setup();
     const watch = feed<WatchEventsResponse>();
