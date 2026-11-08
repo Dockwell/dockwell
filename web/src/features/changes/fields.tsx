@@ -26,6 +26,8 @@ const SECRET: PlanValue = { secret: true };
 /** One port or one mount of a container: a list item's fields, by name, from "ports[0].host_port". */
 const ITEM = /^(ports|mounts|tmpfs)\[(\d+)\]\.(.+)$/;
 const KEYED = /^(env|labels|options)\[(.+)\]$/;
+/** The revision a service pins a variable or secret it uses to, which Dockwell sets. */
+const PIN = /^revisions\[(.+)\]$/;
 
 /**
  * Reads a plan's fields as what they mean, for every kind: one port takes one
@@ -291,6 +293,15 @@ export function useFieldRows(): (source: FieldSource) => PlanChange[] {
           else rows.push(...mountRows(key, parts, hostAccess));
           continue;
         }
+        // A pin moves as the value it pins does: what a person reads is that it takes the newer one.
+        // One that comes or goes says nothing the row of what it uses doesn't.
+        const pin = PIN.exec(path);
+        if (pin) {
+          if (change.op === FieldOp.MODIFIED) {
+            rows.push({ path, label: pin[1] ?? "", to: t`uses its newer value`, tone: "change" });
+          }
+          continue;
+        }
         const entry = KEYED.exec(path);
         const row = entry
           ? keyed(path, entry[1] ?? "", entry[2] ?? "", change)
@@ -322,9 +333,16 @@ function rank(row: PlanChange): number {
  * 1 host".
  */
 export function humanize(path: string): string {
+  // The split keeps each bracket as its own part. A key is a name someone
+  // wrote, such as FEATURE_FLAGS, and keeps its underscores.
   return path
-    .replace(/\[(\d+)\]/g, (_, index: string) => ` ${Number(index) + 1}`)
-    .replace(/\[([^\]]+)\]/g, " $1")
-    .replace(/[._]+/g, " ")
-    .trim();
+    .split(/(\[[^\]]+\])/)
+    .map((part) => {
+      const bracket = /^\[(.+)\]$/.exec(part);
+      if (!bracket) return part.replace(/[._]+/g, " ").trim();
+      const key = bracket[1] ?? "";
+      return /^\d+$/.test(key) ? String(Number(key) + 1) : key;
+    })
+    .filter((part) => part !== "")
+    .join(" ");
 }

@@ -810,7 +810,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
     }),
   );
   // These say what a pull does, which is no warning: there is nothing to weigh.
-  const quiet = new Set(["pulls_again", "leaves_pin", "starts_stopped"]);
+  // And what an edit kept of an app's own values: information, which an aside says once.
+  const quiet = new Set(["pulls_again", "leaves_pin", "starts_stopped", "keeps_env"]);
   const fromRollouts = rollouts
     .filter((line) => line.warn)
     .map(
@@ -847,6 +848,12 @@ export function useAsides(plan: Plan | undefined): Notice[] {
     }
     // Only the server can say a plan will start what isn't running, and it says how it found it.
     if (note.reason === "starts_stopped") out.push({ key: `starts-${i}`, title: `${note.message}.` });
+    // What an edit kept unread of an app's own values, as the server says it, once for each app:
+    // the server notes it for each server the app's step is on.
+    if (note.reason === "keeps_env") {
+      const key = `keeps-${note.resource?.scope ?? ""}/${name}`;
+      if (!out.some((n) => n.key === key)) out.push({ key, title: `${note.message}.` });
+    }
     if (note.reason !== "pulls_again") continue;
     // More than its image may differ on a server, and then the pull doesn't decide it.
     out.push({
