@@ -255,6 +255,9 @@ func TestWhatRunsUnderHostAccessIsAnAdminsToChange(t *testing.T) {
 			}{
 				{"another repository", func(c *resourcev1.Container) { c.Image = "busybox:1.36" }, true, false},
 				{"another command", func(c *resourcev1.Container) { c.Command = []string{"sh", "-c", "id"} }, true, false},
+				{"another health-check command", func(c *resourcev1.Container) {
+					c.Healthcheck = &resourcev1.Healthcheck{Test: []string{"CMD", "true"}}
+				}, true, false},
 				{"another entrypoint", func(c *resourcev1.Container) { c.Entrypoint = []string{"/bin/sh"} }, true, false},
 				{"another tag of its repository", func(c *resourcev1.Container) { c.Image = "nginx:1.28" }, k.root, false},
 				{"an environment variable", func(c *resourcev1.Container) { c.Env = map[string]string{"MODE": "fast"} }, k.root, false},

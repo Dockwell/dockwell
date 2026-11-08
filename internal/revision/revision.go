@@ -2452,8 +2452,8 @@ func (e *Engine) keptWhileRunningElse(it *item, server string, reaches []resourc
 }
 
 // startsSomethingElse reports a spec that starts another program than before:
-// another repository, command or entrypoint. A kind whose spec isn't a
-// container's counts any change to what it runs.
+// another repository, command (including an exec health check) or entrypoint.
+// A kind whose spec isn't a container's counts any change to what it runs.
 func startsSomethingElse(imageBefore, imageAfter string, before, after proto.Message) bool {
 	if docker.Repository(imageBefore) != docker.Repository(imageAfter) {
 		return true
@@ -2463,7 +2463,8 @@ func startsSomethingElse(imageBefore, imageAfter string, before, after proto.Mes
 		return !proto.Equal(before, after)
 	}
 	return !slices.Equal(was.GetCommand(), now.GetCommand()) || !slices.Equal(was.GetEntrypoint(), now.GetEntrypoint()) ||
-		was.GetNoEntrypoint() != now.GetNoEntrypoint()
+		was.GetNoEntrypoint() != now.GetNoEntrypoint() ||
+		!slices.Equal(was.GetHealthcheck().GetTest(), now.GetHealthcheck().GetTest())
 }
 
 // runs is the container a spec runs: a container's own, or a service's app.
