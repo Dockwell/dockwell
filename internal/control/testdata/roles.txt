@@ -86,5 +86,7 @@ SystemService.GetVersion                       read         nothing    nothing  
 TokenService.CreateToken                       apply        viewer     viewer     self
 TokenService.ListTokens                        read         viewer     viewer     self
 TokenService.RevokeToken                       destructive  viewer     viewer     self
+UpdateService.CheckServerUpdates               read         admin      admin      install  session
+UpdateService.GetServerUpdates                 read         admin      admin      install
 VariableService.ListVariables                  read         viewer     viewer     project
 VariableService.RevealSecret                   read         developer  admin      project  session

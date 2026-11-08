@@ -1441,7 +1441,7 @@ func Methods() []*apicli.Method {
 			Noun:      "updates",
 			Verb:      "get",
 			Short:     "Say which package updates wait on a server",
-			Long:      "Say which package updates wait on a server, which are security fixes, whether\nthe server needs a reboot, and Dockwell's own version against its newest\nrelease. An answer stands for 10 minutes. Past that, or with none yet, this asks\nthe server's agent, and answers with what it had and checking set when the agent\ntakes more than a few seconds: ask again for the rest. The agent refreshes the\nserver's package lists first when they're more than a day old.",
+			Long:      "Say which package updates wait on a server, which are security fixes, whether\nthe server needs a reboot, and Dockwell's own version against its newest\nrelease. An answer stands for 10 minutes. Past that, or with none yet, this asks\nthe server's agent, and answers with what it had and checking set when the agent\ntakes more than a few seconds: ask again for the rest. The agent refreshes the\nserver's package lists first when they're more than a day old.\n\nA server's updates are its inventory, the install's, so they're an admin's (ADR\n0049). An admin's API token reads them, as it reads the rest of the server (ADR\n0043).",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The server's ID, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\".", Arg: true},
