@@ -129,6 +129,65 @@ func TestEndingAThreadIsRefused(t *testing.T) {
 	}
 }
 
+// Kernels can refuse a thread's pidfd with different errors. Its /proc entry
+// still identifies the process it belongs to, and no signal may be sent.
+func TestAThreadIsRefusedWhenItsPidfdCannotOpen(t *testing.T) {
+	c := collect.New()
+	cmd, done, tid := startHelper(t)
+	start := startOf(t, c, tid)
+	for _, openErr := range []error{unix.EINVAL, unix.ENOENT, unix.ESRCH} {
+		t.Run(openErr.Error(), func(t *testing.T) {
+			p := newProcesses(c, nil)
+			p.pidfdOpen = func(pid, flags int) (int, error) {
+				if pid != tid || flags != 0 {
+					t.Fatalf("pidfd_open(%d, %d), want (%d, 0)", pid, flags, tid)
+				}
+				return -1, openErr
+			}
+			p.opened = func(uint32) { t.Fatal("a failed pidfd was treated as open") }
+			p.signal = func(int, syscall.Signal) error { t.Fatal("it signalled a thread"); return nil }
+			_, killed, err := p.end(t.Context(), uint32(tid), start)
+			if reasonOf(err) != collect.ReasonProcessProtected || !strings.Contains(err.Error(), fmt.Sprintf("thread of process %d", cmd.Process.Pid)) {
+				t.Fatalf("ending a thread: %v, want it refused as a thread of %d", err, cmd.Process.Pid)
+			}
+			if killed {
+				t.Fatal("it reports killing a thread")
+			}
+		})
+	}
+	if !running(done) {
+		t.Error("ending a thread ended its process")
+	}
+}
+
+// A failed pidfd for a process that has actually gone remains a gone result.
+// Inspecting /proc after the failure is only to explain a refusal, never to signal.
+func TestAProcessThatGoesBeforeItsPidfdOpens(t *testing.T) {
+	for _, openErr := range []error{unix.ENOENT, unix.ESRCH} {
+		t.Run(openErr.Error(), func(t *testing.T) {
+			c := collect.New()
+			p := newProcesses(c, nil)
+			cmd, done, _ := startHelper(t)
+			start := startOf(t, c, cmd.Process.Pid)
+			p.pidfdOpen = func(int, int) (int, error) {
+				if err := cmd.Process.Kill(); err != nil {
+					t.Fatal(err)
+				}
+				if err := <-done; err == nil {
+					t.Fatal("the helper ended on its own")
+				}
+				return -1, openErr
+			}
+			p.opened = func(uint32) { t.Fatal("a failed pidfd was treated as open") }
+			p.signal = func(int, syscall.Signal) error { t.Fatal("it signalled after a failed open"); return nil }
+			_, killed, err := p.end(t.Context(), uint32(cmd.Process.Pid), start)
+			if reasonOf(err) != collect.ReasonProcessGone || killed {
+				t.Fatalf("a process that went away: %v, killed %v, want gone", err, killed)
+			}
+		})
+	}
+}
+
 // A kernel with no pidfds can't end a process safely, as a signal by PID alone
 // could reach whatever took the PID: it's refused, saying how to over SSH, and
 // nothing is signalled (#218's review, M1).

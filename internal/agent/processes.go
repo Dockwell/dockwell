@@ -260,12 +260,14 @@ func (p *processes) open(pid uint32, start uint64) (*handle, error) {
 	}
 	fd, err := pidfdOpen(int(pid), 0)
 	switch {
-	case errors.Is(err, unix.ESRCH):
-		return nil, gone()
-	case errors.Is(err, unix.EINVAL):
-		// A thread, which has a PID of its own and no pidfd of its own.
+	case errors.Is(err, unix.EINVAL), errors.Is(err, unix.ENOENT), errors.Is(err, unix.ESRCH):
+		// A live thread can be refused as invalid or absent. Read /proc only
+		// to explain that refusal; a failed pidfd never leads to a signal.
 		if tgid := p.threadOf(pid); tgid != 0 {
 			return nil, protected(fmt.Sprintf("PID %d is a thread of process %d, which only stops as a whole. End process %d instead.", pid, tgid, tgid))
+		}
+		if errors.Is(err, unix.ENOENT) || errors.Is(err, unix.ESRCH) {
+			return nil, gone()
 		}
 		return nil, fmt.Errorf("can't open process %d: %w", pid, err)
 	case errors.Is(err, unix.ENOSYS):
