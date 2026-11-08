@@ -117,14 +117,24 @@ func TestADiskUnderItsFloorFreesTheCacheABuildLeft(t *testing.T) {
 		t.Fatal(err)
 	}
 	b.builder.Clean(context.Background())
+	// Removing the old volume frees what it held. A new volume with the same
+	// name starts empty, so it must not put the disk back under its floor.
+	var freed atomic.Bool
 	b.builder.DiskFree = func(string) (int64, error) {
-		if _, err := b.engine.Client().InspectVolume(context.Background(), volume); err == nil {
+		if _, err := b.engine.Client().InspectVolume(context.Background(), volume); err != nil {
+			freed.Store(true)
+		}
+		if !freed.Load() {
 			return 1 << 30, nil
 		}
 		return 40 << 30, nil
 	}
+	b.builder.WatchEvery = time.Millisecond
 	if err := b.builder.Build(b.ctx(), req); err != nil {
 		t.Fatalf("a build with its cache holding the disk under the floor = %v", err)
+	}
+	if !freed.Load() {
+		t.Error("the build never removed the full cache")
 	}
 }
 
