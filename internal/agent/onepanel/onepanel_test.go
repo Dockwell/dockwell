@@ -158,6 +158,16 @@ func TestAnotherVersionSaysSo(t *testing.T) {
 	if found := readOK(t, root); found.GetKnownVersion() || found.GetVersion() != "v2.5.0" || len(found.GetApps()) != 4 {
 		t.Errorf("found %v", found)
 	}
+	// One that says no version, or lacks a table every version has, isn't read as
+	// if it were empty.
+	for _, change := range []string{`UPDATE settings SET value = '' WHERE key = 'SystemVersion'`, `DROP TABLE cronjobs`} {
+		if _, err := db.Exec(change); err != nil {
+			t.Fatal(err)
+		}
+		if res, err := Read(t.Context(), root); err == nil || !strings.Contains(err.Error(), "can't tell how to read them") {
+			t.Errorf("after %s: %v, %v", change, res, err)
+		}
+	}
 }
 
 // Where 1Panel isn't installed, it says so, and where its records aren't a

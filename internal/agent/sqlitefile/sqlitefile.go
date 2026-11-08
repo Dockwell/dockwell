@@ -14,6 +14,7 @@
 package sqlitefile
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -35,6 +36,18 @@ const maxDepth = 32
 // make it allocate without end.
 const maxPayload = 64 << 20
 
+// ErrWriting is a database in the rollback journal's mode that's part way through
+// a write, which its journal holds. Read it again once the write ends.
+var ErrWriting = errors.New("it's part way through a write, which its journal holds")
+
+// MaxRows is the most rows a scan reads of one table, so a damaged or crafted file
+// can't have it read without end.
+const MaxRows = 1_000_000
+
+// journalMagic starts a rollback journal that holds a write under way. A journal
+// kept between writes has it zeroed.
+var journalMagic = []byte{0xd9, 0xd5, 0x05, 0xf9, 0x20, 0xa1, 0x63, 0xd7}
+
 // DB is a SQLite database, as its files stood when it was opened.
 type DB struct {
 	file     *os.File
@@ -46,8 +59,12 @@ type DB struct {
 	frames map[uint32]int64
 	// stamp is what Changed compares: the header's change counter, and the
 	// files' sizes and the WAL's salts.
-	stamp  stamp
-	tables map[string]*Table
+	stamp stamp
+	// rollback is a database in the rollback journal's mode, not the WAL's, and
+	// journalPath where its journal is.
+	rollback    bool
+	journalPath string
+	tables      map[string]*Table
 }
 
 type stamp struct {
@@ -121,6 +138,12 @@ func (db *DB) load(path string) error {
 		return fmt.Errorf("%s keeps too much of each page for itself to be read", path)
 	}
 	db.stamp.counter = binary.BigEndian.Uint32(header[24:28])
+	// 1 is the rollback journal, which writes pages in place, and 2 the WAL.
+	db.rollback = header[18] == 1
+	db.journalPath = path + "-journal"
+	if db.rollback && db.journalHot() {
+		return fmt.Errorf("%s: %w", path, ErrWriting)
+	}
 	if st, err := db.file.Stat(); err == nil {
 		db.stamp.size = st.Size()
 	}
@@ -221,6 +244,10 @@ func (db *DB) Close() error {
 // what was read may mix two moments: the change counter, the sizes, or the WAL's
 // salts moved.
 func (db *DB) Changed() bool {
+	// In rollback mode a write changes pages in place, with its journal open.
+	if db.rollback && db.journalHot() {
+		return true
+	}
 	var counter [4]byte
 	if _, err := db.file.ReadAt(counter[:], 24); err != nil || binary.BigEndian.Uint32(counter[:]) != db.stamp.counter {
 		return true
@@ -239,6 +266,18 @@ func (db *DB) Changed() bool {
 	}
 	st, err := db.wal.Stat()
 	return err != nil || st.Size() != db.stamp.walSize || salt != db.stamp.salt
+}
+
+// journalHot reports a rollback journal that holds a write under way.
+func (db *DB) journalHot() bool {
+	f, err := openRead(db.journalPath)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	head := make([]byte, len(journalMagic))
+	n, _ := f.ReadAt(head, 0)
+	return n == len(head) && bytes.Equal(head, journalMagic)
 }
 
 // page reads page n, from the WAL where it has a newer copy.
@@ -361,13 +400,31 @@ func (r Row) Bool(column string) bool {
 // Scan calls each with every row of table, in rowid order, until each returns an
 // error, which Scan returns.
 func (db *DB) Scan(table *Table, each func(Row) error) error {
-	return db.walk(table, table.root, 0, each)
+	s := &scan{seen: map[uint32]bool{}}
+	return db.walk(table, s, table.root, 0, func(row Row) error {
+		s.rows++
+		if s.rows > MaxRows {
+			return fmt.Errorf("%s holds more than %d rows, more than this reads", table.Name, MaxRows)
+		}
+		return each(row)
+	})
 }
 
-func (db *DB) walk(table *Table, n uint32, depth int, each func(Row) error) error {
+// scan is what one scan has read: each page once, and how many rows.
+type scan struct {
+	seen map[uint32]bool
+	rows int
+}
+
+func (db *DB) walk(table *Table, s *scan, n uint32, depth int, each func(Row) error) error {
 	if depth > maxDepth {
 		return fmt.Errorf("%s's pages go deeper than a table can, so the file is damaged", table.Name)
 	}
+	// A page reached twice is a loop, which SQLite never writes.
+	if s.seen[n] {
+		return fmt.Errorf("%s reaches page %d twice, so the file is damaged", table.Name, n)
+	}
+	s.seen[n] = true
 	buf := make([]byte, db.pageSize)
 	page, err := db.page(n, buf)
 	if err != nil {
@@ -415,7 +472,7 @@ func (db *DB) walk(table *Table, n uint32, depth int, each func(Row) error) erro
 		}
 		children = append(children, binary.BigEndian.Uint32(page[head+8:]))
 		for _, child := range children {
-			if err := db.walk(table, child, depth+1, each); err != nil {
+			if err := db.walk(table, s, child, depth+1, each); err != nil {
 				return err
 			}
 		}

@@ -16,10 +16,10 @@ import (
 // What an import waits for where Dockwell can't take a thing yet. Each goes once
 // its feature is on main.
 const (
-	waitsForWebsites  = "#206"
-	waitsForDatabases = "#207"
-	waitsForSchedules = "#259"
-	waitsForFirewall  = "#288"
+	waitsForWebsites  = dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_WEBSITES
+	waitsForDatabases = dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_DATABASES
+	waitsForSchedules = dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_SCHEDULED_TASKS
+	waitsForFirewall  = dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_FIREWALL
 )
 
 // phpVersions are the PHP versions Dockwell's websites run (ADR 0039).
@@ -70,7 +70,7 @@ func Steps(found *dockwellv1.OnePanel) []*dockwellv1.ImportStep {
 	for _, d := range found.GetDatabases() {
 		add(&dockwellv1.ImportStep{
 			Kind: dockwellv1.ImportKind_IMPORT_KIND_DATABASE, Name: d.GetName(),
-			Summary:  fmt.Sprintf("a %s database on %s, for %s", d.GetType(), d.GetServer(), d.GetUser()),
+			Summary:  fmt.Sprintf("a %s database on %s, for %s", typeName(d.GetType()), d.GetServer(), d.GetUser()),
 			Action:   dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON,
 			Becomes:  fmt.Sprintf("a database of %s, with its user %s, whose password becomes a sealed secret", d.GetServer(), d.GetUser()),
 			WaitsFor: waitsForDatabases,
@@ -88,7 +88,7 @@ func Steps(found *dockwellv1.OnePanel) []*dockwellv1.ImportStep {
 	add(&dockwellv1.ImportStep{
 		Kind: dockwellv1.ImportKind_IMPORT_KIND_PANEL, Name: "Firewall", Summary: "the rules 1Panel writes to the server's firewall",
 		Action:   dockwellv1.ImportAction_IMPORT_ACTION_LEAVE,
-		Reason:   "1Panel writes them to the server's own firewall, ufw or firewalld, so there's nothing to import: Dockwell's Firewall tab reads them where they are.",
+		Reason:   "1Panel writes them to the server's own firewall, ufw or firewalld, so there's nothing to move. Once Dockwell has firewall rules, it reads them where they are.",
 		WaitsFor: waitsForFirewall,
 	})
 	add(panelStep(found))
@@ -111,7 +111,7 @@ func appStep(a *dockwellv1.OnePanelApp) *dockwellv1.ImportStep {
 	if a.GetAppKey() == "openresty" {
 		s.Action = dockwellv1.ImportAction_IMPORT_ACTION_LEAVE
 		s.Reason = "It serves 1Panel's websites on ports 80 and 443, on the host's network, which Dockwell's ingress needs. " +
-			"It stays until you hand those over: stop it in 1Panel, then apply the websites' plan, and check each site. " +
+			"It stays until Dockwell has websites and you hand those ports over: then stop it in 1Panel, apply the websites' plan, and check each site. " +
 			"The sites are down from the stop until the ingress has its certificates, a minute or so. Starting it again in 1Panel undoes that."
 		return s
 	}
@@ -184,7 +184,7 @@ func php(v string) (string, bool) {
 func databaseServerStep(d *dockwellv1.OnePanelDatabaseServer) *dockwellv1.ImportStep {
 	s := &dockwellv1.ImportStep{
 		Kind: dockwellv1.ImportKind_IMPORT_KIND_DATABASE_SERVER, Name: d.GetName(),
-		Summary: fmt.Sprintf("%s %s", d.GetType(), d.GetVersion()),
+		Summary: fmt.Sprintf("%s %s", typeName(d.GetType()), d.GetVersion()),
 	}
 	if !d.GetLocal() {
 		s.Summary += ", on another machine"
@@ -218,7 +218,7 @@ func websiteStep(w *dockwellv1.OnePanelWebsite, runtimes map[string]*dockwellv1.
 		s.Summary = fmt.Sprintf("a PHP %s site", r.GetVersion())
 		version, ok := php(r.GetVersion())
 		if !ok {
-			s.Action, s.WaitsFor = dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, ""
+			s.Action, s.WaitsFor = dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, 0
 			s.Reason = fmt.Sprintf("Dockwell's websites run PHP %s to %s. Move it to one of those in 1Panel, then import it.", phpVersions[0], phpVersions[len(phpVersions)-1])
 			return s
 		}
@@ -227,7 +227,7 @@ func websiteStep(w *dockwellv1.OnePanelWebsite, runtimes map[string]*dockwellv1.
 		s.Summary = "a reverse proxy"
 		target, ok := proxyTarget(w.GetProxy())
 		if !ok {
-			s.Action, s.WaitsFor = dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, ""
+			s.Action, s.WaitsFor = dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, 0
 			s.Reason = "Where it sends can't be read from 1Panel's records. Make it again from Dockwell's Websites."
 			return s
 		}
@@ -237,17 +237,17 @@ func websiteStep(w *dockwellv1.OnePanelWebsite, runtimes map[string]*dockwellv1.
 		s.Becomes = fmt.Sprintf("a route to the app %s, taken on", w.GetApp())
 	case "subsite":
 		s.Summary = "a subsite of " + w.GetParent()
-		s.Action, s.WaitsFor = dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, ""
+		s.Action, s.WaitsFor = dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, 0
 		s.Reason = "Dockwell's websites have no subsites. Make it a website of its own, at a domain of its own."
 		return s
 	case "stream":
 		s.Summary = "a TCP or UDP stream"
-		s.Action, s.WaitsFor = dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, ""
+		s.Action, s.WaitsFor = dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, 0
 		s.Reason = "Dockwell has no TCP or UDP proxy for websites. Publish the port from the app it sends to instead."
 		return s
 	default:
 		s.Summary = fmt.Sprintf("a site of a kind 1Panel calls %q", w.GetType())
-		s.Action, s.WaitsFor = dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, ""
+		s.Action, s.WaitsFor = dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, 0
 		s.Reason = "Dockwell doesn't know what that kind of site is. Make it again from Dockwell's Websites."
 		return s
 	}
@@ -338,7 +338,7 @@ func cronJobStep(j *dockwellv1.OnePanelCronJob) *dockwellv1.ImportStep {
 	schedule := strings.Join(strings.Fields(strings.ReplaceAll(j.GetSchedule(), "\n", ", ")), " ")
 	off := !strings.EqualFold(j.GetStatus(), "Enable")
 	leave := func(summary, reason string) *dockwellv1.ImportStep {
-		s.Summary, s.Action, s.WaitsFor, s.Reason = summary, dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, "", reason
+		s.Summary, s.Action, s.WaitsFor, s.Reason = summary, dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, 0, reason
 		return s
 	}
 	switch j.GetType() {
@@ -389,6 +389,14 @@ func cronJobStep(j *dockwellv1.OnePanelCronJob) *dockwellv1.ImportStep {
 	return s
 }
 
+// typeName names a kind of database as its makers write it: "mysql" is MySQL.
+func typeName(t string) string {
+	if name := databaseTypes[t]; name != "" {
+		return name
+	}
+	return t
+}
+
 // lines says how many lines a script has.
 func lines(n uint32) string {
 	if n == 1 {
@@ -410,7 +418,7 @@ func backupOf(j *dockwellv1.OnePanelCronJob) string {
 		"app": {"app", "apps"}, "website": {"website", "websites"}, "database": {"database", "databases"}, "directory": {"folder", "folders"},
 	}[j.GetType()]
 	one, many := nouns[0], nouns[1]
-	if t := databaseTypes[j.GetDatabaseType()]; t != "" {
+	if t := typeName(j.GetDatabaseType()); t != "" {
 		one, many = t+" "+one, t+" "+many
 	}
 	switch target := j.GetTarget(); {

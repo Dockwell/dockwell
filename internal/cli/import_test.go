@@ -29,14 +29,14 @@ func (s *stubImports) ImportOnePanel(_ context.Context, req *connect.Request[doc
 		Found: &dockwellv1.OnePanel{Version: "v2.4.2", BaseDir: "/opt", Records: "/opt/1panel/db/agent.db"},
 		Steps: []*dockwellv1.ImportStep{
 			{Kind: dockwellv1.ImportKind_IMPORT_KIND_APP, Name: "wordpress", Summary: "WordPress 6.7.1 from 1Panel's store, running", Action: dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON, Becomes: "a Compose project, wordpress, taken on as it runs, with no restart"},
-			{Kind: dockwellv1.ImportKind_IMPORT_KIND_WEBSITE, Name: "blog.example.com", Summary: "a static site", Action: dockwellv1.ImportAction_IMPORT_ACTION_MAKE, Becomes: "a website serving /opt/1panel/www/sites/blog/index, in place", WaitsFor: "#206"},
-			{Kind: dockwellv1.ImportKind_IMPORT_KIND_PANEL, Name: "Firewall", Summary: "the rules 1Panel writes to the server's firewall", Action: dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, Reason: "Dockwell's Firewall tab reads them where they are."},
+			{Kind: dockwellv1.ImportKind_IMPORT_KIND_WEBSITE, Name: "blog.example.com", Summary: "a static site", Action: dockwellv1.ImportAction_IMPORT_ACTION_MAKE, Becomes: "a website serving /opt/1panel/www/sites/blog/index, in place", WaitsFor: dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_WEBSITES},
+			{Kind: dockwellv1.ImportKind_IMPORT_KIND_PANEL, Name: "Firewall", Summary: "the rules 1Panel writes to the server's firewall", Action: dockwellv1.ImportAction_IMPORT_ACTION_LEAVE, Reason: "Once Dockwell has firewall rules, it reads them where they are."},
 		},
 	}), nil
 }
 
-// dockwell import 1panel --plan-only says what an import would do, grouped by what
-// it does. It plans nothing yet, so there's nothing to leave planned.
+// dockwell import 1panel --plan-only says what an import would do, grouped by when
+// each thing moves. It plans nothing yet, so there's nothing to leave planned.
 func TestImport1PanelPlanOnly(t *testing.T) {
 	stub := &stubImports{}
 	mux := http.NewServeMux()
@@ -53,12 +53,12 @@ func TestImport1PanelPlanOnly(t *testing.T) {
 	}
 	for _, want := range []string{
 		"1Panel v2.4.2, under /opt, read from /opt/1panel/db/agent.db. Nothing was changed.",
-		"Take on, as it runs, with no restart (1)",
+		"In this plan, taken on as it runs, with no restart (1)",
 		"  App wordpress: WordPress 6.7.1 from 1Panel's store, running",
 		"    Becomes a Compose project, wordpress, taken on as it runs, with no restart.",
-		"Make again in Dockwell (1)",
-		"    Waits for #206, which isn't in Dockwell yet.",
-		"Leave as it is (1)",
+		"Later, once Dockwell has websites (1)",
+		"  Website blog.example.com: a static site",
+		"Stays with 1Panel (1)",
 		"  Firewall: the rules 1Panel writes",
 	} {
 		if !strings.Contains(r.out, want) {

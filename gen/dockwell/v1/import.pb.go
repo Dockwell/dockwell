@@ -25,6 +25,67 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ImportWaitsFor is a part of Dockwell an imported thing waits for, which a
+// client words in its own language.
+type ImportWaitsFor int32
+
+const (
+	ImportWaitsFor_IMPORT_WAITS_FOR_UNSPECIFIED ImportWaitsFor = 0
+	// Websites, with their domains and certificates.
+	ImportWaitsFor_IMPORT_WAITS_FOR_WEBSITES ImportWaitsFor = 1
+	// Databases, with their users.
+	ImportWaitsFor_IMPORT_WAITS_FOR_DATABASES ImportWaitsFor = 2
+	// Scheduled tasks.
+	ImportWaitsFor_IMPORT_WAITS_FOR_SCHEDULED_TASKS ImportWaitsFor = 3
+	// Firewall rules.
+	ImportWaitsFor_IMPORT_WAITS_FOR_FIREWALL ImportWaitsFor = 4
+)
+
+// Enum value maps for ImportWaitsFor.
+var (
+	ImportWaitsFor_name = map[int32]string{
+		0: "IMPORT_WAITS_FOR_UNSPECIFIED",
+		1: "IMPORT_WAITS_FOR_WEBSITES",
+		2: "IMPORT_WAITS_FOR_DATABASES",
+		3: "IMPORT_WAITS_FOR_SCHEDULED_TASKS",
+		4: "IMPORT_WAITS_FOR_FIREWALL",
+	}
+	ImportWaitsFor_value = map[string]int32{
+		"IMPORT_WAITS_FOR_UNSPECIFIED":     0,
+		"IMPORT_WAITS_FOR_WEBSITES":        1,
+		"IMPORT_WAITS_FOR_DATABASES":       2,
+		"IMPORT_WAITS_FOR_SCHEDULED_TASKS": 3,
+		"IMPORT_WAITS_FOR_FIREWALL":        4,
+	}
+)
+
+func (x ImportWaitsFor) Enum() *ImportWaitsFor {
+	p := new(ImportWaitsFor)
+	*p = x
+	return p
+}
+
+func (x ImportWaitsFor) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ImportWaitsFor) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_import_proto_enumTypes[0].Descriptor()
+}
+
+func (ImportWaitsFor) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_import_proto_enumTypes[0]
+}
+
+func (x ImportWaitsFor) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ImportWaitsFor.Descriptor instead.
+func (ImportWaitsFor) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{0}
+}
+
 // ImportKind is a kind of thing another panel keeps.
 type ImportKind int32
 
@@ -93,11 +154,11 @@ func (x ImportKind) String() string {
 }
 
 func (ImportKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_import_proto_enumTypes[0].Descriptor()
+	return file_dockwell_v1_import_proto_enumTypes[1].Descriptor()
 }
 
 func (ImportKind) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_import_proto_enumTypes[0]
+	return &file_dockwell_v1_import_proto_enumTypes[1]
 }
 
 func (x ImportKind) Number() protoreflect.EnumNumber {
@@ -106,7 +167,7 @@ func (x ImportKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ImportKind.Descriptor instead.
 func (ImportKind) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{1}
 }
 
 // ImportAction is what an import does with a thing it found.
@@ -149,11 +210,11 @@ func (x ImportAction) String() string {
 }
 
 func (ImportAction) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_import_proto_enumTypes[1].Descriptor()
+	return file_dockwell_v1_import_proto_enumTypes[2].Descriptor()
 }
 
 func (ImportAction) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_import_proto_enumTypes[1]
+	return &file_dockwell_v1_import_proto_enumTypes[2]
 }
 
 func (x ImportAction) Number() protoreflect.EnumNumber {
@@ -162,7 +223,7 @@ func (x ImportAction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ImportAction.Descriptor instead.
 func (ImportAction) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_import_proto_rawDescGZIP(), []int{2}
 }
 
 // ImportOnePanelRequest names the server to import from.
@@ -294,9 +355,8 @@ type ImportStep struct {
 	Becomes string `protobuf:"bytes,5,opt,name=becomes,proto3" json:"becomes,omitempty"`
 	// Why, and what a person can do about it, where that isn't plain.
 	Reason string `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
-	// The issue whose feature it waits for, such as "#206", where Dockwell can't
-	// take it yet.
-	WaitsFor      string `protobuf:"bytes,7,opt,name=waits_for,json=waitsFor,proto3" json:"waits_for,omitempty"`
+	// The part of Dockwell it waits for, where Dockwell can't take it yet.
+	WaitsFor      ImportWaitsFor `protobuf:"varint,7,opt,name=waits_for,json=waitsFor,proto3,enum=dockwell.v1.ImportWaitsFor" json:"waits_for,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -373,11 +433,11 @@ func (x *ImportStep) GetReason() string {
 	return ""
 }
 
-func (x *ImportStep) GetWaitsFor() string {
+func (x *ImportStep) GetWaitsFor() ImportWaitsFor {
 	if x != nil {
 		return x.WaitsFor
 	}
-	return ""
+	return ImportWaitsFor_IMPORT_WAITS_FOR_UNSPECIFIED
 }
 
 // OnePanel is what 1Panel keeps on a server, as its records say, with nothing
@@ -1501,7 +1561,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x16ImportOnePanelResponse\x12+\n" +
 	"\x05found\x18\x01 \x01(\v2\x15.dockwell.v1.OnePanelR\x05found\x12-\n" +
 	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\x12+\n" +
-	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xe9\x01\n" +
+	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x86\x02\n" +
 	"\n" +
 	"ImportStep\x12+\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x17.dockwell.v1.ImportKindR\x04kind\x12\x12\n" +
@@ -1509,8 +1569,8 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\asummary\x18\x03 \x01(\tR\asummary\x121\n" +
 	"\x06action\x18\x04 \x01(\x0e2\x19.dockwell.v1.ImportActionR\x06action\x12\x18\n" +
 	"\abecomes\x18\x05 \x01(\tR\abecomes\x12\x16\n" +
-	"\x06reason\x18\x06 \x01(\tR\x06reason\x12\x1b\n" +
-	"\twaits_for\x18\a \x01(\tR\bwaitsFor\"\xe8\x04\n" +
+	"\x06reason\x18\x06 \x01(\tR\x06reason\x128\n" +
+	"\twaits_for\x18\a \x01(\x0e2\x1b.dockwell.v1.ImportWaitsForR\bwaitsFor\"\xe8\x04\n" +
 	"\bOnePanel\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x19\n" +
 	"\bbase_dir\x18\x02 \x01(\tR\abaseDir\x12\x18\n" +
@@ -1610,7 +1670,13 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"scriptPath\x12 \n" +
 	"\vinterpreter\x18\f \x01(\tR\vinterpreter\x12\x12\n" +
 	"\x04user\x18\r \x01(\tR\x04user\x12#\n" +
-	"\rdatabase_type\x18\x0e \x01(\tR\fdatabaseType*\xb6\x02\n" +
+	"\rdatabase_type\x18\x0e \x01(\tR\fdatabaseType*\xb6\x01\n" +
+	"\x0eImportWaitsFor\x12 \n" +
+	"\x1cIMPORT_WAITS_FOR_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19IMPORT_WAITS_FOR_WEBSITES\x10\x01\x12\x1e\n" +
+	"\x1aIMPORT_WAITS_FOR_DATABASES\x10\x02\x12$\n" +
+	" IMPORT_WAITS_FOR_SCHEDULED_TASKS\x10\x03\x12\x1d\n" +
+	"\x19IMPORT_WAITS_FOR_FIREWALL\x10\x04*\xb6\x02\n" +
 	"\n" +
 	"ImportKind\x12\x1b\n" +
 	"\x17IMPORT_KIND_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -1647,50 +1713,52 @@ func file_dockwell_v1_import_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_import_proto_rawDescData
 }
 
-var file_dockwell_v1_import_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_dockwell_v1_import_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_dockwell_v1_import_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_dockwell_v1_import_proto_goTypes = []any{
-	(ImportKind)(0),                // 0: dockwell.v1.ImportKind
-	(ImportAction)(0),              // 1: dockwell.v1.ImportAction
-	(*ImportOnePanelRequest)(nil),  // 2: dockwell.v1.ImportOnePanelRequest
-	(*ImportOnePanelResponse)(nil), // 3: dockwell.v1.ImportOnePanelResponse
-	(*ImportStep)(nil),             // 4: dockwell.v1.ImportStep
-	(*OnePanel)(nil),               // 5: dockwell.v1.OnePanel
-	(*OnePanelCompose)(nil),        // 6: dockwell.v1.OnePanelCompose
-	(*OnePanelApp)(nil),            // 7: dockwell.v1.OnePanelApp
-	(*OnePanelRuntime)(nil),        // 8: dockwell.v1.OnePanelRuntime
-	(*OnePanelWebsite)(nil),        // 9: dockwell.v1.OnePanelWebsite
-	(*OnePanelDomain)(nil),         // 10: dockwell.v1.OnePanelDomain
-	(*OnePanelCertificate)(nil),    // 11: dockwell.v1.OnePanelCertificate
-	(*OnePanelDatabaseServer)(nil), // 12: dockwell.v1.OnePanelDatabaseServer
-	(*OnePanelDatabase)(nil),       // 13: dockwell.v1.OnePanelDatabase
-	(*OnePanelCronJob)(nil),        // 14: dockwell.v1.OnePanelCronJob
-	(*Change)(nil),                 // 15: dockwell.v1.Change
-	(*timestamppb.Timestamp)(nil),  // 16: google.protobuf.Timestamp
+	(ImportWaitsFor)(0),            // 0: dockwell.v1.ImportWaitsFor
+	(ImportKind)(0),                // 1: dockwell.v1.ImportKind
+	(ImportAction)(0),              // 2: dockwell.v1.ImportAction
+	(*ImportOnePanelRequest)(nil),  // 3: dockwell.v1.ImportOnePanelRequest
+	(*ImportOnePanelResponse)(nil), // 4: dockwell.v1.ImportOnePanelResponse
+	(*ImportStep)(nil),             // 5: dockwell.v1.ImportStep
+	(*OnePanel)(nil),               // 6: dockwell.v1.OnePanel
+	(*OnePanelCompose)(nil),        // 7: dockwell.v1.OnePanelCompose
+	(*OnePanelApp)(nil),            // 8: dockwell.v1.OnePanelApp
+	(*OnePanelRuntime)(nil),        // 9: dockwell.v1.OnePanelRuntime
+	(*OnePanelWebsite)(nil),        // 10: dockwell.v1.OnePanelWebsite
+	(*OnePanelDomain)(nil),         // 11: dockwell.v1.OnePanelDomain
+	(*OnePanelCertificate)(nil),    // 12: dockwell.v1.OnePanelCertificate
+	(*OnePanelDatabaseServer)(nil), // 13: dockwell.v1.OnePanelDatabaseServer
+	(*OnePanelDatabase)(nil),       // 14: dockwell.v1.OnePanelDatabase
+	(*OnePanelCronJob)(nil),        // 15: dockwell.v1.OnePanelCronJob
+	(*Change)(nil),                 // 16: dockwell.v1.Change
+	(*timestamppb.Timestamp)(nil),  // 17: google.protobuf.Timestamp
 }
 var file_dockwell_v1_import_proto_depIdxs = []int32{
-	5,  // 0: dockwell.v1.ImportOnePanelResponse.found:type_name -> dockwell.v1.OnePanel
-	4,  // 1: dockwell.v1.ImportOnePanelResponse.steps:type_name -> dockwell.v1.ImportStep
-	15, // 2: dockwell.v1.ImportOnePanelResponse.change:type_name -> dockwell.v1.Change
-	0,  // 3: dockwell.v1.ImportStep.kind:type_name -> dockwell.v1.ImportKind
-	1,  // 4: dockwell.v1.ImportStep.action:type_name -> dockwell.v1.ImportAction
-	7,  // 5: dockwell.v1.OnePanel.apps:type_name -> dockwell.v1.OnePanelApp
-	8,  // 6: dockwell.v1.OnePanel.runtimes:type_name -> dockwell.v1.OnePanelRuntime
-	9,  // 7: dockwell.v1.OnePanel.websites:type_name -> dockwell.v1.OnePanelWebsite
-	11, // 8: dockwell.v1.OnePanel.certificates:type_name -> dockwell.v1.OnePanelCertificate
-	12, // 9: dockwell.v1.OnePanel.database_servers:type_name -> dockwell.v1.OnePanelDatabaseServer
-	13, // 10: dockwell.v1.OnePanel.databases:type_name -> dockwell.v1.OnePanelDatabase
-	14, // 11: dockwell.v1.OnePanel.cron_jobs:type_name -> dockwell.v1.OnePanelCronJob
-	6,  // 12: dockwell.v1.OnePanel.composes:type_name -> dockwell.v1.OnePanelCompose
-	10, // 13: dockwell.v1.OnePanelWebsite.domains:type_name -> dockwell.v1.OnePanelDomain
-	16, // 14: dockwell.v1.OnePanelCertificate.expires:type_name -> google.protobuf.Timestamp
-	2,  // 15: dockwell.v1.ImportService.ImportOnePanel:input_type -> dockwell.v1.ImportOnePanelRequest
-	3,  // 16: dockwell.v1.ImportService.ImportOnePanel:output_type -> dockwell.v1.ImportOnePanelResponse
-	16, // [16:17] is the sub-list for method output_type
-	15, // [15:16] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	6,  // 0: dockwell.v1.ImportOnePanelResponse.found:type_name -> dockwell.v1.OnePanel
+	5,  // 1: dockwell.v1.ImportOnePanelResponse.steps:type_name -> dockwell.v1.ImportStep
+	16, // 2: dockwell.v1.ImportOnePanelResponse.change:type_name -> dockwell.v1.Change
+	1,  // 3: dockwell.v1.ImportStep.kind:type_name -> dockwell.v1.ImportKind
+	2,  // 4: dockwell.v1.ImportStep.action:type_name -> dockwell.v1.ImportAction
+	0,  // 5: dockwell.v1.ImportStep.waits_for:type_name -> dockwell.v1.ImportWaitsFor
+	8,  // 6: dockwell.v1.OnePanel.apps:type_name -> dockwell.v1.OnePanelApp
+	9,  // 7: dockwell.v1.OnePanel.runtimes:type_name -> dockwell.v1.OnePanelRuntime
+	10, // 8: dockwell.v1.OnePanel.websites:type_name -> dockwell.v1.OnePanelWebsite
+	12, // 9: dockwell.v1.OnePanel.certificates:type_name -> dockwell.v1.OnePanelCertificate
+	13, // 10: dockwell.v1.OnePanel.database_servers:type_name -> dockwell.v1.OnePanelDatabaseServer
+	14, // 11: dockwell.v1.OnePanel.databases:type_name -> dockwell.v1.OnePanelDatabase
+	15, // 12: dockwell.v1.OnePanel.cron_jobs:type_name -> dockwell.v1.OnePanelCronJob
+	7,  // 13: dockwell.v1.OnePanel.composes:type_name -> dockwell.v1.OnePanelCompose
+	11, // 14: dockwell.v1.OnePanelWebsite.domains:type_name -> dockwell.v1.OnePanelDomain
+	17, // 15: dockwell.v1.OnePanelCertificate.expires:type_name -> google.protobuf.Timestamp
+	3,  // 16: dockwell.v1.ImportService.ImportOnePanel:input_type -> dockwell.v1.ImportOnePanelRequest
+	4,  // 17: dockwell.v1.ImportService.ImportOnePanel:output_type -> dockwell.v1.ImportOnePanelResponse
+	17, // [17:18] is the sub-list for method output_type
+	16, // [16:17] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_import_proto_init() }
@@ -1705,7 +1773,7 @@ func file_dockwell_v1_import_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_import_proto_rawDesc), len(file_dockwell_v1_import_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      3,
 			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,

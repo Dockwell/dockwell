@@ -69,9 +69,22 @@ message ImportStep {
   string becomes = 5;
   // Why, and what a person can do about it, where that isn't plain.
   string reason = 6;
-  // The issue whose feature it waits for, such as "#206", where Dockwell can't
-  // take it yet.
-  string waits_for = 7;
+  // The part of Dockwell it waits for, where Dockwell can't take it yet.
+  ImportWaitsFor waits_for = 7;
+}
+
+// ImportWaitsFor is a part of Dockwell an imported thing waits for, which a
+// client words in its own language.
+enum ImportWaitsFor {
+  IMPORT_WAITS_FOR_UNSPECIFIED = 0;
+  // Websites, with their domains and certificates.
+  IMPORT_WAITS_FOR_WEBSITES = 1;
+  // Databases, with their users.
+  IMPORT_WAITS_FOR_DATABASES = 2;
+  // Scheduled tasks.
+  IMPORT_WAITS_FOR_SCHEDULED_TASKS = 3;
+  // Firewall rules.
+  IMPORT_WAITS_FOR_FIREWALL = 4;
 }
 
 // ImportKind is a kind of thing another panel keeps.
