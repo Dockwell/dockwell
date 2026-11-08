@@ -378,6 +378,28 @@ describe("Overview with a fleet", () => {
     expect(screen.queryByText("Hover or focus a server to inspect it.")).toBeNull();
   });
 
+  it("reads every server as Unknown once what the fleet last said can't stand", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let answering = true;
+    renderAt("/", {
+      servers: {
+        async *watchServers(_req: unknown, ctx: HandlerContext) {
+          if (answering) {
+            yield changed(hz1);
+            yield changed(hz2());
+            yield snapshotComplete;
+          }
+          await new Promise<void>((resolve) => ctx.signal.addEventListener("abort", () => resolve(), { once: true }));
+        },
+      },
+    });
+    await screen.findByRole("button", { name: "hz-2, Healthy, CPU 70%" });
+    answering = false;
+    await vi.advanceTimersByTimeAsync(35_000);
+    expect(await screen.findByRole("button", { name: "hz-2, Unknown" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Healthy/ })).toBeNull();
+  });
+
   it("passes axe", async () => {
     const { container } = renderFleet([hz1, hz2({ connection: Connection.UNREACHABLE })]);
     await screen.findByRole("alert");

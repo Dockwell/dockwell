@@ -166,7 +166,8 @@ function FleetMetrics({ servers, compact }: { servers: readonly Server[]; compac
 function FleetMap({ servers, compact }: { servers: readonly Server[]; compact: boolean }) {
   const { t } = useLingui();
   const navigate = useNavigate();
-  const tiles = useTiles(servers);
+  const unknown = useFleetUnread() !== undefined;
+  const tiles = useTiles(servers, unknown);
   const grid = (
     <FleetGrid
       servers={tiles}
@@ -192,8 +193,11 @@ function FleetMap({ servers, compact }: { servers: readonly Server[]; compact: b
   );
 }
 
-/** Each server as a tile names it: its state, its numbers while it reports, its address, and why it's not well. */
-function useTiles(servers: readonly Server[]): FleetServer[] {
+/**
+ * Each server as a tile names it: its state, its numbers while it reports, its address, and why it's not well.
+ * While what the fleet last said can't stand, nobody can say how any server is, so each reads Unknown.
+ */
+function useTiles(servers: readonly Server[], unknown: boolean): FleetServer[] {
   const { t } = useLingui();
   const words = useTimeWords();
   const now = useControlPlaneNow(15_000);
@@ -211,6 +215,7 @@ function useTiles(servers: readonly Server[]): FleetServer[] {
           : s.dockerUnreadableSince
             ? t`Can't read Docker`
             : undefined;
+    if (unknown) return { id: s.id, name: s.name, status: "unknown", ip: primaryAddress(s.inventory?.addresses ?? []) };
     return {
       id: s.id,
       name: s.name,
