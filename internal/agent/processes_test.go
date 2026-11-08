@@ -3,10 +3,12 @@
 package agent
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -21,27 +23,56 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
-// A process for these tests to end: this test binary again, asleep, which as a Go
-// program runs several threads.
+// A process for these tests to end: this test binary again, asleep. It prints
+// the ID of a thread of its own that lives as long as it does, which isn't its
+// main one: Go's runtime starts and stops its other threads as it likes, so one
+// read from /proc/<pid>/task may be gone by the time a test opens it.
 func TestHelperProcess(t *testing.T) {
 	if os.Getenv("DOCKWELL_PROCESS_HELPER") != "1" {
 		t.Skip("only run as a helper")
 	}
+	// A goroutine locked to its thread keeps it; one that landed on the main
+	// thread keeps that, so the next lands on another.
+	var keep func()
+	keep = func() {
+		runtime.LockOSThread()
+		if tid := syscall.Gettid(); tid != syscall.Getpid() {
+			fmt.Println(tid)
+		} else {
+			go keep()
+		}
+		select {}
+	}
+	go keep()
 	time.Sleep(time.Minute)
 	os.Exit(0)
 }
 
-func startHelper(t *testing.T) (*exec.Cmd, <-chan error) {
+// startHelper starts TestHelperProcess, and returns it, what its Wait says when
+// it ends, and the thread it keeps.
+func startHelper(t *testing.T) (*exec.Cmd, <-chan error, int) {
 	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	cmd := exec.Command(os.Args[0], "-test.run=^TestHelperProcess$")
 	cmd.Env = append(os.Environ(), "DOCKWELL_PROCESS_HELPER=1")
+	cmd.Stdout = w
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
+	_ = w.Close()
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
+	line, err := bufio.NewReader(r).ReadString('\n')
+	_ = r.Close()
+	tid, convErr := strconv.Atoi(strings.TrimSpace(line))
+	if err != nil || convErr != nil {
+		t.Fatalf("the helper said no thread: %q, %v", line, err)
+	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
-	t.Cleanup(func() { _ = cmd.Process.Kill() })
-	return cmd, done
+	return cmd, done, tid
 }
 
 func startOf(t *testing.T, c *collect.Collector, pid int) uint64 {
@@ -72,7 +103,7 @@ func reasonOf(err error) string { return resource.ReasonOf(err) }
 func TestEndEndsTheProcessNamed(t *testing.T) {
 	c := collect.New()
 	p := newProcesses(c, nil)
-	cmd, done := startHelper(t)
+	cmd, done, _ := startHelper(t)
 	_, killed, err := p.end(t.Context(), uint32(cmd.Process.Pid), startOf(t, c, cmd.Process.Pid))
 	if err != nil || killed {
 		t.Fatalf("end = %v, killed %v", err, killed)
@@ -87,24 +118,8 @@ func TestEndEndsTheProcessNamed(t *testing.T) {
 func TestEndingAThreadIsRefused(t *testing.T) {
 	c := collect.New()
 	p := newProcesses(c, nil)
-	cmd, done := startHelper(t)
+	cmd, done, tid := startHelper(t)
 	startOf(t, c, cmd.Process.Pid)
-	var tid int
-	for range 50 {
-		tasks, _ := os.ReadDir(fmt.Sprintf("/proc/%d/task", cmd.Process.Pid))
-		for _, task := range tasks {
-			if n, _ := strconv.Atoi(task.Name()); n != cmd.Process.Pid {
-				tid = n
-			}
-		}
-		if tid != 0 {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if tid == 0 {
-		t.Fatal("the helper runs no thread but its main one")
-	}
 	_, _, err := p.end(t.Context(), uint32(tid), startOf(t, c, tid))
 	if reasonOf(err) != collect.ReasonProcessProtected || !strings.Contains(err.Error(), fmt.Sprintf("thread of process %d", cmd.Process.Pid)) {
 		t.Errorf("ending a thread: %v, want it refused as a thread of %d", err, cmd.Process.Pid)
@@ -121,7 +136,7 @@ func TestWithoutPidfdsNothingIsSignalled(t *testing.T) {
 	c := collect.New()
 	p := newProcesses(c, nil)
 	p.pidfdOpen = func(int, int) (int, error) { return -1, unix.ENOSYS }
-	cmd, done := startHelper(t)
+	cmd, done, _ := startHelper(t)
 	_, _, err := p.end(t.Context(), uint32(cmd.Process.Pid), startOf(t, c, cmd.Process.Pid))
 	if reasonOf(err) != collect.ReasonProcessProtected || !strings.Contains(err.Error(), fmt.Sprintf("sudo kill %d", cmd.Process.Pid)) {
 		t.Errorf("without pidfds: %v, want it refused with how to end it over SSH", err)
@@ -137,7 +152,7 @@ func TestWithoutPidfdsNothingIsSignalled(t *testing.T) {
 func TestAProcessThatGoesOnceItsOpenIsntSignalled(t *testing.T) {
 	c := collect.New()
 	p := newProcesses(c, nil)
-	cmd, done := startHelper(t)
+	cmd, done, _ := startHelper(t)
 	start := startOf(t, c, cmd.Process.Pid)
 	p.opened = func(uint32) {
 		_ = cmd.Process.Kill()
@@ -158,7 +173,7 @@ func TestAProcessThatGoesOnceItsOpenIsntSignalled(t *testing.T) {
 		t.Errorf("it signalled %v", signalled)
 	}
 	// And a process that started at another time isn't the one named.
-	cmd, done = startHelper(t)
+	cmd, done, _ = startHelper(t)
 	if _, _, err := newProcesses(c, nil).end(t.Context(), uint32(cmd.Process.Pid), startOf(t, c, cmd.Process.Pid)+1); reasonOf(err) != collect.ReasonProcessGone {
 		t.Errorf("a process that started at another time: %v, want it gone", err)
 	}
