@@ -152,6 +152,34 @@ describe("Moving in from 1Panel", () => {
     expect(discardChange).not.toHaveBeenCalled();
   });
 
+  it("leaves nothing planned when the page is left mid-read", async () => {
+    let finish: (res: ReturnType<typeof found>) => void = () => {};
+    const importOnePanel = vi.fn(
+      (_req: { serverId: string; skipPlan?: boolean }) =>
+        new Promise<ReturnType<typeof found>>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const discardChange = vi.fn((_req: { id: string }) => ({}));
+    const { router } = renderAt(
+      "/servers/srv_1/import",
+      api({
+        imports: { importOnePanel },
+        changes: { discardChange },
+        containers: { listContainers: () => containers([]) },
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Read what 1Panel keeps" }));
+    await waitFor(() => expect(importOnePanel).toHaveBeenCalledTimes(1));
+    await router.navigate({ to: "/servers/$serverId", params: { serverId: "srv_1" } });
+    finish(found());
+    await waitFor(() => expect(router.state.location.pathname).toBe("/servers/srv_1"));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Read/ })).toBeNull());
+    // The read asked for no plan, so there was none to leave behind or discard.
+    expect(importOnePanel.mock.lastCall?.[0]).toMatchObject({ skipPlan: true });
+    expect(discardChange).not.toHaveBeenCalled();
+  });
+
   it("plans nothing when it reads again, and forgets what it found when a read fails", async () => {
     let fail = false;
     const importOnePanel = vi.fn((_req: { serverId: string; skipPlan?: boolean }) => {
