@@ -661,6 +661,16 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Probe{Probe: found}}
 	}
+	if call.GetReadOnepanel() != nil {
+		if c.cfg.OnePanel == nil {
+			return fail(errors.New("this agent doesn't read 1Panel's records"))
+		}
+		found, err := c.cfg.OnePanel(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ReadOnepanel{ReadOnepanel: found}}
+	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",
 	}}}

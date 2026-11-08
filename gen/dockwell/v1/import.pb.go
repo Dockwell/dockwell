@@ -161,10 +161,7 @@ func (ImportAction) EnumDescriptor() ([]byte, []int) {
 type ImportOnePanelRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The server running 1Panel, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
-	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
-	// To say what an import would do, and record nothing. It has to be set until
-	// the import itself can be planned.
-	PlanOnly      bool `protobuf:"varint,2,opt,name=plan_only,json=planOnly,proto3" json:"plan_only,omitempty"`
+	ServerId      string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -206,13 +203,6 @@ func (x *ImportOnePanelRequest) GetServerId() string {
 	return ""
 }
 
-func (x *ImportOnePanelRequest) GetPlanOnly() bool {
-	if x != nil {
-		return x.PlanOnly
-	}
-	return false
-}
-
 // ImportOnePanelResponse is what 1Panel keeps on the server, and what an import
 // would do with each.
 type ImportOnePanelResponse struct {
@@ -221,7 +211,10 @@ type ImportOnePanelResponse struct {
 	Found *OnePanel `protobuf:"bytes,1,opt,name=found,proto3" json:"found,omitempty"`
 	// What an import would do, a step for each thing found, in the order the
 	// plan would take them.
-	Steps         []*ImportStep `protobuf:"bytes,2,rep,name=steps,proto3" json:"steps,omitempty"`
+	Steps []*ImportStep `protobuf:"bytes,2,rep,name=steps,proto3" json:"steps,omitempty"`
+	// The change that takes on what can be taken now, planned for a person to
+	// apply. Empty for now: planning the import comes next.
+	Change        *Change `protobuf:"bytes,3,opt,name=change,proto3" json:"change,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -266,6 +259,13 @@ func (x *ImportOnePanelResponse) GetFound() *OnePanel {
 func (x *ImportOnePanelResponse) GetSteps() []*ImportStep {
 	if x != nil {
 		return x.Steps
+	}
+	return nil
+}
+
+func (x *ImportOnePanelResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
 	}
 	return nil
 }
@@ -1352,13 +1352,13 @@ var File_dockwell_v1_import_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/import.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"Q\n" +
+	"\x18dockwell/v1/import.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"4\n" +
 	"\x15ImportOnePanelRequest\x12\x1b\n" +
-	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1b\n" +
-	"\tplan_only\x18\x02 \x01(\bR\bplanOnly\"t\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\"\xa1\x01\n" +
 	"\x16ImportOnePanelResponse\x12+\n" +
 	"\x05found\x18\x01 \x01(\v2\x15.dockwell.v1.OnePanelR\x05found\x12-\n" +
-	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\"\xe9\x01\n" +
+	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\x12+\n" +
+	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xe9\x01\n" +
 	"\n" +
 	"ImportStep\x12+\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x17.dockwell.v1.ImportKindR\x04kind\x12\x12\n" +
@@ -1503,29 +1503,31 @@ var file_dockwell_v1_import_proto_goTypes = []any{
 	(*OnePanelDatabaseServer)(nil), // 11: dockwell.v1.OnePanelDatabaseServer
 	(*OnePanelDatabase)(nil),       // 12: dockwell.v1.OnePanelDatabase
 	(*OnePanelCronJob)(nil),        // 13: dockwell.v1.OnePanelCronJob
-	(*timestamppb.Timestamp)(nil),  // 14: google.protobuf.Timestamp
+	(*Change)(nil),                 // 14: dockwell.v1.Change
+	(*timestamppb.Timestamp)(nil),  // 15: google.protobuf.Timestamp
 }
 var file_dockwell_v1_import_proto_depIdxs = []int32{
 	5,  // 0: dockwell.v1.ImportOnePanelResponse.found:type_name -> dockwell.v1.OnePanel
 	4,  // 1: dockwell.v1.ImportOnePanelResponse.steps:type_name -> dockwell.v1.ImportStep
-	0,  // 2: dockwell.v1.ImportStep.kind:type_name -> dockwell.v1.ImportKind
-	1,  // 3: dockwell.v1.ImportStep.action:type_name -> dockwell.v1.ImportAction
-	6,  // 4: dockwell.v1.OnePanel.apps:type_name -> dockwell.v1.OnePanelApp
-	7,  // 5: dockwell.v1.OnePanel.runtimes:type_name -> dockwell.v1.OnePanelRuntime
-	8,  // 6: dockwell.v1.OnePanel.websites:type_name -> dockwell.v1.OnePanelWebsite
-	10, // 7: dockwell.v1.OnePanel.certificates:type_name -> dockwell.v1.OnePanelCertificate
-	11, // 8: dockwell.v1.OnePanel.database_servers:type_name -> dockwell.v1.OnePanelDatabaseServer
-	12, // 9: dockwell.v1.OnePanel.databases:type_name -> dockwell.v1.OnePanelDatabase
-	13, // 10: dockwell.v1.OnePanel.cron_jobs:type_name -> dockwell.v1.OnePanelCronJob
-	9,  // 11: dockwell.v1.OnePanelWebsite.domains:type_name -> dockwell.v1.OnePanelDomain
-	14, // 12: dockwell.v1.OnePanelCertificate.expires:type_name -> google.protobuf.Timestamp
-	2,  // 13: dockwell.v1.ImportService.ImportOnePanel:input_type -> dockwell.v1.ImportOnePanelRequest
-	3,  // 14: dockwell.v1.ImportService.ImportOnePanel:output_type -> dockwell.v1.ImportOnePanelResponse
-	14, // [14:15] is the sub-list for method output_type
-	13, // [13:14] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	14, // 2: dockwell.v1.ImportOnePanelResponse.change:type_name -> dockwell.v1.Change
+	0,  // 3: dockwell.v1.ImportStep.kind:type_name -> dockwell.v1.ImportKind
+	1,  // 4: dockwell.v1.ImportStep.action:type_name -> dockwell.v1.ImportAction
+	6,  // 5: dockwell.v1.OnePanel.apps:type_name -> dockwell.v1.OnePanelApp
+	7,  // 6: dockwell.v1.OnePanel.runtimes:type_name -> dockwell.v1.OnePanelRuntime
+	8,  // 7: dockwell.v1.OnePanel.websites:type_name -> dockwell.v1.OnePanelWebsite
+	10, // 8: dockwell.v1.OnePanel.certificates:type_name -> dockwell.v1.OnePanelCertificate
+	11, // 9: dockwell.v1.OnePanel.database_servers:type_name -> dockwell.v1.OnePanelDatabaseServer
+	12, // 10: dockwell.v1.OnePanel.databases:type_name -> dockwell.v1.OnePanelDatabase
+	13, // 11: dockwell.v1.OnePanel.cron_jobs:type_name -> dockwell.v1.OnePanelCronJob
+	9,  // 12: dockwell.v1.OnePanelWebsite.domains:type_name -> dockwell.v1.OnePanelDomain
+	15, // 13: dockwell.v1.OnePanelCertificate.expires:type_name -> google.protobuf.Timestamp
+	2,  // 14: dockwell.v1.ImportService.ImportOnePanel:input_type -> dockwell.v1.ImportOnePanelRequest
+	3,  // 15: dockwell.v1.ImportService.ImportOnePanel:output_type -> dockwell.v1.ImportOnePanelResponse
+	15, // [15:16] is the sub-list for method output_type
+	14, // [14:15] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_import_proto_init() }
@@ -1533,6 +1535,7 @@ func file_dockwell_v1_import_proto_init() {
 	if File_dockwell_v1_import_proto != nil {
 		return
 	}
+	file_dockwell_v1_change_proto_init()
 	file_dockwell_v1_options_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{

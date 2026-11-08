@@ -1946,11 +1946,11 @@ paths:
                 ImportOnePanel reads what 1Panel keeps on a server: its apps from its store,
                  runtimes, websites, certificates, databases and cron jobs. It says what
                  Dockwell would do with each and why: take it on as it runs, make it again,
-                 or leave it, and which issue it waits for where Dockwell can't yet. With
-                 plan_only it records nothing. Planning the import itself comes next. The
-                 agent reads 1Panel's records read-only, and nothing secret comes back: no
-                 password, key, script, environment or URL path. So a read-only token can
-                 ask for a plan-only read.
+                 or leave it, and which issue it waits for where Dockwell can't yet. For now
+                 it records nothing and returns no change: planning the import, as a change
+                 a person applies, comes next. The agent reads 1Panel's records read-only,
+                 and nothing secret comes back: no password, key, script, environment or URL
+                 path. So a read-write token can ask, as for CheckCompose.
             operationId: ImportService_ImportOnePanel
             parameters:
                 - name: serverId
@@ -6654,11 +6654,6 @@ components:
                 serverId:
                     type: string
                     description: The server running 1Panel, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
-                planOnly:
-                    type: boolean
-                    description: |-
-                        To say what an import would do, and record nothing. It has to be set until
-                         the import itself can be planned.
             description: ImportOnePanelRequest names the server to import from.
         ImportOnePanelResponse:
             type: object
@@ -6674,6 +6669,12 @@ components:
                     description: |-
                         What an import would do, a step for each thing found, in the order the
                          plan would take them.
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: |-
+                        The change that takes on what can be taken now, planned for a person to
+                         apply. Empty for now: planning the import comes next.
             description: |-
                 ImportOnePanelResponse is what 1Panel keeps on the server, and what an import
                  would do with each.

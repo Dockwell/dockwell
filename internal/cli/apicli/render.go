@@ -73,6 +73,8 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 			fmt.Fprintln(w)
 			_, _ = io.WriteString(w, m.GetConfig())
 		}
+	case *dockwellv1.ImportOnePanelResponse:
+		importView(w, m)
 	case *dockwellv1.ExportComposeResponse:
 		// The file alone, so it pipes into docker compose -f -. Its comments
 		// say which variables it leaves out.

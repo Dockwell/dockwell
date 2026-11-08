@@ -767,11 +767,10 @@ func Methods() []*apicli.Method {
 			Noun:      "import",
 			Verb:      "1panel",
 			Short:     "Read what 1Panel keeps on a server",
-			Long:      "Read what 1Panel keeps on a server: its apps from its store, runtimes, websites,\ncertificates, databases and cron jobs. It says what Dockwell would do with each\nand why: take it on as it runs, make it again, or leave it, and which issue it\nwaits for where Dockwell can't yet. With plan_only it records nothing. Planning\nthe import itself comes next. The agent reads 1Panel's records read-only, and\nnothing secret comes back: no password, key, script, environment or URL path. So\na read-only token can ask for a plan-only read.",
+			Long:      "Read what 1Panel keeps on a server: its apps from its store, runtimes, websites,\ncertificates, databases and cron jobs. It says what Dockwell would do with each\nand why: take it on as it runs, make it again, or leave it, and which issue it\nwaits for where Dockwell can't yet. For now it records nothing and returns no\nchange: planning the import, as a change a person applies, comes next. The agent\nreads 1Panel's records read-only, and nothing secret comes back: no password,\nkey, script, environment or URL path. So a read-write token can ask, as for\ndockwell compose check.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server running 1Panel, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\"."},
-				{Path: "plan_only", Help: "To say what an import would do, and record nothing. It has to be set until the import itself can be planned."},
 			},
 			Call: apicli.Unary[v1.ImportOnePanelRequest, v1.ImportOnePanelResponse](dockwellv1connect.ImportServiceImportOnePanelProcedure),
 		},
