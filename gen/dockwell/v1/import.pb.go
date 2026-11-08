@@ -1263,13 +1263,29 @@ type OnePanelCronJob struct {
 	Status string `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
 	// The container a shell job runs in, where it runs in one.
 	Container string `protobuf:"bytes,5,opt,name=container,proto3" json:"container,omitempty"`
-	// What it backs up or acts on: an app's, a website's or a database's name,
-	// or a folder.
+	// What it backs up or acts on: apps', websites' or databases' names, comma
+	// separated, "all" for every one, or a folder.
 	Target string `protobuf:"bytes,6,opt,name=target,proto3" json:"target,omitempty"`
 	// The host a URL job calls, without its path or query.
 	UrlHost string `protobuf:"bytes,7,opt,name=url_host,json=urlHost,proto3" json:"url_host,omitempty"`
-	// How many lines a shell job's script has.
-	ScriptLines   uint32 `protobuf:"varint,8,opt,name=script_lines,json=scriptLines,proto3" json:"script_lines,omitempty"`
+	// How many lines a shell job's script has, where it's written in the job or
+	// in 1Panel's library.
+	ScriptLines uint32 `protobuf:"varint,8,opt,name=script_lines,json=scriptLines,proto3" json:"script_lines,omitempty"`
+	// Where a shell job's script is: "input", written in the job; "library", one
+	// of 1Panel's library scripts, named in script_name; or "select", a file on
+	// the server, at script_path.
+	ScriptFrom string `protobuf:"bytes,9,opt,name=script_from,json=scriptFrom,proto3" json:"script_from,omitempty"`
+	// The name of the library script a shell job runs.
+	ScriptName string `protobuf:"bytes,10,opt,name=script_name,json=scriptName,proto3" json:"script_name,omitempty"`
+	// The file on the server a shell job runs.
+	ScriptPath string `protobuf:"bytes,11,opt,name=script_path,json=scriptPath,proto3" json:"script_path,omitempty"`
+	// What runs a shell job's script, such as "bash" or "python3".
+	Interpreter string `protobuf:"bytes,12,opt,name=interpreter,proto3" json:"interpreter,omitempty"`
+	// Who a shell job runs as in its container, where 1Panel says.
+	User string `protobuf:"bytes,13,opt,name=user,proto3" json:"user,omitempty"`
+	// The kind of database a database backup is of, as 1Panel says it: "mysql",
+	// "mariadb", "postgresql" or "mongodb".
+	DatabaseType  string `protobuf:"bytes,14,opt,name=database_type,json=databaseType,proto3" json:"database_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1358,6 +1374,48 @@ func (x *OnePanelCronJob) GetScriptLines() uint32 {
 		return x.ScriptLines
 	}
 	return 0
+}
+
+func (x *OnePanelCronJob) GetScriptFrom() string {
+	if x != nil {
+		return x.ScriptFrom
+	}
+	return ""
+}
+
+func (x *OnePanelCronJob) GetScriptName() string {
+	if x != nil {
+		return x.ScriptName
+	}
+	return ""
+}
+
+func (x *OnePanelCronJob) GetScriptPath() string {
+	if x != nil {
+		return x.ScriptPath
+	}
+	return ""
+}
+
+func (x *OnePanelCronJob) GetInterpreter() string {
+	if x != nil {
+		return x.Interpreter
+	}
+	return ""
+}
+
+func (x *OnePanelCronJob) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *OnePanelCronJob) GetDatabaseType() string {
+	if x != nil {
+		return x.DatabaseType
+	}
+	return ""
 }
 
 var File_dockwell_v1_import_proto protoreflect.FileDescriptor
@@ -1456,7 +1514,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x06server\x18\x02 \x01(\tR\x06server\x12\x12\n" +
 	"\x04type\x18\x03 \x01(\tR\x04type\x12\x12\n" +
 	"\x04user\x18\x04 \x01(\tR\x04user\x12\x16\n" +
-	"\x06format\x18\x05 \x01(\tR\x06format\"\xe1\x01\n" +
+	"\x06format\x18\x05 \x01(\tR\x06format\"\x9f\x03\n" +
 	"\x0fOnePanelCronJob\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x1a\n" +
@@ -1465,7 +1523,17 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\tcontainer\x18\x05 \x01(\tR\tcontainer\x12\x16\n" +
 	"\x06target\x18\x06 \x01(\tR\x06target\x12\x19\n" +
 	"\burl_host\x18\a \x01(\tR\aurlHost\x12!\n" +
-	"\fscript_lines\x18\b \x01(\rR\vscriptLines*\xf9\x01\n" +
+	"\fscript_lines\x18\b \x01(\rR\vscriptLines\x12\x1f\n" +
+	"\vscript_from\x18\t \x01(\tR\n" +
+	"scriptFrom\x12\x1f\n" +
+	"\vscript_name\x18\n" +
+	" \x01(\tR\n" +
+	"scriptName\x12\x1f\n" +
+	"\vscript_path\x18\v \x01(\tR\n" +
+	"scriptPath\x12 \n" +
+	"\vinterpreter\x18\f \x01(\tR\vinterpreter\x12\x12\n" +
+	"\x04user\x18\r \x01(\tR\x04user\x12#\n" +
+	"\rdatabase_type\x18\x0e \x01(\tR\fdatabaseType*\xf9\x01\n" +
 	"\n" +
 	"ImportKind\x12\x1b\n" +
 	"\x17IMPORT_KIND_UNSPECIFIED\x10\x00\x12\x13\n" +

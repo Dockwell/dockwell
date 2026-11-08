@@ -232,7 +232,7 @@ func (r *reader) all(found *dockwellv1.OnePanel, settings map[string]string, v1 
 	if err := r.databases(found, installs); err != nil {
 		return err
 	}
-	return r.cronJobs(found, installs)
+	return r.cronJobs(found, installs, v1)
 }
 
 // appFolder is where an install of the app keyed key keeps its Compose file.
@@ -324,25 +324,42 @@ func (r *reader) databases(found *dockwellv1.OnePanel, installs map[int64]string
 	return nil
 }
 
-func (r *reader) cronJobs(found *dockwellv1.OnePanel, installs map[int64]string) error {
+func (r *reader) cronJobs(found *dockwellv1.OnePanel, installs map[int64]string, v1 bool) error {
+	// A backup job keeps what it backs up by ID, so the names come from where each
+	// kind is kept.
+	names := func(table, column string) map[int64]string {
+		out := map[int64]string{}
+		_ = r.rows(table, func(row sqlitefile.Row) { out[row.Int("id")] = row.Text(column) })
+		return out
+	}
+	sites := names("websites", "primary_domain")
+	databases := map[string]map[int64]string{
+		"mysql": names("database_mysqls", "name"), "postgresql": names("database_postgresqls", "name"),
+		"mongodb": names("database_mongodbs", "name"),
+	}
+	databases["mariadb"], databases["mysql-cluster"] = databases["mysql"], databases["mysql"]
+	databases["postgresql-cluster"] = databases["postgresql"]
+	library := map[int64][2]string{}
+	_ = r.rows("script_libraries", func(row sqlitefile.Row) {
+		library[row.Int("id")] = [2]string{row.Text("name"), row.Text("script")}
+	})
 	return r.rows("cronjobs", func(row sqlitefile.Row) {
 		job := &dockwellv1.OnePanelCronJob{
-			Name: row.Text("name"), Type: row.Text("type"), Schedule: row.Text("spec"), Status: row.Text("status"),
+			Name: row.Text("name"), Type: row.Text("type"), Schedule: schedules(row.Text("spec"), v1), Status: row.Text("status"),
 			Container: row.Text("container_name"),
 		}
 		switch job.Type {
 		case "shell":
-			if script := row.Text("script"); script != "" {
-				job.ScriptLines = uint32(min(bytes.Count([]byte(strings.TrimRight(script, "\n")), []byte("\n"))+1, 1<<20)) //nolint:gosec // bounded
-			}
+			r.shell(job, row, library)
 		case "curl":
 			if u, err := url.Parse(strings.TrimSpace(row.Text("url"))); err == nil {
 				job.UrlHost = u.Hostname()
 			}
 		case "website":
-			job.Target = row.Text("website")
+			job.Target = targets(row.Text("website"), sites)
 		case "database":
-			job.Target = row.Text("db_name")
+			job.DatabaseType = row.Text("db_type")
+			job.Target = targets(row.Text("db_name"), databases[job.DatabaseType])
 		case "directory":
 			job.Target = row.Text("source_dir")
 		case "app":
@@ -352,8 +369,49 @@ func (r *reader) cronJobs(found *dockwellv1.OnePanel, installs map[int64]string)
 	})
 }
 
-// targets names what an app backup acts on: 1Panel keeps install IDs, comma
-// separated, or "all".
+// shell reads where a shell job's script is, what runs it and as whom, and how
+// long it is, but never the script.
+func (r *reader) shell(job *dockwellv1.OnePanelCronJob, row sqlitefile.Row, library map[int64][2]string) {
+	job.ScriptFrom = cmp.Or(row.Text("script_mode"), "input")
+	script := row.Text("script")
+	switch job.ScriptFrom {
+	case "library":
+		named := library[row.Int("script_id")]
+		job.ScriptName, script = named[0], named[1]
+	case "select":
+		job.ScriptPath, script = strings.TrimSpace(script), ""
+	}
+	if script != "" {
+		job.ScriptLines = uint32(min(bytes.Count([]byte(strings.TrimRight(script, "\n")), []byte("\n"))+1, 1<<20)) //nolint:gosec // bounded
+	}
+	// What 1Panel runs it with: the command in a container, sh where none's
+	// given, and the executor on the server, bash where none's given.
+	if job.Container != "" {
+		job.Interpreter = cmp.Or(row.Text("command"), "sh")
+		job.User = row.Text("user")
+	} else {
+		job.Interpreter = cmp.Or(row.Text("executor"), "bash")
+	}
+}
+
+// schedules is a job's schedules, a line each: 1Panel joins several with "&&",
+// and 1.10 with ",".
+func schedules(spec string, v1 bool) string {
+	sep := "&&"
+	if v1 {
+		sep = ","
+	}
+	var out []string
+	for s := range strings.SplitSeq(spec, sep) {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// targets names what a backup acts on: 1Panel keeps IDs, comma separated, or
+// "all".
 func targets(ids string, installs map[int64]string) string {
 	if strings.TrimSpace(ids) == "all" {
 		return "all"

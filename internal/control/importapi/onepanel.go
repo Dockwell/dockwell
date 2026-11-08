@@ -326,16 +326,32 @@ func cronJobStep(j *dockwellv1.OnePanelCronJob) *dockwellv1.ImportStep {
 	}
 	switch j.GetType() {
 	case "shell":
-		s.Summary = fmt.Sprintf("a shell script of %d lines, on %s", j.GetScriptLines(), schedule)
-		s.Becomes = "a scheduled task running the same script"
-		if j.GetContainer() != "" {
-			s.Becomes += ", in the container " + j.GetContainer()
+		run := j.GetInterpreter()
+		switch j.GetScriptFrom() {
+		case "library":
+			s.Summary = fmt.Sprintf("the script %s from 1Panel's library, %s, run by %s", j.GetScriptName(), lines(j.GetScriptLines()), run)
+			s.Becomes = "a scheduled task running the same script"
+		case "select":
+			s.Summary = fmt.Sprintf("the script %s on the server, run by %s", j.GetScriptPath(), run)
+			s.Becomes = "a scheduled task running " + j.GetScriptPath()
+		default:
+			s.Summary = fmt.Sprintf("a %s script of %s", run, lines(j.GetScriptLines()))
+			s.Becomes = "a scheduled task running the same script"
 		}
+		if c := j.GetContainer(); c != "" {
+			s.Summary += ", in the container " + c
+			s.Becomes += ", in the container " + c
+			if u := j.GetUser(); u != "" {
+				s.Summary += " as " + u
+				s.Becomes += " as " + u
+			}
+		}
+		s.Summary += ", on " + schedule
 	case "curl":
 		s.Summary = fmt.Sprintf("a call to %s, on %s", j.GetUrlHost(), schedule)
 		s.Becomes = "a scheduled task calling the same URL"
 	case "app", "website", "database", "directory":
-		s.Summary = fmt.Sprintf("a backup of the %s %s, on %s", map[string]string{"app": "apps", "website": "website", "database": "database", "directory": "folder"}[j.GetType()], j.GetTarget(), schedule)
+		s.Summary = fmt.Sprintf("a backup of %s, on %s", backupOf(j), schedule)
 		s.Becomes = "a scheduled backup of the same, to Dockwell's backups"
 	case "snapshot":
 		return leave("a snapshot of 1Panel", "A snapshot of 1Panel itself is 1Panel's.")
@@ -354,6 +370,42 @@ func cronJobStep(j *dockwellv1.OnePanelCronJob) *dockwellv1.ImportStep {
 		s.Reason = "It's off in 1Panel, and comes off."
 	}
 	return s
+}
+
+// lines says how many lines a script has.
+func lines(n uint32) string {
+	if n == 1 {
+		return "1 line"
+	}
+	return fmt.Sprintf("%d lines", n)
+}
+
+// databaseTypes names the kinds of database 1Panel backs up.
+var databaseTypes = map[string]string{
+	"mysql": "MySQL", "mariadb": "MariaDB", "mysql-cluster": "MySQL cluster", "postgresql": "PostgreSQL",
+	"postgresql-cluster": "PostgreSQL cluster", "mongodb": "MongoDB",
+}
+
+// backupOf says what a backup job backs up: "the website blog.example.com",
+// "the apps mysql, wordpress", "every PostgreSQL database".
+func backupOf(j *dockwellv1.OnePanelCronJob) string {
+	nouns := map[string][2]string{
+		"app": {"app", "apps"}, "website": {"website", "websites"}, "database": {"database", "databases"}, "directory": {"folder", "folders"},
+	}[j.GetType()]
+	one, many := nouns[0], nouns[1]
+	if t := databaseTypes[j.GetDatabaseType()]; t != "" {
+		one, many = t+" "+one, t+" "+many
+	}
+	switch target := j.GetTarget(); {
+	case target == "all":
+		return "every " + one
+	case target == "":
+		return "the " + many + " it names, which 1Panel no longer has"
+	case strings.Contains(target, ","):
+		return "the " + many + " " + target
+	default:
+		return "the " + one + " " + target
+	}
 }
 
 func panelStep(found *dockwellv1.OnePanel) *dockwellv1.ImportStep {

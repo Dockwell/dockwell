@@ -33,7 +33,7 @@ var schema = []string{
 	"CREATE TABLE `databases` (`id` integer PRIMARY KEY AUTOINCREMENT,`created_at` datetime,`updated_at` datetime,`app_install_id` integer,`name` text NOT NULL UNIQUE,`type` text NOT NULL,`version` text NOT NULL,`from` text NOT NULL,`address` text NOT NULL,`port` integer NOT NULL,`username` text,`password` text,`client_key` text)",
 	"CREATE TABLE `database_mysqls` (`id` integer PRIMARY KEY AUTOINCREMENT,`created_at` datetime,`updated_at` datetime,`name` text NOT NULL,`from` text NOT NULL DEFAULT \"local\",`mysql_name` text NOT NULL,`format` text NOT NULL,`collation` text,`username` text NOT NULL,`password` text NOT NULL,`permission` text NOT NULL,`is_delete` numeric,`description` text)",
 	"CREATE TABLE `database_postgresqls` (`id` integer PRIMARY KEY AUTOINCREMENT,`created_at` datetime,`updated_at` datetime,`name` text NOT NULL,`from` text NOT NULL DEFAULT \"local\",`postgresql_name` text NOT NULL,`format` text NOT NULL,`username` text NOT NULL,`password` text NOT NULL,`super_user` numeric,`is_delete` numeric,`description` text)",
-	"CREATE TABLE `cronjobs` (`id` integer PRIMARY KEY AUTOINCREMENT,`created_at` datetime,`updated_at` datetime,`name` text NOT NULL,`type` text NOT NULL,`spec_custom` numeric,`spec` text NOT NULL,`executor` text,`command` text,`container_name` text,`script_mode` text,`script` text,`user` text,`website` text,`app_id` text,`db_type` text,`db_name` text,`url` text,`source_dir` text,`status` text,`secret` text)",
+	"CREATE TABLE `cronjobs` (`id` integer PRIMARY KEY AUTOINCREMENT,`created_at` datetime,`updated_at` datetime,`name` text NOT NULL,`type` text NOT NULL,`spec_custom` numeric,`spec` text NOT NULL,`executor` text,`command` text,`container_name` text,`script_mode` text,`script_id` integer,`script` text,`user` text,`website` text,`app_id` text,`db_type` text,`db_name` text,`url` text,`source_dir` text,`status` text,`secret` text)",
 }
 
 // Secrets are planted in every column that holds one, and none may come back.
@@ -66,16 +66,23 @@ var data = []string{
 		(2, 0, 'reports', 'postgresql', '17', 'remote', '203.0.113.20', 5432, 'admin', 's3cret-db', 's3cret-key')`,
 	`INSERT INTO database_mysqls (name, mysql_name, format, username, password, permission, is_delete) VALUES ('wp', 'mysql', 'utf8mb4', 'wp_user', 's3cret-db', '%', 0), ('gone', 'mysql', 'utf8mb4', 'old', 's3cret-db', '%', 1)`,
 	`INSERT INTO database_postgresqls (name, postgresql_name, format, username, password, is_delete) VALUES ('stats', 'reports', 'UTF8', 'stats_user', 's3cret-db', 0)`,
-	`INSERT INTO cronjobs (name, type, spec, executor, command, container_name, script, url, website, app_id, db_name, source_dir, status, secret) VALUES
-		('nightly', 'shell', '0 3 * * *', 'bash', 'echo s3cret-cmd', 'mine', 'export PASS=s3cret-script
+	"CREATE TABLE `script_libraries` (`id` integer PRIMARY KEY AUTOINCREMENT,`created_at` datetime,`updated_at` datetime,`name` text NOT NULL,`script` text NOT NULL)",
+	`INSERT INTO script_libraries (id, name, script) VALUES (1, 'disk report', 'df -h
+du -sh /srv/* s3cret-script
+')`,
+	`INSERT INTO cronjobs (name, type, spec, executor, command, container_name, script_mode, script_id, script, user, url, website, app_id, db_type, db_name, source_dir, status, secret) VALUES
+		('nightly', 'shell', '0 3 * * *', 'bash', 'sh', 'mine', 'input', 0, 'export PASS=s3cret-script
 mysqldump --password=$PASS > /backup.sql
-', '', '', '', '', '', 'Enable', 's3cret-key'),
-		('ping', 'curl', '*/5 * * * *', '', '', '', '', 'https://hooks.example.com/ping?token=s3cret-token', '', '', '', '', 'Enable', ''),
-		('site backup', 'website', '0 4 * * *', '', '', '', '', '', 'blog', '', '', '', 'Enable', ''),
-		('app backup', 'app', '0 5 * * 0', '', '', '', '', '', '', '1,3', '', '', 'Disable', ''),
-		('db backup', 'database', '0 6 * * *', '', '', '', '', '', '', '', 'wp', '', 'Enable', ''),
-		('dir backup', 'directory', '0 7 * * *', '', '', '', '', '', '', '', '', '/srv/files', 'Enable', ''),
-		('time', 'ntp', '0 0 * * *', '', '', '', '', '', '', '', '', '', 'Enable', '')`,
+', 'www-data', '', '', '', '', '', '', 'Enable', 's3cret-key'),
+		('report', 'shell', '0 8 * * 1&&0 8 * * 4', 'python3', '', '', 'library', 1, '', '', '', '', '', '', '', '', 'Enable', ''),
+		('rotate', 'shell', '30 2 * * *', '', '', '', 'select', 0, '/srv/scripts/rotate.sh', '', '', '', '', '', '', '', 'Enable', ''),
+		('ping', 'curl', '*/5 * * * *', '', '', '', '', 0, '', '', 'https://hooks.example.com/ping?token=s3cret-token', '', '', '', '', '', 'Enable', ''),
+		('site backup', 'website', '0 4 * * *', '', '', '', '', 0, '', '', '', '1,2', '', '', '', '', 'Enable', ''),
+		('app backup', 'app', '0 5 * * 0', '', '', '', '', 0, '', '', '', '', '1,3', '', '', '', 'Disable', ''),
+		('db backup', 'database', '0 6 * * *', '', '', '', '', 0, '', '', '', '', '', 'mysql', '1', '', 'Enable', ''),
+		('every db', 'database', '0 6 * * *', '', '', '', '', 0, '', '', '', '', '', 'postgresql', 'all', '', 'Enable', ''),
+		('dir backup', 'directory', '0 7 * * *', '', '', '', '', 0, '', '', '', '', '', '', '', '/srv/files', 'Enable', ''),
+		('time', 'ntp', '0 0 * * *', '', '', '', '', 0, '', '', '', '', '', '', '', '', 'Enable', '')`,
 }
 
 // Make makes a server's root with 1Panel installed under base, its records
