@@ -59,30 +59,36 @@ Every method declares three options beside `effect`, with no defaults:
 - **`min_role`** (option 50104), the lowest role it needs where its objects are in an open environment, or in no environment;
 - **`min_role_protected`** (option 50105), the lowest it needs where any of its objects is in a protected environment;
 - **`reach`** (option 50106), what its objects are:
-  - **anyone's:** calls before signing in, such as signing in, claiming and the version. They need no role.
-  - **self:** the caller's own sign-in, sessions and tokens, in `AuthService` and `TokenService`. These need any grant, and act only on the caller's own records. Signing out needs none, so someone with no grant left can still sign out, and only that.
+  - **anyone's:** calls before signing in, such as signing in, claiming and the version, exactly the interceptor's list of public calls. They need no role.
+  - **self:** the caller's own sign-in, sessions and tokens, in `AuthService` and `TokenService` and nowhere else. These need any grant, and act only on the caller's own records. Signing out needs none, so someone with no grant left can still sign out, and only that.
   - **shared:** the same for everyone who holds a grant, such as the catalog's apps, read only.
   - **project:** a project's own objects, class 1 above.
-  - **named:** class 2, read or checked by name and state, as `CheckDomain` checks.
+  - **named:** class 2, read or checked, never written. Below an admin, a response holds names and states only: a server's ID, name, whether it's up, when it was last seen, whether it's the control server and its public addresses; a destination's name and when its last backup got there or didn't. Inventory, stats, history, builds, ingress, endpoints, buckets and prefixes stay an admin's.
   - **install:** class 3, an admin's.
 
 Plan methods whose writes go through `internal/revision`, such as `DeployService`, `RestartService`, `UndoChange` and `RestoreBackup`, declare developer in both places, so a developer's protected change gets as far as check 2, which makes it wait. Writes that don't go through it, such as making or deleting a backup, declare admin where protected. A read that needs a session, such as revealing a secret, declares admin where protected.
 
 A viewer may make an API token. It acts as a viewer does, so it only reads, whatever its scope.
 
-The interceptor checks `min_role` against the caller's highest grant anywhere, as a first gate (ADR 0048, check 1). The resolver then checks both roles against the grants on each object's place (check 3). `internal/revision` checks each item of a change (check 2). Each check uses the stricter of an item's place before and after the change.
+`CheckDomain`, which resolves a name through the control server, is a developer's: only adding a domain asks it.
+
+The interceptor checks `min_role` against the caller's highest grant anywhere, as a first gate (ADR 0048, check 1). A call outside `dockwell.v1` with no rule is the owner's, except gRPC's health and reflection. A REST path is checked the same way before Vanguard reads its query or body, so someone signed out, or whose role doesn't cover the call, learns that and not what's wrong with the request ([ADR 0015](0015-rest-and-openapi-from-the-schema.md)). The resolver then checks both roles against the grants on each object's place (check 3). `internal/revision` checks each item of a change (check 2). Each check uses the stricter of an item's place before and after the change.
 
 **The descriptor test fails the build on:**
 
 - a method without `min_role`, `min_role_protected` or `reach`, reads included;
 - `min_role_protected` below `min_role`;
-- a role that needs nothing, outside calls before sign-in and the caller's own;
-- `min_role` viewer with any effect but read, outside the caller's own and a check of names;
+- reach anyone's on any call but the interceptor's public ones, or a public call without it;
+- a role that needs nothing, outside the public calls and signing out;
+- reach self outside `AuthService` and `TokenService`;
+- `min_role` viewer with any effect but read, outside the caller's own;
 - any write below developer, outside the caller's own;
 - install's own objects below admin;
-- named or shared objects with any effect but read, or for named, a check;
+- named objects that write, or shared objects with any effect but read;
 - a read that needs a session below admin where protected;
-- a method that names an object by an ID field, or in a list of them, without the resolver (ADR 0048). `BeginStepUpRequest.target` counts as an ID field.
+- a method that names an object by an ID field, or in a list of them, without the resolver (ADR 0048). `BeginStepUpRequest.target` counts as an ID field, and so does `server`, which, on the log calls, reads a container Dockwell didn't make: the install's.
+
+**Every method's options are in a table checked in beside the test,** `internal/control/testdata/roles.txt`, a line each, so a change to who may call a method shows in review as a changed line.
 
 ### Protected environments
 
@@ -133,7 +139,8 @@ A step-up proves who is there; a role says what they may do. Both are checked, a
 ### The owner, and people with no grant
 
 - **The owner can't remove or demote themselves:** they transfer ownership first, and then become an admin (ADR 0048).
-- **The owner's grant changes only in a transfer's transaction,** held by a check in the store as well as the unique index. Admins can't touch the owner's passkeys, codes, sessions or tokens.
+- **The owner's grant changes only in a transfer's transaction,** held by a check in the store as well as the unique index: granting the owner's role, changing what the owner holds on the install and taking it back are refused, and `TransferOwnership` is the one way. Admins can't touch the owner's passkeys, codes, sessions or tokens.
+- **`dockwell recover --owner EMAIL`** makes someone who signs in already the owner, from the control server, where whoever runs it controls the install already. An install with people and no owner, which only an older Dockwell could leave, says to run it.
 - **A transfer revokes the local token** the CLI made for the old owner ([ADR 0019](0019-a-cli-generated-from-the-schema.md)), as it acted for them.
 - **Removing someone** turns off their sign-in, and deletes their passkeys, codes and sessions, besides revoking their tokens. Their pending changes are listed in the removal plan, and discarded.
 - **A project's grants go with it** when it's deleted ([ADR 0036](0036-deleting-a-project-takes-its-environments.md)). Its plan names who loses their last grant.
@@ -165,7 +172,7 @@ Members' events are access events, on Activity and in the audit log, with a type
 - `member.remove`;
 - `owner.transfer`.
 
-**Role refusals go in the audit log** at most once an hour for each person or token and method, as ADR 0016 does for refused tokens, with a count of the rest.
+**Role refusals go in the audit log** as `role.refuse`, at most once an hour for each person or token and method, as ADR 0016 does for refused tokens, with a count of the rest. Its detail names the method, the role it needs, the address and what the caller held. A stream that ends because a grant changed isn't audited again: the change to the grant was.
 
 **A change reads as not found** unless every one of its items is in the reader's scope.
 

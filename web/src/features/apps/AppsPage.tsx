@@ -22,7 +22,6 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { sentence } from "../../lib/errors";
 import { formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
@@ -58,6 +57,7 @@ import { ImageName } from "./ImageName";
 import { usePlaces, useServices } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
+import { ReadFailed } from "../shell/ReadFailed";
 import { useServicesWatch } from "./ServicesLive";
 
 /** The list's place, in its URL: its filters. */
@@ -308,8 +308,8 @@ export function AppsPage({
     // Without the websites, a website's own web server would list as an app.
     const error = services.error ?? sites.error;
     body = (
-      <Callout
-        tone="critical"
+      <ReadFailed
+        error={error}
         title={t`Can't load the apps`}
         actions={
           <Button
@@ -323,8 +323,8 @@ export function AppsPage({
           </Button>
         }
       >
-        {error ? sentence(error) : null} <Trans>What runs on your servers isn't affected.</Trans>
-      </Callout>
+        <Trans>What runs on your servers isn't affected.</Trans>
+      </ReadFailed>
     );
   } else if ((all?.length ?? 0) === 0) {
     body = (

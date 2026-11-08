@@ -249,15 +249,18 @@ export enum Reach {
 
   /**
    * A project's own objects, named by ID or listed, each placed by the
-   * resolver.
+   * resolver. What a list or a filter holds on a server alone, such as a
+   * firewall rule, a container on its own or an access event, is placed as
+   * the install's.
    *
    * @generated from enum value: REACH_PROJECT = 4;
    */
   PROJECT = 4,
 
   /**
-   * What projects name on the install, such as servers and domains, read or
-   * checked by name and state.
+   * What projects name on the install, such as servers and backup
+   * destinations, read or checked; below an admin, a response holds names and
+   * states only.
    *
    * @generated from enum value: REACH_NAMED = 5;
    */

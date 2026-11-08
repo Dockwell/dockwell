@@ -132,7 +132,7 @@ func testTokensExpireAndAreRevoked(t *testing.T, b store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stream, stop := f.svc.Track(t.Context(), localhost, p)
+	stream, stop := f.svc.Track(t.Context(), localhost, p, nil)
 	defer stop()
 	if err := f.svc.RevokeToken(t.Context(), owner, revoked.Token.ID); err != nil {
 		t.Fatal(err)
@@ -153,7 +153,7 @@ func testTokensExpireAndAreRevoked(t *testing.T, b store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stream, stop = f.svc.Track(t.Context(), localhost, p)
+	stream, stop = f.svc.Track(t.Context(), localhost, p, nil)
 	defer stop()
 	f.clock.advance(time.Hour)
 	select {

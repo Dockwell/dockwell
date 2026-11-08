@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Code, ConnectError } from "@connectrpc/connect";
+import { t } from "@lingui/core/macro";
 
 /** The metadata key the control plane names a failure's reason under (see AuthService). */
 const REASON_KEY = "Dockwell-Error";
@@ -32,10 +33,21 @@ export function isSessionEnded(error: unknown): boolean {
 }
 
 /**
+ * True when the call was refused because the caller's role doesn't cover it.
+ * Trying again won't help: someone has to change the role first.
+ */
+export function isRoleRefusal(error: unknown): boolean {
+  return reasonOf(error) === "needs_role";
+}
+
+/**
  * The control plane's own message as a sentence, for errors the panel has no
- * words of its own for. API messages start lowercase, as Go errors do.
+ * words of its own for. API messages start lowercase, as Go errors do. A role
+ * refusal can come from any call, so it gets the panel's words here, in the
+ * panel's language, wherever it shows.
  */
 export function sentence(error: unknown): string {
+  if (isRoleRefusal(error)) return t`Your role doesn't let you do this here. Ask an admin to change your role.`;
   const err = ConnectError.from(error);
   const text = (err.rawMessage || err.message).trim();
   if (!text) return "";

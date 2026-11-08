@@ -67,13 +67,11 @@ func TestGrantsAreARoleInAPlace(t *testing.T) {
 			if got, _ := tx.Grants(ctx, "usr_ada"); len(got) != 2 || got[0].Role != store.RoleDeveloper {
 				t.Errorf("after granting blog again, ada holds %+v, want developer there, once", got)
 			}
-			for _, bad := range []store.Grant{
-				{UserID: "usr_ada", ProjectID: "prj_shop", Role: store.RoleAdmin},
-				{UserID: "usr_ada", ProjectID: "prj_shop", Role: store.RoleOwner},
-			} {
-				if err := tx.SetGrant(ctx, bad); !errors.Is(err, store.ErrNotAPlace) {
-					t.Errorf("granting %s on a project: %v, want ErrNotAPlace", bad.Role, err)
-				}
+			if err := tx.SetGrant(ctx, store.Grant{UserID: "usr_ada", ProjectID: "prj_shop", Role: store.RoleAdmin}); !errors.Is(err, store.ErrNotAPlace) {
+				t.Errorf("granting admin on a project: %v, want ErrNotAPlace", err)
+			}
+			if err := tx.SetGrant(ctx, store.Grant{UserID: "usr_ada", ProjectID: "prj_shop", Role: store.RoleOwner}); !errors.Is(err, store.ErrOwner) {
+				t.Errorf("granting owner on a project: %v, want ErrOwner", err)
 			}
 			if err := tx.SetGrant(ctx, store.Grant{UserID: "usr_ada", Role: "superuser"}); err == nil {
 				t.Error("granting a role that isn't one worked")
@@ -84,12 +82,20 @@ func TestGrantsAreARoleInAPlace(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// A second owner is refused, and leaves the first.
-		err = db.Update(ctx, func(tx *store.Tx) error {
-			return tx.SetGrant(ctx, store.Grant{UserID: "usr_sam", ProjectID: store.Install, Role: store.RoleOwner, CreatedAt: now})
-		})
-		if !errors.Is(err, store.ErrConflict) {
-			t.Errorf("a second owner: %v, want ErrConflict", err)
+		// The owner's role is given and taken only by a transfer: not granted, not
+		// changed, not taken back.
+		for what, change := range map[string]func(tx *store.Tx) error{
+			"granting the owner's role": func(tx *store.Tx) error {
+				return tx.SetGrant(ctx, store.Grant{UserID: "usr_sam", ProjectID: store.Install, Role: store.RoleOwner, CreatedAt: now})
+			},
+			"demoting the owner": func(tx *store.Tx) error {
+				return tx.SetGrant(ctx, store.Grant{UserID: "usr_mira", ProjectID: store.Install, Role: store.RoleViewer, CreatedAt: now})
+			},
+			"taking the owner's grant back": func(tx *store.Tx) error { return tx.RemoveGrant(ctx, "usr_mira", store.Install) },
+		} {
+			if err := db.Update(ctx, change); !errors.Is(err, store.ErrOwner) {
+				t.Errorf("%s: %v, want ErrOwner", what, err)
+			}
 		}
 		err = db.Update(ctx, func(tx *store.Tx) error {
 			return tx.CreateUser(ctx, person("usr_eve", "eve@example.com", store.RoleOwner))
@@ -173,6 +179,57 @@ func TestUpgradeKeepsTheOwner(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+	})
+}
+
+// Ownership moves only by a transfer, which makes the owner before an admin, so
+// there is always exactly one owner.
+func TestOwnershipMovesByTransfer(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		now := time.Date(2026, 11, 8, 9, 0, 0, 0, time.UTC)
+		err := db.Update(ctx, func(tx *store.Tx) error {
+			for _, u := range []store.User{
+				{ID: "usr_mira", Email: "mira@example.com", Name: "Mira", Role: store.RoleOwner, WebAuthnHandle: []byte("m"), CreatedAt: now},
+				{ID: "usr_ada", Email: "ada@example.com", Name: "Ada", WebAuthnHandle: []byte("a"), CreatedAt: now},
+			} {
+				if err := tx.CreateUser(ctx, u); err != nil {
+					return err
+				}
+			}
+			if err := tx.SetGrant(ctx, store.Grant{UserID: "usr_ada", ProjectID: "prj_shop", Role: store.RoleDeveloper, CreatedAt: now}); err != nil {
+				return err
+			}
+			return tx.TransferOwnership(ctx, "usr_ada", now, "cli:mira@web-1")
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = db.View(ctx, func(tx *store.Tx) error {
+			owner, err := tx.Owner(ctx)
+			if err != nil || owner.ID != "usr_ada" {
+				t.Errorf("after the transfer the owner is %+v, %v, want ada", owner, err)
+			}
+			mira, err := tx.GetUser(ctx, "usr_mira")
+			if err != nil || mira.Role != store.RoleAdmin {
+				t.Errorf("after the transfer the owner before is %q, %v, want an admin", mira.Role, err)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The owner before is an admin like any other now, so their role can change.
+		err = db.Update(ctx, func(tx *store.Tx) error {
+			return tx.SetGrant(ctx, store.Grant{UserID: "usr_mira", ProjectID: store.Install, Role: store.RoleViewer, CreatedAt: now})
+		})
+		if err != nil {
+			t.Errorf("demoting the owner before: %v", err)
+		}
+		if err := db.Update(ctx, func(tx *store.Tx) error { return tx.TransferOwnership(ctx, "usr_nobody", now, "") }); !errors.Is(err, store.ErrNotFound) {
+			t.Errorf("transferring to nobody: %v, want ErrNotFound", err)
 		}
 	})
 }

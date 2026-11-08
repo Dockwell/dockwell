@@ -51,10 +51,16 @@ func Of(ctx context.Context, tx *store.Tx, objectID string) ([]Place, error) {
 		if err != nil {
 			return nil, err
 		}
+		// A change can make what its other items live in, such as a new
+		// environment, which isn't in the store until it's applied.
+		own := make(map[string]*store.ChangeItem, len(c.Items))
+		for i := range c.Items {
+			own[c.Items[i].ResourceID] = &c.Items[i]
+		}
 		var out []Place
 		for i := range c.Items {
 			it := &c.Items[i]
-			p, err := itemPlace(ctx, tx, it)
+			p, err := itemPlace(ctx, tx, it, own)
 			if err != nil {
 				return nil, err
 			}
@@ -82,13 +88,17 @@ func Of(ctx context.Context, tx *store.Tx, objectID string) ([]Place, error) {
 }
 
 // itemPlace is where a change's item is: an environment's item is in that
-// environment, and anything else is where its scope is.
-func itemPlace(ctx context.Context, tx *store.Tx, it *store.ChangeItem) (Place, error) {
+// environment, and anything else is where its scope is, among the change's own
+// items first, then in the store.
+func itemPlace(ctx context.Context, tx *store.Tx, it *store.ChangeItem, own map[string]*store.ChangeItem) (Place, error) {
 	switch it.Kind {
 	case string(scope.EnvironmentKind):
 		return Place{Project: it.Scope, Environment: it.ResourceID, Protected: protectedByName(it.Name)}, nil
 	case string(scope.ProjectKind):
 		return Place{Project: it.ResourceID}, nil
+	}
+	if parent, ok := own[it.Scope]; ok && parent != it {
+		return itemPlace(ctx, tx, parent, own)
 	}
 	return scoped(ctx, tx, it.Scope)
 }

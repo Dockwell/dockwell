@@ -36,7 +36,6 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 
-import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { happenedAt, useDescribe, useHealthEventWords } from "../activity/describe";
@@ -49,6 +48,7 @@ import { useWaitingFor } from "../changes/waiting";
 import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
 import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { ReadFailed } from "../shell/ReadFailed";
 import { AddDomainSheet, type MoveBehind, moveBehindOf } from "./AddDomainSheet";
 import { AddPortSheet } from "./AddPortSheet";
 import { useApp, useRevisions } from "./AppContext";
@@ -875,17 +875,15 @@ function RecentDeployments() {
       }
     >
       {error && !revisions ? (
-        <Callout
-          tone="critical"
+        <ReadFailed
+          error={error}
           title={t`Can't load the deployments`}
           actions={
             <Button onClick={() => void refetch()} loading={isFetching}>
               <Trans>Try again</Trans>
             </Button>
           }
-        >
-          {sentence(error)}
-        </Callout>
+        />
       ) : isPending ? (
         // Holds the room what's coming will take, so nothing under it moves.
         <p

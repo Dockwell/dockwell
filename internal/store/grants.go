@@ -3,6 +3,7 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -30,6 +31,10 @@ type Grant struct {
 	// CreatedBy is the actor who granted it, as the audit log names actors.
 	CreatedBy string
 }
+
+// ErrOwner is a change to the owner's grant that isn't a transfer of ownership:
+// the owner's role is given and taken only by TransferOwnership (ADR 0049).
+var ErrOwner = errors.New("the owner's role changes only when ownership is transferred")
 
 // ErrNotAPlace is a grant of the owner's or an admin's role on one project:
 // those hold the install only.
@@ -93,9 +98,44 @@ func (t *Tx) ListGrants(ctx context.Context) ([]Grant, error) {
 }
 
 // SetGrant gives a person a role in a place, in place of the one they held
-// there. It returns ErrNotAPlace for the owner's or an admin's role on one
-// project, and ErrConflict for a second owner.
+// there. It returns ErrOwner for the owner's role, or a change to what the owner
+// holds on the install, which only TransferOwnership makes; and ErrNotAPlace
+// for an admin's role on one project.
 func (t *Tx) SetGrant(ctx context.Context, g Grant) error {
+	if g.Role == RoleOwner {
+		return ErrOwner
+	}
+	if g.ProjectID == Install {
+		if owner, err := t.isOwner(ctx, g.UserID); err != nil || owner {
+			return cmp.Or(err, ErrOwner)
+		}
+	}
+	return t.setGrant(ctx, g)
+}
+
+// isOwner reports the person who holds the owner's grant.
+func (t *Tx) isOwner(ctx context.Context, userID string) (bool, error) {
+	var n int
+	err := t.queryRow(ctx, `SELECT COUNT(*) FROM grants WHERE user_id = ? AND role = ?`, userID, RoleOwner).Scan(&n)
+	return n > 0, err
+}
+
+// TransferOwnership makes to the owner, in place of whatever they held on the
+// install. The owner before, if there was one, becomes an admin (ADR 0049). It's
+// the only way the owner's grant changes.
+func (t *Tx) TransferOwnership(ctx context.Context, to string, at time.Time, by string) error {
+	if _, err := t.GetUser(ctx, to); err != nil {
+		return err
+	}
+	if _, err := t.exec(ctx, `UPDATE grants SET role = ?, created_at = ?, created_by = ? WHERE role = ? AND user_id <> ?`,
+		RoleAdmin, millis(at), by, RoleOwner, to); err != nil {
+		return fmt.Errorf("can't make the owner an admin: %w", err)
+	}
+	return t.setGrant(ctx, Grant{UserID: to, ProjectID: Install, Role: RoleOwner, CreatedAt: at, CreatedBy: by})
+}
+
+// setGrant gives a role in a place, the owner's included.
+func (t *Tx) setGrant(ctx context.Context, g Grant) error {
 	if (g.Role == RoleOwner || g.Role == RoleAdmin) && g.ProjectID != Install {
 		return ErrNotAPlace
 	}
@@ -117,6 +157,11 @@ func (t *Tx) SetGrant(ctx context.Context, g Grant) error {
 // RemoveGrant takes back what a person holds in a place, or returns ErrNotFound
 // when they hold nothing there.
 func (t *Tx) RemoveGrant(ctx context.Context, userID, projectID string) error {
+	if projectID == Install {
+		if owner, err := t.isOwner(ctx, userID); err != nil || owner {
+			return cmp.Or(err, ErrOwner)
+		}
+	}
 	res, err := t.exec(ctx, `DELETE FROM grants WHERE user_id = ? AND project_id = ?`, userID, projectID)
 	if err != nil {
 		return fmt.Errorf("can't take back what %s holds in %s: %w", userID, placeName(projectID), err)

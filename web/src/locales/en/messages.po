@@ -2831,14 +2831,20 @@ msgstr "Too many wrong codes. Wait {0}, then try again."
 msgid "You're not signed in. Sign in, then try again."
 msgstr "You're not signed in. Sign in, then try again."
 
-msgid "Your role doesn't let you do this here. Ask an admin to change your role."
-msgstr "Your role doesn't let you do this here. Ask an admin to change your role."
-
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "Your session ended, so this didn't happen. Sign in again, then try again."
 
+msgid "Admin"
+msgstr "Admin"
+
+msgid "Developer"
+msgstr "Developer"
+
 msgid "Owner"
 msgstr "Owner"
+
+msgid "Viewer"
+msgstr "Viewer"
 
 msgid "All backups"
 msgstr "All backups"
@@ -5519,6 +5525,9 @@ msgstr "You typed them before your session ended, and the file has changed on th
 msgid "You typed them before your session ended."
 msgstr "You typed them before your session ended."
 
+msgid "Your role doesn't cover this"
+msgstr "Your role doesn't cover this"
+
 #. placeholder {0}: lineCount(draft)
 msgid "{0, plural, one {# line} other {# lines}}"
 msgstr "{0, plural, one {# line} other {# lines}}"
@@ -7959,6 +7968,12 @@ msgstr "Discarded a change"
 msgid "Discarded {summary}"
 msgstr "Discarded {summary}"
 
+msgid "Made {name} the owner"
+msgstr "Made {name} the owner"
+
+msgid "Moved ownership of this install"
+msgstr "Moved ownership of this install"
+
 msgid "Planned a change"
 msgstr "Planned a change"
 
@@ -7976,6 +7991,9 @@ msgstr "Read logs"
 
 msgid "Read the logs of {name}"
 msgstr "Read the logs of {name}"
+
+msgid "Refused a call their role doesn't cover"
+msgstr "Refused a call their role doesn't cover"
 
 msgid "Refused a call this token can't make"
 msgstr "Refused a call this token can't make"
@@ -9229,6 +9247,9 @@ msgstr "{count, plural, one {# site on {0}} other {# sites on {1}}}"
 
 msgid "{count, plural, one {# site} other {# sites}}"
 msgstr "{count, plural, one {# site} other {# sites}}"
+
+msgid "Your role doesn't let you do this here. Ask an admin to change your role."
+msgstr "Your role doesn't let you do this here. Ask an admin to change your role."
 
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, one {# day} other {# days}}"

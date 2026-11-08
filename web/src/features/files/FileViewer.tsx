@@ -10,7 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useBlocker, useNavigate } from "@tanstack/react-router";
 import { type KeyboardEvent, useState } from "react";
 
-import { reasonOf, sentence } from "../../lib/errors";
+import { isRoleRefusal, reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { onApple } from "../../lib/platform";
 import { PasskeyError } from "../../lib/webauthn";
@@ -54,12 +54,14 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
   const body = () => {
     if (query.error) {
       const reason = reasonOf(query.error);
-      const refused = reason === "file_refused";
-      const title = refused
-        ? t`Dockwell doesn't open this file`
-        : reason === "path_not_answering"
-          ? t`This path isn't answering`
-          : t`Can't read this file`;
+      const refused = reason === "file_refused" || isRoleRefusal(query.error);
+      const title = isRoleRefusal(query.error)
+        ? t`Your role doesn't cover this`
+        : reason === "file_refused"
+          ? t`Dockwell doesn't open this file`
+          : reason === "path_not_answering"
+            ? t`This path isn't answering`
+            : t`Can't read this file`;
       return (
         <div className="files-note">
           <Callout tone={refused ? "warning" : "critical"} title={title}>

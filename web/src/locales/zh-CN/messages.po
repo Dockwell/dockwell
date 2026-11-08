@@ -2831,14 +2831,20 @@ msgstr "验证码错误次数过多。请等待 {0} 后重试。"
 msgid "You're not signed in. Sign in, then try again."
 msgstr "你尚未登录。请登录后重试。"
 
-msgid "Your role doesn't let you do this here. Ask an admin to change your role."
-msgstr "你的角色不能在这里执行此操作。请让管理员更改你的角色。"
-
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "你的会话已结束，所以这个操作没有执行。请重新登录后重试。"
 
+msgid "Admin"
+msgstr "管理员"
+
+msgid "Developer"
+msgstr "开发者"
+
 msgid "Owner"
 msgstr "所有者"
+
+msgid "Viewer"
+msgstr "查看者"
 
 msgid "All backups"
 msgstr "全部备份"
@@ -5519,6 +5525,9 @@ msgstr "这些更改是你在会话结束前输入的，此后服务器上的文
 msgid "You typed them before your session ended."
 msgstr "这些更改是你在会话结束前输入的。"
 
+msgid "Your role doesn't cover this"
+msgstr "你的角色无权访问这里"
+
 #. placeholder {0}: lineCount(draft)
 msgid "{0, plural, one {# line} other {# lines}}"
 msgstr "{0, plural, other {# 行}}"
@@ -7959,6 +7968,12 @@ msgstr "舍弃了一项变更"
 msgid "Discarded {summary}"
 msgstr "已舍弃 {summary}"
 
+msgid "Made {name} the owner"
+msgstr "已将 {name} 设为所有者"
+
+msgid "Moved ownership of this install"
+msgstr "转移了此安装的所有权"
+
 msgid "Planned a change"
 msgstr "规划了一项变更"
 
@@ -7976,6 +7991,9 @@ msgstr "读取了日志"
 
 msgid "Read the logs of {name}"
 msgstr "读取了 {name} 的日志"
+
+msgid "Refused a call their role doesn't cover"
+msgstr "拒绝了其角色无权发起的调用"
 
 msgid "Refused a call this token can't make"
 msgstr "拒绝了此令牌无权发起的调用"
@@ -9229,6 +9247,9 @@ msgstr "{count, plural, other {{1} 上有 # 个网站}}"
 
 msgid "{count, plural, one {# site} other {# sites}}"
 msgstr "{count, plural, other {# 个网站}}"
+
+msgid "Your role doesn't let you do this here. Ask an admin to change your role."
+msgstr "你的角色不能在这里执行此操作。请让管理员更改你的角色。"
 
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, other {# 天}}"
