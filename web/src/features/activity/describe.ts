@@ -11,6 +11,7 @@ import {
   EventKind,
   HealthState,
   IntentKind,
+  Role,
   StepState,
 } from "@dockwell/api";
 import type { IconName, Status } from "@dockwell/ui";
@@ -21,6 +22,7 @@ import { useMemo } from "react";
 
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
+import { useRolePhrase } from "../auth/user";
 
 /** How an event shows on the timeline. */
 export interface Described {
@@ -38,6 +40,7 @@ export interface Described {
 export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, string>) => Described {
   const { t, i18n } = useLingui();
   const time = useTimeWords();
+  const rolePhrase = useRolePhrase();
   return useMemo(
     () => (event: Event, summaries: ReadonlyMap<string, string>) => {
       const change = event.change;
@@ -194,6 +197,23 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
         case "file.save_unknown": {
           const path = event.subject?.path ?? "";
           return { title: t`May have saved ${path} on ${server}`, icon: "file", tone: "warning" };
+        }
+        // Who, as what, where (ADR 0049).
+        case "member.invite": {
+          const m = event.member;
+          return {
+            title: t`Invited ${m?.email ?? ""} as ${rolePhrase(m?.role ?? Role.UNSPECIFIED, m?.projectName ?? "")}`,
+            icon: "users",
+          };
+        }
+        case "member.invite_revoke":
+          return { title: t`Revoked the invite for ${event.member?.email ?? ""}`, icon: "users" };
+        case "member.join": {
+          const m = event.member;
+          return {
+            title: t`${m?.name || m?.email || ""} joined as ${rolePhrase(m?.role ?? Role.UNSPECIFIED, m?.projectName ?? "")}`,
+            icon: "users",
+          };
         }
         // Each says what it replaced, as that's the way back to it.
         case "settings.name": {
@@ -434,7 +454,7 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       }
       return { title: event.action, icon: event.kind === EventKind.SERVER ? "server" : "users" };
     },
-    [t, i18n, time],
+    [t, i18n, time, rolePhrase],
   );
 }
 

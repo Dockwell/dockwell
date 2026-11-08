@@ -3,13 +3,14 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { MemberSchema, Role, SignInKind } from "@dockwell/api";
-import { screen, within } from "@testing-library/react";
+import { type CreateInviteRequest, MemberSchema, Role, SignInKind, StepUpAction } from "@dockwell/api";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { authError, authState, requestOptions, stubPasskeys } from "../../test/auth";
 import { onPhone, renderAt } from "../../test/render";
 
 const owner = create(MemberSchema, {
@@ -36,13 +37,14 @@ afterEach(async () => {
 });
 
 describe("Members", () => {
-  it("says who signs in, their role and how, and that inviting comes later", async () => {
+  it("says who signs in, their role and how, and keeps the invite form behind a button for one person", async () => {
     const { container } = renderAt("/settings/members", { members: { listMembers: () => ({ members: [owner] }) } });
     expect(await screen.findByRole("heading", { level: 1, name: "Members" })).toBeVisible();
     expect(
       within(screen.getByRole("navigation", { name: "Settings" })).getByRole("link", { name: "Members" }),
     ).toHaveAttribute("aria-current", "page");
-    expect(screen.getByText("Inviting someone comes in a later release")).toBeVisible();
+    expect(await screen.findByText("1 person signs in to this install, its owner")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Invite someone" })).toBeVisible();
     expect(screen.queryByRole("textbox")).toBeNull();
     const table = await screen.findByRole("table", { name: "Who signs in to this install" });
     const [, row] = within(table).getAllByRole("row");
@@ -62,7 +64,7 @@ describe("Members", () => {
     expect(signIn).toHaveTextContent("2 · localhost · panel.example.com");
     expect(signIn).toHaveTextContent("On, 7 recovery codes left");
     expect(signIn).toHaveTextContent("2 browsers");
-    expect(screen.getByRole("region", { name: "What the owner can do" })).toHaveTextContent("Read the audit log");
+    expect(screen.getByRole("region", { name: "What each role can do" })).toHaveTextContent("Transfer ownership");
     await expectAccessible(container);
   });
 
@@ -181,6 +183,106 @@ describe("Members", () => {
     await activateLocale("zh-CN");
     renderAt("/settings/members", { members: { listMembers: () => ({ members: [owner] }) } });
     expect(await screen.findByRole("heading", { level: 1, name: "成员" })).toBeVisible();
-    expect(await screen.findByText("邀请他人将在之后的版本中推出")).toBeVisible();
+    expect(await screen.findByText("1 人可以登录这个安装，即其所有者")).toBeVisible();
+    expect(screen.getByRole("button", { name: "邀请他人" })).toBeVisible();
+  });
+
+  it("invites someone with a passkey bound to what it's for, and shows the link once", async () => {
+    const user = userEvent.setup();
+    stubPasskeys();
+    const beginStepUp = vi.fn(() => ({ ceremonyId: "cer_1", optionsJson: requestOptions }));
+    const createInvite = vi.fn((req: CreateInviteRequest) => {
+      if (!req.proof) throw authError(Code.PermissionDenied, "needs_step_up");
+      return {
+        link: "https://panel.example.com/invite#s3cr3t",
+        invite: {
+          id: "inv_1",
+          email: req.email,
+          role: req.role,
+          expireTime: timestampFromDate(new Date(Date.now() + 7 * 86_400_000)),
+        },
+      };
+    });
+    renderAt("/settings/members", {
+      auth: {
+        getAuthState: () => authState({ domain: "panel.example.com" }),
+        beginStepUp,
+        finishStepUp: () => ({ proof: "proof_1" }),
+      },
+      members: { listMembers: () => ({ members: [owner] }), createInvite },
+      resources: { listResources: () => ({ resources: [] }) },
+    });
+    await user.click(await screen.findByRole("button", { name: "Invite someone" }));
+    await user.type(screen.getByRole("textbox", { name: "Invite by email" }), " Ada@Example.com ");
+    await user.click(screen.getByRole("button", { name: "Invite" }));
+    expect(await screen.findByText("Send this link to ada@example.com")).toBeVisible();
+    expect(screen.getByText("https://panel.example.com/invite#s3cr3t")).toBeVisible();
+    expect(beginStepUp).toHaveBeenCalledWith(
+      expect.objectContaining({ action: StepUpAction.INVITE, target: "ada@example.com developer install" }),
+      expect.anything(),
+    );
+    expect(createInvite).toHaveBeenLastCalledWith(
+      expect.objectContaining({ email: "ada@example.com", role: Role.DEVELOPER, project: "", proof: "proof_1" }),
+      expect.anything(),
+    );
+  });
+
+  it("says invites need the panel's domain on an install without one", async () => {
+    const user = userEvent.setup();
+    renderAt("/settings/members", {
+      auth: { getAuthState: () => authState({ domain: "" }) },
+      members: { listMembers: () => ({ members: [owner] }) },
+    });
+    await user.click(await screen.findByRole("button", { name: "Invite someone" }));
+    expect(await screen.findByText("Invites need the panel's domain")).toBeVisible();
+    expect(screen.queryByRole("textbox", { name: "Invite by email" })).toBeNull();
+  });
+
+  it("lists open invites with who made them and when they end, and revokes one", async () => {
+    const user = userEvent.setup();
+    const revokeInvite = vi.fn(() => ({}));
+    const ada = create(MemberSchema, {
+      user: { id: "usr_2", name: "Ada Park", email: "ada@example.com", role: Role.UNSPECIFIED },
+      signIn: [SignInKind.PASSKEY],
+      grants: [{ projectId: "prj_1", projectName: "shop", role: Role.DEVELOPER }],
+    });
+    renderAt("/settings/members", {
+      auth: { getAuthState: () => authState({ domain: "panel.example.com" }) },
+      members: {
+        listMembers: () => ({
+          members: [owner, ada],
+          invites: [
+            {
+              id: "inv_1",
+              email: "sam@example.com",
+              role: Role.VIEWER,
+              projectName: "shop",
+              invitedBy: "Mira Chen",
+              createTime: timestampFromDate(new Date(Date.now() - 3_600_000)),
+              expireTime: timestampFromDate(new Date(Date.now() + 6 * 86_400_000)),
+            },
+          ],
+        }),
+        revokeInvite,
+      },
+      resources: { listResources: () => ({ resources: [] }) },
+    });
+    expect(await screen.findByText("2 people sign in to this install · 1 open invite")).toBeVisible();
+    const table = await screen.findByRole("table", { name: "Who signs in to this install" });
+    const rows = within(table).getAllByRole("row");
+    const adaRow = rows.find((r) => r.textContent?.includes("Ada Park"));
+    expect(adaRow).toHaveTextContent("Developer");
+    expect(adaRow).toHaveTextContent("shop");
+    const invited = rows.find((r) => r.textContent?.includes("sam@example.com"));
+    expect(invited).toHaveTextContent("Invited by Mira Chen");
+    expect(invited).toHaveTextContent("Viewer");
+    expect(invited).toHaveTextContent("Not accepted yet");
+    expect(invited).toHaveTextContent("Expires in 6 days");
+    await user.click(
+      within(invited as HTMLElement).getByRole("button", { name: "Revoke the invite for sam@example.com" }),
+    );
+    await waitFor(() =>
+      expect(revokeInvite).toHaveBeenCalledWith(expect.objectContaining({ id: "inv_1" }), expect.anything()),
+    );
   });
 });

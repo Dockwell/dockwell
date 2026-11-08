@@ -666,6 +666,11 @@ msgstr "结束了 {server} 告警的静音"
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"
 
+#. placeholder {0}: m?.email ?? ""
+#. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, m?.projectName ?? "")
+msgid "Invited {0} as {1}"
+msgstr "邀请 {0} 成为 {1}"
+
 msgid "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 msgstr "已在 {server} 上强制结束 {what}（PID {pid}），因为它在 10 秒内没有停止"
 
@@ -762,6 +767,10 @@ msgstr "撤销了 API 令牌"
 msgid "Revoked the API token {name}"
 msgstr "撤销了 API 令牌 {name}"
 
+#. placeholder {0}: event.member?.email ?? ""
+msgid "Revoked the invite for {0}"
+msgstr "撤销了给 {0} 的邀请"
+
 msgid "Roll back: {reverted}"
 msgstr "回滚：{reverted}"
 
@@ -857,6 +866,11 @@ msgstr "一台服务器"
 
 msgid "its server"
 msgstr "它的服务器"
+
+#. placeholder {0}: m?.name || m?.email || ""
+#. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, m?.projectName ?? "")
+msgid "{0} joined as {1}"
+msgstr "{0} 已加入，成为 {1}"
 
 #. placeholder {0}: s.create
 msgid "{0} to create"
@@ -3264,6 +3278,63 @@ msgstr "工作目录"
 msgid "{servers} offline"
 msgstr "{servers} 离线"
 
+msgid "Accept an invite"
+msgstr "接受邀请"
+
+msgid "An invite makes someone new. Sign out, or open the link in a private window."
+msgstr "邀请会创建一个新成员。请先退出登录，或在隐私窗口中打开链接。"
+
+msgid "Create passkey and join"
+msgstr "创建通行密钥并加入"
+
+msgid "Creating passkey"
+msgstr "正在创建通行密钥"
+
+msgid "Enter your name."
+msgstr "请输入你的姓名。"
+
+#. placeholder {0}: invite.email
+#. placeholder {1}: formatDateTime(timestampDate(invite.expireTime), i18n.locale)
+msgid "For {0}, until {1}. You sign in with a passkey this browser, phone or security key makes for this address."
+msgstr "发给 {0}，有效期至 {1}。你将使用此浏览器、手机或安全密钥为这个地址创建的通行密钥登录。"
+
+msgid "Open the link in a browser that makes passkeys, such as a recent Chrome, Safari or Firefox."
+msgstr "请在支持通行密钥的浏览器中打开链接，例如较新版本的 Chrome、Safari 或 Firefox。"
+
+msgid "Open the link you were sent, including the part after “#”. Whoever invited you can make a new one."
+msgstr "请打开你收到的完整链接，包括“#”之后的部分。邀请你的人可以再生成一个新的。"
+
+msgid "Passkeys don't work in this browser"
+msgstr "此浏览器无法使用通行密钥"
+
+msgid "Reading the invite"
+msgstr "正在读取邀请"
+
+msgid "Sign out"
+msgstr "退出登录"
+
+msgid "This invite didn't work"
+msgstr "此邀请无法使用"
+
+msgid "This page needs the whole link from your invite"
+msgstr "此页面需要你邀请中的完整链接"
+
+msgid "You're signed in as {name}"
+msgstr "你已以 {name} 的身份登录"
+
+msgid "Your account"
+msgstr "你的账户"
+
+msgid "Your account wasn't created"
+msgstr "你的账户未能创建"
+
+msgid "Your name"
+msgstr "你的姓名"
+
+#. placeholder {0}: invite.invitedBy
+msgid "{0} invited you as {where}"
+msgstr "{0} 邀请你成为 {where}"
+
 msgid "Can't check your session"
 msgstr "无法检查你的会话"
 
@@ -3325,17 +3396,11 @@ msgstr "用 Touch ID、Windows Hello 或安全密钥确认。"
 msgid "Create passkey"
 msgstr "创建通行密钥"
 
-msgid "Creating passkey"
-msgstr "正在创建通行密钥"
-
 msgid "Deploy your first app"
 msgstr "部署你的第一个应用"
 
 msgid "Enter an email address, such as mira@acme.dev."
 msgstr "请输入邮箱地址，例如 mira@acme.dev。"
-
-msgid "Enter your name."
-msgstr "请输入你的姓名。"
 
 msgid "From Git, a Docker image, a Compose file or the catalog."
 msgstr "来自 Git、Docker 镜像、Compose 文件或应用目录。"
@@ -3421,9 +3486,6 @@ msgstr "使用验证码登录时需要它。"
 
 msgid "Your domain gets a certificate automatically."
 msgstr "你的域名会自动获得证书。"
-
-msgid "Your name"
-msgstr "你的姓名"
 
 msgid "in under a minute"
 msgstr "不到一分钟后"
@@ -3526,9 +3588,6 @@ msgstr "通行密钥属于创建它的地址。请为 {rpId} 添加一个，这�
 
 msgid "Profile and security"
 msgstr "个人资料和安全"
-
-msgid "Sign out"
-msgstr "退出登录"
 
 msgid "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
 msgstr "有人为你的账户连续输错了 {count} 次验证码，最后一次在{when}。只有确认是你本人时才解锁验证码登录。否则可能有人知道了你的邮箱；你的通行密钥和恢复码仍然可用。"
@@ -3789,8 +3848,14 @@ msgstr "连续输错 10 次验证码后，验证码登录已锁定。请用通�
 msgid "Confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again."
 msgstr "确认此操作需要此地址的通行密钥，而你在这里还没有。请在“个人资料和安全”中添加一个，然后重试。"
 
+msgid "Invites need the panel's domain, as the link uses it and the invited person's passkey is made there. Set DOCKWELL_DOMAIN for the service, then invite."
+msgstr "邀请需要面板的域名，因为链接使用该域名，受邀者的通行密钥也在那里创建。请为服务设置 DOCKWELL_DOMAIN，然后再邀请。"
+
 msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 msgstr "通行密钥需要主机名，不能用 IP 地址。请在同一端口上打开 http://localhost 访问面板。"
+
+msgid "Someone is signed in in this browser, and an invite makes someone new. Sign out, or open the link in a private window."
+msgstr "此浏览器中已有人登录，而邀请会创建一个新成员。请先退出登录，或在隐私窗口中打开链接。"
 
 msgid "Something went wrong. Try again."
 msgstr "出了点问题。请重试。"
@@ -3821,6 +3886,9 @@ msgstr "这个通行密钥没有为此地址注册，或无法验证。请尝试
 
 msgid "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
 msgstr "这个通行密钥报告的使用次数比之前少，这在通行密钥被复制时会发生，所以它已不能再用于登录。请用其他方式登录，然后在“个人资料和安全”中移除它。"
+
+msgid "That person signs in here already. Change what they hold in Members instead."
+msgstr "此人已经可以登录这里。请改为在“成员”中更改其角色。"
 
 msgid "That was the last try. 5 wrong codes ended this setup, and its key no longer works. Close this and set it up again, which asks for your passkey."
 msgstr "这是最后一次尝试。输错 5 次验证码已结束此次设置，其密钥不再有效。请关闭此处并重新设置，届时需要用通行密钥确认。"
@@ -3858,6 +3926,12 @@ msgstr "这台设备已经有你在此处账户的通行密钥。请直接使用
 msgid "This install already has an owner. Sign in instead."
 msgstr "这个安装已经有所有者。请直接登录。"
 
+msgid "This invite is invalid, already used, revoked or expired. Ask whoever invited you for a new one."
+msgstr "此邀请无效、已被使用、已撤销或已过期。请向邀请你的人要一个新的。"
+
+msgid "This invite works only at the panel's domain, where the install keeps serving. Open the link exactly as you were sent it."
+msgstr "此邀请只能在面板的域名上使用，安装会一直在那里提供服务。请按收到的原样打开链接。"
+
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
 msgstr "此次身份验证器应用的设置已结束：它只在开始设置的会话中有效，时限为 10 分钟。请关闭此处并重新设置。"
 
@@ -3891,6 +3965,27 @@ msgstr "所有者"
 
 msgid "Viewer"
 msgstr "查看者"
+
+msgid "a developer of every project"
+msgstr "所有项目的开发者"
+
+msgid "a developer of {project}"
+msgstr "{project} 的开发者"
+
+msgid "a viewer of every project"
+msgstr "所有项目的查看者"
+
+msgid "a viewer of {project}"
+msgstr "{project} 的查看者"
+
+msgid "an admin"
+msgstr "管理员"
+
+msgid "someone with no role"
+msgstr "没有角色的人"
+
+msgid "the owner"
+msgstr "所有者"
 
 msgid "All backups"
 msgstr "全部备份"
@@ -9539,35 +9634,77 @@ msgstr "已连接 {connected} 个 · Dockwell 发送备份的服务，以及路�
 msgid "1 browser"
 msgstr "1 个浏览器"
 
+msgid "1 open invite"
+msgstr "1 个待接受的邀请"
+
 msgid "1 passkey"
 msgstr "1 个通行密钥"
 
-msgid "1 person signs in to this install, its owner · inviting others comes later"
-msgstr "1 人可以登录这个安装，即其所有者 · 邀请他人将在之后推出"
+msgid "1 person signs in to this install · {invitesWord}"
+msgstr "1 人可以登录这个安装 · {invitesWord}"
+
+msgid "1 person signs in to this install, its owner"
+msgstr "1 人可以登录这个安装，即其所有者"
 
 msgid "<0>dockwell recover</0> on the control server"
 msgstr "在控制服务器上运行 <0>dockwell recover</0>"
 
-msgid "An install has one person today, the owner who claimed it, as nothing yet tells an admin, a developer or a viewer apart from them. Scripts and integrations sign in with API tokens. <0>What members and roles need</0>"
-msgstr "目前一个安装只有一个人，即认领它的所有者，因为还没有任何机制能把管理员、开发者或查看者与所有者区分开。脚本和集成使用 API 令牌登录。<0>成员和角色需要什么</0>"
+msgid "All projects"
+msgstr "所有项目"
 
-msgid "Change the install's settings"
-msgstr "更改这个安装的设置"
+msgid "Apply in protected environments"
+msgstr "在受保护的环境中应用"
 
-msgid "Deploy, and apply any plan"
-msgstr "部署，并应用任何计划"
+msgid "Copy link"
+msgstr "复制链接"
 
 msgid "Dockwell can't say who signs in"
 msgstr "Dockwell 无法得知谁可以登录"
 
-msgid "Everything, on every server. Admins, developers and viewers, each seeing and doing less and scoped by project, come with members."
-msgstr "在每台服务器上拥有全部权限。管理员、开发者和查看者各自能看到和执行的更少，并按项目划分范围，将随成员功能推出。"
+msgid "Enter an email address, such as ada@example.com."
+msgstr "请输入电子邮件地址，例如 ada@example.com。"
+
+msgid "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
+msgstr "有角色的人都能在自己的项目中查看应用、日志和活动。开发者在受保护环境中的计划需要等待管理员或所有者。"
+
+msgid "Expires"
+msgstr "过期时间"
+
+#. placeholder {0}: words.span(left >= DAY ? Math.round(left / DAY) * DAY : left)
+msgid "Expires in {0}"
+msgstr "{0}后过期"
 
 msgid "How you sign in"
 msgstr "你的登录方式"
 
-msgid "Inviting someone comes in a later release"
-msgstr "邀请他人将在之后的版本中推出"
+msgid "In open environments"
+msgstr "在开放的环境中"
+
+msgid "Invite"
+msgstr "邀请"
+
+msgid "Invite by email"
+msgstr "通过电子邮件邀请"
+
+msgid "Invite people"
+msgstr "邀请他人"
+
+msgid "Invite people and change roles"
+msgstr "邀请他人并更改角色"
+
+msgid "Invite someone"
+msgstr "邀请他人"
+
+#. placeholder {0}: invite.invitedBy
+msgid "Invited by {0} {when}"
+msgstr "由 {0} 于{when}邀请"
+
+msgid "Invites need the panel's domain"
+msgstr "邀请需要面板的域名"
+
+#. placeholder {0}: formatDateTime(sent.until, i18n.locale)
+msgid "It works once, until {0}, for whoever has it. Dockwell can't show it again."
+msgstr "它只能使用一次，有效期至 {0}，任何拿到链接的人都可以使用。Dockwell 无法再次显示它。"
 
 msgid "Last active"
 msgstr "上次活动"
@@ -9575,17 +9712,17 @@ msgstr "上次活动"
 msgid "Last resort"
 msgstr "最后手段"
 
+msgid "Link copied"
+msgstr "链接已复制"
+
 msgid "Loading who signs in"
 msgstr "正在加载可以登录的人"
 
 msgid "Locked after too many wrong codes, until you lift it in Profile and security"
 msgstr "错误验证码过多，已锁定，可在“个人资料与安全”中解除"
 
-msgid "Make and revoke API tokens"
-msgstr "创建和撤销 API 令牌"
-
-msgid "Manage servers and their files"
-msgstr "管理服务器及其文件"
+msgid "Make projects, manage servers and settings"
+msgstr "创建项目、管理服务器和设置"
 
 msgid "Member"
 msgstr "成员"
@@ -9595,6 +9732,12 @@ msgstr "成员"
 
 msgid "No way in that works now"
 msgstr "当前没有可用的登录方式"
+
+msgid "Nobody was invited"
+msgstr "未邀请任何人"
+
+msgid "Not accepted yet"
+msgstr "尚未接受"
 
 msgid "Now"
 msgstr "现在"
@@ -9615,8 +9758,28 @@ msgstr "通行密钥和身份验证器应用"
 msgid "Permission"
 msgstr "权限"
 
-msgid "Read the audit log"
-msgstr "读取审计日志"
+msgid "Plan and apply in open environments"
+msgstr "在开放的环境中计划并应用"
+
+msgid "Projects"
+msgstr "项目"
+
+msgid "Read apps, plans, activity and logs"
+msgstr "查看应用、计划、活动和日志"
+
+msgid "Reveal a secret's value"
+msgstr "查看密钥的值"
+
+msgid "Revoke"
+msgstr "撤销"
+
+#. placeholder {0}: invite.email
+msgid "Revoke the invite for {0}"
+msgstr "撤销给 {0} 的邀请"
+
+#. placeholder {0}: sent.email
+msgid "Send this link to {0}"
+msgstr "把此链接发给 {0}"
 
 msgid "Sign-in"
 msgstr "登录"
@@ -9627,8 +9790,23 @@ msgstr "已登录于"
 msgid "Single sign-on"
 msgstr "单点登录"
 
-msgid "What the owner can do"
-msgstr "所有者可以做什么"
+msgid "The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set <0>DOCKWELL_DOMAIN</0> for the service to invite someone."
+msgstr "受邀者要在该域名上接受邀请，并在那里创建通行密钥，因为 SSH 隧道只属于你自己。请为服务设置 <0>DOCKWELL_DOMAIN</0> 后再邀请他人。"
+
+msgid "Their projects"
+msgstr "其项目"
+
+msgid "They accept at <0>{domain}</0> with a passkey. Dockwell sends no mail: send them the link it shows. Inviting asks for your passkey."
+msgstr "对方在 <0>{domain}</0> 上用通行密钥接受邀请。Dockwell 不会发送邮件：请把生成的链接发给对方。邀请时需要验证你的通行密钥。"
+
+msgid "Transfer ownership"
+msgstr "转移所有权"
+
+msgid "Up to admin"
+msgstr "最高到管理员"
+
+msgid "What each role can do"
+msgstr "各角色可以做什么"
 
 msgid "Who signs in"
 msgstr "谁可以登录"
@@ -9646,12 +9824,22 @@ msgstr "全部使用通行密钥登录"
 msgid "{0} browsers"
 msgstr "{0} 个浏览器"
 
+#. placeholder {0}: invites.length
+msgid "{0} open invites"
+msgstr "{0} 个待接受的邀请"
+
 #. placeholder {0}: m.passkeys
 msgid "{0} passkeys"
 msgstr "{0} 个通行密钥"
 
+msgid "{address} signs in here already."
+msgstr "{address} 已经可以登录这里。"
+
 msgid "{count} people sign in to this install"
 msgstr "{count} 人可以登录这个安装"
+
+msgid "{count} people sign in to this install · {invitesWord}"
+msgstr "{count} 人可以登录这个安装 · {invitesWord}"
 
 msgid "{keys} and an authenticator app"
 msgstr "{keys}和一个身份验证器应用"
@@ -9698,9 +9886,6 @@ msgstr "Dockwell 无法列出你的令牌"
 msgid "Each new address it's used from goes in the <0>audit log</0>"
 msgstr "每次从新地址使用都会记入<0>审计日志</0>"
 
-msgid "Expires"
-msgstr "过期时间"
-
 msgid "Hide the token"
 msgstr "隐藏令牌"
 
@@ -9740,9 +9925,6 @@ msgstr "读取应用日志，其中常含有应用不该打印的内容。"
 
 msgid "Read servers, apps, plans and activity. Every token can, and changes nothing."
 msgstr "读取服务器、应用、计划和动态。所有令牌都可以，且不做任何更改。"
-
-msgid "Revoke"
-msgstr "撤销"
 
 #. placeholder {0}: token.name
 msgid "Revoke {0}"
@@ -9994,9 +10176,6 @@ msgstr "会打开计划"
 
 msgid "Pages"
 msgstr "页面"
-
-msgid "Projects"
-msgstr "项目"
 
 msgid "Show the activity of {name}"
 msgstr "显示 {name} 的动态"

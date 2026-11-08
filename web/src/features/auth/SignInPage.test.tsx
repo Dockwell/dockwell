@@ -265,7 +265,7 @@ describe("SignInPage", () => {
   it("knows every screen that stands outside the gate", () => {
     const router = createRouter({ routeTree });
     const open = Object.values(router.routesById).filter((route) => route.options.staticData?.public);
-    expect(open.map((route) => route.fullPath).sort()).toEqual(["/claim", "/recover", "/sign-in"]);
+    expect(open.map((route) => route.fullPath).sort()).toEqual(["/claim", "/invite", "/recover", "/sign-in"]);
     for (const route of open) expect(safeNext(route.fullPath)).toBe("/");
   });
 

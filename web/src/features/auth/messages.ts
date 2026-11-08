@@ -90,6 +90,16 @@ export function useAuthError({ claimCommand = "dockwell claim" }: { claimCommand
           return t`This sign-in link is invalid, already used, replaced by a newer one, or expired. Run dockwell recover on the server for a new link.`;
         case "claimed":
           return t`This install already has an owner. Sign in instead.`;
+        case "invite_rejected":
+          return t`This invite is invalid, already used, revoked or expired. Ask whoever invited you for a new one.`;
+        case "invite_elsewhere":
+          return t`This invite works only at the panel's domain, where the install keeps serving. Open the link exactly as you were sent it.`;
+        case "signed_in":
+          return t`Someone is signed in in this browser, and an invite makes someone new. Sign out, or open the link in a private window.`;
+        case "member_exists":
+          return t`That person signs in here already. Change what they hold in Members instead.`;
+        case "needs_domain":
+          return t`Invites need the panel's domain, as the link uses it and the invited person's passkey is made there. Set DOCKWELL_DOMAIN for the service, then invite.`;
         case "ceremony_expired":
           return t`The passkey request expired. Try again.`;
         case "last_way_in":

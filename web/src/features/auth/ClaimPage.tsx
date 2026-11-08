@@ -35,7 +35,7 @@ export function tokenFrom(input: string): string {
  * Reads a one-time token from the URL fragment once, then takes it out of
  * the address bar and history, so it isn't left behind once spent.
  */
-export function useFragmentToken(path: "/claim" | "/recover"): string {
+export function useFragmentToken(path: "/claim" | "/recover" | "/invite"): string {
   const navigate = useNavigate();
   const hash = useLocation({ select: (l) => l.hash });
   const [token] = useState(() => tokenFrom(hash ? `#${hash}` : ""));

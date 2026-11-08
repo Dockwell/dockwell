@@ -12,6 +12,7 @@ import {
   EventKind,
   type ListAuditEventsRequest,
   PlanAction,
+  Role,
   Surface,
   TokenScope,
 } from "@dockwell/api";
@@ -318,6 +319,27 @@ describe("Audit log", () => {
     renderAt("/settings/audit-log", { audit: { listAuditEvents: () => ({ events: [refused, moved] }) } });
     expect(await screen.findByText("Refused a call their role doesn't cover")).toBeVisible();
     expect(screen.getByText("Made Ada Park the owner")).toBeVisible();
+  });
+
+  it("words who was invited and who joined, as what and where", async () => {
+    const member = (id: string, action: string, m: Record<string, unknown>) =>
+      anEvent({ id, action, actor: mira, event: { kind: EventKind.ACCESS, action, member: m } });
+    renderAt("/settings/audit-log", {
+      audit: {
+        listAuditEvents: () => ({
+          events: [
+            member("evt_i", "member.invite", { email: "ada@example.com", role: Role.DEVELOPER, projectName: "shop" }),
+            member("evt_a", "member.invite", { email: "sam@example.com", role: Role.ADMIN }),
+            member("evt_r", "member.invite_revoke", { email: "lin@example.com", role: Role.VIEWER }),
+            member("evt_j", "member.join", { email: "ada@example.com", name: "Ada Lovelace", role: Role.VIEWER }),
+          ],
+        }),
+      },
+    });
+    expect(await screen.findByText("Invited ada@example.com as a developer of shop")).toBeVisible();
+    expect(screen.getByText("Invited sam@example.com as an admin")).toBeVisible();
+    expect(screen.getByText("Revoked the invite for lin@example.com")).toBeVisible();
+    expect(screen.getByText("Ada Lovelace joined as a viewer of every project")).toBeVisible();
   });
 
   it("writes CSV that a spreadsheet reads back", () => {
