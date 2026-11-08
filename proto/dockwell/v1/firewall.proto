@@ -83,6 +83,10 @@ message HostListener {
   // Why the reach is what it is, when that needs saying: why the agent can't
   // tell, or that a firewall lets it in by a rule of its own.
   ListenerReachReason reason = 8;
+  // True for a socket on "::" that takes IPv6 alone, as something else on
+  // "0.0.0.0" holds the port's IPv4, here or as a port Docker publishes. A
+  // socket on "::" alone takes IPv4 too, as Linux has it by default.
+  bool ipv6_only = 9;
 }
 
 // ListenerReachReason is why a listener reaches as far as it does.

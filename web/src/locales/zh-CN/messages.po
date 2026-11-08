@@ -6275,6 +6275,12 @@ msgstr "地址"
 msgid "Allow"
 msgstr "允许"
 
+msgid "Any port"
+msgstr "任意端口"
+
+msgid "Any {proto} port"
+msgstr "任意 {proto} 端口"
+
 msgid "Anywhere"
 msgstr "任意来源"
 
@@ -6426,6 +6432,9 @@ msgstr "{0} 上的代理比控制平面旧，因此无法读取防火墙。请�
 msgid "The kernel's other rules"
 msgstr "内核中的其他规则"
 
+msgid "Through Docker's proxy, so the input rules cover it."
+msgstr "经 Docker 代理，因此 input 规则覆盖它。"
+
 #. placeholder {0}: server.name
 msgid "What listens on {0}"
 msgstr "{0} 上的监听端口"
@@ -6461,8 +6470,8 @@ msgstr "nftables"
 msgid "nftables table {0}"
 msgstr "nftables 表 {0}"
 
-msgid "through Docker's proxy, so the input rules cover it"
-msgstr "经 Docker 代理，因此 input 规则覆盖它"
+msgid "on {iface}"
+msgstr "经 {iface}"
 
 msgid "ufw"
 msgstr "ufw"

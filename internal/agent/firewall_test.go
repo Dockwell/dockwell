@@ -659,3 +659,45 @@ func TestParseNftables(t *testing.T) {
 		t.Errorf("tables %v", got)
 	}
 }
+
+// With Docker's defaults, its proxy on a network without IPv6, and firewalld's
+// default deny, a port Docker publishes reads closed on IPv6 alone, where its
+// proxy takes it; IPv4 reaches the container past the rules (narrow check of
+// #300). The agent says the IPv6 socket takes IPv6 alone, whether or not the
+// proxy holds an IPv4 socket beside it.
+func TestDockersDefaultsBehindADefaultDeny(t *testing.T) {
+	for _, proxyOnIPv4 := range []bool{true, false} {
+		e := dockertest.New(t)
+		e.AddContainer(docker.Container{ID: "a1", Name: "/shop-web-1", HostConfig: docker.HostConfig{
+			PortBindings: map[string][]docker.PortBinding{"80/tcp": {{HostPort: "8090"}}},
+		}})
+		tcp := "  sl  local_address rem_address   st\n"
+		if proxyOnIPv4 {
+			tcp += "   0: 00000000:1F9A 00000000:0000 0A\n"
+		}
+		p := fstest.MapFS{
+			"net/tcp":  {Data: []byte(tcp)},
+			"net/tcp6": {Data: []byte("  sl  local_address rem_address   st\n   0: 00000000000000000000000000000000:1F9A 00000000000000000000000000000000:0000 0A\n")},
+		}
+		tools := &fakeTools{outputs: map[string]hosttool.Result{
+			"firewall-cmd --state":                  ok([]byte("running\n")),
+			"firewall-cmd --get-default-zone":       ok([]byte("public\n")),
+			"firewall-cmd --get-active-zones":       ok([]byte("public\n  interfaces: eth0\n")),
+			"firewall-cmd --list-all --zone=public": ok(testdata(t, "firewalld-public.txt")),
+			"nft -j -t list ruleset":                ok([]byte(`{"nftables": []}`)),
+		}}
+		f := reader(tools, p)
+		f.docker = e.Client()
+		read, err := f.read(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, l := range read.GetListening() {
+			got = append(got, fmt.Sprintf("%s:%d ipv6only=%v %s", l.GetAddress(), l.GetPort(), l.GetIpv6Only(), strings.TrimPrefix(l.GetReach().String(), "LISTENER_REACH_")))
+		}
+		if strings.Join(got, ", ") != ":::8090 ipv6only=true CLOSED" {
+			t.Errorf("proxy on IPv4 too %v: listening %v, want IPv6 alone, closed", proxyOnIPv4, got)
+		}
+	}
+}

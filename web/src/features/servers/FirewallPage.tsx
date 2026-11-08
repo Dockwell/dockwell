@@ -107,18 +107,29 @@ interface RuleRow {
   rule: FirewallSeenRule;
 }
 
-/** A ufw rule's "To" as ufw says it: an address, a port, its app profile, and the interface. */
-function ruleTo(rule: FirewallSeenRule): string {
-  const port = rule.port === "Anywhere" && rule.destination ? "" : rule.port;
-  return [rule.destination, port, rule.app ? `(${rule.app})` : "", rule.interface ? `on ${rule.interface}` : ""]
-    .filter(Boolean)
-    .join(" ");
+/** A rule's "To" as ufw says it: an address, a port, its app profile, and the interface, with every port in words. */
+function useRuleTo(): (rule: FirewallSeenRule) => string {
+  const { t } = useLingui();
+  return (rule) => {
+    let port = rule.port;
+    if (port === "Anywhere") {
+      port = rule.destination ? "" : t`Any port`;
+    } else if (port.startsWith("Anywhere/")) {
+      const proto = port.slice("Anywhere/".length);
+      port = t`Any ${proto} port`;
+    }
+    const iface = rule.interface;
+    return [rule.destination, port, rule.app ? `(${rule.app})` : "", iface ? t`on ${iface}` : ""]
+      .filter(Boolean)
+      .join(" ");
+  };
 }
 
 /** One firewall Dockwell didn't make: what it is, its default, and its rules, read-only. */
 function ToolPanel({ tool }: { tool: FirewallTool }) {
   const { t } = useLingui();
   const words = useVerdictWords();
+  const ruleTo = useRuleTo();
   const title =
     tool.kind === FirewallToolKind.UFW ? t`ufw` : tool.name ? t`firewalld, zone ${tool.name}` : t`firewalld`;
   const rows: RuleRow[] = tool.rules.map((rule, i) => ({ id: `${i}`, rule }));
@@ -218,8 +229,8 @@ function useVerdictWords(): Partial<Record<FirewallVerdict, string>> {
 
 /**
  * The address a port is bound to, in words when it's every address. A socket on
- * "::" takes IPv4 too, as Linux has it by default, unless the same port is also
- * bound on "0.0.0.0", which then takes IPv4.
+ * "::" takes IPv4 too, as Linux has it by default, unless the port's IPv4 is
+ * taken apart: by a socket on "0.0.0.0", or as a port Docker publishes.
  */
 function BoundTo({ address, ipv4Apart }: { address: string; ipv4Apart: boolean }) {
   const { t } = useLingui();
@@ -292,8 +303,9 @@ function ListeningPanel({ server, listening }: { server: Server; listening: read
   const reach = useReachWords();
   if (listening.length === 0) return null;
   const rows: ListenerRow[] = listening.map((l) => ({ id: `${l.protocol}-${l.address}-${l.port}`, listener: l }));
-  const ipv4 = boundOnIPv4(listening);
-  const where = (l: HostListener) => <BoundTo address={l.address} ipv4Apart={ipv4.has(`${l.protocol} ${l.port}`)} />;
+  // The agent says which sockets on "::" take IPv6 alone: it sees what the tab
+  // doesn't, as the socket Docker forwards IPv4 past the rules with.
+  const where = (l: HostListener) => <BoundTo address={l.address} ipv4Apart={l.ipv6Only} />;
   const columns: TableColumn<ListenerRow>[] = phone
     ? [
         {
@@ -354,11 +366,14 @@ function PublishedPanel({ fw, filtered }: { fw: ServerFirewall; filtered: boolea
   if (ports.length === 0) return null;
   const rows: PortRow[] = ports.map((port) => ({ id: `${port.hostIp}-${port.hostPort}-${port.protocol}`, port }));
   const ipv4 = boundOnIPv4(ports.map((p) => ({ address: p.hostIp, port: p.hostPort, protocol: p.protocol })));
+  // Each on a line of its own: the address, then what Docker's proxy means for it.
   const where = (p: PublishedPort) => (
     <>
-      <BoundTo address={p.hostIp} ipv4Apart={ipv4.has(`${p.protocol} ${p.hostPort}`)} />
+      <span className="firewall-line">
+        <BoundTo address={p.hostIp} ipv4Apart={ipv4.has(`${p.protocol} ${p.hostPort}`)} />
+      </span>
       {p.proxied ? (
-        <span className="firewall-sub">{t`through Docker's proxy, so the input rules cover it`}</span>
+        <span className="firewall-line firewall-sub">{t`Through Docker's proxy, so the input rules cover it.`}</span>
       ) : null}
     </>
   );
@@ -368,9 +383,9 @@ function PublishedPanel({ fw, filtered }: { fw: ServerFirewall; filtered: boolea
           key: "port",
           header: t`Port`,
           render: ({ port: p }) => (
-            <span className="firewall-stack">
+            <span className="firewall-stack firewall-sub-lines">
               <code>{`${p.hostPort}/${p.protocol}`}</code>
-              <span className="firewall-sub">{where(p)}</span>
+              {where(p)}
             </span>
           ),
         },

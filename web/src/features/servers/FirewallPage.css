@@ -29,6 +29,23 @@
   border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
+/* What a reach says is a sentence, so it wraps rather than run off a phone's screen. */
+.firewall .dw-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.firewall-line {
+  display: block;
+}
+
+/* Under a port, what's said of it reads muted, as its address does. */
+.firewall-sub-lines .firewall-line {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
 .firewall-meta {
   color: var(--ink-muted);
   font-size: 12.5px;
