@@ -1243,14 +1243,14 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\x18DEPLOYMENT_STATE_PENDING\x10\x01\x12\x19\n" +
 	"\x15DEPLOYMENT_STATE_LIVE\x10\x02\x12\x1b\n" +
 	"\x17DEPLOYMENT_STATE_FAILED\x10\x03\x12\x1f\n" +
-	"\x1bDEPLOYMENT_STATE_SUPERSEDED\x10\x042\xc8\x05\n" +
-	"\x0eServiceService\x12p\n" +
-	"\fListServices\x12 .dockwell.v1.ListServicesRequest\x1a!.dockwell.v1.ListServicesResponse\"\x1b\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/services\x90\x02\x01\x12\xa6\x01\n" +
-	"\x14ListServiceRevisions\x12(.dockwell.v1.ListServiceRevisionsRequest\x1a).dockwell.v1.ListServiceRevisionsResponse\"9\xa0\xbb\x18\x01\xaa\xbb\x18\v\x12\trevisions\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/services/{id}/revisions\x90\x02\x01\x12\x7f\n" +
-	"\rDeployService\x12!.dockwell.v1.DeployServiceRequest\x1a\".dockwell.v1.DeployServiceResponse\"'\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/services/{id}:deploy\x12\x87\x01\n" +
-	"\x0fRollBackService\x12#.dockwell.v1.RollBackServiceRequest\x1a$.dockwell.v1.RollBackServiceResponse\")\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/services/{id}:rollback\x12\x8f\x01\n" +
-	"\x0eAddServicePort\x12\".dockwell.v1.AddServicePortRequest\x1a#.dockwell.v1.AddServicePortResponse\"4\xa0\xbb\x18\x02\xaa\xbb\x18\n" +
-	"\x12\badd-port\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/services/{id}/portsB\xa5\x01\n" +
+	"\x1bDEPLOYMENT_STATE_SUPERSEDED\x10\x042\x85\x06\n" +
+	"\x0eServiceService\x12|\n" +
+	"\fListServices\x12 .dockwell.v1.ListServicesRequest\x1a!.dockwell.v1.ListServicesResponse\"'\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/services\x90\x02\x01\x12\xb2\x01\n" +
+	"\x14ListServiceRevisions\x12(.dockwell.v1.ListServiceRevisionsRequest\x1a).dockwell.v1.ListServiceRevisionsResponse\"E\xa0\xbb\x18\x01\xaa\xbb\x18\v\x12\trevisions\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/services/{id}/revisions\x90\x02\x01\x12\x8b\x01\n" +
+	"\rDeployService\x12!.dockwell.v1.DeployServiceRequest\x1a\".dockwell.v1.DeployServiceResponse\"3\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/services/{id}:deploy\x12\x93\x01\n" +
+	"\x0fRollBackService\x12#.dockwell.v1.RollBackServiceRequest\x1a$.dockwell.v1.RollBackServiceResponse\"5\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/services/{id}:rollback\x12\x9b\x01\n" +
+	"\x0eAddServicePort\x12\".dockwell.v1.AddServicePortRequest\x1a#.dockwell.v1.AddServicePortResponse\"@\xa0\xbb\x18\x02\xaa\xbb\x18\n" +
+	"\x12\badd-port\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/services/{id}/portsB\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fServiceProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

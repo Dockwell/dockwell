@@ -24,6 +24,9 @@ service ServerService {
   rpc ListServers(ListServersRequest) returns (ListServersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_NAMED;
     option (google.api.http) = {get: "/v1/servers"};
   }
 
@@ -31,6 +34,9 @@ service ServerService {
   rpc GetServer(GetServerRequest) returns (GetServerResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_NAMED;
     option (google.api.http) = {get: "/v1/servers/{id}"};
   }
 
@@ -39,6 +45,9 @@ service ServerService {
   // the agent reporting it. It has no REST path, as streams have none.
   rpc WatchServers(WatchServersRequest) returns (stream WatchServersResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_NAMED;
   }
 
   // SetServerPublicAddress records a server's public address, as a person
@@ -48,6 +57,9 @@ service ServerService {
   // See docs/adr/0034-a-servers-public-address.md.
   rpc SetServerPublicAddress(SetServerPublicAddressRequest) returns (SetServerPublicAddressResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.command) = {verb: "set-public-address"};
     option (google.api.http) = {
       post: "/v1/servers/{id}:setPublicAddress"

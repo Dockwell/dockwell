@@ -62,6 +62,9 @@ service AuthService {
   rpc GetAuthState(GetAuthStateRequest) returns (GetAuthStateResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
     option (google.api.http) = {get: "/v1/authState"};
   }
 
@@ -69,6 +72,9 @@ service AuthService {
   // server it claims.
   rpc CheckClaim(CheckClaimRequest) returns (CheckClaimResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
     option (google.api.http) = {
       post: "/v1/claim:check"
       body: "*"
@@ -80,6 +86,9 @@ service AuthService {
   // BeginClaim starts creating the owner's first passkey.
   rpc BeginClaim(BeginClaimRequest) returns (BeginClaimResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
     option (google.api.http) = {
       post: "/v1/claim:begin"
       body: "*"
@@ -91,6 +100,9 @@ service AuthService {
   // passkey, and signs them in. It works once per install.
   rpc FinishClaim(FinishClaimRequest) returns (FinishClaimResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
     option (google.api.http) = {
       post: "/v1/claim:finish"
       body: "*"
@@ -101,6 +113,9 @@ service AuthService {
   // BeginPasskeySignIn starts signing in with a passkey.
   rpc BeginPasskeySignIn(BeginPasskeySignInRequest) returns (BeginPasskeySignInResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
     option (google.api.http) = {
       post: "/v1/sessions:beginPasskeySignIn"
       body: "*"
@@ -110,6 +125,9 @@ service AuthService {
   // FinishPasskeySignIn checks the passkey's signature and signs in.
   rpc FinishPasskeySignIn(FinishPasskeySignInRequest) returns (FinishPasskeySignInResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
     option (google.api.http) = {
       post: "/v1/sessions:finishPasskeySignIn"
       body: "*"
@@ -121,6 +139,9 @@ service AuthService {
   // for the account.
   rpc SignInWithCode(SignInWithCodeRequest) returns (SignInWithCodeResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
     option (google.api.http) = {
       post: "/v1/sessions:signInWithCode"
       body: "*"
@@ -130,6 +151,9 @@ service AuthService {
   // SignInWithLink spends a one-time sign-in link from dockwell recover.
   rpc SignInWithLink(SignInWithLinkRequest) returns (SignInWithLinkResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
     option (google.api.http) = {
       post: "/v1/sessions:signInWithLink"
       body: "*"
@@ -139,6 +163,9 @@ service AuthService {
   // SignOut ends this session.
   rpc SignOut(SignOutRequest) returns (SignOutResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/sessions:signOut"
       body: "*"
@@ -149,12 +176,18 @@ service AuthService {
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {get: "/v1/sessions"};
   }
 
   // RevokeSession ends one of your sessions. Its open streams close.
   rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/sessions/{id}:revoke"
       body: "*"
@@ -164,6 +197,9 @@ service AuthService {
   // RevokeOtherSessions ends every session of yours except this one.
   rpc RevokeOtherSessions(RevokeOtherSessionsRequest) returns (RevokeOtherSessionsResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/sessions:revokeOthers"
       body: "*"
@@ -181,6 +217,9 @@ service AuthService {
   // the action spends only once nothing else refuses it.
   rpc BeginStepUp(BeginStepUpRequest) returns (BeginStepUpResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/sessions:beginStepUp"
       body: "*"
@@ -192,6 +231,9 @@ service AuthService {
   // session alone, for that action on that target.
   rpc FinishStepUp(FinishStepUpRequest) returns (FinishStepUpResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/sessions:finishStepUp"
       body: "*"
@@ -202,6 +244,9 @@ service AuthService {
   rpc ListPasskeys(ListPasskeysRequest) returns (ListPasskeysResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {get: "/v1/passkeys"};
   }
 
@@ -214,6 +259,9 @@ service AuthService {
   // registered for this address.
   rpc BeginAddPasskey(BeginAddPasskeyRequest) returns (BeginAddPasskeyResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/passkeys:beginAdd"
       body: "*"
@@ -224,6 +272,9 @@ service AuthService {
   // checked again: still within its 10 minutes, and the first since.
   rpc FinishAddPasskey(FinishAddPasskeyRequest) returns (FinishAddPasskeyResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/passkeys:finishAdd"
       body: "*"
@@ -235,6 +286,9 @@ service AuthService {
   // in.
   rpc RemovePasskey(RemovePasskeyRequest) returns (RemovePasskeyResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/passkeys/{id}:remove"
       body: "*"
@@ -246,6 +300,9 @@ service AuthService {
   rpc GetTotp(GetTotpRequest) returns (GetTotpResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {get: "/v1/totp"};
   }
 
@@ -255,6 +312,9 @@ service AuthService {
   // 10 minutes.
   rpc BeginTotpSetup(BeginTotpSetupRequest) returns (BeginTotpSetupResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/totp:beginSetup"
       body: "*"
@@ -267,6 +327,9 @@ service AuthService {
   // a new step-up.
   rpc ConfirmTotpSetup(ConfirmTotpSetupRequest) returns (ConfirmTotpSetupResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/totp:confirmSetup"
       body: "*"
@@ -277,6 +340,9 @@ service AuthService {
   // works nowhere. It does nothing when none is waiting.
   rpc CancelTotpSetup(CancelTotpSetupRequest) returns (CancelTotpSetupResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/totp:cancelSetup"
       body: "*"
@@ -288,6 +354,9 @@ service AuthService {
   // It refuses when that would leave no way to sign in.
   rpc DisableTotp(DisableTotpRequest) returns (DisableTotpResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/totp:disable"
       body: "*"
@@ -298,6 +367,9 @@ service AuthService {
   // working. It needs a proof from FinishStepUp for making recovery codes.
   rpc RegenerateRecoveryCodes(RegenerateRecoveryCodesRequest) returns (RegenerateRecoveryCodesResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/totp:regenerateRecoveryCodes"
       body: "*"
@@ -308,6 +380,9 @@ service AuthService {
   // locked it.
   rpc UnlockCodeSignIn(UnlockCodeSignInRequest) returns (UnlockCodeSignInResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/totp:unlock"
       body: "*"
@@ -317,9 +392,19 @@ service AuthService {
 
 // Role is what a person may do.
 enum Role {
+  // No role on the whole install: someone who holds projects alone, or
+  // nothing.
   ROLE_UNSPECIFIED = 0;
-  // Everything, on every server. The first person, who claimed the install.
+  // Everything, on every server. One person, who claimed the install or had
+  // it transferred to them.
   ROLE_OWNER = 1;
+  // Everything but what's the owner's alone: transferring ownership, and the
+  // owner's own sign-in.
+  ROLE_ADMIN = 2;
+  // Plans, and applies outside protected environments, in the projects held.
+  ROLE_DEVELOPER = 3;
+  // Reads, in the projects held.
+  ROLE_VIEWER = 4;
 }
 
 // SignInMethod is how a session began.

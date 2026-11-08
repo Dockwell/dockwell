@@ -54,19 +54,34 @@ The resolver (ADR 0048) says where each object a call names belongs: **(project,
 
 ### Every method says who may call it, in open and protected places
 
-Every method declares two roles, as method options beside `effect`:
+Every method declares three options beside `effect`, with no defaults:
 
 - **`min_role`** (option 50104), the lowest role it needs where its objects are in an open environment, or in no environment;
-- **`min_role_protected`** (option 50105), the lowest it needs where any of its objects is in a protected environment. It defaults to admin for any effect but read, and for `RevealSecret`.
+- **`min_role_protected`** (option 50105), the lowest it needs where any of its objects is in a protected environment;
+- **`reach`** (option 50106), what its objects are:
+  - **anyone's:** calls before signing in, such as signing in, claiming and the version. They need no role.
+  - **self:** the caller's own sign-in, sessions and tokens, in `AuthService` and `TokenService`. These need any grant, and act only on the caller's own records. Signing out needs none, so someone with no grant left can still sign out, and only that.
+  - **shared:** the same for everyone who holds a grant, such as the catalog's apps, read only.
+  - **project:** a project's own objects, class 1 above.
+  - **named:** class 2, read or checked by name and state, as `CheckDomain` checks.
+  - **install:** class 3, an admin's.
 
-The interceptor checks `min_role` against the person's highest grant anywhere, as a first gate (ADR 0048, check 1). The resolver then checks both against the grants on each object's place (check 3). `internal/revision` checks each item of a change (check 2). Each check uses the stricter of an item's place before and after the change.
+Plan methods whose writes go through `internal/revision`, such as `DeployService`, `RestartService`, `UndoChange` and `RestoreBackup`, declare developer in both places, so a developer's protected change gets as far as check 2, which makes it wait. Writes that don't go through it, such as making or deleting a backup, declare admin where protected. A read that needs a session, such as revealing a secret, declares admin where protected.
+
+A viewer may make an API token. It acts as a viewer does, so it only reads, whatever its scope.
+
+The interceptor checks `min_role` against the caller's highest grant anywhere, as a first gate (ADR 0048, check 1). The resolver then checks both roles against the grants on each object's place (check 3). `internal/revision` checks each item of a change (check 2). Each check uses the stricter of an item's place before and after the change.
 
 **The descriptor test fails the build on:**
 
-- a method without `min_role`, or without `min_role_protected` where its effect isn't read;
-- `min_role` viewer with any effect but read;
-- any write below developer;
-- any method that touches no project with a role below admin, unless it reads only class 2 by name and state;
+- a method without `min_role`, `min_role_protected` or `reach`, reads included;
+- `min_role_protected` below `min_role`;
+- a role that needs nothing, outside calls before sign-in and the caller's own;
+- `min_role` viewer with any effect but read, outside the caller's own and a check of names;
+- any write below developer, outside the caller's own;
+- install's own objects below admin;
+- named or shared objects with any effect but read, or for named, a check;
+- a read that needs a session below admin where protected;
 - a method that names an object by an ID field, or in a list of them, without the resolver (ADR 0048). `BeginStepUpRequest.target` counts as an ID field.
 
 ### Protected environments

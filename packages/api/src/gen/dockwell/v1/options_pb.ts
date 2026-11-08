@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/options.proto.
  */
 export const file_dockwell_v1_options: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9vcHRpb25zLnByb3RvEgtkb2Nrd2VsbC52MSIlCgdDb21tYW5kEgwKBG5vdW4YASABKAkSDAoEdmVyYhgCIAEoCSIiCgROb3VuEgwKBG5hbWUYASABKAkSDAoEaGVscBgCIAEoCSpsCgZFZmZlY3QSFgoSRUZGRUNUX1VOU1BFQ0lGSUVEEAASDwoLRUZGRUNUX1JFQUQQARIPCgtFRkZFQ1RfUExBThACEhAKDEVGRkVDVF9BUFBMWRADEhYKEkVGRkVDVF9ERVNUUlVDVElWRRAEKj8KClRva2VuR3JhbnQSGwoXVE9LRU5fR1JBTlRfVU5TUEVDSUZJRUQQABIUChBUT0tFTl9HUkFOVF9MT0dTEAE6TQoGZWZmZWN0Eh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYtIcDIAEoDjITLmRvY2t3ZWxsLnYxLkVmZmVjdFIGZWZmZWN0OlAKB2NvbW1hbmQSHi5nb29nbGUucHJvdG9idWYuTWV0aG9kT3B0aW9ucxi1hwMgASgLMhQuZG9ja3dlbGwudjEuQ29tbWFuZFIHY29tbWFuZDpFCg1uZWVkc19zZXNzaW9uEh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYtocDIAEoCFIMbmVlZHNTZXNzaW9uOloKC25lZWRzX2dyYW50Eh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYt4cDIAEoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnRSCm5lZWRzR3JhbnQ6SgoFbm91bnMSHy5nb29nbGUucHJvdG9idWYuU2VydmljZU9wdGlvbnMYtIcDIAMoCzIRLmRvY2t3ZWxsLnYxLk5vdW5SBW5vdW5zOjMKBGZsYWcSHS5nb29nbGUucHJvdG9idWYuRmllbGRPcHRpb25zGLSHAyABKAlSBGZsYWc6PAoJZnJvbV9maWxlEh0uZ29vZ2xlLnByb3RvYnVmLkZpZWxkT3B0aW9ucxi1hwMgASgIUghmcm9tRmlsZTo3CgR3b3JkEiEuZ29vZ2xlLnByb3RvYnVmLkVudW1WYWx1ZU9wdGlvbnMYtIcDIAEoCVIEd29yZEKlAQoPY29tLmRvY2t3ZWxsLnYxQgxPcHRpb25zUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_google_protobuf_descriptor]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9vcHRpb25zLnByb3RvEgtkb2Nrd2VsbC52MSIlCgdDb21tYW5kEgwKBG5vdW4YASABKAkSDAoEdmVyYhgCIAEoCSIiCgROb3VuEgwKBG5hbWUYASABKAkSDAoEaGVscBgCIAEoCSpsCgZFZmZlY3QSFgoSRUZGRUNUX1VOU1BFQ0lGSUVEEAASDwoLRUZGRUNUX1JFQUQQARIPCgtFRkZFQ1RfUExBThACEhAKDEVGRkVDVF9BUFBMWRADEhYKEkVGRkVDVF9ERVNUUlVDVElWRRAEKj8KClRva2VuR3JhbnQSGwoXVE9LRU5fR1JBTlRfVU5TUEVDSUZJRUQQABIUChBUT0tFTl9HUkFOVF9MT0dTEAEqegoFTmVlZHMSFQoRTkVFRFNfVU5TUEVDSUZJRUQQABIRCg1ORUVEU19OT1RISU5HEAESEAoMTkVFRFNfVklFV0VSEAISEwoPTkVFRFNfREVWRUxPUEVSEAMSDwoLTkVFRFNfQURNSU4QBBIPCgtORUVEU19PV05FUhAFKokBCgVSZWFjaBIVChFSRUFDSF9VTlNQRUNJRklFRBAAEhAKDFJFQUNIX0FOWU9ORRABEg4KClJFQUNIX1NFTEYQAhIQCgxSRUFDSF9TSEFSRUQQAxIRCg1SRUFDSF9QUk9KRUNUEAQSDwoLUkVBQ0hfTkFNRUQQBRIRCg1SRUFDSF9JTlNUQUxMEAY6TQoGZWZmZWN0Eh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYtIcDIAEoDjITLmRvY2t3ZWxsLnYxLkVmZmVjdFIGZWZmZWN0OlAKB2NvbW1hbmQSHi5nb29nbGUucHJvdG9idWYuTWV0aG9kT3B0aW9ucxi1hwMgASgLMhQuZG9ja3dlbGwudjEuQ29tbWFuZFIHY29tbWFuZDpFCg1uZWVkc19zZXNzaW9uEh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYtocDIAEoCFIMbmVlZHNTZXNzaW9uOloKC25lZWRzX2dyYW50Eh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYt4cDIAEoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnRSCm5lZWRzR3JhbnQ6TwoIbWluX3JvbGUSHi5nb29nbGUucHJvdG9idWYuTWV0aG9kT3B0aW9ucxi4hwMgASgOMhIuZG9ja3dlbGwudjEuTmVlZHNSB21pblJvbGU6YgoSbWluX3JvbGVfcHJvdGVjdGVkEh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYuYcDIAEoDjISLmRvY2t3ZWxsLnYxLk5lZWRzUhBtaW5Sb2xlUHJvdGVjdGVkOkoKBXJlYWNoEh4uZ29vZ2xlLnByb3RvYnVmLk1ldGhvZE9wdGlvbnMYuocDIAEoDjISLmRvY2t3ZWxsLnYxLlJlYWNoUgVyZWFjaDpKCgVub3VucxIfLmdvb2dsZS5wcm90b2J1Zi5TZXJ2aWNlT3B0aW9ucxi0hwMgAygLMhEuZG9ja3dlbGwudjEuTm91blIFbm91bnM6MwoEZmxhZxIdLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE9wdGlvbnMYtIcDIAEoCVIEZmxhZzo8Cglmcm9tX2ZpbGUSHS5nb29nbGUucHJvdG9idWYuRmllbGRPcHRpb25zGLWHAyABKAhSCGZyb21GaWxlOjcKBHdvcmQSIS5nb29nbGUucHJvdG9idWYuRW51bVZhbHVlT3B0aW9ucxi0hwMgASgJUgR3b3JkQqUBCg9jb20uZG9ja3dlbGwudjFCDE9wdGlvbnNQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_google_protobuf_descriptor]);
 
 /**
  * Command names a method's command in the dockwell CLI, dockwell <noun>
@@ -159,6 +159,125 @@ export const TokenGrantSchema: GenEnum<TokenGrant> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_options, 1);
 
 /**
+ * Needs is the lowest role a method needs (ADR 0049). A role holds where its
+ * grant does: on a project, or on the install, which covers every project.
+ *
+ * @generated from enum dockwell.v1.Needs
+ */
+export enum Needs {
+  /**
+   * @generated from enum value: NEEDS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * No role: a call before signing in, or signing out, which someone with no
+   * grant left may still do.
+   *
+   * @generated from enum value: NEEDS_NOTHING = 1;
+   */
+  NOTHING = 1,
+
+  /**
+   * A viewer's grant: reading.
+   *
+   * @generated from enum value: NEEDS_VIEWER = 2;
+   */
+  VIEWER = 2,
+
+  /**
+   * A developer's grant: planning, and applying outside protected
+   * environments.
+   *
+   * @generated from enum value: NEEDS_DEVELOPER = 3;
+   */
+  DEVELOPER = 3,
+
+  /**
+   * An admin's grant, which is on the whole install.
+   *
+   * @generated from enum value: NEEDS_ADMIN = 4;
+   */
+  ADMIN = 4,
+
+  /**
+   * The owner.
+   *
+   * @generated from enum value: NEEDS_OWNER = 5;
+   */
+  OWNER = 5,
+}
+
+/**
+ * Describes the enum dockwell.v1.Needs.
+ */
+export const NeedsSchema: GenEnum<Needs> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_options, 2);
+
+/**
+ * Reach says what a method's objects are, for how its role is checked
+ * (ADR 0049).
+ *
+ * @generated from enum dockwell.v1.Reach
+ */
+export enum Reach {
+  /**
+   * @generated from enum value: REACH_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Nobody's: a call before signing in, such as signing in or the version.
+   *
+   * @generated from enum value: REACH_ANYONE = 1;
+   */
+  ANYONE = 1,
+
+  /**
+   * The caller's own sign-in, sessions and tokens, and nobody else's.
+   *
+   * @generated from enum value: REACH_SELF = 2;
+   */
+  SELF = 2,
+
+  /**
+   * The same for everyone who holds a grant, such as the catalog's apps.
+   *
+   * @generated from enum value: REACH_SHARED = 3;
+   */
+  SHARED = 3,
+
+  /**
+   * A project's own objects, named by ID or listed, each placed by the
+   * resolver.
+   *
+   * @generated from enum value: REACH_PROJECT = 4;
+   */
+  PROJECT = 4,
+
+  /**
+   * What projects name on the install, such as servers and domains, read or
+   * checked by name and state.
+   *
+   * @generated from enum value: REACH_NAMED = 5;
+   */
+  NAMED = 5,
+
+  /**
+   * The install's own, such as files, terminals and settings.
+   *
+   * @generated from enum value: REACH_INSTALL = 6;
+   */
+  INSTALL = 6,
+}
+
+/**
+ * Describes the enum dockwell.v1.Reach.
+ */
+export const ReachSchema: GenEnum<Reach> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_options, 3);
+
+/**
  * How the method affects managed state. Every Dockwell method sets it; a
  * test in internal/control fails the build when one doesn't.
  *
@@ -197,6 +316,35 @@ export const needs_grant: GenExtension<MethodOptions, TokenGrant> = /*@__PURE__*
   extDesc(file_dockwell_v1_options, 3);
 
 /**
+ * The lowest role the method needs where its objects are in an open
+ * environment, or in none. Every Dockwell method sets it, and a test fails
+ * the build on one that doesn't. See
+ * docs/adr/0049-roles-and-invites-by-project.md.
+ *
+ * @generated from extension: dockwell.v1.Needs min_role = 50104;
+ */
+export const min_role: GenExtension<MethodOptions, Needs> = /*@__PURE__*/
+  extDesc(file_dockwell_v1_options, 4);
+
+/**
+ * The lowest role the method needs where any of its objects is in a
+ * protected environment. Every Dockwell method sets it too.
+ *
+ * @generated from extension: dockwell.v1.Needs min_role_protected = 50105;
+ */
+export const min_role_protected: GenExtension<MethodOptions, Needs> = /*@__PURE__*/
+  extDesc(file_dockwell_v1_options, 5);
+
+/**
+ * What the method's objects are, which says how its role is checked.
+ * Every Dockwell method sets it.
+ *
+ * @generated from extension: dockwell.v1.Reach reach = 50106;
+ */
+export const reach: GenExtension<MethodOptions, Reach> = /*@__PURE__*/
+  extDesc(file_dockwell_v1_options, 6);
+
+/**
  * The help of each noun the service's methods' commands have, when they
  * have more than one. A service whose commands have one noun leaves it
  * unset, and its comment is that noun's help.
@@ -204,7 +352,7 @@ export const needs_grant: GenExtension<MethodOptions, TokenGrant> = /*@__PURE__*
  * @generated from extension: repeated dockwell.v1.Noun nouns = 50100;
  */
 export const nouns: GenExtension<ServiceOptions, Noun[]> = /*@__PURE__*/
-  extDesc(file_dockwell_v1_options, 4);
+  extDesc(file_dockwell_v1_options, 7);
 
 /**
  * The dockwell CLI's flag for a request's field, in place of the field's
@@ -214,7 +362,7 @@ export const nouns: GenExtension<ServiceOptions, Noun[]> = /*@__PURE__*/
  * @generated from extension: string flag = 50100;
  */
 export const flag: GenExtension<FieldOptions, string> = /*@__PURE__*/
-  extDesc(file_dockwell_v1_options, 5);
+  extDesc(file_dockwell_v1_options, 8);
 
 /**
  * The dockwell CLI's flag for a request's text field also reads it from a
@@ -224,7 +372,7 @@ export const flag: GenExtension<FieldOptions, string> = /*@__PURE__*/
  * @generated from extension: bool from_file = 50101;
  */
 export const from_file: GenExtension<FieldOptions, boolean> = /*@__PURE__*/
-  extDesc(file_dockwell_v1_options, 6);
+  extDesc(file_dockwell_v1_options, 9);
 
 /**
  * What people read for a value, where that isn't its name in words: the
@@ -234,5 +382,5 @@ export const from_file: GenExtension<FieldOptions, boolean> = /*@__PURE__*/
  * @generated from extension: string word = 50100;
  */
 export const word: GenExtension<EnumValueOptions, string> = /*@__PURE__*/
-  extDesc(file_dockwell_v1_options, 7);
+  extDesc(file_dockwell_v1_options, 10);
 
