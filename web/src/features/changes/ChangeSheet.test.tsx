@@ -780,16 +780,17 @@ describe("the plan sheet", () => {
     expect(sheet).toHaveTextContent("This reloads the proxy on hz-1");
   });
 
-  it("says quietly, once, what an edit kept of an app's own values, as no warning", async () => {
+  it("says quietly, once, what an edit kept of an app's own values, as no warning, however many servers note it", async () => {
     const kept = webPlanned();
     if (!kept.plan) throw new Error("webPlanned has no plan");
-    kept.plan.notes = [
+    // The server notes it for the app's step on each server, here two.
+    const note = () =>
       create(PlanNoteSchema, {
         reason: "keeps_env",
         message: "web keeps the value of SESSION_KEY as it is, as nobody read it back",
-        resource: create(ResourceRefSchema, { kind: "service", name: "web" }),
-      }),
-    ];
+        resource: create(ResourceRefSchema, { kind: "service", scope: "env_prod", name: "web" }),
+      });
+    kept.plan.notes = [note(), note()];
     renderSheet(proposeWeb, {
       changes: { proposeChange: () => ({ change: kept }), watchChange: feed<WatchChangeResponse>().stream },
     });
