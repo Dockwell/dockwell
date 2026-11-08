@@ -8,8 +8,9 @@
 // the page stops the reading on the agent. It measures the page at a hundred
 // thousand lines, and at thousands of lines a second, and prints the figures.
 // With --shots <dir> it saves screenshots at 1440, 800, 390 and 360 px, light and
-// dark, and in Chinese. DOCKWELL_E2E_CPU=6 slows the page's CPU six times, after
-// the line-latency check, as a loaded CI machine does, to bring out races. CI's Service end to end on Docker job reads real
+// dark, and in Chinese. DOCKWELL_E2E_CPU=6 slows the page's CPU six times, as a
+// loaded CI machine does, to bring out races: from after the line-latency check,
+// and not while it measures frames. CI's Service end to end on Docker job reads real
 // containers' logs through the CLI (scripts/docker-e2e.sh).
 //
 //   make e2e
@@ -358,9 +359,11 @@ async function main() {
   step(`  written to on screen, 20 lines: median ${latencies[10]} ms, worst ${worst} ms`);
   if (worst >= 1000) fail(`a line took ${worst} ms to reach the browser, and must within 1 s`);
   const cpu = Number(process.env["DOCKWELL_E2E_CPU"] ?? "1");
-  if (cpu > 1) {
-    step(`  from here the page's CPU runs ${cpu} times slower`);
-    await (await context.newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: cpu });
+  const cdp = cpu > 1 ? await context.newCDPSession(page) : undefined;
+  const slow = (rate: number) => cdp?.send("Emulation.setCPUThrottlingRate", { rate });
+  if (cdp) {
+    step(`  from here the page's CPU runs ${cpu} times slower, but while frames are measured`);
+    await slow(cpu);
   }
 
   step("what a line holds can't break out of it");
@@ -764,6 +767,8 @@ async function main() {
   step(`  printed ${JSON.stringify(followed.split("\n").at(-2))}, and exited with status 0`);
 
   step("the page at a hundred thousand lines, at 5,000 lines a second from each replica");
+  // What it measures is how fast the page is, so at the speed it has.
+  await slow(1);
   await page.goto(url);
   const written = async () => Number((await (await fetch(`${load}/written`)).text()).trim());
   const writtenBefore = await written();
@@ -806,6 +811,7 @@ async function main() {
     `  a search over all of them, from typing to the answer (120 ms of that waits for the next key): ${Date.now() - typed} ms`,
   );
   await search.fill("");
+  await slow(cpu);
 
   step("a search leaves a paused reader where they were");
   const topLine = () =>
