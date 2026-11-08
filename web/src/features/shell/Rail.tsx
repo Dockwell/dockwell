@@ -72,7 +72,9 @@ export function Rail({ view }: { view: FleetView }) {
       <Link to="/apps" {...current(segment === "apps")}>
         <ItemBody icon="service" label={t`Apps`} count={apps ? String(apps) : undefined} countSeenOnly />
       </Link>
-      {section("websites")}
+      <Link to="/websites" {...current(segment === "websites")}>
+        <ItemBody icon="browser" label={t`Websites`} />
+      </Link>
       <Link to="/databases" {...current(segment === "databases")}>
         <ItemBody icon="database" label={t`Databases`} />
       </Link>

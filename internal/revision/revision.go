@@ -1080,6 +1080,17 @@ func (e *Engine) recordPlanned(ctx context.Context, tx *store.RevisionTx, c stor
 	})
 }
 
+// othersThan are what a change's edits are of, but the one at i.
+func othersThan(edits []Edit, i int) []resource.Ref {
+	out := make([]resource.Ref, 0, len(edits)-1)
+	for j := range edits {
+		if j != i {
+			out = append(out, edits[j].Ref)
+		}
+	}
+	return out
+}
+
 // items reads where each edit's resource stands and what the edit wants of
 // it, gives new resources their IDs, and checks the edits as a whole. With
 // rotate, an edit that sets a secret's value rotates it.
@@ -1123,6 +1134,13 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 					if c, ok := t.(resource.NewChecker); ok {
 						if err := c.CheckNew(it.spec); err != nil {
 							return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
+						}
+					}
+				}
+				if t, err := e.kinds.Type(ed.Ref.Kind); err == nil && !ed.Observed && !ed.Reverses {
+					if c, ok := t.(resource.ChangeChecker); ok {
+						if err := c.CheckInChange(it.current, it.spec, othersThan(edits, i)); err != nil {
+							return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
 						}
 					}
 				}

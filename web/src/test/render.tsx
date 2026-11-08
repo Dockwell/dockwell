@@ -24,6 +24,7 @@ import {
   TokenService,
   UpdateService,
   VariableService,
+  WebsiteService,
 } from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
 import { QueryClient } from "@tanstack/react-query";
@@ -60,6 +61,7 @@ export type Api = {
   settings?: Partial<ServiceImpl<typeof SettingsService>>;
   updates?: Partial<ServiceImpl<typeof UpdateService>>;
   databases?: Partial<ServiceImpl<typeof DatabaseService>>;
+  websites?: Partial<ServiceImpl<typeof WebsiteService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -115,6 +117,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
         ...api.backups,
       });
       service(DatabaseService, { listDatabases: () => ({}), ...api.databases });
+      service(WebsiteService, { listWebsites: () => ({}), ...api.websites });
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );

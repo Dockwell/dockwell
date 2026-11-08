@@ -97,6 +97,9 @@ type Config struct {
 	// Hello changes what the agent says of itself as a stream opens, for a test
 	// that stands in for an agent of another version. Nil changes nothing.
 	Hello func(*agentv1.Hello)
+	// Probe says whether what a website sends to answers. Nil is Probe, which
+	// asks from this server.
+	Probe func(context.Context, *agentv1.ProbeCall) *agentv1.ProbeResult
 }
 
 // HealthReporter says how a server's services are (ADR 0027).

@@ -11,13 +11,14 @@ import { useNavigate } from "@tanstack/react-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { onApple } from "../../lib/platform";
-import { appState, imageOf, nameOf } from "../apps/app";
+import { appState, environmentOf, imageOf, nameOf } from "../apps/app";
 import { useServices } from "../apps/useServices";
 import { useAppWords } from "../apps/words";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { isPrivateAddress, serverStatus } from "../servers/server";
 import { useFleetView } from "../servers/useFleet";
+import { useWebsiteOfEnvironment } from "../websites/website";
 import { shortVersion } from "./version";
 
 const OpenContext = createContext<() => void>(() => {});
@@ -142,7 +143,13 @@ function Commands({ onClose }: { onClose: () => void }) {
   const projects = useQuery(ResourceService.method.listResources, { kind: "project" }).data?.resources;
   const environments = useQuery(ResourceService.method.listResources, { kind: "environment" }).data?.resources;
   const recent = useQuery(EventService.method.listEvents, { kinds: [EventKind.CHANGE], pageSize: 8 }).data?.events;
-  const apps = useServices().data;
+  const services = useServices().data;
+  // A website's own services are its to show, on Websites (ADR 0039).
+  const websiteOf = useWebsiteOfEnvironment();
+  const apps = useMemo(
+    () => (services && websiteOf ? services.filter((s) => !websiteOf(environmentOf(s))) : undefined),
+    [services, websiteOf],
+  );
   const appWords = useAppWords();
   const [prompt, setPrompt] = useState<Prompt>();
   const [query, setQuery] = useState("");
@@ -221,6 +228,13 @@ function Commands({ onClose }: { onClose: () => void }) {
       icon: "key",
       label: t`Open the variables and secrets`,
       run: () => navigate({ to: "/variables" }),
+    });
+    list.push({
+      id: "websites",
+      group: pages,
+      icon: "browser",
+      label: t`Open the websites`,
+      run: () => navigate({ to: "/websites" }),
     });
     list.push({
       id: "domains",

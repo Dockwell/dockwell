@@ -62,6 +62,10 @@ type Docker struct {
 	// Logger hears what the runtime can't do on its own time, such as
 	// cleaning up after a change that failed. Nil means slog's default.
 	Logger *slog.Logger
+	// Folders makes a server path a mount names when it isn't there, with the owner
+	// the mount gives. Nil makes none, and leaves it to Docker, which makes it
+	// root's.
+	Folders FolderMaker
 	// Paths finds what no container may mount on this server, and follows
 	// symlinks there. Nil checks only what Validate does.
 	Paths *Paths
@@ -208,6 +212,9 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 	}
 	if r := referencesLabel(spec); r != "" {
 		out[LabelReferences] = r
+	}
+	if o := makeOwnersLabel(spec); o != "" {
+		out[LabelMakeOwners] = o
 	}
 	var set []string
 	add := func(name string, ok bool) {
@@ -1029,7 +1036,44 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 	}
 	projectNetworks(c, t, out)
 	readWords(c, out)
+	readMakeOwners(c, out)
 	return out
+}
+
+// LabelMakeOwners holds whom each server path a container mounts was to be made
+// for, where it wasn't there, by the mount's target, as Docker keeps nothing of it.
+const LabelMakeOwners = docker.OwnPrefix + "make-owners"
+
+// makeOwnersLabel is LabelMakeOwners for a spec, such as "/var/www/html=82:82", or
+// empty when no mount says one. Mounts are sorted, so one spec makes one label.
+func makeOwnersLabel(spec *resourcev1.Container) string {
+	var out []string
+	for _, m := range spec.GetMounts() {
+		if m.GetHostPath() != "" && m.GetMakeOwner() != "" {
+			out = append(out, m.GetTarget()+"="+m.GetMakeOwner())
+		}
+	}
+	return strings.Join(out, ",")
+}
+
+// readMakeOwners puts back what LabelMakeOwners says on the mounts read from a
+// container.
+func readMakeOwners(c *docker.Container, out *resourcev1.Container) {
+	label := c.Config.Labels[LabelMakeOwners]
+	if label == "" {
+		return
+	}
+	owners := map[string]string{}
+	for _, pair := range strings.Split(label, ",") {
+		if target, owner, ok := strings.Cut(pair, "="); ok {
+			owners[target] = owner
+		}
+	}
+	for _, m := range out.GetMounts() {
+		if m.GetHostPath() != "" {
+			m.MakeOwner = owners[m.GetTarget()]
+		}
+	}
 }
 
 // tmpfsOptions is a tmpfs as Docker takes it. Docker gives it noexec, nosuid and

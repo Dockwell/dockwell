@@ -593,6 +593,9 @@ func validateMounts(c *resourcev1.Container) error {
 			if m.GetExternal() && anonymous(src.Volume) {
 				return fmt.Errorf("the volume %s has the form of one Docker made for an image, so it can't be mounted by name. Mount a named volume", src.Volume)
 			}
+			if m.GetMakeOwner() != "" {
+				return fmt.Errorf("the volume %s mounted at %s has a make_owner, which only a server path takes. Leave it out", src.Volume, m.Target)
+			}
 		case *resourcev1.Mount_HostPath:
 			if m.GetExternal() {
 				return fmt.Errorf("the mount at %s is a server path, which Dockwell didn't make either way, so it takes no external. Leave it out", m.Target)
@@ -609,6 +612,13 @@ func validateMounts(c *resourcev1.Container) error {
 			src.HostPath = path.Clean(src.HostPath)
 			if err := DefaultHost.CheckPath(src.HostPath, fmt.Sprintf("the server path %s mounted at %s", src.HostPath, m.Target)); err != nil {
 				return err
+			}
+			if o := m.GetMakeOwner(); o != "" {
+				uid, gid, err := resource.ParseOwner(o)
+				if err != nil {
+					return fmt.Errorf("the server path %s mounted at %s: %w", src.HostPath, m.Target, err)
+				}
+				m.MakeOwner = resource.FormatOwner(uid, gid)
 			}
 		default:
 			return fmt.Errorf("the mount at %s needs a volume or a server path to mount", m.Target)

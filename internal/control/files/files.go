@@ -123,8 +123,13 @@ func (h *Handler) ListFiles(ctx context.Context, req *connect.Request[dockwellv1
 		return nil, err
 	}
 	record := h.recorder(ctx, p, srv)
+	// A form's look at whether a folder is there, as someone types, is a guess at a
+	// path: what it can't have goes on no Activity.
+	lookup := req.Msg.GetLookup()
 	if err := files.CheckPath(path); err != nil {
-		h.note(ctx, record, eventRefuse, "list", path, srv, err)
+		if !lookup {
+			h.note(ctx, record, eventRefuse, "list", path, srv, err)
+		}
 		return nil, authapi.Invalid(err)
 	}
 	session, err := h.session(ctx, srv)
@@ -137,7 +142,9 @@ func (h *Handler) ListFiles(ctx context.Context, req *connect.Request[dockwellv1
 	}
 	if r := out.GetRefusal(); r != nil {
 		err := refusal(r)
-		h.note(ctx, record, eventRefuse, "list", path, srv, err)
+		if !lookup {
+			h.note(ctx, record, eventRefuse, "list", path, srv, err)
+		}
 		return nil, err
 	}
 	return connect.NewResponse(out.GetListing()), nil

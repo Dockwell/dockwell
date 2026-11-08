@@ -76,7 +76,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 	client := e.Client()
 	client.Adopted = &docker.Adopted{}
 	archive := &agentlogs.Archive{Dir: t.TempDir(), Client: client, Logger: slog.New(slog.DiscardHandler), Free: func(string) (uint64, error) { return 1 << 40, nil }}
-	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Logs: archive, Paths: &container.Paths{Client: client, DataDir: t.TempDir()}}}
+	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Logs: archive, Paths: &container.Paths{Client: client, DataDir: t.TempDir()}, Probe: f.probe}}
 	helper := filepath.Join(t.TempDir(), "dockwell")
 	if err := os.WriteFile(helper, []byte("#!agent\n"), 0o600); err != nil {
 		t.Fatal(err)

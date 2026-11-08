@@ -631,6 +631,17 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_ListUpdates{ListUpdates: &agentv1.ListUpdatesResult{Updates: found}}}
 	}
+	if p := call.GetProbe(); p != nil {
+		probe := c.cfg.Probe
+		if probe == nil {
+			probe = Probe
+		}
+		found := probe(ctx, p)
+		if found == nil {
+			return fail(errors.New("this server asks nothing beyond itself, so it didn't ask"))
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Probe{Probe: found}}
+	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",
 	}}}

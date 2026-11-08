@@ -1,0 +1,587 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The list. */
+.websites-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Columns keep their widths whatever a row says, so a state that changes moves nothing. */
+.websites-table.dw-table-wrap {
+  overflow: clip;
+}
+
+.websites-table .dw-table {
+  table-layout: fixed;
+}
+
+/* A domain is a machine name: mono, as Websites-List sets it. */
+.websites-domain {
+  font: 500 13px / 18px var(--font-mono);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.websites-domain:hover {
+  text-decoration: underline;
+}
+
+.websites-muted {
+  color: var(--ink-muted);
+}
+
+.websites-certificate {
+  white-space: nowrap;
+}
+
+.websites-phone-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: 0 2px;
+}
+
+.websites-phone .websites-domain {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* A website's page: its settings on the left, what they come to on the right, as Website-Detail lays them out. */
+.website-columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-6);
+}
+
+.website-settings {
+  display: flex;
+  flex: 1 1 340px;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  max-width: 400px;
+}
+
+.website-settings > .dw-panel:last-child {
+  flex: 1 1 auto;
+}
+
+.website-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.website-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.website-config {
+  display: flex;
+  flex: 2 1 560px;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* The code takes what the panel has, so its foot sits at the bottom, beside the settings. */
+.website-config > .dw-panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.website-config-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 10px var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.website-config-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--ink-muted);
+}
+
+.website-config-title h2 {
+  overflow: hidden;
+  font: 500 12.5px / 20px var(--font-mono);
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.website-config-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+.website-config-tools > span {
+  margin-right: var(--space-1);
+}
+
+.website-code {
+  flex: 1 1 auto;
+  min-height: 240px;
+  padding: var(--space-3) 0;
+  overflow: auto;
+  background: var(--surface-sunken);
+  font: 400 12px / 20px var(--font-mono);
+}
+
+.website-code-line {
+  display: flex;
+  min-height: 20px;
+}
+
+.website-code-line.is-changed {
+  background: var(--diff-change-soft);
+  box-shadow: inset 2px 0 0 var(--diff-change);
+}
+
+.website-code-gutter {
+  flex: none;
+  width: 48px;
+  padding-right: var(--space-3);
+  border-right: 1px solid var(--line);
+  color: var(--ink-muted);
+  text-align: right;
+  user-select: none;
+}
+
+.website-code-line.is-changed .website-code-gutter {
+  color: var(--diff-change);
+}
+
+.website-code-text {
+  padding-left: var(--space-4);
+  white-space: pre;
+  tab-size: 4;
+}
+
+.website-code-text .is-directive {
+  font-weight: 550;
+}
+
+.website-code-text .is-placeholder {
+  color: var(--cobalt);
+}
+
+.website-code-text .is-brace,
+.website-code-text .is-comment {
+  color: var(--ink-muted);
+}
+
+/* Where a site that sends to a port stands, in place of a config it doesn't have. */
+.website-route {
+  flex: 1 1 auto;
+  padding: var(--space-4);
+  background: var(--surface-sunken);
+}
+
+.website-route dl {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.website-route dt {
+  color: var(--ink-muted);
+}
+
+.website-route dd code {
+  font-size: 12.5px;
+}
+
+.website-route p {
+  margin-top: var(--space-4);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+
+.website-config-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.website-valid {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.website-valid strong {
+  font-weight: 550;
+}
+
+.website-valid .websites-muted {
+  overflow-wrap: anywhere;
+}
+
+.website-foot-gap {
+  flex: 1 1 auto;
+}
+
+.website-changes {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+/* What a field had, beside what it has now, as the plan's ~ marks a change. */
+.website-was {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.website-delete p {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.website-delete .dw-panel-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+
+/* On a phone the two columns stack, and the plan's buttons stay in reach. */
+.website-page.is-phone .website-settings {
+  max-width: none;
+}
+
+.website-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.website-crumb {
+  font: 400 12.5px / 18px var(--font-mono);
+  color: var(--ink);
+}
+
+.website-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.website-facts dt {
+  color: var(--ink-muted);
+}
+
+.website-facts dd code {
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+/* On a phone a domain wraps rather than clip, as the whole name is what tells two apart. */
+.websites-phone .apps-phone-name.websites-domain {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.website-config-title h2.is-words {
+  font: 550 14px / 20px var(--font-sans);
+}
+
+/* A long domain wraps in the list, as the whole name is what tells two apart. */
+.websites-table .websites-domain {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* On a phone, what's said under a domain ends in an ellipsis where it runs out. */
+.websites-phone .apps-phone-sub > * {
+  flex: none;
+}
+
+.websites-phone .apps-phone-sub > :last-child {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.website-folder-holds {
+  margin-top: calc(-1 * var(--space-2));
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.website-folder-holds a,
+.website-folder-note a {
+  color: var(--link);
+}
+
+/* The runtimes, as Websites-List draws them under the list. */
+.websites-runtimes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.websites-runtimes-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 13px;
+}
+
+/* Two to a row, as Websites-List has them, and one on a narrow screen. */
+.websites-runtimes-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+@media (min-width: 800px) {
+  .websites-runtimes-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.websites-runtimes-elsewhere {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.websites-runtimes-elsewhere a {
+  color: var(--link);
+}
+
+.websites-runtime-older {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.websites-runtime {
+  display: flex;
+  flex-direction: column;
+}
+
+.websites-runtime-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.websites-runtime-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.websites-runtime-name {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.websites-runtime-name h3 {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.websites-runtime-facts {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.websites-runtime-facts dt {
+  color: var(--ink-muted);
+}
+
+.websites-runtime-site {
+  font: 400 12.5px / 1 var(--font-mono);
+  color: var(--link);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.websites-runtime-site:hover {
+  text-decoration: underline;
+}
+
+.websites-runtime-extensions {
+  font: 400 12px / 18px var(--font-mono);
+}
+
+.websites-runtime-extensions .websites-muted {
+  font-family: var(--font-sans);
+}
+
+.websites-runtime-actions {
+  display: flex;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+/* The overview's parts, each a row: its name, what it is, how it runs, and a way in. */
+.website-parts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.website-part {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: 48px;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.website-part:first-child {
+  border-top: 0;
+}
+
+.website-part-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.website-parts .website-part-name code {
+  font: 500 12.5px / 18px var(--font-mono);
+}
+
+.website-part-detail {
+  color: var(--ink-muted);
+}
+
+.website-part-link {
+  color: var(--link);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.website-part-link:hover {
+  text-decoration: underline;
+}
+
+.website-fact {
+  display: contents;
+}
+
+.website-serves {
+  flex: 2 1 560px;
+  min-width: 0;
+}
+
+.website-files-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.dw-panel .website-files-title code {
+  font: 500 12.5px / 20px var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.website-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--ink-muted);
+}
+
+.website-file-name {
+  overflow: hidden;
+  font: 400 13px / 18px var(--font-mono);
+  color: var(--ink);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.website-file-name:hover {
+  text-decoration: underline;
+}
+
+.website-files .dw-table-wrap,
+.website-files.dw-table-wrap {
+  border: 0;
+  border-radius: 0;
+}
+
+.website-files-loading {
+  min-height: 160px;
+  background: var(--surface-sunken);
+}
+
+.website-files-note {
+  padding: var(--space-4);
+}
+
+.website-certificate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
