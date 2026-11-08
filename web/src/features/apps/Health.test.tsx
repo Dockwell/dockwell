@@ -449,12 +449,14 @@ describe("what the fleet last said stands by its age too", () => {
         },
       },
     });
-    const list = await screen.findByRole("region", { name: "Servers" });
-    await waitFor(() => expect(list.querySelector(".servers-row .dw-tone-healthy")).not.toBeNull());
+    const list = await screen.findByRole("table", { name: "Servers, sorted by name" });
+    await waitFor(() => expect(list.querySelector("tbody .dw-tone-healthy")).not.toBeNull());
     answering = false;
     await vi.advanceTimersByTimeAsync(35_000);
-    await waitFor(() => expect(list.querySelector(".servers-row .dw-tone-unknown")).not.toBeNull());
+    await waitFor(() => expect(list.querySelector("tbody .dw-tone-unknown")).not.toBeNull());
     expect(list.querySelector(".dw-tone-healthy")).toBeNull();
+    // The tiles say so too.
+    expect(screen.queryByRole("button", { name: /Healthy/ })).toBeNull();
   });
 });
 

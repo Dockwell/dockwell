@@ -1,0 +1,347 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The tiles and the table on the left; the server inspected beside them, as Servers-List lays them out. */
+.servers-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: flex-start;
+}
+
+.servers-main {
+  display: flex;
+  flex: 2 1 560px;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.servers-map {
+  padding: var(--space-4);
+}
+
+.servers-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.servers-table-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.servers-table-runs {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.servers-table-foot {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+/* ---------- The inspector ---------- */
+
+.servers-inspector {
+  display: flex;
+  flex: 1 1 340px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.servers-inspector-head {
+  padding-right: var(--space-2);
+}
+
+.servers-inspector-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--ink-muted);
+}
+
+.servers-inspector-name {
+  overflow: hidden;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.servers-inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.servers-inspector-why {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.servers-inspector-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.servers-inspector-facts > div {
+  display: contents;
+}
+
+.servers-inspector-facts dt {
+  color: var(--ink-muted);
+}
+
+.servers-inspector-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.servers-inspector-facts code {
+  font-size: 12.5px;
+}
+
+.servers-inspector-agent {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.servers-inspector-numbers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.servers-inspector-label {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.servers-inspector-quiet {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.servers-inspector-apps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.servers-inspector-apps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--ink-muted);
+}
+
+.servers-inspector-app {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 550;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.servers-inspector-app:hover {
+  text-decoration: underline;
+}
+
+.servers-inspector-rev {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.servers-inspector-health {
+  margin-left: auto;
+}
+
+.servers-inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+/* ---------- Adding a server ---------- */
+
+.servers-add-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  counter-reset: step;
+  list-style: none;
+}
+
+.servers-add-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.servers-add-steps h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.servers-add-steps h3::before {
+  content: counter(step) ". ";
+  counter-increment: step;
+  color: var(--ink-muted);
+}
+
+.servers-add-steps p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* ---------- Phones, as M-Servers has them ---------- */
+
+.servers-phone-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.servers-phone-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 0 2px;
+}
+
+.servers-phone-head h2 {
+  margin: 0;
+}
+
+.servers-phone-head span {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.servers-phone-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+}
+
+.servers-phone-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.servers-phone-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.servers-phone-row.is-chosen {
+  background: var(--selection);
+}
+
+.servers-phone-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.servers-phone-name {
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 20px;
+}
+
+.servers-phone-sub {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.servers-phone-word {
+  color: var(--tone, var(--ink-muted));
+}
+
+/* The server chosen, held above the tab bar. */
+.servers-phone-chosen {
+  position: sticky;
+  bottom: calc(var(--tabbar-height) + var(--space-3));
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+}
+
+.servers-phone-chosen-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.servers-phone-chosen-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 20px;
+}

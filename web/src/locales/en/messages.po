@@ -7164,17 +7164,11 @@ msgstr "{name} isn't reporting"
 msgid "Across {cpus} vCPU"
 msgstr "Across {cpus} vCPU"
 
-msgid "Can't read Docker"
-msgstr "Can't read Docker"
-
 msgid "Every server is reporting"
 msgstr "Every server is reporting"
 
 msgid "Fleet"
 msgstr "Fleet"
-
-msgid "Last reported {seen}"
-msgstr "Last reported {seen}"
 
 msgid "No server is reporting"
 msgstr "No server is reporting"
@@ -7184,9 +7178,6 @@ msgstr "Servers serving"
 
 msgid "View all"
 msgstr "View all"
-
-msgid "Waiting for its agent"
-msgstr "Waiting for its agent"
 
 msgid "agent {version} everywhere"
 msgstr "agent {version} everywhere"
@@ -7274,6 +7265,33 @@ msgstr "Nothing has changed yet. Each change you make shows here."
 
 msgid "Recent changes"
 msgstr "Recent changes"
+
+msgid "Add a server"
+msgstr "Add a server"
+
+msgid "As root, on any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the agent, joins, and starts."
+msgstr "As root, on any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the agent, joins, and starts."
+
+msgid "It joins in seconds, and nothing on your servers changes."
+msgstr "It joins in seconds, and nothing on your servers changes."
+
+msgid "It shows on Servers as soon as its agent connects. Your apps stay where they are: an app moves only when you apply a plan for it."
+msgstr "It shows on Servers as soon as its agent connects. Your apps stay where they are: an app moves only when you apply a plan for it."
+
+msgid "Make a ticket on the control server"
+msgstr "Make a ticket on the control server"
+
+msgid "Make a ticket on {control}"
+msgstr "Make a ticket on {control}"
+
+msgid "Over SSH, as the user that runs Dockwell. It works once, for an hour, and needs sudo when Dockwell runs as the system service."
+msgstr "Over SSH, as the user that runs Dockwell. It works once, for an hour, and needs sudo when Dockwell runs as the system service."
+
+msgid "Run one command on the new server"
+msgstr "Run one command on the new server"
+
+msgid "Watch it appear"
+msgstr "Watch it appear"
 
 msgid "Back to the server"
 msgstr "Back to the server"
@@ -7573,6 +7591,9 @@ msgstr "Start it with <0>dockwell run</0> on the server."
 msgid "Up {uptime}"
 msgstr "Up {uptime}"
 
+msgid "Waiting for its agent"
+msgstr "Waiting for its agent"
+
 #. placeholder {0}: here.length
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, one {# app} other {# apps}}"
@@ -7826,6 +7847,33 @@ msgstr "Server {0}"
 msgid "Updates"
 msgstr "Updates"
 
+msgid "Control server"
+msgstr "Control server"
+
+msgid "It joined, but its agent hasn't connected yet. Start it with dockwell run on the server."
+msgstr "It joined, but its agent hasn't connected yet. Start it with dockwell run on the server."
+
+msgid "Its agent has disconnected. Check that dockwell run is still running on the server."
+msgstr "Its agent has disconnected. Check that dockwell run is still running on the server."
+
+msgid "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is."
+msgstr "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is."
+
+msgid "Its agent last reported {seen}. Check that dockwell run is still running on the server."
+msgstr "Its agent last reported {seen}. Check that dockwell run is still running on the server."
+
+msgid "Last {span}"
+msgstr "Last {span}"
+
+msgid "No apps run here."
+msgstr "No apps run here."
+
+msgid "Open {name}"
+msgstr "Open {name}"
+
+msgid "Provider"
+msgstr "Provider"
+
 msgid "1, 5 and 15 min"
 msgstr "1, 5 and 15 min"
 
@@ -7858,6 +7906,9 @@ msgstr "{rx} in · {tx} out"
 
 msgid "Addresses"
 msgstr "Addresses"
+
+msgid "Can't read Docker"
+msgstr "Can't read Docker"
 
 msgid "Connected"
 msgstr "Connected"
@@ -7962,8 +8013,41 @@ msgstr "{size} · none in use"
 msgid "{size} · {inUse} in use"
 msgstr "{size} · {inUse} in use"
 
-msgid "Control server"
-msgstr "Control server"
+msgid "Add one with a ticket from the control server."
+msgstr "Add one with a ticket from the control server."
+
+msgid "Add server"
+msgstr "Add server"
+
+msgid "CPU {cpu}%"
+msgstr "CPU {cpu}%"
+
+msgid "Chosen server"
+msgstr "Chosen server"
+
+msgid "Every server"
+msgstr "Every server"
+
+msgid "Needs attention"
+msgstr "Needs attention"
+
+msgid "Open"
+msgstr "Open"
+
+msgid "Runs"
+msgstr "Runs"
+
+msgid "Server list"
+msgstr "Server list"
+
+msgid "Servers at a glance"
+msgstr "Servers at a glance"
+
+msgid "Servers, sorted by name"
+msgstr "Servers, sorted by name"
+
+msgid "sorted by name"
+msgstr "sorted by name"
 
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "No servers yet. Add one with <0>dockwell token create</0> on this server."
@@ -8090,6 +8174,9 @@ msgstr "{provider}'s metadata says so, {when}"
 
 msgid "up {uptime}"
 msgstr "up {uptime}"
+
+msgid "Last reported {seen}"
+msgstr "Last reported {seen}"
 
 msgid "1 event in the last 24 hours."
 msgstr "1 event in the last 24 hours."
@@ -9071,9 +9158,6 @@ msgstr "Open the websites"
 
 msgid "Open your profile and security settings"
 msgstr "Open your profile and security settings"
-
-msgid "Open {name}"
-msgstr "Open {name}"
 
 msgid "Opens a plan"
 msgstr "Opens a plan"
