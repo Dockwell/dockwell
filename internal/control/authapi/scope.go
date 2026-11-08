@@ -36,8 +36,9 @@ var idLike = regexp.MustCompile(`^[a-z]{3}_[0-9A-Za-z]{10,}$`)
 var notObjects = map[string]bool{"actor_id": true, "ceremony_id": true, "session_id": true, "rp_id": true}
 
 // idNames says what a request's id holds when it's a name, not an ID: a
-// service's, in its project and environment, or a project's. Elsewhere an id
-// that isn't an ID, such as a catalog entry's, names nothing of a project.
+// service's, in its project and environment, a project's, or a website's
+// project by name or domain. Elsewhere an id that isn't an ID, such as a
+// catalog entry's, names nothing of a project.
 var idNames = map[string]string{
 	dockwellv1connect.ServiceServiceListServiceRevisionsProcedure:  "service",
 	dockwellv1connect.ServiceServiceDeployServiceProcedure:         "service",
@@ -49,6 +50,8 @@ var idNames = map[string]string{
 	dockwellv1connect.LogServiceWatchLogsProcedure:                 "service",
 	dockwellv1connect.CatalogServiceUpgradeCatalogInstallProcedure: "project",
 	dockwellv1connect.DatabaseServiceGetDatabaseProcedure:          "service",
+	dockwellv1connect.WebsiteServiceUpdateWebsiteProcedure:         "website",
+	dockwellv1connect.WebsiteServiceDeleteWebsiteProcedure:         "website",
 }
 
 // serviceFields are the calls whose service field names a service to read, by
@@ -110,6 +113,8 @@ const reasonChoice = "choice"
 type refs struct {
 	ids                 []string
 	project, env, named string
+	// website is a website's project, by ID, name or domain.
+	website string
 	// server is a server it names by name or ID.
 	server string
 }
@@ -175,6 +180,8 @@ func requested(procedure string, m protoreflect.Message) (refs, requestFields) {
 		case name == "id" || strings.HasSuffix(name, "_id") || strings.HasSuffix(name, "_ids") || name == "scope" || name == "target":
 			for _, v := range vals {
 				switch {
+				case name == "id" && idNames[procedure] == "website":
+					out.website = v
 				case idLike.MatchString(v):
 					out.ids = append(out.ids, v)
 				case name == "id" && idNames[procedure] == "project":
@@ -249,6 +256,15 @@ func (i *interceptor) checkScope(ctx context.Context, procedure string, msg any)
 		ref.named = ""
 	}
 	err := i.svc.View(ctx, func(tx *store.Tx) error {
+		if ref.website != "" {
+			p, err := place.Website(ctx, tx, ref.website)
+			if err != nil {
+				return err
+			}
+			places = append(places, p)
+			// The handler uses this exact project after its alias has been checked.
+			m.Set(m.Descriptor().Fields().ByName("id"), protoreflect.ValueOfString(p.Project))
+		}
 		if !byServer {
 			if err := ownProject(ctx, tx, r, grants, &ref, m, at); err != nil {
 				return err
