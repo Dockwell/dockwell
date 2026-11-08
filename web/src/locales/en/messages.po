@@ -5050,9 +5050,6 @@ msgstr "<0>{serviceId}</0> may have been deleted, or it may no longer run a data
 msgid "Can't load this database"
 msgstr "Can't load this database"
 
-msgid "Database"
-msgstr "Database"
-
 msgid "Database sections"
 msgstr "Database sections"
 

@@ -5050,9 +5050,6 @@ msgstr "<0>{serviceId}</0> 可能已被删除，或者它运行的已不是 Dock
 msgid "Can't load this database"
 msgstr "无法加载此数据库"
 
-msgid "Database"
-msgstr "数据库"
-
 msgid "Database sections"
 msgstr "数据库分区"
 
