@@ -234,7 +234,7 @@ func TestWhatRunsUnderHostAccessIsAnAdminsToChange(t *testing.T) {
 		path := func(p string, readOnly bool) []*resourcev1.Mount {
 			return []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: p}, Target: "/data", ReadOnly: readOnly}}
 		}
-		for _, k := range []struct {
+		for ki, k := range []struct {
 			name, svc string
 			given     *resourcev1.Container
 			root      bool
@@ -251,16 +251,26 @@ func TestWhatRunsUnderHostAccessIsAnAdminsToChange(t *testing.T) {
 				what  string
 				edit  func(c *resourcev1.Container)
 				waits bool
+				pull  bool
 			}{
-				{"another repository", func(c *resourcev1.Container) { c.Image = "busybox:1.36" }, true},
-				{"another command", func(c *resourcev1.Container) { c.Command = []string{"sh", "-c", "id"} }, true},
-				{"another entrypoint", func(c *resourcev1.Container) { c.Entrypoint = []string{"/bin/sh"} }, true},
-				{"another tag of its repository", func(c *resourcev1.Container) { c.Image = "nginx:1.28" }, k.root},
-				{"an environment variable", func(c *resourcev1.Container) { c.Env = map[string]string{"MODE": "fast"} }, k.root},
+				{"another repository", func(c *resourcev1.Container) { c.Image = "busybox:1.36" }, true, false},
+				{"another command", func(c *resourcev1.Container) { c.Command = []string{"sh", "-c", "id"} }, true, false},
+				{"another entrypoint", func(c *resourcev1.Container) { c.Entrypoint = []string{"/bin/sh"} }, true, false},
+				{"another tag of its repository", func(c *resourcev1.Container) { c.Image = "nginx:1.28" }, k.root, false},
+				{"an environment variable", func(c *resourcev1.Container) { c.Env = map[string]string{"MODE": "fast"} }, k.root, false},
+				{"the same tag pulled again", func(*resourcev1.Container) {}, k.root, true},
 			} {
 				c := proto.Clone(k.given).(*resourcev1.Container)
 				change.edit(c)
-				p, err := e.Propose(ada, Proposal{Summary: change.what, Actor: "user:usr_ada", Edits: []Edit{svc(name, c)}})
+				edit := svc(name, c)
+				edit.Pull, edit.Run = change.pull, change.pull
+				before := engines["srv_A"].Newest(docker.Project(staging), name).ID
+				newDigest := ""
+				if change.pull {
+					newDigest = "sha256:" + strings.Repeat("abcd"[ki:ki+1], 64)
+					engines["srv_A"].Registry[c.Image] = dockertest.Image{Digest: newDigest, Config: docker.Config{Cmd: []string{"nginx"}}}
+				}
+				p, err := e.Propose(ada, Proposal{Summary: change.what, Actor: "user:usr_ada", Edits: []Edit{edit}})
 				if err != nil {
 					t.Fatalf("a developer planning %s under %s: %v", change.what, k.name, err)
 				}
@@ -270,6 +280,21 @@ func TestWhatRunsUnderHostAccessIsAnAdminsToChange(t *testing.T) {
 					t.Errorf("a developer applying %s under %s: %v, want ErrNeedsRole saying it %s", change.what, k.name, err, k.words)
 				case !change.waits && err != nil:
 					t.Errorf("a developer applying %s under %s: %v, want it applied", change.what, k.name, err)
+				}
+				if change.pull {
+					running := engines["srv_A"].Newest(docker.Project(staging), name)
+					if change.waits {
+						if running.ID != before {
+							t.Error("pulling the same tag replaced the root-equivalent container without an admin")
+						}
+					} else {
+						img, inspectErr := engines["srv_A"].Client().InspectImage(ctx, running.Image)
+						if inspectErr != nil || img.Digest(c.Image) != newDigest || running.ID == before {
+							t.Errorf("the permitted pull did not run the new image under %s: %v", k.name, inspectErr)
+						}
+					}
+				}
+				switch {
 				case change.waits:
 					if err := e.Discard(ada, p.Change, By{Actor: "user:usr_ada"}); err != nil {
 						t.Fatal(err)

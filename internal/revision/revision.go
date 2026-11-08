@@ -2426,6 +2426,7 @@ func (e *Engine) runsSomethingElse(it *item, server string) bool {
 // included, as whoever can push to it would get root. Under other such access,
 // it's another repository, command or entrypoint: a new tag of the same
 // repository is the ordinary deploy, of what an admin trusted with that access.
+// Pulling a mutable tag can run a newer image without changing the spec.
 func (e *Engine) keptWhileRunningElse(it *item, server string, reaches []resource.Access, leads map[string]string) []resource.Access {
 	current, desired := it.currentOn(server), it.desiredOn(server)
 	n, ok := e.imageNamer(it.ref.Kind)
@@ -2442,7 +2443,7 @@ func (e *Engine) keptWhileRunningElse(it *item, server string, reaches []resourc
 		}
 	}
 	switch {
-	case len(root) > 0 && (it.restoreOn(server) != nil || !proto.Equal(n.WhatRuns(current), n.WhatRuns(desired))):
+	case len(root) > 0 && (it.pull || it.restoreOn(server) != nil || !proto.Equal(n.WhatRuns(current), n.WhatRuns(desired))):
 		return append(root, other...)
 	case len(other) > 0 && startsSomethingElse(n.ImageOf(current), n.ImageOf(desired), current, desired):
 		return other
