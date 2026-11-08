@@ -4650,10 +4650,11 @@ components:
                 waits:
                     type: string
                     description: |-
-                        On a planned change, for whoever reads it: why their role doesn't let them
-                         apply it, and who does, such as "As it changes web in a protected
-                         environment, an admin or the owner applies this. Leave it planned for
-                         them". Empty when they may apply it.
+                        On a planned change, for whoever reads it below an admin: why it waits for
+                         an admin or the owner to apply it, such as "As it changes web in a
+                         protected environment, an admin or the owner applies this. Leave it
+                         planned for them". Empty when they may apply it, and for a viewer, who
+                         applies nothing.
             description: |-
                 Change is one action's worth of edits to managed resources: planned,
                  then applied, failed or discarded.

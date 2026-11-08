@@ -3530,6 +3530,9 @@ msgstr "A restart has no undo, as it changes nothing to go back to."
 msgid "A step failed, so the change stopped there."
 msgstr "A step failed, so the change stopped there."
 
+msgid "An admin or the owner applies this"
+msgstr "An admin or the owner applies this"
+
 msgid "Applied {when} by {by}, and undone since."
 msgstr "Applied {when} by {by}, and undone since."
 
@@ -3544,6 +3547,10 @@ msgstr "Apply this only if you trust what it runs."
 
 msgid "Applying"
 msgstr "Applying"
+
+#. placeholder {0}: change.proposedBy.name
+msgid "Applying this approves a change planned with the API token {0}, with your passkey"
+msgstr "Applying this approves a change planned with the API token {0}, with your passkey"
 
 #. placeholder {0}: change?.proposedBy?.name
 msgid "Applying this approves {0}'s change, with your passkey"
@@ -3669,9 +3676,6 @@ msgstr "The passkey prompt closed, so nothing was applied and the plan is still 
 msgid "The plan didn't work"
 msgstr "The plan didn't work"
 
-msgid "This changes a protected environment, so an admin or the owner applies it"
-msgstr "This changes a protected environment, so an admin or the owner applies it"
-
 msgid "Took {took}"
 msgstr "Took {took}"
 
@@ -3689,6 +3693,9 @@ msgstr "Undo for {undoDays} days if this replaces anything"
 
 msgid "Undo until {deadline}"
 msgstr "Undo until {deadline}"
+
+msgid "Waits for an admin or the owner"
+msgstr "Waits for an admin or the owner"
 
 msgid "What applying means"
 msgstr "What applying means"

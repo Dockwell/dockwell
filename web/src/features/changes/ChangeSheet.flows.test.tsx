@@ -6,6 +6,8 @@ import { resolve } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
+  ActorKind,
+  ActorSchema,
   type ApplyChangeRequest,
   type Change,
   ChangeSchema,
@@ -1507,10 +1509,38 @@ describe("in Chinese", () => {
 
 describe("a plan in a protected environment", () => {
   const protectedPlan = () => moved(webPlanned(), { protected: true });
+  const why =
+    "As it changes web in a protected environment, an admin or the owner applies this. Leave it planned for them";
+  const waiting = () => moved(webPlanned(), { protected: true, waits: why });
 
-  it("tells someone below an admin that it waits for one, and leaves it planned for them", async () => {
+  it("tells someone below an admin that it waits for one, and why, and leaves it planned for them", async () => {
     const discardChange = vi.fn(() => ({}));
-    const change = protectedPlan();
+    const applyChange = vi.fn(() => ({}));
+    const change = waiting();
+    renderWithApi(
+      <ChangeSheetProvider>
+        <Opener opening={{ kind: "plan", make: () => Promise.resolve({ change }) } as Opening} />
+      </ChangeSheetProvider>,
+      {
+        changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange, applyChange } as never,
+        auth: { getAuthState: () => authState({ user: { ...signedIn, role: Role.DEVELOPER } }) },
+      },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(await within(sheet).findByText("An admin or the owner applies this")).toBeVisible();
+    expect(within(sheet).getByText("Waits for an admin or the owner")).toBeVisible();
+    expect(within(sheet).getByText(why)).toBeVisible();
+    expect(within(sheet).queryByRole("button", { name: /Apply plan/ })).toBeNull();
+    // ⌘↵ takes what the footer offers: it leaves the plan for an admin, and applies nothing.
+    await userEvent.keyboard("{Control>}{Enter}{/Control}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Review plan" })).toBeNull());
+    expect(applyChange).not.toHaveBeenCalled();
+    expect(discardChange).not.toHaveBeenCalled();
+  });
+
+  it("leaves it for an admin from the button too", async () => {
+    const discardChange = vi.fn(() => ({}));
+    const change = waiting();
     renderWithApi(
       <ChangeSheetProvider>
         <Opener opening={{ kind: "plan", make: () => Promise.resolve({ change }) } as Opening} />
@@ -1521,18 +1551,80 @@ describe("a plan in a protected environment", () => {
       },
     );
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
-    expect(
-      await within(sheet).findByText("This changes a protected environment, so an admin or the owner applies it"),
-    ).toBeVisible();
-    expect(within(sheet).queryByRole("button", { name: /Apply plan/ })).toBeNull();
-    await userEvent.click(within(sheet).getByRole("button", { name: "Leave it for an admin" }));
+    await userEvent.click(await within(sheet).findByRole("button", { name: "Leave it for an admin" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Review plan" })).toBeNull());
     expect(discardChange).not.toHaveBeenCalled();
   });
 
+  it("discards their own waiting plan, reopened from Activity, and says it did; someone else's it leaves", async () => {
+    const mine = moved(waiting(), {
+      proposedBy: create(ActorSchema, { kind: ActorKind.USER, id: signedIn.id, name: signedIn.name }),
+    });
+    const discardChange = vi.fn(() => ({ change: moved(mine, { state: ChangeState.DISCARDED }) }));
+    renderWithApi(
+      <ChangeSheetProvider>
+        <Opener opening={{ kind: "change", id: mine.id }} />
+      </ChangeSheetProvider>,
+      {
+        changes: {
+          getChange: () => ({ change: mine }),
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange,
+        } as never,
+        auth: { getAuthState: () => authState({ user: { ...signedIn, role: Role.DEVELOPER } }) },
+      },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await userEvent.click(await within(sheet).findByRole("button", { name: "Discard" }));
+    await waitFor(() =>
+      expect(discardChange).toHaveBeenCalledWith(expect.objectContaining({ id: mine.id }), expect.anything()),
+    );
+    expect(await screen.findByText("Discarded")).toBeVisible();
+  });
+
+  it("offers no Discard on someone else's waiting plan", async () => {
+    const theirs = moved(waiting(), {
+      proposedBy: create(ActorSchema, { kind: ActorKind.USER, id: "usr_other", name: "Mira Chen" }),
+    });
+    renderWithApi(
+      <ChangeSheetProvider>
+        <Opener opening={{ kind: "change", id: theirs.id }} />
+      </ChangeSheetProvider>,
+      {
+        changes: { getChange: () => ({ change: theirs }), watchChange: feed<WatchChangeResponse>().stream } as never,
+        auth: { getAuthState: () => authState({ user: { ...signedIn, role: Role.DEVELOPER } }) },
+      },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(await within(sheet).findByRole("button", { name: "Leave it for an admin" })).toBeVisible();
+    expect(within(sheet).queryByRole("button", { name: "Discard" })).toBeNull();
+  });
+
+  it("says applying a plan made with someone's API token approves it, as the API says", async () => {
+    const change = moved(protectedPlan(), {
+      approves: true,
+      proposedBy: create(ActorSchema, { kind: ActorKind.TOKEN, id: "tok_1", name: "deploy" }),
+    });
+    renderWithApi(
+      <ChangeSheetProvider>
+        <Opener opening={{ kind: "plan", make: () => Promise.resolve({ change }) } as Opening} />
+      </ChangeSheetProvider>,
+      {
+        changes: { watchChange: feed<WatchChangeResponse>().stream } as never,
+        auth: { getAuthState: () => authState() },
+      },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(
+      await within(sheet).findByText(
+        "Applying this approves a change planned with the API token deploy, with your passkey",
+      ),
+    ).toBeVisible();
+  });
+
   it("approves someone else's with the passkey the refusal asks for, bound to its plan", async () => {
     stubPasskeys();
-    const change = protectedPlan();
+    const change = moved(protectedPlan(), { approves: true });
     const target = `${change.id}:${change.plan?.fingerprint}`;
     const beginStepUp = vi.fn(() => ({ ceremonyId: "cer_1", optionsJson: requestOptions }));
     const applies: ApplyChangeRequest[] = [];

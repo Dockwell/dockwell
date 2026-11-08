@@ -2805,10 +2805,11 @@ type Change struct {
 	// the plan's fingerprint and a passkey (STEP_UP_ACTION_APPROVE_CHANGE),
 	// whether they planned it in the panel or with an API token.
 	Approves bool `protobuf:"varint,22,opt,name=approves,proto3" json:"approves,omitempty"`
-	// On a planned change, for whoever reads it: why their role doesn't let them
-	// apply it, and who does, such as "As it changes web in a protected
-	// environment, an admin or the owner applies this. Leave it planned for
-	// them". Empty when they may apply it.
+	// On a planned change, for whoever reads it below an admin: why it waits for
+	// an admin or the owner to apply it, such as "As it changes web in a
+	// protected environment, an admin or the owner applies this. Leave it
+	// planned for them". Empty when they may apply it, and for a viewer, who
+	// applies nothing.
 	Waits         string `protobuf:"bytes,23,opt,name=waits,proto3" json:"waits,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

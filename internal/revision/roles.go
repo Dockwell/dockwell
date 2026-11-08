@@ -597,8 +597,8 @@ type Applying struct {
 	// Approves says applying it approves someone else's change in a protected
 	// environment, which takes a session, the plan's fingerprint and a passkey.
 	Approves bool
-	// Waits says why their role doesn't let them apply it, and who does
-	// (Refusal.Waits), or "" when it does.
+	// Waits says why it waits for an admin or the owner, for someone below an
+	// admin whose role covers the rest of it (Refusal.Waits), or "".
 	Waits string
 }
 
@@ -620,8 +620,10 @@ func (e *Engine) ApplyingOf(ctx context.Context, tx *store.Tx, changeID string) 
 	}
 	var refused *Refusal
 	switch err := e.checkRoles(ctx, tx, c.Actor, &c, items, applying); {
-	case errors.As(err, &refused):
+	case errors.As(err, &refused) && refused.Needs == store.RoleAdmin:
 		return Applying{Waits: refused.Waits()}, nil
+	case errors.As(err, &refused):
+		return Applying{}, nil // a viewer applies nothing: no one's waiting on them
 	case errors.Is(err, ErrOutOfReach):
 		return Applying{}, nil // not theirs to read, so a list doesn't show it
 	case err != nil:

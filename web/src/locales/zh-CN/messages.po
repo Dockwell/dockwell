@@ -3530,6 +3530,9 @@ msgstr "重启无法撤销，因为它不会改变任何可恢复的内容。"
 msgid "A step failed, so the change stopped there."
 msgstr "有一个步骤失败，更改就此停止。"
 
+msgid "An admin or the owner applies this"
+msgstr "此计划由管理员或所有者应用"
+
 msgid "Applied {when} by {by}, and undone since."
 msgstr "由 {by} 于 {when} 应用，之后已撤销。"
 
@@ -3544,6 +3547,10 @@ msgstr "只有信任它运行的内容时才应用。"
 
 msgid "Applying"
 msgstr "正在应用"
+
+#. placeholder {0}: change.proposedBy.name
+msgid "Applying this approves a change planned with the API token {0}, with your passkey"
+msgstr "应用此计划即批准用 API 令牌 {0} 计划的变更，需要验证你的通行密钥"
 
 #. placeholder {0}: change?.proposedBy?.name
 msgid "Applying this approves {0}'s change, with your passkey"
@@ -3669,9 +3676,6 @@ msgstr "通行密钥提示已关闭，所以没有应用任何内容，计划仍
 msgid "The plan didn't work"
 msgstr "计划没有成功"
 
-msgid "This changes a protected environment, so an admin or the owner applies it"
-msgstr "此计划会更改受保护的环境，因此由管理员或所有者应用"
-
 msgid "Took {took}"
 msgstr "用时 {took}"
 
@@ -3689,6 +3693,9 @@ msgstr "如果发生替换，{undoDays} 天内可撤销"
 
 msgid "Undo until {deadline}"
 msgstr "可撤销至 {deadline}"
+
+msgid "Waits for an admin or the owner"
+msgstr "等待管理员或所有者"
 
 msgid "What applying means"
 msgstr "应用的影响"
