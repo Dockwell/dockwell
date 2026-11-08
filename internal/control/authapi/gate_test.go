@@ -107,3 +107,32 @@ func TestTheGateFailsClosed(t *testing.T) {
 		t.Errorf("signing out needs no role, so no grants: %v", err)
 	}
 }
+
+// fakeStream is a stream of procedure, for what reads only its Spec.
+type fakeStream struct {
+	connect.StreamingHandlerConn
+	procedure string
+}
+
+func (f fakeStream) Spec() connect.Spec { return connect.Spec{Procedure: f.procedure} }
+
+// A stream's recheck rides out a failed read of its caller's grants, as the
+// session's own check does, and ends the stream only once reads fail several
+// times in a row.
+func TestAStreamRidesOutAFailedGrantsRead(t *testing.T) {
+	i, ada, db := gated(t, store.RoleViewer)
+	ctx := t.Context()
+	c := &scopedConn{StreamingHandlerConn: fakeStream{procedure: "/" + dockwellv1connect.EventServiceName + "/WatchEvents"}, i: i, ctx: ctx}
+	if err := c.recheck(ctx, ada); err != nil {
+		t.Fatalf("a recheck that reads the grants: %v", err)
+	}
+	_ = db.Close()
+	for n := 1; n < failedRechecks; n++ {
+		if err := c.recheck(ctx, ada); err != nil {
+			t.Fatalf("failed read %d ended the stream: %v", n, err)
+		}
+	}
+	if err := c.recheck(ctx, ada); connect.CodeOf(err) != connect.CodeUnavailable || c.endedBy() == nil {
+		t.Errorf("failed read %d: %v, want the stream ended as unavailable", failedRechecks, err)
+	}
+}

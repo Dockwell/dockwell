@@ -242,7 +242,7 @@ func Methods() []*apicli.Method {
 			Noun:      "catalog",
 			Verb:      "install",
 			Short:     "Plan installing an app as a project of its own",
-			Long:      "Plan installing an app as a project of its own, ready to apply or discard, as\ndockwell compose import does with a file. The plan makes the project, its\nsecrets and what its Compose file runs, and pins the project to this entry. A\nsecret that no one types is generated and sealed here: no response carries it,\nand revealing it takes a passkey.",
+			Long:      "Plan installing an app as a project of its own, ready to apply or discard, as\ndockwell compose import does with a file. The plan makes the project, its\nsecrets and what its Compose file runs, and pins the project to this entry. A\nsecret that no one types is generated and sealed here: no response carries it,\nand revealing it takes a passkey. Making a project is an admin's (ADR 0049).",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The entry's ID, such as \"postgres\".", Arg: true},

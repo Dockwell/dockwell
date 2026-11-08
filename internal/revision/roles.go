@@ -74,13 +74,21 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 			return err
 		}
 	}
-	reachesPast := false
+	// What each item reaches on its server that only an admin may give it.
+	install := map[resource.Ref]string{}
 	if a == applying && c != nil {
 		plan, err := DecodePlan(c.Plan)
 		if err != nil {
 			return err
 		}
-		reachesPast = plan.HostAccess()
+		for i := range plan.Resources {
+			for j := range plan.Resources[i].HostAccess {
+				if why := installWide(plan.Resources[i].HostAccess[j]); why != "" {
+					install[plan.Resources[i].Ref] = why
+					break
+				}
+			}
+		}
 	}
 	byID := make(map[string]*item, len(items))
 	for i := range items {
@@ -110,14 +118,70 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 			needs, why = store.RoleAdmin, at.admins
 		case a != planning && at.Protected:
 			needs, why = store.RoleAdmin, "it changes "+it.ref.Name+" in a protected environment, which waits for an admin or the owner to apply it"
-		case a == applying && reachesPast:
-			needs, why = store.RoleAdmin, "it reaches past a container, to the server every project on it shares"
+		case install[it.ref] != "":
+			needs, why = store.RoleAdmin, it.ref.Name+" "+install[it.ref]+", on a server every project there shares"
 		}
 		if store.RoleRank(held) < store.RoleRank(needs) {
 			return refusal(a, held, needs, why)
 		}
 	}
 	return nil
+}
+
+// installWide says what an item reaches that ADR 0048 makes an admin's,
+// whatever someone's project grants say, or "" for what isn't: any server
+// path, read-only or not; Docker's socket; the server's network; privileged
+// mode, a capability or a group; a volume from a driver; a network Dockwell
+// didn't make or one past the bridge; a proxy a route trusts; the panel's
+// domain; a port on the server itself; a container Dockwell didn't make; and
+// anything else as good as root. Claiming another environment's domain,
+// serving plain HTTP to anyone, turning HTTPS off and a volume Dockwell didn't
+// make stay a person's to approve, in a project they may apply in.
+func installWide(a resource.Access) string {
+	if a.AsGoodAsRoot() {
+		return "gets as much as root on its server"
+	}
+	switch a.Kind {
+	case resource.AccessPath:
+		return "reaches the server path " + a.Path
+	case resource.AccessMount:
+		return "mounts what a volume driver reaches"
+	case resource.AccessNetworkDriver, resource.AccessExternalNetwork:
+		return "joins a network past the server's own bridge"
+	case resource.AccessCapability, resource.AccessGroup, resource.AccessPrivileged:
+		return "runs with more than Docker gives a container"
+	case resource.AccessTrustedProxy:
+		return "trusts a proxy for where a request came from"
+	case resource.AccessPanelDomain:
+		return "moves the panel's domain"
+	case resource.AccessServerPort:
+		return "sends to the port " + a.Path + " on the server itself"
+	case resource.AccessTakesOn:
+		return "takes on a container Dockwell didn't make"
+	case resource.AccessDocker, resource.AccessNetwork, resource.AccessBackupOf,
+		resource.AccessDomain, resource.AccessPlainForAnyone, resource.AccessHTTPSOff, resource.AccessExternalVolume:
+	}
+	return ""
+}
+
+// CheckApply checks, before anything else is asked of them, that the caller
+// in ctx may apply changeID, as applying it checks again: the API asks it
+// before a passkey, so nobody confirms what their role refuses.
+func (e *Engine) CheckApply(ctx context.Context, changeID string) error {
+	return e.db.View(ctx, func(tx *store.Tx) error {
+		c, err := tx.GetChange(ctx, changeID)
+		if errors.Is(err, store.ErrNotFound) {
+			return noSuchChange(changeID)
+		}
+		if err != nil || c.State != store.ChangePlanned {
+			return err
+		}
+		items, err := e.placed(ctx, tx, c)
+		if err != nil {
+			return err
+		}
+		return e.checkRoles(ctx, tx, c.Actor, &c, items, applying)
+	})
 }
 
 // refusal says what the act needs, what the person holds, and why.

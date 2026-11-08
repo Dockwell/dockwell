@@ -271,21 +271,21 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, h.rpcError(ctx, err)
 	}
 	fp := req.Msg.GetFingerprint()
-	// Someone else's change in a protected environment is approved: by an admin
-	// or the owner, in a session, with the fingerprint of the plan they
-	// reviewed and a passkey bound to it (ADR 0049).
+	// What the caller's role refuses is said first, before anything is asked of
+	// them; applying checks it again (ADR 0048, check 2).
 	var approve revision.Approval
 	if r.State == store.ChangePlanned {
+		if err := h.engine.CheckApply(ctx, r.ID); err != nil {
+			return nil, h.rpcError(ctx, err)
+		}
+		// Someone else's change in a protected environment is approved: by an
+		// admin or the owner, in a session, with the fingerprint of the plan they
+		// reviewed and a passkey bound to it (ADR 0049).
 		if approve, err = h.engine.ApprovalOf(ctx, r.ID); err != nil {
 			return nil, h.rpcError(ctx, err)
 		}
 	}
-	admin := store.RoleRank(authapi.InstallRole(ctx)) >= store.RoleRank(store.RoleAdmin)
 	switch {
-	case approve.Protected && !admin:
-		return nil, authapi.ReasonError(connect.CodePermissionDenied,
-			fmt.Errorf("%s changes a protected environment, so it waits for an admin or the owner to apply it, and it didn't happen. Ask one of them to review and apply it", r.ID),
-			authapi.ReasonNeedsRole)
 	case approve.Protected && approve.Theirs && p.Token != nil:
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
 			fmt.Errorf("%s is someone else's change in a protected environment, which an admin or the owner approves with a passkey, so no API token may apply it. %s", r.ID, signIn),
@@ -294,14 +294,6 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s is someone else's change in a protected environment. Review the plan, then apply it with its fingerprint, %s, to approve it", r.ID, r.Fingerprint),
 			"needs_confirmation")
-	case r.State == store.ChangePlanned && r.Plan.HostAccess() &&
-		store.RoleRank(authapi.InstallRole(ctx)) < store.RoleRank(store.RoleAdmin):
-		// What reaches past a container reaches the server every project on it
-		// shares, so it's an admin's, whatever a project's grants say (ADR 0048).
-		// Until internal/revision checks each item's role, this holds it here.
-		return nil, authapi.ReasonError(connect.CodePermissionDenied,
-			fmt.Errorf("%s %s, which reaches the server every project on it shares, so only an admin or the owner can apply it, and it didn't happen. Ask one of them to review and apply it", r.ID, accessWords(r.Plan)),
-			authapi.ReasonNeedsRole)
 	case fp != "" && fp != r.Fingerprint:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s's plan has fingerprint %s, not %s, so it isn't the plan you reviewed. Review it again, then apply it", r.ID, r.Fingerprint, fp),

@@ -192,7 +192,7 @@ func TestHostAccessIsAnAdminsToApply(t *testing.T) {
 		}
 		err = applyIt()
 		needsRole(t, "blog's developer applying a privileged service in blog", err)
-		if err != nil && !strings.Contains(err.Error(), "only an admin or the owner can apply it") {
+		if err != nil && !strings.Contains(err.Error(), "only an admin or the owner can apply this, as app reaches the server path /srv/other-projects") {
 			t.Errorf("the refusal says %q, want who may apply it", err)
 		}
 		s.hold(onInstall(store.RoleAdmin))

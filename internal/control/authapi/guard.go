@@ -465,6 +465,10 @@ func (i *interceptor) check(ctx context.Context, p auth.Principal, procedure str
 	if store.RoleRank(held) >= store.RoleRank(needs) {
 		return place.WithCaller(ctx, place.Caller{UserID: p.User.ID, Grants: grants}), "", "", nil
 	}
+	if why, ok := adminsBecause[procedure]; ok && held != "" && needs == store.RoleAdmin {
+		return ctx, held, needs, ReasonError(connect.CodePermissionDenied,
+			fmt.Errorf("%s, which only an admin or the owner can do, and %s, so it didn't happen. Ask one of them", why, youAre(p, held)), ReasonNeedsRole)
+	}
 	return ctx, held, needs, ReasonError(connect.CodePermissionDenied, roleRefusal(p, held, needs), ReasonNeedsRole)
 }
 
@@ -500,6 +504,20 @@ func roleRefusal(p auth.Principal, held, needs string) error {
 		return fmt.Errorf("only the owner can do this, and %s, so it didn't happen. Ask the owner", who)
 	}
 	return fmt.Errorf("only %s can do this, and %s, so it didn't happen. Ask an admin to change %s role", atLeast(needs), who, whose)
+}
+
+// adminsBecause says why a call is an admin's, where its name alone doesn't.
+var adminsBecause = map[string]string{
+	dockwellv1connect.CatalogServiceInstallCatalogEntryProcedure: "installing from the catalog makes a project of its own",
+}
+
+// youAre says what the caller holds: "you're a developer", or for an API
+// token, its maker's.
+func youAre(p auth.Principal, held string) string {
+	if p.Token != nil {
+		return "this API token's maker is " + aRole(held)
+	}
+	return "you're " + aRole(held)
 }
 
 // aRole names a role with its article: "a viewer", "an admin".
@@ -572,11 +590,18 @@ type scopedConn struct {
 	i    *interceptor
 	trim bool
 
-	mu    sync.Mutex
-	ctx   context.Context //nolint:containedctx // the stream's own, with the grants last read
-	req   any             // the request, once received
-	ended error           // why a recheck ended the stream
+	mu     sync.Mutex
+	ctx    context.Context //nolint:containedctx // the stream's own, with the grants last read
+	req    any             // the request, once received
+	ended  error           // why a recheck ended the stream
+	failed int             // rechecks in a row that couldn't read the grants
 }
+
+// failedRechecks is how many rechecks in a row may fail to read a stream's
+// grants before it ends: a failed read isn't a reason to close, as the
+// session's own check rides one out, but a stream can't go on for long without
+// knowing its caller may still make it.
+const failedRechecks = 3
 
 func (c *scopedConn) Receive(m any) error {
 	if err := c.StreamingHandlerConn.Receive(m); err != nil {
@@ -604,10 +629,19 @@ func (c *scopedConn) recheck(ctx context.Context, p auth.Principal) error {
 	if err == nil && c.req != nil {
 		err = c.i.checkScope(gated, procedure, c.req)
 	}
+	if connect.CodeOf(err) == connect.CodeUnavailable {
+		// The grants couldn't be read: what was read before still narrows what
+		// the stream sends, until the next recheck decides.
+		c.failed++
+		if c.failed < failedRechecks {
+			return nil
+		}
+	}
 	if err != nil {
 		c.ended = err
 		return err
 	}
+	c.failed = 0
 	// The stream's own context, with the grants just read.
 	if caller, ok := place.CallerFrom(gated); ok {
 		c.ctx = place.WithCaller(c.ctx, caller)

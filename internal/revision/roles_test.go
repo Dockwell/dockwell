@@ -11,6 +11,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -160,6 +161,21 @@ func TestHostAccessIsAnAdminsToApplyInTheEngine(t *testing.T) {
 		if err := e.ApplyBy(mira, mounts.Change, By{Actor: "user:usr_mira"}); err != nil {
 			t.Errorf("the owner applying it: %v", err)
 		}
+		// What ADR 0048 doesn't list, such as a volume Dockwell didn't make, a
+		// developer approves in a project they may apply in.
+		shared := Edit{Ref: resource.Ref{Kind: service.Kind, Scope: staging, Name: "worker"}, Servers: []string{"srv_A"}, Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+			Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "shared"}, External: true, Target: "/shared"}},
+		}}}}
+		outside, err := e.Propose(ada, Proposal{Summary: "Share", Actor: "user:usr_ada", Edits: []Edit{shared}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !outside.HostAccess() {
+			t.Fatalf("a volume Dockwell didn't make planned without host access: %+v", outside.Resources)
+		}
+		if err := e.ApplyBy(ada, outside.Change, By{Actor: "user:usr_ada"}); errors.Is(err, ErrNeedsRole) {
+			t.Errorf("a developer applying a volume Dockwell didn't make, in open staging: %v", err)
+		}
 	})
 }
 
@@ -175,4 +191,37 @@ func envProjectOf(t *testing.T, db *store.DB, env string) string {
 		t.Fatal(err)
 	}
 	return project
+}
+
+// What a plan reaches on its server is an admin's to give where ADR 0048 lists
+// it, and a person's to approve, in a project they may apply in, where it
+// doesn't.
+func TestOnlyWhatADR0048ListsIsAnAdminsToGive(t *testing.T) {
+	for _, tt := range []struct {
+		access resource.Access
+		admins bool
+	}{
+		{resource.Access{Kind: resource.AccessPath, Path: "/srv/x", ReadOnly: true}, true},
+		{resource.Access{Kind: resource.AccessDocker, Path: "/var/run/docker.sock"}, true},
+		{resource.Access{Kind: resource.AccessNetwork}, true},
+		{resource.Access{Kind: resource.AccessMount}, true},
+		{resource.Access{Kind: resource.AccessNetworkDriver, Driver: "macvlan"}, true},
+		{resource.Access{Kind: resource.AccessExternalNetwork, Path: "legacy"}, true},
+		{resource.Access{Kind: resource.AccessCapability, Path: "NET_ADMIN"}, true},
+		{resource.Access{Kind: resource.AccessGroup, Path: "disk"}, true},
+		{resource.Access{Kind: resource.AccessPrivileged}, true},
+		{resource.Access{Kind: resource.AccessTrustedProxy, Path: "10.0.0.0/8"}, true},
+		{resource.Access{Kind: resource.AccessPanelDomain, Path: "panel.example.com"}, true},
+		{resource.Access{Kind: resource.AccessServerPort, Path: "127.0.0.1:8080"}, true},
+		{resource.Access{Kind: resource.AccessTakesOn, Path: "legacy-db"}, true},
+		{resource.Access{Kind: resource.AccessBackupOf, Path: "/etc"}, true},
+		{resource.Access{Kind: resource.AccessDomain, Path: "shop.example.com", Detail: "staging"}, false},
+		{resource.Access{Kind: resource.AccessPlainForAnyone, Path: "shop.example.com"}, false},
+		{resource.Access{Kind: resource.AccessHTTPSOff, Path: "shop.example.com"}, false},
+		{resource.Access{Kind: resource.AccessExternalVolume, Path: "shared"}, false},
+	} {
+		if got := installWide(tt.access) != ""; got != tt.admins {
+			t.Errorf("%v: an admin's %v, want %v", tt.access, got, tt.admins)
+		}
+	}
 }

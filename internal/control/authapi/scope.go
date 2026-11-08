@@ -830,14 +830,6 @@ func pageToken(ctx context.Context, procedure string, msg any, field protoreflec
 	return m, fd, m.Get(fd).String()
 }
 
-// InstallRole is the role the caller holds on the whole install, as the gate
-// read it for this call: their own, or an API token's maker's. It's empty for
-// none, and when the gate read nothing.
-func InstallRole(ctx context.Context) string {
-	grants, _ := grantsFrom(ctx)
-	return place.Holds(grants, place.Install)
-}
-
 // protectedRefusal says a call the caller could make in an open environment
 // needs more in a protected one, where a developer's change waits for an admin
 // or the owner to apply it (ADR 0049).

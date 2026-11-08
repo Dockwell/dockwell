@@ -77,12 +77,13 @@ service CatalogService {
   // to apply or discard, as ImportCompose does with a file. The plan makes the
   // project, its secrets and what its Compose file runs, and pins the project to
   // this entry. A secret that no one types is generated and sealed here: no
-  // response carries it, and revealing it takes a passkey.
+  // response carries it, and revealing it takes a passkey. Making a project is
+  // an admin's (ADR 0049).
   rpc InstallCatalogEntry(InstallCatalogEntryRequest) returns (InstallCatalogEntryResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
-    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
-    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
-    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (google.api.http) = {
       post: "/v1/catalog/entries/{id}:install"
       body: "*"

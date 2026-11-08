@@ -35,7 +35,7 @@ BackupService.ListBackups                      read         viewer     viewer   
 BackupService.PreviewBackup                    read         viewer     viewer     project
 BackupService.RestoreBackup                    plan         developer  developer  project
 CatalogService.GetCatalogEntry                 read         viewer     viewer     shared
-CatalogService.InstallCatalogEntry             plan         developer  developer  project
+CatalogService.InstallCatalogEntry             plan         admin      admin      install
 CatalogService.ListCatalogEntries              read         viewer     viewer     shared
 CatalogService.ListCatalogInstalls             read         viewer     viewer     project
 CatalogService.UpgradeCatalogInstall           plan         developer  developer  project

@@ -230,3 +230,22 @@ func TestAnExportedFileNamesItsProjectOnlyInReach(t *testing.T) {
 		}
 	})
 }
+
+// Installing from the catalog makes a project, which is an admin's, so someone
+// below an admin is told that, however they name the project.
+func TestACatalogInstallIsAnAdminsToMake(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newReachStand(t, backend)
+		cat := catalogClient(s.b)
+		for _, grant := range []store.Grant{in(s.blogID, store.RoleDeveloper), onInstall(store.RoleDeveloper)} {
+			s.hold(grant)
+			for _, project := range []string{"", "blog", "fresh"} {
+				_, err := cat.InstallCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Project: project}))
+				needsRole(t, "a developer installing postgres as "+project, err)
+				if err != nil && !strings.Contains(err.Error(), "installing from the catalog makes a project of its own, which only an admin or the owner can do") {
+					t.Errorf("installing as %q says %q, want why it's an admin's", project, err)
+				}
+			}
+		}
+	})
+}
