@@ -79,20 +79,20 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Catalog" }).click();
   await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
   for (const app of ["PostgreSQL", "MySQL", "Nginx Proxy Manager", "Cloudflare Tunnel", "T3 Code", "pgAdmin", "n8n"]) {
-    await page.getByRole("link", { name: `View ${app}` }).waitFor();
+    await page.getByRole("link", { name: new RegExp(`^${app}\\b`) }).waitFor();
   }
   await shoot(page, "catalog");
 
   step("catalog: a category and a word each narrow it, and the URL keeps them");
   const chips = page.getByRole("group", { name: "Categories" });
   await chips.getByRole("button", { name: "Networking" }).click();
-  await page.getByRole("link", { name: "View PostgreSQL" }).waitFor({ state: "hidden" });
-  await page.getByRole("link", { name: "View Cloudflare Tunnel" }).waitFor();
+  await page.getByRole("link", { name: /^PostgreSQL\b/ }).waitFor({ state: "hidden" });
+  await page.getByRole("link", { name: /^Cloudflare Tunnel\b/ }).waitFor();
   if (!page.url().includes("category=networking")) fail(`the URL doesn't keep the category: ${page.url()}`);
   await chips.getByRole("button", { name: "All" }).click();
   await page.getByRole("textbox", { name: "Search apps" }).fill("relational");
-  await page.getByRole("link", { name: "View Nginx Proxy Manager" }).waitFor({ state: "hidden" });
-  await page.getByRole("link", { name: "View MySQL" }).waitFor();
+  await page.getByRole("link", { name: /^Nginx Proxy Manager\b/ }).waitFor({ state: "hidden" });
+  await page.getByRole("link", { name: /^MySQL\b/ }).waitFor();
   await page.getByRole("textbox", { name: "Search apps" }).fill("");
 
   step("catalog: browse an app's logo, description and real preview before entering installation");
@@ -102,12 +102,12 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   };
   page.on("request", countInstall);
   await page.getByRole("textbox", { name: "Search apps" }).fill("PostgreSQL");
-  await page.getByRole("link", { name: "View PostgreSQL" }).click();
+  await page.getByRole("link", { name: /^PostgreSQL\b/ }).click();
   await page.getByRole("heading", { level: 1, name: "PostgreSQL" }).waitFor();
   if (await page.getByRole("dialog").count()) fail("browsing an app opened an install form");
   await page.getByRole("heading", { name: "About PostgreSQL" }).waitFor();
   await page.getByRole("link", { name: "Documentation", exact: true }).waitFor();
-  const preview = page.getByRole("img", { name: "Browse PostgreSQL tables in Adminer, included with this install" });
+  const preview = page.getByRole("img", { name: "Table browser in Adminer, included with this install" });
   await preview.scrollIntoViewIfNeeded();
   await preview.evaluate((image: HTMLImageElement) => image.decode());
   const logo = page.locator(".catalog-detail .catalog-icon img").first();
@@ -202,17 +202,20 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
 
   step("catalog: an installed app keeps its details and links to the running app");
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Catalog" }).click();
-  const card = page.getByRole("link", { name: "View PostgreSQL" });
+  const card = page.getByRole("link", { name: /^PostgreSQL\b/ });
   await card.waitFor();
   await card.getByText("Installed").waitFor();
   await page.getByRole("link", { name: "1 installed" }).waitFor();
   await card.click();
-  await page.getByRole("region", { name: "Your installations" }).getByRole("link", { name: "Open postgres" }).waitFor();
+  await page
+    .getByRole("region", { name: "Your installations" })
+    .getByRole("link", { name: "Open app: postgres" })
+    .waitFor();
   await page.getByRole("link", { name: "Install another" }).waitFor();
   await page.getByRole("link", { name: "Back to catalog" }).click();
 
   step("catalog: what only a person has is asked for out of sight, and what an app reaches is said first");
-  await page.getByRole("link", { name: "View Cloudflare Tunnel" }).click();
+  await page.getByRole("link", { name: /^Cloudflare Tunnel\b/ }).click();
   await page.getByRole("link", { name: "Install Cloudflare Tunnel" }).click();
   const tunnel = page.getByRole("dialog", { name: "Install Cloudflare Tunnel" });
   await tunnel.getByText("It reaches past its containers").waitFor();

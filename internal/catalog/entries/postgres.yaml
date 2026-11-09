@@ -16,7 +16,7 @@ features:
   - "Persistent database storage"
 screenshots:
   - path: /catalog-media/adminer-table.webp
-    caption: "Browse PostgreSQL tables in Adminer, included with this install"
+    caption: "Table browser in Adminer, included with this install"
     source: https://www.adminer.org/static/screenshots/table.webp
 category: databases
 version: "17.11"

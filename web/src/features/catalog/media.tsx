@@ -52,7 +52,7 @@ export function AppScreenshot({ path, caption }: { path: string; caption: string
     );
   }
   return (
-    <a href={src} target="_blank" rel="noreferrer" aria-label={t`Open screenshot: ${caption}`}>
+    <a href={src} target="_blank" rel="noreferrer" aria-label={t`Open full size: ${caption}`}>
       <img src={src} alt={caption} loading="lazy" decoding="async" onError={() => setFailed(src)} />
       <span className="catalog-preview-open">
         <Icon name="external" size={14} />

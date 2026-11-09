@@ -105,11 +105,11 @@ describe("The catalog", () => {
     const user = userEvent.setup();
     const { container } = renderAt("/catalog", api());
     await screen.findByRole("heading", { level: 1, name: "Catalog" });
-    expect(await screen.findByRole("link", { name: "View PostgreSQL" })).toHaveAttribute("href", "/catalog/postgres");
+    expect(await screen.findByRole("link", { name: /^PostgreSQL/ })).toHaveAttribute("href", "/catalog/postgres");
     const chips = screen.getByRole("group", { name: "Categories" });
     await user.click(within(chips).getByRole("button", { name: "Networking" }));
-    await waitFor(() => expect(screen.queryByRole("link", { name: "View PostgreSQL" })).not.toBeInTheDocument());
-    expect(screen.getByRole("link", { name: "View Cloudflare Tunnel" })).toBeVisible();
+    await waitFor(() => expect(screen.queryByRole("link", { name: /^PostgreSQL/ })).not.toBeInTheDocument());
+    expect(screen.getByRole("link", { name: /^Cloudflare Tunnel/ })).toBeVisible();
     await user.click(within(chips).getByRole("button", { name: "All" }));
     await user.type(screen.getByRole("textbox", { name: "Search apps" }), "zzz");
     expect(await screen.findByText(/No app matches that/)).toBeVisible();
@@ -124,7 +124,7 @@ describe("The catalog", () => {
     };
     try {
       renderAt("/catalog?category=networking", api());
-      await screen.findByRole("link", { name: "View Cloudflare Tunnel" });
+      await screen.findByRole("link", { name: /^Cloudflare Tunnel/ });
       await waitFor(() =>
         expect(seen).toContainEqual({ name: "Networking", options: { block: "nearest", inline: "nearest" } }),
       );
@@ -144,7 +144,7 @@ describe("The catalog", () => {
         }),
       }),
     );
-    const card = await screen.findByRole("link", { name: "View PostgreSQL" });
+    const card = await screen.findByRole("link", { name: /^PostgreSQL/ });
     expect(card).toHaveAttribute("href", "/catalog/postgres");
     expect(within(card).getByText("Installed")).toBeVisible();
     expect(screen.getByRole("link", { name: "1 installed" })).toHaveAttribute("href", "/apps");
@@ -168,7 +168,7 @@ describe("An app's catalog page", () => {
     const user = userEvent.setup();
     const install = vi.fn();
     const { container } = renderAt("/catalog?q=PostgreSQL&category=databases", api({ installCatalogEntry: install }));
-    await user.click(await screen.findByRole("link", { name: "View PostgreSQL" }));
+    await user.click(await screen.findByRole("link", { name: /^PostgreSQL/ }));
     await screen.findByRole("heading", { level: 1, name: "PostgreSQL" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText("PostgreSQL stores your application data.")).toBeVisible();
@@ -207,8 +207,11 @@ describe("An app's catalog page", () => {
       }),
     );
     const existing = await screen.findByRole("region", { name: "Your installations" });
-    expect(within(existing).getByRole("link", { name: "Open personal" })).toHaveAttribute("href", "/apps/svc_personal");
-    expect(within(existing).getByRole("link", { name: "Open work" })).toHaveAttribute("href", "/apps/svc_work");
+    expect(within(existing).getByRole("link", { name: "Open app: personal" })).toHaveAttribute(
+      "href",
+      "/apps/svc_personal",
+    );
+    expect(within(existing).getByRole("link", { name: "Open app: work" })).toHaveAttribute("href", "/apps/svc_work");
     expect(screen.getByRole("link", { name: "Install another" })).toHaveAttribute("href", "/catalog/postgres/install");
   });
 
@@ -285,7 +288,7 @@ describe("A newer release", () => {
 
   it("reads as one in the catalog and on the rail, which leads to the app", async () => {
     renderAt("/catalog", api({ listCatalogInstalls: () => behind }));
-    const card = await screen.findByRole("link", { name: "View PostgreSQL" });
+    const card = await screen.findByRole("link", { name: /^PostgreSQL/ });
     expect(await within(card).findByText("Upgrade to 17.11")).toBeVisible();
     // What it runs, not what's out.
     expect(within(card).getByText("17.11", { exact: true })).toBeVisible();

@@ -182,7 +182,6 @@ function Card({
   const { t } = useLingui();
   const [first] = installs;
   const count = installs.length;
-  const app = entry.name;
   const behind = installs.some((install) => install.upgrade);
   const sameVersion = installs.every((install) => !install.upgrade || install.upgrade.version === install.pin?.version);
   const latest = entry.version;
@@ -214,13 +213,7 @@ function Card({
     </>
   );
   return (
-    <Link
-      to="/catalog/$entryId"
-      params={{ entryId: entry.id }}
-      search={search}
-      className="dw-panel catalog-card"
-      aria-label={t`View ${app}`}
-    >
+    <Link to="/catalog/$entryId" params={{ entryId: entry.id }} search={search} className="dw-panel catalog-card">
       {body}
     </Link>
   );

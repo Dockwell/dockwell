@@ -4309,8 +4309,8 @@ msgid "Open app"
 msgstr "打开应用"
 
 #. placeholder {0}: installed.project
-msgid "Open {0}"
-msgstr "打开 {0}"
+msgid "Open app: {0}"
+msgstr "打开应用：{0}"
 
 msgid "Persistent storage"
 msgstr "持久存储"
@@ -4382,9 +4382,6 @@ msgstr "升级到 {latest}"
 
 msgid "View app"
 msgstr "查看应用"
-
-msgid "View {app}"
-msgstr "查看 {app}"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, other {已安装 # 个}}"
@@ -4481,8 +4478,8 @@ msgstr "{name} {version}"
 msgid "Open full size"
 msgstr "查看原图"
 
-msgid "Open screenshot: {caption}"
-msgstr "打开截图：{caption}"
+msgid "Open full size: {caption}"
+msgstr "查看原图：{caption}"
 
 msgid "Preview unavailable"
 msgstr "无法显示预览"

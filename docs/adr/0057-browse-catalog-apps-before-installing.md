@@ -23,6 +23,8 @@ The [media manifest](../../web/public/catalog-media/manifest.json) records origi
 
 Choosing an app comes before installation settings. Existing installations remain reachable from the app's page, and another install is an explicit action.
 
-Bundled WebP images add about 1 MB before notices to the panel. They keep browsing private and available offline, at the cost of binary size and the pages read when the panel starts. Measure the final panel size and the unchanged idle memory budgets with this change.
+Bundled WebP images add 970,514 bytes before notices to the panel. They keep browsing private and available offline, at the cost of binary size and the pages read when the panel starts. The complete panel is 4,131,280 bytes in 326 files, so its size allowance increases from 3 MB to 4.5 MB. Five runs measured after 180 seconds gave median idle RSS of 29.1 MB for the agent build and 61.2 MB for the control plane with its agent, within the unchanged 40 MB and 250 MB limits.
+
+[Review screenshots](../screenshots/catalog/README.md) show the grid and app pages in light and dark themes, including the phone layout.
 
 Entry releases increase when presentation changes, but their Compose files do not. The existing upgrade comparison therefore offers no plan for this metadata update. Catalog metadata remains in the entry's language; panel labels are translated as before.

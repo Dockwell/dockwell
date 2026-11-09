@@ -254,7 +254,7 @@ export function CatalogDetailPage({
                           to="/apps/$serviceId"
                           params={{ serviceId: installed.webServiceId }}
                           size="sm"
-                          aria-label={t`Open ${installed.project}`}
+                          aria-label={t`Open app: ${installed.project}`}
                         >
                           <Trans>Open app</Trans>
                         </RouterButtonLink>

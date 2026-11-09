@@ -4309,8 +4309,8 @@ msgid "Open app"
 msgstr "Open app"
 
 #. placeholder {0}: installed.project
-msgid "Open {0}"
-msgstr "Open {0}"
+msgid "Open app: {0}"
+msgstr "Open app: {0}"
 
 msgid "Persistent storage"
 msgstr "Persistent storage"
@@ -4382,9 +4382,6 @@ msgstr "Upgrade to {latest}"
 
 msgid "View app"
 msgstr "View app"
-
-msgid "View {app}"
-msgstr "View {app}"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, one {Installed} other {# installed}}"
@@ -4481,8 +4478,8 @@ msgstr "{name} {version}"
 msgid "Open full size"
 msgstr "Open full size"
 
-msgid "Open screenshot: {caption}"
-msgstr "Open screenshot: {caption}"
+msgid "Open full size: {caption}"
+msgstr "Open full size: {caption}"
 
 msgid "Preview unavailable"
 msgstr "Preview unavailable"
