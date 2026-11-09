@@ -4321,7 +4321,7 @@ echo "docker-e2e: $words"
 [[ -z "${GITHUB_STEP_SUMMARY:-}" ]] || echo "Railpack: $words." >>"$GITHUB_STEP_SUMMARY"
 ((peak - idle < 40 * 1024)) || fail "the agent grew by $(((peak - idle) / 1024)) MiB during a Railpack build: $words"
 docker volume inspect dockwell-railpack >/dev/null || fail "Railpack isn't in its volume"
-dw services delete "$railpack_id" --yes || fail "deleting e2e-railpack failed"
+dw services delete e2e-railpack --environment "$build_env" --yes || fail "deleting e2e-railpack failed"
 
 step "Builds: what real Railpack can't build is refused before anything builds, with what to do"
 # Each by what Railpack said: a source it can't read, nothing that starts the app,
