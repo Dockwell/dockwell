@@ -67,6 +67,10 @@ type Image struct {
 	// Exec runs a command in a container of it, and says how it exited. Nil has
 	// no commands, as an image without a shell.
 	Exec func(Exec) int
+	// Shell is the path of the shell a container of it has, such as "/bin/sh",
+	// which an exec with a terminal runs as this machine's /bin/sh on a
+	// pseudo-terminal of its own. Empty has none, as a distroless image.
+	Shell string
 }
 
 // Engine is a fake Docker Engine.
@@ -128,6 +132,7 @@ type Engine struct {
 	// Pulls counts pulls, and Creates containers created.
 	Pulls, Creates int
 	clock          int64 // orders what is made
+	pids           int   // gives running containers process IDs
 	// Requests logs each request, as "METHOD /path".
 	Requests []string
 	// followers counts the requests following a log now.
@@ -167,6 +172,9 @@ type container struct {
 	reports map[string]map[string]any
 	// started closes as a helper starts, and exited as it ends.
 	started, exited chan struct{}
+	// mountinfo is what a kernel would list as its mounts, as they were when it
+	// started (Engine.Mountinfo).
+	mountinfo string
 }
 
 // reported are what a real engine says of a container nobody asked anything of, key
@@ -379,6 +387,8 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "exec" && len(parts) == 3 && parts[2] == "json":
 		e.inspectExec(w, parts[1])
+	case parts[0] == "exec" && len(parts) == 3 && parts[2] == "resize" && r.Method == http.MethodPost:
+		e.resizeExec(w, r, parts[1])
 	case parts[0] == "images":
 		e.serveImages(w, r, path)
 	case parts[0] == "distribution" && len(parts) > 2 && parts[len(parts)-1] == "json":
@@ -708,9 +718,12 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 	}
 	switch {
 	case r.Method == http.MethodGet && action == "json":
+		e.process(c)
 		writeJSON(w, http.StatusOK, c.inspected())
 	case r.Method == http.MethodPost && action == "exec":
 		e.createExec(w, r, c)
+	case r.Method == http.MethodHead && action == "archive":
+		e.statPath(w, r, c)
 	case r.Method == http.MethodPost && action == "start":
 		if c.State.Running {
 			w.WriteHeader(http.StatusNotModified)
@@ -1992,6 +2005,7 @@ func (e *Engine) AddContainer(c docker.Container) *docker.Container {
 	ctr := &container{Container: c, img: img, created: e.clock}
 	ctr.log.ended = !c.State.Running
 	e.containers[c.ID] = ctr
+	e.process(ctr)
 	e.attach(ctr)
 	out := c
 	return &out
@@ -2024,4 +2038,78 @@ func ComposeFilters(project string, service ...string) map[string][]string {
 		labels = append(labels, docker.LabelService+"="+service[0])
 	}
 	return map[string][]string{"label": labels}
+}
+
+// hostMountinfo is the server's own mounts, as the fake's Mountinfo has them: one
+// disk, at /.
+const hostMountinfo = "22 1 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw\n"
+
+// process gives a running container a process ID, as Docker's State.Pid, and a
+// list of what it has mounted, as a kernel would have mounted it as it started: a
+// bind through a link is where the link led then, whatever it says since. A container
+// that stops loses both, and gets them again as it runs. e.mu is held.
+func (e *Engine) process(c *container) {
+	if !c.State.Running {
+		c.State.Pid, c.mountinfo = 0, ""
+		return
+	}
+	if c.State.Pid != 0 {
+		return
+	}
+	e.pids++
+	c.State.Pid = 40000 + e.pids
+	var b strings.Builder
+	b.WriteString("600 500 0:90 / / rw - overlay overlay rw\n")
+	for i, m := range c.Mounts {
+		dev, root, fstype := "8:1", "", "ext4"
+		switch m.Type {
+		case "bind":
+			root = resolved(m.Source)
+		case "volume":
+			v := e.volumes[m.Name]
+			var options map[string]string
+			if v != nil {
+				options = v.Options
+			}
+			switch kind := options["type"]; {
+			case len(options) == 0:
+				root = "/var/lib/docker/volumes/" + m.Name + "/_data"
+			case strings.Contains(","+options["o"]+",", ",bind,") || strings.Contains(","+options["o"]+",", ",rbind,"):
+				root = resolved(filepath.Clean("/" + options["device"]))
+			case options["device"] == "/dev/sda1":
+				root, fstype = "/", kind
+			default:
+				dev, root, fstype = fmt.Sprintf("0:%d", 100+i), "/", kind
+			}
+		default:
+			continue
+		}
+		fmt.Fprintf(&b, "%d 600 %s %s %s rw - %s none rw\n", 601+i, dev, root, m.Destination, fstype)
+	}
+	c.mountinfo = b.String()
+}
+
+// resolved is where p leads through links now, or p where it leads nowhere.
+func resolved(p string) string {
+	if to, err := filepath.EvalSymlinks(p); err == nil {
+		return to
+	}
+	return filepath.Clean(p)
+}
+
+// Mountinfo is what a running container with process pid has mounted, as its
+// /proc/pid/mountinfo would list it, and the server's own for pid 0. It stands in
+// for the kernel, for an agent's root check (agent.MountTable).
+func (e *Engine) Mountinfo(pid int) (string, error) {
+	if pid == 0 {
+		return hostMountinfo, nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, c := range e.containers {
+		if c.State.Running && c.State.Pid == pid {
+			return c.mountinfo, nil
+		}
+	}
+	return "", fmt.Errorf("open /proc/%d/mountinfo: no such file or directory", pid)
 }

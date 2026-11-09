@@ -105,6 +105,64 @@ func testAnOpenStreamKeepsItsSession(t *testing.T, backend store.Backend) {
 	}
 }
 
+// What follows a session without being a page in use, as a terminal nobody is
+// attached to, checks it as a stream does, but its checks aren't use: they keep
+// no session past its idle limit, and never move its last-seen time or address.
+// Revoking still ends it at once.
+func TestFollowingASessionIsntUsingIt(t *testing.T) {
+	storetest.Each(t, testFollowingASessionIsntUsingIt)
+}
+
+func testFollowingASessionIsntUsingIt(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend, "")
+	f.svc.recheck = 2 * time.Millisecond
+	a := &authtest.Authenticator{}
+	owner := f.claim(t, localhost, a)
+	elsewhere := localhost
+	elsewhere.Addr = "198.51.100.7:40000"
+	read := func() store.Session {
+		var s store.Session
+		_ = f.db.View(t.Context(), func(tx *store.Tx) (err error) {
+			s, err = tx.GetSession(t.Context(), owner.Session.ID)
+			return err
+		})
+		return s
+	}
+	before := read()
+	ctx, stop := f.svc.Follow(t.Context(), elsewhere, ownerPrincipal(owner))
+	defer stop()
+	f.clock.advance(SessionIdle / 2)
+	time.Sleep(50 * time.Millisecond) // many rechecks
+	if after := read(); !after.LastSeenAt.Equal(before.LastSeenAt) || after.LastIP != before.LastIP {
+		t.Errorf("following the session moved it from %v at %s to %v at %s", before.LastSeenAt, before.LastIP, after.LastSeenAt, after.LastIP)
+	}
+	if ctx.Err() != nil {
+		t.Fatal("it ended within the idle limit")
+	}
+	f.clock.advance(SessionIdle/2 + time.Minute)
+	select {
+	case <-ctx.Done():
+	case <-time.After(5 * time.Second):
+		t.Error("following a session kept it past its idle limit")
+	}
+
+	again, err := f.passkeySignIn(t, localhost, a, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.svc.recheck = time.Hour // so only signing out can end it in time
+	ctx, stop = f.svc.Follow(t.Context(), localhost, ownerPrincipal(again))
+	defer stop()
+	if err := f.svc.SignOut(t.Context(), ownerPrincipal(again)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(5 * time.Second):
+		t.Error("signing out didn't end what follows the session")
+	}
+}
+
 // Signing out the other sessions counts only those that still worked.
 func TestRevokeOtherSessionsSkipsEndedOnes(t *testing.T) {
 	storetest.Each(t, testRevokeOtherSessionsSkipsEndedOnes)

@@ -11,6 +11,7 @@ import {
   type Event,
   type EventBackup,
   EventKind,
+  type EventTerminal,
   ResourceService,
 } from "@dockwell/api";
 import {
@@ -51,6 +52,7 @@ import { Reconnecting } from "../servers/FleetNotes";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { useEndWords } from "../terminal/words";
 import { useActorWords } from "./actor";
 import { type Described, happenedAt, useCounts, useDescribe, useHealthEventWords, useProgress } from "./describe";
 import { RecordedPlan } from "./RecordedPlan";
@@ -783,6 +785,7 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
             ) : null}
             {event.health ? <HealthFacts event={event} /> : null}
             {event.backup ? <BackupFacts backup={event.backup} /> : null}
+            {event.terminal ? <TerminalFacts terminal={event.terminal} /> : null}
           </dl>
           {change?.because ? <BecauseNotice because={change.because} /> : null}
           {change?.state === ChangeState.FAILED ? (
@@ -891,6 +894,50 @@ function BackupFacts({ backup }: { backup: EventBackup }) {
         <>
           <dt>{t`Why it failed`}</dt>
           <dd>{backup.error}</dd>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/** A terminal, in the facts of its opening or closing: who it ran as, when, and how it ended. Never what was typed. */
+function TerminalFacts({ terminal }: { terminal: EventTerminal }) {
+  const { t, i18n } = useLingui();
+  const ended = useEndWords();
+  return (
+    <>
+      {terminal.id ? (
+        <>
+          <dt>{t`Terminal`}</dt>
+          <dd>
+            <code className="activity-code">{terminal.id}</code>
+          </dd>
+        </>
+      ) : null}
+      {terminal.title ? (
+        <>
+          <dt>{t`Ran as`}</dt>
+          <dd>
+            <code className="activity-code">{terminal.title}</code>
+          </dd>
+        </>
+      ) : null}
+      {terminal.openTime && terminal.end ? (
+        <>
+          <dt>{t`Opened`}</dt>
+          <dd>{formatDateTime(timestampDate(terminal.openTime), i18n.locale)}</dd>
+        </>
+      ) : null}
+      {terminal.end ? (
+        <>
+          <dt>{t`How it ended`}</dt>
+          <dd>{ended(terminal.end).text}</dd>
+        </>
+      ) : null}
+      {terminal.error ? (
+        <>
+          <dt>{t`Why`}</dt>
+          <dd>{terminal.error}</dd>
         </>
       ) : null}
     </>

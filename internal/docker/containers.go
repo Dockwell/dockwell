@@ -4,6 +4,7 @@ package docker
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -191,13 +192,15 @@ type MountPoint struct {
 
 // State is whether a container runs.
 type State struct {
-	Status     string  `json:"Status"` // created, running, restarting, exited…
-	Running    bool    `json:"Running"`
-	Restarting bool    `json:"Restarting"`
-	Paused     bool    `json:"Paused"`
-	ExitCode   int     `json:"ExitCode"`
-	Error      string  `json:"Error"`
-	Health     *Health `json:"Health,omitempty"`
+	Status     string `json:"Status"` // created, running, restarting, exited…
+	Running    bool   `json:"Running"`
+	Restarting bool   `json:"Restarting"`
+	Paused     bool   `json:"Paused"`
+	ExitCode   int    `json:"ExitCode"`
+	Error      string `json:"Error"`
+	// Pid is its first process's ID on the server, while it runs.
+	Pid    int     `json:"Pid"`
+	Health *Health `json:"Health,omitempty"`
 	// StartedAt and FinishedAt are zero until it first starts and stops.
 	StartedAt  time.Time `json:"StartedAt,omitzero"`
 	FinishedAt time.Time `json:"FinishedAt,omitzero"`
@@ -377,6 +380,28 @@ type SummaryPort struct {
 	PrivatePort uint16 `json:"PrivatePort"`
 	PublicPort  uint16 `json:"PublicPort"`
 	Type        string `json:"Type"` // tcp or udp
+}
+
+// Exactly is the filter that lists one container, by its full ID or its whole
+// name, never a prefix of either, so a name that's also the start of another's ID
+// can't find that one (ADR 0021). Nil for no container named.
+func Exactly(ref string) map[string][]string {
+	switch {
+	case ref == "":
+		return nil
+	case IsFullID(ref):
+		return map[string][]string{"id": {ref}}
+	}
+	return map[string][]string{"name": {"^/" + regexp.QuoteMeta(ref) + "$"}}
+}
+
+// IsFullID says whether ref is a container's whole ID: 64 hex digits.
+func IsFullID(ref string) bool {
+	if len(ref) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(ref)
+	return err == nil
 }
 
 // ListContainers lists the containers, running or not, that pass
