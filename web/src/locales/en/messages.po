@@ -413,6 +413,9 @@ msgstr "State"
 msgid "Terminal"
 msgstr "Terminal"
 
+msgid "Times"
+msgstr "Times"
+
 msgid "Today"
 msgstr "Today"
 
@@ -457,6 +460,15 @@ msgstr "the server filter"
 
 msgid "{count, plural, one {{long} · # event} other {{long} · # events}}"
 msgstr "{count, plural, one {{long} · # event} other {{long} · # events}}"
+
+msgid "{count}, at {first}"
+msgstr "{count}, at {first}"
+
+msgid "{count}, from {first} to {last}"
+msgstr "{count}, from {first} to {last}"
+
+msgid "{times, plural, one {# time} other {# times}}"
+msgstr "{times, plural, one {# time} other {# times}}"
 
 msgid "CLI on {host}"
 msgstr "CLI on {host}"
@@ -950,26 +962,110 @@ msgstr "{0, plural, one {# revision · newest first} other {# revisions · newes
 msgid "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 msgstr "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 
-msgid "A value lives in its environment, and goes only to the servers that run an app using it. Change one in <0>Variables and secrets</0>, and its plan restarts each app that uses it."
-msgstr "A value lives in its environment, and goes only to the servers that run an app using it. Change one in <0>Variables and secrets</0>, and its plan restarts each app that uses it."
+msgid "A change is applying to {name}. Review this once it ends."
+msgstr "A change is applying to {name}. Review this once it ends."
 
-msgid "Dockwell hands what's set on this app to it, and never shows those values again, as they may hold secrets."
-msgstr "Dockwell hands what's set on this app to it, and never shows those values again, as they may hold secrets."
+msgid "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
+msgstr "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
 
-msgid "Environment variables"
-msgstr "Environment variables"
+msgid "A variable or secret lives in its environment, and goes only to the servers that run an app using it. Change one here or in <0>Variables and secrets</0>, and its plan restarts each app that uses it. What's set on this app alone is never shown again, as it may hold secrets."
+msgstr "A variable or secret lives in its environment, and goes only to the servers that run an app using it. Change one here or in <0>Variables and secrets</0>, and its plan restarts each app that uses it. What's set on this app alone is never shown again, as it may hold secrets."
+
+msgid "A variable or secret of the environment"
+msgstr "A variable or secret of the environment"
+
+msgid "Actions"
+msgstr "Actions"
+
+msgid "Add"
+msgstr "Add"
+
+msgid "Add a variable"
+msgstr "Add a variable"
+
+msgid "Add {key} to {name}"
+msgstr "Add {key} to {name}"
+
+msgid "Can't read the environment's variables and secrets"
+msgstr "Can't read the environment's variables and secrets"
+
+msgid "Change"
+msgstr "Change"
+
+msgid "Change the environment of {name}"
+msgstr "Change the environment of {name}"
+
+msgid "Change {key} on {name}"
+msgstr "Change {key} on {name}"
+
+msgid "Change {name}"
+msgstr "Change {name}"
+
+msgid "Change {target}"
+msgstr "Change {target}"
+
+msgid "Discard"
+msgstr "Discard"
+
+msgid "Each line needs a NAME=value, as an .env file has them. Lines that start with # are skipped."
+msgstr "Each line needs a NAME=value, as an .env file has them. Lines that start with # are skipped."
+
+msgid "Environment variables of {name}"
+msgstr "Environment variables of {name}"
+
+msgid "Every app that uses this variable gets the new value."
+msgstr "Every app that uses this variable gets the new value."
 
 msgid "Hidden"
 msgstr "Hidden"
 
-msgid "Name"
-msgstr "Name"
+msgid "Import .env"
+msgstr "Import .env"
 
-msgid "No environment variables"
-msgstr "No environment variables"
+msgid "Keep the new ones as secrets"
+msgstr "Keep the new ones as secrets"
+
+msgid "Key"
+msgstr "Key"
+
+msgid "New secret"
+msgstr "New secret"
+
+msgid "New value"
+msgstr "New value"
+
+msgid "New value of {target}"
+msgstr "New value of {target}"
+
+msgid "New variable"
+msgstr "New variable"
+
+msgid "Not applied"
+msgstr "Not applied"
 
 msgid "Not loaded"
 msgstr "Not loaded"
+
+msgid "Paste the file's text"
+msgstr "Paste the file's text"
+
+msgid "Remove {key} from {name}"
+msgstr "Remove {key} from {name}"
+
+msgid "Remove {name}"
+msgstr "Remove {name}"
+
+msgid "Removed"
+msgstr "Removed"
+
+msgid "Revert {name}"
+msgstr "Revert {name}"
+
+msgid "Review plan shows what this does first. Applying it restarts {name}, and {also}, which use what changes too."
+msgstr "Review plan shows what this does first. Applying it restarts {name}, and {also}, which use what changes too."
+
+msgid "Review plan shows what this does first. Applying it restarts {name}."
+msgstr "Review plan shows what this does first. Applying it restarts {name}."
 
 msgid "Secret"
 msgstr "Secret"
@@ -980,8 +1076,50 @@ msgstr "Secret {from}"
 msgid "Set on this app"
 msgstr "Set on this app"
 
-msgid "This app runs with only what its image sets."
-msgstr "This app runs with only what its image sets."
+msgid "Source"
+msgstr "Source"
+
+msgid "The environment has a secret {trimmed} already. Use it as it is, or choose another name."
+msgstr "The environment has a secret {trimmed} already. Use it as it is, or choose another name."
+
+msgid "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
+msgstr "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
+
+msgid "The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in Variables and secrets, where every app that uses it gets the change."
+msgstr "The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in Variables and secrets, where every app that uses it gets the change."
+
+msgid "The environment has {usedList} already, so the app uses them as they are, with their own values. Change them in Variables and secrets, where every app that uses them gets the change."
+msgstr "The environment has {usedList} already, so the app uses them as they are, with their own values. Change them in Variables and secrets, where every app that uses them gets the change."
+
+msgid "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
+msgstr "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
+
+msgid "Their values are hidden, and revealing one takes your passkey."
+msgstr "Their values are hidden, and revealing one takes your passkey."
+
+msgid "Their values don't show until then, and adding waits, so a new name can't clash with one already there."
+msgstr "Their values don't show until then, and adding waits, so a new name can't clash with one already there."
+
+msgid "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
+msgstr "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
+
+msgid "Unapplied changes"
+msgstr "Unapplied changes"
+
+msgid "Updated"
+msgstr "Updated"
+
+msgid "Use"
+msgstr "Use"
+
+msgid "Use letters, digits and underscores, starting with a letter or underscore."
+msgstr "Use letters, digits and underscores, starting with a letter or underscore."
+
+msgid "Use one the environment has…"
+msgstr "Use one the environment has…"
+
+msgid "Use {storedName}"
+msgstr "Use {storedName}"
 
 msgid "Value"
 msgstr "Value"
@@ -991,6 +1129,66 @@ msgstr "Variable"
 
 msgid "Variable {from}"
 msgstr "Variable {from}"
+
+msgid "What's set on this app isn't shown, so type the whole value it should have."
+msgstr "What's set on this app isn't shown, so type the whole value it should have."
+
+msgid "added, not applied"
+msgstr "added, not applied"
+
+msgid "changed, not applied"
+msgstr "changed, not applied"
+
+msgid "new value"
+msgstr "new value"
+
+msgid "removed, not applied"
+msgstr "removed, not applied"
+
+msgid "value"
+msgstr "value"
+
+msgid "{added} added"
+msgstr "{added} added"
+
+msgid "{app} has {trimmed} already. Change it in its row below."
+msgstr "{app} has {trimmed} already. Change it in its row below."
+
+msgid "{changed} changed"
+msgstr "{changed} changed"
+
+msgid "{count, plural, one {Import # value} other {Import # values}}"
+msgstr "{count, plural, one {Import # value} other {Import # values}}"
+
+msgid "{name} changed after you started. Close this and review your edits again: they apply to what it is now."
+msgstr "{name} changed after you started. Close this and review your edits again: they apply to what it is now."
+
+msgid "{name}'s spec can't be read"
+msgstr "{name}'s spec can't be read"
+
+msgid "{name}, secret"
+msgstr "{name}, secret"
+
+msgid "{own} set on this app"
+msgstr "{own} set on this app"
+
+msgid "{removed} removed"
+msgstr "{removed} removed"
+
+msgid "{rooted} are as good as root on their servers, so applying this asks for your passkey."
+msgstr "{rooted} are as good as root on their servers, so applying this asks for your passkey."
+
+msgid "{rooted} is as good as root on its server, so applying this asks for your passkey."
+msgstr "{rooted} is as good as root on its server, so applying this asks for your passkey."
+
+msgid "{secrets, plural, one {# secret} other {# secrets}}"
+msgstr "{secrets, plural, one {# secret} other {# secrets}}"
+
+msgid "{total, plural, one {# unapplied change} other {# unapplied changes}}"
+msgstr "{total, plural, one {# unapplied change} other {# unapplied changes}}"
+
+msgid "{variables, plural, one {# variable} other {# variables}}"
+msgstr "{variables, plural, one {# variable} other {# variables}}"
 
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
@@ -1056,6 +1254,9 @@ msgstr "Putting <0>{image}</0> back failed, {ago}"
 msgid "Search logs"
 msgstr "Search logs"
 
+msgid "Settings"
+msgstr "Settings"
+
 msgid "rolled back by Dockwell {ago}"
 msgstr "rolled back by Dockwell {ago}"
 
@@ -1063,6 +1264,7 @@ msgid "{name} logs"
 msgstr "{name} logs"
 
 #. placeholder {0}: check.tcp.port
+#. placeholder {0}: check?.tcp?.port
 msgid "A connection to port {0}"
 msgstr "A connection to port {0}"
 
@@ -1090,17 +1292,8 @@ msgstr "Copy the image"
 msgid "Couldn't read this app's domains"
 msgstr "Couldn't read this app's domains"
 
-msgid "Delete this app"
-msgstr "Delete this app"
-
 msgid "Delete {name}"
 msgstr "Delete {name}"
-
-msgid "Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first."
-msgstr "Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first."
-
-msgid "Deleting {name} stops it, removes its container, and takes its domains with it. Its volumes stay, and you review a plan first."
-msgstr "Deleting {name} stops it, removes its container, and takes its domains with it. Its volumes stay, and you review a plan first."
 
 msgid "Deploy what should run, or fix it on the server."
 msgstr "Deploy what should run, or fix it on the server."
@@ -1309,6 +1502,7 @@ msgid "What the control plane stores for it was changed, or sealed with keys thi
 msgstr "What the control plane stores for it was changed, or sealed with keys this install hasn't got, so Dockwell won't use it, and can't change {name}. Its containers keep running as they are. Restore the database and the key file from the same backup."
 
 #. placeholder {0}: check.http.port
+#. placeholder {0}: check?.http?.port
 msgid "on port {0}"
 msgstr "on port {0}"
 
@@ -1375,8 +1569,285 @@ msgstr "{revision} rolled back by Dockwell {when}"
 msgid "{revision} started deploying {when}"
 msgstr "{revision} started deploying {when}"
 
-msgid "{secrets, plural, one {# secret} other {# secrets}}"
-msgstr "{secrets, plural, one {# secret} other {# secrets}}"
+msgid "3 failed checks in a row"
+msgstr "3 failed checks in a row"
+
+msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root, so applying this asks for your passkey. API tokens can't."
+msgstr "<0>{source}</0> gives this app control of Docker on the server, the same as root, so applying this asks for your passkey. API tokens can't."
+
+msgid "<0>{source}</0> on the server is as good as root there, so applying this asks for your passkey. API tokens can't."
+msgstr "<0>{source}</0> on the server is as good as root there, so applying this asks for your passkey. API tokens can't."
+
+msgid "A limit never asks for your passkey, whatever {name} reaches."
+msgstr "A limit never asks for your passkey, whatever {name} reaches."
+
+msgid "A name or a number, such as 1000."
+msgstr "A name or a number, such as 1000."
+
+msgid "A quote isn't closed. Close it, or leave it out."
+msgstr "A quote isn't closed. Close it, or leave it out."
+
+msgid "Add a volume or mount"
+msgstr "Add a volume or mount"
+
+msgid "CPU limit"
+msgstr "CPU limit"
+
+msgid "Change how {name} runs"
+msgstr "Change how {name} runs"
+
+msgid "Change the health check of {name}"
+msgstr "Change the health check of {name}"
+
+msgid "Change the limits of {name}"
+msgstr "Change the limits of {name}"
+
+msgid "Change the ports of {name}"
+msgstr "Change the ports of {name}"
+
+msgid "Change the volumes and mounts of {name}"
+msgstr "Change the volumes and mounts of {name}"
+
+msgid "Check"
+msgstr "Check"
+
+msgctxt "health check"
+msgid "Command"
+msgstr "Command"
+
+msgid "Danger zone"
+msgstr "Danger zone"
+
+msgid "Docker changes a limit on the running container, except to lift one, which replaces it."
+msgstr "Docker changes a limit on the running container, except to lift one, which replaces it."
+
+msgid "Docker runs this in the container. It passes when it exits with 0."
+msgstr "Docker runs this in the container. It passes when it exits with 0."
+
+msgid "Docker's default"
+msgstr "Docker's default"
+
+msgid "Dockwell's agent asks the app for the path on its port. Any status from 200 to 399 passes, and the image needs no curl."
+msgstr "Dockwell's agent asks the app for the path on its port. Any status from 200 to 399 passes, and the image needs no curl."
+
+msgid "Dockwell's agent connects to the port. It passes once the app takes the connection."
+msgstr "Dockwell's agent connects to the port. It passes once the app takes the connection."
+
+msgid "Edit"
+msgstr "Edit"
+
+msgid "Edit General"
+msgstr "Edit General"
+
+msgid "Edit Health check"
+msgstr "Edit Health check"
+
+msgid "Edit Ports"
+msgstr "Edit Ports"
+
+msgid "Edit Resources"
+msgstr "Edit Resources"
+
+msgid "Edit Volumes and mounts"
+msgstr "Edit Volumes and mounts"
+
+msgid "Edit {title}"
+msgstr "Edit {title}"
+
+msgid "Every"
+msgstr "Every"
+
+msgid "Failures in this time don't count."
+msgstr "Failures in this time don't count."
+
+msgid "General"
+msgstr "General"
+
+msgid "Grace at start"
+msgstr "Grace at start"
+
+msgid "HTTP"
+msgstr "HTTP"
+
+msgid "How it's checked"
+msgstr "How it's checked"
+
+msgid "It mounts nothing. Add a volume to keep what it writes across deploys."
+msgstr "It mounts nothing. Add a volume to keep what it writes across deploys."
+
+msgid "It publishes none. Add one to reach it from outside the server."
+msgstr "It publishes none. Add one to reach it from outside the server."
+
+msgid "It publishes this port already."
+msgstr "It publishes this port already."
+
+msgid "Keep no more for it than its limit, {memory}."
+msgstr "Keep no more for it than its limit, {memory}."
+
+msgid "Kept for it"
+msgstr "Kept for it"
+
+msgid "Leave it empty to run the image's own."
+msgstr "Leave it empty to run the image's own."
+
+msgid "Memory kept for it"
+msgstr "Memory kept for it"
+
+msgid "Memory limit"
+msgstr "Memory limit"
+
+msgid "Mount {n}: path in the app"
+msgstr "Mount {n}: path in the app"
+
+msgid "Mount {n}: volume or server path"
+msgstr "Mount {n}: volume or server path"
+
+msgid "Name a volume, such as data, or a path on the server, such as /srv/app."
+msgstr "Name a volume, such as data, or a path on the server, such as /srv/app."
+
+msgid "No check at all, not even the image's. Running only means it started."
+msgstr "No check at all, not even the image's. Running only means it started."
+
+msgid "No limit"
+msgstr "No limit"
+
+msgid "None"
+msgstr "None"
+
+msgctxt "health check"
+msgid "None"
+msgstr "None"
+
+msgid "None, not even the image's"
+msgstr "None, not even the image's"
+
+msgid "None. Only what shares a network with it can reach it."
+msgstr "None. Only what shares a network with it can reach it."
+
+msgid "None. What it writes goes when its container is replaced."
+msgstr "None. What it writes goes when its container is replaced."
+
+msgid "Nothing has changed yet."
+msgstr "Nothing has changed yet."
+
+msgid "Nothing set aside"
+msgstr "Nothing set aside"
+
+msgid "Path"
+msgstr "Path"
+
+msgid "Path in the app"
+msgstr "Path in the app"
+
+msgid "Port {n} in the app"
+msgstr "Port {n} in the app"
+
+msgid "Port {n} on the server"
+msgstr "Port {n} on the server"
+
+msgid "Ports"
+msgstr "Ports"
+
+msgid "Remove mount {n}"
+msgstr "Remove mount {n}"
+
+msgid "Remove port {n}"
+msgstr "Remove port {n}"
+
+msgid "Resources"
+msgstr "Resources"
+
+msgid "Review plan shows what this replaces first. Nothing changes until you apply it."
+msgstr "Review plan shows what this replaces first. Nothing changes until you apply it."
+
+msgid "Run no entrypoint, not even the image's"
+msgstr "Run no entrypoint, not even the image's"
+
+msgid "Say what to run, such as curl -f http://localhost/."
+msgstr "Say what to run, such as curl -f http://localhost/."
+
+msgid "Settings sections"
+msgstr "Settings sections"
+
+msgid "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
+msgstr "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
+
+msgid "Stops it and removes its container. Its volumes stay, and you review a plan first."
+msgstr "Stops it and removes its container. Its volumes stay, and you review a plan first."
+
+msgid "Such as 512M or 2G."
+msgstr "Such as 512M or 2G."
+
+msgid "TCP"
+msgstr "TCP"
+
+msgid "The image's"
+msgstr "The image's"
+
+msgid "The image's own check, if it has one. Without one, Running only means it started."
+msgstr "The image's own check, if it has one. Without one, Running only means it started."
+
+msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
+msgstr "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
+
+msgid "Timeout"
+msgstr "Timeout"
+
+msgid "Unhealthy after"
+msgstr "Unhealthy after"
+
+msgid "Use a duration, such as 10s or 1m."
+msgstr "Use a duration, such as 10s or 1m."
+
+msgid "Use a number of CPUs above 0, such as 0.5 or 2."
+msgstr "Use a number of CPUs above 0, such as 0.5 or 2."
+
+msgid "Use a whole number from 1."
+msgstr "Use a whole number from 1."
+
+msgid "Use an absolute path in the app, such as /data."
+msgstr "Use an absolute path in the app, such as /data."
+
+msgid "Use an absolute path, such as /app."
+msgstr "Use an absolute path, such as /app."
+
+msgid "Use an amount from 6M, such as 512M or 2G."
+msgstr "Use an amount from 6M, such as 512M or 2G."
+
+msgid "Use letters, digits, dots, dashes and underscores for a volume's name."
+msgstr "Use letters, digits, dots, dashes and underscores for a volume's name."
+
+msgid "Volume or server path"
+msgstr "Volume or server path"
+
+msgid "Volumes and mounts"
+msgstr "Volumes and mounts"
+
+msgid "What Docker leaves it when the server runs short."
+msgstr "What Docker leaves it when the server runs short."
+
+msgid "failures"
+msgstr "failures"
+
+msgid "on the server, to the app"
+msgstr "on the server, to the app"
+
+#. placeholder {0}: inv.cpuCount
+#. placeholder {0}: r.cpus
+msgid "{0} vCPU"
+msgstr "{0} vCPU"
+
+msgid "{name} changed after you started, so the form shows it as it is now. Make your change again."
+msgstr "{name} changed after you started, so the form shows it as it is now. Make your change again."
+
+msgid "{name} changed after you started, so this would undo that change. Close this, and the form shows it as it is now."
+msgstr "{name} changed after you started, so this would undo that change. Close this, and the form shows it as it is now."
+
+msgid "{name} is as good as root on its server, so applying this asks for your passkey."
+msgstr "{name} is as good as root on its server, so applying this asks for your passkey."
+
+msgid "{retries} failed checks in a row"
+msgstr "{retries} failed checks in a row"
 
 msgid "+{others}"
 msgstr "+{others}"
@@ -1869,11 +2340,11 @@ msgstr "Compose"
 msgid "Directory on the server"
 msgstr "Directory on the server"
 
-msgid "Discard"
-msgstr "Discard"
-
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
+
+msgid "Environment variables"
+msgstr "Environment variables"
 
 msgid "Fix line {line} to review the plan"
 msgstr "Fix line {line} to review the plan"
@@ -1919,6 +2390,9 @@ msgstr "Keep editing"
 msgid "Line {0}: {1}"
 msgstr "Line {0}: {1}"
 
+msgid "Name"
+msgstr "Name"
+
 msgid "Name a volume, or an absolute path on the server."
 msgstr "Name a volume, or an absolute path on the server."
 
@@ -1958,14 +2432,8 @@ msgstr "Paste a Compose file to review its plan"
 msgid "Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan."
 msgstr "Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan."
 
-msgid "Path in the app"
-msgstr "Path in the app"
-
 msgid "Plans say a value changed, and never show it."
 msgstr "Plans say a value changed, and never show it."
-
-msgid "Ports"
-msgstr "Ports"
 
 msgid "Project"
 msgstr "Project"
@@ -2021,9 +2489,6 @@ msgstr "Show the apps"
 msgid "Show the value"
 msgstr "Show the value"
 
-msgid "Source"
-msgstr "Source"
-
 msgid "Such as 8080 on the server, to 80 in the app."
 msgstr "Such as 8080 on the server, to 80 in the app."
 
@@ -2042,14 +2507,8 @@ msgstr "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. L
 msgid "This file writes more variables in plain sight than these. Read it before you pass one a secret."
 msgstr "This file writes more variables in plain sight than these. Read it before you pass one a secret."
 
-msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
-msgstr "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
-
 msgid "Use an absolute path, such as /data."
 msgstr "Use an absolute path, such as /data."
-
-msgid "Use letters, digits and underscores, starting with a letter or underscore."
-msgstr "Use letters, digits and underscores, starting with a letter or underscore."
 
 msgid "Use lowercase letters, digits and dashes, starting with a letter, such as shop."
 msgstr "Use lowercase letters, digits and dashes, starting with a letter, such as shop."
@@ -2059,9 +2518,6 @@ msgstr "Use lowercase letters, digits and dashes, starting with a letter, such a
 
 msgid "Variables"
 msgstr "Variables"
-
-msgid "Volume or server path"
-msgstr "Volume or server path"
 
 msgid "What this file makes"
 msgstr "What this file makes"
@@ -2468,10 +2924,6 @@ msgstr "in {minutes} min"
 msgid "{0} disk"
 msgstr "{0} disk"
 
-#. placeholder {0}: inv.cpuCount
-msgid "{0} vCPU"
-msgstr "{0} vCPU"
-
 msgid "Add passkey"
 msgstr "Add passkey"
 
@@ -2498,9 +2950,6 @@ msgstr "Passkeys"
 
 msgid "Remove"
 msgstr "Remove"
-
-msgid "Remove {name}"
-msgstr "Remove {name}"
 
 msgid "Synced"
 msgstr "Synced"
@@ -2978,9 +3427,6 @@ msgstr "{0, plural, one {{list} runs on this volume} other {{list} run on this v
 msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
 msgstr "A backup is of a volume. Add one to an app, or install a database from the catalog."
 
-msgid "Actions"
-msgstr "Actions"
-
 #. placeholder {0}: b.destination
 msgid "Also on {0}"
 msgstr "Also on {0}"
@@ -3107,9 +3553,6 @@ msgstr "{shown} newest"
 
 msgid "Access key"
 msgstr "Access key"
-
-msgid "Add"
-msgstr "Add"
 
 msgid "Add a destination"
 msgstr "Add a destination"
@@ -3813,9 +4256,6 @@ msgstr "No steps: it left the fleet"
 msgid "Reaches {reach} on {server}"
 msgstr "Reaches {reach} on {server}"
 
-msgid "Removed"
-msgstr "Removed"
-
 msgid "Steps"
 msgstr "Steps"
 
@@ -4005,6 +4445,9 @@ msgstr "data"
 msgid "data taken out of use"
 msgstr "data taken out of use"
 
+msgid "database user"
+msgstr "database user"
+
 msgid "display name"
 msgstr "display name"
 
@@ -4043,6 +4486,9 @@ msgstr "no"
 
 msgid "option"
 msgstr "option"
+
+msgid "password in"
+msgstr "password in"
 
 msgid "path"
 msgstr "path"
@@ -4554,9 +5000,6 @@ msgstr "Anyone visiting {where} stops reaching it."
 msgid "Automatic"
 msgstr "Automatic"
 
-msgid "Check"
-msgstr "Check"
-
 msgid "Checked"
 msgstr "Checked"
 
@@ -4857,9 +5300,6 @@ msgstr "Two containers mustn't write to the volume {volumes} at once, so the old
 msgid "Update"
 msgstr "Update"
 
-msgid "Updated"
-msgstr "Updated"
-
 msgid "Updating"
 msgstr "Updating"
 
@@ -5058,6 +5498,33 @@ msgstr "{where} leaves {from}, and goes to port {toPort} on the server."
 msgid "{where} leaves {from}, and goes to {to}."
 msgstr "{where} leaves {from}, and goes to {to}."
 
+msgid "Add a user to {name}"
+msgstr "Add a user to {name}"
+
+msgid "Dockwell makes a password of 32 characters and keeps it in this secret, which an app uses by name. Nobody sees it unless they reveal it with a passkey."
+msgstr "Dockwell makes a password of 32 characters and keeps it in this secret, which an app uses by name. Nobody sees it unless they reveal it with a passkey."
+
+msgid "It's theirs, to do anything in."
+msgstr "It's theirs, to do anything in."
+
+msgid "Secret for the password"
+msgstr "Secret for the password"
+
+msgid "This user can't be planned"
+msgstr "This user can't be planned"
+
+msgid "Use letters, digits and underscores, starting with a letter, such as SHOP_DATABASE_PASSWORD."
+msgstr "Use letters, digits and underscores, starting with a letter, such as SHOP_DATABASE_PASSWORD."
+
+msgid "Use up to 32 lowercase letters, digits and underscores, starting with a letter, such as shop."
+msgstr "Use up to 32 lowercase letters, digits and underscores, starting with a letter, such as shop."
+
+msgid "Who signs in to {engine}. Their database takes this name too, unless you give it another."
+msgstr "Who signs in to {engine}. Their database takes this name too, unless you give it another."
+
+msgid "With a database of their own, and a password Dockwell makes"
+msgstr "With a database of their own, and a password Dockwell makes"
+
 msgid "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
 msgstr "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
 
@@ -5193,9 +5660,6 @@ msgstr "Keys asked for that were there"
 msgid "Newest"
 msgstr "Newest"
 
-msgid "None"
-msgstr "None"
-
 msgid "None yet"
 msgstr "None yet"
 
@@ -5290,6 +5754,9 @@ msgstr "{servers}, and sealed on {destination}"
 msgid "{servers}, unencrypted"
 msgstr "{servers}, unencrypted"
 
+msgid "Add a user"
+msgstr "Add a user"
+
 msgid "Can do anything"
 msgstr "Can do anything"
 
@@ -5308,20 +5775,35 @@ msgstr "Its own"
 msgid "Its users show again once it does."
 msgstr "Its users show again once it does."
 
+msgid "No app yet"
+msgstr "No app yet"
+
 msgid "No server has said yet"
 msgstr "No server has said yet"
 
 msgid "None of their own"
 msgstr "None of their own"
 
+msgid "Not one of Dockwell's"
+msgstr "Not one of Dockwell's"
+
+msgid "Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one."
+msgstr "Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one."
+
 msgid "Owns"
 msgstr "Owns"
+
+msgid "Password in"
+msgstr "Password in"
 
 msgid "Role"
 msgstr "Role"
 
 msgid "Signs in"
 msgstr "Signs in"
+
+msgid "Used by"
+msgstr "Used by"
 
 msgid "Users of {name}"
 msgstr "Users of {name}"
@@ -5679,9 +6161,6 @@ msgstr "Nothing here matches your search."
 
 msgid "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
 msgstr "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
-
-msgid "Path"
-msgstr "Path"
 
 msgid "Permissions"
 msgstr "Permissions"
@@ -7033,9 +7512,6 @@ msgstr "{rx} in · {tx} out"
 msgid "Addresses"
 msgstr "Addresses"
 
-msgid "Change"
-msgstr "Change"
-
 msgid "Connected"
 msgstr "Connected"
 
@@ -7634,9 +8110,6 @@ msgstr "Caddy, the server's ingress, which holds ports 80 and 443 while the serv
 msgid "Dockwell itself, with a certificate from {ca} that it renews"
 msgstr "Dockwell itself, with a certificate from {ca} that it renews"
 
-msgid "General"
-msgstr "General"
-
 msgid "HTTPS"
 msgstr "HTTPS"
 
@@ -7942,9 +8415,6 @@ msgstr "Install"
 
 msgid "Platform"
 msgstr "Platform"
-
-msgid "Settings"
-msgstr "Settings"
 
 msgid "1 token"
 msgstr "1 token"
@@ -8300,9 +8770,6 @@ msgstr "More"
 msgid "Operate"
 msgstr "Operate"
 
-msgid "Resources"
-msgstr "Resources"
-
 msgid "Settings, status and account"
 msgstr "Settings, status and account"
 
@@ -8402,9 +8869,6 @@ msgstr "Unreachable"
 msgid "All runs"
 msgstr "All runs"
 
-msgid "Edit"
-msgstr "Edit"
-
 msgid "Enabled"
 msgstr "Enabled"
 
@@ -8447,9 +8911,6 @@ msgstr "Runs in"
 
 msgid "Schedule"
 msgstr "Schedule"
-
-msgid "Timeout"
-msgstr "Timeout"
 
 #. placeholder {0}: newest.outputCutBytes
 msgid "What it printed before this, {0} bytes, wasn't kept."
@@ -9362,9 +9823,6 @@ msgstr "Change the secret {trimmed}"
 msgid "Change the variable {trimmed}"
 msgstr "Change the variable {trimmed}"
 
-msgid "Change {name}"
-msgstr "Change {name}"
-
 msgid "Change {trimmed}"
 msgstr "Change {trimmed}"
 
@@ -9380,9 +9838,6 @@ msgstr "Hide {name}"
 msgid "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
 msgstr "It was a plain variable, so anyone who can read this environment can still see it. Enter a new value for the secret, and rotate the old one wherever it was issued."
 
-msgid "Key"
-msgstr "Key"
-
 msgid "Loading variables and secrets"
 msgstr "Loading variables and secrets"
 
@@ -9394,9 +9849,6 @@ msgstr "Make {trimmed} a variable"
 
 msgid "Name it, such as DATABASE_URL."
 msgstr "Name it, such as DATABASE_URL."
-
-msgid "New value"
-msgstr "New value"
 
 msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
 msgstr "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
@@ -9422,9 +9874,6 @@ msgstr "The old value stays in this variable's history"
 msgid "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
 msgstr "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
 
-msgid "Used by"
-msgstr "Used by"
-
 msgid "Variables and secrets in {envName}"
 msgstr "Variables and secrets in {envName}"
 
@@ -9434,9 +9883,6 @@ msgstr "What the services in {envName} use, by name. Changing a value restarts e
 #. placeholder {0}: use.name
 msgid "as {0}"
 msgstr "as {0}"
-
-msgid "value"
-msgstr "value"
 
 msgid "A PHP site, such as WordPress: PHP-FPM of the version you choose runs its code, and its other files are served as they are. You approve the folder in the plan."
 msgstr "A PHP site, such as WordPress: PHP-FPM of the version you choose runs its code, and its other files are served as they are. You approve the folder in the plan."
