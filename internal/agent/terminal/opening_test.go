@@ -137,7 +137,7 @@ func TestFailedStartupReleasesItsPlace(t *testing.T) {
 
 func TestStoppingWaitsForTerminalStartup(t *testing.T) {
 	m, entered, release := startingManager(t, nil)
-	opened := startingOpen(t, m, "trm_1")
+	opened := startingOpen(t, m, "trm_starting")
 	waitForStartup(t, entered)
 	stopped := make(chan struct{})
 	go func() { m.closeAll(); close(stopped) }()
@@ -172,7 +172,7 @@ func TestStoppingWaitsForTerminalStartup(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("the manager didn't stop after startup finished")
 	}
-	if end := takeEnded(t, m, "trm_1").GetEnd(); end.GetReason() != dockwellv1.TerminalEndReason_TERMINAL_END_REASON_AGENT_RESTARTED {
+	if end := takeEnded(t, m, "trm_starting").GetEnd(); end.GetReason() != dockwellv1.TerminalEndReason_TERMINAL_END_REASON_AGENT_RESTARTED {
 		t.Errorf("ended with %v", end)
 	}
 }
