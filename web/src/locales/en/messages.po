@@ -8729,9 +8729,6 @@ msgstr "Unreachable"
 msgid "All runs"
 msgstr "All runs"
 
-msgid "Edit"
-msgstr "Edit"
-
 msgid "Enabled"
 msgstr "Enabled"
 
@@ -8774,9 +8771,6 @@ msgstr "Runs in"
 
 msgid "Schedule"
 msgstr "Schedule"
-
-msgid "Timeout"
-msgstr "Timeout"
 
 #. placeholder {0}: newest.outputCutBytes
 msgid "What it printed before this, {0} bytes, wasn't kept."

@@ -8729,9 +8729,6 @@ msgstr "无法访问"
 msgid "All runs"
 msgstr "全部运行"
 
-msgid "Edit"
-msgstr "编辑"
-
 msgid "Enabled"
 msgstr "已启用"
 
@@ -8774,9 +8771,6 @@ msgstr "运行于"
 
 msgid "Schedule"
 msgstr "计划"
-
-msgid "Timeout"
-msgstr "超时"
 
 #. placeholder {0}: newest.outputCutBytes
 msgid "What it printed before this, {0} bytes, wasn't kept."
