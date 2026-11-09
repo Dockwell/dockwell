@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ChangeSchema,
   ChangeState,
+  Connection,
   ImportAction,
   ImportKind,
   ImportOnePanelResponseSchema,
@@ -102,6 +104,32 @@ describe("Moving in from 1Panel", () => {
     await screen.findByText("web");
     expect(screen.queryByText("Containers 1Panel made run on this server")).toBeNull();
     expect(screen.queryByRole("link", { name: "Move in" })).toBeNull();
+  });
+
+  it("hides what it read while the server or Docker can't answer, and reads again on return", async () => {
+    const listContainers = vi.fn(() => containers(["1Panel-mysql-AbCd"]));
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete);
+    renderAt("/servers/srv_1", {
+      servers: { watchServers: watch.stream },
+      containers: { listContainers },
+    });
+    const offer = "Containers 1Panel made run on this server";
+    await screen.findByText(offer);
+    for (const fields of [
+      { connection: Connection.UNREACHABLE },
+      { connection: Connection.PENDING },
+      { dockerUnreadableSince: timestampFromDate(new Date()) },
+    ]) {
+      const reads = listContainers.mock.calls.length;
+      watch.push(changed(aServer({ id: hz1.id, name: hz1.name, ...fields })));
+      await waitFor(() => expect(screen.queryByText(offer)).toBeNull());
+      expect(screen.queryByRole("link", { name: "Move in" })).toBeNull();
+      expect(listContainers).toHaveBeenCalledTimes(reads);
+      watch.push(changed(hz1));
+      await screen.findByText(offer);
+      await waitFor(() => expect(listContainers.mock.calls.length).toBeGreaterThan(reads));
+    }
   });
 
   it("reads what 1Panel keeps without planning, groups it by when each moves, and has the sheet make the plan", async () => {
