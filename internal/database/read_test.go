@@ -3,6 +3,7 @@
 package database
 
 import (
+	"io"
 	"regexp"
 	"strconv"
 	"strings"
@@ -124,6 +125,39 @@ func TestAToolTimeoutEndsSaysItDidntAnswer(t *testing.T) {
 		_, err = Reader{Client: client}.ask(t.Context(), id, eng, cmd, "")
 		if want := "Redis didn't answer within 7s"; err == nil || err.Error() != want {
 			t.Errorf("a tool timeout ended with %d says %v, want %q", code, err, want)
+		}
+	}
+}
+
+func TestARefusedStatementSaysWhyInItsEnginesWords(t *testing.T) {
+	e := dockertest.New(t)
+	said := map[string]string{
+		"postgres:17": "psql:<stdin>:1: NOTICE:  role \"x\" does not exist, skipping\npsql:<stdin>:2: ERROR:  shop has something outside its database shop, so nothing was dropped\nCONTEXT:  PL/pgSQL function inline_code_block line 1 at RAISE\n",
+		"mysql:8.4":   "ERROR 1049 (42000) at line 3: Unknown database 'shopx'\n",
+	}
+	for image, stderr := range said {
+		e.AddLocalImage(image, dockertest.Image{Config: docker.Config{Cmd: []string{"x"}}, Exec: func(x dockertest.Exec) int {
+			_, _ = io.WriteString(x.Stderr, stderr)
+			return 3
+		}})
+	}
+	client := e.Client()
+	for image, want := range map[string]string{
+		"postgres:17": "PostgreSQL refused it: shop has something outside its database shop, so nothing was dropped",
+		"mysql:8.4":   "MySQL refused it: Unknown database '...'",
+	} {
+		id, err := client.CreateContainer(t.Context(), "c-"+strings.Split(image, ":")[0], &docker.CreateRequest{Config: docker.Config{Image: image}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := client.StartContainer(t.Context(), id); err != nil {
+			t.Fatal(err)
+		}
+		eng := Recognise(image)
+		cmd, _ := eng.reading(0)
+		_, err = Reader{Client: client}.ask(t.Context(), id, eng, cmd, "SELECT 1;")
+		if err == nil || err.Error() != want {
+			t.Errorf("%s says %v, want %q", image, err, want)
 		}
 	}
 }

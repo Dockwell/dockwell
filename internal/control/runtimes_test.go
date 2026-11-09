@@ -109,6 +109,39 @@ func testAnAppFromAFolder(t *testing.T, backend store.Backend) {
 		t.Errorf("ListServices shows SESSION_KEY as %q, want its name alone", v)
 	}
 
+	// The environment editor overrides a runtime default without reading back the
+	// app's other values. KeepEnv restores them before runtime normalization, so
+	// the override becomes the app's own and the other defaults stay runtime-owned.
+	edited := proto.CloneOf(info.GetSpec())
+	var keepEnv []string
+	for name := range edited.GetApp().GetEnv() {
+		if name != "NPM_CONFIG_CACHE" {
+			keepEnv = append(keepEnv, name)
+		}
+	}
+	slices.Sort(keepEnv)
+	edited.GetApp().Env = map[string]string{"NPM_CONFIG_CACHE": "/app/.cache"}
+	overridden := propose(t, scriptChanges, "Change shop's cache", &dockwellv1.Edit{
+		Resource:     info.GetResource(),
+		Spec:         &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: edited}},
+		BaseRevision: info.GetRevision(),
+		KeepEnv:      keepEnv,
+	})
+	if overridden.GetPlan().GetHostAccess() || strings.Contains(overridden.String(), "s3cret-value") {
+		t.Errorf("an environment override asks for host access or discloses a kept value: %v", overridden)
+	}
+	applyReviewed(t, scriptChanges, overridden)
+	ctr = runtimeContainer(t, e)
+	for _, want := range []string{"NPM_CONFIG_CACHE=/app/.cache", "SESSION_KEY=s3cret-value", "PORT=3000", "HOME=/tmp"} {
+		if !slices.Contains(ctr.Config.Env, want) {
+			t.Errorf("after editing the environment Docker runs %v, want %s", ctr.Config.Env, want)
+		}
+	}
+	info = onlyService(t, services)
+	if rt := info.GetSpec().GetRuntime(); rt.GetWrote()["NPM_CONFIG_CACHE"] != "" || rt.GetWrote()["HOME"] != "/tmp" || rt.GetFolder() != root || info.GetSpec().GetApp().GetImage() != newest.Image {
+		t.Errorf("the environment edit lost the pinned runtime or its defaults: %v", info.GetSpec())
+	}
+
 	// A port of its own, which a change of version keeps.
 	port, err := services.AddServicePort(t.Context(), connect.NewRequest(&dockwellv1.AddServicePortRequest{Id: "shop", HostPort: 8081, ContainerPort: 3000}))
 	if err != nil {

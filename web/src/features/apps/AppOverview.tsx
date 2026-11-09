@@ -105,7 +105,6 @@ export function AppOverview() {
         <VolumesPanel app={appOf(service)} />
         <AppBackups service={service} app={appOf(service)} />
         <RunsWithPanel />
-        <DeletePanel />
       </div>
     </div>
   );
@@ -1290,55 +1289,36 @@ function RunsWithPanel() {
   );
 }
 
-/** Deleting is a plan too: this only opens it. */
-function DeletePanel() {
+/**
+ * Deleting an app is a plan too: this only opens it. A route can't outlive what
+ * it serves, so the plan takes the app's domains with it, and lists them. Once it
+ * applies, the app's pages have nothing to show, so the list comes next.
+ */
+export function useDeleteApp(service: ServiceInfo): { routes: number; open: () => void } {
   const { t } = useLingui();
-  const { service } = useApp();
   const sheet = useChangeSheet();
   const navigate = useNavigate();
   const name = nameOf(service);
   const resource = service.resource;
-  // A route can't outlive what it serves, so its plan takes them with it, and lists them.
   const routes = useAppDomains(service).domains.flatMap((domain) =>
     domain.routes.filter((route) => route.service === name),
   );
-  return (
-    <Panel className="app-delete">
-      <p className="app-delete-text">
-        {routes.length > 0 ? (
-          <Trans>
-            Deleting {name} stops it, removes its container, and takes its domains with it. Its volumes stay, and you
-            review a plan first.
-          </Trans>
-        ) : (
-          <Trans>
-            Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first.
-          </Trans>
-        )}
-      </p>
-      <Button
-        icon="trash"
-        onClick={() =>
-          sheet.open({
-            kind: "propose",
-            summary: t`Delete ${name}`,
-            edits: [
-              ...routes.map((route) => ({
-                resource: { kind: "route", scope: resource?.scope ?? "", name: route.name },
-                delete: true,
-              })),
-              { resource: { kind: "service", scope: resource?.scope ?? "", name }, delete: true },
-            ],
-            onClose: (change) => {
-              if (change && change.state !== ChangeState.PLANNED && change.state !== ChangeState.FAILED) {
-                void navigate({ to: "/apps" });
-              }
-            },
-          })
+  const open = () =>
+    sheet.open({
+      kind: "propose",
+      summary: t`Delete ${name}`,
+      edits: [
+        ...routes.map((route) => ({
+          resource: { kind: "route", scope: resource?.scope ?? "", name: route.name },
+          delete: true,
+        })),
+        { resource: { kind: "service", scope: resource?.scope ?? "", name }, delete: true },
+      ],
+      onClose: (change) => {
+        if (change && change.state !== ChangeState.PLANNED && change.state !== ChangeState.FAILED) {
+          void navigate({ to: "/apps" });
         }
-      >
-        <Trans>Delete this app</Trans>
-      </Button>
-    </Panel>
-  );
+      },
+    });
+  return { routes: routes.length, open };
 }

@@ -106,6 +106,32 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
       fail(`Docker runs ${JSON.stringify(ran)} for ${name}, want node:${newest} pinned by digest`);
     }
 
+    step("runtimes: the environment editor overrides a runtime default while keeping its other values");
+    const overviewURL = page.url();
+    await page.goto(`${overviewURL}/environment`);
+    const cache = page.getByRole("row", { name: /^NPM_CONFIG_CACHE/ });
+    await cache.getByText("/tmp/.npm", { exact: true }).waitFor();
+    await cache.getByText("Set by its runtime", { exact: true }).waitFor();
+    const portRow = page.getByRole("row", { name: /^PORT/ });
+    if ((await portRow.getByRole("button").count()) !== 0) fail("the environment editor offers to override PORT");
+    await cache.getByRole("button", { name: "Change NPM_CONFIG_CACHE", exact: true }).click();
+    const edit = page.getByRole("form", { name: "Change NPM_CONFIG_CACHE" });
+    await edit.getByRole("textbox", { name: "New value of NPM_CONFIG_CACHE" }).fill("/app/.cache");
+    await edit.getByRole("button", { name: "Change", exact: true }).click();
+    await page
+      .getByRole("region", { name: "Unapplied changes" })
+      .getByRole("button", { name: /Review plan/ })
+      .click();
+    await applyPlan(page, "Done");
+    await cache.getByText("Set on this app", { exact: true }).waitFor();
+    const overridden = (await docker()).filter((c) => c.service === name && c.running);
+    if (overridden.length !== 1 || overridden[0]?.image !== ran[0]?.image)
+      fail("the environment edit changed the runtime image");
+    for (const value of ["NPM_CONFIG_CACHE=/app/.cache", "HOME=/tmp", `PORT=${port}`]) {
+      if (!overridden[0]?.env.includes(value)) fail(`the environment edit lost ${value}`);
+    }
+    await page.goto(overviewURL);
+
     step("runtimes: the app's page says what it runs on and its folder, and its version changes through a plan");
     await page.getByText(`Node.js ${newest} from`).first().waitFor({ timeout: 15_000 });
     const config = page.getByRole("region", { name: "Configuration" });
@@ -153,7 +179,14 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
       .getByRole("link", { name: new RegExp(`^${name}`) })
       .first()
       .click();
-    await page.getByRole("button", { name: "Delete this app" }).click();
+    await page
+      .getByRole("navigation", { name: "App sections" })
+      .getByRole("link", { name: "Settings", exact: true })
+      .click();
+    await page
+      .getByRole("region", { name: "Danger zone" })
+      .getByRole("button", { name: `Delete ${name}`, exact: true })
+      .click();
     await applyPlan(page, "Done");
     await page.getByRole("heading", { level: 1, name: "Apps", exact: true }).waitFor({ timeout: 30_000 });
     if ((await docker()).some((c) => c.service === name)) fail(`${name} is still in Docker after it was deleted`);

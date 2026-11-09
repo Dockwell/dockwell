@@ -6,9 +6,11 @@ import {
   type ChangeServiceRuntimeRequest,
   ChangeState,
   FileType,
+  HealthcheckSchema,
   HealthState,
   PlanAction,
   type ProposeChangeRequest,
+  RestartPolicy,
   ServiceSchema,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -21,6 +23,7 @@ import { expectAccessible } from "../../test/a11y";
 import { aHealth, anApp, aRevision, ENV, places, SERVER } from "../../test/apps";
 import { type Api, feed, onPhone, onScreen, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { forgetDrafts } from "./AppEnvironment";
 
 const hz1 = aServer({ id: SERVER, name: "hz-1" });
 
@@ -97,6 +100,8 @@ function shopApp(image = "node:24.22.0@sha256:24") {
             user: "1000:1000",
             // As ListServices has them: names, with their values hidden.
             env: { HOME: "", NODE_ENV: "", NPM_CONFIG_CACHE: "", NPM_CONFIG_UPDATE_NOTIFIER: "", PORT: "" },
+            mounts: [{ source: { case: "hostPath", value: "/srv/shop" }, target: "/app", makeOwner: "1000:1000" }],
+            healthcheck: { tcp: { port: 3000 }, startPeriod: "10m" },
           },
         },
       }),
@@ -171,6 +176,7 @@ function planned(summary: string) {
 }
 
 afterEach(() => {
+  forgetDrafts();
   vi.unstubAllGlobals();
 });
 
@@ -415,6 +421,182 @@ describe("an app from a folder", () => {
     expect(screen.getByRole("row", { name: /^NPM_CONFIG_CACHE/ })).toHaveTextContent(
       "NPM_CONFIG_CACHE/tmp/.npmSet by its runtime",
     );
+  });
+
+  it("overrides a runtime default for this app, keeping its hidden values and runtime", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    const service = shopApp();
+    service.revision = 7n;
+    renderAt("/apps/svc_shop/environment", {
+      ...api(
+        {
+          changes: {
+            proposeChange: (req) => {
+              proposals.push(req);
+              return { change: planned(req.summary) };
+            },
+          },
+        },
+        [service],
+      ),
+      // A shared variable with the same name belongs to other apps, not this one.
+      variables: {
+        listVariables: () => ({
+          variables: [
+            {
+              id: "var_cache",
+              name: "NPM_CONFIG_CACHE",
+              value: "/shared/cache",
+              usedBy: [{ serviceId: "svc_other", service: "other", name: "NPM_CONFIG_CACHE" }],
+            },
+          ],
+        }),
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: "Change NPM_CONFIG_CACHE" }));
+    const form = screen.getByRole("form", { name: "Change NPM_CONFIG_CACHE" });
+    expect(form).toHaveTextContent("This app uses the new value instead of its runtime's default.");
+    await user.type(within(form).getByRole("textbox", { name: "New value of NPM_CONFIG_CACHE" }), "/app/.cache");
+    await user.click(within(form).getByRole("button", { name: "Change" }));
+    const row = screen.getByRole("row", { name: /^NPM_CONFIG_CACHE/ });
+    expect(row).toHaveTextContent("Set on this app");
+    expect(within(row).getByRole("img", { name: "Hidden" })).toBeVisible();
+    const bar = screen.getByRole("region", { name: "Unapplied changes" });
+    expect(bar).toHaveTextContent("Applying it restarts shop.");
+    await user.click(within(bar).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const edits = proposals[0]?.edits ?? [];
+    expect(edits.map((edit) => edit.resource?.kind)).toEqual(["service"]);
+    const edit = edits[0];
+    const spec = edit?.spec?.kind.case === "service" ? edit.spec.kind.value : undefined;
+    expect(spec?.runs.case === "app" ? spec.runs.value.env : undefined).toEqual({ NPM_CONFIG_CACHE: "/app/.cache" });
+    expect(spec?.runtime).toEqual(service.spec?.runtime);
+    expect(spec?.runs.case === "app" ? spec.runs.value.image : undefined).toBe("node:24.22.0@sha256:24");
+    expect(edit?.keepEnv).toEqual(["HOME", "NODE_ENV", "NPM_CONFIG_UPDATE_NOTIFIER", "PORT"]);
+    expect(edit?.baseRevision).toBe(7n);
+  });
+
+  it("keeps PORT with its runtime, and refuses to import it as an app override", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/svc_shop/environment", {
+      ...api(),
+      variables: { listVariables: () => ({ variables: [] }) },
+    });
+    const port = await screen.findByRole("row", { name: /^PORT/ });
+    expect(within(port).queryByRole("button", { name: "Change PORT" })).toBeNull();
+    expect(within(port).queryByRole("button", { name: "Remove PORT" })).toBeNull();
+    const cache = screen.getByRole("row", { name: /^NPM_CONFIG_CACHE/ });
+    expect(within(cache).queryByRole("button", { name: "Remove NPM_CONFIG_CACHE" })).toBeNull();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Import .env" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Import .env" }));
+    const sheet = await screen.findByRole("dialog", { name: "Import .env" });
+    await user.type(within(sheet).getByRole("textbox", { name: "Paste the file's text" }), "PORT=4000");
+    await user.click(within(sheet).getByRole("button", { name: "Import 1 value" }));
+    expect(within(sheet).getByRole("alert")).toHaveTextContent(
+      "PORT is set by its runtime, so it can't be imported. Remove PORT from this file.",
+    );
+    expect(screen.queryByRole("region", { name: "Unapplied changes" })).toBeNull();
+  });
+
+  it("keeps runtime-owned settings read-only while planning an app's restart policy", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    const service = shopApp();
+    const page = renderAt(
+      "/apps/svc_shop/settings",
+      api(
+        {
+          changes: {
+            proposeChange: (req) => {
+              proposals.push(req);
+              return { change: planned(req.summary) };
+            },
+          },
+        },
+        [service],
+      ),
+    );
+    await user.click(await screen.findByRole("button", { name: "Edit General" }));
+    const form = screen.getByRole("form", { name: "Edit General" });
+    for (const field of ["Command", "Entrypoint", "User", "Directory"]) {
+      expect(within(form).getByRole("textbox", { name: field })).toBeDisabled();
+    }
+    expect(within(form).getByRole("switch", { name: "Run no entrypoint, not even the image's" })).toBeDisabled();
+    expect(form).toHaveTextContent("Its runtime sets the command, entrypoint, user and directory.");
+    await user.selectOptions(
+      within(form).getByRole("combobox", { name: "Restarts" }),
+      String(RestartPolicy.ON_FAILURE),
+    );
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const edit = proposals[0]?.edits[0];
+    const spec = edit?.spec?.kind.case === "service" ? edit.spec.kind.value : undefined;
+    expect(spec?.runtime).toEqual(service.spec?.runtime);
+    expect(spec?.runs.case === "app" ? spec.runs.value.restart : undefined).toBe(RestartPolicy.ON_FAILURE);
+    expect(edit?.keepEnv).toEqual(["HOME", "NODE_ENV", "NPM_CONFIG_CACHE", "NPM_CONFIG_UPDATE_NOTIFIER", "PORT"]);
+    page.unmount();
+
+    renderAt("/apps/svc_shop/settings", api());
+    await user.click(await screen.findByRole("button", { name: "Edit Volumes and mounts" }));
+    const mounts = screen.getByRole("form", { name: "Edit Volumes and mounts" });
+    expect(within(mounts).getByRole("textbox", { name: "Mount 1: volume or server path" })).toBeDisabled();
+    expect(within(mounts).getByRole("textbox", { name: "Mount 1: path in the app" })).toBeDisabled();
+    expect(within(mounts).getByRole("checkbox", { name: "Read-only" })).toBeDisabled();
+    expect(within(mounts).getByRole("button", { name: "Remove mount 1" })).toBeDisabled();
+    expect(mounts).toHaveTextContent("Its runtime mounts this folder at /app.");
+    await user.click(within(mounts).getByRole("button", { name: "Add a volume or mount" }));
+    expect(within(mounts).getByRole("textbox", { name: "Mount 2: volume or server path" })).toBeEnabled();
+  });
+
+  it("uses its runtime's TCP check or plans an app's own HTTP check", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    const withPlans = (service = shopApp()) =>
+      api(
+        {
+          changes: {
+            proposeChange: (req) => {
+              proposals.push(req);
+              return { change: planned(req.summary) };
+            },
+          },
+        },
+        [service],
+      );
+    const page = renderAt("/apps/svc_shop/settings", withPlans());
+    await user.click(await screen.findByRole("button", { name: "Edit Health check" }));
+    let form = screen.getByRole("form", { name: "Edit Health check" });
+    expect(form).toHaveTextContent("Its runtime checks its port by TCP, with 10 minutes to start.");
+    expect(within(form).queryByRole("textbox", { name: "Port in the app" })).toBeNull();
+    expect(within(form).queryByRole("radio", { name: "The image's" })).toBeNull();
+    await user.click(within(form).getByRole("radio", { name: "HTTP" }));
+    await user.type(within(form).getByRole("textbox", { name: "Path" }), "/health");
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const http = proposals[0]?.edits[0]?.spec?.kind;
+    expect(
+      http?.case === "service" && http.value.runs.case === "app" ? http.value.runs.value.healthcheck?.http : undefined,
+    ).toMatchObject({ port: 3000, path: "/health" });
+    page.unmount();
+
+    const service = shopApp();
+    if (service.spec?.runs.case === "app") {
+      service.spec.runs.value.healthcheck = create(HealthcheckSchema, { http: { port: 8080, path: "/health" } });
+    }
+    renderAt("/apps/svc_shop/settings", withPlans(service));
+    await user.click(await screen.findByRole("button", { name: "Edit Health check" }));
+    form = screen.getByRole("form", { name: "Edit Health check" });
+    await user.click(within(form).getByRole("radio", { name: "TCP" }));
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(2));
+    const restored = proposals[1]?.edits[0]?.spec?.kind;
+    expect(restored?.case === "service" ? restored.value.runtime : undefined).toEqual(service.spec?.runtime);
+    expect(
+      restored?.case === "service" && restored.value.runs.case === "app"
+        ? restored.value.runs.value.healthcheck
+        : "missing",
+    ).toBeUndefined();
   });
 
   it("says when Dockwell no longer offers its version, with a way off it, and New app doesn't offer it", async () => {

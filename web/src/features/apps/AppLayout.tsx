@@ -308,6 +308,9 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           <RouterTabLink to="/apps/$serviceId/environment" params={{ serviceId }}>
             <Trans>Environment</Trans>
           </RouterTabLink>
+          <RouterTabLink to="/apps/$serviceId/settings" params={{ serviceId }}>
+            <Trans>Settings</Trans>
+          </RouterTabLink>
         </TabNav>
       )}
       <LogsSearchButton value={searchButton}>{children}</LogsSearchButton>

@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type AnchorHTMLAttributes, type ReactNode, type Ref, useEffect, useRef, useState } from "react";
+import {
+  type AnchorHTMLAttributes,
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { cx } from "../../lib/cx";
 import { handleRovingKeyDown, tabStop } from "../../lib/roving";
@@ -125,12 +133,43 @@ export interface TabNavProps {
 }
 
 /**
+ * Scrolls a list sideways until el is in sight, with room for the fade at its
+ * edge. Only the list moves: scrollIntoView would move the page to it too.
+ */
+export function reveal(nav: HTMLElement, el: Element): void {
+  const box = el.getBoundingClientRect();
+  const edge = nav.getBoundingClientRect();
+  const room = 32;
+  if (box.right > edge.right - room) nav.scrollLeft += box.right - edge.right + room;
+  else if (box.left < edge.left + room) nav.scrollLeft -= edge.left - box.left + room;
+}
+
+/**
  * Tabs that are places: each one is a page with its own URL, so they are
  * links in a navigation landmark rather than a tab list. It looks the same
  * as Tabs. For a view inside one page, use Tabs.
  */
 export function TabNav({ label, children, className }: TabNavProps) {
   const { ref, more } = useMoreEdges<HTMLElement>();
+  // Where the list scrolls, as on a phone, the page you're on is in sight when you land on it,
+  // and a tab is as it gets focus from the keyboard, clear of the fade at the edge.
+  const shown = useRef<Element | null>(null);
+  useLayoutEffect(() => {
+    const nav = ref.current;
+    const on = nav?.querySelector('[aria-current="page"]');
+    if (!nav || !on || on === shown.current) return;
+    shown.current = on;
+    reveal(nav, on);
+  });
+  useEffect(() => {
+    const nav = ref.current;
+    if (!nav) return;
+    const onFocus = (event: FocusEvent) => {
+      if (event.target instanceof Element && event.target !== nav) reveal(nav, event.target);
+    };
+    nav.addEventListener("focusin", onFocus);
+    return () => nav.removeEventListener("focusin", onFocus);
+  }, [ref]);
   return (
     <nav ref={ref} data-more={more} className={cx("dw-tabs", className)} aria-label={label}>
       {children}
