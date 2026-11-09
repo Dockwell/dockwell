@@ -47,6 +47,7 @@ import (
 	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // gate is a firewall whose rule "slow" takes until its call is cancelled,
@@ -97,6 +98,8 @@ type testServer struct {
 	updates *agentupdates.Reader
 	// onePanel reads what 1Panel keeps on it, when set.
 	onePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
+	// tasks runs its scheduled tasks, when it has Docker.
+	tasks *task.Driver
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -153,6 +156,10 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	}
 	if s.client != nil {
 		cfg.Databases = database.Reader{Client: s.client}
+	}
+	if s.tasks != nil {
+		cfg.Tasks = s.tasks
+		go s.tasks.Keep(ctx)
 	}
 	go func() {
 		_ = agent.Run(ctx, cfg)

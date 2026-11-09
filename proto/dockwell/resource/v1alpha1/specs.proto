@@ -683,5 +683,76 @@ message Spec {
     BackupPolicy backup_policy = 20;
     // S3-compatible storage backups go to, kind "backup.destination".
     BackupDestination backup_destination = 21;
+    // Work that runs on a schedule, kind "task". Numbered in the block scheduled
+    // tasks hold, as open work adds to this message.
+    Task task = 150;
   }
+}
+
+// Task is work that runs on a schedule, on each server it's placed on, kind "task"
+// (ADR 0053): a shell command on the server, a command in an app's image, or an
+// HTTP request. Each server's agent keeps its time, so a task runs while the
+// control plane is away.
+message Task {
+  // What it runs.
+  oneof runs {
+    // A shell command on the server, which the agent runs as root. Making one, or
+    // changing what it runs, takes a person and a passkey.
+    TaskShell shell = 1;
+    // A command in an app's image, as a one-off container with the app's
+    // environment, mounts and networks.
+    TaskApp app = 2;
+    // An HTTP request to a URL, from the server.
+    TaskRequest request = 3;
+  }
+  // When it runs, in cron's five fields, minute, hour, day of the month, month and
+  // day of the week, such as "0 4 * * *", or @hourly, @daily, @weekly, @monthly or
+  // @yearly. Nothing runs more often than once a minute.
+  string schedule = 4;
+  // The time zone schedule is in, such as "Europe/Amsterdam". Left out, a change
+  // that makes or updates the task sets the install's time zone, from Settings,
+  // and UTC where the install has none.
+  string time_zone = 5;
+  // How long a run may take, in seconds, before it's stopped: 600 unless set, at
+  // most 86400.
+  uint32 timeout_seconds = 6;
+  // How many more times a run that fails or times out tries, a minute apart: 0
+  // to 3.
+  uint32 retries = 7;
+  // Keeps it from running on its schedule. Run now still runs it.
+  bool paused = 8;
+  // Skips a run missed while its server was off or its agent stopped, rather than
+  // running it once when the agent starts.
+  bool skip_missed = 9;
+  // What people call it, such as "Nightly sales report". Its name when empty.
+  string display_name = 10;
+}
+
+// TaskShell is a shell command on the server.
+message TaskShell {
+  // The command, run with /bin/sh -c, such as "find /var/log/app -mtime +7 -delete".
+  string command = 1;
+  // The folder it runs in: / unless set.
+  string working_dir = 2;
+}
+
+// TaskApp is a command in an app's image.
+message TaskApp {
+  // The app, by name, in the task's environment.
+  string service = 1;
+  // The command, as words split as a shell splits them, run after the app's
+  // entrypoint in place of its command, such as "/app/api report sales". It runs
+  // without a shell unless it names one.
+  string command = 2;
+}
+
+// TaskRequest is an HTTP request to a URL. A run keeps the status, the time it
+// took and the size of the answer, never the body.
+message TaskRequest {
+  // The URL, http or https.
+  string url = 1;
+  // GET unless set, or HEAD or POST, with no body.
+  string method = 2;
+  // The status it expects, such as 204. Any 2xx unless set.
+  uint32 expect_status = 3;
 }

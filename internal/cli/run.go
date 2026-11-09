@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // runRole runs the role dockwell run takes, until ctx is done.
@@ -91,7 +92,13 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
 	cfg.OnePanel = serverOnePanel(stdio)
 	lookups(&cfg, stdio, g)
-	return agent.Run(ctx, cfg)
+	err := agent.Run(ctx, cfg)
+	if cfg.Tasks != nil && ctx.Err() != nil {
+		// Stopping stops the tasks' runs too; what each came to is kept before the
+		// agent goes, and one that outlasts this is ended when it starts again.
+		cfg.Tasks.Drain(task.DrainWait)
+	}
+	return err
 }
 
 // lookups says how this server's agent finds out how the internet sees it: what the
@@ -216,15 +223,17 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go routes.Watch(ctx)
 	monitor := &health.Monitor{Client: client, Logger: logger}
 	go monitor.Run(ctx)
+	tasks := &task.Driver{Dir: dir.Agent(), Client: client, Logger: logger}
+	go tasks.Keep(ctx)
 	var reserved string
 	if panel != nil {
 		reserved = panel.Domain
 	}
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
-			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved}),
+			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved}, tasks),
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
-		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client},
+		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Tasks: tasks,
 	}
 }
 

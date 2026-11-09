@@ -58,6 +58,7 @@ import (
 	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // fullServer is a control plane with sign-in, as dockwell run starts it.
@@ -170,7 +171,7 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
 		t.Fatal(err)
 	}
-	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{})
+	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, &task.Driver{})
 	keeper := secretstest.Keeper(db, kinds)
 	agents := agentapi.NewAgents(kinds, logger)
 	engine := revision.New(db, kinds, agents, keeper, logger)

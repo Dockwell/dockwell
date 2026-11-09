@@ -16,6 +16,7 @@ import "dockwell/v1/options.proto";
 import "dockwell/v1/process.proto";
 import "dockwell/v1/server.proto";
 import "dockwell/v1/system.proto";
+import "dockwell/v1/task.proto";
 import "dockwell/v1/update.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
@@ -95,8 +96,16 @@ message ConnectRequest {
     // What the server finds out of how the internet sees it, as the stream
     // opens, and again every few hours.
     Network network = 11;
+    // The agent's tasks have runs the control plane hasn't read (ADR 0053).
+    // Numbered in the block scheduled tasks hold, as open work adds to this
+    // message.
+    TaskRunsReady task_runs_ready = 150;
   }
 }
+
+// TaskRunsReady says a task's run started or ended, so the control plane reads
+// the runs with a TaskRunsCall.
+message TaskRunsReady {}
 
 // Unstuck says something that held calls up on the agent ended.
 message Unstuck {}
@@ -454,6 +463,11 @@ message Call {
     ProcessesCall processes = 41;
     // End a process.
     EndProcessCall end_process = 42;
+    // Reads the scheduled tasks' runs since the last read (ADR 0053). Numbered in
+    // the block scheduled tasks hold, as open work adds to this message.
+    TaskRunsCall task_runs = 150;
+    // Runs a scheduled task now.
+    RunTaskCall run_task = 151;
     // Read what 1Panel keeps on the server. The importer takes 180 to 189.
     ReadOnePanelCall read_onepanel = 180;
   }
@@ -505,6 +519,46 @@ message EndProcessResult {
 // DiskUseCall asks what takes the room on the disk that holds Docker's data.
 // An agent answers from what it added up in the last 30 s, if it did.
 message DiskUseCall {}
+// TaskRunsCall reads the runs an agent's scheduled tasks have had since the
+// control plane last read them. The agent keeps each run until a read past it,
+// up to 100 for each task.
+message TaskRunsCall {
+  // Where the last read ended, which the agent may let go of runs up to. Empty
+  // reads all it has.
+  string after = 1;
+}
+
+// TaskRunsResult is what the agent's tasks ran.
+message TaskRunsResult {
+  // Each run that started or ended since after, oldest first, with what it
+  // printed: a running one, and again when it ends, under the same ID.
+  repeated AgentTaskRun runs = 1;
+  // Where this read ended, for the next.
+  string cursor = 2;
+  // More are waiting past these.
+  bool more = 3;
+  // How many runs the agent let go of before they were read, as it keeps 100 for
+  // each task.
+  int64 dropped = 4;
+}
+
+// AgentTaskRun is one run, and the task it's of.
+message AgentTaskRun {
+  // The task.
+  dockwell.v1.ResourceRef task = 1;
+  // The run. Its task and server fields are the control plane's to fill in.
+  dockwell.v1.TaskRun run = 2;
+}
+
+// RunTaskCall runs a task now, whether or not it's paused.
+message RunTaskCall {
+  dockwell.v1.ResourceRef task = 1;
+}
+
+// RunTaskResult is the run, started.
+message RunTaskResult {
+  dockwell.v1.TaskRun run = 1;
+}
 
 // AdoptionCall asks what a container would be as a service. It reads the
 // container, environment and all, and changes nothing.
@@ -1014,6 +1068,10 @@ message CallResult {
     ProcessesResult processes = 41;
     // How an end process call went.
     EndProcessResult end_process = 42;
+    // What task_runs read. Numbered in the block scheduled tasks hold.
+    TaskRunsResult task_runs = 150;
+    // The run run_task started.
+    RunTaskResult run_task = 151;
     // What read_onepanel found.
     ReadOnePanelResult read_onepanel = 180;
   }

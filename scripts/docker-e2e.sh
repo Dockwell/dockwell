@@ -3813,6 +3813,60 @@ jq -e '.readings[0] | (.unread // "") == "" and (.version | startswith("17.")) a
 [[ "$said" != *"$password"* ]] || fail "what PostgreSQL says of itself holds its password"
 pg postgres "SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE query = 'SELECT pg_sleep(30)'" >/dev/null || fail "can't let the client on PostgreSQL go"
 
+step "Scheduled tasks: a shell command, a command in an app and a request each run on their server, keep what they printed, and a failure is on Activity"
+pg_env=$(dw services list --json | jq -r --arg p "$catalog_project" '.services[] | select((.resource.scope | ascii_downcase) == $p and .resource.name == "db") | .resource.scope' | head -1)
+[[ "$pg_env" == env_* ]] || fail "can't find the environment PostgreSQL runs in"
+# task_ran runs a task now, waits for the run to end, and prints it.
+task_ran() {
+  local started run said=""
+  started=$(dw tasks run "$1" --environment "$pg_env" --yes --json) || fail "running $1 failed: $started"
+  run=$(jq -r '.run.id' <<<"$started")
+  for _ in $(seq 120); do
+    said=$(dw tasks runs "$1" --environment "$pg_env" --json) || fail "reading $1's runs failed"
+    jq -e --arg r "$run" '.runs[] | select(.id == $r and .state != "TASK_RUN_STATE_RUNNING")' <<<"$said" && return 0
+    sleep 0.5
+  done
+  fail "$1's run $run didn't end: $said"
+}
+# A shell command is root on the server, so a person applies it with a passkey.
+planned=$(dw tasks create rotate-e2e --environment "$pg_env" --shell-command 'echo rotated-by-dockwell; echo to-stderr >&2' --schedule '@yearly' --plan-only --json) ||
+  fail "planning a shell task failed: $planned"
+jq -e '.change.plan.hostAccess' <<<"$planned" >/dev/null || fail "a shell task plans no host access: $planned"
+person_apply_root "$(jq -r '.change.id' <<<"$planned")"
+run=$(task_ran rotate-e2e)
+jq -e '.state == "TASK_RUN_STATE_SUCCEEDED" and ([.output[].text] | index("rotated-by-dockwell") and index("to-stderr"))' <<<"$run" >/dev/null ||
+  fail "the shell task ran as: $run"
+# A command in an app's image runs as a one-off container with the app's environment, and goes when it ends.
+# shellcheck disable=SC2016 # for the shell in the app's image
+planned=$(dw tasks create psql-e2e --environment "$pg_env" --app-service db --app-command 'sh -c "psql --version; echo user=$POSTGRES_USER"' --schedule '@daily' --plan-only --json) ||
+  fail "planning an app's task failed: $planned"
+person_apply "$(jq -r '.change.id' <<<"$planned")"
+run=$(task_ran psql-e2e)
+jq -e '.state == "TASK_RUN_STATE_SUCCEEDED" and ([.output[].text | select(startswith("psql (PostgreSQL)"))] | length == 1)' <<<"$run" >/dev/null ||
+  fail "the app's task ran as: $run"
+[[ -z "$(docker ps -aq --filter label=dev.dockwell.task=psql-e2e)" ]] || fail "the app's task left its container behind"
+# A request asks a URL from the server, and keeps its status.
+planned=$(dw tasks create ping-e2e --environment "$pg_env" --request-url "http://127.0.0.1:$port/healthz" --schedule '@hourly' --plan-only --json) ||
+  fail "planning a request failed: $planned"
+person_apply "$(jq -r '.change.id' <<<"$planned")"
+run=$(task_ran ping-e2e)
+jq -e '.state == "TASK_RUN_STATE_SUCCEEDED" and .attempts[0].httpStatus == 200' <<<"$run" >/dev/null || fail "the request ran as: $run"
+# A run that fails says so, and is on Activity.
+planned=$(dw tasks create fails-e2e --environment "$pg_env" --shell-command 'echo going; exit 7' --schedule '@yearly' --plan-only --json) ||
+  fail "planning a failing task failed: $planned"
+person_apply_root "$(jq -r '.change.id' <<<"$planned")"
+run=$(task_ran fails-e2e)
+jq -e '.state == "TASK_RUN_STATE_FAILED" and .attempts[0].exitCode == 7 and .error == "it exited with 7"' <<<"$run" >/dev/null || fail "the failing task ran as: $run"
+said=$(dw events list --kinds task --json) || fail "listing task events failed"
+jq -e '[.events[] | select(.action == "task.failed" and .taskRun.task == "fails-e2e" and .taskRun.exitCode == 7)] | length == 1' <<<"$said" >/dev/null ||
+  fail "Activity says of the failing task: $said"
+listed=$(dw tasks list --json) || fail "listing tasks failed"
+jq -e '[.tasks[].resource.name] | index("rotate-e2e") and index("psql-e2e") and index("ping-e2e") and index("fails-e2e")' <<<"$listed" >/dev/null ||
+  fail "the task list is: $listed"
+for name in rotate-e2e psql-e2e ping-e2e fails-e2e; do
+  dw tasks delete "$name" --environment "$pg_env" --yes >/dev/null || fail "deleting $name failed"
+done
+
 step "Catalog: MySQL runs with a password of its own, and phpMyAdmin signs in with it"
 catalog_install mysql
 mysql_db=$(catalog_container db)

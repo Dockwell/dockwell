@@ -32,6 +32,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/control/processes"
 	"github.com/dockwell/dockwell/internal/control/settings"
+	"github.com/dockwell/dockwell/internal/control/tasks"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -86,6 +87,8 @@ var (
 	settingsActions = settings.Actions
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
 	backupActions = backups.Actions
+	// A scheduled task's run is an event; making or changing the task is a change (ADR 0053).
+	taskActions   = tasks.Actions
 	accessActions = []string{
 		"owner.claim", "auth.sign_in", "session.revoke",
 		"passkey.add", "passkey.add_with_recovery_code", "passkey.add_with_authenticator_code", "passkey.remove",
@@ -519,6 +522,19 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		}
 		return e
 	}
+	if slices.Contains(taskActions, a.Action) {
+		// Only internal/control/tasks writes these, and what it writes holds nothing
+		// a run printed.
+		e.Kind = dockwellv1.EventKind_EVENT_KIND_TASK
+		e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject), Scope: look.Scope(a.Subject)}
+		e.TaskRun = &dockwellv1.EventTaskRun{ServerName: look.Name(a.Target)}
+		if told, ok := tasks.ReadTold(a.Detail); ok {
+			e.TaskRun.Id, e.TaskRun.Task, e.TaskRun.DisplayName = told.Run, told.Task, told.DisplayName
+			e.TaskRun.State, e.TaskRun.Reason = dockwellv1.TaskRunState(told.State), dockwellv1.TaskRunReason(told.Reason)
+			e.TaskRun.ExitCode, e.TaskRun.HttpStatus, e.TaskRun.Error = told.ExitCode, told.HTTPStatus, told.Error
+		}
+		return e
+	}
 	if slices.Contains(backupActions, a.Action) {
 		// As for health: only internal/control/backups writes these, and what it
 		// writes holds no path and nothing of what's in a backup.
@@ -582,7 +598,10 @@ func filter(kinds []dockwellv1.EventKind, serverID, resourceID, actorID string, 
 	if every || want[dockwellv1.EventKind_EVENT_KIND_SETTINGS] {
 		f.Actions = append(f.Actions, settingsActions...)
 	}
-	f.ResourceActions = append(slices.Clone(healthActions), backupActions...)
+	if every || want[dockwellv1.EventKind_EVENT_KIND_TASK] {
+		f.Actions = append(f.Actions, taskActions...)
+	}
+	f.ResourceActions = append(append(slices.Clone(healthActions), backupActions...), taskActions...)
 	if actorID != "" {
 		a, ok := actors.Store(actorID)
 		if !ok {

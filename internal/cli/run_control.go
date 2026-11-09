@@ -57,6 +57,7 @@ import (
 	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/serve"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 type runFlags struct {
@@ -466,7 +467,7 @@ func refuseClaimedDomain(ctx context.Context, db *store.DB, domain string) error
 // is the panel's domain, which no route may claim. The firewall's driver comes
 // later.
 func controlKinds(domain string) *resource.Registry {
-	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{})
+	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, &task.Driver{})
 }
 
 // openState opens the control plane's key, its state and its identity,

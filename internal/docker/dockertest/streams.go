@@ -150,7 +150,9 @@ func hijack(w http.ResponseWriter) (io.Reader, io.Writer, func(), bool) {
 
 // attachTo runs a helper: the agent's binary, imported as an image, whose
 // command is the volume tool. It runs the same code, in this process, on the
-// directories that stand for its volumes.
+// directories that stand for its volumes. A container of an image with Exec runs
+// its command through that, as docker compose run's would, a scheduled task's
+// among them.
 func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 	e.mu.Lock()
 	c, err := e.findContainer(id)
@@ -159,8 +161,8 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 		fail(w, http.StatusNotFound, "No such container: %s", id)
 		return
 	}
-	if !c.img.imported {
-		fail(w, http.StatusNotImplemented, "this fake attaches only to helpers")
+	if !c.img.imported && c.img.Exec == nil {
+		fail(w, http.StatusNotImplemented, "this fake attaches only to helpers, and to an image with Exec")
 		return
 	}
 	stdin := truthy(r.URL.Query().Get("stdin"))
@@ -178,6 +180,19 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 	stdout, stderr := frames{mu, out, 1}, frames{mu, out, 2}
 	if !stdin {
 		in = strings.NewReader("")
+	}
+	if !c.img.imported {
+		e.mu.Lock()
+		run := Exec{Cmd: c.Config.Cmd, Env: c.Config.Env, Volumes: e.mountsOf(c), Stdin: in, Stdout: stdout, Stderr: stderr}
+		e.mu.Unlock()
+		code := c.img.Exec(run)
+		e.mu.Lock()
+		if c.State.Running {
+			c.State = docker.State{Status: "exited", ExitCode: code, StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+			close(c.exited)
+		}
+		e.mu.Unlock()
+		return
 	}
 	e.mu.Lock()
 	code := -1
