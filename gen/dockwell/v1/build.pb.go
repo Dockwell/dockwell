@@ -1218,9 +1218,9 @@ const file_dockwell_v1_build_proto_rawDesc = "" +
 	"\n" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\x12\x18\n" +
 	"\aproject\x18\x04 \x01(\tR\aproject\x12 \n" +
-	"\venvironment\x18\x05 \x01(\tR\venvironment\"\xb6\x01\n" +
-	"\x12DetectBuildRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\venvironment\x18\x05 \x01(\tR\venvironment\"\xbc\x01\n" +
+	"\x12DetectBuildRequest\x12\x14\n" +
+	"\x02id\x18\x01 \x01(\tB\x04\xb0\xbb\x18\x01R\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x03 \x01(\tR\venvironment\x12\x16\n" +
 	"\x06server\x18\x04 \x01(\tR\x06server\x12<\n" +

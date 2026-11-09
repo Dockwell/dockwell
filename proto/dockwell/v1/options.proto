@@ -90,6 +90,9 @@ extend google.protobuf.FieldOptions {
   // file, as --compose @compose.yaml, or from standard input with -, as a JSON
   // flag does, so a file that may hold a secret needn't go on the command line.
   bool from_file = 50101;
+  // The dockwell CLI's positional argument may be omitted. This applies to
+  // a request's id when the request also accepts another way to name its input.
+  bool optional_arg = 50102;
 }
 
 extend google.protobuf.EnumValueOptions {

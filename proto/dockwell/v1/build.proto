@@ -205,7 +205,7 @@ message ListBuildsRequest {
 message DetectBuildRequest {
   // A service that builds, by ID or by name, to read its build as it is set.
   // Unset, build says what to read.
-  string id = 1;
+  string id = 1 [(dockwell.v1.optional_arg) = true];
   // The project of a service named by name, by name or ID, when more than one
   // has a service of that name.
   string project = 2;

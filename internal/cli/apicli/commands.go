@@ -145,7 +145,11 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 		}
 	}
 	if arg != nil {
-		use += " <" + FlagName(arg.Path) + ">"
+		name := "<" + FlagName(arg.Path) + ">"
+		if arg.OptionalArg {
+			name = "[" + name + "]"
+		}
+		use += " " + name
 	}
 	long := m.Long
 	plans, err := proposes(m)
@@ -172,7 +176,9 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 	}
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
 		switch {
-		case arg != nil && len(args) != 1:
+		case arg != nil && arg.OptionalArg && len(args) > 1:
+			return usage(fmt.Errorf("%s takes at most one argument, %s. Run %q to see how to use it", cmd.CommandPath(), argument(*arg), cmd.CommandPath()+" --help"))
+		case arg != nil && !arg.OptionalArg && len(args) != 1:
 			return usage(fmt.Errorf("%s takes one argument, %s. Run %q to see how to use it", cmd.CommandPath(), argument(*arg), cmd.CommandPath()+" --help"))
 		case arg == nil && len(args) > 0:
 			return usage(fmt.Errorf("%s takes no arguments, but got %q. Run %q to see how to use it", cmd.CommandPath(), args[0], cmd.CommandPath()+" --help"))

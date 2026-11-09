@@ -182,6 +182,7 @@ func TestGenerateDescribesEveryMethod(t *testing.T) {
 		`Effect:    v1.Effect_EFFECT_DESTRUCTIVE,`,
 		`apicli.ServerStream[v1.WatchChangeRequest, v1.WatchChangeResponse](dockwellv1connect.ChangeServiceWatchChangeProcedure)`,
 		`{Path: "id", Arg: true}`,
+		`{Path: "id", Arg: true, OptionalArg: true}`,
 		`Field: "firewall_rule",`, `Noun:  "firewall-rules",`,
 		`{Path: "app.image"}`, `{Path: "app.env", Sensitive: true}`,
 	} {

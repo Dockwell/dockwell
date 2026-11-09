@@ -245,7 +245,7 @@ func Methods() []*apicli.Method {
 			Long:      "Read how a commit of a repository would build, on a server, as a build would\nread it: with its Dockerfile, or with Railpack and what Railpack found, such as\nNode 22 and npm run build. Nothing is built or changed. A plan that builds with\nRailpack says the same before it builds.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
-				{Path: "id", Help: "A service that builds, by ID or by name, to read its build as it is set. Unset, build says what to read.", Arg: true},
+				{Path: "id", Help: "A service that builds, by ID or by name, to read its build as it is set. Unset, build says what to read.", Arg: true, OptionalArg: true},
 				{Path: "project", Help: "The project of a service named by name, by name or ID, when more than one has a service of that name."},
 				{Path: "environment", Help: "The environment of a service named by name, by name or ID, when its project has more than one."},
 				{Path: "server", Help: "The server that reads it, by name or ID. Unset, a service's own reads it, and build settings are read on the first server by name that is connected."},
