@@ -2,9 +2,25 @@
 id: vaultwarden
 name: Vaultwarden
 summary: Passwords, Bitwarden-compatible
+description: |-
+  Vaultwarden is a lightweight, community-maintained password vault server compatible with Bitwarden clients. Keep your vault on your own server and connect it from a browser, desktop app or mobile client.
+
+  This entry includes the web vault and persistent storage. Serve it over HTTPS before using browser features. Vaultwarden is an independent project; it is not the official Bitwarden server.
+icon: /catalog-media/vaultwarden-icon.webp
+documentation: https://github.com/dani-garcia/vaultwarden/wiki
+appSource: https://github.com/dani-garcia/vaultwarden
+features:
+  - "Bitwarden-compatible clients"
+  - "Included web vault"
+  - "Password and secure-note storage"
+  - "Vault data on your own server"
+screenshots:
+  - path: /catalog-media/vaultwarden-client.webp
+    caption: "Bitwarden browser extension, a separate client compatible with Vaultwarden"
+    source: https://raw.githubusercontent.com/bitwarden/clients/103de051270fb7156dbfdbb95ac2ab66722db267/apps/browser/store/locales/en/screenshots/Chrome/Chrome01.png
 category: security
 version: "1.37.4"
-release: 1
+release: 2
 homepage: https://github.com/dani-garcia/vaultwarden
 license: AGPL-3.0-only
 appLicense: AGPL-3.0-only

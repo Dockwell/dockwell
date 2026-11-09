@@ -205,6 +205,9 @@ func Check(e *catalogv1.Entry) error {
 	if e.GetRelease() == 0 {
 		return errors.New("it has no release. Start at 1, and go up with each change to the entry")
 	}
+	if err := checkPresentation(e); err != nil {
+		return err
+	}
 	images := 0
 	for line := range strings.Lines(e.GetCompose()) {
 		if strings.HasPrefix(strings.TrimSpace(line), "image:") {

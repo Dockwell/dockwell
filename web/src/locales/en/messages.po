@@ -4260,8 +4260,98 @@ msgstr "Weekly on {day} at {at}"
 msgid "{database} dump"
 msgstr "{database} dump"
 
+msgid "About {app}"
+msgstr "About {app}"
+
+msgid "App information"
+msgstr "App information"
+
+msgid "Back to catalog"
+msgstr "Back to catalog"
+
 msgid "Catalog"
 msgstr "Catalog"
+
+msgid "Category"
+msgstr "Category"
+
+msgid "Couldn't read this app"
+msgstr "Couldn't read this app"
+
+msgid "Documentation"
+msgstr "Documentation"
+
+msgid "Explore the app"
+msgstr "Explore the app"
+
+msgid "Getting started"
+msgstr "Getting started"
+
+msgid "Included in this install"
+msgstr "Included in this install"
+
+msgid "Install"
+msgstr "Install"
+
+msgid "Install another"
+msgstr "Install another"
+
+msgid "Install {app}"
+msgstr "Install {app}"
+
+msgid "Licence"
+msgstr "Licence"
+
+msgid "On your servers"
+msgstr "On your servers"
+
+msgid "Open app"
+msgstr "Open app"
+
+#. placeholder {0}: installed.project
+msgid "Open app: {0}"
+msgstr "Open app: {0}"
+
+msgid "Persistent storage"
+msgstr "Persistent storage"
+
+msgid "Reading this app"
+msgstr "Reading this app"
+
+msgid "Screens may vary by version"
+msgstr "Screens may vary by version"
+
+msgid "Screenshots"
+msgstr "Screenshots"
+
+msgid "Server access"
+msgstr "Server access"
+
+msgid "Show apps"
+msgstr "Show apps"
+
+msgid "Source code"
+msgstr "Source code"
+
+#. placeholder {0}: shot.caption
+msgid "Source for: {0}"
+msgstr "Source for: {0}"
+
+msgid "Version"
+msgstr "Version"
+
+msgid "Website"
+msgstr "Website"
+
+msgid "You review the plan before anything runs."
+msgstr "You review the plan before anything runs."
+
+msgid "Your installations"
+msgstr "Your installations"
+
+#. placeholder {0}: installs.length
+msgid "{0, plural, one {# installation} other {# installations}}"
+msgstr "{0, plural, one {# installation} other {# installations}}"
 
 msgid "Categories"
 msgstr "Categories"
@@ -4269,8 +4359,8 @@ msgstr "Categories"
 msgid "Couldn't read the catalog"
 msgstr "Couldn't read the catalog"
 
-msgid "Install {app}"
-msgstr "Install {app}"
+msgid "Find an app for your server. Explore what it does before you install."
+msgstr "Find an app for your server. Explore what it does before you install."
 
 msgid "No app matches that. Try another word, or all categories."
 msgstr "No app matches that. Try another word, or all categories."
@@ -4278,23 +4368,20 @@ msgstr "No app matches that. Try another word, or all categories."
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 
-msgid "Open {app}"
-msgstr "Open {app}"
-
 msgid "Reading the catalog"
 msgstr "Reading the catalog"
 
 msgid "Search apps"
 msgstr "Search apps"
 
-msgid "Self-hosted apps you can install in one step"
-msgstr "Self-hosted apps you can install in one step"
-
 msgid "Update out"
 msgstr "Update out"
 
 msgid "Upgrade to {latest}"
 msgstr "Upgrade to {latest}"
+
+msgid "View app"
+msgstr "View app"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, one {Installed} other {# installed}}"
@@ -4307,9 +4394,6 @@ msgstr "<0>{path}</0>, read-only"
 
 msgid "App you open"
 msgstr "App you open"
-
-msgid "Couldn't read this app"
-msgstr "Couldn't read this app"
 
 msgid "Database"
 msgstr "Database"
@@ -4329,8 +4413,8 @@ msgstr "Its project, which keeps it apart from your other apps."
 msgid "Its site"
 msgstr "Its site"
 
-msgid "Reading this app"
-msgstr "Reading this app"
+msgid "Open {app}"
+msgstr "Open {app}"
 
 msgid "Version {version}"
 msgstr "Version {version}"
@@ -4390,6 +4474,15 @@ msgstr "Version {next} is out."
 
 msgid "{name} {version}"
 msgstr "{name} {version}"
+
+msgid "Open full size"
+msgstr "Open full size"
+
+msgid "Open full size: {caption}"
+msgstr "Open full size: {caption}"
+
+msgid "Preview unavailable"
+msgstr "Preview unavailable"
 
 msgid "AI"
 msgstr "AI"
@@ -7056,9 +7149,6 @@ msgstr "Stays with 1Panel"
 msgid "This was written from 1Panel v2.0 to v2.4.2, and v1.10, and this server runs {0}. It was read the same way, by its records' column names, so check what it found before you apply the plan."
 msgstr "This was written from 1Panel v2.0 to v2.4.2, and v1.10, and this server runs {0}. It was read the same way, by its records' column names, so check what it found before you apply the plan."
 
-msgid "Website"
-msgstr "Website"
-
 #. placeholder {0}: steps.length
 msgid "{0, plural, one {# thing found} other {# things found}}"
 msgstr "{0, plural, one {# thing found} other {# things found}}"
@@ -8349,9 +8439,6 @@ msgstr "Traffic"
 msgid "Traffic over the last few minutes, now {rx} in and {tx} out"
 msgstr "Traffic over the last few minutes, now {rx} in and {tx} out"
 
-msgid "Version"
-msgstr "Version"
-
 msgid "same as the control plane"
 msgstr "same as the control plane"
 
@@ -9165,9 +9252,6 @@ msgstr "{withPasskeys} of {count} sign in with a passkey"
 
 msgid "Account"
 msgstr "Account"
-
-msgid "Install"
-msgstr "Install"
 
 msgid "Platform"
 msgstr "Platform"

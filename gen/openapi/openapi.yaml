@@ -7225,6 +7225,34 @@ components:
                         The services its Compose file runs that are databases the app keeps its data
                          in, by name, such as "db". A page names each as a database rather than an app.
                          Empty leaves that to the images Dockwell knows as databases.
+                description:
+                    type: string
+                    description: |-
+                        What the app does and who it is for, in the catalog's own words. Plain
+                         text, with blank lines between paragraphs; never HTML or Markdown.
+                icon:
+                    type: string
+                    description: |-
+                        The app's own logo, used to identify it. A local image path under
+                         /catalog-media/, served with the panel. Empty when no artwork is available.
+                screenshots:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Screenshot'
+                    description: |-
+                        Genuine previews of the app, with captions identifying what they show.
+                         A command-line service need not have a screenshot.
+                documentation:
+                    type: string
+                    description: The app's documentation, at an HTTPS address.
+                appSource:
+                    type: string
+                    description: The app's source repository, distinct from the source of this entry.
+                features:
+                    type: array
+                    items:
+                        type: string
+                    description: A short list of things the app can do, in the catalog's own words.
             description: |-
                 Entry is one app a catalog offers, at one version. It installs through the
                  same plan as any Compose file, into a project of its own. It runs no script
@@ -11684,6 +11712,21 @@ components:
                     type: boolean
                     description: True when the file is a way back onto the server, which took a passkey.
             description: SaveFileResponse is the file as saved.
+        Screenshot:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: A local raster image path under /catalog-media/.
+                caption:
+                    type: string
+                    description: What the screenshot shows, also used as its accessible description.
+                source:
+                    type: string
+                    description: Where the project published the original, at an HTTPS address.
+            description: |-
+                Screenshot is a preview a person can read before starting an installation.
+                 Media ships with the panel; browsing never asks a third-party host for it.
         Secret:
             type: object
             properties:

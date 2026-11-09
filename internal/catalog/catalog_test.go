@@ -4,6 +4,7 @@ package catalog_test
 
 import (
 	"encoding/base64"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -934,7 +935,7 @@ func TestADirectoryOfEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	newer := strings.Replace(string(raw), "release: 1\n", "release: 9\n", 1)
+	newer := strings.Replace(string(raw), fmt.Sprintf("release: %d\n", mine.GetRelease()), "release: 9\n", 1)
 	if err := os.WriteFile(filepath.Join(dir, "postgres.yaml"), []byte(newer), 0o600); err != nil {
 		t.Fatal(err)
 	}
