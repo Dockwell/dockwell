@@ -8867,9 +8867,6 @@ msgstr "再试三次"
 msgid "Try twice more"
 msgstr "再试两次"
 
-msgid "URL"
-msgstr "URL"
-
 msgid "UTC, as the install has none set"
 msgstr "UTC（安装未设置时区）"
 

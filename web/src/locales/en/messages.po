@@ -8867,9 +8867,6 @@ msgstr "Try three times more"
 msgid "Try twice more"
 msgstr "Try twice more"
 
-msgid "URL"
-msgstr "URL"
-
 msgid "UTC, as the install has none set"
 msgstr "UTC, as the install has none set"
 
