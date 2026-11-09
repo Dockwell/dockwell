@@ -536,7 +536,13 @@ func TestADeleteThatWaitsOnAPathSaysNothingChanged(t *testing.T) {
 	stuck := filepath.Join(d.root, "nfs", "file")
 	write(t, stuck, "x")
 	release := make(chan struct{})
-	defer close(release)
+	defer func() {
+		close(release)
+		waitFor(t, "the delete to return", func() bool { return d.server.stuckCount() == 0 })
+		if content, err := os.ReadFile(stuck); err != nil || string(content) != "x" {
+			t.Errorf("the timed-out delete changed its file: %q, %v", content, err)
+		}
+	}()
 	d.server.AnswerWithin = 50 * time.Millisecond
 	d.server.Touching = func(p string) {
 		if p == stuck {
