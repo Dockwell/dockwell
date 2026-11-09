@@ -71,11 +71,12 @@ RUN echo "installing packages" && sleep 60
 CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
 `, "index.html": "Batch inventory sync with smaller pages\n"}},
 	// A build of a larger image that prints a great deal, for what an agent holds as
-	// it passes them on.
+	// it passes them on. Pace it below BuildKit's 200 KiB/s limit and the agent's
+	// 256 KiB/s limit, so both receive every line rather than clip a short burst.
 	{"noisy", "Print every line of the inventory", map[string]string{"Dockerfile": `FROM node:22-alpine
 WORKDIR /app
 COPY . .
-RUN for i in $(seq 1 20000); do echo "line $i of what a build prints, and then some more words"; done
+RUN for i in $(seq 1 20000); do echo "line $i of what a build prints, and then some more words"; if [ "$((i % 100))" -eq 0 ]; then sleep 0.1; fi; done
 EXPOSE 8080
 CMD ["node", "-e", "require('http').createServer((q, s) => s.end('noisy')).listen(8080)"]
 `, "index.html": "noisy\n"}},
