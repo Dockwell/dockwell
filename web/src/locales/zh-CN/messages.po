@@ -473,6 +473,12 @@ msgstr "无法从 {destination} 取回 {volume} 的备份"
 msgid "A change failed: {subject}"
 msgstr "变更失败：{subject}"
 
+msgid "A scheduled task failed"
+msgstr "某个计划任务失败了"
+
+msgid "A scheduled task succeeded after a failure"
+msgstr "某个计划任务在失败后成功了"
+
 msgid "A service"
 msgstr "某个服务"
 
@@ -505,6 +511,12 @@ msgstr "保存 {server} 上的 {path} 时要求验证通行密钥，但未收到
 
 msgid "Asked for a passkey to stop PID {pid} on {server}, and none came"
 msgstr "停止 {server} 上的 PID {pid} 时请求了通行密钥，但没有收到"
+
+msgid "Asked to run a scheduled task"
+msgstr "请求运行某个计划任务"
+
+msgid "Asked to run {task}"
+msgstr "请求运行 {task}"
 
 msgid "Backed up {volume}"
 msgstr "已备份 {volume}"
@@ -786,6 +798,12 @@ msgstr "{subject} 在 {server} 上不断重启"
 
 msgid "{subject}'s certificate has ended"
 msgstr "{subject} 的证书已过期"
+
+msgid "{task} failed"
+msgstr "{task} 失败了"
+
+msgid "{task} succeeded after a failure"
+msgstr "{task} 在失败后成功了"
 
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"

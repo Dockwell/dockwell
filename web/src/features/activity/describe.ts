@@ -72,8 +72,23 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       if (event.action === "backup.copy_kept") {
         return { title: t`${destination} kept a backup of ${volume} that was to go`, icon: "archive", tone: "warning" };
       }
+      const task = event.taskRun?.displayName || event.taskRun?.task || name;
       const server = name || event.subject?.id || t`a server`;
       switch (event.action) {
+        case "task.failed":
+          return {
+            title: task ? t`${task} failed` : t`A scheduled task failed`,
+            icon: "clock",
+            tone: "critical",
+          };
+        case "task.recovered":
+          return {
+            title: task ? t`${task} succeeded after a failure` : t`A scheduled task succeeded after a failure`,
+            icon: "clock",
+            tone: "cobalt",
+          };
+        case "task.run":
+          return { title: task ? t`Asked to run ${task}` : t`Asked to run a scheduled task`, icon: "clock" };
         case "server.join":
           return event.actor?.kind === ActorKind.DOCKWELL
             ? { title: t`${server} joined as the control server`, icon: "server" }

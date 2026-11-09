@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
-import { AuditEventSchema, EventKind } from "@dockwell/api";
+import { AuditEventSchema, EventKind, EventSchema } from "@dockwell/api";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { renderHookWithApi } from "../../test/render";
+import { useDescribe } from "../activity/describe";
 import actions from "./auditActions.json";
 import { useAuditWords } from "./auditWords";
 
@@ -52,5 +53,53 @@ describe("reading logs", () => {
         }),
       ).title,
     ).toBe("读取了 web-1 上某个容器的日志");
+  });
+});
+
+describe("scheduled task runs", () => {
+  it.each([
+    ["en", "Nightly backup failed", "Nightly backup succeeded after a failure", "Asked to run Nightly backup"],
+    ["zh-CN", "Nightly backup 失败了", "Nightly backup 在失败后成功了", "请求运行 Nightly backup"],
+  ] as const)("names failures, recoveries and manual requests in %s", async (locale, failed, recovered, run) => {
+    await activateLocale(locale);
+    const say = renderHookWithApi(useAuditWords, {}).result.current;
+    const describe = renderHookWithApi(useDescribe, {}).result.current;
+    for (const [action, title, tone] of [
+      ["task.failed", failed, "critical"],
+      ["task.recovered", recovered, "cobalt"],
+      ["task.run", run, undefined],
+    ] as const) {
+      const event = create(EventSchema, {
+        action,
+        kind: EventKind.TASK,
+        subject: { name: "Stored task" },
+        taskRun: { task: "nightly", displayName: "Nightly backup" },
+      });
+      const expected = { title, ...(tone ? { tone } : {}) };
+      expect(say(create(AuditEventSchema, { action, event }))).toEqual(expected);
+      expect(describe(event, new Map())).toEqual({ ...expected, icon: "clock" });
+    }
+  });
+
+  it("uses the task name, then the subject, and gives unnamed tasks a sentence", () => {
+    const describe = renderHookWithApi(useDescribe, {}).result.current;
+    const event = create(EventSchema, {
+      action: "task.failed",
+      kind: EventKind.TASK,
+      subject: { name: "Stored task" },
+      taskRun: { task: "nightly" },
+    });
+    expect(describe(event, new Map()).title).toBe("nightly failed");
+    event.taskRun = undefined;
+    expect(describe(event, new Map()).title).toBe("Stored task failed");
+    event.subject = undefined;
+    for (const [action, title] of [
+      ["task.failed", "A scheduled task failed"],
+      ["task.recovered", "A scheduled task succeeded after a failure"],
+      ["task.run", "Asked to run a scheduled task"],
+    ] as const) {
+      event.action = action;
+      expect(describe(event, new Map()).title).toBe(title);
+    }
   });
 });
