@@ -10,13 +10,10 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { Page } from "../shell/Page";
-import { categoryLabel, monogram, useCatalog, useInstalls } from "./useCatalog";
+import { AppIcon } from "./media";
+import type { CatalogSearch } from "./search";
+import { categoryLabel, useCatalog, useInstalls } from "./useCatalog";
 import "./Catalog.css";
-
-export interface CatalogSearch {
-  q?: string | undefined;
-  category?: string | undefined;
-}
 
 export interface CatalogPageProps {
   search?: CatalogSearch;
@@ -27,9 +24,8 @@ export interface CatalogPageProps {
 
 /**
  * The catalog (Catalog): the apps you can install, by search and category, with
- * what's already installed marked and leading to the app. An app's card opens its
- * install sheet. The panel draws a monogram for each, as a logo is its project's to
- * give (ADR 0029).
+ * what's already installed marked. Every card opens the app's details before the
+ * reader chooses to install it or open an existing installation.
  */
 export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProps) {
   const { t, i18n } = useLingui();
@@ -69,7 +65,10 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
   const shown = (entries ?? []).filter(
     (e) =>
       (!search.category || e.category === search.category) &&
-      (query === "" || `${e.name} ${e.summary} ${e.category}`.toLowerCase().includes(query)),
+      (query === "" ||
+        `${e.name} ${e.summary} ${e.category} ${words(e.category)} ${e.features.join(" ")}`
+          .toLowerCase()
+          .includes(query)),
   );
   const count = new Set((installs ?? []).map((install) => install.project)).size;
   return (
@@ -77,7 +76,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
       width="wide"
       title={t`Catalog`}
       back="/more"
-      lead={t`Self-hosted apps you can install in one step`}
+      lead={t`Find an app for your server. Explore what it does before you install.`}
       actions={
         count > 0 ? (
           <RouterButtonLink to="/apps" variant="secondary" icon="service">
@@ -139,6 +138,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
               key={entry.id}
               entry={entry}
               category={words(entry.category)}
+              search={search}
               installs={(installs ?? []).filter((i) => i.pin?.entry === entry.id)}
             />
           ))}
@@ -166,16 +166,18 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
   );
 }
 
-/** One app: what it is and its version. Installed, it leads to the app rather than its install sheet. */
+/** One app: its own logo, what it does, its version and any existing installations. */
 function Card({
   entry,
   category,
   installs,
+  search,
 }: {
   entry: Entry;
   /** Its category, in words, under its name as Catalog has it. */
   category: string;
   installs: readonly CatalogInstall[];
+  search: CatalogSearch;
 }) {
   const { t } = useLingui();
   const [first] = installs;
@@ -187,9 +189,7 @@ function Card({
   const body = (
     <>
       <span className="catalog-card-head">
-        <span aria-hidden="true" className="catalog-mono">
-          {monogram(entry.name)}
-        </span>
+        <AppIcon name={entry.name} path={entry.icon} />
         <span className="catalog-card-title">
           <span className="catalog-card-name">{entry.name}</span>
           {category ? <span className="catalog-card-category">{category}</span> : null}
@@ -205,36 +205,21 @@ function Card({
       </span>
       <span className="catalog-card-summary">{entry.summary}</span>
       <span className="catalog-card-foot">
-        <span>{first?.pin?.version ?? entry.version}</span>
-        {first ? <span className="catalog-card-project">{first.project}</span> : null}
+        <code>{entry.version}</code>
+        <span className="catalog-card-more">
+          <Trans>View app</Trans>
+          <Icon name="arrow-right" size={14} />
+        </span>
       </span>
     </>
   );
-  if (first?.webServiceId) {
-    return (
-      <Link
-        to="/apps/$serviceId"
-        params={{ serviceId: first.webServiceId }}
-        className="dw-panel catalog-card"
-        aria-label={t`Open ${app}`}
-      >
-        {body}
-      </Link>
-    );
-  }
-  if (first) {
-    return (
-      <Link to="/apps" className="dw-panel catalog-card" aria-label={t`Open ${app}`}>
-        {body}
-      </Link>
-    );
-  }
   return (
     <Link
       to="/catalog/$entryId"
       params={{ entryId: entry.id }}
+      search={search}
       className="dw-panel catalog-card"
-      aria-label={t`Install ${app}`}
+      aria-label={t`View ${app}`}
     >
       {body}
     </Link>

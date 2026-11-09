@@ -2,9 +2,25 @@
 id: postgres
 name: PostgreSQL
 summary: Relational database, with Adminer to manage it
+description: |-
+  PostgreSQL is a relational database for applications that need reliable SQL storage, transactions and flexible queries. It supports structured records, JSON data and a large ecosystem of extensions and client libraries.
+
+  This entry includes Adminer as a lightweight browser interface. Dockwell generates the initial database password and keeps database files on a persistent volume.
+icon: /catalog-media/postgres-icon.webp
+documentation: https://www.postgresql.org/docs/
+appSource: https://github.com/postgres/postgres
+features:
+  - "SQL queries and transactions"
+  - "JSON data and extensible types"
+  - "Included Adminer database browser"
+  - "Persistent database storage"
+screenshots:
+  - path: /catalog-media/adminer-table.webp
+    caption: "Browse PostgreSQL tables in Adminer, included with this install"
+    source: https://www.adminer.org/static/screenshots/table.webp
 category: databases
 version: "17.11"
-release: 1
+release: 2
 homepage: https://www.postgresql.org
 license: AGPL-3.0-only
 appLicense: PostgreSQL

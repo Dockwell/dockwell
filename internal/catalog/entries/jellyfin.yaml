@@ -2,9 +2,28 @@
 id: jellyfin
 name: Jellyfin
 summary: Stream your films, shows and music to any device
+description: |-
+  Jellyfin organizes and streams your own media collection. Browse films, television, music and other libraries from a browser or a compatible client, while keeping the server and files under your control.
+
+  Choose the media folder on your server during installation. Jellyfin can read that folder, and keeps its library metadata and settings in persistent storage. Media content is not included.
+icon: /catalog-media/jellyfin-icon.webp
+documentation: https://jellyfin.org/docs/
+appSource: https://github.com/jellyfin/jellyfin
+features:
+  - "Film, television and music libraries"
+  - "Playback in browsers and compatible apps"
+  - "Separate users and viewing access"
+  - "Metadata and library organization"
+screenshots:
+  - path: /catalog-media/jellyfin-home.webp
+    caption: "Jellyfin media libraries and recently added titles"
+    source: https://raw.githubusercontent.com/jellyfin/jellyfin.org/4acfc64a884ff59aa6b7329724b7c325ddb4580e/static/images/screenshots/home/10.8-home.png
+  - path: /catalog-media/jellyfin-library.webp
+    caption: "Browse a Jellyfin media library"
+    source: https://raw.githubusercontent.com/jellyfin/jellyfin.org/4acfc64a884ff59aa6b7329724b7c325ddb4580e/static/images/screenshots/home/10.8-library.png
 category: media
 version: "12.3"
-release: 1
+release: 2
 homepage: https://jellyfin.org
 license: AGPL-3.0-only
 appLicense: GPL-2.0-only

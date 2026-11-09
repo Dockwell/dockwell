@@ -57,6 +57,32 @@ message Entry {
   // in, by name, such as "db". A page names each as a database rather than an app.
   // Empty leaves that to the images Dockwell knows as databases.
   repeated string databases = 16;
+  // What the app does and who it is for, in the catalog's own words. Plain
+  // text, with blank lines between paragraphs; never HTML or Markdown.
+  string description = 17;
+  // The app's own logo, used to identify it. A local image path under
+  // /catalog-media/, served with the panel. Empty when no artwork is available.
+  string icon = 18;
+  // Genuine previews of the app, with captions identifying what they show.
+  // A command-line service need not have a screenshot.
+  repeated Screenshot screenshots = 19;
+  // The app's documentation, at an HTTPS address.
+  string documentation = 20;
+  // The app's source repository, distinct from the source of this entry.
+  string app_source = 21;
+  // A short list of things the app can do, in the catalog's own words.
+  repeated string features = 22;
+}
+
+// Screenshot is a preview a person can read before starting an installation.
+// Media ships with the panel; browsing never asks a third-party host for it.
+message Screenshot {
+  // A local raster image path under /catalog-media/.
+  string path = 1;
+  // What the screenshot shows, also used as its accessible description.
+  string caption = 2;
+  // Where the project published the original, at an HTTPS address.
+  string source = 3;
 }
 
 // Source is where an entry came from.

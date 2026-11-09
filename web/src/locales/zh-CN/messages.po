@@ -4260,8 +4260,98 @@ msgstr "每周{day} {at}"
 msgid "{database} dump"
 msgstr "{database} 转储"
 
+msgid "About {app}"
+msgstr "关于 {app}"
+
+msgid "App information"
+msgstr "应用信息"
+
+msgid "Back to catalog"
+msgstr "返回应用目录"
+
 msgid "Catalog"
 msgstr "应用目录"
+
+msgid "Category"
+msgstr "分类"
+
+msgid "Couldn't read this app"
+msgstr "无法读取此应用"
+
+msgid "Documentation"
+msgstr "文档"
+
+msgid "Explore the app"
+msgstr "了解应用"
+
+msgid "Getting started"
+msgstr "开始使用"
+
+msgid "Included in this install"
+msgstr "本次安装包含"
+
+msgid "Install"
+msgstr "安装"
+
+msgid "Install another"
+msgstr "再安装一个"
+
+msgid "Install {app}"
+msgstr "安装 {app}"
+
+msgid "Licence"
+msgstr "许可证"
+
+msgid "On your servers"
+msgstr "在你的服务器上"
+
+msgid "Open app"
+msgstr "打开应用"
+
+#. placeholder {0}: installed.project
+msgid "Open {0}"
+msgstr "打开 {0}"
+
+msgid "Persistent storage"
+msgstr "持久存储"
+
+msgid "Reading this app"
+msgstr "正在读取此应用"
+
+msgid "Screens may vary by version"
+msgstr "不同版本的界面可能有所差异"
+
+msgid "Screenshots"
+msgstr "应用截图"
+
+msgid "Server access"
+msgstr "服务器访问权限"
+
+msgid "Show apps"
+msgstr "查看应用"
+
+msgid "Source code"
+msgstr "源代码"
+
+#. placeholder {0}: shot.caption
+msgid "Source for: {0}"
+msgstr "来源：{0}"
+
+msgid "Version"
+msgstr "版本"
+
+msgid "Website"
+msgstr "网站"
+
+msgid "You review the plan before anything runs."
+msgstr "运行前，你会先审核变更计划。"
+
+msgid "Your installations"
+msgstr "你已安装的应用"
+
+#. placeholder {0}: installs.length
+msgid "{0, plural, one {# installation} other {# installations}}"
+msgstr "{0, plural, other {# 个已安装实例}}"
 
 msgid "Categories"
 msgstr "分类"
@@ -4269,8 +4359,8 @@ msgstr "分类"
 msgid "Couldn't read the catalog"
 msgstr "无法读取应用目录"
 
-msgid "Install {app}"
-msgstr "安装 {app}"
+msgid "Find an app for your server. Explore what it does before you install."
+msgstr "为你的服务器寻找应用。安装前，先了解它的功能。"
 
 msgid "No app matches that. Try another word, or all categories."
 msgstr "没有匹配的应用。试试其他关键词，或查看全部分类。"
@@ -4278,23 +4368,23 @@ msgstr "没有匹配的应用。试试其他关键词，或查看全部分类。
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。<0>新建应用</0>"
 
-msgid "Open {app}"
-msgstr "打开 {app}"
-
 msgid "Reading the catalog"
 msgstr "正在读取应用目录"
 
 msgid "Search apps"
 msgstr "搜索应用"
 
-msgid "Self-hosted apps you can install in one step"
-msgstr "一步即可安装的自托管应用"
-
 msgid "Update out"
 msgstr "有更新"
 
 msgid "Upgrade to {latest}"
 msgstr "升级到 {latest}"
+
+msgid "View app"
+msgstr "查看应用"
+
+msgid "View {app}"
+msgstr "查看 {app}"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, other {已安装 # 个}}"
@@ -4307,9 +4397,6 @@ msgstr "<0>{path}</0>，只读"
 
 msgid "App you open"
 msgstr "你打开的应用"
-
-msgid "Couldn't read this app"
-msgstr "无法读取此应用"
 
 msgid "Database"
 msgstr "数据库"
@@ -4329,8 +4416,8 @@ msgstr "它所在的项目，让它与你的其他应用彼此隔离。"
 msgid "Its site"
 msgstr "官网"
 
-msgid "Reading this app"
-msgstr "正在读取此应用"
+msgid "Open {app}"
+msgstr "打开 {app}"
 
 msgid "Version {version}"
 msgstr "版本 {version}"
@@ -4390,6 +4477,15 @@ msgstr "已发布版本 {next}。"
 
 msgid "{name} {version}"
 msgstr "{name} {version}"
+
+msgid "Open full size"
+msgstr "查看原图"
+
+msgid "Open screenshot: {caption}"
+msgstr "打开截图：{caption}"
+
+msgid "Preview unavailable"
+msgstr "无法显示预览"
 
 msgid "AI"
 msgstr "AI"
@@ -7056,9 +7152,6 @@ msgstr "保留在 1Panel 中"
 msgid "This was written from 1Panel v2.0 to v2.4.2, and v1.10, and this server runs {0}. It was read the same way, by its records' column names, so check what it found before you apply the plan."
 msgstr "导入功能依据 1Panel v2.0 至 v2.4.2 及 v1.10 编写，而此服务器运行的是 {0}。它按记录的列名以同样方式读取，因此请在应用计划前核对读取到的内容。"
 
-msgid "Website"
-msgstr "网站"
-
 #. placeholder {0}: steps.length
 msgid "{0, plural, one {# thing found} other {# things found}}"
 msgstr "{0, plural, other {找到 # 项}}"
@@ -8349,9 +8442,6 @@ msgstr "流量"
 msgid "Traffic over the last few minutes, now {rx} in and {tx} out"
 msgstr "最近几分钟的流量，当前接收 {rx}、发送 {tx}"
 
-msgid "Version"
-msgstr "版本"
-
 msgid "same as the control plane"
 msgstr "与控制平面相同"
 
@@ -9165,9 +9255,6 @@ msgstr "{count} 人中有 {withPasskeys} 人使用通行密钥登录"
 
 msgid "Account"
 msgstr "账户"
-
-msgid "Install"
-msgstr "安装"
 
 msgid "Platform"
 msgstr "平台"

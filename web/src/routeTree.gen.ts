@@ -51,6 +51,7 @@ import { Route as ShellAppsServiceIdDeploymentsRouteImport } from './routes/_she
 import { Route as ShellAppsServiceIdEnvironmentRouteImport } from './routes/_shell/apps.$serviceId.environment'
 import { Route as ShellAppsServiceIdLogsRouteImport } from './routes/_shell/apps.$serviceId.logs'
 import { Route as ShellAppsServiceIdSettingsRouteImport } from './routes/_shell/apps.$serviceId.settings'
+import { Route as ShellCatalogEntryIdInstallRouteImport } from './routes/_shell/catalog.$entryId.install'
 import { Route as ShellDatabasesServiceIdIndexRouteImport } from './routes/_shell/databases.$serviceId.index'
 import { Route as ShellDatabasesServiceIdBackupsRouteImport } from './routes/_shell/databases.$serviceId.backups'
 import { Route as ShellDatabasesServiceIdUsersRouteImport } from './routes/_shell/databases.$serviceId.users'
@@ -285,6 +286,12 @@ const ShellAppsServiceIdSettingsRoute =
     path: '/settings',
     getParentRoute: () => ShellAppsServiceIdRoute,
   } as any)
+const ShellCatalogEntryIdInstallRoute =
+  ShellCatalogEntryIdInstallRouteImport.update({
+    id: '/install',
+    path: '/install',
+    getParentRoute: () => ShellCatalogEntryIdRoute,
+  } as any)
 const ShellDatabasesServiceIdIndexRoute =
   ShellDatabasesServiceIdIndexRouteImport.update({
     id: '/',
@@ -394,7 +401,7 @@ export interface FileRoutesByFullPath {
   '/alerts/rules': typeof ShellAlertsRulesRoute
   '/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
   '/apps/new': typeof ShellAppsNewRoute
-  '/catalog/$entryId': typeof ShellCatalogEntryIdRoute
+  '/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/databases/$serviceId': typeof ShellDatabasesServiceIdRouteWithChildren
   '/websites/$websiteId': typeof ShellWebsitesWebsiteIdRouteWithChildren
@@ -415,6 +422,7 @@ export interface FileRoutesByFullPath {
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
   '/apps/$serviceId/settings': typeof ShellAppsServiceIdSettingsRoute
+  '/catalog/$entryId/install': typeof ShellCatalogEntryIdInstallRoute
   '/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
   '/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
@@ -450,7 +458,7 @@ export interface FileRoutesByTo {
   '/alerts/channels': typeof ShellAlertsChannelsRoute
   '/alerts/rules': typeof ShellAlertsRulesRoute
   '/apps/new': typeof ShellAppsNewRoute
-  '/catalog/$entryId': typeof ShellCatalogEntryIdRoute
+  '/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/websites/new': typeof ShellWebsitesNewRoute
   '/alerts': typeof ShellAlertsIndexRoute
@@ -469,6 +477,7 @@ export interface FileRoutesByTo {
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
   '/apps/$serviceId/settings': typeof ShellAppsServiceIdSettingsRoute
+  '/catalog/$entryId/install': typeof ShellCatalogEntryIdInstallRoute
   '/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
   '/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
@@ -508,7 +517,7 @@ export interface FileRoutesById {
   '/_shell/alerts/rules': typeof ShellAlertsRulesRoute
   '/_shell/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
   '/_shell/apps/new': typeof ShellAppsNewRoute
-  '/_shell/catalog/$entryId': typeof ShellCatalogEntryIdRoute
+  '/_shell/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
   '/_shell/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/_shell/databases/$serviceId': typeof ShellDatabasesServiceIdRouteWithChildren
   '/_shell/websites/$websiteId': typeof ShellWebsitesWebsiteIdRouteWithChildren
@@ -529,6 +538,7 @@ export interface FileRoutesById {
   '/_shell/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/_shell/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
   '/_shell/apps/$serviceId/settings': typeof ShellAppsServiceIdSettingsRoute
+  '/_shell/catalog/$entryId/install': typeof ShellCatalogEntryIdInstallRoute
   '/_shell/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
   '/_shell/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/_shell/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
@@ -588,6 +598,7 @@ export interface FileRouteTypes {
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
     | '/apps/$serviceId/settings'
+    | '/catalog/$entryId/install'
     | '/databases/$serviceId/backups'
     | '/databases/$serviceId/users'
     | '/servers/$serverId/files'
@@ -642,6 +653,7 @@ export interface FileRouteTypes {
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
     | '/apps/$serviceId/settings'
+    | '/catalog/$entryId/install'
     | '/databases/$serviceId/backups'
     | '/databases/$serviceId/users'
     | '/servers/$serverId/files'
@@ -701,6 +713,7 @@ export interface FileRouteTypes {
     | '/_shell/apps/$serviceId/environment'
     | '/_shell/apps/$serviceId/logs'
     | '/_shell/apps/$serviceId/settings'
+    | '/_shell/catalog/$entryId/install'
     | '/_shell/databases/$serviceId/backups'
     | '/_shell/databases/$serviceId/users'
     | '/_shell/servers/$serverId/files'
@@ -1024,6 +1037,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellAppsServiceIdSettingsRouteImport
       parentRoute: typeof ShellAppsServiceIdRoute
     }
+    '/_shell/catalog/$entryId/install': {
+      id: '/_shell/catalog/$entryId/install'
+      path: '/install'
+      fullPath: '/catalog/$entryId/install'
+      preLoaderRoute: typeof ShellCatalogEntryIdInstallRouteImport
+      parentRoute: typeof ShellCatalogEntryIdRoute
+    }
     '/_shell/databases/$serviceId/': {
       id: '/_shell/databases/$serviceId/'
       path: '/'
@@ -1179,6 +1199,17 @@ const ShellAppsServiceIdRouteChildren: ShellAppsServiceIdRouteChildren = {
 const ShellAppsServiceIdRouteWithChildren =
   ShellAppsServiceIdRoute._addFileChildren(ShellAppsServiceIdRouteChildren)
 
+interface ShellCatalogEntryIdRouteChildren {
+  ShellCatalogEntryIdInstallRoute: typeof ShellCatalogEntryIdInstallRoute
+}
+
+const ShellCatalogEntryIdRouteChildren: ShellCatalogEntryIdRouteChildren = {
+  ShellCatalogEntryIdInstallRoute: ShellCatalogEntryIdInstallRoute,
+}
+
+const ShellCatalogEntryIdRouteWithChildren =
+  ShellCatalogEntryIdRoute._addFileChildren(ShellCatalogEntryIdRouteChildren)
+
 interface ShellDatabasesServiceIdRouteChildren {
   ShellDatabasesServiceIdBackupsRoute: typeof ShellDatabasesServiceIdBackupsRoute
   ShellDatabasesServiceIdUsersRoute: typeof ShellDatabasesServiceIdUsersRoute
@@ -1235,7 +1266,7 @@ interface ShellRouteChildren {
   ShellAlertsRulesRoute: typeof ShellAlertsRulesRoute
   ShellAppsServiceIdRoute: typeof ShellAppsServiceIdRouteWithChildren
   ShellAppsNewRoute: typeof ShellAppsNewRoute
-  ShellCatalogEntryIdRoute: typeof ShellCatalogEntryIdRoute
+  ShellCatalogEntryIdRoute: typeof ShellCatalogEntryIdRouteWithChildren
   ShellChangesChangeIdRoute: typeof ShellChangesChangeIdRoute
   ShellDatabasesServiceIdRoute: typeof ShellDatabasesServiceIdRouteWithChildren
   ShellWebsitesWebsiteIdRoute: typeof ShellWebsitesWebsiteIdRouteWithChildren
@@ -1269,7 +1300,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellAlertsRulesRoute: ShellAlertsRulesRoute,
   ShellAppsServiceIdRoute: ShellAppsServiceIdRouteWithChildren,
   ShellAppsNewRoute: ShellAppsNewRoute,
-  ShellCatalogEntryIdRoute: ShellCatalogEntryIdRoute,
+  ShellCatalogEntryIdRoute: ShellCatalogEntryIdRouteWithChildren,
   ShellChangesChangeIdRoute: ShellChangesChangeIdRoute,
   ShellDatabasesServiceIdRoute: ShellDatabasesServiceIdRouteWithChildren,
   ShellWebsitesWebsiteIdRoute: ShellWebsitesWebsiteIdRouteWithChildren,

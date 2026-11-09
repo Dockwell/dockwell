@@ -2,9 +2,25 @@
 id: mysql
 name: MySQL
 summary: Relational database, with phpMyAdmin to manage it
+description: |-
+  MySQL is a relational database for applications that use SQL. Use it for structured records, transactions and queries with the MySQL ecosystem of clients and libraries.
+
+  This entry includes phpMyAdmin for database administration in your browser. It keeps database data on a persistent volume and generates an initial root password for you.
+icon: /catalog-media/mysql-icon.webp
+documentation: https://dev.mysql.com/doc/
+appSource: https://github.com/mysql/mysql-server
+features:
+  - "SQL queries and transactions"
+  - "MySQL client and library support"
+  - "Included phpMyAdmin web interface"
+  - "Persistent database storage"
+screenshots:
+  - path: /catalog-media/phpmyadmin-tables.webp
+    caption: "Manage MySQL tables in phpMyAdmin, included with this install"
+    source: https://raw.githubusercontent.com/phpmyadmin/website/9a1840a005292617d3e2b18dbeeffba8dd38f264/pmaweb/static/images/screenshots/structure.png
 category: databases
 version: "8.4.11"
-release: 1
+release: 2
 homepage: https://www.mysql.com
 license: AGPL-3.0-only
 appLicense: GPL-2.0-only
