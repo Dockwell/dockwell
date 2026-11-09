@@ -34,11 +34,23 @@ export async function withStepUpIfAsked<T>(
   action: StepUpAction,
   target: string,
   call: (proof: string) => Promise<T>,
+  before?: () => Promise<boolean>,
 ): Promise<T> {
   try {
     return await call("");
   } catch (err) {
     if (reasonOf(err) !== "needs_step_up") throw err;
   }
+  // A page that couldn't know a passkey was needed says why first, and the browser
+  // asks only once the person goes on.
+  if (before && !(await before())) throw new StepUpDeclined();
   return call(await stepUp(transport, action, target));
+}
+
+/** A step-up the person chose not to go on with, once they'd read why it was asked. */
+export class StepUpDeclined extends Error {
+  constructor() {
+    super("the passkey wasn't asked for");
+    this.name = "StepUpDeclined";
+  }
 }

@@ -50,6 +50,7 @@ func Commands() []string {
 		"settings",
 		"system",
 		"tasks",
+		"terminals",
 		"totp",
 		"updates",
 		"variables",

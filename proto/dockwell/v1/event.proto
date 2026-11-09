@@ -8,6 +8,7 @@ import "dockwell/v1/change.proto";
 import "dockwell/v1/health.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/task.proto";
+import "dockwell/v1/terminal.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -159,6 +160,9 @@ message Event {
   // The process someone ended on a server, for "process.end". Its subject is
   // the server. Numbered apart, as open work adds to this message.
   EventProcess process = 30;
+  // The terminal, for a terminal's event. Its subject is the server. Numbered
+  // apart, as open work adds to this message.
+  EventTerminal terminal = 20;
   // A setting of the install someone changed, for a settings event. Numbered
   // apart, as open work adds to this message.
   EventSetting setting = 31;
@@ -218,6 +222,25 @@ message EventSetting {
   string value = 2;
   // What it was. Empty when it wasn't set.
   string previous = 3;
+}
+
+// EventTerminal is a terminal on a server, as its opening or closing tells of it.
+// What was typed and printed in it is never kept.
+message EventTerminal {
+  // The terminal's ID.
+  string id = 1;
+  // Who it ran as and where, such as "root@hz-1".
+  string title = 2;
+  // When it opened, on its closing.
+  google.protobuf.Timestamp open_time = 3;
+  // How it ended, on its closing.
+  TerminalEnd end = 4;
+  // Why it didn't open, for people, on a terminal that didn't.
+  string error = 5;
+  // The container it ran in, by name, for a shell in a container.
+  string container = 6;
+  // That container's full ID.
+  string container_id = 7;
 }
 
 // EventBackup is what became of one backup.
