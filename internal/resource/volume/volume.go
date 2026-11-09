@@ -211,11 +211,6 @@ func passwordName(name string) bool {
 	return slices.ContainsFunc(passwordNames, func(p string) bool { return strings.EqualFold(strings.TrimSpace(name), p) })
 }
 
-// mountTypes are what the local driver may mount besides a bind. Anything
-// else reads paths the plan can't name: overlay takes them in o, and a
-// disk's filesystem takes a device under /dev.
-var mountTypes = []string{"nfs", "nfs4", "cifs", "tmpfs"}
-
 // validateMount checks what the local driver's options mount, by an
 // allowlist. A bind's device is checked as a container's bind is.
 func validateMount(v *resourcev1.Volume) error {
@@ -242,7 +237,7 @@ func validateMount(v *resourcev1.Volume) error {
 		return errors.New("a volume of type none binds a server path, and this one has no bind. Add bind to o, such as o: bind, with the path in device")
 	case kind == "":
 		return errors.New("a volume's driver options need a type. Use type none with bind, nfs, nfs4, cifs or tmpfs")
-	case !slices.Contains(mountTypes, kind):
+	case !container.LocalMountType(kind):
 		return fmt.Errorf("the volume mounts type %q, which Dockwell can't run: a plan couldn't show what it reaches. Use type none with bind, nfs, nfs4, cifs or tmpfs", kind)
 	case kind == "cifs" || kind == "nfs" || kind == "nfs4":
 		return validateRemote(kind, options)

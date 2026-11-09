@@ -64,6 +64,8 @@ import (
 	serviceapi "github.com/dockwell/dockwell/internal/control/services"
 	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/control/system"
+	"github.com/dockwell/dockwell/internal/control/tasks"
+	"github.com/dockwell/dockwell/internal/control/terminals"
 	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/control/variables"
 	"github.com/dockwell/dockwell/internal/control/websites"
@@ -168,7 +170,9 @@ type Server struct {
 	// logs reads service logs, and tells servers what deletions put out of reach.
 	logs *logapi.Handler
 	// backups takes backups, and those under way end with the control plane.
-	backups   *backups.Handler
+	backups *backups.Handler
+	// tasks reads scheduled tasks' runs from the agents that run them.
+	tasks     *tasks.Handler
 	public    https.Source
 	changes   *revision.Engine
 	stepGrace time.Duration
@@ -195,13 +199,14 @@ func New(cfg Config) (*Server, error) {
 	}
 	var logs *logapi.Handler
 	var backupHandler *backups.Handler
+	var taskHandler *tasks.Handler
 	// Made first, so the settings can ask it who holds the public ports now.
 	ports := &PublicPorts{ready: make(chan struct{})}
-	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler)
+	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler)
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
 	ports.server = s
 	s.ports = ports
 	if s.stepGrace <= 0 {
@@ -234,7 +239,7 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
@@ -319,6 +324,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			handle(dockwellv1connect.NewFileServiceHandler(files.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
 			// A person's too, as a command line can hold a password, and ending a process is root.
 			handle(dockwellv1connect.NewProcessServiceHandler(processes.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
+			handle(dockwellv1connect.NewTerminalServiceHandler(terminals.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
 		}
 		// What another panel keeps on a server, read through its agent (ADR 0056).
 		if cfg.Fleet != nil {
@@ -337,6 +343,8 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		*backupsOut = backups.New(ch, cfg.Changes, cfg.Agents, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewBackupServiceHandler(*backupsOut, opts...))
 		handle(dockwellv1connect.NewDatabaseServiceHandler(databases.New(ch, cfg.Agents, *backupsOut, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		*tasksOut = tasks.New(cfg.Changes, cfg.Agents, cfg.Store, cfg.Logger)
+		handle(dockwellv1connect.NewTaskServiceHandler(*tasksOut, opts...))
 	}
 	restPaths, err := restHandler(rest, authapi.Authorizer(cfg.Auth, cfg.Logger))
 	if err != nil {
@@ -600,6 +608,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	if s.backups != nil {
 		api.Go(func() { s.backups.KeepRunning(apiCtx) })
+	}
+	if s.tasks != nil {
+		s.tasks.Start(apiCtx)
 	}
 	if ls.Ingress != nil {
 		run(func() error {

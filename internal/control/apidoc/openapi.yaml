@@ -1351,6 +1351,7 @@ paths:
                             - EVENT_KIND_HEALTH
                             - EVENT_KIND_BACKUP
                             - EVENT_KIND_SETTINGS
+                            - EVENT_KIND_TASK
                         type: string
                         format: enum
                 - name: serverId
@@ -2063,6 +2064,72 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/EndProcessResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/terminals:
+        get:
+            tags:
+                - TerminalService
+            description: |-
+                ListTerminals returns your terminals on a server that are still open, from
+                 this session, oldest first. No API token can call it.
+            operationId: TerminalService_ListTerminals
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListTerminalsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                OpenTerminal starts root's login shell on a server, or the first of bash, ash
+                 and sh a container on it has, in it, as the container's own user. A server's
+                 terminal needs a proof from FinishStepUp, for opening a terminal on that
+                 server, and so does a container's, for it, where the container is as good as
+                 root on the server: call without it first, and it checks everything else, then
+                 refuses with the reason needs_step_up. A server has room for 8 terminals. No API
+                 token can call it.
+            operationId: TerminalService_OpenTerminal
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/OpenTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/OpenTerminalResponse'
                 default:
                     description: Default error response
                     content:
@@ -2835,6 +2902,229 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/SetTimeZoneResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/tasks:
+        get:
+            tags:
+                - TaskService
+            description: |-
+                ListTasks returns every task, by name, each with when it next runs and how
+                 its last run went on each of its servers. It reads the control plane's
+                 records, so it answers with a server offline.
+            operationId: TaskService_ListTasks
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListTasksResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/tasks/{id}:
+        get:
+            tags:
+                - TaskService
+            description: GetTask returns one task, by ID or by name.
+            operationId: TaskService_GetTask
+            parameters:
+                - name: id
+                  in: path
+                  description: The task's ID, or its name with project and environment.
+                  required: true
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: The project, by name or ID, when id is a name. Left out while there's only one.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: |-
+                    The environment, by name or ID, when id is a name. Left out while its project
+                     has only one.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetTaskResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/tasks/{id}/runs:
+        get:
+            tags:
+                - TaskService
+            description: |-
+                ListTaskRuns returns a task's runs, newest first, with what each printed. A
+                 run's output can hold anything its command prints, so reading it takes what
+                 reading logs takes.
+            operationId: TaskService_ListTaskRuns
+            parameters:
+                - name: id
+                  in: path
+                  description: The task's ID, or its name with project and environment.
+                  required: true
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: The project, by name or ID, when id is a name. Left out while there's only one.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: |-
+                    The environment, by name or ID, when id is a name. Left out while its project
+                     has only one.
+                  schema:
+                    type: string
+                - name: server
+                  in: query
+                  description: Only its runs on this server, by name or ID.
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  description: 'How many, newest first: 20 unless set, at most 100.'
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: Where the last page ended.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListTaskRunsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/tasks/{id}:run:
+        post:
+            tags:
+                - TaskService
+            description: |-
+                RunTask runs a task now, on one of its servers, which has to be connected. It
+                 runs what was approved, as its schedule would, paused or not, and returns
+                 once the run has started: follow it with ListTaskRuns.
+            operationId: TaskService_RunTask
+            parameters:
+                - name: id
+                  in: path
+                  description: The task's ID, or its name with project and environment.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RunTaskRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RunTaskResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminals/{terminalId}:close:
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                CloseTerminal hangs up a terminal's shell, as closing an SSH session does,
+                 and ends it. No API token can call it.
+            operationId: TerminalService_CloseTerminal
+            parameters:
+                - name: terminalId
+                  in: path
+                  description: The terminal's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CloseTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CloseTerminalResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminals/{terminalId}:write:
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                WriteTerminal types into a terminal you're attached to, and changes its
+                 size. Each write says where it starts in all that's been typed, so one sent
+                 twice types nothing twice. A write the terminal hasn't room for is taken in
+                 part, and offset in the response says how much: send the rest after. No API
+                 token can call it.
+            operationId: TerminalService_WriteTerminal
+            parameters:
+                - name: terminalId
+                  in: path
+                  description: The terminal's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/WriteTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/WriteTerminalResponse'
                 default:
                     description: Default error response
                     content:
@@ -4012,6 +4302,7 @@ components:
                         - STEP_UP_ACTION_APPLY_ROOT_CHANGE
                         - STEP_UP_ACTION_SAVE_WAY_BACK_IN
                         - STEP_UP_ACTION_END_PROCESS
+                        - STEP_UP_ACTION_OPEN_TERMINAL
                     type: string
                     description: The action.
                     format: enum
@@ -4518,6 +4809,19 @@ components:
                         - $ref: '#/components/schemas/ServerUpdates'
                     description: The server's package updates as they stood, with checking set.
             description: CheckServerUpdatesResponse is what's known as the refresh starts.
+        CloseTerminalRequest:
+            type: object
+            properties:
+                terminalId:
+                    type: string
+                    description: The terminal's ID.
+            description: CloseTerminalRequest names a terminal.
+        CloseTerminalResponse:
+            type: object
+            properties:
+                end:
+                    $ref: '#/components/schemas/TerminalEnd'
+            description: CloseTerminalResponse says how it ended.
         ComposeRefusal:
             type: object
             properties:
@@ -5795,6 +6099,7 @@ components:
                         - EVENT_KIND_HEALTH
                         - EVENT_KIND_BACKUP
                         - EVENT_KIND_SETTINGS
+                        - EVENT_KIND_TASK
                     type: string
                     description: What sort of event it is.
                     format: enum
@@ -5862,12 +6167,25 @@ components:
                     description: |-
                         The process someone ended on a server, for "process.end". Its subject is
                          the server. Numbered apart, as open work adds to this message.
+                terminal:
+                    allOf:
+                        - $ref: '#/components/schemas/EventTerminal'
+                    description: |-
+                        The terminal, for a terminal's event. Its subject is the server. Numbered
+                         apart, as open work adds to this message.
                 setting:
                     allOf:
                         - $ref: '#/components/schemas/EventSetting'
                     description: |-
                         A setting of the install someone changed, for a settings event. Numbered
                          apart, as open work adds to this message.
+                taskRun:
+                    allOf:
+                        - $ref: '#/components/schemas/EventTaskRun'
+                    description: |-
+                        What became of a scheduled task's run, for a task event. Its subject is the
+                         task. Numbered in the block scheduled tasks hold, as open work adds to this
+                         message.
             description: Event is one thing that happened.
         EventBackup:
             type: object
@@ -6033,6 +6351,84 @@ components:
                         Which file on it, for a file read, saved or refused on a server. Empty
                          otherwise.
             description: EventSubject names what an event is about.
+        EventTaskRun:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The run's ID.
+                task:
+                    type: string
+                    description: The task, by name, and what people call it.
+                displayName:
+                    type: string
+                serverName:
+                    type: string
+                    description: The server it ran on, by name.
+                state:
+                    enum:
+                        - TASK_RUN_STATE_UNSPECIFIED
+                        - TASK_RUN_STATE_RUNNING
+                        - TASK_RUN_STATE_SUCCEEDED
+                        - TASK_RUN_STATE_FAILED
+                        - TASK_RUN_STATE_TIMED_OUT
+                        - TASK_RUN_STATE_INTERRUPTED
+                        - TASK_RUN_STATE_NOT_STARTED
+                    type: string
+                    description: How it ended.
+                    format: enum
+                reason:
+                    enum:
+                        - TASK_RUN_REASON_UNSPECIFIED
+                        - TASK_RUN_REASON_SCHEDULE
+                        - TASK_RUN_REASON_BY_HAND
+                        - TASK_RUN_REASON_MISSED
+                    type: string
+                    description: Why it ran.
+                    format: enum
+                exitCode:
+                    type: integer
+                    description: The last attempt's exit status, for a command.
+                    format: int32
+                httpStatus:
+                    type: integer
+                    description: The last attempt's HTTP status, for a request.
+                    format: int32
+                error:
+                    type: string
+                    description: Why it failed, for people. Empty when it didn't.
+            description: |-
+                EventTaskRun is a scheduled task's run that failed, or the one that succeeded
+                 after it (ADR 0053).
+        EventTerminal:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The terminal's ID.
+                title:
+                    type: string
+                    description: Who it ran as and where, such as "root@hz-1".
+                openTime:
+                    type: string
+                    description: When it opened, on its closing.
+                    format: date-time
+                end:
+                    allOf:
+                        - $ref: '#/components/schemas/TerminalEnd'
+                    description: How it ended, on its closing.
+                error:
+                    type: string
+                    description: Why it didn't open, for people, on a terminal that didn't.
+                container:
+                    type: string
+                    description: The container it ran in, by name, for a shell in a container.
+                containerId:
+                    type: string
+                    description: That container's full ID.
+            description: |-
+                EventTerminal is a terminal on a server, as its opening or closing tells of it.
+                 What was typed and printed in it is never kept.
         ExportComposeResponse:
             type: object
             properties:
@@ -6463,6 +6859,12 @@ components:
                         - $ref: '#/components/schemas/Settings'
                     description: The settings.
             description: GetSettingsResponse carries the install's settings.
+        GetTaskResponse:
+            type: object
+            properties:
+                task:
+                    $ref: '#/components/schemas/TaskInfo'
+            description: GetTaskResponse is the task.
         GetTotpResponse:
             type: object
             properties:
@@ -6580,6 +6982,7 @@ components:
                         - HOST_ACCESS_KIND_EXTERNAL_VOLUME
                         - HOST_ACCESS_KIND_TAKES_ON
                         - HOST_ACCESS_KIND_BACKUP_OF
+                        - HOST_ACCESS_KIND_SERVER_SHELL
                     type: string
                     description: What it is.
                     format: enum
@@ -7004,6 +7407,16 @@ components:
                         The app writes this secret in its own log, as Nginx Proxy Manager does with
                          its first password. Reading a log takes no passkey, so nothing may call it
                          sealed, and a person hears that before they apply.
+                generateAs:
+                    enum:
+                        - GENERATE_AS_UNSPECIFIED
+                        - GENERATE_AS_HEX
+                        - GENERATE_AS_BASE64
+                    type: string
+                    description: |-
+                        How a generated secret is written, for an app that reads it as a key: letters
+                         and digits unless set.
+                    format: enum
             description: |-
                 Input is one thing an entry needs to know to install, named by the ${NAME}
                  its Compose file uses.
@@ -7406,6 +7819,35 @@ components:
                         $ref: '#/components/schemas/Session'
                     description: Sessions, newest first.
             description: ListSessionsResponse lists sessions.
+        ListTaskRunsResponse:
+            type: object
+            properties:
+                runs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TaskRun'
+                    description: The runs, newest first.
+                nextPageToken:
+                    type: string
+                    description: Where the next page starts. Empty after the last.
+            description: ListTaskRunsResponse is a page of runs.
+        ListTasksResponse:
+            type: object
+            properties:
+                tasks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TaskInfo'
+                    description: The tasks, by name.
+            description: ListTasksResponse lists them.
+        ListTerminalsResponse:
+            type: object
+            properties:
+                terminals:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Terminal'
+            description: ListTerminalsResponse is your open terminals there.
         ListTokensResponse:
             type: object
             properties:
@@ -8164,6 +8606,39 @@ components:
                     type: string
                     description: The site it's under, for a subsite.
             description: OnePanelWebsite is a website 1Panel's OpenResty serves.
+        OpenTerminalRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                columns:
+                    type: integer
+                    description: The terminal's width, from 2 to 500 characters.
+                    format: uint32
+                rows:
+                    type: integer
+                    description: Its height, from 1 to 200 lines.
+                    format: uint32
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for opening a terminal on this server, as the
+                         target "srv_…", or in this container, as "srv_…:container". Call without it
+                         first: it checks everything else, then refuses with the reason needs_step_up
+                         where it takes one.
+                container:
+                    type: string
+                    description: |-
+                        A container on the server, by name or full ID, to open a shell in, in place of
+                         the server's own.
+            description: OpenTerminalRequest names a server.
+        OpenTerminalResponse:
+            type: object
+            properties:
+                terminal:
+                    $ref: '#/components/schemas/Terminal'
+            description: OpenTerminalResponse is the terminal, running.
         PackageUpdate:
             type: object
             properties:
@@ -8382,9 +8857,11 @@ components:
                          upgrade that runs without a backup first, "upgrade_kept" for what a person changed that the upgrade
                          changes too, which stays, "upgrade_dropped" for what they changed that it
                          drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
-                         whose data stays as the new version left it, and "tmpfs_no_size" for a Compose
-                         file's tmpfs that nothing stops taking half the server's memory. Another reason
-                         may come: its message says what it means.
+                         whose data stays as the new version left it, "tmpfs_no_size" for a Compose
+                         file's tmpfs that nothing stops taking half the server's memory, and
+                         "tasks_as_root" for an app this makes reach what's as good as root, whose
+                         scheduled tasks run in it and reach the same. Another reason may come: its
+                         message says what it means.
                 message:
                     type: string
                     description: 'What it says, for people: the fact, what it means, and what to do.'
@@ -8400,7 +8877,7 @@ components:
                         The names it is about: the variable, then the field that holds it, for
                          "exposed_variable"; the project, then the services it runs, for
                          "updates_project"; the volumes and server paths for "volumes_stay"; the path
-                         for "tmpfs_no_size"; the
+                         for "tmpfs_no_size"; each task, then its command, for "tasks_as_root"; the
                          variables and secrets, by the names the service sees, for "values_latest";
                          the image, the revision and its digest for "digest_pinned" and "digest_gone",
                          and the image and the revision for "digest_differs"; the container_name, or
@@ -9609,6 +10086,30 @@ components:
                     description: The port on the server it goes to, when it goes to no service.
                     format: uint32
             description: RouteMove is a route leaving one service for another.
+        RunTaskRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The task's ID, or its name with project and environment.
+                project:
+                    type: string
+                    description: The project, by name or ID, when id is a name. Left out while there's only one.
+                environment:
+                    type: string
+                    description: |-
+                        The environment, by name or ID, when id is a name. Left out while its project
+                         has only one.
+                server:
+                    type: string
+                    description: The server to run it on, by name or ID, when it's placed on more than one.
+            description: RunTaskRequest names a task to run now.
+        RunTaskResponse:
+            type: object
+            properties:
+                run:
+                    $ref: '#/components/schemas/TaskRun'
+            description: RunTaskResponse is the run, started.
         SaveFileRequest:
             type: object
             properties:
@@ -10775,6 +11276,12 @@ components:
                     description: |-
                         A database and the user who owns it, in a database server a service runs,
                          kind "database.user". Numbered apart, as open work adds to this message.
+                task:
+                    allOf:
+                        - $ref: '#/components/schemas/Task'
+                    description: |-
+                        Work that runs on a schedule, kind "task". Numbered in the block scheduled
+                         tasks hold, as open work adds to this message.
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
@@ -10910,6 +11417,298 @@ components:
                          done already.
                     format: enum
             description: StepProgress is one step of an applying change, and how it is going.
+        Task:
+            type: object
+            properties:
+                shell:
+                    allOf:
+                        - $ref: '#/components/schemas/TaskShell'
+                    description: |-
+                        A shell command on the server, which the agent runs as root. Making one, or
+                         changing what it runs, takes a person and a passkey.
+                app:
+                    allOf:
+                        - $ref: '#/components/schemas/TaskApp'
+                    description: |-
+                        A command in an app's image, as a one-off container with the app's
+                         environment, mounts and networks.
+                request:
+                    allOf:
+                        - $ref: '#/components/schemas/TaskRequest'
+                    description: An HTTP request to a URL, from the server.
+                schedule:
+                    type: string
+                    description: |-
+                        When it runs, in cron's five fields, minute, hour, day of the month, month and
+                         day of the week, such as "0 4 * * *", or @hourly, @daily, @weekly, @monthly or
+                         @yearly. Nothing runs more often than once a minute.
+                timeZone:
+                    type: string
+                    description: |-
+                        The time zone schedule is in, such as "Europe/Amsterdam". Left out, a change
+                         that makes or updates the task sets the install's time zone, from Settings,
+                         and UTC where the install has none.
+                timeoutSeconds:
+                    type: integer
+                    description: |-
+                        How long a run may take, in seconds, before it's stopped: 600 unless set, at
+                         most 86400.
+                    format: uint32
+                retries:
+                    type: integer
+                    description: |-
+                        How many more times a run that fails or times out tries, a minute apart: 0
+                         to 3.
+                    format: uint32
+                paused:
+                    type: boolean
+                    description: Keeps it from running on its schedule. Run now still runs it.
+                skipMissed:
+                    type: boolean
+                    description: |-
+                        Skips a run missed while its server was off or its agent stopped, rather than
+                         running it once when the agent starts.
+                displayName:
+                    type: string
+                    description: What people call it, such as "Nightly sales report". Its name when empty.
+            description: |-
+                Task is work that runs on a schedule, on each server it's placed on, kind "task"
+                 (ADR 0053): a shell command on the server, a command in an app's image, or an
+                 HTTP request. Each server's agent keeps its time, so a task runs while the
+                 control plane is away.
+        TaskApp:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: The app, by name, in the task's environment.
+                command:
+                    type: string
+                    description: |-
+                        The command, as words split as a shell splits them, run after the app's
+                         entrypoint in place of its command, such as "/app/api report sales". It runs
+                         without a shell unless it names one.
+            description: TaskApp is a command in an app's image.
+        TaskAttempt:
+            type: object
+            properties:
+                startTime:
+                    type: string
+                    format: date-time
+                endTime:
+                    type: string
+                    format: date-time
+                exitCode:
+                    type: integer
+                    description: The exit status of a command. -1 when it was stopped.
+                    format: int32
+                httpStatus:
+                    type: integer
+                    description: The HTTP status of a request. 0 when nothing answered.
+                    format: int32
+                timedOut:
+                    type: boolean
+                    description: It took longer than the task's timeout, and was stopped.
+                responseBytes:
+                    type: string
+                    description: The size of a request's answer, in bytes.
+                outputHeld:
+                    type: boolean
+                    description: |-
+                        Something the command started outlived it and held its output, which was read
+                         for a few seconds more, then left as it runs on.
+            description: TaskAttempt is one try of a run.
+        TaskInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The task's ID.
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: The task, by kind, environment and name.
+                kind:
+                    enum:
+                        - TASK_KIND_UNSPECIFIED
+                        - TASK_KIND_SHELL
+                        - TASK_KIND_APP
+                        - TASK_KIND_REQUEST
+                    type: string
+                    description: What it runs.
+                    format: enum
+                spec:
+                    allOf:
+                        - $ref: '#/components/schemas/Task'
+                    description: What it asks for.
+                servers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TaskOnServer'
+                    description: How it stands on each server it's placed on, by server name.
+            description: TaskInfo is one task, as it's asked for and as it runs.
+        TaskOnServer:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID and name.
+                serverName:
+                    type: string
+                connection:
+                    enum:
+                        - CONNECTION_UNSPECIFIED
+                        - CONNECTION_CONNECTED
+                        - CONNECTION_UNREACHABLE
+                        - CONNECTION_PENDING
+                    type: string
+                    description: |-
+                        Whether its agent is connected. One that isn't runs its tasks all the same,
+                         and its runs show once it's back.
+                    format: enum
+                nextRun:
+                    type: string
+                    description: When it next runs there. Unset while it's paused.
+                    format: date-time
+                lastRun:
+                    allOf:
+                        - $ref: '#/components/schemas/TaskRun'
+                    description: Its newest run there, without its output. Unset until it has run.
+                recent:
+                    type: array
+                    items:
+                        enum:
+                            - TASK_RUN_STATE_UNSPECIFIED
+                            - TASK_RUN_STATE_RUNNING
+                            - TASK_RUN_STATE_SUCCEEDED
+                            - TASK_RUN_STATE_FAILED
+                            - TASK_RUN_STATE_TIMED_OUT
+                            - TASK_RUN_STATE_INTERRUPTED
+                            - TASK_RUN_STATE_NOT_STARTED
+                        type: string
+                        format: enum
+                    description: How its newest runs there ended, newest first, up to 14, without output.
+                upcoming:
+                    type: array
+                    items:
+                        type: string
+                        format: date-time
+                    description: |-
+                        When it runs there in the next 24 hours, by its schedule, up to 288 (every 5
+                         minutes), for a timeline. Empty while it's paused.
+            description: TaskOnServer is how a task stands on one server.
+        TaskOutputLine:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When it came.
+                    format: date-time
+                text:
+                    type: string
+                    description: The line, without its newline.
+            description: |-
+                TaskOutputLine is one line a run printed. Lines the agent adds of its own, such
+                 as why an attempt stopped, start "Dockwell: ", and its attempts say the same as
+                 facts, for a surface to say in its own words.
+        TaskRequest:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: The URL, http or https.
+                method:
+                    type: string
+                    description: GET unless set, or HEAD or POST, with no body.
+                expectStatus:
+                    type: integer
+                    description: The status it expects, such as 204. Any 2xx unless set.
+                    format: uint32
+            description: |-
+                TaskRequest is an HTTP request to a URL. A run keeps the status, the time it
+                 took and the size of the answer, never the body.
+        TaskRun:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The run's ID.
+                taskId:
+                    type: string
+                    description: The task's ID.
+                serverId:
+                    type: string
+                    description: The server it ran on, by ID and name.
+                serverName:
+                    type: string
+                state:
+                    enum:
+                        - TASK_RUN_STATE_UNSPECIFIED
+                        - TASK_RUN_STATE_RUNNING
+                        - TASK_RUN_STATE_SUCCEEDED
+                        - TASK_RUN_STATE_FAILED
+                        - TASK_RUN_STATE_TIMED_OUT
+                        - TASK_RUN_STATE_INTERRUPTED
+                        - TASK_RUN_STATE_NOT_STARTED
+                    type: string
+                    description: How it is, or how it ended.
+                    format: enum
+                reason:
+                    enum:
+                        - TASK_RUN_REASON_UNSPECIFIED
+                        - TASK_RUN_REASON_SCHEDULE
+                        - TASK_RUN_REASON_BY_HAND
+                        - TASK_RUN_REASON_MISSED
+                    type: string
+                    description: Why it ran.
+                    format: enum
+                dueTime:
+                    type: string
+                    description: |-
+                        When it was due, and when it started and ended. A run that's still going has
+                         no end.
+                    format: date-time
+                startTime:
+                    type: string
+                    format: date-time
+                endTime:
+                    type: string
+                    format: date-time
+                attempts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TaskAttempt'
+                    description: 'Each try, in order: one, and one more for each retry it took.'
+                error:
+                    type: string
+                    description: Why it failed or didn't start, for people. Empty when it succeeded.
+                output:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TaskOutputLine'
+                    description: |-
+                        The last 64 KB of what it printed, stdout and stderr together, a line at a
+                         time. Only ListTaskRuns has it.
+                outputCutBytes:
+                    type: string
+                    description: How much of what it printed was cut from the start, in bytes.
+                skippedSlots:
+                    type: integer
+                    description: |-
+                        How many times its schedule came round while it ran, which ran nothing, as a
+                         task's runs never overlap.
+                    format: uint32
+            description: TaskRun is one run of a task on one server.
+        TaskShell:
+            type: object
+            properties:
+                command:
+                    type: string
+                    description: The command, run with /bin/sh -c, such as "find /var/log/app -mtime +7 -delete".
+                workingDir:
+                    type: string
+                    description: 'The folder it runs in: / unless set.'
+            description: TaskShell is a shell command on the server.
         TcpCheck:
             type: object
             properties:
@@ -10918,6 +11717,64 @@ components:
                     description: The port the app listens on inside its container, such as 5432.
                     format: uint32
             description: TcpCheck is a connection the agent makes to a container.
+        Terminal:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, such as "trm_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                serverId:
+                    type: string
+                    description: The server it runs on.
+                title:
+                    type: string
+                    description: Who it runs as and where, as a prompt says it, such as "root@hz-1".
+                openTime:
+                    type: string
+                    description: When it opened.
+                    format: date-time
+                columns:
+                    type: integer
+                    description: Its width, in characters.
+                    format: uint32
+                rows:
+                    type: integer
+                    description: Its height, in lines.
+                    format: uint32
+                container:
+                    type: string
+                    description: The container it runs in, by name, for a shell in a container.
+            description: Terminal is a shell on a server.
+        TerminalEnd:
+            type: object
+            properties:
+                reason:
+                    enum:
+                        - TERMINAL_END_REASON_UNSPECIFIED
+                        - TERMINAL_END_REASON_EXITED
+                        - TERMINAL_END_REASON_CLOSED
+                        - TERMINAL_END_REASON_DETACHED
+                        - TERMINAL_END_REASON_IDLE
+                        - TERMINAL_END_REASON_SIGNED_OUT
+                        - TERMINAL_END_REASON_AGENT_RESTARTED
+                        - TERMINAL_END_REASON_CONTROL_PLANE_RESTARTED
+                        - TERMINAL_END_REASON_SERVER_REMOVED
+                        - TERMINAL_END_REASON_FAILED
+                    type: string
+                    description: Why.
+                    format: enum
+                exitCode:
+                    type: integer
+                    description: The shell's exit status, when it exited.
+                    format: int32
+                time:
+                    type: string
+                    description: When.
+                    format: date-time
+                message:
+                    type: string
+                    description: What happened, for people, such as "The shell exited with code 0".
+            description: TerminalEnd says how a terminal ended.
         Tmpfs:
             type: object
             properties:
@@ -11397,6 +12254,37 @@ components:
                         type: string
                     description: The extensions it has beyond the language's own, such as "mysqli".
             description: WebsiteRuntime is one version of a language a website can run.
+        WriteTerminalRequest:
+            type: object
+            properties:
+                terminalId:
+                    type: string
+                    description: The terminal's ID.
+                offset:
+                    type: string
+                    description: Where data starts in all that's been typed into the terminal.
+                data:
+                    type: string
+                    description: What's typed, 64 KiB at most.
+                    format: bytes
+                columns:
+                    type: integer
+                    description: The terminal's width, to change it. 0 leaves it.
+                    format: uint32
+                rows:
+                    type: integer
+                    description: Its height, to change it. 0 leaves it.
+                    format: uint32
+            description: WriteTerminalRequest is what's typed, and the terminal's size.
+        WriteTerminalResponse:
+            type: object
+            properties:
+                offset:
+                    type: string
+                    description: |-
+                        How much of what's been typed the terminal has taken, in all. Short of the
+                         write's end when it hadn't room for all of it.
+            description: WriteTerminalResponse says how much the terminal has taken.
 tags:
     - name: AuditService
       description: |-
@@ -11636,6 +12524,31 @@ tags:
       description: |-
         SystemService describes the Dockwell install itself. It needs no sign-in, so
          the CLI, agents and other tools can check what they are talking to first.
+    - name: TaskService
+      description: |-
+        TaskService is work that runs on a schedule: a shell command on a server, a
+         command in an app's image, or an HTTP request. A task is a resource of kind
+         "task", so making, changing, pausing and deleting one is a change with a plan,
+         through ChangeService. Each server's agent keeps its own tasks' time, so they run
+         while the control plane is away, and the control plane keeps what each run
+         did. See docs/adr/0053-scheduled-tasks.md.
+    - name: TerminalService
+      description: |-
+        TerminalService opens a shell on a server, through its agent, and carries
+         what's typed and what it prints. A server's shell is root's, so it's as good
+         as root: see docs/adr/0037-a-terminal-on-a-server.md and
+         docs/security/terminal.md.
+
+         Every method needs a signed-in session: no API token can call them, whatever
+         its scope. A terminal belongs to the person and the session that opened it,
+         and nobody else can reach it. Opening one takes a passkey, just now. Opening
+         and closing one are on record in Activity, and what's typed and printed is
+         never recorded.
+
+         A terminal runs on its server apart from any connection, so a client that
+         loses its stream attaches again from the last byte it had, and misses
+         nothing that fits in what the server keeps. AttachTerminal streams, so it
+         has no REST path.
     - name: TokenService
       description: |-
         TokenService manages API tokens: secrets for scripts, the CLI and

@@ -20,6 +20,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
+	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/buildinfo"
@@ -35,6 +36,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // runRole runs the role dockwell run takes, until ctx is done.
@@ -90,8 +92,17 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
 	cfg.OnePanel = serverOnePanel(stdio)
+	cfg.Terminals = terminal.New(terminal.Options{
+		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
+	})
 	lookups(&cfg, stdio, g)
-	return agent.Run(ctx, cfg)
+	err := agent.Run(ctx, cfg)
+	if cfg.Tasks != nil && ctx.Err() != nil {
+		// Stopping stops the tasks' runs too; what each came to is kept before the
+		// agent goes, and one that outlasts this is ended when it starts again.
+		cfg.Tasks.Drain(task.DrainWait)
+	}
+	return err
 }
 
 // lookups says how this server's agent finds out how the internet sees it: what the
@@ -216,6 +227,8 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go routes.Watch(ctx)
 	monitor := &health.Monitor{Client: client, Logger: logger}
 	go monitor.Run(ctx)
+	tasks := &task.Driver{Dir: dir.Agent(), Client: client, Logger: logger}
+	go tasks.Keep(ctx)
 	var reserved string
 	if panel != nil {
 		reserved = panel.Domain
@@ -223,9 +236,9 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
-			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}),
+			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}, tasks),
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
-		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client},
+		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Tasks: tasks,
 	}
 }
 

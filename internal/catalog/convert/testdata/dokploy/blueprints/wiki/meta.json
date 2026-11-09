@@ -1,0 +1,7 @@
+{
+  "id": "wiki",
+  "name": "Wiki",
+  "version": "2.1.0",
+  "links": { "website": "https://wiki.example.com" },
+  "tags": ["notes"]
+}

@@ -1,0 +1,8 @@
+[[config.domains]]
+serviceName = "files"
+port = 80
+host = "${domain}"
+
+[[config.mounts]]
+filePath = "/config.json"
+content = "{}"

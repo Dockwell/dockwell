@@ -43,6 +43,7 @@ import (
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // addDockerServer enrolls hz-1, whose agent runs the Docker drivers on a
@@ -91,7 +92,8 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		volumeType = f.volumes(volumes)
 	}
 	users := &database.UserDriver{Client: client, Dir: t.TempDir()}
-	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, volumeType, &network.Driver{Client: client}, users}
+	tasks := &task.Driver{Dir: t.TempDir(), Client: client}
+	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, volumeType, &network.Driver{Client: client}, users, tasks}
 	if more != nil {
 		drivers = append(drivers, more()...)
 	}
@@ -105,6 +107,8 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		client:  client,
 		backups: backups,
 		userDir: users.Dir,
+		tasks:   tasks,
+		mounts:  e.Mountinfo,
 	}
 	if root := f.onePanelRoot; root != "" {
 		s.onePanel = func(ctx context.Context) (*agentv1.ReadOnePanelResult, error) { return onepanel.Read(ctx, root) }

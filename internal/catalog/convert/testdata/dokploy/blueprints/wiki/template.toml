@@ -1,0 +1,25 @@
+[variables]
+main_domain = "${domain}"
+password = "${password:24}"
+username = "${username}"
+session = "${hash:64}"
+totp = "${base64:32}"
+
+[config]
+mounts = []
+
+[[config.domains]]
+serviceName = "wiki"
+port = 3000
+host = "${main_domain}"
+
+[config.env]
+BASE_URL = "https://${main_domain}"
+ADMIN_USER = "${username}"
+ADMIN_PASSWORD = "${password}"
+DB_PASSWORD = "${password}"
+SESSION_KEY = "${session}"
+TOTP_KEY = "${totp}"
+MODE = "production"
+SECRET_KEY = "changeme"
+PASSWORD_MIN_LENGTH = "12"

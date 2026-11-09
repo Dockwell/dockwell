@@ -50,7 +50,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 	flags := flag.NewFlagSet("convert", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	from := flags.String("from", "", "the source's format: 1panel")
+	from := flags.String("from", "", "the source's format: 1panel, dokploy or coolify")
 	source := flags.String("source", "", "a checkout of the source")
 	out := flags.String("out", "", "the folder converted entries go in, where an earlier run's are")
 	overlays := flags.String("overlays", "", "a folder of what people wrote for each app, as <id>.yaml")
@@ -79,10 +79,19 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	case "1panel":
 		src = convert.OnePanelSource(*commit)
 		apps, err = convert.OnePanel(*source)
+	case "dokploy":
+		src = convert.DokploySource(*commit)
+		apps, err = convert.Dokploy(*source)
+	case "coolify":
+		src = convert.CoolifySource(*commit)
+		apps, err = convert.Coolify(*source)
 	default:
-		return fmt.Errorf("the converter reads 1panel, not %q", *from)
+		return fmt.Errorf("the converter reads 1panel, dokploy and coolify, not %q", *from)
 	}
 	if err != nil {
+		return err
+	}
+	if src.LicenseText, err = convert.ReadLicense(*source, src); err != nil {
 		return err
 	}
 	all := *only == ""
@@ -115,10 +124,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		Now:           time.Now(),
 	}
 	var results []convert.Result
-	converted := 0
+	converted, kept := 0, 0
 	for i := range apps {
 		r := c.Convert(ctx, apps[i])
-		if r.Entry != nil {
+		switch {
+		case r.Held != "":
+			kept++
+		case r.Entry != nil:
 			converted++
 		}
 		results = append(results, r)
@@ -126,7 +138,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if err := convert.Write(*out, src, results, previous, c.Pins, all); err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "Converted %d of %d apps from %s into %s. %s says why the rest were left out.\n",
-		converted, len(results), src.Name, *out, convert.ReportFile)
+	fmt.Fprintf(stdout, "Converted %d of %d apps from %s into %s, and kept %d at an earlier release. %s says why the rest were left out.\n",
+		converted, len(results), src.Name, *out, kept, convert.ReportFile)
 	return nil
 }

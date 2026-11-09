@@ -38,6 +38,8 @@ const (
 	Secret       = "sec"
 	Route        = "rte"
 	Backup       = "bkp"
+	TaskRun      = "run"
+	Terminal     = "trm"
 
 	// Keys that seal what may be secret at rest (ADR 0022).
 	KeyEncryptionKey = "kek"

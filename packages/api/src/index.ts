@@ -32,6 +32,8 @@ export * from "./gen/dockwell/v1/server_pb";
 export * from "./gen/dockwell/v1/service_pb";
 export * from "./gen/dockwell/v1/settings_pb";
 export * from "./gen/dockwell/v1/system_pb";
+export * from "./gen/dockwell/v1/task_pb";
+export * from "./gen/dockwell/v1/terminal_pb";
 export * from "./gen/dockwell/v1/token_pb";
 export * from "./gen/dockwell/v1/update_pb";
 export * from "./gen/dockwell/v1/variable_pb";
