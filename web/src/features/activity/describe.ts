@@ -1,7 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { ActorKind, type Change, ChangeState, type Event, EventKind, HealthState, StepState } from "@dockwell/api";
+import {
+  ActorKind,
+  type Change,
+  ChangeState,
+  type Event,
+  EventKind,
+  HealthState,
+  IntentKind,
+  StepState,
+} from "@dockwell/api";
 import type { IconName, Status } from "@dockwell/ui";
 import type { I18n } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
@@ -404,7 +413,7 @@ function describeChange(change: Change, summaries: ReadonlyMap<string, string>, 
   const reverted = change.reverts ? summaries.get(change.reverts) : undefined;
   let title = change.summary;
   if (reverted !== undefined) title = i18n._(change.rollback ? msg`Roll back: ${reverted}` : msg`Undo: ${reverted}`);
-  const icon: IconName = change.reverts ? "undo" : "commit";
+  const icon = changeIcon(change);
   switch (change.state) {
     case ChangeState.FAILED:
       return { title, icon, tone: "critical" };
@@ -412,6 +421,21 @@ function describeChange(change: Change, summaries: ReadonlyMap<string, string>, 
       return { title, icon, tone: "cobalt" };
   }
   return change.rollback ? { title, icon, tone: "warning" } : { title, icon };
+}
+
+/**
+ * What a change does, at a glance, as Activity's mock marks it: an undo or rollback,
+ * a restart, a deploy of an image, taking things away, or else a plan.
+ */
+export function changeIcon(change: Change): IconName {
+  if (change.reverts) return "undo";
+  if (change.restart) return "refresh";
+  const intent = change.plan?.intent?.kind;
+  if (intent === IntentKind.DEPLOY || intent === IntentKind.REPULL) return "deploy";
+  if (intent === IntentKind.ROLL_BACK) return "undo";
+  const s = change.plan?.summary;
+  if (s && s.destroy > 0 && !s.create && !s.change && !s.replace) return "trash";
+  return "commit";
 }
 
 /** A change's plan in brief: "2 to create · 1 to delete". Empty when it changes nothing. */

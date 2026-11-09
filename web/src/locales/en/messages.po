@@ -413,6 +413,9 @@ msgstr "State"
 msgid "Terminal"
 msgstr "Terminal"
 
+msgid "Times"
+msgstr "Times"
+
 msgid "Today"
 msgstr "Today"
 
@@ -457,6 +460,15 @@ msgstr "the server filter"
 
 msgid "{count, plural, one {{long} · # event} other {{long} · # events}}"
 msgstr "{count, plural, one {{long} · # event} other {{long} · # events}}"
+
+msgid "{count}, at {first}"
+msgstr "{count}, at {first}"
+
+msgid "{count}, from {first} to {last}"
+msgstr "{count}, from {first} to {last}"
+
+msgid "{times, plural, one {# time} other {# times}}"
+msgstr "{times, plural, one {# time} other {# times}}"
 
 msgid "CLI on {host}"
 msgstr "CLI on {host}"
