@@ -202,18 +202,25 @@ async function withAuthenticator(context: BrowserContext, page: Page) {
 
 async function shoot(page: Page, name: string) {
   if (!shots) return;
-  for (const scheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme: scheme });
-    for (const width of [1440, 800, 390, 360]) {
-      await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
-      // A full-page shot of a long page starts at its top, as someone arriving would see it.
-      await page.evaluate(() => window.scrollTo(0, 0));
-      await page.waitForTimeout(100);
-      await page.screenshot({ path: join(shots, `${name}-${width}-${scheme}.png`), fullPage: true });
+  const viewport = page.viewportSize();
+  const colorScheme = await page.evaluate(() =>
+    matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+  );
+  try {
+    for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      for (const width of [1440, 800, 390, 360]) {
+        await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+        // A full-page shot of a long page starts at its top, as someone arriving would see it.
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.waitForTimeout(100);
+        await page.screenshot({ path: join(shots, `${name}-${width}-${scheme}.png`), fullPage: true });
+      }
     }
+  } finally {
+    await page.emulateMedia({ colorScheme });
+    if (viewport) await page.setViewportSize(viewport);
   }
-  await page.emulateMedia({ colorScheme: "light" });
-  await page.setViewportSize({ width: 1440, height: 900 });
 }
 
 function totp(secretBase32: string, step = Math.floor(Date.now() / 30_000)): string {
