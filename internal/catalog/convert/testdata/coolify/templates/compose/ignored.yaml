@@ -1,0 +1,7 @@
+# documentation: https://example.com
+# ignore: true
+# port: 80
+
+services:
+  gone:
+    image: example/gone:1.0.0

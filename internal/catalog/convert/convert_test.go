@@ -303,7 +303,7 @@ func TestAYoungVersionWaits(t *testing.T) {
 	c.Registry = &fakeRegistry{built: map[string]time.Time{"example/a:2.0": now.Add(-3 * 24 * time.Hour)}}
 	c.Overlays["a"] = written("Stands in", "ai")
 	r = c.Convert(t.Context(), App{ID: "a", Name: "A", Version: "2.0", Compose: []byte("services:\n  a:\n    image: example/a:2.0\n")})
-	if r.Entry != nil || !r.Again || !r.Young || r.LeftOut != "example/a:2.0 is 3 days old, and converts once it's 14" {
+	if r.Entry != nil || !r.Again || !r.Young || r.LeftOut != "example/a:2.0 is 3 days old, and converts once it's 14 days old" {
 		t.Errorf("a young version with none before it: %+v", r)
 	}
 }
@@ -464,7 +464,7 @@ func TestHelpers(t *testing.T) {
 	}
 	versions := []string{"1.10.0", "1.9.0", "1.9.0-alpine", "v2.0", "20250803"}
 	slices.SortFunc(versions, compareVersions)
-	if want := []string{"1.9.0", "1.9.0-alpine", "1.10.0", "v2.0", "20250803"}; !slices.Equal(versions, want) {
+	if want := []string{"1.9.0-alpine", "1.9.0", "1.10.0", "v2.0", "20250803"}; !slices.Equal(versions, want) {
 		t.Errorf("versions sort as %q, want %q", versions, want)
 	}
 	if got := renameVars("a=${PANEL_X} b=${PANEL_X:-${PANEL_Y}} c=$${PANEL_X}", map[string]string{"PANEL_X": "X", "PANEL_Y": "Y"}); got != "a=${X} b=${X:-${Y}} c=$${PANEL_X}" {

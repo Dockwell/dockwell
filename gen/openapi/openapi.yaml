@@ -6879,6 +6879,16 @@ components:
                         The app writes this secret in its own log, as Nginx Proxy Manager does with
                          its first password. Reading a log takes no passkey, so nothing may call it
                          sealed, and a person hears that before they apply.
+                generateAs:
+                    enum:
+                        - GENERATE_AS_UNSPECIFIED
+                        - GENERATE_AS_HEX
+                        - GENERATE_AS_BASE64
+                    type: string
+                    description: |-
+                        How a generated secret is written, for an app that reads it as a key: letters
+                         and digits unless set.
+                    format: enum
             description: |-
                 Input is one thing an entry needs to know to install, named by the ${NAME}
                  its Compose file uses.

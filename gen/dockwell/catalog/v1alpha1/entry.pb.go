@@ -29,6 +29,61 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// GenerateAs is how a generated secret is written.
+type GenerateAs int32
+
+const (
+	// Letters and digits, as many as generate says.
+	GenerateAs_GENERATE_AS_UNSPECIFIED GenerateAs = 0
+	// Hex digits, as many as generate says, as openssl rand -hex writes them.
+	GenerateAs_GENERATE_AS_HEX GenerateAs = 1
+	// As many random bytes as generate says, in standard base64 with its
+	// padding, as openssl rand -base64 writes them, for an app that decodes its
+	// key.
+	GenerateAs_GENERATE_AS_BASE64 GenerateAs = 2
+)
+
+// Enum value maps for GenerateAs.
+var (
+	GenerateAs_name = map[int32]string{
+		0: "GENERATE_AS_UNSPECIFIED",
+		1: "GENERATE_AS_HEX",
+		2: "GENERATE_AS_BASE64",
+	}
+	GenerateAs_value = map[string]int32{
+		"GENERATE_AS_UNSPECIFIED": 0,
+		"GENERATE_AS_HEX":         1,
+		"GENERATE_AS_BASE64":      2,
+	}
+)
+
+func (x GenerateAs) Enum() *GenerateAs {
+	p := new(GenerateAs)
+	*p = x
+	return p
+}
+
+func (x GenerateAs) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (GenerateAs) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[0].Descriptor()
+}
+
+func (GenerateAs) Type() protoreflect.EnumType {
+	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[0]
+}
+
+func (x GenerateAs) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use GenerateAs.Descriptor instead.
+func (GenerateAs) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{0}
+}
+
 // InputType is what an input takes.
 type InputType int32
 
@@ -79,11 +134,11 @@ func (x InputType) String() string {
 }
 
 func (InputType) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[0].Descriptor()
+	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[1].Descriptor()
 }
 
 func (InputType) Type() protoreflect.EnumType {
-	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[0]
+	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[1]
 }
 
 func (x InputType) Number() protoreflect.EnumNumber {
@@ -92,7 +147,7 @@ func (x InputType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use InputType.Descriptor instead.
 func (InputType) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{1}
 }
 
 // Entry is one app a catalog offers, at one version. It installs through the
@@ -378,7 +433,10 @@ type Input struct {
 	// The app writes this secret in its own log, as Nginx Proxy Manager does with
 	// its first password. Reading a log takes no passkey, so nothing may call it
 	// sealed, and a person hears that before they apply.
-	Logged        bool `protobuf:"varint,8,opt,name=logged,proto3" json:"logged,omitempty"`
+	Logged bool `protobuf:"varint,8,opt,name=logged,proto3" json:"logged,omitempty"`
+	// How a generated secret is written, for an app that reads it as a key: letters
+	// and digits unless set.
+	GenerateAs    GenerateAs `protobuf:"varint,80,opt,name=generate_as,json=generateAs,proto3,enum=dockwell.catalog.v1alpha1.GenerateAs" json:"generate_as,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -469,6 +527,13 @@ func (x *Input) GetLogged() bool {
 	return false
 }
 
+func (x *Input) GetGenerateAs() GenerateAs {
+	if x != nil {
+		return x.GenerateAs
+	}
+	return GenerateAs_GENERATE_AS_UNSPECIFIED
+}
+
 // Web says what a person opens once an entry is installed.
 type Web struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -546,7 +611,7 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"repository\x18\x01 \x01(\tR\n" +
 	"repository\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
-	"\x06commit\x18\x03 \x01(\tR\x06commit\"\xf4\x01\n" +
+	"\x06commit\x18\x03 \x01(\tR\x06commit\"\xbc\x02\n" +
 	"\x05Input\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12\x12\n" +
@@ -555,9 +620,16 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\rdefault_value\x18\x05 \x01(\tR\fdefaultValue\x12\x1a\n" +
 	"\boptional\x18\x06 \x01(\bR\boptional\x12\x1a\n" +
 	"\bgenerate\x18\a \x01(\rR\bgenerate\x12\x16\n" +
-	"\x06logged\x18\b \x01(\bR\x06logged\"\x1f\n" +
+	"\x06logged\x18\b \x01(\bR\x06logged\x12F\n" +
+	"\vgenerate_as\x18P \x01(\x0e2%.dockwell.catalog.v1alpha1.GenerateAsR\n" +
+	"generateAs\"\x1f\n" +
 	"\x03Web\x12\x18\n" +
-	"\aservice\x18\x01 \x01(\tR\aservice*~\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice*V\n" +
+	"\n" +
+	"GenerateAs\x12\x1b\n" +
+	"\x17GENERATE_AS_UNSPECIFIED\x10\x00\x12\x13\n" +
+	"\x0fGENERATE_AS_HEX\x10\x01\x12\x16\n" +
+	"\x12GENERATE_AS_BASE64\x10\x02*~\n" +
 	"\tInputType\x12\x1a\n" +
 	"\x16INPUT_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fINPUT_TYPE_TEXT\x10\x01\x12\x14\n" +
@@ -579,25 +651,27 @@ func file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP() []byte {
 	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescData
 }
 
-var file_dockwell_catalog_v1alpha1_entry_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_dockwell_catalog_v1alpha1_entry_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_dockwell_catalog_v1alpha1_entry_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_dockwell_catalog_v1alpha1_entry_proto_goTypes = []any{
-	(InputType)(0), // 0: dockwell.catalog.v1alpha1.InputType
-	(*Entry)(nil),  // 1: dockwell.catalog.v1alpha1.Entry
-	(*Source)(nil), // 2: dockwell.catalog.v1alpha1.Source
-	(*Input)(nil),  // 3: dockwell.catalog.v1alpha1.Input
-	(*Web)(nil),    // 4: dockwell.catalog.v1alpha1.Web
+	(GenerateAs)(0), // 0: dockwell.catalog.v1alpha1.GenerateAs
+	(InputType)(0),  // 1: dockwell.catalog.v1alpha1.InputType
+	(*Entry)(nil),   // 2: dockwell.catalog.v1alpha1.Entry
+	(*Source)(nil),  // 3: dockwell.catalog.v1alpha1.Source
+	(*Input)(nil),   // 4: dockwell.catalog.v1alpha1.Input
+	(*Web)(nil),     // 5: dockwell.catalog.v1alpha1.Web
 }
 var file_dockwell_catalog_v1alpha1_entry_proto_depIdxs = []int32{
-	2, // 0: dockwell.catalog.v1alpha1.Entry.source:type_name -> dockwell.catalog.v1alpha1.Source
-	3, // 1: dockwell.catalog.v1alpha1.Entry.inputs:type_name -> dockwell.catalog.v1alpha1.Input
-	4, // 2: dockwell.catalog.v1alpha1.Entry.web:type_name -> dockwell.catalog.v1alpha1.Web
-	0, // 3: dockwell.catalog.v1alpha1.Input.type:type_name -> dockwell.catalog.v1alpha1.InputType
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	3, // 0: dockwell.catalog.v1alpha1.Entry.source:type_name -> dockwell.catalog.v1alpha1.Source
+	4, // 1: dockwell.catalog.v1alpha1.Entry.inputs:type_name -> dockwell.catalog.v1alpha1.Input
+	5, // 2: dockwell.catalog.v1alpha1.Entry.web:type_name -> dockwell.catalog.v1alpha1.Web
+	1, // 3: dockwell.catalog.v1alpha1.Input.type:type_name -> dockwell.catalog.v1alpha1.InputType
+	0, // 4: dockwell.catalog.v1alpha1.Input.generate_as:type_name -> dockwell.catalog.v1alpha1.GenerateAs
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_catalog_v1alpha1_entry_proto_init() }
@@ -610,7 +684,7 @@ func file_dockwell_catalog_v1alpha1_entry_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_catalog_v1alpha1_entry_proto_rawDesc), len(file_dockwell_catalog_v1alpha1_entry_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
