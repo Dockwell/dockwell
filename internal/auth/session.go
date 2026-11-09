@@ -300,12 +300,32 @@ func (s *Service) RevokeOtherSessions(ctx context.Context, p Principal) (int, er
 // still, when set, is asked too, at the start and on each recheck, whether the
 // caller may still make the stream, as their role says now: a stream ends
 // when it errs, as it does once a role is gone (ADR 0048).
-func (s *Service) Track(ctx context.Context, client Client, p Principal, still func(context.Context) error) (context.Context, func()) {
+func (s *Service) Track(ctx context.Context, client Client, p Principal, still ...func(context.Context) error) (context.Context, func()) {
+	return s.track(ctx, client, p, true, still...)
+}
+
+// Follow is Track for what outlives the request that made it and isn't a page in
+// use, such as a terminal nobody is attached to: it ends with the session, at once
+// when that's revoked or signed out and within a recheck when it expires, but its
+// checks aren't use. So it keeps no session alive past its idle limit, and never
+// moves its last-seen time or address.
+func (s *Service) Follow(ctx context.Context, client Client, p Principal) (context.Context, func()) {
+	return s.track(ctx, client, p, false)
+}
+
+func (s *Service) track(ctx context.Context, client Client, p Principal, use bool, still ...func(context.Context) error) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	credential := p.credential()
 	entry := s.streams.add(credential, cancel)
-	may := func() bool { return still == nil || still(ctx) == nil }
-	if !s.stillLive(ctx, client, p) || !may() {
+	may := func() bool {
+		for _, check := range still {
+			if check != nil && check(ctx) != nil {
+				return false
+			}
+		}
+		return true
+	}
+	if !s.stillLive(ctx, client, p, use) || !may() {
 		cancel()
 	}
 	done := make(chan struct{})
@@ -319,7 +339,7 @@ func (s *Service) Track(ctx context.Context, client Client, p Principal, still f
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				if !s.stillLive(ctx, client, p) {
+				if !s.stillLive(ctx, client, p, use) {
 					s.logger.DebugContext(ctx, "closing a stream whose session or token ended", slog.String("credential", credential))
 					cancel()
 					return
@@ -339,9 +359,9 @@ func (s *Service) Track(ctx context.Context, client Client, p Principal, still f
 	}
 }
 
-// stillLive reports whether a stream's session or token still works, and
-// records the stream as a use of it.
-func (s *Service) stillLive(ctx context.Context, client Client, p Principal) bool {
+// stillLive reports whether a stream's session or token still works, and with
+// use, records the stream as a use of it.
+func (s *Service) stillLive(ctx context.Context, client Client, p Principal, use bool) bool {
 	if p.Token != nil {
 		return s.tokenStillLive(ctx, client, p.Token.ID)
 	}
@@ -361,7 +381,7 @@ func (s *Service) stillLive(ctx context.Context, client Client, p Principal) boo
 	if !live(sess, client.Site, now) {
 		return false
 	}
-	if ip := client.remoteIP(); now.Sub(sess.LastSeenAt) >= touchEvery || ip != sess.LastIP {
+	if ip := client.remoteIP(); use && (now.Sub(sess.LastSeenAt) >= touchEvery || ip != sess.LastIP) {
 		s.touch(ctx, sessionID, now, ip)
 	}
 	return true

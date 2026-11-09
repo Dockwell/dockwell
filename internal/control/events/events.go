@@ -32,6 +32,8 @@ import (
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/control/processes"
 	"github.com/dockwell/dockwell/internal/control/settings"
+	"github.com/dockwell/dockwell/internal/control/tasks"
+	"github.com/dockwell/dockwell/internal/control/terminals"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -77,15 +79,19 @@ const (
 // and refused tokens, a token's first use from an address, signing out,
 // and the install's own setup.
 var (
-	serverActions = []string{
+	serverActions = slices.Concat([]string{
 		"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear,
 		processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed,
-	}
+	},
+		// Who had a root shell on a server, and when (ADR 0037).
+		terminals.Actions)
 	healthActions = []string{health.Action}
 	// A setting of the install isn't managed state, so it's an event, not a change (ADR 0042).
 	settingsActions = settings.Actions
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
 	backupActions = backups.Actions
+	// A scheduled task's run is an event; making or changing the task is a change (ADR 0053).
+	taskActions   = tasks.Actions
 	accessActions = []string{
 		"owner.claim", "auth.sign_in", "session.revoke",
 		"passkey.add", "passkey.add_with_recovery_code", "passkey.add_with_authenticator_code", "passkey.remove",
@@ -502,8 +508,16 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		Id: a.ID, Kind: dockwellv1.EventKind_EVENT_KIND_ACCESS, Action: a.Action, Time: timestamppb.New(a.At),
 		Actor: look.Actor(a.Actor), Surface: changes.Surfaces[a.Surface],
 	}
-	if strings.HasPrefix(a.Action, "server.") || strings.HasPrefix(a.Action, "process.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown || a.Action == fileSaveUnconfirmed {
+	if strings.HasPrefix(a.Action, "server.") || strings.HasPrefix(a.Action, "process.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown || a.Action == fileSaveUnconfirmed ||
+		slices.Contains(terminals.Actions, a.Action) {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
+	}
+	if slices.Contains(terminals.Actions, a.Action) {
+		// As for backups: only internal/control/terminals writes these, and what it
+		// writes holds nothing typed or printed.
+		if told, ok := terminals.ReadTold(a.Detail); ok {
+			e.Terminal = told.Proto()
+		}
 	}
 	if a.Action == health.Action {
 		// The one kind of event whose detail leaves the store: it holds what
@@ -516,6 +530,19 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 			if told.Since != nil {
 				e.Health.Since = timestamppb.New(*told.Since)
 			}
+		}
+		return e
+	}
+	if slices.Contains(taskActions, a.Action) {
+		// Only internal/control/tasks writes these, and what it writes holds nothing
+		// a run printed.
+		e.Kind = dockwellv1.EventKind_EVENT_KIND_TASK
+		e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject), Scope: look.Scope(a.Subject)}
+		e.TaskRun = &dockwellv1.EventTaskRun{ServerName: look.Name(a.Target)}
+		if told, ok := tasks.ReadTold(a.Detail); ok {
+			e.TaskRun.Id, e.TaskRun.Task, e.TaskRun.DisplayName = told.Run, told.Task, told.DisplayName
+			e.TaskRun.State, e.TaskRun.Reason = dockwellv1.TaskRunState(told.State), dockwellv1.TaskRunReason(told.Reason)
+			e.TaskRun.ExitCode, e.TaskRun.HttpStatus, e.TaskRun.Error = told.ExitCode, told.HTTPStatus, told.Error
 		}
 		return e
 	}
@@ -582,7 +609,10 @@ func filter(kinds []dockwellv1.EventKind, serverID, resourceID, actorID string, 
 	if every || want[dockwellv1.EventKind_EVENT_KIND_SETTINGS] {
 		f.Actions = append(f.Actions, settingsActions...)
 	}
-	f.ResourceActions = append(slices.Clone(healthActions), backupActions...)
+	if every || want[dockwellv1.EventKind_EVENT_KIND_TASK] {
+		f.Actions = append(f.Actions, taskActions...)
+	}
+	f.ResourceActions = append(append(slices.Clone(healthActions), backupActions...), taskActions...)
 	if actorID != "" {
 		a, ok := actors.Store(actorID)
 		if !ok {

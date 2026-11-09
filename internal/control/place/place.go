@@ -17,6 +17,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // Place is where an object belongs.
@@ -76,7 +77,7 @@ func Of(ctx context.Context, tx *store.Tx, objectID string) ([]Place, error) {
 		}
 		p, err := scoped(ctx, tx, b.EnvironmentID)
 		return []Place{p}, err
-	case id.Project, id.Environment, id.Service, id.Variable, id.Secret, id.Route, id.Resource:
+	case id.Project, id.Environment, id.Service, id.Variable, id.Secret, id.Route, id.Resource, (task.Type{}).IDPrefix():
 		r, err := tx.GetResourceByID(ctx, objectID)
 		if err != nil {
 			return nil, err

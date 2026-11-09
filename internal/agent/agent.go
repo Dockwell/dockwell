@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/delivery"
@@ -91,6 +92,12 @@ type Config struct {
 	// OnePanel reads what 1Panel keeps on this server, for an import (ADR 0056).
 	// Nil reads nothing.
 	OnePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
+	// Tasks runs this server's scheduled tasks and keeps their runs (ADR 0053).
+	// Nil runs none.
+	Tasks TaskKeeper
+	// Terminals opens shells on this server for a person, across streams. Run
+	// runs it. Nil opens none.
+	Terminals *terminal.Manager
 	// CallGrace is how long a call gets to end once its time is up or its stream is
 	// going, before it's left behind. Zero means DefaultCallGrace.
 	CallGrace time.Duration
@@ -154,6 +161,20 @@ type LogReader interface {
 	// it all or ctx ends. send may block: a follow drops what it can't send,
 	// and says how much.
 	Stream(ctx context.Context, call *agentv1.LogsCall, send func(*agentv1.SendLogsRequest) error) error
+}
+
+// TaskKeeper runs this server's scheduled tasks on its own clock, and keeps their
+// runs until the control plane reads them (ADR 0053).
+type TaskKeeper interface {
+	// RunNow runs a task now, as its schedule would.
+	RunNow(ctx context.Context, ref resource.Ref) (*dockwellv1.TaskRun, error)
+	// Runs returns the runs past after, and lets go of the ones before it.
+	Runs(after string) (*agentv1.TaskRunsResult, error)
+	// RunsReady says a run started or ended.
+	RunsReady() <-chan struct{}
+	// Drain waits up to wait, once the agent is stopping, for the runs that stops
+	// to end and be kept.
+	Drain(wait time.Duration)
 }
 
 // BackupTaker takes and removes backups on this server (ADR 0033). What restores
@@ -348,6 +369,9 @@ func Run(ctx context.Context, cfg Config) error {
 	var wg sync.WaitGroup
 	wg.Go(func() { keepRenewed(ctx, cfg) })
 	wg.Go(func() { keepConnected(ctx, cfg) })
+	if cfg.Terminals != nil {
+		wg.Go(func() { cfg.Terminals.Run(ctx) })
+	}
 	wg.Wait()
 	return nil
 }
@@ -449,6 +473,9 @@ func session(ctx context.Context, cfg Config) (err error) {
 	offered.log(ctx, cfg.Logger)
 	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil}
 	hello.Kinds, hello.Unavailable = offered.proto()
+	if cfg.Terminals != nil {
+		hello.Terminals, hello.OpenTerminals, hello.ContainerTerminals = true, cfg.Terminals.Known(), true
+	}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}
@@ -626,12 +653,33 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Files != nil {
 		savesEnded = cfg.Files.SavesEnded()
 	}
+	var runsReady <-chan struct{}
+	if cfg.Tasks != nil {
+		runsReady = cfg.Tasks.RunsReady()
+	}
+	var terminalsEnded <-chan struct{}
+	if cfg.Terminals != nil {
+		terminalsEnded = cfg.Terminals.Ended()
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-terminalsEnded:
+			// What can't go now goes on the next stream, which says it's still to come.
+			ended := cfg.Terminals.TakeEnded()
+			for i, e := range ended {
+				if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_TerminalEnded{TerminalEnded: e}}); err != nil {
+					cfg.Terminals.Untold(ended[i:])
+					return err
+				}
+			}
 		case ended := <-savesEnded:
 			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_SaveEnded{SaveEnded: ended}}); err != nil {
+				return err
+			}
+		case <-runsReady:
+			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_TaskRunsReady{TaskRunsReady: &agentv1.TaskRunsReady{}}}); err != nil {
 				return err
 			}
 		case <-domainsChanged:

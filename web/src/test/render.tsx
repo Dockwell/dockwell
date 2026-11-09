@@ -25,6 +25,8 @@ import {
   ServiceService,
   SettingsService,
   SystemService,
+  TaskService,
+  TerminalService,
   TokenService,
   UpdateService,
   VariableService,
@@ -70,6 +72,8 @@ export type Api = {
   audit?: Partial<ServiceImpl<typeof AuditService>>;
   members?: Partial<ServiceImpl<typeof MemberService>>;
   imports?: Partial<ServiceImpl<typeof ImportService>>;
+  tasks?: Partial<ServiceImpl<typeof TaskService>>;
+  terminals?: Partial<ServiceImpl<typeof TerminalService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -122,6 +126,8 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(SettingsService, { getSettings: () => ({ settings: { timeZone: "UTC" } }), ...api.settings });
       service(UpdateService, api.updates ?? {});
       service(ImportService, api.imports ?? {});
+      service(TaskService, { listTasks: () => ({}), listTaskRuns: () => ({}), ...api.tasks });
+      service(TerminalService, { listTerminals: () => ({}), ...api.terminals });
       service(BackupService, {
         listBackups: () => ({}),
         listBackupPolicies: () => ({}),

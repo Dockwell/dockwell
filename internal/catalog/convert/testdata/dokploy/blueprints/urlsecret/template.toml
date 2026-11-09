@@ -1,0 +1,13 @@
+[variables]
+db_password = "${password:32}"
+
+[[config.domains]]
+serviceName = "app"
+port = 80
+host = "${domain}"
+
+[config]
+env = [
+  "# a comment, which names no value",
+  "DATABASE_URL=postgres://app:${db_password}@db:5432/app",
+]

@@ -1,0 +1,275 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// TerminalService opens a shell on a server, through its agent, and carries
+// what's typed and what it prints. A server's shell is root's, so it's as good
+// as root: see docs/adr/0037-a-terminal-on-a-server.md and
+// docs/security/terminal.md.
+//
+// Every method needs an admin in a signed-in session: no API token can call them, whatever
+// its scope. A terminal belongs to the person and the session that opened it,
+// and nobody else can reach it. Opening one takes a passkey, just now. Opening
+// and closing one are on record in Activity, and what's typed and printed is
+// never recorded.
+//
+// A terminal runs on its server apart from any connection, so a client that
+// loses its stream attaches again from the last byte it had, and misses
+// nothing that fits in what the server keeps. AttachTerminal streams, so it
+// has no REST path.
+service TerminalService {
+  // OpenTerminal starts root's login shell on a server, or the first of bash, ash
+  // and sh a container on it has, in it, as the container's own user. A server's
+  // terminal needs a proof from FinishStepUp, for opening a terminal on that
+  // server, and so does a container's, for it, where the container is as good as
+  // root on the server: call without it first, and it checks everything else, then
+  // refuses with the reason needs_step_up. A server has room for 8 terminals. No API
+  // token can call it.
+  rpc OpenTerminal(OpenTerminalRequest) returns (OpenTerminalResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "terminals"
+      verb: "open"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/terminals"
+      body: "*"
+    };
+  }
+
+  // ListTerminals returns your terminals on a server that are still open, from
+  // this session, oldest first. No API token can call it.
+  rpc ListTerminals(ListTerminalsRequest) returns (ListTerminalsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "terminals"
+      verb: "list"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/terminals"};
+  }
+
+  // AttachTerminal follows what a terminal prints, from a byte offset, then as it
+  // comes, with a heartbeat every 10 s, until it ends or you attach to it from
+  // somewhere else. A terminal has one attachment at a time. No API token can
+  // call it.
+  rpc AttachTerminal(AttachTerminalRequest) returns (stream AttachTerminalResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "terminals"
+      verb: "attach"
+    };
+  }
+
+  // WriteTerminal types into a terminal you're attached to, and changes its
+  // size. Each write says where it starts in all that's been typed, so one sent
+  // twice types nothing twice. A write the terminal hasn't room for is taken in
+  // part, and offset in the response says how much: send the rest after. No API
+  // token can call it.
+  rpc WriteTerminal(WriteTerminalRequest) returns (WriteTerminalResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "terminals"
+      verb: "write"
+    };
+    option (google.api.http) = {
+      post: "/v1/terminals/{terminal_id}:write"
+      body: "*"
+    };
+  }
+
+  // CloseTerminal hangs up a terminal's shell, as closing an SSH session does,
+  // and ends it. No API token can call it.
+  rpc CloseTerminal(CloseTerminalRequest) returns (CloseTerminalResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "terminals"
+      verb: "close"
+    };
+    option (google.api.http) = {
+      post: "/v1/terminals/{terminal_id}:close"
+      body: "*"
+    };
+  }
+}
+
+// Terminal is a shell on a server.
+message Terminal {
+  // Its ID, such as "trm_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // The server it runs on.
+  string server_id = 2;
+  // Who it runs as and where, as a prompt says it, such as "root@hz-1".
+  string title = 3;
+  // When it opened.
+  google.protobuf.Timestamp open_time = 4;
+  // Its width, in characters.
+  uint32 columns = 5;
+  // Its height, in lines.
+  uint32 rows = 6;
+  // The container it runs in, by name, for a shell in a container.
+  string container = 7;
+}
+
+// OpenTerminalRequest names a server.
+message OpenTerminalRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The terminal's width, from 2 to 500 characters.
+  uint32 columns = 2;
+  // Its height, from 1 to 200 lines.
+  uint32 rows = 3;
+  // The proof from FinishStepUp, for opening a terminal on this server, as the
+  // target "srv_…", or in this container, as "srv_…:container". Call without it
+  // first: it checks everything else, then refuses with the reason needs_step_up
+  // where it takes one.
+  string proof = 4;
+  // A container on the server, by name or full ID, to open a shell in, in place of
+  // the server's own.
+  string container = 5;
+}
+
+// OpenTerminalResponse is the terminal, running.
+message OpenTerminalResponse {
+  Terminal terminal = 1;
+}
+
+// ListTerminalsRequest names a server.
+message ListTerminalsRequest {
+  // The server's ID.
+  string server_id = 1;
+}
+
+// ListTerminalsResponse is your open terminals there.
+message ListTerminalsResponse {
+  repeated Terminal terminals = 1;
+}
+
+// AttachTerminalRequest names a terminal, and where to read it from.
+message AttachTerminalRequest {
+  // The terminal's ID.
+  string terminal_id = 1;
+  // The first byte of what it printed to send: how much you have already, or 0
+  // for all the server still keeps.
+  uint64 offset = 2;
+  // The terminal's width now, to set it as the attachment starts. 0 leaves it.
+  uint32 columns = 3;
+  // Its height now. 0 leaves it.
+  uint32 rows = 4;
+}
+
+// AttachTerminalResponse is one message of an attachment: what the terminal
+// printed, a heartbeat, or how it ended.
+message AttachTerminalResponse {
+  // Where data starts, in all the terminal has printed. Past the offset asked
+  // for, or past the end of the last message, when the server no longer kept
+  // what came between, which is then lost.
+  uint64 offset = 1;
+  // What it printed, as the shell wrote it: bytes, not always whole characters.
+  bytes data = 2;
+  // How much of what's been typed the terminal has taken, on the first message,
+  // so a client sends again what it typed past that.
+  uint64 input_offset = 3;
+  // True on the first message, once the terminal is attached here.
+  bool attached = 4;
+  // True when this message says only that the attachment is still there.
+  bool heartbeat = 5;
+  // True when the terminal was attached from somewhere else, which ends this
+  // attachment. The terminal goes on.
+  bool moved = 6;
+  // How the terminal ended, on the last message. It ended for good.
+  TerminalEnd end = 7;
+}
+
+// TerminalEnd says how a terminal ended.
+message TerminalEnd {
+  // Why.
+  TerminalEndReason reason = 1;
+  // The shell's exit status, when it exited.
+  int32 exit_code = 2;
+  // When.
+  google.protobuf.Timestamp time = 3;
+  // What happened, for people, such as "The shell exited with code 0".
+  string message = 4;
+}
+
+// TerminalEndReason is why a terminal ended.
+enum TerminalEndReason {
+  TERMINAL_END_REASON_UNSPECIFIED = 0;
+  // The shell exited, as after exit or logout.
+  TERMINAL_END_REASON_EXITED = 1;
+  // Someone closed it, with CloseTerminal.
+  TERMINAL_END_REASON_CLOSED = 2;
+  // Nobody was attached to it for 10 minutes.
+  TERMINAL_END_REASON_DETACHED = 3;
+  // Nothing was typed into it for an hour.
+  TERMINAL_END_REASON_IDLE = 4;
+  // The session that opened it ended: signed out, revoked or past its limits.
+  TERMINAL_END_REASON_SIGNED_OUT = 5;
+  // Its server's agent restarted, and its shell with it.
+  TERMINAL_END_REASON_AGENT_RESTARTED = 6;
+  // The control plane restarted, and no longer knew it.
+  TERMINAL_END_REASON_CONTROL_PLANE_RESTARTED = 7;
+  // Its server was removed from Dockwell.
+  TERMINAL_END_REASON_SERVER_REMOVED = 8;
+  // Its server couldn't keep it going: what it reads or writes failed.
+  TERMINAL_END_REASON_FAILED = 9;
+}
+
+// WriteTerminalRequest is what's typed, and the terminal's size.
+message WriteTerminalRequest {
+  // The terminal's ID.
+  string terminal_id = 1;
+  // Where data starts in all that's been typed into the terminal.
+  uint64 offset = 2;
+  // What's typed, 64 KiB at most.
+  bytes data = 3;
+  // The terminal's width, to change it. 0 leaves it.
+  uint32 columns = 4;
+  // Its height, to change it. 0 leaves it.
+  uint32 rows = 5;
+}
+
+// WriteTerminalResponse says how much the terminal has taken.
+message WriteTerminalResponse {
+  // How much of what's been typed the terminal has taken, in all. Short of the
+  // write's end when it hadn't room for all of it.
+  uint64 offset = 1;
+}
+
+// CloseTerminalRequest names a terminal.
+message CloseTerminalRequest {
+  // The terminal's ID.
+  string terminal_id = 1;
+}
+
+// CloseTerminalResponse says how it ended.
+message CloseTerminalResponse {
+  TerminalEnd end = 1;
+}

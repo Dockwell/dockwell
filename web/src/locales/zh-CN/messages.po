@@ -347,6 +347,9 @@ msgstr "来源"
 msgid "Health"
 msgstr "健康"
 
+msgid "How it ended"
+msgstr "结束方式"
+
 msgid "Its check said"
 msgstr "检查结果"
 
@@ -374,11 +377,17 @@ msgstr "打开文件"
 msgid "Open the variables and secrets"
 msgstr "打开变量和密钥"
 
+msgid "Opened"
+msgstr "打开时间"
+
 msgid "Plan"
 msgstr "计划"
 
 msgid "Proposed by"
 msgstr "提议者"
+
+msgid "Ran as"
+msgstr "运行身份"
 
 msgid "Review plan"
 msgstr "审查计划"
@@ -400,6 +409,12 @@ msgstr "大小"
 
 msgid "State"
 msgstr "状态"
+
+msgid "Terminal"
+msgstr "终端"
+
+msgid "Times"
+msgstr "次数"
 
 msgid "Today"
 msgstr "今天"
@@ -428,6 +443,9 @@ msgstr "时间"
 msgid "Who"
 msgstr "执行者"
 
+msgid "Why"
+msgstr "原因"
+
 msgid "Why it failed"
 msgstr "失败原因"
 
@@ -443,6 +461,15 @@ msgstr "服务器筛选"
 msgid "{count, plural, one {{long} · # event} other {{long} · # events}}"
 msgstr "{count, plural, other {{long} · # 个事件}}"
 
+msgid "{count}, at {first}"
+msgstr "{count} 次，在 {first}"
+
+msgid "{count}, from {first} to {last}"
+msgstr "{count} 次，{first} 至 {last}"
+
+msgid "{times, plural, one {# time} other {# times}}"
+msgstr "{times, plural, other {# 次}}"
+
 msgid "CLI on {host}"
 msgstr "{host} 上的 CLI"
 
@@ -457,6 +484,12 @@ msgstr "某人"
 
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "无法从 {destination} 取回 {volume} 的备份"
+
+msgid "A scheduled task failed"
+msgstr "某个计划任务失败了"
+
+msgid "A scheduled task succeeded after a failure"
+msgstr "某个计划任务在失败后成功了"
 
 msgid "A service"
 msgstr "某个服务"
@@ -482,11 +515,23 @@ msgstr "用身份验证器验证码登录后添加了通行密钥 {name}"
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "应用 {change} 时要求验证通行密钥，但未收到"
 
+msgid "Asked for a passkey to open a shell in {container} on {server}, and none came"
+msgstr "在 {server} 上的 {container} 中打开 shell 时要求验证通行密钥，但未收到"
+
+msgid "Asked for a passkey to open a terminal on {server}, and none came"
+msgstr "在 {server} 上打开终端时要求验证通行密钥，但未收到"
+
 msgid "Asked for a passkey to save {path} on {server}, and none came"
 msgstr "保存 {server} 上的 {path} 时要求验证通行密钥，但未收到"
 
 msgid "Asked for a passkey to stop PID {pid} on {server}, and none came"
 msgstr "停止 {server} 上的 PID {pid} 时请求了通行密钥，但没有收到"
+
+msgid "Asked to run a scheduled task"
+msgstr "请求运行某个计划任务"
+
+msgid "Asked to run {task}"
+msgstr "请求运行 {task}"
 
 msgid "Backed up {volume}"
 msgstr "已备份 {volume}"
@@ -502,6 +547,24 @@ msgstr "清除了新计划的时区（原为 {previous}），新计划改用 UTC
 
 msgid "Cleared this install's name, which was {previous}"
 msgstr "清除了这个安装的名称（原为 {previous}）"
+
+msgid "Closed a shell in {container} on {server}"
+msgstr "关闭了 {server} 上 {container} 中的 shell"
+
+msgid "Closed a shell in {container} on {server}, open {open}"
+msgstr "关闭了 {server} 上 {container} 中的 shell，共打开 {open}"
+
+msgid "Closed a terminal on {server}"
+msgstr "关闭了 {server} 上的终端"
+
+msgid "Closed a terminal on {server}, open {open}"
+msgstr "关闭了 {server} 上的终端，共打开 {open}"
+
+msgid "Couldn't open a shell in {container} on {server}"
+msgstr "无法在 {server} 上的 {container} 中打开 shell"
+
+msgid "Couldn't open a terminal on {server}"
+msgstr "无法在 {server} 上打开终端"
 
 msgid "Couldn't open {path} on {server}"
 msgstr "无法打开 {server} 上的 {path}"
@@ -556,6 +619,15 @@ msgstr "将这个安装命名为 {value}（原为 {previous}）"
 
 msgid "Not running"
 msgstr "没有运行"
+
+msgid "Opened a shell in {container} on {server}"
+msgstr "在 {server} 上的 {container} 中打开了 shell"
+
+msgid "Opened a terminal on {server}"
+msgstr "在 {server} 上打开了终端"
+
+msgid "Opened a terminal on {server}, as {as}"
+msgstr "在 {server} 上以 {as} 打开了终端"
 
 msgid "Read {path} on {server}"
 msgstr "已读取 {server} 上的 {path}"
@@ -705,6 +777,12 @@ msgstr "{server} 加入了集群"
 
 msgid "{server} renewed its certificate"
 msgstr "{server} 更新了证书"
+
+msgid "{task} failed"
+msgstr "{task} 失败了"
+
+msgid "{task} succeeded after a failure"
+msgstr "{task} 在失败后成功了"
 
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
@@ -1669,8 +1747,16 @@ msgstr "现在无法确定 {name} 的运行情况。"
 msgid "Nothing checks it, so this only means it started."
 msgstr "没有任何检查，因此这只表示它已启动。"
 
+#. placeholder {0}: server.container
+#. placeholder {1}: server.serverName
+msgid "Open a shell in {0} on {1}"
+msgstr "在 {1} 上的 {0} 中打开 shell"
+
 msgid "Reading how it runs."
 msgstr "正在读取运行情况。"
+
+msgid "Shell"
+msgstr "Shell"
 
 msgid "Someone paused it, so it serves nothing and no check runs. Unpause it with {command}."
 msgstr "有人暂停了它，因此它不提供服务，也不会运行检查。请用 {command} 恢复。"
@@ -2731,8 +2817,8 @@ msgstr "{name} 还没有所有者"
 msgid "{browser} on {os}"
 msgstr "{os} 上的 {browser}"
 
-msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel."
-msgstr "API 令牌不能删除数据、切断访问、显示密钥、访问服务器上的文件或进程、重命名此安装，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
+msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, processes or terminal, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel."
+msgstr "API 令牌不能删除数据、切断访问、显示密钥、访问服务器上的文件、进程或终端、重命名此安装，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
 
 msgid "Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes."
 msgstr "添加通行密钥需要用你在此地址已有的通行密钥确认，而你在这里还没有。请退出登录，再用验证码、恢复码或 dockwell recover 给出的链接重新登录，然后在 10 分钟内添加。"
@@ -4137,6 +4223,9 @@ msgstr "它能访问服务器能访问的一切，绕过 Docker 网络和防火�
 msgid "It runs in privileged mode, which gives it every device and capability on the server."
 msgstr "它以特权模式运行，可使用服务器上的所有设备和能力。"
 
+msgid "It runs on its schedule, and whenever someone runs it now. Whatever it runs, it runs with everything root can do there."
+msgstr "它按计划运行，也会在有人立即运行时运行。无论运行什么，它都拥有 root 在那里的全部权限。"
+
 msgid "It runs through the Compose project {project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, 1Panel shows it in error, as it can't find the container. Leave that as it is: Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes {where}, which holds what this service mounts."
 msgstr "它通过 Compose 项目 {project} 运行。在 Dockwell 更换它的镜像之前，在 1Panel 中对它的任何操作都会作用于这个容器。更换之后，1Panel 会显示它出错，因为找不到这个容器。不要理会这个状态：在那里启动、重建、升级或编辑其设置都会启动第二个副本，使用相同的目录和相同的名称。无论何时都不要在 1Panel 中卸载它：那会删除 {where}，其中保存着此服务挂载的内容。"
 
@@ -4232,6 +4321,9 @@ msgstr "服务器的安全取决于它能访问的内容，所以这相当于拥
 
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 msgstr "修订版本 {revision} 运行的 {image}（{digest}）已不在服务器上，其镜像仓库也不提供，因此 {name} 将运行 {image} 当前指向的镜像"
+
+msgid "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
+msgstr "它们在 {name} 运行的环境中运行，因此在服务器上也能访问它能访问的内容：{list}。"
 
 msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 msgstr "这份备份创建时，该卷可访问 <0>{path}</0>，所以任何挂载它的内容都能读取恢复后的数据。"
@@ -4390,6 +4482,9 @@ msgstr "{name} 可访问 {server} 上的 {path}"
 msgid "{name} reaches {reach} on {server}"
 msgstr "{name} 可访问 {server} 上的 {reach}"
 
+msgid "{name} runs a shell command as root on {server}"
+msgstr "{name} 在 {server} 上以 root 身份运行 shell 命令"
+
 msgid "{name} runs with the latest value of {names}"
 msgstr "{name} 使用 {names} 的最新值运行"
 
@@ -4410,6 +4505,9 @@ msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后�
 
 msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
 msgstr "{name} 的发布顺序设置为先启动，因此在此过程中新旧容器都会写入那里，这可能损坏数据库。只有在应用能够承受时才应用此计划。"
+
+msgid "{name}'s scheduled tasks get the same reach"
+msgstr "{name} 的计划任务获得同样的访问范围"
 
 msgid "{name}'s tmpfs at {target} has no size"
 msgstr "{name} 的 tmpfs({target})没有设置大小"
@@ -4802,6 +4900,9 @@ msgstr "前面的代理访问 {where} 会得到 404，因此访问者会看到�
 
 msgid "a backup of a volume that reached {path}, which can hold what's there, as good as root"
 msgstr "一个曾可访问 {path} 的卷的备份，可能含有那里的内容，相当于拥有 root"
+
+msgid "a shell command on the server, which runs as root"
+msgstr "服务器上的 shell 命令，以 root 身份运行"
 
 msgid "a {driver} network"
 msgstr "一个 {driver} 网络"
@@ -5294,7 +5395,7 @@ msgid "In a volume Dockwell didn't make"
 msgstr "在非 Dockwell 创建的卷中"
 
 msgid "Last run"
-msgstr "最近一次"
+msgstr "最近运行"
 
 msgid "Loading the databases"
 msgstr "正在加载数据库"
@@ -6289,6 +6390,9 @@ msgstr "创建时间"
 msgid "Name as a service"
 msgstr "服务名称"
 
+msgid "Open a shell"
+msgstr "打开 shell"
+
 msgid "Plan taking it on"
 msgstr "计划接管"
 
@@ -6581,6 +6685,7 @@ msgstr "{used} / {total}"
 
 #. placeholder {0}: g.owner.name
 #. placeholder {0}: owner.name
+#. placeholder {0}: spec.runs.value.service
 msgid "App {0}"
 msgstr "应用 {0}"
 
@@ -8019,6 +8124,12 @@ msgstr "已通过恢复码登录"
 msgid "Signed out"
 msgstr "已退出登录"
 
+msgid "Started opening a terminal"
+msgstr "开始打开终端"
+
+msgid "Started opening a terminal on {name}"
+msgstr "开始在 {name} 上打开终端"
+
 msgid "Stopped sign-in with codes after too many wrong ones"
 msgstr "错误次数过多，已停止使用验证码登录"
 
@@ -8243,6 +8354,615 @@ msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务�
 
 msgid "Unreachable"
 msgstr "无法访问"
+
+msgid "All runs"
+msgstr "全部运行"
+
+msgid "Edit"
+msgstr "编辑"
+
+msgid "Enabled"
+msgstr "已启用"
+
+#. placeholder {0}: last.httpStatus
+msgid "HTTP {0}"
+msgstr "HTTP {0}"
+
+msgid "It didn't run"
+msgstr "未能运行"
+
+msgid "It hasn't run yet. Run it now to see what it does."
+msgstr "它还没有运行过。立即运行一次，看看它会做什么。"
+
+msgid "It printed nothing."
+msgstr "没有任何输出。"
+
+msgid "It runs on its schedule all the same, and its runs show here once the server is back."
+msgstr "它仍会按计划运行，服务器重新连接后，运行记录会显示在这里。"
+
+msgid "Its server isn't connected"
+msgstr "它的服务器未连接"
+
+msgid "Last output"
+msgstr "最近输出"
+
+msgid "Last runs, oldest first"
+msgstr "最近的运行，最早的在前"
+
+msgid "Request"
+msgstr "请求"
+
+msgid "Run it now on"
+msgstr "立即运行于"
+
+msgid "Run now"
+msgstr "立即运行"
+
+msgid "Runs in"
+msgstr "运行于"
+
+msgid "Schedule"
+msgstr "计划"
+
+msgid "Timeout"
+msgstr "超时"
+
+#. placeholder {0}: newest.outputCutBytes
+msgid "What it printed before this, {0} bytes, wasn't kept."
+msgstr "在此之前输出的 {0} 字节没有保留。"
+
+#. placeholder {0}: last.exitCode
+msgid "exit {0}"
+msgstr "退出码 {0}"
+
+msgid "stopped"
+msgstr "已停止"
+
+#. placeholder {0}: runs.length
+msgid "{0, plural, one {Last run} other {Last # runs}}"
+msgstr "{0, plural, one {最近一次运行} other {最近 # 次运行}}"
+
+#. placeholder {0}: day(lastBad)
+#. placeholder {1}: words.state(lastBad.state).toLowerCase()
+#. placeholder {2}: words.why(lastBad, task, time.span)
+msgid "{0} {1}: {2}"
+msgstr "{0} {1}：{2}"
+
+msgid "{bad, plural, one {# failed} other {# failed}}"
+msgstr "{bad, plural, other {# 次失败}}"
+
+msgid "{good} succeeded"
+msgstr "{good} 次成功"
+
+msgid "{retries, plural, one {{timeout}, then retry once} other {{timeout}, then retry # times}}"
+msgstr "{retries, plural, other {{timeout}，之后重试 # 次}}"
+
+msgid "Another, in cron"
+msgstr "其他，用 cron 表示"
+
+msgid "Any 2xx when empty."
+msgstr "留空时接受任意 2xx。"
+
+msgid "Change the task {resourceName}"
+msgstr "修改任务 {resourceName}"
+
+msgid "Choose the app it runs in."
+msgstr "请选择它运行所在的应用。"
+
+msgid "Command in an app"
+msgstr "应用中的命令"
+
+msgid "Delete the task {resourceName}"
+msgstr "删除任务 {resourceName}"
+
+#. placeholder {0}: display || resourceName
+msgid "Edit {0}"
+msgstr "编辑 {0}"
+
+msgid "Folder it runs in"
+msgstr "运行目录"
+
+msgid "HTTP request"
+msgstr "HTTP 请求"
+
+msgid "If a run fails"
+msgstr "运行失败时"
+
+msgid "In an app"
+msgstr "应用中"
+
+msgid "In cron"
+msgstr "cron 表达式"
+
+msgid "It runs in a container of the app's image, with its environment, after its entrypoint. Name sh -c for a shell."
+msgstr "它在应用镜像的容器中运行，带有应用的环境变量，在入口点之后执行。需要 shell 时请写 sh -c。"
+
+msgid "It runs on its server's own clock, and every change to it is a plan"
+msgstr "它按服务器自己的时钟运行，每次修改都是一个计划"
+
+msgid "It runs only when you run it now."
+msgstr "只有在你立即运行时才会运行。"
+
+msgid "It runs with /bin/sh on the server, as root, so applying it takes your passkey."
+msgstr "它在服务器上以 root 身份用 /bin/sh 运行，因此应用时需要你的通行密钥。"
+
+msgid "Its schedule reads in this zone, whatever each server's clock is set to."
+msgstr "无论各服务器的时钟如何设置，它的计划都按这个时区计算。"
+
+msgid "Leave it"
+msgstr "不处理"
+
+msgid "Method"
+msgstr "方法"
+
+msgid "Minute, hour, day of the month, month and day of the week, in its time zone."
+msgstr "分钟、小时、日、月和星期，按它的时区计算。"
+
+msgid "New task"
+msgstr "新建任务"
+
+msgid "Nightly sales report"
+msgstr "每晚销售报表"
+
+msgid "Otherwise one runs as the server comes back, however many were missed."
+msgstr "否则在服务器恢复时补跑一次，无论错过了多少次。"
+
+#. placeholder {0}: display.trim() || resourceName
+msgid "Run {0} on a schedule"
+msgstr "按计划运行 {0}"
+
+msgid "Say what it runs."
+msgstr "请说明它运行什么。"
+
+msgid "Server it runs on"
+msgstr "运行它的服务器"
+
+msgid "Shell command"
+msgstr "Shell 命令"
+
+msgid "Skip runs missed while the server was off"
+msgstr "跳过服务器关机期间错过的运行"
+
+msgid "Status it expects"
+msgstr "预期状态码"
+
+msgid "The install's"
+msgstr "安装的时区"
+
+#. placeholder {0}: scheduleZone.zone
+msgid "The install's, {0}"
+msgstr "安装的时区：{0}"
+
+msgid "The server asks it, so it reaches what the server reaches. A run keeps the status and how long it took, never what came back."
+msgstr "由服务器发出请求，因此能访问服务器能访问的地址。每次运行只保留状态码和耗时，从不保留返回内容。"
+
+msgid "Timeout, in minutes"
+msgstr "超时（分钟）"
+
+msgid "Try once more, a minute later"
+msgstr "一分钟后再试一次"
+
+msgid "Try three times more"
+msgstr "再试三次"
+
+msgid "Try twice more"
+msgstr "再试两次"
+
+msgid "URL"
+msgstr "URL"
+
+msgid "UTC, as the install has none set"
+msgstr "UTC（安装未设置时区）"
+
+msgid "Use 1 to 1,440 minutes."
+msgstr "请使用 1 到 1,440 分钟。"
+
+msgid "Use a URL that starts with http:// or https://."
+msgstr "请使用以 http:// 或 https:// 开头的 URL。"
+
+msgid "Use an HTTP status from 100 to 599, or leave it empty for any 2xx."
+msgstr "请使用 100 到 599 之间的 HTTP 状态码，或留空以接受任意 2xx。"
+
+msgid "Use cron's five fields, such as 0 4 * * *."
+msgstr "请使用 cron 的五个字段，例如 0 4 * * *。"
+
+msgid "Use lowercase letters, digits and hyphens, such as nightly-report."
+msgstr "请使用小写字母、数字和连字符，例如 nightly-report。"
+
+msgid "What it runs"
+msgstr "运行内容"
+
+msgid "What people call it"
+msgstr "显示名称"
+
+#. placeholder {0}: task.servers.map((s) => s.serverName).join(", ")
+msgid "Where it runs now: {0}"
+msgstr "当前运行位置：{0}"
+
+msgid "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
+msgstr "任务按服务器自己的时钟运行，控制平面不在时也会照常运行。每次运行都会保留输出，失败的运行会出现在动态中。"
+
+msgid "All tasks"
+msgstr "全部任务"
+
+msgid "Dockwell can't read its scheduled tasks"
+msgstr "Dockwell 无法读取计划任务"
+
+msgid "Next 24 hours"
+msgstr "接下来 24 小时"
+
+#. placeholder {0}: nameOf(next.task)
+#. placeholder {1}: words.until(next.at, now)
+msgid "Next: {0} {1}"
+msgstr "下一个：{0}，{1}"
+
+msgid "No scheduled tasks yet"
+msgstr "还没有计划任务"
+
+msgid "Not scheduled"
+msgstr "未安排"
+
+msgid "Not yet"
+msgstr "尚未运行"
+
+msgid "On its own schedule"
+msgstr "按自定义计划"
+
+msgid "Run a shell command, a command in an app or an HTTP request on a schedule"
+msgstr "按计划运行 shell 命令、应用中的命令或 HTTP 请求"
+
+msgid "Task"
+msgstr "任务"
+
+msgid "no failures in the last 24 h"
+msgstr "过去 24 小时没有失败"
+
+#. placeholder {0}: away.length
+msgid "{0, plural, one {# server isn't connected} other {# servers aren't connected}}"
+msgstr "{0, plural, other {# 台服务器未连接}}"
+
+#. placeholder {0}: away.join(", ")
+msgid "{0} runs its tasks all the same, on its own clock. Its runs show here once it's back."
+msgstr "{0} 仍会按自己的时钟照常运行任务。它重新连接后，运行记录会显示在这里。"
+
+msgid "{count, plural, one {# task on {where}} other {# tasks on {where}}}"
+msgstr "{count, plural, other {{where} 上有 # 个任务}}"
+
+msgid "{failedLately, plural, one {# failed in the last 24 h} other {# failed in the last 24 h}}"
+msgstr "{failedLately, plural, other {过去 24 小时有 # 次失败}}"
+
+msgid "{from} to {to}"
+msgstr "{from} 至 {to}"
+
+msgid "{runs, plural, one {# run} other {# runs}}"
+msgstr "{runs, plural, other {# 次运行}}"
+
+msgid "Command in {app}"
+msgstr "{app} 中的命令"
+
+msgid "Didn't start"
+msgstr "未能启动"
+
+msgid "Every day at {at}"
+msgstr "每天 {at}"
+
+msgid "Every hour"
+msgstr "每小时"
+
+msgid "Every hour at {at}"
+msgstr "每小时的 {at}"
+
+msgid "Every minute"
+msgstr "每分钟"
+
+msgid "Every weekday at {at}"
+msgstr "每个工作日 {at}"
+
+msgid "Every year on {on} at {at}"
+msgstr "每年 {on} {at}"
+
+msgid "Every {count} hours"
+msgstr "每 {count} 小时"
+
+msgid "Every {count} hours at {at}"
+msgstr "每 {count} 小时的 {at}"
+
+msgid "Every {count} minutes"
+msgstr "每 {count} 分钟"
+
+msgid "Every {day} at {at}"
+msgstr "每{day} {at}"
+
+msgid "Interrupted"
+msgstr "已中断"
+
+msgid "It took longer than its timeout, {limit}, and was stopped."
+msgstr "它超过了超时时间 {limit}，已被停止。"
+
+msgid "On day {date} of every month at {at}"
+msgstr "每月 {date} 日 {at}"
+
+msgid "Something it started still holds its output, and runs on after it."
+msgstr "它启动的进程仍占用着它的输出，并在它结束后继续运行。"
+
+msgid "Succeeded"
+msgstr "成功"
+
+msgid "The agent stopped while it ran."
+msgstr "它运行时代理已停止。"
+
+msgid "Timed out"
+msgstr "超时"
+
+msgid "Today {time}"
+msgstr "今天 {time}"
+
+msgid "Tomorrow {time}"
+msgstr "明天 {time}"
+
+msgid "Trying again, {i} of {retries}."
+msgstr "重试，第 {i} 次，共 {retries} 次。"
+
+msgid "Yesterday {time}"
+msgstr "昨天 {time}"
+
+msgid "in {count} days"
+msgstr "{count} 天后"
+
+msgid "in {count} h"
+msgstr "{count} 小时后"
+
+msgid "in {count} min"
+msgstr "{count} 分钟后"
+
+msgid "it answered {status}, and the task expects a 2xx"
+msgstr "它返回了 {status}，而任务期望 2xx"
+
+msgid "it answered {status}, and the task expects {expected}"
+msgstr "它返回了 {status}，而任务期望 {expected}"
+
+msgid "it exited with {code}"
+msgstr "它以退出码 {code} 退出"
+
+msgid "it took longer than its timeout, {limit}"
+msgstr "它超过了超时时间 {limit}"
+
+msgid "the agent stopped while it ran"
+msgstr "它运行时代理已停止"
+
+msgid "{count, plural, one {Its schedule came round once while it ran, which ran nothing, as its runs never overlap.} other {Its schedule came round # times while it ran, which ran nothing, as its runs never overlap.}}"
+msgstr "{count, plural, other {它运行期间计划又到了 # 次，但没有运行，因为同一任务的运行从不重叠。}}"
+
+msgid "{count} ms"
+msgstr "{count} 毫秒"
+
+msgid "{method} {url} answered {status} in {took}, {bytes} bytes."
+msgstr "{method} {url} 在 {took} 内返回 {status}，共 {bytes} 字节。"
+
+msgid "{method} {url} didn't answer."
+msgstr "{method} {url} 没有响应。"
+
+msgid "{said}, {zone} time"
+msgstr "{said}（{zone} 时间）"
+
+msgid "Control"
+msgstr "Control 键"
+
+msgid "Ctrl"
+msgstr "Ctrl"
+
+msgid "Down arrow"
+msgstr "下箭头"
+
+msgid "Esc"
+msgstr "Esc"
+
+msgid "Escape"
+msgstr "Esc 键"
+
+msgid "Left arrow"
+msgstr "左箭头"
+
+msgid "Paste"
+msgstr "粘贴"
+
+msgid "Pipe"
+msgstr "竖线"
+
+msgid "Right arrow"
+msgstr "右箭头"
+
+msgid "Tab"
+msgstr "Tab"
+
+msgid "Terminal keys, scroll for more"
+msgstr "终端按键，滑动查看更多"
+
+msgid "Text size"
+msgstr "文字大小"
+
+msgid "Tilde"
+msgstr "波浪号"
+
+msgid "Up arrow"
+msgstr "上箭头"
+
+#. placeholder {0}: asking.container
+#. placeholder {1}: server.name
+msgid "<0>{0}</0> reaches as far as root on <1>{1}</1>: it's privileged, holds Docker's socket, shares the server's network, or mounts a system path, through a volume or a link too. A shell in it is as good as root there, so it takes your passkey."
+msgstr "<0>{0}</0> 在 <1>{1}</1> 上可达 root 权限：它是特权容器、持有 Docker 的套接字、共享服务器的网络，或挂载了系统路径（包括通过卷或链接）。在其中打开的 shell 等同于那里的 root，所以需要你的通行密钥。"
+
+#. placeholder {0}: server.name
+msgid "A shell in <0>{wanted}</0> runs in the container, as its own user, with the first of bash, ash and sh its image has. One in a container that reaches as far as root on <1>{0}</1> asks for your passkey."
+msgstr "<0>{wanted}</0> 中的 shell 在容器内以容器自己的用户运行，使用镜像中 bash、ash、sh 里找到的第一个。如果容器在 <1>{0}</1> 上的权限相当于 root，打开时会要求验证你的通行密钥。"
+
+#. placeholder {0}: server.name
+msgid "A terminal here is a root shell on <0>{0}</0>, through its agent, so it needs no SSH port. Opening one asks for your passkey."
+msgstr "这里的终端是 <0>{0}</0> 上的 root shell，通过它的代理连接，所以无需 SSH 端口。打开终端时会要求验证你的通行密钥。"
+
+msgid "Another tab or window attached to it, so what you type there goes to it. It goes on running."
+msgstr "另一个标签页或窗口连接了它，所以你在那里输入的内容会发送给它。它会继续运行。"
+
+msgid "Can't reach the terminal"
+msgstr "无法连接终端"
+
+msgid "Can't reach this terminal"
+msgstr "无法连接这个终端"
+
+msgid "Clear scrollback"
+msgstr "清空回滚记录"
+
+msgid "Close terminal"
+msgstr "关闭终端"
+
+msgid "Close this tab"
+msgstr "关闭这个标签"
+
+msgid "Confirm with your passkey"
+msgstr "用通行密钥确认"
+
+msgid "Connected through the agent"
+msgstr "已通过代理连接"
+
+msgid "Connecting through the agent"
+msgstr "正在通过代理连接"
+
+msgid "Copy selection"
+msgstr "复制所选内容"
+
+msgid "Ended"
+msgstr "已结束"
+
+msgid "Find in scrollback"
+msgstr "在回滚记录中查找"
+
+msgid "Find the one after"
+msgstr "查找下一个"
+
+msgid "Find the one before"
+msgstr "查找上一个"
+
+msgid "New session"
+msgstr "新会话"
+
+msgid "No shell open in <0>{wanted}</0>"
+msgstr "<0>{wanted}</0> 中没有打开的 shell"
+
+msgid "No terminal open"
+msgstr "没有打开的终端"
+
+msgid "No terminal opened"
+msgstr "没有打开终端"
+
+msgid "Not in what it keeps"
+msgstr "保留的记录中没有找到"
+
+msgid "Open a new terminal"
+msgstr "打开新终端"
+
+msgid "Open a terminal"
+msgstr "打开终端"
+
+msgid "Open somewhere else"
+msgstr "已在别处打开"
+
+msgid "Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
+msgstr "打开终端需要通行密钥，而你在这个地址上没有。请在“个人资料和安全”中添加一个，或通过 SSH 连接到 {name}。"
+
+msgid "Select text in the terminal to copy it"
+msgstr "在终端中选中文字即可复制"
+
+msgid "Session options"
+msgstr "会话选项"
+
+msgid "Show it here"
+msgstr "在这里显示"
+
+msgid "Stop finding"
+msgstr "停止查找"
+
+msgid "Terminal sessions"
+msgstr "终端会话"
+
+msgid "The passkey prompt closed, so no terminal opened. Open one when you're ready."
+msgstr "通行密钥提示已关闭，所以没有打开终端。准备好后再打开。"
+
+msgid "This shell takes your passkey"
+msgstr "这个 shell 需要你的通行密钥"
+
+msgid "This terminal is open somewhere else"
+msgstr "这个终端已在别处打开"
+
+msgid "Through the agent"
+msgstr "通过代理"
+
+msgid "what you type waits"
+msgstr "你输入的内容会等待发送"
+
+#. placeholder {0}: names.get(tab.id) ?? tab.title
+msgid "{0} output"
+msgstr "{0} 的输出"
+
+msgid "{inContainer} reaches as far as root on {name}, so a shell in it takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
+msgstr "{inContainer} 在 {name} 上的权限相当于 root，所以在其中打开 shell 需要通行密钥，而你在这个地址上没有。请在“个人资料和安全”中添加一个，或通过 SSH 连接到 {name}。"
+
+msgid "{title} · through the agent"
+msgstr "{title} · 通过代理"
+
+msgid "· no SSH port needed · opening it is on <0>Activity</0>, what you type isn't"
+msgstr "· 无需 SSH 端口 · 打开它会记入<0>动态</0>，你输入的内容不会"
+
+#. placeholder {0}: formatBytes(lost, i18n.locale)
+msgid "· {0} it printed while you were away is gone"
+msgstr "· 你离开期间输出的 {0} 已丢失"
+
+msgid "It ended while this page wasn't attached to it."
+msgstr "它在这个页面未连接时结束了。"
+
+msgid "It exited with code 0."
+msgstr "它以代码 0 退出。"
+
+msgid "It exited with code {code}."
+msgstr "它以代码 {code} 退出。"
+
+msgid "Its server was removed from Dockwell."
+msgstr "它所在的服务器已从 Dockwell 中移除。"
+
+msgid "Its shell hung up, as an SSH session does."
+msgstr "它的 shell 已挂断，与 SSH 会话结束时一样。"
+
+msgid "Nobody was connected to it for 10 minutes, so its shell hung up."
+msgstr "10 分钟内没有人连接它，所以它的 shell 已挂断。"
+
+msgid "Nothing was typed into it for an hour, so its shell hung up, rather than leave a root shell open."
+msgstr "一小时内没有输入任何内容，所以它的 shell 已挂断，以免 root shell 一直开着。"
+
+msgid "Nothing was typed into it for an hour, so its shell hung up, rather than leave it open."
+msgstr "一小时内没有任何输入，所以它的 shell 已挂断，而不是一直开着。"
+
+msgid "The control plane restarted."
+msgstr "控制平面已重启。"
+
+msgid "The server's agent restarted, and its shell with it."
+msgstr "服务器的代理已重启，它的 shell 也随之结束。"
+
+msgid "The session that opened it ended."
+msgstr "打开它的会话已结束。"
+
+msgid "The shell exited"
+msgstr "shell 已退出"
+
+msgid "This terminal closed"
+msgstr "这个终端已关闭"
+
+msgid "This terminal has ended"
+msgstr "这个终端已结束"
+
+msgid "This terminal stopped"
+msgstr "这个终端已停止"
+
+msgid "This terminal was closed"
+msgstr "这个终端已被关闭"
 
 msgid "Agent and control plane"
 msgstr "代理与控制平面"
@@ -9066,9 +9786,6 @@ msgstr "Web 服务器以 nobody 用户读取该文件夹，而 <0>{path}</0> 的
 
 msgid "There's no <0>{first}</0> in <1>{path}</1>, so its address answers 404 until there is. Add one, or name the index the site has."
 msgstr "<1>{path}</1> 中没有 <0>{first}</0>，所以在添加之前访问它会返回 404。请添加一个，或填写网站已有的首页文件。"
-
-msgid "URL"
-msgstr "URL"
 
 msgid "Upload limit"
 msgstr "上传上限"

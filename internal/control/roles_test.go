@@ -173,8 +173,8 @@ func TestARoleGatesEveryCall(t *testing.T) {
 // session or token, and ends once the role, or a token's maker's, is gone. So a
 // removed person's streams don't outlive their grants (ADR 0048).
 func TestAStreamEndsWithItsRole(t *testing.T) {
-	streamRecheck = 50 * time.Millisecond
-	t.Cleanup(func() { streamRecheck = 0 })
+	testRecheck = 50 * time.Millisecond
+	t.Cleanup(func() { testRecheck = 0 })
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

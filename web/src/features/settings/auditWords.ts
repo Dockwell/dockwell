@@ -74,6 +74,8 @@ export function useAuditWords(): (event: AuditEvent) => Said {
             return { title: name ? t`Read a container's logs on ${name}` : t`Read a container's logs` };
           }
           return { title: name ? t`Read the logs of ${name}` : t`Read logs` };
+        case "terminal.opening":
+          return { title: name ? t`Started opening a terminal on ${name}` : t`Started opening a terminal` };
         case "recovery_code.use":
           return { title: t`Signed in with a recovery code`, tone: "warning" };
         case "file.saving": {

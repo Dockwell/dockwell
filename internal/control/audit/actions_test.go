@@ -350,6 +350,9 @@ func (s *scanner) sink(f *fn, e ast.Expr, last bool) {
 		s.helpers[key][param] = true
 	case last:
 		for _, v := range vals {
+			if v == "" && guardedNonempty(f.decl, e) {
+				continue
+			}
 			if !actionLike.MatchString(v) {
 				s.problems = append(s.problems, fmt.Sprintf("%s: %q isn't an action, a noun, a dot and a verb", s.fset.Position(e.Pos()), v))
 				continue
@@ -391,6 +394,7 @@ func (s *scanner) resolve(f *fn, e ast.Expr, seen map[string]bool) (vals []strin
 		if id, isIdent := v.Fun.(*ast.Ident); isIdent && id.Name == "string" && len(v.Args) == 1 {
 			return s.resolve(f, v.Args[0], seen)
 		}
+		return s.returned(f, v, 0, seen)
 	case *ast.BinaryExpr:
 		if v.Op != token.ADD {
 			return nil, -1, false
@@ -418,11 +422,27 @@ func (s *scanner) resolve(f *fn, e ast.Expr, seen map[string]bool) (vals []strin
 		return s.global(&fn{src: &source{pkg: pkg, imports: s.importsOf(pkg)}}, v.Sel.Name, seen)
 	case *ast.Ident:
 		if i, isParam := params(f.decl)[v.Name]; isParam {
+			if len(locals(f.decl, v.Name)) > 0 {
+				return nil, -1, false
+			}
 			return nil, i, true
 		}
 		if assigned := locals(f.decl, v.Name); len(assigned) > 0 {
+			key := fmt.Sprintf("local:%d:%s", f.decl.Pos(), v.Name)
+			if seen[key] {
+				return nil, -1, false
+			}
+			seen[key] = true
+			defer delete(seen, key)
 			for _, rhs := range assigned {
-				got, p, ok := s.resolve(f, rhs, seen)
+				var got []string
+				var p int
+				var ok bool
+				if call, isCall := rhs.expr.(*ast.CallExpr); rhs.result >= 0 && isCall {
+					got, p, ok = s.returned(f, call, rhs.result, seen)
+				} else {
+					got, p, ok = s.resolve(f, rhs.expr, seen)
+				}
 				if !ok || p >= 0 {
 					return nil, -1, false
 				}
@@ -435,6 +455,67 @@ func (s *scanner) resolve(f *fn, e ast.Expr, seen map[string]bool) (vals []strin
 	return nil, -1, false
 }
 
+// returned follows one result of a known function, binding its parameters to
+// this call's arguments. A nested function's returns belong to that function.
+func (s *scanner) returned(caller *fn, call *ast.CallExpr, result int, seen map[string]bool) ([]string, int, bool) {
+	functions := s.funcs[s.callee(caller.src, call)]
+	if len(functions) == 0 {
+		return nil, -1, false
+	}
+	var vals []string
+	param := -1
+	for _, f := range functions {
+		key := fmt.Sprintf("return:%d:%d", f.decl.Pos(), result)
+		if f.decl.Body == nil || seen[key] {
+			return nil, -1, false
+		}
+		seen[key] = true
+		var returns []*ast.ReturnStmt
+		ast.Inspect(f.decl.Body, func(n ast.Node) bool {
+			switch v := n.(type) {
+			case *ast.FuncLit:
+				return false
+			case *ast.ReturnStmt:
+				returns = append(returns, v)
+			}
+			return true
+		})
+		if len(returns) == 0 {
+			delete(seen, key)
+			return nil, -1, false
+		}
+		for _, ret := range returns {
+			var got []string
+			var p int
+			var ok bool
+			if len(ret.Results) == 1 && result > 0 {
+				if next, isCall := ret.Results[0].(*ast.CallExpr); isCall {
+					got, p, ok = s.returned(f, next, result, seen)
+				}
+			} else if result < len(ret.Results) {
+				got, p, ok = s.resolve(f, ret.Results[result], seen)
+			}
+			if ok && p >= 0 {
+				if p < len(call.Args) {
+					got, p, ok = s.resolve(caller, call.Args[p], seen)
+				} else {
+					ok = false
+				}
+			}
+			if !ok || p >= 0 && (len(vals) > 0 || param >= 0 && param != p) || p < 0 && param >= 0 {
+				delete(seen, key)
+				return nil, -1, false
+			}
+			vals = append(vals, got...)
+			if p >= 0 {
+				param = p
+			}
+		}
+		delete(seen, key)
+	}
+	return vals, param, true
+}
+
 // global resolves a package-level constant or variable of f's package.
 func (s *scanner) global(f *fn, name string, seen map[string]bool) ([]string, int, bool) {
 	key := f.src.pkg + "." + name
@@ -443,6 +524,7 @@ func (s *scanner) global(f *fn, name string, seen map[string]bool) ([]string, in
 		return nil, -1, false
 	}
 	seen[key] = true
+	defer delete(seen, key)
 	var vals []string
 	at := &fn{src: f.src, decl: &ast.FuncDecl{Name: ast.NewIdent(""), Type: &ast.FuncType{Params: &ast.FieldList{}}}}
 	for _, e := range exprs {
@@ -486,33 +568,179 @@ func params(d *ast.FuncDecl) map[string]int {
 	return out
 }
 
+// localValue selects an expression, or one result of a multi-result call.
+type localValue struct {
+	expr   ast.Expr
+	result int // -1 for a single expression
+}
+
 // locals are what a function assigns to a local variable, where it says.
-func locals(d *ast.FuncDecl, name string) []ast.Expr {
-	var out []ast.Expr
+func locals(d *ast.FuncDecl, name string) []localValue {
+	var out []localValue
 	if d.Body == nil {
 		return nil
+	}
+	add := func(i, count int, rhs []ast.Expr) {
+		if len(rhs) == count {
+			out = append(out, localValue{expr: rhs[i], result: -1})
+		} else if len(rhs) == 1 {
+			if call, ok := rhs[0].(*ast.CallExpr); ok {
+				out = append(out, localValue{expr: call, result: i})
+			}
+		}
 	}
 	ast.Inspect(d.Body, func(n ast.Node) bool {
 		switch v := n.(type) {
 		case *ast.AssignStmt:
-			if len(v.Lhs) != len(v.Rhs) {
-				return true
-			}
 			for i, lhs := range v.Lhs {
 				if id, ok := lhs.(*ast.Ident); ok && id.Name == name {
-					out = append(out, v.Rhs[i])
+					add(i, len(v.Lhs), v.Rhs)
 				}
 			}
 		case *ast.ValueSpec:
 			for i, n := range v.Names {
-				if n.Name == name && i < len(v.Values) {
-					out = append(out, v.Values[i])
+				if n.Name == name {
+					add(i, len(v.Names), v.Values)
 				}
 			}
 		}
 		return true
 	})
 	return out
+}
+
+// guardedNonempty recognizes an early return in the same block as a local's
+// declaration and use. Only an OR (or the equality alone) guarantees that empty
+// always returns. Assignments, aliases, closures and jumps can invalidate it.
+func guardedNonempty(d *ast.FuncDecl, e ast.Expr) bool {
+	id, ok := ast.Unparen(e).(*ast.Ident)
+	if !ok {
+		return false
+	}
+	var block *ast.BlockStmt
+	body := d.Body
+	ast.Inspect(d.Body, func(n ast.Node) bool {
+		if n == nil || n.Pos() > e.Pos() || n.End() < e.End() {
+			return false
+		}
+		if b, ok := n.(*ast.BlockStmt); ok {
+			block = b
+		}
+		if f, ok := n.(*ast.FuncLit); ok {
+			body = f.Body
+		}
+		return true
+	})
+	if block == nil {
+		return false
+	}
+	indirect := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch v := n.(type) {
+		case *ast.BranchStmt:
+			indirect = indirect || v.Tok == token.GOTO
+		case *ast.UnaryExpr:
+			indirect = indirect || v.Op == token.AND && sameLocal(v.X, id)
+		case *ast.FuncLit:
+			indirect = indirect || assignsBefore(v.Body, id, v.End())
+			return false
+		}
+		return !indirect
+	})
+	if indirect {
+		return false
+	}
+	local := false
+	guarded := false
+	for _, stmt := range block.List {
+		if stmt.Pos() >= e.Pos() {
+			break
+		}
+		if assignsBefore(stmt, id, e.Pos()) {
+			guarded = false
+		}
+		if stmt.End() >= e.Pos() {
+			break
+		}
+		local = local || declaresLocal(stmt, id)
+		guard, ok := stmt.(*ast.IfStmt)
+		if !ok || guard.Init != nil || guard.Else != nil || len(guard.Body.List) == 0 || !trueWhenEmpty(guard.Cond, id) {
+			continue
+		}
+		_, returns := guard.Body.List[len(guard.Body.List)-1].(*ast.ReturnStmt)
+		if returns && !assignsBefore(guard.Cond, id, e.Pos()) {
+			guarded = true
+		}
+	}
+	return local && guarded
+}
+
+func declaresLocal(stmt ast.Stmt, id *ast.Ident) bool {
+	switch v := stmt.(type) {
+	case *ast.AssignStmt:
+		if v.Tok == token.DEFINE {
+			return slices.ContainsFunc(v.Lhs, func(e ast.Expr) bool { return sameLocal(e, id) })
+		}
+	case *ast.DeclStmt:
+		if decl, ok := v.Decl.(*ast.GenDecl); ok && decl.Tok == token.VAR {
+			for _, spec := range decl.Specs {
+				if value, ok := spec.(*ast.ValueSpec); ok && slices.ContainsFunc(value.Names, func(n *ast.Ident) bool { return sameLocal(n, id) }) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func sameLocal(e ast.Expr, id *ast.Ident) bool {
+	other, ok := ast.Unparen(e).(*ast.Ident)
+	return ok && other.Name == id.Name
+}
+
+func trueWhenEmpty(e ast.Expr, id *ast.Ident) bool {
+	b, ok := ast.Unparen(e).(*ast.BinaryExpr)
+	if !ok {
+		return false
+	}
+	if b.Op == token.LOR {
+		return trueWhenEmpty(b.X, id) || trueWhenEmpty(b.Y, id)
+	}
+	if b.Op != token.EQL {
+		return false
+	}
+	isEmpty := func(e ast.Expr) bool {
+		lit, ok := ast.Unparen(e).(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return false
+		}
+		str, err := strconv.Unquote(lit.Value)
+		return err == nil && str == ""
+	}
+	return sameLocal(b.X, id) && isEmpty(b.Y) || sameLocal(b.Y, id) && isEmpty(b.X)
+}
+
+func assignsBefore(n ast.Node, id *ast.Ident, before token.Pos) bool {
+	assigned := false
+	ast.Inspect(n, func(n ast.Node) bool {
+		if n == nil || n.Pos() >= before {
+			return false
+		}
+		switch v := n.(type) {
+		case *ast.AssignStmt:
+			for _, lhs := range v.Lhs {
+				assigned = assigned || sameLocal(lhs, id)
+			}
+		case *ast.ValueSpec:
+			for _, name := range v.Names {
+				assigned = assigned || sameLocal(name, id)
+			}
+		case *ast.RangeStmt:
+			assigned = assigned || sameLocal(v.Key, id) || sameLocal(v.Value, id)
+		}
+		return !assigned
+	})
+	return assigned
 }
 
 // eventVars are a function's variables that hold a store.Event: declared as one,

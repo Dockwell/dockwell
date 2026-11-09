@@ -89,6 +89,15 @@ SettingsService.GetSettings                    read         viewer     viewer   
 SettingsService.SetInstallName                 apply        admin      admin      install  session
 SettingsService.SetTimeZone                    apply        admin      admin      install
 SystemService.GetVersion                       read         nothing    nothing    anyone
+TaskService.GetTask                            read         viewer     viewer     project
+TaskService.ListTaskRuns                       read         viewer     viewer     project
+TaskService.ListTasks                          read         viewer     viewer     project
+TaskService.RunTask                            apply        admin      admin      project
+TerminalService.AttachTerminal                 read         admin      admin      install  session
+TerminalService.CloseTerminal                  destructive  admin      admin      install  session
+TerminalService.ListTerminals                  read         admin      admin      install  session
+TerminalService.OpenTerminal                   destructive  admin      admin      install  session
+TerminalService.WriteTerminal                  destructive  admin      admin      install  session
 TokenService.CreateToken                       apply        viewer     viewer     self
 TokenService.ListTokens                        read         viewer     viewer     self
 TokenService.RevokeToken                       destructive  viewer     viewer     self

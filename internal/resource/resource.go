@@ -670,7 +670,7 @@ func (a Access) Leading(to string) Access {
 // needs a signed-in person; only this asks them for more than a click, as a
 // warning that comes with every folder is a warning nobody reads (ADR 0028).
 func (a Access) AsGoodAsRoot() bool {
-	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork || a.Kind == AccessBackupOf ||
+	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork || a.Kind == AccessBackupOf || a.Kind == AccessServerShell ||
 		a.Kind == AccessNetworkDriver && a.Driver == "host"
 }
 
@@ -754,6 +754,9 @@ const (
 	// AccessBackupOf is a backup of a volume that reached Path, as good as root,
 	// coming back into one that doesn't. What it holds can be read from there.
 	AccessBackupOf
+	// AccessServerShell is a shell command the agent runs on the server as root, on
+	// a schedule (ADR 0053): the same as root.
+	AccessServerShell
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -972,6 +975,8 @@ func AccessWords(a Access) string {
 		return "HTTPS on " + plain(a.Path) + ", which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 	case AccessBackupOf:
 		return "a backup of a volume that reached " + plain(a.Path) + ", which can hold what's there, as good as root"
+	case AccessServerShell:
+		return "a shell command on the server, which runs as root"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }

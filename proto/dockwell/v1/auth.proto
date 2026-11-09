@@ -699,6 +699,10 @@ enum StepUpAction {
   // "<server ID>:<PID>:<start ticks>", so a proof ends no other process that
   // gets the PID once it has gone. Numbered apart, as open work adds to this enum.
   STEP_UP_ACTION_END_PROCESS = 20;
+  // Opening a terminal on a server, with TerminalService.OpenTerminal. The
+  // target is the server's ID, or for a shell in a container, the server's ID and
+  // the container as the request names it, as "srv_…:web".
+  STEP_UP_ACTION_OPEN_TERMINAL = 10;
 }
 
 // BeginStepUpRequest says what the passkey confirms.

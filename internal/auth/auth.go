@@ -143,9 +143,9 @@ type Config struct {
 	// AskWait is how long a step-up that was asked for has to come before it counts
 	// as missed. Zero means StepUpTTL.
 	AskWait time.Duration
-	// StreamRecheck is how often an open stream checks again that its session or
-	// token works and its caller may still make it. Zero means 30 seconds.
-	StreamRecheck time.Duration
+	// Recheck is how often an open stream, or what follows a session, checks it
+	// again, for tests. Zero means 30 s.
+	Recheck time.Duration
 }
 
 // Service is the control plane's authority over people.
@@ -202,7 +202,7 @@ func New(cfg Config) (*Service, error) {
 		refusals:     newRefusals(maxRefusalIDs),
 		roleRefusals: newRefusals(maxRefusalIDs),
 		stepUps:      newStepUps(1024),
-		recheck:      cmp.Or(cfg.StreamRecheck, streamRecheck),
+		recheck:      cmp.Or(cfg.Recheck, streamRecheck),
 	}, nil
 }
 
