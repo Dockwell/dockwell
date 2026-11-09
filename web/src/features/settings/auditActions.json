@@ -42,6 +42,8 @@
   "recovery_codes.regenerate",
   "secret.reveal",
   "secrets.rotate_key",
+  "server.desired_sent",
+  "server.desired_unknown",
   "server.join",
   "server.public_address",
   "server.public_address_clear",
