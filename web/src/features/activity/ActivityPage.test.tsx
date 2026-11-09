@@ -6,6 +6,8 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ActorKind,
   ActorSchema,
+  AlertRule_Condition,
+  AlertRule_Severity,
   ChangeState,
   EventKind,
   FieldOp,
@@ -1272,5 +1274,166 @@ describe("Activity's health", () => {
     expect(await screen.findByText("Its check said")).toBeVisible();
     expect(screen.getAllByText("GET / answered 503").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Open the app" })).toHaveAttribute("href", "/apps/svc_web");
+  });
+
+  it("says what alerts fired and resolved, and what a person muted, and filters to them", async () => {
+    const asked: ListEventsRequest[] = [];
+    const user = userEvent.setup();
+    const fired = auditEvent({
+      id: "evt_fired",
+      kind: EventKind.ALERT,
+      action: "alert.firing",
+      time: timestampFromDate(new Date(Date.now() - 10 * 60_000)),
+      actor: { kind: ActorKind.DOCKWELL, name: "Dockwell" },
+      surface: Surface.AUTOMATIC,
+      alert: {
+        id: "alt_1",
+        rule: "server-unreachable",
+        title: "hz-1 can't be reached",
+        severity: AlertRule_Severity.CRITICAL,
+        serverName: "hz-1",
+        detail: "Dockwell hasn't heard from its agent since 14:02 UTC.",
+      },
+    });
+    const resolved = auditEvent({
+      id: "evt_resolved",
+      kind: EventKind.ALERT,
+      action: "alert.resolved",
+      time: timestampFromDate(new Date(Date.now() - 5 * 60_000)),
+      actor: { kind: ActorKind.DOCKWELL, name: "Dockwell" },
+      surface: Surface.AUTOMATIC,
+      alert: { id: "alt_1", rule: "server-unreachable", title: "hz-1 can't be reached" },
+    });
+    const mute = auditEvent({
+      id: "evt_mute",
+      kind: EventKind.ALERT,
+      action: "alert.mute",
+      time: timestampFromDate(new Date(Date.now() - 7 * 60_000)),
+      surface: Surface.CLI,
+      subject: { id: "alr_disk" },
+      alert: {
+        rule: "disk-full",
+        until: timestampFromDate(new Date(Date.now() + HOUR)),
+        reason: "moving it to a new rack",
+      },
+    });
+    renderAt("/activity", {
+      events: {
+        watchEvents: async function* (_req: WatchEventsRequest, ctx: { signal: AbortSignal }) {
+          yield snapshot([resolved, mute, fired]);
+          await untilAborted(ctx.signal);
+        },
+        listEvents: (req) => {
+          asked.push(req);
+          return { events: [resolved, mute, fired] };
+        },
+      },
+    });
+    expect(await screen.findByRole("row", { name: /Alert opened: hz-1 can't be reached/ })).toBeVisible();
+    expect(screen.getByRole("row", { name: /Resolved: hz-1 can't be reached/ })).toBeVisible();
+    expect(
+      screen.getByRole("row", { name: /Muted the alert rule disk-full until.*moving it to a new rack/ }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("row", { name: /Alert opened: hz-1 can't be reached/ }));
+    expect(await screen.findByText("What it said")).toBeVisible();
+    expect(screen.getByText("Dockwell hasn't heard from its agent since 14:02 UTC.")).toBeVisible();
+    await user.click(screen.getByRole("row", { name: /Muted the alert rule disk-full/ }));
+    expect(await screen.findByText("Why")).toBeVisible();
+    expect(screen.queryByText("alr_disk")).toBeNull();
+    await user.click(screen.getByRole("radio", { name: "Alerts" }));
+    await waitFor(() => expect(asked.at(-1)?.kinds).toEqual([EventKind.ALERT]));
+  });
+
+  it("says who sent a test to which channel, and whether it arrived", async () => {
+    const tested = auditEvent({
+      id: "evt_test",
+      kind: EventKind.ALERT,
+      action: "alert.test",
+      time: timestampFromDate(new Date(Date.now() - 60_000)),
+      surface: Surface.PANEL,
+      alert: { subjectName: "ops", variant: "slack", where: "hooks.slack.com", value: 1, reason: "200 OK" },
+    });
+    const form = auditEvent({
+      id: "evt_form",
+      kind: EventKind.ALERT,
+      action: "alert.test",
+      time: timestampFromDate(new Date(Date.now() - 2 * 60_000)),
+      surface: Surface.API,
+      alert: { variant: "webhook", where: "10.0.0.7:9000", reason: "connection refused" },
+    });
+    renderAt("/activity", {
+      events: {
+        watchEvents: async function* (_req: WatchEventsRequest, ctx: { signal: AbortSignal }) {
+          yield snapshot([tested, form]);
+          await untilAborted(ctx.signal);
+        },
+        listEvents: () => ({ events: [tested, form] }),
+      },
+    });
+    expect(
+      await screen.findByRole("row", { name: /Sent a test to ops \(slack, hooks\.slack\.com\), which arrived/ }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("row", {
+        name: /Sent a test to a new webhook channel at 10\.0\.0\.7:9000, which didn't arrive/,
+      }),
+    ).toBeVisible();
+  });
+
+  it("says an alert in the panel's language, from what it's about", async () => {
+    const fired = auditEvent({
+      id: "evt_down",
+      kind: EventKind.ALERT,
+      action: "alert.firing",
+      time: timestampFromDate(new Date(Date.now() - 60_000)),
+      actor: { kind: ActorKind.DOCKWELL, name: "Dockwell" },
+      surface: Surface.AUTOMATIC,
+      alert: {
+        rule: "app-down",
+        title: "api fails its health check on hz-1",
+        severity: AlertRule_Severity.CRITICAL,
+        condition: AlertRule_Condition.SERVICE_DOWN,
+        subjectName: "api",
+        serverName: "hz-1",
+        variant: "unhealthy",
+      },
+    });
+    const disk = auditEvent({
+      id: "evt_disk",
+      kind: EventKind.ALERT,
+      action: "alert.resolved",
+      time: timestampFromDate(new Date(Date.now() - 30_000)),
+      actor: { kind: ActorKind.DOCKWELL, name: "Dockwell" },
+      surface: Surface.AUTOMATIC,
+      alert: {
+        rule: "disk-full",
+        title: "hz-1's disk / is 93% full",
+        condition: AlertRule_Condition.DISK_FULL,
+        serverName: "hz-1",
+        where: "/",
+        value: 93,
+      },
+    });
+    const api = {
+      events: {
+        watchEvents: async function* (_req: WatchEventsRequest, ctx: { signal: AbortSignal }) {
+          yield snapshot([disk, fired]);
+          await untilAborted(ctx.signal);
+        },
+        listEvents: () => ({}),
+      },
+    };
+    const { unmount } = renderAt("/activity", api);
+    expect(await screen.findByRole("row", { name: /Alert opened: api fails its health check on hz-1/ })).toBeVisible();
+    expect(screen.getByRole("row", { name: /Resolved: hz-1's disk \/ is 93% full/ })).toBeVisible();
+    unmount();
+    await activateLocale("zh-CN");
+    try {
+      renderAt("/activity", api);
+      expect(await screen.findByRole("row", { name: /告警触发：api 在 hz-1 上未通过健康检查/ })).toBeVisible();
+      expect(screen.getByRole("row", { name: /已恢复：hz-1 的磁盘 \/ 已用 93%/ })).toBeVisible();
+    } finally {
+      await activateLocale("en");
+    }
   });
 });

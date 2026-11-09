@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/health.proto";
 import "dockwell/v1/options.proto";
@@ -166,6 +167,9 @@ message Event {
   // A setting of the install someone changed, for a settings event. Numbered
   // apart, as open work adds to this message.
   EventSetting setting = 31;
+  // The alert that fired or resolved, or the mute that began or ended, for an
+  // alert event. Numbered apart, as open work adds to this message.
+  EventAlert alert = 90;
   // What became of a scheduled task's run, for a task event. Its subject is the
   // task. Numbered in the block scheduled tasks hold, as open work adds to this
   // message.
@@ -222,6 +226,43 @@ message EventSetting {
   string value = 2;
   // What it was. Empty when it wasn't set.
   string previous = 3;
+}
+
+// EventAlert is an alert that fired or resolved, or a mute of a rule or a
+// server that began or ended. Its subject is what the alert is about, and its
+// server is the one it's on.
+message EventAlert {
+  // The alert's ID, "alt_…". Empty for a mute.
+  string id = 1;
+  // The rule, by name.
+  string rule = 2;
+  // How much it matters.
+  dockwell.resource.v1alpha1.AlertRule.Severity severity = 3;
+  // What it said, such as "web-1's disk is 93% full".
+  string title = 4;
+  // The server it's on, when it's on one.
+  string server_id = 5;
+  string server_name = 6;
+  // Where the panel shows it.
+  string path = 7;
+  // When it fired, on a resolved alert's event.
+  google.protobuf.Timestamp open_time = 8;
+  // When a mute ends, on a mute's event.
+  google.protobuf.Timestamp until = 9;
+  // Why someone muted it, in their words, on a mute's event.
+  string reason = 10;
+  // What a firing alert means and how to fix it, as it was sent.
+  string detail = 11;
+  // What its title says, apart, for the panel to say in its own language: the
+  // rule's condition, the app, domain, volume or change it's about, which of the
+  // condition's titles it is ("unhealthy", "not_running", "restarting",
+  // "flapping"; "failed" or "copy" for a backup), where (a disk's mount point, a
+  // backup's destination) and a value (a percent, or days left).
+  dockwell.resource.v1alpha1.AlertRule.Condition condition = 12;
+  string subject_name = 13;
+  string variant = 14;
+  string where = 15;
+  int32 value = 16;
 }
 
 // EventTerminal is a terminal on a server, as its opening or closing tells of it.
@@ -347,6 +388,9 @@ enum EventKind {
   // Someone changed a setting of the install, such as its name or time zone.
   // Numbered apart, as open work adds to this enum.
   EVENT_KIND_SETTINGS = 10;
+  // An alert fired or resolved, or someone muted a rule or a server, or ended a
+  // mute. Numbered apart, as open work adds to this enum.
+  EVENT_KIND_ALERT = 90;
   // A scheduled task's run failed or timed out, or one succeeded after that.
   // Numbered in the block scheduled tasks hold.
   EVENT_KIND_TASK = 130;

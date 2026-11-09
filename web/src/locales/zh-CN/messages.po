@@ -299,6 +299,9 @@ msgstr "动态"
 msgid "Actor"
 msgstr "执行者"
 
+msgid "Alerts"
+msgstr "告警"
+
 msgid "All"
 msgstr "全部"
 
@@ -338,8 +341,8 @@ msgstr "事件类型"
 msgid "Events: {caption}"
 msgstr "事件：{caption}"
 
-msgid "Every change, server event, access grant, change of health and backup, newest first"
-msgstr "所有变更、服务器事件、访问授权、健康变化和备份，最新的在前"
+msgid "Every change, server event, access grant, change of health, backup and alert, newest first"
+msgstr "所有变更、服务器事件、访问授权、健康变化、备份和告警，最新的在前"
 
 msgid "From"
 msgstr "来源"
@@ -380,6 +383,7 @@ msgstr "打开文件夹"
 msgid "Open the variables and secrets"
 msgstr "打开变量和密钥"
 
+msgctxt "terminal"
 msgid "Opened"
 msgstr "打开时间"
 
@@ -400,6 +404,9 @@ msgstr "回滚"
 
 msgid "Rolls back"
 msgstr "回滚"
+
+msgid "Rule"
+msgstr "规则"
 
 msgid "Server"
 msgstr "服务器"
@@ -439,6 +446,9 @@ msgstr "卷"
 
 msgid "What changed"
 msgstr "变更内容"
+
+msgid "What it said"
+msgstr "告警内容"
 
 msgid "When"
 msgstr "时间"
@@ -488,6 +498,9 @@ msgstr "某人"
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "无法从 {destination} 取回 {volume} 的备份"
 
+msgid "A change failed: {subject}"
+msgstr "变更失败：{subject}"
+
 msgid "A scheduled task failed"
 msgstr "某个计划任务失败了"
 
@@ -514,6 +527,9 @@ msgstr "用恢复码登录后添加了通行密钥 {name}"
 
 msgid "Added the passkey {name} after signing in with an authenticator code"
 msgstr "用身份验证器验证码登录后添加了通行密钥 {name}"
+
+msgid "Alert opened: {title}"
+msgstr "告警触发：{title}"
 
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "应用 {change} 时要求验证通行密钥，但未收到"
@@ -635,6 +651,12 @@ msgstr "已从 {server} 下载 {path}，{size}"
 msgid "Ended an authenticator app's setup after 5 wrong codes"
 msgstr "输错 5 次验证码后结束了身份验证器应用的设置"
 
+msgid "Ended the mute of the alert rule {rule}"
+msgstr "结束了告警规则 {rule} 的静音"
+
+msgid "Ended the mute of {server}'s alerts"
+msgstr "结束了 {server} 告警的静音"
+
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"
 
@@ -673,6 +695,12 @@ msgstr "已将 {server} 上的 {path} 移到 {to}"
 
 msgid "Moved {path} to {to} on {server}, which can let someone back in"
 msgstr "已将 {server} 上的 {path} 移到 {to}，这里可能让他人重新进入服务器"
+
+msgid "Muted the alert rule {rule} until {until}"
+msgstr "将告警规则 {rule} 静音至 {until}"
+
+msgid "Muted the alerts of {server} until {until}"
+msgstr "将 {server} 的告警静音至 {until}"
 
 msgid "Named this install {value}"
 msgstr "将此安装命名为 {value}"
@@ -713,6 +741,9 @@ msgstr "移除了通行密钥 {name}"
 msgid "Removed {server} from the fleet"
 msgstr "从集群中移除了 {server}"
 
+msgid "Resolved: {title}"
+msgstr "已恢复：{title}"
+
 msgid "Revealed a secret"
 msgstr "显示了一个密钥"
 
@@ -737,6 +768,18 @@ msgstr "已保存 {server} 上的 {path}"
 msgid "Saved {path} on {server}, which can let someone back in"
 msgstr "已保存 {server} 上的 {path}，这个文件可能让他人重新进入服务器"
 
+msgid "Sent a test to a new {kind} channel at {host}, which arrived"
+msgstr "向 {host} 上新的 {kind} 渠道发送了测试，已送达"
+
+msgid "Sent a test to a new {kind} channel at {host}, which didn't arrive"
+msgstr "向 {host} 上新的 {kind} 渠道发送了测试，未送达"
+
+msgid "Sent a test to {name} ({kind}, {host}), which arrived"
+msgstr "向 {name}（{kind}，{host}）发送了测试，已送达"
+
+msgid "Sent a test to {name} ({kind}, {host}), which didn't arrive"
+msgstr "向 {name}（{kind}，{host}）发送了测试，未送达"
+
 msgid "Set the public address of {server} to {address}"
 msgstr "将 {server} 的公网地址设置为 {address}"
 
@@ -757,6 +800,15 @@ msgstr "退出了其他会话"
 
 msgid "Stopped {what} (PID {pid}) on {server}"
 msgstr "已在 {server} 上停止 {what}（PID {pid}）"
+
+msgid "The backup of {subject} didn't reach {where}"
+msgstr "{subject} 的备份未能送达 {where}"
+
+msgid "The backup of {subject} failed"
+msgstr "{subject} 的备份失败"
+
+msgid "The backup of {subject} is late"
+msgstr "{subject} 的备份已延误"
 
 msgid "The backup of {volume} didn't reach {destination}"
 msgstr "{volume} 的备份未能送达 {destination}"
@@ -847,6 +899,9 @@ msgstr "{name} 在 {server} 上变为不健康"
 msgid "{name} was paused on {server}"
 msgstr "{name} 在 {server} 上被暂停"
 
+msgid "{server} can't be reached"
+msgstr "无法连接到 {server}"
+
 msgid "{server} joined as the control server"
 msgstr "{server} 作为控制服务器加入"
 
@@ -856,6 +911,30 @@ msgstr "{server} 加入了集群"
 msgid "{server} renewed its certificate"
 msgstr "{server} 更新了证书"
 
+msgid "{server} uses {value}% of its memory"
+msgstr "{server} 的内存已用 {value}%"
+
+msgid "{server}'s disk {where} is {value}% full"
+msgstr "{server} 的磁盘 {where} 已用 {value}%"
+
+msgid "{subject} fails its health check on {server}"
+msgstr "{subject} 在 {server} 上未通过健康检查"
+
+msgid "{subject} has no certificate"
+msgstr "{subject} 没有证书"
+
+msgid "{subject} isn't running on {server}"
+msgstr "{subject} 未在 {server} 上运行"
+
+msgid "{subject} keeps going down on {server}"
+msgstr "{subject} 在 {server} 上反复宕机"
+
+msgid "{subject} keeps restarting on {server}"
+msgstr "{subject} 在 {server} 上不断重启"
+
+msgid "{subject}'s certificate has ended"
+msgstr "{subject} 的证书已过期"
+
 msgid "{task} failed"
 msgstr "{task} 失败了"
 
@@ -864,6 +943,366 @@ msgstr "{task} 在失败后成功了"
 
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
+
+msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
+msgstr "{value, plural, other {{subject} 的证书将在 # 天内过期}}"
+
+msgid "Alerts sections"
+msgstr "告警分区"
+
+msgid "Channels"
+msgstr "渠道"
+
+msgid "Nothing open"
+msgstr "没有未解决的告警"
+
+msgid "Rules"
+msgstr "规则"
+
+msgid "no channel yet, so nothing is sent"
+msgstr "还没有渠道，因此不会发送任何消息"
+
+#. placeholder {0}: c.rules
+#. placeholder {0}: r.rules
+#. placeholder {0}: rules.length
+msgid "{0, plural, one {# rule} other {# rules}}"
+msgstr "{0, plural, other {# 条规则}}"
+
+#. placeholder {0}: channels.length
+msgid "{0, plural, one {sent to # channel} other {sent to # channels}}"
+msgstr "{0, plural, other {发送到 # 个渠道}}"
+
+msgid "{firing} open"
+msgstr "{firing} 个未解决"
+
+msgid "A group's ID, or a channel's name, such as @example_alerts. Add the bot to it first."
+msgstr "群组的 ID，或频道的名称，例如 @example_alerts。请先把机器人加入其中。"
+
+msgid "Access token"
+msgstr "访问令牌"
+
+msgid "Add a channel"
+msgstr "添加渠道"
+
+#. placeholder {0}: form.name
+msgid "Add the alert channel {0}"
+msgstr "添加告警渠道 {0}"
+
+msgid "An address your SMTP server sends as."
+msgstr "你的 SMTP 服务器用来发信的地址。"
+
+msgid "Bot token"
+msgstr "机器人令牌"
+
+#. placeholder {0}: form.name
+msgid "Change the alert channel {0}"
+msgstr "更改告警渠道 {0}"
+
+#. placeholder {0}: channel.name
+msgid "Change {0}"
+msgstr "更改 {0}"
+
+msgid "Chat"
+msgstr "聊天"
+
+msgid "Dockwell didn't send it"
+msgstr "Dockwell 没有发送"
+
+msgid "Dockwell keeps it sealed. Leave it empty to keep it."
+msgstr "Dockwell 会加密保存它。留空即保留原值。"
+
+msgid "Dockwell posts each alert to it as JSON. It may hold a token, so it's kept sealed, and lists show only its host."
+msgstr "Dockwell 会把每条告警以 JSON 形式发送到这里。它可能含有令牌，因此会加密保存，列表中只显示主机名。"
+
+msgid "For a server or topic that asks for one."
+msgstr "用于需要令牌的服务器或主题。"
+
+msgid "From @BotFather, when you make the bot. It's kept sealed."
+msgstr "创建机器人时由 @BotFather 提供。会加密保存。"
+
+msgid "From the channel's settings, under Integrations, then Webhooks. Anyone with it can post there, so it's kept sealed."
+msgstr "在频道设置的“整合”中的“Webhook”里获取。任何拿到它的人都能在那里发消息，因此会加密保存。"
+
+msgid "From your Slack app's Incoming Webhooks page. Anyone with it can post there, so it's kept sealed."
+msgstr "在 Slack 应用的 Incoming Webhooks 页面获取。任何拿到它的人都能在那里发消息，因此会加密保存。"
+
+msgid "It said: {said}. Check what the form holds, then send another."
+msgstr "它回复：{said}。请检查表单中的内容，然后再发送一次。"
+
+msgid "Kept, sealed"
+msgstr "已保留，已加密"
+
+msgid "Lowercase letters, digits and dashes. Rules name a channel by it."
+msgstr "小写字母、数字和短横线。规则用它来指定渠道。"
+
+msgid "Name"
+msgstr "名称"
+
+msgid "None, on this network"
+msgstr "无，在本网络内"
+
+msgid "On ntfy.sh anyone who knows a topic can read it, so this one is hard to guess, and kept sealed. Subscribe to it in the ntfy app."
+msgstr "在 ntfy.sh 上，任何知道主题的人都能读取它，因此这个主题很难猜到，并会加密保存。在 ntfy 应用中订阅它。"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Port"
+msgstr "端口"
+
+msgid "Remove"
+msgstr "移除"
+
+#. placeholder {0}: form.name
+msgid "Remove the alert channel {0}"
+msgstr "移除告警渠道 {0}"
+
+msgid "SMTP server"
+msgstr "SMTP 服务器"
+
+msgid "STARTTLS"
+msgstr "STARTTLS"
+
+msgid "Security"
+msgstr "安全"
+
+msgid "Send a test"
+msgstr "发送测试"
+
+msgid "Sending a test…"
+msgstr "正在发送测试…"
+
+msgid "Sends to"
+msgstr "发送到"
+
+msgid "Sent only over TLS, and kept sealed. Changing the server, port, security or user asks for it again."
+msgstr "只通过 TLS 发送，并加密保存。更改服务器、端口、安全方式或用户时需要重新填写。"
+
+msgid "Signing secret"
+msgstr "签名密钥"
+
+msgid "Signs each request in a Dockwell-Signature header, so your endpoint can tell it came from this install."
+msgstr "在 Dockwell-Signature 请求头中为每个请求签名，让你的端点能确认请求来自此安装。"
+
+msgid "TLS"
+msgstr "TLS"
+
+msgid "The test arrived"
+msgstr "测试已送达"
+
+msgid "The test didn't arrive"
+msgstr "测试未送达"
+
+msgid "To"
+msgstr "收件人"
+
+msgid "Topic"
+msgstr "主题"
+
+msgid "URL"
+msgstr "URL"
+
+msgid "Up to 10 addresses, separated by commas."
+msgstr "最多 10 个地址，用逗号分隔。"
+
+msgid "User"
+msgstr "用户"
+
+msgid "Webhook URL"
+msgstr "Webhook URL"
+
+msgid "ntfy.sh unless you give a server of your own."
+msgstr "除非你填写自己的服务器，否则使用 ntfy.sh。"
+
+msgid "{kindName} answered {said}. Look for a message titled Dockwell test message."
+msgstr "{kindName} 回复了 {said}。请查找标题为 Dockwell test message 的消息。"
+
+msgid "A rule that names no channel sends to every one."
+msgstr "没有指定渠道的规则会发送到所有渠道。"
+
+msgid "Actions"
+msgstr "操作"
+
+msgid "Add channel"
+msgstr "添加渠道"
+
+msgid "Alert"
+msgstr "告警"
+
+msgid "Alert channels"
+msgstr "告警渠道"
+
+msgid "Can't load the channels"
+msgstr "无法加载渠道"
+
+msgid "Channel"
+msgstr "渠道"
+
+msgid "Critical"
+msgstr "严重"
+
+msgid "Delivered"
+msgstr "已送达"
+
+msgid "Dockwell didn't send a test to {name}"
+msgstr "Dockwell 没有向 {name} 发送测试"
+
+msgid "Dockwell watches your servers and apps from the first start, and puts what it finds on Activity. Add a channel, such as email, Slack or ntfy on your phone, and every rule sends to it."
+msgstr "Dockwell 从首次启动起就会监视你的服务器和应用，并把发现的情况记录到动态中。添加一个渠道，例如电子邮件、Slack 或手机上的 ntfy，所有规则都会发送到那里。"
+
+#. placeholder {0}: list(r.failed)
+msgid "Failed to {0}"
+msgstr "发送到 {0} 失败"
+
+msgid "It answered {said}."
+msgstr "它回复了 {said}。"
+
+msgid "It said: {said}. Open the channel to check what it holds."
+msgstr "它回复：{said}。打开该渠道检查其中的内容。"
+
+msgid "Last sent"
+msgstr "最近发送"
+
+msgid "Messages sent lately"
+msgstr "最近发送的消息"
+
+msgid "No rules"
+msgstr "没有规则"
+
+msgid "None failed"
+msgstr "没有失败"
+
+msgid "Nothing sent yet"
+msgstr "尚未发送任何消息"
+
+msgid "Nothing yet"
+msgstr "暂无"
+
+msgid "Nowhere to send alerts yet"
+msgstr "还没有可以发送告警的地方"
+
+msgid "Reaches no channel."
+msgstr "不会发送到任何渠道。"
+
+msgid "Recent deliveries"
+msgstr "最近的发送"
+
+msgid "Result"
+msgstr "结果"
+
+msgid "Routing"
+msgstr "路由"
+
+#. placeholder {0}: c.name
+msgid "Send a test to {0}"
+msgstr "向 {0} 发送测试"
+
+msgid "Send test"
+msgstr "发送测试"
+
+msgid "Sending…"
+msgstr "正在发送…"
+
+msgid "Sent to"
+msgstr "发送到"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "The test didn't reach {name}"
+msgstr "测试未送达 {name}"
+
+msgid "The test reached {name}"
+msgstr "测试已送达 {name}"
+
+msgid "Time"
+msgstr "时间"
+
+msgid "Used by"
+msgstr "使用者"
+
+msgid "What Dockwell sends shows here, tests too, with what each channel answered."
+msgstr "Dockwell 发送的消息都会显示在这里，包括测试，以及每个渠道的回复。"
+
+#. placeholder {0}: when(newest)
+msgid "last sent {0}"
+msgstr "最近发送于 {0}"
+
+msgid "none failing"
+msgstr "没有失败"
+
+#. placeholder {0}: list.length
+msgid "{0, plural, one {# channel} other {# channels}}"
+msgstr "{0, plural, other {# 个渠道}}"
+
+msgid "{failed, plural, one {# failed} other {# failed}}"
+msgstr "{failed, plural, other {# 个失败}}"
+
+msgid "{failing, plural, one {# failing} other {# failing}}"
+msgstr "{failing, plural, other {# 个发送失败}}"
+
+msgid "Alert rules"
+msgstr "告警规则"
+
+msgid "Alerts, firing first"
+msgstr "告警，触发中的在前"
+
+msgid "Can't load the alerts"
+msgstr "无法加载告警"
+
+msgid "Can't load the rules"
+msgstr "无法加载规则"
+
+msgid "Change a rule with dockwell alert-rules update, as a plan that undo takes back."
+msgstr "用 dockwell alert-rules update 更改规则，它是一个可撤销的计划。"
+
+msgid "Choose where alerts go"
+msgstr "选择告警发往何处"
+
+msgid "Dockwell watches every server and app, and says here when a rule holds: an app down, a server it can't reach, a disk nearly full, a certificate about to end, a backup that failed."
+msgstr "Dockwell 会监视每台服务器和每个应用，并在规则成立时在这里说明：应用宕机、服务器无法连接、磁盘将满、证书即将到期、备份失败。"
+
+msgid "Every channel"
+msgstr "所有渠道"
+
+msgid "No channel yet"
+msgstr "还没有渠道"
+
+msgid "Nothing has fired"
+msgstr "尚未触发任何告警"
+
+msgid "Off"
+msgstr "关闭"
+
+msgid "Opened"
+msgstr "触发时间"
+
+msgid "Resolved"
+msgstr "已恢复"
+
+msgid "Severity"
+msgstr "严重程度"
+
+msgid "Discord"
+msgstr "Discord"
+
+msgid "Email"
+msgstr "邮箱"
+
+msgid "Failing"
+msgstr "出现故障"
+
+msgid "Slack"
+msgstr "Slack"
+
+msgid "Telegram"
+msgstr "Telegram"
+
+msgid "Webhook"
+msgstr "Webhook"
+
+msgid "ntfy"
+msgstr "ntfy"
 
 msgid "A route runs on one server, as its certificate comes to the one its DNS points at."
 msgstr "一条路由只在一台服务器上运行，因为证书只会发到 DNS 指向的那台服务器。"
@@ -1018,9 +1457,6 @@ msgstr "显示更早的修订版本"
 msgid "Showing {oldest} to {newest}"
 msgstr "显示 {oldest} 到 {newest}"
 
-msgid "Status"
-msgstr "状态"
-
 msgid "Took"
 msgstr "耗时"
 
@@ -1051,9 +1487,6 @@ msgstr "变量和密钥存放在所属的环境中，只会发送到运行使用
 
 msgid "A variable or secret of the environment"
 msgstr "环境中的变量或密钥"
-
-msgid "Actions"
-msgstr "操作"
 
 msgid "Add"
 msgstr "添加"
@@ -1563,9 +1996,6 @@ msgstr "{away} 重新连接前无法确定"
 
 msgid "Unknown, as putting it back failed"
 msgstr "未知，因为恢复失败了"
-
-msgid "User"
-msgstr "用户"
 
 msgid "Volumes"
 msgstr "卷"
@@ -2260,11 +2690,17 @@ msgstr "由你写明连接此服务器的来源。"
 msgid "Checking"
 msgstr "正在检查"
 
+msgid "Finished"
+msgstr "已完成"
+
 msgid "It has no container on this server."
 msgstr "它在这台服务器上没有容器。"
 
 msgid "It isn't placed on a server."
 msgstr "它没有部署到任何服务器。"
+
+msgid "It ran to its end and exited 0, as a one-shot job does, so nothing restarts it."
+msgstr "它已运行完毕并以 0 退出，一次性任务就是这样，所以不会再被重启。"
 
 msgid "Its check hasn't finished yet."
 msgstr "它的检查还没有完成。"
@@ -2467,9 +2903,6 @@ msgstr "继续编辑"
 #. placeholder {1}: onFileField.text
 msgid "Line {0}: {1}"
 msgstr "第 {0} 行：{1}"
-
-msgid "Name"
-msgstr "名称"
 
 msgid "Name a volume, or an absolute path on the server."
 msgstr "请填写卷名称，或服务器上的绝对路径。"
@@ -2892,9 +3325,6 @@ msgstr "正在创建通行密钥"
 msgid "Deploy your first app"
 msgstr "部署你的第一个应用"
 
-msgid "Email"
-msgstr "邮箱"
-
 msgid "Enter an email address, such as mira@acme.dev."
 msgstr "请输入邮箱地址，例如 mira@acme.dev。"
 
@@ -3025,9 +3455,6 @@ msgstr "通行密钥"
 
 msgid "Passkeys"
 msgstr "通行密钥"
-
-msgid "Remove"
-msgstr "移除"
 
 msgid "Synced"
 msgstr "已同步"
@@ -3267,9 +3694,6 @@ msgstr "换到另一个应用"
 
 msgid "New recovery codes"
 msgstr "新的恢复码"
-
-msgid "Off"
-msgstr "关闭"
 
 msgid "On"
 msgstr "开启"
@@ -3619,9 +4043,6 @@ msgstr "要取回它，请先将 {0} 部署到已连接的服务器上"
 #. placeholder {0}: Number(b.filesChanged)
 msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 msgstr "{0, plural, other {# 个文件在复制时发生了变化}}"
-
-msgid "{failed, plural, one {# failed} other {# failed}}"
-msgstr "{failed, plural, other {# 个失败}}"
 
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, other {# 个备份}}"
@@ -4000,9 +4421,6 @@ msgstr "网络"
 msgid "Notes"
 msgstr "笔记"
 
-msgid "Security"
-msgstr "安全"
-
 msgid "Storage"
 msgstr "存储"
 
@@ -4253,6 +4671,9 @@ msgstr "{name} 正在运行"
 
 msgid "{name} is starting"
 msgstr "{name} 正在启动"
+
+msgid "{name} ran to its end"
+msgstr "{name} 已运行完毕"
 
 msgid "{same} stays as it is"
 msgstr "{same} 保持不变"
@@ -5880,9 +6301,6 @@ msgstr "角色"
 msgid "Signs in"
 msgstr "可登录"
 
-msgid "Used by"
-msgstr "使用者"
-
 msgid "Users of {name}"
 msgstr "{name} 的用户"
 
@@ -6017,9 +6435,6 @@ msgstr "清除筛选"
 
 msgid "Domains"
 msgstr "域名"
-
-msgid "Failing"
-msgstr "出现故障"
 
 msgid "Filter domains"
 msgstr "筛选域名"
@@ -7025,9 +7440,6 @@ msgstr "此次部署的日志已不存在"
 
 msgid "This view holds the newest {most} lines. Read older ones with <0>dockwell logs read</0>."
 msgstr "此视图保留最新的 {most} 行。较早的日志请用 <0>dockwell logs read</0> 读取。"
-
-msgid "Time"
-msgstr "时间"
 
 msgid "Time range"
 msgstr "时间范围"
@@ -9153,9 +9565,6 @@ msgstr "{unknown} 台状态未知"
 msgid "{waiting} waiting for an agent"
 msgstr "{waiting} 台等待代理连接"
 
-msgid "Alerts"
-msgstr "告警"
-
 msgid "Fleet actions"
 msgstr "集群操作"
 
@@ -9396,9 +9805,6 @@ msgstr "再试三次"
 
 msgid "Try twice more"
 msgstr "再试两次"
-
-msgid "URL"
-msgstr "URL"
 
 msgid "UTC, as the install has none set"
 msgstr "UTC（安装未设置时区）"
@@ -10451,9 +10857,6 @@ msgstr "访问方式"
 msgid "Route"
 msgstr "路由"
 
-msgid "Sends to"
-msgstr "转发到"
-
 msgid "Serves"
 msgstr "提供内容"
 
@@ -10743,9 +11146,6 @@ msgstr "修改"
 
 msgid "How it serves"
 msgstr "提供方式"
-
-msgid "Port"
-msgstr "端口"
 
 msgid "Sends each request straight to the port, with nothing of its own between"
 msgstr "将每个请求直接发送到该端口，中间没有它自己的服务器"
