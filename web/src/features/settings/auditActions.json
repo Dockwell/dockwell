@@ -12,6 +12,7 @@
   "backup.fetched",
   "backup.server_copy_removed",
   "backup.taken",
+  "build.cancel",
   "change.applied",
   "change.apply_unconfirmed",
   "change.discarded",

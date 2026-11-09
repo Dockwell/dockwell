@@ -8356,6 +8356,12 @@ msgstr "应用了一项变更"
 msgid "Applied {summary}"
 msgstr "已应用 {summary}"
 
+msgid "Asked to cancel a build"
+msgstr "请求取消构建"
+
+msgid "Asked to cancel a build on {name}"
+msgstr "请求取消 {name} 上的构建"
+
 msgid "Confirmed with a passkey"
 msgstr "已用通行密钥确认"
 

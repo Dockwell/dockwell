@@ -56,6 +56,25 @@ describe("reading logs", () => {
   });
 });
 
+describe("build cancellation", () => {
+  it.each([
+    ["en", "Asked to cancel a build on web-1", "Asked to cancel a build"],
+    ["zh-CN", "请求取消 web-1 上的构建", "请求取消构建"],
+  ] as const)("names the server, with a sentence when it is unknown, in %s", async (locale, named, bare) => {
+    await activateLocale(locale);
+    const say = renderHookWithApi(useAuditWords, {}).result.current;
+    const event = create(AuditEventSchema, {
+      action: "build.cancel",
+      target: { id: "srv_1", name: "web-1" },
+      subject: "bld_1",
+      event: { action: "build.cancel", subject: { id: "bld_1" } },
+    });
+    expect(say(event)).toEqual({ title: named });
+    event.target = undefined;
+    expect(say(event)).toEqual({ title: bare });
+  });
+});
+
 describe("scheduled task runs", () => {
   it.each([
     ["en", "Nightly backup failed", "Nightly backup succeeded after a failure", "Asked to run Nightly backup"],

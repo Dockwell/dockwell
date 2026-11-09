@@ -50,6 +50,8 @@ export function useAuditWords(): (event: AuditEvent) => Said {
           return { title: t`Refused a call this token can't make`, tone: "warning" };
         case "token.use":
           return { title: t`Used from a new address` };
+        case "build.cancel":
+          return { title: name ? t`Asked to cancel a build on ${name}` : t`Asked to cancel a build` };
         case "install.create":
           return { title: t`Set up this install` };
         case "passkey.clone_suspected":

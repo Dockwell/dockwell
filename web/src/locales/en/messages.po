@@ -8356,6 +8356,12 @@ msgstr "Applied a change"
 msgid "Applied {summary}"
 msgstr "Applied {summary}"
 
+msgid "Asked to cancel a build"
+msgstr "Asked to cancel a build"
+
+msgid "Asked to cancel a build on {name}"
+msgstr "Asked to cancel a build on {name}"
+
 msgid "Confirmed with a passkey"
 msgstr "Confirmed with a passkey"
 
