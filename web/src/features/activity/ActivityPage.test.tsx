@@ -19,6 +19,7 @@ import {
   StepProgressSchema,
   StepState,
   Surface,
+  TerminalEndReason,
   type UndoChangeRequest,
   type WatchChangeResponse,
   type WatchEventsRequest,
@@ -316,6 +317,74 @@ describe("Activity", () => {
     });
     await screen.findByRole("row", { name: /Set the time zone for new schedules to UTC, which was Europe\/Amsterdam/ });
     await screen.findByRole("row", { name: /Set the time zone for new schedules to Europe\/Amsterdam(?!,)/ });
+  });
+
+  it("says who had a terminal on a server, as whom, for how long and how it ended, and never what was typed", async () => {
+    const user = userEvent.setup();
+    const watch = feed<WatchEventsResponse>();
+    const on = { id: "srv_1", name: "hz-1" };
+    const opened = new Date(Date.now() - 2 * HOUR);
+    const opening = auditEvent({
+      id: "evt_open",
+      kind: EventKind.SERVER,
+      action: "terminal.open",
+      time: timestampFromDate(opened),
+      subject: on,
+      terminal: { id: "trm_1", title: "root@hz-1", openTime: timestampFromDate(opened) },
+    });
+    const closing = auditEvent({
+      id: "evt_close",
+      kind: EventKind.SERVER,
+      action: "terminal.close",
+      time: timestampFromDate(new Date(opened.getTime() + 12 * 60_000)),
+      subject: on,
+      terminal: {
+        id: "trm_1",
+        title: "root@hz-1",
+        openTime: timestampFromDate(opened),
+        end: { reason: TerminalEndReason.IDLE, time: timestampFromDate(new Date(opened.getTime() + 12 * 60_000)) },
+      },
+    });
+    const unconfirmed = auditEvent({
+      id: "evt_unconfirmed_terminal",
+      kind: EventKind.SERVER,
+      action: "terminal.open_unconfirmed",
+      time: timestampFromDate(new Date(Date.now() - 3 * HOUR)),
+      subject: on,
+      terminal: { error: "asked for a passkey, and none came" },
+    });
+    const failed = auditEvent({
+      id: "evt_open_failed",
+      kind: EventKind.SERVER,
+      action: "terminal.open_failed",
+      time: timestampFromDate(new Date(Date.now() - 4 * HOUR)),
+      subject: on,
+      terminal: { id: "trm_0", error: "hz-1 has 8 terminals open" },
+    });
+    const inContainer = auditEvent({
+      id: "evt_shell",
+      kind: EventKind.SERVER,
+      action: "terminal.open",
+      time: timestampFromDate(new Date(Date.now() - 5 * HOUR)),
+      subject: on,
+      terminal: { id: "trm_2", title: "node@web-1", container: "web-1" },
+    });
+    watch.push(snapshot([closing, opening, unconfirmed, failed, inContainer]));
+    renderActivity(watch);
+    await screen.findByRole("row", { name: /Opened a shell in web-1 on hz-1/ });
+
+    await screen.findByRole("row", { name: /Opened a terminal on hz-1, as root@hz-1/ });
+    await screen.findByRole("row", { name: /Asked for a passkey to open a terminal on hz-1, and none came/ });
+    await screen.findByRole("row", { name: /Couldn't open a terminal on hz-1/ });
+    await user.click(await screen.findByRole("row", { name: /Closed a terminal on hz-1, open 12 min/ }));
+    const detail = await screen.findByRole("region", { name: /Closed a terminal on hz-1/ });
+    expect(within(detail).getByText("trm_1")).toBeInTheDocument();
+    expect(within(detail).getByText("root@hz-1")).toBeInTheDocument();
+    expect(
+      within(detail).getByText(
+        "Nothing was typed into it for an hour, so its shell hung up, rather than leave a root shell open.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows what was read of a server and what wasn't, and leads to the file", async () => {

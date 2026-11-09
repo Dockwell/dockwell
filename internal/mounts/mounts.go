@@ -77,3 +77,72 @@ func Unescape(s string) string {
 	}
 	return b.String()
 }
+
+// Mount is one line of a mountinfo list: the filesystem's device, the path within
+// it that's mounted, where, and what kind it is.
+type Mount struct {
+	// Dev is the filesystem's device, as major:minor.
+	Dev string
+	// Root is the path within that filesystem that's mounted: / for all of it, or
+	// the folder or file a bind mounted.
+	Root string
+	// Point is where it's mounted, in the namespace the list is of.
+	Point  string
+	FSType string
+}
+
+// Parse reads a mountinfo list, in order, as the kernel stacks them.
+func Parse(mountinfo string) []Mount {
+	var out []Mount
+	for line := range strings.Lines(mountinfo) {
+		before, after, ok := strings.Cut(line, " - ")
+		fields, rest := strings.Fields(before), strings.Fields(after)
+		if !ok || len(fields) < 5 || len(rest) == 0 {
+			continue
+		}
+		out = append(out, Mount{Dev: fields[2], Root: Unescape(fields[3]), Point: Unescape(fields[4]), FSType: rest[0]})
+	}
+	return out
+}
+
+// At is what's mounted at point, the last mounted over any before it, and false
+// when nothing is.
+func At(list []Mount, point string) (Mount, bool) {
+	for i := len(list) - 1; i >= 0; i-- {
+		if list[i].Point == point {
+			return list[i], true
+		}
+	}
+	return Mount{}, false
+}
+
+// ServerPaths says where on the server what m mounts is: each place the server's
+// own list, host, has m's filesystem mounted from a folder that holds m's root.
+// None means the server has that filesystem nowhere, as for a tmpfs or a disk of
+// its own.
+func ServerPaths(m Mount, host []Mount) []string {
+	var out []string
+	for _, h := range host {
+		if h.Dev != m.Dev || !Holds(h.Root, m.Root) {
+			continue
+		}
+		rest := strings.TrimPrefix(m.Root, strings.TrimSuffix(h.Root, "/"))
+		p := strings.TrimSuffix(h.Point, "/") + rest
+		if p == "" {
+			p = "/"
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+// Pseudo reports a filesystem that's the kernel's own, such as proc or sysfs,
+// which shows or changes the whole server wherever it's mounted.
+func Pseudo(fstype string) bool {
+	switch fstype {
+	case "proc", "sysfs", "devtmpfs", "devpts", "debugfs", "tracefs", "securityfs", "cgroup", "cgroup2", "bpf",
+		"configfs", "efivarfs", "fusectl", "pstore", "binfmt_misc", "hugetlbfs", "mqueue", "nsfs", "autofs", "rpc_pipefs":
+		return true
+	}
+	return false
+}

@@ -235,6 +235,16 @@ func ReadMountOptions(o string) MountOptions {
 	return out
 }
 
+// localMountTypes are what the local driver may mount besides a bind. Anything
+// else reads paths a plan can't name: overlay takes them in o, and a disk's
+// filesystem takes a device under /dev.
+var localMountTypes = []string{"nfs", "nfs4", "cifs", "tmpfs"}
+
+// LocalMountType reports a type the local driver's options may mount besides a
+// bind, which reaches nothing on the server: a plan takes these (volume's
+// validateMount), and an agent's root check counts any other as root.
+func LocalMountType(kind string) bool { return slices.Contains(localMountTypes, kind) }
+
 // BindDevice is the server path a volume binds, as the local driver's
 // options type: none, o: bind and device: /srv/data have it.
 func BindDevice(driver string, options map[string]string) (string, bool) {

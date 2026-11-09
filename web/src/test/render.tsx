@@ -27,6 +27,7 @@ import {
   SettingsService,
   SystemService,
   TaskService,
+  TerminalService,
   TokenService,
   UpdateService,
   VariableService,
@@ -74,6 +75,7 @@ export type Api = {
   imports?: Partial<ServiceImpl<typeof ImportService>>;
   tasks?: Partial<ServiceImpl<typeof TaskService>>;
   alerts?: Partial<ServiceImpl<typeof AlertService>>;
+  terminals?: Partial<ServiceImpl<typeof TerminalService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -134,6 +136,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
         listAlertDeliveries: () => ({}),
         ...api.alerts,
       });
+      service(TerminalService, { listTerminals: () => ({}), ...api.terminals });
       service(BackupService, {
         listBackups: () => ({}),
         listBackupPolicies: () => ({}),

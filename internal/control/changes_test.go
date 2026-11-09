@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/terminal"
 	agentupdates "github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/backup"
@@ -100,6 +101,10 @@ type testServer struct {
 	onePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
 	// tasks runs its scheduled tasks, when it has Docker.
 	tasks *task.Driver
+	// mounts stands in for the kernel's lists of what's mounted, for its fake Docker.
+	mounts agent.MountTable
+	// terms opens its terminals, as /bin/sh in a directory of its own.
+	terms *terminal.Manager
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -127,6 +132,7 @@ func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool)
 		dataDir: t.TempDir(),
 	}
 	s.disk = agentfiles.New(s.dataDir, nil, nil)
+	s.terms = terminal.New(terminal.Options{Shell: []string{"/bin/sh"}, Home: t.TempDir()})
 	if withDrivers {
 		containers := container.Driver{Runtime: s.docker, RecreateDowntime: 2 * time.Second}
 		s.drivers = resource.NewRegistry(&containers, &firewall.Driver{Backend: s.fw}, &service.Driver{Containers: containers})
@@ -138,6 +144,18 @@ func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool)
 // connect runs the server's agent until stop, and waits for it.
 func (s *testServer) connect(t *testing.T, f *fullServer) {
 	t.Helper()
+	s.run(t)
+	waitConnected(t, f, s.id.ServerID, true)
+}
+
+// run runs the server's agent until stop, whether or not the control plane takes it.
+func (s *testServer) run(t *testing.T) {
+	t.Helper()
+	if s.terms == nil && s.client != nil {
+		s.terms = terminal.New(terminal.Options{
+			Shell: []string{"/bin/sh"}, Home: t.TempDir(), Docker: s.client, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(s.drivers, s.client, agent.FollowPaths, s.mounts),
+		})
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	// It says nothing of the world, whatever machine the test runs on.
@@ -146,7 +164,7 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	cfg := agent.Config{
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, OnePanel: s.onePanel,
+		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, OnePanel: s.onePanel, Terminals: s.terms,
 	}
 	if cfg.Probe == nil {
 		cfg.Probe = answersEverything
@@ -168,7 +186,6 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	var once sync.Once
 	s.stop = func() { once.Do(func() { cancel(); <-done }) }
 	t.Cleanup(s.stop)
-	waitConnected(t, f, s.id.ServerID, true)
 }
 
 // answersEverything stands in for a probe that found everything answering.
