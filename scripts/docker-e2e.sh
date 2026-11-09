@@ -4133,7 +4133,7 @@ if docker inspect e2e-agent-web >/dev/null 2>&1; then fail "e2e-agent-web is lef
 
 step "Builds: an app builds from Git with BuildKit on the agent build's server, and serves what it built"
 # By now the stand has many projects, so each call names the environment, or the
-# service, by its ID: the default project's first environment.
+# service, by its ID. Resource deletes take a name and the environment ID.
 default_project=$(dw resources list --kind project --json | jq -r '.resources[] | select(.resource.name == "default") | .id') || fail "listing projects failed"
 build_env=$(dw resources list --kind environment --json | jq -r --arg p "$default_project" '[.resources[] | select(.resource.scope == $p)][0].id // empty') || fail "listing environments failed"
 [[ -n "$build_env" ]] || fail "the default project has no environment: $(dw resources list --kind environment --json)"
@@ -4232,7 +4232,7 @@ echo "docker-e2e: $words"
 # An agent passes a build's image and lines on, and keeps neither.
 ((peak - idle < 40 * 1024)) || fail "the agent grew by $(((peak - idle) / 1024)) MiB during a build: $words"
 move_main stable
-dw services delete "$built_id" --yes || fail "deleting e2e-built failed"
+dw services delete e2e-built --environment "$build_env" --yes || fail "deleting e2e-built failed"
 
 step "Builds: a build's secret reaches its steps, and never its log or its image"
 # On the control server, whose agent runs as root under systemd, with /run in memory.
@@ -4260,7 +4260,7 @@ jq -e '.state == "BUILD_STATE_FAILED"' <<<"$failed_build" >/dev/null || fail "th
 [[ "$failed_build" != *e2e-npm-secret-value* ]] || fail "the failed build's record holds its secret: $failed_build"
 [[ "$(jq -r .failedLine <<<"$failed_build")" == "•••" ]] || fail "the failed build says its step printed $(jq -r .failedLine <<<"$failed_build") last, not the masked secret"
 [[ "$(dw builds log "$(jq -r .id <<<"$failed_build")")" != *e2e-npm-secret-value* ]] || fail "the failed build's log holds its secret"
-dw services delete "$secret_id" --yes || fail "deleting e2e-secret failed"
+dw services delete e2e-secret --environment "$build_env" --yes || fail "deleting e2e-secret failed"
 dw secrets delete NPM --environment "$build_env" --yes || fail "deleting the secret NPM failed"
 
 step "One change reaches two servers, each with its own agent"
