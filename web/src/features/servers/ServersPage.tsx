@@ -139,9 +139,13 @@ interface ListProps {
 function WideServers({ servers, chosen, select, unknown }: ListProps) {
   const { t } = useLingui();
   const tiles = useServerTiles(servers, unknown);
+  const [all, setAll] = useState(false);
+  const beyond = chosen ? servers.findIndex((s) => s.id === chosen.id) >= TABLE_PAGE : false;
   const layout = useRef<HTMLDivElement>(null);
   const after = useRef<{ reveal?: boolean; focus?: string }>({});
   const choose = (id: string | undefined) => {
+    // Keep a revealed row mounted when its inspector closes, so focus can return to it.
+    if (beyond || (id !== undefined && servers.findIndex((s) => s.id === id) >= TABLE_PAGE)) setAll(true);
     after.current = id ? { reveal: true } : { focus: chosen?.id };
     select(id);
   };
@@ -165,7 +169,15 @@ function WideServers({ servers, chosen, select, unknown }: ListProps) {
         <section className="dw-panel servers-map" aria-label={t`Servers at a glance`}>
           <FleetGrid servers={tiles} selectedId={chosen?.id} onSelect={(s) => choose(s.id)} />
         </section>
-        <ServersTable servers={servers} tiles={tiles} chosen={chosen} select={choose} unknown={unknown} />
+        <ServersTable
+          servers={servers}
+          tiles={tiles}
+          chosen={chosen}
+          select={choose}
+          unknown={unknown}
+          all={all || beyond}
+          onShowAll={() => setAll(true)}
+        />
       </div>
       {chosen ? (
         <ServerInspector key={chosen.id} server={chosen} unknown={unknown} onClose={() => choose(undefined)} />
@@ -175,15 +187,19 @@ function WideServers({ servers, chosen, select, unknown }: ListProps) {
 }
 
 /** Every server as a row: its address, its state, its numbers, and what runs there. */
-function ServersTable({ servers, tiles, chosen, select }: ListProps & { tiles: readonly FleetServer[] }) {
+function ServersTable({
+  servers,
+  tiles,
+  chosen,
+  select,
+  all,
+  onShowAll,
+}: ListProps & { tiles: readonly FleetServer[]; all: boolean; onShowAll: () => void }) {
   const { t } = useLingui();
   const strings = useUIStrings();
   const runs = useRunsByServer();
   const byId = new Map(tiles.map((tile) => [tile.id, tile]));
-  const [all, setAll] = useState(false);
-  // A server chosen past the page, from its tile, shows the rest rather than lose its row.
-  const beyond = chosen ? servers.findIndex((s) => s.id === chosen.id) >= TABLE_PAGE : false;
-  const rows = all || beyond ? servers : servers.slice(0, TABLE_PAGE);
+  const rows = all ? servers : servers.slice(0, TABLE_PAGE);
   const count = servers.length;
   const shown = rows.length;
   return (
@@ -259,7 +275,7 @@ function ServersTable({ servers, tiles, chosen, select }: ListProps & { tiles: r
                 Showing {shown} of {count} · sorted by name
               </Trans>
             </span>
-            <Button variant="ghost" size="sm" onClick={() => setAll(true)}>
+            <Button variant="ghost" size="sm" onClick={onShowAll}>
               <Trans>Show all {count}</Trans>
             </Button>
           </>

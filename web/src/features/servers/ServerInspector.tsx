@@ -16,7 +16,7 @@ import { HealthBadge } from "../apps/Health";
 import { useHealth } from "../apps/health";
 import { useServices } from "../apps/useServices";
 import { shortVersion } from "../shell/version";
-import { recentRun } from "./history";
+import { trend } from "./history";
 import { providerName, publicAddressOf } from "./network";
 import { isPrivateAddress, serverStatus } from "./server";
 import { useControlPlaneNow } from "./useFleet";
@@ -163,7 +163,7 @@ function Numbers({ server }: { server: Server }) {
   const words = useTimeWords();
   const stats = server.connection === Connection.CONNECTED ? server.stats : undefined;
   if (!stats) return null;
-  const { samples, spanMs } = recentRun(server.history.length > 0 ? server.history : [stats]);
+  const { samples, spanMs } = trend(server.history.length > 0 ? server.history : [stats]);
   const share = (used: bigint, total: bigint) => (total > 0n ? (Number(used) / Number(total)) * 100 : 0);
   const [used, total] = formatLiveBytesOf(stats.memoryUsedBytes, stats.memoryTotalBytes, i18n.locale);
   const span = words.span(spanMs);

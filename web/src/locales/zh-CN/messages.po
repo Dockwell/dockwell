@@ -7269,11 +7269,14 @@ msgstr "最近的变更"
 msgid "Add a server"
 msgstr "添加服务器"
 
-msgid "It joins in seconds, and nothing on your servers changes."
-msgstr "几秒钟内即可加入，你现有服务器上的一切保持不变。"
+msgid "Connect a new server with a ticket from the control server."
+msgstr "使用控制服务器提供的票据连接新服务器。"
 
 msgid "It shows on Servers as soon as its agent connects. Your apps stay where they are: an app moves only when you apply a plan for it."
 msgstr "它的代理一连接，它就会出现在“服务器”页面。你的应用保持原位：只有在你为某个应用应用计划时，它才会迁移。"
+
+msgid "Join and start the agent"
+msgstr "加入并启动代理"
 
 msgid "Make a ticket on the control server"
 msgstr "在控制服务器上生成票据"
@@ -7281,17 +7284,26 @@ msgstr "在控制服务器上生成票据"
 msgid "Make a ticket on {name}"
 msgstr "在 {name} 上生成票据"
 
-msgid "On any Linux server, run the install script of the release the control plane runs, with <0>--join</0> and the ticket. It installs the agent, joins, and starts."
-msgstr "在任意 Linux 服务器上，运行控制平面所用版本的安装脚本，加上 <0>--join</0> 和票据。它会安装代理、加入并启动。"
-
 msgid "On any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the control plane's version of the agent, joins, and starts."
 msgstr "在任意 Linux 服务器上运行：其他云服务商、家庭实验室或虚拟机都可以。把 <0><ticket></0> 换成票据。它会安装与控制平面相同版本的代理、加入并启动。"
+
+msgid "On the new server, put the ticket in place of <0><ticket></0>. Run both commands as the same user, with <1>sudo</1> for both when using the system service. Keep <2>dockwell run</2> running, or configure it as a service."
+msgstr "在新服务器上，把 <0><ticket></0> 换成票据。以同一用户身份运行这两条命令；使用系统服务时，两条命令都要加上 <1>sudo</1>。保持 <2>dockwell run</2> 运行，或将它配置为服务。"
 
 msgid "Over SSH, as the user that runs Dockwell, with <0>sudo</0> in front when it runs as the system service. The ticket works once, for an hour."
 msgstr "通过 SSH，以运行 Dockwell 的用户身份执行；Dockwell 作为系统服务运行时，在前面加上 <0>sudo</0>。票据只能使用一次，有效期一小时。"
 
+msgid "Reading the control server's installation details."
+msgstr "正在读取控制服务器的安装信息。"
+
 msgid "Run one command on the new server"
 msgstr "在新服务器上运行一条命令"
+
+msgid "The control server's installation details are unavailable. Install an agent that matches its version as <0>dockwell</0> before joining."
+msgstr "无法获取控制服务器的安装信息。加入前，请先安装与其版本一致的代理，并将其命名为 <0>dockwell</0>。"
+
+msgid "This control server runs a development build with no release installer. Build the agent from the same source revision for the new server's architecture and install it as <0>dockwell</0>."
+msgstr "这台控制服务器运行的是开发构建，没有对应的发行版安装程序。请使用相同修订版本的源代码，为新服务器的架构构建代理，并将其安装为 <0>dockwell</0>。"
 
 msgid "Watch it appear"
 msgstr "等待它出现"

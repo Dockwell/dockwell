@@ -351,9 +351,26 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
   font-size: 15px;
   font-weight: 550;
   line-height: 20px;
+}
+
+.servers-phone-chosen-name > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Native keyboard scrolling leaves the focus ring below the header and above the
+ * two-line, 64px chosen card, its inset, and the tab bar. Pointer choices stay put. */
+@media (max-width: 639.98px) {
+  .servers-phone-row,
+  .servers-map .dw-tile {
+    scroll-margin-top: calc(56px + var(--space-2));
+    scroll-margin-bottom: calc(var(--tabbar-height) + 64px + var(--space-6));
+  }
 }
 
 /* A flag or a command word in the steps reads whole, as one would type it. */

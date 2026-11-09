@@ -7,7 +7,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 
 import { shortVersion } from "../shell/version";
 import { CopyCommand } from "../system/CopyCommand";
-import { installCommand } from "../updates/updates";
+import { installCommand, isRelease } from "../updates/updates";
 import "./ServersPage.css";
 
 /**
@@ -37,18 +37,21 @@ export function AddServerSheet({
   onClose: () => void;
 }) {
   const { t } = useLingui();
-  const release = useQuery(
+  const updates = useQuery(
     UpdateService.method.getServerUpdates,
     { id: control?.id ?? "" },
     { enabled: control !== undefined, retry: false },
-  ).data?.dockwell;
+  );
+  const release = updates.data?.dockwell;
+  const version = release?.controlPlane ?? "";
   const command = joinCommand(release?.releases ?? "", release?.controlPlane ?? "");
+  const development = version !== "" && (shortVersion(version).endsWith("dev") || !isRelease(version));
   const name = control?.name;
   return (
     <Sheet
       open
       title={t`Add a server`}
-      subtitle={t`It joins in seconds, and nothing on your servers changes.`}
+      subtitle={t`Connect a new server with a ticket from the control server.`}
       onClose={onClose}
       className="servers-add"
       footer={
@@ -70,7 +73,7 @@ export function AddServerSheet({
         </li>
         <li>
           <h3>
-            <Trans>Run one command on the new server</Trans>
+            {command ? <Trans>Run one command on the new server</Trans> : <Trans>Join and start the agent</Trans>}
           </h3>
           {command ? (
             <>
@@ -82,13 +85,35 @@ export function AddServerSheet({
               </p>
               <CopyCommand command={command} />
             </>
-          ) : (
+          ) : control && updates.isPending ? (
             <p>
-              <Trans>
-                On any Linux server, run the install script of the release the control plane runs, with{" "}
-                <code>--join</code> and the ticket. It installs the agent, joins, and starts.
-              </Trans>
+              <Trans>Reading the control server's installation details.</Trans>
             </p>
+          ) : (
+            <>
+              <p>
+                {development ? (
+                  <Trans>
+                    This control server runs a development build with no release installer. Build the agent from the
+                    same source revision for the new server's architecture and install it as <code>dockwell</code>.
+                  </Trans>
+                ) : (
+                  <Trans>
+                    The control server's installation details are unavailable. Install an agent that matches its version
+                    as <code>dockwell</code> before joining.
+                  </Trans>
+                )}
+              </p>
+              <p>
+                <Trans>
+                  On the new server, put the ticket in place of <code>{"<ticket>"}</code>. Run both commands as the same
+                  user, with <code>sudo</code> for both when using the system service. Keep <code>dockwell run</code>{" "}
+                  running, or configure it as a service.
+                </Trans>
+              </p>
+              <CopyCommand command="dockwell join <ticket>" />
+              <CopyCommand command="dockwell run" />
+            </>
           )}
         </li>
         <li>

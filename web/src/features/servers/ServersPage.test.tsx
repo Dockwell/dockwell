@@ -205,6 +205,13 @@ describe("Servers", () => {
     expect(await rowOf(/^web-2/)).toHaveTextContent("Waiting for its agent");
   });
 
+  it("draws the inspector's history on an even clock across the agent's sampling paces", async () => {
+    const past = [sample(10, 2, 1, 10_000), sample(20, 2, 1, 10_000), sample(30)];
+    renderServers([aServer({ ...web1, history: past, stats: past.at(-1) })], "/servers?server=srv_1");
+    const inspector = await screen.findByRole("complementary", { name: "web-1" });
+    expect(within(inspector).getAllByText("Last 25 s")).toHaveLength(2);
+  });
+
   it("pages the table as Servers-List does, and shows a server chosen past the page", async () => {
     const user = userEvent.setup();
     const many = Array.from({ length: 25 }, (_, i) =>
@@ -222,6 +229,30 @@ describe("Servers", () => {
     expect(within(table).getAllByRole("row")).toHaveLength(26);
     expect(screen.getByText("25 servers · sorted by name")).toBeVisible();
   });
+
+  it.each(["/servers", "/servers?server=srv_24"])(
+    "keeps a row beyond the first page mounted and returns focus when closed from %s",
+    async (url) => {
+      const user = userEvent.setup();
+      const many = Array.from({ length: 25 }, (_, i) =>
+        aServer({ id: `srv_${i}`, name: `node-${String(i).padStart(2, "0")}` }),
+      );
+      renderServers(many, url);
+      await user.click(await screen.findByRole("button", { name: /^node-24, / }));
+      const inspector = await screen.findByRole("complementary", { name: "node-24" });
+      const table = screen.getByRole("table", { name: "Servers, sorted by name" });
+      expect(within(table).getAllByRole("row")).toHaveLength(26);
+
+      await user.click(within(inspector).getByRole("button", { name: "Close node-24" }));
+      await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+      expect(within(table).getAllByRole("row")).toHaveLength(26);
+      expect(within(table).getByRole("row", { name: /^node-24/ })).toHaveFocus();
+
+      await user.click(screen.getByRole("button", { name: /^node-00, / }));
+      await screen.findByRole("complementary", { name: "node-00" });
+      expect(within(table).getAllByRole("row")).toHaveLength(26);
+    },
+  );
 
   it("names apps two projects share once, with how many", async () => {
     const db = (scope: string) =>
@@ -301,22 +332,44 @@ describe("Servers", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("names no command it can't stand behind, for a build that isn't a release", async () => {
+  it.each(["0.2.1-dev", "v0.2.1-0.20261108120000-abcdef123456", "v0.2.1-next+abcdef1", "devel"])(
+    "explains how to join manually on development build %s",
+    async (version) => {
+      const user = userEvent.setup();
+      renderServers([web1, web2()], "/servers", {
+        updates: {
+          getServerUpdates: () => ({
+            dockwell: { controlPlane: version, releases: "https://github.com/Dockwell/dockwell/releases" },
+          }),
+        },
+      });
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      await waitFor(() => expect(sheet).toHaveTextContent("development build with no release installer"));
+      expect(sheet).toHaveTextContent("same source revision for the new server's architecture");
+      expect(within(sheet).getByText("dockwell join <ticket>")).toBeVisible();
+      expect(within(sheet).getByText("dockwell run", { selector: ".copy-command code" })).toBeVisible();
+      expect(sheet).toHaveTextContent("same user, with sudo for both");
+      expect(sheet).not.toHaveTextContent("curl");
+      expect(sheet).not.toHaveTextContent("install script of the release");
+    },
+  );
+
+  it("gives manual joining steps when installation metadata is unavailable", async () => {
     const user = userEvent.setup();
     renderServers([web1, web2()], "/servers", {
       updates: {
         getServerUpdates: () => ({
-          dockwell: { controlPlane: "0.2.1-dev", releases: "https://github.com/Dockwell/dockwell/releases" },
+          dockwell: { controlPlane: "0.2.1", releases: "" },
         }),
       },
     });
     await user.click(await screen.findByRole("button", { name: "Add server" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a server" });
-    await waitFor(() =>
-      expect(sheet).toHaveTextContent(
-        "run the install script of the release the control plane runs, with --join and the ticket",
-      ),
-    );
+    await waitFor(() => expect(sheet).toHaveTextContent("The control server's installation details are unavailable"));
+    expect(sheet).toHaveTextContent("Install an agent that matches its version");
+    expect(within(sheet).getByText("dockwell join <ticket>")).toBeVisible();
+    expect(sheet).not.toHaveTextContent("development build");
     expect(sheet).not.toHaveTextContent("curl");
   });
 
