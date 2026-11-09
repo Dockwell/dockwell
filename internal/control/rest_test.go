@@ -358,9 +358,11 @@ func testRESTRefusesCrossSiteRequests(t *testing.T, backend store.Backend) {
 			"", http.StatusForbidden, authapi.ReasonOrigin,
 		},
 		{
+			// Who's calling is checked before the body is read, so a cookie with
+			// no origin is refused for that, whatever the body's type.
 			"a text/plain post with the cookie and no origin", http.MethodPost, "/v1/sessions:revokeOthers",
 			map[string]string{"Origin": "", "Sec-Fetch-Site": "", "Content-Type": "text/plain"},
-			"{}", http.StatusUnsupportedMediaType, "",
+			"{}", http.StatusForbidden, authapi.ReasonOrigin,
 		},
 		{
 			"a proxy's Basic credentials don't stand in for a token", http.MethodPost, "/v1/sessions:revokeOthers",
@@ -813,5 +815,20 @@ func testCreateTokenWithATTL(t *testing.T, backend store.Backend) {
 		if status != http.StatusBadRequest {
 			t.Errorf("POST /v1/tokens with %s = %d %s, want 400", bad, status, body)
 		}
+	}
+}
+
+// Every REST path finds its own method before Vanguard reads it, so who's calling is
+// checked for that method first, whatever its path variables hold.
+func TestEveryRESTPathFindsItsMethod(t *testing.T) {
+	routes := restRoutes()
+	for _, m := range restMethods(t) {
+		got, ok := routes.procedureOf(m.verb, fillPath(m.path))
+		if !ok || got != m.procedure {
+			t.Errorf("%s %s finds %q (%v), want %s", m.verb, m.path, got, ok, m.procedure)
+		}
+	}
+	if _, ok := routes.procedureOf(http.MethodGet, "/v1/nothing/here"); ok {
+		t.Error("a path no rule names found a method")
 	}
 }

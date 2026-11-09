@@ -25,6 +25,7 @@ export interface Described {
  */
 export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, string>) => Described {
   const { t, i18n } = useLingui();
+  const time = useTimeWords();
   return useMemo(
     () => (event: Event, summaries: ReadonlyMap<string, string>) => {
       const change = event.change;
@@ -60,8 +61,23 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       if (event.action === "backup.copy_kept") {
         return { title: t`${destination} kept a backup of ${volume} that was to go`, icon: "archive", tone: "warning" };
       }
+      const task = event.taskRun?.displayName || event.taskRun?.task || name;
       const server = name || event.subject?.id || t`a server`;
       switch (event.action) {
+        case "task.failed":
+          return {
+            title: task ? t`${task} failed` : t`A scheduled task failed`,
+            icon: "clock",
+            tone: "critical",
+          };
+        case "task.recovered":
+          return {
+            title: task ? t`${task} succeeded after a failure` : t`A scheduled task succeeded after a failure`,
+            icon: "clock",
+            tone: "cobalt",
+          };
+        case "task.run":
+          return { title: task ? t`Asked to run ${task}` : t`Asked to run a scheduled task`, icon: "clock" };
         case "server.join":
           return event.actor?.kind === ActorKind.DOCKWELL
             ? { title: t`${server} joined as the control server`, icon: "server" }
@@ -83,6 +99,55 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
         case "server.public_address_clear": {
           const previous = event.publicAddress?.previous ?? "";
           return { title: t`Cleared the public address of ${server}, which was ${previous}`, icon: "server" };
+        }
+        case "terminal.open": {
+          const as = event.terminal?.title ?? "";
+          const container = event.terminal?.container ?? "";
+          if (container) return { title: t`Opened a shell in ${container} on ${server}`, icon: "terminal" };
+          return {
+            title: as ? t`Opened a terminal on ${server}, as ${as}` : t`Opened a terminal on ${server}`,
+            icon: "terminal",
+          };
+        }
+        case "terminal.close": {
+          const opened = event.terminal?.openTime;
+          const ended = event.terminal?.end?.time;
+          const container = event.terminal?.container ?? "";
+          const open =
+            opened && ended ? time.span(timestampDate(ended).getTime() - timestampDate(opened).getTime()) : "";
+          if (container) {
+            return {
+              title: open
+                ? t`Closed a shell in ${container} on ${server}, open ${open}`
+                : t`Closed a shell in ${container} on ${server}`,
+              icon: "terminal",
+            };
+          }
+          return {
+            title: open ? t`Closed a terminal on ${server}, open ${open}` : t`Closed a terminal on ${server}`,
+            icon: "terminal",
+          };
+        }
+        case "terminal.open_failed": {
+          const container = event.terminal?.container ?? "";
+          return {
+            title: container
+              ? t`Couldn't open a shell in ${container} on ${server}`
+              : t`Couldn't open a terminal on ${server}`,
+            icon: "terminal",
+            tone: "warning",
+          };
+        }
+        case "terminal.open_unconfirmed": {
+          // A root shell asked for, with no passkey following: what a stolen session looks like.
+          const container = event.terminal?.container ?? "";
+          return {
+            title: container
+              ? t`Asked for a passkey to open a shell in ${container} on ${server}, and none came`
+              : t`Asked for a passkey to open a terminal on ${server}, and none came`,
+            icon: "terminal",
+            tone: "warning",
+          };
         }
         case "file.read": {
           const path = event.subject?.path ?? "";
@@ -138,6 +203,29 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return previous
             ? { title: t`Set the time zone for new schedules to ${value}, which was ${previous}`, icon: "settings" }
             : { title: t`Set the time zone for new schedules to ${value}`, icon: "settings" };
+        }
+        case "process.end": {
+          const what = event.process?.name ?? "";
+          const pid = event.process?.pid ?? 0;
+          return event.process?.killed
+            ? {
+                title: t`Killed ${what} (PID ${pid}) on ${server}, as it didn't stop within 10 s`,
+                icon: "stop",
+                tone: "warning",
+              }
+            : { title: t`Stopped ${what} (PID ${pid}) on ${server}`, icon: "stop" };
+        }
+        case "process.end_failed": {
+          const pid = event.process?.pid ?? 0;
+          return { title: t`Couldn't stop PID ${pid} on ${server}`, icon: "stop", tone: "warning" };
+        }
+        case "process.end_unconfirmed": {
+          const pid = event.process?.pid ?? 0;
+          return {
+            title: t`Asked for a passkey to stop PID ${pid} on ${server}, and none came`,
+            icon: "key",
+            tone: "warning",
+          };
         }
         case "change.apply_unconfirmed": {
           const change = event.subject?.id ?? "";
@@ -206,7 +294,7 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       }
       return { title: event.action, icon: event.kind === EventKind.SERVER ? "server" : "users" };
     },
-    [t, i18n],
+    [t, i18n, time],
   );
 }
 

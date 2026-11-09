@@ -44,6 +44,9 @@ const (
 	// SettingsServiceSetTimeZoneProcedure is the fully-qualified name of the SettingsService's
 	// SetTimeZone RPC.
 	SettingsServiceSetTimeZoneProcedure = "/dockwell.v1.SettingsService/SetTimeZone"
+	// SettingsServiceGetControlPlaneProcedure is the fully-qualified name of the SettingsService's
+	// GetControlPlane RPC.
+	SettingsServiceGetControlPlaneProcedure = "/dockwell.v1.SettingsService/GetControlPlane"
 )
 
 // SettingsServiceClient is a client for the dockwell.v1.SettingsService service.
@@ -60,6 +63,14 @@ type SettingsServiceClient interface {
 	// it was made with, so this moves none. An empty zone clears it, and new
 	// schedules start in UTC again.
 	SetTimeZone(context.Context, *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error)
+	// GetControlPlane returns what serves the panel and API: its build, where it
+	// keeps its state, the addresses it answers on, and how it's doing. Most of
+	// it comes from how dockwell run was started, and changes there.
+	//
+	// A call with an API token gets no paths, no state store location and no
+	// agent URLs: they say where the key and the store are, and the panel needs
+	// them only for a person signed in, to say how to back the control plane up.
+	GetControlPlane(context.Context, *connect.Request[v1.GetControlPlaneRequest]) (*connect.Response[v1.GetControlPlaneResponse], error)
 }
 
 // NewSettingsServiceClient constructs a client for the dockwell.v1.SettingsService service. By
@@ -92,14 +103,22 @@ func NewSettingsServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(settingsServiceMethods.ByName("SetTimeZone")),
 			connect.WithClientOptions(opts...),
 		),
+		getControlPlane: connect.NewClient[v1.GetControlPlaneRequest, v1.GetControlPlaneResponse](
+			httpClient,
+			baseURL+SettingsServiceGetControlPlaneProcedure,
+			connect.WithSchema(settingsServiceMethods.ByName("GetControlPlane")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // settingsServiceClient implements SettingsServiceClient.
 type settingsServiceClient struct {
-	getSettings    *connect.Client[v1.GetSettingsRequest, v1.GetSettingsResponse]
-	setInstallName *connect.Client[v1.SetInstallNameRequest, v1.SetInstallNameResponse]
-	setTimeZone    *connect.Client[v1.SetTimeZoneRequest, v1.SetTimeZoneResponse]
+	getSettings     *connect.Client[v1.GetSettingsRequest, v1.GetSettingsResponse]
+	setInstallName  *connect.Client[v1.SetInstallNameRequest, v1.SetInstallNameResponse]
+	setTimeZone     *connect.Client[v1.SetTimeZoneRequest, v1.SetTimeZoneResponse]
+	getControlPlane *connect.Client[v1.GetControlPlaneRequest, v1.GetControlPlaneResponse]
 }
 
 // GetSettings calls dockwell.v1.SettingsService.GetSettings.
@@ -117,6 +136,11 @@ func (c *settingsServiceClient) SetTimeZone(ctx context.Context, req *connect.Re
 	return c.setTimeZone.CallUnary(ctx, req)
 }
 
+// GetControlPlane calls dockwell.v1.SettingsService.GetControlPlane.
+func (c *settingsServiceClient) GetControlPlane(ctx context.Context, req *connect.Request[v1.GetControlPlaneRequest]) (*connect.Response[v1.GetControlPlaneResponse], error) {
+	return c.getControlPlane.CallUnary(ctx, req)
+}
+
 // SettingsServiceHandler is an implementation of the dockwell.v1.SettingsService service.
 type SettingsServiceHandler interface {
 	// GetSettings returns the install's settings, and how its panel is served.
@@ -131,6 +155,14 @@ type SettingsServiceHandler interface {
 	// it was made with, so this moves none. An empty zone clears it, and new
 	// schedules start in UTC again.
 	SetTimeZone(context.Context, *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error)
+	// GetControlPlane returns what serves the panel and API: its build, where it
+	// keeps its state, the addresses it answers on, and how it's doing. Most of
+	// it comes from how dockwell run was started, and changes there.
+	//
+	// A call with an API token gets no paths, no state store location and no
+	// agent URLs: they say where the key and the store are, and the panel needs
+	// them only for a person signed in, to say how to back the control plane up.
+	GetControlPlane(context.Context, *connect.Request[v1.GetControlPlaneRequest]) (*connect.Response[v1.GetControlPlaneResponse], error)
 }
 
 // NewSettingsServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -159,6 +191,13 @@ func NewSettingsServiceHandler(svc SettingsServiceHandler, opts ...connect.Handl
 		connect.WithSchema(settingsServiceMethods.ByName("SetTimeZone")),
 		connect.WithHandlerOptions(opts...),
 	)
+	settingsServiceGetControlPlaneHandler := connect.NewUnaryHandler(
+		SettingsServiceGetControlPlaneProcedure,
+		svc.GetControlPlane,
+		connect.WithSchema(settingsServiceMethods.ByName("GetControlPlane")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.SettingsService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SettingsServiceGetSettingsProcedure:
@@ -167,6 +206,8 @@ func NewSettingsServiceHandler(svc SettingsServiceHandler, opts ...connect.Handl
 			settingsServiceSetInstallNameHandler.ServeHTTP(w, r)
 		case SettingsServiceSetTimeZoneProcedure:
 			settingsServiceSetTimeZoneHandler.ServeHTTP(w, r)
+		case SettingsServiceGetControlPlaneProcedure:
+			settingsServiceGetControlPlaneHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -186,4 +227,8 @@ func (UnimplementedSettingsServiceHandler) SetInstallName(context.Context, *conn
 
 func (UnimplementedSettingsServiceHandler) SetTimeZone(context.Context, *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.SettingsService.SetTimeZone is not implemented"))
+}
+
+func (UnimplementedSettingsServiceHandler) GetControlPlane(context.Context, *connect.Request[v1.GetControlPlaneRequest]) (*connect.Response[v1.GetControlPlaneResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.SettingsService.GetControlPlane is not implemented"))
 }

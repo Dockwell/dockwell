@@ -3,10 +3,11 @@
 import type { Server } from "@dockwell/api";
 import { TabNav, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { Fragment, type ReactNode } from "react";
 
 import { RouterTabLink } from "../../lib/links";
+import { useOnePanelHere } from "../import/onePanelHere";
 import { EmptyState } from "../shell/EmptyState";
 import { Page, type PageProps } from "../shell/Page";
 import { summarize, useServerUpdates } from "../updates/updates";
@@ -134,11 +135,33 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
           <RouterTabLink to="/servers/$serverId/files" params={{ serverId: server.id }}>
             <Trans>Files</Trans>
           </RouterTabLink>
+          <RouterTabLink to="/servers/$serverId/terminal" params={{ serverId: server.id }}>
+            <Trans>Terminal</Trans>
+          </RouterTabLink>
           <UpdatesTab server={server} />
+          <RouterTabLink to="/servers/$serverId/processes" params={{ serverId: server.id }}>
+            <Trans>Processes</Trans>
+          </RouterTabLink>
+          <MoveInTab server={server} />
         </TabNav>
       )}
       {children}
     </ServerFramePage>
+  );
+}
+
+/**
+ * The Move in tab, where 1Panel's containers are left to move, and on its own page:
+ * a way in that doesn't rest on the Overview's callout, which someone can put away.
+ */
+function MoveInTab({ server }: { server: Server }) {
+  const here = useOnePanelHere(server.id);
+  const on = useRouterState({ select: (s) => s.location.pathname.endsWith("/import") });
+  if (!here && !on) return null;
+  return (
+    <RouterTabLink to="/servers/$serverId/import" params={{ serverId: server.id }}>
+      <Trans>Move in</Trans>
+    </RouterTabLink>
   );
 }
 

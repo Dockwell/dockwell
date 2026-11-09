@@ -81,6 +81,8 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 		buildsTable(w, m, now)
 	case *dockwellv1.DetectBuildResponse:
 		buildDetection(w, m)
+	case *dockwellv1.ImportOnePanelResponse:
+		importView(w, m)
 	case *dockwellv1.ExportComposeResponse:
 		// The file alone, so it pipes into docker compose -f -. Its comments
 		// say which variables it leaves out.
@@ -1190,6 +1192,7 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_VOLUME:  resource.AccessExternalVolume,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TAKES_ON:         resource.AccessTakesOn,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF:        resource.AccessBackupOf,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_SHELL:     resource.AccessServerShell,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY:       resource.AccessCapability,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GROUP:            resource.AccessGroup,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PRIVILEGED:       resource.AccessPrivileged,

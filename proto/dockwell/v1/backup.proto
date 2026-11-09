@@ -215,6 +215,11 @@ message BackupDestinationInfo {
   int64 used_bytes = 7;
   // When the last one got there. Unset until one has.
   google.protobuf.Timestamp last_upload = 8;
+  // When the newest backup that didn't get there was taken, and why it
+  // didn't. Unset until one has failed. The destination is failing when
+  // this is newer than last_upload.
+  google.protobuf.Timestamp last_failure = 9;
+  string last_failure_error = 10;
 }
 
 // ListBackupDestinationsRequest asks for the destinations.

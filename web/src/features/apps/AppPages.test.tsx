@@ -31,6 +31,7 @@ import {
   StepProgressSchema,
   StepState,
   Surface,
+  TokenScope,
   type WatchBuildResponse,
   WatchBuildResponseSchema,
   type WatchChangeResponse,
@@ -432,7 +433,12 @@ describe("an app's frame", () => {
         id: "chg_3",
         summary: "Deploy",
         state: ChangeState.APPLIED,
-        appliedBy: { kind: ActorKind.TOKEN, name: "Local access on home-t3code, read-write" },
+        appliedBy: {
+          kind: ActorKind.TOKEN,
+          id: "tok_9",
+          name: "Local access on home-t3code, read-write",
+          localAccess: { account: "t3@home-t3code", scope: TokenScope.READ_WRITE },
+        },
         appliedVia: Surface.CLI,
       },
     });
@@ -445,6 +451,31 @@ describe("an app's frame", () => {
     await waitFor(() => expect(container.querySelector(".page-lead")).toHaveTextContent("from the CLI on home-t3code"));
     expect(container.querySelector(".page-lead")).not.toHaveTextContent("Local access");
     expect(container.querySelector(".page-lead")).not.toHaveTextContent("read-write");
+  });
+
+  it("names a token by its name, whatever it's called, unless local access made it", async () => {
+    const lookalike = aRevision(3n, "ghcr.io/acme/web:1.5", {
+      change: {
+        id: "chg_3",
+        summary: "Deploy",
+        state: ChangeState.APPLIED,
+        appliedBy: { kind: ActorKind.TOKEN, id: "tok_8", name: "Local access on prod-1, read-write" },
+        appliedVia: Surface.API,
+      },
+    });
+    const { container } = renderAt(
+      "/apps/svc_web",
+      api([web], {
+        services: {
+          listServices: () => ({ services: [web] }),
+          listServiceRevisions: () => ({ revisions: [lookalike] }),
+        },
+      }),
+    );
+    await waitFor(() =>
+      expect(container.querySelector(".page-lead")).toHaveTextContent("by Local access on prod-1, read-write"),
+    );
+    expect(container.querySelector(".page-lead")).not.toHaveTextContent("the CLI on prod-1");
   });
 
   it("speaks Chinese", async () => {

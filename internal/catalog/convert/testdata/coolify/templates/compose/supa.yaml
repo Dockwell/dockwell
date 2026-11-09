@@ -1,0 +1,8 @@
+# port: 80
+
+services:
+  supa:
+    image: example/supa:1.0.0
+    environment:
+      - SERVICE_URL_SUPA_80
+      - ANON=${SERVICE_SUPABASEANON_KEY}

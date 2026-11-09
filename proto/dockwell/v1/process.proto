@@ -1,0 +1,161 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// ProcessService shows what runs on a server, process by process, and ends one.
+// A server's agent reads its processes only while someone watches them. See
+// docs/adr/0041-processes-on-a-server.md.
+//
+// Every method needs a signed-in session: no API token can call them, whatever
+// its scope, as a process's command line can hold what was typed with it, a
+// password included, and ending one is as much as root on the server.
+service ProcessService {
+  // WatchProcesses streams what runs on a server, about every 2 s, for as long
+  // as it's open: each process with its user, CPU, memory, how long it has
+  // run, and the container or systemd unit it belongs to, busiest first. The
+  // kernel's own threads aren't listed. It has no REST path, as streams have
+  // none.
+  rpc WatchProcesses(WatchProcessesRequest) returns (stream WatchProcessesResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
+  }
+
+  // EndProcess ends a process on a server, as kill does: SIGTERM, and SIGKILL
+  // if it's still there 10 s later. It's as much as root on the server, so it
+  // takes a passkey just now: call it without a proof first, and it refuses with
+  // the reason needs_step_up, then again with the proof from FinishStepUp for
+  // STEP_UP_ACTION_END_PROCESS, whose target is "<server ID>:<PID>:<start
+  // ticks>", so a proof ends no other process given the PID later. It can't be
+  // undone. Refused, with the reason process_protected: PID 1; the process
+  // Dockwell's agent runs in, any thread of it, and what it runs under; a
+  // thread, which only stops with its process; a thread the kernel runs; and
+  // the SSH server that takes new logins. A server whose kernel has no pidfds,
+  // before Linux 5.3, ends nothing, as a signal by PID alone could reach
+  // whatever took the PID. It's on the activity log, without the command line.
+  rpc EndProcess(EndProcessRequest) returns (EndProcessResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "processes"
+      verb: "end"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/processes/{pid}:end"
+      body: "*"
+    };
+  }
+}
+
+// WatchProcessesRequest names a server.
+message WatchProcessesRequest {
+  // The server's ID.
+  string server_id = 1;
+}
+
+// WatchProcessesResponse is what runs on the server now.
+message WatchProcessesResponse {
+  // What runs, as the agent last read it.
+  ProcessList processes = 1;
+}
+
+// ProcessList is what runs on a server, at one moment.
+message ProcessList {
+  // When the agent read it, on the server's clock.
+  google.protobuf.Timestamp time = 1;
+  // Each process, busiest first: by CPU, then by memory. At most 1,000.
+  repeated Process processes = 2;
+  // How many processes there are, listed or not, without the kernel's threads.
+  uint32 total = 3;
+  // How long CPU is measured over: since the agent last read the list. Unset
+  // on the first list a watch gets, whose CPU reads 0.
+  google.protobuf.Duration cpu_window = 4;
+}
+
+// Process is one process on a server.
+message Process {
+  // Its process ID.
+  uint32 pid = 1;
+  // Its parent's process ID.
+  uint32 parent_pid = 2;
+  // What the kernel calls it, such as "postgres", at most 15 characters.
+  string name = 3;
+  // Its command line, words joined by spaces, at most 512 characters.
+  string command = 4;
+  // Who it runs as: the user's name as the container it runs in knows it, or
+  // the server, or the user's ID when neither has a name for it.
+  string user = 5;
+  // The user's ID.
+  uint32 uid = 6;
+  // Its share of one CPU over the list's cpu_window, as top says it: 0 to 100
+  // times the server's CPUs.
+  double cpu_percent = 7;
+  // What it holds in memory (its resident set), in bytes.
+  uint64 memory_bytes = 8;
+  // When it started, on the server's clock.
+  google.protobuf.Timestamp start_time = 9;
+  // When it started, in clock ticks after the server booted, as the kernel
+  // says it. With the PID, it tells this process from a later one given the
+  // same PID, so EndProcess takes it.
+  uint64 start_ticks = 10;
+  // The container it runs in. Unset for one that doesn't.
+  ProcessContainer container = 11;
+  // The systemd unit it runs under, such as "docker.service". Empty for a
+  // process in a container, or outside any unit.
+  string unit = 12;
+  // Why it can't be ended here: "dockwell" for the process Dockwell's agent
+  // runs in, which on the control server is the control plane's too, and for
+  // what the agent runs under, such as the shell or container that started it;
+  // "init" for PID 1; and "ssh" for the SSH server that takes new logins, which
+  // is a way back onto the server. Empty for everything else.
+  string protected = 13;
+  // What else stops with it, when that's more than itself: "containers" for
+  // Docker's daemons, dockerd and containerd, which every container needs, and
+  // "container" for the shim that runs one. Empty for everything else.
+  string stops = 14;
+  // True for the process its container runs, which the container's restart
+  // policy starts again. Another process in a container stops for good.
+  bool container_main = 15;
+}
+
+// ProcessContainer is the container a process runs in.
+message ProcessContainer {
+  // The container's full ID.
+  string id = 1;
+  // Its name, without Docker's leading slash.
+  string name = 2;
+  // Its Compose project and service, as its labels say, for one Compose or
+  // Dockwell made. Dockwell's project is its environment's ID, in lower case.
+  string compose_project = 3;
+  // Its Compose service.
+  string compose_service = 4;
+  // Its restart policy, as Docker says it: "no", "always", "unless-stopped" or
+  // "on-failure". Empty when it isn't known.
+  string restart_policy = 5;
+}
+
+// EndProcessRequest names a process.
+message EndProcessRequest {
+  // The server's ID.
+  string server_id = 1;
+  // The process ID, 4194304 at most, as Linux gives them.
+  uint32 pid = 2;
+  // When it started, as Process.start_ticks has it, so a process that ended
+  // and gave its PID to another isn't ended in its place.
+  uint64 start_ticks = 3;
+  // The proof from FinishStepUp, for STEP_UP_ACTION_END_PROCESS on
+  // "<server ID>:<PID>:<start ticks>".
+  string proof = 4;
+}
+
+// EndProcessResponse says how it went.
+message EndProcessResponse {
+  // True when it took SIGKILL, as SIGTERM didn't end it within 10 s.
+  bool killed = 1;
+}

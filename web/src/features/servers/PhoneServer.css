@@ -1,0 +1,236 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* ---------- Status ---------- */
+
+.phone-status {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.phone-status-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.phone-status-line {
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 20px;
+}
+
+.phone-status-fix {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.phone-status-fix code {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.phone-status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--line);
+}
+
+.phone-status-grid > * + * {
+  border-left: 1px solid var(--line);
+}
+
+.phone-status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4) 14px;
+}
+
+.phone-meter {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.phone-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ink);
+}
+
+/* Past 90%, the bar is in the state it says: a warning. */
+.phone-meter > span.is-high {
+  background: var(--warning);
+}
+
+.phone-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px;
+  column-gap: var(--space-2);
+  align-items: center;
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.phone-copy > svg {
+  color: var(--ink-muted);
+}
+
+.phone-copy:hover {
+  background: var(--surface-sunken);
+}
+
+.phone-copy-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.phone-copy-label {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.phone-copy-value {
+  overflow: hidden;
+  font: 400 13px / 18px var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone-copy-none {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* ---------- Sections ---------- */
+
+.phone-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.phone-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 0 2px;
+}
+
+.phone-section-head h2 {
+  margin: 0;
+}
+
+.phone-section-meta {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.phone-section-link {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.phone-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+}
+
+.phone-list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.phone-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  box-sizing: border-box;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.phone-row > svg {
+  flex: none;
+  color: var(--ink-muted);
+}
+
+a.phone-row:hover {
+  background: var(--surface-sunken);
+  text-decoration: none;
+}
+
+.phone-row-name {
+  min-width: 0;
+  margin-left: 2px;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone-row-count {
+  flex: none;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.phone-row-rev {
+  flex: none;
+  padding: 0 5px;
+  font: 400 12px / 18px var(--font-mono);
+  border-radius: 3px;
+  background: var(--surface-sunken);
+}
+
+.phone-row-spacer {
+  flex: 1 1 auto;
+}
+
+.phone-empty {
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.phone-note {
+  margin: 0;
+  padding: 0 2px;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.phone-skeleton {
+  display: block;
+  width: 160px;
+  height: 12px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+}

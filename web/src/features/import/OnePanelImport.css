@@ -1,0 +1,107 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.onepanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.onepanel-intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.onepanel-intro p {
+  max-width: 72ch;
+  margin: 0;
+  line-height: 20px;
+}
+
+.onepanel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.onepanel-found,
+.onepanel-count {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.onepanel-steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onepanel-step {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.onepanel-step:first-child {
+  border-top: none;
+}
+
+.onepanel-step-icon {
+  flex: none;
+  padding-top: 2px;
+  color: var(--ink-muted);
+}
+
+.onepanel-step-what {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.onepanel-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.onepanel-step-name {
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.onepanel-step-line {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.onepanel-step-why {
+  color: var(--ink-muted);
+}
+
+/* "Becomes", a label beside the import's own words, which stay as they are. */
+.onepanel-step-label {
+  margin-inline-end: var(--space-2);
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ink-muted);
+}
+
+/* The count, and Review the plan again, where a long list ends. */
+.onepanel-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}

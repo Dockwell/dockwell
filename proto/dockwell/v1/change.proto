@@ -6,6 +6,7 @@ package dockwell.v1;
 
 import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/options.proto";
+import "dockwell/v1/token.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
@@ -571,6 +572,20 @@ message Actor {
   // The name to show, such as "Mira Chen", a token's name, such as
   // "GitHub Actions deploy", or a server's, such as "hz-2".
   string name = 3;
+  // For a token the CLI made for local access on the control server, who
+  // asked for it there. Unset for every other actor: a token's name is
+  // whatever its maker typed, so only this says a token is local access's.
+  LocalAccess local_access = 4;
+}
+
+// LocalAccess is how the CLI came by a token on the control server, by
+// reading the control plane's data directory, without signing in.
+message LocalAccess {
+  // The shell account that asked for it, and the server's host name, as
+  // "mira@hz-1".
+  string account = 1;
+  // What the token may do.
+  TokenScope scope = 2;
 }
 
 // ActorKind says what kind of actor made a change, or did what an event
@@ -689,9 +704,11 @@ message PlanNote {
   // upgrade that runs without a backup first, "upgrade_kept" for what a person changed that the upgrade
   // changes too, which stays, "upgrade_dropped" for what they changed that it
   // drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
-  // whose data stays as the new version left it, and "tmpfs_no_size" for a Compose
-  // file's tmpfs that nothing stops taking half the server's memory. Another reason
-  // may come: its message says what it means.
+  // whose data stays as the new version left it, "tmpfs_no_size" for a Compose
+  // file's tmpfs that nothing stops taking half the server's memory, and
+  // "tasks_as_root" for an app this makes reach what's as good as root, whose
+  // scheduled tasks run in it and reach the same. Another reason may come: its
+  // message says what it means.
   string reason = 1;
   // What it says, for people: the fact, what it means, and what to do.
   string message = 2;
@@ -700,7 +717,7 @@ message PlanNote {
   // The names it is about: the variable, then the field that holds it, for
   // "exposed_variable"; the project, then the services it runs, for
   // "updates_project"; the volumes and server paths for "volumes_stay"; the path
-  // for "tmpfs_no_size"; the
+  // for "tmpfs_no_size"; each task, then its command, for "tasks_as_root"; the
   // variables and secrets, by the names the service sees, for "values_latest";
   // the image, the revision and its digest for "digest_pinned" and "digest_gone",
   // and the image and the revision for "digest_differs"; the container_name, or
@@ -916,6 +933,10 @@ enum HostAccessKind {
   // A backup of a volume that reached path, which is as good as root, coming back
   // into a volume that doesn't. What it holds can be read from there.
   HOST_ACCESS_KIND_BACKUP_OF = 18;
+  // A shell command the agent runs on the server as root, on a schedule (ADR
+  // 0053): the same as root. Numbered in the block scheduled tasks hold, as open
+  // work adds to this enum.
+  HOST_ACCESS_KIND_SERVER_SHELL = 150;
 }
 
 // ServerPlan is the part of a plan on one server.

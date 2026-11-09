@@ -41,6 +41,19 @@ service ServerService {
     option (dockwell.v1.effect) = EFFECT_READ;
   }
 
+  // GetServerDiskUse says what takes the room on the disk that holds Docker's
+  // data: images, containers, volumes, the build cache and logs, and the rest.
+  // The server's agent asks Docker when this is called, and only then, as
+  // Docker adds up every volume to answer, which takes a while on a big disk.
+  // An answer stands for 30 s, so a page opened twice asks once. See
+  // docs/adr/0040-a-servers-live-use.md.
+  rpc GetServerDiskUse(GetServerDiskUseRequest) returns (GetServerDiskUseResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.command) = {verb: "disk-use"};
+    option (google.api.http) = {get: "/v1/servers/{id}/diskUse"};
+  }
+
   // SetServerPublicAddress records a server's public address, as a person
   // knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
   // address are kept apart. An empty address goes back to what Dockwell finds
@@ -75,6 +88,56 @@ message GetServerRequest {
 message GetServerResponse {
   // The server, with history.
   Server server = 1;
+}
+
+// GetServerDiskUseRequest names a server.
+message GetServerDiskUseRequest {
+  // The server's ID.
+  string id = 1;
+}
+
+// GetServerDiskUseResponse says what takes the room on a server's disk.
+message GetServerDiskUseResponse {
+  // What takes the room on the disk that holds Docker's data.
+  ServerDiskUse disk_use = 1;
+}
+
+// ServerDiskUse is what takes the room on the disk that holds Docker's data,
+// as Docker and the agent added it up. Docker's parts can come to more than
+// the disk holds, when Docker's data spans disks of its own.
+message ServerDiskUse {
+  // When the agent added it up, on the server's clock.
+  google.protobuf.Timestamp time = 1;
+  // Where Docker keeps its data, such as "/var/lib/docker".
+  string docker_root = 2;
+  // Where the disk that holds it is mounted, such as "/".
+  string mount_point = 3;
+  // How big that disk is, in bytes.
+  uint64 size_bytes = 4;
+  // How much of it is in use, in bytes, as df counts it.
+  uint64 used_bytes = 5;
+  // What images take, each layer counted once, as `docker system df` counts
+  // them.
+  uint64 images_bytes = 6;
+  // What of that no container uses, so removing those images would free it.
+  uint64 images_unused_bytes = 7;
+  // What containers have written to their own layers.
+  uint64 containers_bytes = 8;
+  // What volumes hold. Docker counts only the volumes it keeps itself.
+  uint64 volumes_bytes = 9;
+  // What of that is in volumes no container uses.
+  uint64 volumes_unused_bytes = 10;
+  // What the build cache takes.
+  uint64 build_cache_bytes = 11;
+  // What containers' logs take, as Docker's json-file and local drivers keep
+  // them, rotated files included.
+  uint64 logs_bytes = 12;
+  // How many images there are.
+  uint32 images = 13;
+  // How many containers there are, running or not.
+  uint32 containers = 14;
+  // How many volumes there are.
+  uint32 volumes = 15;
 }
 
 // SetServerPublicAddressRequest says what a server's public address is.
@@ -147,7 +210,9 @@ message Server {
   ServerStats stats = 7;
   // Recent stats, oldest first, for sparklines: at most 60 samples, from
   // the 5 minutes before the newest by the samples' own times, so a server
-  // that reports again after a longer outage starts over. Empty in lists.
+  // that reports again after a longer outage starts over. Samples come every
+  // 5 s while anyone watches the fleet, and every 15 s while nobody does, so
+  // each says its own interval. Empty in lists.
   repeated ServerStats history = 8;
   // The agent's build.
   BuildInfo agent_build = 9;
@@ -352,6 +417,21 @@ message ServerStats {
   uint64 network_tx_bytes_per_second = 10;
   // Time since the server booted.
   google.protobuf.Duration uptime = 11;
+  // Swap in use, in bytes.
+  uint64 swap_used_bytes = 12;
+  // Total swap, in bytes. 0 for a server with none.
+  uint64 swap_total_bytes = 13;
+  // What the agent itself holds in memory (its resident set), in bytes. 0
+  // from an agent from before this.
+  uint64 agent_memory_bytes = 14;
+  // Bytes received across physical interfaces since the server booted.
+  uint64 network_rx_bytes = 15;
+  // Bytes sent across physical interfaces since the server booted.
+  uint64 network_tx_bytes = 16;
+  // How long until the agent's next sample, at the pace it was sampling when
+  // it took this one: 5 s while anyone watches the fleet, 15 s while nobody
+  // does. Unset from an agent from before this, which samples every 5 s.
+  google.protobuf.Duration interval = 17;
 }
 
 // DiskUsage is one filesystem's use.

@@ -1,18 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import {
-  ActorKind,
-  BuildState,
-  type Change,
-  ChangeState,
-  DeploymentState,
-  FieldOp,
-  type ServiceRevision,
-} from "@dockwell/api";
+import { BuildState, type Change, ChangeState, DeploymentState, FieldOp, type ServiceRevision } from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { createElement, type ReactNode, useCallback, useMemo } from "react";
 
+import { localHost } from "../activity/actor";
 import { MachineWords } from "../changes/FailureNotice";
 import { intentOf } from "../changes/plan";
 import { useChangeWords } from "../changes/words";
@@ -181,13 +174,10 @@ export function useRevisionTitle() {
   );
 }
 
-/** Local access's token says where it is in its name: "Local access on hz-1, read-write". */
-const LOCAL_ACCESS = /^Local access on (.+?)(?:, read-(?:write|only))?$/;
-
 /**
  * Who did a change, in words that read: a person by name, and what comes from
  * local access, as a token isn't a person, by where it was run, "from the CLI
- * on hz-1".
+ * on hz-1". That's what made the token, never what it's called (localHost).
  */
 export function useWhoWords() {
   const { t } = useLingui();
@@ -197,14 +187,14 @@ export function useWhoWords() {
       name(change: Change | undefined): string {
         const actor = change?.appliedBy?.name ? change.appliedBy : change?.proposedBy;
         const name = actor?.name ?? "";
-        const local = actor?.kind === ActorKind.TOKEN ? LOCAL_ACCESS.exec(name)?.[1] : undefined;
+        const local = localHost(actor);
         return local ? t`the CLI on ${local}` : name;
       },
       /** That it deployed, how long ago, and who did it: "deployed 3 min ago by Mira Chen", said whole for other languages. */
       deployed(change: Change | undefined, ago: string): string {
         const actor = change?.appliedBy?.name ? change.appliedBy : change?.proposedBy;
         const name = actor?.name ?? "";
-        const local = actor?.kind === ActorKind.TOKEN ? LOCAL_ACCESS.exec(name)?.[1] : undefined;
+        const local = localHost(actor);
         if (local) return t`deployed ${ago} from the CLI on ${local}`;
         return name ? t`deployed ${ago} by ${name}` : t`deployed ${ago}`;
       },
@@ -212,7 +202,7 @@ export function useWhoWords() {
       revisionDeployed(change: Change | undefined, revision: string, when: string): string {
         const actor = change?.appliedBy?.name ? change.appliedBy : change?.proposedBy;
         const name = actor?.name ?? "";
-        const local = actor?.kind === ActorKind.TOKEN ? LOCAL_ACCESS.exec(name)?.[1] : undefined;
+        const local = localHost(actor);
         if (local) return t`${revision} deployed ${when} from the CLI on ${local}`;
         return name ? t`${revision} deployed ${when} by ${name}` : t`${revision} deployed ${when}`;
       },

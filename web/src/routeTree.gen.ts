@@ -21,6 +21,7 @@ import { Route as ShellActivityRouteImport } from './routes/_shell/activity'
 import { Route as ShellBackupsRouteImport } from './routes/_shell/backups'
 import { Route as ShellDomainsRouteImport } from './routes/_shell/domains'
 import { Route as ShellMoreRouteImport } from './routes/_shell/more'
+import { Route as ShellScheduledTasksRouteImport } from './routes/_shell/scheduled-tasks'
 import { Route as ShellVariablesRouteImport } from './routes/_shell/variables'
 import { Route as ShellSettingsProfileRouteImport } from './routes/_shell/_settings/profile'
 import { Route as ShellAppsIndexRouteImport } from './routes/_shell/apps.index'
@@ -36,15 +37,24 @@ import { Route as ShellWebsitesIndexRouteImport } from './routes/_shell/websites
 import { Route as ShellWebsitesWebsiteIdRouteImport } from './routes/_shell/websites.$websiteId'
 import { Route as ShellWebsitesNewRouteImport } from './routes/_shell/websites.new'
 import { Route as ShellSettingsSettingsIndexRouteImport } from './routes/_shell/_settings/settings.index'
+import { Route as ShellSettingsSettingsApiTokensRouteImport } from './routes/_shell/_settings/settings.api-tokens'
+import { Route as ShellSettingsSettingsAuditLogRouteImport } from './routes/_shell/_settings/settings.audit-log'
+import { Route as ShellSettingsSettingsControlPlaneRouteImport } from './routes/_shell/_settings/settings.control-plane'
 import { Route as ShellSettingsSettingsGeneralRouteImport } from './routes/_shell/_settings/settings.general'
+import { Route as ShellSettingsSettingsIntegrationsRouteImport } from './routes/_shell/_settings/settings.integrations'
+import { Route as ShellSettingsSettingsMembersRouteImport } from './routes/_shell/_settings/settings.members'
 import { Route as ShellAppsServiceIdIndexRouteImport } from './routes/_shell/apps.$serviceId.index'
 import { Route as ShellAppsServiceIdDeploymentsRouteImport } from './routes/_shell/apps.$serviceId.deployments'
 import { Route as ShellAppsServiceIdEnvironmentRouteImport } from './routes/_shell/apps.$serviceId.environment'
 import { Route as ShellAppsServiceIdLogsRouteImport } from './routes/_shell/apps.$serviceId.logs'
 import { Route as ShellDatabasesServiceIdIndexRouteImport } from './routes/_shell/databases.$serviceId.index'
+import { Route as ShellDatabasesServiceIdBackupsRouteImport } from './routes/_shell/databases.$serviceId.backups'
 import { Route as ShellDatabasesServiceIdUsersRouteImport } from './routes/_shell/databases.$serviceId.users'
 import { Route as ShellServersServerIdIndexRouteImport } from './routes/_shell/servers.$serverId.index'
 import { Route as ShellServersServerIdFilesRouteImport } from './routes/_shell/servers.$serverId.files'
+import { Route as ShellServersServerIdImportRouteImport } from './routes/_shell/servers.$serverId.import'
+import { Route as ShellServersServerIdProcessesRouteImport } from './routes/_shell/servers.$serverId.processes'
+import { Route as ShellServersServerIdTerminalRouteImport } from './routes/_shell/servers.$serverId.terminal'
 import { Route as ShellServersServerIdUpdatesRouteImport } from './routes/_shell/servers.$serverId.updates'
 import { Route as ShellWebsitesWebsiteIdIndexRouteImport } from './routes/_shell/websites.$websiteId.index'
 import { Route as ShellWebsitesWebsiteIdCertificateRouteImport } from './routes/_shell/websites.$websiteId.certificate'
@@ -109,6 +119,11 @@ const ShellDomainsRoute = ShellDomainsRouteImport.update({
 const ShellMoreRoute = ShellMoreRouteImport.update({
   id: '/more',
   path: '/more',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellScheduledTasksRoute = ShellScheduledTasksRouteImport.update({
+  id: '/scheduled-tasks',
+  path: '/scheduled-tasks',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellVariablesRoute = ShellVariablesRouteImport.update({
@@ -187,10 +202,40 @@ const ShellSettingsSettingsIndexRoute =
     path: '/settings/',
     getParentRoute: () => ShellSettingsRoute,
   } as any)
+const ShellSettingsSettingsApiTokensRoute =
+  ShellSettingsSettingsApiTokensRouteImport.update({
+    id: '/settings/api-tokens',
+    path: '/settings/api-tokens',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
+const ShellSettingsSettingsAuditLogRoute =
+  ShellSettingsSettingsAuditLogRouteImport.update({
+    id: '/settings/audit-log',
+    path: '/settings/audit-log',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
+const ShellSettingsSettingsControlPlaneRoute =
+  ShellSettingsSettingsControlPlaneRouteImport.update({
+    id: '/settings/control-plane',
+    path: '/settings/control-plane',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
 const ShellSettingsSettingsGeneralRoute =
   ShellSettingsSettingsGeneralRouteImport.update({
     id: '/settings/general',
     path: '/settings/general',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
+const ShellSettingsSettingsIntegrationsRoute =
+  ShellSettingsSettingsIntegrationsRouteImport.update({
+    id: '/settings/integrations',
+    path: '/settings/integrations',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
+const ShellSettingsSettingsMembersRoute =
+  ShellSettingsSettingsMembersRouteImport.update({
+    id: '/settings/members',
+    path: '/settings/members',
     getParentRoute: () => ShellSettingsRoute,
   } as any)
 const ShellAppsServiceIdIndexRoute = ShellAppsServiceIdIndexRouteImport.update({
@@ -221,6 +266,12 @@ const ShellDatabasesServiceIdIndexRoute =
     path: '/',
     getParentRoute: () => ShellDatabasesServiceIdRoute,
   } as any)
+const ShellDatabasesServiceIdBackupsRoute =
+  ShellDatabasesServiceIdBackupsRouteImport.update({
+    id: '/backups',
+    path: '/backups',
+    getParentRoute: () => ShellDatabasesServiceIdRoute,
+  } as any)
 const ShellDatabasesServiceIdUsersRoute =
   ShellDatabasesServiceIdUsersRouteImport.update({
     id: '/users',
@@ -237,6 +288,24 @@ const ShellServersServerIdFilesRoute =
   ShellServersServerIdFilesRouteImport.update({
     id: '/servers/$serverId/files',
     path: '/servers/$serverId/files',
+    getParentRoute: () => ShellRoute,
+  } as any)
+const ShellServersServerIdImportRoute =
+  ShellServersServerIdImportRouteImport.update({
+    id: '/servers/$serverId/import',
+    path: '/servers/$serverId/import',
+    getParentRoute: () => ShellRoute,
+  } as any)
+const ShellServersServerIdProcessesRoute =
+  ShellServersServerIdProcessesRouteImport.update({
+    id: '/servers/$serverId/processes',
+    path: '/servers/$serverId/processes',
+    getParentRoute: () => ShellRoute,
+  } as any)
+const ShellServersServerIdTerminalRoute =
+  ShellServersServerIdTerminalRouteImport.update({
+    id: '/servers/$serverId/terminal',
+    path: '/servers/$serverId/terminal',
     getParentRoute: () => ShellRoute,
   } as any)
 const ShellServersServerIdUpdatesRoute =
@@ -293,6 +362,7 @@ export interface FileRoutesByFullPath {
   '/backups': typeof ShellBackupsRoute
   '/domains': typeof ShellDomainsRoute
   '/more': typeof ShellMoreRoute
+  '/scheduled-tasks': typeof ShellScheduledTasksRoute
   '/variables': typeof ShellVariablesRoute
   '/profile': typeof ShellSettingsProfileRoute
   '/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
@@ -307,12 +377,21 @@ export interface FileRoutesByFullPath {
   '/databases/': typeof ShellDatabasesIndexRoute
   '/servers/': typeof ShellServersIndexRoute
   '/websites/': typeof ShellWebsitesIndexRoute
+  '/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
+  '/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
+  '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
+  '/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
+  '/settings/members': typeof ShellSettingsSettingsMembersRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
+  '/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
   '/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/servers/$serverId/import': typeof ShellServersServerIdImportRoute
+  '/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
+  '/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
   '/servers/$serverId/updates': typeof ShellServersServerIdUpdatesRoute
   '/websites/$websiteId/certificate': typeof ShellWebsitesWebsiteIdCertificateRoute
   '/websites/$websiteId/configuration': typeof ShellWebsitesWebsiteIdConfigurationRoute
@@ -336,6 +415,7 @@ export interface FileRoutesByTo {
   '/backups': typeof ShellBackupsRoute
   '/domains': typeof ShellDomainsRoute
   '/more': typeof ShellMoreRoute
+  '/scheduled-tasks': typeof ShellScheduledTasksRoute
   '/variables': typeof ShellVariablesRoute
   '/profile': typeof ShellSettingsProfileRoute
   '/apps/new': typeof ShellAppsNewRoute
@@ -347,12 +427,21 @@ export interface FileRoutesByTo {
   '/databases': typeof ShellDatabasesIndexRoute
   '/servers': typeof ShellServersIndexRoute
   '/websites': typeof ShellWebsitesIndexRoute
+  '/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
+  '/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
+  '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
+  '/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
+  '/settings/members': typeof ShellSettingsSettingsMembersRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
+  '/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
   '/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/servers/$serverId/import': typeof ShellServersServerIdImportRoute
+  '/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
+  '/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
   '/servers/$serverId/updates': typeof ShellServersServerIdUpdatesRoute
   '/websites/$websiteId/certificate': typeof ShellWebsitesWebsiteIdCertificateRoute
   '/websites/$websiteId/configuration': typeof ShellWebsitesWebsiteIdConfigurationRoute
@@ -378,6 +467,7 @@ export interface FileRoutesById {
   '/_shell/backups': typeof ShellBackupsRoute
   '/_shell/domains': typeof ShellDomainsRoute
   '/_shell/more': typeof ShellMoreRoute
+  '/_shell/scheduled-tasks': typeof ShellScheduledTasksRoute
   '/_shell/variables': typeof ShellVariablesRoute
   '/_shell/': typeof ShellIndexRoute
   '/_shell/_settings/profile': typeof ShellSettingsProfileRoute
@@ -393,12 +483,21 @@ export interface FileRoutesById {
   '/_shell/databases/': typeof ShellDatabasesIndexRoute
   '/_shell/servers/': typeof ShellServersIndexRoute
   '/_shell/websites/': typeof ShellWebsitesIndexRoute
+  '/_shell/_settings/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
+  '/_shell/_settings/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
+  '/_shell/_settings/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/_shell/_settings/settings/general': typeof ShellSettingsSettingsGeneralRoute
+  '/_shell/_settings/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
+  '/_shell/_settings/settings/members': typeof ShellSettingsSettingsMembersRoute
   '/_shell/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/_shell/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/_shell/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
+  '/_shell/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
   '/_shell/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/_shell/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/_shell/servers/$serverId/import': typeof ShellServersServerIdImportRoute
+  '/_shell/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
+  '/_shell/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
   '/_shell/servers/$serverId/updates': typeof ShellServersServerIdUpdatesRoute
   '/_shell/websites/$websiteId/certificate': typeof ShellWebsitesWebsiteIdCertificateRoute
   '/_shell/websites/$websiteId/configuration': typeof ShellWebsitesWebsiteIdConfigurationRoute
@@ -424,6 +523,7 @@ export interface FileRouteTypes {
     | '/backups'
     | '/domains'
     | '/more'
+    | '/scheduled-tasks'
     | '/variables'
     | '/profile'
     | '/apps/$serviceId'
@@ -438,12 +538,21 @@ export interface FileRouteTypes {
     | '/databases/'
     | '/servers/'
     | '/websites/'
+    | '/settings/api-tokens'
+    | '/settings/audit-log'
+    | '/settings/control-plane'
     | '/settings/general'
+    | '/settings/integrations'
+    | '/settings/members'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
+    | '/databases/$serviceId/backups'
     | '/databases/$serviceId/users'
     | '/servers/$serverId/files'
+    | '/servers/$serverId/import'
+    | '/servers/$serverId/processes'
+    | '/servers/$serverId/terminal'
     | '/servers/$serverId/updates'
     | '/websites/$websiteId/certificate'
     | '/websites/$websiteId/configuration'
@@ -467,6 +576,7 @@ export interface FileRouteTypes {
     | '/backups'
     | '/domains'
     | '/more'
+    | '/scheduled-tasks'
     | '/variables'
     | '/profile'
     | '/apps/new'
@@ -478,12 +588,21 @@ export interface FileRouteTypes {
     | '/databases'
     | '/servers'
     | '/websites'
+    | '/settings/api-tokens'
+    | '/settings/audit-log'
+    | '/settings/control-plane'
     | '/settings/general'
+    | '/settings/integrations'
+    | '/settings/members'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
+    | '/databases/$serviceId/backups'
     | '/databases/$serviceId/users'
     | '/servers/$serverId/files'
+    | '/servers/$serverId/import'
+    | '/servers/$serverId/processes'
+    | '/servers/$serverId/terminal'
     | '/servers/$serverId/updates'
     | '/websites/$websiteId/certificate'
     | '/websites/$websiteId/configuration'
@@ -508,6 +627,7 @@ export interface FileRouteTypes {
     | '/_shell/backups'
     | '/_shell/domains'
     | '/_shell/more'
+    | '/_shell/scheduled-tasks'
     | '/_shell/variables'
     | '/_shell/'
     | '/_shell/_settings/profile'
@@ -523,12 +643,21 @@ export interface FileRouteTypes {
     | '/_shell/databases/'
     | '/_shell/servers/'
     | '/_shell/websites/'
+    | '/_shell/_settings/settings/api-tokens'
+    | '/_shell/_settings/settings/audit-log'
+    | '/_shell/_settings/settings/control-plane'
     | '/_shell/_settings/settings/general'
+    | '/_shell/_settings/settings/integrations'
+    | '/_shell/_settings/settings/members'
     | '/_shell/apps/$serviceId/deployments'
     | '/_shell/apps/$serviceId/environment'
     | '/_shell/apps/$serviceId/logs'
+    | '/_shell/databases/$serviceId/backups'
     | '/_shell/databases/$serviceId/users'
     | '/_shell/servers/$serverId/files'
+    | '/_shell/servers/$serverId/import'
+    | '/_shell/servers/$serverId/processes'
+    | '/_shell/servers/$serverId/terminal'
     | '/_shell/servers/$serverId/updates'
     | '/_shell/websites/$websiteId/certificate'
     | '/_shell/websites/$websiteId/configuration'
@@ -636,6 +765,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellMoreRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/scheduled-tasks': {
+      id: '/_shell/scheduled-tasks'
+      path: '/scheduled-tasks'
+      fullPath: '/scheduled-tasks'
+      preLoaderRoute: typeof ShellScheduledTasksRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/variables': {
       id: '/_shell/variables'
       path: '/variables'
@@ -741,11 +877,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellSettingsSettingsIndexRouteImport
       parentRoute: typeof ShellSettingsRoute
     }
+    '/_shell/_settings/settings/api-tokens': {
+      id: '/_shell/_settings/settings/api-tokens'
+      path: '/settings/api-tokens'
+      fullPath: '/settings/api-tokens'
+      preLoaderRoute: typeof ShellSettingsSettingsApiTokensRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
+    '/_shell/_settings/settings/audit-log': {
+      id: '/_shell/_settings/settings/audit-log'
+      path: '/settings/audit-log'
+      fullPath: '/settings/audit-log'
+      preLoaderRoute: typeof ShellSettingsSettingsAuditLogRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
+    '/_shell/_settings/settings/control-plane': {
+      id: '/_shell/_settings/settings/control-plane'
+      path: '/settings/control-plane'
+      fullPath: '/settings/control-plane'
+      preLoaderRoute: typeof ShellSettingsSettingsControlPlaneRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
     '/_shell/_settings/settings/general': {
       id: '/_shell/_settings/settings/general'
       path: '/settings/general'
       fullPath: '/settings/general'
       preLoaderRoute: typeof ShellSettingsSettingsGeneralRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
+    '/_shell/_settings/settings/integrations': {
+      id: '/_shell/_settings/settings/integrations'
+      path: '/settings/integrations'
+      fullPath: '/settings/integrations'
+      preLoaderRoute: typeof ShellSettingsSettingsIntegrationsRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
+    '/_shell/_settings/settings/members': {
+      id: '/_shell/_settings/settings/members'
+      path: '/settings/members'
+      fullPath: '/settings/members'
+      preLoaderRoute: typeof ShellSettingsSettingsMembersRouteImport
       parentRoute: typeof ShellSettingsRoute
     }
     '/_shell/apps/$serviceId/': {
@@ -783,6 +954,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellDatabasesServiceIdIndexRouteImport
       parentRoute: typeof ShellDatabasesServiceIdRoute
     }
+    '/_shell/databases/$serviceId/backups': {
+      id: '/_shell/databases/$serviceId/backups'
+      path: '/backups'
+      fullPath: '/databases/$serviceId/backups'
+      preLoaderRoute: typeof ShellDatabasesServiceIdBackupsRouteImport
+      parentRoute: typeof ShellDatabasesServiceIdRoute
+    }
     '/_shell/databases/$serviceId/users': {
       id: '/_shell/databases/$serviceId/users'
       path: '/users'
@@ -802,6 +980,27 @@ declare module '@tanstack/react-router' {
       path: '/servers/$serverId/files'
       fullPath: '/servers/$serverId/files'
       preLoaderRoute: typeof ShellServersServerIdFilesRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/servers/$serverId/import': {
+      id: '/_shell/servers/$serverId/import'
+      path: '/servers/$serverId/import'
+      fullPath: '/servers/$serverId/import'
+      preLoaderRoute: typeof ShellServersServerIdImportRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/servers/$serverId/processes': {
+      id: '/_shell/servers/$serverId/processes'
+      path: '/servers/$serverId/processes'
+      fullPath: '/servers/$serverId/processes'
+      preLoaderRoute: typeof ShellServersServerIdProcessesRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/servers/$serverId/terminal': {
+      id: '/_shell/servers/$serverId/terminal'
+      path: '/servers/$serverId/terminal'
+      fullPath: '/servers/$serverId/terminal'
+      preLoaderRoute: typeof ShellServersServerIdTerminalRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/servers/$serverId/updates': {
@@ -858,13 +1057,25 @@ declare module '@tanstack/react-router' {
 
 interface ShellSettingsRouteChildren {
   ShellSettingsProfileRoute: typeof ShellSettingsProfileRoute
+  ShellSettingsSettingsApiTokensRoute: typeof ShellSettingsSettingsApiTokensRoute
+  ShellSettingsSettingsAuditLogRoute: typeof ShellSettingsSettingsAuditLogRoute
+  ShellSettingsSettingsControlPlaneRoute: typeof ShellSettingsSettingsControlPlaneRoute
   ShellSettingsSettingsGeneralRoute: typeof ShellSettingsSettingsGeneralRoute
+  ShellSettingsSettingsIntegrationsRoute: typeof ShellSettingsSettingsIntegrationsRoute
+  ShellSettingsSettingsMembersRoute: typeof ShellSettingsSettingsMembersRoute
   ShellSettingsSettingsIndexRoute: typeof ShellSettingsSettingsIndexRoute
 }
 
 const ShellSettingsRouteChildren: ShellSettingsRouteChildren = {
   ShellSettingsProfileRoute: ShellSettingsProfileRoute,
+  ShellSettingsSettingsApiTokensRoute: ShellSettingsSettingsApiTokensRoute,
+  ShellSettingsSettingsAuditLogRoute: ShellSettingsSettingsAuditLogRoute,
+  ShellSettingsSettingsControlPlaneRoute:
+    ShellSettingsSettingsControlPlaneRoute,
   ShellSettingsSettingsGeneralRoute: ShellSettingsSettingsGeneralRoute,
+  ShellSettingsSettingsIntegrationsRoute:
+    ShellSettingsSettingsIntegrationsRoute,
+  ShellSettingsSettingsMembersRoute: ShellSettingsSettingsMembersRoute,
   ShellSettingsSettingsIndexRoute: ShellSettingsSettingsIndexRoute,
 }
 
@@ -890,12 +1101,14 @@ const ShellAppsServiceIdRouteWithChildren =
   ShellAppsServiceIdRoute._addFileChildren(ShellAppsServiceIdRouteChildren)
 
 interface ShellDatabasesServiceIdRouteChildren {
+  ShellDatabasesServiceIdBackupsRoute: typeof ShellDatabasesServiceIdBackupsRoute
   ShellDatabasesServiceIdUsersRoute: typeof ShellDatabasesServiceIdUsersRoute
   ShellDatabasesServiceIdIndexRoute: typeof ShellDatabasesServiceIdIndexRoute
 }
 
 const ShellDatabasesServiceIdRouteChildren: ShellDatabasesServiceIdRouteChildren =
   {
+    ShellDatabasesServiceIdBackupsRoute: ShellDatabasesServiceIdBackupsRoute,
     ShellDatabasesServiceIdUsersRoute: ShellDatabasesServiceIdUsersRoute,
     ShellDatabasesServiceIdIndexRoute: ShellDatabasesServiceIdIndexRoute,
   }
@@ -936,6 +1149,7 @@ interface ShellRouteChildren {
   ShellBackupsRoute: typeof ShellBackupsRoute
   ShellDomainsRoute: typeof ShellDomainsRoute
   ShellMoreRoute: typeof ShellMoreRoute
+  ShellScheduledTasksRoute: typeof ShellScheduledTasksRoute
   ShellVariablesRoute: typeof ShellVariablesRoute
   ShellIndexRoute: typeof ShellIndexRoute
   ShellAppsServiceIdRoute: typeof ShellAppsServiceIdRouteWithChildren
@@ -951,6 +1165,9 @@ interface ShellRouteChildren {
   ShellServersIndexRoute: typeof ShellServersIndexRoute
   ShellWebsitesIndexRoute: typeof ShellWebsitesIndexRoute
   ShellServersServerIdFilesRoute: typeof ShellServersServerIdFilesRoute
+  ShellServersServerIdImportRoute: typeof ShellServersServerIdImportRoute
+  ShellServersServerIdProcessesRoute: typeof ShellServersServerIdProcessesRoute
+  ShellServersServerIdTerminalRoute: typeof ShellServersServerIdTerminalRoute
   ShellServersServerIdUpdatesRoute: typeof ShellServersServerIdUpdatesRoute
   ShellServersServerIdIndexRoute: typeof ShellServersServerIdIndexRoute
   ShellServersServerIdContainersNameRoute: typeof ShellServersServerIdContainersNameRoute
@@ -963,6 +1180,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellBackupsRoute: ShellBackupsRoute,
   ShellDomainsRoute: ShellDomainsRoute,
   ShellMoreRoute: ShellMoreRoute,
+  ShellScheduledTasksRoute: ShellScheduledTasksRoute,
   ShellVariablesRoute: ShellVariablesRoute,
   ShellIndexRoute: ShellIndexRoute,
   ShellAppsServiceIdRoute: ShellAppsServiceIdRouteWithChildren,
@@ -978,6 +1196,9 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellServersIndexRoute: ShellServersIndexRoute,
   ShellWebsitesIndexRoute: ShellWebsitesIndexRoute,
   ShellServersServerIdFilesRoute: ShellServersServerIdFilesRoute,
+  ShellServersServerIdImportRoute: ShellServersServerIdImportRoute,
+  ShellServersServerIdProcessesRoute: ShellServersServerIdProcessesRoute,
+  ShellServersServerIdTerminalRoute: ShellServersServerIdTerminalRoute,
   ShellServersServerIdUpdatesRoute: ShellServersServerIdUpdatesRoute,
   ShellServersServerIdIndexRoute: ShellServersServerIdIndexRoute,
   ShellServersServerIdContainersNameRoute:

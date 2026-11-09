@@ -343,6 +343,8 @@ func accessClass(a resource.Access) string {
 		return "a container taken on"
 	case resource.AccessBackupOf:
 		return "a backup of what reached a server path"
+	case resource.AccessServerShell:
+		return "a shell command on the server"
 	case resource.AccessCapability:
 		return "the capability " + a.Path
 	case resource.AccessGroup:

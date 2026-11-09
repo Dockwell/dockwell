@@ -13,11 +13,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/logs"
+	"github.com/dockwell/dockwell/internal/agent/onepanel"
+	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/backup"
 	imagebuild "github.com/dockwell/dockwell/internal/build"
@@ -34,6 +37,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // runRole runs the role dockwell run takes, until ctx is done.
@@ -88,8 +92,18 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
+	cfg.OnePanel = serverOnePanel(stdio)
+	cfg.Terminals = terminal.New(terminal.Options{
+		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
+	})
 	lookups(&cfg, stdio, g)
-	return agent.Run(ctx, cfg)
+	err := agent.Run(ctx, cfg)
+	if cfg.Tasks != nil && ctx.Err() != nil {
+		// Stopping stops the tasks' runs too; what each came to is kept before the
+		// agent goes, and one that outlasts this is ended when it starts again.
+		cfg.Tasks.Drain(task.DrainWait)
+	}
+	return err
 }
 
 // lookups says how this server's agent finds out how the internet sees it: what the
@@ -154,6 +168,22 @@ func serverUpdates(stdio IO, logger *slog.Logger, stateDir string) *updates.Read
 	return updates.New(o)
 }
 
+// serverOnePanel reads what 1Panel keeps on this server (ADR 0056). A test reads
+// nothing of the machine it runs on: with DOCKWELL_TEST set, only what's under
+// DOCKWELL_TEST_ONEPANEL, and nothing without it.
+func serverOnePanel(stdio IO) func(context.Context) (*agentv1.ReadOnePanelResult, error) {
+	root := "/"
+	if isSet(stdio.Getenv(envTest)) {
+		root = stdio.Getenv(envTestOnePanel)
+	}
+	return func(ctx context.Context) (*agentv1.ReadOnePanelResult, error) {
+		if root == "" {
+			return &agentv1.ReadOnePanelResult{NotHere: "this is a test, so Dockwell reads no 1Panel here. Set " + envTestOnePanel + " to a folder laid out as a server's root"}, nil
+		}
+		return onepanel.Read(ctx, root)
+	}
+}
+
 // ingressEvery is how often the agent puts the server's ingress as its routes
 // need it, which starts a stopped proxy within this long.
 const ingressEvery = time.Minute
@@ -200,15 +230,17 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go monitor.Run(ctx)
 	builder := &imagebuild.Builder{Client: client, Logger: logger, StateDir: dir.Root}
 	go builder.Clean(ctx)
+	tasks := &task.Driver{Dir: dir.Agent(), Client: client, Logger: logger}
+	go tasks.Keep(ctx)
 	var reserved string
 	if panel != nil {
 		reserved = panel.Domain
 	}
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers, Builds: builder},
-			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved}),
+			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved}, tasks),
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
-		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder,
+		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks,
 	}
 }
 

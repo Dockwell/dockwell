@@ -53,11 +53,11 @@ export function useAuthError({ claimCommand = "dockwell claim" }: { claimCommand
         case "unavailable":
           return t`The control plane couldn't check your session just now. Try again in a moment.`;
         case "token_rejected":
-          return t`That API token is unknown, revoked or expired. Check you copied all of it, or create a new one under Profile and security.`;
+          return t`That API token is unknown, revoked or expired. Check you copied all of it, or create a new one in Settings, under API tokens.`;
         case "token_scope":
-          return t`That API token is read-only, so it can't make changes. Create a read-write token under Profile and security.`;
+          return t`That API token is read-only, so it can't make changes. Create a read-write token in Settings, under API tokens.`;
         case "needs_session":
-          return t`API tokens can't remove data, cut off access, reveal a secret, reach a server's files, or change how you sign in and your tokens. Sign in and do it in the panel.`;
+          return t`API tokens can't remove data, cut off access, reveal a secret, reach a server's files, processes or terminal, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel.`;
         case "needs_step_up":
           return t`That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks.`;
         case "no_passkey_here":

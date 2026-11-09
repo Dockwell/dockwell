@@ -61,7 +61,11 @@ export function Rail({ view }: { view: FleetView }) {
         <Logo variant="logotype" height={14} className="rail-logo" />
         <Logo variant="mark" height={14} className="rail-mark" />
         {!view.fleet && short ? (
-          <Link to="/status" className="rail-version" aria-label={t`Dockwell ${short}: control plane status`}>
+          <Link
+            to="/settings/control-plane"
+            className="rail-version"
+            aria-label={t`Dockwell ${short}: control plane status`}
+          >
             {short}
           </Link>
         ) : null}

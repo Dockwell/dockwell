@@ -105,7 +105,13 @@ let fakeSocket = "";
 async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
   const path = values["fake-docker"];
   if (!path) return {};
-  docker = spawn(resolve(path), [join(data, "docker")], { stdio: ["ignore", "pipe", "inherit"] });
+  // Docker's data, as /info says it, is on the disk this checkout is on, which is a
+  // data disk here and in CI where a container's / isn't, so a server's Overview
+  // adds up that disk part by part. Nothing is written there.
+  docker = spawn(resolve(path), [join(data, "docker")], {
+    stdio: ["ignore", "pipe", "inherit"],
+    env: { ...process.env, FAKEDOCKER_ROOT: join(process.cwd(), "bin", "fakedocker-root") },
+  });
   // A fake that dies, or says nothing, would otherwise hang until the job's timeout.
   const socket = await new Promise<string>((done, refused) => {
     const silent = setTimeout(() => refused(new Error(`${path} said nothing for 15 s, so it isn't serving`)), 15_000);
@@ -447,15 +453,18 @@ async function main() {
   await expectPage(phone, "Sign in to Dockwell");
   step("  the other browser is signed out");
 
-  step("API tokens: make one in the panel, call REST and Connect with it, then revoke it");
-  const tokens = page.getByRole("region", { name: "API tokens" });
-  await tokens.getByRole("button", { name: "Create token" }).click();
-  const create = page.getByRole("dialog", { name: "Create an API token" });
-  await create.getByLabel("Name").fill("e2e script");
+  step("API tokens: make one in Settings, call REST and Connect with it, then revoke it");
+  await page.getByRole("region", { name: "API tokens" }).getByRole("link", { name: "Manage" }).click();
+  await expectPage(page, "API tokens");
+  const create = page.getByRole("region", { name: "Create a token" });
+  await create.getByRole("textbox", { name: "Name" }).fill("e2e script");
   await shoot(page, "token-create");
   await create.getByRole("button", { name: "Create token" }).click();
-  const made = tokens.locator(".tokens-made");
+  const made = page.locator(".tokens-made");
   await made.waitFor();
+  // Partly hidden until asked, as someone may be watching the screen.
+  if ((await made.getByText(/^dwt_[0-9A-Za-z]{49}$/).count()) !== 0) fail("the new token was shown whole before asked");
+  await made.getByRole("button", { name: "Show the whole token" }).click();
   const token = (await made.locator(".tokens-secret code").innerText()).trim();
   if (!/^dwt_[0-9A-Za-z]{49}$/.test(token)) fail(`the new token looks like ${JSON.stringify(token)}`);
   await shoot(page, "token-made");
@@ -567,7 +576,7 @@ async function main() {
     fail(`GET /v1/changes lists ${JSON.stringify(ids)}, want the undo, then the project`);
   step(`  the read-only token was refused; the panel applied ${shop.id}, then undid it in ${undo.id}`);
   await page.reload();
-  const row = tokens.getByRole("listitem").filter({ hasText: "e2e script" });
+  const row = page.getByRole("table", { name: "Your API tokens" }).getByRole("row").filter({ hasText: "e2e script" });
   await row.filter({ hasText: /from\s*127\.0\.0\.1/ }).waitFor();
   await shoot(page, "tokens");
   await row.getByRole("button", { name: "Revoke e2e script" }).click();
@@ -581,7 +590,7 @@ async function main() {
       fail(`${protocol} with the revoked token: ${JSON.stringify(after)}`);
     }
   }
-  step("  the profile showed where it was last used; once revoked, REST and Connect refused it");
+  step("  API tokens showed where it was last used; once revoked, REST and Connect refused it");
 
   step("the panel: create a project from the command bar, review and apply its plan, then undo it from Activity");
   await page.goto(`${origin}/activity`);
@@ -702,7 +711,8 @@ async function main() {
   await expectText(tools, "Proposed by");
   await expectText(tools, "Mira Chen");
   await expectText(tools, "From the CLI");
-  await expectText(tools, "Local access on");
+  // Named by what made its token, the CLI on the control server, never by the token's name.
+  await expectText(tools, "CLI on ");
   await shoot(page, "activity-from-cli");
   // Local access's token, on the timeline as the shell account that made it.
   await page
@@ -762,15 +772,18 @@ async function main() {
   if (withoutStepUp.status !== 403 || withoutStepUp.reason !== "needs_step_up") {
     fail(`POST /v1/tokens from the page without a step-up = ${JSON.stringify(withoutStepUp)}`);
   }
-  await page.goto(`${origin}/profile`);
-  const revealTokens = page.getByRole("region", { name: "API tokens" });
-  await revealTokens.getByRole("button", { name: "Create token" }).click();
-  const revealCreate = page.getByRole("dialog", { name: "Create an API token" });
-  await revealCreate.getByLabel("Name").fill("e2e reveal");
-  await revealCreate.getByRole("radio", { name: /Read and write/ }).check();
+  await page.goto(`${origin}/settings/api-tokens`);
+  const revealCreate = page.getByRole("region", { name: "Create a token" });
+  await revealCreate.getByRole("textbox", { name: "Name" }).fill("e2e reveal");
+  // The card is the checkbox's label, which a person clicks.
+  await revealCreate.getByText(/^Plan and apply changes that can be undone/).click();
+  if (!(await revealCreate.getByRole("checkbox", { name: /write:undoable/ }).isChecked())) {
+    fail("clicking the write card didn't let the token write");
+  }
   await revealCreate.getByRole("button", { name: "Create token" }).click();
-  const revealMade = revealTokens.locator(".tokens-made");
+  const revealMade = page.locator(".tokens-made");
   await revealMade.waitFor();
+  await revealMade.getByRole("button", { name: "Show the whole token" }).click();
   const revealer = (await revealMade.locator(".tokens-secret code").innerText()).trim();
   await revealMade.getByRole("button", { name: "Done" }).click();
   const revealTokenId = await page.evaluate(async () => {

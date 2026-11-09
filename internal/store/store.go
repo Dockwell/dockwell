@@ -257,6 +257,40 @@ func (db *DB) Backend() Backend { return db.dialect.backend }
 // Where reports the store's location, without secrets.
 func (db *DB) Where() string { return db.where }
 
+// About is what the database the store runs on says of itself.
+type About struct {
+	// Version is the database's own version, such as "3.50.4" or "17.2".
+	Version string
+	// Size is the database's size on disk, in bytes.
+	Size int64
+	// RoundTrip is how long a query that reads nothing took.
+	RoundTrip time.Duration
+}
+
+// About asks the database its version and size, and times a query that reads
+// nothing, through the pool reads use.
+func (db *DB) About(ctx context.Context) (About, error) {
+	var a About
+	start := time.Now()
+	if _, err := db.read.ExecContext(ctx, "SELECT 1"); err != nil {
+		return a, fmt.Errorf("the state store at %s doesn't answer: %w", db.where, err)
+	}
+	a.RoundTrip = time.Since(start)
+	version, size := "SELECT sqlite_version()", "SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()"
+	if db.dialect.backend == Postgres {
+		version, size = "SHOW server_version", "SELECT pg_database_size(current_database())"
+	}
+	if err := db.read.QueryRowContext(ctx, version).Scan(&a.Version); err != nil {
+		return a, fmt.Errorf("can't read the state store's version: %w", err)
+	}
+	// Postgres from a distribution adds its build, as in "17.2 (Debian 17.2-1)".
+	a.Version, _, _ = strings.Cut(a.Version, " ")
+	if err := db.read.QueryRowContext(ctx, size).Scan(&a.Size); err != nil {
+		return a, fmt.Errorf("can't read the state store's size: %w", err)
+	}
+	return a, nil
+}
+
 // Close closes both pools.
 func (db *DB) Close() error {
 	return errors.Join(db.write.Close(), db.read.Close())

@@ -24,10 +24,11 @@ let clock = new Date(2026, 10, 4, 9, 30).getTime();
  * of an 8 GiB server, and uptime in hours. The rest is steady: 61 of 160 GiB
  * used on /, load 0.84, 0.91 and 0.88, and 1 MB/s in and 0.55 MB/s out.
  */
-export function sample(cpu: number, usedGiB = 2.4, uptimeHours = 76): ServerStats {
-  clock += 5_000;
+export function sample(cpu: number, usedGiB = 2.4, uptimeHours = 76, intervalMs = 5_000): ServerStats {
+  clock += intervalMs;
   return create(ServerStatsSchema, {
     time: timestampFromDate(new Date(clock)),
+    interval: durationFromMs(intervalMs),
     cpuPercent: cpu,
     memoryUsedBytes: BigInt(Math.round(usedGiB * GiB)),
     memoryTotalBytes: BigInt(8 * GiB),
@@ -72,3 +73,6 @@ export function removed(server: Server): WatchServersResponse {
 
 /** The watch message that ends the snapshot. */
 export const snapshotComplete: WatchServersResponse = create(WatchServersResponseSchema, { snapshotComplete: true });
+
+/** What the control plane sends every 10 s while nothing changes, so a watch knows it's alive. */
+export const heartbeat: WatchServersResponse = create(WatchServersResponseSchema, { heartbeat: true });

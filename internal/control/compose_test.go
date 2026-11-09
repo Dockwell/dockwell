@@ -20,11 +20,13 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentlogs "github.com/dockwell/dockwell/internal/agent/logs"
+	"github.com/dockwell/dockwell/internal/agent/onepanel"
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/build"
 	"github.com/dockwell/dockwell/internal/compose"
@@ -41,6 +43,7 @@ import (
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // addDockerServer enrolls hz-1, whose agent runs the Docker drivers on a
@@ -95,7 +98,8 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		Memory: func() (int64, int64, error) { return 4 << 30, 8 << 30, nil }, CPUs: func() int { return 4 },
 		DiskSize: func(string) (int64, error) { return 50 << 30, nil },
 	}
-	drivers := []resource.Type{&containers, &service.Driver{Containers: containers, Builds: builder}, volumeType, &network.Driver{Client: client}}
+	tasks := &task.Driver{Dir: t.TempDir(), Client: client}
+	drivers := []resource.Type{&containers, &service.Driver{Containers: containers, Builds: builder}, volumeType, &network.Driver{Client: client}, tasks}
 	if more != nil {
 		drivers = append(drivers, more()...)
 	}
@@ -109,6 +113,11 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		client:  client,
 		backups: backups,
 		builds:  builder,
+		tasks:   tasks,
+		mounts:  e.Mountinfo,
+	}
+	if root := f.onePanelRoot; root != "" {
+		s.onePanel = func(ctx context.Context) (*agentv1.ReadOnePanelResult, error) { return onepanel.Read(ctx, root) }
 	}
 	s.connect(t, f)
 	f.lastDocker = s

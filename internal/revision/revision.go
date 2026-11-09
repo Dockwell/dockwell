@@ -679,6 +679,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
 	p.Notes = unmeasuredNotes(plan, sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))))
+	if p.Notes, err = e.taskNotes(ctx, plan, items, p.Notes); err != nil {
+		return nil, err
+	}
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -738,6 +741,77 @@ func (e *Engine) keptLogsNotes(ctx context.Context, plan *Plan, items []item, no
 		}
 	}
 	return out, nil
+}
+
+// taskNotes are a plan's notes, naming the tasks that run in an app this makes
+// reach what's as good as root on its server, each with its command: they run in
+// what it runs, so they reach it too (ADR 0053).
+func (e *Engine) taskNotes(ctx context.Context, plan *Plan, items []item, notes []Note) ([]Note, error) {
+	out := slices.Clone(notes)
+	for i := range items {
+		it := &items[i]
+		if it.ref.Kind != "service" || it.spec == nil || !slices.ContainsFunc(plan.Resources, func(r ResourcePlan) bool {
+			return r.Ref == it.ref && slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot)
+		}) {
+			continue
+		}
+		commands := map[string]string{}
+		err := e.db.View(ctx, func(tx *store.Tx) error {
+			stored, err := tx.ListResources(ctx, it.ref.Scope, taskKind)
+			if err != nil {
+				return err
+			}
+			for _, r := range stored {
+				spec, err := e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+				if err != nil {
+					return err
+				}
+				if app := appTask(spec); app.GetService() == it.ref.Name {
+					commands[r.Name] = app.GetCommand()
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		// What this change does to a task in the same scope is what counts.
+		for j := range items {
+			other := &items[j]
+			if other.ref.Kind != taskKind || other.ref.Scope != it.ref.Scope {
+				continue
+			}
+			delete(commands, other.ref.Name)
+			if app := appTask(other.spec); app.GetService() == it.ref.Name {
+				commands[other.ref.Name] = app.GetCommand()
+			}
+		}
+		if len(commands) == 0 {
+			continue
+		}
+		var names, said []string
+		for _, name := range slices.Sorted(maps.Keys(commands)) {
+			names = append(names, name, commands[name])
+			said = append(said, name+" runs "+commands[name])
+		}
+		out = append(out, Note{
+			Reason: "tasks_as_root", Ref: it.ref, Names: names, Named: true,
+			Message: fmt.Sprintf("%s's tasks run in what it runs, so they reach what it reaches on its server too: %s.", it.ref.Name, strings.Join(said, "; ")),
+		})
+	}
+	return out, nil
+}
+
+// taskKind is the scheduled tasks' kind (ADR 0053).
+const taskKind = "task"
+
+// appTask is what a task runs in an app, or nil for a task that runs anything else.
+func appTask(spec proto.Message) *resourcev1.TaskApp {
+	t, ok := spec.(*resourcev1.Task)
+	if !ok {
+		return nil
+	}
+	return t.GetApp()
 }
 
 // awayServers names each server a resource was ever placed on that isn't connected and
@@ -2316,10 +2390,15 @@ func (e *Engine) runsSomethingElse(it *item, server string) bool {
 	if it.restoreOn(server) != nil {
 		return true
 	}
-	n, ok := e.imageNamer(it.ref.Kind)
 	current, desired := it.currentOn(server), it.desiredOn(server)
-	if !ok || current == nil || desired == nil {
+	if current == nil || desired == nil {
 		return false
+	}
+	n, ok := e.imageNamer(it.ref.Kind)
+	if !ok {
+		// A kind that runs code with no image, as a scheduled task's shell command.
+		w, ok := e.whatRunner(it.ref.Kind)
+		return ok && !proto.Equal(w.WhatRuns(current), w.WhatRuns(desired))
 	}
 	before, after := n.WhatRuns(current), n.WhatRuns(desired)
 	if now := n.ImageOf(desired); docker.Repository(n.ImageOf(current)) == docker.Repository(now) {
@@ -4149,6 +4228,16 @@ func (e *Engine) pinIfMoved(ctx context.Context, tx *store.Tx, rev *store.Revisi
 	out := proto.Clone(spec)
 	namer.SetImage(out, resource.PinnedImage(namer.ImageOf(spec), digest))
 	return out, nil
+}
+
+// whatRunner returns a kind as a WhatRunner, if it is one.
+func (e *Engine) whatRunner(kind resource.Kind) (resource.WhatRunner, bool) {
+	t, err := e.kinds.Type(kind)
+	if err != nil {
+		return nil, false
+	}
+	w, ok := t.(resource.WhatRunner)
+	return w, ok
 }
 
 // imageNamer returns a kind as an ImageNamer, if it is one.

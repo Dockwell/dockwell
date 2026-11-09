@@ -390,6 +390,8 @@ export function useChangeWords(): ChangeWords {
             );
           case HostAccessKind.BACKUP_OF:
             return t`a backup of a volume that reached ${path}, which can hold what's there, as good as root`;
+          case HostAccessKind.SERVER_SHELL:
+            return t`a shell command on the server, which runs as root`;
           case HostAccessKind.TAKES_ON:
             return t`the container ${path}, which Dockwell didn't make, and its environment, which comes in with it`;
           case HostAccessKind.CAPABILITY:
