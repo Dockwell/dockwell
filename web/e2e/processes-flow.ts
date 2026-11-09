@@ -54,6 +54,9 @@ export async function processesFlow(page: Page, { origin, step, shoot }: Process
     await page.getByRole("textbox", { name: "Filter processes" }).fill(String(pid));
     const row = table.getByRole("row", { name: new RegExp(`\\bsleep\\b.*\\b${pid}\\b`) });
     await row.waitFor();
+    // The target can already be in the unfiltered list. Wait for the deferred
+    // filter to remove the other rows before reading its result.
+    await table.getByRole("row").nth(2).waitFor({ state: "detached" });
     if ((await table.getByRole("row").count()) !== 2) fail(`filtering by PID ${pid} left more than its row`);
 
     step("stopping it says what that does, asks for the passkey, and it gets SIGTERM");
