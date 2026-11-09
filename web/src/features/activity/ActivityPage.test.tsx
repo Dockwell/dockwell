@@ -547,6 +547,66 @@ describe("Activity", () => {
     expect(router.state.location.search).toEqual({ file: "/etc/nginx/nginx.conf" });
   });
 
+  it("says what was uploaded and downloaded, how large, and leads to the folder", async () => {
+    const user = userEvent.setup();
+    const watch = feed<WatchEventsResponse>();
+    const on = { id: "srv_1", name: "hz-1" };
+    const at = (hours: number) => timestampFromDate(new Date(Date.now() - hours * HOUR));
+    watch.push(
+      snapshot([
+        auditEvent({
+          id: "evt_up",
+          action: "file.upload",
+          time: at(1),
+          subject: { ...on, path: "/var/www/backup.sql", sizeBytes: 3n << 20n },
+        }),
+        auditEvent({
+          id: "evt_unpacked",
+          action: "file.upload",
+          time: at(2),
+          subject: { ...on, path: "/var/www/theme.zip", sizeBytes: 2048n, toPath: "/var/www/theme" },
+        }),
+        auditEvent({
+          id: "evt_up_way_in",
+          action: "file.upload",
+          time: at(3),
+          subject: { ...on, path: "/root/.ssh/authorized_keys", sizeBytes: 100n, wayBackIn: true },
+        }),
+        auditEvent({
+          id: "evt_up_none",
+          action: "file.upload_unconfirmed",
+          time: at(4),
+          subject: { ...on, path: "/etc/cron.d/job" },
+        }),
+        auditEvent({ id: "evt_up_failed", action: "file.upload_failed", time: at(5), subject: { ...on, path: "/x" } }),
+        auditEvent({
+          id: "evt_down",
+          action: "file.download",
+          time: at(6),
+          subject: { ...on, path: "/var/log/syslog", sizeBytes: 1536n },
+        }),
+        auditEvent({ id: "evt_down_dir", action: "file.download", time: at(7), subject: { ...on, path: "/srv/site" } }),
+      ]),
+    );
+    const { router } = renderActivity(watch);
+    await screen.findByRole("row", {
+      name: /Uploaded \/var\/www\/theme\.zip to hz-1, 2 KB, and unpacked it into \/var\/www\/theme/,
+    });
+    await screen.findByRole("row", {
+      name: /Uploaded \/root\/\.ssh\/authorized_keys to hz-1, which can let someone back in/,
+    });
+    await screen.findByRole("row", {
+      name: /Asked for a passkey to upload \/etc\/cron\.d\/job to hz-1, and none came/,
+    });
+    await screen.findByRole("row", { name: /Couldn't upload \/x to hz-1/ });
+    await screen.findByRole("row", { name: /Downloaded \/var\/log\/syslog from hz-1, 1\.5 KB/ });
+    await screen.findByRole("row", { name: /Downloaded \/srv\/site from hz-1(?!,)/ });
+    await user.click(await screen.findByRole("row", { name: /Uploaded \/var\/www\/backup\.sql to hz-1, 3 MB/ }));
+    await user.click(await screen.findByRole("link", { name: "Open the folder" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/servers/srv_1/files"));
+    expect(router.state.location.search).toEqual({ path: "/var/www" });
+  });
+
   it("marks a setup that wrong codes ended as worth a look", async () => {
     const watch = feed<WatchEventsResponse>();
     watch.push(

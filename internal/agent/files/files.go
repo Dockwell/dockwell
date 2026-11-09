@@ -9,6 +9,7 @@ package files
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -20,6 +21,7 @@ import (
 	"os/user"
 	"path"
 	"regexp"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -50,6 +52,21 @@ const (
 	// slots is how many of these calls run at once. Each can hold a file in
 	// memory, and they share the agent's stream.
 	slots = 4
+	// transfers is how many uploads and downloads run at once, each on a
+	// connection of its own, and each holding a part or two at a time.
+	transfers = 3
+	// transferWait is how long an upload or a download waits for one of those
+	// places before the agent says it's busy, rather than leave a person looking
+	// at nothing moving.
+	transferWait = 20 * time.Second
+	// settleAfter is how long after the last transfer the agent hands back the
+	// memory transfers used, as an upload's next part may follow at once.
+	settleAfter = 2 * time.Second
+	// transferGC is the collector's target while transfers run, as GOGC says it:
+	// each frame is garbage once it's written, and the heap that's live is small,
+	// so collecting twice as often costs little and keeps the agent within its
+	// budget on a busy server, where a collector that falls behind lets it grow.
+	transferGC = 50
 )
 
 // Server reads a server's files.
@@ -68,6 +85,13 @@ type Server struct {
 	logger     *slog.Logger
 	dockerRoot func(context.Context) (string, error)
 	slots      chan struct{}
+	transfers  chan struct{}
+	// settle hands back what transfers used, once none has run for settleAfter,
+	// and gcWas is the collector's target from before they started, when gcSet.
+	// It's mu that guards them.
+	settle *time.Timer
+	gcWas  int
+	gcSet  bool
 
 	// mu is never held across anything that touches a disk.
 	mu    sync.Mutex
@@ -82,8 +106,29 @@ type Server struct {
 	systemPlaces func() []string
 	listedFiles  []string
 	accounts     func() (passwd, group string)
+	// homeRoot is where people's homes are, as the rule for logins has it, which a
+	// server can have lead elsewhere.
+	homeRoot string
+	// identityOf says what's at a path, by device and inode. A test stands in for
+	// a bind mount with it, as giving one place two names takes root.
+	identityOf func(path string) (identity, bool)
+	// unpackLimit is the most entries an archive unpacks to: maxUnpacked, unless a
+	// test says fewer.
+	unpackLimit uint64
+	// transferWait is how long a transfer waits for a place: transferWait, unless
+	// a test says less.
+	transferWait time.Duration
+	// statfs reads a disk's free space as an unpack goes: unix.Fstatfs, unless a
+	// test fills the disk.
+	statfs func(fd int, st *unix.Statfs_t) error
 	// saving keeps saves of roots to one at a time.
 	saving sync.Mutex
+	// claimed holds the entries of Recently deleted a call has. It's mu that guards it.
+	claimed map[string]bool
+	// pruneNow asks for what's deleted for good to go now (KeepDeleted).
+	pruneNow chan struct{}
+	// now is the time, which a test can move on.
+	now func() time.Time
 }
 
 // New returns a Server. dataDir is Dockwell's data directory, and dockerRoot says
@@ -93,9 +138,10 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 		logger = slog.New(slog.DiscardHandler)
 	}
 	s := &Server{
-		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots),
+		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots), transfers: make(chan struct{}, transfers),
 		stuck: map[*trail]string{}, mounts: mounts.Read, savesEnded: make(chan *agentv1.SaveEnded, maxStuck),
-		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts,
+		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts, homeRoot: "/home", identityOf: statIdentity,
+		claimed: map[string]bool{}, pruneNow: make(chan struct{}, 1), now: time.Now,
 	}
 	s.roots = s.loadRoots()
 	return s
@@ -111,6 +157,74 @@ func (s *Server) Take(ctx context.Context) (func(), error) {
 	case <-ctx.Done():
 		return nil, fmt.Errorf("the agent is busy reading other files: %w", ctx.Err())
 	}
+}
+
+// ErrBusy is a transfer that waited transferWait for a place, and got none.
+var ErrBusy = errors.New("every upload and download the server runs at once is under way")
+
+// Busy is what a transfer that got no place says.
+func Busy() *agentv1.FileRefusal {
+	return &agentv1.FileRefusal{
+		Kind:    agentv1.FileRefusal_KIND_BUSY,
+		Message: fmt.Sprintf("the server is busy with %d other uploads and downloads, so this one didn't start. Try again once one of them ends", transfers),
+	}
+}
+
+// TakeTransfer waits for one of the places an upload's write or a download runs
+// in, and returns how to give it back. They're long, so they don't take the places
+// listings and reads need. One that waits transferWait for none fails with ErrBusy.
+func (s *Server) TakeTransfer(ctx context.Context) (func(), error) {
+	wait := time.NewTimer(cmp.Or(s.transferWait, transferWait))
+	defer wait.Stop()
+	select {
+	case s.transfers <- struct{}{}:
+		s.mu.Lock()
+		if !s.gcSet {
+			s.gcWas, s.gcSet = debug.SetGCPercent(transferGC), true
+			// Off, or lower already, stays as it is.
+			if s.gcWas < transferGC {
+				debug.SetGCPercent(s.gcWas)
+			}
+		}
+		s.mu.Unlock()
+		return func() {
+			<-s.transfers
+			s.settleSoon()
+		}, nil
+	case <-wait.C:
+		return nil, ErrBusy
+	case <-ctx.Done():
+		return nil, fmt.Errorf("the agent is busy with %d other uploads and downloads: %w", transfers, ctx.Err())
+	}
+}
+
+// settleSoon has settleIfIdle run once settleAfter passes with nothing more to
+// settle.
+func (s *Server) settleSoon() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.settle == nil {
+		s.settle = time.AfterFunc(settleAfter, s.settleIfIdle)
+	} else {
+		s.settle.Reset(settleAfter)
+	}
+}
+
+// settleIfIdle hands the memory transfers used back to the system, when none is
+// running, so an agent's memory after a large upload or download is what it was
+// before: Go keeps what it freed for a while otherwise, and the agent's budget is
+// its memory at rest.
+func (s *Server) settleIfIdle() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.transfers) != 0 {
+		return
+	}
+	if s.gcSet {
+		debug.SetGCPercent(s.gcWas)
+		s.gcSet = false
+	}
+	debug.FreeOSMemory()
 }
 
 // CheckPath refuses a path that isn't absolute, or that could read otherwise
@@ -202,6 +316,9 @@ func (s *Server) list(ctx context.Context, t *trail, p string) (*agentv1.ListFil
 	for i, name := range names {
 		if i%256 == 0 && ctx.Err() != nil {
 			return nil, ctx.Err()
+		}
+		if arriving(name) {
+			continue
 		}
 		e := &dockwellv1.FileEntry{Name: strings.ToValidUTF8(name, "\uFFFD"), UnreadableName: !utf8.ValidString(name)}
 		// What's known not to answer is listed by name alone, so the folder around

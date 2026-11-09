@@ -85,6 +85,9 @@ generate: deps ## Regenerate code and the OpenAPI document from proto/, and the 
 			{ printf '// SPDX-License-Identifier: Apache-2.0\n\n'; cat "$$f"; } >"$$f.spdx" && mv "$$f.spdx" "$$f"; \
 		fi; \
 	done
+# protoc-gen-openapi writes a route that streams bytes as JSON: this says what it
+# carries, and writes those routes for the TypeScript client (ADR 0045).
+	go run ./scripts/openapistreams $(OPENAPI) packages/api/src/gen/streams.ts
 # The control plane serves the OpenAPI document, and go:embed can't reach gen/.
 	cp $(OPENAPI) internal/control/apidoc/openapi.yaml
 	pnpm --filter @dockwell/ui tokens
@@ -189,6 +192,10 @@ containers-load: build-go build-agent ## Measure an agent's memory on a server o
 .PHONY: logs-load
 logs-load: build-go build-agent ## Measure an agent's memory while a container floods its log, on a fake Docker
 	scripts/logs-load.sh $(BIN) $(AGENT_BIN)
+
+.PHONY: transfers-load
+transfers-load: build-go build-agent ## Measure an agent's memory while four files upload and four download at once
+	scripts/transfers-load.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: docker-e2e
 docker-e2e: build-go build-agent ## Run, change, undo and export a service through the CLI on this machine's Docker, import a Compose file, build from Git, and run a container through the agent build
