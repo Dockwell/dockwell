@@ -760,7 +760,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			return
 		}
 		e.starts[strings.TrimPrefix(c.Name, "/")]++
-		if c.img.runsAttached() || c.img.Exec != nil && c.Config.Labels[docker.LabelOneoff] == "True" {
+		if c.img.runsAttached() {
 			c.State = docker.State{Status: "running", Running: true, StartedAt: time.Now().UTC()}
 			close(c.started)
 			w.WriteHeader(http.StatusNoContent)
