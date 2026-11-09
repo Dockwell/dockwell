@@ -42,9 +42,11 @@ type Names struct {
 	now  func() time.Time
 }
 
-// read is a name, what its object lives in, and when it was read.
+// read is a name, what its object lives in, and when it was read. A token
+// the CLI made for local access has who asked for it, and its scope.
 type read struct {
 	name, scope string
+	local       *dockwellv1.LocalAccess
 	at          time.Time
 }
 
@@ -81,6 +83,7 @@ func (l Lookup) read(objectID string) read {
 		return s
 	}
 	name, scope := "", ""
+	var local *dockwellv1.LocalAccess
 	prefix, _, _ := strings.Cut(objectID, "_")
 	switch prefix {
 	case id.User:
@@ -90,6 +93,12 @@ func (l Lookup) read(objectID string) read {
 	case id.Token:
 		if t, err := l.tx.GetAPIToken(l.ctx, objectID); err == nil {
 			name = t.Name
+			if t.LocalAccount != "" {
+				local = &dockwellv1.LocalAccess{Account: t.LocalAccount, Scope: dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY}
+				if t.Scope == store.ScopeReadWrite {
+					local.Scope = dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE
+				}
+			}
 		}
 	case id.Server:
 		if s, err := l.tx.GetServer(l.ctx, objectID); err == nil {
@@ -106,7 +115,7 @@ func (l Lookup) read(objectID string) read {
 	default:
 		return read{}
 	}
-	r := read{name: name, scope: scope, at: now}
+	r := read{name: name, scope: scope, local: local, at: now}
 	l.n.seen[objectID] = r
 	return r
 }
@@ -123,8 +132,12 @@ func (l Lookup) Actor(actor string) *dockwellv1.Actor {
 	switch kind + ":" {
 	case user, token, server:
 		a.Kind, a.Id, a.Name = named[kind+":"], rest, rest
-		if name := l.Name(rest); name != "" {
-			a.Name = name
+		r := l.read(rest)
+		if r.name != "" {
+			a.Name = r.name
+		}
+		if kind+":" == token && r.local != nil {
+			a.LocalAccess = &dockwellv1.LocalAccess{Account: r.local.GetAccount(), Scope: r.local.GetScope()}
 		}
 	case shell:
 		a.Kind, a.Id, a.Name = dockwellv1.ActorKind_ACTOR_KIND_SHELL, rest, rest

@@ -122,6 +122,25 @@ func TestOCISaysWhatAnImageRunsOn(t *testing.T) {
 	}
 }
 
+// A registry that asks to be asked more slowly is.
+func TestOCIWaitsWhenARegistryAsks(t *testing.T) {
+	var asks atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if asks.Add(1) == 1 {
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.Header().Set("Docker-Content-Digest", "sha256:after")
+	}))
+	t.Cleanup(srv.Close)
+	o := &OCI{Client: srv.Client()}
+	got, err := o.Pin(t.Context(), strings.TrimPrefix(srv.URL, "http://")+"/example/app:1.0")
+	if err != nil || got != "sha256:after" || asks.Load() != 2 {
+		t.Errorf("Pin = %q, %v, after %d asks", got, err, asks.Load())
+	}
+}
+
 // Past its budget, a manifest GET of Docker Hub isn't asked at all.
 func TestOCIKeepsWithinDockerHubsBudget(t *testing.T) {
 	o := &OCI{HubGets: 0}
@@ -145,6 +164,7 @@ func TestParseRef(t *testing.T) {
 		"ghcr.io/coder/coder:v2.38.6":       {host: "ghcr.io", name: "coder/coder", tag: "v2.38.6"},
 		"localhost:5000/app:1":              {host: "localhost:5000", name: "app", tag: "1"},
 		"index.docker.io/library/nginx:1.2": {host: dockerHub, name: "library/nginx", tag: "1.2"},
+		"docker.io/postgres:17":             {host: dockerHub, name: "library/postgres", tag: "17"},
 		"nginx:1.27@sha256:abc":             {host: dockerHub, name: "library/nginx", tag: "1.27", digest: "sha256:abc"},
 	} {
 		got, err := parseRef(in)

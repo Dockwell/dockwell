@@ -6,6 +6,83 @@ info:
     title: Dockwell API
     version: v1
 paths:
+    /v1/auditEvents:
+        get:
+            tags:
+                - AuditService
+            description: |-
+                ListAuditEvents returns the audit log, newest first, a page at a time.
+                 The filters narrow it, and combine: an event must pass each one that is
+                 set.
+            operationId: AuditService_ListAuditEvents
+            parameters:
+                - name: pageSize
+                  in: query
+                  description: 'How many events to return: 100 when unset, and at most 500.'
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: |-
+                    Where to start: the next_page_token of the page before. Empty starts with
+                     the newest. Pass the same filters with it.
+                  schema:
+                    type: string
+                - name: since
+                  in: query
+                  description: Only what happened at or after this. Unset keeps everything.
+                  schema:
+                    type: string
+                    format: date-time
+                - name: actor
+                  in: query
+                  description: Only what one kind of actor did.
+                  schema:
+                    enum:
+                        - AUDIT_ACTOR_UNSPECIFIED
+                        - AUDIT_ACTOR_PERSON
+                        - AUDIT_ACTOR_TOKEN
+                        - AUDIT_ACTOR_DOCKWELL
+                        - AUDIT_ACTOR_SERVER
+                        - AUDIT_ACTOR_SHELL
+                        - AUDIT_ACTOR_STRANGER
+                    type: string
+                    format: enum
+                - name: surface
+                  in: query
+                  description: Only what came from one place, such as the panel.
+                  schema:
+                    enum:
+                        - SURFACE_UNSPECIFIED
+                        - SURFACE_PANEL
+                        - SURFACE_API
+                        - SURFACE_AUTOMATIC
+                        - SURFACE_CLI
+                    type: string
+                    format: enum
+                - name: query
+                  in: query
+                  description: |-
+                    Only events this is in, whatever its case: in the action, such as
+                     "token.create"; in the actor or what the event acted on, by ID or by the
+                     name of the person, token or server; or in the event's words, which name
+                     addresses.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListAuditEventsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/authState:
         get:
             tags:
@@ -959,6 +1036,32 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/controlPlane:
+        get:
+            tags:
+                - SettingsService
+            description: |-
+                GetControlPlane returns what serves the panel and API: its build, where it
+                 keeps its state, the addresses it answers on, and how it's doing. Most of
+                 it comes from how dockwell run was started, and changes there.
+
+                 A call with an API token gets no paths, no state store location and no
+                 agent URLs: they say where the key and the store are, and the panel needs
+                 them only for a person signed in, to say how to back the control plane up.
+            operationId: SettingsService_GetControlPlane
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetControlPlaneResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/databases:
         get:
             tags:
@@ -1210,6 +1313,7 @@ paths:
                             - EVENT_KIND_HEALTH
                             - EVENT_KIND_BACKUP
                             - EVENT_KIND_SETTINGS
+                            - EVENT_KIND_TASK
                         type: string
                         format: enum
                 - name: serverId
@@ -1312,6 +1416,25 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListHealthResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/members:
+        get:
+            tags:
+                - MemberService
+            description: ListMembers returns everyone who can sign in, oldest first.
+            operationId: MemberService_ListMembers
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListMembersResponse'
                 default:
                     description: Default error response
                     content:
@@ -1556,6 +1679,38 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/GetServerResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{id}/diskUse:
+        get:
+            tags:
+                - ServerService
+            description: |-
+                GetServerDiskUse says what takes the room on the disk that holds Docker's
+                 data: images, containers, volumes, the build cache and logs, and the rest.
+                 The server's agent asks Docker when this is called, and only then, as
+                 Docker adds up every volume to answer, which takes a while on a big disk.
+                 An answer stands for 30 s, so a page opened twice asks once. See
+                 docs/adr/0040-a-servers-live-use.md.
+            operationId: ServerService_GetServerDiskUse
+            parameters:
+                - name: id
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetServerDiskUseResponse'
                 default:
                     description: Default error response
                     content:
@@ -1811,6 +1966,165 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/GetServerFirewallResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/imports:onepanel:
+        post:
+            tags:
+                - ImportService
+            description: |-
+                ImportOnePanel reads what 1Panel keeps on a server: its apps from its store,
+                 runtimes, websites, certificates, databases and cron jobs. It says what
+                 Dockwell would do with each and why: take it on as it runs, make it again,
+                 or leave it, and which issue it waits for where Dockwell can't yet. For a
+                 person, it also plans the change that takes on each app and runtime that
+                 can come as it runs, reading each container as AdoptCompose does: one that
+                 can't come stays, with why. A token gets what was found and no change, as a
+                 plan that takes a container on shows what a token can't read. The agent
+                 reads 1Panel's records read-only, and nothing secret comes back from them:
+                 no password, key, script, environment or URL path.
+            operationId: ImportService_ImportOnePanel
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server running 1Panel, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ImportOnePanelRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ImportOnePanelResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/processes/{pid}:end:
+        post:
+            tags:
+                - ProcessService
+            description: |-
+                EndProcess ends a process on a server, as kill does: SIGTERM, and SIGKILL
+                 if it's still there 10 s later. It's as much as root on the server, so it
+                 takes a passkey just now: call it without a proof first, and it refuses with
+                 the reason needs_step_up, then again with the proof from FinishStepUp for
+                 STEP_UP_ACTION_END_PROCESS, whose target is "<server ID>:<PID>:<start
+                 ticks>", so a proof ends no other process given the PID later. It can't be
+                 undone. Refused, with the reason process_protected: PID 1; the process
+                 Dockwell's agent runs in, any thread of it, and what it runs under; a
+                 thread, which only stops with its process; a thread the kernel runs; and
+                 the SSH server that takes new logins. A server whose kernel has no pidfds,
+                 before Linux 5.3, ends nothing, as a signal by PID alone could reach
+                 whatever took the PID. It's on the activity log, without the command line.
+            operationId: ProcessService_EndProcess
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+                - name: pid
+                  in: path
+                  description: The process ID, 4194304 at most, as Linux gives them.
+                  required: true
+                  schema:
+                    type: integer
+                    format: uint32
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/EndProcessRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/EndProcessResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/terminals:
+        get:
+            tags:
+                - TerminalService
+            description: |-
+                ListTerminals returns your terminals on a server that are still open, from
+                 this session, oldest first. No API token can call it.
+            operationId: TerminalService_ListTerminals
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListTerminalsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                OpenTerminal starts root's login shell on a server, or the first of bash, ash
+                 and sh a container on it has, in it, as the container's own user. A server's
+                 terminal needs a proof from FinishStepUp, for opening a terminal on that
+                 server, and so does a container's, for it, where the container is as good as
+                 root on the server: call without it first, and it checks everything else, then
+                 refuses with the reason needs_step_up. A server has room for 8 terminals. No API
+                 token can call it.
+            operationId: TerminalService_OpenTerminal
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/OpenTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/OpenTerminalResponse'
                 default:
                     description: Default error response
                     content:
@@ -2589,6 +2903,229 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/tasks:
+        get:
+            tags:
+                - TaskService
+            description: |-
+                ListTasks returns every task, by name, each with when it next runs and how
+                 its last run went on each of its servers. It reads the control plane's
+                 records, so it answers with a server offline.
+            operationId: TaskService_ListTasks
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListTasksResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/tasks/{id}:
+        get:
+            tags:
+                - TaskService
+            description: GetTask returns one task, by ID or by name.
+            operationId: TaskService_GetTask
+            parameters:
+                - name: id
+                  in: path
+                  description: The task's ID, or its name with project and environment.
+                  required: true
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: The project, by name or ID, when id is a name. Left out while there's only one.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: |-
+                    The environment, by name or ID, when id is a name. Left out while its project
+                     has only one.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetTaskResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/tasks/{id}/runs:
+        get:
+            tags:
+                - TaskService
+            description: |-
+                ListTaskRuns returns a task's runs, newest first, with what each printed. A
+                 run's output can hold anything its command prints, so reading it takes what
+                 reading logs takes.
+            operationId: TaskService_ListTaskRuns
+            parameters:
+                - name: id
+                  in: path
+                  description: The task's ID, or its name with project and environment.
+                  required: true
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: The project, by name or ID, when id is a name. Left out while there's only one.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: |-
+                    The environment, by name or ID, when id is a name. Left out while its project
+                     has only one.
+                  schema:
+                    type: string
+                - name: server
+                  in: query
+                  description: Only its runs on this server, by name or ID.
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  description: 'How many, newest first: 20 unless set, at most 100.'
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: Where the last page ended.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListTaskRunsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/tasks/{id}:run:
+        post:
+            tags:
+                - TaskService
+            description: |-
+                RunTask runs a task now, on one of its servers, which has to be connected. It
+                 runs what was approved, as its schedule would, paused or not, and returns
+                 once the run has started: follow it with ListTaskRuns.
+            operationId: TaskService_RunTask
+            parameters:
+                - name: id
+                  in: path
+                  description: The task's ID, or its name with project and environment.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RunTaskRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RunTaskResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminals/{terminalId}:close:
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                CloseTerminal hangs up a terminal's shell, as closing an SSH session does,
+                 and ends it. No API token can call it.
+            operationId: TerminalService_CloseTerminal
+            parameters:
+                - name: terminalId
+                  in: path
+                  description: The terminal's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CloseTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CloseTerminalResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminals/{terminalId}:write:
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                WriteTerminal types into a terminal you're attached to, and changes its
+                 size. Each write says where it starts in all that's been typed, so one sent
+                 twice types nothing twice. A write the terminal hasn't room for is taken in
+                 part, and offset in the response says how much: send the rest after. No API
+                 token can call it.
+            operationId: TerminalService_WriteTerminal
+            parameters:
+                - name: terminalId
+                  in: path
+                  description: The terminal's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/WriteTerminalRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/WriteTerminalResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/tokens:
         get:
             tags:
@@ -3121,6 +3658,13 @@ components:
                     description: |-
                         The name to show, such as "Mira Chen", a token's name, such as
                          "GitHub Actions deploy", or a server's, such as "hz-2".
+                localAccess:
+                    allOf:
+                        - $ref: '#/components/schemas/LocalAccess'
+                    description: |-
+                        For a token the CLI made for local access on the control server, who
+                         asked for it there. Unset for every other actor: a token's name is
+                         whatever its maker typed, so only this says a token is local access's.
             description: Actor is who made a change, or applied it, or did what an event records.
         AddServicePortRequest:
             type: object
@@ -3246,6 +3790,26 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: A new change, planned, whose revision matches what the server has.
             description: AdoptDriftResponse carries the planned adoption.
+        AgentListener:
+            type: object
+            properties:
+                listen:
+                    type: string
+                    description: The address it listens on, such as ":7443".
+                url:
+                    type: string
+                    description: |-
+                        The URL a server on the control server's own network reaches it at, as
+                         a join ticket names it, such as "https://192.0.2.10:7443". Empty for an
+                         API token.
+                publicUrls:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The URLs a server elsewhere reaches it at, in the order a ticket tries
+                         them. Empty when that isn't known, and for an API token.
+            description: AgentListener is where servers' agents reach the control plane.
         ApplyChangeRequest:
             type: object
             properties:
@@ -3276,6 +3840,70 @@ components:
                         The change: applying, with its steps queued; or applied, when it had
                          no steps to run.
             description: ApplyChangeResponse carries the change as it starts applying.
+        AuditEvent:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, such as "evt_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                time:
+                    type: string
+                    description: When it happened.
+                    format: date-time
+                actor:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: |-
+                        Who did it. Unset for someone who wasn't signed in, whose address is in
+                         address instead.
+                action:
+                    type: string
+                    description: |-
+                        What happened, such as "auth.sign_in", "token.refuse" or
+                         "change.applied".
+                surface:
+                    enum:
+                        - SURFACE_UNSPECIFIED
+                        - SURFACE_PANEL
+                        - SURFACE_API
+                        - SURFACE_AUTOMATIC
+                        - SURFACE_CLI
+                    type: string
+                    description: Where it came from.
+                    format: enum
+                target:
+                    allOf:
+                        - $ref: '#/components/schemas/EventSubject'
+                    description: |-
+                        Who or what it acted on, other than its actor, such as the token made or
+                         the server that joined, with its name where Dockwell still knows it.
+                         Unset when there is nothing more to name.
+                subject:
+                    type: string
+                    description: |-
+                        The ID it is about, such as a change's for a change's events, or the
+                         person's for signing in. Empty when it is about nothing more.
+                detail:
+                    type: string
+                    description: |-
+                        What Dockwell recorded with it, as it was recorded: words for people,
+                         such as "passkey on localhost from 203.0.113.9, session ses_…" for a
+                         sign-in, or facts for a program, such as a setting's value and the one it
+                         replaced. It may name addresses. Empty when there was nothing more. To say
+                         the event in words, read event.
+                address:
+                    type: string
+                    description: |-
+                        The address someone who wasn't signed in came from, such as
+                         "203.0.113.9". Empty for everyone else.
+                event:
+                    allOf:
+                        - $ref: '#/components/schemas/Event'
+                    description: |-
+                        The same event as Activity has it, with the facts it carries, such as a
+                         backup's volume, a health check's state, a setting's value, or a change
+                         with its plan, as it is now, for saying the event in words.
+            description: AuditEvent is one event of the audit log, as it was recorded.
         AutomaticUpdates:
             type: object
             properties:
@@ -3467,6 +4095,15 @@ components:
                     type: string
                     description: When the last one got there. Unset until one has.
                     format: date-time
+                lastFailure:
+                    type: string
+                    description: |-
+                        When the newest backup that didn't get there was taken, and why it
+                         didn't. Unset until one has failed. The destination is failing when
+                         this is newer than last_upload.
+                    format: date-time
+                lastFailureError:
+                    type: string
             description: BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
         BackupFirst:
             type: object
@@ -3659,6 +4296,8 @@ components:
                         - STEP_UP_ACTION_CREATE_TOKEN
                         - STEP_UP_ACTION_APPLY_ROOT_CHANGE
                         - STEP_UP_ACTION_SAVE_WAY_BACK_IN
+                        - STEP_UP_ACTION_END_PROCESS
+                        - STEP_UP_ACTION_OPEN_TERMINAL
                     type: string
                     description: The action.
                     format: enum
@@ -4165,6 +4804,19 @@ components:
                         - $ref: '#/components/schemas/ServerUpdates'
                     description: The server's package updates as they stood, with checking set.
             description: CheckServerUpdatesResponse is what's known as the refresh starts.
+        CloseTerminalRequest:
+            type: object
+            properties:
+                terminalId:
+                    type: string
+                    description: The terminal's ID.
+            description: CloseTerminalRequest names a terminal.
+        CloseTerminalResponse:
+            type: object
+            properties:
+                end:
+                    $ref: '#/components/schemas/TerminalEnd'
+            description: CloseTerminalResponse says how it ended.
         ComposeRefusal:
             type: object
             properties:
@@ -4442,6 +5094,57 @@ components:
                     type: string
                     description: '"tcp" or "udp".'
             description: ContainerPort is a port a container publishes on the server.
+        ControlPlane:
+            type: object
+            properties:
+                build:
+                    allOf:
+                        - $ref: '#/components/schemas/BuildInfo'
+                    description: The build it runs.
+                startTime:
+                    type: string
+                    description: When it started.
+                    format: date-time
+                dataDir:
+                    type: string
+                    description: |-
+                        The directory it keeps its files in, such as "/var/lib/dockwell". Empty
+                         for an API token.
+                keyFile:
+                    type: string
+                    description: |-
+                        The install's key, which opens every secret the state store keeps, such
+                         as "/var/lib/dockwell/control/key". A backup of the store needs it too,
+                         kept apart. Empty for an API token.
+                store:
+                    allOf:
+                        - $ref: '#/components/schemas/StateStore'
+                    description: Where it keeps its state.
+                panel:
+                    allOf:
+                        - $ref: '#/components/schemas/PanelServing'
+                    description: How the panel is served.
+                agents:
+                    allOf:
+                        - $ref: '#/components/schemas/AgentListener'
+                    description: Where servers' agents reach it.
+                memoryBytes:
+                    type: string
+                    description: |-
+                        The memory it holds, with its own agent's, in bytes: its resident set.
+                         Zero where the system doesn't say.
+                serviceManager:
+                    enum:
+                        - SERVICE_MANAGER_UNSPECIFIED
+                        - SERVICE_MANAGER_NONE
+                        - SERVICE_MANAGER_SYSTEMD
+                        - SERVICE_MANAGER_OPENRC
+                    type: string
+                    description: What runs it as a service, and so stops and starts it.
+                    format: enum
+            description: |-
+                ControlPlane is the dockwell run that serves the panel and API, with the
+                 agent it runs beside them.
         CreateBackupRequest:
             type: object
             properties:
@@ -5128,6 +5831,34 @@ components:
                          without its project is an error that names the projects. Other kinds
                          name their project, if they live in one, in resource.scope.
             description: Edit sets one resource's desired spec, or deletes it.
+        EndProcessRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID.
+                pid:
+                    type: integer
+                    description: The process ID, 4194304 at most, as Linux gives them.
+                    format: uint32
+                startTicks:
+                    type: string
+                    description: |-
+                        When it started, as Process.start_ticks has it, so a process that ended
+                         and gave its PID to another isn't ended in its place.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for STEP_UP_ACTION_END_PROCESS on
+                         "<server ID>:<PID>:<start ticks>".
+            description: EndProcessRequest names a process.
+        EndProcessResponse:
+            type: object
+            properties:
+                killed:
+                    type: boolean
+                    description: True when it took SIGKILL, as SIGTERM didn't end it within 10 s.
+            description: EndProcessResponse says how it went.
         Entry:
             type: object
             properties:
@@ -5276,6 +6007,7 @@ components:
                         - EVENT_KIND_HEALTH
                         - EVENT_KIND_BACKUP
                         - EVENT_KIND_SETTINGS
+                        - EVENT_KIND_TASK
                     type: string
                     description: What sort of event it is.
                     format: enum
@@ -5337,12 +6069,31 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/EventPublicAddress'
                     description: What a person set of a server's public address, on such an event.
+                process:
+                    allOf:
+                        - $ref: '#/components/schemas/EventProcess'
+                    description: |-
+                        The process someone ended on a server, for "process.end". Its subject is
+                         the server. Numbered apart, as open work adds to this message.
+                terminal:
+                    allOf:
+                        - $ref: '#/components/schemas/EventTerminal'
+                    description: |-
+                        The terminal, for a terminal's event. Its subject is the server. Numbered
+                         apart, as open work adds to this message.
                 setting:
                     allOf:
                         - $ref: '#/components/schemas/EventSetting'
                     description: |-
                         A setting of the install someone changed, for a settings event. Numbered
                          apart, as open work adds to this message.
+                taskRun:
+                    allOf:
+                        - $ref: '#/components/schemas/EventTaskRun'
+                    description: |-
+                        What became of a scheduled task's run, for a task event. Its subject is the
+                         task. Numbered in the block scheduled tasks hold, as open work adds to this
+                         message.
             description: Event is one thing that happened.
         EventBackup:
             type: object
@@ -5435,6 +6186,32 @@ components:
                  told then. A service that went between good and bad 3 times in 5 minutes keeps
                  changing, and is one event, whose time, flips and output change as it goes on,
                  until it has stayed one way for 5 minutes.
+        EventProcess:
+            type: object
+            properties:
+                pid:
+                    type: integer
+                    description: Its process ID.
+                    format: uint32
+                name:
+                    type: string
+                    description: |-
+                        What the kernel called it, such as "postgres". Its command line isn't
+                         kept, as one can hold a password typed with it, and anyone who reads the
+                         activity log, an API token too, would read it.
+                user:
+                    type: string
+                    description: Who it ran as.
+                container:
+                    type: string
+                    description: The container it ran in, by name. Empty for one that didn't.
+                killed:
+                    type: boolean
+                    description: True when it took SIGKILL, as SIGTERM didn't end it within 10 s.
+                error:
+                    type: string
+                    description: Why it couldn't be ended, for "process.end_failed".
+            description: EventProcess is a process someone ended on a server.
         EventPublicAddress:
             type: object
             properties:
@@ -5482,6 +6259,84 @@ components:
                         Which file on it, for a file read, saved or refused on a server. Empty
                          otherwise.
             description: EventSubject names what an event is about.
+        EventTaskRun:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The run's ID.
+                task:
+                    type: string
+                    description: The task, by name, and what people call it.
+                displayName:
+                    type: string
+                serverName:
+                    type: string
+                    description: The server it ran on, by name.
+                state:
+                    enum:
+                        - TASK_RUN_STATE_UNSPECIFIED
+                        - TASK_RUN_STATE_RUNNING
+                        - TASK_RUN_STATE_SUCCEEDED
+                        - TASK_RUN_STATE_FAILED
+                        - TASK_RUN_STATE_TIMED_OUT
+                        - TASK_RUN_STATE_INTERRUPTED
+                        - TASK_RUN_STATE_NOT_STARTED
+                    type: string
+                    description: How it ended.
+                    format: enum
+                reason:
+                    enum:
+                        - TASK_RUN_REASON_UNSPECIFIED
+                        - TASK_RUN_REASON_SCHEDULE
+                        - TASK_RUN_REASON_BY_HAND
+                        - TASK_RUN_REASON_MISSED
+                    type: string
+                    description: Why it ran.
+                    format: enum
+                exitCode:
+                    type: integer
+                    description: The last attempt's exit status, for a command.
+                    format: int32
+                httpStatus:
+                    type: integer
+                    description: The last attempt's HTTP status, for a request.
+                    format: int32
+                error:
+                    type: string
+                    description: Why it failed, for people. Empty when it didn't.
+            description: |-
+                EventTaskRun is a scheduled task's run that failed, or the one that succeeded
+                 after it (ADR 0053).
+        EventTerminal:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The terminal's ID.
+                title:
+                    type: string
+                    description: Who it ran as and where, such as "root@hz-1".
+                openTime:
+                    type: string
+                    description: When it opened, on its closing.
+                    format: date-time
+                end:
+                    allOf:
+                        - $ref: '#/components/schemas/TerminalEnd'
+                    description: How it ended, on its closing.
+                error:
+                    type: string
+                    description: Why it didn't open, for people, on a terminal that didn't.
+                container:
+                    type: string
+                    description: The container it ran in, by name, for a shell in a container.
+                containerId:
+                    type: string
+                    description: That container's full ID.
+            description: |-
+                EventTerminal is a terminal on a server, as its opening or closing tells of it.
+                 What was typed and printed in it is never kept.
         ExportComposeResponse:
             type: object
             properties:
@@ -5988,6 +6843,14 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change.
             description: GetChangeResponse carries one change.
+        GetControlPlaneResponse:
+            type: object
+            properties:
+                controlPlane:
+                    allOf:
+                        - $ref: '#/components/schemas/ControlPlane'
+                    description: The control plane.
+            description: GetControlPlaneResponse describes the control plane that answers.
         GetDatabaseResponse:
             type: object
             properties:
@@ -5996,6 +6859,14 @@ components:
                         - $ref: '#/components/schemas/Database'
                     description: The database.
             description: GetDatabaseResponse is one database.
+        GetServerDiskUseResponse:
+            type: object
+            properties:
+                diskUse:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerDiskUse'
+                    description: What takes the room on the disk that holds Docker's data.
+            description: GetServerDiskUseResponse says what takes the room on a server's disk.
         GetServerFirewallResponse:
             type: object
             properties:
@@ -6034,6 +6905,12 @@ components:
                         - $ref: '#/components/schemas/Settings'
                     description: The settings.
             description: GetSettingsResponse carries the install's settings.
+        GetTaskResponse:
+            type: object
+            properties:
+                task:
+                    $ref: '#/components/schemas/TaskInfo'
+            description: GetTaskResponse is the task.
         GetTotpResponse:
             type: object
             properties:
@@ -6151,6 +7028,7 @@ components:
                         - HOST_ACCESS_KIND_EXTERNAL_VOLUME
                         - HOST_ACCESS_KIND_TAKES_ON
                         - HOST_ACCESS_KIND_BACKUP_OF
+                        - HOST_ACCESS_KIND_SERVER_SHELL
                     type: string
                     description: What it is.
                     format: enum
@@ -6407,6 +7285,96 @@ components:
                     type: boolean
                     description: True when the file writes more than exposed_variables lists.
             description: ImportComposeResponse carries the planned change.
+        ImportOnePanelRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server running 1Panel, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                skipPlan:
+                    type: boolean
+                    description: |-
+                        Read and say what an import would do, and plan nothing, for a client that
+                         plans only when a person asks to review it.
+            description: ImportOnePanelRequest names the server to import from.
+        ImportOnePanelResponse:
+            type: object
+            properties:
+                found:
+                    allOf:
+                        - $ref: '#/components/schemas/OnePanel'
+                    description: What was found, as 1Panel's records say.
+                steps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ImportStep'
+                    description: |-
+                        What an import would do, a step for each thing found, in the order the
+                         plan would take them.
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: |-
+                        The change that takes on what can come now, planned for a person to apply.
+                         Empty for a token, where nothing can come, and where Dockwell can't read
+                         what runs on the server now.
+            description: |-
+                ImportOnePanelResponse is what 1Panel keeps on the server, and what an import
+                 would do with each.
+        ImportStep:
+            type: object
+            properties:
+                kind:
+                    enum:
+                        - IMPORT_KIND_UNSPECIFIED
+                        - IMPORT_KIND_APP
+                        - IMPORT_KIND_RUNTIME
+                        - IMPORT_KIND_WEBSITE
+                        - IMPORT_KIND_CERTIFICATE
+                        - IMPORT_KIND_DATABASE_SERVER
+                        - IMPORT_KIND_DATABASE
+                        - IMPORT_KIND_CRON_JOB
+                        - IMPORT_KIND_PANEL
+                        - IMPORT_KIND_COMPOSE_PROJECT
+                        - IMPORT_KIND_CONTAINERS
+                    type: string
+                    description: What it is.
+                    format: enum
+                name:
+                    type: string
+                    description: Its name, as 1Panel shows it, such as "wordpress" or "blog.example.com".
+                summary:
+                    type: string
+                    description: What it is, in a few words, such as "mysql 8.4.3 from 1Panel's store".
+                action:
+                    enum:
+                        - IMPORT_ACTION_UNSPECIFIED
+                        - IMPORT_ACTION_TAKE_ON
+                        - IMPORT_ACTION_MAKE
+                        - IMPORT_ACTION_LEAVE
+                        - IMPORT_ACTION_DONE
+                    type: string
+                    description: What an import would do with it.
+                    format: enum
+                becomes:
+                    type: string
+                    description: |-
+                        What it would become, in a few words, such as "a Compose project, wordpress,
+                         taken on as it runs".
+                reason:
+                    type: string
+                    description: Why, and what a person can do about it, where that isn't plain.
+                waitsFor:
+                    enum:
+                        - IMPORT_WAITS_FOR_UNSPECIFIED
+                        - IMPORT_WAITS_FOR_WEBSITES
+                        - IMPORT_WAITS_FOR_DATABASES
+                        - IMPORT_WAITS_FOR_SCHEDULED_TASKS
+                        - IMPORT_WAITS_FOR_FIREWALL
+                    type: string
+                    description: The part of Dockwell it waits for, where Dockwell can't take it yet.
+                    format: enum
+            description: ImportStep is one thing found, and what an import would do with it.
         IngressEffect:
             type: object
             properties:
@@ -6546,6 +7514,16 @@ components:
                         The app writes this secret in its own log, as Nginx Proxy Manager does with
                          its first password. Reading a log takes no passkey, so nothing may call it
                          sealed, and a person hears that before they apply.
+                generateAs:
+                    enum:
+                        - GENERATE_AS_UNSPECIFIED
+                        - GENERATE_AS_HEX
+                        - GENERATE_AS_BASE64
+                    type: string
+                    description: |-
+                        How a generated secret is written, for an app that reads it as a key: letters
+                         and digits unless set.
+                    format: enum
             description: |-
                 Input is one thing an entry needs to know to install, named by the ${NAME}
                  its Compose file uses.
@@ -6685,6 +7663,18 @@ components:
                  to resources, which for a deploy or a new port is that a container is made
                  again: this says what that comes to. It isn't in the fingerprint, as it says
                  nothing about what the plan does.
+        ListAuditEventsResponse:
+            type: object
+            properties:
+                events:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AuditEvent'
+                    description: The events, newest first.
+                nextPageToken:
+                    type: string
+                    description: Pass it as page_token for the next page. Empty on the last page.
+            description: ListAuditEventsResponse is a page of the audit log.
         ListBackupDestinationsResponse:
             type: object
             properties:
@@ -6864,6 +7854,15 @@ components:
                         $ref: '#/components/schemas/ServerLogStatus'
                     description: Each server the service is on that couldn't answer, with why.
             description: ListLogSourcesResponse lists where a service's logs come from.
+        ListMembersResponse:
+            type: object
+            properties:
+                members:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Member'
+                    description: Everyone who can sign in, oldest first.
+            description: ListMembersResponse lists who can sign in.
         ListPasskeysResponse:
             type: object
             properties:
@@ -6927,6 +7926,35 @@ components:
                         $ref: '#/components/schemas/Session'
                     description: Sessions, newest first.
             description: ListSessionsResponse lists sessions.
+        ListTaskRunsResponse:
+            type: object
+            properties:
+                runs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TaskRun'
+                    description: The runs, newest first.
+                nextPageToken:
+                    type: string
+                    description: Where the next page starts. Empty after the last.
+            description: ListTaskRunsResponse is a page of runs.
+        ListTasksResponse:
+            type: object
+            properties:
+                tasks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TaskInfo'
+                    description: The tasks, by name.
+            description: ListTasksResponse lists them.
+        ListTerminalsResponse:
+            type: object
+            properties:
+                terminals:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Terminal'
+            description: ListTerminalsResponse is your open terminals there.
         ListTokensResponse:
             type: object
             properties:
@@ -6969,6 +7997,25 @@ components:
                         $ref: '#/components/schemas/WebsiteInfo'
                     description: The websites, sorted by domain.
             description: ListWebsitesResponse lists the websites.
+        LocalAccess:
+            type: object
+            properties:
+                account:
+                    type: string
+                    description: |-
+                        The shell account that asked for it, and the server's host name, as
+                         "mira@hz-1".
+                scope:
+                    enum:
+                        - TOKEN_SCOPE_UNSPECIFIED
+                        - TOKEN_SCOPE_READ_ONLY
+                        - TOKEN_SCOPE_READ_WRITE
+                    type: string
+                    description: What the token may do.
+                    format: enum
+            description: |-
+                LocalAccess is how the CLI came by a token on the control server, by
+                 reading the control plane's data directory, without signing in.
         LogChunk:
             type: object
             properties:
@@ -7186,6 +8233,70 @@ components:
                     type: string
                     description: Where that project runs from, which may hold what the service mounts.
             description: ManagedElsewhere is what else may run a container that was taken on.
+        Member:
+            type: object
+            properties:
+                user:
+                    allOf:
+                        - $ref: '#/components/schemas/User'
+                    description: Who they are, and their role.
+                you:
+                    type: boolean
+                    description: True for the person asking.
+                passkeys:
+                    type: integer
+                    description: |-
+                        How many passkeys sign in at the panel's addresses now: one flagged as
+                         copied, or for an address the panel no longer has, doesn't. Only for the
+                         person asking.
+                    format: int32
+                passkeyAddresses:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The addresses those passkeys work at, such as "localhost" or
+                         "panel.example.com", each once. Only for the person asking.
+                authenticator:
+                    type: boolean
+                    description: |-
+                        True when they can sign in with codes from an authenticator app now: on,
+                         and not locked. Only for the person asking.
+                recoveryCodesLeft:
+                    type: integer
+                    description: |-
+                        How many of their recovery codes are left. Zero without an
+                         authenticator app. Only for the person asking.
+                    format: int32
+                sessions:
+                    type: integer
+                    description: How many browsers they're signed in on now. Only for the person asking.
+                    format: int32
+                lastActiveTime:
+                    type: string
+                    description: When one of their browsers was last used. Unset with none.
+                    format: date-time
+                signIn:
+                    type: array
+                    items:
+                        enum:
+                            - SIGN_IN_KIND_UNSPECIFIED
+                            - SIGN_IN_KIND_PASSKEY
+                            - SIGN_IN_KIND_AUTHENTICATOR_APP
+                        type: string
+                        format: enum
+                    description: |-
+                        The kinds of sign-in that work for them now, as the members list shows
+                         them for everyone.
+                codesLocked:
+                    type: boolean
+                    description: |-
+                        True when code sign-in is locked after too many wrong codes, until the
+                         owner lifts it. Only for the person asking.
+            description: |-
+                Member is a person who can sign in, and how. The details of how are the
+                 person asking's alone: for anyone else, only the kinds of sign-in they have
+                 and when they were last active are set.
         Mount:
             type: object
             properties:
@@ -7256,6 +8367,385 @@ components:
                  by name, as a Compose file's networks. A service reaches another on a
                  network they share by the other's name. Docker can't change a network,
                  so its spec can't change once it is made.
+        OnePanel:
+            type: object
+            properties:
+                version:
+                    type: string
+                    description: Its version, from its own records, such as "v2.4.2".
+                baseDir:
+                    type: string
+                    description: The folder it's installed under, "/opt" unless the person chose another.
+                records:
+                    type: string
+                    description: Its database, such as "/opt/1panel/db/agent.db".
+                knownVersion:
+                    type: boolean
+                    description: |-
+                        True when its version is one this importer was written from: v2.0 to v2.4.2,
+                         and v1.10. Another is read the same way, by column names.
+                apps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelApp'
+                    description: Its apps from its store, the database servers it runs among them.
+                runtimes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelRuntime'
+                    description: Its runtimes.
+                websites:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelWebsite'
+                    description: Its websites.
+                certificates:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelCertificate'
+                    description: Its certificates.
+                databaseServers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelDatabaseServer'
+                    description: Its database servers.
+                databases:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelDatabase'
+                    description: The databases on them.
+                cronJobs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelCronJob'
+                    description: Its cron jobs.
+                composes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelCompose'
+                    description: The Compose projects made on its Containers page, outside its store.
+            description: |-
+                OnePanel is what 1Panel keeps on a server, as its records say, with nothing
+                 secret in it.
+        OnePanelApp:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The install's name, which is its folder's and its Compose project's.
+                appKey:
+                    type: string
+                    description: The store's key for the app, such as "mysql".
+                appName:
+                    type: string
+                    description: The app's name in the store, such as "MySQL".
+                version:
+                    type: string
+                    description: The version installed.
+                status:
+                    type: string
+                    description: What 1Panel last saw it doing, such as "Running" or "Stopped".
+                store:
+                    type: string
+                    description: |-
+                        Which store it came from: "remote", 1Panel's own; "local", one of the
+                         person's; or "custom".
+                folder:
+                    type: string
+                    description: Its folder, with its Compose file.
+                container:
+                    type: string
+                    description: Its main container's name.
+                httpPort:
+                    type: integer
+                    description: The port it publishes for HTTP, where it has one.
+                    format: uint32
+                httpsPort:
+                    type: integer
+                    description: The port it publishes for HTTPS, where it has one.
+                    format: uint32
+            description: OnePanelApp is an install of an app from 1Panel's store.
+        OnePanelCertificate:
+            type: object
+            properties:
+                primaryDomain:
+                    type: string
+                    description: Its first domain.
+                domains:
+                    type: array
+                    items:
+                        type: string
+                    description: The other domains it covers.
+                kind:
+                    type: string
+                    description: |-
+                        How it was got, as 1Panel's provider column says it: "http" or
+                         "dnsAccount" from an ACME server, "dnsManual" from one with DNS records set
+                         by hand, "manual" uploaded, "selfSigned" from 1Panel's own CA, or
+                         "fromMaster" from the 1Panel that manages this one.
+                provider:
+                    type: string
+                    description: |-
+                        The ACME account's CA, as 1Panel names it, such as "letsencrypt", "zerossl"
+                         or "custom", for one got from an ACME server.
+                expires:
+                    type: string
+                    description: When it ends.
+                    format: date-time
+                autoRenew:
+                    type: boolean
+                    description: True when 1Panel renews it.
+                issuer:
+                    type: string
+                    description: 'Who issued it: the issuer''s organization, or its common name.'
+            description: |-
+                OnePanelCertificate is a certificate 1Panel keeps for websites. Its key and
+                 chain aren't read.
+        OnePanelCompose:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, which is its Compose project's.
+                file:
+                    type: string
+                    description: Its Compose file.
+            description: |-
+                OnePanelCompose is a Compose project made on 1Panel's Containers page, which
+                 runs with its name as its project's.
+        OnePanelCronJob:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name.
+                type:
+                    type: string
+                    description: |-
+                        Its kind, as 1Panel says it: "shell", "curl", "app", "website",
+                         "database", "directory", "snapshot", "log", "ntp", "cutWebsiteLog",
+                         "clean", "cleanLog" or "syncIpGroup".
+                schedule:
+                    type: string
+                    description: When it runs, as a cron schedule. 1Panel can keep several, a line each.
+                status:
+                    type: string
+                    description: What 1Panel last saw it doing, such as "Enable" or "Disable".
+                container:
+                    type: string
+                    description: The container a shell job runs in, where it runs in one.
+                target:
+                    type: string
+                    description: |-
+                        What it backs up or acts on: apps', websites' or databases' names, comma
+                         separated, "all" for every one, or a folder.
+                urlHost:
+                    type: string
+                    description: The host a URL job calls, without its path or query.
+                scriptLines:
+                    type: integer
+                    description: |-
+                        How many lines a shell job's script has, where it's written in the job or
+                         in 1Panel's library.
+                    format: uint32
+                scriptFrom:
+                    type: string
+                    description: |-
+                        Where a shell job's script is: "input", written in the job; "library", one
+                         of 1Panel's library scripts, named in script_name; or "select", a file on
+                         the server, at script_path.
+                scriptName:
+                    type: string
+                    description: The name of the library script a shell job runs.
+                scriptPath:
+                    type: string
+                    description: The file on the server a shell job runs.
+                interpreter:
+                    type: string
+                    description: What runs a shell job's script, such as "bash" or "python3".
+                user:
+                    type: string
+                    description: |-
+                        Who a shell job runs as, in its container or on the server, where 1Panel
+                         says.
+                databaseType:
+                    type: string
+                    description: |-
+                        The kind of database a database backup is of, as 1Panel says it: "mysql",
+                         "mariadb", "postgresql" or "mongodb".
+            description: |-
+                OnePanelCronJob is a job 1Panel's own scheduler runs. Its script, command and
+                 URL path aren't read.
+        OnePanelDatabase:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The database's name.
+                server:
+                    type: string
+                    description: The server it's on, by its name in 1Panel.
+                type:
+                    type: string
+                    description: Its server's kind.
+                user:
+                    type: string
+                    description: The user 1Panel made for it.
+                format:
+                    type: string
+                    description: Its character set or encoding, such as "utf8mb4".
+            description: |-
+                OnePanelDatabase is a database on one of 1Panel's database servers, and the
+                 user 1Panel made for it. The user's password isn't read.
+        OnePanelDatabaseServer:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name in 1Panel.
+                type:
+                    type: string
+                    description: Its kind, such as "mysql", "mariadb", "postgresql", "redis" or "mongodb".
+                version:
+                    type: string
+                    description: Its version.
+                local:
+                    type: boolean
+                    description: True when it runs on this server, as one of 1Panel's apps.
+                app:
+                    type: string
+                    description: The app it is, by install name, when it's local.
+                port:
+                    type: integer
+                    description: Its port.
+                    format: uint32
+            description: |-
+                OnePanelDatabaseServer is a database server 1Panel knows: one of its store's,
+                 or one on another machine.
+        OnePanelDomain:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain.
+                port:
+                    type: integer
+                    description: The port.
+                    format: uint32
+                https:
+                    type: boolean
+                    description: True when it's served over HTTPS.
+            description: OnePanelDomain is a domain a website answers, on a port.
+        OnePanelRuntime:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name.
+                type:
+                    type: string
+                    description: 'Its language: "php", "node", "java", "go", "python" or "dotnet".'
+                version:
+                    type: string
+                    description: The language's version.
+                status:
+                    type: string
+                    description: What 1Panel last saw it doing.
+                image:
+                    type: string
+                    description: The image it runs.
+                folder:
+                    type: string
+                    description: Its folder, with its Compose file.
+                codeFolder:
+                    type: string
+                    description: The folder of the code it runs, where it has one.
+                container:
+                    type: string
+                    description: Its container's name.
+            description: 'OnePanelRuntime is a runtime: a Compose project that runs a language.'
+        OnePanelWebsite:
+            type: object
+            properties:
+                alias:
+                    type: string
+                    description: Its alias, which names its folder and its config.
+                primaryDomain:
+                    type: string
+                    description: Its first domain.
+                type:
+                    type: string
+                    description: |-
+                        What it is: "static", "runtime" for PHP and the like, "proxy",
+                         "deployment" for an app's site, "subsite" or "stream".
+                domains:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/OnePanelDomain'
+                    description: The domains and ports it answers.
+                folder:
+                    type: string
+                    description: |-
+                        The folder it serves: its own folder's "index", or the folder under it it
+                         runs from, such as "index/public" for a Laravel site.
+                proxy:
+                    type: string
+                    description: Where a proxy sends, as a scheme, host and port, with no path.
+                runtime:
+                    type: string
+                    description: The runtime it runs on, by name.
+                app:
+                    type: string
+                    description: The app it serves, by install name.
+                certificate:
+                    type: string
+                    description: The certificate it uses, by its first domain.
+                rewrite:
+                    type: boolean
+                    description: True when it has rewrite rules.
+                https:
+                    type: boolean
+                    description: True when it's served over HTTPS.
+                status:
+                    type: string
+                    description: What 1Panel last saw it doing, such as "Running" or "Stopped".
+                parent:
+                    type: string
+                    description: The site it's under, for a subsite.
+            description: OnePanelWebsite is a website 1Panel's OpenResty serves.
+        OpenTerminalRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                columns:
+                    type: integer
+                    description: The terminal's width, from 2 to 500 characters.
+                    format: uint32
+                rows:
+                    type: integer
+                    description: Its height, from 1 to 200 lines.
+                    format: uint32
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for opening a terminal on this server, as the
+                         target "srv_…", or in this container, as "srv_…:container". Call without it
+                         first: it checks everything else, then refuses with the reason needs_step_up
+                         where it takes one.
+                container:
+                    type: string
+                    description: |-
+                        A container on the server, by name or full ID, to open a shell in, in place of
+                         the server's own.
+            description: OpenTerminalRequest names a server.
+        OpenTerminalResponse:
+            type: object
+            properties:
+                terminal:
+                    $ref: '#/components/schemas/Terminal'
+            description: OpenTerminalResponse is the terminal, running.
         PackageUpdate:
             type: object
             properties:
@@ -7474,9 +8964,11 @@ components:
                          upgrade that runs without a backup first, "upgrade_kept" for what a person changed that the upgrade
                          changes too, which stays, "upgrade_dropped" for what they changed that it
                          drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
-                         whose data stays as the new version left it, and "tmpfs_no_size" for a Compose
-                         file's tmpfs that nothing stops taking half the server's memory. Another reason
-                         may come: its message says what it means.
+                         whose data stays as the new version left it, "tmpfs_no_size" for a Compose
+                         file's tmpfs that nothing stops taking half the server's memory, and
+                         "tasks_as_root" for an app this makes reach what's as good as root, whose
+                         scheduled tasks run in it and reach the same. Another reason may come: its
+                         message says what it means.
                 message:
                     type: string
                     description: 'What it says, for people: the fact, what it means, and what to do.'
@@ -7492,7 +8984,7 @@ components:
                         The names it is about: the variable, then the field that holds it, for
                          "exposed_variable"; the project, then the services it runs, for
                          "updates_project"; the volumes and server paths for "volumes_stay"; the path
-                         for "tmpfs_no_size"; the
+                         for "tmpfs_no_size"; each task, then its command, for "tasks_as_root"; the
                          variables and secrets, by the names the service sees, for "values_latest";
                          the image, the revision and its digest for "digest_pinned" and "digest_gone",
                          and the image and the revision for "digest_differs"; the container_name, or
@@ -8728,6 +10220,30 @@ components:
                     description: The port on the server it goes to, when it goes to no service.
                     format: uint32
             description: RouteMove is a route leaving one service for another.
+        RunTaskRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The task's ID, or its name with project and environment.
+                project:
+                    type: string
+                    description: The project, by name or ID, when id is a name. Left out while there's only one.
+                environment:
+                    type: string
+                    description: |-
+                        The environment, by name or ID, when id is a name. Left out while its project
+                         has only one.
+                server:
+                    type: string
+                    description: The server to run it on, by name or ID, when it's placed on more than one.
+            description: RunTaskRequest names a task to run now.
+        RunTaskResponse:
+            type: object
+            properties:
+                run:
+                    $ref: '#/components/schemas/TaskRun'
+            description: RunTaskResponse is the run, started.
         SaveFileRequest:
             type: object
             properties:
@@ -8827,7 +10343,9 @@ components:
                     description: |-
                         Recent stats, oldest first, for sparklines: at most 60 samples, from
                          the 5 minutes before the newest by the samples' own times, so a server
-                         that reports again after a longer outage starts over. Empty in lists.
+                         that reports again after a longer outage starts over. Samples come every
+                         5 s while anyone watches the fleet, and every 15 s while nobody does, so
+                         each says its own interval. Empty in lists.
                 agentBuild:
                     allOf:
                         - $ref: '#/components/schemas/BuildInfo'
@@ -8931,6 +10449,66 @@ components:
                     type: boolean
                     description: True for a container that docker compose run made for one command.
             description: ServerContainer is a container on a server, as Docker lists it.
+        ServerDiskUse:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When the agent added it up, on the server's clock.
+                    format: date-time
+                dockerRoot:
+                    type: string
+                    description: Where Docker keeps its data, such as "/var/lib/docker".
+                mountPoint:
+                    type: string
+                    description: Where the disk that holds it is mounted, such as "/".
+                sizeBytes:
+                    type: string
+                    description: How big that disk is, in bytes.
+                usedBytes:
+                    type: string
+                    description: How much of it is in use, in bytes, as df counts it.
+                imagesBytes:
+                    type: string
+                    description: |-
+                        What images take, each layer counted once, as `docker system df` counts
+                         them.
+                imagesUnusedBytes:
+                    type: string
+                    description: What of that no container uses, so removing those images would free it.
+                containersBytes:
+                    type: string
+                    description: What containers have written to their own layers.
+                volumesBytes:
+                    type: string
+                    description: What volumes hold. Docker counts only the volumes it keeps itself.
+                volumesUnusedBytes:
+                    type: string
+                    description: What of that is in volumes no container uses.
+                buildCacheBytes:
+                    type: string
+                    description: What the build cache takes.
+                logsBytes:
+                    type: string
+                    description: |-
+                        What containers' logs take, as Docker's json-file and local drivers keep
+                         them, rotated files included.
+                images:
+                    type: integer
+                    description: How many images there are.
+                    format: uint32
+                containers:
+                    type: integer
+                    description: How many containers there are, running or not.
+                    format: uint32
+                volumes:
+                    type: integer
+                    description: How many volumes there are.
+                    format: uint32
+            description: |-
+                ServerDiskUse is what takes the room on the disk that holds Docker's data,
+                 as Docker and the agent added it up. Docker's parts can come to more than
+                 the disk holds, when Docker's data spans disks of its own.
         ServerFirewall:
             type: object
             properties:
@@ -9261,6 +10839,30 @@ components:
                     pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
                     type: string
                     description: Time since the server booted.
+                swapUsedBytes:
+                    type: string
+                    description: Swap in use, in bytes.
+                swapTotalBytes:
+                    type: string
+                    description: Total swap, in bytes. 0 for a server with none.
+                agentMemoryBytes:
+                    type: string
+                    description: |-
+                        What the agent itself holds in memory (its resident set), in bytes. 0
+                         from an agent from before this.
+                networkRxBytes:
+                    type: string
+                    description: Bytes received across physical interfaces since the server booted.
+                networkTxBytes:
+                    type: string
+                    description: Bytes sent across physical interfaces since the server booted.
+                interval:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: |-
+                        How long until the agent's next sample, at the pace it was sampling when
+                         it took this one: 5 s while anyone watches the fleet, 15 s while nobody
+                         does. Unset from an agent from before this, which samples every 5 s.
             description: ServerStats is one sample of a server's resource use.
         ServerUpdates:
             type: object
@@ -9843,10 +11445,43 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/BackupDestination'
                     description: S3-compatible storage backups go to, kind "backup.destination".
+                task:
+                    allOf:
+                        - $ref: '#/components/schemas/Task'
+                    description: |-
+                        Work that runs on a schedule, kind "task". Numbered in the block scheduled
+                         tasks hold, as open work adds to this message.
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
                  every kind.
+        StateStore:
+            type: object
+            properties:
+                engine:
+                    enum:
+                        - STATE_STORE_ENGINE_UNSPECIFIED
+                        - STATE_STORE_ENGINE_SQLITE
+                        - STATE_STORE_ENGINE_POSTGRES
+                    type: string
+                    description: What kind of database it is.
+                    format: enum
+                location:
+                    type: string
+                    description: |-
+                        Where it is: a SQLite file's path, or a Postgres URL without its
+                         password. Empty for an API token.
+                version:
+                    type: string
+                    description: The database's own version, such as "3.50.4" or "17.2".
+                sizeBytes:
+                    type: string
+                    description: Its size on disk, in bytes.
+                roundTrip:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: How long a query that reads nothing took, just now.
+            description: StateStore is the database the control plane keeps its state in.
         Status:
             type: object
             properties:
@@ -9951,6 +11586,298 @@ components:
                          done already.
                     format: enum
             description: StepProgress is one step of an applying change, and how it is going.
+        Task:
+            type: object
+            properties:
+                shell:
+                    allOf:
+                        - $ref: '#/components/schemas/TaskShell'
+                    description: |-
+                        A shell command on the server, which the agent runs as root. Making one, or
+                         changing what it runs, takes a person and a passkey.
+                app:
+                    allOf:
+                        - $ref: '#/components/schemas/TaskApp'
+                    description: |-
+                        A command in an app's image, as a one-off container with the app's
+                         environment, mounts and networks.
+                request:
+                    allOf:
+                        - $ref: '#/components/schemas/TaskRequest'
+                    description: An HTTP request to a URL, from the server.
+                schedule:
+                    type: string
+                    description: |-
+                        When it runs, in cron's five fields, minute, hour, day of the month, month and
+                         day of the week, such as "0 4 * * *", or @hourly, @daily, @weekly, @monthly or
+                         @yearly. Nothing runs more often than once a minute.
+                timeZone:
+                    type: string
+                    description: |-
+                        The time zone schedule is in, such as "Europe/Amsterdam". Left out, a change
+                         that makes or updates the task sets the install's time zone, from Settings,
+                         and UTC where the install has none.
+                timeoutSeconds:
+                    type: integer
+                    description: |-
+                        How long a run may take, in seconds, before it's stopped: 600 unless set, at
+                         most 86400.
+                    format: uint32
+                retries:
+                    type: integer
+                    description: |-
+                        How many more times a run that fails or times out tries, a minute apart: 0
+                         to 3.
+                    format: uint32
+                paused:
+                    type: boolean
+                    description: Keeps it from running on its schedule. Run now still runs it.
+                skipMissed:
+                    type: boolean
+                    description: |-
+                        Skips a run missed while its server was off or its agent stopped, rather than
+                         running it once when the agent starts.
+                displayName:
+                    type: string
+                    description: What people call it, such as "Nightly sales report". Its name when empty.
+            description: |-
+                Task is work that runs on a schedule, on each server it's placed on, kind "task"
+                 (ADR 0053): a shell command on the server, a command in an app's image, or an
+                 HTTP request. Each server's agent keeps its time, so a task runs while the
+                 control plane is away.
+        TaskApp:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: The app, by name, in the task's environment.
+                command:
+                    type: string
+                    description: |-
+                        The command, as words split as a shell splits them, run after the app's
+                         entrypoint in place of its command, such as "/app/api report sales". It runs
+                         without a shell unless it names one.
+            description: TaskApp is a command in an app's image.
+        TaskAttempt:
+            type: object
+            properties:
+                startTime:
+                    type: string
+                    format: date-time
+                endTime:
+                    type: string
+                    format: date-time
+                exitCode:
+                    type: integer
+                    description: The exit status of a command. -1 when it was stopped.
+                    format: int32
+                httpStatus:
+                    type: integer
+                    description: The HTTP status of a request. 0 when nothing answered.
+                    format: int32
+                timedOut:
+                    type: boolean
+                    description: It took longer than the task's timeout, and was stopped.
+                responseBytes:
+                    type: string
+                    description: The size of a request's answer, in bytes.
+                outputHeld:
+                    type: boolean
+                    description: |-
+                        Something the command started outlived it and held its output, which was read
+                         for a few seconds more, then left as it runs on.
+            description: TaskAttempt is one try of a run.
+        TaskInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The task's ID.
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: The task, by kind, environment and name.
+                kind:
+                    enum:
+                        - TASK_KIND_UNSPECIFIED
+                        - TASK_KIND_SHELL
+                        - TASK_KIND_APP
+                        - TASK_KIND_REQUEST
+                    type: string
+                    description: What it runs.
+                    format: enum
+                spec:
+                    allOf:
+                        - $ref: '#/components/schemas/Task'
+                    description: What it asks for.
+                servers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TaskOnServer'
+                    description: How it stands on each server it's placed on, by server name.
+            description: TaskInfo is one task, as it's asked for and as it runs.
+        TaskOnServer:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID and name.
+                serverName:
+                    type: string
+                connection:
+                    enum:
+                        - CONNECTION_UNSPECIFIED
+                        - CONNECTION_CONNECTED
+                        - CONNECTION_UNREACHABLE
+                        - CONNECTION_PENDING
+                    type: string
+                    description: |-
+                        Whether its agent is connected. One that isn't runs its tasks all the same,
+                         and its runs show once it's back.
+                    format: enum
+                nextRun:
+                    type: string
+                    description: When it next runs there. Unset while it's paused.
+                    format: date-time
+                lastRun:
+                    allOf:
+                        - $ref: '#/components/schemas/TaskRun'
+                    description: Its newest run there, without its output. Unset until it has run.
+                recent:
+                    type: array
+                    items:
+                        enum:
+                            - TASK_RUN_STATE_UNSPECIFIED
+                            - TASK_RUN_STATE_RUNNING
+                            - TASK_RUN_STATE_SUCCEEDED
+                            - TASK_RUN_STATE_FAILED
+                            - TASK_RUN_STATE_TIMED_OUT
+                            - TASK_RUN_STATE_INTERRUPTED
+                            - TASK_RUN_STATE_NOT_STARTED
+                        type: string
+                        format: enum
+                    description: How its newest runs there ended, newest first, up to 14, without output.
+                upcoming:
+                    type: array
+                    items:
+                        type: string
+                        format: date-time
+                    description: |-
+                        When it runs there in the next 24 hours, by its schedule, up to 288 (every 5
+                         minutes), for a timeline. Empty while it's paused.
+            description: TaskOnServer is how a task stands on one server.
+        TaskOutputLine:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When it came.
+                    format: date-time
+                text:
+                    type: string
+                    description: The line, without its newline.
+            description: |-
+                TaskOutputLine is one line a run printed. Lines the agent adds of its own, such
+                 as why an attempt stopped, start "Dockwell: ", and its attempts say the same as
+                 facts, for a surface to say in its own words.
+        TaskRequest:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: The URL, http or https.
+                method:
+                    type: string
+                    description: GET unless set, or HEAD or POST, with no body.
+                expectStatus:
+                    type: integer
+                    description: The status it expects, such as 204. Any 2xx unless set.
+                    format: uint32
+            description: |-
+                TaskRequest is an HTTP request to a URL. A run keeps the status, the time it
+                 took and the size of the answer, never the body.
+        TaskRun:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The run's ID.
+                taskId:
+                    type: string
+                    description: The task's ID.
+                serverId:
+                    type: string
+                    description: The server it ran on, by ID and name.
+                serverName:
+                    type: string
+                state:
+                    enum:
+                        - TASK_RUN_STATE_UNSPECIFIED
+                        - TASK_RUN_STATE_RUNNING
+                        - TASK_RUN_STATE_SUCCEEDED
+                        - TASK_RUN_STATE_FAILED
+                        - TASK_RUN_STATE_TIMED_OUT
+                        - TASK_RUN_STATE_INTERRUPTED
+                        - TASK_RUN_STATE_NOT_STARTED
+                    type: string
+                    description: How it is, or how it ended.
+                    format: enum
+                reason:
+                    enum:
+                        - TASK_RUN_REASON_UNSPECIFIED
+                        - TASK_RUN_REASON_SCHEDULE
+                        - TASK_RUN_REASON_BY_HAND
+                        - TASK_RUN_REASON_MISSED
+                    type: string
+                    description: Why it ran.
+                    format: enum
+                dueTime:
+                    type: string
+                    description: |-
+                        When it was due, and when it started and ended. A run that's still going has
+                         no end.
+                    format: date-time
+                startTime:
+                    type: string
+                    format: date-time
+                endTime:
+                    type: string
+                    format: date-time
+                attempts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TaskAttempt'
+                    description: 'Each try, in order: one, and one more for each retry it took.'
+                error:
+                    type: string
+                    description: Why it failed or didn't start, for people. Empty when it succeeded.
+                output:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TaskOutputLine'
+                    description: |-
+                        The last 64 KB of what it printed, stdout and stderr together, a line at a
+                         time. Only ListTaskRuns has it.
+                outputCutBytes:
+                    type: string
+                    description: How much of what it printed was cut from the start, in bytes.
+                skippedSlots:
+                    type: integer
+                    description: |-
+                        How many times its schedule came round while it ran, which ran nothing, as a
+                         task's runs never overlap.
+                    format: uint32
+            description: TaskRun is one run of a task on one server.
+        TaskShell:
+            type: object
+            properties:
+                command:
+                    type: string
+                    description: The command, run with /bin/sh -c, such as "find /var/log/app -mtime +7 -delete".
+                workingDir:
+                    type: string
+                    description: 'The folder it runs in: / unless set.'
+            description: TaskShell is a shell command on the server.
         TcpCheck:
             type: object
             properties:
@@ -9959,6 +11886,64 @@ components:
                     description: The port the app listens on inside its container, such as 5432.
                     format: uint32
             description: TcpCheck is a connection the agent makes to a container.
+        Terminal:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, such as "trm_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                serverId:
+                    type: string
+                    description: The server it runs on.
+                title:
+                    type: string
+                    description: Who it runs as and where, as a prompt says it, such as "root@hz-1".
+                openTime:
+                    type: string
+                    description: When it opened.
+                    format: date-time
+                columns:
+                    type: integer
+                    description: Its width, in characters.
+                    format: uint32
+                rows:
+                    type: integer
+                    description: Its height, in lines.
+                    format: uint32
+                container:
+                    type: string
+                    description: The container it runs in, by name, for a shell in a container.
+            description: Terminal is a shell on a server.
+        TerminalEnd:
+            type: object
+            properties:
+                reason:
+                    enum:
+                        - TERMINAL_END_REASON_UNSPECIFIED
+                        - TERMINAL_END_REASON_EXITED
+                        - TERMINAL_END_REASON_CLOSED
+                        - TERMINAL_END_REASON_DETACHED
+                        - TERMINAL_END_REASON_IDLE
+                        - TERMINAL_END_REASON_SIGNED_OUT
+                        - TERMINAL_END_REASON_AGENT_RESTARTED
+                        - TERMINAL_END_REASON_CONTROL_PLANE_RESTARTED
+                        - TERMINAL_END_REASON_SERVER_REMOVED
+                        - TERMINAL_END_REASON_FAILED
+                    type: string
+                    description: Why.
+                    format: enum
+                exitCode:
+                    type: integer
+                    description: The shell's exit status, when it exited.
+                    format: int32
+                time:
+                    type: string
+                    description: When.
+                    format: date-time
+                message:
+                    type: string
+                    description: What happened, for people, such as "The shell exited with code 0".
+            description: TerminalEnd says how a terminal ended.
         Tmpfs:
             type: object
             properties:
@@ -10438,7 +12423,49 @@ components:
                         type: string
                     description: The extensions it has beyond the language's own, such as "mysqli".
             description: WebsiteRuntime is one version of a language a website can run.
+        WriteTerminalRequest:
+            type: object
+            properties:
+                terminalId:
+                    type: string
+                    description: The terminal's ID.
+                offset:
+                    type: string
+                    description: Where data starts in all that's been typed into the terminal.
+                data:
+                    type: string
+                    description: What's typed, 64 KiB at most.
+                    format: bytes
+                columns:
+                    type: integer
+                    description: The terminal's width, to change it. 0 leaves it.
+                    format: uint32
+                rows:
+                    type: integer
+                    description: Its height, to change it. 0 leaves it.
+                    format: uint32
+            description: WriteTerminalRequest is what's typed, and the terminal's size.
+        WriteTerminalResponse:
+            type: object
+            properties:
+                offset:
+                    type: string
+                    description: |-
+                        How much of what's been typed the terminal has taken, in all. Short of the
+                         write's end when it hadn't room for all of it.
+            description: WriteTerminalResponse says how much the terminal has taken.
 tags:
+    - name: AuditService
+      description: |-
+        AuditService reads the audit log: every event Dockwell records of who did
+         what, from where, as it was recorded. That includes what the timeline leaves
+         out: refusals, such as a wrong code or a refused token, a token's first use
+         from an address, signing out, and the install's own setup. See
+         docs/adr/0047-the-audit-log-for-a-person.md.
+
+         Its events carry the words Dockwell wrote for people, which name the
+         addresses people signed in from and were refused from, so only a person
+         signed in reads it, never an API token.
     - name: AuthService
       description: |-
         AuthService claims a new install, signs people in and out, and manages how
@@ -10581,6 +12608,12 @@ tags:
 
          Reading it needs the read scope alone, as what a check printed is cut short
          and has what the container's environment holds masked. It isn't a log.
+    - name: ImportService
+      description: |-
+        ImportService moves what another panel runs on a server into Dockwell: what
+         can run as it is is taken on with no restart, what can't is made again, and
+         the rest is left with why. Each import is a plan a person applies. See
+         docs/adr/0056-importing-a-1panel-server.md.
     - name: LogService
       description: |-
         LogService reads what a service's containers print: live, or from what
@@ -10598,6 +12631,26 @@ tags:
          WatchLogs streams, so it has no REST path. A REST client pages through
          ReadLogs, or opens the stream with Connect, gRPC or gRPC-Web, with the
          same credentials.
+    - name: MemberService
+      description: |-
+        MemberService says who can sign in to the install, with their role and how
+         they sign in. Today that is one person, the owner, who claimed the install:
+         inviting others, and roles beyond the owner, come later. See
+         docs/adr/0048-members-as-far-as-one-owner-goes.md.
+
+         It names people and their emails, so only a person signed in reads it, never
+         an API token. How each person signs in is theirs: everyone sees the kinds of
+         sign-in each member has, and only the person asking sees their own passkeys'
+         addresses, codes and browsers.
+    - name: ProcessService
+      description: |-
+        ProcessService shows what runs on a server, process by process, and ends one.
+         A server's agent reads its processes only while someone watches them. See
+         docs/adr/0041-processes-on-a-server.md.
+
+         Every method needs a signed-in session: no API token can call them, whatever
+         its scope, as a process's command line can hold what was typed with it, a
+         password included, and ending one is as much as root on the server.
     - name: ResourceService
       description: |-
         ResourceService reads the resources Dockwell manages: projects,
@@ -10634,6 +12687,7 @@ tags:
       description: |-
         SettingsService reads and changes the install's own settings: what it's
          called, the time zone its schedules start in, and how its panel is served.
+         It also says what the control plane is, and how it's doing.
 
          None of these is managed state: they change what Dockwell says and suggests,
          not what runs on a server, so a change needs no plan. Each is on the activity
@@ -10643,6 +12697,31 @@ tags:
       description: |-
         SystemService describes the Dockwell install itself. It needs no sign-in, so
          the CLI, agents and other tools can check what they are talking to first.
+    - name: TaskService
+      description: |-
+        TaskService is work that runs on a schedule: a shell command on a server, a
+         command in an app's image, or an HTTP request. A task is a resource of kind
+         "task", so making, changing, pausing and deleting one is a change with a plan,
+         through ChangeService. Each server's agent keeps its own tasks' time, so they run
+         while the control plane is away, and the control plane keeps what each run
+         did. See docs/adr/0053-scheduled-tasks.md.
+    - name: TerminalService
+      description: |-
+        TerminalService opens a shell on a server, through its agent, and carries
+         what's typed and what it prints. A server's shell is root's, so it's as good
+         as root: see docs/adr/0037-a-terminal-on-a-server.md and
+         docs/security/terminal.md.
+
+         Every method needs a signed-in session: no API token can call them, whatever
+         its scope. A terminal belongs to the person and the session that opened it,
+         and nobody else can reach it. Opening one takes a passkey, just now. Opening
+         and closing one are on record in Activity, and what's typed and printed is
+         never recorded.
+
+         A terminal runs on its server apart from any connection, so a client that
+         loses its stream attaches again from the last byte it had, and misses
+         nothing that fits in what the server keeps. AttachTerminal streams, so it
+         has no REST path.
     - name: TokenService
       description: |-
         TokenService manages API tokens: secrets for scripts, the CLI and

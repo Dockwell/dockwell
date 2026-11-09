@@ -229,6 +229,7 @@ var proposers = map[string]bool{
 	"dockwell.v1.WebsiteService.CreateWebsite":         true,
 	"dockwell.v1.WebsiteService.UpdateWebsite":         true,
 	"dockwell.v1.WebsiteService.DeleteWebsite":         true,
+	"dockwell.v1.ImportService.ImportOnePanel":         true,
 }
 
 // proposes reports a method that proposes a new change, by what it does,

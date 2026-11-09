@@ -18,6 +18,7 @@ require (
 	connectrpc.com/grpchealth v1.5.0
 	connectrpc.com/grpcreflect v1.3.1
 	connectrpc.com/vanguard v0.4.0
+	github.com/BurntSushi/toml v1.6.0
 	github.com/compose-spec/compose-go/v2 v2.16.2
 	github.com/distribution/reference v0.5.0
 	github.com/go-viper/mapstructure/v2 v2.5.0

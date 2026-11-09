@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/catalog/v1alpha1/entry.proto.
  */
 export const file_dockwell_catalog_v1alpha1_entry: GenFile = /*@__PURE__*/
-  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIv4CCgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCSI6CgZTb3VyY2USEgoKcmVwb3NpdG9yeRgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmNvbW1pdBgDIAEoCSKxAQoFSW5wdXQSDAoEbmFtZRgBIAEoCRINCgVsYWJlbBgCIAEoCRIMCgRoaW50GAMgASgJEjIKBHR5cGUYBCABKA4yJC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0VHlwZRIVCg1kZWZhdWx0X3ZhbHVlGAUgASgJEhAKCG9wdGlvbmFsGAYgASgIEhAKCGdlbmVyYXRlGAcgASgNEg4KBmxvZ2dlZBgIIAEoCCIWCgNXZWISDwoHc2VydmljZRgBIAEoCSp+CglJbnB1dFR5cGUSGgoWSU5QVVRfVFlQRV9VTlNQRUNJRklFRBAAEhMKD0lOUFVUX1RZUEVfVEVYVBABEhQKEElOUFVUX1RZUEVfRU1BSUwQAhITCg9JTlBVVF9UWVBFX1BPUlQQAxIVChFJTlBVVF9UWVBFX1NFQ1JFVBAEQv0BCh1jb20uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMUIKRW50cnlQcm90b1ABWkpnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExO2NhdGFsb2d2MWFscGhhMaICA0RDWKoCGURvY2t3ZWxsLkNhdGFsb2cuVjFhbHBoYTHKAhlEb2Nrd2VsbFxDYXRhbG9nXFYxYWxwaGEx4gIlRG9ja3dlbGxcQ2F0YWxvZ1xWMWFscGhhMVxHUEJNZXRhZGF0YeoCG0RvY2t3ZWxsOjpDYXRhbG9nOjpWMWFscGhhMWIGcHJvdG8z");
+  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIv4CCgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCSI6CgZTb3VyY2USEgoKcmVwb3NpdG9yeRgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmNvbW1pdBgDIAEoCSLtAQoFSW5wdXQSDAoEbmFtZRgBIAEoCRINCgVsYWJlbBgCIAEoCRIMCgRoaW50GAMgASgJEjIKBHR5cGUYBCABKA4yJC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0VHlwZRIVCg1kZWZhdWx0X3ZhbHVlGAUgASgJEhAKCG9wdGlvbmFsGAYgASgIEhAKCGdlbmVyYXRlGAcgASgNEg4KBmxvZ2dlZBgIIAEoCBI6CgtnZW5lcmF0ZV9hcxhQIAEoDjIlLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuR2VuZXJhdGVBcyIWCgNXZWISDwoHc2VydmljZRgBIAEoCSpWCgpHZW5lcmF0ZUFzEhsKF0dFTkVSQVRFX0FTX1VOU1BFQ0lGSUVEEAASEwoPR0VORVJBVEVfQVNfSEVYEAESFgoSR0VORVJBVEVfQVNfQkFTRTY0EAIqfgoJSW5wdXRUeXBlEhoKFklOUFVUX1RZUEVfVU5TUEVDSUZJRUQQABITCg9JTlBVVF9UWVBFX1RFWFQQARIUChBJTlBVVF9UWVBFX0VNQUlMEAISEwoPSU5QVVRfVFlQRV9QT1JUEAMSFQoRSU5QVVRfVFlQRV9TRUNSRVQQBEL9AQodY29tLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTFCCkVudHJ5UHJvdG9QAVpKZ2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvY2F0YWxvZy92MWFscGhhMTtjYXRhbG9ndjFhbHBoYTGiAgNEQ1iqAhlEb2Nrd2VsbC5DYXRhbG9nLlYxYWxwaGExygIZRG9ja3dlbGxcQ2F0YWxvZ1xWMWFscGhhMeICJURvY2t3ZWxsXENhdGFsb2dcVjFhbHBoYTFcR1BCTWV0YWRhdGHqAhtEb2Nrd2VsbDo6Q2F0YWxvZzo6VjFhbHBoYTFiBnByb3RvMw");
 
 /**
  * Entry is one app a catalog offers, at one version. It installs through the
@@ -262,6 +262,14 @@ export type Input = Message<"dockwell.catalog.v1alpha1.Input"> & {
    * @generated from field: bool logged = 8;
    */
   logged: boolean;
+
+  /**
+   * How a generated secret is written, for an app that reads it as a key: letters
+   * and digits unless set.
+   *
+   * @generated from field: dockwell.catalog.v1alpha1.GenerateAs generate_as = 80;
+   */
+  generateAs: GenerateAs;
 };
 
 /**
@@ -291,6 +299,42 @@ export type Web = Message<"dockwell.catalog.v1alpha1.Web"> & {
  */
 export const WebSchema: GenMessage<Web> = /*@__PURE__*/
   messageDesc(file_dockwell_catalog_v1alpha1_entry, 3);
+
+/**
+ * GenerateAs is how a generated secret is written.
+ *
+ * @generated from enum dockwell.catalog.v1alpha1.GenerateAs
+ */
+export enum GenerateAs {
+  /**
+   * Letters and digits, as many as generate says.
+   *
+   * @generated from enum value: GENERATE_AS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Hex digits, as many as generate says, as openssl rand -hex writes them.
+   *
+   * @generated from enum value: GENERATE_AS_HEX = 1;
+   */
+  HEX = 1,
+
+  /**
+   * As many random bytes as generate says, in standard base64 with its
+   * padding, as openssl rand -base64 writes them, for an app that decodes its
+   * key.
+   *
+   * @generated from enum value: GENERATE_AS_BASE64 = 2;
+   */
+  BASE64 = 2,
+}
+
+/**
+ * Describes the enum dockwell.catalog.v1alpha1.GenerateAs.
+ */
+export const GenerateAsSchema: GenEnum<GenerateAs> = /*@__PURE__*/
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 0);
 
 /**
  * InputType is what an input takes.
@@ -343,5 +387,5 @@ export enum InputType {
  * Describes the enum dockwell.catalog.v1alpha1.InputType.
  */
 export const InputTypeSchema: GenEnum<InputType> = /*@__PURE__*/
-  enumDesc(file_dockwell_catalog_v1alpha1_entry, 0);
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 1);
 

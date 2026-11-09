@@ -1,0 +1,3 @@
+services:
+  files:
+    image: example/files:1.0.0

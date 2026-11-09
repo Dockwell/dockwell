@@ -1,0 +1,101 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.runs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.runs-title {
+  margin: 0;
+}
+
+/* A card for each kind of thing, side by side, wrapping as the page narrows. */
+.runs-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.runs-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 14px var(--space-4);
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.runs-card:hover {
+  border-color: var(--line-strong);
+  text-decoration: none;
+}
+
+.runs-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+}
+
+.runs-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.runs-name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.runs-sub {
+  overflow-wrap: anywhere;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.runs-chevron {
+  display: flex;
+  flex: none;
+  color: var(--ink-muted);
+  transition: color 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.runs-card:hover .runs-chevron {
+  color: var(--ink);
+}
+
+/* While it reads: the card holds its place, with no words that could be wrong. */
+.runs-skeleton {
+  display: block;
+  height: 12px;
+  margin: 4px 0;
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+}
+
+.runs-skeleton.is-title {
+  width: 64px;
+}
+
+.runs-skeleton.is-sub {
+  width: 140px;
+  height: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runs-card,
+  .runs-chevron {
+    transition: none;
+  }
+}

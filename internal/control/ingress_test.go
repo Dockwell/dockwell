@@ -336,9 +336,9 @@ func TestThePublicPortsGoAndComeBack(t *testing.T) {
 			}
 			return res.Msg.GetSettings().GetPanel()
 		}
-		if p := servedBy(); p.GetServedBy() != dockwellv1.PanelServedBy_PANEL_SERVED_BY_DOCKWELL || p.GetUrl() != "https://panel.acme.dev" ||
-			p.GetHttpsListen() != "[::]:443" || p.GetCertificateAuthority() != "Let's Encrypt" || p.GetDomain() != "panel.acme.dev" {
-			t.Errorf("before any route, the panel is served as %v, want by Dockwell", p)
+		if p := servedBy(); p.GetServedBy() != dockwellv1.PanelServedBy_PANEL_SERVED_BY_DOCKWELL || p.GetUrl() != "https://panel.acme.dev:8443" ||
+			p.GetHttpsListen() != srv.https || p.GetCertificateAuthority() != "Let's Encrypt" || p.GetDomain() != "panel.acme.dev" {
+			t.Errorf("before any route, the panel is served as %v, want by Dockwell on %s", p, srv.https)
 		}
 
 		if err := ports.Release(t.Context()); err != nil {
@@ -347,8 +347,9 @@ func TestThePublicPortsGoAndComeBack(t *testing.T) {
 		if answers(srv.https, false) || answers(srv.http, false) {
 			t.Error("the ports still answer once released")
 		}
+		// The ingress serves the domain on 443, whatever port Dockwell's own listener had.
 		if p := servedBy(); p.GetServedBy() != dockwellv1.PanelServedBy_PANEL_SERVED_BY_INGRESS || p.GetHttpsListen() != "" || p.GetUrl() != "https://panel.acme.dev" {
-			t.Errorf("with the ports given to the ingress, the panel is served as %v, want by the ingress", p)
+			t.Errorf("with the ports given to the ingress, the panel is served as %v, want by the ingress on 443", p)
 		}
 		// Something else can bind them now, as the proxy will.
 		l, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", srv.https)
@@ -370,8 +371,10 @@ func TestThePublicPortsGoAndComeBack(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitUntil("the HTTPS listener answering again", func() bool { return answers(srv.https, true) })
-		if p := servedBy(); p.GetServedBy() != dockwellv1.PanelServedBy_PANEL_SERVED_BY_DOCKWELL {
-			t.Errorf("with the ports taken back, the panel is served as %v, want by Dockwell", p)
+		// Where it listens now is what it bound on taking them back, as after a start with routes in place.
+		if p := servedBy(); p.GetServedBy() != dockwellv1.PanelServedBy_PANEL_SERVED_BY_DOCKWELL || p.GetHttpsListen() != srv.https ||
+			p.GetUrl() != "https://panel.acme.dev:8443" {
+			t.Errorf("with the ports taken back, the panel is served as %v, want by Dockwell on %s", p, srv.https)
 		}
 		if err := ports.Retake(t.Context()); err != nil {
 			t.Errorf("taking back twice: %v", err)

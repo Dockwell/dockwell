@@ -22,6 +22,7 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
@@ -30,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
+	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/delivery"
@@ -91,6 +93,15 @@ type Config struct {
 	Files *files.Server
 	// Updates reads which package updates wait on this server. Nil reads none.
 	Updates *updates.Reader
+	// OnePanel reads what 1Panel keeps on this server, for an import (ADR 0056).
+	// Nil reads nothing.
+	OnePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
+	// Tasks runs this server's scheduled tasks and keeps their runs (ADR 0053).
+	// Nil runs none.
+	Tasks TaskKeeper
+	// Terminals opens shells on this server for a person, across streams. Run
+	// runs it. Nil opens none.
+	Terminals *terminal.Manager
 	// CallGrace is how long a call gets to end once its time is up or its stream is
 	// going, before it's left behind. Zero means DefaultCallGrace.
 	CallGrace time.Duration
@@ -100,6 +111,10 @@ type Config struct {
 	firewall *firewallReader
 	// outlook keeps what the server found out from one stream to the next.
 	outlook *outlook
+	// disks adds up what takes the disk Docker's data is on, when asked.
+	disks *diskUse
+	// procs lists and ends processes, when asked.
+	procs *processes
 	// Hello changes what the agent says of itself as a stream opens, for a test
 	// that stands in for an agent of another version. Nil changes nothing.
 	Hello func(*agentv1.Hello)
@@ -152,6 +167,20 @@ type LogReader interface {
 	// it all or ctx ends. send may block: a follow drops what it can't send,
 	// and says how much.
 	Stream(ctx context.Context, call *agentv1.LogsCall, send func(*agentv1.SendLogsRequest) error) error
+}
+
+// TaskKeeper runs this server's scheduled tasks on its own clock, and keeps their
+// runs until the control plane reads them (ADR 0053).
+type TaskKeeper interface {
+	// RunNow runs a task now, as its schedule would.
+	RunNow(ctx context.Context, ref resource.Ref) (*dockwellv1.TaskRun, error)
+	// Runs returns the runs past after, and lets go of the ones before it.
+	Runs(after string) (*agentv1.TaskRunsResult, error)
+	// RunsReady says a run started or ended.
+	RunsReady() <-chan struct{}
+	// Drain waits up to wait, once the agent is stopping, for the runs that stops
+	// to end and be kept.
+	Drain(wait time.Duration)
 }
 
 // BackupTaker takes and removes backups on this server (ADR 0033). What restores
@@ -235,6 +264,8 @@ const (
 	stableSession = time.Minute
 	// defaultStatsInterval applies until the control plane says otherwise.
 	defaultStatsInterval = 5 * time.Second
+	// minStatsInterval is the soonest the agent samples, whatever it is told.
+	minStatsInterval = time.Second
 	// endWait bounds how long a stream that ends on purpose waits for the
 	// control plane to end it.
 	endWait = 10 * time.Second
@@ -330,6 +361,8 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	cfg.outlook = &outlook{}
 	cfg.firewall = newFirewallReader(cfg)
+	cfg.disks = &diskUse{docker: cfg.Docker, collector: cfg.Collector, now: time.Now}
+	cfg.procs = newProcesses(cfg.Collector, cfg.Docker)
 	if cfg.Drivers == nil {
 		cfg.Drivers = resource.NewRegistry()
 	}
@@ -343,6 +376,9 @@ func Run(ctx context.Context, cfg Config) error {
 	var wg sync.WaitGroup
 	wg.Go(func() { keepRenewed(ctx, cfg) })
 	wg.Go(func() { keepConnected(ctx, cfg) })
+	if cfg.Terminals != nil {
+		wg.Go(func() { cfg.Terminals.Run(ctx) })
+	}
 	wg.Wait()
 	return nil
 }
@@ -442,8 +478,11 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil}
 	hello.Kinds, hello.Unavailable = offered.proto()
+	if cfg.Terminals != nil {
+		hello.Terminals, hello.OpenTerminals, hello.ContainerTerminals = true, cfg.Terminals.Known(), true
+	}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}
@@ -463,7 +502,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 		return errors.New("the control plane didn't answer the hello with a welcome")
 	}
 	interval := defaultStatsInterval
-	if d := welcome.GetStatsInterval().AsDuration(); d >= time.Second {
+	if d := welcome.GetStatsInterval().AsDuration(); d >= minStatsInterval {
 		interval = d
 	}
 	cfg.Logger.Info("connected to the control plane", slog.String("as", welcome.GetServerName()),
@@ -479,6 +518,9 @@ func session(ctx context.Context, cfg Config) (err error) {
 	calls := newCalls(parent, cfg, send, key)
 	recvErr := make(chan error, 1)
 	received := make(chan struct{})
+	// The pace the control plane asks for, latest first: it changes as people start
+	// and stop watching (ADR 0040).
+	paced := make(chan time.Duration, 1)
 	go func() {
 		defer close(received)
 		for {
@@ -496,6 +538,17 @@ func session(ctx context.Context, cfg Config) (err error) {
 				calls.acknowledged()
 			case msg.GetPublicAddress() != nil && cfg.Public != nil:
 				cfg.Public.SetPublicAddress(msg.GetPublicAddress())
+			case msg.GetPace() != nil:
+				d := msg.GetPace().GetStatsInterval().AsDuration()
+				if d < minStatsInterval {
+					continue
+				}
+				// Only the latest counts.
+				select {
+				case <-paced:
+				default:
+				}
+				paced <- d
 			}
 		}
 	}()
@@ -525,7 +578,9 @@ func session(ctx context.Context, cfg Config) (err error) {
 	// When the control plane ends the stream, Send only says EOF; the
 	// reason comes from Receive.
 	sendStats := func() error {
-		err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Stats{Stats: cfg.Collector.Stats(time.Now())}})
+		stats := cfg.Collector.Stats(time.Now())
+		stats.Interval = durationpb.New(interval)
+		err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Stats{Stats: stats}})
 		if !errors.Is(err, io.EOF) {
 			return err
 		}
@@ -605,12 +660,33 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Files != nil {
 		savesEnded = cfg.Files.SavesEnded()
 	}
+	var runsReady <-chan struct{}
+	if cfg.Tasks != nil {
+		runsReady = cfg.Tasks.RunsReady()
+	}
+	var terminalsEnded <-chan struct{}
+	if cfg.Terminals != nil {
+		terminalsEnded = cfg.Terminals.Ended()
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-terminalsEnded:
+			// What can't go now goes on the next stream, which says it's still to come.
+			ended := cfg.Terminals.TakeEnded()
+			for i, e := range ended {
+				if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_TerminalEnded{TerminalEnded: e}}); err != nil {
+					cfg.Terminals.Untold(ended[i:])
+					return err
+				}
+			}
 		case ended := <-savesEnded:
 			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_SaveEnded{SaveEnded: ended}}); err != nil {
+				return err
+			}
+		case <-runsReady:
+			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_TaskRunsReady{TaskRunsReady: &agentv1.TaskRunsReady{}}}); err != nil {
 				return err
 			}
 		case <-domainsChanged:
@@ -655,6 +731,20 @@ func session(ctx context.Context, cfg Config) (err error) {
 		case <-ticker.C:
 			if err := sendStats(); err != nil {
 				return err
+			}
+		case d := <-paced:
+			if d == interval {
+				continue
+			}
+			sooner := d < interval
+			cfg.Logger.DebugContext(ctx, "the control plane changed how often to send stats", slog.String("stats_every", human.Duration(d)))
+			interval = d
+			ticker.Reset(d)
+			// Someone just started watching: a new sample now, not at the old pace.
+			if sooner {
+				if err := sendStats(); err != nil {
+					return err
+				}
 			}
 		}
 	}

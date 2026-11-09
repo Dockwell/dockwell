@@ -1,0 +1,421 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The mock's terminal panel: a strip of session tabs, the well, and its foot. */
+
+.terminal-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.terminal-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.terminal-head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+
+.terminal-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.terminal-tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  margin-bottom: -1px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 500 12.5px / 1 var(--font-mono);
+  cursor: pointer;
+  transition:
+    background-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.terminal-tab:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface-sunken) 60%, transparent);
+}
+
+.terminal-tab[aria-selected="true"] {
+  border-color: var(--line);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-weight: 550;
+}
+
+.terminal-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.terminal-tab-icon {
+  display: flex;
+  color: var(--ink-muted);
+}
+
+.terminal-tab-close {
+  display: flex;
+  padding: 3px;
+  border-radius: var(--radius-xs);
+  color: var(--ink-muted);
+  transition: background-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.terminal-tab-close:hover {
+  color: var(--ink);
+  background: var(--line);
+}
+
+.terminal-head-tool {
+  display: flex;
+  align-items: center;
+  height: 36px;
+}
+
+.terminal-tools {
+  gap: 2px;
+}
+
+.terminal-head-space {
+  flex: 1 1 auto;
+}
+
+/* The well: ink on the sunken surface, as logs and code are. */
+.terminal-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: max(320px, calc(100dvh - 330px));
+  background: var(--surface-sunken);
+}
+
+.terminal-body > .empty-state {
+  margin: auto;
+}
+
+/* Content-box, as xterm's fit measures the height it's given, and the padding is the well's. */
+.terminal-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--space-4) var(--space-5);
+  box-sizing: content-box;
+}
+
+.terminal-screen[hidden] {
+  display: none;
+}
+
+.terminal-screen .xterm {
+  height: 100%;
+}
+
+/* What's below the last whole row is the well, not xterm's own black. */
+.terminal-screen .xterm .xterm-viewport {
+  background-color: var(--surface-sunken);
+}
+
+.terminal-screen .xterm:focus,
+.terminal-screen .xterm-helper-textarea:focus {
+  outline: none;
+}
+
+.terminal-notice {
+  position: absolute;
+  inset: auto var(--space-4) var(--space-4);
+  animation: terminal-arrive 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.terminal-notice .dw-callout {
+  box-shadow: var(--shadow-float);
+}
+
+@keyframes terminal-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.terminal-find {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-4);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+}
+
+.terminal-find .dw-field {
+  width: 220px;
+}
+
+.terminal-find-none {
+  padding: 0 var(--space-2);
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.terminal-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: 9px var(--space-4);
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.terminal-foot a {
+  text-decoration: none;
+}
+
+.terminal-foot a:hover {
+  text-decoration: underline;
+}
+
+.terminal-size {
+  font: 400 12px / 18px var(--font-mono);
+}
+
+.terminal-menu-anchor {
+  position: relative;
+  display: flex;
+}
+
+.terminal-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+}
+
+.terminal-menu-item {
+  display: flex;
+  align-items: center;
+  height: var(--control-sm);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink);
+  font: 500 13px / 1 var(--font-sans);
+  text-align: start;
+  cursor: pointer;
+}
+
+.terminal-menu-item:hover,
+.terminal-menu-item:focus-visible {
+  outline: none;
+  background: var(--surface-sunken);
+}
+
+.terminal-menu-item:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.terminal-menu-danger {
+  color: var(--critical);
+}
+
+/* On a phone the terminal takes the screen under its header, as M-Terminal has it:
+   the output, then its keys, with no tab bar, as the keyboard comes up under them. */
+.shell-column:has(.terminal-phone) > .tabbar {
+  display: none;
+}
+
+.terminal-phone {
+  gap: 0;
+  height: calc(var(--visible-height, 100dvh) - 56px);
+  margin: calc(-1 * var(--space-4));
+}
+
+.terminal-phone .terminal-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.terminal-phone .terminal-body {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+.terminal-phone .terminal-screen {
+  padding: var(--space-3) 10px;
+}
+
+.terminal-phone > .dw-callout {
+  margin: var(--space-3) var(--space-4);
+}
+
+.terminal-keybar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) max(22px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+.terminal-keys {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.terminal-keys::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-key {
+  display: grid;
+  flex: none;
+  place-items: center;
+  min-width: 52px;
+  height: 44px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 550 14px / 1 var(--font-sans);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.terminal-key:active {
+  background: var(--surface-sunken);
+}
+
+.terminal-key[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--surface-sunken);
+}
+
+.terminal-key:focus-visible,
+.terminal-keybar-size:focus-visible,
+.terminal-keybar-paste:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.terminal-key-square {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+}
+
+.terminal-key-mono {
+  font: 500 16px / 1 var(--font-mono);
+}
+
+.terminal-key-turn {
+  display: flex;
+}
+
+.terminal-keybar-rule {
+  flex: none;
+  width: 1px;
+  height: 28px;
+  background: var(--line);
+}
+
+.terminal-keybar-size {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  justify-content: center;
+  gap: 1px;
+  width: 44px;
+  height: 44px;
+  padding: 13px 0 0;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.terminal-keybar-size-small {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.terminal-keybar-size-large {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.terminal-keybar-paste {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: 44px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: 550 14px / 1 var(--font-sans);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-notice {
+    animation: none;
+  }
+
+  .terminal-tab,
+  .terminal-tab-close,
+  .terminal-key {
+    transition: none;
+  }
+}

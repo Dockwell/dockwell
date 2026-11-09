@@ -360,6 +360,8 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN:              auth.StepUpCreateToken,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE:         auth.StepUpApplyRootChange,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN:          auth.StepUpSaveWayBackIn,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_END_PROCESS:               auth.StepUpEndProcess,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL:             auth.StepUpOpenTerminal,
 }
 
 // FinishStepUp checks the passkey's answer and returns a proof.
@@ -642,6 +644,9 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 	h.logger.ErrorContext(ctx, "auth call failed", slog.Any("error", err))
 	return connect.NewError(connect.CodeInternal, errors.New("internal error"))
 }
+
+// UserProto is a user for the API, as AuthService gives one.
+func UserProto(u store.User) *dockwellv1.User { return userProto(u) }
 
 func userProto(u store.User) *dockwellv1.User {
 	role := dockwellv1.Role_ROLE_UNSPECIFIED

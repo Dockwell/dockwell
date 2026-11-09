@@ -11,7 +11,7 @@ import {
   type Event,
   type EventBackup,
   EventKind,
-  type Plan,
+  type EventTerminal,
   ResourceService,
 } from "@dockwell/api";
 import {
@@ -22,7 +22,6 @@ import {
   type IconName,
   Panel,
   PHONE_QUERY,
-  PlanDiff,
   SegmentedControl,
   StatusBadge,
   Table,
@@ -45,15 +44,18 @@ import { initials } from "../auth/user";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { BecauseNotice, FailureNotice, MachineWords } from "../changes/FailureNotice";
 import { useFieldRows } from "../changes/fields";
-import { canUndo, diffResources, failedStep, foldPlumbing, shortFingerprint, wentOffline } from "../changes/plan";
+import { canUndo, failedStep, shortFingerprint, wentOffline } from "../changes/plan";
 import { RollbackLine, rollbackSubject, useRollbackWord } from "../changes/RollbackLine";
-import { type StepLook, useAlsoWords, useChangeWords } from "../changes/words";
+import { type StepLook, useChangeWords } from "../changes/words";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { useEndWords } from "../terminal/words";
+import { useActorWords } from "./actor";
 import { type Described, happenedAt, useCounts, useDescribe, useHealthEventWords, useProgress } from "./describe";
+import { RecordedPlan } from "./RecordedPlan";
 import { type EventFilter, useEvents } from "./useEvents";
 import "./ActivityPage.css";
 
@@ -307,31 +309,6 @@ function Mark({ icon, tone }: { icon: IconName; tone?: Described["tone"] | undef
   );
 }
 
-/** What a change on record did, as the plan sheet reads it: what it was for, and what matters first. */
-function RecordedPlan({
-  plan,
-  applied,
-  rows,
-}: {
-  plan: Plan | undefined;
-  applied: boolean;
-  rows: ReturnType<typeof useFieldRows>;
-}) {
-  const words = useChangeWords();
-  const alsoWords = useAlsoWords();
-  const fold = foldPlumbing(plan, diffResources(plan, rows, { tag: (intent) => words.intentTag(intent, applied) }));
-  return (
-    <PlanDiff
-      resources={fold.shown}
-      also={
-        fold.folded.length > 0
-          ? { label: alsoWords(fold, applied), action: "create", resources: fold.folded }
-          : undefined
-      }
-    />
-  );
-}
-
 /** The line under an event's title: its state, the plan in brief or its progress, and what reverted it. */
 function useMeta() {
   const { t } = useLingui();
@@ -502,31 +479,19 @@ function proposedApart(change: Change): boolean {
 
 /** Who did it: a person's initials, or a mark for a token, a server, a shell account or Dockwell. */
 function ActorView({ actor }: { actor: Actor | undefined }) {
-  const { t } = useLingui();
-  const marks: Partial<Record<ActorKind, IconName>> = {
-    [ActorKind.TOKEN]: "key",
-    [ActorKind.DOCKWELL]: "activity",
-    [ActorKind.SERVER]: "server",
-    [ActorKind.SHELL]: "terminal",
-  };
-  const mark = actor ? marks[actor.kind] : undefined;
-  const name = actor?.name || t`Someone`;
+  const who = useActorWords()(actor);
   return (
-    <span className="activity-actor">
-      {mark ? (
+    <span className="activity-actor" title={who.full === who.name ? undefined : who.full}>
+      {who.icon ? (
         <span className="activity-badge" aria-hidden="true">
-          <Icon name={mark} size={12} />
+          <Icon name={who.icon} size={12} />
         </span>
       ) : (
         <span className="activity-avatar" aria-hidden="true">
-          {initials(name)}
+          {initials(who.name)}
         </span>
       )}
-      <span
-        className={cx(actor?.kind === ActorKind.SERVER || actor?.kind === ActorKind.SHELL ? "is-machine" : undefined)}
-      >
-        {name}
-      </span>
+      <span className={cx(who.machine ? "is-machine" : undefined)}>{who.name}</span>
     </span>
   );
 }
@@ -755,6 +720,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
             ) : null}
             {event.health ? <HealthFacts event={event} /> : null}
             {event.backup ? <BackupFacts backup={event.backup} /> : null}
+            {event.terminal ? <TerminalFacts terminal={event.terminal} /> : null}
           </dl>
           {change?.because ? <BecauseNotice because={change.because} /> : null}
           {change?.state === ChangeState.FAILED ? (
@@ -846,6 +812,50 @@ function BackupFacts({ backup }: { backup: EventBackup }) {
         <>
           <dt>{t`Why it failed`}</dt>
           <dd>{backup.error}</dd>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/** A terminal, in the facts of its opening or closing: who it ran as, when, and how it ended. Never what was typed. */
+function TerminalFacts({ terminal }: { terminal: EventTerminal }) {
+  const { t, i18n } = useLingui();
+  const ended = useEndWords();
+  return (
+    <>
+      {terminal.id ? (
+        <>
+          <dt>{t`Terminal`}</dt>
+          <dd>
+            <code className="activity-code">{terminal.id}</code>
+          </dd>
+        </>
+      ) : null}
+      {terminal.title ? (
+        <>
+          <dt>{t`Ran as`}</dt>
+          <dd>
+            <code className="activity-code">{terminal.title}</code>
+          </dd>
+        </>
+      ) : null}
+      {terminal.openTime && terminal.end ? (
+        <>
+          <dt>{t`Opened`}</dt>
+          <dd>{formatDateTime(timestampDate(terminal.openTime), i18n.locale)}</dd>
+        </>
+      ) : null}
+      {terminal.end ? (
+        <>
+          <dt>{t`How it ended`}</dt>
+          <dd>{ended(terminal.end).text}</dd>
+        </>
+      ) : null}
+      {terminal.error ? (
+        <>
+          <dt>{t`Why`}</dt>
+          <dd>{terminal.error}</dd>
         </>
       ) : null}
     </>
