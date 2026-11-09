@@ -374,6 +374,9 @@ msgstr "打开应用"
 msgid "Open the file"
 msgstr "打开文件"
 
+msgid "Open the folder"
+msgstr "打开文件夹"
+
 msgid "Open the variables and secrets"
 msgstr "打开变量和密钥"
 
@@ -515,17 +518,32 @@ msgstr "用身份验证器验证码登录后添加了通行密钥 {name}"
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "应用 {change} 时要求验证通行密钥，但未收到"
 
+msgid "Asked for a passkey to delete {path} on {server}, and none came"
+msgstr "删除 {server} 上的 {path} 时要求验证通行密钥，但未收到"
+
+msgid "Asked for a passkey to make {path} on {server}, and none came"
+msgstr "创建 {server} 上的 {path} 时要求验证通行密钥，但未收到"
+
+msgid "Asked for a passkey to move {path} on {server}, and none came"
+msgstr "移动 {server} 上的 {path} 时要求验证通行密钥，但未收到"
+
 msgid "Asked for a passkey to open a shell in {container} on {server}, and none came"
 msgstr "在 {server} 上的 {container} 中打开 shell 时要求验证通行密钥，但未收到"
 
 msgid "Asked for a passkey to open a terminal on {server}, and none came"
 msgstr "在 {server} 上打开终端时要求验证通行密钥，但未收到"
 
+msgid "Asked for a passkey to put back {path} on {server}, and none came"
+msgstr "放回 {server} 上的 {path} 时要求验证通行密钥，但未收到"
+
 msgid "Asked for a passkey to save {path} on {server}, and none came"
 msgstr "保存 {server} 上的 {path} 时要求验证通行密钥，但未收到"
 
 msgid "Asked for a passkey to stop PID {pid} on {server}, and none came"
 msgstr "停止 {server} 上的 PID {pid} 时请求了通行密钥，但没有收到"
+
+msgid "Asked for a passkey to upload {path} to {server}, and none came"
+msgstr "上传 {path} 到 {server} 时要求验证通行密钥，但未收到"
 
 msgid "Asked to run a scheduled task"
 msgstr "请求运行某个计划任务"
@@ -560,6 +578,15 @@ msgstr "关闭了 {server} 上的终端"
 msgid "Closed a terminal on {server}, open {open}"
 msgstr "关闭了 {server} 上的终端，共打开 {open}"
 
+msgid "Couldn't delete {path} on {server}"
+msgstr "无法删除 {server} 上的 {path}"
+
+msgid "Couldn't make {path} on {server}"
+msgstr "无法创建 {server} 上的 {path}"
+
+msgid "Couldn't move {path} on {server}"
+msgstr "无法移动 {server} 上的 {path}"
+
 msgid "Couldn't open a shell in {container} on {server}"
 msgstr "无法在 {server} 上的 {container} 中打开 shell"
 
@@ -569,11 +596,17 @@ msgstr "无法在 {server} 上打开终端"
 msgid "Couldn't open {path} on {server}"
 msgstr "无法打开 {server} 上的 {path}"
 
+msgid "Couldn't put back {path} on {server}"
+msgstr "无法放回 {server} 上的 {path}"
+
 msgid "Couldn't save {path} on {server}"
 msgstr "无法保存 {server} 上的 {path}"
 
 msgid "Couldn't stop PID {pid} on {server}"
 msgstr "无法在 {server} 上停止 PID {pid}"
+
+msgid "Couldn't upload {path} to {server}"
+msgstr "无法上传 {path} 到 {server}"
 
 msgid "Created an API token"
 msgstr "创建了 API 令牌"
@@ -583,6 +616,21 @@ msgstr "创建了 API 令牌 {name}"
 
 msgid "Deleted a backup of {volume}"
 msgstr "已删除 {volume} 的一份备份"
+
+msgid "Deleted {path} on {server}"
+msgstr "已删除 {server} 上的 {path}"
+
+msgid "Deleted {path} on {server} for good"
+msgstr "已永久删除 {server} 上的 {path}"
+
+msgid "Deleted {path} on {server}, which can let someone back in"
+msgstr "已删除 {server} 上的 {path}，这里可能让他人重新进入服务器"
+
+msgid "Downloaded {path} from {server}"
+msgstr "已从 {server} 下载 {path}"
+
+msgid "Downloaded {path} from {server}, {size}"
+msgstr "已从 {server} 下载 {path}，{size}"
 
 msgid "Ended an authenticator app's setup after 5 wrong codes"
 msgstr "输错 5 次验证码后结束了身份验证器应用的设置"
@@ -608,8 +656,23 @@ msgstr "为 {name} 生成了一次性登录链接"
 msgid "Made new recovery codes"
 msgstr "生成了新的恢复码"
 
+msgid "Made {path} on {server}"
+msgstr "已创建 {server} 上的 {path}"
+
+msgid "Made {path} on {server}, which can let someone back in"
+msgstr "已创建 {server} 上的 {path}，这里可能让他人重新进入服务器"
+
+msgid "May have changed {path} on {server}"
+msgstr "可能已更改 {server} 上的 {path}"
+
 msgid "May have saved {path} on {server}"
 msgstr "可能已保存 {server} 上的 {path}"
+
+msgid "Moved {path} to {to} on {server}"
+msgstr "已将 {server} 上的 {path} 移到 {to}"
+
+msgid "Moved {path} to {to} on {server}, which can let someone back in"
+msgstr "已将 {server} 上的 {path} 移到 {to}，这里可能让他人重新进入服务器"
 
 msgid "Named this install {value}"
 msgstr "将此安装命名为 {value}"
@@ -628,6 +691,12 @@ msgstr "在 {server} 上打开了终端"
 
 msgid "Opened a terminal on {server}, as {as}"
 msgstr "在 {server} 上以 {as} 打开了终端"
+
+msgid "Put back {path} on {server}"
+msgstr "已放回 {server} 上的 {path}"
+
+msgid "Put back {path} on {server}, which can let someone back in"
+msgstr "已放回 {server} 上的 {path}，这里可能让他人重新进入服务器"
 
 msgid "Read {path} on {server}"
 msgstr "已读取 {server} 上的 {path}"
@@ -715,6 +784,15 @@ msgstr "为 {name} 解锁了验证码"
 
 msgid "Unlocked codes from an authenticator app"
 msgstr "解锁了身份验证器应用验证码"
+
+msgid "Uploaded {path} to {server}, which can let someone back in"
+msgstr "已上传 {path} 到 {server}，这里可能让他人重新进入服务器"
+
+msgid "Uploaded {path} to {server}, {size}"
+msgstr "已上传 {path} 到 {server}，{size}"
+
+msgid "Uploaded {path} to {server}, {size}, and unpacked it into {to}"
+msgstr "已上传 {path} 到 {server}，{size}，并解压到 {to}"
 
 msgid "a server"
 msgstr "一台服务器"
@@ -6005,14 +6083,17 @@ msgstr "丢弃这些更改"
 msgid "Dockwell doesn't open this file"
 msgstr "Dockwell 不打开这个文件"
 
+msgid "Download {name}"
+msgstr "下载 {name}"
+
 msgid "Edited"
 msgstr "已编辑"
 
 msgid "It asks for your passkey, as this file can let someone back in."
 msgstr "保存时会要求验证你的通行密钥，因为这个文件可能让他人重新进入服务器。"
 
-msgid "It's {size}, and it isn't UTF-8 text, so there's nothing to show here. Connect to the server over SSH to work with it."
-msgstr "它的大小是 {size}，且不是 UTF-8 文本，所以这里无法显示。请通过 SSH 连接服务器来处理它。"
+msgid "It's {size}, and it isn't UTF-8 text, so there's nothing to show here. Download it to open it on your computer, or connect to the server over SSH to work with it."
+msgstr "它的大小为 {size}，且不是 UTF-8 文本，因此这里无法显示。请下载后在你的电脑上打开，或通过 SSH 连接服务器进行处理。"
 
 #. placeholder {0}: base.where
 msgid "Leads to <0>{0}</0>"
@@ -6054,8 +6135,8 @@ msgstr "这个文件无法在这里编辑"
 msgid "This file changed on the server"
 msgstr "这个文件在服务器上发生了变化"
 
-msgid "This file is {size}, so the rest of it stays on the server, and it can't be edited here. Connect to the server over SSH to work with it all."
-msgstr "这个文件大小为 {size}，其余内容留在服务器上，也无法在这里编辑。请通过 SSH 连接服务器处理完整文件。"
+msgid "This file is {size}, so the rest of it stays on the server, and it can't be edited here. Download it to see it all, or connect to the server over SSH to work with it."
+msgstr "此文件大小为 {size}，其余部分仍留在服务器上，且无法在这里编辑。请下载以查看全部内容，或通过 SSH 连接服务器进行处理。"
 
 msgid "This isn't a text file"
 msgstr "这不是文本文件"
@@ -6112,6 +6193,10 @@ msgstr "{name} 已不再是 1 MB 以内的文本文件，所以无法在这里�
 msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 msgstr "{name} 现在指向 <0>{moved}</0>，保存会写到那里。没有保存任何内容，你输入的内容还在这里。载入服务器上的版本，看看那里有什么。"
 
+#. placeholder {0}: row.name
+msgid "Actions for {0}"
+msgstr "{0} 的操作"
+
 msgid "Back to {folder}"
 msgstr "返回 {folder}"
 
@@ -6130,6 +6215,14 @@ msgstr "常用位置"
 msgid "Copy path {shown}"
 msgstr "复制路径 {shown}"
 
+#. placeholder {0}: nameOf(deleted.path)
+msgid "Deleted {0}"
+msgstr "已删除 {0}"
+
+#. placeholder {0}: nameOf(deleted.path)
+msgid "Deleted {0} for good"
+msgstr "已永久删除 {0}"
+
 msgid "Docker volumes"
 msgstr "Docker 卷"
 
@@ -6146,14 +6239,26 @@ msgstr "{shown} 中的文件"
 msgid "Go up to {0}"
 msgstr "返回上级 {0}"
 
+msgid "It's in Recently deleted for 7 days, where you can put it back."
+msgstr "它会在“最近删除”中保留 7 天，期间可以放回原处。"
+
 msgid "Modified"
 msgstr "修改时间"
+
+msgid "New file"
+msgstr "新建文件"
+
+msgid "New folder"
+msgstr "新建文件夹"
 
 msgid "No file open"
 msgstr "没有打开的文件"
 
 msgid "Nothing at this path"
 msgstr "这个路径下什么都没有"
+
+msgid "Nothing brings it back."
+msgstr "无法恢复。"
 
 msgid "Nothing here matches your search."
 msgstr "这里没有符合搜索条件的内容。"
@@ -6167,8 +6272,15 @@ msgstr "权限"
 msgid "Places"
 msgstr "常用位置"
 
+msgctxt "what was deleted"
+msgid "Put back"
+msgstr "放回原处"
+
 msgid "Reading this folder"
 msgstr "正在读取这个文件夹"
+
+msgid "Recently deleted"
+msgstr "最近删除"
 
 #. placeholder {0}: nameOf(shown)
 msgid "Search in {0}"
@@ -6183,6 +6295,9 @@ msgstr "这个文件夹的内容超出了列表能显示的数量"
 msgid "This folder is empty."
 msgstr "这个文件夹是空的。"
 
+msgid "Upload"
+msgstr "上传"
+
 msgid "Websites"
 msgstr "网站"
 
@@ -6191,6 +6306,241 @@ msgstr "所有者 <0>{owner}</0>"
 
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, other {# 项}}"
+
+msgid "A name can't have a / in it. Make the folder first, then this in it."
+msgstr "名称中不能有 /。请先创建文件夹，再在其中创建它。"
+
+msgid "Changing {where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it."
+msgstr "更改 {where} 需要通行密钥，而你在这个地址上没有通行密钥。请通过 SSH 连接服务器来更改。"
+
+msgid "Delete for good"
+msgstr "永久删除"
+
+msgid "Delete {name} for good"
+msgstr "永久删除 {name}"
+
+msgid "Deleted {when}, goes in {left}"
+msgstr "{when}删除，{left}后永久删除"
+
+msgid "Download as a .zip"
+msgstr "下载为 .zip"
+
+msgid "Download {name} as a .zip"
+msgstr "将 {name} 下载为 .zip"
+
+msgid "Free its space now. Nothing brings it back."
+msgstr "立即释放空间，无法恢复。"
+
+msgid "Give it a name."
+msgstr "请输入名称。"
+
+msgid "It starts empty, and opens to edit. Everyone can read it, and this folder's owner can change it."
+msgstr "新文件为空，创建后会打开以便编辑。所有人都可以读取，这个文件夹的所有者可以修改。"
+
+msgid "It starts empty. Everyone can open it, and this folder's owner can change it."
+msgstr "新文件夹为空。所有人都可以打开，这个文件夹的所有者可以修改。"
+
+msgid "It's in that folder already."
+msgstr "它已经在那个文件夹中。"
+
+msgid "Kept for 7 days, then deleted for good"
+msgstr "保留 7 天，之后永久删除"
+
+msgid "Make file"
+msgstr "创建文件"
+
+msgid "Make folder"
+msgstr "创建文件夹"
+
+msgid "Move"
+msgstr "移动"
+
+#. placeholder {0}: entry.name
+msgid "Move {0}"
+msgstr "移动 {0}"
+
+msgid "Move {name}"
+msgstr "移动 {name}"
+
+#. placeholder {0}: nameOf(folder)
+msgid "New file in {0}"
+msgstr "在 {0} 中新建文件"
+
+#. placeholder {0}: nameOf(folder)
+msgid "New folder in {0}"
+msgstr "在 {0} 中新建文件夹"
+
+msgid "Nothing changed"
+msgstr "没有做任何更改"
+
+msgid "Nothing is in Recently deleted."
+msgstr "“最近删除”中没有任何内容。"
+
+msgid "Nothing moved"
+msgstr "没有移动任何内容"
+
+msgid "Nothing was deleted"
+msgstr "没有删除任何内容"
+
+msgid "On this server, and on the same disk. It keeps its name, and never replaces what's there."
+msgstr "须在这台服务器的同一块磁盘上。名称保持不变，也不会替换那里已有的内容。"
+
+msgid "Reading what was deleted"
+msgstr "正在读取已删除的内容"
+
+msgid "Rename"
+msgstr "重命名"
+
+msgid "Rename {name}"
+msgstr "重命名 {name}"
+
+msgid "Rename {was}"
+msgstr "重命名 {was}"
+
+#. placeholder {0}: entry.name
+msgid "Something called {0} is in that folder already. Rename one of them first."
+msgstr "那个文件夹中已经有名为 {0} 的内容。请先重命名其中一个。"
+
+msgid "Something called {name} is here already. Choose another name."
+msgstr "这里已经有名为 {name} 的内容。请换一个名称。"
+
+msgid "Something is at {path} now, so it wasn't put back. Move or rename that first."
+msgstr "{path} 现在已有内容，所以没有放回。请先移动或重命名那里的内容。"
+
+msgid "That name is too long for a server. Keep it under 255 bytes."
+msgstr "名称太长，服务器无法接受。请控制在 255 字节以内。"
+
+msgid "That name stands for a folder already. Choose another."
+msgstr "这个名称已代表一个文件夹，请换一个。"
+
+msgid "The folder {folder} is gone, so {name} wasn't put back, and it's still in Recently deleted. Make the folder again first, then put it back."
+msgstr "文件夹 {folder} 已不存在，所以 {name} 没有放回原处，仍在“最近删除”中。请先重新创建该文件夹，再放回原处。"
+
+msgid "The passkey prompt closed, so nothing changed. Try again when you're ready."
+msgstr "通行密钥提示已关闭，所以没有做任何更改。准备好后请重试。"
+
+msgid "There's no folder at {wanted}."
+msgstr "{wanted} 处没有文件夹。"
+
+msgid "This can't be put back"
+msgstr "无法放回原处"
+
+msgid "This deletes the link. What it leads to stays where it is."
+msgstr "这只会删除链接本身，它指向的内容保持不变。"
+
+msgid "This goes in the activity log"
+msgstr "此操作会记入活动日志"
+
+msgid "To the folder"
+msgstr "目标文件夹"
+
+msgid "Write the whole path, starting with /, such as /var/www."
+msgstr "请写出以 / 开头的完整路径，例如 /var/www。"
+
+msgid "{name} and everything in it go at once, and nothing brings them back. Its space is free straight away."
+msgstr "{name} 及其中的一切会立即删除，无法恢复。占用的空间会马上释放。"
+
+msgid "{name} and everything in it go to Recently deleted, where you can put them back for 7 days. They take their space until then."
+msgstr "{name} 及其中的一切会移到“最近删除”，7 天内可以放回原处。在此之前仍占用空间。"
+
+msgid "{name} goes at once, and nothing brings it back. Its space is free straight away."
+msgstr "{name} 会立即删除，无法恢复。占用的空间会马上释放。"
+
+msgid "{name} goes to Recently deleted, where you can put it back for 7 days. It takes its space until then."
+msgstr "{name} 会移到“最近删除”，7 天内可以放回原处。在此之前仍占用空间。"
+
+msgid "A folder doesn't upload as it is. Make a .zip of it, then upload that with Unpack archives on."
+msgstr "文件夹无法直接上传。请先将其打包为 .zip，再开启“解压归档”后上传。"
+
+msgid "Choose files"
+msgstr "选择文件"
+
+msgid "Choose files to upload"
+msgstr "选择要上传的文件"
+
+msgid "Drop files here, or choose them."
+msgstr "将文件拖放到这里，或选择文件。"
+
+msgid "Each .zip, .tar.gz or .tgz also unpacks into a new folder beside it, named after it. Links and anything that could let someone onto the server stop it."
+msgstr "每个 .zip、.tar.gz 或 .tgz 还会解压到旁边一个以它命名的新文件夹。其中若有链接，或任何可能让他人进入服务器的内容，解压会停止。"
+
+msgid "Files to upload"
+msgstr "要上传的文件"
+
+msgid "Go on"
+msgstr "继续"
+
+msgid "Leave out {name}"
+msgstr "移除 {name}"
+
+msgid "Not uploaded"
+msgstr "未上传"
+
+msgid "Putting it in place"
+msgstr "正在放到目标位置"
+
+msgid "Sent of {name}"
+msgstr "{name} 的上传进度"
+
+msgid "Something called {name} is in this folder already, so nothing was uploaded. Rename one of them first."
+msgstr "此文件夹中已有名为 {name} 的内容，因此没有上传任何内容。请先重命名其中一个。"
+
+msgid "Stop"
+msgstr "停止"
+
+msgid "Stopped at {part} of {whole}"
+msgstr "停在 {part}，共 {whole}"
+
+msgid "The connection dropped before {name} was all sent. What arrived is kept for a day: upload it again to go on from there."
+msgstr "{name} 尚未全部发送，连接就断开了。已到达的部分会保留一天：再次上传即可从断点继续。"
+
+#. placeholder {0}: err.status
+msgid "The control plane answered {0}, so {name} stopped. Upload it again to go on from where it got."
+msgstr "控制平面返回了 {0}，因此 {name} 已停止。再次上传即可从断点继续。"
+
+msgid "Unpack archives"
+msgstr "解压归档"
+
+msgid "Up to {limit} a file. A file goes in under its own name, and never replaces one that's there."
+msgstr "每个文件最大 {limit}。文件以原名放入，绝不会替换已有的文件。"
+
+#. placeholder {0}: nameOf(folder)
+msgid "Upload to {0}"
+msgstr "上传到 {0}"
+
+#. placeholder {0}: formatBytes(size, i18n.locale)
+msgid "Uploaded · {0}"
+msgstr "已上传 · {0}"
+
+msgid "Uploaded, and not unpacked"
+msgstr "已上传，未解压"
+
+msgid "Waiting for the server, which is busy with other uploads and downloads"
+msgstr "正在等待服务器，它正忙于其他上传和下载"
+
+#. placeholder {0}: formatBytes(size, i18n.locale)
+msgid "Waiting · {0}"
+msgstr "等待中 · {0}"
+
+#. placeholder {0}: pending.length
+msgid "{0, plural, one {Upload # file} other {Upload # files}}"
+msgstr "{0, plural, other {上传 # 个文件}}"
+
+#. placeholder {0}: formatBytes(size, i18n.locale)
+#. placeholder {1}: unpackedName(name)
+msgid "{0} · unpacks into {1}"
+msgstr "{0} · 解压到 {1}"
+
+#. placeholder {0}: formatPercent(percent, i18n.locale)
+msgid "{0} · {part} of {whole}"
+msgstr "{0} · 已上传 {part}，共 {whole}"
+
+#. placeholder {0}: formatBytes(size, i18n.locale)
+msgid "{0}, more than the {limit} an upload can be. Copy it over SSH."
+msgstr "{0}，超过单次上传上限 {limit}。请通过 SSH 复制。"
+
+msgid "{entries, plural, one {Uploaded, and unpacked # item into {into}} other {Uploaded, and unpacked # items into {into}}}"
+msgstr "{entries, plural, other {已上传，并将 # 项解压到 {into}}}"
 
 msgid "1Panel"
 msgstr "1Panel"
@@ -7221,9 +7571,6 @@ msgstr "{0} 上的服务"
 msgid "Showing {shown} of {total}, by {by}."
 msgstr "按{by}显示 {total} 个中的 {shown} 个。"
 
-msgid "Stop"
-msgstr "停止"
-
 #. placeholder {0}: process.name
 #. placeholder {1}: process.pid
 msgid "Stop {0} (PID {1})"
@@ -7561,9 +7908,6 @@ msgstr "设置 {name} 的公网地址"
 
 msgid "The address your provider's console shows. Every word about DNS uses it from now on."
 msgstr "即服务商控制台显示的地址。之后所有关于 DNS 的提示都会使用它。"
-
-msgid "This goes in the activity log"
-msgstr "此操作会记入活动日志"
 
 msgid "What the internet knows this server by"
 msgstr "互联网识别此服务器所用的地址"

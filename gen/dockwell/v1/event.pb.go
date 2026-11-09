@@ -1290,7 +1290,17 @@ type EventSubject struct {
 	Scope string `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
 	// Which file on it, for a file read, saved or refused on a server. Empty
 	// otherwise.
-	Path          string `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
+	Path string `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
+	// Where it went, for a file or folder moved or renamed. Empty otherwise.
+	// Numbered apart, as open work adds to this message.
+	ToPath string `protobuf:"bytes,100,opt,name=to_path,json=toPath,proto3" json:"to_path,omitempty"`
+	// True for a file or folder made, moved, deleted or put back where it's a
+	// way back onto the server, which took a passkey.
+	WayBackIn bool `protobuf:"varint,101,opt,name=way_back_in,json=wayBackIn,proto3" json:"way_back_in,omitempty"`
+	// True for a file or folder deleted for good, which can't be put back.
+	ForGood bool `protobuf:"varint,102,opt,name=for_good,json=forGood,proto3" json:"for_good,omitempty"`
+	// How many bytes, for a file uploaded or downloaded.
+	SizeBytes     uint64 `protobuf:"varint,103,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1351,6 +1361,34 @@ func (x *EventSubject) GetPath() string {
 		return x.Path
 	}
 	return ""
+}
+
+func (x *EventSubject) GetToPath() string {
+	if x != nil {
+		return x.ToPath
+	}
+	return ""
+}
+
+func (x *EventSubject) GetWayBackIn() bool {
+	if x != nil {
+		return x.WayBackIn
+	}
+	return false
+}
+
+func (x *EventSubject) GetForGood() bool {
+	if x != nil {
+		return x.ForGood
+	}
+	return false
+}
+
+func (x *EventSubject) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
 }
 
 var File_dockwell_v1_event_proto protoreflect.FileDescriptor
@@ -1455,12 +1493,17 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\bprevious\x18\x04 \x01(\x0e2\x18.dockwell.v1.HealthStateR\bprevious\x12\x16\n" +
 	"\x06output\x18\x05 \x01(\tR\x06output\x12\x14\n" +
 	"\x05flips\x18\x06 \x01(\x05R\x05flips\x120\n" +
-	"\x05since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"\\\n" +
+	"\x05since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"\xcf\x01\n" +
 	"\fEventSubject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05scope\x18\x03 \x01(\tR\x05scope\x12\x12\n" +
-	"\x04path\x18\x04 \x01(\tR\x04path*\xc9\x01\n" +
+	"\x04path\x18\x04 \x01(\tR\x04path\x12\x17\n" +
+	"\ato_path\x18d \x01(\tR\x06toPath\x12\x1e\n" +
+	"\vway_back_in\x18e \x01(\bR\twayBackIn\x12\x19\n" +
+	"\bfor_good\x18f \x01(\bR\aforGood\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18g \x01(\x04R\tsizeBytes*\xc9\x01\n" +
 	"\tEventKind\x12\x1a\n" +
 	"\x16EVENT_KIND_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11EVENT_KIND_CHANGE\x10\x01\x12\x15\n" +

@@ -6,12 +6,15 @@ package dockwell.v1;
 
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
+import "google/api/httpbody.proto";
 import "google/protobuf/timestamp.proto";
 
-// FileService browses, reads and saves the files on a server, through its
-// agent. Files on a server aren't managed state, so nothing here is a revision
-// or has a plan, and a save can't be undone. See
-// docs/adr/0032-files-on-a-server.md.
+// FileService browses, reads, saves, makes, moves and deletes the files on a
+// server, through its agent. Files on a server aren't managed state, so
+// nothing here is a revision or has a plan. A save can't be undone, and a
+// delete can for 7 days where it's on the same filesystem as Dockwell's data.
+// See docs/adr/0032-files-on-a-server.md and
+// docs/adr/0045-a-file-manager-on-a-server.md.
 //
 // Every method needs a signed-in session: no API token can call them, whatever
 // its scope. The agent refuses what holds Dockwell's keys, secrets' values and
@@ -62,6 +65,193 @@ service FileService {
     option (google.api.http) = {
       post: "/v1/servers/{server_id}/files:save"
       body: "*"
+    };
+  }
+
+  // MakeFile makes an empty file, or a folder with nothing in it, never over
+  // what's there, which fails with the reason "file_exists". It takes its
+  // folder's owner and group. No API token can call it. Each one is on the
+  // timeline. See docs/adr/0045-a-file-manager-on-a-server.md.
+  rpc MakeFile(MakeFileRequest) returns (MakeFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "make"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:make"
+      body: "*"
+    };
+  }
+
+  // MoveFile moves or renames a file or a folder, within one filesystem,
+  // never over what's there. A symlink moves as itself. A move to another
+  // disk fails with the reason "other_disk". No API token can call it. Each
+  // one is on the timeline.
+  rpc MoveFile(MoveFileRequest) returns (MoveFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "move"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:move"
+      body: "*"
+    };
+  }
+
+  // DeleteFile deletes a file or a folder. It goes to Recently deleted for 7
+  // days, from where RestoreFile puts it back, when it's on the same
+  // filesystem as Dockwell's data. Elsewhere it fails with the reason
+  // "delete_for_good" unless for_good is set. A symlink goes as itself. No
+  // API token can call it. Each one is on the timeline.
+  rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "delete"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:delete"
+      body: "*"
+    };
+  }
+
+  // ListDeletedFiles returns what's in a server's Recently deleted, newest
+  // first. No API token can call it.
+  rpc ListDeletedFiles(ListDeletedFilesRequest) returns (ListDeletedFilesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "list-deleted"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/deleted-files"};
+  }
+
+  // RestoreFile puts back what was deleted, at the path it was deleted from,
+  // never over what's there now. No API token can call it. Each one is on
+  // the timeline.
+  rpc RestoreFile(RestoreFileRequest) returns (RestoreFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "restore"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/deleted-files/{id}:restore"
+      body: "*"
+    };
+  }
+
+  // PurgeDeletedFile deletes for good what's in Recently deleted, which
+  // frees its space at once. No API token can call it. Each one is on the
+  // timeline.
+  rpc PurgeDeletedFile(PurgeDeletedFileRequest) returns (PurgeDeletedFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "purge"
+    };
+    option (google.api.http) = {delete: "/v1/servers/{server_id}/deleted-files/{id}"};
+  }
+
+  // BeginUpload starts an upload of a file of size_bytes to path, never over
+  // what's there, and says how far an upload got when upload_id names one,
+  // to pick it up again after a dropped connection. A file takes at most
+  // 16 GB (max_bytes), and what the server's disk has room for. Send it with
+  // UploadFile, then put it in place with FinishUpload, or stop it with
+  // CancelUpload. An upload is the session's that began it: from any other,
+  // each of these says there's no such upload. An upload not finished within
+  // a day goes. No API token can call it. See
+  // docs/adr/0045-a-file-manager-on-a-server.md.
+  rpc BeginUpload(BeginUploadRequest) returns (BeginUploadResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "begin-upload"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/uploads"
+      body: "*"
+    };
+  }
+
+  // UploadFile sends an upload's bytes, from offset, which has to be how far
+  // it got, as BeginUpload says. The agent writes them as they come, a part at
+  // a time. Over REST it's a PUT whose body is the bytes, which the control
+  // plane passes on a frame at a time, and it answers with how far the upload
+  // got. A large file can go as several PUTs, each from where the last ended,
+  // as a proxy in front may limit how large a request is. A write from
+  // elsewhere fails with the reason "upload_offset", and writes nothing. No
+  // API token can call it.
+  rpc UploadFile(stream UploadFileRequest) returns (UploadFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "upload"
+    };
+    option (google.api.http) = {
+      put: "/v1/servers/{server_id}/uploads/{upload_id}"
+      body: "content"
+    };
+  }
+
+  // FinishUpload puts an upload in place, once all of it is there, and
+  // unpacks it into a new folder beside it when BeginUpload asked to. It takes
+  // its folder's owner and group. No API token can call it. Each one is on the
+  // timeline.
+  rpc FinishUpload(FinishUploadRequest) returns (FinishUploadResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "finish-upload"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/uploads/{upload_id}:finish"
+      body: "*"
+    };
+  }
+
+  // CancelUpload stops an upload and removes what it has so far, from the
+  // session that began it. An upload left alone goes after a day anyway. No API
+  // token can call it.
+  rpc CancelUpload(CancelUploadRequest) returns (CancelUploadResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "cancel-upload"
+    };
+    option (google.api.http) = {delete: "/v1/servers/{server_id}/uploads/{upload_id}"};
+  }
+
+  // DownloadFile sends a file as it is, or a folder as a zip archive, as it
+  // reads it. Over REST it's a GET whose body is the file, written as it's
+  // read, for a browser to save; one that stops partway cuts the connection,
+  // so it can't pass for the whole. What a read refuses, a download does, and
+  // one stops at a private key in what it sends. No API token can call it.
+  // Each one is on the timeline, before anything goes out.
+  rpc DownloadFile(DownloadFileRequest) returns (stream DownloadFileResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "download"
+    };
+    option (google.api.http) = {
+      get: "/v1/servers/{server_id}/files:download"
+      response_body: "body"
     };
   }
 }
@@ -153,6 +343,269 @@ message SaveFileResponse {
   string version = 3;
   // True when the file is a way back onto the server, which took a passkey.
   bool way_back_in = 4;
+}
+
+// MakeFileRequest makes an empty file or a folder.
+message MakeFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The absolute path to make, without . or .. in it, such as
+  // "/srv/site/index.html". Its folder must exist.
+  string path = 2;
+  // FILE_TYPE_FILE or FILE_TYPE_DIRECTORY.
+  FileType type = 3;
+  // The proof from FinishStepUp, for making this path on this server, where
+  // it's a way back onto the server. Call without it first: it checks
+  // everything else, then refuses with the reason needs_step_up. With it,
+  // path has to be where the server resolves it, as ListFiles gives a
+  // folder.
+  string proof = 4;
+}
+
+// MakeFileResponse is what was made.
+message MakeFileResponse {
+  // Where it was made, with every symlink in its folder's path followed.
+  string path = 1;
+  // What was made.
+  FileEntry file = 2;
+  // True when it's a way back onto the server, which took a passkey.
+  bool way_back_in = 3;
+}
+
+// MoveFileRequest moves or renames a file or a folder.
+message MoveFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // Where it is now, as an absolute path, without . or .. in it.
+  string from = 2;
+  // Where it goes, as the whole new path, such as "/srv/site/old.html" to
+  // rename index.html in the same folder. Nothing may be there.
+  string to = 3;
+  // The proof from FinishStepUp, for this move on this server, where either
+  // end is a way back onto the server. Both paths then have to be where the
+  // server resolves them.
+  string proof = 4;
+}
+
+// MoveFileResponse says where it went.
+message MoveFileResponse {
+  // Where it was, with every symlink in its folder's path followed.
+  string from = 1;
+  // Where it is now, the same way.
+  string to = 2;
+  // What moved.
+  FileEntry file = 3;
+  // True when either end is a way back onto the server, which took a
+  // passkey.
+  bool way_back_in = 4;
+}
+
+// DeleteFileRequest deletes a file or a folder.
+message DeleteFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The absolute path, without . or .. in it.
+  string path = 2;
+  // True to delete it for good, which frees its space at once and can't be
+  // undone. What's on another filesystem than Dockwell's data needs it.
+  bool for_good = 3;
+  // The proof from FinishStepUp, for deleting this path on this server,
+  // where it's a way back onto the server or holds one. path then has to be
+  // where the server resolves it.
+  string proof = 4;
+}
+
+// DeleteFileResponse says what was deleted.
+message DeleteFileResponse {
+  // Where it was, with every symlink in its folder's path followed.
+  string path = 1;
+  // It in Recently deleted. Unset when it was deleted for good.
+  DeletedFile deleted = 2;
+  // True when it was a way back onto the server, which took a passkey.
+  bool way_back_in = 3;
+}
+
+// ListDeletedFilesRequest names a server.
+message ListDeletedFilesRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+}
+
+// ListDeletedFilesResponse is what's in a server's Recently deleted.
+message ListDeletedFilesResponse {
+  // Newest first.
+  repeated DeletedFile deleted = 1;
+}
+
+// DeletedFile is one file or folder in Recently deleted.
+message DeletedFile {
+  // Its ID, which RestoreFile and PurgeDeletedFile take.
+  string id = 1;
+  // Where it was, with every symlink in its folder's path followed.
+  string path = 2;
+  // What it is.
+  FileType type = 3;
+  // Its size in bytes, for a file. Zero for a folder.
+  uint64 size_bytes = 4;
+  // When it was deleted.
+  google.protobuf.Timestamp delete_time = 5;
+  // When it goes for good, unless it's put back first.
+  google.protobuf.Timestamp purge_time = 6;
+}
+
+// RestoreFileRequest puts back what was deleted.
+message RestoreFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // Its ID in Recently deleted.
+  string id = 2;
+  // The proof from FinishStepUp, for putting back its path on this server,
+  // where that's a way back onto the server.
+  string proof = 3;
+}
+
+// RestoreFileResponse says where it went back.
+message RestoreFileResponse {
+  // Where it is now, with every symlink in its folder's path followed.
+  string path = 1;
+  // What went back.
+  FileEntry file = 2;
+  // True when it's a way back onto the server, which took a passkey.
+  bool way_back_in = 3;
+}
+
+// PurgeDeletedFileRequest deletes for good what's in Recently deleted.
+message PurgeDeletedFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // Its ID in Recently deleted.
+  string id = 2;
+}
+
+// PurgeDeletedFileResponse says what went.
+message PurgeDeletedFileResponse {
+  // What was deleted for good.
+  DeletedFile deleted = 1;
+}
+
+// What to unpack an upload as, once it's all there.
+enum Unpack {
+  // Nothing: it stays as it was sent.
+  UNPACK_UNSPECIFIED = 0;
+  // A zip archive.
+  UNPACK_ZIP = 1;
+  // A tar archive compressed with gzip, as .tar.gz or .tgz.
+  UNPACK_TAR_GZ = 2;
+}
+
+// BeginUploadRequest starts an upload, or asks how far one got.
+message BeginUploadRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The absolute path the file takes, without . or .. in it. Its folder must
+  // exist, and nothing may be at it.
+  string path = 2;
+  // How large the file is, in bytes.
+  uint64 size_bytes = 3;
+  // To unpack it into a new folder beside it, named as it is without .zip,
+  // .tar.gz or .tgz, once it's all there.
+  Unpack unpack = 4;
+  // An upload to pick up again, from BeginUpload. With it, path, size_bytes
+  // and unpack are left out.
+  string upload_id = 5;
+  // The proof from FinishStepUp, with the action STEP_UP_ACTION_MAKE_WAY_BACK_IN,
+  // for making this path on this server, where it's a way back onto it.
+  string proof = 6;
+}
+
+// BeginUploadResponse is the upload begun, or as it stands.
+message BeginUploadResponse {
+  // The upload.
+  Upload upload = 1;
+}
+
+// UploadFileResponse is how far an upload got once its bytes stopped coming.
+message UploadFileResponse {
+  // The upload.
+  Upload upload = 1;
+}
+
+// DownloadFileResponse is part of what's downloaded.
+message DownloadFileResponse {
+  // The bytes, as they come. Over REST they're the body.
+  google.api.HttpBody body = 1;
+}
+
+// Upload is an upload as it stands.
+message Upload {
+  // Its ID, which UploadFile and FinishUpload take.
+  string upload_id = 1;
+  // Where the file goes, with every symlink in its folder's path followed.
+  string path = 2;
+  // How large it is.
+  uint64 size_bytes = 3;
+  // How much of it is there. Pick it up again from here.
+  uint64 received_bytes = 4;
+  // The most a file can be, so a person can be told before they start.
+  uint64 max_bytes = 5;
+  // What it's to be unpacked as.
+  Unpack unpack = 6;
+  // True when it's a way back onto the server, which took a passkey.
+  bool way_back_in = 7;
+}
+
+// UploadFileRequest is part of an upload's bytes. The first names the upload
+// and where it starts.
+message UploadFileRequest {
+  // The server's ID, on the first message.
+  string server_id = 1;
+  // The upload, on the first message.
+  string upload_id = 2;
+  // Where these bytes start, on the first message: how far the upload got.
+  uint64 offset = 3;
+  // The bytes.
+  google.api.HttpBody content = 4;
+}
+
+// FinishUploadRequest puts an upload in place.
+message FinishUploadRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The upload.
+  string upload_id = 2;
+}
+
+// CancelUploadRequest stops an upload.
+message CancelUploadRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The upload.
+  string upload_id = 2;
+}
+
+// CancelUploadResponse is empty: the upload and what it had are gone.
+message CancelUploadResponse {}
+
+// FinishUploadResponse is what an upload put in place.
+message FinishUploadResponse {
+  // Where the file is, with every symlink in its folder's path followed.
+  string path = 1;
+  // The file.
+  FileEntry file = 2;
+  // True when it's a way back onto the server, which took a passkey.
+  bool way_back_in = 3;
+  // The folder it was unpacked into. Empty when it wasn't.
+  string unpacked_to = 4;
+  // How many files and folders that made.
+  uint64 unpacked_entries = 5;
+}
+
+// DownloadFileRequest names what to download.
+message DownloadFileRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The absolute path of a file or a folder, without . or .. in it.
+  string path = 2;
 }
 
 // FileType says what an entry in a directory is.
