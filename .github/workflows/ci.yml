@@ -370,6 +370,30 @@ jobs:
         if: steps.pick.outputs.run == 'true'
         run: make containers-load
 
+  transfers-load:
+    name: Transfer load
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs transfers-load
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      # The agent build with four uploads and four downloads at once, every byte
+      # checked, held to its memory budget (ADR 0045).
+      - name: An agent's memory while files upload and download
+        if: steps.pick.outputs.run == 'true'
+        run: make transfers-load
+
   e2e:
     name: Panel end to end
     runs-on: ubuntu-24.04

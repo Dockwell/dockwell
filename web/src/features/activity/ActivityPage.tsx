@@ -47,6 +47,7 @@ import { useFieldRows } from "../changes/fields";
 import { canUndo, failedStep, shortFingerprint, wentOffline } from "../changes/plan";
 import { RollbackLine, rollbackSubject, useRollbackWord } from "../changes/RollbackLine";
 import { type StepLook, useChangeWords } from "../changes/words";
+import { parentOf } from "../files/paths";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
@@ -641,6 +642,27 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
       <Trans>Open the file</Trans>
     </RouterButtonLink>
   ) : null;
+  // What was made, moved or put back is in a folder, which a file link might not open.
+  const placed =
+    event.action === "file.make" ||
+    event.action === "file.move" ||
+    event.action === "file.restore" ||
+    event.action === "file.upload"
+      ? event.subject
+      : undefined;
+  const placedAt = placed ? placed.toPath || placed.path : "";
+  const toFolder =
+    placed && placedAt ? (
+      <RouterButtonLink
+        to="/servers/$serverId/files"
+        params={{ serverId: placed.id }}
+        search={{ path: parentOf(placedAt) }}
+        variant="ghost"
+        icon="folder"
+      >
+        <Trans>Open the folder</Trans>
+      </RouterButtonLink>
+    ) : null;
   return (
     <div className="activity-detail">
       <Panel
@@ -766,10 +788,11 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
                 {change.state === ChangeState.PLANNED ? <Trans>Review plan</Trans> : <Trans>Open plan</Trans>}
               </Button>
             </div>
-          ) : toVariables || toFile ? (
+          ) : toVariables || toFile || toFolder ? (
             <div className="activity-detail-actions">
               {toVariables}
               {toFile}
+              {toFolder}
             </div>
           ) : event.health && event.subject?.id ? (
             <div className="activity-detail-actions">
