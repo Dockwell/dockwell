@@ -4221,6 +4221,7 @@ msgstr "{0, plural, other {# 个应用将停止。}}"
 msgid "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
 msgstr "{0, plural, other {已删除 # 项资源}}"
 
+#. placeholder {0}: names.length
 #. placeholder {0}: servers.length
 #. placeholder {0}: view.servers?.length ?? 0
 msgid "{0, plural, one {# server} other {# servers}}"
@@ -7115,6 +7116,106 @@ msgstr "{0, plural, other {{source} 有 {lines} 行未显示：这台服务器�
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, other {{source} 有 {lines} 条较早的匹配未显示：读到末尾时，每个容器只保留最新的 2 MB。}}"
 
+msgid "Inspect"
+msgstr "查看"
+
+msgid "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
+msgstr "它已加入，但它的代理还没有连接。请在服务器上运行 <0>dockwell run</0> 启动它。"
+
+msgid "Its agent has disconnected, so its numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on the server."
+msgstr "它的代理已断开，所以集群的数据不含它。请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
+
+msgid "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker is running on the server."
+msgstr "它的代理已连接，但 Docker 没有响应，所以无法得知上面运行的内容状况如何。请检查服务器上的 Docker 是否在运行。"
+
+msgid "Its agent last reported {seen}, so its numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on the server."
+msgstr "它的代理最后一次上报于 {seen}，所以集群的数据不含它。请检查该服务器上的 <0>dockwell run</0> 是否仍在运行。"
+
+msgid "On {list}, the agent is connected but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker is running on each."
+msgstr "{list} 上的代理已连接，但 Docker 没有响应，所以无法得知上面运行的内容状况如何。请检查每台服务器上的 Docker 是否在运行。"
+
+#. placeholder {0}: blind.length
+msgid "{0, plural, one {# server can't read Docker} other {# servers can't read Docker}}"
+msgstr "{0, plural, other {# 台服务器无法读取 Docker}}"
+
+#. placeholder {0}: waiting.length
+msgid "{0, plural, one {# server is waiting for its agent} other {# servers are waiting for their agents}}"
+msgstr "{0, plural, other {# 台服务器正在等待代理连接}}"
+
+#. placeholder {0}: down.length
+msgid "{0, plural, one {# server isn't reporting} other {# servers aren't reporting}}"
+msgstr "{0, plural, other {# 台服务器没有上报数据}}"
+
+msgid "{list} joined, but their agents haven't connected yet. Start each with <0>dockwell run</0> on the server."
+msgstr "{list} 已加入，但它们的代理还没有连接。请在每台服务器上运行 <0>dockwell run</0> 启动它。"
+
+msgid "{list} stopped reporting, so their numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on each."
+msgstr "{list} 停止上报数据，所以集群的数据不含它们。请检查每台服务器上的 <0>dockwell run</0> 是否仍在运行。"
+
+msgid "{name} can't read Docker"
+msgstr "{name} 无法读取 Docker"
+
+msgid "{name} is waiting for its agent"
+msgstr "{name} 正在等待代理连接"
+
+msgid "{name} isn't reporting"
+msgstr "{name} 没有上报数据"
+
+msgid "Across {cpus} vCPU"
+msgstr "{cpus} 个 vCPU 合计"
+
+msgid "Can't read Docker"
+msgstr "无法读取 Docker"
+
+msgid "Every server is reporting"
+msgstr "每台服务器都在上报数据"
+
+msgid "Fleet"
+msgstr "集群"
+
+msgid "Last reported {seen}"
+msgstr "最后上报于 {seen}"
+
+msgid "No server is reporting"
+msgstr "没有服务器在上报数据"
+
+msgid "Servers serving"
+msgstr "在线服务器"
+
+msgid "View all"
+msgstr "查看全部"
+
+msgid "Waiting for its agent"
+msgstr "等待代理连接"
+
+msgid "agent {version} everywhere"
+msgstr "代理均为 {version}"
+
+msgid "last {span}"
+msgstr "最近 {span}"
+
+msgid "of {total}"
+msgstr "/ {total}"
+
+#. placeholder {0}: counts.degraded
+msgid "{0, plural, one {# can't read Docker} other {# can't read Docker}}"
+msgstr "{0, plural, other {# 台无法读取 Docker}}"
+
+#. placeholder {0}: counts.down
+msgid "{0, plural, one {# down} other {# down}}"
+msgstr "{0, plural, other {# 台宕机}}"
+
+#. placeholder {0}: counts.waiting
+msgid "{0, plural, one {# waiting} other {# waiting}}"
+msgstr "{0, plural, other {# 台等待中}}"
+
+#. placeholder {0}: versions.length
+msgid "{0, plural, one {agents on # version} other {agents on # versions}}"
+msgstr "{0, plural, other {代理有 # 个版本}}"
+
+msgid "{used} of {total}"
+msgstr "{used} / {total}"
+
 msgid "Files"
 msgstr "文件"
 
@@ -7130,11 +7231,11 @@ msgstr "{cpus} 个 vCPU"
 msgid "Apps on this server"
 msgstr "此服务器上的应用"
 
+msgid "Apps on your servers"
+msgstr "你的服务器上的应用"
+
 msgid "No apps yet. Run an image, a Compose file or an app from the catalog."
 msgstr "还没有应用。可以运行一个镜像、一个 Compose 文件，或应用目录中的应用。"
-
-msgid "View all"
-msgstr "查看全部"
 
 msgid "Kept"
 msgstr "保存位置"
@@ -7472,21 +7573,12 @@ msgstr "请在服务器上用 <0>dockwell run</0> 启动它。"
 msgid "Up {uptime}"
 msgstr "已运行 {uptime}"
 
-msgid "Waiting for its agent"
-msgstr "等待代理连接"
-
-msgid "of {total}"
-msgstr "/ {total}"
-
 #. placeholder {0}: here.length
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, other {# 个应用}}"
 
 msgid "{replicas, plural, one {# replica} other {# replicas}}"
 msgstr "{replicas, plural, other {# 个副本}}"
-
-msgid "{used} of {total}"
-msgstr "{used} / {total}"
 
 #. placeholder {0}: g.owner.name
 #. placeholder {0}: owner.name
@@ -7715,12 +7807,6 @@ msgstr "它的代理已断开连接。请检查该服务器上的 <0>dockwell ru
 msgid "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
 msgstr "它的代理最后一次上报于 {seen}，此处显示的是当时的数据。请检查该服务器上的 <0>dockwell run</0> 是否仍在运行。"
 
-msgid "{name} is waiting for its agent"
-msgstr "{name} 正在等待代理连接"
-
-msgid "{name} isn't reporting"
-msgstr "{name} 没有上报数据"
-
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> 可能已被移除，或者链接有误。"
 
@@ -7745,9 +7831,6 @@ msgstr "1、5 和 15 分钟"
 
 msgid "1, 5 and 15 min, on {cpus} vCPU"
 msgstr "1、5 和 15 分钟，共 {cpus} 个 vCPU"
-
-msgid "Across {cpus} vCPU"
-msgstr "{cpus} 个 vCPU 合计"
 
 msgid "Disk"
 msgstr "磁盘"
@@ -7775,9 +7858,6 @@ msgstr "接收 {rx} · 发送 {tx}"
 
 msgid "Addresses"
 msgstr "地址"
-
-msgid "Can't read Docker"
-msgstr "无法读取 Docker"
 
 msgid "Connected"
 msgstr "已连接"
@@ -9048,9 +9128,6 @@ msgstr "Dockwell 的这一部分尚未完成，会在之后的版本中推出。
 
 msgid "Dockwell {short}: control plane status"
 msgstr "Dockwell {short}：控制平面状态"
-
-msgid "Fleet"
-msgstr "集群"
 
 msgid "Machine"
 msgstr "机器"
