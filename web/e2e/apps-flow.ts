@@ -306,7 +306,18 @@ export async function appsFlow(
     return {
       page: document.documentElement.scrollWidth - window.innerWidth,
       address: at ? at.scrollWidth - at.clientWidth : -1,
-      tabs: tabs ? tabs.scrollWidth - tabs.clientWidth : -1,
+      // Tabs that don't fit scroll within themselves, fading where more are, with the page's own in sight.
+      tabs: tabs
+        ? {
+            over: tabs.scrollWidth - tabs.clientWidth,
+            more: tabs.getAttribute("data-more") ?? "",
+            current: (() => {
+              const on = tabs.querySelector('[aria-current="page"]')?.getBoundingClientRect();
+              const edge = tabs.getBoundingClientRect();
+              return on !== undefined && on.left >= edge.left - 1 && on.right <= edge.right + 1;
+            })(),
+          }
+        : undefined,
       // What the flow's short image can't show by itself: a long one would wrap,
       // and the actions sit under the text, so it keeps the width.
       callout: {
@@ -318,7 +329,10 @@ export async function appsFlow(
   });
   if (fits.page > 0) fail(`at 360 px the page is ${fits.page} px too wide`);
   if (fits.address !== 0) fail(`at 360 px the address is clipped by ${fits.address} px`);
-  if (fits.tabs > 0) fail(`at 360 px the tabs overflow by ${fits.tabs} px`);
+  if (!fits.tabs) fail("at 360 px there are no tabs");
+  if (fits.tabs.over > 0 && fits.tabs.more === "")
+    fail(`at 360 px the tabs overflow by ${fits.tabs.over} px, and nothing says so`);
+  if (!fits.tabs.current) fail("at 360 px the tab of the page you're on is out of sight");
   if (fits.offers.join() !== "Restart,Deploy") fail(`the thumb bar offers ${fits.offers.join()}`);
   if (fits.callout.wraps !== "anywhere") fail(`a callout's image wraps as ${fits.callout.wraps}`);
   if (!fits.callout.stacked) fail("at 360 px a callout's actions don't sit under its text");
@@ -560,7 +574,15 @@ export async function appsFlow(
     if (!onHost.includes("nginx")) fail(`Caddy doesn't send ${bare} to the app's port: ${onHost.slice(0, 200)}`);
     await page.reload();
     await hostRow.waitFor({ timeout: 30_000 });
-    await page.getByRole("button", { name: "Delete this app" }).click();
+    // Deleting is in Settings' danger zone, as the mock has it.
+    await page
+      .getByRole("navigation", { name: "App sections" })
+      .getByRole("link", { name: "Settings", exact: true })
+      .click();
+    await page
+      .getByRole("region", { name: "Danger zone" })
+      .getByRole("button", { name: /^Delete / })
+      .click();
     await review.waitFor({ timeout: 30_000 });
     for (const goes of [bare, "onhost"]) await review.locator(".dw-plan-res", { hasText: goes }).first().waitFor();
     await applyPlan(page, "Done");
@@ -682,6 +704,101 @@ export async function appsFlow(
     fail(`the two files' fronts share a network, so they can reach each other: ${JSON.stringify(fronts)}`);
   }
 
+  step("apps: its environment takes a variable and a secret as one plan, and its container gets both");
+  await page.goto(`${origin}/apps`);
+  await page.getByRole("link", { name: "nginx", exact: true }).first().click();
+  await page.getByRole("heading", { level: 1, name: "nginx", exact: true }).waitFor();
+  await page.getByRole("link", { name: "Environment", exact: true }).click();
+  const envForm = page.getByRole("form", { name: "Add a variable" });
+  const addValue = async (key: string, value: string, secret: boolean) => {
+    await envForm.getByRole("textbox", { name: "Key" }).fill(key);
+    await envForm.getByRole("textbox", { name: "Value" }).fill(value);
+    if (secret) await envForm.getByRole("switch", { name: "Secret" }).click();
+    await envForm.getByRole("button", { name: "Add" }).click();
+  };
+  await addValue("GREETING", "hello", false);
+  await addValue("SIGNING_KEY", "e2e-signing-key", true);
+  const unapplied = page.getByRole("region", { name: "Unapplied changes" });
+  await unapplied.getByText("2 unapplied changes").waitFor();
+  // A long value wraps in its cell: the table never widens, and no key breaks for it.
+  await addValue("LONG_NOTE", "x".repeat(90).concat("-", "y".repeat(90), "/", "z".repeat(90)), false);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width > 600 ? 900 : 844 });
+    // Wait for the responsive columns before measuring their layout.
+    await page
+      .getByRole("columnheader", { name: "Value", exact: true })
+      .waitFor({ state: width < 640 ? "hidden" : "visible" });
+    const fits = await page.evaluate(() => {
+      const wrap = document.querySelector(".app-environment .dw-table-wrap");
+      const keys = [...document.querySelectorAll(".app-environment .app-env-name")];
+      return {
+        table: wrap ? wrap.scrollWidth - wrap.clientWidth : -1,
+        page: document.documentElement.scrollWidth - window.innerWidth,
+        broken: keys.filter((k) => k.getBoundingClientRect().height > 24).map((k) => k.textContent),
+      };
+    });
+    if (fits.table !== 0 || fits.page > 0)
+      fail(`at ${width} px a long value widens the table by ${fits.table} px, the page by ${fits.page}`);
+    if (fits.broken.length > 0) fail(`at ${width} px a long value breaks the keys ${fits.broken.join(", ")}`);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "Revert LONG_NOTE" }).click();
+  if ((await docker()).some((c) => c.env.some((v) => v.startsWith("GREETING="))))
+    fail("an edit reached Docker before its plan");
+  await shoot(page, "apps-environment-pending");
+  await unapplied.getByRole("button", { name: /Review plan/ }).click();
+  await applyPlan(page, "Done");
+  await unapplied.waitFor({ state: "detached" });
+  await page
+    .getByRole("row", { name: /GREETING/ })
+    .getByText("hello")
+    .waitFor();
+  await page
+    .getByRole("row", { name: /SIGNING_KEY/ })
+    .getByRole("img", { name: "Hidden" })
+    .waitFor();
+  const given = (await docker()).find((c) => c.service === "nginx" && c.running)?.env ?? [];
+  if (!given.includes("GREETING=hello") || !given.includes("SIGNING_KEY=e2e-signing-key")) {
+    fail(`the container runs with ${JSON.stringify(given)}, want GREETING and SIGNING_KEY`);
+  }
+  await shoot(page, "apps-environment");
+
+  step("apps: Settings changes a limit as a plan, and its tab is in sight on a phone");
+  await page.goto(`${origin}/apps`);
+  await page.getByRole("link", { name: "nginx", exact: true }).first().click();
+  await page.getByRole("heading", { level: 1, name: "nginx", exact: true }).waitFor();
+  await page
+    .getByRole("navigation", { name: "App sections" })
+    .getByRole("link", { name: "Settings", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Edit Resources" }).click();
+  const limits = page.getByRole("form", { name: "Edit Resources" });
+  await limits.getByRole("textbox", { name: "Memory limit" }).fill("lots");
+  await limits.getByRole("button", { name: /Review plan/ }).click();
+  await limits.getByText("Use an amount from 6M, such as 512M or 2G.").waitFor();
+  await limits.getByRole("textbox", { name: "Memory limit" }).fill("256M");
+  await shoot(page, "apps-settings-resources");
+  await limits.getByRole("button", { name: /Review plan/ }).click();
+  await applyPlan(page, "Done");
+  await page.getByRole("region", { name: "Resources" }).getByText("256M").waitFor();
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.reload();
+  await page.getByRole("region", { name: "Resources" }).waitFor();
+  const settingsTab = await page.evaluate(() => {
+    const tabs = document.querySelector(".dw-tabs")?.getBoundingClientRect();
+    const on = document.querySelector('.dw-tabs [aria-current="page"]')?.getBoundingClientRect();
+    return tabs && on
+      ? {
+          inSight: on.left >= tabs.left - 1 && on.right <= tabs.right + 1,
+          wide: document.documentElement.scrollWidth - window.innerWidth,
+        }
+      : undefined;
+  });
+  if (!settingsTab?.inSight) fail("on a phone the Settings tab is out of sight on Settings");
+  if ((settingsTab?.wide ?? 1) > 0) fail(`on a phone Settings is ${settingsTab?.wide} px too wide`);
+  await shoot(page, "apps-settings-phone");
+  await page.setViewportSize({ width: 1440, height: 900 });
+
   step("apps: deleting goes through a plan too, and the list follows");
   // A project left with one app is that app's row, under the project's name.
   for (const name of ["nginx", "front", "front", "blog", "wiki"]) {
@@ -690,7 +807,15 @@ export async function appsFlow(
     await links.first().waitFor();
     const before = await links.count();
     await links.first().click();
-    await page.getByRole("button", { name: "Delete this app" }).click();
+    // Deleting is in Settings' danger zone, as the mock has it.
+    await page
+      .getByRole("navigation", { name: "App sections" })
+      .getByRole("link", { name: "Settings", exact: true })
+      .click();
+    await page
+      .getByRole("region", { name: "Danger zone" })
+      .getByRole("button", { name: /^Delete / })
+      .click();
     await applyPlan(page, "Done");
     await page.getByRole("heading", { level: 1, name: "Apps", exact: true }).waitFor();
     for (let i = 0; i < 100 && (await links.count()) >= before; i++) await page.waitForTimeout(100);

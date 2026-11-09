@@ -154,3 +154,45 @@ describe("a tab list that doesn't fit", () => {
     );
   });
 });
+
+describe("TabNav where its tabs don't fit", () => {
+  /** A row 100 px wide, its tabs 60 px apart, and where it has scrolled to. */
+  function laidOut(nav: HTMLElement) {
+    let scrolled = 0;
+    Object.defineProperty(nav, "scrollLeft", {
+      configurable: true,
+      get: () => scrolled,
+      set: (v: number) => {
+        scrolled = Math.max(0, v);
+      },
+    });
+    nav.getBoundingClientRect = () => ({ left: 0, right: 100 }) as DOMRect;
+    [...nav.querySelectorAll("a")].forEach((a, i) => {
+      a.getBoundingClientRect = () => ({ left: i * 60 - scrolled, right: i * 60 + 50 - scrolled }) as DOMRect;
+    });
+    return () => scrolled;
+  }
+
+  it("brings a tab focused by keyboard clear of the fade, moving only the row", () => {
+    const { container } = render(
+      <TabNav label="App sections">
+        <TabLink href="/a" aria-current="page">
+          Overview
+        </TabLink>
+        <TabLink href="/b">Logs</TabLink>
+        <TabLink href="/c">Settings</TabLink>
+      </TabNav>,
+    );
+    const nav = container.querySelector("nav") as HTMLElement;
+    const scrolled = laidOut(nav);
+    // jsdom has none; one that's called would move the page.
+    const page = vi.fn();
+    Element.prototype.scrollIntoView = page;
+    fireEvent.focusIn(screen.getByRole("link", { name: "Settings" }));
+    // Its right edge at 170, past the row's 100, and 32 px for the fade.
+    expect(scrolled()).toBe(102);
+    fireEvent.focusIn(screen.getByRole("link", { name: "Overview" }));
+    expect(scrolled()).toBe(0);
+    expect(page).not.toHaveBeenCalled();
+  });
+});
