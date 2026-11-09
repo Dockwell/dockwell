@@ -2,8 +2,8 @@
 
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
-import { type FileEntry, FileService, type ReadFileResponse, StepUpAction } from "@dockwell/api";
-import { Button, Callout, CodeField, Icon, Panel, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
+import { downloadFileURL, type FileEntry, FileService, type ReadFileResponse, StepUpAction } from "@dockwell/api";
+import { Button, ButtonLink, Callout, CodeField, Icon, Panel, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
@@ -51,6 +51,11 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
     void navigate({ to: "/servers/$serverId/files", params: { serverId }, search: { path: folder } });
   };
   const size = file ? formatBytes(file.sizeBytes, i18n.locale) : "";
+  const download = (
+    <ButtonLink size="sm" icon="download" href={downloadFileURL({ serverId, path })} download>
+      <Trans>Download</Trans>
+    </ButtonLink>
+  );
   const body = () => {
     if (query.error) {
       const reason = reasonOf(query.error);
@@ -78,10 +83,10 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
     if (read.binary) {
       return (
         <div className="files-note">
-          <Callout tone="info" title={t`This isn't a text file`}>
+          <Callout tone="info" title={t`This isn't a text file`} actions={download}>
             <Trans>
-              It's {size}, and it isn't UTF-8 text, so there's nothing to show here. Connect to the server over SSH to
-              work with it.
+              It's {size}, and it isn't UTF-8 text, so there's nothing to show here. Download it to open it on your
+              computer, or connect to the server over SSH to work with it.
             </Trans>
           </Callout>
         </div>
@@ -91,10 +96,10 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
       return (
         <>
           <div className="files-note">
-            <Callout tone="warning" title={t`Showing the first 1 MB`}>
+            <Callout tone="warning" title={t`Showing the first 1 MB`} actions={download}>
               <Trans>
-                This file is {size}, so the rest of it stays on the server, and it can't be edited here. Connect to the
-                server over SSH to work with it all.
+                This file is {size}, so the rest of it stays on the server, and it can't be edited here. Download it to
+                see it all, or connect to the server over SSH to work with it.
               </Trans>
             </Callout>
           </div>
@@ -151,7 +156,23 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
         )
       }
       actions={
-        phone ? undefined : <Button variant="ghost" size="sm" icon="x" aria-label={t`Close ${name}`} onClick={close} />
+        phone ? undefined : (
+          <>
+            {/* What a read refused, a download does, and a browser shows only "Failed" for it. */}
+            {query.error ? null : (
+              <ButtonLink
+                variant="ghost"
+                size="sm"
+                icon="download"
+                href={downloadFileURL({ serverId, path })}
+                download
+                aria-label={t`Download ${name}`}
+                title={t`Download`}
+              />
+            )}
+            <Button variant="ghost" size="sm" icon="x" aria-label={t`Close ${name}`} onClick={close} />
+          </>
+        )
       }
     >
       {file ? (

@@ -1024,6 +1024,16 @@ type ChangeChecker interface {
 	CheckInChange(current, desired proto.Message, others []Ref) error
 }
 
+// EnvKeeper is a kind whose spec holds values no response carries, which an edit
+// by a client that can't read them back names to keep as they are, rather than
+// setting them (Edit.keep_env): a service's own environment variables. KeepEnv
+// puts the values of those named into desired from current, and says what it
+// kept for a plan's note, as a Keeper does. It refuses a name current hasn't got,
+// or one desired sets too.
+type EnvKeeper interface {
+	KeepEnv(current, desired proto.Message, names []string) (Kept, error)
+}
+
 // NewChecker is a kind that asks more of a new resource than Validate can of an edit,
 // where what an edit leaves out comes from what's there (Keeper).
 type NewChecker interface {

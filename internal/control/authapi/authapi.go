@@ -362,6 +362,10 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN:          auth.StepUpSaveWayBackIn,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_END_PROCESS:               auth.StepUpEndProcess,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL:             auth.StepUpOpenTerminal,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_MAKE_WAY_BACK_IN:          auth.StepUpMakeWayBackIn,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_MOVE_WAY_BACK_IN:          auth.StepUpMoveWayBackIn,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_DELETE_WAY_BACK_IN:        auth.StepUpDeleteWayBackIn,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_RESTORE_WAY_BACK_IN:       auth.StepUpRestoreWayBackIn,
 }
 
 // FinishStepUp checks the passkey's answer and returns a proof.

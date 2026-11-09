@@ -240,6 +240,21 @@ describe("a plan's fields, in words", () => {
     expect(reads(rows)).toEqual(["SMTP_HOST to uses its newer value [change]", "variables NEW_ONE to NEW_ONE"]);
   });
 
+  it("names a database user and what it's given in words", () => {
+    let word: string | undefined;
+    function Read() {
+      word = useFieldRows().kindWord?.("database.user");
+      return null;
+    }
+    renderWithApi(<Read />, {});
+    expect(word).toBe("database user");
+    const rows = rowsOf({
+      kind: "database.user",
+      changes: [added("database_name", "orders"), added("password", "ORDERS_DATABASE_PASSWORD")],
+    });
+    expect(reads(rows)).toEqual(["database to orders", "password in to ORDERS_DATABASE_PASSWORD"]);
+  });
+
   it("reads in Chinese", async () => {
     await activateLocale("zh-CN");
     const rows = rowsOf({
