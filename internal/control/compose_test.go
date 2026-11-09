@@ -29,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/compose"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/pki"
@@ -90,8 +91,9 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 	if f.volumes != nil {
 		volumeType = f.volumes(volumes)
 	}
+	users := &database.UserDriver{Client: client, Dir: t.TempDir()}
 	tasks := &task.Driver{Dir: t.TempDir(), Client: client}
-	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, volumeType, &network.Driver{Client: client}, tasks}
+	drivers := []resource.Type{&containers, &service.Driver{Containers: containers}, volumeType, &network.Driver{Client: client}, users, tasks}
 	if more != nil {
 		drivers = append(drivers, more()...)
 	}
@@ -104,6 +106,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		logs:    &agentlogs.Reader{Client: client, Archive: archive, Logger: slog.New(slog.DiscardHandler)},
 		client:  client,
 		backups: backups,
+		userDir: users.Dir,
 		tasks:   tasks,
 		mounts:  e.Mountinfo,
 	}

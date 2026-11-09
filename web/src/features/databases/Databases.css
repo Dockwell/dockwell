@@ -44,6 +44,11 @@
   margin: 0;
 }
 
+/* A section's action sits at its end. */
+.database-section-action {
+  margin-left: auto;
+}
+
 .databases-section-head .databases-muted {
   font-size: 13px;
   line-height: 18px;

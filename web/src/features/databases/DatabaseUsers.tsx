@@ -7,12 +7,13 @@ import {
   type DatabaseReading,
   type InnerDatabase,
 } from "@dockwell/api";
-import { Callout, Panel, PHONE_QUERY, Table, type TableColumn, Tag, useMediaQuery } from "@dockwell/ui";
+import { Button, Callout, Panel, PHONE_QUERY, Table, type TableColumn, Tag, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
+import { AddUserSheet } from "./AddUserSheet";
 import { useThisDatabase } from "./DatabaseLayout";
 import { engineName, firstReading, readOf } from "./useDatabases";
 
@@ -43,11 +44,13 @@ function Section({
   id,
   title,
   aside,
+  action,
   children,
 }: {
   id: string;
   title: ReactNode;
   aside: ReactNode;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -57,6 +60,7 @@ function Section({
           {title}
         </h2>
         <span className="databases-muted">{aside}</span>
+        {action ? <div className="database-section-action">{action}</div> : null}
       </div>
       {children}
     </section>
@@ -67,6 +71,7 @@ function Section({
 export function UsersSection({ db, read }: { db: Database; read: DatabaseReading }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
+  const [adding, setAdding] = useState(false);
   const users = read.users.filter((u) => !u.system);
   const mysql = db.engine === DatabaseEngine.MYSQL || db.engine === DatabaseEngine.MARIADB;
   const name = db.resource?.name ?? "";
@@ -94,8 +99,34 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
           },
         ]
       : []),
-    { key: "role", header: t`Role`, width: 180, render: role },
-    { key: "databases", header: mysql ? t`Granted on` : t`Owns`, width: 280, render: theirs },
+    { key: "role", header: t`Role`, width: 160, render: role },
+    { key: "databases", header: mysql ? t`Granted on` : t`Owns`, width: 200, render: theirs },
+    {
+      key: "secret",
+      header: t`Password in`,
+      width: 240,
+      render: (u) =>
+        u.secret ? (
+          <code className="databases-code">{u.secret}</code>
+        ) : (
+          <span className="databases-muted">{t`Not one of Dockwell's`}</span>
+        ),
+    },
+    {
+      key: "used",
+      header: t`Used by`,
+      width: 200,
+      render: (u) =>
+        u.usedBy.length > 0 ? (
+          <span className="databases-tags">
+            {u.usedBy.map((app) => (
+              <Tag key={app}>{app}</Tag>
+            ))}
+          </span>
+        ) : (
+          <span className="databases-muted">{u.secret ? t`No app yet` : ""}</span>
+        ),
+    },
   ];
   const rows = users.map((u) => ({ ...u, id: `${u.name}@${u.host}` }));
   const count = users.length;
@@ -109,13 +140,24 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
           other: `# users of ${name}, ${signIn} of whom can sign in`,
         });
   return (
-    <Section id="database-users" title={<Trans>Users</Trans>} aside={aside}>
+    <Section
+      id="database-users"
+      title={<Trans>Users</Trans>}
+      aside={aside}
+      action={
+        <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
+          <Trans>Add a user</Trans>
+        </Button>
+      }
+    >
       {phone ? (
         <PhoneRows
           rows={rows.map((u) => ({
             id: u.id,
             name: u.name,
-            sub: [mysql ? u.host : "", role(u), u.databases.join(", ")].filter(Boolean).join(" · "),
+            sub: [mysql ? u.host : "", role(u), u.databases.join(", "), u.secret, u.usedBy.join(", ")]
+              .filter(Boolean)
+              .join(" · "),
           }))}
         />
       ) : (
@@ -127,6 +169,12 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
           caption={t`Users of ${name}`}
         />
       )}
+      {db.engine === DatabaseEngine.POSTGRESQL ? (
+        <p className="database-line">
+          {t`Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one.`}
+        </p>
+      ) : null}
+      {adding ? <AddUserSheet db={db} onClose={() => setAdding(false)} /> : null}
     </Section>
   );
 }

@@ -4444,6 +4444,9 @@ msgstr "data"
 msgid "data taken out of use"
 msgstr "data taken out of use"
 
+msgid "database user"
+msgstr "database user"
+
 msgid "display name"
 msgstr "display name"
 
@@ -4482,6 +4485,9 @@ msgstr "no"
 
 msgid "option"
 msgstr "option"
+
+msgid "password in"
+msgstr "password in"
 
 msgid "path"
 msgstr "path"
@@ -5491,6 +5497,33 @@ msgstr "{where} leaves {from}, and goes to port {toPort} on the server."
 msgid "{where} leaves {from}, and goes to {to}."
 msgstr "{where} leaves {from}, and goes to {to}."
 
+msgid "Add a user to {name}"
+msgstr "Add a user to {name}"
+
+msgid "Dockwell makes a password of 32 characters and keeps it in this secret, which an app uses by name. Nobody sees it unless they reveal it with a passkey."
+msgstr "Dockwell makes a password of 32 characters and keeps it in this secret, which an app uses by name. Nobody sees it unless they reveal it with a passkey."
+
+msgid "It's theirs, to do anything in."
+msgstr "It's theirs, to do anything in."
+
+msgid "Secret for the password"
+msgstr "Secret for the password"
+
+msgid "This user can't be planned"
+msgstr "This user can't be planned"
+
+msgid "Use letters, digits and underscores, starting with a letter, such as SHOP_DATABASE_PASSWORD."
+msgstr "Use letters, digits and underscores, starting with a letter, such as SHOP_DATABASE_PASSWORD."
+
+msgid "Use up to 32 lowercase letters, digits and underscores, starting with a letter, such as shop."
+msgstr "Use up to 32 lowercase letters, digits and underscores, starting with a letter, such as shop."
+
+msgid "Who signs in to {engine}. Their database takes this name too, unless you give it another."
+msgstr "Who signs in to {engine}. Their database takes this name too, unless you give it another."
+
+msgid "With a database of their own, and a password Dockwell makes"
+msgstr "With a database of their own, and a password Dockwell makes"
+
 msgid "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
 msgstr "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
 
@@ -5720,6 +5753,9 @@ msgstr "{servers}, and sealed on {destination}"
 msgid "{servers}, unencrypted"
 msgstr "{servers}, unencrypted"
 
+msgid "Add a user"
+msgstr "Add a user"
+
 msgid "Can do anything"
 msgstr "Can do anything"
 
@@ -5738,20 +5774,35 @@ msgstr "Its own"
 msgid "Its users show again once it does."
 msgstr "Its users show again once it does."
 
+msgid "No app yet"
+msgstr "No app yet"
+
 msgid "No server has said yet"
 msgstr "No server has said yet"
 
 msgid "None of their own"
 msgstr "None of their own"
 
+msgid "Not one of Dockwell's"
+msgstr "Not one of Dockwell's"
+
+msgid "Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one."
+msgstr "Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one."
+
 msgid "Owns"
 msgstr "Owns"
+
+msgid "Password in"
+msgstr "Password in"
 
 msgid "Role"
 msgstr "Role"
 
 msgid "Signs in"
 msgstr "Signs in"
+
+msgid "Used by"
+msgstr "Used by"
 
 msgid "Users of {name}"
 msgstr "Users of {name}"
@@ -9745,9 +9796,6 @@ msgstr "The old value stays in this variable's history"
 
 msgid "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
 msgstr "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
-
-msgid "Used by"
-msgstr "Used by"
 
 msgid "Variables and secrets in {envName}"
 msgstr "Variables and secrets in {envName}"
