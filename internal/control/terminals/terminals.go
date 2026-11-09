@@ -253,7 +253,7 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 	if err := h.room(srv, p.Session.ID); err != nil {
 		return nil, err
 	}
-	record := h.recorder(ctx, p, srv)
+	rec := h.recorder(ctx, p, srv)
 	// A server's terminal is root, so it takes a passkey for that server. A shell in
 	// a container takes one for that container where the agent finds it as good as
 	// root, as only the agent can tell, so it asks once the agent has said.
@@ -266,7 +266,7 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 	asked := func(name, containerID string) error {
 		h.auth.AskedForStepUp(p, auth.StepUpOpenTerminal, target, func() {
 			told := Told{Server: srv.GetName(), Container: name, ContainerID: containerID, Error: "asked for a passkey, and none came"}
-			if _, err := record(EventUnconfirmed, "", told.String()); err != nil {
+			if _, err := rec.record(EventUnconfirmed, "", told.String()); err != nil {
 				h.logger.WarnContext(ctx, "can't record a terminal that wasn't confirmed", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
 			}
 		})
@@ -310,7 +310,7 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 	if container != "" {
 		what = "a shell in " + container + " on " + srv.GetName()
 	}
-	opening, err := record(eventOpening, termID, "opening "+what)
+	opening, err := rec.record(eventOpening, termID, "opening "+what)
 	if err != nil {
 		h.forget(termID)
 		giveBack()
@@ -330,7 +330,7 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 		giveBack()
 		err = h.rpcError(ctx, err)
 		why := Told{ID: termID, Server: srv.GetName(), Container: container, Error: connect.NewError(connect.CodeUnknown, err).Message()}
-		if _, rerr := record(EventOpenFailed, termID, why.String()); rerr != nil {
+		if _, rerr := rec.record(EventOpenFailed, termID, why.String()); rerr != nil {
 			h.logger.WarnContext(ctx, "can't record a terminal that didn't open", slog.String("server", srv.GetId()), slog.String("error", rerr.Error()))
 		}
 		return nil, err
@@ -343,7 +343,7 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 	}
 	told := Told{ID: termID, Server: srv.GetName(), Container: e.container, ContainerID: e.containerID, Title: opened.GetTitle(), Opened: e.opened}
 	e.mu.Unlock()
-	if _, err := record(EventOpen, termID, told.String()); err != nil {
+	if _, err := rec.record(EventOpen, termID, told.String()); err != nil {
 		// What can't go on record doesn't stay open.
 		if _, cerr := session.CloseTerminal(ctx, termID, dockwellv1.TerminalEndReason_TERMINAL_END_REASON_CLOSED); cerr != nil {
 			h.logger.ErrorContext(ctx, "opened a terminal that can't go on record, and can't close it; it closes once nobody is attached",
@@ -779,18 +779,27 @@ func (h *Handler) reconcile(server string) {
 }
 
 // recorder writes a server's audit events for what p does with its terminals.
-func (h *Handler) recorder(ctx context.Context, p auth.Principal, srv *dockwellv1.Server) func(action, subject, detail string) (string, error) {
+type recorder struct {
+	h      *Handler
+	ctx    context.Context //nolint:containedctx // outlives the call, as what's recorded must
+	p      auth.Principal
+	client auth.Client
+	srv    *dockwellv1.Server
+}
+
+func (h *Handler) recorder(ctx context.Context, p auth.Principal, srv *dockwellv1.Server) *recorder {
 	client, _ := authapi.ClientFrom(ctx)
-	ctx = context.WithoutCancel(ctx)
-	return func(action, subject, detail string) (string, error) {
-		event := id.New(id.Event)
-		return event, h.db.Update(ctx, func(tx *store.Tx) error {
-			return tx.RecordEvent(ctx, store.Event{
-				ID: event, At: h.now(), Actor: p.Actor(), Action: action, Subject: subject, Target: srv.GetId(),
-				Surface: client.Surface(p), Detail: detail,
-			})
+	return &recorder{h: h, ctx: context.WithoutCancel(ctx), p: p, client: client, srv: srv}
+}
+
+func (r *recorder) record(action, subject, detail string) (string, error) {
+	event := id.New(id.Event)
+	return event, r.h.db.Update(r.ctx, func(tx *store.Tx) error {
+		return tx.RecordEvent(r.ctx, store.Event{
+			ID: event, At: r.h.now(), Actor: r.p.Actor(), Action: action, Subject: subject, Target: r.srv.GetId(),
+			Surface: r.client.Surface(r.p), Detail: detail,
 		})
-	}
+	})
 }
 
 func (h *Handler) rpcError(ctx context.Context, err error) error {

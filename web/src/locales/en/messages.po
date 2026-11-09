@@ -8091,6 +8091,12 @@ msgstr "Signed in with a recovery code"
 msgid "Signed out"
 msgstr "Signed out"
 
+msgid "Started opening a terminal"
+msgstr "Started opening a terminal"
+
+msgid "Started opening a terminal on {name}"
+msgstr "Started opening a terminal on {name}"
+
 msgid "Stopped sign-in with codes after too many wrong ones"
 msgstr "Stopped sign-in with codes after too many wrong ones"
 

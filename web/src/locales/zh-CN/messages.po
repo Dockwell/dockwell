@@ -8091,6 +8091,12 @@ msgstr "已通过恢复码登录"
 msgid "Signed out"
 msgstr "已退出登录"
 
+msgid "Started opening a terminal"
+msgstr "开始打开终端"
+
+msgid "Started opening a terminal on {name}"
+msgstr "开始在 {name} 上打开终端"
+
 msgid "Stopped sign-in with codes after too many wrong ones"
 msgstr "错误次数过多，已停止使用验证码登录"
 
