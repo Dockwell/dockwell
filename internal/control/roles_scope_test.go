@@ -170,8 +170,8 @@ func envProject(t *testing.T, f *fullServer, env string) string {
 // grants read then, so it ends once that leaves the caller's reach, though they
 // still hold a role somewhere else (ADR 0048).
 func TestAStreamEndsWhenWhatItNamesLeavesReach(t *testing.T) {
-	streamRecheck = 50 * time.Millisecond
-	t.Cleanup(func() { streamRecheck = 0 })
+	testRecheck = 50 * time.Millisecond
+	t.Cleanup(func() { testRecheck = 0 })
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)

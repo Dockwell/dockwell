@@ -36,7 +36,7 @@ var idLike = regexp.MustCompile(`^[a-z]{3}_[0-9A-Za-z]{10,}$`)
 var notObjects = map[string]bool{"actor_id": true, "ceremony_id": true, "session_id": true, "rp_id": true}
 
 // idNames says what a request's id holds when it's a name, not an ID: a
-// service's, in its project and environment, a project's, or a website's
+// service's or task's, in its project and environment, a project's, or a website's
 // project by name or domain. Elsewhere an id that isn't an ID, such as a
 // catalog entry's, names nothing of a project.
 var idNames = map[string]string{
@@ -52,6 +52,9 @@ var idNames = map[string]string{
 	dockwellv1connect.DatabaseServiceGetDatabaseProcedure:          "service",
 	dockwellv1connect.WebsiteServiceUpdateWebsiteProcedure:         "website",
 	dockwellv1connect.WebsiteServiceDeleteWebsiteProcedure:         "website",
+	dockwellv1connect.TaskServiceGetTaskProcedure:                  "task",
+	dockwellv1connect.TaskServiceListTaskRunsProcedure:             "task",
+	dockwellv1connect.TaskServiceRunTaskProcedure:                  "task",
 }
 
 // serviceFields are the calls whose service field names a service to read, by
@@ -115,6 +118,8 @@ type refs struct {
 	project, env, named string
 	// website is a website's project, by ID, name or domain.
 	website string
+	// task is a task's ID or name, resolved before the handler runs.
+	task string
 	// server is a server it names by name or ID.
 	server string
 }
@@ -182,6 +187,8 @@ func requested(procedure string, m protoreflect.Message) (refs, requestFields) {
 				switch {
 				case name == "id" && idNames[procedure] == "website":
 					out.website = v
+				case name == "id" && idNames[procedure] == "task":
+					out.task = v
 				case idLike.MatchString(v):
 					out.ids = append(out.ids, v)
 				case name == "id" && idNames[procedure] == "project":
@@ -256,6 +263,26 @@ func (i *interceptor) checkScope(ctx context.Context, procedure string, msg any)
 		ref.named = ""
 	}
 	err := i.svc.View(ctx, func(tx *store.Tx) error {
+		if ref.task != "" {
+			// Resolve a name only in reachable projects, including when a project
+			// was supplied. The handler then reads this exact task by ID. Its
+			// server filter is checked against that task's approved placement.
+			found, err := place.FindTask(ctx, tx, func(p place.Place) bool { return reaches(grants, p) },
+				ref.task, m.Get(at.project).String(), m.Get(at.environment).String())
+			if err != nil {
+				return err
+			}
+			switch len(found) {
+			case 0:
+				return store.ErrNotFound
+			case 1:
+				places = append(places, found[0].Place)
+				m.Set(m.Descriptor().Fields().ByName("id"), protoreflect.ValueOfString(found[0].ResourceID))
+				return nil
+			default:
+				return namedChoice(found, "a task named "+ref.task)
+			}
+		}
 		if ref.website != "" {
 			p, err := place.Website(ctx, tx, ref.website)
 			if err != nil {
@@ -392,6 +419,12 @@ func fillIn(ctx context.Context, tx *store.Tx, grants []store.Grant, ref *refs, 
 	if ref.named != "" {
 		what = "a service named " + ref.named
 	}
+	return namedChoice(found, what)
+}
+
+// namedChoice asks which reachable project or environment holds a name found
+// in several. Its options say nothing of projects outside the caller's reach.
+func namedChoice(found []place.Found, what string) error {
 	var projects, envs []string
 	for _, f := range found {
 		if !slices.Contains(projects, f.ProjectName) {
@@ -723,6 +756,9 @@ func elementIDs(e protoreflect.Message) []string {
 		if v := str(c.Message(), "id"); v != "" {
 			return []string{v}
 		}
+	}
+	if e.Descriptor().FullName() == "dockwell.v1.TaskRun" {
+		return []string{str(e, "task_id")}
 	}
 	if v := str(e, "id"); idLike.MatchString(v) && !strings.HasPrefix(v, id.Event+"_") {
 		return []string{v}

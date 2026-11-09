@@ -458,8 +458,8 @@ func TestANarrowedPageTokenSaysNothing(t *testing.T) {
 // elsewhere, not even an empty message, and doesn't name what left elsewhere.
 // It reads the caller's grants again on each recheck, and narrows by them.
 func TestANarrowedStreamSaysNothingOfElsewhere(t *testing.T) {
-	streamRecheck = 100 * time.Millisecond
-	t.Cleanup(func() { streamRecheck = 0 })
+	testRecheck = 100 * time.Millisecond
+	t.Cleanup(func() { testRecheck = 0 })
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx, cancel := context.WithCancel(t.Context())

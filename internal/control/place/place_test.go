@@ -20,6 +20,7 @@ import (
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // Every kind of resource the control plane runs can be placed by its ID, so a
@@ -36,6 +37,7 @@ func TestEveryKindOfResourceCanBePlaced(t *testing.T) {
 		backuppolicy.Destination{},
 		scope.ProjectType{},
 		scope.EnvironmentType{},
+		&task.Driver{},
 	}
 	err := db.View(t.Context(), func(tx *store.Tx) error {
 		for _, k := range kinds {

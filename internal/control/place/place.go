@@ -245,9 +245,10 @@ func Environment(ctx context.Context, tx *store.Tx, projectID, ref string) (Plac
 }
 
 // Found is a place a name was found in, with its project's and environment's
-// names, for saying which.
+// names, for saying which, and the resource's ID when one was named.
 type Found struct {
 	Place
+	ResourceID                   string
 	ProjectName, EnvironmentName string
 }
 
@@ -256,30 +257,67 @@ type Found struct {
 // environment of that name when env is given, or an environment by its name.
 // Places out of reach are passed over, so what it finds says nothing of them.
 func Find(ctx context.Context, tx *store.Tx, reaches func(Place) bool, service, env string) ([]Found, error) {
+	return findResource(ctx, tx, reaches, serviceKind, service, "", env)
+}
+
+// FindTask finds a live task by ID, or by name within the projects reaches
+// allows. Project and environment narrow a name, as TaskService does; an ID
+// already names one task. Missing and unreachable tasks both find nothing.
+func FindTask(ctx context.Context, tx *store.Tx, reaches func(Place) bool, named, project, env string) ([]Found, error) {
+	if strings.HasPrefix(named, (task.Type{}).IDPrefix()+"_") {
+		r, err := tx.GetResourceByID(ctx, named)
+		if err != nil {
+			return nil, err
+		}
+		if r.Kind != string(task.Kind) || r.Spec == nil {
+			return nil, store.ErrNotFound
+		}
+		p, err := NewPlacer(tx).resourcePlace(ctx, r)
+		if err != nil {
+			return nil, err
+		}
+		if !reaches(p) {
+			return nil, nil
+		}
+		return []Found{{Place: p, ResourceID: r.ID}}, nil
+	}
+	return findResource(ctx, tx, reaches, string(task.Kind), named, project, env)
+}
+
+// findResource finds an environment, or a live resource of kind in it, within
+// reachable projects. It reads no resource specs beyond checking they're live.
+func findResource(ctx context.Context, tx *store.Tx, reaches func(Place) bool, kind, named, project, env string) ([]Found, error) {
 	tree, err := scope.Load(ctx, tx)
 	if err != nil {
 		return nil, err
 	}
 	var out []Found
 	for _, p := range tree.Projects {
-		if !reaches(Place{Project: p.ID}) {
+		if !reaches(Place{Project: p.ID}) || project != "" && project != p.ID && project != p.Name {
 			continue
 		}
 		for _, e := range p.Environments {
 			if env != "" && env != e.Name && env != e.ID {
 				continue
 			}
-			if service != "" {
-				r, err := tx.GetResource(ctx, serviceKind, e.ID, service)
+			var resourceID string
+			if named != "" {
+				r, err := tx.GetResource(ctx, kind, e.ID, named)
 				if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
 					continue
 				}
 				if err != nil {
 					return nil, err
 				}
+				resourceID = r.ID
+			}
+			at, _, err := Environment(ctx, tx, p.ID, e.ID)
+			if err != nil {
+				return nil, err
 			}
 			out = append(out, Found{
-				Place:       Place{Project: p.ID, Environment: e.ID, Protected: protectedByName(e.Name)},
+				Place:       at,
+				ResourceID:  resourceID,
 				ProjectName: p.Name, EnvironmentName: e.Name,
 			})
 		}
