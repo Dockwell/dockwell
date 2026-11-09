@@ -416,6 +416,9 @@ msgstr "状态"
 msgid "Terminal"
 msgstr "终端"
 
+msgid "Times"
+msgstr "次数"
+
 msgid "Today"
 msgstr "今天"
 
@@ -460,6 +463,15 @@ msgstr "服务器筛选"
 
 msgid "{count, plural, one {{long} · # event} other {{long} · # events}}"
 msgstr "{count, plural, other {{long} · # 个事件}}"
+
+msgid "{count}, at {first}"
+msgstr "{count} 次，在 {first}"
+
+msgid "{count}, from {first} to {last}"
+msgstr "{count} 次，{first} 至 {last}"
+
+msgid "{times, plural, one {# time} other {# times}}"
+msgstr "{times, plural, other {# 次}}"
 
 msgid "CLI on {host}"
 msgstr "{host} 上的 CLI"

@@ -124,7 +124,10 @@ export function ActivityPage({
     for (const e of events ?? []) if (e.change) out.set(e.id, e.change.summary);
     return out;
   }, [events]);
-  const days = useMemo(() => byDay(events ?? []), [events]);
+  // A run of the same thing done again, as reading one file over and over, is one row on a
+  // wide screen, which says how many times. A phone's timeline has no room to say so.
+  const { shown, repeats } = useMemo(() => collapseRepeats(events ?? []), [events]);
+  const days = useMemo(() => byDay(phone ? (events ?? []) : shown), [events, shown, phone]);
   const selected = search.event ? events?.find((e) => e.id === search.event) : undefined;
   const select = (id: string | undefined) => onSearch({ ...search, event: id });
   // Below the list, where a narrow screen puts it, an event chosen comes into view.
@@ -177,7 +180,7 @@ export function ActivityPage({
       <>
         {days.map((day) => {
           const label = dayLabel(day.date, now, i18n);
-          const count = day.events.length;
+          const count = day.events.reduce((n, e) => n + (phone ? 1 : (repeats.get(e.id)?.length ?? 1)), 0);
           const long = formatWeekday(day.date, i18n.locale);
           const meta = plural(count, { one: `${long} · # event`, other: `${long} · # events` });
           return (
@@ -191,6 +194,7 @@ export function ActivityPage({
               ) : (
                 <DayTable
                   events={day.events}
+                  repeats={repeats}
                   summaries={summaries}
                   now={now}
                   caption={label}
@@ -249,6 +253,7 @@ export function ActivityPage({
         {selected && !phone ? (
           <Detail
             event={selected}
+            repeats={repeats.get(selected.id)}
             described={describe(selected, summaries)}
             now={now}
             time={time}
@@ -278,12 +283,58 @@ interface Day {
   events: Event[];
 }
 
+/** How far apart the same thing done again may be, to be one row. */
+const REPEAT_MS = 10 * 60_000;
+
+/**
+ * Runs of the same access, newest first, as one row each: the same actor doing the
+ * same thing to the same subject from the same surface, each within REPEAT_MS of
+ * the one after, on the same local day. Changes, health and the rest each say
+ * something new. Each run is under its newest.
+ */
+export function collapseRepeats(events: readonly Event[]): { shown: Event[]; repeats: Map<string, Event[]> } {
+  const shown: Event[] = [];
+  const repeats = new Map<string, Event[]>();
+  const sameness = (e: Event) =>
+    e.kind !== EventKind.ACCESS
+      ? undefined
+      : [e.kind, e.action, e.surface, e.actor?.kind, e.actor?.id, e.subject?.id, e.subject?.path, e.subject?.name].join(
+          "|",
+        );
+  let run: Event[] | undefined;
+  let runKey: string | undefined;
+  for (const event of events) {
+    const key = sameness(event);
+    const last = run?.at(-1);
+    if (
+      run &&
+      last &&
+      key !== undefined &&
+      key === runKey &&
+      dayKey(happenedAt(last)) === dayKey(happenedAt(event)) &&
+      happenedAt(last).getTime() - happenedAt(event).getTime() <= REPEAT_MS
+    ) {
+      run.push(event);
+      continue;
+    }
+    run = [event];
+    runKey = key;
+    shown.push(event);
+    repeats.set(event.id, run);
+  }
+  return { shown, repeats };
+}
+
+function dayKey(date: Date): string {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
 /** Events by the local day they happened on, newest day first, as they come. */
 function byDay(events: readonly Event[]): Day[] {
   const out: Day[] = [];
   for (const event of events) {
     const date = event.time ? timestampDate(event.time) : new Date(0);
-    const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    const key = dayKey(date);
     const last = out[out.length - 1];
     if (last?.key === key) last.events.push(event);
     else out.push({ key, date, events: [event] });
@@ -360,12 +411,18 @@ interface DayProps {
 
 function DayTable({
   events,
+  repeats,
   summaries,
   now,
   caption,
   selected,
   onSelect,
-}: DayProps & { caption: string; selected: string | undefined; onSelect: (event: Event) => void }) {
+}: DayProps & {
+  repeats: ReadonlyMap<string, Event[]>;
+  caption: string;
+  selected: string | undefined;
+  onSelect: (event: Event) => void;
+}) {
   const { t, i18n } = useLingui();
   const describe = useDescribe();
   const time = useTimeWords();
@@ -376,12 +433,17 @@ function DayTable({
       header: t`Event`,
       render: (event) => {
         const d = describe(event, summaries);
+        const line = meta(event);
+        const times = repeats.get(event.id)?.length ?? 1;
         return (
           <div className="activity-event">
             <Mark icon={d.icon} tone={d.tone} />
             <div className="activity-event-text">
               <span className="activity-event-title">{d.title}</span>
-              <MetaLine {...meta(event)} />
+              <MetaLine
+                look={line.look}
+                parts={times > 1 ? [...line.parts, plural(times, { one: "# time", other: "# times" })] : line.parts}
+              />
             </div>
           </div>
         );
@@ -594,6 +656,8 @@ export function kindOf(resourceId: string): string {
 
 interface DetailProps {
   event: Event;
+  /** The run it heads, when the same was done again, newest first. */
+  repeats?: readonly Event[] | undefined;
   described: Described;
   now: number;
   time: ReturnType<typeof useTimeWords>;
@@ -604,7 +668,7 @@ interface DetailProps {
 }
 
 /** The selected event beside the list: who, when, from where, and for a change what it changed. */
-function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo }: DetailProps) {
+function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpen, onUndo }: DetailProps) {
   const { t, i18n } = useLingui();
   const words = useChangeWords();
   const rows = useFieldRows();
@@ -685,6 +749,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
             <dd>
               {formatDateTime(date, i18n.locale)} <span className="activity-muted">· {ago}</span>
             </dd>
+            {repeats && repeats.length > 1 ? <RepeatFacts run={repeats} /> : null}
             <dt>{t`From`}</dt>
             <dd>{words.surface(event.surface)}</dd>
             {change && proposedApart(change) ? (
@@ -751,8 +816,11 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
           {change?.state === ChangeState.FAILED && change.error && !wentOffline(change) ? (
             <FailureNotice message={change.error} detail={failedStep(change)?.detail} />
           ) : null}
-          {change?.state === ChangeState.FAILED && !wentOffline(change) ? (
-            <FailedDeployLogs change={full.data?.change ?? change} />
+          {change &&
+          ((change.state === ChangeState.FAILED && !wentOffline(change)) ||
+            change.state === ChangeState.APPLIED ||
+            change.state === ChangeState.APPLYING) ? (
+            <FailedDeployLogs key={`${change.id}:${change.state}`} change={full.data?.change ?? change} />
           ) : null}
           {change ? (
             <div className="activity-detail-section">
@@ -809,6 +877,20 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
         </div>
       </Panel>
     </div>
+  );
+}
+
+/** How often the same was done again, and over what time, for a row that stands for a run. */
+function RepeatFacts({ run }: { run: readonly Event[] }) {
+  const { t, i18n } = useLingui();
+  const count = run.length;
+  const first = formatClock(happenedAt(run[run.length - 1] as Event), i18n.locale);
+  const last = formatClock(happenedAt(run[0] as Event), i18n.locale);
+  return (
+    <>
+      <dt>{t`Times`}</dt>
+      <dd>{first === last ? t`${count}, at ${first}` : t`${count}, from ${first} to ${last}`}</dd>
+    </>
   );
 }
 
