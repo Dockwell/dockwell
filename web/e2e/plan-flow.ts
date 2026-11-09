@@ -886,7 +886,15 @@ volumes:
   await page.goto(`${origin}/apps`);
   await page.getByRole("link", { name: "fixme", exact: true }).click();
   await page.getByRole("heading", { level: 1, name: "fixme", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Delete this app" }).click();
+  // Deleting is in Settings' danger zone, as the mock has it.
+  await page
+    .getByRole("navigation", { name: "App sections" })
+    .getByRole("link", { name: "Settings", exact: true })
+    .click();
+  await page
+    .getByRole("region", { name: "Danger zone" })
+    .getByRole("button", { name: /^Delete / })
+    .click();
   const deleting = page.getByRole("dialog", { name: "Review plan" });
   await deleting.waitFor();
   const button = deleting.getByRole("button", { name: /Delete fixme/ });

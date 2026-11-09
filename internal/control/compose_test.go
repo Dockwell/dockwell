@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/build"
 	"github.com/dockwell/dockwell/internal/compose"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/pki"
@@ -98,8 +99,9 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		Memory: func() (int64, int64, error) { return 4 << 30, 8 << 30, nil }, CPUs: func() int { return 4 },
 		DiskSize: func(string) (int64, error) { return 50 << 30, nil },
 	}
+	users := &database.UserDriver{Client: client, Dir: t.TempDir()}
 	tasks := &task.Driver{Dir: t.TempDir(), Client: client}
-	drivers := []resource.Type{&containers, &service.Driver{Containers: containers, Builds: builder}, volumeType, &network.Driver{Client: client}, tasks}
+	drivers := []resource.Type{&containers, &service.Driver{Containers: containers, Builds: builder}, volumeType, &network.Driver{Client: client}, users, tasks}
 	if more != nil {
 		drivers = append(drivers, more()...)
 	}
@@ -113,6 +115,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		client:  client,
 		backups: backups,
 		builds:  builder,
+		userDir: users.Dir,
 		tasks:   tasks,
 		mounts:  e.Mountinfo,
 	}

@@ -158,7 +158,11 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 		return nil, fail(err)
 	}
 	for i := range edits {
-		edits[i].Base, edits[i].Pull, edits[i].Run = also.Base, also.Pull, also.Run
+		// A method that read the spec says where it read it; an edit can say so itself.
+		if also.Base != 0 {
+			edits[i].Base = also.Base
+		}
+		edits[i].Pull, edits[i].Run = also.Pull, also.Run
 		a := also.Adopts[edits[i].Ref]
 		edits[i].Adopt, edits[i].AdoptName = a.ID, a.Name
 		edits[i].Backup = slices.Contains(also.BackUp, edits[i].Ref)
@@ -735,7 +739,20 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 			if len(e.GetServers()) > 0 {
 				servers = e.GetServers()
 			}
-			out = append(out, revision.Edit{Ref: ref, Spec: spec, Servers: servers})
+			switch {
+			case e.GetBaseRevision() < 0:
+				return fault.New(revision.ErrInvalid, "edit %d's base_revision is %d. Pass the revision the spec was read at, or 0 to check nothing", i+1, e.GetBaseRevision())
+			case len(e.GetKeepEnv()) > 0 && spec == nil:
+				return fault.New(revision.ErrInvalid, "edit %d deletes, and keeps environment variables too. Leave keep_env out", i+1)
+			case len(e.GetKeepEnv()) > 0 && e.GetBaseRevision() == 0:
+				// What it keeps comes from what's there now, and the rest from what it read: from
+				// no revision, a change between the two would be undone with nothing to say so.
+				return fault.New(revision.ErrInvalid, "edit %d keeps environment variables, but says no base_revision, so a change since the spec was read would be undone. "+
+					"Pass the revision ListServices gave as base_revision", i+1)
+			}
+			out = append(out, revision.Edit{
+				Ref: ref, Spec: spec, Servers: servers, Base: int(e.GetBaseRevision()), KeepEnv: e.GetKeepEnv(),
+			})
 		}
 		return nil
 	})

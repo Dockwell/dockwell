@@ -238,7 +238,8 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	}
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers, Builds: builder},
-			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved}, tasks),
+			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
+			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}, tasks),
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks,
 	}

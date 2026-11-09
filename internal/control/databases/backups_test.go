@@ -13,6 +13,8 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/database"
+	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // backupsOf lists what each volume has, newest first, as BackupService does, or
@@ -36,7 +38,8 @@ func TestABackupThatCantBeReadCostsOnlyItsDatabase(t *testing.T) {
 		runs = append(runs, &dockwellv1.Backup{Id: fmt.Sprintf("bkp_failed_%d", i), State: dockwellv1.BackupState_BACKUP_STATE_FAILED})
 	}
 	runs = append(runs, &dockwellv1.Backup{Id: "bkp_done", State: dockwellv1.BackupState_BACKUP_STATE_DONE})
-	h := New(nil, backupsOf{"vol_shop": runs}, nil, nil, slog.New(slog.DiscardHandler))
+	db, _ := storetest.Open(t, store.SQLite)
+	h := New(nil, nil, backupsOf{"vol_shop": runs}, db, nil, slog.New(slog.DiscardHandler))
 
 	gone := &placed{db: &dockwellv1.Database{Id: "svc_gone", VolumeId: "vol_gone"}}
 	shop := &placed{db: &dockwellv1.Database{Id: "svc_shop", VolumeId: "vol_shop"}}

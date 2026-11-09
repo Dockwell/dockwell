@@ -304,6 +304,20 @@ wait_applied() {
   done
   fail "$1 is $state after 120 s, want applied"
 }
+# wait_failed waits for a change that's to fail, and says why it did.
+wait_failed() {
+  local state=""
+  for _ in $(seq 240); do
+    state=$(change_field "$1" state) || state=""
+    [[ "$state" == CHANGE_STATE_FAILED ]] && {
+      change_field "$1" error
+      return 0
+    }
+    [[ "$state" == CHANGE_STATE_APPLIED ]] && fail "$1 applied, and it was to fail"
+    sleep 0.5
+  done
+  fail "$1 is $state after 120 s, want failed"
+}
 # take_on has a person plan and apply taking a container on as a service, and checks
 # nothing about it moved. A refusal says why, in what the job prints. It sets taken_plan
 # to the answer.
@@ -1053,13 +1067,17 @@ answers() { [[ "$(docker exec "$1" redis-cli -a "$2" --no-auth-warning ping 2>&1
 # on this server reads them there.
 nothing_shows() {
   local reads value
-  reads=$({
-    dw changes list --page-size 200 --json
-    dw services list --json
-    dw compose export
-    dw drift list --json
+  # Each read has to work, and each environment's export, by its ID: with more than
+  # one project, an export that names none reads nothing.
+  reads=$(
+    dw changes list --page-size 200 --json || exit 1
+    dw services list --json || exit 1
+    for env in $(dw resources list --json | jq -r '.resources[] | select(.resource.kind == "environment") | .id'); do
+      dw compose export --environment "$env" || exit 1
+    done
+    dw drift list --json || exit 1
     dw events list --page-size 200 --json
-  }) || fail "reading what the install says failed"
+  ) || fail "reading what the install says failed"
   for id in $(dw changes list --page-size 200 --json | jq -r '.changes[].id'); do
     reads+=$(dw changes get "$id" --json) || fail "changes get $id failed"
   done
@@ -3824,6 +3842,56 @@ jq -e '.readings[0] | (.unread // "") == "" and (.version | startswith("17.")) a
 [[ "$said" != *"$password"* ]] || fail "what PostgreSQL says of itself holds its password"
 pg postgres "SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE query = 'SELECT pg_sleep(30)'" >/dev/null || fail "can't let the client on PostgreSQL go"
 
+step "Databases: a user with a database of their own is a plan, with a password no one typed, and setting it anew signs them in with the new one"
+db_id=$(jq -r '.id' <<<"$said")
+db_env=$(jq -r '.resource.scope' <<<"$said")
+planned=$(dw databases add-user "$db_id" --user buyer --plan-only --json) || fail "planning a user failed: $planned"
+jq -e '[.change.plan.resources[].resource | .kind + " " + .name] | sort == ["database.user buyer", "secret BUYER_DATABASE_PASSWORD"]' <<<"$planned" >/dev/null ||
+  fail "the plan for a user makes: $(jq -c '[.change.plan.resources[].resource]' <<<"$planned")"
+dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes >/dev/null || fail "making the user failed"
+[[ "$(pg postgres "SELECT rolpassword LIKE 'SCRAM-SHA-256\$4096:%' FROM pg_authid WHERE rolname = 'buyer'")" == t ]] ||
+  fail "buyer's password isn't a SCRAM verifier: $(pg postgres "SELECT left(rolpassword, 14) FROM pg_authid WHERE rolname = 'buyer'" 2>&1)"
+[[ "$(pg postgres "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'buyer'")" == buyer ]] || fail "buyer doesn't own the database buyer"
+[[ "$(pg postgres "SELECT has_database_privilege('shopper', 'buyer', 'CONNECT')")" == f ]] || fail "another user can connect to buyer's database"
+said=$(dw databases get "$db_id" --json) || fail "reading the database failed"
+jq -e '.database.readings[0].users[] | select(.name == "buyer") | .secret == "BUYER_DATABASE_PASSWORD" and (.resourceId | startswith("dbu_"))' <<<"$said" >/dev/null ||
+  fail "the database says of buyer: $(jq -c '.database.readings[0].users' <<<"$said")"
+# Setting the secret to a value this step knows reaches the user, which then signs in with it.
+printf 'e2e-buyer-password-7Rk2' >"$data/buyer-password"
+dw secrets update BUYER_DATABASE_PASSWORD --environment "$db_env" --value-file "$data/buyer-password" --yes >/dev/null ||
+  fail "setting buyer's password anew failed"
+# buyer_says signs in as buyer at an address: by the service's name it's over the
+# project's network, where the image checks a password. It answers 42 only from there.
+buyer_says() {
+  docker exec -e PGPASSWORD="$2" "$postgres_db" psql -X -h "$1" -U buyer -d buyer -tAc \
+    "SELECT CASE WHEN inet_client_addr() IS NULL OR inet_client_addr() <<= '127.0.0.0/8' THEN 'from inside' ELSE (40 + 2)::text END" 2>&1
+}
+[[ "$(buyer_says db e2e-buyer-password-7Rk2)" == 42 ]] || fail "buyer can't sign in over the network with the secret's new value: $(buyer_says db e2e-buyer-password-7Rk2)"
+[[ "$(buyer_says db not-the-password)" != 42 ]] || fail "buyer signs in over the network with any password"
+# Inside its own container the image trusts every connection, as the Users tab says.
+[[ "$(buyer_says 127.0.0.1 not-the-password)" == "from inside" ]] ||
+  fail "inside its container, PostgreSQL doesn't let anything in as the Users tab says: $(buyer_says 127.0.0.1 not-the-password)"
+nothing_shows e2e-buyer-password-7Rk2
+# A role with something in another database isn't dropped, and neither is its database:
+# dropping the database first would leave the user.
+pg shop 'CREATE TABLE buyer_reads (id int); GRANT SELECT ON buyer_reads TO buyer' || fail "can't grant buyer something in shop"
+planned=$(dw changes propose --summary "Delete the database user buyer" --edits '{"resource":{"kind":"database.user","scope":"'"$db_env"'","name":"buyer"},"delete":true}' --plan-only --json) ||
+  fail "planning to delete buyer failed: $planned"
+fingerprint=$(change_field "$(jq -r '.change.id' <<<"$planned")" plan.fingerprint) || fail "can't read the plan of the delete"
+person_call ChangeService/ApplyChange "{\"id\":\"$(jq -r '.change.id' <<<"$planned")\",\"fingerprint\":\"$fingerprint\"}" >/dev/null ||
+  fail "a person can't apply the delete"
+blocked=$(wait_failed "$(jq -r '.change.id' <<<"$planned")")
+[[ "$blocked" == *"buyer has something outside its database buyer, so nothing was dropped"* ]] || fail "dropping buyer with a grant in shop says: $blocked"
+[[ "$(pg postgres "SELECT count(*) FROM pg_database WHERE datname = 'buyer'")" == 1 ]] || fail "a drop that stopped took the database buyer with it"
+pg shop 'DROP TABLE buyer_reads' || fail "can't drop what buyer was granted"
+# Deleting it drops the user and the database, which a person applies.
+planned=$(dw changes propose --summary "Delete the database user buyer" --edits '{"resource":{"kind":"database.user","scope":"'"$db_env"'","name":"buyer"},"delete":true}' --plan-only --json) ||
+  fail "planning to delete buyer failed: $planned"
+jq -e '.change.plan.destructive' <<<"$planned" >/dev/null || fail "dropping buyer doesn't say it destroys data: $planned"
+person_apply "$(jq -r '.change.id' <<<"$planned")"
+[[ -z "$(pg postgres "SELECT 1 FROM pg_roles WHERE rolname = 'buyer'")" ]] || fail "buyer is still there"
+[[ -z "$(pg postgres "SELECT 1 FROM pg_database WHERE datname = 'buyer'")" ]] || fail "the database buyer is still there"
+
 step "Scheduled tasks: a shell command, a command in an app and a request each run on their server, keep what they printed, and a failure is on Activity"
 pg_env=$(dw services list --json | jq -r --arg p "$catalog_project" '.services[] | select((.resource.scope | ascii_downcase) == $p and .resource.name == "db") | .resource.scope' | head -1)
 [[ "$pg_env" == env_* ]] || fail "can't find the environment PostgreSQL runs in"
@@ -3950,6 +4018,33 @@ jq -e '.readings[0] | (.unread // "") == "" and (.version | startswith("8.4")) a
   fail "MySQL says: $(jq -c '.readings' <<<"$said")"
 [[ "$said" != *"$password"* ]] || fail "what MySQL says of itself holds its password"
 for id in $(my "SELECT ID FROM information_schema.PROCESSLIST WHERE INFO = 'SELECT SLEEP(30)'"); do my "KILL $id" || fail "can't let the client on MySQL go"; done
+
+step "Databases: a user in MySQL is a plan too, and signs in with what its secret is set to"
+db_id=$(jq -r '.id' <<<"$said")
+db_env=$(jq -r '.resource.scope' <<<"$said")
+# A grant reads _ in a name as any character, so a database beside it that matches
+# that pattern shows whether the user reaches only its own.
+my "CREATE DATABASE sellerx1" || fail "can't make a database"
+planned=$(dw databases add-user "$db_id" --user seller --database-name seller_1 --plan-only --json) || fail "planning a MySQL user failed: $planned"
+dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes >/dev/null || fail "making the MySQL user failed"
+[[ "$(my "SELECT COUNT(*) FROM mysql.user WHERE User = 'seller' AND Host = '%'")" == 1 ]] || fail "MySQL has no user seller"
+[[ -n "$(my "SHOW DATABASES LIKE 'seller\\_1'")" ]] || fail "MySQL has no database seller_1"
+said=$(dw databases get "$db_id" --json) || fail "reading the database failed"
+jq -e '.database.readings[0].users[] | select(.name == "seller") | .databases == ["seller_1"] and .secret == "SELLER_DATABASE_PASSWORD"' <<<"$said" >/dev/null ||
+  fail "the database says of seller: $(jq -c '.database.readings[0].users' <<<"$said")"
+printf 'e2e-seller-password-3Wq8' >"$data/seller-password"
+dw secrets update SELLER_DATABASE_PASSWORD --environment "$db_env" --value-file "$data/seller-password" --yes >/dev/null ||
+  fail "setting seller's password anew failed"
+# seller_says runs SQL as seller over the project's network, by the service's name.
+seller_says() { docker exec "$mysql_db" sh -c 'MYSQL_PWD=$1 exec mysql -useller -hdb -N -e "$2"' sh "$1" "$2" 2>&1; }
+[[ "$(seller_says e2e-seller-password-3Wq8 'SELECT 40 + 2')" == 42 ]] ||
+  fail "seller can't sign in with the secret's new value: $(seller_says e2e-seller-password-3Wq8 'SELECT 40 + 2')"
+[[ "$(seller_says not-the-password 'SELECT 40 + 2')" != 42 ]] || fail "seller signs in with any password"
+seller_says e2e-seller-password-3Wq8 'CREATE TABLE seller_1.orders (id INT)' >/dev/null || fail "seller can't make a table in seller_1"
+if seller_says e2e-seller-password-3Wq8 'CREATE TABLE sellerx1.orders (id INT)' >/dev/null; then
+  fail "seller can make a table in sellerx1, which its grant on seller_1 matched as a pattern"
+fi
+nothing_shows e2e-seller-password-3Wq8
 
 step "Catalog: Nginx Proxy Manager takes the email it was given and the password it wasn't"
 catalog_install nginx-proxy-manager --values ADMIN_EMAIL=owner@example.com

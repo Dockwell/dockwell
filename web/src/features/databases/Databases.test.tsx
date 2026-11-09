@@ -10,6 +10,7 @@ import {
   ChangeSchema,
   ChangeState,
   ContainerState,
+  type CreateDatabaseUserRequest,
   type Database,
   DatabaseAccountSchema,
   DatabaseEngine,
@@ -313,7 +314,9 @@ describe("a database's page", () => {
     renderAt("/databases/svc_db", api([aDatabase()]));
     const users = await screen.findByRole("table", { name: "Users of db" });
     const rows = within(users).getAllByRole("row").slice(1);
-    expect(rows.map((r) => r.textContent)).toEqual(["postgresCan do anythingpostgres", "shopSigns inshop"]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent(/^postgresCan do anythingpostgres/);
+    expect(rows[1]).toHaveTextContent(/^shopSigns inshop/);
     const schemas = screen.getByRole("table", { name: "Databases in db" });
     expect(within(schemas).getAllByRole("row")[1]).toHaveTextContent("postgresIts own");
     expect(screen.getByRole("link", { name: /Users/ })).toHaveTextContent("2");
@@ -625,5 +628,118 @@ describe("a database's backups and upgrades", () => {
     await screen.findByRole("heading", { level: 1, name: "cache" });
     const tabs = screen.getByRole("navigation", { name: "Database sections" });
     expect(within(tabs).queryByRole("link", { name: "Backups" })).toBeNull();
+  });
+});
+
+describe("adding a user", () => {
+  const planned = create(ChangeSchema, {
+    id: "chg_user",
+    summary: "Add the user orders to db, with the database orders",
+    state: ChangeState.PLANNED,
+    plan: { fingerprint: "abc", resources: [] },
+  });
+
+  it("asks only for a name, and plans a user with a database and a password of their own", async () => {
+    const user = userEvent.setup();
+    const asked = vi.fn((req: CreateDatabaseUserRequest) => {
+      void req;
+      return { change: planned };
+    });
+    renderAt(
+      "/databases/svc_db/users",
+      api([aDatabase()], {
+        databases: {
+          listDatabases: () => ({ databases: [aDatabase()] }),
+          getDatabase: () => ({ database: aDatabase() }),
+          createDatabaseUser: asked,
+        },
+        changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a user" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a user to db" });
+    await user.type(within(sheet).getByLabelText("User"), "Orders");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    expect(await within(sheet).findByText(/Use up to 32 lowercase letters/)).toBeVisible();
+    expect(asked).not.toHaveBeenCalled();
+    await user.clear(within(sheet).getByLabelText("User"));
+    await user.type(within(sheet).getByLabelText("User"), "orders");
+    expect(within(sheet).getByLabelText(/Secret for the password/)).toHaveAttribute(
+      "placeholder",
+      "ORDERS_DATABASE_PASSWORD",
+    );
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() =>
+      expect(asked).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "svc_db", user: "orders", database: "", secret: "" }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("says that inside its container PostgreSQL lets anything sign in without a password", async () => {
+    renderAt("/databases/svc_db/users", api([aDatabase()]));
+    expect(
+      await screen.findByText(
+        /Inside its own container, PostgreSQL's official image lets anything sign in as any user/,
+      ),
+    ).toBeVisible();
+  });
+
+  it("says a refusal of one field beside it, and anything else above the buttons", async () => {
+    const user = userEvent.setup();
+    let reason = "invalid_secret";
+    const asked = vi.fn(() => {
+      const err = new ConnectError(
+        reason === "invalid_secret"
+          ? "there's a secret ORDERS_DATABASE_PASSWORD in this environment already"
+          : "db runs on no server now",
+        Code.InvalidArgument,
+      );
+      err.metadata.set("Dockwell-Error", reason);
+      throw err;
+    });
+    renderAt(
+      "/databases/svc_db/users",
+      api([aDatabase()], { databases: { getDatabase: () => ({ database: aDatabase() }), createDatabaseUser: asked } }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a user" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a user to db" });
+    await user.type(within(sheet).getByLabelText("User"), "orders");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() =>
+      expect(within(sheet).getByLabelText(/Secret for the password/)).toHaveAccessibleDescription(
+        /There's a secret ORDERS_DATABASE_PASSWORD/,
+      ),
+    );
+    expect(within(sheet).getByLabelText("User")).not.toHaveAttribute("aria-invalid", "true");
+    reason = "invalid";
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    expect(await within(sheet).findByText("Db runs on no server now.")).toBeVisible();
+    expect(within(sheet).getByLabelText("User")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("says which secret a user Dockwell made signs in with, and which apps use it", async () => {
+    const db = aDatabase();
+    const reading = db.readings[0];
+    if (reading) {
+      reading.users.push(
+        create(DatabaseAccountSchema, {
+          name: "orders",
+          canSignIn: true,
+          databases: ["orders"],
+          secret: "ORDERS_DATABASE_PASSWORD",
+          usedBy: ["api"],
+        }),
+      );
+    }
+    renderAt("/databases/svc_db/users", api([db]));
+    const table = await screen.findByRole("table", { name: "Users of db" });
+    const row = within(table).getByText("orders", { selector: ".databases-name" }).closest("tr") as HTMLElement;
+    expect(row).toHaveTextContent("ORDERS_DATABASE_PASSWORD");
+    expect(row).toHaveTextContent("api");
+    expect(within(table).getByText("shop", { selector: ".databases-name" }).closest("tr")).toHaveTextContent(
+      "Not one of Dockwell's",
+    );
   });
 });
