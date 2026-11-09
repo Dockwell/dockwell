@@ -92,8 +92,8 @@ CMD ["node", "-e", "require('http').createServer((q, s) => s.end('noisy')).liste
 	{"secret", "Install private packages", map[string]string{"Dockerfile": `FROM busybox:1.37
 WORKDIR /app
 COPY . .
-RUN --mount=type=secret,id=NPM_TOKEN test -n "$(cat /run/secrets/NPM_TOKEN)" && echo "the secret arrived"
-RUN --mount=type=secret,id=NPM_TOKEN cat /run/secrets/NPM_TOKEN
+RUN --mount=type=secret,id=NPM_TOKEN,required=true test -n "$(cat /run/secrets/NPM_TOKEN)" && echo "the secret arrived"
+RUN --mount=type=secret,id=NPM_TOKEN,required=true cat /run/secrets/NPM_TOKEN
 CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
 `, "index.html": "Install private packages\n"}},
 	// A step that prints the secret, then fails, which has to keep it out of the
@@ -101,7 +101,7 @@ CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
 	{"secret-fails", "Print the token, then fail", map[string]string{"Dockerfile": `FROM busybox:1.37
 WORKDIR /app
 COPY . .
-RUN --mount=type=secret,id=NPM_TOKEN cat /run/secrets/NPM_TOKEN && exit 1
+RUN --mount=type=secret,id=NPM_TOKEN,required=true cat /run/secrets/NPM_TOKEN && exit 1
 CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
 `, "index.html": "Print the token, then fail\n"}},
 	{"node", "Serve the storefront with Railpack", node},

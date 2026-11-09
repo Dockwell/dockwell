@@ -4441,8 +4441,30 @@ step "Builds: a build's secret reaches its steps, and never its log or its image
 control_id=$(dw servers list --json | jq -r --arg agent "$agent_id" '[.servers[] | select(.id != $agent) | .id] | first // empty') || fail "servers list failed"
 printf 'e2e-npm-secret-value' >"$git_dir/npm"
 dw secrets create NPM --environment "$build_env" --value-file "$git_dir/npm" --yes || fail "secrets create NPM failed"
-dw services create e2e-secret --environment "$build_env" --on "$control_id" --build-git-url "$git_url/web.git" --build-git-ref secret --build-secrets NPM_TOKEN=NPM --yes ||
+planned=$(dw services create e2e-secret --environment "$build_env" --on "$control_id" --build-git-url "$git_url/web.git" --build-git-ref secret --build-secrets NPM_TOKEN=NPM --plan-only --json) ||
+  fail "planning an app whose build uses a secret failed"
+secret_change=$(jq -r '.change.id' <<<"$planned")
+dw changes apply "$secret_change" --yes >"$git_dir/secret-deploy" 2>&1 &
+secret_pid=$!
+# A failed creation rolls the service back out of the list. Capture its build ID
+# while it still exists, so its retained, masked log can explain a Docker failure.
+secret_build=""
+for _ in $(seq 100); do
+  secret_build=$(dw builds list e2e-secret --environment "$build_env" --json 2>/dev/null |
+    jq -r --arg change "$secret_change" '[.builds[] | select(.changeId == $change)][0].id // empty') || true
+  [[ "$secret_build" == bld_* ]] && break
+  kill -0 "$secret_pid" 2>/dev/null || break
+  sleep 0.1
+done
+if ! wait "$secret_pid"; then
+  cat "$git_dir/secret-deploy" >&2
+  if [[ "$secret_build" == bld_* ]]; then
+    dw builds get "$secret_build" --json >&2 || true
+    dw builds log "$secret_build" >&2 || true
+  fi
   fail "an app whose build uses a secret didn't deploy"
+fi
+cat "$git_dir/secret-deploy"
 secret_id=$(service_id e2e-secret)
 [[ "$secret_id" == svc_* ]] || fail "e2e-secret isn't in $build_env: $(dw services list --json)"
 secret_build=$(dw builds list "$secret_id" --json | jq -r '.builds[0].id')
