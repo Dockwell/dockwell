@@ -473,6 +473,12 @@ msgstr "Someone"
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "A backup of {volume} couldn't be fetched from {destination}"
 
+msgid "A scheduled task failed"
+msgstr "A scheduled task failed"
+
+msgid "A scheduled task succeeded after a failure"
+msgstr "A scheduled task succeeded after a failure"
+
 msgid "A service"
 msgstr "A service"
 
@@ -508,6 +514,12 @@ msgstr "Asked for a passkey to save {path} on {server}, and none came"
 
 msgid "Asked for a passkey to stop PID {pid} on {server}, and none came"
 msgstr "Asked for a passkey to stop PID {pid} on {server}, and none came"
+
+msgid "Asked to run a scheduled task"
+msgstr "Asked to run a scheduled task"
+
+msgid "Asked to run {task}"
+msgstr "Asked to run {task}"
 
 msgid "Backed up {volume}"
 msgstr "Backed up {volume}"
@@ -753,6 +765,12 @@ msgstr "{server} joined the fleet"
 
 msgid "{server} renewed its certificate"
 msgstr "{server} renewed its certificate"
+
+msgid "{task} failed"
+msgstr "{task} failed"
+
+msgid "{task} succeeded after a failure"
+msgstr "{task} succeeded after a failure"
 
 msgid "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
 msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps done}}"
