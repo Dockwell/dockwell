@@ -408,30 +408,35 @@ const (
 	// A backup of a volume that reached path, which is as good as root, coming back
 	// into a volume that doesn't. What it holds can be read from there.
 	HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF HostAccessKind = 18
+	// A shell command the agent runs on the server as root, on a schedule (ADR
+	// 0053): the same as root. Numbered in the block scheduled tasks hold, as open
+	// work adds to this enum.
+	HostAccessKind_HOST_ACCESS_KIND_SERVER_SHELL HostAccessKind = 150
 )
 
 // Enum value maps for HostAccessKind.
 var (
 	HostAccessKind_name = map[int32]string{
-		0:  "HOST_ACCESS_KIND_UNSPECIFIED",
-		1:  "HOST_ACCESS_KIND_SERVER_PATH",
-		2:  "HOST_ACCESS_KIND_DOCKER_SOCKET",
-		3:  "HOST_ACCESS_KIND_HOST_NETWORK",
-		4:  "HOST_ACCESS_KIND_VOLUME_MOUNT",
-		5:  "HOST_ACCESS_KIND_NETWORK_DRIVER",
-		6:  "HOST_ACCESS_KIND_DOMAIN",
-		7:  "HOST_ACCESS_KIND_PANEL_DOMAIN",
-		8:  "HOST_ACCESS_KIND_SERVER_PORT",
-		9:  "HOST_ACCESS_KIND_TRUSTED_PROXY",
-		10: "HOST_ACCESS_KIND_EXTERNAL_NETWORK",
-		11: "HOST_ACCESS_KIND_CAPABILITY",
-		12: "HOST_ACCESS_KIND_GROUP",
-		13: "HOST_ACCESS_KIND_PRIVILEGED",
-		14: "HOST_ACCESS_KIND_PLAIN_FOR_ANYONE",
-		15: "HOST_ACCESS_KIND_HTTPS_OFF",
-		16: "HOST_ACCESS_KIND_EXTERNAL_VOLUME",
-		17: "HOST_ACCESS_KIND_TAKES_ON",
-		18: "HOST_ACCESS_KIND_BACKUP_OF",
+		0:   "HOST_ACCESS_KIND_UNSPECIFIED",
+		1:   "HOST_ACCESS_KIND_SERVER_PATH",
+		2:   "HOST_ACCESS_KIND_DOCKER_SOCKET",
+		3:   "HOST_ACCESS_KIND_HOST_NETWORK",
+		4:   "HOST_ACCESS_KIND_VOLUME_MOUNT",
+		5:   "HOST_ACCESS_KIND_NETWORK_DRIVER",
+		6:   "HOST_ACCESS_KIND_DOMAIN",
+		7:   "HOST_ACCESS_KIND_PANEL_DOMAIN",
+		8:   "HOST_ACCESS_KIND_SERVER_PORT",
+		9:   "HOST_ACCESS_KIND_TRUSTED_PROXY",
+		10:  "HOST_ACCESS_KIND_EXTERNAL_NETWORK",
+		11:  "HOST_ACCESS_KIND_CAPABILITY",
+		12:  "HOST_ACCESS_KIND_GROUP",
+		13:  "HOST_ACCESS_KIND_PRIVILEGED",
+		14:  "HOST_ACCESS_KIND_PLAIN_FOR_ANYONE",
+		15:  "HOST_ACCESS_KIND_HTTPS_OFF",
+		16:  "HOST_ACCESS_KIND_EXTERNAL_VOLUME",
+		17:  "HOST_ACCESS_KIND_TAKES_ON",
+		18:  "HOST_ACCESS_KIND_BACKUP_OF",
+		150: "HOST_ACCESS_KIND_SERVER_SHELL",
 	}
 	HostAccessKind_value = map[string]int32{
 		"HOST_ACCESS_KIND_UNSPECIFIED":      0,
@@ -453,6 +458,7 @@ var (
 		"HOST_ACCESS_KIND_EXTERNAL_VOLUME":  16,
 		"HOST_ACCESS_KIND_TAKES_ON":         17,
 		"HOST_ACCESS_KIND_BACKUP_OF":        18,
+		"HOST_ACCESS_KIND_SERVER_SHELL":     150,
 	}
 )
 
@@ -3430,9 +3436,11 @@ type PlanNote struct {
 	// upgrade that runs without a backup first, "upgrade_kept" for what a person changed that the upgrade
 	// changes too, which stays, "upgrade_dropped" for what they changed that it
 	// drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
-	// whose data stays as the new version left it, and "tmpfs_no_size" for a Compose
-	// file's tmpfs that nothing stops taking half the server's memory. Another reason
-	// may come: its message says what it means.
+	// whose data stays as the new version left it, "tmpfs_no_size" for a Compose
+	// file's tmpfs that nothing stops taking half the server's memory, and
+	// "tasks_as_root" for an app this makes reach what's as good as root, whose
+	// scheduled tasks run in it and reach the same. Another reason may come: its
+	// message says what it means.
 	Reason string `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
 	// What it says, for people: the fact, what it means, and what to do.
 	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
@@ -3441,7 +3449,7 @@ type PlanNote struct {
 	// The names it is about: the variable, then the field that holds it, for
 	// "exposed_variable"; the project, then the services it runs, for
 	// "updates_project"; the volumes and server paths for "volumes_stay"; the path
-	// for "tmpfs_no_size"; the
+	// for "tmpfs_no_size"; each task, then its command, for "tasks_as_root"; the
 	// variables and secrets, by the names the service sees, for "values_latest";
 	// the image, the revision and its digest for "digest_pinned" and "digest_gone",
 	// and the image and the revision for "digest_differs"; the container_name, or
@@ -6286,7 +6294,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x12INTENT_KIND_DEPLOY\x10\x01\x12\x1c\n" +
 	"\x18INTENT_KIND_PUBLISH_PORT\x10\x02\x12\x19\n" +
 	"\x15INTENT_KIND_ROLL_BACK\x10\x03\x12\x16\n" +
-	"\x12INTENT_KIND_REPULL\x10\x04*\x9a\x05\n" +
+	"\x12INTENT_KIND_REPULL\x10\x04*\xbe\x05\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
@@ -6307,7 +6315,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1aHOST_ACCESS_KIND_HTTPS_OFF\x10\x0f\x12$\n" +
 	" HOST_ACCESS_KIND_EXTERNAL_VOLUME\x10\x10\x12\x1d\n" +
 	"\x19HOST_ACCESS_KIND_TAKES_ON\x10\x11\x12\x1e\n" +
-	"\x1aHOST_ACCESS_KIND_BACKUP_OF\x10\x12*\xac\x01\n" +
+	"\x1aHOST_ACCESS_KIND_BACKUP_OF\x10\x12\x12\"\n" +
+	"\x1dHOST_ACCESS_KIND_SERVER_SHELL\x10\x96\x01*\xac\x01\n" +
 	"\fBackupMethod\x12\x1d\n" +
 	"\x19BACKUP_METHOD_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x12BACKUP_METHOD_DUMP\x10\x01\x1a\b\xa2\xbb\x18\x04Dump\x12 \n" +

@@ -2743,6 +2743,7 @@ type Spec struct {
 	//	*Spec_Route
 	//	*Spec_BackupPolicy
 	//	*Spec_BackupDestination
+	//	*Spec_Task
 	Kind          isSpec_Kind `protobuf_oneof:"kind"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2893,6 +2894,15 @@ func (x *Spec) GetBackupDestination() *BackupDestination {
 	return nil
 }
 
+func (x *Spec) GetTask() *Task {
+	if x != nil {
+		if x, ok := x.Kind.(*Spec_Task); ok {
+			return x.Task
+		}
+	}
+	return nil
+}
+
 type isSpec_Kind interface {
 	isSpec_Kind()
 }
@@ -2958,6 +2968,12 @@ type Spec_BackupDestination struct {
 	BackupDestination *BackupDestination `protobuf:"bytes,21,opt,name=backup_destination,json=backupDestination,proto3,oneof"`
 }
 
+type Spec_Task struct {
+	// Work that runs on a schedule, kind "task". Numbered in the block scheduled
+	// tasks hold, as open work adds to this message.
+	Task *Task `protobuf:"bytes,150,opt,name=task,proto3,oneof"`
+}
+
 func (*Spec_Project) isSpec_Kind() {}
 
 func (*Spec_Environment) isSpec_Kind() {}
@@ -2981,6 +2997,364 @@ func (*Spec_Route) isSpec_Kind() {}
 func (*Spec_BackupPolicy) isSpec_Kind() {}
 
 func (*Spec_BackupDestination) isSpec_Kind() {}
+
+func (*Spec_Task) isSpec_Kind() {}
+
+// Task is work that runs on a schedule, on each server it's placed on, kind "task"
+// (ADR 0053): a shell command on the server, a command in an app's image, or an
+// HTTP request. Each server's agent keeps its time, so a task runs while the
+// control plane is away.
+type Task struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What it runs.
+	//
+	// Types that are valid to be assigned to Runs:
+	//
+	//	*Task_Shell
+	//	*Task_App
+	//	*Task_Request
+	Runs isTask_Runs `protobuf_oneof:"runs"`
+	// When it runs, in cron's five fields, minute, hour, day of the month, month and
+	// day of the week, such as "0 4 * * *", or @hourly, @daily, @weekly, @monthly or
+	// @yearly. Nothing runs more often than once a minute.
+	Schedule string `protobuf:"bytes,4,opt,name=schedule,proto3" json:"schedule,omitempty"`
+	// The time zone schedule is in, such as "Europe/Amsterdam". Left out, a change
+	// that makes or updates the task sets the install's time zone, from Settings,
+	// and UTC where the install has none.
+	TimeZone string `protobuf:"bytes,5,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	// How long a run may take, in seconds, before it's stopped: 600 unless set, at
+	// most 86400.
+	TimeoutSeconds uint32 `protobuf:"varint,6,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	// How many more times a run that fails or times out tries, a minute apart: 0
+	// to 3.
+	Retries uint32 `protobuf:"varint,7,opt,name=retries,proto3" json:"retries,omitempty"`
+	// Keeps it from running on its schedule. Run now still runs it.
+	Paused bool `protobuf:"varint,8,opt,name=paused,proto3" json:"paused,omitempty"`
+	// Skips a run missed while its server was off or its agent stopped, rather than
+	// running it once when the agent starts.
+	SkipMissed bool `protobuf:"varint,9,opt,name=skip_missed,json=skipMissed,proto3" json:"skip_missed,omitempty"`
+	// What people call it, such as "Nightly sales report". Its name when empty.
+	DisplayName   string `protobuf:"bytes,10,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Task) Reset() {
+	*x = Task{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Task) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Task) ProtoMessage() {}
+
+func (x *Task) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Task.ProtoReflect.Descriptor instead.
+func (*Task) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *Task) GetRuns() isTask_Runs {
+	if x != nil {
+		return x.Runs
+	}
+	return nil
+}
+
+func (x *Task) GetShell() *TaskShell {
+	if x != nil {
+		if x, ok := x.Runs.(*Task_Shell); ok {
+			return x.Shell
+		}
+	}
+	return nil
+}
+
+func (x *Task) GetApp() *TaskApp {
+	if x != nil {
+		if x, ok := x.Runs.(*Task_App); ok {
+			return x.App
+		}
+	}
+	return nil
+}
+
+func (x *Task) GetRequest() *TaskRequest {
+	if x != nil {
+		if x, ok := x.Runs.(*Task_Request); ok {
+			return x.Request
+		}
+	}
+	return nil
+}
+
+func (x *Task) GetSchedule() string {
+	if x != nil {
+		return x.Schedule
+	}
+	return ""
+}
+
+func (x *Task) GetTimeZone() string {
+	if x != nil {
+		return x.TimeZone
+	}
+	return ""
+}
+
+func (x *Task) GetTimeoutSeconds() uint32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
+func (x *Task) GetRetries() uint32 {
+	if x != nil {
+		return x.Retries
+	}
+	return 0
+}
+
+func (x *Task) GetPaused() bool {
+	if x != nil {
+		return x.Paused
+	}
+	return false
+}
+
+func (x *Task) GetSkipMissed() bool {
+	if x != nil {
+		return x.SkipMissed
+	}
+	return false
+}
+
+func (x *Task) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+type isTask_Runs interface {
+	isTask_Runs()
+}
+
+type Task_Shell struct {
+	// A shell command on the server, which the agent runs as root. Making one, or
+	// changing what it runs, takes a person and a passkey.
+	Shell *TaskShell `protobuf:"bytes,1,opt,name=shell,proto3,oneof"`
+}
+
+type Task_App struct {
+	// A command in an app's image, as a one-off container with the app's
+	// environment, mounts and networks.
+	App *TaskApp `protobuf:"bytes,2,opt,name=app,proto3,oneof"`
+}
+
+type Task_Request struct {
+	// An HTTP request to a URL, from the server.
+	Request *TaskRequest `protobuf:"bytes,3,opt,name=request,proto3,oneof"`
+}
+
+func (*Task_Shell) isTask_Runs() {}
+
+func (*Task_App) isTask_Runs() {}
+
+func (*Task_Request) isTask_Runs() {}
+
+// TaskShell is a shell command on the server.
+type TaskShell struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The command, run with /bin/sh -c, such as "find /var/log/app -mtime +7 -delete".
+	Command string `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"`
+	// The folder it runs in: / unless set.
+	WorkingDir    string `protobuf:"bytes,2,opt,name=working_dir,json=workingDir,proto3" json:"working_dir,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TaskShell) Reset() {
+	*x = TaskShell{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TaskShell) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TaskShell) ProtoMessage() {}
+
+func (x *TaskShell) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TaskShell.ProtoReflect.Descriptor instead.
+func (*TaskShell) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *TaskShell) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+func (x *TaskShell) GetWorkingDir() string {
+	if x != nil {
+		return x.WorkingDir
+	}
+	return ""
+}
+
+// TaskApp is a command in an app's image.
+type TaskApp struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The app, by name, in the task's environment.
+	Service string `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	// The command, as words split as a shell splits them, run after the app's
+	// entrypoint in place of its command, such as "/app/api report sales". It runs
+	// without a shell unless it names one.
+	Command       string `protobuf:"bytes,2,opt,name=command,proto3" json:"command,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TaskApp) Reset() {
+	*x = TaskApp{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TaskApp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TaskApp) ProtoMessage() {}
+
+func (x *TaskApp) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TaskApp.ProtoReflect.Descriptor instead.
+func (*TaskApp) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *TaskApp) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *TaskApp) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+// TaskRequest is an HTTP request to a URL. A run keeps the status, the time it
+// took and the size of the answer, never the body.
+type TaskRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The URL, http or https.
+	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	// GET unless set, or HEAD or POST, with no body.
+	Method string `protobuf:"bytes,2,opt,name=method,proto3" json:"method,omitempty"`
+	// The status it expects, such as 204. Any 2xx unless set.
+	ExpectStatus  uint32 `protobuf:"varint,3,opt,name=expect_status,json=expectStatus,proto3" json:"expect_status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TaskRequest) Reset() {
+	*x = TaskRequest{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TaskRequest) ProtoMessage() {}
+
+func (x *TaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TaskRequest.ProtoReflect.Descriptor instead.
+func (*TaskRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *TaskRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *TaskRequest) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+func (x *TaskRequest) GetExpectStatus() uint32 {
+	if x != nil {
+		return x.ExpectStatus
+	}
+	return 0
+}
 
 var file_dockwell_resource_v1alpha1_specs_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
@@ -3218,7 +3592,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x03tls\x18\x05 \x01(\tR\x03tls\x12'\n" +
 	"\x0ftrusted_proxies\x18\x06 \x03(\tR\x0etrustedProxies\x12\x1b\n" +
 	"\thost_port\x18\a \x01(\rR\bhostPort\x12(\n" +
-	"\x10plain_for_anyone\x18\b \x01(\bR\x0eplainForAnyone\"\xe2\x06\n" +
+	"\x10plain_for_anyone\x18\b \x01(\bR\x0eplainForAnyone\"\x9b\a\n" +
 	"\x04Spec\x12?\n" +
 	"\aproject\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.ProjectH\x00R\aproject\x12K\n" +
 	"\venvironment\x18\x02 \x01(\v2'.dockwell.resource.v1alpha1.EnvironmentH\x00R\venvironment\x12?\n" +
@@ -3232,8 +3606,34 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x05route\x18\n" +
 	" \x01(\v2!.dockwell.resource.v1alpha1.RouteH\x00R\x05route\x12O\n" +
 	"\rbackup_policy\x18\x14 \x01(\v2(.dockwell.resource.v1alpha1.BackupPolicyH\x00R\fbackupPolicy\x12^\n" +
-	"\x12backup_destination\x18\x15 \x01(\v2-.dockwell.resource.v1alpha1.BackupDestinationH\x00R\x11backupDestinationB\x06\n" +
-	"\x04kind*j\n" +
+	"\x12backup_destination\x18\x15 \x01(\v2-.dockwell.resource.v1alpha1.BackupDestinationH\x00R\x11backupDestination\x127\n" +
+	"\x04task\x18\x96\x01 \x01(\v2 .dockwell.resource.v1alpha1.TaskH\x00R\x04taskB\x06\n" +
+	"\x04kind\"\xa3\x03\n" +
+	"\x04Task\x12=\n" +
+	"\x05shell\x18\x01 \x01(\v2%.dockwell.resource.v1alpha1.TaskShellH\x00R\x05shell\x127\n" +
+	"\x03app\x18\x02 \x01(\v2#.dockwell.resource.v1alpha1.TaskAppH\x00R\x03app\x12C\n" +
+	"\arequest\x18\x03 \x01(\v2'.dockwell.resource.v1alpha1.TaskRequestH\x00R\arequest\x12\x1a\n" +
+	"\bschedule\x18\x04 \x01(\tR\bschedule\x12\x1b\n" +
+	"\ttime_zone\x18\x05 \x01(\tR\btimeZone\x12'\n" +
+	"\x0ftimeout_seconds\x18\x06 \x01(\rR\x0etimeoutSeconds\x12\x18\n" +
+	"\aretries\x18\a \x01(\rR\aretries\x12\x16\n" +
+	"\x06paused\x18\b \x01(\bR\x06paused\x12\x1f\n" +
+	"\vskip_missed\x18\t \x01(\bR\n" +
+	"skipMissed\x12!\n" +
+	"\fdisplay_name\x18\n" +
+	" \x01(\tR\vdisplayNameB\x06\n" +
+	"\x04runs\"F\n" +
+	"\tTaskShell\x12\x18\n" +
+	"\acommand\x18\x01 \x01(\tR\acommand\x12\x1f\n" +
+	"\vworking_dir\x18\x02 \x01(\tR\n" +
+	"workingDir\"=\n" +
+	"\aTaskApp\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\x12\x18\n" +
+	"\acommand\x18\x02 \x01(\tR\acommand\"\\\n" +
+	"\vTaskRequest\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x12\x16\n" +
+	"\x06method\x18\x02 \x01(\tR\x06method\x12#\n" +
+	"\rexpect_status\x18\x03 \x01(\rR\fexpectStatus*j\n" +
 	"\fRolloutOrder\x12\x1d\n" +
 	"\x19ROLLOUT_ORDER_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19ROLLOUT_ORDER_START_FIRST\x10\x01\x12\x1c\n" +
@@ -3273,7 +3673,7 @@ func file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
+var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(RolloutOrder)(0),                 // 0: dockwell.resource.v1alpha1.RolloutOrder
 	(Relabel)(0),                      // 1: dockwell.resource.v1alpha1.Relabel
@@ -3307,23 +3707,27 @@ var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(*Network)(nil),                   // 29: dockwell.resource.v1alpha1.Network
 	(*Route)(nil),                     // 30: dockwell.resource.v1alpha1.Route
 	(*Spec)(nil),                      // 31: dockwell.resource.v1alpha1.Spec
-	nil,                               // 32: dockwell.resource.v1alpha1.Container.EnvEntry
-	nil,                               // 33: dockwell.resource.v1alpha1.Container.LabelsEntry
-	nil,                               // 34: dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
-	nil,                               // 35: dockwell.resource.v1alpha1.Service.VariablesEntry
-	nil,                               // 36: dockwell.resource.v1alpha1.Service.SecretsEntry
-	nil,                               // 37: dockwell.resource.v1alpha1.Service.RevisionsEntry
-	nil,                               // 38: dockwell.resource.v1alpha1.Volume.OptionsEntry
-	nil,                               // 39: dockwell.resource.v1alpha1.Volume.LabelsEntry
-	nil,                               // 40: dockwell.resource.v1alpha1.Network.OptionsEntry
-	nil,                               // 41: dockwell.resource.v1alpha1.Network.LabelsEntry
-	(*descriptorpb.FieldOptions)(nil), // 42: google.protobuf.FieldOptions
+	(*Task)(nil),                      // 32: dockwell.resource.v1alpha1.Task
+	(*TaskShell)(nil),                 // 33: dockwell.resource.v1alpha1.TaskShell
+	(*TaskApp)(nil),                   // 34: dockwell.resource.v1alpha1.TaskApp
+	(*TaskRequest)(nil),               // 35: dockwell.resource.v1alpha1.TaskRequest
+	nil,                               // 36: dockwell.resource.v1alpha1.Container.EnvEntry
+	nil,                               // 37: dockwell.resource.v1alpha1.Container.LabelsEntry
+	nil,                               // 38: dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
+	nil,                               // 39: dockwell.resource.v1alpha1.Service.VariablesEntry
+	nil,                               // 40: dockwell.resource.v1alpha1.Service.SecretsEntry
+	nil,                               // 41: dockwell.resource.v1alpha1.Service.RevisionsEntry
+	nil,                               // 42: dockwell.resource.v1alpha1.Volume.OptionsEntry
+	nil,                               // 43: dockwell.resource.v1alpha1.Volume.LabelsEntry
+	nil,                               // 44: dockwell.resource.v1alpha1.Network.OptionsEntry
+	nil,                               // 45: dockwell.resource.v1alpha1.Network.LabelsEntry
+	(*descriptorpb.FieldOptions)(nil), // 46: google.protobuf.FieldOptions
 }
 var file_dockwell_resource_v1alpha1_specs_proto_depIdxs = []int32{
-	32, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
+	36, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
 	14, // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
 	2,  // 2: dockwell.resource.v1alpha1.Container.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
-	33, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
+	37, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
 	10, // 4: dockwell.resource.v1alpha1.Container.mounts:type_name -> dockwell.resource.v1alpha1.Mount
 	11, // 5: dockwell.resource.v1alpha1.Container.healthcheck:type_name -> dockwell.resource.v1alpha1.Healthcheck
 	9,  // 6: dockwell.resource.v1alpha1.Container.rollout:type_name -> dockwell.resource.v1alpha1.Rollout
@@ -3341,16 +3745,16 @@ var file_dockwell_resource_v1alpha1_specs_proto_depIdxs = []int32{
 	20, // 18: dockwell.resource.v1alpha1.Website.proxy:type_name -> dockwell.resource.v1alpha1.WebsiteProxy
 	19, // 19: dockwell.resource.v1alpha1.Website.folder:type_name -> dockwell.resource.v1alpha1.WebsiteFolder
 	18, // 20: dockwell.resource.v1alpha1.Website.php:type_name -> dockwell.resource.v1alpha1.WebsitePhp
-	34, // 21: dockwell.resource.v1alpha1.CatalogPin.values:type_name -> dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
+	38, // 21: dockwell.resource.v1alpha1.CatalogPin.values:type_name -> dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
 	6,  // 22: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
-	35, // 23: dockwell.resource.v1alpha1.Service.variables:type_name -> dockwell.resource.v1alpha1.Service.VariablesEntry
-	36, // 24: dockwell.resource.v1alpha1.Service.secrets:type_name -> dockwell.resource.v1alpha1.Service.SecretsEntry
-	37, // 25: dockwell.resource.v1alpha1.Service.revisions:type_name -> dockwell.resource.v1alpha1.Service.RevisionsEntry
-	38, // 26: dockwell.resource.v1alpha1.Volume.options:type_name -> dockwell.resource.v1alpha1.Volume.OptionsEntry
-	39, // 27: dockwell.resource.v1alpha1.Volume.labels:type_name -> dockwell.resource.v1alpha1.Volume.LabelsEntry
+	39, // 23: dockwell.resource.v1alpha1.Service.variables:type_name -> dockwell.resource.v1alpha1.Service.VariablesEntry
+	40, // 24: dockwell.resource.v1alpha1.Service.secrets:type_name -> dockwell.resource.v1alpha1.Service.SecretsEntry
+	41, // 25: dockwell.resource.v1alpha1.Service.revisions:type_name -> dockwell.resource.v1alpha1.Service.RevisionsEntry
+	42, // 26: dockwell.resource.v1alpha1.Volume.options:type_name -> dockwell.resource.v1alpha1.Volume.OptionsEntry
+	43, // 27: dockwell.resource.v1alpha1.Volume.labels:type_name -> dockwell.resource.v1alpha1.Volume.LabelsEntry
 	5,  // 28: dockwell.resource.v1alpha1.BackupPolicy.every:type_name -> dockwell.resource.v1alpha1.BackupPolicy.Every
-	40, // 29: dockwell.resource.v1alpha1.Network.options:type_name -> dockwell.resource.v1alpha1.Network.OptionsEntry
-	41, // 30: dockwell.resource.v1alpha1.Network.labels:type_name -> dockwell.resource.v1alpha1.Network.LabelsEntry
+	44, // 29: dockwell.resource.v1alpha1.Network.options:type_name -> dockwell.resource.v1alpha1.Network.OptionsEntry
+	45, // 30: dockwell.resource.v1alpha1.Network.labels:type_name -> dockwell.resource.v1alpha1.Network.LabelsEntry
 	16, // 31: dockwell.resource.v1alpha1.Spec.project:type_name -> dockwell.resource.v1alpha1.Project
 	22, // 32: dockwell.resource.v1alpha1.Spec.environment:type_name -> dockwell.resource.v1alpha1.Environment
 	23, // 33: dockwell.resource.v1alpha1.Spec.service:type_name -> dockwell.resource.v1alpha1.Service
@@ -3363,12 +3767,16 @@ var file_dockwell_resource_v1alpha1_specs_proto_depIdxs = []int32{
 	30, // 40: dockwell.resource.v1alpha1.Spec.route:type_name -> dockwell.resource.v1alpha1.Route
 	27, // 41: dockwell.resource.v1alpha1.Spec.backup_policy:type_name -> dockwell.resource.v1alpha1.BackupPolicy
 	28, // 42: dockwell.resource.v1alpha1.Spec.backup_destination:type_name -> dockwell.resource.v1alpha1.BackupDestination
-	42, // 43: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
-	44, // [44:44] is the sub-list for method output_type
-	44, // [44:44] is the sub-list for method input_type
-	44, // [44:44] is the sub-list for extension type_name
-	43, // [43:44] is the sub-list for extension extendee
-	0,  // [0:43] is the sub-list for field type_name
+	32, // 43: dockwell.resource.v1alpha1.Spec.task:type_name -> dockwell.resource.v1alpha1.Task
+	33, // 44: dockwell.resource.v1alpha1.Task.shell:type_name -> dockwell.resource.v1alpha1.TaskShell
+	34, // 45: dockwell.resource.v1alpha1.Task.app:type_name -> dockwell.resource.v1alpha1.TaskApp
+	35, // 46: dockwell.resource.v1alpha1.Task.request:type_name -> dockwell.resource.v1alpha1.TaskRequest
+	46, // 47: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
+	48, // [48:48] is the sub-list for method output_type
+	48, // [48:48] is the sub-list for method input_type
+	48, // [48:48] is the sub-list for extension type_name
+	47, // [47:48] is the sub-list for extension extendee
+	0,  // [0:47] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_resource_v1alpha1_specs_proto_init() }
@@ -3401,6 +3809,12 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 		(*Spec_Route)(nil),
 		(*Spec_BackupPolicy)(nil),
 		(*Spec_BackupDestination)(nil),
+		(*Spec_Task)(nil),
+	}
+	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[26].OneofWrappers = []any{
+		(*Task_Shell)(nil),
+		(*Task_App)(nil),
+		(*Task_Request)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -3408,7 +3822,7 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_resource_v1alpha1_specs_proto_rawDesc), len(file_dockwell_resource_v1alpha1_specs_proto_rawDesc)),
 			NumEnums:      6,
-			NumMessages:   36,
+			NumMessages:   40,
 			NumExtensions: 1,
 			NumServices:   0,
 		},

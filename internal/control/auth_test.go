@@ -58,6 +58,7 @@ import (
 	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // fullServer is a control plane with sign-in, as dockwell run starts it.
@@ -109,6 +110,8 @@ type fullServer struct {
 	server *Server
 	// lastDocker is the server addDockerServer last added.
 	lastDocker *testServer
+	// onePanelRoot is where the next Docker server added has 1Panel installed, if anywhere.
+	onePanelRoot string
 	// volumes wraps the volume driver of the next server added, to see what its
 	// agent hears. Nil leaves it as it is.
 	volumes func(*volume.Driver) resource.Type
@@ -126,6 +129,10 @@ func (f *fullServer) execSQL(t *testing.T, query string) {
 
 // askWait is how long these tests give a step-up that was asked for.
 const askWait = 200 * time.Millisecond
+
+// testRecheck is how often the next control plane started rechecks a session for
+// what's open on it. Zero keeps auth's own. A test that sets it puts it back.
+var testRecheck time.Duration
 
 func startFull(t *testing.T, backend store.Backend, public https.Source) *fullServer {
 	t.Helper()
@@ -161,14 +168,14 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	if public != nil {
 		sites.Domain = public.Domain()
 	}
-	people, err := auth.New(auth.Config{DB: db, Key: key, Logger: logger, Sites: sites, AskWait: askWait})
+	people, err := auth.New(auth.Config{DB: db, Key: key, Logger: logger, Sites: sites, AskWait: askWait, Recheck: testRecheck})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
 		t.Fatal(err)
 	}
-	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{})
+	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, &task.Driver{})
 	keeper := secretstest.Keeper(db, kinds)
 	agents := agentapi.NewAgents(kinds, logger)
 	engine := revision.New(db, kinds, agents, keeper, logger)

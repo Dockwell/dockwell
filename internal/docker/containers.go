@@ -4,6 +4,7 @@ package docker
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -191,13 +192,15 @@ type MountPoint struct {
 
 // State is whether a container runs.
 type State struct {
-	Status     string  `json:"Status"` // created, running, restarting, exited…
-	Running    bool    `json:"Running"`
-	Restarting bool    `json:"Restarting"`
-	Paused     bool    `json:"Paused"`
-	ExitCode   int     `json:"ExitCode"`
-	Error      string  `json:"Error"`
-	Health     *Health `json:"Health,omitempty"`
+	Status     string `json:"Status"` // created, running, restarting, exited…
+	Running    bool   `json:"Running"`
+	Restarting bool   `json:"Restarting"`
+	Paused     bool   `json:"Paused"`
+	ExitCode   int    `json:"ExitCode"`
+	Error      string `json:"Error"`
+	// Pid is its first process's ID on the server, while it runs.
+	Pid    int     `json:"Pid"`
+	Health *Health `json:"Health,omitempty"`
 	// StartedAt and FinishedAt are zero until it first starts and stops.
 	StartedAt  time.Time `json:"StartedAt,omitzero"`
 	FinishedAt time.Time `json:"FinishedAt,omitzero"`
@@ -379,6 +382,28 @@ type SummaryPort struct {
 	Type        string `json:"Type"` // tcp or udp
 }
 
+// Exactly is the filter that lists one container, by its full ID or its whole
+// name, never a prefix of either, so a name that's also the start of another's ID
+// can't find that one (ADR 0021). Nil for no container named.
+func Exactly(ref string) map[string][]string {
+	switch {
+	case ref == "":
+		return nil
+	case IsFullID(ref):
+		return map[string][]string{"id": {ref}}
+	}
+	return map[string][]string{"name": {"^/" + regexp.QuoteMeta(ref) + "$"}}
+}
+
+// IsFullID says whether ref is a container's whole ID: 64 hex digits.
+func IsFullID(ref string) bool {
+	if len(ref) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(ref)
+	return err == nil
+}
+
 // ListContainers lists the containers, running or not, that pass
 // filters, as the engine takes them: such as name, a regular expression
 // on the name with its leading slash; label, a key or key=value; and
@@ -490,7 +515,19 @@ func (c *Client) StopContainer(ctx context.Context, id string, timeout time.Dura
 // RemoveContainer removes a container, stopping it first if force is set.
 // Its anonymous volumes stay, until a prune.
 func (c *Client) RemoveContainer(ctx context.Context, id string, force bool) error {
-	q := url.Values{"force": {strconv.FormatBool(force)}, "v": {"false"}}
+	return c.removeContainer(ctx, id, force, false)
+}
+
+// RemoveOneOff removes a container made for one run, running or not, with the
+// anonymous volumes the engine made for it: where its image declares a volume that
+// nothing mounts, as when a task's run copies its app's configuration. Named volumes
+// stay.
+func (c *Client) RemoveOneOff(ctx context.Context, id string) error {
+	return c.removeContainer(ctx, id, true, true)
+}
+
+func (c *Client) removeContainer(ctx context.Context, id string, force, volumes bool) error {
+	q := url.Values{"force": {strconv.FormatBool(force)}, "v": {strconv.FormatBool(volumes)}}
 	err := c.do(ctx, http.MethodDelete, "/containers/"+esc(id), q, nil, nil)
 	if err == nil || IsNotFound(err) {
 		if c.Adopted != nil {

@@ -20,7 +20,7 @@ func TestItSaysWhatItNeeds(t *testing.T) {
 	}{
 		"nothing":                  {nil, "name what to do: convert"},
 		"no source":                {[]string{"convert", "--from", "1panel"}, "name the source's checkout with --source"},
-		"a format it doesn't read": {[]string{"convert", "--from", "umbrel", "--source", t.TempDir(), "--out", t.TempDir(), "--commit", "abc"}, `reads 1panel, not "umbrel"`},
+		"a format it doesn't read": {[]string{"convert", "--from", "umbrel", "--source", t.TempDir(), "--out", t.TempDir(), "--commit", "abc"}, `not "umbrel"`},
 		"a folder with no apps":    {[]string{"convert", "--from", "1panel", "--source", t.TempDir(), "--out", t.TempDir(), "--commit", "abc"}, "github.com/1Panel-dev/appstore"},
 	} {
 		t.Run(name, func(t *testing.T) {

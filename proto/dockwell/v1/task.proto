@@ -1,0 +1,260 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "dockwell/v1/server.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// TaskService is work that runs on a schedule: a shell command on a server, a
+// command in an app's image, or an HTTP request. A task is a resource of kind
+// "task", so making, changing, pausing and deleting one is a change with a plan,
+// through ChangeService. Each server's agent keeps its own tasks' time, so they run
+// while the control plane is away, and the control plane keeps what each run
+// did. See docs/adr/0053-scheduled-tasks.md.
+service TaskService {
+  // ListTasks returns every task, by name, each with when it next runs and how
+  // its last run went on each of its servers. It reads the control plane's
+  // records, so it answers with a server offline.
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/tasks"};
+  }
+
+  // GetTask returns one task, by ID or by name.
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/tasks/{id}"};
+  }
+
+  // ListTaskRuns returns a task's runs, newest first, with what each printed. A
+  // run's output can hold anything its command prints, so reading it takes what
+  // reading logs takes.
+  rpc ListTaskRuns(ListTaskRunsRequest) returns (ListTaskRunsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_grant) = TOKEN_GRANT_LOGS;
+    option (dockwell.v1.command) = {verb: "runs"};
+    option (google.api.http) = {get: "/v1/tasks/{id}/runs"};
+  }
+
+  // RunTask runs a task now, on one of its servers, which has to be connected. It
+  // runs what was approved, as its schedule would, paused or not, and returns
+  // once the run has started: follow it with ListTaskRuns.
+  rpc RunTask(RunTaskRequest) returns (RunTaskResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/tasks/{id}:run"
+      body: "*"
+    };
+  }
+}
+
+// TaskKind is what a task runs.
+enum TaskKind {
+  TASK_KIND_UNSPECIFIED = 0;
+  // A shell command on the server, as root.
+  TASK_KIND_SHELL = 1;
+  // A command in an app's image.
+  TASK_KIND_APP = 2;
+  // An HTTP request to a URL.
+  TASK_KIND_REQUEST = 3;
+}
+
+// TaskRunState is how a run is, or how it ended.
+enum TaskRunState {
+  TASK_RUN_STATE_UNSPECIFIED = 0;
+  // It's running.
+  TASK_RUN_STATE_RUNNING = 1;
+  // Its last attempt exited 0, or answered with the status the task expects.
+  TASK_RUN_STATE_SUCCEEDED = 2;
+  // Its last attempt exited otherwise, or answered with another status.
+  TASK_RUN_STATE_FAILED = 3;
+  // Its last attempt took longer than the task's timeout, and was stopped.
+  TASK_RUN_STATE_TIMED_OUT = 4;
+  // The agent stopped while it ran, as when it's upgraded, so it was stopped
+  // too, or how it ended isn't known. A slot that comes round while a run is
+  // still going runs nothing, and is counted on that run (TaskRun.skipped_slots).
+  TASK_RUN_STATE_INTERRUPTED = 5;
+  // It couldn't start, such as an app that isn't running on the server.
+  TASK_RUN_STATE_NOT_STARTED = 6;
+}
+
+// TaskRunReason is why a run ran.
+enum TaskRunReason {
+  TASK_RUN_REASON_UNSPECIFIED = 0;
+  // Its schedule.
+  TASK_RUN_REASON_SCHEDULE = 1;
+  // Someone asked, with RunTask.
+  TASK_RUN_REASON_BY_HAND = 2;
+  // It was due while its server was off or its agent was stopped, and ran once
+  // when the agent started.
+  TASK_RUN_REASON_MISSED = 3;
+}
+
+// TaskInfo is one task, as it's asked for and as it runs.
+message TaskInfo {
+  // The task's ID.
+  string id = 1;
+  // The task, by kind, environment and name.
+  ResourceRef resource = 2;
+  // What it runs.
+  TaskKind kind = 3;
+  // What it asks for.
+  dockwell.resource.v1alpha1.Task spec = 4;
+  // How it stands on each server it's placed on, by server name.
+  repeated TaskOnServer servers = 5;
+}
+
+// TaskOnServer is how a task stands on one server.
+message TaskOnServer {
+  // The server's ID and name.
+  string server_id = 1;
+  string server_name = 2;
+  // Whether its agent is connected. One that isn't runs its tasks all the same,
+  // and its runs show once it's back.
+  Connection connection = 3;
+  // When it next runs there. Unset while it's paused.
+  google.protobuf.Timestamp next_run = 4;
+  // Its newest run there, without its output. Unset until it has run.
+  TaskRun last_run = 5;
+  // How its newest runs there ended, newest first, up to 14, without output.
+  repeated TaskRunState recent = 6;
+  // When it runs there in the next 24 hours, by its schedule, up to 288 (every 5
+  // minutes), for a timeline. Empty while it's paused.
+  repeated google.protobuf.Timestamp upcoming = 7;
+}
+
+// TaskRun is one run of a task on one server.
+message TaskRun {
+  // The run's ID.
+  string id = 1;
+  // The task's ID.
+  string task_id = 2;
+  // The server it ran on, by ID and name.
+  string server_id = 3;
+  string server_name = 4;
+  // How it is, or how it ended.
+  TaskRunState state = 5;
+  // Why it ran.
+  TaskRunReason reason = 6;
+  // When it was due, and when it started and ended. A run that's still going has
+  // no end.
+  google.protobuf.Timestamp due_time = 7;
+  google.protobuf.Timestamp start_time = 8;
+  google.protobuf.Timestamp end_time = 9;
+  // Each try, in order: one, and one more for each retry it took.
+  repeated TaskAttempt attempts = 10;
+  // Why it failed or didn't start, for people. Empty when it succeeded.
+  string error = 11;
+  // The last 64 KB of what it printed, stdout and stderr together, a line at a
+  // time. Only ListTaskRuns has it.
+  repeated TaskOutputLine output = 12;
+  // How much of what it printed was cut from the start, in bytes.
+  int64 output_cut_bytes = 13;
+  // How many times its schedule came round while it ran, which ran nothing, as a
+  // task's runs never overlap.
+  uint32 skipped_slots = 14;
+}
+
+// TaskAttempt is one try of a run.
+message TaskAttempt {
+  google.protobuf.Timestamp start_time = 1;
+  google.protobuf.Timestamp end_time = 2;
+  // The exit status of a command. -1 when it was stopped.
+  int32 exit_code = 3;
+  // The HTTP status of a request. 0 when nothing answered.
+  int32 http_status = 4;
+  // It took longer than the task's timeout, and was stopped.
+  bool timed_out = 5;
+  // The size of a request's answer, in bytes.
+  int64 response_bytes = 6;
+  // Something the command started outlived it and held its output, which was read
+  // for a few seconds more, then left as it runs on.
+  bool output_held = 7;
+}
+
+// TaskOutputLine is one line a run printed. Lines the agent adds of its own, such
+// as why an attempt stopped, start "Dockwell: ", and its attempts say the same as
+// facts, for a surface to say in its own words.
+message TaskOutputLine {
+  // When it came.
+  google.protobuf.Timestamp time = 1;
+  // The line, without its newline.
+  string text = 2;
+}
+
+// ListTasksRequest asks for every task.
+message ListTasksRequest {}
+
+// ListTasksResponse lists them.
+message ListTasksResponse {
+  // The tasks, by name.
+  repeated TaskInfo tasks = 1;
+}
+
+// GetTaskRequest names a task.
+message GetTaskRequest {
+  // The task's ID, or its name with project and environment.
+  string id = 1;
+  // The project, by name or ID, when id is a name. Left out while there's only one.
+  string project = 2;
+  // The environment, by name or ID, when id is a name. Left out while its project
+  // has only one.
+  string environment = 3;
+}
+
+// GetTaskResponse is the task.
+message GetTaskResponse {
+  TaskInfo task = 1;
+}
+
+// ListTaskRunsRequest names a task, and how many of its runs.
+message ListTaskRunsRequest {
+  // The task's ID, or its name with project and environment.
+  string id = 1;
+  // The project, by name or ID, when id is a name. Left out while there's only one.
+  string project = 2;
+  // The environment, by name or ID, when id is a name. Left out while its project
+  // has only one.
+  string environment = 3;
+  // Only its runs on this server, by name or ID.
+  string server = 4;
+  // How many, newest first: 20 unless set, at most 100.
+  int32 page_size = 5;
+  // Where the last page ended.
+  string page_token = 6;
+}
+
+// ListTaskRunsResponse is a page of runs.
+message ListTaskRunsResponse {
+  // The runs, newest first.
+  repeated TaskRun runs = 1;
+  // Where the next page starts. Empty after the last.
+  string next_page_token = 2;
+}
+
+// RunTaskRequest names a task to run now.
+message RunTaskRequest {
+  // The task's ID, or its name with project and environment.
+  string id = 1;
+  // The project, by name or ID, when id is a name. Left out while there's only one.
+  string project = 2;
+  // The environment, by name or ID, when id is a name. Left out while its project
+  // has only one.
+  string environment = 3;
+  // The server to run it on, by name or ID, when it's placed on more than one.
+  string server = 4;
+}
+
+// RunTaskResponse is the run, started.
+message RunTaskResponse {
+  TaskRun run = 1;
+}
