@@ -127,7 +127,7 @@ A check before a start and the start itself are still two steps, a moment apart,
 - **Past that, it may land.** A save left behind as it writes can't be stopped, so the person hears it may still land, and when it comes back the agent says how it came out, on whichever stream is up (`SaveEnded`).
 - **It changes no byte nobody touched.** A browser's field turns every line ending into LF, so the panel puts them back, which works for a file that uses one kind. One with a mix, or a lone CR, opens read-only, and says why. A byte order mark is lost to protobuf-es's decoder on the way in, in production's binary format and not in development's JSON, so the agent keeps the mark the old text had, and returns the version of what it wrote.
 - **What's typed outlasts a session.** A session that ends takes the page with it, with nothing to ask first, so the panel holds what's typed in memory, by server and path with the version it was typed over, and offers it back to the same person after they sign in. It never goes in the browser's storage, so a tab that's closed takes it along, and leaving the page asks first.
-- **It makes no file, directory or change of mode.** Those come with the rest of the mock's toolbar, and each will need the same care.
+- **It makes no file, directory or change of mode.** Making, moving and deleting came with the rest of the mock's toolbar, with the same care, in [ADR 0045](0045-a-file-manager-on-a-server.md), and a change of mode comes there too.
 
 ### On record
 

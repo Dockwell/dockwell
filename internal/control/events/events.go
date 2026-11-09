@@ -29,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	controlfiles "github.com/dockwell/dockwell/internal/control/files"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/paging"
@@ -76,6 +77,20 @@ const (
 	changeApplyUnconfirmed = "change.apply_unconfirmed"
 )
 
+// fileWrites are what a person makes, moves, deletes and puts back on a server, and
+// what stopped them (ADR 0045). Each is on the timeline, as a save is.
+var fileWrites = []string{
+	"file.make", "file.make_failed", "file.make_unconfirmed",
+	"file.move", "file.move_failed", "file.move_unconfirmed",
+	"file.delete", "file.delete_failed", "file.delete_unconfirmed",
+	"file.restore", "file.restore_failed", "file.restore_unconfirmed",
+	"file.upload", "file.upload_failed", "file.upload_unconfirmed",
+	"file.change_unknown",
+}
+
+// fileDownload is a file or a folder downloaded, which is on Activity as a read is.
+const fileDownload = "file.download"
+
 // The audit log's actions that belong on the timeline, by kind. What the
 // timeline leaves out stays in the audit log: refusals, such as wrong codes
 // and refused tokens, a token's first use from an address, signing out,
@@ -86,7 +101,7 @@ var (
 		processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed,
 	},
 		// Who had a root shell on a server, and when (ADR 0037).
-		terminals.Actions)
+		terminals.Actions, fileWrites)
 	healthActions = []string{health.Action}
 	// A setting of the install isn't managed state, so it's an event, not a change (ADR 0042).
 	settingsActions = settings.Actions
@@ -103,7 +118,7 @@ var (
 		"token.create", "token.revoke",
 		"sign_in_link.create", "claim_link.create", "join_token.create",
 		"secret.reveal", "secrets.rotate_key",
-		fileRead, fileRefuse, changeApplyUnconfirmed,
+		fileRead, fileRefuse, fileDownload, changeApplyUnconfirmed,
 	}
 )
 
@@ -513,7 +528,7 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		Actor: look.Actor(a.Actor), Surface: changes.Surfaces[a.Surface],
 	}
 	if strings.HasPrefix(a.Action, "server.") || strings.HasPrefix(a.Action, "process.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown || a.Action == fileSaveUnconfirmed ||
-		slices.Contains(terminals.Actions, a.Action) {
+		slices.Contains(terminals.Actions, a.Action) || slices.Contains(fileWrites, a.Action) {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
 	}
 	if slices.Contains(terminals.Actions, a.Action) {
@@ -608,6 +623,10 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	}
 	if strings.HasPrefix(a.Action, "file.") && e.Subject != nil {
 		e.Subject.Path = a.Subject // only ever a path, cleaned by internal/control/files
+		// A write's detail leaves the store too: where it went, and what it took.
+		if told, ok := controlfiles.ReadTold(a.Detail); ok && (slices.Contains(fileWrites, a.Action) || a.Action == fileDownload) {
+			e.Subject.ToPath, e.Subject.WayBackIn, e.Subject.ForGood, e.Subject.SizeBytes = told.To, told.WayBackIn, told.ForGood, told.Size
+		}
 	}
 	return e
 }

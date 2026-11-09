@@ -67,6 +67,20 @@ service AgentService {
   rpc Terminal(stream TerminalRequest) returns (stream TerminalResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
   }
+
+  // ReceiveFile carries what's uploaded for one WriteUploadCall, from the
+  // control plane to the agent, which opens it on a connection of its own, as
+  // SendLogs does, so a file shares nothing with Connect. Flow control bounds
+  // what either side holds. See docs/adr/0045-a-file-manager-on-a-server.md.
+  rpc ReceiveFile(ReceiveFileRequest) returns (stream ReceiveFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+  }
+
+  // SendFile carries what's downloaded for one DownloadFileCall, from the
+  // agent to the control plane, on a connection of its own.
+  rpc SendFile(stream SendFileRequest) returns (SendFileResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
 }
 
 // ConnectRequest is one message from the agent.
@@ -306,6 +320,14 @@ message Hello {
   // True when the agent reads what 1Panel keeps on the server (ReadOnePanelCall).
   // The importer takes 180 to 189 in agent messages.
   bool reads_onepanel = 180;
+  // True when the agent makes, moves, deletes and puts back files, each
+  // with the care ADR 0045 says, a passkey where one is a way back in among
+  // it. The control plane sends none of those calls to one that doesn't.
+  // Numbered apart, as open work adds to this message.
+  bool manages_files = 120;
+  // True when the agent uploads and downloads files, in bounded chunks over
+  // ReceiveFile and SendFile, as ADR 0045 says.
+  bool transfers_files = 121;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -515,6 +537,27 @@ message Call {
     RunTaskCall run_task = 151;
     // Read what 1Panel keeps on the server. The importer takes 180 to 189.
     ReadOnePanelCall read_onepanel = 180;
+    // Make an empty file or a folder. Numbered apart, as open work adds to
+    // this message.
+    MakeFileCall make_file = 120;
+    // Move or rename a file or a folder.
+    MoveFileCall move_file = 121;
+    // Delete a file or a folder, to Recently deleted or for good.
+    DeleteFileCall delete_file = 122;
+    // List what's in Recently deleted.
+    ListDeletedCall list_deleted = 123;
+    // Put back what was deleted.
+    RestoreFileCall restore_file = 124;
+    // Delete for good what's in Recently deleted.
+    PurgeDeletedCall purge_deleted = 125;
+    // Start an upload, or say how far one got.
+    BeginUploadCall begin_upload = 126;
+    // Write what's uploaded, from ReceiveFile.
+    WriteUploadCall write_upload = 127;
+    // Put what was uploaded in place, and unpack it if it was asked to.
+    FinishUploadCall finish_upload = 128;
+    // Send a file, or a folder as an archive, over SendFile.
+    DownloadFileCall download_file = 129;
   }
 }
 
@@ -886,6 +929,32 @@ message FileRefusal {
     // The file is a way back onto the server, and no passkey confirmed saving
     // where the walk ended, so nothing was written.
     KIND_NEEDS_STEP_UP = 9;
+    // Something is already at the path a make, move or put back would take.
+    // Numbered apart, as open work adds to this enum.
+    KIND_EXISTS = 120;
+    // A move would cross to another filesystem, which a rename can't.
+    KIND_OTHER_DISK = 121;
+    // A delete can't go to Recently deleted, as it's on another filesystem,
+    // so it can only be deleted for good, which the call didn't say.
+    KIND_FOR_GOOD = 122;
+    // What's put back has nowhere to go, as the folder it was in is gone.
+    KIND_FOLDER_GONE = 123;
+    // An upload is larger than a server takes, or than its disk has room for.
+    KIND_TOO_LARGE = 124;
+    // An upload's ID is unknown, finished, or past the day it's kept.
+    KIND_UPLOAD_GONE = 125;
+    // A write starts somewhere other than where its upload got to, so nothing
+    // was written. Ask where with begin_upload.
+    KIND_OFFSET = 126;
+    // An archive holds what can't be unpacked here, such as a way back in, a
+    // path that leaves its folder, or more than an upload may be.
+    KIND_UNPACK_REFUSED = 127;
+    // Every upload and download the agent runs at once is under way, and one
+    // didn't end in time for this one to start.
+    KIND_BUSY = 128;
+    // The disk filled while an upload was written or unpacked. What was
+    // written so far is kept.
+    KIND_NO_SPACE = 129;
   }
 
   // What went wrong.
@@ -895,6 +964,210 @@ message FileRefusal {
   // Where the agent stopped, with every symlink before it followed.
   string path = 3;
 }
+
+// MakeFileCall makes an empty file or a folder, never over what's there.
+message MakeFileCall {
+  // The absolute path to make.
+  string path = 1;
+  // A file or a directory.
+  dockwell.v1.FileType type = 2;
+  // The path a person confirmed with a passkey, where it's a way back in.
+  string confirmed_path = 3;
+}
+
+// MakeFileResult answers a MakeFileCall.
+message MakeFileResult {
+  // What was made. Unset when the agent refused.
+  dockwell.v1.MakeFileResponse made = 1;
+  // Why it made nothing.
+  FileRefusal refusal = 2;
+}
+
+// MoveFileCall moves or renames what's at a path, never over what's there.
+message MoveFileCall {
+  // The absolute path it's at.
+  string from = 1;
+  // The absolute path it goes to.
+  string to = 2;
+  // The path it's at, as a person confirmed it with a passkey, where either
+  // end is a way back in.
+  string confirmed_from = 3;
+  // The path it goes to, as a person confirmed it with the same passkey.
+  string confirmed_to = 4;
+}
+
+// MoveFileResult answers a MoveFileCall.
+message MoveFileResult {
+  // Where it went. Unset when the agent refused.
+  dockwell.v1.MoveFileResponse moved = 1;
+  // Why it moved nothing.
+  FileRefusal refusal = 2;
+}
+
+// DeleteFileCall deletes what's at a path, to Recently deleted, or for good.
+message DeleteFileCall {
+  // The absolute path.
+  string path = 1;
+  // True to delete it for good, which frees its space at once.
+  bool for_good = 2;
+  // The path a person confirmed with a passkey, where it's a way back in.
+  string confirmed_path = 3;
+}
+
+// DeleteFileResult answers a DeleteFileCall.
+message DeleteFileResult {
+  // What was deleted. Unset when the agent refused.
+  dockwell.v1.DeleteFileResponse deleted = 1;
+  // Why it deleted nothing.
+  FileRefusal refusal = 2;
+}
+
+// ListDeletedCall asks what's in Recently deleted.
+message ListDeletedCall {}
+
+// ListDeletedResult answers a ListDeletedCall.
+message ListDeletedResult {
+  // What's there, newest first.
+  dockwell.v1.ListDeletedFilesResponse listing = 1;
+}
+
+// RestoreFileCall puts back what was deleted, where it was.
+message RestoreFileCall {
+  // Its ID in Recently deleted.
+  string id = 1;
+  // The path a person confirmed with a passkey, where it's a way back in.
+  string confirmed_path = 2;
+}
+
+// RestoreFileResult answers a RestoreFileCall.
+message RestoreFileResult {
+  // Where it went back. Unset when the agent refused.
+  dockwell.v1.RestoreFileResponse restored = 1;
+  // Why it put nothing back.
+  FileRefusal refusal = 2;
+}
+
+// PurgeDeletedCall deletes for good what's in Recently deleted.
+message PurgeDeletedCall {
+  // Its ID in Recently deleted.
+  string id = 1;
+}
+
+// PurgeDeletedResult answers a PurgeDeletedCall.
+message PurgeDeletedResult {
+  // What went. Unset when the agent refused.
+  dockwell.v1.DeletedFile purged = 1;
+  // Why nothing went.
+  FileRefusal refusal = 2;
+}
+
+// BeginUploadCall starts an upload of size_bytes to path, never over what's
+// there, or says how far the upload upload_id got.
+message BeginUploadCall {
+  // The absolute path the file takes once it's all there.
+  string path = 1;
+  // How large it is.
+  uint64 size_bytes = 2;
+  // The path a person confirmed with a passkey, where it's a way back in.
+  string confirmed_path = 3;
+  // An upload to pick up again. With it, the rest is left out.
+  string upload_id = 4;
+  // What to unpack it as, once it's all there.
+  dockwell.v1.Unpack unpack = 5;
+  // Who asks: the user and the session, as the control plane names them. An
+  // upload is its beginner's: every later call for it has to come from the
+  // same, and the agent answers any other as if there were no such upload.
+  string owner = 6;
+}
+
+// UploadResult is an upload as it stands.
+message UploadResult {
+  // The upload. Unset when the agent refused.
+  dockwell.v1.Upload upload = 1;
+  // Why it refused.
+  FileRefusal refusal = 2;
+}
+
+// WriteUploadCall writes what ReceiveFile carries to an upload, from offset.
+message WriteUploadCall {
+  // The ReceiveFile stream that carries it.
+  uint64 stream = 1;
+  // The upload.
+  string upload_id = 2;
+  // Where it starts, which has to be how far the upload got.
+  uint64 offset = 3;
+  // Who asks, as BeginUploadCall says.
+  string owner = 4;
+}
+
+// FinishUploadCall puts an upload in place, once it's all there, or with
+// cancel, removes what it has so far.
+message FinishUploadCall {
+  // The upload.
+  string upload_id = 1;
+  // Who asks, as BeginUploadCall says.
+  string owner = 2;
+  // Remove what's there of it, rather than put it in place.
+  bool cancel = 3;
+}
+
+// FinishUploadResult answers a FinishUploadCall.
+message FinishUploadResult {
+  // What was put in place. Unset when the agent refused.
+  dockwell.v1.FinishUploadResponse finished = 1;
+  // Why it didn't.
+  FileRefusal refusal = 2;
+}
+
+// DownloadFileCall sends what's at path over SendFile: a file as it is, or a
+// folder as a zip archive.
+message DownloadFileCall {
+  // The SendFile stream to send it on.
+  uint64 stream = 1;
+  // The absolute path.
+  string path = 2;
+}
+
+// DownloadFileResult answers a DownloadFileCall, once it's all sent.
+message DownloadFileResult {
+  // How many bytes went. Zero when the agent refused.
+  uint64 sent_bytes = 1;
+  // Why it sent nothing, or stopped.
+  FileRefusal refusal = 2;
+}
+
+// ReceiveFileRequest asks for what an upload's write carries.
+message ReceiveFileRequest {
+  // The WriteUploadCall's stream.
+  uint64 stream = 1;
+}
+
+// ReceiveFileResponse is part of what's uploaded.
+message ReceiveFileResponse {
+  // The next bytes, 1 MiB at most.
+  bytes data = 1;
+}
+
+// SendFileRequest is part of what's downloaded. The first says what it is.
+message SendFileRequest {
+  // The DownloadFileCall's stream, on every message.
+  uint64 stream = 1;
+  // What it's called, on the first message: the file's name, or the folder's
+  // with .zip after it.
+  string name = 2;
+  // How large it is, on the first message, for a file. Zero for an archive,
+  // which is made as it goes.
+  uint64 size_bytes = 3;
+  // Where the walk ended, with every link followed, on the first message.
+  string path = 4;
+  // True for a folder, sent as a zip archive, on the first message.
+  bool archive = 5;
+  // The next bytes, 1 MiB at most.
+  bytes data = 6;
+}
+
+// SendFileResponse is empty.
+message SendFileResponse {}
 
 // ListFilesResult answers a ListFilesCall.
 message ListFilesResult {
@@ -1223,6 +1496,26 @@ message CallResult {
     RunTaskResult run_task = 151;
     // What read_onepanel found.
     ReadOnePanelResult read_onepanel = 180;
+    // What make_file made. Numbered apart, as open work adds to this message.
+    MakeFileResult make_file = 120;
+    // Where move_file moved it.
+    MoveFileResult move_file = 121;
+    // What delete_file deleted.
+    DeleteFileResult delete_file = 122;
+    // What list_deleted found.
+    ListDeletedResult list_deleted = 123;
+    // Where restore_file put it back.
+    RestoreFileResult restore_file = 124;
+    // What purge_deleted deleted for good.
+    PurgeDeletedResult purge_deleted = 125;
+    // The upload begin_upload started or found.
+    UploadResult begin_upload = 126;
+    // How far write_upload got.
+    UploadResult write_upload = 127;
+    // What finish_upload put in place.
+    FinishUploadResult finish_upload = 128;
+    // What download_file sent.
+    DownloadFileResult download_file = 129;
   }
 }
 

@@ -1335,6 +1335,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/databases/{id}/users:
+        post:
+            tags:
+                - DatabaseService
+            description: |-
+                CreateDatabaseUser plans a database inside a database server, with a user who
+                 owns it, and a password for them that the control plane generates and keeps as a
+                 secret of the environment, which nobody sees unless they reveal it. The user is a
+                 resource, of kind "database.user", so it's a change with a plan, a revision and an
+                 undo, and setting the secret anew changes the password. Only PostgreSQL, MySQL
+                 and MariaDB have users of their own.
+            operationId: DatabaseService_CreateDatabaseUser
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs it, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateDatabaseUserRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateDatabaseUserResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/domains:
         get:
             tags:
@@ -2035,6 +2073,110 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/deleted-files:
+        get:
+            tags:
+                - FileService
+            description: |-
+                ListDeletedFiles returns what's in a server's Recently deleted, newest
+                 first. No API token can call it.
+            operationId: FileService_ListDeletedFiles
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListDeletedFilesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/deleted-files/{id}:
+        delete:
+            tags:
+                - FileService
+            description: |-
+                PurgeDeletedFile deletes for good what's in Recently deleted, which
+                 frees its space at once. No API token can call it. Each one is on the
+                 timeline.
+            operationId: FileService_PurgeDeletedFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: Its ID in Recently deleted.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PurgeDeletedFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/deleted-files/{id}:restore:
+        post:
+            tags:
+                - FileService
+            description: |-
+                RestoreFile puts back what was deleted, at the path it was deleted from,
+                 never over what's there now. No API token can call it. Each one is on
+                 the timeline.
+            operationId: FileService_RestoreFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: Its ID in Recently deleted.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RestoreFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RestoreFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:
         get:
             tags:
@@ -2072,6 +2214,167 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListFilesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:delete:
+        post:
+            tags:
+                - FileService
+            description: |-
+                DeleteFile deletes a file or a folder. It goes to Recently deleted for 7
+                 days, from where RestoreFile puts it back, when it's on the same
+                 filesystem as Dockwell's data. Elsewhere it fails with the reason
+                 "delete_for_good" unless for_good is set. A symlink goes as itself. No
+                 API token can call it. Each one is on the timeline.
+            operationId: FileService_DeleteFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeleteFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:download:
+        get:
+            tags:
+                - FileService
+            description: |-
+                DownloadFile sends a file as it is, or a folder as a zip archive, as it
+                 reads it. Over REST it's a GET whose body is the file, written as it's
+                 read, for a browser to save; one that stops partway cuts the connection,
+                 so it can't pass for the whole. What a read refuses, a download does, and
+                 one stops at a private key in what it sends. No API token can call it.
+                 Each one is on the timeline, before anything goes out.
+            operationId: FileService_DownloadFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: path
+                  in: query
+                  description: The absolute path of a file or a folder, without . or .. in it.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: 'The bytes, as they''re read: a file as it is, or a folder as a zip archive made as it goes. One that stops partway cuts the connection, so it can''t pass for the whole.'
+                    headers:
+                        Content-Disposition:
+                            description: attachment, with the file's name, or the folder's with .zip
+                            schema:
+                                type: string
+                        Content-Length:
+                            description: How large a file is. A folder's archive has none, as it's made as it goes.
+                            schema:
+                                type: integer
+                    content:
+                        application/octet-stream:
+                            schema:
+                                type: string
+                                format: binary
+                        application/zip:
+                            schema:
+                                type: string
+                                format: binary
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+            x-dockwell-stream: response
+    /v1/servers/{serverId}/files:make:
+        post:
+            tags:
+                - FileService
+            description: |-
+                MakeFile makes an empty file, or a folder with nothing in it, never over
+                 what's there, which fails with the reason "file_exists". It takes its
+                 folder's owner and group. No API token can call it. Each one is on the
+                 timeline. See docs/adr/0045-a-file-manager-on-a-server.md.
+            operationId: FileService_MakeFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/MakeFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MakeFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:move:
+        post:
+            tags:
+                - FileService
+            description: |-
+                MoveFile moves or renames a file or a folder, within one filesystem,
+                 never over what's there. A symlink moves as itself. A move to another
+                 disk fails with the reason "other_disk". No API token can call it. Each
+                 one is on the timeline.
+            operationId: FileService_MoveFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/MoveFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MoveFileResponse'
                 default:
                     description: Default error response
                     content:
@@ -2302,6 +2605,177 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/OpenTerminalResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/uploads:
+        post:
+            tags:
+                - FileService
+            description: |-
+                BeginUpload starts an upload of a file of size_bytes to path, never over
+                 what's there, and says how far an upload got when upload_id names one,
+                 to pick it up again after a dropped connection. A file takes at most
+                 16 GB (max_bytes), and what the server's disk has room for. Send it with
+                 UploadFile, then put it in place with FinishUpload, or stop it with
+                 CancelUpload. An upload is the session's that began it: from any other,
+                 each of these says there's no such upload. An upload not finished within
+                 a day goes. No API token can call it. See
+                 docs/adr/0045-a-file-manager-on-a-server.md.
+            operationId: FileService_BeginUpload
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginUploadRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginUploadResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/uploads/{uploadId}:
+        put:
+            tags:
+                - FileService
+            description: |-
+                UploadFile sends an upload's bytes, from offset, which has to be how far
+                 it got, as BeginUpload says. The agent writes them as they come, a part at
+                 a time. Over REST it's a PUT whose body is the bytes, which the control
+                 plane passes on a frame at a time, and it answers with how far the upload
+                 got. A large file can go as several PUTs, each from where the last ended,
+                 as a proxy in front may limit how large a request is. A write from
+                 elsewhere fails with the reason "upload_offset", and writes nothing. No
+                 API token can call it.
+            operationId: FileService_UploadFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, on the first message.
+                  required: true
+                  schema:
+                    type: string
+                - name: uploadId
+                  in: path
+                  description: The upload, on the first message.
+                  required: true
+                  schema:
+                    type: string
+                - name: offset
+                  in: query
+                  description: 'Where these bytes start, on the first message: how far the upload got.'
+                  schema:
+                    type: string
+            requestBody:
+                description: 'The bytes, from offset, as they come: not JSON. Send a large file as several requests, each from where the last ended.'
+                required: true
+                content:
+                    application/octet-stream:
+                        schema:
+                            type: string
+                            format: binary
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UploadFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+            x-dockwell-stream: request
+        delete:
+            tags:
+                - FileService
+            description: |-
+                CancelUpload stops an upload and removes what it has so far, from the
+                 session that began it. An upload left alone goes after a day anyway. No API
+                 token can call it.
+            operationId: FileService_CancelUpload
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: uploadId
+                  in: path
+                  description: The upload.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CancelUploadResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/uploads/{uploadId}:finish:
+        post:
+            tags:
+                - FileService
+            description: |-
+                FinishUpload puts an upload in place, once all of it is there, and
+                 unpacks it into a new folder beside it when BeginUpload asked to. It takes
+                 its folder's owner and group. No API token can call it. Each one is on the
+                 timeline.
+            operationId: FileService_FinishUpload
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: uploadId
+                  in: path
+                  description: The upload.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FinishUploadRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FinishUploadResponse'
                 default:
                     description: Default error response
                     content:
@@ -4877,6 +5351,10 @@ components:
                         - STEP_UP_ACTION_SAVE_WAY_BACK_IN
                         - STEP_UP_ACTION_END_PROCESS
                         - STEP_UP_ACTION_OPEN_TERMINAL
+                        - STEP_UP_ACTION_MAKE_WAY_BACK_IN
+                        - STEP_UP_ACTION_MOVE_WAY_BACK_IN
+                        - STEP_UP_ACTION_DELETE_WAY_BACK_IN
+                        - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                     type: string
                     description: The action.
                     format: enum
@@ -4916,6 +5394,49 @@ components:
                     type: string
                     description: The otpauth:// URI, for a QR code.
             description: BeginTotpSetupResponse carries the new secret.
+        BeginUploadRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                path:
+                    type: string
+                    description: |-
+                        The absolute path the file takes, without . or .. in it. Its folder must
+                         exist, and nothing may be at it.
+                sizeBytes:
+                    type: string
+                    description: How large the file is, in bytes.
+                unpack:
+                    enum:
+                        - UNPACK_UNSPECIFIED
+                        - UNPACK_ZIP
+                        - UNPACK_TAR_GZ
+                    type: string
+                    description: |-
+                        To unpack it into a new folder beside it, named as it is without .zip,
+                         .tar.gz or .tgz, once it's all there.
+                    format: enum
+                uploadId:
+                    type: string
+                    description: |-
+                        An upload to pick up again, from BeginUpload. With it, path, size_bytes
+                         and unpack are left out.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, with the action STEP_UP_ACTION_MAKE_WAY_BACK_IN,
+                         for making this path on this server, where it's a way back onto it.
+            description: BeginUploadRequest starts an upload, or asks how far one got.
+        BeginUploadResponse:
+            type: object
+            properties:
+                upload:
+                    allOf:
+                        - $ref: '#/components/schemas/Upload'
+                    description: The upload.
+            description: BeginUploadResponse is the upload begun, or as it stands.
         BuildInfo:
             type: object
             properties:
@@ -4961,6 +5482,10 @@ components:
             type: object
             properties: {}
             description: CancelTotpSetupResponse is empty.
+        CancelUploadResponse:
+            type: object
+            properties: {}
+            description: 'CancelUploadResponse is empty: the upload and what it had are gone.'
         CatalogInstall:
             type: object
             properties:
@@ -5750,6 +6275,47 @@ components:
                         - $ref: '#/components/schemas/Backup'
                     description: The backup.
             description: CreateBackupResponse is the backup, running.
+        CreateDatabaseUserRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service that runs it, by ID or by name.
+                user:
+                    type: string
+                    description: |-
+                        The user's name, such as "shop": lowercase letters, digits and underscores,
+                         starting with a letter, at most 32.
+                database:
+                    type: string
+                    description: The database they own, named as a user is. Empty takes the user's name.
+                secret:
+                    type: string
+                    description: |-
+                        The secret their password goes in, such as "SHOP_DATABASE_PASSWORD". Empty
+                         takes the user's name in capitals, then "_DATABASE_PASSWORD". It must not be
+                         there already.
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one has a
+                         service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its project has
+                         more than one.
+            description: |-
+                CreateDatabaseUserRequest names a database server, and the user and database to
+                 make in it.
+        CreateDatabaseUserResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: CreateDatabaseUserResponse carries the planned change.
         CreateTokenRequest:
             type: object
             properties:
@@ -5966,6 +6532,19 @@ components:
                 system:
                     type: boolean
                     description: True for one the server made for itself, such as mysql.sys.
+                secret:
+                    type: string
+                    description: |-
+                        For a user Dockwell made, a resource of kind "database.user": the secret their
+                         password is in, by name.
+                usedBy:
+                    type: array
+                    items:
+                        type: string
+                    description: The services that use that secret, by name, which are what signs in as them.
+                resourceId:
+                    type: string
+                    description: The resource's ID, for a user Dockwell made.
             description: |-
                 DatabaseAccount is someone who can sign in to a database server: a user, as
                  MySQL and MariaDB call one, or a role, as PostgreSQL does.
@@ -6036,10 +6615,78 @@ components:
                     description: How many more databases or users it has than this lists.
                     format: int32
             description: DatabaseReading is what a database said of itself on one server.
+        DatabaseUser:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: The service that runs the database server, by name, such as "db".
+                databaseName:
+                    type: string
+                    description: |-
+                        The database the user owns, which is made with them, such as "shop". Empty
+                         takes the user's name. It can't change once made.
+                password:
+                    type: string
+                    description: |-
+                        The environment's secret the user's password is in, by name, such as
+                         "SHOP_DATABASE_PASSWORD".
+                revisions:
+                    readOnly: true
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The revision of the secret the user was given. Dockwell sets it when a change
+                         is planned, so setting the secret anew gives the user its new password. An
+                         edit's is ignored.
+            description: |-
+                DatabaseUser is a database inside a database server that a service of its
+                 environment runs, with the user who owns it, who signs in with a secret of the
+                 environment. The service runs PostgreSQL, MySQL or MariaDB from its official image,
+                 and the user and the database are made in its own container, with its own tools,
+                 on the servers it runs on (ADR 0038). Its name is the user's, such as "shop".
+                 Setting the secret anew changes the user's password, and deleting one drops the
+                 user and the database, with everything in it.
         DeleteBackupResponse:
             type: object
             properties: {}
             description: DeleteBackupResponse says it's gone.
+        DeleteFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                path:
+                    type: string
+                    description: The absolute path, without . or .. in it.
+                forGood:
+                    type: boolean
+                    description: |-
+                        True to delete it for good, which frees its space at once and can't be
+                         undone. What's on another filesystem than Dockwell's data needs it.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for deleting this path on this server,
+                         where it's a way back onto the server or holds one. path then has to be
+                         where the server resolves it.
+            description: DeleteFileRequest deletes a file or a folder.
+        DeleteFileResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Where it was, with every symlink in its folder's path followed.
+                deleted:
+                    allOf:
+                        - $ref: '#/components/schemas/DeletedFile'
+                    description: It in Recently deleted. Unset when it was deleted for good.
+                wayBackIn:
+                    type: boolean
+                    description: True when it was a way back onto the server, which took a passkey.
+            description: DeleteFileResponse says what was deleted.
         DeleteWebsiteRequest:
             type: object
             properties:
@@ -6058,6 +6705,37 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: DeleteWebsiteResponse carries the planned change.
+        DeletedFile:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, which RestoreFile and PurgeDeletedFile take.
+                path:
+                    type: string
+                    description: Where it was, with every symlink in its folder's path followed.
+                type:
+                    enum:
+                        - FILE_TYPE_UNSPECIFIED
+                        - FILE_TYPE_FILE
+                        - FILE_TYPE_DIRECTORY
+                        - FILE_TYPE_SYMLINK
+                        - FILE_TYPE_OTHER
+                    type: string
+                    description: What it is.
+                    format: enum
+                sizeBytes:
+                    type: string
+                    description: Its size in bytes, for a file. Zero for a folder.
+                deleteTime:
+                    type: string
+                    description: When it was deleted.
+                    format: date-time
+                purgeTime:
+                    type: string
+                    description: When it goes for good, unless it's put back first.
+                    format: date-time
+            description: DeletedFile is one file or folder in Recently deleted.
         DeployServiceRequest:
             type: object
             properties:
@@ -6326,6 +7004,13 @@ components:
                         - $ref: '#/components/schemas/DomainCheck'
                     description: What DNS says of it.
             description: DomainStatus is where one domain's certificate and DNS stand on a server.
+        DownloadFileResponse:
+            type: object
+            properties:
+                body:
+                    type: string
+                    description: The bytes, as they come. Over REST they're the body.
+            description: DownloadFileResponse is part of what's downloaded.
         Drift:
             type: object
             properties:
@@ -6409,6 +7094,28 @@ components:
                          environment's ID; once there are several, an environment named
                          without its project is an error that names the projects. Other kinds
                          name their project, if they live in one, in resource.scope.
+                baseRevision:
+                    type: string
+                    description: |-
+                        The revision of the resource the spec was made from, as a list gave it,
+                         for an edit that read the spec and changed part of it. If the resource has
+                         changed since, the edit is stale, an error with the reason "plan_stale", as
+                         planning it would quietly undo what came between: read it again, and edit
+                         that. 0 checks nothing, for an edit that says the whole spec itself.
+                keepEnv:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        A service's own environment variables to keep as they are, by name, for a
+                         client that can't read their values back, as no response carries them:
+                         it sends the rest of the spec, and names these instead of setting them.
+                         Each must be one the service has now, and not one the spec sets too. Only
+                         an edit of a service that's there takes it, and only with base_revision,
+                         the revision the rest was read at: without one the edit is refused, as a
+                         change since the read would be undone. A value kept goes nowhere it hasn't
+                         been, so the edit can't place the service on another server: set the value
+                         again in the edit to run it there.
             description: Edit sets one resource's desired spec, or deletes it.
         EndProcessRequest:
             type: object
@@ -6919,6 +7626,22 @@ components:
                     description: |-
                         Which file on it, for a file read, saved or refused on a server. Empty
                          otherwise.
+                toPath:
+                    type: string
+                    description: |-
+                        Where it went, for a file or folder moved or renamed. Empty otherwise.
+                         Numbered apart, as open work adds to this message.
+                wayBackIn:
+                    type: boolean
+                    description: |-
+                        True for a file or folder made, moved, deleted or put back where it's a
+                         way back onto the server, which took a passkey.
+                forGood:
+                    type: boolean
+                    description: True for a file or folder deleted for good, which can't be put back.
+                sizeBytes:
+                    type: string
+                    description: How many bytes, for a file uploaded or downloaded.
             description: EventSubject names what an event is about.
         EventTaskRun:
             type: object
@@ -7244,6 +7967,36 @@ components:
                     description: When it stops working, a minute from now.
                     format: date-time
             description: FinishStepUpResponse carries the proof.
+        FinishUploadRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                uploadId:
+                    type: string
+                    description: The upload.
+            description: FinishUploadRequest puts an upload in place.
+        FinishUploadResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Where the file is, with every symlink in its folder's path followed.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: The file.
+                wayBackIn:
+                    type: boolean
+                    description: True when it's a way back onto the server, which took a passkey.
+                unpackedTo:
+                    type: string
+                    description: The folder it was unpacked into. Empty when it wasn't.
+                unpackedEntries:
+                    type: string
+                    description: How many files and folders that made.
+            description: FinishUploadResponse is what an upload put in place.
         FirewallRule:
             type: object
             properties:
@@ -8281,6 +9034,15 @@ components:
                         $ref: '#/components/schemas/Database'
                     description: The databases, by name.
             description: ListDatabasesResponse lists them.
+        ListDeletedFilesResponse:
+            type: object
+            properties:
+                deleted:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DeletedFile'
+                    description: Newest first.
+            description: ListDeletedFilesResponse is what's in a server's Recently deleted.
         ListDomainsResponse:
             type: object
             properties:
@@ -8731,6 +9493,50 @@ components:
             description: |-
                 LoggedService says which service logs are from, or which container, for one
                  Dockwell didn't make.
+        MakeFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                path:
+                    type: string
+                    description: |-
+                        The absolute path to make, without . or .. in it, such as
+                         "/srv/site/index.html". Its folder must exist.
+                type:
+                    enum:
+                        - FILE_TYPE_UNSPECIFIED
+                        - FILE_TYPE_FILE
+                        - FILE_TYPE_DIRECTORY
+                        - FILE_TYPE_SYMLINK
+                        - FILE_TYPE_OTHER
+                    type: string
+                    description: FILE_TYPE_FILE or FILE_TYPE_DIRECTORY.
+                    format: enum
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for making this path on this server, where
+                         it's a way back onto the server. Call without it first: it checks
+                         everything else, then refuses with the reason needs_step_up. With it,
+                         path has to be where the server resolves it, as ListFiles gives a
+                         folder.
+            description: MakeFileRequest makes an empty file or a folder.
+        MakeFileResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Where it was made, with every symlink in its folder's path followed.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: What was made.
+                wayBackIn:
+                    type: boolean
+                    description: True when it's a way back onto the server, which took a passkey.
+            description: MakeFileResponse is what was made.
         ManagedElsewhere:
             type: object
             properties:
@@ -8857,6 +9663,46 @@ components:
                          as "82:82", with mode 0755. Docker would make it root's. A folder that's there
                          keeps its owner. Numbered apart, as open work adds to this message.
             description: Mount puts a volume, or a directory on the server, into a container.
+        MoveFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                from:
+                    type: string
+                    description: Where it is now, as an absolute path, without . or .. in it.
+                to:
+                    type: string
+                    description: |-
+                        Where it goes, as the whole new path, such as "/srv/site/old.html" to
+                         rename index.html in the same folder. Nothing may be there.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for this move on this server, where either
+                         end is a way back onto the server. Both paths then have to be where the
+                         server resolves them.
+            description: MoveFileRequest moves or renames a file or a folder.
+        MoveFileResponse:
+            type: object
+            properties:
+                from:
+                    type: string
+                    description: Where it was, with every symlink in its folder's path followed.
+                to:
+                    type: string
+                    description: Where it is now, the same way.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: What moved.
+                wayBackIn:
+                    type: boolean
+                    description: |-
+                        True when either end is a way back onto the server, which took a
+                         passkey.
+            description: MoveFileResponse says where it went.
         MuteAlertsRequest:
             type: object
             properties:
@@ -10009,6 +10855,14 @@ components:
                         True when nothing shows the address is a way in, so it's named only with a
                          caveat: a way out, or a metadata service the machine doesn't confirm.
             description: PublicAddress is what's known of one public address of a server.
+        PurgeDeletedFileResponse:
+            type: object
+            properties:
+                deleted:
+                    allOf:
+                        - $ref: '#/components/schemas/DeletedFile'
+                    description: What was deleted for good.
+            description: PurgeDeletedFileResponse says what went.
         ReadFileRequest:
             type: object
             properties:
@@ -10238,6 +11092,35 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: RestoreBackupResponse is the change that restores it.
+        RestoreFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                id:
+                    type: string
+                    description: Its ID in Recently deleted.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for putting back its path on this server,
+                         where that's a way back onto the server.
+            description: RestoreFileRequest puts back what was deleted.
+        RestoreFileResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Where it is now, with every symlink in its folder's path followed.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: What went back.
+                wayBackIn:
+                    type: boolean
+                    description: True when it's a way back onto the server, which took a passkey.
+            description: RestoreFileResponse says where it went back.
         RestorePlan:
             type: object
             properties:
@@ -11596,6 +12479,19 @@ components:
                          do: it was changed, moved to another row, or sealed with keys this install
                          hasn't got. Then spec is unset, and the rest of this message and the rest of
                          the list stand.
+                hostAccess:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HostAccess'
+                    description: |-
+                        What its latest revision reaches on its servers beyond its own containers,
+                         as its spec says and through the volumes it mounts, as a plan reads it: a
+                         server path, Docker's socket, the server's network, a capability. A path is
+                         as written, as no agent says here where it leads, so a plan can say more.
+                         While one is same_as_root, a change that keeps it, other than another tag
+                         of its image or a limit, asks for a passkey, which an editor can say before
+                         it plans; one that takes it away asks for none. Empty when it reaches
+                         nothing, or its spec can't be read.
             description: |-
                 ServiceInfo is what a service runs now and how that went, as its latest
                  revision has it.
@@ -11915,6 +12811,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/BackupDestination'
                     description: S3-compatible storage backups go to, kind "backup.destination".
+                databaseUser:
+                    allOf:
+                        - $ref: '#/components/schemas/DatabaseUser'
+                    description: |-
+                        A database and the user who owns it, in a database server a service runs,
+                         kind "database.user". Numbered apart, as open work adds to this message.
                 alertRule:
                     allOf:
                         - $ref: '#/components/schemas/AlertRule'
@@ -12636,6 +13538,44 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: UpgradeCatalogInstallResponse carries the planned change.
+        Upload:
+            type: object
+            properties:
+                uploadId:
+                    type: string
+                    description: Its ID, which UploadFile and FinishUpload take.
+                path:
+                    type: string
+                    description: Where the file goes, with every symlink in its folder's path followed.
+                sizeBytes:
+                    type: string
+                    description: How large it is.
+                receivedBytes:
+                    type: string
+                    description: How much of it is there. Pick it up again from here.
+                maxBytes:
+                    type: string
+                    description: The most a file can be, so a person can be told before they start.
+                unpack:
+                    enum:
+                        - UNPACK_UNSPECIFIED
+                        - UNPACK_ZIP
+                        - UNPACK_TAR_GZ
+                    type: string
+                    description: What it's to be unpacked as.
+                    format: enum
+                wayBackIn:
+                    type: boolean
+                    description: True when it's a way back onto the server, which took a passkey.
+            description: Upload is an upload as it stands.
+        UploadFileResponse:
+            type: object
+            properties:
+                upload:
+                    allOf:
+                        - $ref: '#/components/schemas/Upload'
+                    description: The upload.
+            description: UploadFileResponse is how far an upload got once its bytes stopped coming.
         User:
             type: object
             properties:
@@ -13108,10 +14048,12 @@ tags:
          same credentials.
     - name: FileService
       description: |-
-        FileService browses, reads and saves the files on a server, through its
-         agent. Files on a server aren't managed state, so nothing here is a revision
-         or has a plan, and a save can't be undone. See
-         docs/adr/0032-files-on-a-server.md.
+        FileService browses, reads, saves, makes, moves and deletes the files on a
+         server, through its agent. Files on a server aren't managed state, so
+         nothing here is a revision or has a plan. A save can't be undone, and a
+         delete can for 7 days where it's on the same filesystem as Dockwell's data.
+         See docs/adr/0032-files-on-a-server.md and
+         docs/adr/0045-a-file-manager-on-a-server.md.
 
          Every method needs a signed-in session: no API token can call them, whatever
          its scope. The agent refuses what holds Dockwell's keys, secrets' values and

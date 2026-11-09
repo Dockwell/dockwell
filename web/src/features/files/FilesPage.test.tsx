@@ -227,6 +227,7 @@ describe("FilesPage", () => {
     const code = screen.getByRole("textbox", { name: "Contents of huge.log" });
     expect(code).toHaveAttribute("readonly");
     expect(screen.getByText("it can't be edited here", { exact: false })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Download huge.log" })).toBeVisible();
   });
 
   it("says why a file is refused, in the agent's words", async () => {
@@ -238,6 +239,8 @@ describe("FilesPage", () => {
     });
     expect(await screen.findByText("Dockwell doesn't open this file")).toBeVisible();
     expect(screen.getByText("/var/lib/dockwell is Dockwell's own data", { exact: false })).toBeVisible();
+    // A download would be refused the same way, and a browser would say only "Failed".
+    expect(screen.queryByRole("link", { name: "Download key" })).toBeNull();
     // The folder stays, to go on from.
     expect(screen.getByText("wp-admin")).toBeVisible();
   });
@@ -825,7 +828,7 @@ describe("FilesPage on a phone", () => {
     onPhone();
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
     await screen.findByText("wp-admin");
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Size"]);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Size", "Actions"]);
     expect(screen.getByRole("navigation", { name: "Places" })).toBeVisible();
   });
 

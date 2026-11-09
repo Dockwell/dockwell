@@ -7,6 +7,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { ownServerPath } from "./own-server.ts";
 
 interface NetworkFlowOptions {
   origin: string;
@@ -16,8 +17,7 @@ interface NetworkFlowOptions {
 
 export async function networkFlow(page: Page, { origin, step, shoot }: NetworkFlowOptions) {
   step("a server's Network section keeps its facts apart, and takes its public address from a person");
-  await page.goto(`${origin}/`);
-  const link = await page.locator('a[href^="/servers/srv_"]').first().getAttribute("href");
+  const link = await ownServerPath(page, origin);
   await page.goto(`${origin}${link}`);
   const network = page.getByRole("region", { name: "Network" });
   await network.getByText("Reachable", { exact: true }).waitFor();

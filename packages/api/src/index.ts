@@ -39,3 +39,5 @@ export * from "./gen/dockwell/v1/token_pb";
 export * from "./gen/dockwell/v1/update_pb";
 export * from "./gen/dockwell/v1/variable_pb";
 export * from "./gen/dockwell/v1/website_pb";
+export * from "./gen/streams";
+export * from "./streams";

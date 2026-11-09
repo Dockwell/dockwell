@@ -373,8 +373,11 @@ func (h *Handler) note(ctx context.Context, rec *recorder, event, doing, path st
 		return
 	}
 	detail := fmt.Sprintf("couldn't %s %s on %s: %s", doing, path, srv.GetName(), why.Error())
-	if event == eventSaveUnknown {
+	switch event {
+	case eventSaveUnknown:
 		detail = fmt.Sprintf("may have saved %s on %s: %s", path, srv.GetName(), why.Error())
+	case eventMayHave:
+		detail = fmt.Sprintf("may have changed %s on %s, as it began to %s it: %s", path, srv.GetName(), doing, why.Error())
 	}
 	if _, err := rec.record(event, path, detail); err != nil {
 		h.logger.WarnContext(ctx, "can't record a refused file", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
@@ -401,6 +404,28 @@ func refusal(r *agentv1.FileRefusal) error {
 		return authapi.ReasonError(connect.CodeDeadlineExceeded, err, "save_may_land")
 	case agentv1.FileRefusal_KIND_NEEDS_STEP_UP:
 		return authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+	case agentv1.FileRefusal_KIND_EXISTS:
+		return authapi.ReasonError(connect.CodeAlreadyExists, err, "file_exists")
+	case agentv1.FileRefusal_KIND_OTHER_DISK:
+		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "other_disk")
+	case agentv1.FileRefusal_KIND_FOR_GOOD:
+		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "delete_for_good")
+	case agentv1.FileRefusal_KIND_FOLDER_GONE:
+		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "folder_gone")
+	case agentv1.FileRefusal_KIND_TOO_LARGE:
+		// Not ResourceExhausted, whose 429 a client reads as "try again later": the
+		// same upload will be too large then too.
+		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "too_large")
+	case agentv1.FileRefusal_KIND_UPLOAD_GONE:
+		return authapi.ReasonError(connect.CodeNotFound, err, "upload_gone")
+	case agentv1.FileRefusal_KIND_OFFSET:
+		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "upload_offset")
+	case agentv1.FileRefusal_KIND_UNPACK_REFUSED:
+		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "unpack_refused")
+	case agentv1.FileRefusal_KIND_BUSY:
+		return authapi.ReasonError(connect.CodeResourceExhausted, err, "transfers_busy")
+	case agentv1.FileRefusal_KIND_NO_SPACE:
+		return authapi.ReasonError(connect.CodeFailedPrecondition, err, "disk_full")
 	case agentv1.FileRefusal_KIND_DENIED, agentv1.FileRefusal_KIND_UNSPECIFIED:
 	}
 	return authapi.ReasonError(connect.CodePermissionDenied, err, "file_denied")

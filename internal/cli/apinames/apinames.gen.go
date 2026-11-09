@@ -31,6 +31,7 @@ func Commands() []string {
 		"compose",
 		"containers",
 		"control-plane",
+		"database-users",
 		"databases",
 		"domains",
 		"drift",

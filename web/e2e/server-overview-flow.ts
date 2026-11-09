@@ -11,6 +11,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { ownServerPath } from "./own-server.ts";
 
 interface ServerOverviewFlowOptions {
   origin: string;
@@ -27,9 +28,7 @@ function fail(message: string): never {
 export async function serverOverviewFlow(page: Page, { origin, step, shoot, breakdown }: ServerOverviewFlowOptions) {
   step("a server's Overview: live numbers, what runs here, what takes the disk, and what the server is");
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(`${origin}/`);
-  const link = await page.locator('a[href^="/servers/srv_"]').first().getAttribute("href");
-  if (!link) fail("the overview links to no server");
+  const link = await ownServerPath(page, origin);
   await page.goto(`${origin}${link}`);
   await page.locator(".dw-metric", { hasText: "Load average" }).waitFor({ timeout: 15_000 });
   await page

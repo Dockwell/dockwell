@@ -10,6 +10,7 @@ import {
   type Event,
   EventKind,
   HealthState,
+  IntentKind,
   StepState,
 } from "@dockwell/api";
 import type { IconName, Status } from "@dockwell/ui";
@@ -18,7 +19,7 @@ import { msg, plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
-import { formatDateTime } from "../../lib/format";
+import { formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 
 /** How an event shows on the timeline. */
@@ -238,6 +239,133 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             icon: "key",
             tone: "warning",
           };
+        }
+        // What a person makes, moves, deletes and puts back (ADR 0045). What can let
+        // someone back in reads as a warning, passkey or not, as a stolen session would do it.
+        case "file.make": {
+          const path = event.subject?.path ?? "";
+          return event.subject?.wayBackIn
+            ? { title: t`Made ${path} on ${server}, which can let someone back in`, icon: "file", tone: "warning" }
+            : { title: t`Made ${path} on ${server}`, icon: "file" };
+        }
+        case "file.move": {
+          const path = event.subject?.path ?? "";
+          const to = event.subject?.toPath ?? "";
+          return event.subject?.wayBackIn
+            ? {
+                title: t`Moved ${path} to ${to} on ${server}, which can let someone back in`,
+                icon: "file",
+                tone: "warning",
+              }
+            : { title: t`Moved ${path} to ${to} on ${server}`, icon: "file" };
+        }
+        case "file.delete": {
+          const path = event.subject?.path ?? "";
+          if (event.subject?.wayBackIn) {
+            return {
+              title: t`Deleted ${path} on ${server}, which can let someone back in`,
+              icon: "trash",
+              tone: "warning",
+            };
+          }
+          return event.subject?.forGood
+            ? { title: t`Deleted ${path} on ${server} for good`, icon: "trash" }
+            : { title: t`Deleted ${path} on ${server}`, icon: "trash" };
+        }
+        case "file.restore": {
+          const path = event.subject?.path ?? "";
+          return event.subject?.wayBackIn
+            ? { title: t`Put back ${path} on ${server}, which can let someone back in`, icon: "undo", tone: "warning" }
+            : { title: t`Put back ${path} on ${server}`, icon: "undo" };
+        }
+        case "file.make_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't make ${path} on ${server}`, icon: "file", tone: "warning" };
+        }
+        case "file.move_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't move ${path} on ${server}`, icon: "file", tone: "warning" };
+        }
+        case "file.delete_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't delete ${path} on ${server}`, icon: "trash", tone: "warning" };
+        }
+        case "file.restore_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't put back ${path} on ${server}`, icon: "undo", tone: "warning" };
+        }
+        case "file.make_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to make ${path} on ${server}, and none came`,
+            icon: "file",
+            tone: "warning",
+          };
+        }
+        case "file.move_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to move ${path} on ${server}, and none came`,
+            icon: "file",
+            tone: "warning",
+          };
+        }
+        case "file.delete_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to delete ${path} on ${server}, and none came`,
+            icon: "trash",
+            tone: "warning",
+          };
+        }
+        case "file.restore_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to put back ${path} on ${server}, and none came`,
+            icon: "undo",
+            tone: "warning",
+          };
+        }
+        // An upload is a make with what's in it, and says as much (ADR 0045).
+        case "file.upload": {
+          const path = event.subject?.path ?? "";
+          const size = formatBytes(event.subject?.sizeBytes ?? 0n, i18n.locale);
+          const to = event.subject?.toPath ?? "";
+          if (event.subject?.wayBackIn) {
+            return {
+              title: t`Uploaded ${path} to ${server}, which can let someone back in`,
+              icon: "upload",
+              tone: "warning",
+            };
+          }
+          return to
+            ? { title: t`Uploaded ${path} to ${server}, ${size}, and unpacked it into ${to}`, icon: "upload" }
+            : { title: t`Uploaded ${path} to ${server}, ${size}`, icon: "upload" };
+        }
+        case "file.upload_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't upload ${path} to ${server}`, icon: "upload", tone: "warning" };
+        }
+        case "file.upload_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to upload ${path} to ${server}, and none came`,
+            icon: "upload",
+            tone: "warning",
+          };
+        }
+        case "file.download": {
+          // A folder goes as a .zip made as it's sent, so its size isn't known first.
+          const path = event.subject?.path ?? "";
+          const bytes = event.subject?.sizeBytes ?? 0n;
+          const size = formatBytes(bytes, i18n.locale);
+          return bytes > 0n
+            ? { title: t`Downloaded ${path} from ${server}, ${size}`, icon: "download" }
+            : { title: t`Downloaded ${path} from ${server}`, icon: "download" };
+        }
+        case "file.change_unknown": {
+          const path = event.subject?.path ?? "";
+          return { title: t`May have changed ${path} on ${server}`, icon: "file", tone: "warning" };
         }
         case "change.apply_unconfirmed": {
           const change = event.subject?.id ?? "";
@@ -515,7 +643,7 @@ function describeChange(change: Change, summaries: ReadonlyMap<string, string>, 
   const reverted = change.reverts ? summaries.get(change.reverts) : undefined;
   let title = change.summary;
   if (reverted !== undefined) title = i18n._(change.rollback ? msg`Roll back: ${reverted}` : msg`Undo: ${reverted}`);
-  const icon: IconName = change.reverts ? "undo" : "commit";
+  const icon = changeIcon(change);
   switch (change.state) {
     case ChangeState.FAILED:
       return { title, icon, tone: "critical" };
@@ -523,6 +651,21 @@ function describeChange(change: Change, summaries: ReadonlyMap<string, string>, 
       return { title, icon, tone: "cobalt" };
   }
   return change.rollback ? { title, icon, tone: "warning" } : { title, icon };
+}
+
+/**
+ * What a change does, at a glance, as Activity's mock marks it: an undo or rollback,
+ * a restart, a deploy of an image, taking things away, or else a plan.
+ */
+export function changeIcon(change: Change): IconName {
+  if (change.reverts) return "undo";
+  if (change.restart) return "refresh";
+  const intent = change.plan?.intent?.kind;
+  if (intent === IntentKind.DEPLOY || intent === IntentKind.REPULL) return "deploy";
+  if (intent === IntentKind.ROLL_BACK) return "undo";
+  const s = change.plan?.summary;
+  if (s && s.destroy > 0 && !s.create && !s.change && !s.replace) return "trash";
+  return "commit";
 }
 
 /** A change's plan in brief: "2 to create · 1 to delete". Empty when it changes nothing. */

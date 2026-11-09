@@ -49,12 +49,16 @@ vi.mock("@dockwell/ui", async (load) => {
 const hz1 = aServer({ id: "srv_1", name: "hz-1", stats: sample(10) });
 const hz2 = aServer({ id: "srv_2", name: "hz-2", stats: sample(20) });
 
+/** A server's tile on the fleet's overview, which names its CPU, behind a dialog too. */
+const tile = (name: string, cpu: number) =>
+  screen.findByRole("button", { name: `${name}, Healthy, CPU ${cpu}%`, hidden: true });
+
 /** Renders the overview for two servers, then sends five samples from each. */
 async function sendSamples(): Promise<void> {
   const watch = feed<WatchServersResponse>();
   watch.push(changed(hz1), changed(hz2), snapshotComplete);
   renderAt("/", { servers: { watchServers: watch.stream } });
-  await screen.findByText("20%");
+  await tile("hz-2", 20);
   seen.rail = seen.topbar = seen.tabbar = 0;
   act(() => {
     for (let i = 1; i <= 5; i++) {
@@ -69,7 +73,7 @@ async function sendSamples(): Promise<void> {
 describe("the shell as samples arrive", () => {
   it("leaves the rail and top bar alone, while the page shows each sample", async () => {
     await sendSamples();
-    expect(await screen.findByText("45%")).toBeVisible();
+    expect(await tile("hz-2", 45)).toBeVisible();
     expect(seen.rail).toBe(0);
     expect(seen.topbar).toBe(0);
   });
@@ -77,7 +81,7 @@ describe("the shell as samples arrive", () => {
   it("leaves the tab bar alone on phones", async () => {
     onPhone();
     await sendSamples();
-    expect(await screen.findByText("45%")).toBeVisible();
+    expect(await tile("hz-2", 45)).toBeVisible();
     expect(seen.tabbar).toBe(0);
   });
 
@@ -86,13 +90,13 @@ describe("the shell as samples arrive", () => {
     const watch = feed<WatchServersResponse>();
     watch.push(changed(hz1), changed(hz2), snapshotComplete);
     renderAt("/", { servers: { watchServers: watch.stream } });
-    await screen.findByText("20%");
+    await tile("hz-2", 20);
     await user.keyboard("{Control>}k{/Control}");
     const first = seen.items.at(-1);
     expect(first).toBeDefined();
 
     act(() => watch.push(changed(aServer({ ...hz1, stats: sample(55) }))));
-    expect(await screen.findByText("55%")).toBeVisible();
+    expect(await tile("hz-1", 55)).toBeInTheDocument();
 
     expect(new Set(seen.items.slice(seen.items.indexOf(first)))).toEqual(new Set([first]));
     expect(within(screen.getByRole("dialog")).getAllByRole("option").length).toBeGreaterThan(0);
