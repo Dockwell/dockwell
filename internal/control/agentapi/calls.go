@@ -77,8 +77,9 @@ type Agents struct {
 	scopes ScopeNamer
 
 	mu        sync.Mutex
-	sessions  map[string]*Session // the newest stream of each server
-	uploads   map[uint64]*upload  // logs calls under way, by their streams
+	sessions  map[string]*Session      // the newest stream of each server
+	uploads   map[uint64]*upload       // logs calls under way, by their streams
+	links     map[uint64]*TerminalLink // terminals' attachments under way, by their streams
 	onConnect []func(server string)
 	// opened is closed, and made again, whenever a session opens, for the
 	// calls waiting for a server's next stream.
@@ -104,13 +105,15 @@ type Agents struct {
 	pace       time.Duration
 	paceGen    uint64
 	runsHearer func(server string)
+	// terminalHearer hears how each terminal ended.
+	terminalHearer func(server string, ended *agentv1.TerminalEnded)
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
 // send back.
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
-		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, opened: make(chan struct{}), moved: map[string]time.Time{},
+		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, links: map[uint64]*TerminalLink{}, opened: make(chan struct{}), moved: map[string]time.Time{},
 		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{}, health: map[string]health.Report{},
 	}
 }
@@ -400,7 +403,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), readsOnePanel: hello.GetReadsOnepanel(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
 		followsPace: hello.GetFollowsPace(),
 		pending:     map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
@@ -475,6 +478,12 @@ type Session struct {
 	followsPace bool
 	// readsOnePanel says the agent reads what 1Panel keeps (ADR 0056).
 	readsOnePanel bool
+	// terminals says the agent opens terminals, and openTerminals which it had
+	// as the stream opened, which is then.
+	terminals          bool
+	containerTerminals bool
+	openTerminals      []string
+	opened             time.Time
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error

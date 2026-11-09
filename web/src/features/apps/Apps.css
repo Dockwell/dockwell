@@ -1886,6 +1886,12 @@
   padding: var(--space-3) var(--space-4);
 }
 
+/* A shell in the container, at the row's end, on the line of its state. */
+.app-runs-shell {
+  margin-left: auto;
+  align-self: center;
+}
+
 .app-runs-row + .app-runs-row {
   border-top: 1px solid var(--line);
 }

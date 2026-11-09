@@ -2,9 +2,10 @@
 
 import { Connection, HealthCheckKind } from "@dockwell/api";
 import { StatusBadge } from "@dockwell/ui";
-import { useLingui } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
+import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { MachineWords } from "../changes/FailureNotice";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
@@ -237,6 +238,20 @@ export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boo
               </MachineWords>
               {checked && showTime ? <span className="app-muted"> {checked}</span> : null}
             </p>
+            {server.container && showTime ? (
+              <RouterButtonLink
+                to="/servers/$serverId/terminal"
+                params={{ serverId: server.serverId }}
+                search={{ container: server.container }}
+                variant="ghost"
+                size="sm"
+                icon="terminal"
+                className="app-runs-shell"
+                aria-label={t`Open a shell in ${server.container} on ${server.serverName}`}
+              >
+                <Trans>Shell</Trans>
+              </RouterButtonLink>
+            ) : null}
           </li>
         );
       })}

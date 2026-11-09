@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/delivery"
@@ -94,6 +95,9 @@ type Config struct {
 	// Tasks runs this server's scheduled tasks and keeps their runs (ADR 0053).
 	// Nil runs none.
 	Tasks TaskKeeper
+	// Terminals opens shells on this server for a person, across streams. Run
+	// runs it. Nil opens none.
+	Terminals *terminal.Manager
 	// CallGrace is how long a call gets to end once its time is up or its stream is
 	// going, before it's left behind. Zero means DefaultCallGrace.
 	CallGrace time.Duration
@@ -365,6 +369,9 @@ func Run(ctx context.Context, cfg Config) error {
 	var wg sync.WaitGroup
 	wg.Go(func() { keepRenewed(ctx, cfg) })
 	wg.Go(func() { keepConnected(ctx, cfg) })
+	if cfg.Terminals != nil {
+		wg.Go(func() { cfg.Terminals.Run(ctx) })
+	}
 	wg.Wait()
 	return nil
 }
@@ -466,6 +473,9 @@ func session(ctx context.Context, cfg Config) (err error) {
 	offered.log(ctx, cfg.Logger)
 	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, MakesFolders: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil}
 	hello.Kinds, hello.Unavailable = offered.proto()
+	if cfg.Terminals != nil {
+		hello.Terminals, hello.OpenTerminals, hello.ContainerTerminals = true, cfg.Terminals.Known(), true
+	}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}
@@ -647,10 +657,23 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Tasks != nil {
 		runsReady = cfg.Tasks.RunsReady()
 	}
+	var terminalsEnded <-chan struct{}
+	if cfg.Terminals != nil {
+		terminalsEnded = cfg.Terminals.Ended()
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-terminalsEnded:
+			// What can't go now goes on the next stream, which says it's still to come.
+			ended := cfg.Terminals.TakeEnded()
+			for i, e := range ended {
+				if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_TerminalEnded{TerminalEnded: e}}); err != nil {
+					cfg.Terminals.Untold(ended[i:])
+					return err
+				}
+			}
 		case ended := <-savesEnded:
 			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_SaveEnded{SaveEnded: ended}}); err != nil {
 				return err

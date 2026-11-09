@@ -25,6 +25,7 @@ export interface Described {
  */
 export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, string>) => Described {
   const { t, i18n } = useLingui();
+  const time = useTimeWords();
   return useMemo(
     () => (event: Event, summaries: ReadonlyMap<string, string>) => {
       const change = event.change;
@@ -98,6 +99,55 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
         case "server.public_address_clear": {
           const previous = event.publicAddress?.previous ?? "";
           return { title: t`Cleared the public address of ${server}, which was ${previous}`, icon: "server" };
+        }
+        case "terminal.open": {
+          const as = event.terminal?.title ?? "";
+          const container = event.terminal?.container ?? "";
+          if (container) return { title: t`Opened a shell in ${container} on ${server}`, icon: "terminal" };
+          return {
+            title: as ? t`Opened a terminal on ${server}, as ${as}` : t`Opened a terminal on ${server}`,
+            icon: "terminal",
+          };
+        }
+        case "terminal.close": {
+          const opened = event.terminal?.openTime;
+          const ended = event.terminal?.end?.time;
+          const container = event.terminal?.container ?? "";
+          const open =
+            opened && ended ? time.span(timestampDate(ended).getTime() - timestampDate(opened).getTime()) : "";
+          if (container) {
+            return {
+              title: open
+                ? t`Closed a shell in ${container} on ${server}, open ${open}`
+                : t`Closed a shell in ${container} on ${server}`,
+              icon: "terminal",
+            };
+          }
+          return {
+            title: open ? t`Closed a terminal on ${server}, open ${open}` : t`Closed a terminal on ${server}`,
+            icon: "terminal",
+          };
+        }
+        case "terminal.open_failed": {
+          const container = event.terminal?.container ?? "";
+          return {
+            title: container
+              ? t`Couldn't open a shell in ${container} on ${server}`
+              : t`Couldn't open a terminal on ${server}`,
+            icon: "terminal",
+            tone: "warning",
+          };
+        }
+        case "terminal.open_unconfirmed": {
+          // A root shell asked for, with no passkey following: what a stolen session looks like.
+          const container = event.terminal?.container ?? "";
+          return {
+            title: container
+              ? t`Asked for a passkey to open a shell in ${container} on ${server}, and none came`
+              : t`Asked for a passkey to open a terminal on ${server}, and none came`,
+            icon: "terminal",
+            tone: "warning",
+          };
         }
         case "file.read": {
           const path = event.subject?.path ?? "";
@@ -244,7 +294,7 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       }
       return { title: event.action, icon: event.kind === EventKind.SERVER ? "server" : "users" };
     },
-    [t, i18n],
+    [t, i18n, time],
   );
 }
 
