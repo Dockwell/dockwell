@@ -953,6 +953,49 @@ msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps don
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 
+msgid "Critical"
+msgstr "Critical"
+
+msgid "Held by a mute"
+msgstr "Held by a mute"
+
+msgid "History"
+msgstr "History"
+
+msgid "Inspect"
+msgstr "Inspect"
+
+msgid "Inspect: {title}"
+msgstr "Inspect: {title}"
+
+msgid "Memory on {name}, now {percent}%"
+msgstr "Memory on {name}, now {percent}%"
+
+msgid "Memory, now {percent}%"
+msgstr "Memory, now {percent}%"
+
+msgid "Most severe first"
+msgstr "Most severe first"
+
+msgid "Nothing is open. What fires shows here until it resolves."
+msgstr "Nothing is open. What fires shows here until it resolves."
+
+msgid "Nothing sent"
+msgstr "Nothing sent"
+
+msgctxt "alerts that haven't resolved"
+msgid "Open"
+msgstr "Open"
+
+msgid "Resolved"
+msgstr "Resolved"
+
+msgid "Sent {sent}"
+msgstr "Sent {sent}"
+
+msgid "since {since}"
+msgstr "since {since}"
+
 msgid "Alerts sections"
 msgstr "Alerts sections"
 
@@ -1144,9 +1187,6 @@ msgstr "Can't load the channels"
 msgid "Channel"
 msgstr "Channel"
 
-msgid "Critical"
-msgstr "Critical"
-
 msgid "Delivered"
 msgstr "Delivered"
 
@@ -1250,9 +1290,6 @@ msgstr "{failing, plural, one {# failing} other {# failing}}"
 msgid "Alert rules"
 msgstr "Alert rules"
 
-msgid "Alerts, firing first"
-msgstr "Alerts, firing first"
-
 msgid "Can't load the alerts"
 msgstr "Can't load the alerts"
 
@@ -1279,12 +1316,6 @@ msgstr "Nothing has fired"
 
 msgid "Off"
 msgstr "Off"
-
-msgid "Opened"
-msgstr "Opened"
-
-msgid "Resolved"
-msgstr "Resolved"
 
 msgid "Severity"
 msgstr "Severity"
@@ -1556,6 +1587,9 @@ msgstr "New value of {target}"
 
 msgid "New variable"
 msgstr "New variable"
+
+msgid "No variables yet"
+msgstr "No variables yet"
 
 msgid "Not applied"
 msgstr "Not applied"
@@ -6884,6 +6918,15 @@ msgstr "owned by <0>{owner}</0>"
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, one {# item} other {# items}}"
 
+msgid "Hide the folders in {name}"
+msgstr "Hide the folders in {name}"
+
+msgid "Show the folders in {name}"
+msgstr "Show the folders in {name}"
+
+msgid "{more, plural, one {and # more, in its list} other {and # more, in its list}}"
+msgstr "{more, plural, one {and # more, in its list} other {and # more, in its list}}"
+
 msgid "A name can't have a / in it. Make the folder first, then this in it."
 msgstr "A name can't have a / in it. Make the folder first, then this in it."
 
@@ -7686,9 +7729,6 @@ msgstr "{0, plural, one {{lines} line from {source} not shown: this server share
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 
-msgid "Inspect"
-msgstr "Inspect"
-
 msgid "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
 msgstr "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
 
@@ -7926,6 +7966,10 @@ msgstr "Apps you run with Dockwell are under <0>Apps</0>."
 msgid "Containers Dockwell didn't make"
 msgstr "Containers Dockwell didn't make"
 
+#. placeholder {0}: server.name
+msgid "Docker isn't answering on {0}, so what runs there can't be read now."
+msgstr "Docker isn't answering on {0}, so what runs there can't be read now."
+
 msgid "Docker runs nothing here that Dockwell didn't make."
 msgstr "Docker runs nothing here that Dockwell didn't make."
 
@@ -7946,6 +7990,14 @@ msgstr "See them all with <0>docker ps -a</0> on the server."
 
 msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 msgstr "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
+
+#. placeholder {0}: server.name
+msgid "{0} is waiting for its agent, so what Docker runs there can't be read yet."
+msgstr "{0} is waiting for its agent, so what Docker runs there can't be read yet."
+
+#. placeholder {0}: server.name
+msgid "{0} isn't reporting, so what Docker runs there can't be read now."
+msgstr "{0} isn't reporting, so what Docker runs there can't be read now."
 
 msgid "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
 msgstr "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
@@ -8347,8 +8399,8 @@ msgstr "You're offline"
 msgid "All activity"
 msgstr "All activity"
 
-msgid "CPU above {HIGH}%"
-msgstr "CPU above {HIGH}%"
+msgid "CPU above {HIGH}% since {since}"
+msgstr "CPU above {HIGH}% since {since}"
 
 msgid "Can't say how it is now"
 msgstr "Can't say how it is now"
@@ -8366,8 +8418,8 @@ msgstr "Copy {label} {address}"
 msgid "Docker hasn't answered for {0}"
 msgstr "Docker hasn't answered for {0}"
 
-msgid "Memory above {HIGH}%"
-msgstr "Memory above {HIGH}%"
+msgid "Memory above {HIGH}% since {since}"
+msgstr "Memory above {HIGH}% since {since}"
 
 msgid "No apps here yet. Deploy one from an image or the catalog."
 msgstr "No apps here yet. Deploy one from an image or the catalog."
@@ -8415,6 +8467,10 @@ msgstr "{0, plural, one {# app} other {# apps}}"
 
 msgid "{replicas, plural, one {# replica} other {# replicas}}"
 msgstr "{replicas, plural, one {# replica} other {# replicas}}"
+
+#. placeholder {0}: words.ago(heard, now)
+msgid "{text}, as last heard {0}"
+msgstr "{text}, as last heard {0}"
 
 #. placeholder {0}: g.owner.name
 #. placeholder {0}: owner.name
@@ -8863,6 +8919,12 @@ msgstr "Showing {shown} of {count} · sorted by name"
 
 msgid "sorted by name"
 msgstr "sorted by name"
+
+msgid "CPU above {HIGH_USE}%"
+msgstr "CPU above {HIGH_USE}%"
+
+msgid "Memory above {HIGH_USE}%"
+msgstr "Memory above {HIGH_USE}%"
 
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "No servers yet. Add one with <0>dockwell token create</0> on this server."

@@ -155,7 +155,7 @@ func (c *Collector) machineProvider() dockwellv1.CloudProvider {
 
 // hasPublicIPv4 reports a public IPv4 address on an interface.
 func (c *Collector) hasPublicIPv4() bool {
-	addrs, err := c.Addresses()
+	addrs, _, err := c.addresses()
 	if err != nil {
 		return false
 	}

@@ -9,6 +9,7 @@ import {
   EventKind,
   EventSchema,
   HealthState,
+  ServerStrain,
   type WatchEventsResponse,
   WatchEventsResponseSchema,
   type WatchServersResponse,
@@ -79,6 +80,15 @@ afterEach(() => {
 
 const minutesAgo = (n: number) => timestampFromDate(new Date(Date.now() - n * 60_000));
 
+/** hz-1 past 90% of its memory since 13:58, as the control plane says once it has lasted. */
+const strainedHz1 = () =>
+  aServer({
+    ...hz1,
+    stats: sample(40, 7.4),
+    strainedSince: timestampFromDate(new Date(2026, 10, 7, 13, 58)),
+    strain: ServerStrain.MEMORY,
+  });
+
 describe("a server on a phone", () => {
   it("leads with how it is, its CPU and memory, and its addresses to copy", async () => {
     const writeText = vi.fn(async () => {});
@@ -96,9 +106,9 @@ describe("a server on a phone", () => {
   });
 
   it("says what's wrong first, and draws memory past 90% as a warning", async () => {
-    await renderPhone(aServer({ ...hz1, stats: sample(40, 7.4) }));
+    await renderPhone(strainedHz1());
     const status = screen.getByRole("region", { name: "Status" });
-    expect(status).toHaveTextContent("Memory above 90%");
+    expect(status).toHaveTextContent("Memory above 90% since 13:58");
     expect(status).toHaveTextContent("Degraded");
     expect(status).not.toHaveTextContent("Healthy");
     const memory = within(status).getByRole("meter", { name: "Memory" });
@@ -188,6 +198,7 @@ describe("a server on a phone", () => {
 
   it("says a server waits for its agent, and how to start it", async () => {
     await renderPhone(aServer({ ...hz1, connection: Connection.PENDING, stats: undefined, history: [] }));
+    expect(screen.getByRole("region", { name: "Status" })).toHaveTextContent("Private IP10.0.0.2");
     const status = screen.getByRole("region", { name: "Status" });
     expect(status).toHaveTextContent("Waiting for its agent");
     expect(status).toHaveTextContent("Start it with dockwell run on the server.");
@@ -210,6 +221,66 @@ describe("a server on a phone", () => {
     await waitFor(() => expect(status).toHaveTextContent("Can't say how it is now"));
     expect(status).toHaveTextContent("Unknown");
     expect(status).not.toHaveTextContent("Healthy");
+    // What it last said of its CPU and memory is greyed, not shown as now, and says how old it is.
+    const cpu = within(status).getByRole("meter", { name: "CPU" });
+    expect(cpu.closest("[aria-disabled]")).toHaveAttribute("aria-disabled", "true");
+    expect(cpu).toHaveAttribute("aria-valuetext", expect.stringMatching(/^23%, as last heard \d+ s ago$/));
+  });
+
+  it("says Degraded in the header too, once the control plane says it's strained", async () => {
+    await renderPhone(strainedHz1());
+    expect(screen.getByText(/· up 3 days$/)).toHaveTextContent("Degraded · up 3 days");
+    expect(screen.queryByText("Healthy · up 3 days")).toBeNull();
+    expect(screen.getByRole("region", { name: "Status" })).toHaveTextContent("Degraded");
+  });
+
+  it("says None for a new agent's server with no route out and no private network", async () => {
+    await renderPhone(
+      aServer({
+        id: "srv_1",
+        name: "hz-1",
+        stats: past.at(-1),
+        history: past,
+        inventory: { cpuCount: 4, addresses: ["203.0.113.7"], outboundAddress: "", addressesPhysical: true },
+      }),
+    );
+    expect(screen.getByRole("region", { name: "Status" })).toHaveTextContent("Private IPNone");
+  });
+
+  it("rounds CPU down, so 89.6 doesn't read as 90 beside Healthy", async () => {
+    await renderPhone(aServer({ ...hz1, stats: sample(89.6) }));
+    const status = screen.getByRole("region", { name: "Status" });
+    expect(within(status).getByRole("meter", { name: "CPU" })).toHaveAttribute("aria-valuetext", "89%");
+    expect(status).toHaveTextContent("Healthy");
+  });
+
+  it("says its private IP isn't known until its agent says how it goes out", async () => {
+    // One still waiting for its agent, and one from before agents said.
+    await renderPhone(aServer({ id: "srv_1", name: "hz-1", connection: Connection.PENDING }));
+    expect(screen.getByRole("region", { name: "Status" })).toHaveTextContent("Private IPNot known");
+  });
+
+  it("gives a cloud's private network as its private IP, once the agent lists only physical interfaces", async () => {
+    const vps = (physical: boolean) =>
+      aServer({
+        id: "srv_1",
+        name: "hz-1",
+        stats: past.at(-1),
+        history: past,
+        inventory: {
+          cpuCount: 4,
+          // A custom Docker pool in 10.x would read the same in an older agent's list.
+          addresses: ["203.0.113.7", "10.0.1.5"],
+          outboundAddress: "203.0.113.7",
+          addressesPhysical: physical,
+        },
+        network: { ipv4: { address: "203.0.113.7" } },
+      });
+    const { unmount } = await renderPhone(vps(true));
+    expect(screen.getByRole("button", { name: "Copy Private IP 10.0.1.5" })).toBeVisible();
+    unmount();
+    await renderPhone(vps(false));
+    expect(screen.getByRole("region", { name: "Status" })).toHaveTextContent("Private IPNone");
   });
 
   it("says an app failed to deploy here, from its deployment here, and one deploying", async () => {

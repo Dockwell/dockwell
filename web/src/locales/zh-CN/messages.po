@@ -953,6 +953,49 @@ msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, other {{subject} 的证书将在 # 天内过期}}"
 
+msgid "Critical"
+msgstr "严重"
+
+msgid "Held by a mute"
+msgstr "已被静默"
+
+msgid "History"
+msgstr "历史"
+
+msgid "Inspect"
+msgstr "查看"
+
+msgid "Inspect: {title}"
+msgstr "查看：{title}"
+
+msgid "Memory on {name}, now {percent}%"
+msgstr "{name} 的内存，当前 {percent}%"
+
+msgid "Memory, now {percent}%"
+msgstr "内存，当前 {percent}%"
+
+msgid "Most severe first"
+msgstr "最严重的在前"
+
+msgid "Nothing is open. What fires shows here until it resolves."
+msgstr "没有未恢复的告警。触发的告警会显示在这里，直到恢复。"
+
+msgid "Nothing sent"
+msgstr "未发送"
+
+msgctxt "alerts that haven't resolved"
+msgid "Open"
+msgstr "未恢复"
+
+msgid "Resolved"
+msgstr "已恢复"
+
+msgid "Sent {sent}"
+msgstr "已于 {sent} 发送"
+
+msgid "since {since}"
+msgstr "自 {since} 起"
+
 msgid "Alerts sections"
 msgstr "告警分区"
 
@@ -1144,9 +1187,6 @@ msgstr "无法加载渠道"
 msgid "Channel"
 msgstr "渠道"
 
-msgid "Critical"
-msgstr "严重"
-
 msgid "Delivered"
 msgstr "已送达"
 
@@ -1250,9 +1290,6 @@ msgstr "{failing, plural, other {# 个发送失败}}"
 msgid "Alert rules"
 msgstr "告警规则"
 
-msgid "Alerts, firing first"
-msgstr "告警，触发中的在前"
-
 msgid "Can't load the alerts"
 msgstr "无法加载告警"
 
@@ -1279,12 +1316,6 @@ msgstr "尚未触发任何告警"
 
 msgid "Off"
 msgstr "关闭"
-
-msgid "Opened"
-msgstr "触发时间"
-
-msgid "Resolved"
-msgstr "已恢复"
 
 msgid "Severity"
 msgstr "严重程度"
@@ -1556,6 +1587,9 @@ msgstr "{target} 的新值"
 
 msgid "New variable"
 msgstr "新变量"
+
+msgid "No variables yet"
+msgstr "还没有变量"
 
 msgid "Not applied"
 msgstr "未应用"
@@ -6884,6 +6918,15 @@ msgstr "所有者 <0>{owner}</0>"
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, other {# 项}}"
 
+msgid "Hide the folders in {name}"
+msgstr "收起 {name} 中的文件夹"
+
+msgid "Show the folders in {name}"
+msgstr "展开 {name} 中的文件夹"
+
+msgid "{more, plural, one {and # more, in its list} other {and # more, in its list}}"
+msgstr "{more, plural, other {还有 # 个，见其列表}}"
+
 msgid "A name can't have a / in it. Make the folder first, then this in it."
 msgstr "名称中不能有 /。请先创建文件夹，再在其中创建它。"
 
@@ -7686,9 +7729,6 @@ msgstr "{0, plural, other {{source} 有 {lines} 行未显示：这台服务器�
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, other {{source} 有 {lines} 条较早的匹配未显示：读到末尾时，每个容器只保留最新的 2 MB。}}"
 
-msgid "Inspect"
-msgstr "查看"
-
 msgid "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
 msgstr "它已加入，但它的代理还没有连接。请在服务器上运行 <0>dockwell run</0> 启动它。"
 
@@ -7926,6 +7966,10 @@ msgstr "你用 Dockwell 运行的应用在<0>应用</0>中。"
 msgid "Containers Dockwell didn't make"
 msgstr "非 Dockwell 创建的容器"
 
+#. placeholder {0}: server.name
+msgid "Docker isn't answering on {0}, so what runs there can't be read now."
+msgstr "{0} 上的 Docker 没有响应，因此现在无法读取那里运行的内容。"
+
 msgid "Docker runs nothing here that Dockwell didn't make."
 msgstr "这里没有非 Dockwell 创建的 Docker 容器。"
 
@@ -7946,6 +7990,14 @@ msgstr "请在服务器上用 <0>docker ps -a</0> 查看全部。"
 
 msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 msgstr "这些容器在 Dockwell 之前就已存在，或以其他方式运行。Dockwell 只读取它们，因此在这里查看不会改变任何内容，它们会照常运行。"
+
+#. placeholder {0}: server.name
+msgid "{0} is waiting for its agent, so what Docker runs there can't be read yet."
+msgstr "{0} 正在等待代理连接，因此还无法读取那里 Docker 运行的内容。"
+
+#. placeholder {0}: server.name
+msgid "{0} isn't reporting, so what Docker runs there can't be read now."
+msgstr "{0} 没有上报数据，因此现在无法读取那里 Docker 运行的内容。"
 
 msgid "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
 msgstr "{count, plural, other {# 个容器，{running} 个正在运行}}"
@@ -8347,8 +8399,8 @@ msgstr "你已离线"
 msgid "All activity"
 msgstr "全部动态"
 
-msgid "CPU above {HIGH}%"
-msgstr "CPU 超过 {HIGH}%"
+msgid "CPU above {HIGH}% since {since}"
+msgstr "自 {since} 起 CPU 超过 {HIGH}%"
 
 msgid "Can't say how it is now"
 msgstr "目前无法判断其状态"
@@ -8366,8 +8418,8 @@ msgstr "复制{label} {address}"
 msgid "Docker hasn't answered for {0}"
 msgstr "Docker 已 {0} 未响应"
 
-msgid "Memory above {HIGH}%"
-msgstr "内存超过 {HIGH}%"
+msgid "Memory above {HIGH}% since {since}"
+msgstr "自 {since} 起内存超过 {HIGH}%"
 
 msgid "No apps here yet. Deploy one from an image or the catalog."
 msgstr "这里还没有应用。从镜像或应用目录部署一个。"
@@ -8376,11 +8428,11 @@ msgid "Not known"
 msgstr "未知"
 
 msgid "Not reporting"
-msgstr "未在上报"
+msgstr "没有上报数据"
 
 #. placeholder {0}: lasted(server.lastSeenTime)
 msgid "Not reporting for {0}"
-msgstr "已 {0} 未上报"
+msgstr "已 {0} 没有上报数据"
 
 msgid "Nothing has happened here yet."
 msgstr "这里还没有发生任何事。"
@@ -8415,6 +8467,10 @@ msgstr "{0, plural, other {# 个应用}}"
 
 msgid "{replicas, plural, one {# replica} other {# replicas}}"
 msgstr "{replicas, plural, other {# 个副本}}"
+
+#. placeholder {0}: words.ago(heard, now)
+msgid "{text}, as last heard {0}"
+msgstr "{text}，最后一次收到于 {0}"
 
 #. placeholder {0}: g.owner.name
 #. placeholder {0}: owner.name
@@ -8863,6 +8919,12 @@ msgstr "显示 {count} 台中的 {shown} 台 · 按名称排序"
 
 msgid "sorted by name"
 msgstr "按名称排序"
+
+msgid "CPU above {HIGH_USE}%"
+msgstr "CPU 超过 {HIGH_USE}%"
+
+msgid "Memory above {HIGH_USE}%"
+msgstr "内存超过 {HIGH_USE}%"
 
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "还没有服务器。在这台服务器上运行 <0>dockwell token create</0> 来添加一台。"

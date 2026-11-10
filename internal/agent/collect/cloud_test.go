@@ -156,6 +156,42 @@ func TestNoMetadataServiceSaysNothing(t *testing.T) {
 	}
 }
 
+func TestALookupUsesThePhysicalInterfaces(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		address string
+		want    string
+	}{
+		{"a public address needs no lookup", "203.0.113.9", ""},
+		{"a public bridge address is not the server's", "10.0.0.9", "203.0.113.7"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var asked atomic.Int32
+			server := stunResponder(t, func(request []byte) []byte {
+				asked.Add(1)
+				return xorMapped(request, netip.MustParseAddr("203.0.113.7"))
+			})
+			c := New()
+			c.Root = fstest.MapFS{}
+			c.Metadata = metadataStandIn(t, nil)
+			c.STUN = []string{server}
+			c.Sys = fstest.MapFS{"eth0/device": {}}
+			c.Interfaces = func() ([]Interface, error) {
+				return []Interface{
+					{Name: "eth0", Addrs: []net.Addr{&net.IPNet{IP: net.ParseIP(tc.address), Mask: net.CIDRMask(24, 32)}}},
+					{Name: "docker0", Addrs: []net.Addr{&net.IPNet{IP: net.ParseIP("203.0.113.10"), Mask: net.CIDRMask(24, 32)}}},
+				}, nil
+			}
+			if got := c.Network(t.Context(), true).GetLookedUpAddress(); got != tc.want {
+				t.Errorf("looked up %q, want %q", got, tc.want)
+			}
+			if (asked.Load() > 0) != (tc.want != "") {
+				t.Errorf("asked STUN %d times, wanted a lookup: %t", asked.Load(), tc.want != "")
+			}
+		})
+	}
+}
+
 func TestALookupIsOnlyMadeWhenItsWantedAndNeeded(t *testing.T) {
 	asked := make(chan struct{}, 4)
 	server := stunResponder(t, func(request []byte) []byte {

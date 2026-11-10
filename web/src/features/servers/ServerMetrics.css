@@ -7,6 +7,10 @@
   gap: var(--space-3);
 }
 
+.metrics.is-stale {
+  opacity: 0.45;
+}
+
 .metrics-panel {
   padding: var(--space-4);
 }
