@@ -1156,6 +1156,7 @@ function PlanBody({
           {dataLeft ? (
             <Callout tone="warning" title={dataLeft.title}>
               {dataLeft.detail}
+              <HowItWorks notices={[{ key: "data-left", ...dataLeft }]} />
             </Callout>
           ) : null}
           {wentOffline(change) ? null : (
@@ -1287,14 +1288,16 @@ function TopNotice({
       <>
         <Callout tone="critical" title={<MachineWords>{first.title}</MachineWords>} className="plan-risk">
           {first.detail}
-          {rest.map((risk) => (
-            <p key={risk.key} className="plan-risk-more">
-              <b>
-                <MachineWords>{risk.title}</MachineWords>.
-              </b>{" "}
-              {risk.detail}
-            </p>
-          ))}
+          {inSight([first, ...rest])
+            .slice(1)
+            .map((risk) => (
+              <p key={risk.key} className="plan-risk-more">
+                <b>
+                  <MachineWords>{risk.title}</MachineWords>.
+                </b>{" "}
+                {risk.detail}
+              </p>
+            ))}
           {risks.some((risk) => risk.trust) ? (
             <p className="plan-risk-more">
               {phase === "review" ? (
@@ -1304,6 +1307,7 @@ function TopNotice({
               )}
             </p>
           ) : null}
+          <HowItWorks notices={[first, ...rest]} />
         </Callout>
         {risks
           .filter((risk) => risk.amber)
@@ -1315,6 +1319,7 @@ function TopNotice({
               className="plan-risk"
             >
               {risk.detail}
+              <HowItWorks notices={[risk]} />
             </Callout>
           ))}
       </>
@@ -1332,7 +1337,7 @@ function TopNotice({
       ),
     });
   }
-  const [lead, ...others] = notices;
+  const [lead, ...others] = inSight(notices);
   if (!lead) return null;
   return (
     <Callout tone="warning" title={<MachineWords>{lead.title}</MachineWords>} className="plan-risk">
@@ -1345,8 +1350,67 @@ function TopNotice({
           <MachineWords>{notice.detail}</MachineWords>
         </p>
       ))}
+      <HowItWorks notices={notices} />
     </Callout>
   );
+}
+
+/**
+ * Why a notice says what it says, and how it comes about, closed: the notice
+ * itself is its fact and what to do about it. Several in one callout each say
+ * whose it is.
+ */
+function HowItWorks({ notices }: { notices: readonly Notice[] }) {
+  // Whose each reason is shows once it's open, so a closed one repeats no title in the page.
+  const [open, setOpen] = useState(false);
+  // Notices of one title, such as each way an app gets root, give their reasons together.
+  const groups: { title: ReactNode; reasons: { key: string; more: ReactNode }[] }[] = [];
+  for (const { key, title, more } of notices) {
+    if (more === undefined || more === "") continue;
+    const same = groups.find((g) => typeof title === "string" && g.title === title);
+    if (same) same.reasons.push({ key, more });
+    else groups.push({ title, reasons: [{ key, more }] });
+  }
+  if (groups.length === 0) return null;
+  const several = inSight(notices).length > 1;
+  return (
+    <details className="plan-details plan-how" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>
+        <Trans>How this works</Trans>
+      </summary>
+      {groups.flatMap((group) =>
+        group.reasons.map(({ key, more }, i) => (
+          <p key={key} className="plan-risk-more">
+            {several && open && i === 0 ? (
+              <>
+                <b>
+                  <MachineWords>{group.title}</MachineWords>.
+                </b>{" "}
+              </>
+            ) : null}
+            <MachineWords>{more}</MachineWords>
+          </p>
+        )),
+      )}
+    </details>
+  );
+}
+
+/**
+ * The notices a callout shows, each once: one with the title and the words of
+ * one before it says nothing new in sight, as what differs, such as how an app
+ * gets root, is under How this works.
+ */
+function inSight(notices: readonly Notice[]): Notice[] {
+  const seen = new Set<string>();
+  return notices.filter((notice) => {
+    const { title, detail } = notice;
+    if (typeof title !== "string" || (detail !== undefined && typeof detail !== "string")) return true;
+    const key = `${title}\n${detail ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /** Which project and environment a plan lands in, once there is a choice of either, so it can't read as another's. */
@@ -2093,7 +2157,14 @@ function Effects({
   fleet: boolean;
 }) {
   const { t } = useLingui();
-  const rows: { icon?: IconName; warn?: boolean; title: ReactNode; detail?: ReactNode; key: string }[] = [];
+  const rows: {
+    icon?: IconName;
+    warn?: boolean;
+    title: ReactNode;
+    detail?: ReactNode;
+    more?: ReactNode;
+    key: string;
+  }[] = [];
   if (phone) rows.push({ key: "reach", icon: "activity", title: <Impact plan={plan} /> });
   // What is there today: a step that fails puts back what ran, as ADR 0017 has it. Waves and their checks are #28.
   // A restart changes no spec, so it has nothing to roll back to.
@@ -2171,6 +2242,7 @@ function Effects({
               <div className="plan-effect-text">
                 <span className="plan-effect-title">{row.title}</span>
                 {row.detail ? <span className="plan-effect-detail">{row.detail}</span> : null}
+                <HowItWorks notices={[row]} />
               </div>
             </div>
           ))}

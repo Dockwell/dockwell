@@ -103,11 +103,17 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   await destinations.getByRole("button", { name: "Add" }).click();
   const adding = page.getByRole("dialog", { name: "Add a destination" });
   const signsIn = "e2e-secret-that-signs-in";
-  await adding.getByLabel("Name").fill("e2e-bucket");
+  await adding.getByLabel("Storage").selectOption("other");
   await adding.getByLabel("Endpoint").fill("http://127.0.0.1:1"); // nothing answers there
   await adding.getByLabel("Bucket").fill("backups");
   await adding.getByLabel("Access key").fill("e2e-access-key");
   await adding.getByLabel("Secret key").fill(signsIn);
+  // Test asks the storage before anything is planned, and says nothing answered.
+  await adding.getByRole("button", { name: "Test", exact: true }).click();
+  await adding.getByText("Nothing answered at http://127.0.0.1:1").waitFor({ timeout: 30_000 });
+  // The name is a step away, under Advanced.
+  await adding.getByRole("button", { name: "Advanced" }).click();
+  await adding.getByLabel("Name", { exact: true }).fill("e2e-bucket");
   const review = adding.getByRole("button", { name: "Review plan" });
   if (!(await review.isDisabled())) fail("a destination goes ahead with no word that its passphrase is kept");
   const passphrase = (await adding.locator(".backup-passphrase span").allInnerTexts()).join("");

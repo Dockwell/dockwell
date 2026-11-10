@@ -20,7 +20,7 @@ screenshots:
     source: https://wordpress.org/documentation/files/2019/03/block-editor-overview-6.7-1536x869.jpg
 category: cms
 version: "7.1.3"
-release: 2
+release: 3
 homepage: https://wordpress.org
 license: AGPL-3.0-only
 appLicense: GPL-2.0-or-later
@@ -39,9 +39,7 @@ firstSteps: >-
   Settings, General, as it keeps the address it was set up at, http://localhost:8085.
   WordPress keeps its own files on its volume, so it installs its own minor releases,
   and you update it, its themes and its plugins from its dashboard, while an upgrade
-  here moves PHP and Apache on. Leave the MARIADB_PASSWORD secret as it is: its
-  database keeps the password it started with, and WordPress would then use one it
-  doesn't take.
+  here moves PHP and Apache on.
 inputs:
   - name: PORT
     label: Port on this server

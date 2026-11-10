@@ -14,6 +14,11 @@
   fill: currentColor;
   opacity: 0.09;
 }
+/* A point's highest beside its average: lighter than the line, darker than the area. */
+.dw-spark-peak {
+  fill: currentColor;
+  opacity: 0.22;
+}
 .dw-spark-threshold {
   stroke: var(--warning);
   stroke-width: 1;

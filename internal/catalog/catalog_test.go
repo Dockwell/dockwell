@@ -256,16 +256,14 @@ func TestAFirstVisitorAppMakesItsAccountBeforeItsDomain(t *testing.T) {
 
 // These apps read their password from the environment on first start alone, so a
 // rotation leaves the old one signing in, and the panel revealing a new one that
-// doesn't. Each entry says so, and how to change the password instead.
+// doesn't. Each entry says so, and how to change the password instead. A database's
+// own users aren't among them: the agent changes theirs as the secret changes (ADR 0038).
 func TestAPasswordReadOnFirstStartSaysSo(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for id, how := range map[string]string{
-		"postgres":            "ALTER USER postgres PASSWORD",
-		"mysql":               "ALTER USER",
-		"mariadb":             "ALTER USER",
 		"nginx-proxy-manager": "change the password in the console",
 		"pgadmin":             "choose Change password",
 		"nextcloud":           "under Security",
@@ -278,10 +276,10 @@ func TestAPasswordReadOnFirstStartSaysSo(t *testing.T) {
 	}
 }
 
-// A database reads its password on first start alone, and an app beside it reads the
-// same secret each time it starts, so changing that secret leaves the app with one the
-// database doesn't take. Dockwell doesn't rotate these, and each entry says to leave it.
-func TestADatabasesSharedPasswordSaysLeaveIt(t *testing.T) {
+// A database's users take a new password as their secret changes (ADR 0038), so an
+// app beside one that shares that secret keeps signing in, and no entry tells anyone
+// to leave it as it is, or to change it by hand.
+func TestADatabasesSharedPasswordFollowsItsSecret(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
@@ -290,20 +288,15 @@ func TestADatabasesSharedPasswordSaysLeaveIt(t *testing.T) {
 	for _, e := range c.All() {
 		stack, filled := read(t, e)
 		for name, value := range filled.Secrets {
-			var database, app bool
 			for _, s := range stack.Services {
-				if !slices.Contains(slices.Collect(maps.Values(s.Spec.GetApp().GetEnv())), value) {
-					continue
-				}
-				if databases.MatchString(s.Spec.GetApp().GetImage()) {
-					database = true
-				} else {
-					app = true
+				if databases.MatchString(s.Spec.GetApp().GetImage()) && slices.Contains(slices.Collect(maps.Values(s.Spec.GetApp().GetEnv())), value) &&
+					strings.Contains(e.GetFirstSteps(), "Leave the "+name+" secret as it is") {
+					t.Errorf("%s says to leave its database's %s as it is, which now changes with it", e.GetId(), name)
 				}
 			}
-			if database && app && !strings.Contains(e.GetFirstSteps(), "Leave the "+name+" secret as it is") {
-				t.Errorf("%s shares %s between its database and its app, and its first steps don't say to leave it as it is", e.GetId(), name)
-			}
+		}
+		if steps := e.GetFirstSteps(); strings.Contains(steps, "ALTER USER") {
+			t.Errorf("%s says to change a database's password by hand: %q", e.GetId(), steps)
 		}
 	}
 }

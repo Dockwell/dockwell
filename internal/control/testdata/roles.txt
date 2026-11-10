@@ -1,6 +1,7 @@
 # service.method                                effect       min_role   protected  reach    session
 AlertService.AcknowledgeAlert                  apply        admin      admin      install
 AlertService.ListAlertChannels                 read         admin      admin      install
+AlertService.ListAlertChecks                   read         admin      admin      install
 AlertService.ListAlertDeliveries               read         admin      admin      install
 AlertService.ListAlertMutes                    read         admin      admin      install
 AlertService.ListAlertRules                    read         admin      admin      install
@@ -44,6 +45,7 @@ BackupService.ListBackupPolicies               read         viewer     viewer   
 BackupService.ListBackups                      read         viewer     viewer     project
 BackupService.PreviewBackup                    read         viewer     viewer     project
 BackupService.RestoreBackup                    plan         developer  developer  project
+BackupService.TestBackupDestination            apply        admin      admin      install
 CatalogService.GetCatalogEntry                 read         viewer     viewer     shared
 CatalogService.InstallCatalogEntry             plan         admin      admin      install
 CatalogService.ListCatalogEntries              read         viewer     viewer     shared
@@ -67,6 +69,7 @@ ComposeService.ExportCompose                   read         viewer     viewer   
 ComposeService.ImportCompose                   plan         developer  developer  project
 ContainerService.AdoptContainer                plan         admin      admin      install  session
 ContainerService.ListContainers                read         admin      admin      install
+DatabaseService.ChangeDatabasePassword         plan         developer  developer  project
 DatabaseService.CreateDatabaseUser             plan         developer  developer  project
 DatabaseService.GetDatabase                    read         viewer     viewer     project
 DatabaseService.ListDatabases                  read         viewer     viewer     project

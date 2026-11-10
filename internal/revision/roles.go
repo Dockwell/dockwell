@@ -239,6 +239,42 @@ func (e *Engine) reachFirst(ctx context.Context, tx *store.Tx, actor string, edi
 	return err
 }
 
+// capsHeld refuses a change that would take the install past the most it keeps
+// of a kind (resource.Capped), counting what the change makes and deletes. A
+// plan checks it, and the change's commit checks it again.
+func (e *Engine) capsHeld(ctx context.Context, tx *store.Tx, items []item) error {
+	more := map[resource.Kind]int{}
+	for i := range items {
+		switch it := &items[i]; {
+		case it.current == nil && it.spec != nil:
+			more[it.ref.Kind]++
+		case it.current != nil && it.spec == nil:
+			more[it.ref.Kind]--
+		}
+	}
+	for kind, n := range more {
+		if n <= 0 {
+			continue
+		}
+		t, err := e.kinds.Type(kind)
+		if err != nil {
+			continue
+		}
+		c, ok := t.(resource.Capped)
+		if !ok {
+			continue
+		}
+		have, err := tx.ListKind(ctx, string(kind))
+		if err != nil {
+			return err
+		}
+		if len(have)+n > c.Cap() {
+			return fault.New(ErrInvalid, "%s", c.CapWords(len(have)))
+		}
+	}
+	return nil
+}
+
 // portsOutOfReach refuses, below an admin, a port on a server that something
 // out of the person's reach publishes there, in words that name neither it nor
 // its project, before the server's own check, which names what holds a port

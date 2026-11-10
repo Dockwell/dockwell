@@ -54,6 +54,27 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/alert-checks:
+        get:
+            tags:
+                - AlertService
+            description: |-
+                ListAlertChecks returns every check, with how it stands and its last runs,
+                 newest first. A check made a moment ago reads waiting until its first run.
+            operationId: AlertService_ListAlertChecks
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListAlertChecksResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/alert-deliveries:
         get:
             tags:
@@ -399,6 +420,39 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListBackupDestinationsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/backup-destinations:test:
+        post:
+            tags:
+                - BackupService
+            description: |-
+                TestBackupDestination signs in to storage with what a destination form holds,
+                 before anything is planned, and says what it found: the buckets the keys may
+                 list, and, given a bucket, whether a file can be written there, which it writes
+                 under the destination's prefix and deletes. It reaches the storage from the
+                 control server, which may reach what some servers can't, or not what they can:
+                 the internet and private networks, never the control server's own loopback, and
+                 it follows no redirect. It keeps nothing, and it's on the activity log without
+                 what signs in.
+            operationId: BackupService_TestBackupDestination
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/TestBackupDestinationRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TestBackupDestinationResponse'
                 default:
                     description: Default error response
                     content:
@@ -1478,6 +1532,47 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/CreateDatabaseUserResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/databases/{id}:changePassword:
+        post:
+            tags:
+                - DatabaseService
+            description: |-
+                ChangeDatabasePassword plans a new password for one of a database's users: its
+                 first user, such as MariaDB's root or PostgreSQL's postgres, whose password is in
+                 the secret the service starts with (Database.password_secret), or a user Dockwell
+                 made (CreateDatabaseUser). The control plane generates it, as it does a new
+                 user's, and sets the secret to it, so the plan restarts the database and every
+                 app that uses the secret, and nobody sees the password unless they reveal it. The
+                 agent changes it in the database as it restarts, so what signs in with the secret
+                 keeps signing in (ADR 0038). A database whose password isn't in a secret has
+                 none to change here.
+            operationId: DatabaseService_ChangeDatabasePassword
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs it, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ChangeDatabasePasswordRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ChangeDatabasePasswordResponse'
                 default:
                     description: Default error response
                     content:
@@ -4767,6 +4862,7 @@ components:
                         - CONDITION_BACKUP_FAILED
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
+                        - CONDITION_CHECK_DOWN
                     type: string
                     description: What the rule watches for, and how much it matters, as it did when it fired.
                     format: enum
@@ -4908,6 +5004,127 @@ components:
                         The fields that sign in which it has, such as "email.password". They're
                          sealed and never shown; an update that leaves one empty keeps it.
             description: AlertChannelInfo is a channel, with nothing that signs in to it.
+        AlertCheck:
+            type: object
+            properties:
+                address:
+                    type: string
+                    description: |-
+                        The address it asks, an http or https URL, such as
+                         "https://shop.example.com/".
+                every:
+                    type: string
+                    description: 'How often it''s checked: "30s", "1m", "5m" or "15m". "1m" unless set.'
+                timeout:
+                    type: string
+                    description: |-
+                        How long a run waits for an answer: "10s" unless set, at most "30s", and
+                         less than every.
+                downAfter:
+                    type: integer
+                    description: |-
+                        How many runs in a row have to fail for it to read down: 2 unless set, 1 to 10.
+                         Down, it reads up again after 2 runs in a row pass.
+                    format: uint32
+                expectFrom:
+                    type: integer
+                    description: 'The lowest status that counts as up: 200 unless set.'
+                    format: uint32
+                expectTo:
+                    type: integer
+                    description: 'The highest status that counts as up: 399 unless set, so a redirect is up.'
+                    format: uint32
+                keyword:
+                    type: string
+                    description: Text the answer's first 64 KiB has to hold, when set, such as "Welcome".
+                keywordAbsent:
+                    type: boolean
+                    description: Says the keyword has to be absent instead, such as "Error".
+                insideNetwork:
+                    type: boolean
+                    description: |-
+                        Lets the check reach the private networks the control server is on, such as
+                         an address only the office's network serves. Unset, it reaches the internet
+                         alone, keyword included, and a name that resolves to a private address reads
+                         failing with how to allow it. Never this server's loopback, nor a metadata or
+                         link-local address. Plans, the Checks tab and Activity show it (ADR 0066).
+            description: |-
+                AlertCheck is an address Dockwell asks, every so often, whether it answers as
+                 it should: an uptime check. It lives in the organization, and the control
+                 plane runs it. A run is one GET, with no redirect followed, that keeps nothing
+                 of the answer but its status, how long it took, and whether the keyword was
+                 there. See docs/adr/0066-checks-of-a-url.md.
+        AlertCheckInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The check's ID, "chk_…", and its name.
+                name:
+                    type: string
+                spec:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertCheck'
+                    description: What it is.
+                state:
+                    enum:
+                        - ALERT_CHECK_STATE_UNSPECIFIED
+                        - ALERT_CHECK_STATE_WAITING
+                        - ALERT_CHECK_STATE_UP
+                        - ALERT_CHECK_STATE_FAILING
+                        - ALERT_CHECK_STATE_DOWN
+                    type: string
+                    description: How it stands.
+                    format: enum
+                since:
+                    type: string
+                    description: Since when it has stood so. Unset while it waits for its first run.
+                    format: date-time
+                runs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AlertCheckRun'
+                    description: |-
+                        Its last runs, newest first, at most 10. They're in memory, so a restart of
+                         the control plane starts them again.
+                from:
+                    type: string
+                    description: Where it runs from, in words, such as "the control server".
+                problem:
+                    type: string
+                    description: |-
+                        Why Dockwell can't run the check now, such as a spec it can't read; empty
+                         while it can. A check with a problem keeps the alert it had open.
+            description: AlertCheckInfo is a check, how it stands, and its last runs.
+        AlertCheckRun:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When it ran.
+                    format: date-time
+                ok:
+                    type: boolean
+                    description: Whether it passed.
+                status:
+                    type: integer
+                    description: The status the address answered with. 0 when nothing answered.
+                    format: uint32
+                took:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: How long the answer took, to its headers.
+                said:
+                    type: string
+                    description: |-
+                        What went wrong, in words, such as "no answer within 10s" or "502, outside
+                         200 to 399". Empty when it passed.
+                skipped:
+                    type: boolean
+                    description: |-
+                        True for a run that didn't start, as every slot for runs was taken: it says
+                         nothing of the address, and counts neither as up nor as a failure.
+            description: AlertCheckRun is one run of a check.
         AlertDelivery:
             type: object
             properties:
@@ -5039,6 +5256,7 @@ components:
                         - CONDITION_BACKUP_FAILED
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
+                        - CONDITION_CHECK_DOWN
                     type: string
                     description: What it watches for.
                     format: enum
@@ -6112,6 +6330,36 @@ components:
                 ChangeConfirmation is what a change to a server's firewall waits for: that
                  the person who applied it confirms they can still reach the server, before
                  the server's timer runs out and it puts back its firewall as it was.
+        ChangeDatabasePasswordRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service that runs it, by ID or by name.
+                user:
+                    type: string
+                    description: |-
+                        The user, by name: one Dockwell made, such as "shop". Empty is its first user,
+                         whose password is in Database.password_secret.
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one has a
+                         service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its project has
+                         more than one.
+            description: ChangeDatabasePasswordRequest names a database, and the user whose password changes.
+        ChangeDatabasePasswordResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: ChangeDatabasePasswordResponse is the change that gives the user a new password.
         CheckClaimRequest:
             type: object
             properties:
@@ -7931,6 +8179,7 @@ components:
                         - CONDITION_BACKUP_FAILED
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
+                        - CONDITION_CHECK_DOWN
                     type: string
                     description: |-
                         What its title says, apart, for the panel to say in its own language: the
@@ -9666,6 +9915,14 @@ components:
                     items:
                         $ref: '#/components/schemas/AlertChannelInfo'
             description: ListAlertChannelsResponse lists the channels, by name.
+        ListAlertChecksResponse:
+            type: object
+            properties:
+                checks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AlertCheckInfo'
+            description: ListAlertChecksResponse lists the checks.
         ListAlertDeliveriesResponse:
             type: object
             properties:
@@ -13771,6 +14028,10 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/AlertChannel'
                     description: Where alerts are sent, kind "alert.channel".
+                alertCheck:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertCheck'
+                    description: An address checked for whether it answers, kind "alert.check" (ADR 0066).
                 task:
                     allOf:
                         - $ref: '#/components/schemas/Task'
@@ -13889,7 +14150,9 @@ components:
                     description: |-
                         What a failure comes down to, when the driver knows, so a client can say
                          what to do about it where it is: "image", "command", "exits", "unhealthy",
-                         "port" or "mount". Empty when it doesn't, and it may gain others.
+                         "port", "mount", or "registry" for a registry that didn't answer a pull
+                         properly, where the same pull may work in a while. Empty when it doesn't,
+                         and it may gain others.
                 lost:
                     type: boolean
                     description: |-
@@ -14296,6 +14559,60 @@ components:
                 delivery:
                     $ref: '#/components/schemas/AlertDelivery'
             description: TestAlertChannelResponse says how the test went.
+        TestBackupDestinationRequest:
+            type: object
+            properties:
+                destination:
+                    allOf:
+                        - $ref: '#/components/schemas/BackupDestination'
+                    description: The storage's endpoint, region, bucket (empty to list them alone), prefix and keys.
+            description: |-
+                TestBackupDestinationRequest is what a destination form holds. The passphrase is
+                 left out: nothing is sealed in a test.
+        TestBackupDestinationResponse:
+            type: object
+            properties:
+                signedIn:
+                    type: boolean
+                    description: Whether the storage answered at the endpoint, and took the keys.
+                buckets:
+                    type: array
+                    items:
+                        type: string
+                    description: The buckets the keys may list, by name. A key scoped to one bucket may list none.
+                listed:
+                    type: boolean
+                    description: Whether the keys may list buckets at all.
+                wrote:
+                    type: boolean
+                    description: |-
+                        Whether a test file was written to the bucket. With no problem it was deleted
+                         again; with CANT_DELETE it's still there, as test_file.
+                problem:
+                    enum:
+                        - BACKUP_DESTINATION_PROBLEM_UNSPECIFIED
+                        - BACKUP_DESTINATION_PROBLEM_UNREACHABLE
+                        - BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED
+                        - BACKUP_DESTINATION_PROBLEM_NO_BUCKET
+                        - BACKUP_DESTINATION_PROBLEM_CANT_WRITE
+                        - BACKUP_DESTINATION_PROBLEM_WRONG_REGION
+                        - BACKUP_DESTINATION_PROBLEM_CANT_DELETE
+                        - BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR
+                    type: string
+                    description: What went wrong, when something did.
+                    format: enum
+                said:
+                    type: string
+                    description: |-
+                        What the storage said of it, as its own code, such as AccessDenied, with nothing
+                         that signs in.
+                region:
+                    type: string
+                    description: The region the storage says the bucket is in, with WRONG_REGION.
+                testFile:
+                    type: string
+                    description: The test file that was written and couldn't be deleted, with CANT_DELETE.
+            description: TestBackupDestinationResponse says what the storage answered.
         Tmpfs:
             type: object
             properties:

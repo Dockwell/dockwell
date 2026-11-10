@@ -427,6 +427,11 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: t`Made a link to claim this install`, icon: "link" };
         case "join_token.create":
           return { title: t`Made a join ticket for a new server`, icon: "server" };
+        case "backup_destination.test": {
+          // The storage's host, which no resource names.
+          const host = name || event.subject?.id || "";
+          return { title: host ? t`Tested backup storage at ${host}` : t`Tested backup storage`, icon: "archive" };
+        }
         case "secret.reveal":
           return { title: name ? t`Revealed the secret ${name}` : t`Revealed a secret`, icon: "eye" };
         case "secrets.rotate_key":

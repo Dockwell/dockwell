@@ -110,7 +110,7 @@ describe("a change that waits for its confirmation", () => {
     const confirm = await screen.findByText("Check you can still reach srv_1");
     const callout = confirm.closest(".dw-callout") as HTMLElement;
     expect(callout).toHaveTextContent(
-      "Open a new SSH session to port 22 from where you are now, with your key. If it works, keep the change.",
+      "Open a new SSH session to port 22 from here with your key, and keep the change if it works.",
     );
     expect(callout).toHaveTextContent(/srv_1 puts back its firewall as it was in 4\d s unless you keep it\./);
     expect(screen.getByText("If you close this without keeping it, the change goes back on its own.")).toBeVisible();
@@ -226,14 +226,12 @@ describe("a change that waits for its confirmation", () => {
     await applyAndWait(change, watch, waiting(change, 45, [22, 2222]));
     expect(
       await screen.findByText(
-        "Open a new SSH session to port 22 or 2222 from where you are now, with your key. If it works, keep the change.",
+        "Open a new SSH session to port 22 or 2222 from here with your key, and keep the change if it works.",
       ),
     ).toBeVisible();
     act(() => watch.push(watched(waiting(change, 45, []))));
     expect(
-      await screen.findByText(
-        "Open a new SSH session from where you are now, with your key. If it works, keep the change.",
-      ),
+      await screen.findByText("Open a new SSH session from here with your key, and keep the change if it works."),
     ).toBeVisible();
   });
 
@@ -242,9 +240,7 @@ describe("a change that waits for its confirmation", () => {
     const { change, watch } = show(() => ({}), [gone]);
     await applyAndWait(change, watch, waiting(change, 45));
     expect(
-      await screen.findByText(
-        "hz-1's agent isn't connected, so it can't hear a confirmation. It puts back its firewall as it was on its own when its time runs out.",
-      ),
+      await screen.findByText("hz-1's agent isn't connected, so it puts back its firewall when its time runs out."),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Keep the change" })).toBeDisabled();
   });
@@ -256,7 +252,7 @@ describe("a change that waits for its confirmation", () => {
     const user = await applyAndWait(change, watch, waiting(change, 45));
     await user.click(await screen.findByRole("button", { name: "Keep the change" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "That wait is over: the server kept the change, or put back its firewall. The change goes on as this sheet shows.",
+      "That wait is over: this sheet shows whether the server kept the change.",
     );
   });
 });
@@ -321,14 +317,19 @@ describe("a change to a server's firewall policy", () => {
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     act(() => watch.push(watched(change)));
     expect(await within(sheet).findByText("Deny everything else closes what no rule lets in on hz-1")).toBeVisible();
+    // What it closes and what to do are in sight; why is under How this works.
     expect(sheet).toHaveTextContent(
-      "These ports listen, or Docker publishes them, and no rule lets them in from anywhere: 5432/tcp, 8080/tcp (shop-web-1). SSH stays open as this plan says, and on the control server its own ports stay open.",
+      "It closes 5432/tcp, 8080/tcp (shop-web-1): add a rule for any you mean to keep open.",
+    );
+    expect(sheet).toHaveTextContent(
+      "SSH stays open as this plan says, and on the control server its own ports stay open.",
     );
     expect(within(sheet).getByText("This may cut off access to hz-1")).toBeVisible();
     // Who SSH stays open from, by name, and what happens when that address changes.
     expect(sheet).toHaveTextContent("SSH on hz-1 stays open only from 203.0.113.7/32, 198.51.100.0/24");
+    expect(sheet).toHaveTextContent("To keep it open from more, add a rule that allows port 22 first.");
     expect(sheet).toHaveTextContent(
-      "If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later. To keep it open from more, add a rule that allows port 22 first, from where you choose.",
+      "If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later.",
     );
     expect(sheet).toHaveTextContent("No rule allows the WireGuard tunnel wg0 (51820/udp) on hz-1");
     act(() => watch.push(watched(applied(change))));
@@ -379,12 +380,8 @@ describe("the confirmation of a change that narrows SSH", () => {
 
   it("names who SSH stays open from, and asks for the panel in a new tab where its own server closes the rest", async () => {
     const callout = await open();
-    expect(callout).toHaveTextContent(
-      "Once kept, SSH stays open only from 203.0.113.7/32, 198.51.100.0/24. If your address changes, it closes to you: add a rule that allows SSH's port from where you'll come.",
-    );
-    expect(callout).toHaveTextContent(
-      "Then open the panel in a new tab, at its own address. If that works too, keep the change.",
-    );
+    expect(callout).toHaveTextContent("Once kept, SSH stays open only from 203.0.113.7/32, 198.51.100.0/24.");
+    expect(callout).toHaveTextContent("Then open the panel at its own address in a new tab.");
     expect(within(callout).getByRole("button", { name: "Keep the change" })).toBeEnabled();
   });
 
