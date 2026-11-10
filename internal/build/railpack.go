@@ -299,7 +299,7 @@ dfobj=$(obj blob "${DW_CONTEXT:+$DW_CONTEXT/}$DW_DOCKERFILE")
 if [ "$DW_BUILDER" = dockerfile ] && [ -z "$dfobj" ]; then say fail dockerfile; exit 3; fi
 if [ -n "$dfobj" ] && [ "$DW_BUILDER" != railpack ]; then
   say dockerfile yes
-  say from "$(git cat-file blob "$dfobj" 3>&- | head -c 1048576 | grep -i '^[[:space:]]*from[[:space:]]' | head -n 50 | base64 | tr -d '\n')"
+  say from "$(git cat-file blob "$dfobj" 3>&- | head -c 1048576 | grep -iE '^[[:space:]]*(from|expose)[[:space:]]' | head -n 100 | base64 | tr -d '\n')"
   exit 0
 fi
 if [ ! -x "` + detectBin + `" ]; then say fail need-railpack; exit 4; fi
@@ -536,7 +536,7 @@ func readDetection(req service.BuildRequest, says, said string, code int) (*reso
 	}
 	if hasDockerfile {
 		return &resource.BuildDetection{
-			Builder: resource.BuilderDockerfile, Dockerfile: filepath.Join(req.Context, dockerfile(req.Dockerfile)), BaseImage: baseImage(string(from)),
+			Builder: resource.BuilderDockerfile, Dockerfile: filepath.Join(req.Context, dockerfile(req.Dockerfile)), BaseImage: baseImage(string(from)), Ports: exposedPorts(string(from)),
 		}, nil, nil
 	}
 	d := railpackDetection(info, plan)
@@ -594,6 +594,41 @@ func baseImage(from string) string {
 		return ""
 	}
 	return cut(last, 200)
+}
+
+// maxExposed is how many ports a detection says a Dockerfile exposes.
+const maxExposed = 16
+
+// exposedPorts are the TCP ports a Dockerfile's last stage says the app listens
+// on, as its EXPOSE lines after its last FROM say, lowest first: what a person
+// would publish. A port a build argument names, a range and a UDP port are left
+// out.
+func exposedPorts(lines string) []int32 {
+	var out []int32
+	for _, line := range strings.Split(lines, "\n") {
+		f := strings.Fields(line)
+		switch {
+		case len(f) == 0:
+		case strings.EqualFold(f[0], "FROM"):
+			out = nil
+		case strings.EqualFold(f[0], "EXPOSE"):
+			for _, word := range f[1:] {
+				if strings.HasPrefix(word, "#") {
+					break
+				}
+				port, proto, _ := strings.Cut(word, "/")
+				n, err := strconv.ParseInt(port, 10, 32)
+				if err != nil || n < 1 || n > 65535 || proto != "" && !strings.EqualFold(proto, "tcp") {
+					continue
+				}
+				if !slices.Contains(out, int32(n)) {
+					out = append(out, int32(n))
+				}
+			}
+		}
+	}
+	slices.Sort(out)
+	return out[:min(len(out), maxExposed)]
 }
 
 // railpackInfo is the part of railpack's --info-out a detection reads.

@@ -98,6 +98,11 @@ func TestBuildsStayWithinTheirProjects(t *testing.T) {
 			_ = gone.Close()
 		}
 		notFound(t, "watching another project's build", err)
+		branches := func() error {
+			_, err := g.builds.ListRepositoryBranches(ctx, connect.NewRequest(&dockwellv1.ListRepositoryBranchesRequest{Url: g.repo.URL}))
+			return err
+		}
+		refused("a viewer having the control server ask a repository", branches())
 		refused("a viewer stopping a build", cancel(ours.GetId()))
 		refused("a viewer reading how a repository builds", detect())
 
@@ -109,6 +114,9 @@ func TestBuildsStayWithinTheirProjects(t *testing.T) {
 		notFound(t, "a developer of blog stopping another project's build", cancel(other.GetId()))
 		if err := detect(); err != nil {
 			t.Errorf("a developer of blog reading how its service builds: %v", err)
+		}
+		if err := branches(); err != nil {
+			t.Errorf("a developer of blog listing a repository's branches: %v", err)
 		}
 
 		hold(in(defaultID, store.RoleDeveloper))

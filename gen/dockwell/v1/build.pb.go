@@ -95,6 +95,115 @@ func (BuildState) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{0}
 }
 
+type ListRepositoryBranchesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The repository's URL, such as "https://github.com/acme/web.git".
+	Url           string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRepositoryBranchesRequest) Reset() {
+	*x = ListRepositoryBranchesRequest{}
+	mi := &file_dockwell_v1_build_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRepositoryBranchesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRepositoryBranchesRequest) ProtoMessage() {}
+
+func (x *ListRepositoryBranchesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_build_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRepositoryBranchesRequest.ProtoReflect.Descriptor instead.
+func (*ListRepositoryBranchesRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ListRepositoryBranchesRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+type ListRepositoryBranchesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its branches by name, the default first, up to 500.
+	Branches []string `protobuf:"bytes,1,rep,name=branches,proto3" json:"branches,omitempty"`
+	// The branch a build with no branch named builds, such as "main". Empty when
+	// the repository doesn't say, as an empty one doesn't.
+	DefaultBranch string `protobuf:"bytes,2,opt,name=default_branch,json=defaultBranch,proto3" json:"default_branch,omitempty"`
+	// How many branches it has in all, when more than are listed.
+	Total         int32 `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRepositoryBranchesResponse) Reset() {
+	*x = ListRepositoryBranchesResponse{}
+	mi := &file_dockwell_v1_build_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRepositoryBranchesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRepositoryBranchesResponse) ProtoMessage() {}
+
+func (x *ListRepositoryBranchesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_build_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRepositoryBranchesResponse.ProtoReflect.Descriptor instead.
+func (*ListRepositoryBranchesResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ListRepositoryBranchesResponse) GetBranches() []string {
+	if x != nil {
+		return x.Branches
+	}
+	return nil
+}
+
+func (x *ListRepositoryBranchesResponse) GetDefaultBranch() string {
+	if x != nil {
+		return x.DefaultBranch
+	}
+	return ""
+}
+
+func (x *ListRepositoryBranchesResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
 // Build is one build of a service's image, on one server, for one change.
 type Build struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -163,7 +272,7 @@ type Build struct {
 
 func (x *Build) Reset() {
 	*x = Build{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[0]
+	mi := &file_dockwell_v1_build_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -175,7 +284,7 @@ func (x *Build) String() string {
 func (*Build) ProtoMessage() {}
 
 func (x *Build) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[0]
+	mi := &file_dockwell_v1_build_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -188,7 +297,7 @@ func (x *Build) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Build.ProtoReflect.Descriptor instead.
 func (*Build) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Build) GetId() string {
@@ -405,7 +514,7 @@ type BuildLine struct {
 
 func (x *BuildLine) Reset() {
 	*x = BuildLine{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[1]
+	mi := &file_dockwell_v1_build_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -417,7 +526,7 @@ func (x *BuildLine) String() string {
 func (*BuildLine) ProtoMessage() {}
 
 func (x *BuildLine) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[1]
+	mi := &file_dockwell_v1_build_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -430,7 +539,7 @@ func (x *BuildLine) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuildLine.ProtoReflect.Descriptor instead.
 func (*BuildLine) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *BuildLine) GetNumber() int64 {
@@ -482,7 +591,7 @@ type ListBuildsRequest struct {
 
 func (x *ListBuildsRequest) Reset() {
 	*x = ListBuildsRequest{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[2]
+	mi := &file_dockwell_v1_build_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -494,7 +603,7 @@ func (x *ListBuildsRequest) String() string {
 func (*ListBuildsRequest) ProtoMessage() {}
 
 func (x *ListBuildsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[2]
+	mi := &file_dockwell_v1_build_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -507,7 +616,7 @@ func (x *ListBuildsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBuildsRequest.ProtoReflect.Descriptor instead.
 func (*ListBuildsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListBuildsRequest) GetId() string {
@@ -569,7 +678,7 @@ type DetectBuildRequest struct {
 
 func (x *DetectBuildRequest) Reset() {
 	*x = DetectBuildRequest{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[3]
+	mi := &file_dockwell_v1_build_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -581,7 +690,7 @@ func (x *DetectBuildRequest) String() string {
 func (*DetectBuildRequest) ProtoMessage() {}
 
 func (x *DetectBuildRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[3]
+	mi := &file_dockwell_v1_build_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -594,7 +703,7 @@ func (x *DetectBuildRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetectBuildRequest.ProtoReflect.Descriptor instead.
 func (*DetectBuildRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *DetectBuildRequest) GetId() string {
@@ -649,7 +758,7 @@ type DetectBuildResponse struct {
 
 func (x *DetectBuildResponse) Reset() {
 	*x = DetectBuildResponse{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[4]
+	mi := &file_dockwell_v1_build_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -661,7 +770,7 @@ func (x *DetectBuildResponse) String() string {
 func (*DetectBuildResponse) ProtoMessage() {}
 
 func (x *DetectBuildResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[4]
+	mi := &file_dockwell_v1_build_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -674,7 +783,7 @@ func (x *DetectBuildResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetectBuildResponse.ProtoReflect.Descriptor instead.
 func (*DetectBuildResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *DetectBuildResponse) GetCommit() string {
@@ -718,7 +827,7 @@ type ListBuildsResponse struct {
 
 func (x *ListBuildsResponse) Reset() {
 	*x = ListBuildsResponse{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[5]
+	mi := &file_dockwell_v1_build_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -730,7 +839,7 @@ func (x *ListBuildsResponse) String() string {
 func (*ListBuildsResponse) ProtoMessage() {}
 
 func (x *ListBuildsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[5]
+	mi := &file_dockwell_v1_build_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -743,7 +852,7 @@ func (x *ListBuildsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBuildsResponse.ProtoReflect.Descriptor instead.
 func (*ListBuildsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListBuildsResponse) GetBuilds() []*Build {
@@ -771,7 +880,7 @@ type GetBuildRequest struct {
 
 func (x *GetBuildRequest) Reset() {
 	*x = GetBuildRequest{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[6]
+	mi := &file_dockwell_v1_build_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -783,7 +892,7 @@ func (x *GetBuildRequest) String() string {
 func (*GetBuildRequest) ProtoMessage() {}
 
 func (x *GetBuildRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[6]
+	mi := &file_dockwell_v1_build_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -796,7 +905,7 @@ func (x *GetBuildRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBuildRequest.ProtoReflect.Descriptor instead.
 func (*GetBuildRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetBuildRequest) GetId() string {
@@ -817,7 +926,7 @@ type GetBuildResponse struct {
 
 func (x *GetBuildResponse) Reset() {
 	*x = GetBuildResponse{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[7]
+	mi := &file_dockwell_v1_build_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -829,7 +938,7 @@ func (x *GetBuildResponse) String() string {
 func (*GetBuildResponse) ProtoMessage() {}
 
 func (x *GetBuildResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[7]
+	mi := &file_dockwell_v1_build_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -842,7 +951,7 @@ func (x *GetBuildResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBuildResponse.ProtoReflect.Descriptor instead.
 func (*GetBuildResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetBuildResponse) GetBuild() *Build {
@@ -863,7 +972,7 @@ type ReadBuildLogRequest struct {
 
 func (x *ReadBuildLogRequest) Reset() {
 	*x = ReadBuildLogRequest{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[8]
+	mi := &file_dockwell_v1_build_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -875,7 +984,7 @@ func (x *ReadBuildLogRequest) String() string {
 func (*ReadBuildLogRequest) ProtoMessage() {}
 
 func (x *ReadBuildLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[8]
+	mi := &file_dockwell_v1_build_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -888,7 +997,7 @@ func (x *ReadBuildLogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadBuildLogRequest.ProtoReflect.Descriptor instead.
 func (*ReadBuildLogRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ReadBuildLogRequest) GetId() string {
@@ -914,7 +1023,7 @@ type ReadBuildLogResponse struct {
 
 func (x *ReadBuildLogResponse) Reset() {
 	*x = ReadBuildLogResponse{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[9]
+	mi := &file_dockwell_v1_build_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -926,7 +1035,7 @@ func (x *ReadBuildLogResponse) String() string {
 func (*ReadBuildLogResponse) ProtoMessage() {}
 
 func (x *ReadBuildLogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[9]
+	mi := &file_dockwell_v1_build_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -939,7 +1048,7 @@ func (x *ReadBuildLogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadBuildLogResponse.ProtoReflect.Descriptor instead.
 func (*ReadBuildLogResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ReadBuildLogResponse) GetLines() []*BuildLine {
@@ -974,7 +1083,7 @@ type WatchBuildRequest struct {
 
 func (x *WatchBuildRequest) Reset() {
 	*x = WatchBuildRequest{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[10]
+	mi := &file_dockwell_v1_build_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -986,7 +1095,7 @@ func (x *WatchBuildRequest) String() string {
 func (*WatchBuildRequest) ProtoMessage() {}
 
 func (x *WatchBuildRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[10]
+	mi := &file_dockwell_v1_build_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -999,7 +1108,7 @@ func (x *WatchBuildRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchBuildRequest.ProtoReflect.Descriptor instead.
 func (*WatchBuildRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *WatchBuildRequest) GetId() string {
@@ -1026,7 +1135,7 @@ type WatchBuildResponse struct {
 
 func (x *WatchBuildResponse) Reset() {
 	*x = WatchBuildResponse{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[11]
+	mi := &file_dockwell_v1_build_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1038,7 +1147,7 @@ func (x *WatchBuildResponse) String() string {
 func (*WatchBuildResponse) ProtoMessage() {}
 
 func (x *WatchBuildResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[11]
+	mi := &file_dockwell_v1_build_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1051,7 +1160,7 @@ func (x *WatchBuildResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchBuildResponse.ProtoReflect.Descriptor instead.
 func (*WatchBuildResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{11}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *WatchBuildResponse) GetBuild() *Build {
@@ -1086,7 +1195,7 @@ type CancelBuildRequest struct {
 
 func (x *CancelBuildRequest) Reset() {
 	*x = CancelBuildRequest{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[12]
+	mi := &file_dockwell_v1_build_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1098,7 +1207,7 @@ func (x *CancelBuildRequest) String() string {
 func (*CancelBuildRequest) ProtoMessage() {}
 
 func (x *CancelBuildRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[12]
+	mi := &file_dockwell_v1_build_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1111,7 +1220,7 @@ func (x *CancelBuildRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelBuildRequest.ProtoReflect.Descriptor instead.
 func (*CancelBuildRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{12}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CancelBuildRequest) GetId() string {
@@ -1132,7 +1241,7 @@ type CancelBuildResponse struct {
 
 func (x *CancelBuildResponse) Reset() {
 	*x = CancelBuildResponse{}
-	mi := &file_dockwell_v1_build_proto_msgTypes[13]
+	mi := &file_dockwell_v1_build_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1144,7 +1253,7 @@ func (x *CancelBuildResponse) String() string {
 func (*CancelBuildResponse) ProtoMessage() {}
 
 func (x *CancelBuildResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_build_proto_msgTypes[13]
+	mi := &file_dockwell_v1_build_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1157,7 +1266,7 @@ func (x *CancelBuildResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelBuildResponse.ProtoReflect.Descriptor instead.
 func (*CancelBuildResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{13}
+	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CancelBuildResponse) GetBuild() *Build {
@@ -1171,7 +1280,13 @@ var File_dockwell_v1_build_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_build_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/build.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd4\a\n" +
+	"\x17dockwell/v1/build.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"1\n" +
+	"\x1dListRepositoryBranchesRequest\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\"y\n" +
+	"\x1eListRepositoryBranchesResponse\x12\x1a\n" +
+	"\bbranches\x18\x01 \x03(\tR\bbranches\x12%\n" +
+	"\x0edefault_branch\x18\x02 \x01(\tR\rdefaultBranch\x12\x14\n" +
+	"\x05total\x18\x03 \x01(\x05R\x05total\"\xd4\a\n" +
 	"\x05Build\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -1262,7 +1377,7 @@ const file_dockwell_v1_build_proto_rawDesc = "" +
 	"\x10BUILD_STATE_DONE\x10\x03\x12\x16\n" +
 	"\x12BUILD_STATE_FAILED\x10\x04\x12\x19\n" +
 	"\x15BUILD_STATE_CANCELLED\x10\x05\x12\x14\n" +
-	"\x10BUILD_STATE_LOST\x10\x062\xce\x06\n" +
+	"\x10BUILD_STATE_LOST\x10\x062\xf2\a\n" +
 	"\fBuildService\x12\x94\x01\n" +
 	"\n" +
 	"ListBuilds\x12\x1e.dockwell.v1.ListBuildsRequest\x1a\x1f.dockwell.v1.ListBuildsResponse\"E\xa0\xbb\x18\x01\xaa\xbb\x18\x0e\n" +
@@ -1274,7 +1389,8 @@ const file_dockwell_v1_build_proto_rawDesc = "" +
 	"WatchBuild\x12\x1e.dockwell.v1.WatchBuildRequest\x1a\x1f.dockwell.v1.WatchBuildResponse\"+\xa0\xbb\x18\x01\xaa\xbb\x18\x10\n" +
 	"\x06builds\x12\x06follow\xb8\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x90\x02\x010\x01\x12\x92\x01\n" +
 	"\vDetectBuild\x12\x1f.dockwell.v1.DetectBuildRequest\x1a .dockwell.v1.DetectBuildResponse\"@\xa0\xbb\x18\x02\xaa\xbb\x18\x10\n" +
-	"\x06builds\x12\x06detect\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/builds:detect\x12\x83\x01\n" +
+	"\x06builds\x12\x06detect\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/builds:detect\x12\xa1\x01\n" +
+	"\x16ListRepositoryBranches\x12*.dockwell.v1.ListRepositoryBranchesRequest\x1a+.dockwell.v1.ListRepositoryBranchesResponse\".\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x05\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/builds:branches\x12\x83\x01\n" +
 	"\vCancelBuild\x12\x1f.dockwell.v1.CancelBuildRequest\x1a .dockwell.v1.CancelBuildResponse\"1\xa0\xbb\x18\x03\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/builds/{id}:cancelB\xa3\x01\n" +
 	"\x0fcom.dockwell.v1B\n" +
 	"BuildProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
@@ -1292,58 +1408,62 @@ func file_dockwell_v1_build_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_build_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_build_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_dockwell_v1_build_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_dockwell_v1_build_proto_goTypes = []any{
-	(BuildState)(0),               // 0: dockwell.v1.BuildState
-	(*Build)(nil),                 // 1: dockwell.v1.Build
-	(*BuildLine)(nil),             // 2: dockwell.v1.BuildLine
-	(*ListBuildsRequest)(nil),     // 3: dockwell.v1.ListBuildsRequest
-	(*DetectBuildRequest)(nil),    // 4: dockwell.v1.DetectBuildRequest
-	(*DetectBuildResponse)(nil),   // 5: dockwell.v1.DetectBuildResponse
-	(*ListBuildsResponse)(nil),    // 6: dockwell.v1.ListBuildsResponse
-	(*GetBuildRequest)(nil),       // 7: dockwell.v1.GetBuildRequest
-	(*GetBuildResponse)(nil),      // 8: dockwell.v1.GetBuildResponse
-	(*ReadBuildLogRequest)(nil),   // 9: dockwell.v1.ReadBuildLogRequest
-	(*ReadBuildLogResponse)(nil),  // 10: dockwell.v1.ReadBuildLogResponse
-	(*WatchBuildRequest)(nil),     // 11: dockwell.v1.WatchBuildRequest
-	(*WatchBuildResponse)(nil),    // 12: dockwell.v1.WatchBuildResponse
-	(*CancelBuildRequest)(nil),    // 13: dockwell.v1.CancelBuildRequest
-	(*CancelBuildResponse)(nil),   // 14: dockwell.v1.CancelBuildResponse
-	(*ResourceRef)(nil),           // 15: dockwell.v1.ResourceRef
-	(*timestamppb.Timestamp)(nil), // 16: google.protobuf.Timestamp
-	(*BuildDetection)(nil),        // 17: dockwell.v1.BuildDetection
-	(*v1alpha1.ImageBuild)(nil),   // 18: dockwell.resource.v1alpha1.ImageBuild
+	(BuildState)(0),                        // 0: dockwell.v1.BuildState
+	(*ListRepositoryBranchesRequest)(nil),  // 1: dockwell.v1.ListRepositoryBranchesRequest
+	(*ListRepositoryBranchesResponse)(nil), // 2: dockwell.v1.ListRepositoryBranchesResponse
+	(*Build)(nil),                          // 3: dockwell.v1.Build
+	(*BuildLine)(nil),                      // 4: dockwell.v1.BuildLine
+	(*ListBuildsRequest)(nil),              // 5: dockwell.v1.ListBuildsRequest
+	(*DetectBuildRequest)(nil),             // 6: dockwell.v1.DetectBuildRequest
+	(*DetectBuildResponse)(nil),            // 7: dockwell.v1.DetectBuildResponse
+	(*ListBuildsResponse)(nil),             // 8: dockwell.v1.ListBuildsResponse
+	(*GetBuildRequest)(nil),                // 9: dockwell.v1.GetBuildRequest
+	(*GetBuildResponse)(nil),               // 10: dockwell.v1.GetBuildResponse
+	(*ReadBuildLogRequest)(nil),            // 11: dockwell.v1.ReadBuildLogRequest
+	(*ReadBuildLogResponse)(nil),           // 12: dockwell.v1.ReadBuildLogResponse
+	(*WatchBuildRequest)(nil),              // 13: dockwell.v1.WatchBuildRequest
+	(*WatchBuildResponse)(nil),             // 14: dockwell.v1.WatchBuildResponse
+	(*CancelBuildRequest)(nil),             // 15: dockwell.v1.CancelBuildRequest
+	(*CancelBuildResponse)(nil),            // 16: dockwell.v1.CancelBuildResponse
+	(*ResourceRef)(nil),                    // 17: dockwell.v1.ResourceRef
+	(*timestamppb.Timestamp)(nil),          // 18: google.protobuf.Timestamp
+	(*BuildDetection)(nil),                 // 19: dockwell.v1.BuildDetection
+	(*v1alpha1.ImageBuild)(nil),            // 20: dockwell.resource.v1alpha1.ImageBuild
 }
 var file_dockwell_v1_build_proto_depIdxs = []int32{
-	15, // 0: dockwell.v1.Build.resource:type_name -> dockwell.v1.ResourceRef
+	17, // 0: dockwell.v1.Build.resource:type_name -> dockwell.v1.ResourceRef
 	0,  // 1: dockwell.v1.Build.state:type_name -> dockwell.v1.BuildState
-	16, // 2: dockwell.v1.Build.create_time:type_name -> google.protobuf.Timestamp
-	16, // 3: dockwell.v1.Build.start_time:type_name -> google.protobuf.Timestamp
-	16, // 4: dockwell.v1.Build.end_time:type_name -> google.protobuf.Timestamp
-	17, // 5: dockwell.v1.Build.detection:type_name -> dockwell.v1.BuildDetection
-	16, // 6: dockwell.v1.BuildLine.time:type_name -> google.protobuf.Timestamp
-	18, // 7: dockwell.v1.DetectBuildRequest.build:type_name -> dockwell.resource.v1alpha1.ImageBuild
-	17, // 8: dockwell.v1.DetectBuildResponse.detection:type_name -> dockwell.v1.BuildDetection
-	1,  // 9: dockwell.v1.ListBuildsResponse.builds:type_name -> dockwell.v1.Build
-	1,  // 10: dockwell.v1.GetBuildResponse.build:type_name -> dockwell.v1.Build
-	2,  // 11: dockwell.v1.ReadBuildLogResponse.lines:type_name -> dockwell.v1.BuildLine
-	1,  // 12: dockwell.v1.WatchBuildResponse.build:type_name -> dockwell.v1.Build
-	2,  // 13: dockwell.v1.WatchBuildResponse.lines:type_name -> dockwell.v1.BuildLine
-	1,  // 14: dockwell.v1.CancelBuildResponse.build:type_name -> dockwell.v1.Build
-	3,  // 15: dockwell.v1.BuildService.ListBuilds:input_type -> dockwell.v1.ListBuildsRequest
-	7,  // 16: dockwell.v1.BuildService.GetBuild:input_type -> dockwell.v1.GetBuildRequest
-	9,  // 17: dockwell.v1.BuildService.ReadBuildLog:input_type -> dockwell.v1.ReadBuildLogRequest
-	11, // 18: dockwell.v1.BuildService.WatchBuild:input_type -> dockwell.v1.WatchBuildRequest
-	4,  // 19: dockwell.v1.BuildService.DetectBuild:input_type -> dockwell.v1.DetectBuildRequest
-	13, // 20: dockwell.v1.BuildService.CancelBuild:input_type -> dockwell.v1.CancelBuildRequest
-	6,  // 21: dockwell.v1.BuildService.ListBuilds:output_type -> dockwell.v1.ListBuildsResponse
-	8,  // 22: dockwell.v1.BuildService.GetBuild:output_type -> dockwell.v1.GetBuildResponse
-	10, // 23: dockwell.v1.BuildService.ReadBuildLog:output_type -> dockwell.v1.ReadBuildLogResponse
-	12, // 24: dockwell.v1.BuildService.WatchBuild:output_type -> dockwell.v1.WatchBuildResponse
-	5,  // 25: dockwell.v1.BuildService.DetectBuild:output_type -> dockwell.v1.DetectBuildResponse
-	14, // 26: dockwell.v1.BuildService.CancelBuild:output_type -> dockwell.v1.CancelBuildResponse
-	21, // [21:27] is the sub-list for method output_type
-	15, // [15:21] is the sub-list for method input_type
+	18, // 2: dockwell.v1.Build.create_time:type_name -> google.protobuf.Timestamp
+	18, // 3: dockwell.v1.Build.start_time:type_name -> google.protobuf.Timestamp
+	18, // 4: dockwell.v1.Build.end_time:type_name -> google.protobuf.Timestamp
+	19, // 5: dockwell.v1.Build.detection:type_name -> dockwell.v1.BuildDetection
+	18, // 6: dockwell.v1.BuildLine.time:type_name -> google.protobuf.Timestamp
+	20, // 7: dockwell.v1.DetectBuildRequest.build:type_name -> dockwell.resource.v1alpha1.ImageBuild
+	19, // 8: dockwell.v1.DetectBuildResponse.detection:type_name -> dockwell.v1.BuildDetection
+	3,  // 9: dockwell.v1.ListBuildsResponse.builds:type_name -> dockwell.v1.Build
+	3,  // 10: dockwell.v1.GetBuildResponse.build:type_name -> dockwell.v1.Build
+	4,  // 11: dockwell.v1.ReadBuildLogResponse.lines:type_name -> dockwell.v1.BuildLine
+	3,  // 12: dockwell.v1.WatchBuildResponse.build:type_name -> dockwell.v1.Build
+	4,  // 13: dockwell.v1.WatchBuildResponse.lines:type_name -> dockwell.v1.BuildLine
+	3,  // 14: dockwell.v1.CancelBuildResponse.build:type_name -> dockwell.v1.Build
+	5,  // 15: dockwell.v1.BuildService.ListBuilds:input_type -> dockwell.v1.ListBuildsRequest
+	9,  // 16: dockwell.v1.BuildService.GetBuild:input_type -> dockwell.v1.GetBuildRequest
+	11, // 17: dockwell.v1.BuildService.ReadBuildLog:input_type -> dockwell.v1.ReadBuildLogRequest
+	13, // 18: dockwell.v1.BuildService.WatchBuild:input_type -> dockwell.v1.WatchBuildRequest
+	6,  // 19: dockwell.v1.BuildService.DetectBuild:input_type -> dockwell.v1.DetectBuildRequest
+	1,  // 20: dockwell.v1.BuildService.ListRepositoryBranches:input_type -> dockwell.v1.ListRepositoryBranchesRequest
+	15, // 21: dockwell.v1.BuildService.CancelBuild:input_type -> dockwell.v1.CancelBuildRequest
+	8,  // 22: dockwell.v1.BuildService.ListBuilds:output_type -> dockwell.v1.ListBuildsResponse
+	10, // 23: dockwell.v1.BuildService.GetBuild:output_type -> dockwell.v1.GetBuildResponse
+	12, // 24: dockwell.v1.BuildService.ReadBuildLog:output_type -> dockwell.v1.ReadBuildLogResponse
+	14, // 25: dockwell.v1.BuildService.WatchBuild:output_type -> dockwell.v1.WatchBuildResponse
+	7,  // 26: dockwell.v1.BuildService.DetectBuild:output_type -> dockwell.v1.DetectBuildResponse
+	2,  // 27: dockwell.v1.BuildService.ListRepositoryBranches:output_type -> dockwell.v1.ListRepositoryBranchesResponse
+	16, // 28: dockwell.v1.BuildService.CancelBuild:output_type -> dockwell.v1.CancelBuildResponse
+	22, // [22:29] is the sub-list for method output_type
+	15, // [15:22] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
 	15, // [15:15] is the sub-list for extension extendee
 	0,  // [0:15] is the sub-list for field type_name
@@ -1362,7 +1482,7 @@ func file_dockwell_v1_build_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_build_proto_rawDesc), len(file_dockwell_v1_build_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   14,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

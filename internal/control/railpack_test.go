@@ -118,7 +118,7 @@ func TestDetectBuildOfAServiceReadsItsBranchNow(t *testing.T) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Works", map[string]string{"Dockerfile": webDockerfile})
 		g.done(t, g.propose(t, g.buildEdit("main", nil)))
-		next := g.repo.Commit("main", "Next", map[string]string{"Dockerfile": "FROM node:22-alpine AS build\nRUN echo hi\nFROM nginx:1.27\n"})
+		next := g.repo.Commit("main", "Next", map[string]string{"Dockerfile": "FROM node:22-alpine AS build\nRUN echo hi\nEXPOSE 3000\nFROM nginx:1.27\nEXPOSE 8080 443\n"})
 		res, err := g.builds.DetectBuild(t.Context(), connect.NewRequest(&dockwellv1.DetectBuildRequest{Id: "web"}))
 		if err != nil {
 			t.Fatal(err)
@@ -126,6 +126,42 @@ func TestDetectBuildOfAServiceReadsItsBranchNow(t *testing.T) {
 		d := res.Msg.GetDetection()
 		if res.Msg.GetCommit() != next || d.GetBuilder() != resourcev1.ImageBuild_BUILDER_DOCKERFILE || d.GetBaseImage() != "nginx:1.27" || d.GetDockerfile() != "Dockerfile" {
 			t.Errorf("detecting web said %v", res.Msg)
+		}
+		// What its last stage exposes is what a person would publish.
+		if got := d.GetExposedPorts(); !slices.Equal(got, []int32{443, 8080}) {
+			t.Errorf("detecting web says it exposes %v, not 443 and 8080", got)
+		}
+	})
+}
+
+// A repository's branches are listed from the control server, the default first,
+// so a form checks a URL as it's typed and offers a branch to choose.
+func TestARepositorysBranchesAreListed(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		g.repo.Commit("main", "Works", map[string]string{"Dockerfile": webDockerfile})
+		g.repo.Commit("next", "Tries", map[string]string{"Dockerfile": webDockerfile})
+		g.repo.Commit("fix/cart", "Mends", map[string]string{"Dockerfile": webDockerfile})
+		ask := func(url string) (*dockwellv1.ListRepositoryBranchesResponse, error) {
+			res, err := g.builds.ListRepositoryBranches(t.Context(), connect.NewRequest(&dockwellv1.ListRepositoryBranchesRequest{Url: url}))
+			if err != nil {
+				return nil, err
+			}
+			return res.Msg, nil
+		}
+		got, err := ask(g.repo.URL)
+		if err != nil || got.GetDefaultBranch() != "main" || !slices.Equal(got.GetBranches(), []string{"main", "fix/cart", "next"}) || got.GetTotal() != 0 {
+			t.Errorf("the repository's branches read %v, %v", got, err)
+		}
+		// One that isn't there says so, for the field it was typed in.
+		if _, err := ask(g.repo.URL + "-gone"); connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "unreadable" {
+			t.Errorf("a repository that isn't there: %v, want it unreadable", err)
+		}
+		// And what isn't a repository's URL asks nothing.
+		for _, bad := range []string{"", "file:///etc/passwd", "ssh://git@git.example.com/acme/web.git"} {
+			if _, err := ask(bad); connect.CodeOf(err) != connect.CodeInvalidArgument {
+				t.Errorf("listing the branches of %q: %v, want it refused as invalid", bad, err)
+			}
 		}
 	})
 }

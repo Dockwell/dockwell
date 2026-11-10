@@ -67,6 +67,43 @@ func (h *Handler) SetSources(s revision.Sources) { h.sources = s }
 
 var _ revision.Detector = (*Handler)(nil)
 
+// maxBranches is how many of a repository's branches one answer lists.
+const maxBranches = 500
+
+// branchLister is a Sources that lists a repository's branches, as gitref's does.
+type branchLister interface {
+	Branches(ctx context.Context, url string) (head string, branches []string, err error)
+}
+
+// ListRepositoryBranches asks a repository for its branches, from the control
+// server, under the guard a plan's own question has (gitref.Guard).
+func (h *Handler) ListRepositoryBranches(ctx context.Context, req *connect.Request[dockwellv1.ListRepositoryBranchesRequest]) (*connect.Response[dockwellv1.ListRepositoryBranchesResponse], error) {
+	url := strings.TrimSpace(req.Msg.GetUrl())
+	// The URL is held to what a build's own may be, before anything asks it.
+	if err := service.CheckBuild(&resourcev1.ImageBuild{Source: &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: url}}}); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	lister, ok := h.sources.(branchLister)
+	if !ok {
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("this control plane can't read a repository's branches"))
+	}
+	head, branches, err := lister.Branches(ctx, url)
+	if err != nil {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "unreadable")
+	}
+	res := &dockwellv1.ListRepositoryBranchesResponse{DefaultBranch: fit(head, 255)}
+	if len(branches) > maxBranches {
+		res.Total = int32(len(branches)) //nolint:gosec // a repository's answer is bounded (gitref)
+		branches = branches[:maxBranches]
+	}
+	for _, b := range branches {
+		if v := fit(b, 255); v != "" {
+			res.Branches = append(res.Branches, v)
+		}
+	}
+	return connect.NewResponse(res), nil
+}
+
 // Detect reads how a commit would build on a server, building nothing, and keeps
 // what it found for a while. b names the commit in full. The same request while
 // one is under way waits for it, and reads nothing more.
@@ -305,6 +342,7 @@ func fitDetection(d *resource.BuildDetection) *resource.BuildDetection {
 		return out
 	}
 	d.Dockerfile, d.BaseImage, d.Railpack, d.Start = short(d.Dockerfile), fit(d.BaseImage, 200), fit(d.Railpack, 32), fit(d.Start, 1024)
+	d.Ports = d.Ports[:min(len(d.Ports), maxDetectedItems)]
 	d.Providers, d.Warnings = fitAll(d.Providers, 64), fitAll(d.Warnings, maxShort)
 	d.Error = fitLines(d.Error, maxDetectedError)
 	d.Packages = d.Packages[:min(len(d.Packages), maxDetectedItems)]

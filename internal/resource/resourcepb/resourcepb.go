@@ -214,7 +214,7 @@ func Detection(d *resource.BuildDetection) *dockwellv1.BuildDetection {
 	p := &dockwellv1.BuildDetection{
 		Builder: Builder(d.Builder), Dockerfile: d.Dockerfile, BaseImage: d.BaseImage, RailpackVersion: d.Railpack,
 		Providers: d.Providers, StartCommand: d.Start, Warnings: d.Warnings, Error: d.Error,
-		Problem: detectionProblems[d.Problem], ProblemTool: d.ProblemTool,
+		Problem: detectionProblems[d.Problem], ProblemTool: d.ProblemTool, ExposedPorts: d.Ports,
 	}
 	for _, pkg := range d.Packages {
 		p.Packages = append(p.Packages, &dockwellv1.DetectedPackage{Name: pkg.Name, Requested: pkg.Requested, Resolved: pkg.Resolved, Source: pkg.Source})
@@ -233,7 +233,7 @@ func DetectionFrom(p *dockwellv1.BuildDetection) *resource.BuildDetection {
 	d := &resource.BuildDetection{
 		Builder: BuilderFrom(p.GetBuilder()), Dockerfile: p.GetDockerfile(), BaseImage: p.GetBaseImage(), Railpack: p.GetRailpackVersion(),
 		Providers: p.GetProviders(), Start: p.GetStartCommand(), Warnings: p.GetWarnings(), Error: p.GetError(),
-		ProblemTool: p.GetProblemTool(),
+		ProblemTool: p.GetProblemTool(), Ports: p.GetExposedPorts(),
 	}
 	d.Problem, _ = from(detectionProblems, p.GetProblem())
 	for _, pkg := range p.GetPackages() {

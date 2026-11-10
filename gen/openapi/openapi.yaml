@@ -686,6 +686,34 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/builds:branches:
+        post:
+            tags:
+                - BuildService
+            description: |-
+                ListRepositoryBranches asks a public Git repository for its branches, from
+                 the control server, as a plan that builds from it does: to check a URL as
+                 someone types it, and to choose a branch from. Nothing is fetched or built.
+            operationId: BuildService_ListRepositoryBranches
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ListRepositoryBranchesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListRepositoryBranchesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/builds:detect:
         post:
             tags:
@@ -5824,6 +5852,14 @@ components:
                 problemTool:
                     type: string
                     description: With DETECTION_PROBLEM_VERSION, the language or tool, such as "node".
+                exposedPorts:
+                    type: array
+                    items:
+                        type: integer
+                        format: int32
+                    description: |-
+                        The ports its Dockerfile's last stage says the app listens on (EXPOSE), TCP
+                         ones, lowest first, such as 8080. Empty with Railpack, and when it says none.
             description: |-
                 BuildDetection is what reading a commit of a repository found, before
                  anything builds: whether it has a Dockerfile, and what Railpack makes of it.
@@ -10064,6 +10100,29 @@ components:
                         $ref: '#/components/schemas/Passkey'
                     description: Passkeys, oldest first.
             description: ListPasskeysResponse lists passkeys.
+        ListRepositoryBranchesRequest:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: The repository's URL, such as "https://github.com/acme/web.git".
+        ListRepositoryBranchesResponse:
+            type: object
+            properties:
+                branches:
+                    type: array
+                    items:
+                        type: string
+                    description: Its branches by name, the default first, up to 500.
+                defaultBranch:
+                    type: string
+                    description: |-
+                        The branch a build with no branch named builds, such as "main". Empty when
+                         the repository doesn't say, as an empty one doesn't.
+                total:
+                    type: integer
+                    description: How many branches it has in all, when more than are listed.
+                    format: int32
         ListResourcesResponse:
             type: object
             properties:
@@ -15050,7 +15109,9 @@ tags:
          there reads it and its log, a developer reads how a repository would build,
          and stopping a build is stopping part of a change under way, so it is a
          developer's where the environment is open and an admin's where it is protected,
-         as applying is.
+         as applying is. Asking a repository for its branches names nothing of a project,
+         and has the control server ask a URL, so it is a developer's, as checking a
+         domain is.
     - name: CatalogService
       description: |-
         CatalogService lists the apps you can install, and plans installing one as a

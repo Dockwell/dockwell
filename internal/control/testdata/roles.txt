@@ -46,6 +46,7 @@ BuildService.CancelBuild                       apply        developer  admin    
 BuildService.DetectBuild                       plan         developer  developer  project
 BuildService.GetBuild                          read         viewer     viewer     project
 BuildService.ListBuilds                        read         viewer     viewer     project
+BuildService.ListRepositoryBranches            plan         developer  developer  named
 BuildService.ReadBuildLog                      read         viewer     viewer     project
 BuildService.WatchBuild                        read         viewer     viewer     project
 CatalogService.GetCatalogEntry                 read         viewer     viewer     shared

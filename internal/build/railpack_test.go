@@ -509,6 +509,20 @@ func TestReadsWhatRailpackWrites(t *testing.T) {
 	}
 }
 
+func TestExposedPortsAreTheLastStagesTCPOnes(t *testing.T) {
+	for lines, want := range map[string][]int32{
+		"FROM node:22 AS build\nEXPOSE 3000\nFROM nginx:1.27\nEXPOSE 8080 443/tcp\nexpose 80": {80, 443, 8080},
+		"FROM nginx:1.27\nEXPOSE 53/udp 8080/TCP 8080":                                        {8080},
+		"FROM nginx:1.27\nEXPOSE $PORT 8000-8010 70000 0 9000 # the app":                      {9000},
+		"FROM node:22 AS build\nEXPOSE 3000\nFROM scratch":                                    nil,
+		"FROM nginx:1.27": nil,
+	} {
+		if got := exposedPorts(lines); !slices.Equal(got, want) {
+			t.Errorf("exposedPorts(%q) = %v, not %v", lines, got, want)
+		}
+	}
+}
+
 func TestBaseImageFollowsStages(t *testing.T) {
 	for from, want := range map[string]string{
 		"FROM node:22-alpine\n":                                          "node:22-alpine",

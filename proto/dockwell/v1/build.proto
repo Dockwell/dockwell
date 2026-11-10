@@ -23,7 +23,9 @@ import "google/protobuf/timestamp.proto";
 // there reads it and its log, a developer reads how a repository would build,
 // and stopping a build is stopping part of a change under way, so it is a
 // developer's where the environment is open and an admin's where it is protected,
-// as applying is.
+// as applying is. Asking a repository for its branches names nothing of a project,
+// and has the control server ask a URL, so it is a developer's, as checking a
+// domain is.
 service BuildService {
   // ListBuilds returns a service's builds, newest first, a page at a time.
   rpc ListBuilds(ListBuildsRequest) returns (ListBuildsResponse) {
@@ -99,6 +101,20 @@ service BuildService {
     };
   }
 
+  // ListRepositoryBranches asks a public Git repository for its branches, from
+  // the control server, as a plan that builds from it does: to check a URL as
+  // someone types it, and to choose a branch from. Nothing is fetched or built.
+  rpc ListRepositoryBranches(ListRepositoryBranchesRequest) returns (ListRepositoryBranchesResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_NAMED;
+    option (google.api.http) = {
+      post: "/v1/builds:branches"
+      body: "*"
+    };
+  }
+
   // CancelBuild stops a build that is waiting or running. Its step fails as
   // cancelled, before anything that runs is touched, so its change's rollback
   // has nothing to do and what ran goes on running.
@@ -112,6 +128,21 @@ service BuildService {
       body: "*"
     };
   }
+}
+
+message ListRepositoryBranchesRequest {
+  // The repository's URL, such as "https://github.com/acme/web.git".
+  string url = 1;
+}
+
+message ListRepositoryBranchesResponse {
+  // Its branches by name, the default first, up to 500.
+  repeated string branches = 1;
+  // The branch a build with no branch named builds, such as "main". Empty when
+  // the repository doesn't say, as an empty one doesn't.
+  string default_branch = 2;
+  // How many branches it has in all, when more than are listed.
+  int32 total = 3;
 }
 
 // Build is one build of a service's image, on one server, for one change.

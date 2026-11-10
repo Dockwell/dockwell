@@ -47,6 +47,9 @@ const (
 	// BuildServiceDetectBuildProcedure is the fully-qualified name of the BuildService's DetectBuild
 	// RPC.
 	BuildServiceDetectBuildProcedure = "/dockwell.v1.BuildService/DetectBuild"
+	// BuildServiceListRepositoryBranchesProcedure is the fully-qualified name of the BuildService's
+	// ListRepositoryBranches RPC.
+	BuildServiceListRepositoryBranchesProcedure = "/dockwell.v1.BuildService/ListRepositoryBranches"
 	// BuildServiceCancelBuildProcedure is the fully-qualified name of the BuildService's CancelBuild
 	// RPC.
 	BuildServiceCancelBuildProcedure = "/dockwell.v1.BuildService/CancelBuild"
@@ -69,6 +72,10 @@ type BuildServiceClient interface {
 	// Railpack found, such as Node 22 and npm run build. Nothing is built or
 	// changed. A plan that builds with Railpack says the same before it builds.
 	DetectBuild(context.Context, *connect.Request[v1.DetectBuildRequest]) (*connect.Response[v1.DetectBuildResponse], error)
+	// ListRepositoryBranches asks a public Git repository for its branches, from
+	// the control server, as a plan that builds from it does: to check a URL as
+	// someone types it, and to choose a branch from. Nothing is fetched or built.
+	ListRepositoryBranches(context.Context, *connect.Request[v1.ListRepositoryBranchesRequest]) (*connect.Response[v1.ListRepositoryBranchesResponse], error)
 	// CancelBuild stops a build that is waiting or running. Its step fails as
 	// cancelled, before anything that runs is touched, so its change's rollback
 	// has nothing to do and what ran goes on running.
@@ -120,6 +127,12 @@ func NewBuildServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(buildServiceMethods.ByName("DetectBuild")),
 			connect.WithClientOptions(opts...),
 		),
+		listRepositoryBranches: connect.NewClient[v1.ListRepositoryBranchesRequest, v1.ListRepositoryBranchesResponse](
+			httpClient,
+			baseURL+BuildServiceListRepositoryBranchesProcedure,
+			connect.WithSchema(buildServiceMethods.ByName("ListRepositoryBranches")),
+			connect.WithClientOptions(opts...),
+		),
 		cancelBuild: connect.NewClient[v1.CancelBuildRequest, v1.CancelBuildResponse](
 			httpClient,
 			baseURL+BuildServiceCancelBuildProcedure,
@@ -131,12 +144,13 @@ func NewBuildServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 
 // buildServiceClient implements BuildServiceClient.
 type buildServiceClient struct {
-	listBuilds   *connect.Client[v1.ListBuildsRequest, v1.ListBuildsResponse]
-	getBuild     *connect.Client[v1.GetBuildRequest, v1.GetBuildResponse]
-	readBuildLog *connect.Client[v1.ReadBuildLogRequest, v1.ReadBuildLogResponse]
-	watchBuild   *connect.Client[v1.WatchBuildRequest, v1.WatchBuildResponse]
-	detectBuild  *connect.Client[v1.DetectBuildRequest, v1.DetectBuildResponse]
-	cancelBuild  *connect.Client[v1.CancelBuildRequest, v1.CancelBuildResponse]
+	listBuilds             *connect.Client[v1.ListBuildsRequest, v1.ListBuildsResponse]
+	getBuild               *connect.Client[v1.GetBuildRequest, v1.GetBuildResponse]
+	readBuildLog           *connect.Client[v1.ReadBuildLogRequest, v1.ReadBuildLogResponse]
+	watchBuild             *connect.Client[v1.WatchBuildRequest, v1.WatchBuildResponse]
+	detectBuild            *connect.Client[v1.DetectBuildRequest, v1.DetectBuildResponse]
+	listRepositoryBranches *connect.Client[v1.ListRepositoryBranchesRequest, v1.ListRepositoryBranchesResponse]
+	cancelBuild            *connect.Client[v1.CancelBuildRequest, v1.CancelBuildResponse]
 }
 
 // ListBuilds calls dockwell.v1.BuildService.ListBuilds.
@@ -164,6 +178,11 @@ func (c *buildServiceClient) DetectBuild(ctx context.Context, req *connect.Reque
 	return c.detectBuild.CallUnary(ctx, req)
 }
 
+// ListRepositoryBranches calls dockwell.v1.BuildService.ListRepositoryBranches.
+func (c *buildServiceClient) ListRepositoryBranches(ctx context.Context, req *connect.Request[v1.ListRepositoryBranchesRequest]) (*connect.Response[v1.ListRepositoryBranchesResponse], error) {
+	return c.listRepositoryBranches.CallUnary(ctx, req)
+}
+
 // CancelBuild calls dockwell.v1.BuildService.CancelBuild.
 func (c *buildServiceClient) CancelBuild(ctx context.Context, req *connect.Request[v1.CancelBuildRequest]) (*connect.Response[v1.CancelBuildResponse], error) {
 	return c.cancelBuild.CallUnary(ctx, req)
@@ -186,6 +205,10 @@ type BuildServiceHandler interface {
 	// Railpack found, such as Node 22 and npm run build. Nothing is built or
 	// changed. A plan that builds with Railpack says the same before it builds.
 	DetectBuild(context.Context, *connect.Request[v1.DetectBuildRequest]) (*connect.Response[v1.DetectBuildResponse], error)
+	// ListRepositoryBranches asks a public Git repository for its branches, from
+	// the control server, as a plan that builds from it does: to check a URL as
+	// someone types it, and to choose a branch from. Nothing is fetched or built.
+	ListRepositoryBranches(context.Context, *connect.Request[v1.ListRepositoryBranchesRequest]) (*connect.Response[v1.ListRepositoryBranchesResponse], error)
 	// CancelBuild stops a build that is waiting or running. Its step fails as
 	// cancelled, before anything that runs is touched, so its change's rollback
 	// has nothing to do and what ran goes on running.
@@ -233,6 +256,12 @@ func NewBuildServiceHandler(svc BuildServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(buildServiceMethods.ByName("DetectBuild")),
 		connect.WithHandlerOptions(opts...),
 	)
+	buildServiceListRepositoryBranchesHandler := connect.NewUnaryHandler(
+		BuildServiceListRepositoryBranchesProcedure,
+		svc.ListRepositoryBranches,
+		connect.WithSchema(buildServiceMethods.ByName("ListRepositoryBranches")),
+		connect.WithHandlerOptions(opts...),
+	)
 	buildServiceCancelBuildHandler := connect.NewUnaryHandler(
 		BuildServiceCancelBuildProcedure,
 		svc.CancelBuild,
@@ -251,6 +280,8 @@ func NewBuildServiceHandler(svc BuildServiceHandler, opts ...connect.HandlerOpti
 			buildServiceWatchBuildHandler.ServeHTTP(w, r)
 		case BuildServiceDetectBuildProcedure:
 			buildServiceDetectBuildHandler.ServeHTTP(w, r)
+		case BuildServiceListRepositoryBranchesProcedure:
+			buildServiceListRepositoryBranchesHandler.ServeHTTP(w, r)
 		case BuildServiceCancelBuildProcedure:
 			buildServiceCancelBuildHandler.ServeHTTP(w, r)
 		default:
@@ -280,6 +311,10 @@ func (UnimplementedBuildServiceHandler) WatchBuild(context.Context, *connect.Req
 
 func (UnimplementedBuildServiceHandler) DetectBuild(context.Context, *connect.Request[v1.DetectBuildRequest]) (*connect.Response[v1.DetectBuildResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.BuildService.DetectBuild is not implemented"))
+}
+
+func (UnimplementedBuildServiceHandler) ListRepositoryBranches(context.Context, *connect.Request[v1.ListRepositoryBranchesRequest]) (*connect.Response[v1.ListRepositoryBranchesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.BuildService.ListRepositoryBranches is not implemented"))
 }
 
 func (UnimplementedBuildServiceHandler) CancelBuild(context.Context, *connect.Request[v1.CancelBuildRequest]) (*connect.Response[v1.CancelBuildResponse], error) {

@@ -1193,6 +1193,9 @@ message BuildDetection {
   DetectionProblem problem = 11;
   // With DETECTION_PROBLEM_VERSION, the language or tool, such as "node".
   string problem_tool = 12;
+  // The ports its Dockerfile's last stage says the app listens on (EXPOSE), TCP
+  // ones, lowest first, such as 8080. Empty with Railpack, and when it says none.
+  repeated int32 exposed_ports = 13;
 }
 
 // DetectionProblem is what kind of problem stops Railpack building a commit.

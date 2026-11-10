@@ -131,7 +131,7 @@ func (e *Engine) fakeDetect(c *container, stdout, stderr io.Writer) int {
 		b, _ := os.ReadFile(co.dockerfile)
 		var from []string
 		for _, l := range strings.Split(string(b), "\n") {
-			if f := strings.Fields(l); len(f) > 0 && strings.EqualFold(f[0], "FROM") {
+			if f := strings.Fields(l); len(f) > 0 && (strings.EqualFold(f[0], "FROM") || strings.EqualFold(f[0], "EXPOSE")) {
 				from = append(from, l)
 			}
 		}

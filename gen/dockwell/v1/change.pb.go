@@ -4809,7 +4809,10 @@ type BuildDetection struct {
 	// What kind of problem error is, which says what to do about it.
 	Problem DetectionProblem `protobuf:"varint,11,opt,name=problem,proto3,enum=dockwell.v1.DetectionProblem" json:"problem,omitempty"`
 	// With DETECTION_PROBLEM_VERSION, the language or tool, such as "node".
-	ProblemTool   string `protobuf:"bytes,12,opt,name=problem_tool,json=problemTool,proto3" json:"problem_tool,omitempty"`
+	ProblemTool string `protobuf:"bytes,12,opt,name=problem_tool,json=problemTool,proto3" json:"problem_tool,omitempty"`
+	// The ports its Dockerfile's last stage says the app listens on (EXPOSE), TCP
+	// ones, lowest first, such as 8080. Empty with Railpack, and when it says none.
+	ExposedPorts  []int32 `protobuf:"varint,13,rep,packed,name=exposed_ports,json=exposedPorts,proto3" json:"exposed_ports,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4926,6 +4929,13 @@ func (x *BuildDetection) GetProblemTool() string {
 		return x.ProblemTool
 	}
 	return ""
+}
+
+func (x *BuildDetection) GetExposedPorts() []int32 {
+	if x != nil {
+		return x.ExposedPorts
+	}
+	return nil
 }
 
 // DetectedPackage is a language or tool a Railpack build installs.
@@ -6713,7 +6723,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"dockerfile\x12\x14\n" +
 	"\x05image\x18\x06 \x01(\tR\x05image\x12H\n" +
 	"\abuilder\x18\a \x01(\x0e2..dockwell.resource.v1alpha1.ImageBuild.BuilderR\abuilder\x129\n" +
-	"\tdetection\x18\b \x01(\v2\x1b.dockwell.v1.BuildDetectionR\tdetection\"\x80\x04\n" +
+	"\tdetection\x18\b \x01(\v2\x1b.dockwell.v1.BuildDetectionR\tdetection\"\xa5\x04\n" +
 	"\x0eBuildDetection\x12H\n" +
 	"\abuilder\x18\x01 \x01(\x0e2..dockwell.resource.v1alpha1.ImageBuild.BuilderR\abuilder\x12\x1e\n" +
 	"\n" +
@@ -6730,7 +6740,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"base_image\x18\n" +
 	" \x01(\tR\tbaseImage\x127\n" +
 	"\aproblem\x18\v \x01(\x0e2\x1d.dockwell.v1.DetectionProblemR\aproblem\x12!\n" +
-	"\fproblem_tool\x18\f \x01(\tR\vproblemTool\"w\n" +
+	"\fproblem_tool\x18\f \x01(\tR\vproblemTool\x12#\n" +
+	"\rexposed_ports\x18\r \x03(\x05R\fexposedPorts\"w\n" +
 	"\x0fDetectedPackage\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
 	"\trequested\x18\x02 \x01(\tR\trequested\x12\x1a\n" +

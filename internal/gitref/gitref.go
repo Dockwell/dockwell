@@ -120,6 +120,17 @@ func (r *Resolver) Resolve(ctx context.Context, url, ref string) (commit, branch
 	return "", "", fmt.Errorf("%s has no branch or tag %s. Its branches are %s", where, ref, list(branches))
 }
 
+// Branches lists the repository's branches by name, the default first, and says
+// which is the default, "" when the repository doesn't say, as an empty one
+// doesn't.
+func (r *Resolver) Branches(ctx context.Context, url string) (head string, branches []string, err error) {
+	refs, err := r.List(ctx, url)
+	if err != nil {
+		return "", nil, err
+	}
+	return refs.Head, refs.branches(), nil
+}
+
 // branches are the repository's branches, the default first.
 func (r Refs) branches() []string {
 	var out []string

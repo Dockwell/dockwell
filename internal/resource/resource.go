@@ -291,6 +291,9 @@ type BuildDetection struct {
 	// and BaseImage the image its last stage starts from, such as node:22-alpine.
 	Dockerfile string `json:",omitempty"`
 	BaseImage  string `json:",omitempty"`
+	// Ports are the TCP ports the Dockerfile's last stage says the app listens
+	// on (EXPOSE), lowest first.
+	Ports []int32 `json:",omitempty"`
 	// Railpack is the version of Railpack that read it.
 	Railpack  string            `json:",omitempty"`
 	Providers []string          `json:",omitempty"`
