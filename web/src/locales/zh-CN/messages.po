@@ -11396,11 +11396,11 @@ msgstr "{n, plural, other {# 个安全更新}}"
 msgid "<0>{0}</0> · agent and control plane"
 msgstr "<0>{0}</0> · 代理与控制平面"
 
+msgid "<0>{tool}</0> installs them within about a day; the command installs every update waiting now."
+msgstr "<0>{tool}</0> 会在约一天内安装它们；这条命令会立即安装所有待装的更新。"
+
 msgid "<0>{tool}</0> installs updates"
 msgstr "<0>{tool}</0> 自动安装更新"
-
-msgid "<0>{tool}</0> on {name} installs updates by itself, so these go in within about a day. To install them now, run {command} there, which installs every update waiting, not only these."
-msgstr "{name} 上的 <0>{tool}</0> 会自动安装更新，所以这些会在大约一天内装上。要现在安装，请在那里运行 {command}，它会安装所有待装更新，不只是这些。"
 
 msgid "Agent <0>{agent}</0>, control plane <1>{control}</1>"
 msgstr "代理 <0>{agent}</0>，控制平面 <1>{control}</1>"
@@ -11439,14 +11439,20 @@ msgstr "容器会停止；设置了重启策略的会再次启动"
 msgid "Copy the command"
 msgstr "复制命令"
 
+msgid "Copy the reboot command"
+msgstr "复制重启命令"
+
+msgid "Copy the upgrade command"
+msgstr "复制升级命令"
+
 msgid "Docker Engine"
 msgstr "Docker Engine"
 
 msgid "Docker and Dockwell"
 msgstr "Docker 与 Dockwell"
 
-msgid "Dockwell can't install updates yet, so run {command} on {name}, which installs every update waiting, not only these."
-msgstr "Dockwell 暂不能安装更新，请在 {name} 上运行 {command}，它会安装所有待装更新，不只是这些。"
+msgid "Dockwell can't install them yet; the command installs every update waiting, not only these."
+msgstr "Dockwell 暂时还不能安装它们；这条命令会安装所有待装的更新，不只是这些。"
 
 #. placeholder {0}: server.name
 msgid "Dockwell couldn't ask {0} for its updates"
@@ -11467,8 +11473,8 @@ msgctxt "a package's version"
 msgid "Installed"
 msgstr "已安装版本"
 
-msgid "It needs a reboot to take effect, and apps and websites go offline while {name} restarts."
-msgstr "它需要重启才能生效，{name} 重启期间应用和网站会离线。"
+msgid "It needs a reboot, and apps and websites go offline while {name} restarts."
+msgstr "它需要重启，{name} 重启期间应用和网站会离线。"
 
 msgid "Its newest release isn't known"
 msgstr "最新版本未知"
@@ -11524,6 +11530,9 @@ msgstr "包管理器"
 msgid "Reboot"
 msgstr "重启"
 
+msgid "Reboot command copied"
+msgstr "已复制重启命令"
+
 #. placeholder {0}: words.ago(timestampDate(updates.listsTime), now)
 msgid "Refreshed {0}"
 msgstr "{0}刷新"
@@ -11559,13 +11568,14 @@ msgstr "在控制服务器上以 root 身份更新，正在运行的内容不受
 msgid "Updates for {0}"
 msgstr "{0} 的更新"
 
-#. placeholder {0}: server.name
-msgid "What was installed takes effect only once {0} restarts, so it still runs the old versions. Apps and websites on it go offline while it does: reboot it when that suits you, with <0>sudo reboot</0>."
-msgstr "已安装的更新要在 {0} 重启后才生效，目前仍在运行旧版本。重启期间其上的应用和网站会离线：请在合适时用 <0>sudo reboot</0> 重启。"
+msgid "Upgrade command copied"
+msgstr "已复制升级命令"
 
-#. placeholder {0}: server.name
-msgid "What {what} changed takes effect only once {0} restarts, so it still runs the old versions. Apps and websites on it go offline while it does: reboot it when that suits you, with <0>sudo reboot</0>."
-msgstr "{what} 的变更要在 {0} 重启后才生效，目前仍在运行旧版本。重启期间其上的应用和网站会离线：请在合适时用 <0>sudo reboot</0> 重启。"
+msgid "What was installed takes effect once it restarts; apps and websites go offline meanwhile."
+msgstr "安装的内容在重启后生效；重启期间应用和网站会离线。"
+
+msgid "What {what} changed takes effect once it restarts; apps and websites go offline meanwhile."
+msgstr "{what} 的更改在重启后生效；重启期间应用和网站会离线。"
 
 msgid "When installed"
 msgstr "安装时"
@@ -11613,8 +11623,8 @@ msgstr "{n} 个，来自 {source}"
 msgid "{reboots, plural, one {# needs a reboot} other {# need a reboot}}"
 msgstr "{reboots, plural, other {# 个需要重启}}"
 
-msgid "{reboots, plural, one {One of them needs a reboot to take effect, and apps and websites go offline while {name} restarts.} other {# of them need a reboot to take effect, and apps and websites go offline while {name} restarts.}}"
-msgstr "{reboots, plural, other {其中 # 个需要重启才能生效，{name} 重启期间应用和网站会离线。}}"
+msgid "{reboots, plural, one {One needs a reboot, and apps and websites go offline while {name} restarts.} other {# need a reboot, and apps and websites go offline while {name} restarts.}}"
+msgstr "{reboots, plural, other {其中 # 个需要重启，{name} 重启期间应用和网站会离线。}}"
 
 msgid "Dockwell can't read its updates until it's back."
 msgstr "它恢复连接前，Dockwell 无法读取它的更新。"
