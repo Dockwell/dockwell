@@ -30,6 +30,7 @@ import {
   Timeline,
   type TimelineEvent,
   useMediaQuery,
+  useOff,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -39,7 +40,7 @@ import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { happenedAt, useDescribe, useHealthEventWords } from "../activity/describe";
-import { useMay } from "../auth/may";
+import { type Offer, useMay } from "../auth/may";
 import { AppBackups } from "../backups/AppBackups";
 import { InstalledPanel } from "../catalog/InstalledPanel";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -497,17 +498,12 @@ function RunningPanel() {
         <span className="app-running-actions">
           {reached ? (
             <>
-              <button
-                type="button"
-                className="app-panel-link"
-                onClick={() => setAddingDomain(true)}
-                {...mayAddPort.off}
-              >
+              <PanelLink offer={mayAddPort} onClick={() => setAddingDomain(true)}>
                 <Trans>Add a domain</Trans>
-              </button>
-              <button type="button" className="app-panel-link" onClick={() => setAddingPort(true)} {...mayAddPort.off}>
+              </PanelLink>
+              <PanelLink offer={mayAddPort} onClick={() => setAddingPort(true)}>
                 <Trans>Add a port</Trans>
-              </button>
+              </PanelLink>
             </>
           ) : null}
         </span>
@@ -1243,4 +1239,15 @@ export function useDeleteApp(service: ServiceInfo): { routes: number; open: () =
       },
     });
   return { routes: routes.length, open };
+}
+
+/** A panel's link that acts, which stays where it is, off, with why, for someone who may not (ADR 0059). */
+function PanelLink({ offer, onClick, children }: { offer: Offer; onClick: () => void; children: ReactNode }) {
+  const off = useOff(offer.reason || undefined);
+  return (
+    <button type="button" className="app-panel-link" onClick={onClick} disabled={offer.off.disabled} {...off.props}>
+      <span>{children}</span>
+      {off.why}
+    </button>
+  );
 }

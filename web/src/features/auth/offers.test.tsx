@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { Code } from "@connectrpc/connect";
 import { ResourceSchema, Role, type WatchServersResponse } from "@dockwell/api";
 import { screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { anApp, ENV } from "../../test/apps";
-import { authState, mira } from "../../test/auth";
-import { type Api, feed, renderAt } from "../../test/render";
+import { authError, authState, mira } from "../../test/auth";
+import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
 const web = anApp("web", "nginx:1.4");
@@ -48,18 +50,63 @@ function api(auth: Api["auth"], isProtected = false): Api {
   };
 }
 
-const ADMINS = "Only an admin or the owner can do this.";
+const ADMINS = "Only an admin or the owner can do this. Ask one of them.";
+
+/**
+ * A control that's off with a reason: still in the tab order, aria-disabled and not disabled, with the
+ * reason as its description through aria-describedby, not a title, which neither a keyboard nor a phone shows.
+ */
+function expectOff(control: HTMLElement, reason: string) {
+  expect(control).toHaveAttribute("aria-disabled", "true");
+  expect(control).not.toBeDisabled();
+  expect(control).not.toHaveAttribute("title");
+  const described = control.getAttribute("aria-describedby") ?? "";
+  expect(described).not.toBe("");
+  expect(document.getElementById(described)).toHaveTextContent(reason);
+  expect(control).toHaveAccessibleDescription(reason);
+  expect(control.tabIndex).toBeGreaterThanOrEqual(0);
+  control.focus();
+  expect(control).toHaveFocus();
+}
 const DEVELOPERS = "Only a developer or more can do this. Ask an admin to change your role.";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("what the panel offers, by what you hold", () => {
   it("leaves an action on an app where it is for a viewer, off, with why", async () => {
     renderAt("/apps/svc_web", api(as(["prj_1", Role.VIEWER])));
     const deploy = await screen.findByRole("button", { name: "Deploy" });
-    expect(deploy).toBeDisabled();
-    expect(deploy).toHaveAccessibleDescription(DEVELOPERS);
-    expect(screen.getByRole("button", { name: "Restart" })).toBeDisabled();
+    expectOff(deploy, DEVELOPERS);
+    expectOff(screen.getByRole("button", { name: "Restart" }), DEVELOPERS);
+    // Tab reaches it, and pressing it does nothing.
+    document.body.focus();
+    const user = userEvent.setup();
+    for (let i = 0; i < 40 && document.activeElement !== deploy; i++) await user.tab();
+    expect(deploy).toHaveFocus();
+    await user.click(deploy);
+    await user.keyboard("{Enter}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     // What a viewer may do stays on.
     expect(screen.getAllByRole("link", { name: "Logs" })[0]).toBeVisible();
+  });
+
+  it("says why once on a phone, where nothing hovers", async () => {
+    onPhone();
+    const { container } = renderAt("/apps/svc_web", api(as(["prj_1", Role.VIEWER])));
+    expectOff(await screen.findByRole("button", { name: "Deploy" }), DEVELOPERS);
+    const notes = container.querySelectorAll(".page-off-note");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toHaveTextContent(DEVELOPERS);
+    expect(notes[0]).toBeVisible();
+  });
+
+  it("says nothing on a phone to someone who may do it all", async () => {
+    onPhone();
+    const { container } = renderAt("/apps/svc_web", api(as(["", Role.ADMIN])));
+    expect(await screen.findByRole("button", { name: "Deploy" })).toBeEnabled();
+    expect(container.querySelector(".page-off-note")).toBeNull();
   });
 
   it("offers a developer their project's actions, in a protected environment too, where the plan then waits", async () => {
@@ -70,9 +117,10 @@ describe("what the panel offers, by what you hold", () => {
 
   it("offers nothing in a project its reader holds nothing in", async () => {
     renderAt("/apps/svc_web", api(as(["prj_other", Role.DEVELOPER])));
-    const deploy = await screen.findByRole("button", { name: "Deploy" });
-    expect(deploy).toBeDisabled();
-    expect(deploy).toHaveAccessibleDescription("You hold no role in this project. Ask an admin to add you.");
+    expectOff(
+      await screen.findByRole("button", { name: "Deploy" }),
+      "You hold no role in this project. Ask an admin to add you.",
+    );
   });
 
   it("leaves out a server's tabs that only an admin reads, and asks nothing for them", async () => {
@@ -95,6 +143,21 @@ describe("what the panel offers, by what you hold", () => {
     expect(asked).toEqual([]);
   });
 
+  it("says the server's refusal on a server's Updates opened by its address, and doesn't wait", async () => {
+    renderAt("/servers/srv_1/updates", {
+      ...api(as(["", Role.DEVELOPER])),
+      updates: {
+        getServerUpdates: () => {
+          throw authError(Code.PermissionDenied, "needs_role", "only an admin or the owner can do this");
+        },
+      },
+    });
+    expect(
+      await screen.findByText("Your role doesn't let you do this here. Ask an admin to change your role."),
+    ).toBeVisible();
+    expect(screen.queryByText(/Asking hz-1/)).not.toBeInTheDocument();
+  });
+
   it("shows an admin all of a server's tabs", async () => {
     renderAt("/servers/srv_1", api(as(["", Role.ADMIN])));
     const tabs = await screen.findByRole("navigation", { name: "Server hz-1" });
@@ -115,9 +178,7 @@ describe("what the panel offers, by what you hold", () => {
     expect(within(rail).queryByRole("link", { name: "Alerts" })).not.toBeInTheDocument();
     expect(within(rail).getByRole("link", { name: "Apps" })).toBeVisible();
     // The install's name and time zone are there to read, and an admin's to save.
-    const save = await screen.findByRole("button", { name: /Save/ });
-    expect(save).toBeDisabled();
-    expect(save).toHaveAccessibleDescription(ADMINS);
+    expectOff(await screen.findByRole("button", { name: /Save/ }), ADMINS);
   });
 
   it("shows an admin Settings and the rail whole", async () => {

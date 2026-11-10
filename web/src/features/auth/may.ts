@@ -3,6 +3,7 @@
 import type { DescMethod } from "@bufbuild/protobuf";
 import { getOption } from "@bufbuild/protobuf";
 import {
+  type Change,
   effect as effectOption,
   min_role,
   min_role_protected,
@@ -43,8 +44,10 @@ export interface Placed {
 /** What the caller holds, and what's known of where things are. */
 export interface Holding {
   grants: readonly Pick<RoleGrant, "projectId" | "role">[];
-  /** An environment by ID, or undefined for one not read yet. */
+  /** An environment by ID, or undefined for one not read. */
   environment(id: string): Placed | undefined;
+  /** The environments are still being read. */
+  pending: boolean;
 }
 
 /** Why a call can't be made. */
@@ -54,7 +57,9 @@ export type Refusal =
   /** The role held does for an open environment, and this one is protected. */
   | "protected"
   /** Nothing is held where the object is. */
-  | "reach";
+  | "reach"
+  /** Where the object is isn't read yet, so nothing is said either way. */
+  | "pending";
 
 /** Whether a call may be made, and when it can't, why and what it would take. */
 export interface Decision {
@@ -113,6 +118,8 @@ export function decide(method: DescMethod, holding: Holding, where?: Where): Dec
   if (rule.needs === Role.UNSPECIFIED) return { allowed: true };
   const anywhere = highest(holding.grants.map((g) => g.role));
   if (RANK[anywhere] < RANK[rule.needs]) return { allowed: false, why: "role", needs: rule.needs };
+  // Only a project's object has a place to check. What a method reaches by name on the install, a server
+  // or a destination, is checked by the server against the request, so a place given for one changes nothing.
   if (rule.reach !== Reach.PROJECT || !where) return { allowed: true };
 
   const onInstall = highest(holding.grants.filter((g) => g.projectId === "").map((g) => g.role));
@@ -120,26 +127,62 @@ export function decide(method: DescMethod, holding: Holding, where?: Where): Dec
   if (RANK[onInstall] >= RANK[Role.ADMIN]) return { allowed: true };
   if ("install" in where) return { allowed: false, why: "role", needs: Role.ADMIN };
 
-  // An environment not read yet is taken as protected, so nothing is offered that may then be refused.
-  const placed = "environment" in where ? holding.environment(where.environment) : undefined;
-  const project = "project" in where ? where.project : placed?.project;
-  const isProtected = "environment" in where && (placed?.protected ?? true);
-  const needs = isProtected ? rule.needsProtected : rule.needs;
-  if (project === undefined) {
-    return RANK[onInstall] >= RANK[needs] ? { allowed: true } : { allowed: false, why: "protected", needs };
+  let project: string;
+  let isProtected = false;
+  if ("project" in where) {
+    project = where.project;
+  } else {
+    const placed = holding.environment(where.environment);
+    if (!placed) {
+      // Not read yet: nothing is said of it while the environments load. If they can't be read, the
+      // first check stands alone and the server says the rest, as nothing here knows it to be protected.
+      return holding.pending ? { allowed: false, why: "pending" } : { allowed: true };
+    }
+    project = placed.project;
+    isProtected = placed.protected;
   }
+  const needs = isProtected ? rule.needsProtected : rule.needs;
   const held = highest(holding.grants.filter((g) => g.projectId === "" || g.projectId === project).map((g) => g.role));
   if (held === Role.UNSPECIFIED) return { allowed: false, why: "reach", needs };
   if (RANK[held] >= RANK[needs]) return { allowed: true };
   return { allowed: false, why: isProtected && RANK[held] >= RANK[rule.needs] ? "protected" : "role", needs };
 }
 
-/** What a control gets from an answer: nothing when it may, and when it may not, off with the reason as its description. */
+/** What a control gets from an answer. */
 export interface Offer extends Decision {
-  /** Why not, in a sentence, or "" when it may. */
+  /** Why not, in a sentence, or "" when it may, and while what decides it is still being read. */
   reason: string;
-  /** Spread onto a button or a switch: `disabled` and `title` when it may not. */
-  off: { disabled?: true; title?: string };
+  /**
+   * Spread onto a Button: nothing when it may; when it may not, `off` with the reason, which keeps it in
+   * place and in the tab order with the reason as its description; while it isn't known yet, `disabled`.
+   * For anything that isn't a Button, pass `reason` to `useOff` from @dockwell/ui.
+   */
+  off: { off?: string; disabled?: true };
+}
+
+/**
+ * Where a change's items are, each place once: an environment's, a project's, or no project's, as a
+ * server's own. Undoing it is asked for in each.
+ */
+export function placesOfChange(change: Pick<Change, "plan"> | undefined): Where[] {
+  const seen = new Set<string>();
+  const out: Where[] = [];
+  for (const planned of change?.plan?.resources ?? []) {
+    const ref = planned.resource;
+    if (!ref) continue;
+    // A project itself is in no project; anything else is where its scope is.
+    const scope = ref.kind === "project" ? "" : ref.scope;
+    const where: Where = scope.startsWith("env_")
+      ? { environment: scope }
+      : scope.startsWith("prj_")
+        ? { project: scope }
+        : { install: true };
+    const key = JSON.stringify(where);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(where);
+  }
+  return out;
 }
 
 /** What the signed-in person holds, with the environments as far as they're read. */
@@ -149,6 +192,7 @@ export function useHolding(): Holding {
   return useMemo(
     () => ({
       grants: grants ?? [],
+      pending: places.isPending,
       environment: (id) => {
         const place = places.place(id);
         return place ? { project: place.scope, protected: place.protected } : undefined;
@@ -163,26 +207,35 @@ export function useHolding(): Holding {
  * something they can see stays where it is, off, with the reason; a way to a
  * place they can't read is left out (ADR 0059).
  */
-export function useMay(): (method: DescMethod, where?: Where) => Offer {
+export function useMay(): (method: DescMethod, where?: Where | readonly Where[]) => Offer {
   const { t } = useLingui();
   const holding = useHolding();
   return useCallback(
     (method, where) => {
-      const decision = decide(method, holding, where);
+      // Several places, as a change's items have: it may where it may in each, and the first no is the answer.
+      const wheres: readonly (Where | undefined)[] = Array.isArray(where)
+        ? where.length > 0
+          ? where
+          : [undefined]
+        : [where as Where | undefined];
+      const decisions = wheres.map((w) => decide(method, holding, w));
+      const decision = decisions.find((d) => !d.allowed) ?? { allowed: true };
       if (decision.allowed) return { ...decision, reason: "", off: {} };
+      // Not known yet: off for the moment, with nothing said.
+      if (decision.why === "pending") return { ...decision, reason: "", off: { disabled: true } };
       let reason: string;
       if (decision.why === "protected") {
-        reason = t`This environment is protected, so an admin or the owner does this.`;
+        reason = t`This environment is protected, so an admin or the owner does this. Ask one of them.`;
       } else if (decision.why === "reach") {
         reason = t`You hold no role in this project. Ask an admin to add you.`;
       } else if (decision.needs === Role.OWNER) {
         reason = t`Only the owner can do this.`;
       } else if (decision.needs === Role.ADMIN) {
-        reason = t`Only an admin or the owner can do this.`;
+        reason = t`Only an admin or the owner can do this. Ask one of them.`;
       } else {
         reason = t`Only a developer or more can do this. Ask an admin to change your role.`;
       }
-      return { ...decision, reason, off: { disabled: true, title: reason } };
+      return { ...decision, reason, off: { off: reason } };
     },
     [holding, t],
   );

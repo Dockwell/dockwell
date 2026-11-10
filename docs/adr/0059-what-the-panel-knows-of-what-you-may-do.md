@@ -30,7 +30,9 @@ A method whose objects are the install's is an admin's by the schema's own rule,
 
 **How the panel shows a no.** One rule, from the content rules' "disabled controls say why nearby":
 
-- **An action on something you can see is shown disabled, with the reason.** A button, a menu item or a switch stays where it is, at the disabled opacity, and says who can do it as its description, which a pointer shows and assistive technology reads: "Only an admin or the owner can do this", or "This environment is protected, so an admin or the owner does this". You learn the thing exists and whom to ask. `may` hands a control both at once (`off`), so no screen words its own.
+- **An action on something you can see stays where it is, off, with the reason.** A button or a switch keeps its place and its place in the tab order: it is `aria-disabled`, not `disabled`, its press does nothing, and its reason is its description (`aria-describedby`), shown beside it when a pointer is over it or a keyboard is on it: "Only an admin or the owner can do this. Ask one of them.", or "This environment is protected, so an admin or the owner does this. Ask one of them." You learn the thing exists and whom to ask. The shared `Button` takes the reason as `off`, and `may` hands it over, so no screen words its own or builds its own.
+- **A phone says the first reason once, under the page's head,** as nothing hovers there: one muted line, from the first control on the page that's off. It is hidden from assistive technology, which hears the reason on each control it belongs to.
+- **While the panel doesn't know yet, it says nothing.** A control whose environment is still being read is disabled for that moment with no reason, as it isn't known to be refused. If the environments can't be read, the first check stands alone and the server says the rest: the panel never calls an environment protected that it hasn't read.
 - **A way to a place you can't read is left out.** A tab, a rail entry or a panel whose read you may not call isn't drawn, and its read isn't made, as a list leaves out what's out of your reach. Opening its address still shows the server's refusal, in the words the panel already has for it.
 - **The command bar leaves out both kinds:** an entry is something to run, and one that can't run is noise in a search.
 - **A timeline's Undo is left out** for someone who may not undo: the shared component draws it or doesn't, and has no off state.
@@ -46,13 +48,13 @@ Making or deleting a project is asked with the install as its place, since a pro
 - `plan`: applying and discarding a plan, which the plan itself answers.
 - `unused`: the panel doesn't call it.
 
-A test walks the generated services and fails on a method with no decision, on a decision for a method that's gone, on a call the panel makes to a method marked unused, and on a write, or a read that's an admin's, that the panel calls without asking `may` for it by name. So a new method fails the panel's tests until someone decides.
+A test walks the generated services and fails on a method with no decision, on a decision for a method that's gone, on a call the panel makes to a method marked unused, and on a write, or a read that takes more than a viewer, such as revealing a secret, that the panel calls without asking `may` for it by name. It checks that each such method is asked for somewhere, not at each place it's called: a sheet's call is asked for where the sheet is opened, so the two are in different files, and checking each call would take every guarded call going through one wrapper that asks and calls together. So a new method fails the panel's tests until someone decides.
 
 **What this doesn't cover yet.** An editor that plans through the change sheet with edits of its own (variables and secrets, an app's settings and environment, backup policies and destinations, alert rules and channels) asks `may` for nothing of its own: the test sees that `ProposeChange` is asked for somewhere, not at each of them. Below a developer they still open, and the plan is refused in the server's words. Gating each is the next step, tracked on #263.
 
 ## Consequences
 
-- The sign-in state grows by a few grants per person. It is read at sign-in and when the panel wakes, as before. A grant changed while the panel is open shows at the next read; until then the server still refuses what the panel wrongly offers, with the words it had.
+- The sign-in state grows by a few grants per person. It is read at sign-in and when the panel wakes, as before, and again whenever a call is refused for want of a role, since that says what the panel holds is out of date. Until then the server still refuses what the panel wrongly offers, with the words it had.
 - An API token's caller learns the same from the same two reads, though `GetAuthState` answers for a session: a token's maker reads their grants in the panel.
 - The plan sheet's waiting and approval keep coming from the server's `waits` and `approves`; `may` doesn't replace them.
 - Screens stop guessing from the install role. `useMay` is the one way to ask.

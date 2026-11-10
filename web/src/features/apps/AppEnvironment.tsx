@@ -63,7 +63,7 @@ export function AppEnvironment() {
   const environment = environmentOf(service);
   const store = useAllVariables(environment);
   // A secret it uses reveals here as on Variables, with a passkey, for a minute.
-  const reveals = useReveals();
+  const reveals = useReveals(environment);
   const [pending, setPending] = useDraft(service.id);
   // While the plan sheet is open, it has the keyboard: ⌘↵ there applies.
   const reviewing = useRef(false);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { PackageEffect, type Server } from "@dockwell/api";
+import { PackageEffect, type Server, UpdateService } from "@dockwell/api";
 import { Glyph, type GlyphShape, Icon, Panel } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -9,6 +9,7 @@ import { Link } from "@tanstack/react-router";
 
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { distributionOf, managerName, plainVersion, releaseStanding, summarize, useServerUpdates } from "./updates";
 import { useWhyNot } from "./why";
@@ -27,7 +28,9 @@ function useLines(server: Server): { updates: Line; dockwell: Line | undefined; 
   const words = useTimeWords();
   const now = useControlPlaneNow();
   const whyNot = useWhyNot();
-  const query = useServerUpdates(server.id);
+  // A server's updates are an admin's to read: the card asks for nobody else, and isn't drawn (ADR 0059).
+  const ask = useMay()(UpdateService.method.getServerUpdates).allowed;
+  const query = useServerUpdates(server.id, { ask });
   const u = query.data?.updates;
   if (!u) return undefined;
   const checked = u.listsTime ? t`Checked ${words.ago(timestampDate(u.listsTime), now)}` : "";

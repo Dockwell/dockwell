@@ -153,6 +153,18 @@ func TestTheSignInStateSaysWhatYouHold(t *testing.T) {
 		if got := held(); len(got) != 0 {
 			t.Errorf("someone with no role holds %v", got)
 		}
+		// The grants are a session's own: a call with no session, or with an API token, is told none.
+		s.hold(onInstall(store.RoleAdmin))
+		token := createToken(t, s.b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY)
+		for who, client := range map[string]connect.HTTPClient{
+			"nobody signed in": &http.Client{Transport: s.b.client.Transport},
+			"an API token":     bearer{token: token, rt: s.b.client.Transport},
+		} {
+			state, err := dockwellv1connect.NewAuthServiceClient(client, s.b.origin, connect.WithProtoJSON()).GetAuthState(ctx, connect.NewRequest(&dockwellv1.GetAuthStateRequest{}))
+			if err != nil || len(state.Msg.GetGrants()) != 0 || state.Msg.GetUser() != nil {
+				t.Errorf("%s is told it holds %v, as %v, %v; want nothing of anyone", who, state.Msg.GetGrants(), state.Msg.GetUser(), err)
+			}
+		}
 		s.hold(onInstall(store.RoleViewer))
 		envs, err := dockwellv1connect.NewResourceServiceClient(s.b, s.b.origin, connect.WithProtoJSON()).ListResources(ctx, connect.NewRequest(&dockwellv1.ListResourcesRequest{Kind: "environment"}))
 		if err != nil {

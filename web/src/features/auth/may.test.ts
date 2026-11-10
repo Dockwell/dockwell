@@ -12,7 +12,7 @@ import {
 } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
-import { decide, type Holding } from "./may";
+import { decide, type Holding, placesOfChange } from "./may";
 
 const envs: Record<string, { project: string; protected: boolean }> = {
   env_prod: { project: "prj_blog", protected: true },
@@ -23,6 +23,7 @@ const envs: Record<string, { project: string; protected: boolean }> = {
 const holds = (...grants: [string, Role][]): Holding => ({
   grants: grants.map(([projectId, role]) => ({ projectId, role })),
   environment: (id) => envs[id],
+  pending: false,
 });
 
 describe("decide", () => {
@@ -101,13 +102,43 @@ describe("decide", () => {
     expect(decide(LogService.method.readLogs, holds(["", Role.ADMIN]), { install: true }).allowed).toBe(true);
   });
 
-  it("takes an environment it hasn't read yet as protected", () => {
-    const developer = holds(["", Role.DEVELOPER]);
-    expect(decide(ChangeService.method.applyChange, developer, { environment: "env_unread" }).allowed).toBe(false);
-    expect(decide(ServiceService.method.deployService, developer, { environment: "env_unread" }).allowed).toBe(true);
+  it("says nothing of an environment while the environments load, and never calls one it hasn't read protected", () => {
+    const developer = holds(["prj_blog", Role.DEVELOPER]);
+    const loading = { ...developer, pending: true };
+    expect(decide(ChangeService.method.applyChange, loading, { environment: "env_unread" })).toEqual({
+      allowed: false,
+      why: "pending",
+    });
+    expect(decide(ServiceService.method.deployService, loading, { environment: "env_unread" }).why).toBe("pending");
+    // The read failed, or the environment is new: the first check stands, and the server says the rest.
+    expect(decide(ChangeService.method.applyChange, developer, { environment: "env_unread" })).toEqual({
+      allowed: true,
+    });
+    expect(
+      decide(ChangeService.method.applyChange, holds(["prj_blog", Role.VIEWER]), { environment: "env_unread" }).why,
+    ).toBe("role");
   });
 
   it("lets anyone with a role read what projects name on the install", () => {
     expect(decide(ServerService.method.listServers, holds(["prj_blog", Role.VIEWER])).allowed).toBe(true);
+  });
+});
+
+describe("placesOfChange", () => {
+  it("names each place a change's items are in, once", () => {
+    const resource = (kind: string, scope: string) => ({ resource: { kind, scope, name: "x" } });
+    const change = {
+      plan: {
+        resources: [
+          resource("service", "env_prod"),
+          resource("variable", "env_prod"),
+          resource("environment", "prj_blog"),
+          resource("project", "org_1"),
+          resource("container", "srv_1"),
+        ],
+      },
+    } as unknown as Parameters<typeof placesOfChange>[0];
+    expect(placesOfChange(change)).toEqual([{ environment: "env_prod" }, { project: "prj_blog" }, { install: true }]);
+    expect(placesOfChange(undefined)).toEqual([]);
   });
 });

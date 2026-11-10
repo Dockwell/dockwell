@@ -60,7 +60,7 @@ import { type Described, happenedAt, useCounts, useDescribe, useHealthEventWords
 import { RecordedPlan } from "./RecordedPlan";
 import { type EventFilter, useEvents } from "./useEvents";
 import "./ActivityPage.css";
-import { useMay } from "../auth/may";
+import { placesOfChange, useMay } from "../auth/may";
 
 /** The kinds of event Activity filters by, as its search names them. */
 export type ActivityKind = "changes" | "servers" | "access" | "health" | "backups" | "alerts";
@@ -522,7 +522,8 @@ export function EventTimeline({
   const time = useTimeWords();
   const meta = useMeta();
   const sheet = useChangeSheet();
-  const mayUndo = useMay()(ChangeService.method.undoChange).allowed;
+  const may = useMay();
+  const mayUndo = may(ChangeService.method.undoChange).allowed;
   const items: TimelineEvent[] = events.map((event) => {
     const d = describe(event, summaries);
     const date = happenedAt(event);
@@ -544,7 +545,8 @@ export function EventTimeline({
       meta: (({ look, parts }) => (look ? [look.word, ...parts] : parts).join(" · "))(meta(event)),
       time: time.ago(date, now),
       datetime: date.toISOString(),
-      undoable: canUndo(change, now),
+      // Where each of its items is: undoing plans in every one of them.
+      undoable: canUndo(change, now) && may(ChangeService.method.undoChange, placesOfChange(change)).allowed,
       undoLabel: t`Undo`,
     };
   });
@@ -701,7 +703,7 @@ interface DetailProps {
 /** The selected event beside the list: who, when, from where, and for a change what it changed. */
 function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpen, onUndo }: DetailProps) {
   // Undoing plans a change, which a viewer can't: off, with why (ADR 0059).
-  const mayUndo = useMay()(ChangeService.method.undoChange);
+  const mayUndo = useMay()(ChangeService.method.undoChange, placesOfChange(event.change));
   const { t, i18n } = useLingui();
   const words = useChangeWords();
   const rows = useFieldRows();

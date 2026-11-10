@@ -3765,14 +3765,14 @@ msgstr "{browser} on {os}"
 msgid "Only a developer or more can do this. Ask an admin to change your role."
 msgstr "Only a developer or more can do this. Ask an admin to change your role."
 
-msgid "Only an admin or the owner can do this."
-msgstr "Only an admin or the owner can do this."
+msgid "Only an admin or the owner can do this. Ask one of them."
+msgstr "Only an admin or the owner can do this. Ask one of them."
 
 msgid "Only the owner can do this."
 msgstr "Only the owner can do this."
 
-msgid "This environment is protected, so an admin or the owner does this."
-msgstr "This environment is protected, so an admin or the owner does this."
+msgid "This environment is protected, so an admin or the owner does this. Ask one of them."
+msgstr "This environment is protected, so an admin or the owner does this. Ask one of them."
 
 msgid "You hold no role in this project. Ask an admin to add you."
 msgstr "You hold no role in this project. Ask an admin to add you."

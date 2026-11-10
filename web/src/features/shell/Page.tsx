@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { cx, Icon, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
+import { cx, Icon, PHONE_QUERY, useMediaQuery, useOffReasons } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -92,11 +92,13 @@ export function Page({
   className,
 }: PageProps) {
   const phone = useMediaQuery(PHONE_QUERY);
+  // Why its controls are off, for a phone to say once: nothing hovers there (ADR 0059).
+  const off = useOffReasons();
 
   useDocumentTitle(title);
 
   return (
-    <>
+    <off.Provider>
       {phone ? (
         <MobileHeader
           title={phoneTitle ?? title}
@@ -109,9 +111,15 @@ export function Page({
       ) : null}
       <div className={cx("page", width !== "standard" && `is-${width}`, fullBody && "has-full-body", className)}>
         {phone ? (
-          status ? (
-            <div className="page-status">{status}</div>
-          ) : null
+          <>
+            {status ? <div className="page-status">{status}</div> : null}
+            {/* Hidden from assistive technology, which hears it on each control it explains. */}
+            {off.first ? (
+              <p className="page-off-note" aria-hidden="true">
+                {off.first}
+              </p>
+            ) : null}
+          </>
         ) : (
           <div className="page-head">
             <div className="page-heading">
@@ -128,7 +136,7 @@ export function Page({
         )}
         {children}
       </div>
-    </>
+    </off.Provider>
   );
 }
 
