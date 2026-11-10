@@ -18,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
 	"github.com/dockwell/dockwell/internal/agent/terminal"
@@ -96,6 +97,7 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
 	})
 	lookups(&cfg, stdio, g)
+	cfg.Tools = hostTools(stdio)
 	err := agent.Run(ctx, cfg)
 	if cfg.Tasks != nil && ctx.Err() != nil {
 		// Stopping stops the tasks' runs too; what each came to is kept before the
@@ -103,6 +105,19 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 		cfg.Tasks.Drain(task.DrainWait)
 	}
 	return err
+}
+
+// hostTools runs the server's own tools, such as ufw and nft. A test runs none
+// of the machine's, only stand-ins from the folder DOCKWELL_TEST_TOOLS names,
+// laid out as the paths they stand in for, such as <folder>/usr/sbin/nft.
+func hostTools(stdio IO) *hosttool.Runner {
+	if !isSet(stdio.Getenv(envTest)) {
+		return &hosttool.Runner{}
+	}
+	if dir := stdio.Getenv(envTestTools); dir != "" {
+		return &hosttool.Runner{Root: dir}
+	}
+	return &hosttool.Runner{Off: true}
 }
 
 // lookups says how this server's agent finds out how the internet sees it: what the

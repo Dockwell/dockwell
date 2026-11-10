@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { FileService, ImportService, ProcessService, type Server, TerminalService, UpdateService } from "@dockwell/api";
+import {
+  FileService,
+  FirewallService,
+  ImportService,
+  ProcessService,
+  type Server,
+  TerminalService,
+  UpdateService,
+} from "@dockwell/api";
 import { TabNav, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useRouterState } from "@tanstack/react-router";
@@ -146,6 +154,11 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
             </RouterTabLink>
           ) : null}
           {may(UpdateService.method.getServerUpdates).allowed ? <UpdatesTab server={server} /> : null}
+          {may(FirewallService.method.getServerFirewall).allowed ? (
+            <RouterTabLink to="/servers/$serverId/firewall" params={{ serverId: server.id }}>
+              <Trans>Firewall</Trans>
+            </RouterTabLink>
+          ) : null}
           {may(ProcessService.method.watchProcesses).allowed ? (
             <RouterTabLink to="/servers/$serverId/processes" params={{ serverId: server.id }}>
               <Trans>Processes</Trans>

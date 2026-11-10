@@ -9,6 +9,7 @@ import "dockwell/v1/container.proto";
 import "dockwell/v1/database.proto";
 import "dockwell/v1/domain.proto";
 import "dockwell/v1/file.proto";
+import "dockwell/v1/firewall.proto";
 import "dockwell/v1/health.proto";
 import "dockwell/v1/import.proto";
 import "dockwell/v1/log.proto";
@@ -514,6 +515,9 @@ message Call {
     // Say what each of the server's databases says of itself. Numbered apart, as
     // open work adds to this message.
     DatabaseCall database = 30;
+    // Read what filters the server's inbound traffic, changing nothing. Numbered
+    // in the block for a server's own pages.
+    FirewallCall firewall = 43;
     // Ask whether what a website sends to answers, from the server. Numbered in
     // the websites' block, as open work adds to this message.
     ProbeCall probe = 60;
@@ -573,6 +577,11 @@ message ProbeCall {
     string url = 2;
   }
 }
+
+// FirewallCall asks what filters the server's inbound traffic. The agent reads
+// ufw, firewalld and nftables with their own commands, and Docker's published
+// ports, and changes nothing.
+message FirewallCall {}
 
 // ProcessesCall asks what runs on the server. CPU covers the time since the last
 // such call, which the agent forgets 30 s after it, so nothing is read or held
@@ -1474,6 +1483,8 @@ message CallResult {
     // What a database call read. Numbered apart, as open work adds to this
     // message.
     DatabaseResult database = 30;
+    // What a firewall call read.
+    dockwell.v1.ServerFirewall firewall = 43;
     // What a probe found.
     ProbeResult probe = 60;
     // What a disk use call added up. Numbered apart, as open work adds to this

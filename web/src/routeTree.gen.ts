@@ -57,6 +57,7 @@ import { Route as ShellDatabasesServiceIdBackupsRouteImport } from './routes/_sh
 import { Route as ShellDatabasesServiceIdUsersRouteImport } from './routes/_shell/databases.$serviceId.users'
 import { Route as ShellServersServerIdIndexRouteImport } from './routes/_shell/servers.$serverId.index'
 import { Route as ShellServersServerIdFilesRouteImport } from './routes/_shell/servers.$serverId.files'
+import { Route as ShellServersServerIdFirewallRouteImport } from './routes/_shell/servers.$serverId.firewall'
 import { Route as ShellServersServerIdImportRouteImport } from './routes/_shell/servers.$serverId.import'
 import { Route as ShellServersServerIdProcessesRouteImport } from './routes/_shell/servers.$serverId.processes'
 import { Route as ShellServersServerIdTerminalRouteImport } from './routes/_shell/servers.$serverId.terminal'
@@ -322,6 +323,12 @@ const ShellServersServerIdFilesRoute =
     path: '/servers/$serverId/files',
     getParentRoute: () => ShellRoute,
   } as any)
+const ShellServersServerIdFirewallRoute =
+  ShellServersServerIdFirewallRouteImport.update({
+    id: '/servers/$serverId/firewall',
+    path: '/servers/$serverId/firewall',
+    getParentRoute: () => ShellRoute,
+  } as any)
 const ShellServersServerIdImportRoute =
   ShellServersServerIdImportRouteImport.update({
     id: '/servers/$serverId/import',
@@ -426,6 +433,7 @@ export interface FileRoutesByFullPath {
   '/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
   '/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/servers/$serverId/firewall': typeof ShellServersServerIdFirewallRoute
   '/servers/$serverId/import': typeof ShellServersServerIdImportRoute
   '/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
   '/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
@@ -481,6 +489,7 @@ export interface FileRoutesByTo {
   '/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
   '/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/servers/$serverId/firewall': typeof ShellServersServerIdFirewallRoute
   '/servers/$serverId/import': typeof ShellServersServerIdImportRoute
   '/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
   '/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
@@ -542,6 +551,7 @@ export interface FileRoutesById {
   '/_shell/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
   '/_shell/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/_shell/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
+  '/_shell/servers/$serverId/firewall': typeof ShellServersServerIdFirewallRoute
   '/_shell/servers/$serverId/import': typeof ShellServersServerIdImportRoute
   '/_shell/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
   '/_shell/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
@@ -602,6 +612,7 @@ export interface FileRouteTypes {
     | '/databases/$serviceId/backups'
     | '/databases/$serviceId/users'
     | '/servers/$serverId/files'
+    | '/servers/$serverId/firewall'
     | '/servers/$serverId/import'
     | '/servers/$serverId/processes'
     | '/servers/$serverId/terminal'
@@ -657,6 +668,7 @@ export interface FileRouteTypes {
     | '/databases/$serviceId/backups'
     | '/databases/$serviceId/users'
     | '/servers/$serverId/files'
+    | '/servers/$serverId/firewall'
     | '/servers/$serverId/import'
     | '/servers/$serverId/processes'
     | '/servers/$serverId/terminal'
@@ -717,6 +729,7 @@ export interface FileRouteTypes {
     | '/_shell/databases/$serviceId/backups'
     | '/_shell/databases/$serviceId/users'
     | '/_shell/servers/$serverId/files'
+    | '/_shell/servers/$serverId/firewall'
     | '/_shell/servers/$serverId/import'
     | '/_shell/servers/$serverId/processes'
     | '/_shell/servers/$serverId/terminal'
@@ -1079,6 +1092,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersServerIdFilesRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/servers/$serverId/firewall': {
+      id: '/_shell/servers/$serverId/firewall'
+      path: '/servers/$serverId/firewall'
+      fullPath: '/servers/$serverId/firewall'
+      preLoaderRoute: typeof ShellServersServerIdFirewallRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/servers/$serverId/import': {
       id: '/_shell/servers/$serverId/import'
       path: '/servers/$serverId/import'
@@ -1278,6 +1298,7 @@ interface ShellRouteChildren {
   ShellServersIndexRoute: typeof ShellServersIndexRoute
   ShellWebsitesIndexRoute: typeof ShellWebsitesIndexRoute
   ShellServersServerIdFilesRoute: typeof ShellServersServerIdFilesRoute
+  ShellServersServerIdFirewallRoute: typeof ShellServersServerIdFirewallRoute
   ShellServersServerIdImportRoute: typeof ShellServersServerIdImportRoute
   ShellServersServerIdProcessesRoute: typeof ShellServersServerIdProcessesRoute
   ShellServersServerIdTerminalRoute: typeof ShellServersServerIdTerminalRoute
@@ -1312,6 +1333,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellServersIndexRoute: ShellServersIndexRoute,
   ShellWebsitesIndexRoute: ShellWebsitesIndexRoute,
   ShellServersServerIdFilesRoute: ShellServersServerIdFilesRoute,
+  ShellServersServerIdFirewallRoute: ShellServersServerIdFirewallRoute,
   ShellServersServerIdImportRoute: ShellServersServerIdImportRoute,
   ShellServersServerIdProcessesRoute: ShellServersServerIdProcessesRoute,
   ShellServersServerIdTerminalRoute: ShellServersServerIdTerminalRoute,

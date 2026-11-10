@@ -121,6 +121,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   // Its bytes go over the REST path, from the Files screen.
   "FileService.uploadFile": { within: "FileService.listFiles" },
 
+  "FirewallService.getServerFirewall": "may",
+
   "HealthService.listHealth": "read",
 
   "ImportService.importOnePanel": "may",

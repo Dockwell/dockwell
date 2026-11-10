@@ -88,7 +88,7 @@ describe("what the panel offers, by what you hold", () => {
     });
     const tabs = await screen.findByRole("navigation", { name: "Server hz-1" });
     expect(within(tabs).getByRole("link", { name: "Overview" })).toBeVisible();
-    for (const name of ["Files", "Terminal", "Updates", "Processes"]) {
+    for (const name of ["Files", "Terminal", "Updates", "Firewall", "Processes"]) {
       expect(within(tabs).queryByRole("link", { name })).not.toBeInTheDocument();
     }
     expect(screen.queryByRole("region", { name: "Containers" })).not.toBeInTheDocument();
@@ -98,7 +98,7 @@ describe("what the panel offers, by what you hold", () => {
   it("shows an admin all of a server's tabs", async () => {
     renderAt("/servers/srv_1", api(as(["", Role.ADMIN])));
     const tabs = await screen.findByRole("navigation", { name: "Server hz-1" });
-    for (const name of ["Overview", "Files", "Terminal", "Updates", "Processes"]) {
+    for (const name of ["Overview", "Files", "Terminal", "Updates", "Firewall", "Processes"]) {
       expect(within(tabs).getByRole("link", { name })).toBeVisible();
     }
   });
