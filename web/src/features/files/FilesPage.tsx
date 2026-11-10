@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { Code, ConnectError } from "@connectrpc/connect";
-import { useQuery } from "@connectrpc/connect-query";
-import { type DeletedFile, downloadFileURL, type FileEntry, FileService, FileType, type Server } from "@dockwell/api";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
+import { skipToken, useQuery, useTransport } from "@connectrpc/connect-query";
+import {
+  type DeletedFile,
+  downloadFileURL,
+  type FileEntry,
+  FileService,
+  FileType,
+  type ListFilesResponse,
+  type Server,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -19,7 +27,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { isTransient } from "../../app/api";
 import { isRoleRefusal, reasonOf, sentence } from "../../lib/errors";
@@ -56,6 +64,16 @@ export interface FilesSearch {
 }
 
 /** A path that isn't answering won't by the next try, and each try costs someone the wait. */
+/** value once it has stayed the same for ms: what a search asks the server for, not each key typed. */
+function useSettled<T>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  return settled;
+}
+
 function retryListing(failures: number, error: unknown): boolean {
   return failures < 2 && isTransient(error) && reasonOf(error) !== "path_not_answering";
 }
@@ -256,12 +274,50 @@ function Files({ server, folder, file, reading }: FilesProps) {
   );
   const listing = query.data;
   const shown = listing?.path ?? folder;
+  // A folder that holds more than a listing carries is searched by its agent, through every name; a smaller
+  // one, here, as you type.
+  const big = Boolean(listing?.nextPage);
+  const wanted = useSettled(filter.trim(), 300);
+  const searching = big && wanted !== "";
+  const search = useQuery(
+    FileService.method.listFiles,
+    searching ? { serverId, path: folder, match: wanted } : skipToken,
+    { retry: retryListing, refetchOnWindowFocus: false },
+  );
+  const first = searching ? search.data : listing;
+  // The pages after the first, in name order, as Show more brings them. They belong to the first page they
+  // followed, so another folder, another search or a first page read again starts over.
+  const [after, setAfter] = useState<{ first?: ListFilesResponse; pages: ListFilesResponse[]; problem?: string }>({
+    pages: [],
+  });
+  const more = after.first === first ? after.pages : [];
+  const moreProblem = after.first === first ? after.problem : undefined;
+  const [loadingMore, setLoadingMore] = useState(false);
+  const nextPage = (more.at(-1) ?? first)?.nextPage ?? "";
+  const transport = useTransport();
+  const showMore = async () => {
+    const from = first;
+    setLoadingMore(true);
+    try {
+      const page = await createClient(FileService, transport).listFiles({
+        serverId,
+        path: folder,
+        match: searching ? wanted : "",
+        page: nextPage,
+      });
+      setAfter((was) => ({ first: from, pages: [...(was.first === from ? was.pages : []), page] }));
+    } catch (err) {
+      setAfter((was) => ({ first: from, pages: was.first === from ? was.pages : [], problem: sentence(err) }));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const rows = useMemo(() => {
-    const wanted = filter.trim().toLowerCase();
-    const all = rowsOf(listing?.entries ?? []);
-    return wanted ? all.filter((row) => row.name.toLowerCase().includes(wanted)) : all;
-  }, [listing, filter]);
+    const typed = filter.trim().toLowerCase();
+    const all = rowsOf([first, ...more].flatMap((page) => page?.entries ?? []));
+    return typed ? all.filter((row) => row.name.toLowerCase().includes(typed)) : all;
+  }, [first, more, filter]);
 
   const open = (row: Row) => {
     if (row.entry.unreadableName) return;
@@ -393,6 +449,9 @@ function Files({ server, folder, file, reading }: FilesProps) {
   };
 
   const count = listing?.entries.length ?? 0;
+  const many = (n: number) => n.toLocaleString(i18n.locale);
+  const countWords = many(count);
+  const shownWords = many(rows.length);
   const owner = listing?.directory?.owner;
   return (
     <div className="files">
@@ -424,7 +483,7 @@ function Files({ server, folder, file, reading }: FilesProps) {
             <CopyButton text={shown} label={t`Copy path ${shown}`} />
             {listing ? (
               <span className="files-count">
-                {plural(count, { one: "# item", other: "# items" })}
+                {big ? t`More than ${countWords} items` : plural(count, { one: "# item", other: "# items" })}
                 {owner ? (
                   <>
                     {" · "}
@@ -550,11 +609,11 @@ function Files({ server, folder, file, reading }: FilesProps) {
               <FolderProblem error={query.error} folder={folder} serverId={serverId} />
             ) : (
               <>
-                {listing?.truncated ? (
+                {listing?.truncated && !big ? (
                   <Callout tone="warning" title={t`This folder holds more than a listing shows`}>
                     <Trans>
-                      Only {count} of its items are here, so one you're after may be missing. Connect to the server over
-                      SSH to see them all.
+                      Only {count} of its items are here. Update the agent on {server.name} to search and page through
+                      them all.
                     </Trans>
                   </Callout>
                 ) : null}
@@ -570,6 +629,10 @@ function Files({ server, folder, file, reading }: FilesProps) {
                   empty={
                     query.isPending ? (
                       <Trans>Reading this folder</Trans>
+                    ) : searching && search.isPending ? (
+                      <Trans>Searching every name in this folder</Trans>
+                    ) : searching && search.error ? (
+                      sentence(search.error)
                     ) : filter ? (
                       <Trans>Nothing here matches your search.</Trans>
                     ) : (
@@ -577,6 +640,23 @@ function Files({ server, folder, file, reading }: FilesProps) {
                     )
                   }
                 />
+                {nextPage || moreProblem ? (
+                  <div className="files-more">
+                    <span className="files-more-count">
+                      {searching ? t`${shownWords} found so far, by name` : t`${shownWords} shown, by name`}
+                    </span>
+                    {moreProblem ? (
+                      <span className="files-more-problem" role="alert">
+                        {moreProblem}
+                      </span>
+                    ) : null}
+                    {nextPage ? (
+                      <Button size="sm" variant="secondary" loading={loadingMore} onClick={() => void showMore()}>
+                        {t({ message: "Show more", context: "the next page of a long list" })}
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
               </>
             )}
           </div>

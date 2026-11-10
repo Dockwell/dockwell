@@ -1415,8 +1415,12 @@ type Hello struct {
 	// True when the agent uploads and downloads files, in bounded chunks over
 	// ReceiveFile and SendFile, as ADR 0045 says.
 	TransfersFiles bool `protobuf:"varint,121,opt,name=transfers_files,json=transfersFiles,proto3" json:"transfers_files,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// True when a listing goes in name order a page at a time, and takes a name to
+	// match (ListFilesCall's match and page). The control plane sends neither to one
+	// that doesn't. The servers area takes 230 to 239 in agent messages.
+	PagesListings bool `protobuf:"varint,230,opt,name=pages_listings,json=pagesListings,proto3" json:"pages_listings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Hello) Reset() {
@@ -1550,6 +1554,13 @@ func (x *Hello) GetManagesFiles() bool {
 func (x *Hello) GetTransfersFiles() bool {
 	if x != nil {
 		return x.TransfersFiles
+	}
+	return false
+}
+
+func (x *Hello) GetPagesListings() bool {
+	if x != nil {
+		return x.PagesListings
 	}
 	return false
 }
@@ -5186,7 +5197,12 @@ func (x *ContainersCall) GetContainer() string {
 type ListFilesCall struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The directory's absolute path.
-	Path          string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// Lists only the names that hold this, case aside, such as "error". Empty lists
+	// every name.
+	Match string `protobuf:"bytes,230,opt,name=match,proto3" json:"match,omitempty"`
+	// Lists the page after the one whose next_page this is. Empty lists the first.
+	Page          string `protobuf:"bytes,231,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5224,6 +5240,20 @@ func (*ListFilesCall) Descriptor() ([]byte, []int) {
 func (x *ListFilesCall) GetPath() string {
 	if x != nil {
 		return x.Path
+	}
+	return ""
+}
+
+func (x *ListFilesCall) GetMatch() string {
+	if x != nil {
+		return x.Match
+	}
+	return ""
+}
+
+func (x *ListFilesCall) GetPage() string {
+	if x != nil {
+		return x.Page
 	}
 	return ""
 }
@@ -10063,7 +10093,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\"\n" +
 	"\n" +
-	"\bDraining\"\xec\x04\n" +
+	"\bDraining\"\x94\x05\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -10079,7 +10109,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x13container_terminals\x184 \x01(\bR\x12containerTerminals\x12&\n" +
 	"\x0ereads_onepanel\x18\xb4\x01 \x01(\bR\rreadsOnepanel\x12#\n" +
 	"\rmanages_files\x18x \x01(\bR\fmanagesFiles\x12'\n" +
-	"\x0ftransfers_files\x18y \x01(\bR\x0etransfersFiles\"\xee\x02\n" +
+	"\x0ftransfers_files\x18y \x01(\bR\x0etransfersFiles\x12&\n" +
+	"\x0epages_listings\x18\xe6\x01 \x01(\bR\rpagesListings\"\xee\x02\n" +
 	"\x0fConnectResponse\x126\n" +
 	"\awelcome\x18\x01 \x01(\v2\x1a.dockwell.agent.v1.WelcomeH\x00R\awelcome\x12-\n" +
 	"\x04call\x18\x02 \x01(\v2\x17.dockwell.agent.v1.CallH\x00R\x04call\x127\n" +
@@ -10296,9 +10327,11 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\aservice\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\aservice\x123\n" +
 	"\x06engine\x18\x02 \x01(\x0e2\x1b.dockwell.v1.DatabaseEngineR\x06engine\".\n" +
 	"\x0eContainersCall\x12\x1c\n" +
-	"\tcontainer\x18\x01 \x01(\tR\tcontainer\"#\n" +
+	"\tcontainer\x18\x01 \x01(\tR\tcontainer\"O\n" +
 	"\rListFilesCall\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"\"\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x15\n" +
+	"\x05match\x18\xe6\x01 \x01(\tR\x05match\x12\x13\n" +
+	"\x04page\x18\xe7\x01 \x01(\tR\x04page\"\"\n" +
 	"\fReadFileCall\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\"\x95\x01\n" +
 	"\fSaveFileCall\x12\x12\n" +

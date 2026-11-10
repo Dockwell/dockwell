@@ -959,6 +959,8 @@ func Methods() []*apicli.Method {
 				{Path: "server_id", Help: "The server's ID, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\"."},
 				{Path: "path", Help: "The directory's absolute path, without . or .. in it, such as \"/var/www\"."},
 				{Path: "lookup", Help: "Says a form is looking whether a folder is there as you type, such as a website's: a listing it can't have goes on no Activity, as it's a guess at a path, not a person opening one. Files never sets it. Numbered apart, as open work adds to this message."},
+				{Path: "match", Help: "Lists only the entries whose names hold this, case aside, such as \"error\": a search through the whole directory, however large. Empty lists every entry. A server whose agent is older than the control plane can't: update it."},
+				{Path: "page", Help: "Lists the page after the one whose next_page this is. Empty lists the first."},
 			},
 			Call: apicli.Unary[v1.ListFilesRequest, v1.ListFilesResponse](dockwellv1connect.FileServiceListFilesProcedure),
 		},

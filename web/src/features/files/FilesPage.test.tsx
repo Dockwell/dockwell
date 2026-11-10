@@ -377,11 +377,42 @@ describe("FilesPage", () => {
     expect(screen.getByText("Nothing here matches your search.")).toBeVisible();
   });
 
-  it("says when a folder holds more than a listing shows", async () => {
+  it("says an older agent lists only part of a large folder, and how to see the rest", async () => {
     await renderFiles("/servers/srv_1/files?path=/var/www", {
       listFiles: () => create(ListFilesResponseSchema, { ...site, truncated: true }),
     });
     expect(await screen.findByText("This folder holds more than a listing shows")).toBeVisible();
+    expect(screen.getByText(/Update the agent on hz-1 to search and page through them all/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  });
+
+  it("brings a large folder's next page, in name order, with Show more", async () => {
+    const listFiles = vi.fn((req: { page: string }) =>
+      req.page === "after-index"
+        ? create(ListFilesResponseSchema, { ...site, entries: [entry("zz-last.txt")] })
+        : create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    expect(await screen.findByText(/^More than 5 items/)).toBeVisible();
+    expect(screen.queryByText("This folder holds more than a listing shows")).toBeNull();
+    expect(screen.getByText("5 shown, by name")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(rowNames()).toContain("zz-last.txt"));
+    expect(listFiles.mock.lastCall?.[0]).toMatchObject({ path: "/var/www", page: "after-index", match: "" });
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  });
+
+  it("searches a large folder through every name, on its server", async () => {
+    const listFiles = vi.fn((req: { match: string }) =>
+      req.match === "err"
+        ? create(ListFilesResponseSchema, { ...site, entries: [entry("error.log"), entry("stderr.txt")] })
+        : create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 5 items/);
+    await userEvent.type(screen.getByRole("textbox", { name: "Search in www" }), "err");
+    await waitFor(() => expect(rowNames()).toEqual(["error.log", "stderr.txt"]));
+    expect(listFiles).toHaveBeenCalledWith(expect.objectContaining({ match: "err" }), expect.anything());
   });
 
   it("doesn't open a file whose name it can't send back", async () => {

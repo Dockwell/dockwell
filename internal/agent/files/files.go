@@ -12,6 +12,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -44,6 +45,8 @@ const (
 	MaxFileBytes = 1 << 20
 	// MaxEntries is the most entries a listing returns.
 	MaxEntries = 5000
+	// listChunk is how many names a listing reads from a directory at a time.
+	listChunk = 4096
 	// maxListBytes is the most a listing's names and link targets come to, as
 	// each target can be 4 KiB, and an oversized message would end the stream.
 	maxListBytes = 4 << 20
@@ -268,17 +271,74 @@ func Printable(text string) string {
 	return text
 }
 
-// List returns what the directory at p holds.
-func (s *Server) List(ctx context.Context, p string) (*agentv1.ListFilesResult, error) {
+// List returns what the directory at p holds, a page at a time in name order: the
+// names that hold match, if it isn't empty, after the page a token from an earlier
+// listing names, if it isn't empty.
+func (s *Server) List(ctx context.Context, p, match, page string) (*agentv1.ListFilesResult, error) {
 	if err := CheckPath(p); err != nil {
 		return nil, err
 	}
+	after, err := PageAfter(page)
+	if err != nil {
+		return nil, err
+	}
 	return attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.ListFilesResult, error) {
-		return s.list(ctx, t, p)
+		return s.list(ctx, t, p, match, after)
 	}, func(r *agentv1.FileRefusal) *agentv1.ListFilesResult { return &agentv1.ListFilesResult{Refusal: r} })
 }
 
-func (s *Server) list(ctx context.Context, t *trail, p string) (*agentv1.ListFilesResult, error) {
+// PageAfter is the name a page token says a listing goes on after: the token is
+// the name's bytes, as a name needn't be UTF-8.
+func PageAfter(page string) (string, error) {
+	after, err := base64.RawURLEncoding.DecodeString(page)
+	if err != nil || page != "" && len(after) == 0 {
+		return "", errors.New("that page token isn't one a listing gave. List the folder again from its start")
+	}
+	return string(after), nil
+}
+
+// pageToken is what a listing gives for the page after the name it ended on.
+func pageToken(after string) string { return base64.RawURLEncoding.EncodeToString([]byte(after)) }
+
+// pageOf reads a directory's names a chunk at a time and keeps the first
+// MaxEntries+1 in name order that come after after and hold match, case aside. So
+// a folder of any size lists from its first name, with memory for two pages of
+// names at most, whatever it holds.
+func pageOf(ctx context.Context, dir *os.File, after, match string) ([]string, error) {
+	keep := MaxEntries + 1
+	lower := strings.ToLower(match)
+	var names []string
+	for {
+		chunk, err := dir.Readdirnames(listChunk)
+		for _, n := range chunk {
+			if after != "" && n <= after || lower != "" && !strings.Contains(strings.ToLower(n), lower) {
+				continue
+			}
+			names = append(names, n)
+		}
+		if len(names) >= 2*keep {
+			slices.Sort(names)
+			clear(names[keep:])
+			names = names[:keep]
+		}
+		if errors.Is(err, io.EOF) || err == nil && len(chunk) == 0 {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+	}
+	slices.Sort(names)
+	if len(names) > keep {
+		names = names[:keep]
+	}
+	return names, nil
+}
+
+func (s *Server) list(ctx context.Context, t *trail, p, match, after string) (*agentv1.ListFilesResult, error) {
 	g := s.guard(ctx)
 	w, refusal := g.walk(t, p)
 	if refusal != nil {
@@ -301,23 +361,28 @@ func (s *Server) list(ctx context.Context, t *trail, p string) (*agentv1.ListFil
 	}
 	dir := os.NewFile(uintptr(fd), where)
 	defer dir.Close()
-	names, err := dir.Readdirnames(MaxEntries + 1)
-	if err != nil && !errors.Is(err, io.EOF) {
+	names, err := pageOf(ctx, dir, after, match)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return &agentv1.ListFilesResult{Refusal: denied(where, err)}, nil
 	}
 	truncated := len(names) > MaxEntries
 	if truncated {
 		names = names[:MaxEntries]
 	}
-	slices.Sort(names)
 	owners := owners{}
 	here := &dockwellv1.ListFilesResponse{Path: where, Directory: entry(path.Base(where), &w.st, owners), Truncated: truncated}
+	// The last name this page went past, listed or not, which the next page starts after.
+	upTo := after
 	room := maxListBytes
 	for i, name := range names {
 		if i%256 == 0 && ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 		if arriving(name) {
+			upTo = name
 			continue
 		}
 		e := &dockwellv1.FileEntry{Name: strings.ToValidUTF8(name, "\uFFFD"), UnreadableName: !utf8.ValidString(name)}
@@ -326,6 +391,7 @@ func (s *Server) list(ctx context.Context, t *trail, p string) (*agentv1.ListFil
 		if t.touch(joined(where, name)) == nil {
 			var st unix.Stat_t
 			if unix.Fstatat(fd, name, &st, unix.AT_SYMLINK_NOFOLLOW) != nil {
+				upTo = name
 				continue // it went as we read
 			}
 			e = entry(name, &st, owners)
@@ -340,6 +406,10 @@ func (s *Server) list(ctx context.Context, t *trail, p string) (*agentv1.ListFil
 			break
 		}
 		here.Entries = append(here.Entries, e)
+		upTo = name
+	}
+	if here.Truncated && upTo != "" {
+		here.NextPage = pageToken(upTo)
 	}
 	return &agentv1.ListFilesResult{Listing: here}, nil
 }

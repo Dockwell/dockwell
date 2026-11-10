@@ -5,6 +5,7 @@ package files
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -70,7 +71,7 @@ func link(t *testing.T, target, path string) {
 
 func (d *fakeDisk) list(t *testing.T, p string) *agentv1.ListFilesResult {
 	t.Helper()
-	r, err := d.server.List(t.Context(), p)
+	r, err := d.server.List(t.Context(), p, "", "")
 	if err != nil {
 		t.Fatalf("List(%s): %v", p, err)
 	}
@@ -204,6 +205,91 @@ func TestANameThatIsntUTF8DoesntStopAListing(t *testing.T) {
 	}
 }
 
+// pages lists dir with match a page at a time, as the panel follows next_page, and
+// returns every name in the order the pages gave them.
+func (d *fakeDisk) pages(t *testing.T, dir, match string) (names []string, pages int) {
+	t.Helper()
+	page := ""
+	for pages = 1; ; pages++ {
+		r, err := d.server.List(t.Context(), dir, match, page)
+		if err != nil {
+			t.Fatalf("List(%s, %q, %q): %v", dir, match, page, err)
+		}
+		mustSend(t, r)
+		l := r.GetListing()
+		for _, e := range l.GetEntries() {
+			names = append(names, e.GetName())
+		}
+		if l.GetNextPage() == "" {
+			if l.GetTruncated() {
+				t.Fatalf("page %d says there's more, with no page to go on to", pages)
+			}
+			return names, pages
+		}
+		if !l.GetTruncated() {
+			t.Fatalf("page %d has a next page and says it holds everything", pages)
+		}
+		page = l.GetNextPage()
+	}
+}
+
+func TestALargeFolderListsInNameOrderAPageAtATime(t *testing.T) {
+	d := newDisk(t)
+	dir := filepath.Join(d.root, "many")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	n := 2*MaxEntries + 300
+	want := make([]string, 0, n+1)
+	// Made backwards, so the directory's own order isn't the names'.
+	for i := n - 1; i >= 0; i-- {
+		name := fmt.Sprintf("f%05d.log", i)
+		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		want = append(want, name)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "Error.LOG"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	want = append(want, "Error.LOG")
+	slices.Sort(want)
+
+	first := d.list(t, dir).GetListing()
+	if got := len(first.GetEntries()); got != MaxEntries || !first.GetTruncated() || first.GetNextPage() == "" {
+		t.Fatalf("the first page has %d entries, truncated %t, next %q", got, first.GetTruncated(), first.GetNextPage())
+	}
+	if first.GetEntries()[0].GetName() != want[0] || first.GetEntries()[MaxEntries-1].GetName() != want[MaxEntries-1] {
+		t.Fatalf("the first page isn't the first names: %s to %s", first.GetEntries()[0].GetName(), first.GetEntries()[MaxEntries-1].GetName())
+	}
+	got, pages := d.pages(t, dir, "")
+	if pages != 3 || !slices.Equal(got, want) {
+		t.Fatalf("%d pages gave %d names, want 3 pages of the %d in order", pages, len(got), len(want))
+	}
+
+	t.Run("a match searches the whole folder, case aside", func(t *testing.T) {
+		got, pages := d.pages(t, dir, "ERROR")
+		if pages != 1 || !slices.Equal(got, []string{"Error.LOG"}) {
+			t.Fatalf("searching for ERROR found %v in %d pages", got, pages)
+		}
+		var tens []string
+		for _, name := range want {
+			if strings.Contains(name, "999") {
+				tens = append(tens, name)
+			}
+		}
+		if got, _ := d.pages(t, dir, "999"); !slices.Equal(got, tens) {
+			t.Fatalf("searching for 999 found %d names, want %d", len(got), len(tens))
+		}
+	})
+
+	t.Run("a page token that isn't one a listing gave is refused", func(t *testing.T) {
+		if _, err := d.server.List(t.Context(), dir, "", "not a token!"); err == nil {
+			t.Fatal("a bad page token listed")
+		}
+	})
+}
+
 func TestAListingStopsAtItsLimits(t *testing.T) {
 	d := newDisk(t)
 	t.Run("entries", func(t *testing.T) {
@@ -239,6 +325,10 @@ func TestAListingStopsAtItsLimits(t *testing.T) {
 		}
 		if size := proto.Size(r); size > 5<<20 {
 			t.Fatalf("a listing is %d bytes, too near the stream's limit", size)
+		}
+		// The next page starts after the last entry this one carried, so none is lost.
+		if got, pages := d.pages(t, dir, ""); len(got) != 1200 || pages < 2 {
+			t.Fatalf("%d pages gave %d entries, want all 1200", pages, len(got))
 		}
 	})
 }
@@ -506,7 +596,7 @@ func TestWhatTheServerKeepsFromTheAgentSaysSo(t *testing.T) {
 func TestAPathMustSayWhatItMeans(t *testing.T) {
 	d := newDisk(t)
 	for _, p := range []string{"", "etc", "./etc", "/etc/../root", "/etc/.", "/etc/\x00shadow", "/etc/\nshadow", "/" + strings.Repeat("a", maxPath)} {
-		if _, err := d.server.List(t.Context(), p); err == nil {
+		if _, err := d.server.List(t.Context(), p, "", ""); err == nil {
 			t.Errorf("List(%q) went ahead", p)
 		}
 		if _, err := d.server.Read(t.Context(), p); err == nil {
