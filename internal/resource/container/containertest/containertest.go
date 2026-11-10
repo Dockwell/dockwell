@@ -60,6 +60,18 @@ func (f *Fake) Inspect(_ context.Context, t container.Target) (*resourcev1.Conta
 	return proto.Clone(c).(*resourcev1.Container), nil
 }
 
+// ImageAt is the image the container at t runs: an ID made up of its reference,
+// as a Fake keeps no images.
+func (f *Fake) ImageAt(_ context.Context, t container.Target) (resource.Image, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c, ok := f.containers[key(t)]
+	if !ok {
+		return resource.Image{}, nil
+	}
+	return resource.Image{ID: "sha256:fake-" + c.GetImage()}, nil
+}
+
 // Run replaces any container with the name.
 func (f *Fake) Run(_ context.Context, t container.Target, spec *resourcev1.Container, dec resource.Decision) error {
 	f.mu.Lock()

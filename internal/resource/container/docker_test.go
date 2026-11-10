@@ -801,3 +801,29 @@ func TestCleaningUpAFailedReplaceIsBounded(t *testing.T) {
 		t.Errorf("the log says %q, want what was left and how to remove it", got)
 	}
 }
+
+// A container says which image it runs, by its ID and as its registry calls it,
+// for its agent to keep, so what it makes again runs that image and not whatever
+// the tag names by then (ADR 0054). One that's gone runs none.
+func TestAContainerSaysWhichImageItRuns(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	nginx := e.Registry["nginx:1.27"]
+	nginx.Digest = "sha256:" + strings.Repeat("ab", 32)
+	e.Registry["nginx:1.27"] = nginx
+	l := resource.Local{Drivers: drivers(e)}
+	web := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}
+	apply(t, l, web, &resourcev1.Container{Image: "nginx:1.27"})
+	api := resource.Ref{Kind: service.Kind, Scope: "env_01JD6Z3R8M9QF2K7T4XW5BNC0V", Name: "api"}
+	apply(t, l, api, &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27"}}})
+	for _, ref := range []resource.Ref{web, api} {
+		got, err := l.RunsImage(t.Context(), ref)
+		if err != nil || !strings.HasPrefix(got.ID, "sha256:") || got.Digest != "nginx@"+nginx.Digest {
+			t.Errorf("%s runs %+v, %v; want its image's ID, and nginx@%s", ref.Name, got, err, nginx.Digest)
+		}
+	}
+	gone := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "gone"}
+	if got, err := l.RunsImage(t.Context(), gone); err != nil || got != (resource.Image{}) {
+		t.Errorf("one that's gone runs %+v, %v", got, err)
+	}
+}

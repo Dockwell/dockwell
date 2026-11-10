@@ -180,6 +180,10 @@ message Event {
   // task. Numbered in the block scheduled tasks hold, as open work adds to this
   // message.
   EventTaskRun task_run = 130;
+  // What the control plane sent a server's agent to keep as what the server
+  // runs, for an event with the action "server.desired_sent", or found it keeps
+  // and doesn't know, for "server.desired_unknown" (ADR 0054).
+  EventDesiredSent desired_sent = 140;
 }
 
 // EventTaskRun is a scheduled task's run that failed, or the one that succeeded
@@ -202,6 +206,31 @@ message EventTaskRun {
   int32 http_status = 8;
   // Why it failed, for people. Empty when it didn't.
   string error = 9;
+}
+
+// EventDesiredSent says what the control plane sent a server's agent to keep, as
+// what the server runs, when some of it held the values of variables and secrets.
+// An agent keeps those so its server can be put back while the control plane is
+// away, and is sent them as it connects without them.
+message EventDesiredSent {
+  // How many resources the agent was sent.
+  uint32 resources = 1;
+  // How many of them came with the values of variables and secrets.
+  uint32 with_values = 2;
+  // True when the agent's cache isn't the one the control plane last saw: one
+  // made since, as after a reinstall or a lost key, or one of another holder of
+  // the server's identity.
+  bool new_cache = 3;
+  // The server's name.
+  string server_name = 4;
+  // For an event with the action "server.desired_unknown", how many of what the
+  // agent keeps this control plane has no record of, or only at an earlier
+  // revision, as after its store was restored or rebuilt. They were left as they
+  // are, as they may be the only copy of what runs.
+  uint32 unknown = 5;
+  // True when the control plane hadn't seen the agent's cache before, as for an
+  // agent that kept nothing until it was updated.
+  bool first_cache = 6;
 }
 
 // EventProcess is a process someone ended on a server.

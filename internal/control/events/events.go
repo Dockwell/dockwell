@@ -99,7 +99,7 @@ const fileDownload = "file.download"
 var (
 	serverActions = slices.Concat([]string{
 		"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear,
-		processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed,
+		processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed, revision.ActionDesiredSent, revision.ActionDesiredUnknown,
 	},
 		// Who had a root shell on a server, and when (ADR 0037).
 		terminals.Actions, fileWrites)
@@ -638,6 +638,16 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	if strings.HasPrefix(a.Action, "process.") {
 		if d, ok := processes.ReadDetail(a.Detail); ok {
 			e.Process = d
+		}
+	}
+	if a.Action == revision.ActionDesiredSent || a.Action == revision.ActionDesiredUnknown {
+		// Its detail leaves the store as counts: only the engine writes it, and it
+		// holds no value, no spec, and the cache's ID stays behind.
+		if sent, ok := revision.ReadDesiredSent(a.Detail); ok {
+			e.DesiredSent = &dockwellv1.EventDesiredSent{
+				Resources: uint32(max(sent.Resources, 0)), WithValues: uint32(max(sent.WithValues, 0)), Unknown: uint32(max(sent.Unknown, 0)), //nolint:gosec // counts of resources
+				NewCache: sent.NewCache, FirstCache: sent.FirstCache, ServerName: look.Name(a.Target),
+			}
 		}
 	}
 	if strings.HasPrefix(a.Action, "file.") && e.Subject != nil {
