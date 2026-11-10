@@ -148,6 +148,7 @@ func NewServerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+ServerServiceGetJoinTicketProcedure,
 			connect.WithSchema(serverServiceMethods.ByName("GetJoinTicket")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -286,6 +287,7 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 		ServerServiceGetJoinTicketProcedure,
 		svc.GetJoinTicket,
 		connect.WithSchema(serverServiceMethods.ByName("GetJoinTicket")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/dockwell.v1.ServerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -2651,7 +2651,7 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x14CLOUD_PROVIDER_AZURE\x10\x03\x12\x1f\n" +
 	"\x1bCLOUD_PROVIDER_DIGITALOCEAN\x10\x04\x12\x1a\n" +
 	"\x16CLOUD_PROVIDER_HETZNER\x10\x05\x12\x19\n" +
-	"\x15CLOUD_PROVIDER_ORACLE\x10\x062\xd2\r\n" +
+	"\x15CLOUD_PROVIDER_ORACLE\x10\x062\xd5\r\n" +
 	"\rServerService\x12x\n" +
 	"\vListServers\x12\x1f.dockwell.v1.ListServersRequest\x1a .dockwell.v1.ListServersResponse\"&\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\r\x12\v/v1/servers\x90\x02\x01\x12w\n" +
 	"\tGetServer\x12\x1d.dockwell.v1.GetServerRequest\x1a\x1e.dockwell.v1.GetServerResponse\"+\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/servers/{id}\x90\x02\x01\x12g\n" +
@@ -2660,9 +2660,9 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x12\bdisk-use\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/servers/{id}/diskUse\x90\x02\x01\x12\xc7\x01\n" +
 	"\x16SetServerPublicAddress\x12*.dockwell.v1.SetServerPublicAddressRequest\x1a+.dockwell.v1.SetServerPublicAddressResponse\"T\xa0\xbb\x18\x03\xaa\xbb\x18\x14\x12\x12set-public-address\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/servers/{id}:setPublicAddress\x12\xa9\x01\n" +
 	"\x10CreateJoinTicket\x12$.dockwell.v1.CreateJoinTicketRequest\x1a%.dockwell.v1.CreateJoinTicketResponse\"H\xa0\xbb\x18\x03\xaa\xbb\x18\x16\n" +
-	"\fjoin-tickets\x12\x06create\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/joinTickets\x12\x9b\x01\n" +
-	"\rGetJoinTicket\x12!.dockwell.v1.GetJoinTicketRequest\x1a\".dockwell.v1.GetJoinTicketResponse\"C\xa0\xbb\x18\x01\xaa\xbb\x18\x13\n" +
-	"\fjoin-tickets\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/joinTickets/{id}\x1a\xab\x05\xa2\xbb\x18\xe1\x02\n" +
+	"\fjoin-tickets\x12\x06create\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/joinTickets\x12\x9e\x01\n" +
+	"\rGetJoinTicket\x12!.dockwell.v1.GetJoinTicketRequest\x1a\".dockwell.v1.GetJoinTicketResponse\"F\xa0\xbb\x18\x01\xaa\xbb\x18\x13\n" +
+	"\fjoin-tickets\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/joinTickets/{id}\x90\x02\x01\x1a\xab\x05\xa2\xbb\x18\xe1\x02\n" +
 	"\aservers\x12\xd5\x02The servers Dockwell manages, with their live state as each server's agent reports it. WatchServers has no REST path: REST has no way to stream messages, so a REST client polls ListServers or GetServer instead, and anything that wants the stream opens it with Connect, gRPC or gRPC-Web. See docs/adr/0015-rest-and-openapi-from-the-schema.md.\xa2\xbb\x18\xc0\x02\n" +
 	"\fjoin-tickets\x12\xaf\x02A join ticket adds one server: dockwell join with it, on the new server, gives that server a name and a certificate, and its agent connects. CreateJoinTicket makes one with a passkey, and GetJoinTicket says whether a server has used it. dockwell token create makes the same ticket on the control server.B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vServerProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"

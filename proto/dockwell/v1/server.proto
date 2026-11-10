@@ -119,6 +119,7 @@ service ServerService {
   // GetJoinTicket says whether a ticket is still waiting for a server, which server
   // joined with it, or that it expired. It never returns the ticket itself.
   rpc GetJoinTicket(GetJoinTicketRequest) returns (GetJoinTicketResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
     option (dockwell.v1.min_role) = NEEDS_ADMIN;
     option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
