@@ -1537,3 +1537,30 @@ func TestWireGuardTunnelsAreRead(t *testing.T) {
 		t.Errorf("with none: %v", got)
 	}
 }
+
+// On a control server whose panel has no domain, whatever narrows SSH is
+// refused while a port of SSH's has no rule that allows it: a deny of SSH's
+// port as much as deny everything else, as both leave the same state.
+func TestThePanelOverSSHRefusesADenyOfSSHToo(t *testing.T) {
+	s := &sessions{}
+	s.set(office)
+	m := start(t, t.TempDir(), &table{}, s, time.Minute)
+	m.PanelOverSSH = true
+	deny := &resourcev1.FirewallRule{Port: 22, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY}
+	if err := m.CheckRule(nil, deny); err == nil || !strings.Contains(err.Error(), "has no domain") {
+		t.Errorf("denying 22 with the panel over SSH: %v", err)
+	}
+	if err := m.Put(step("chg_1", true), "close", deny); err == nil {
+		t.Error("applying it passed")
+	}
+	if err := m.CheckRule(nil, http); err != nil {
+		t.Errorf("allowing 80: %v", err)
+	}
+	if err := m.Put(step("chg_2", false), "ssh", &resourcev1.FirewallRule{Port: 22, Sources: []string{"198.51.100.0/24"}}); err != nil {
+		t.Fatal(err)
+	}
+	confirm(m, "chg_2")
+	if err := m.CheckRule(nil, deny); err != nil {
+		t.Errorf("with a rule that allows SSH, a deny of the rest: %v", err)
+	}
+}

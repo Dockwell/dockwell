@@ -5,6 +5,7 @@ syntax = "proto3";
 package dockwell.v1;
 
 import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
@@ -134,6 +135,42 @@ service AlertService {
     };
   }
 
+  // AcknowledgeAlert says someone has seen an open alert and is on it: who and
+  // when, on the alert and on Activity. It holds nothing back and sends nothing;
+  // a mute does that. Acknowledging one that someone else has takes it over. It
+  // ends when the alert resolves. Only an open alert can be acknowledged.
+  rpc AcknowledgeAlert(AcknowledgeAlertRequest) returns (AcknowledgeAlertResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "alerts"
+      verb: "acknowledge"
+    };
+    option (google.api.http) = {
+      post: "/v1/alerts/{id}:acknowledge"
+      body: "*"
+    };
+  }
+
+  // UnacknowledgeAlert takes an acknowledgement back, so the alert reads as
+  // nobody's again.
+  rpc UnacknowledgeAlert(UnacknowledgeAlertRequest) returns (UnacknowledgeAlertResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "alerts"
+      verb: "unacknowledge"
+    };
+    option (google.api.http) = {
+      post: "/v1/alerts/{id}:unacknowledge"
+      body: "*"
+    };
+  }
+
   // UnmuteAlerts ends a mute now, and sends what's still firing.
   rpc UnmuteAlerts(UnmuteAlertsRequest) returns (UnmuteAlertsResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
@@ -199,6 +236,33 @@ message Alert {
   string variant = 18;
   string where = 19;
   int32 value = 20;
+  // When someone said they're on it, and who, as Activity names them: a person
+  // or a token, by ID and name. Unset while nobody has. A resolved alert keeps
+  // what it had.
+  google.protobuf.Timestamp acknowledge_time = 21;
+  Actor acknowledged_by = 22;
+}
+
+// AcknowledgeAlertRequest names an open alert.
+message AcknowledgeAlertRequest {
+  // The alert's ID, "alt_…".
+  string id = 1;
+}
+
+// AcknowledgeAlertResponse is the alert as it now stands.
+message AcknowledgeAlertResponse {
+  Alert alert = 1;
+}
+
+// UnacknowledgeAlertRequest names an acknowledged alert.
+message UnacknowledgeAlertRequest {
+  // The alert's ID, "alt_…".
+  string id = 1;
+}
+
+// UnacknowledgeAlertResponse is the alert as it now stands.
+message UnacknowledgeAlertResponse {
+  Alert alert = 1;
 }
 
 // ListAlertsRequest asks for a page of alerts.

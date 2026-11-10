@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -330,5 +331,27 @@ func TestWhatCantBeReadIsNoSession(t *testing.T) {
 		if got := fmt.Sprint(read(t, c.r).SSHFrom); got != c.want {
 			t.Errorf("%s: sessions from %s, want %s", name, got, c.want)
 		}
+	}
+}
+
+// isRootSession takes what the expression it was took, to the byte: its length
+// is checked apart from its form now (ADR 0060).
+func TestIsRootSessionTakesWhatItsExpressionTook(t *testing.T) {
+	was := regexp.MustCompile(`^root(@[A-Za-z0-9/,._-]{1,64})?$`)
+	cases := []string{"", "root", "root@", "roota", "root@pts/0", "root@notty", "root@pts/0,pts/1", "root@internal-sftp", "deploy@pts/0", "root@pts/0 [priv]", "root@a b", "root@é", "root@x\n", "Root@pts/0", " root"}
+	for _, n := range []int{1, 63, 64, 65, 200} {
+		cases = append(cases, "root@"+strings.Repeat("a", n), "root@"+strings.Repeat("a", n-1)+"[", "root"+strings.Repeat("a", n))
+	}
+	took := 0
+	for _, c := range cases {
+		if was.MatchString(c) {
+			took++
+		}
+		if got, want := isRootSession(c), was.MatchString(c); got != want {
+			t.Errorf("%q (%d bytes): the check says %v, the expression said %v", c, len(c), got, want)
+		}
+	}
+	if took == 0 || took == len(cases) {
+		t.Errorf("the expression took %d of %d cases, which tells nothing", took, len(cases))
 	}
 }

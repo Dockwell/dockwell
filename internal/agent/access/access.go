@@ -1194,12 +1194,14 @@ func narrowsSSH(s state, ports []uint16) bool {
 // from anywhere. Where Dockwell finds no SSH at all, port 22 stands for it.
 func check(s state, p Pins, panelOverSSH bool) error {
 	names := slices.Sorted(maps.Keys(s.Rules))
-	if panelOverSSH && s.Policy.GetDenyEverythingElse() {
+	if panelOverSSH && narrowsSSH(s, p.SSHPorts) {
 		// The panel here has no domain, so it's reached through SSH: a pin holds
-		// only while the address it names does, and losing SSH loses the panel too.
+		// only while the address it names does, and losing SSH loses the panel
+		// too. Whatever narrows SSH, the policy or a deny of its port, is refused
+		// while a port of SSH's has no rule that allows it.
 		for _, port := range sshPortsOr22(p.SSHPorts) {
 			if !allows(s, port) {
-				return fmt.Errorf("the panel on this server has no domain, so you reach it through SSH, and deny everything else would leave SSH open only from the addresses signed in now. If yours changes, you lose SSH and the panel at once. Add a rule that allows port %d first, from anywhere or from the ranges you'll come from, then plan this again", port)
+				return fmt.Errorf("the panel on this server has no domain, so you reach it through SSH, and this would leave SSH open only from the addresses signed in now. If yours changes, you lose SSH and the panel at once. Add a rule that allows port %d first, from anywhere or from the ranges you'll come from, then plan this again", port)
 			}
 		}
 	}

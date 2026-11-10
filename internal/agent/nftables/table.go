@@ -117,7 +117,16 @@ func (t Table) Skipped() []string {
 
 // ruleName is what a rule's comment may hold: printable, without what nft
 // would read as the comment's end, and shorter than nft's 128 bytes.
-var ruleName = regexp.MustCompile(`^[A-Za-z0-9 _.:/@-]{1,100}$`)
+// Its length is checked apart from its form, as a counted repetition compiles
+// to as many copies of what it repeats, which every agent pays for as it
+// starts (ADR 0060).
+var ruleName = regexp.MustCompile(`^[A-Za-z0-9 _.:/@-]+$`)
+
+// maxRuleName is how long a rule's name gets.
+const maxRuleName = 100
+
+// isRuleName reports a name a rule's comment can hold.
+func isRuleName(name string) bool { return len(name) <= maxRuleName && ruleName.MatchString(name) }
 
 // Validate refuses a table nft would misread: a rule with no ports, a port of
 // 0, a protocol other than TCP and UDP, or a name or interface that would need
@@ -125,7 +134,7 @@ var ruleName = regexp.MustCompile(`^[A-Za-z0-9 _.:/@-]{1,100}$`)
 func (t Table) Validate() error {
 	for _, list := range [][]Rule{t.Pins, t.Allows, t.Denies} {
 		for _, r := range list {
-			if !ruleName.MatchString(r.Name) {
+			if !isRuleName(r.Name) {
 				return fmt.Errorf("a rule's name %q has what the table can't keep in a comment: use letters, digits, spaces and - _ . : / @", r.Name)
 			}
 			if r.Protocol != "tcp" && r.Protocol != "udp" {
