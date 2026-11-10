@@ -5650,6 +5650,12 @@ msgstr "It can write to <0>{holder}</0>, which holds <1>{held}</1>, which it mou
 msgid "It can write to <0>{holder}</0>, which holds <1>{held}</1>, which {holdsFor} mounts. So it can turn that into a link to anywhere on the server, which {holdsFor} follows when it next starts. That's as good as root, so from now on any change to {name} but another tag asks for a passkey."
 msgstr "It can write to <0>{holder}</0>, which holds <1>{held}</1>, which {holdsFor} mounts. So it can turn that into a link to anywhere on the server, which {holdsFor} follows when it next starts. That's as good as root, so from now on any change to {name} but another tag asks for a passkey."
 
+msgid "It can write to {holder}, which holds {held}, which it mounts as well."
+msgstr "It can write to {holder}, which holds {held}, which it mounts as well."
+
+msgid "It can write to {holder}, which holds {held}, which {holdsFor} mounts."
+msgstr "It can write to {holder}, which holds {held}, which {holdsFor} mounts."
+
 msgid "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
 msgstr "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
 
@@ -5661,12 +5667,6 @@ msgstr "It has the Linux capability <0>{path}</0>, which is the same as root."
 
 msgid "It joins the group <0>{path}</0>, which is the same as root."
 msgstr "It joins the group <0>{path}</0>, which is the same as root."
-
-msgid "It leads to <0>{leadsTo}</0> through a symlink, and it can read and write what is there."
-msgstr "It leads to <0>{leadsTo}</0> through a symlink, and it can read and write what is there."
-
-msgid "It leads to <0>{leadsTo}</0> through a symlink, and it can read what is there."
-msgstr "It leads to <0>{leadsTo}</0> through a symlink, and it can read what is there."
 
 msgid "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
 msgstr "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
@@ -5726,8 +5726,8 @@ msgstr "No backup was taken, and the data stays as it is now"
 msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
 msgstr "No rule allows the WireGuard tunnel {tunnels} on {0}"
 
-msgid "Point what uses it at a name only one of them has."
-msgstr "Point what uses it at a name only one of them has."
+msgid "Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
+msgstr "Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 
 msgid "Pulls {image} again, and replaces {name} only if that's a newer image."
 msgstr "Pulls {image} again, and replaces {name} only if that's a newer image."
@@ -5758,8 +5758,8 @@ msgstr "SSH on {0} stays open only from {from}"
 msgid "Something may still manage {container}"
 msgstr "Something may still manage {container}"
 
-msgid "That copy is {size}. What was made since goes. The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
-msgstr "That copy is {size}. What was made since goes. The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
+msgid "That copy is {size}, and what was made since goes."
+msgstr "That copy is {size}, and what was made since goes."
 
 msgid "That goes beyond what Docker gives a container by default."
 msgstr "That goes beyond what Docker gives a container by default."
@@ -5776,8 +5776,8 @@ msgstr "That is the server itself, past its containers, at {at} over plain HTTP.
 msgid "That is the server itself, past its containers, at {at}."
 msgstr "That is the server itself, past its containers, at {at}."
 
-msgid "That's what the server kept on {taken}, {size}. What's in the volume now goes to a copy the server keeps for 7 days."
-msgstr "That's what the server kept on {taken}, {size}. What's in the volume now goes to a copy the server keeps for 7 days."
+msgid "That's what the server kept on {taken}, {size}."
+msgstr "That's what the server kept on {taken}, {size}."
 
 msgid "The data stays as it is now"
 msgstr "The data stays as it is now"
@@ -5794,6 +5794,9 @@ msgstr "The hour {name}'s backup gets is a guess"
 msgid "The old version may not read its data"
 msgstr "The old version may not read its data"
 
+msgid "The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
+msgstr "The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
+
 msgid "The server keeps that data for 7 days, and undoing this brings it back. After that it is gone."
 msgstr "The server keeps that data for 7 days, and undoing this brings it back. After that it is gone."
 
@@ -5809,8 +5812,11 @@ msgstr "The {image} that revision {revision} ran, {digest}, isn't on the server,
 msgid "These ports listen, or Docker publishes them, and no rule lets them in from anywhere. SSH stays open as this plan says, and on the control server its own ports stay open."
 msgstr "These ports listen, or Docker publishes them, and no rule lets them in from anywhere. SSH stays open as this plan says, and on the control server its own ports stay open."
 
-msgid "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
-msgstr "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
+msgid "They are {list}."
+msgstr "They are {list}."
+
+msgid "They run in what {name} runs, so they reach what it reaches on its server too."
+msgstr "They run in what {name} runs, so they reach what it reaches on its server too."
 
 msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 msgstr "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
@@ -5822,8 +5828,8 @@ msgstr "This copy was taken with the app running"
 msgid "This may cut off access to {0}"
 msgstr "This may cut off access to {0}"
 
-msgid "This one and {also}, as they do now. What asks for {shared} there can reach either."
-msgstr "This one and {also}, as they do now. What asks for {shared} there can reach either."
+msgid "This one and {also} do: point what uses it at a name only one of them has."
+msgstr "This one and {also} do: point what uses it at a name only one of them has."
 
 msgid "This plan destroys data, may cut off access, or lets two containers write to one place"
 msgstr "This plan destroys data, may cut off access, or lets two containers write to one place"
@@ -5861,11 +5867,17 @@ msgstr "Two containers may write to {shared}, which can corrupt a database"
 msgid "Undo may not bring everything back."
 msgstr "Undo may not bring everything back."
 
+msgid "What asks for {shared} there can reach either."
+msgstr "What asks for {shared} there can reach either."
+
 msgid "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it."
 msgstr "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it."
 
 msgid "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
 msgstr "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
+
+msgid "What's in the volume now goes to a copy the server keeps for 7 days."
+msgstr "What's in the volume now goes to a copy the server keeps for 7 days."
 
 msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
 msgstr "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
@@ -5902,8 +5914,8 @@ msgstr "{by} writes there as root, so it can change any file there, whoever owns
 msgid "{by} writes there. Code from another image asks again, as a program in any image can run as root."
 msgstr "{by} writes there. Code from another image asks again, as a program in any image can run as root."
 
-msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
-msgstr "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
+msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
+msgstr "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
 
 msgid "{heldBy} can move what {path} leads to on {server}"
 msgstr "{heldBy} can move what {path} leads to on {server}"
@@ -5956,6 +5968,9 @@ msgstr "{name} mounts <0>{path}</0>, inside <1>{heldIn}</1>, which {heldBy} can 
 
 msgid "{name} mounts the volume {path} on {server}"
 msgstr "{name} mounts the volume {path} on {server}"
+
+msgid "{name} mounts {path}, inside {heldIn}, which {heldBy} can write."
+msgstr "{name} mounts {path}, inside {heldIn}, which {heldBy} can write."
 
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} reaches the port {path} on {server}"

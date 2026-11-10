@@ -188,7 +188,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return {
           key,
           title: t`${name} gets root on ${server}`,
-          more: leadsTo ? (
+          detail: leadsTo ? (
             <Trans>
               <code>{path}</code> leads to <code>{leadsTo}</code> through a symlink, which gives it control of Docker on
               the server, the same as root.
@@ -204,7 +204,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return {
           key,
           title: t`${name} gets root on ${server}`,
-          more: t`It runs in privileged mode, which gives it every device and capability on the server.`,
+          detail: t`It runs in privileged mode, which gives it every device and capability on the server.`,
           trust: true,
         };
       case HostAccessKind.CAPABILITY:
@@ -212,7 +212,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           ? {
               key,
               title: t`${name} gets root on ${server}`,
-              more: (
+              detail: (
                 <Trans>
                   It has the Linux capability <code>{path}</code>, which is the same as root.
                 </Trans>
@@ -229,7 +229,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           ? {
               key,
               title: t`${name} gets root on ${server}`,
-              more: (
+              detail: (
                 <Trans>
                   It joins the group <code>{path}</code>, which is the same as root.
                 </Trans>
@@ -269,7 +269,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return {
           key,
           title: t`${name} gets back what reached root on ${server}`,
-          more: (
+          detail: (
             <Trans>
               This backup was taken when the volume reached <code>{path}</code>, so whatever mounts it can read what
               comes back.
@@ -288,7 +288,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return {
           key,
           title: t`${name} reaches the port ${path} on ${server}`,
-          more:
+          detail:
             access.type === "http"
               ? t`That is the server itself, past its containers, at ${at} over plain HTTP.`
               : t`That is the server itself, past its containers, at ${at}.`,
@@ -333,6 +333,10 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           return {
             key,
             title: t`${name} can move what ${held} leads to on ${server}`,
+            detail:
+              holdsFor !== ""
+                ? t`It can write to ${holder}, which holds ${held}, which ${holdsFor} mounts.`
+                : t`It can write to ${holder}, which holds ${held}, which it mounts as well.`,
             more:
               holdsFor !== "" ? (
                 <Trans>
@@ -354,6 +358,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           return {
             key,
             title: t`${heldBy} can move what ${path} leads to on ${server}`,
+            detail: t`${name} mounts ${path}, inside ${heldIn}, which ${heldBy} can write.`,
             more: (
               <Trans>
                 {name} mounts <code>{path}</code>, inside <code>{heldIn}</code>, which {heldBy} can write. So {heldBy}{" "}
@@ -387,25 +392,11 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
               title: leadsTo
                 ? t`${name} reaches ${path} on ${server}, which leads to ${leadsTo}`
                 : t`${name} reaches ${path} on ${server}`,
-              more: andRelabel(
-                leadsTo ? (
-                  access.readOnly ? (
-                    <Trans>
-                      It leads to <code>{leadsTo}</code> through a symlink, and it can read what is there.
-                    </Trans>
-                  ) : (
-                    andWriter(
-                      <Trans>
-                        It leads to <code>{leadsTo}</code> through a symlink, and it can read and write what is there.
-                      </Trans>,
-                    )
-                  )
-                ) : access.readOnly ? (
-                  t`It can read that path on the server.`
-                ) : (
-                  andWriter(t`It can read and write that path on the server.`)
-                ),
-              ),
+              // Whether it writes there is the fact; who writes, and a relabel, are how.
+              detail: access.readOnly
+                ? t`It can read that path on the server.`
+                : t`It can read and write that path on the server.`,
+              more: [access.readOnly ? "" : writer, relabel].filter(Boolean).join(" ") || undefined,
             };
       }
     }
@@ -484,19 +475,22 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
       out.push({
         key: `restore-${key}`,
         title: t`Everything in ${name} on ${server} goes back to what was there before the restore`,
-        more: t`That's what the server kept on ${taken}, ${size}. What's in the volume now goes to a copy the server keeps for 7 days.`,
+        detail: t`That's what the server kept on ${taken}, ${size}.`,
+        more: t`What's in the volume now goes to a copy the server keeps for 7 days.`,
       });
     } else if (restore.method === BackupMethod.DUMP) {
       out.push({
         key: `restore-${key}`,
         title: t`Everything in ${name} on ${server} is replaced with the dump from ${taken}`,
-        more: t`${database} starts anew on an empty volume and loads the dump, ${size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back.`,
+        detail: t`${database} starts anew on an empty volume and loads the dump, ${size}, so what was made since goes.`,
+        more: t`Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back.`,
       });
     } else {
       out.push({
         key: `restore-${key}`,
         title: t`Everything in ${name} on ${server} is replaced with the copy from ${taken}`,
-        more: t`That copy is ${size}. What was made since goes. The server keeps a copy of what's there now for 7 days, and undoing this puts it back.`,
+        detail: t`That copy is ${size}, and what was made since goes.`,
+        more: t`The server keeps a copy of what's there now for 7 days, and undoing this puts it back.`,
       });
     }
     if (restore.method === BackupMethod.COPY_RUNNING) {
@@ -692,8 +686,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         return {
           key,
           title: t`More than one container answers to ${shared} on ${network}`,
-          detail: t`Point what uses it at a name only one of them has.`,
-          more: t`This one and ${also}, as they do now. What asks for ${shared} there can reach either.`,
+          detail: t`This one and ${also} do: point what uses it at a name only one of them has.`,
+          more: t`What asks for ${shared} there can reach either.`,
         };
       }
       case "volumes_stay": {
@@ -760,7 +754,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         return {
           key,
           title: t`${name}'s scheduled tasks get the same reach`,
-          more: t`They run in what ${name} runs, so they reach what it reaches on its server too: ${list}.`,
+          detail: t`They are ${list}.`,
+          more: t`They run in what ${name} runs, so they reach what it reaches on its server too.`,
         };
       }
       case "tmpfs_no_size": {

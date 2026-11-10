@@ -718,8 +718,9 @@ describe("what a plan asks of whoever applies it", () => {
   it("says a mount relabels what's there, however read-only it is", async () => {
     show(reaching({ kind: HostAccessKind.SERVER_PATH, path: "/srv/site", readOnly: true, relabel: "Z" }));
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    // Read-only is the fact in sight; the relabel is under How this works.
+    expect(await within(sheet).findByText("It can read that path on the server.")).toBeVisible();
     const notice = await within(sheet).findByText(/relabels everything there/);
-    expect(notice).toHaveTextContent("It can read that path on the server.");
     expect(notice).toHaveTextContent("as private to this app, so nothing else can use it.");
   });
 
@@ -968,9 +969,9 @@ describe("what a plan asks of whoever applies it", () => {
     await within(sheet).findByText("server path");
     const notice = sheet.querySelector(".plan-risk") as HTMLElement;
     expect(notice).toHaveClass("dw-tone-warning");
-    expect(notice).toHaveTextContent(
-      "It leads to /srv/releases/9 through a symlink, and it can read and write what is there.",
-    );
+    // Where it leads, and that it writes there, are in sight.
+    expect(notice).toHaveTextContent("which leads to /srv/releases/9");
+    expect(notice).toHaveTextContent("It can read and write that path on the server.");
     expect(within(sheet).queryByLabelText(/to apply it/)).toBeNull();
   });
 

@@ -417,7 +417,7 @@ describe("the plan sheet", () => {
     expect(effects).toHaveTextContent("It can read that path on the server.");
     // Who writes a folder, where that's root or may be, as that's more than the folder (#247).
     expect(effects).toHaveTextContent(
-      "web reaches /srv/app/data on hz-1How this worksIt can read and write that path on the server. ghcr.io/acme/web writes there as root, so it can change any file there, whoever owns it, and leave files that run as root.",
+      "web reaches /srv/app/data on hz-1It can read and write that path on the server.How this worksghcr.io/acme/web writes there as root, so it can change any file there, whoever owns it, and leave files that run as root.",
     );
     expect(effects).toHaveTextContent(
       "ghcr.io/acme/web writes there as its own user, who is root unless the image says otherwise.",
@@ -955,8 +955,10 @@ describe("the plan sheet", () => {
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     await within(sheet).findByText(/More than one container answers to/);
     expect(sheet.textContent).toContain("More than one container answers to redis on 1panel-network");
-    expect(sheet.textContent).toContain("This one and 1Panel-redis2-EfGh, as they do now");
-    expect(sheet.textContent).toContain("Point what uses it at a name only one of them has.");
+    // Which other container, and what to do, are in sight.
+    expect(sheet.textContent).toContain(
+      "This one and 1Panel-redis2-EfGh do: point what uses it at a name only one of them has.",
+    );
   });
 
   it("says what a server's note means in its own words, so they translate", async () => {

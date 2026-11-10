@@ -5650,6 +5650,12 @@ msgstr "它可以写入包含 <1>{held}</1> 的 <0>{holder}</0>，而它自己�
 msgid "It can write to <0>{holder}</0>, which holds <1>{held}</1>, which {holdsFor} mounts. So it can turn that into a link to anywhere on the server, which {holdsFor} follows when it next starts. That's as good as root, so from now on any change to {name} but another tag asks for a passkey."
 msgstr "它可以写入包含 <1>{held}</1> 的 <0>{holder}</0>，而 {holdsFor} 挂载了 <1>{held}</1>。所以它能把它改成指向服务器上任意位置的链接，{holdsFor} 下次启动时就会跟随该链接。这相当于拥有 root，所以从现在起，对 {name} 的任何更改（另一个标签除外）都需要通行密钥。"
 
+msgid "It can write to {holder}, which holds {held}, which it mounts as well."
+msgstr "它可以写入 {holder}，其中有 {held}，而它自己也挂载了 {held}。"
+
+msgid "It can write to {holder}, which holds {held}, which {holdsFor} mounts."
+msgstr "它可以写入 {holder}，其中有 {held}，而 {holdsFor} 挂载了 {held}。"
+
 msgid "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
 msgstr "在此期间无法读取；服务器恢复连接且满 7 天后，这些日志会被删除。"
 
@@ -5661,12 +5667,6 @@ msgstr "它拥有 Linux 能力 <0>{path}</0>，相当于 root。"
 
 msgid "It joins the group <0>{path}</0>, which is the same as root."
 msgstr "它加入用户组 <0>{path}</0>，相当于 root。"
-
-msgid "It leads to <0>{leadsTo}</0> through a symlink, and it can read and write what is there."
-msgstr "它通过符号链接指向 <0>{leadsTo}</0>，并可以读写那里的内容。"
-
-msgid "It leads to <0>{leadsTo}</0> through a symlink, and it can read what is there."
-msgstr "它通过符号链接指向 <0>{leadsTo}</0>，并可以读取那里的内容。"
 
 msgid "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
 msgstr "它通过符号链接指向 <0>{leadsTo}</0>，而服务器的安全取决于那里的内容，所以能访问它就相当于拥有 root。"
@@ -5726,8 +5726,8 @@ msgstr "没有做过备份,数据保持现状"
 msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
 msgstr "{0} 上没有规则允许 WireGuard 隧道 {tunnels}"
 
-msgid "Point what uses it at a name only one of them has."
-msgstr "请让使用方指向只有其中一个容器拥有的名称。"
+msgid "Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
+msgstr "密码会恢复为当时的值。如果无法加载，现在的内容会恢复回来。服务器会将其副本保留 7 天，撤销此操作即可恢复。"
 
 msgid "Pulls {image} again, and replaces {name} only if that's a newer image."
 msgstr "将重新拉取 {image}，只有镜像更新时才会替换 {name}。"
@@ -5758,8 +5758,8 @@ msgstr "{0} 上的 SSH 只对 {from} 开放"
 msgid "Something may still manage {container}"
 msgstr "可能还有其他工具在管理 {container}"
 
-msgid "That copy is {size}. What was made since goes. The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
-msgstr "该副本大小为 {size}。此后新增的内容都会消失。服务器会将现有内容的副本保留 7 天，撤销此操作即可恢复。"
+msgid "That copy is {size}, and what was made since goes."
+msgstr "该副本大小为 {size}，之后产生的内容将丢失。"
 
 msgid "That goes beyond what Docker gives a container by default."
 msgstr "这超出了 Docker 默认给容器的权限。"
@@ -5776,8 +5776,8 @@ msgstr "这是服务器本身，绕过其容器，通过明文 HTTP 位于 {at}�
 msgid "That is the server itself, past its containers, at {at}."
 msgstr "这是服务器本身，绕过其容器，位于 {at}。"
 
-msgid "That's what the server kept on {taken}, {size}. What's in the volume now goes to a copy the server keeps for 7 days."
-msgstr "这是服务器在 {taken} 保留的内容，大小为 {size}。卷中现有内容会存为副本，服务器保留 7 天。"
+msgid "That's what the server kept on {taken}, {size}."
+msgstr "这是服务器在 {taken} 保留的内容，大小为 {size}。"
 
 msgid "The data stays as it is now"
 msgstr "数据保持现状"
@@ -5794,6 +5794,9 @@ msgstr "{name} 备份的一小时时限只是估计"
 msgid "The old version may not read its data"
 msgstr "旧版本可能无法读取它的数据"
 
+msgid "The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
+msgstr "服务器会将现在的内容保留 7 天，撤销此操作即可恢复。"
+
 msgid "The server keeps that data for 7 days, and undoing this brings it back. After that it is gone."
 msgstr "服务器会将这些数据保留 7 天，撤销可以恢复。此后数据将被删除。"
 
@@ -5809,8 +5812,11 @@ msgstr "修订版本 {revision} 运行的 {image}（{digest}）已不在服务�
 msgid "These ports listen, or Docker publishes them, and no rule lets them in from anywhere. SSH stays open as this plan says, and on the control server its own ports stay open."
 msgstr "这些端口正在监听，或由 Docker 发布，且没有规则允许任意来源访问。SSH 按此计划所述保持开放，控制服务器自身的端口也保持开放。"
 
-msgid "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
-msgstr "它们在 {name} 运行的环境中运行，因此在服务器上也能访问它能访问的内容：{list}。"
+msgid "They are {list}."
+msgstr "它们是 {list}。"
+
+msgid "They run in what {name} runs, so they reach what it reaches on its server too."
+msgstr "它们在 {name} 运行的内容中运行，因此也能访问它在服务器上能访问的一切。"
 
 msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 msgstr "这份备份创建时，该卷可访问 <0>{path}</0>，所以任何挂载它的内容都能读取恢复后的数据。"
@@ -5822,8 +5828,8 @@ msgstr "此副本是在应用运行时复制的"
 msgid "This may cut off access to {0}"
 msgstr "这可能切断对 {0} 的访问"
 
-msgid "This one and {also}, as they do now. What asks for {shared} there can reach either."
-msgstr "这个容器和 {also}，现在就是如此。在那里请求 {shared} 可能会到达其中任何一个。"
+msgid "This one and {also} do: point what uses it at a name only one of them has."
+msgstr "这个容器和 {also} 都是如此：请让使用方指向只有其中一个容器拥有的名称。"
 
 msgid "This plan destroys data, may cut off access, or lets two containers write to one place"
 msgstr "此计划会销毁数据、可能切断访问，或让两个容器写入同一处"
@@ -5861,11 +5867,17 @@ msgstr "两个容器可能同时写入 {shared}，这可能损坏数据库"
 msgid "Undo may not bring everything back."
 msgstr "撤销可能无法恢复所有内容。"
 
+msgid "What asks for {shared} there can reach either."
+msgstr "在那里请求 {shared} 可能会到达其中任何一个。"
+
 msgid "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it."
 msgstr "失败之前运行的内容可能已改动数据（例如迁移），当前运行的版本可能拒绝或误读这些数据。"
 
 msgid "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
 msgstr "卷恢复后，被停止的内容会重新启动。如果恢复失败，会先放回现有的内容。"
+
+msgid "What's in the volume now goes to a copy the server keeps for 7 days."
+msgstr "卷中现在的内容会存入服务器保留 7 天的副本。"
 
 msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
 msgstr "在启用 SELinux 的服务器上，Docker 会把那里的所有内容重新标记为此应用私有，其他内容都无法再使用。"
@@ -5902,8 +5914,8 @@ msgstr "{by} 以 root 在那里写入，所以无论文件属于谁都能修改�
 msgid "{by} writes there. Code from another image asks again, as a program in any image can run as root."
 msgstr "{by} 在那里写入。换成其他镜像的代码时需要重新确认，因为任何镜像中的程序都可能以 root 运行。"
 
-msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
-msgstr "{database} 会在空卷上重新启动并载入转储（{size}），因此此后新增的内容都会消失，密码也会恢复为当时的值。如果载入失败，现有内容会恢复。服务器会将现有内容的副本保留 7 天，撤销此操作即可恢复。"
+msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
+msgstr "{database} 会在空卷上重新开始并加载转储（{size}），因此之后产生的内容将丢失。"
 
 msgid "{heldBy} can move what {path} leads to on {server}"
 msgstr "{heldBy} 可以改变 {server} 上 {path} 指向的位置"
@@ -5956,6 +5968,9 @@ msgstr "{name} 挂载了 <1>{heldIn}</1> 中的 <0>{path}</0>，而 {heldBy} 可
 
 msgid "{name} mounts the volume {path} on {server}"
 msgstr "{name} 在 {server} 上挂载卷 {path}"
+
+msgid "{name} mounts {path}, inside {heldIn}, which {heldBy} can write."
+msgstr "{name} 挂载了 {heldIn} 中的 {path}，而 {heldBy} 可以写入 {heldIn}。"
 
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} 在 {server} 上可访问端口 {path}"
