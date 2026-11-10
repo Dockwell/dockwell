@@ -62,9 +62,11 @@ var reconciledKinds = map[resource.Kind]int{"network": 0, "volume": 1, "service"
 // new to the agent goes here or in reconciledKinds: a test in internal/cli fails
 // until it's in one.
 var leftAlone = map[resource.Kind]string{
-	"route":         "the ingress starts with its last config and keeps it reconciled itself",
-	"task":          "the agent keeps its tasks in tasks.json and runs them on its own clock (ADR 0053)",
-	"database.user": "a user lives in its database's data, which comes back with the volume; making one again runs SQL with a password, which is a change, not a repair",
+	"route":           "the ingress starts with its last config and keeps it reconciled itself",
+	"task":            "the agent keeps its tasks in tasks.json and runs them on its own clock (ADR 0053)",
+	"database.user":   "a user lives in its database's data, which comes back with the volume; making one again runs SQL with a password, which is a change, not a repair",
+	"firewall.rule":   "the access manager keeps the last confirmed table and loads it again as the agent starts, before it connects anywhere (ADR 0052); a step under the firewall's timer isn't desired state until it's confirmed",
+	"firewall.policy": "kept with the firewall's rules, by the access manager, from what was last confirmed (ADR 0052)",
 }
 
 // ReconcileDecided says whether a kind an agent runs is either put back by the
