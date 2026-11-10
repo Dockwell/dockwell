@@ -1146,7 +1146,7 @@ volumes:
     await zh.goto(`${origin}/apps/new`);
     const zhForm = zh.getByRole("dialog", { name: "新建应用" });
     await zhForm.waitFor();
-    await zhForm.getByRole("textbox", { name: "镜像", exact: true }).fill("nginx:1.27-alpine");
+    await zhForm.getByRole("combobox", { name: "镜像", exact: true }).fill("nginx:1.27-alpine");
     await zhForm.getByRole("textbox", { name: /^名称/ }).first().fill("zhong");
     await zhForm.getByRole("button", { name: /审查计划/ }).click();
     const zhPlan = zh.getByRole("dialog", { name: "审查计划" });
