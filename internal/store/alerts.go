@@ -36,20 +36,24 @@ type Alert struct {
 	// ResolvedSent says its resolved message was queued, or never will be.
 	SentAt       *time.Time
 	ResolvedSent bool
+	// AcknowledgedAt and AcknowledgedBy are when someone said they're on it, and
+	// who, as an actor's ID. Unset while nobody has; a resolved alert keeps them.
+	AcknowledgedAt *time.Time
+	AcknowledgedBy string
 }
 
-const alertColumns = `id, rule_id, rule_name, thing, condition, severity, server_id, subject_id, subject_name, title, detail, path, facts, opened_at, resolved_at, ended, sent_at, resolved_sent`
+const alertColumns = `id, rule_id, rule_name, thing, condition, severity, server_id, subject_id, subject_name, title, detail, path, facts, opened_at, resolved_at, ended, sent_at, resolved_sent, acknowledged_at, acknowledged_by`
 
 func scanAlert(row interface{ Scan(...any) error }) (Alert, error) {
 	var a Alert
 	var opened int64
-	var resolved, sent sql.NullInt64
+	var resolved, sent, acknowledged sql.NullInt64
 	err := row.Scan(&a.ID, &a.RuleID, &a.RuleName, &a.Thing, &a.Condition, &a.Severity, &a.ServerID, &a.SubjectID, &a.SubjectName,
-		&a.Title, &a.Detail, &a.Path, &a.Facts, &opened, &resolved, &a.Ended, &sent, &a.ResolvedSent)
+		&a.Title, &a.Detail, &a.Path, &a.Facts, &opened, &resolved, &a.Ended, &sent, &a.ResolvedSent, &acknowledged, &a.AcknowledgedBy)
 	if err != nil {
 		return Alert{}, err
 	}
-	a.OpenedAt, a.ResolvedAt, a.SentAt = fromMillis(opened), timePtr(resolved), timePtr(sent)
+	a.OpenedAt, a.ResolvedAt, a.SentAt, a.AcknowledgedAt = fromMillis(opened), timePtr(resolved), timePtr(sent), timePtr(acknowledged)
 	return a, nil
 }
 
@@ -73,9 +77,10 @@ func (t *Tx) alerts(ctx context.Context, query string, args ...any) ([]Alert, er
 // OpenAlert records an alert that fired. ErrConflict says one of its rule is open
 // for its thing already.
 func (t *Tx) OpenAlert(ctx context.Context, a Alert) error {
-	err := t.insert(ctx, `INSERT INTO alerts (`+alertColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	err := t.insert(ctx, `INSERT INTO alerts (`+alertColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.ID, a.RuleID, a.RuleName, a.Thing, a.Condition, a.Severity, a.ServerID, a.SubjectID, a.SubjectName,
-		a.Title, a.Detail, a.Path, a.Facts, millis(a.OpenedAt), nullMillis(a.ResolvedAt), a.Ended, nullMillis(a.SentAt), a.ResolvedSent)
+		a.Title, a.Detail, a.Path, a.Facts, millis(a.OpenedAt), nullMillis(a.ResolvedAt), a.Ended, nullMillis(a.SentAt), a.ResolvedSent,
+		nullMillis(a.AcknowledgedAt), a.AcknowledgedBy)
 	if t.unique(err) {
 		return fmt.Errorf("an alert of %s is open for %s already: %w", a.RuleName, a.Thing, ErrConflict)
 	}
@@ -110,6 +115,36 @@ func (t *Tx) MarkResolvedSent(ctx context.Context, id string) error {
 		return fmt.Errorf("can't record that alert %s was sent as resolved: %w", id, err)
 	}
 	return nil
+}
+
+// AcknowledgeAlert records who said they're on an open alert, and when, over
+// whoever had it. It reports whether the alert was there and open: one that
+// resolved meanwhile isn't touched.
+func (t *Tx) AcknowledgeAlert(ctx context.Context, id string, at time.Time, actor string) (bool, error) {
+	res, err := t.exec(ctx, `UPDATE alerts SET acknowledged_at = ?, acknowledged_by = ? WHERE id = ? AND resolved_at IS NULL`, millis(at), actor, id)
+	if err != nil {
+		return false, fmt.Errorf("can't acknowledge alert %s: %w", id, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("can't acknowledge alert %s: %w", id, err)
+	}
+	return n > 0, nil
+}
+
+// UnacknowledgeAlert takes back the acknowledgement actor has on an open alert. It
+// reports whether there was one of theirs to take: an alert nobody has, one
+// someone else has, or one that resolved meanwhile, isn't touched.
+func (t *Tx) UnacknowledgeAlert(ctx context.Context, id, actor string) (bool, error) {
+	res, err := t.exec(ctx, `UPDATE alerts SET acknowledged_at = NULL, acknowledged_by = '' WHERE id = ? AND resolved_at IS NULL AND acknowledged_at IS NOT NULL AND acknowledged_by = ?`, id, actor)
+	if err != nil {
+		return false, fmt.Errorf("can't take back the acknowledgement of alert %s: %w", id, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("can't take back the acknowledgement of alert %s: %w", id, err)
+	}
+	return n > 0, nil
 }
 
 // OpenAlerts returns every alert that's firing, oldest first.

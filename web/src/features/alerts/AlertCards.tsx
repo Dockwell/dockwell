@@ -1,21 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { createClient } from "@connectrpc/connect";
+import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
+  ActorKind,
   type Alert,
+  AlertService,
   AlertRule_Condition as Condition,
   Connection,
   type Server,
   AlertRule_Severity as Severity,
 } from "@dockwell/api";
-import { cx, Icon, type IconName, Sparkline, StatusBadge } from "@dockwell/ui";
+import { Button, Callout, cx, Icon, type IconName, Sparkline, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
 
+import { sentence } from "../../lib/errors";
 import { formatClock, formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { useActorWords } from "../activity/actor";
 import { alertTitle } from "../activity/describe";
+import { useSignedInUser } from "../auth/useAuthState";
 import { trend } from "../servers/history";
 import { useControlPlaneNow, useFleet } from "../servers/useFleet";
 
@@ -41,16 +50,63 @@ export function bySeverity(alerts: readonly Alert[]): Alert[] {
 }
 
 /**
+ * Says you're on an alert, or takes that back, and reads the alerts again. It's an
+ * audited action, as a mute is, with no plan (ADR 0044): it holds nothing back and
+ * sends nothing. What the control plane refuses is kept for the card to say.
+ */
+function useAcknowledge() {
+  const transport = useTransport();
+  const queryClient = useQueryClient();
+  const client = useMemo(() => createClient(AlertService, transport), [transport]);
+  // By alert, as two cards can be asked at once, and each keeps its own refusal until it's closed or asked again.
+  const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
+  const [failed, setFailed] = useState<ReadonlyMap<string, unknown>>(new Map());
+  const mark = (id: string, on: boolean) =>
+    setBusy((was) => {
+      const next = new Set(was);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  const fail = (id: string, error?: unknown) =>
+    setFailed((was) => {
+      const next = new Map(was);
+      if (error === undefined) next.delete(id);
+      else next.set(id, error);
+      return next;
+    });
+  const run = async (id: string, on: boolean) => {
+    mark(id, true);
+    fail(id);
+    try {
+      if (on) await client.acknowledgeAlert({ id });
+      else await client.unacknowledgeAlert({ id });
+    } catch (error) {
+      fail(id, error);
+    } finally {
+      mark(id, false);
+      // Refused or not, the alert may no longer be as the card says: it may have resolved, or someone took it over.
+      void queryClient.invalidateQueries({
+        queryKey: createConnectQueryKey({ schema: AlertService, cardinality: undefined }),
+      });
+    }
+  };
+  return { busy, failed, run, dismiss: (id: string) => fail(id) };
+}
+
+type Acknowledge = ReturnType<typeof useAcknowledge>;
+
+/**
  * What's open, each as a card, as Alerts draws them: what's wrong and how much it matters,
  * since when, what it means, and what was sent. A server's memory has its trend beside it,
- * from the minutes the control plane keeps. Acknowledging, and an alert's own history,
- * wait for the API to have them.
+ * from the minutes the control plane keeps. Each says who's on it, and offers to take it.
  */
 export function OpenAlerts({ alerts }: { alerts: readonly Alert[] }) {
   const { t } = useLingui();
   const fleet = useFleet();
   const servers = fleet.status === "connecting" ? [] : fleet.servers;
   const now = useControlPlaneNow(30_000);
+  const acknowledge = useAcknowledge();
   return (
     <section className="alerts-main" aria-labelledby="alerts-open">
       <div className="alerts-heading">
@@ -71,7 +127,12 @@ export function OpenAlerts({ alerts }: { alerts: readonly Alert[] }) {
         <ul className="alerts-cards">
           {bySeverity(alerts).map((alert) => (
             <li key={alert.id}>
-              <AlertCard alert={alert} server={servers.find((s) => s.id === alert.serverId)} now={now} />
+              <AlertCard
+                alert={alert}
+                server={servers.find((s) => s.id === alert.serverId)}
+                now={now}
+                acknowledge={acknowledge}
+              />
             </li>
           ))}
         </ul>
@@ -80,9 +141,30 @@ export function OpenAlerts({ alerts }: { alerts: readonly Alert[] }) {
   );
 }
 
-function AlertCard({ alert, server, now }: { alert: Alert; server: Server | undefined; now: number }) {
+function AlertCard({
+  alert,
+  server,
+  now,
+  acknowledge,
+}: {
+  alert: Alert;
+  server: Server | undefined;
+  now: number;
+  acknowledge: Acknowledge;
+}) {
   const { t, i18n } = useLingui();
   const words = useTimeWords();
+  const me = useSignedInUser();
+  const actorWords = useActorWords();
+  // Who's on it, if anyone: you, or someone else, named and marked as Activity does, so a
+  // token reads as a token whatever its maker called it. Your own token isn't you.
+  const by = alert.acknowledgeTime ? alert.acknowledgedBy : undefined;
+  const mine = by !== undefined && me !== undefined && by.kind === ActorKind.USER && by.id === me.id;
+  const who = actorWords(by);
+  const name = who.name;
+  const ago = alert.acknowledgeTime ? words.ago(timestampDate(alert.acknowledgeTime), now) : "";
+  const busy = acknowledge.busy.has(alert.id);
+  const failed = acknowledge.failed.get(alert.id);
   const critical = alert.severity === Severity.CRITICAL;
   const title = alertTitle(alert, i18n);
   const opened = ms(alert.openTime);
@@ -112,14 +194,67 @@ function AlertCard({ alert, server, now }: { alert: Alert; server: Server | unde
       </div>
       {alert.detail ? <p className="alerts-card-detail">{alert.detail}</p> : null}
       <div className="alerts-card-foot">
+        {/* A status, so a change of who has it is said to someone who can't see it change. */}
+        <span role="status" className={cx("alerts-card-seen", by === undefined && "alerts-muted")}>
+          {by === undefined ? (
+            <Trans>Not acknowledged</Trans>
+          ) : (
+            <>
+              {who.icon ? (
+                <span className="alerts-card-by" aria-hidden="true">
+                  <Icon name={who.icon} size={12} />
+                </span>
+              ) : null}
+              <span title={who.full === who.name ? undefined : who.full}>
+                {mine ? t`Acknowledged by you` : t`Acknowledged by ${name}`}
+              </span>
+              <span className="alerts-muted"> · {ago}</span>
+            </>
+          )}
+        </span>
+        <span className="alerts-card-spacer" />
         <span className="alerts-muted">
           <code>{alert.ruleName}</code>
           {" · "}
           {alert.muted ? t`Held by a mute` : sent ? t`Sent ${sent}` : t`Nothing sent`}
         </span>
-        <span className="alerts-card-spacer" />
+        {mine ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            loading={busy}
+            aria-label={t`Take back your acknowledgement of: ${title}`}
+            onClick={() => void acknowledge.run(alert.id, false)}
+          >
+            <Trans>Take back</Trans>
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            icon="check"
+            loading={busy}
+            aria-label={by === undefined ? t`Acknowledge: ${title}` : t`Take over from ${name}: ${title}`}
+            onClick={() => void acknowledge.run(alert.id, true)}
+          >
+            {by === undefined ? <Trans>Acknowledge</Trans> : <Trans>Take over</Trans>}
+          </Button>
+        )}
         <Inspect alert={alert} title={title} />
       </div>
+      {failed ? (
+        <Callout
+          tone="critical"
+          title={t`That didn't take`}
+          className="alerts-card-failed"
+          actions={
+            <Button size="sm" variant="ghost" onClick={() => acknowledge.dismiss(alert.id)}>
+              <Trans>Close</Trans>
+            </Button>
+          }
+        >
+          {sentence(failed)}
+        </Callout>
+      ) : null}
     </article>
   );
 }
