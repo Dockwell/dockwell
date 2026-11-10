@@ -8237,6 +8237,10 @@ msgstr "正在读取 Docker 在这里运行的内容"
 msgid "See them all with <0>docker ps -a</0> on the server."
 msgstr "请在服务器上用 <0>docker ps -a</0> 查看全部。"
 
+#. placeholder {0}: c.name
+msgid "Take {0} on as an app"
+msgstr "将 {0} 接管为应用"
+
 msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 msgstr "这些容器在 Dockwell 之前就已存在，或以其他方式运行。Dockwell 只读取它们，因此在这里查看不会改变任何内容，它们会照常运行。"
 
