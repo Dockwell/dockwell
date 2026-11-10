@@ -6267,8 +6267,8 @@ msgstr "It takes no password, as it checks no one."
 msgid "It's a member of the replica set {set}, and a member that checks sign-ins needs a key file every member shares: mount one and add <0>--keyFile</0> to its command first, or it won't start."
 msgstr "It's a member of the replica set {set}, and a member that checks sign-ins needs a key file every member shares: mount one and add <0>--keyFile</0> to its command first, or it won't start."
 
-msgid "It's a member of the replica set {set}, so each backup is one moment. Dockwell can't restore a backup into a member yet: to restore one, take --replSet out of its command first, and put it back after."
-msgstr "It's a member of the replica set {set}, so each backup is one moment. Dockwell can't restore a backup into a member yet: to restore one, take --replSet out of its command first, and put it back after."
+msgid "It's a member of the replica set {set}, so each backup is one moment. Dockwell can't restore a backup into a member yet: to restore one, take <0>--replSet</0> out of its command first, and put it back after."
+msgstr "It's a member of the replica set {set}, so each backup is one moment. Dockwell can't restore a backup into a member yet: to restore one, take <0>--replSet</0> out of its command first, and put it back after."
 
 msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
 msgstr "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."

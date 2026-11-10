@@ -6267,8 +6267,8 @@ msgstr "它未开启身份验证，因此不需要密码。"
 msgid "It's a member of the replica set {set}, and a member that checks sign-ins needs a key file every member shares: mount one and add <0>--keyFile</0> to its command first, or it won't start."
 msgstr "它是副本集 {set} 的成员，而开启身份验证的成员需要一个所有成员共用的密钥文件：请先挂载密钥文件并在其命令中加上 <0>--keyFile</0>，否则它无法启动。"
 
-msgid "It's a member of the replica set {set}, so each backup is one moment. Dockwell can't restore a backup into a member yet: to restore one, take --replSet out of its command first, and put it back after."
-msgstr "它是副本集 {set} 的成员，因此每次备份都是同一时刻的快照。Dockwell 暂时无法把备份恢复到副本集成员中：要恢复，请先从其命令中去掉 --replSet，恢复后再加回去。"
+msgid "It's a member of the replica set {set}, so each backup is one moment. Dockwell can't restore a backup into a member yet: to restore one, take <0>--replSet</0> out of its command first, and put it back after."
+msgstr "它是副本集 {set} 的成员，因此每次备份都是同一时刻的快照。Dockwell 暂时无法把备份恢复到副本集成员中：要恢复，请先从其命令中去掉 <0>--replSet</0>，恢复后再加回去。"
 
 msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
 msgstr "它的数据在 <0>{volume}</0> 中，这个卷不是 Dockwell 创建的，因此 Dockwell 不会备份它。请在它原来的地方备份，或把数据移到该应用自己的卷中。"

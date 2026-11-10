@@ -110,23 +110,32 @@ function ChecksNoOne({ db, read }: { db: Database; read: DatabaseReading }) {
  * which the release before can still run, and whether a backup is one moment.
  */
 function MongoLine({ read }: { read: DatabaseReading }) {
-  const { t } = useLingui();
   const version = read.version;
   const features = read.featureCompatibility;
   const release = version.split(".").slice(0, 2).join(".");
-  const lines: string[] = [];
-  if (features && features !== release) {
-    lines.push(
-      t`It runs ${version} with ${features}'s features, so ${features} can still run its data. Its next upgrade raises them first.`,
-    );
-  }
   const set = read.replicaSet;
-  lines.push(
-    set
-      ? t`It's a member of the replica set ${set}, so each backup is one moment. Dockwell can't restore a backup into a member yet: to restore one, take --replSet out of its command first, and put it back after.`
-      : t`It runs alone, without a replica set, so a backup isn't one moment if something writes while it runs.`,
+  return (
+    <p className="database-line">
+      {features && features !== release ? (
+        <>
+          <Trans>
+            It runs {version} with {features}'s features, so {features} can still run its data. Its next upgrade raises
+            them first.
+          </Trans>{" "}
+        </>
+      ) : null}
+      {set ? (
+        <Trans>
+          It's a member of the replica set {set}, so each backup is one moment. Dockwell can't restore a backup into a
+          member yet: to restore one, take <code>--replSet</code> out of its command first, and put it back after.
+        </Trans>
+      ) : (
+        <Trans>
+          It runs alone, without a replica set, so a backup isn't one moment if something writes while it runs.
+        </Trans>
+      )}
+    </p>
   );
-  return <p className="database-line">{lines.join(" ")}</p>;
 }
 
 /** On a database that runs on several servers, which one its numbers are from. */
