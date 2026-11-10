@@ -141,6 +141,33 @@ states
 say "events of the person's stops, replayed from the daemon ($t1 to $t2)"
 events "$t1" "$t2"
 
+say "a start Docker couldn't make, and then a person's stop: does State.Error outlast the stop?"
+# The agent takes State.Error for "Docker tried to start this and couldn't". If a
+# stop left it set, a container a person stopped would read as one to start.
+port=$((20000 + RANDOM % 20000))
+docker run -d --name ev-port-holder --label "$label" --restart no -p "127.0.0.1:$port:80" "$image" >/dev/null
+# Never started: made, and its first start refused.
+docker run -d --name ev-failed-first-start --label "$label" --restart always -p "127.0.0.1:$port:80" "$image" 2>&1 | tail -1 | sed 's/^/evidence:   docker run said: /'
+# Ran once, was stopped, and its next start refused.
+port2=$((port + 1))
+docker run -d --name ev-failed-restart --label "$label" --restart always -p "127.0.0.1:$port2:80" "$image" >/dev/null
+docker stop -t 2 ev-failed-restart >/dev/null
+docker run -d --name ev-port-holder2 --label "$label" --restart no -p "127.0.0.1:$port2:80" "$image" >/dev/null
+docker start ev-failed-restart 2>&1 | tail -1 | sed 's/^/evidence:   docker start said: /'
+sleep 2
+say "states with the failed starts as Docker left them"
+states
+tf=$(date +%s)
+docker stop -t 2 ev-failed-first-start 2>&1 | sed 's/^/evidence:   docker stop said: /'
+docker stop -t 2 ev-failed-restart 2>&1 | sed 's/^/evidence:   docker stop said: /'
+sleep 2
+say "states after a person's docker stop on each failed start"
+states
+say "events of those stops ($tf on)"
+events "$tf" "$(date +%s)"
+# Free the ports, so what the daemon does with these as it returns isn't the port's doing.
+docker rm -f ev-port-holder ev-port-holder2 >/dev/null
+
 say "kill the daemon: systemctl kill --signal=SIGKILL docker.service"
 t3=$(date +%s)
 sudo -n systemctl kill --signal=SIGKILL docker.service
