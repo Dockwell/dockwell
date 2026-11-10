@@ -57,6 +57,31 @@
   flex: 1;
   min-width: 0;
 }
+/* A fade at an edge a long line runs past, over the text and under nothing a person clicks. */
+.dw-code-body::before,
+.dw-code-body::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: var(--space-8);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+.dw-code-body::before {
+  left: 0;
+  background: linear-gradient(to right, var(--surface-sunken), transparent);
+}
+.dw-code-body::after {
+  right: 0;
+  background: linear-gradient(to left, var(--surface-sunken), transparent);
+}
+.dw-code-body.is-cut-left::before,
+.dw-code-body.is-cut-right::after {
+  opacity: 1;
+}
 .dw-code-marks {
   position: absolute;
   inset: 0;
