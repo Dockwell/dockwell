@@ -14,11 +14,6 @@
   container-type: inline-size;
 }
 
-/* The record measures itself (a size container), so it takes the box's width rather than its content's. */
-.domain-record > .dw-dns {
-  align-self: stretch;
-}
-
 .domain-record-lead,
 .domain-record-hint {
   margin: 0;
