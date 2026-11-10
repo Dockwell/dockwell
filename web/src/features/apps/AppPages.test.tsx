@@ -279,7 +279,7 @@ describe("an app's frame", () => {
     expect(screen.queryByText("None set")).not.toBeInTheDocument();
     await router.navigate({ to: "/apps/$serviceId/environment", params: { serviceId: service.id } });
     expect(await screen.findByRole("cell", { name: "API_KEY" })).toBeVisible();
-    expect(screen.queryByText(/This app runs with only what its image sets/)).not.toBeInTheDocument();
+    expect(screen.queryByText("It runs with only what its image sets.")).not.toBeInTheDocument();
     // It reads the environment's variables once, to offer them to the app.
     await waitFor(() => expect(reads).toHaveBeenCalledOnce());
   });

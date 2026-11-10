@@ -1684,8 +1684,8 @@ msgstr "{shown} 与最新版本一致。如果实际运行的内容已与它不�
 msgid "A change is applying to {name}. Review this once it ends."
 msgstr "正在向 {name} 应用一项更改。等它结束后再审查这里。"
 
-msgid "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
-msgstr "应用已有的名称会得到新值。在你审查并应用计划之前，什么都不会改变。"
+msgid "A name the app has gets the new value."
+msgstr "应用已有的名称会得到新值。"
 
 msgid "A variable or secret of the environment"
 msgstr "环境中的变量或密钥"
@@ -1737,6 +1737,9 @@ msgstr "已隐藏"
 
 msgid "Import .env"
 msgstr "导入 .env"
+
+msgid "It runs with only what its image sets."
+msgstr "它只使用镜像里设置的值运行。"
 
 msgid "Keep the new ones as secrets"
 msgstr "把新的保存为密钥"
@@ -1804,23 +1807,20 @@ msgstr "环境中已经有密钥 {trimmed}。可以直接使用它，或换一�
 msgid "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 msgstr "环境中已经有变量 {trimmed}。可以直接使用它，或换一个名称。"
 
-msgid "The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in Variables and secrets, where every app that uses it gets the change."
-msgstr "环境中已经有 {usedList}，所以应用会直接使用它和它现有的值。要更改它，请到变量和密钥中修改，每个使用它的应用都会得到更改。"
+msgid "The environment has {usedList} already, so the app uses its value: change it in Variables and secrets."
+msgstr "环境中已经有 {usedList}，所以应用使用它的值：请到变量和密钥中更改。"
 
-msgid "The environment has {usedList} already, so the app uses them as they are, with their own values. Change them in Variables and secrets, where every app that uses them gets the change."
-msgstr "环境中已经有 {usedList}，所以应用会直接使用它们和它们现有的值。要更改它们，请到变量和密钥中修改，每个使用它们的应用都会得到更改。"
-
-msgid "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
-msgstr "密钥的值不会显示，所以请输入它应有的完整值。每个使用它的应用都会得到它。"
+msgid "The environment has {usedList} already, so the app uses their values: change them in Variables and secrets."
+msgstr "环境中已经有 {usedList}，所以应用使用它们的值：请到变量和密钥中更改。"
 
 msgid "Their values are hidden, and revealing one takes your passkey."
 msgstr "它们的值会被隐藏，显示其中一个需要你的通行密钥。"
 
-msgid "Their values don't show until then, and adding waits, so a new name can't clash with one already there."
-msgstr "在读取成功之前，它们的值不会显示，添加也会暂停，以免新名称与已有的冲突。"
+msgid "Their values stay hidden, and Add waits until they load."
+msgstr "它们的值暂不显示，添加会等到读取完成。"
 
-msgid "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
-msgstr "这个应用只使用镜像里设置的值运行。在上方添加一个变量，应用计划后它就会得到。"
+msgid "Type the whole value: every app that uses this secret gets it."
+msgstr "请输入完整的值：每个使用这个密钥的应用都会得到它。"
 
 msgid "Unapplied changes"
 msgstr "未应用的更改"
