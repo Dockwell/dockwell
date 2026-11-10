@@ -3762,6 +3762,21 @@ msgstr "{name} 还没有所有者"
 msgid "{browser} on {os}"
 msgstr "{os} 上的 {browser}"
 
+msgid "Only a developer or more can do this. Ask an admin to change your role."
+msgstr "只有开发者或更高角色才能执行此操作。请让管理员更改你的角色。"
+
+msgid "Only an admin or the owner can do this."
+msgstr "只有管理员或所有者才能执行此操作。"
+
+msgid "Only the owner can do this."
+msgstr "只有所有者才能执行此操作。"
+
+msgid "This environment is protected, so an admin or the owner does this."
+msgstr "此环境受保护，因此由管理员或所有者执行此操作。"
+
+msgid "You hold no role in this project. Ask an admin to add you."
+msgstr "你在此项目中没有角色。请让管理员添加你。"
+
 msgid "API tokens can't remove data, cut off access, reveal a secret, reach a server's files, processes or terminal, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel."
 msgstr "API 令牌不能删除数据、切断访问、显示密钥、访问服务器上的文件、进程或终端、重命名此安装，也不能更改你的登录方式和令牌。请登录后在面板中操作。"
 

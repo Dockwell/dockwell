@@ -30,11 +30,25 @@ A method whose objects are the install's is an admin's by the schema's own rule,
 
 **How the panel shows a no.** One rule, from the content rules' "disabled controls say why nearby":
 
-- **An action on something you can see is shown disabled, with the reason.** A button, a menu item or a switch stays where it is, at the disabled opacity, and says who can do it: "Only an admin or the owner can do this", or "This environment is protected, so an admin or the owner does this". You learn the thing exists and whom to ask.
-- **A way to a place you can't read is left out.** A tab, a rail entry or a command-bar entry whose screen's read you may not call isn't drawn, as a list leaves out what's out of your reach. Opening its address still shows the server's refusal, in the words the panel already has for it.
+- **An action on something you can see is shown disabled, with the reason.** A button, a menu item or a switch stays where it is, at the disabled opacity, and says who can do it as its description, which a pointer shows and assistive technology reads: "Only an admin or the owner can do this", or "This environment is protected, so an admin or the owner does this". You learn the thing exists and whom to ask. `may` hands a control both at once (`off`), so no screen words its own.
+- **A way to a place you can't read is left out.** A tab, a rail entry or a panel whose read you may not call isn't drawn, and its read isn't made, as a list leaves out what's out of your reach. Opening its address still shows the server's refusal, in the words the panel already has for it.
 - **The command bar leaves out both kinds:** an entry is something to run, and one that can't run is noise in a search.
+- **A timeline's Undo is left out** for someone who may not undo: the shared component draws it or doesn't, and has no off state.
 
-**Every method has a decision.** `web/src/features/auth/methods.ts` names each method of the API once, as one of: `open` (before sign-in, or your own account), `read` (a read whose list the server narrows, or whose refusal the screen shows), `may` (the panel asks `may` before it offers it) or `unused` (the panel doesn't call it). A test walks the generated services and fails on a method with no decision, on a decision for a method that's gone, on a call the panel makes to a method marked unused, and on a write, or a read that's an admin's, that the panel calls without asking `may` for it. So a new method fails the panel's tests until someone decides.
+Making or deleting a project is asked with the install as its place, since a project itself is in no project and the engine holds it to an admin (ADR 0049).
+
+**Every method has a decision.** `web/src/features/auth/methods.ts` names each method of the API once, as one of:
+
+- `open`: before sign-in, or your own account.
+- `read`: a read anyone with a role may make, whose list the server narrows.
+- `may`: the panel asks `may` for it by name before it offers it.
+- `within`: offered only on a screen whose way in asks `may` for another method, which is the install's and needs at least as much, as a file's save is within the Files tab.
+- `plan`: applying and discarding a plan, which the plan itself answers.
+- `unused`: the panel doesn't call it.
+
+A test walks the generated services and fails on a method with no decision, on a decision for a method that's gone, on a call the panel makes to a method marked unused, and on a write, or a read that's an admin's, that the panel calls without asking `may` for it by name. So a new method fails the panel's tests until someone decides.
+
+**What this doesn't cover yet.** An editor that plans through the change sheet with edits of its own (variables and secrets, an app's settings and environment, backup policies and destinations, alert rules and channels) asks `may` for nothing of its own: the test sees that `ProposeChange` is asked for somewhere, not at each of them. Below a developer they still open, and the plan is refused in the server's words. Gating each is the next step, tracked on #263.
 
 ## Consequences
 

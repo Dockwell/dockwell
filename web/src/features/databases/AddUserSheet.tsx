@@ -12,6 +12,7 @@ import { onApple } from "../../lib/platform";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { engineName } from "./useDatabases";
 import "../apps/Apps.css";
+import { useMay } from "../auth/may";
 
 /** What a user's or a database's name takes, as the control plane checks it. */
 const SQL_NAME = /^[a-z][a-z0-9_]{0,31}$/;
@@ -44,6 +45,8 @@ export function AddUserSheet({ db, onClose }: { db: Database; onClose: () => voi
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState<Opening>();
   const name = db.resource?.name ?? "";
+  // A user is a plan in the database's project, which is a developer's: off, with why, for a viewer (ADR 0059).
+  const mayAdd = useMay()(DatabaseService.method.createDatabaseUser, { environment: db.resource?.scope ?? "" });
   const engine = engineName(db.engine);
   const wanted = user.trim();
 
@@ -121,6 +124,7 @@ export function AddUserSheet({ db, onClose }: { db: Database; onClose: () => voi
             loading={busy}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void submit()}
+            {...mayAdd.off}
           >
             <Trans>Review plan</Trans>
           </Button>

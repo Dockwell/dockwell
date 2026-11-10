@@ -26,6 +26,7 @@ import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { matches, mountSource, portWords, READ_EVERY_MS, statusOf, useContainerStateWord } from "./containers";
 import "./ContainersPanel.css";
+import { useMay } from "../auth/may";
 
 /** A filter earns its place once there are more containers than read at a glance. */
 const FILTER_FROM = 13;
@@ -54,10 +55,12 @@ function Some({ items, more }: { items: readonly string[]; more: number }) {
 export function ContainersPanel({ server }: { server: Server }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
+  // The containers on a server are an admin's to read, and the panel is left out for anyone else (ADR 0059).
+  const allowed = useMay()(ContainerService.method.listContainers).allowed;
   const list = useQuery(
     ContainerService.method.listContainers,
     { server: server.id },
-    { refetchInterval: READ_EVERY_MS, retry: false },
+    { refetchInterval: READ_EVERY_MS, retry: false, enabled: allowed },
   );
   const [filter, setFilter] = useState("");
   const [shown, setShown] = useState(PAGE);
@@ -69,6 +72,7 @@ export function ContainersPanel({ server }: { server: Server }) {
   const unlisted = list.data?.unlisted ?? 0;
   const projects = useMemo(() => new Set((containers ?? []).map((c) => c.composeProject)), [containers]);
 
+  if (!allowed) return null;
   // What it last read can't stand once it can't be read, so that is all this says.
   const body: ReactNode = list.error ? (
     <p className="containers-note">{sentence(list.error)}</p>

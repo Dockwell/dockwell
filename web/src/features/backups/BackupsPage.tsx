@@ -36,6 +36,7 @@ import { PolicySheet } from "./PolicySheet";
 import { useBackups, useVolumes } from "./useBackups";
 import { backupStatus, useMethodWord, useStateWord } from "./words";
 import "./Backups.css";
+import { useMay } from "../auth/may";
 
 /**
  * Every backup, newest first: back one up, restore one through a plan, or delete
@@ -233,20 +234,39 @@ function BackupsList({
       ) : null}
     </div>
   );
+  // An action on what you can see stays where it is, off, with why (ADR 0059).
+  const may = useMay();
   const actions = (b: Backup) =>
     b.state === BackupState.RUNNING ? null : (
       <span className="backup-actions">
         {b.onServer ? (
-          <Button size="sm" icon="undo" onClick={() => onRestore(b)}>
+          <Button
+            size="sm"
+            icon="undo"
+            onClick={() => onRestore(b)}
+            {...may(BackupService.method.restoreBackup, { environment: b.environmentId }).off}
+          >
             <Trans>Restore</Trans>
           </Button>
         ) : null}
         {b.copy === BackupCopy.STORED && !b.onServer && b.fetchOnto.length > 0 ? (
-          <Button size="sm" variant="ghost" onClick={() => onFetch(b)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onFetch(b)}
+            {...may(BackupService.method.fetchBackup, { environment: b.environmentId }).off}
+          >
             <Trans>Fetch</Trans>
           </Button>
         ) : null}
-        <Button size="sm" variant="ghost" icon="trash" aria-label={t`Delete this backup`} onClick={() => onDelete(b)} />
+        <Button
+          size="sm"
+          variant="ghost"
+          icon="trash"
+          aria-label={t`Delete this backup`}
+          onClick={() => onDelete(b)}
+          {...may(BackupService.method.deleteBackup, { environment: b.environmentId }).off}
+        />
       </span>
     );
   const columns: TableColumn<Backup>[] = [

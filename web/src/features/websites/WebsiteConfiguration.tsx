@@ -13,6 +13,7 @@ import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { plainForAnyone } from "../apps/domains";
 import { validPort } from "../apps/form";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { CopyButton } from "../servers/CopyButton";
 import { useCertificateWords } from "./Standing";
@@ -83,6 +84,8 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
   const differs = site.configDiffers;
   const ready = (changes > 0 || differs) && refusal === "" && !typing && preview.isSuccess;
 
+  // A website is its project, which is an admin's to change (ADR 0049): off, with why, for anyone else.
+  const mayUpdate = useMay()(WebsiteService.method.updateWebsite, { project: site.id });
   const review = () =>
     sheet.open({
       kind: "plan",
@@ -194,7 +197,14 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
             <Button variant="ghost" size={phone ? "lg" : "md"} disabled={changes === 0} onClick={() => setNow(was)}>
               <Trans>Discard</Trans>
             </Button>
-            <Button variant="primary" icon="commit" size={phone ? "lg" : "md"} disabled={!ready} onClick={review}>
+            <Button
+              variant="primary"
+              icon="commit"
+              size={phone ? "lg" : "md"}
+              disabled={!ready}
+              onClick={review}
+              {...mayUpdate.off}
+            >
               <Trans>Review plan</Trans>
             </Button>
           </div>
@@ -398,6 +408,8 @@ function DeletePanel({ site }: { site: WebsiteInfo }) {
   const sheet = useChangeSheet();
   const navigate = useNavigate();
   const kind = kindOf(site.spec);
+  // Deleting a website deletes its project, which is an admin's (ADR 0049): off, with why, for anyone else.
+  const mayDelete = useMay()(WebsiteService.method.deleteWebsite, { project: site.id });
   return (
     <Panel title={<Trans>Delete this website</Trans>} className="website-delete">
       <p>
@@ -420,6 +432,7 @@ function DeletePanel({ site }: { site: WebsiteInfo }) {
       <Button
         variant="danger"
         icon="trash"
+        {...mayDelete.off}
         onClick={() =>
           sheet.open({
             kind: "plan",

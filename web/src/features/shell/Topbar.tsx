@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { ChangeService } from "@dockwell/api";
 import { Button, Icon, StatusBadge, useUIStrings } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { RouterButtonLink } from "../../lib/links";
+import { useMay } from "../auth/may";
 import { FleetUnknown, Reconnecting } from "../servers/FleetNotes";
 import { ServerAddress } from "../servers/ServerAddress";
 import { type FleetView, serverStatus } from "../servers/server";
@@ -19,6 +21,7 @@ export function Topbar({ view }: { view: FleetView }) {
   const { t } = useLingui();
   const openCommandBar = useOpenCommandBar();
   const shortcut = useCommandShortcut();
+  const mayPlan = useMay()(ChangeService.method.proposeChange);
   return (
     <header className="topbar">
       <Scope view={view} />
@@ -26,9 +29,16 @@ export function Topbar({ view }: { view: FleetView }) {
       <Button className="topbar-search" icon="search" kbd={shortcut} onClick={openCommandBar}>
         {t`Search or run a command`}
       </Button>
-      <RouterButtonLink to="/apps/new" variant="primary" icon="plus" className="topbar-new">
-        <Trans>New</Trans>
-      </RouterButtonLink>
+      {mayPlan.allowed ? (
+        <RouterButtonLink to="/apps/new" variant="primary" icon="plus" className="topbar-new">
+          <Trans>New</Trans>
+        </RouterButtonLink>
+      ) : (
+        // An action stays where it is, off, with why (ADR 0059).
+        <Button variant="primary" icon="plus" className="topbar-new" {...mayPlan.off}>
+          <Trans>New</Trans>
+        </Button>
+      )}
     </header>
   );
 }

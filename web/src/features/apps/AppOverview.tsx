@@ -39,6 +39,7 @@ import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { happenedAt, useDescribe, useHealthEventWords } from "../activity/describe";
+import { useMay } from "../auth/may";
 import { AppBackups } from "../backups/AppBackups";
 import { InstalledPanel } from "../catalog/InstalledPanel";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -464,6 +465,8 @@ function RunningPanel() {
   const moving = isMoving(state);
   const [addingPort, setAddingPort] = useState(false);
   const [addingDomain, setAddingDomain] = useState(false);
+  // An action on what you can see stays where it is, off, with why (ADR 0059).
+  const mayAddPort = useMay()(ServiceService.method.addServicePort, { environment: environmentOf(service) });
   // An arrival sends you here to add one. Going back or reading the page again shouldn't open it again.
   const navigate = useNavigate();
   const { add }: { add?: "domain" | "port" } = useSearch({ strict: false });
@@ -494,10 +497,15 @@ function RunningPanel() {
         <span className="app-running-actions">
           {reached ? (
             <>
-              <button type="button" className="app-panel-link" onClick={() => setAddingDomain(true)}>
+              <button
+                type="button"
+                className="app-panel-link"
+                onClick={() => setAddingDomain(true)}
+                {...mayAddPort.off}
+              >
                 <Trans>Add a domain</Trans>
               </button>
-              <button type="button" className="app-panel-link" onClick={() => setAddingPort(true)}>
+              <button type="button" className="app-panel-link" onClick={() => setAddingPort(true)} {...mayAddPort.off}>
                 <Trans>Add a port</Trans>
               </button>
             </>
@@ -659,6 +667,7 @@ function ReachedAt({
 }) {
   const { t } = useLingui();
   const { servers } = useFleetView();
+  const mayAdd = useMay()(ServiceService.method.addServicePort, { environment: environmentOf(service) });
   const { domains, read, isPending, failed, retrying, retry } = useAppDomains(service);
   const sheet = useChangeSheet();
   const name = nameOf(service);
@@ -693,10 +702,10 @@ function ReachedAt({
             )}
           </p>
           <div className="app-reach-actions">
-            <Button icon="plus" onClick={onAddDomain}>
+            <Button icon="plus" onClick={onAddDomain} {...mayAdd.off}>
               <Trans>Add a domain</Trans>
             </Button>
-            <Button icon="plus" onClick={onAddPort}>
+            <Button icon="plus" onClick={onAddPort} {...mayAdd.off}>
               <Trans>Add a port</Trans>
             </Button>
           </div>
@@ -838,9 +847,13 @@ function RecentDeployments() {
   const moving = isMoving(state);
   const shown = (revisions ?? []).slice(0, RECENT);
   // The newest revision that would run, and that differs from what runs now.
-  const back = (revisions ?? [])
-    .slice(1)
-    .find((r) => canRollBackTo(r, state.kind === "failed" || state.kind === "rollback-failed"));
+  // A timeline's undo has no off state, so it isn't drawn for someone who may not roll back (ADR 0059).
+  const mayRollBack = useMay()(ServiceService.method.rollBackService, { environment: environmentOf(service) }).allowed;
+  const back = !mayRollBack
+    ? undefined
+    : (revisions ?? [])
+        .slice(1)
+        .find((r) => canRollBackTo(r, state.kind === "failed" || state.kind === "rollback-failed"));
   const backTo = back ? revisionName(back.number) : "";
   const events: TimelineEvent[] = shown.map((rev, i) => {
     const change = rev.change;

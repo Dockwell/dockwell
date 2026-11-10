@@ -9,6 +9,7 @@ import {
   type ServerUpdates,
   UpdateService,
 } from "@dockwell/api";
+import { useMay } from "../auth/may";
 
 /** How often an open page asks again while the server's agent reads its updates, and otherwise. */
 const CHECKING_EVERY_MS = 2_000;
@@ -20,10 +21,13 @@ const ASK_EVERY_MS = 10 * 60_000;
  * shows them shares this one answer.
  */
 export function useServerUpdates(serverId: string) {
+  // A server's updates are an admin's to read: nobody else asks (ADR 0059).
+  const may = useMay();
   return useQuery(
     UpdateService.method.getServerUpdates,
     { id: serverId },
     {
+      enabled: may(UpdateService.method.getServerUpdates).allowed,
       staleTime: 30_000,
       retry: false,
       refetchInterval: (query) => (query.state.data?.updates?.checking ? CHECKING_EVERY_MS : ASK_EVERY_MS),
