@@ -55,7 +55,7 @@ export async function containersFlow(
       if (!text.includes(want)) fail(`the row reads "${text}", without ${want}`);
     }
     const listed = await panel.innerText();
-    if (!listed.includes("looking here changes nothing")) fail(`the panel doesn't say what it is: ${listed}`);
+    if (!listed.includes("Dockwell only reads these")) fail(`the panel doesn't say what it is: ${listed}`);
     const own = await docker();
     if (own.length === 0) fail("the flow ran with nothing of Dockwell's on the server, so this shows nothing about it");
     if (!listed.includes("more container")) fail(`the panel doesn't say what it left out: ${listed}`);
