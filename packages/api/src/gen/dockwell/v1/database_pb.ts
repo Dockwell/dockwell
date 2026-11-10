@@ -20,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/database.proto.
  */
 export const file_dockwell_v1_database: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9kYXRhYmFzZS5wcm90bxILZG9ja3dlbGwudjEirwMKCERhdGFiYXNlEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSKwoGZW5naW5lGAMgASgOMhsuZG9ja3dlbGwudjEuRGF0YWJhc2VFbmdpbmUSDQoFaW1hZ2UYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIOCgZ2b2x1bWUYBiABKAkSEQoJdm9sdW1lX2lkGAcgASgJEhcKD3ZvbHVtZV9leHRlcm5hbBgIIAEoCBIMCgRwb3J0GAkgASgNEgwKBGhvc3QYCiABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAsgASgJEi4KCHJlYWRpbmdzGAwgAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VSZWFkaW5nEioKDW5ld2VzdF9iYWNrdXAYDSABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXASKgoNbGF0ZXN0X2JhY2t1cBgOIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIOCgZiZXNpZGUYDyADKAkSFQoNY2F0YWxvZ19lbnRyeRgQIAEoCSLeAwoPRGF0YWJhc2VSZWFkaW5nEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRItCglyZWFkX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBnVucmVhZBgEIAEoCRIPCgd2ZXJzaW9uGAUgASgJEhIKCnNpemVfYnl0ZXMYBiABKAMSEwoLY29ubmVjdGlvbnMYByABKAMSFwoPbWF4X2Nvbm5lY3Rpb25zGAggASgDEgwKBHVzZXIYCSABKAkSFgoOdXB0aW1lX3NlY29uZHMYCiABKAMSFgoJY2FjaGVfaGl0GAsgASgBSACIAQESLQoJZGF0YWJhc2VzGAwgAygLMhouZG9ja3dlbGwudjEuSW5uZXJEYXRhYmFzZRIrCgV1c2VycxgNIAMoCzIcLmRvY2t3ZWxsLnYxLkRhdGFiYXNlQWNjb3VudBIMCgRrZXlzGA4gASgDEhAKCHVubGlzdGVkGA8gASgFEh0KFWZlYXR1cmVfY29tcGF0aWJpbGl0eRgQIAEoCRITCgtyZXBsaWNhX3NldBgRIAEoCRIVCg1jaGVja3Nfbm9fb25lGBIgASgIQgwKCl9jYWNoZV9oaXQiUAoNSW5uZXJEYXRhYmFzZRIMCgRuYW1lGAEgASgJEg0KBW93bmVyGAIgASgJEhIKCnNpemVfYnl0ZXMYAyABKAMSDgoGc3lzdGVtGAQgASgIIsUBCg9EYXRhYmFzZUFjY291bnQSDAoEbmFtZRgBIAEoCRIMCgRob3N0GAIgASgJEhEKCXN1cGVydXNlchgDIAEoCBITCgtjYW5fc2lnbl9pbhgEIAEoCBIRCglkYXRhYmFzZXMYBSADKAkSDgoGc3lzdGVtGAYgASgIEg4KBnNlY3JldBgHIAEoCRIPCgd1c2VkX2J5GAggAygJEhMKC3Jlc291cmNlX2lkGAkgASgJEhUKDWF1dGhfZGF0YWJhc2UYCiABKAkiFgoUTGlzdERhdGFiYXNlc1JlcXVlc3QiQQoVTGlzdERhdGFiYXNlc1Jlc3BvbnNlEigKCWRhdGFiYXNlcxgBIAMoCzIVLmRvY2t3ZWxsLnYxLkRhdGFiYXNlIkYKEkdldERhdGFiYXNlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJIpABChlDcmVhdGVEYXRhYmFzZVVzZXJSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBHVzZXIYAiABKAkSIwoIZGF0YWJhc2UYAyABKAlCEaK7GA1kYXRhYmFzZS1uYW1lEg4KBnNlY3JldBgEIAEoCRIPCgdwcm9qZWN0GAUgASgJEhMKC2Vudmlyb25tZW50GAYgASgJIkEKGkNyZWF0ZURhdGFiYXNlVXNlclJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSI+ChNHZXREYXRhYmFzZVJlc3BvbnNlEicKCGRhdGFiYXNlGAEgASgLMhUuZG9ja3dlbGwudjEuRGF0YWJhc2UqqQIKDkRhdGFiYXNlRW5naW5lEh8KG0RBVEFCQVNFX0VOR0lORV9VTlNQRUNJRklFRBAAEi4KGkRBVEFCQVNFX0VOR0lORV9QT1NUR1JFU1FMEAEaDqK7GApQb3N0Z3JlU1FMEiQKFURBVEFCQVNFX0VOR0lORV9NWVNRTBACGgmiuxgFTXlTUUwSKAoXREFUQUJBU0VfRU5HSU5FX01BUklBREIQAxoLorsYB01hcmlhREISJAoVREFUQUJBU0VfRU5HSU5FX1JFRElTEAQaCaK7GAVSZWRpcxImChZEQVRBQkFTRV9FTkdJTkVfVkFMS0VZEAUaCqK7GAZWYWxrZXkSKAoXREFUQUJBU0VfRU5HSU5FX01PTkdPREIQBhoLorsYB01vbmdvREIywAMKD0RhdGFiYXNlU2VydmljZRKAAQoNTGlzdERhdGFiYXNlcxIhLmRvY2t3ZWxsLnYxLkxpc3REYXRhYmFzZXNSZXF1ZXN0GiIuZG9ja3dlbGwudjEuTGlzdERhdGFiYXNlc1Jlc3BvbnNlIiiQAgGguxgBwLsYAsi7GALQuxgEgtPkkwIPEg0vdjEvZGF0YWJhc2VzEn8KC0dldERhdGFiYXNlEh8uZG9ja3dlbGwudjEuR2V0RGF0YWJhc2VSZXF1ZXN0GiAuZG9ja3dlbGwudjEuR2V0RGF0YWJhc2VSZXNwb25zZSItkAIBoLsYAcC7GALIuxgC0LsYBILT5JMCFBISL3YxL2RhdGFiYXNlcy97aWR9EqgBChJDcmVhdGVEYXRhYmFzZVVzZXISJi5kb2Nrd2VsbC52MS5DcmVhdGVEYXRhYmFzZVVzZXJSZXF1ZXN0GicuZG9ja3dlbGwudjEuQ3JlYXRlRGF0YWJhc2VVc2VyUmVzcG9uc2UiQaC7GAKquxgKEghhZGQtdXNlcsC7GAPIuxgD0LsYBILT5JMCHToBKiIYL3YxL2RhdGFiYXNlcy97aWR9L3VzZXJzQqYBCg9jb20uZG9ja3dlbGwudjFCDURhdGFiYXNlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9kYXRhYmFzZS5wcm90bxILZG9ja3dlbGwudjEirwMKCERhdGFiYXNlEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSKwoGZW5naW5lGAMgASgOMhsuZG9ja3dlbGwudjEuRGF0YWJhc2VFbmdpbmUSDQoFaW1hZ2UYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIOCgZ2b2x1bWUYBiABKAkSEQoJdm9sdW1lX2lkGAcgASgJEhcKD3ZvbHVtZV9leHRlcm5hbBgIIAEoCBIMCgRwb3J0GAkgASgNEgwKBGhvc3QYCiABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAsgASgJEi4KCHJlYWRpbmdzGAwgAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VSZWFkaW5nEioKDW5ld2VzdF9iYWNrdXAYDSABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXASKgoNbGF0ZXN0X2JhY2t1cBgOIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIOCgZiZXNpZGUYDyADKAkSFQoNY2F0YWxvZ19lbnRyeRgQIAEoCSLeAwoPRGF0YWJhc2VSZWFkaW5nEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRItCglyZWFkX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBnVucmVhZBgEIAEoCRIPCgd2ZXJzaW9uGAUgASgJEhIKCnNpemVfYnl0ZXMYBiABKAMSEwoLY29ubmVjdGlvbnMYByABKAMSFwoPbWF4X2Nvbm5lY3Rpb25zGAggASgDEgwKBHVzZXIYCSABKAkSFgoOdXB0aW1lX3NlY29uZHMYCiABKAMSFgoJY2FjaGVfaGl0GAsgASgBSACIAQESLQoJZGF0YWJhc2VzGAwgAygLMhouZG9ja3dlbGwudjEuSW5uZXJEYXRhYmFzZRIrCgV1c2VycxgNIAMoCzIcLmRvY2t3ZWxsLnYxLkRhdGFiYXNlQWNjb3VudBIMCgRrZXlzGA4gASgDEhAKCHVubGlzdGVkGA8gASgFEh0KFWZlYXR1cmVfY29tcGF0aWJpbGl0eRgQIAEoCRITCgtyZXBsaWNhX3NldBgRIAEoCRIVCg1jaGVja3Nfbm9fb25lGBIgASgIQgwKCl9jYWNoZV9oaXQiUAoNSW5uZXJEYXRhYmFzZRIMCgRuYW1lGAEgASgJEg0KBW93bmVyGAIgASgJEhIKCnNpemVfYnl0ZXMYAyABKAMSDgoGc3lzdGVtGAQgASgIIsUBCg9EYXRhYmFzZUFjY291bnQSDAoEbmFtZRgBIAEoCRIMCgRob3N0GAIgASgJEhEKCXN1cGVydXNlchgDIAEoCBITCgtjYW5fc2lnbl9pbhgEIAEoCBIRCglkYXRhYmFzZXMYBSADKAkSDgoGc3lzdGVtGAYgASgIEg4KBnNlY3JldBgHIAEoCRIPCgd1c2VkX2J5GAggAygJEhMKC3Jlc291cmNlX2lkGAkgASgJEhUKDWF1dGhfZGF0YWJhc2UYCiABKAkiFgoUTGlzdERhdGFiYXNlc1JlcXVlc3QiQQoVTGlzdERhdGFiYXNlc1Jlc3BvbnNlEigKCWRhdGFiYXNlcxgBIAMoCzIVLmRvY2t3ZWxsLnYxLkRhdGFiYXNlIkYKEkdldERhdGFiYXNlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJIpABChlDcmVhdGVEYXRhYmFzZVVzZXJSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBHVzZXIYAiABKAkSIwoIZGF0YWJhc2UYAyABKAlCEaK7GA1kYXRhYmFzZS1uYW1lEg4KBnNlY3JldBgEIAEoCRIPCgdwcm9qZWN0GAUgASgJEhMKC2Vudmlyb25tZW50GAYgASgJIkEKGkNyZWF0ZURhdGFiYXNlVXNlclJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJfCh1DaGFuZ2VEYXRhYmFzZVBhc3N3b3JkUmVxdWVzdBIKCgJpZBgBIAEoCRIMCgR1c2VyGAIgASgJEg8KB3Byb2plY3QYAyABKAkSEwoLZW52aXJvbm1lbnQYBCABKAkiRQoeQ2hhbmdlRGF0YWJhc2VQYXNzd29yZFJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSI+ChNHZXREYXRhYmFzZVJlc3BvbnNlEicKCGRhdGFiYXNlGAEgASgLMhUuZG9ja3dlbGwudjEuRGF0YWJhc2UqqQIKDkRhdGFiYXNlRW5naW5lEh8KG0RBVEFCQVNFX0VOR0lORV9VTlNQRUNJRklFRBAAEi4KGkRBVEFCQVNFX0VOR0lORV9QT1NUR1JFU1FMEAEaDqK7GApQb3N0Z3JlU1FMEiQKFURBVEFCQVNFX0VOR0lORV9NWVNRTBACGgmiuxgFTXlTUUwSKAoXREFUQUJBU0VfRU5HSU5FX01BUklBREIQAxoLorsYB01hcmlhREISJAoVREFUQUJBU0VfRU5HSU5FX1JFRElTEAQaCaK7GAVSZWRpcxImChZEQVRBQkFTRV9FTkdJTkVfVkFMS0VZEAUaCqK7GAZWYWxrZXkSKAoXREFUQUJBU0VfRU5HSU5FX01PTkdPREIQBhoLorsYB01vbmdvREIyhwUKD0RhdGFiYXNlU2VydmljZRKAAQoNTGlzdERhdGFiYXNlcxIhLmRvY2t3ZWxsLnYxLkxpc3REYXRhYmFzZXNSZXF1ZXN0GiIuZG9ja3dlbGwudjEuTGlzdERhdGFiYXNlc1Jlc3BvbnNlIiiQAgGguxgBwLsYAsi7GALQuxgEgtPkkwIPEg0vdjEvZGF0YWJhc2VzEn8KC0dldERhdGFiYXNlEh8uZG9ja3dlbGwudjEuR2V0RGF0YWJhc2VSZXF1ZXN0GiAuZG9ja3dlbGwudjEuR2V0RGF0YWJhc2VSZXNwb25zZSItkAIBoLsYAcC7GALIuxgC0LsYBILT5JMCFBISL3YxL2RhdGFiYXNlcy97aWR9EqgBChJDcmVhdGVEYXRhYmFzZVVzZXISJi5kb2Nrd2VsbC52MS5DcmVhdGVEYXRhYmFzZVVzZXJSZXF1ZXN0GicuZG9ja3dlbGwudjEuQ3JlYXRlRGF0YWJhc2VVc2VyUmVzcG9uc2UiQaC7GAKquxgKEghhZGQtdXNlcsC7GAPIuxgD0LsYBILT5JMCHToBKiIYL3YxL2RhdGFiYXNlcy97aWR9L3VzZXJzEsQBChZDaGFuZ2VEYXRhYmFzZVBhc3N3b3JkEiouZG9ja3dlbGwudjEuQ2hhbmdlRGF0YWJhc2VQYXNzd29yZFJlcXVlc3QaKy5kb2Nrd2VsbC52MS5DaGFuZ2VEYXRhYmFzZVBhc3N3b3JkUmVzcG9uc2UiUaC7GAKquxgREg9jaGFuZ2UtcGFzc3dvcmTAuxgDyLsYA9C7GASC0+STAiY6ASoiIS92MS9kYXRhYmFzZXMve2lkfTpjaGFuZ2VQYXNzd29yZEKmAQoPY29tLmRvY2t3ZWxsLnYxQg1EYXRhYmFzZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * Database is a service that runs a database.
@@ -601,6 +601,72 @@ export const CreateDatabaseUserResponseSchema: GenMessage<CreateDatabaseUserResp
   messageDesc(file_dockwell_v1_database, 8);
 
 /**
+ * ChangeDatabasePasswordRequest names a database, and the user whose password changes.
+ *
+ * @generated from message dockwell.v1.ChangeDatabasePasswordRequest
+ */
+export type ChangeDatabasePasswordRequest = Message<"dockwell.v1.ChangeDatabasePasswordRequest"> & {
+  /**
+   * The service that runs it, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The user, by name: one Dockwell made, such as "shop". Empty is its first user,
+   * whose password is in Database.password_secret.
+   *
+   * @generated from field: string user = 2;
+   */
+  user: string;
+
+  /**
+   * The project of a service named by name, by name or ID, when more than one has a
+   * service of that name.
+   *
+   * @generated from field: string project = 3;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID, when its project has
+   * more than one.
+   *
+   * @generated from field: string environment = 4;
+   */
+  environment: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ChangeDatabasePasswordRequest.
+ * Use `create(ChangeDatabasePasswordRequestSchema)` to create a new message.
+ */
+export const ChangeDatabasePasswordRequestSchema: GenMessage<ChangeDatabasePasswordRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 9);
+
+/**
+ * ChangeDatabasePasswordResponse is the change that gives the user a new password.
+ *
+ * @generated from message dockwell.v1.ChangeDatabasePasswordResponse
+ */
+export type ChangeDatabasePasswordResponse = Message<"dockwell.v1.ChangeDatabasePasswordResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.ChangeDatabasePasswordResponse.
+ * Use `create(ChangeDatabasePasswordResponseSchema)` to create a new message.
+ */
+export const ChangeDatabasePasswordResponseSchema: GenMessage<ChangeDatabasePasswordResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 10);
+
+/**
  * GetDatabaseResponse is one database.
  *
  * @generated from message dockwell.v1.GetDatabaseResponse
@@ -619,7 +685,7 @@ export type GetDatabaseResponse = Message<"dockwell.v1.GetDatabaseResponse"> & {
  * Use `create(GetDatabaseResponseSchema)` to create a new message.
  */
 export const GetDatabaseResponseSchema: GenMessage<GetDatabaseResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 9);
+  messageDesc(file_dockwell_v1_database, 11);
 
 /**
  * DatabaseEngine is which database a service runs.
@@ -732,6 +798,24 @@ export const DatabaseService: GenService<{
     methodKind: "unary";
     input: typeof CreateDatabaseUserRequestSchema;
     output: typeof CreateDatabaseUserResponseSchema;
+  },
+  /**
+   * ChangeDatabasePassword plans a new password for one of a database's users: its
+   * first user, such as MariaDB's root or PostgreSQL's postgres, whose password is in
+   * the secret the service starts with (Database.password_secret), or a user Dockwell
+   * made (CreateDatabaseUser). The control plane generates it, as it does a new
+   * user's, and sets the secret to it, so the plan restarts the database and every
+   * app that uses the secret, and nobody sees the password unless they reveal it. The
+   * agent changes it in the database as it restarts, so what signs in with the secret
+   * keeps signing in (ADR 0038). A database whose password isn't in a secret has
+   * none to change here.
+   *
+   * @generated from rpc dockwell.v1.DatabaseService.ChangeDatabasePassword
+   */
+  changeDatabasePassword: {
+    methodKind: "unary";
+    input: typeof ChangeDatabasePasswordRequestSchema;
+    output: typeof ChangeDatabasePasswordResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_database, 0);

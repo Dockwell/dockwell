@@ -91,6 +91,19 @@
   height: 24px;
 }
 
+/* An app's icon opens its install sheet, above the card's link that stretches over it. */
+.start-app {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  border-radius: var(--radius-sm);
+}
+
+.start-app:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
 .start-apps .catalog-icon img {
   width: 24px;
   height: 24px;

@@ -60,6 +60,26 @@ service DatabaseService {
       body: "*"
     };
   }
+  // ChangeDatabasePassword plans a new password for one of a database's users: its
+  // first user, such as MariaDB's root or PostgreSQL's postgres, whose password is in
+  // the secret the service starts with (Database.password_secret), or a user Dockwell
+  // made (CreateDatabaseUser). The control plane generates it, as it does a new
+  // user's, and sets the secret to it, so the plan restarts the database and every
+  // app that uses the secret, and nobody sees the password unless they reveal it. The
+  // agent changes it in the database as it restarts, so what signs in with the secret
+  // keeps signing in (ADR 0038). A database whose password isn't in a secret has
+  // none to change here.
+  rpc ChangeDatabasePassword(ChangeDatabasePasswordRequest) returns (ChangeDatabasePasswordResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "change-password"};
+    option (google.api.http) = {
+      post: "/v1/databases/{id}:changePassword"
+      body: "*"
+    };
+  }
 }
 
 // DatabaseEngine is which database a service runs.
@@ -266,6 +286,27 @@ message CreateDatabaseUserRequest {
 
 // CreateDatabaseUserResponse carries the planned change.
 message CreateDatabaseUserResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// ChangeDatabasePasswordRequest names a database, and the user whose password changes.
+message ChangeDatabasePasswordRequest {
+  // The service that runs it, by ID or by name.
+  string id = 1;
+  // The user, by name: one Dockwell made, such as "shop". Empty is its first user,
+  // whose password is in Database.password_secret.
+  string user = 2;
+  // The project of a service named by name, by name or ID, when more than one has a
+  // service of that name.
+  string project = 3;
+  // The environment of a service named by name, by name or ID, when its project has
+  // more than one.
+  string environment = 4;
+}
+
+// ChangeDatabasePasswordResponse is the change that gives the user a new password.
+message ChangeDatabasePasswordResponse {
   // The change, planned, with its plan.
   Change change = 1;
 }

@@ -292,7 +292,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	}
 	firewalls := firewallAccess(ctx, logger, dir, tools, dockerOrNot(client, socket, err), exposed, ownPorts, panel == nil && len(ownPorts) > 0)
 	return agent.Config{
-		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
+		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers, Passwords: &database.FirstPasswords{Client: client}},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
 			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}, tasks,
 			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls}),

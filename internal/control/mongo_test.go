@@ -96,4 +96,10 @@ func TestAMongoDBUserIsRefusedInWords(t *testing.T) {
 		!strings.Contains(err.Error(), "docs runs MongoDB, and Dockwell can't make users in MongoDB yet. Make one with db.createUser in mongosh") {
 		t.Errorf("a user in MongoDB: %v", err)
 	}
+	// Nor a new password, which MongoDB keeps in its data and a new secret wouldn't change.
+	_, err = dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&dockwellv1.ChangeDatabasePasswordRequest{Id: "docs"}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument ||
+		!strings.Contains(err.Error(), "docs runs MongoDB, and Dockwell can't change its password yet") {
+		t.Errorf("a new password for MongoDB: %v", err)
+	}
 }

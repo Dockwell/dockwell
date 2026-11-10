@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { createClient } from "@connectrpc/connect";
+import { useTransport } from "@connectrpc/connect-query";
 import {
   type Database,
   type DatabaseAccount,
   DatabaseEngine,
   type DatabaseReading,
+  DatabaseService,
   type InnerDatabase,
 } from "@dockwell/api";
 import { Button, Callout, Panel, PHONE_QUERY, Table, type TableColumn, Tag, useMediaQuery } from "@dockwell/ui";
@@ -13,6 +16,8 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
+import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { AddUserSheet } from "./AddUserSheet";
 import { useThisDatabase } from "./DatabaseLayout";
 import { engineName, firstReading, makesUsers, readOf } from "./useDatabases";
@@ -72,6 +77,10 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const [adding, setAdding] = useState(false);
+  const sheet = useChangeSheet();
+  const transport = useTransport();
+  const may = useMay();
+  const mayChange = may(DatabaseService.method.changeDatabasePassword, { environment: db.resource?.scope ?? "" });
   const users = read.users.filter((u) => !u.system);
   const mysql = db.engine === DatabaseEngine.MYSQL || db.engine === DatabaseEngine.MARIADB;
   const mongo = db.engine === DatabaseEngine.MONGODB;
@@ -145,6 +154,32 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
         ] satisfies TableColumn<DatabaseAccount & { id: string }>[])
       : []),
   ];
+  // A user Dockwell made gets a new generated password in their secret, and in the database, through a plan.
+  const changePassword = (user: string) =>
+    sheet.open({
+      kind: "plan",
+      make: () => createClient(DatabaseService, transport).changeDatabasePassword({ id: db.id, user }),
+    });
+  columns.push({
+    key: "change",
+    header: <span className="dw-sr">{t`Actions`}</span>,
+    width: 168,
+    align: "right",
+    render: (u) => {
+      const who = u.name;
+      return u.resourceId && u.secret ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => changePassword(who)}
+          aria-label={t`Change ${who}'s password`}
+          {...mayChange.off}
+        >
+          <Trans>Change password</Trans>
+        </Button>
+      ) : null;
+    },
+  });
   // A MongoDB user's name is theirs in one database, so two can share one.
   const rows = users.map((u) => ({ ...u, id: `${u.name}@${u.host || u.authDatabase}` }));
   const count = users.length;
@@ -184,6 +219,12 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
             ]
               .filter(Boolean)
               .join(" · "),
+            action:
+              u.resourceId && u.secret ? (
+                <Button size="sm" variant="ghost" onClick={() => changePassword(u.name)} {...mayChange.off}>
+                  <Trans>Change password</Trans>
+                </Button>
+              ) : undefined,
           }))}
         />
       ) : (
@@ -289,7 +330,7 @@ export function SchemasSection({ db, read }: { db: Database; read: DatabaseReadi
 }
 
 /** Rows on a phone: a name in mono, and a line of what it is. */
-function PhoneRows({ rows }: { rows: readonly { id: string; name: string; sub: string }[] }) {
+function PhoneRows({ rows }: { rows: readonly { id: string; name: string; sub: string; action?: ReactNode }[] }) {
   return (
     <Panel flush className="databases-phone">
       {rows.map((row) => (
@@ -298,6 +339,7 @@ function PhoneRows({ rows }: { rows: readonly { id: string; name: string; sub: s
             <span className="databases-phone-name databases-name">{row.name}</span>
             {row.sub ? <span className="databases-phone-sub">{row.sub}</span> : null}
           </span>
+          {row.action}
         </div>
       ))}
     </Panel>
