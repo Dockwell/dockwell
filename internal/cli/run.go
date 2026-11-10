@@ -251,7 +251,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		reserved = panel.Domain
 	}
 	tools := hostTools(stdio)
-	firewalls := firewallAccess(ctx, logger, dir, tools, dockerOrNot(client, socket, err), ownPorts)
+	firewalls := firewallAccess(ctx, logger, dir, tools, dockerOrNot(client, socket, err), ownPorts, panel == nil && len(ownPorts) > 0)
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
@@ -276,7 +276,7 @@ func dockerOrNot(client *docker.Client, socket string, unusable error) func(cont
 	return access.DockerReader(client, socket)
 }
 
-func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, tools *hosttool.Runner, networks func(context.Context) (access.DockerNetworks, error), ownPorts []int) *access.Manager {
+func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, tools *hosttool.Runner, networks func(context.Context) (access.DockerNetworks, error), ownPorts []int, panelOverSSH bool) *access.Manager {
 	own := make([]uint16, 0, len(ownPorts))
 	for _, p := range ownPorts {
 		if p > 0 && p < 65536 {
@@ -287,6 +287,7 @@ func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, t
 	m := &access.Manager{
 		Dir: filepath.Join(dir.Agent(), "access"), Table: &nftables.Firewall{Run: tools}, Logger: logger,
 		Pins: pins.Read, Docker: networks,
+		PanelOverSSH: panelOverSSH,
 	}
 	if err := m.Ready(ctx); err != nil {
 		logger.InfoContext(ctx, "the agent offers no firewall kinds until this server can hold Dockwell's firewall", slog.String("reason", err.Error()))

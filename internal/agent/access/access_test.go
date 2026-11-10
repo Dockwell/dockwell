@@ -184,6 +184,24 @@ func step(change string, last bool) context.Context {
 	return resource.WithDeploy(context.Background(), resource.Deploy{Change: change, LastAccess: last})
 }
 
+// announced marks the waiting change's last step as having said it waits, for
+// a test that confirms a change without running that step.
+func announced(m *Manager) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.waiting != nil {
+		m.waiting.announced = true
+	}
+}
+
+// confirm confirms a change as the person who applied it would, once its last
+// step on the server has said it waits: a test that applies only earlier steps
+// says so for it.
+func confirm(m *Manager, change string) resource.AccessVerdict {
+	announced(m)
+	return m.Confirm(context.Background(), change)
+}
+
 func rollback(change string) context.Context {
 	return resource.WithDeploy(context.Background(), resource.Deploy{Change: change, Rollback: true, LastAccess: true})
 }
@@ -219,7 +237,7 @@ func keep(t *testing.T, m *Manager, change string, put func(ctx context.Context)
 	errc := make(chan error, 1)
 	go func() { errc <- put(step(change, true)) }()
 	waitFor(t, m, change)
-	if v := m.Confirm(t.Context(), change); v != resource.AccessKept {
+	if v := confirm(m, change); v != resource.AccessKept {
 		t.Fatalf("confirming %s: %v", change, v)
 	}
 	return <-errc
@@ -244,7 +262,7 @@ func TestAChangeWaitsForItsConfirmation(t *testing.T) {
 	if got := tbl.rules(); got != "rule http" {
 		t.Errorf("while it waits the table holds %q", got)
 	}
-	if v := m.Confirm(t.Context(), "chg_1"); v != resource.AccessKept {
+	if v := confirm(m, "chg_1"); v != resource.AccessKept {
 		t.Fatalf("confirmed: %v", v)
 	}
 	if err := <-errc; err != nil {
@@ -262,7 +280,7 @@ func TestAChangeWaitsForItsConfirmation(t *testing.T) {
 	if r, _ := again.Rule(context.Background(), "http"); r.GetPort() != 80 {
 		t.Errorf("after a restart the rule reads %v", r)
 	}
-	if v := again.Confirm(t.Context(), "chg_1"); v != resource.AccessKept {
+	if v := confirm(again, "chg_1"); v != resource.AccessKept {
 		t.Errorf("a confirmation after a restart hears %v, want kept", v)
 	}
 }
@@ -279,7 +297,7 @@ func TestNobodyConfirmsAndItGoesBack(t *testing.T) {
 	if got := tbl.rules(); got != "(no table)" {
 		t.Errorf("after it went back the table holds %q", got)
 	}
-	if v := m.Confirm(t.Context(), "chg_1"); v != resource.AccessRolledBack {
+	if v := confirm(m, "chg_1"); v != resource.AccessRolledBack {
 		t.Errorf("a late confirmation hears %v", v)
 	}
 	if got := wording(time.Minute); got != "60 s" {
@@ -305,7 +323,7 @@ func TestARestartRevertsAChangeThatWaited(t *testing.T) {
 	if got := tbl.rules(); got != "(no table)" || tbl.deleted != 1 {
 		t.Errorf("after a restart the table holds %q", got)
 	}
-	if v := again.Confirm(t.Context(), "chg_1"); v != resource.AccessRolledBack {
+	if v := confirm(again, "chg_1"); v != resource.AccessRolledBack {
 		t.Errorf("a confirmation after the restart hears %v", v)
 	}
 	if exists(filepath.Join(dir, "waiting.json")) {
@@ -330,7 +348,7 @@ func TestTheChangeIsOnDiskBeforeItLoads(t *testing.T) {
 	if !disk.saw {
 		t.Error("the change wasn't on disk as its table loaded")
 	}
-	m.Confirm(t.Context(), "chg_1")
+	confirm(m, "chg_1")
 
 	disk.failNext(errors.New("nft: syntax error"))
 	if err := m.Put(step("chg_2", false), "https", https); err == nil {
@@ -393,7 +411,7 @@ func TestARevertThatFailsAtStartIsTriedAgain(t *testing.T) {
 	if exists(filepath.Join(dir, "waiting.json")) {
 		t.Error("the change that waited is still on disk once it went back")
 	}
-	if v := again.Confirm(t.Context(), "chg_1"); v != resource.AccessRolledBack {
+	if v := confirm(again, "chg_1"); v != resource.AccessRolledBack {
 		t.Errorf("its verdict: %v", v)
 	}
 }
@@ -509,7 +527,7 @@ func TestAConfirmationReadsNothingOfTheServer(t *testing.T) {
 	down = true
 	mu.Unlock()
 	s.err = errors.New("can't read /proc")
-	if v := m.Confirm(t.Context(), "chg_1"); v != resource.AccessKept {
+	if v := confirm(m, "chg_1"); v != resource.AccessKept {
 		t.Fatalf("a confirmation with Docker down: %v", v)
 	}
 	if err := <-errc; err != nil {
@@ -519,7 +537,7 @@ func TestAConfirmationReadsNothingOfTheServer(t *testing.T) {
 	if p, _ := again.Policy(context.Background()); !p.GetDenyEverythingElse() {
 		t.Error("after a restart the policy isn't confirmed")
 	}
-	if v := again.Confirm(t.Context(), "chg_1"); v != resource.AccessKept {
+	if v := confirm(again, "chg_1"); v != resource.AccessKept {
 		t.Errorf("after a restart the verdict is %v", v)
 	}
 	if got := fmt.Sprint(tbl.current().DockerInterfaces); got != "[docker0]" {
@@ -550,7 +568,7 @@ func TestAConfirmationTheDiskWontFinishIsntKept(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(nft, "x"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if v := m.Confirm(t.Context(), "chg_1"); v != resource.AccessRolledBack {
+	if v := confirm(m, "chg_1"); v != resource.AccessRolledBack {
 		t.Errorf("a confirmation the disk didn't finish: %v, want rolled back", v)
 	}
 	after, err := os.ReadFile(filepath.Join(dir, "confirmed.json"))
@@ -583,7 +601,7 @@ func TestAConfirmationNotOnDiskIsntKept(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
-	if v := m.Confirm(t.Context(), "chg_1"); v != resource.AccessRolledBack {
+	if v := confirm(m, "chg_1"); v != resource.AccessRolledBack {
 		t.Errorf("a confirmation the disk refused: %v, want rolled back", v)
 	}
 	if got := tbl.rules(); got != "(no table)" {
@@ -607,7 +625,7 @@ func TestAConfirmationOnDiskBeforeTheAgentStoppedIsKept(t *testing.T) {
 	w.timer.Stop() // the agent stops here
 	m.mu.Unlock()
 	again := start(t, dir, tbl, &sessions{}, time.Minute)
-	if v := again.Confirm(t.Context(), "chg_1"); v != resource.AccessKept {
+	if v := confirm(again, "chg_1"); v != resource.AccessKept {
 		t.Errorf("its verdict: %v, want kept", v)
 	}
 	if got := tbl.rules(); got != "rule http" {
@@ -815,7 +833,7 @@ func TestOneChangeWaitsAndPlanningSeesWhatWasConfirmed(t *testing.T) {
 	if got := tbl.rules(); got != "rule http, deny the rest" {
 		t.Errorf("the table holds %q", got)
 	}
-	m.Confirm(t.Context(), "chg_1")
+	confirm(m, "chg_1")
 }
 
 // The last step on the server starts the timer again, so the person has its
@@ -851,7 +869,7 @@ func TestTheLastStepStartsTheTimerAgain(t *testing.T) {
 	if got == nil || !got.Deadline.Equal(clock.Add(time.Minute)) || got.Left != time.Minute {
 		t.Errorf("the last step waits for %+v, want a minute from it", got)
 	}
-	m.Confirm(t.Context(), "chg_1")
+	confirm(m, "chg_1")
 	if err := <-errc; err != nil {
 		t.Fatal(err)
 	}
@@ -895,7 +913,7 @@ func TestAResumedStepWaitsForTheVerdict(t *testing.T) {
 		t.Fatalf("a resumed step ended at once: %v", err)
 	case <-time.After(100 * time.Millisecond):
 	}
-	m.Confirm(t.Context(), "chg_1")
+	confirm(m, "chg_1")
 	if err := <-errc; err != nil {
 		t.Errorf("a resumed step ends %v", err)
 	}
@@ -923,14 +941,14 @@ func TestALoadThatMayBeLiveGoesBack(t *testing.T) {
 	if got := tbl.rules(); got != "(no table)" {
 		t.Errorf("after a load that may be live the table holds %q", got)
 	}
-	if v := m.Confirm(t.Context(), "chg_1"); v != resource.AccessRolledBack {
+	if v := confirm(m, "chg_1"); v != resource.AccessRolledBack {
 		t.Errorf("its verdict is %v", v)
 	}
 	// The next change starts afresh.
 	if err := m.Put(step("chg_2", false), "http", http); err != nil {
 		t.Errorf("a change after one went back: %v", err)
 	}
-	m.Confirm(t.Context(), "chg_2")
+	confirm(m, "chg_2")
 }
 
 // A later step whose load nft refused leaves the earlier steps live, so what
@@ -947,7 +965,7 @@ func TestALaterStepThatWontLoadGoesBack(t *testing.T) {
 	if got := tbl.rules(); got != "(no table)" {
 		t.Errorf("the table holds %q", got)
 	}
-	if v := m.Confirm(t.Context(), "chg_1"); v != resource.AccessRolledBack {
+	if v := confirm(m, "chg_1"); v != resource.AccessRolledBack {
 		t.Errorf("its verdict is %v", v)
 	}
 }
@@ -1028,7 +1046,7 @@ func TestARollbackNeedsNoConfirmation(t *testing.T) {
 	if r, _ := m.Rule(context.Background(), "http"); r.GetPort() != 80 {
 		t.Errorf("after a rollback planning sees %v", r)
 	}
-	if v := m.Confirm(t.Context(), "chg_1"); v != resource.AccessRolledBack {
+	if v := confirm(m, "chg_1"); v != resource.AccessRolledBack {
 		t.Errorf("the change that waited: %v", v)
 	}
 }
@@ -1157,7 +1175,7 @@ func TestAConfirmationPastItsDeadlineLoses(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.now = func() time.Time { return time.Now().Add(2 * time.Minute) }
-	if v := m.Confirm(t.Context(), "chg_1"); v != resource.AccessRolledBack {
+	if v := confirm(m, "chg_1"); v != resource.AccessRolledBack {
 		t.Errorf("a confirmation past its deadline: %v, want rolled back", v)
 	}
 	if got := tbl.rules(); got != "(no table)" {
@@ -1223,7 +1241,9 @@ func TestANewDockerNetworkIsRenderedIntoTheTable(t *testing.T) {
 	if err := m.refresh(t.Context()); err != nil || tbl.loads != loads {
 		t.Errorf("while a change waits, a refresh loaded %d tables: %v", tbl.loads-loads, err)
 	}
-	m.Confirm(t.Context(), "chg_2")
+	if v := confirm(m, "chg_2"); v != resource.AccessKept {
+		t.Fatalf("confirming chg_2: %v", v)
+	}
 
 	// Docker goes away from the server: the table leaves forwarding alone.
 	set(DockerNetworks{})
@@ -1251,5 +1271,122 @@ func TestARollbackThatCantReadProcKeepsTheControlPlanesPin(t *testing.T) {
 	}
 	if got := tbl.pins(); !strings.Contains(got, "pin control plane [7600]") {
 		t.Errorf("after a rollback with /proc unreadable the table pins %q", got)
+	}
+}
+
+// A confirmation that comes before the change's last step on the server has
+// said it waits keeps nothing: part of the change hasn't loaded, and keeping
+// now would keep a part. The change goes on waiting, and its timer goes on.
+func TestAConfirmationBeforeTheLastStepKeepsNothing(t *testing.T) {
+	m, tbl := manager(t, t.TempDir(), time.Minute)
+	if err := m.Put(step("chg_1", false), "http", http); err != nil {
+		t.Fatal(err)
+	}
+	if v := m.Confirm(t.Context(), "chg_1"); v != resource.AccessNotWaiting {
+		t.Errorf("a confirmation before the last step: %v, want not waiting", v)
+	}
+	m.mu.Lock()
+	waiting, kept := m.waiting != nil && m.waiting.change == "chg_1", len(m.confirmed.Rules)
+	m.mu.Unlock()
+	if !waiting || kept != 0 {
+		t.Errorf("after it, still waiting %t, %d rules confirmed", waiting, kept)
+	}
+	if got := tbl.rules(); got != "rule http" {
+		t.Errorf("the table holds %q", got)
+	}
+}
+
+// An address kept from an earlier change leaves once nothing narrows SSH: with
+// deny everything else on it's kept past the session; a later change that
+// allows SSH's port from anywhere, or turns the policy off, forgets it, so the
+// next table that narrows SSH starts from who is signed in then.
+func TestAPinLeavesOnceNothingNarrowsSSH(t *testing.T) {
+	s := &sessions{}
+	s.set(office)
+	tbl := &table{}
+	m := start(t, t.TempDir(), tbl, s, time.Minute)
+	keep := func(change string, fn func(context.Context) error) {
+		t.Helper()
+		if err := fn(step(change, false)); err != nil {
+			t.Fatal(err)
+		}
+		if v := confirm(m, change); v != resource.AccessKept {
+			t.Fatalf("%s: %v", change, v)
+		}
+	}
+	keep("chg_1", func(ctx context.Context) error { return m.PutPolicy(ctx, policy) })
+	s.set() // they sign out
+	keep("chg_2", func(ctx context.Context) error { return m.Put(ctx, "http", http) })
+	if got := tbl.pins(); got != "pin ssh [22] from [203.0.113.7/32]" {
+		t.Fatalf("under the policy, after they signed out, the table pins %q", got)
+	}
+	keep("chg_3", func(ctx context.Context) error {
+		return m.Put(ctx, "ssh", &resourcev1.FirewallRule{Port: 22})
+	})
+	keep("chg_4", func(ctx context.Context) error { return m.Put(ctx, "https", https) })
+	if got := tbl.pins(); got != "" {
+		t.Errorf("once a rule allows SSH from anywhere, the table still pins %q", got)
+	}
+	if err := m.Delete(step("chg_5", false), "ssh"); err == nil {
+		t.Error("taking the allow of SSH away with nobody signed in and nobody kept passed")
+	}
+}
+
+// On a control server whose panel has no domain, people reach the panel through
+// SSH: deny everything else is refused there unless a rule allows SSH's port,
+// whoever is signed in, as a pin holds only while their address does.
+func TestThePanelOverSSHNeedsARuleForSSH(t *testing.T) {
+	s := &sessions{}
+	s.set(office)
+	m := start(t, t.TempDir(), &table{}, s, time.Minute)
+	m.PanelOverSSH = true
+	err := m.CheckPolicy(policy)
+	if err == nil || !strings.Contains(err.Error(), "has no domain") || !strings.Contains(err.Error(), "Add a rule that allows port 22") {
+		t.Errorf("deny everything else with the panel over SSH: %v", err)
+	}
+	if err := m.PutPolicy(step("chg_1", true), policy); err == nil {
+		t.Error("applying it passed")
+	}
+	if err := m.Put(step("chg_2", false), "ssh", &resourcev1.FirewallRule{Port: 22, Sources: []string{"198.51.100.0/24"}}); err != nil {
+		t.Fatal(err)
+	}
+	confirm(m, "chg_2")
+	if err := m.CheckPolicy(policy); err != nil {
+		t.Errorf("with a rule that allows SSH: %v", err)
+	}
+	m.PanelOverSSH = false
+	other := start(t, t.TempDir(), &table{}, s, time.Minute)
+	if err := other.CheckPolicy(policy); err != nil {
+		t.Errorf("on a server with a session and a domain: %v", err)
+	}
+}
+
+// A revert that failed is tried again on the agent's own clock, whether or not
+// anything asks: the stream to the control plane, which used to ask, may be
+// what the table cut.
+func TestAFailedRevertIsRetriedOnTheAgentsOwnClock(t *testing.T) {
+	s := &sessions{}
+	s.set(office)
+	tbl := &table{}
+	tm := &timers{}
+	m := start(t, t.TempDir(), tbl, s, time.Minute, func(m *Manager) { m.after, m.every = tm.after, 5*time.Millisecond })
+	if err := m.PutPolicy(step("chg_1", false), policy); err != nil {
+		t.Fatal(err)
+	}
+	// Nobody confirms, and neither loading what was confirmed nor removing the table works.
+	tbl.failDeletes = 1
+	tm.runOut()
+	if got := tbl.rules(); got != "deny the rest" {
+		t.Fatalf("after the failed revert the table holds %q", got)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go m.KeepCurrent(ctx)
+	deadline := time.Now().Add(5 * time.Second)
+	for tbl.rules() != "(no table)" && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got := tbl.rules(); got != "(no table)" {
+		t.Errorf("the agent's own clock left %q", got)
 	}
 }

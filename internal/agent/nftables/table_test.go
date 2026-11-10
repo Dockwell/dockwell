@@ -38,7 +38,6 @@ table inet dockwell {
 	chain input {
 		type filter hook input priority filter; policy accept;
 		ct state established,related accept
-		ct state invalid drop
 		iifname "lo" accept
 		icmp type { destination-unreachable, time-exceeded, parameter-problem } accept
 		icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept
@@ -134,7 +133,7 @@ func TestValidateRefusesWhatNftWouldMisread(t *testing.T) {
 // can't is left out and said, rather than refuse the whole table, which would
 // stop a rollback too (review of #306, finding 7).
 func TestInterfacesNftCantMatchAreSkipped(t *testing.T) {
-	table := Table{DockerInterfaces: []string{"br+lan", `br\lan`, "brücke", "docker0", `br"x`, "br\tx", "br*", "br-0123456789abcdef"}}
+	table := Table{DockerInterfaces: []string{"br+lan", `br\lan`, "brücke", "docker0", `br"x`, "br\tx", "br*", `br-x\`, "br-0123456789abcdef"}}
 	got, err := table.Script()
 	if err != nil {
 		t.Fatal(err)
@@ -142,7 +141,7 @@ func TestInterfacesNftCantMatchAreSkipped(t *testing.T) {
 	if !strings.Contains(got, `iifname { "br+lan", "br\lan", "brücke", "docker0" } accept`) {
 		t.Errorf("script:\n%s", got)
 	}
-	if skipped := table.Skipped(); strings.Join(skipped, "|") != `br"x|br`+"\t"+`x|br*|br-0123456789abcdef` {
+	if skipped := table.Skipped(); strings.Join(skipped, "|") != `br"x|br`+"\t"+`x|br*|br-x\|br-0123456789abcdef` {
 		t.Errorf("skipped %q", skipped)
 	}
 	if words := SkippedWords("br*"); !strings.Contains(words, "Rename its network's bridge") || !strings.Contains(words, "aren't filtered") {

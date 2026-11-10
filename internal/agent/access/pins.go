@@ -11,9 +11,11 @@ import (
 	"io/fs"
 	"net/netip"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
@@ -28,8 +30,10 @@ type Pins struct {
 	// what systemd holds for it, or, with neither, what sshd -T says.
 	SSHPorts []uint16
 	// SSHFrom are the addresses of the SSH sessions open now from outside the
-	// server, each pinned alone. The request's own address isn't one: over ssh
-	// -L, the panel's requests come from 127.0.0.1.
+	// server that someone has signed in on, each pinned alone. A connection
+	// still signing in isn't one: anyone on the internet can open that. The
+	// request's own address isn't one either: over ssh -L, the panel's requests
+	// come from 127.0.0.1.
 	SSHFrom []netip.Prefix
 	// Own are the ports the control plane on this server listens on, for the
 	// panel and its agents, open to anywhere. Empty on a server that joined.
@@ -74,6 +78,12 @@ type PinReader struct {
 	Tools *hosttool.Runner
 	// Own are the control plane's ports on this server.
 	Own []uint16
+	// Passwd reads /etc/passwd, for the ID of the user sshd runs a connection
+	// as before anyone has signed in on it. Nil reads the server's.
+	Passwd func() ([]byte, error)
+
+	privsepOnce sync.Once
+	privsep     int
 }
 
 // socket is a TCP socket an SSH server's process holds, as /proc/net has it.
@@ -82,6 +92,75 @@ type socket struct {
 	listening   bool
 	// daemon is held by the process that listens for new sessions.
 	daemon bool
+	// signedIn is a connection someone has signed in on.
+	signedIn bool
+}
+
+// held is who holds a socket.
+type held struct {
+	daemon  bool
+	holders []holder
+}
+
+// holder is one of sshd's processes, as far as it says whether anyone has
+// signed in on the connection it holds.
+type holder struct {
+	name string
+	// uid is the user it runs as, -1 when /proc didn't say.
+	uid int
+	// title is what it calls itself after its name, such as "deploy@pts/0" or
+	// "[net]", "" when /proc didn't say.
+	title string
+}
+
+// preAuthTitles are what sshd's processes call themselves on a connection
+// nobody has signed in on yet, in OpenSSH 8.7 to 10.0 (sshd.c, sshd-session.c,
+// sshd-auth.c). The process that keeps root's rights calls itself "<user>
+// [priv]" from the moment a user name is asked for, before and after sign-in,
+// so that one says nothing.
+var preAuthTitles = []string{"[accepted]", "[rexeced]", "[net]", "[session-auth"}
+
+// rootSession is what the one process of root's session calls itself once root
+// has signed in (session.c): "root", or "root@pts/0", "root@notty" and the
+// like. Nothing a connection sends can make another process's title match:
+// the name someone asks to sign in as is followed by " [priv]", and a name so
+// long that it's cut off isn't these few characters.
+var rootSession = regexp.MustCompile(`^root(@[A-Za-z0-9/,._-]{1,64})?$`)
+
+// signedIn says whether someone has signed in on a connection, by who holds
+// it. It's kernel facts first: OpenSSH hands a signed-in connection to a
+// process that runs as the person, and holds one nobody has signed in on in a
+// process that runs as its own unprivileged user, sshd, or, from 10.0, in one
+// named sshd-auth. Root's session has no process of its own user to tell it
+// by, so it's told by its title. What can't be read counts for nothing, so a
+// server where /proc says too little has no session to pin, and narrowing SSH
+// there is refused. Dropbear's processes say nothing of this, so its sessions
+// never count.
+func signedIn(holders []holder, privsep int) bool {
+	in := false
+	for _, h := range holders {
+		if h.name == "sshd-auth" || (privsep >= 0 && h.uid == privsep) {
+			return false
+		}
+		for _, t := range preAuthTitles {
+			if strings.HasPrefix(h.title, t) {
+				return false
+			}
+		}
+		if h.name != "sshd" && h.name != "sshd-session" {
+			continue
+		}
+		switch {
+		case h.uid > 0 && privsep >= 0:
+			in = true
+		case h.uid > 0:
+			// Which user is sshd's own isn't known, so its title has to agree.
+			in = in || (h.title != "" && !strings.Contains(h.title, "["))
+		case h.uid == 0:
+			in = in || rootSession.MatchString(h.title)
+		}
+	}
+	return in
 }
 
 // Read reads the pins as the server has them now, and, with an error, the
@@ -117,7 +196,7 @@ func (r *PinReader) Read(ctx context.Context) (Pins, error) {
 		pins.SSHPorts = r.configuredPorts(ctx)
 	}
 	for _, s := range sockets {
-		if s.listening || !slices.Contains(pins.SSHPorts, s.local.Port()) || s.peer.Addr().IsLoopback() || s.local.Addr().IsLoopback() {
+		if s.listening || !s.signedIn || !slices.Contains(pins.SSHPorts, s.local.Port()) || s.peer.Addr().IsLoopback() || s.local.Addr().IsLoopback() {
 			continue
 		}
 		pins.SSHFrom = appendNew(pins.SSHFrom, netip.PrefixFrom(s.peer.Addr(), s.peer.Addr().BitLen()))
@@ -129,7 +208,7 @@ func (r *PinReader) Read(ctx context.Context) (Pins, error) {
 
 // scan reads one of /proc/net's socket tables a line at a time, keeping the
 // sockets an SSH server's process holds.
-func (r *PinReader) scan(file string, holders map[string]bool, out *[]socket) error {
+func (r *PinReader) scan(file string, holders map[string]*held, out *[]socket) error {
 	f, err := r.Proc.Open(file)
 	if err != nil {
 		return err
@@ -142,10 +221,11 @@ func (r *PinReader) scan(file string, holders map[string]bool, out *[]socket) er
 		if len(fields) < 10 {
 			continue
 		}
-		daemon, ok := holders[fields[9]]
+		h, ok := holders[fields[9]]
 		if !ok {
 			continue
 		}
+		daemon := h.daemon
 		local, lok := address(fields[1])
 		peer, pok := address(fields[2])
 		if !lok || !pok {
@@ -155,20 +235,20 @@ func (r *PinReader) scan(file string, holders map[string]bool, out *[]socket) er
 		case "0A": // listening
 			*out = append(*out, socket{local: local, peer: peer, listening: true, daemon: daemon})
 		case "01": // a connection
-			*out = append(*out, socket{local: local, peer: peer, daemon: daemon})
+			*out = append(*out, socket{local: local, peer: peer, daemon: daemon, signedIn: !daemon && signedIn(h.holders, r.privsepUID())})
 		}
 	}
 	return sc.Err()
 }
 
 // sshSockets are the socket inodes SSH servers' processes hold, each saying
-// whether the process that listens for new sessions holds it.
-func (r *PinReader) sshSockets() (map[string]bool, error) {
+// whether the process that listens for new sessions holds it, and who else does.
+func (r *PinReader) sshSockets() (map[string]*held, error) {
 	entries, err := fs.ReadDir(r.Proc, ".")
 	if err != nil {
 		return nil, err
 	}
-	out := map[string]bool{}
+	out := map[string]*held{}
 	for _, e := range entries {
 		if _, err := strconv.Atoi(e.Name()); err != nil {
 			continue
@@ -186,11 +266,75 @@ func (r *PinReader) sshSockets() (map[string]bool, error) {
 			target, err := readLink(r.Proc, e.Name()+"/fd/"+fd.Name())
 			if inode, ok := strings.CutPrefix(target, "socket:["); err == nil && ok {
 				inode = strings.TrimSuffix(inode, "]")
-				out[inode] = out[inode] || daemon
+				if out[inode] == nil {
+					out[inode] = &held{}
+				}
+				out[inode].daemon = out[inode].daemon || daemon
+				if !daemon {
+					out[inode].holders = append(out[inode].holders, holder{name: name, uid: r.uid(e.Name()), title: r.title(e.Name())})
+				}
 			}
 		}
 	}
 	return out, nil
+}
+
+// uid is the user a process runs as, from its status, or -1.
+func (r *PinReader) uid(pid string) int {
+	b, err := fs.ReadFile(r.Proc, pid+"/status")
+	if err != nil {
+		return -1
+	}
+	for line := range strings.SplitSeq(string(b), "\n") {
+		if v, ok := strings.CutPrefix(line, "Uid:"); ok {
+			if f := strings.Fields(v); len(f) > 0 {
+				if n, err := strconv.Atoi(f[0]); err == nil {
+					return n
+				}
+			}
+		}
+	}
+	return -1
+}
+
+// title is what a process calls itself after its name: sshd writes "sshd:
+// deploy@pts/0" over its command line. "" when it can't be read.
+func (r *PinReader) title(pid string) string {
+	b, err := fs.ReadFile(r.Proc, pid+"/cmdline")
+	if err != nil {
+		return ""
+	}
+	line, _, _ := strings.Cut(string(b), "\x00")
+	_, title, ok := strings.Cut(line, ": ")
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(title)
+}
+
+// privsepUID is the ID of the user sshd, which OpenSSH before 10.0 runs a
+// connection as until someone has signed in on it, or -1 when /etc/passwd
+// names none.
+func (r *PinReader) privsepUID() int {
+	r.privsepOnce.Do(func() {
+		r.privsep = -1
+		read := r.Passwd
+		if read == nil {
+			read = func() ([]byte, error) { return os.ReadFile("/etc/passwd") }
+		}
+		b, err := read()
+		if err != nil {
+			return
+		}
+		for line := range strings.SplitSeq(string(b), "\n") {
+			if f := strings.Split(line, ":"); len(f) > 2 && f[0] == "sshd" {
+				if n, err := strconv.Atoi(f[2]); err == nil {
+					r.privsep = n
+				}
+			}
+		}
+	})
+	return r.privsep
 }
 
 // comm is a process's name, or "" once it's gone.

@@ -71,6 +71,10 @@ type Manager struct {
 	// Pins says what keeps the server reachable beyond the table's own: SSH from
 	// where people come in now, and the control plane's ports on its server.
 	Pins func(ctx context.Context) (Pins, error)
+	// PanelOverSSH is a control server whose panel has no domain, so people
+	// reach it through SSH (ssh -L): there, deny everything else is refused
+	// unless a rule allows SSH's port.
+	PanelOverSSH bool
 	// Docker reads Docker's networks. Nil is a server without Docker.
 	Docker func(ctx context.Context) (DockerNetworks, error)
 	Logger *slog.Logger
@@ -78,6 +82,8 @@ type Manager struct {
 	Timer time.Duration
 	now   func() time.Time
 	after func(time.Duration, func()) stopper
+	// every is how often KeepCurrent checks, for a test; zero is networksEvery.
+	every time.Duration
 	// readWait replaces readWait, for a test.
 	readWait time.Duration
 
@@ -154,6 +160,9 @@ type pending struct {
 	sshPorts []uint16
 	deadline time.Time
 	timer    stopper
+	// announced is the change's last step here having said it waits: before
+	// that, part of the change hasn't loaded, and there's nothing whole to keep.
+	announced bool
 	// done closes once the change has its verdict.
 	done chan struct{}
 }
@@ -273,17 +282,24 @@ func (m *Manager) startLocked(ctx context.Context) error {
 // confirmed on disk as it loads. Nothing changes while a change waits; its
 // own confirmation or revert renders it.
 func (m *Manager) KeepCurrent(ctx context.Context) {
-	if m.Docker == nil {
-		return
+	every := networksEvery
+	if m.every > 0 {
+		every = m.every
 	}
 	for {
+		// A revert that failed, or a start that couldn't load what was confirmed,
+		// is tried again here, on the agent's own clock: the stream to the
+		// control plane may be the very thing the table cut.
+		if err := m.Ready(ctx); err != nil && ctx.Err() == nil && !errors.Is(err, nftables.ErrNoNft) && !errors.Is(err, nftables.ErrRefused) {
+			m.logger().WarnContext(ctx, "the firewall isn't as it was confirmed yet; the agent tries again", slog.String("error", err.Error()))
+		}
 		if err := m.refresh(ctx); err != nil && ctx.Err() == nil {
 			m.logger().WarnContext(ctx, "can't render the firewall again for Docker's networks; the agent tries again", slog.String("error", err.Error()))
 		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(networksEvery):
+		case <-time.After(every):
 		}
 	}
 }
@@ -437,7 +453,7 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 	fn(&next)
 	next, tbl, pins, err := m.prepareLocked(ctx, next, host, false)
 	if err == nil {
-		err = check(next, pins)
+		err = check(next, pins, m.PanelOverSSH)
 	}
 	if err != nil {
 		// Nothing loaded, but a change whose earlier steps did has them live.
@@ -533,6 +549,7 @@ func (m *Manager) armLocked(change string) {
 // how long to wait. The time left goes too, so a control plane whose clock
 // isn't the agent's counts down the same.
 func (m *Manager) announceLocked(ctx context.Context) time.Duration {
+	m.waiting.announced = true
 	left := m.waiting.deadline.Sub(m.clock())
 	w := resource.AccessWait{Deadline: m.waiting.deadline, Left: left}
 	for _, p := range m.waiting.sshPorts {
@@ -611,6 +628,10 @@ func (m *Manager) Confirm(ctx context.Context, change string) resource.AccessVer
 		// The timer is about to put it back, if it hasn't yet: running out wins.
 		m.rollBackLocked(ctx, change)
 		return resource.AccessRolledBack
+	}
+	if !w.announced {
+		// Its last step here hasn't loaded yet: keeping it now would keep part of it.
+		return resource.AccessNotWaiting
 	}
 	c := confirmedState{state: w.state, table: w.table, wait: w.wait}
 	if err := m.saveConfirmed(c); err != nil {
@@ -797,6 +818,13 @@ func (m *Manager) prepareLocked(ctx context.Context, s state, h hostNow, rollbac
 	}
 	pins := withPinned(found, s.Pinned, nets.Subnets)
 	s.Pinned = Pinned{SSHPorts: slices.Clone(pins.SSHPorts), SSHFrom: slices.Clone(pins.SSHFrom)}
+	if !narrowsSSH(s, pins.SSHPorts) {
+		// Nothing here closes SSH to anyone, so no address needs keeping: the
+		// sessions open now are pinned in this table, and none is kept for the
+		// next. That's how a pinned address leaves: allow SSH's port, or turn
+		// deny everything else off, and keep that change.
+		s.Pinned = Pinned{}
+	}
 	return s, render(s, pins, nets), pins, nil
 }
 
@@ -908,7 +936,56 @@ func (m *Manager) checkPlan(fn func(*state)) error {
 	fn(&next)
 	// A Docker that doesn't answer only leaves its containers' sessions in.
 	nets, _ := m.networksLocked(ctx, h)
-	return check(next, withPinned(h.pins, next.Pinned, nets.Subnets))
+	return check(next, withPinned(h.pins, next.Pinned, nets.Subnets), m.PanelOverSSH)
+}
+
+// sshPortsOr22 are SSH's ports, or 22 where Dockwell found none.
+func sshPortsOr22(ports []uint16) []uint16 {
+	if len(ports) == 0 {
+		return []uint16{22}
+	}
+	return ports
+}
+
+// allowsFromAnywhere reports a rule that lets a TCP port in from anywhere.
+func allowsFromAnywhere(s state, port uint16) bool {
+	for _, r := range s.Rules {
+		if !isDeny(r) && protocolOf(r) == "tcp" && portOf(r) == port && len(r.GetSources()) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// allows reports a rule that lets a TCP port in, from anywhere or from some.
+func allows(s state, port uint16) bool {
+	for _, r := range s.Rules {
+		if !isDeny(r) && protocolOf(r) == "tcp" && portOf(r) == port {
+			return true
+		}
+	}
+	return false
+}
+
+// narrowsSSH reports a state that closes SSH to someone: a deny of one of its
+// ports, or deny everything else with a port of SSH's that no rule lets in
+// from anywhere. Only then does who is pinned decide who gets in.
+func narrowsSSH(s state, ports []uint16) bool {
+	ports = sshPortsOr22(ports)
+	for _, r := range s.Rules {
+		if isDeny(r) && protocolOf(r) == "tcp" && slices.Contains(ports, portOf(r)) {
+			return true
+		}
+	}
+	if !s.Policy.GetDenyEverythingElse() {
+		return false
+	}
+	for _, port := range ports {
+		if !allowsFromAnywhere(s, port) {
+			return true
+		}
+	}
+	return false
 }
 
 // check refuses a state the server can't take safely, as the pins say: a deny
@@ -916,8 +993,17 @@ func (m *Manager) checkPlan(fn func(*state)) error {
 // or, with nobody's address pinned to SSH, anything that narrows SSH: a deny of
 // one of its ports, or deny everything else with no allow of each of its ports
 // from anywhere. Where Dockwell finds no SSH at all, port 22 stands for it.
-func check(s state, p Pins) error {
+func check(s state, p Pins, panelOverSSH bool) error {
 	names := slices.Sorted(maps.Keys(s.Rules))
+	if panelOverSSH && s.Policy.GetDenyEverythingElse() {
+		// The panel here has no domain, so it's reached through SSH: a pin holds
+		// only while the address it names does, and losing SSH loses the panel too.
+		for _, port := range sshPortsOr22(p.SSHPorts) {
+			if !allows(s, port) {
+				return fmt.Errorf("the panel on this server has no domain, so you reach it through SSH, and deny everything else would leave SSH open only from the addresses signed in now. If yours changes, you lose SSH and the panel at once. Add a rule that allows port %d first, from anywhere or from the ranges you'll come from, then plan this again", port)
+			}
+		}
+	}
 	for _, name := range names {
 		r := s.Rules[name]
 		if isDeny(r) && protocolOf(r) == "tcp" && slices.Contains(p.Own, portOf(r)) {
@@ -952,7 +1038,7 @@ func check(s state, p Pins) error {
 }
 
 var (
-	errNoSession = errors.New("no SSH session is open to this server from outside it now, and none was when its firewall last changed, so Dockwell can't tell whose address to keep reaching SSH. Open an SSH session from where you'll come in, then plan this again")
+	errNoSession = errors.New("nobody is signed in to this server over SSH from outside it now, and nobody was when its firewall last changed, so Dockwell can't tell whose address to keep reaching SSH. Sign in over SSH from where you'll come in, or add a rule that allows SSH's port, then plan this again")
 	errNoSSH     = errors.New("this server has no SSH server listening that Dockwell knows of, so Dockwell can't tell which port to keep reachable. If SSH runs here under another name, add a rule that allows its port first, then plan this again")
 )
 

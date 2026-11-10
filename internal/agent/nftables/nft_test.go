@@ -179,8 +179,13 @@ func TestTheTableLoadsInRealNftables(t *testing.T) {
 	}
 	fw := &Firewall{Run: &hosttool.Runner{Root: root}}
 	table := Table{
-		Pins:             []Rule{{Name: "pin ssh", Protocol: "tcp", Ports: []uint16{22}, Sources: prefixes(t, "203.0.113.7/32", "2001:db8::7/128")}},
-		Allows:           []Rule{{Name: "rule web", Protocol: "tcp", Ports: []uint16{80, 443}}},
+		Pins: []Rule{{Name: "pin ssh", Protocol: "tcp", Ports: []uint16{22}, Sources: prefixes(t, "203.0.113.7/32", "2001:db8::7/128")}},
+		// A rule whose sources overlap and repeat, as a person may write them: the
+		// kernel takes the set the table makes of them.
+		Allows: []Rule{
+			{Name: "rule web", Protocol: "tcp", Ports: []uint16{80, 443}},
+			{Name: "rule office", Protocol: "tcp", Ports: []uint16{8443}, Sources: prefixes(t, "198.51.100.0/24", "198.51.100.7/32", "198.51.100.0/25", "198.51.100.0/24", "2001:db8::/32", "2001:db8:1::/48")},
+		},
 		Denies:           []Rule{{Name: "rule db", Protocol: "tcp", Ports: []uint16{5432}, Sources: prefixes(t, "0.0.0.0/0", "::/0")}},
 		DenyRest:         true,
 		DockerInterfaces: []string{"docker0"},
@@ -201,7 +206,7 @@ func TestTheTableLoadsInRealNftables(t *testing.T) {
 	if err != nil || res.Code != 0 {
 		t.Fatalf("listing: %v, %s", err, res.Errs)
 	}
-	for _, want := range []string{`"name": "input"`, `"name": "forward"`, `"name": "published"`, `"comment": "pin ssh"`, `"comment": "rule db"`, `"comment": "policy deny everything else"`} {
+	for _, want := range []string{`"name": "input"`, `"name": "forward"`, `"name": "published"`, `"comment": "pin ssh"`, `"comment": "rule db"`, `"comment": "rule office"`, `"comment": "policy deny everything else"`} {
 		if !strings.Contains(strings.ReplaceAll(string(res.Out), `":"`, `": "`), want) {
 			t.Errorf("the kernel's listing has no %s:\n%s", want, res.Out)
 		}

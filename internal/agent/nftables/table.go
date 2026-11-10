@@ -62,11 +62,13 @@ type Table struct {
 // reachable whatever the rules say: connections already open, loopback,
 // ICMP's errors, IPv6's neighbour and router discovery, MLD from the link,
 // which keeps a snooping switch sending the host its neighbour discovery,
-// DHCP's replies, and ping, at most 5 a second, as RFC 4890 keeps echo; with
-// invalid packets dropped.
+// DHCP's replies, and ping, at most 5 a second, as RFC 4890 keeps echo. It
+// drops nothing of its own: a table that holds one allow leaves the server
+// working as it did (ADR 0052), so packets the connection tracker calls
+// invalid go on to the rules and the policy like any other, and to the
+// kernel's own handling where nothing drops them.
 var keepsReachable = []string{
 	"ct state established,related accept",
-	"ct state invalid drop",
 	`iifname "lo" accept`,
 	"icmp type { destination-unreachable, time-exceeded, parameter-problem } accept",
 	"icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept",
@@ -80,9 +82,10 @@ var keepsReachable = []string{
 
 // matchable says whether nft can match an interface by name: Linux's 15 bytes
 // at most, in quotes, which may hold anything but a quote or a control
-// character, and not end in *, which nft reads as a wildcard.
+// character, and not end in *, which nft reads as a wildcard, nor in a
+// backslash, which would stand before the closing quote.
 func matchable(name string) bool {
-	if name == "" || len(name) > 15 || strings.HasSuffix(name, "*") {
+	if name == "" || len(name) > 15 || strings.HasSuffix(name, "*") || strings.HasSuffix(name, `\`) {
 		return false
 	}
 	for _, r := range name {
@@ -96,7 +99,7 @@ func matchable(name string) bool {
 // SkippedWords says what it means that one of Docker's interfaces has a name
 // the table can't match, and how to fix it.
 func SkippedWords(name string) string {
-	return fmt.Sprintf("Docker's interface %q has a name nftables can't match: it holds a quote or a control character, or ends in *. "+
+	return fmt.Sprintf("Docker's interface %q has a name nftables can't match: it holds a quote or a control character, or ends in * or a backslash. "+
 		"Its containers' traffic to the server is treated as from outside, and the ports they publish aren't filtered. "+
 		"Rename its network's bridge, with com.docker.network.bridge.name", name)
 }
@@ -219,16 +222,30 @@ func writeRule(b *strings.Builder, r Rule, match func(Rule) string, verdict stri
 		fmt.Fprintf(b, "\t\t%s %s%s\n", match(r), verdict, comment)
 		return
 	}
-	var v4, v6 []string
+	var all []netip.Prefix
 	for _, p := range r.Sources {
 		if p.Addr().Is4In6() {
 			// ::ffff:203.0.113.0/120 is 203.0.113.0/24, as IPv4 traffic carries it.
 			p = netip.PrefixFrom(p.Addr().Unmap(), max(p.Bits()-96, 0))
 		}
-		p = p.Masked()
-		if p.Addr().Is4() {
+		all = append(all, p.Masked())
+	}
+	// A set never names a range twice, or one inside another: nft and the
+	// kernel differ by version on what they make of sets that overlap.
+	var v4, v6 []string
+	for i, p := range all {
+		inside := false
+		for j, q := range all {
+			if i != j && q.Addr().Is4() == p.Addr().Is4() && q.Bits() <= p.Bits() && q.Contains(p.Addr()) && (q != p || j < i) {
+				inside = true
+				break
+			}
+		}
+		switch {
+		case inside:
+		case p.Addr().Is4():
 			v4 = append(v4, p.String())
-		} else {
+		default:
 			v6 = append(v6, p.String())
 		}
 	}

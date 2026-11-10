@@ -18,6 +18,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
@@ -83,7 +84,7 @@ func (t *table) rules() []string {
 
 // addFirewallServer adds a server whose agent keeps its firewall under the timer,
 // with SSH on 22 from 203.0.113.7, in a table in memory.
-func (f *fullServer) addFirewallServer(t *testing.T, name string, timer time.Duration) (*testServer, *table) {
+func (f *fullServer) addFirewallServer(t *testing.T, name string, timer time.Duration, opts ...func(*testServer)) (*testServer, *table) {
 	t.Helper()
 	key, csr, err := pki.NewServerKey()
 	if err != nil {
@@ -108,6 +109,9 @@ func (f *fullServer) addFirewallServer(t *testing.T, name string, timer time.Dur
 		drivers: resource.NewRegistry(&firewall.Driver{Backend: m}, &firewall.PolicyDriver{Backend: m}),
 		access:  m,
 		dataDir: t.TempDir(),
+	}
+	for _, o := range opts {
+		o(s)
 	}
 	s.connect(t, f)
 	return s, tbl
@@ -421,7 +425,7 @@ func testARuleThatWouldCutAccessIsRefused(t *testing.T, backend store.Backend) {
 			}}},
 		}
 	}
-	for port, want := range map[uint32]string{22: "no SSH session is open", 7600: "which the control plane on this server listens on"} {
+	for port, want := range map[uint32]string{22: "nobody is signed in to this server over SSH", 7600: "which the control plane on this server listens on"} {
 		_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Close it", Edits: []*dockwellv1.Edit{deny("close", port)}}))
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("denying %d = %v, want it refused, saying %q", port, err, want)
@@ -431,7 +435,7 @@ func testARuleThatWouldCutAccessIsRefused(t *testing.T, backend store.Backend) {
 		Resource: &dockwellv1.ResourceRef{Kind: string(firewall.PolicyKind), Scope: srv.id.ServerID, Name: firewall.PolicyName},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_FirewallPolicy{FirewallPolicy: &resourcev1.FirewallPolicy{DenyEverythingElse: true}}},
 	}
-	if _, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Close the rest", Edits: []*dockwellv1.Edit{policy}})); err == nil || !strings.Contains(err.Error(), "no SSH session is open") {
+	if _, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Close the rest", Edits: []*dockwellv1.Edit{policy}})); err == nil || !strings.Contains(err.Error(), "or add a rule that allows SSH's port") {
 		t.Errorf("deny everything else with no SSH session = %v", err)
 	}
 }
@@ -471,5 +475,98 @@ func TestFirewallStepsRunBeforeDeletes(t *testing.T) {
 	}
 	if rule.GetFinishTime().AsTime().After(web.GetStartTime().AsTime()) {
 		t.Errorf("web's delete started at %v, before the rule's step ended at %v", web.GetStartTime().AsTime(), rule.GetFinishTime().AsTime())
+	}
+}
+
+// saysRolledBack is a server that answers every confirmation with "rolled
+// back", as one does whose timer ran out as the confirmation was on its way.
+type saysRolledBack struct{ agent.AccessConfirmer }
+
+func (saysRolledBack) Confirm(context.Context, string) resource.AccessVerdict {
+	return resource.AccessRolledBack
+}
+
+// A confirmation the server answers with "rolled back" isn't read as kept: the
+// person hears that the server put its firewall back, and the change isn't
+// confirmed.
+func TestARolledBackVerdictIsntReadAsKept(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	srv, tbl := f.addFirewallServer(t, "hz-1", 2*time.Second, func(s *testServer) { s.access = saysRolledBack{s.access} })
+	c := changeClient(b, b.origin)
+	open := propose(t, c, "Open http", ruleOn(srv.id.ServerID, "http", 80))
+	w := watch(t, c, open.GetId())
+	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: open.GetId()}); err != nil {
+		t.Fatal(err)
+	}
+	wait := waitingFor(t, c, open.GetId())
+	res, err := c.ConfirmChange(t.Context(), confirmation(open.GetId(), wait))
+	if reasonOf(err) != "rolled_back" || res != nil {
+		t.Errorf("a confirmation the server answered rolled back = %v, %v, want rolled_back", res, err)
+	}
+	// Nothing kept it, so the server's own timer puts the firewall back.
+	if got := waitWatch(t, w).last(); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED {
+		t.Errorf("the change ends %v", got.GetState())
+	}
+	if rules := tbl.rules(); len(rules) != 0 {
+		t.Errorf("the table holds %v", rules)
+	}
+}
+
+// The session a change was applied in is kept in memory, so a control plane
+// that restarts inside the timer knows nobody who may confirm it: a
+// confirmation is refused, and the server puts its firewall back on its own.
+func TestNobodyConfirmsAfterTheControlPlaneRestarts(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	srv, tbl := f.addFirewallServer(t, "hz-1", 3*time.Second)
+	c := changeClient(b, b.origin)
+	open := propose(t, c, "Open http", ruleOn(srv.id.ServerID, "http", 80))
+	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: open.GetId()}); err != nil {
+		t.Fatal(err)
+	}
+	wait := waitingFor(t, c, open.GetId())
+	if got := tbl.rules(); len(got) != 1 {
+		t.Fatalf("while it waits the table holds %v", got)
+	}
+	_, letIn := f.restart(t, func(*Server) {})
+	letIn()
+	var err error
+	for up := time.Now().Add(10 * time.Second); time.Now().Before(up); time.Sleep(50 * time.Millisecond) {
+		// It listens again a moment after it starts.
+		if _, err = c.ConfirmChange(t.Context(), confirmation(open.GetId(), wait)); connect.CodeOf(err) != connect.CodeUnavailable {
+			break
+		}
+	}
+	if r := reasonOf(err); r != "not_yours" && r != "not_waiting" {
+		t.Errorf("a confirmation after the control plane restarted = %v, want not_yours or not_waiting", err)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for len(tbl.rules()) != 0 && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if got := tbl.rules(); len(got) != 0 {
+		t.Errorf("after the timer the table still holds %v", got)
+	}
+}
+
+// A server's firewall is the whole server's: a developer can't plan a rule or
+// the policy by name, whatever projects they hold, and neither can their API
+// token (ADR 0049).
+func TestADeveloperCantPlanAFirewallKind(t *testing.T) {
+	s := newReachStand(t, store.SQLite)
+	token := createToken(t, s.b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
+	script := changeClient(bearer{token: token, rt: s.b.client.Transport}, s.b.origin)
+	s.hold(in(s.blogID, store.RoleDeveloper), in(s.defaultID, store.RoleDeveloper))
+	policyEdit := &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "firewall.policy", Scope: s.server, Name: "default"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_FirewallPolicy{FirewallPolicy: &resourcev1.FirewallPolicy{DenyEverythingElse: true}}},
+	}
+	for name, edit := range map[string]*dockwellv1.Edit{"a rule": ruleOn(s.server, "http", 80), "the policy": policyEdit} {
+		req := &dockwellv1.ProposeChangeRequest{Summary: "Change the firewall", Edits: []*dockwellv1.Edit{edit}}
+		_, err := s.c.ProposeChange(t.Context(), connect.NewRequest(req))
+		needsRole(t, "a developer planning "+name, err)
+		_, err = script.ProposeChange(t.Context(), connect.NewRequest(req))
+		needsRole(t, "a developer's token planning "+name, err)
 	}
 }

@@ -32,7 +32,24 @@ func (p *proc) process(pid, name, parent string, inodes ...string) *proc {
 	for i, inode := range inodes {
 		p.fs[fmt.Sprintf("%s/fd/%d", pid, i+3)] = &fstest.MapFile{Data: []byte("socket:[" + inode + "]"), Mode: os.ModeSymlink}
 	}
+	// One of sshd's own that isn't the listener is a session someone signed in
+	// on, as deploy, unless as says otherwise.
+	if parent != "1" && (name == "sshd" || name == "sshd-session") {
+		p.as(pid, 1000, name+": deploy@pts/0")
+	}
 	return p
+}
+
+// as sets the user a process runs as, and what it calls itself.
+func (p *proc) as(pid string, uid int, cmdline string) *proc {
+	p.fs[pid+"/status"] = &fstest.MapFile{Data: []byte(fmt.Sprintf("Name:\tsshd\nUid:\t%d\t%d\t%d\t%d\n", uid, uid, uid, uid))}
+	p.fs[pid+"/cmdline"] = &fstest.MapFile{Data: []byte(cmdline + "\x00\x00\x00")}
+	return p
+}
+
+// passwd is an /etc/passwd where sshd's own user is 105.
+func passwd() ([]byte, error) {
+	return []byte("root:x:0:0:root:/root:/bin/bash\nsshd:x:105:65534::/run/sshd:/usr/sbin/nologin\ndeploy:x:1000:1000::/home/deploy:/bin/bash\n"), nil
 }
 
 // socket adds a line to net/tcp, or net/tcp6.
@@ -228,4 +245,90 @@ func (e errFS) ReadDir(name string) ([]fs.DirEntry, error) {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: errors.New("permission denied")}
 	}
 	return fs.ReadDir(e.fs, name)
+}
+
+const (
+	listens  = "   0: 00000000:0016 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 1001"
+	scanner  = "   1: 0500000A:0016 426433C6:D431 01 00000000:00000000 00:00000000 00000000     0        0 1002" // from 198.51.100.66
+	person   = "   2: 0500000A:0016 077100CB:D432 01 00000000:00000000 00:00000000 00000000     0        0 1003" // from 203.0.113.7
+	asRoot   = "   3: 0500000A:0016 087100CB:D433 01 00000000:00000000 00:00000000 00000000     0        0 1004" // from 203.0.113.8
+	longName = "sshd: rootaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+)
+
+// listening is a server whose sshd listens on 22, with these connections.
+func listening(lines ...string) *proc {
+	p := newProc().process("100", "sshd", "1", "1001").socket("net/tcp", listens)
+	for _, line := range lines {
+		p.socket("net/tcp", line)
+	}
+	return p
+}
+
+// A connection nobody has signed in on isn't a session: a scanner mid-handshake
+// gives nobody's address to keep, so it's never pinned, whatever it sends as
+// the name it signs in as. A signed-in one is, as a person or as root; with
+// both there, only the signed-in ones are (ADR 0052).
+func TestOnlyAConnectionSomeoneSignedInOnIsASession(t *testing.T) {
+	// OpenSSH before 9.8: the process with root's rights and the one as sshd's own user hold it.
+	old := func(p *proc) *proc {
+		return p.process("200", "sshd", "100", "1002").as("200", 0, "sshd: unknown [priv]").
+			process("201", "sshd", "200", "1002").as("201", 105, "sshd: [net]")
+	}
+	// OpenSSH 10: sshd-session with root's rights, and sshd-auth.
+	split := func(p *proc) *proc {
+		return p.process("200", "sshd-session", "100", "1002").as("200", 0, "sshd-session: root [priv]").
+			process("201", "sshd-auth", "200", "1002").as("201", 105, "sshd-auth: [session-auth]")
+	}
+	signedIn := func(p *proc) *proc {
+		return p.process("300", "sshd", "100", "1003").as("300", 0, "sshd: deploy [priv]").
+			process("301", "sshd", "300", "1003").as("301", 1000, "sshd: deploy@pts/0")
+	}
+	for name, c := range map[string]struct {
+		proc *proc
+		want string
+	}{
+		"a scanner alone, before 9.8":           {old(listening(scanner)), "[]"},
+		"a scanner alone, on 10":                {split(listening(scanner)), "[]"},
+		"just accepted, nothing else holds it":  {listening(scanner).process("200", "sshd", "100", "1002").as("200", 0, "sshd: [accepted]"), "[]"},
+		"a name so long its title is cut off":   {listening(scanner).process("200", "sshd", "100", "1002").as("200", 0, longName).process("201", "sshd", "200", "1002").as("201", 105, "sshd: [net]"), "[]"},
+		"that name, and its other process gone": {listening(scanner).process("200", "sshd", "100", "1002").as("200", 0, longName), "[]"},
+		"signing in as root@notty":              {listening(scanner).process("200", "sshd", "100", "1002").as("200", 0, "sshd: root@notty [priv]").process("201", "sshd", "200", "1002").as("201", 105, "sshd: [net]"), "[]"},
+		"a person signed in":                    {signedIn(listening(person)), "[203.0.113.7/32]"},
+		"a person and a scanner":                {signedIn(old(listening(scanner, person))), "[203.0.113.7/32]"},
+		"a person and a scanner, on 10":         {signedIn(split(listening(scanner, person))), "[203.0.113.7/32]"},
+		"root signed in, one process":           {listening(asRoot).process("400", "sshd", "100", "1004").as("400", 0, "sshd: root@pts/1"), "[203.0.113.8/32]"},
+		"root signed in with no terminal":       {listening(asRoot).process("400", "sshd-session", "100", "1004").as("400", 0, "sshd-session: root@notty"), "[203.0.113.8/32]"},
+		"a forward alone, no session":           {listening(person).process("300", "sshd", "100", "1003").as("300", 0, "sshd: deploy [priv]").process("301", "sshd", "300", "1003").as("301", 1000, "sshd: deploy"), "[203.0.113.7/32]"},
+	} {
+		pins := read(t, &PinReader{Proc: c.proc.fs, Passwd: passwd})
+		if got := fmt.Sprint(pins.SSHFrom); got != c.want {
+			t.Errorf("%s: sessions from %s, want %s", name, got, c.want)
+		}
+	}
+}
+
+// What /proc doesn't say counts for nothing: with no user or title to read, or
+// under Dropbear, which says neither, there's no session to pin, and with no
+// /etc/passwd to name sshd's own user, a person's title has to agree.
+func TestWhatCantBeReadIsNoSession(t *testing.T) {
+	bare := listening(person).process("300", "sshd", "100", "1003")
+	delete(bare.fs, "300/status")
+	delete(bare.fs, "300/cmdline")
+	dropbear := newProc().process("100", "dropbear", "1", "1001").socket("net/tcp", listens).socket("net/tcp", person).
+		process("300", "dropbear", "100", "1003").as("300", 1000, "dropbear")
+	noPasswd := func() ([]byte, error) { return nil, fs.ErrNotExist }
+	for name, c := range map[string]struct {
+		r    *PinReader
+		want string
+	}{
+		"no user and no title":                       {&PinReader{Proc: bare.fs, Passwd: passwd}, "[]"},
+		"Dropbear":                                   {&PinReader{Proc: dropbear.fs, Passwd: passwd}, "[]"},
+		"no passwd, sshd's own user holds it":        {&PinReader{Proc: listening(person).process("300", "sshd", "100", "1003").as("300", 105, "sshd: [net]").fs, Passwd: noPasswd}, "[]"},
+		"no passwd, a person's title agrees":         {&PinReader{Proc: listening(person).process("300", "sshd", "100", "1003").as("300", 1000, "sshd: deploy@pts/0").fs, Passwd: noPasswd}, "[203.0.113.7/32]"},
+		"no passwd, a user and a title that doesn't": {&PinReader{Proc: listening(person).process("300", "sshd", "100", "1003").as("300", 1000, "sshd: x [priv]").fs, Passwd: noPasswd}, "[]"},
+	} {
+		if got := fmt.Sprint(read(t, c.r).SSHFrom); got != c.want {
+			t.Errorf("%s: sessions from %s, want %s", name, got, c.want)
+		}
+	}
 }
