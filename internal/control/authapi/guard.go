@@ -509,6 +509,9 @@ func roleRefusal(p auth.Principal, held, needs string) error {
 // adminsBecause says why a call is an admin's, where its name alone doesn't.
 var adminsBecause = map[string]string{
 	dockwellv1connect.CatalogServiceInstallCatalogEntryProcedure: "installing from the catalog makes a project of its own",
+	// A website is its project, and the engine holds a project to an admin.
+	dockwellv1connect.WebsiteServiceUpdateWebsiteProcedure: "changing a website changes its project",
+	dockwellv1connect.WebsiteServiceDeleteWebsiteProcedure: "deleting a website deletes its project",
 }
 
 // youAre says what the caller holds: "you're a developer", or for an API

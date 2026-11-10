@@ -616,6 +616,9 @@ func TestEveryProjectsListReadsWhole(t *testing.T) {
 		}
 		s.hold(onInstall(store.RoleViewer))
 		viewer := count()
+		// The install's own, which an admin reads and a viewer doesn't: the change
+		// that made an install's first alert rules, which belong to no project.
+		admin["changes"]--
 		for what, want := range admin {
 			if viewer[what] != want {
 				t.Errorf("a viewer on the install reads %d %s, and an admin %d", viewer[what], what, want)

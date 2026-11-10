@@ -18,9 +18,9 @@ import (
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
-// Websites are projects: lists keep only the caller's, and planning by a
-// project's name, ID or domain checks the same place before reading settings.
-// A name outside their places says exactly what a missing website does.
+// Websites are projects: lists keep only the caller's, and changing or deleting
+// one is an admin's, as changing or deleting any project is (ADR 0049), by its
+// project's name, ID or domain.
 func TestWebsiteNamesStayWithinTheirProjects(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
@@ -62,45 +62,40 @@ func TestWebsiteNamesStayWithinTheirProjects(t *testing.T) {
 			if _, err := client.PreviewWebsite(t.Context(), connect.NewRequest(&dockwellv1.PreviewWebsiteRequest{Website: toURL("https://other.example.com")})); err != nil {
 				t.Errorf("config preview: %v", err)
 			}
-			for _, name := range []string{blog.GetId(), blog.GetName(), blog.GetDomain()} {
-				if _, err := client.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{
+			// A website is its project, which is an admin's to change or delete, as
+			// the engine holds it: a developer hears that first, whatever they name,
+			// so nothing says which websites there are.
+			for _, name := range []string{blog.GetId(), blog.GetName(), blog.GetDomain(), shop.GetId(), shop.GetName(), shop.GetDomain(), "absent.example.com", "no-such-project"} {
+				_, updated := client.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{
 					Id: name, Website: toURL("https://changed.example.com"),
-				})); err != nil {
-					t.Errorf("planning their website by %s: %v", name, err)
+				}))
+				needsRole(t, "a developer planning a website's change by "+name, updated)
+				if updated != nil && !strings.Contains(updated.Error(), "changing a website changes its project, which only an admin or the owner can do") {
+					t.Errorf("the refusal by %s says %q", name, updated)
 				}
-				if _, err := client.DeleteWebsite(t.Context(), connect.NewRequest(&dockwellv1.DeleteWebsiteRequest{Id: name})); err != nil {
-					t.Errorf("planning their website's deletion by %s: %v", name, err)
-				}
-			}
-			_, missing := client.DeleteWebsite(t.Context(), connect.NewRequest(&dockwellv1.DeleteWebsiteRequest{Id: "absent.example.com"}))
-			notFound(t, "a missing website", missing)
-			for _, name := range []string{shop.GetId(), shop.GetName(), shop.GetDomain(), "prj_01NOTHINGHERE0000000000000", "no-such-project"} {
 				_, deleted := client.DeleteWebsite(t.Context(), connect.NewRequest(&dockwellv1.DeleteWebsiteRequest{Id: name}))
-				// Invalid settings still get not found before any settings are checked.
-				_, updated := client.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: name}))
-				for _, err := range []error{deleted, updated} {
-					notFound(t, "an unreachable or missing website by "+name, err)
-					if err != nil && missing != nil && err.Error() != missing.Error() {
-						t.Errorf("%s says %q, and a missing website %q", name, err, missing)
-					}
-				}
+				needsRole(t, "a developer planning a website's deletion by "+name, deleted)
 			}
 		}
 		// REST has the same request narrowing and name resolution.
 		if code, _, body := callREST(t, b, http.MethodGet, "/v1/websites", nil, ""); code != http.StatusOK || strings.Contains(body, "shop.example.com") || !strings.Contains(body, blog.GetId()) {
 			t.Errorf("REST website list = %d %s", code, body)
 		}
-		for _, name := range []string{shop.GetId(), shop.GetName(), shop.GetDomain()} {
+		for _, name := range []string{blog.GetId(), shop.GetId(), shop.GetName(), shop.GetDomain()} {
 			code, reason, body := callREST(t, b, http.MethodPost, "/v1/websites/"+name+":delete", nil, "{}")
-			if code != http.StatusNotFound || reason != "not_found" {
-				t.Errorf("REST delete %s = %d %s %s, want not found", name, code, reason, body)
+			if code != http.StatusForbidden || reason != "needs_role" {
+				t.Errorf("REST delete %s = %d %s %s, want needs_role", name, code, reason, body)
 			}
 		}
-		hold(in(blog.GetId(), store.RoleDeveloper), in(shop.GetId(), store.RoleViewer))
-		for _, name := range []string{shop.GetId(), shop.GetName(), shop.GetDomain()} {
-			_, err := sites.DeleteWebsite(t.Context(), connect.NewRequest(&dockwellv1.DeleteWebsiteRequest{Id: name}))
-			needsRole(t, "a viewer deleting their website by "+name, err)
+		// An admin names a website by its ID, name or domain, and a missing one is not found.
+		hold(onInstall(store.RoleAdmin))
+		for _, name := range []string{blog.GetId(), blog.GetName(), blog.GetDomain()} {
+			if _, err := sites.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{Id: name, Website: toURL("https://changed.example.com")})); err != nil {
+				t.Errorf("an admin planning a website's change by %s: %v", name, err)
+			}
 		}
+		_, missing := sites.DeleteWebsite(t.Context(), connect.NewRequest(&dockwellv1.DeleteWebsiteRequest{Id: "absent.example.com"}))
+		notFound(t, "a missing website, for an admin", missing)
 		hold(onInstall(store.RoleViewer))
 		if got := listWebsites(t, sites); len(got) != len(all) {
 			t.Errorf("an install viewer reads %d websites, and an admin %d", len(got), len(all))

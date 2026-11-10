@@ -126,8 +126,8 @@ UpdateService.GetServerUpdates                 read         admin      admin    
 VariableService.ListVariables                  read         viewer     viewer     project
 VariableService.RevealSecret                   read         developer  admin      project  session
 WebsiteService.CreateWebsite                   plan         admin      admin      install
-WebsiteService.DeleteWebsite                   plan         developer  developer  project
+WebsiteService.DeleteWebsite                   plan         admin      admin      project
 WebsiteService.ListWebsiteRuntimes             read         viewer     viewer     shared
 WebsiteService.ListWebsites                    read         viewer     viewer     project
 WebsiteService.PreviewWebsite                  read         viewer     viewer     shared
-WebsiteService.UpdateWebsite                   plan         developer  developer  project
+WebsiteService.UpdateWebsite                   plan         admin      admin      project
