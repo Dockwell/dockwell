@@ -60,7 +60,12 @@ describe("what the panel does about each method", () => {
     const use = PANEL_METHODS[name] ?? "unused";
     const rule = ruleOf(method);
     const own = rule.reach === Reach.ANYONE || rule.reach === Reach.SELF;
-    const guarded = !own && (rule.effect !== Effect.READ || RANK[rule.needs] >= RANK[Role.ADMIN]);
+    // A write, or a read that takes more than a viewer anywhere, such as revealing a secret.
+    const guarded =
+      !own &&
+      (rule.effect !== Effect.READ ||
+        RANK[rule.needs] > RANK[Role.VIEWER] ||
+        RANK[rule.needsProtected] > RANK[Role.VIEWER]);
     if (use === "unused") {
       expect(calls(method), "the panel calls it, so it needs a decision").toBe(false);
       return;
@@ -70,7 +75,7 @@ describe("what the panel does about each method", () => {
       return;
     }
     if (use === "read") {
-      expect(guarded, "a write, or a read that's an admin's, asks may").toBe(false);
+      expect(guarded, "a write, or a read that takes more than a viewer, asks may").toBe(false);
       expect(own).toBe(false);
       return;
     }

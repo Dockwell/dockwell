@@ -181,7 +181,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "UpdateService.getServerUpdates": "may",
 
   "VariableService.listVariables": "read",
-  "VariableService.revealSecret": "read",
+  "VariableService.revealSecret": "may",
 
   "WebsiteService.createWebsite": "may",
   "WebsiteService.deleteWebsite": "may",

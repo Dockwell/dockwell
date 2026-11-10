@@ -39,6 +39,206 @@
   margin-top: var(--space-3);
 }
 
+/* What's open, each as a card, as Alerts draws them: a mark, what's wrong, since when, what it means. */
+.alerts-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.alerts-card {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-4);
+}
+
+.alerts-card.is-critical {
+  border-color: color-mix(in srgb, var(--critical) 40%, var(--line));
+}
+
+.alerts-card.is-warning {
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--line));
+}
+
+.alerts-card-mark {
+  display: grid;
+  grid-row: span 3;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.alerts-card.is-critical .alerts-card-mark {
+  background: var(--critical-soft);
+  color: var(--critical);
+}
+
+.alerts-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) 10px;
+  align-items: center;
+  min-width: 0;
+  min-height: 36px;
+}
+
+.alerts-card-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: -0.005em;
+  overflow-wrap: anywhere;
+}
+
+.alerts-card-when {
+  display: flex;
+  grid-row: span 2;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  padding-top: 6px;
+}
+
+.alerts-card-lasted {
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.alerts-card-lasted strong {
+  font-weight: 550;
+}
+
+.alerts-card-caption {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.alerts-card-detail {
+  grid-column: 2;
+  max-width: 64ch;
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.alerts-card-foot {
+  display: flex;
+  grid-column: 2 / 4;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.alerts-card-foot code {
+  font-size: 12px;
+}
+
+/* Its arrow stays beside its word. */
+.alerts-card-foot .dw-btn > span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.alerts-card-spacer {
+  flex: 1 1 auto;
+}
+
+/* What resolved, beside them: a tick, what it was, when it ended, and how long it lasted under it. */
+.alerts-history {
+  color: var(--link);
+  font-weight: 500;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.alerts-resolved {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.alerts-resolved-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 2px var(--space-3);
+  padding: 10px var(--space-4);
+}
+
+.alerts-resolved-row + .alerts-resolved-row {
+  border-top: 1px solid var(--line);
+}
+
+.alerts-resolved-mark {
+  display: flex;
+  padding-top: 3px;
+  color: var(--ink-muted);
+}
+
+.alerts-resolved-title {
+  min-width: 0;
+  font-weight: 500;
+  font-size: 13.5px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.alerts-resolved-at {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.alerts-resolved-meta {
+  grid-column: 2 / 4;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+/* On a phone a card has no room for a column of its own for when: it goes under the title. */
+@media (max-width: 639.98px) {
+  .alerts-card {
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .alerts-card-mark {
+    grid-row: 1;
+  }
+
+  .alerts-card-when {
+    grid-row: auto;
+    grid-column: 1 / -1;
+    flex-flow: row wrap;
+    gap: var(--space-2) var(--space-3);
+    align-items: center;
+    padding-top: 0;
+  }
+
+  .alerts-card-detail,
+  .alerts-card-foot {
+    grid-column: 1 / -1;
+  }
+}
+
 .alerts-muted {
   color: var(--ink-muted);
   font-size: 13px;
