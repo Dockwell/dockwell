@@ -3386,6 +3386,47 @@ describe("an app's deployments, for an app that builds from Git", () => {
     return create(BuildSchema, { ...base, ...init } as MessageInitShape<typeof BuildSchema>);
   }
 
+  it("reads the list again while a build that isn't open goes on, so its row says its commit once its server knows it", async () => {
+    const app = builtApp();
+    let reads = 0;
+    renderAt(
+      "/apps/svc_web/deployments?revision=1",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => {
+            reads++;
+            // The server reads the commit a moment after its build begins.
+            const building = aBuild({
+              state: BuildState.BUILDING,
+              endTime: undefined,
+              commitSubject: reads > 1 ? "Batch inventory sync" : "",
+              commitAuthor: reads > 1 ? "Leo Park" : "",
+            });
+            return {
+              revisions: [
+                aRevision(2n, image, {
+                  build: building,
+                  change: { id: "chg_2", summary: "Deploy to web", state: ChangeState.APPLYING },
+                }),
+                aRevision(1n, "nginx:1.0"),
+              ],
+            };
+          },
+        },
+        builds: { watchBuild: feed<WatchBuildResponse>().stream },
+      }),
+    );
+    const table = await screen.findByRole("table", { name: "Revisions of web" });
+    expect(within(table).getByRole("row", { name: /r2/ })).not.toHaveTextContent("Batch inventory sync");
+    await waitFor(
+      () => expect(within(table).getByRole("row", { name: /r2/ })).toHaveTextContent("Batch inventory sync"),
+      {
+        timeout: 5000,
+      },
+    );
+  });
+
   it("lists revisions by their commit, and shows a build's facts and its log", async () => {
     const app = builtApp();
     const { container } = renderAt(

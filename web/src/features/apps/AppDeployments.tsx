@@ -61,7 +61,7 @@ import {
   shortImage,
   shortImages,
 } from "./app";
-import { BuildPart, shortCommit } from "./Build";
+import { BuildPart, buildUnderWay, shortCommit } from "./Build";
 import { ImageName, WholeImage } from "./ImageName";
 import { type Look, plansBuild, useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { useAppWords } from "./words";
@@ -131,9 +131,11 @@ export function AppDeployments() {
   const appName = nameOf(service);
   const { revisions } = history;
   const builds = service.spec?.build !== undefined;
-  // A change that builds tells of its build once its server begins it; until then the list reads again.
+  // A change that builds tells of its build once its server begins it, and the build tells of its
+  // commit, its steps and how it ends as it goes: until it ends, the list reads again, so each row
+  // says it, the open one's live log aside.
   const waitingForBuild = (revisions ?? []).some(
-    (r) => !r.build && r.change?.state === ChangeState.APPLYING && plansBuild(r.change),
+    (r) => (!r.build && r.change?.state === ChangeState.APPLYING && plansBuild(r.change)) || buildUnderWay(r.build),
   );
   useEffect(() => {
     if (!waitingForBuild) return;
