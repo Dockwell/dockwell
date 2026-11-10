@@ -588,7 +588,8 @@ function DnsCell({ domain, read }: { domain: Domain; read: DomainRead }) {
   if (read !== "read") return <span aria-hidden="true">–</span>;
   return (
     <span className="dw-cell">
-      <StatusBadge status={word.status} label={word.word} labelIsState className="apps-status" title={word.word} />
+      {/* Its longest word fits the column by a pixel or two, so it wraps where a font or a language runs wider. */}
+      <StatusBadge status={word.status} label={word.word} labelIsState className="domains-dns-word" />
       {word.found ? (
         <code className="dw-cell-sub domains-dns-found" title={word.found}>
           {word.found}
