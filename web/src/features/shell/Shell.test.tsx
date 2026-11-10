@@ -474,8 +474,9 @@ describe("the shell on phones", () => {
   it("names the Servers tab for a fleet", async () => {
     onPhone();
     await renderWith("/", hz1, hz2);
+    // The page's heading is there before the watch has brought both servers, so wait for the name.
     expect(
-      within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Servers" }),
+      await within(screen.getByRole("navigation", { name: "Main" })).findByRole("link", { name: "Servers" }),
     ).toBeVisible();
   });
 
