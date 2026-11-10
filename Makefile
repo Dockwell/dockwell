@@ -23,6 +23,11 @@ AGENT_BIN := bin/dockwell-agent
 # them: that expansion makes AGENT_PKGS simply expanded, holding what it found.
 # A make run that needs none, such as make build, never runs it.
 AGENT_PKGS = $(eval AGENT_PKGS := $$(shell scripts/agent-packages.sh))$(AGENT_PKGS)
+# The tags those run with. Some of their tests stand up a control plane for the
+# agent to join, and a control plane needs the schema's files the agent build
+# leaves out, which agenttests puts back (ADR 0060). The agent build itself is
+# built with agent alone.
+AGENT_TEST_TAGS := agent,agenttests
 GENERATED := gen packages/api/src/gen internal/cli/apicmd internal/cli/apinames internal/control/apidoc/openapi.yaml packages/ui/src/tokens.ts packages/ui/src/styles/tokens.css web/src/routeTree.gen.ts
 # The OpenAPI document for the REST paths (docs/adr/0015-rest-and-openapi-from-the-schema.md).
 OPENAPI   := gen/openapi/openapi.yaml
@@ -78,6 +83,9 @@ generate: deps ## Regenerate code and the OpenAPI document from proto/, and the 
 # buf can't leave a file in an output directory it cleans, which is why buf
 # generate on its own deletes gen/LICENSE; scripts/check-spdx.sh names it then.
 	cp proto/LICENSE gen/LICENSE
+# The agent build links only the schema's files its protocol imports: the rest get
+# //go:build !agent || agenttests, which buf just wrote them without (ADR 0060).
+	go run ./scripts/agentschema proto gen
 # The TypeScript generated from googleapis carries Google's Apache-2.0 notice
 # but no SPDX line, which every source file has (ADR 0012); it goes on top.
 	find packages/api/src/gen/google -name '*.ts' -print0 | while IFS= read -r -d '' f; do \
@@ -95,7 +103,7 @@ generate: deps ## Regenerate code and the OpenAPI document from proto/, and the 
 .PHONY: test
 test: deps ## Run the Go and TypeScript tests, the agent build's with its tag too
 	go test -timeout 20m -race -coverprofile=coverage.out ./...
-	go test -race -tags agent $(AGENT_PKGS)
+	go test -race -tags $(AGENT_TEST_TAGS) $(AGENT_PKGS)
 	pnpm -r --if-present test
 
 .PHONY: lint
@@ -103,9 +111,9 @@ lint: deps ## Lint Go, the schema and its OpenAPI document, TypeScript, CSS, she
 	go mod tidy -diff
 	cd tools && go mod tidy -diff
 	go vet ./...
-	go vet -tags agent $(AGENT_PKGS)
+	go vet -tags $(AGENT_TEST_TAGS) $(AGENT_PKGS)
 	$(GOTOOL) golangci-lint run
-	$(GOTOOL) golangci-lint run --build-tags agent $(AGENT_PKGS)
+	$(GOTOOL) golangci-lint run --build-tags $(AGENT_TEST_TAGS) $(AGENT_PKGS)
 	$(GOTOOL) golangci-lint fmt --diff
 	$(GOTOOL) buf lint
 	$(GOTOOL) buf format --diff --exit-code

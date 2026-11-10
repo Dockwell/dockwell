@@ -30,9 +30,8 @@ var agentPackages = []string{
 	"cmd/dockwell",
 	"gen/dockwell/agent/v1",
 	"gen/dockwell/agent/v1/agentv1connect",
-	"gen/dockwell/catalog/v1alpha1", // the catalog's format, which gen/dockwell/v1 imports
 	"gen/dockwell/resource/v1alpha1",
-	"gen/dockwell/v1",
+	"gen/dockwell/v1", // only the files the agent's protocol imports (ADR 0060)
 	"internal/agent",
 	"internal/agent/collect",
 	"internal/agent/enroll",
@@ -95,30 +94,33 @@ var agentModules = []string{
 // of its own, so its heaviest packages that only the control plane uses are
 // named here.
 var controlOnly = map[string]string{
-	"github.com/dockwell/dockwell/internal/control":    "the control plane",
-	"github.com/dockwell/dockwell/internal/store":      "the control plane's state, on SQLite or Postgres",
-	"github.com/dockwell/dockwell/internal/auth":       "sign-in and passkeys",
-	"github.com/dockwell/dockwell/internal/revision":   "the revision engine",
-	"github.com/dockwell/dockwell/internal/panel":      "the panel's assets",
-	"github.com/dockwell/dockwell/internal/cli/apicli": "the API commands",
-	"github.com/dockwell/dockwell/internal/cli/apicmd": "the API commands",
-	"github.com/dockwell/dockwell/internal/https":      "the panel's HTTPS and ACME",
-	"github.com/dockwell/dockwell/internal/compose":    "Compose import and export",
-	"modernc.org/sqlite":                               "SQLite",
-	"github.com/jackc/pgx":                             "Postgres",
-	"github.com/go-webauthn/webauthn":                  "passkeys",
-	"connectrpc.com/vanguard":                          "the REST paths",
-	"connectrpc.com/grpcreflect":                       "the API's reflection",
-	"github.com/compose-spec/compose-go":               "Compose import and export",
-	"database/sql":                                     "the control plane's state",
-	"encoding/xml":                                     "passkeys' attestation",
+	"github.com/dockwell/dockwell/internal/control":     "the control plane",
+	"github.com/dockwell/dockwell/internal/store":       "the control plane's state, on SQLite or Postgres",
+	"github.com/dockwell/dockwell/internal/auth":        "sign-in and passkeys",
+	"github.com/dockwell/dockwell/internal/revision":    "the revision engine",
+	"github.com/dockwell/dockwell/internal/panel":       "the panel's assets",
+	"github.com/dockwell/dockwell/internal/cli/apicli":  "the API commands",
+	"github.com/dockwell/dockwell/internal/cli/apicmd":  "the API commands",
+	"github.com/dockwell/dockwell/internal/https":       "the panel's HTTPS and ACME",
+	"github.com/dockwell/dockwell/internal/compose":     "Compose import and export",
+	"modernc.org/sqlite":                                "SQLite",
+	"github.com/jackc/pgx":                              "Postgres",
+	"github.com/go-webauthn/webauthn":                   "passkeys",
+	"github.com/dockwell/dockwell/gen/dockwell/catalog": "the catalog's format, which only schema files the agent build leaves out import",
+	"connectrpc.com/vanguard":                           "the REST paths",
+	"connectrpc.com/grpcreflect":                        "the API's reflection",
+	"github.com/compose-spec/compose-go":                "Compose import and export",
+	"database/sql":                                      "the control plane's state",
+	"encoding/xml":                                      "passkeys' attestation",
 }
 
 type listed struct {
-	ImportPath string
-	Standard   bool
-	Imports    []string
-	Module     *struct{ Path string }
+	ImportPath     string
+	Standard       bool
+	Imports        []string
+	GoFiles        []string
+	IgnoredGoFiles []string
+	Module         *struct{ Path string }
 }
 
 // goList lists the packages ./cmd/dockwell links for linux/arch, with tags.
@@ -275,6 +277,47 @@ func TestNeitherBuildLinksTheCatalogConverter(t *testing.T) {
 				t.Errorf("the build with tags %q links %s, which reads other catalogs' formats. Only cmd/dockwell-catalog may", tags, p.ImportPath)
 			}
 		}
+	}
+}
+
+// The agent's protocol imports messages from the public API's schema, so the agent
+// build links gen/dockwell/v1, but only the files that protocol imports: make
+// generate gives the others //go:build !agent || agenttests (scripts/agentschema,
+// ADR 0060). Each file linked registers its messages as the agent starts, and
+// costs every server memory at idle, so a make generate that stopped leaving them
+// out fails here.
+func TestTheAgentBuildLeavesOutTheSchemaItNeverUses(t *testing.T) {
+	const schema = module + "/gen/dockwell/v1"
+	find := func(tags string) listed {
+		for _, p := range goList(t, "amd64", tags) {
+			if p.ImportPath == schema {
+				return p
+			}
+		}
+		t.Fatalf("the build with tags %q doesn't link %s", tags, schema)
+		return listed{}
+	}
+	agent, full := find("agent"), find("")
+	if len(full.IgnoredGoFiles) != 0 {
+		t.Errorf("the full build leaves out %v of %s. It serves the whole API, so it links every file of the schema", full.IgnoredGoFiles, schema)
+	}
+	// Sign-in, alerts and the catalog are the control plane's, whatever else the
+	// agent's protocol comes to import.
+	for _, never := range []string{"auth.pb.go", "alert.pb.go", "catalog.pb.go"} {
+		if slices.Contains(agent.GoFiles, never) || !slices.Contains(agent.IgnoredGoFiles, never) {
+			t.Errorf("the agent build links %s of %s, which only the control plane uses. "+
+				"make generate gives such a file //go:build !agent || agenttests, with scripts/agentschema: run it, "+
+				"and check the agent's protocol doesn't import its .proto file", never, schema)
+		}
+	}
+	if len(agent.GoFiles) >= len(full.GoFiles) {
+		t.Errorf("the agent build links %d files of %s, as many as the full build's %d, so it leaves none out. Run make generate",
+			len(agent.GoFiles), schema, len(full.GoFiles))
+	}
+	// The agent build's tests stand up a control plane to join, which needs the
+	// whole schema, so with their tag nothing is left out.
+	if tests := find("agent,agenttests"); len(tests.IgnoredGoFiles) != 0 {
+		t.Errorf("with -tags agent,agenttests, %s leaves out %v, and the agent build's tests link a control plane, which needs them", schema, tests.IgnoredGoFiles)
 	}
 }
 

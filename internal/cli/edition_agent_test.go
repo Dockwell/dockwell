@@ -34,9 +34,11 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// These run with -tags agent, against the agent build. A test binary may
-// link the control plane to stand one up for the agent to join; the agent
-// build itself never does, which cmd/dockwell's build_test.go checks.
+// These run with -tags agent,agenttests, against the agent build. A test binary
+// may link the control plane to stand one up for the agent to join, and
+// agenttests gives it the schema's files the agent build leaves out, which a
+// control plane needs (ADR 0060); the agent build itself never links one, which
+// cmd/dockwell's build_test.go checks.
 
 // controlPlane is a real control plane's agent listener, on a loopback
 // port, for the agent build to join.

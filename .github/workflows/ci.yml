@@ -62,7 +62,10 @@ jobs:
           (cd tools && go mod tidy -diff)
       # Vet, lint and test run the agent build's packages again with its tag,
       # as it compiles them (docs/adr/0023-a-full-build-and-an-agent-build.md).
-      # go list finds them once, for the steps after this one.
+      # go list finds them once, for the steps after this one. They take
+      # agenttests too: some of the tests stand up a control plane to join, which
+      # needs the schema's files the agent build leaves out
+      # (docs/adr/0060-what-an-idle-agent-keeps-in-memory.md).
       - name: The agent build's packages
         if: steps.pick.outputs.run == 'true'
         run: |
@@ -72,12 +75,12 @@ jobs:
         if: steps.pick.outputs.run == 'true'
         run: |
           go vet ./...
-          go vet -tags agent $AGENT_PKGS
+          go vet -tags agent,agenttests $AGENT_PKGS
       - name: Lint
         if: steps.pick.outputs.run == 'true'
         run: |
           $GOTOOL golangci-lint run
-          $GOTOOL golangci-lint run --build-tags agent $AGENT_PKGS
+          $GOTOOL golangci-lint run --build-tags agent,agenttests $AGENT_PKGS
       - name: Formatting
         if: steps.pick.outputs.run == 'true'
         run: $GOTOOL golangci-lint fmt --diff
@@ -86,7 +89,7 @@ jobs:
         run: go test -timeout 20m -race -coverprofile=coverage.out ./...
       - name: Test the agent build
         if: steps.pick.outputs.run == 'true'
-        run: go test -race -tags agent $AGENT_PKGS
+        run: go test -race -tags agent,agenttests $AGENT_PKGS
       - name: Coverage summary
         if: steps.pick.outputs.run == 'true'
         run: go tool cover -func=coverage.out | tail -1 >> "$GITHUB_STEP_SUMMARY"
