@@ -379,7 +379,8 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
   const reveals = useReveals();
   const shown = secretId ? reveals.get(secretId) : {};
   const may = useMay();
-  const revealOff = may(VariableService.method.revealSecret, { environment }).off.off;
+  const where = { environment };
+  const revealOff = may(VariableService.method.revealSecret, where).off.off;
   const sql = speaksSQL(db.engine);
   const sheet = useChangeSheet();
   const transport = useTransport();
@@ -425,7 +426,12 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
               hint: t`Kept in the secret ${secret}`,
               revealOff,
               action: (
-                <Button size="sm" variant="ghost" onClick={changePassword}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={changePassword}
+                  {...may(DatabaseService.method.changeDatabasePassword, where).off}
+                >
                   <Trans>Change password</Trans>
                 </Button>
               ),

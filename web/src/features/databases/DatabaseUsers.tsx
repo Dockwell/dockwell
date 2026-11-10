@@ -16,6 +16,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { AddUserSheet } from "./AddUserSheet";
 import { useThisDatabase } from "./DatabaseLayout";
@@ -78,6 +79,8 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
   const [adding, setAdding] = useState(false);
   const sheet = useChangeSheet();
   const transport = useTransport();
+  const may = useMay();
+  const mayChange = may(DatabaseService.method.changeDatabasePassword, { environment: db.resource?.scope ?? "" });
   const users = read.users.filter((u) => !u.system);
   const mysql = db.engine === DatabaseEngine.MYSQL || db.engine === DatabaseEngine.MARIADB;
   const name = db.resource?.name ?? "";
@@ -148,7 +151,13 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
     render: (u) => {
       const who = u.name;
       return u.resourceId && u.secret ? (
-        <Button size="sm" variant="ghost" onClick={() => changePassword(who)} aria-label={t`Change ${who}'s password`}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => changePassword(who)}
+          aria-label={t`Change ${who}'s password`}
+          {...mayChange.off}
+        >
           <Trans>Change password</Trans>
         </Button>
       ) : null;
@@ -186,7 +195,7 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
               .join(" · "),
             action:
               u.resourceId && u.secret ? (
-                <Button size="sm" variant="ghost" onClick={() => changePassword(u.name)}>
+                <Button size="sm" variant="ghost" onClick={() => changePassword(u.name)} {...mayChange.off}>
                   <Trans>Change password</Trans>
                 </Button>
               ) : undefined,

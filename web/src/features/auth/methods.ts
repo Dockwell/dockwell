@@ -97,6 +97,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ContainerService.adoptContainer": { within: "ContainerService.listContainers" },
   "ContainerService.listContainers": "may",
 
+  "DatabaseService.changeDatabasePassword": "may",
   "DatabaseService.createDatabaseUser": "may",
   "DatabaseService.getDatabase": "read",
   "DatabaseService.listDatabases": "read",

@@ -875,6 +875,20 @@ describe("changing a password", () => {
     );
   });
 
+  it("leaves Change password and Reveal in place for a viewer, off, with why", async () => {
+    renderAt("/databases/svc_db", {
+      ...api([aDatabase()]),
+      auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
+    });
+    const card = await screen.findByRole("region", { name: "Connect" });
+    const change = await within(card).findByRole("button", { name: "Change password" });
+    await waitFor(() => expect(change).toHaveAttribute("aria-disabled", "true"));
+    expect(change).toHaveAccessibleDescription(/developer or more/);
+    const reveal = within(card).getByRole("button", { name: "Reveal password" });
+    expect(reveal).toHaveAttribute("aria-disabled", "true");
+    expect(reveal).toHaveAccessibleDescription(/developer or more/);
+  });
+
   it("offers it on a phone too, on the user's row", async () => {
     const user = userEvent.setup();
     onPhone();
