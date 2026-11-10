@@ -318,15 +318,15 @@ func firstUserOf(e *database.Engine) string {
 	return ""
 }
 
-// userSecret is the secret a user Dockwell made in a database server keeps their
-// password in.
-func (h *Handler) userSecret(ctx context.Context, env, service, user string) (string, error) {
+// userSecret is the secret a user Dockwell made in a database server, by its service's
+// name, keeps their password in.
+func (h *Handler) userSecret(ctx context.Context, env, server, user string) (string, error) {
 	var secret string
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		r, err := tx.GetResource(ctx, string(database.UserKind), env, user)
 		switch {
 		case errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil:
-			return invalidField("user", fmt.Errorf("%s has no user %s that Dockwell made. Choose one from its Users tab", service, user))
+			return invalidField("user", fmt.Errorf("%s has no user %s that Dockwell made. Choose one from its Users tab", server, user))
 		case err != nil:
 			return err
 		}
@@ -335,8 +335,8 @@ func (h *Handler) userSecret(ctx context.Context, env, service, user string) (st
 		if err := proto.Unmarshal(r.Spec, spec); err != nil {
 			return fmt.Errorf("can't read the database user %s: %w", user, err)
 		}
-		if spec.GetService() != service {
-			return invalidField("user", fmt.Errorf("the user %s is %s's, not %s's", user, spec.GetService(), service))
+		if spec.GetService() != server {
+			return invalidField("user", fmt.Errorf("the user %s is %s's, not %s's", user, spec.GetService(), server))
 		}
 		secret = spec.GetPassword()
 		return nil

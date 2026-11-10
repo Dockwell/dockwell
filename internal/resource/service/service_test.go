@@ -138,8 +138,8 @@ type passwordsSeen struct {
 	refuse  error
 }
 
-func (p *passwordsSeen) Change(_ context.Context, project, service string, app *resourcev1.Container) (func(context.Context) error, error) {
-	p.changed = append(p.changed, project+"/"+service+" "+app.GetEnv()["MARIADB_ROOT_PASSWORD"])
+func (p *passwordsSeen) Change(_ context.Context, project, name string, app *resourcev1.Container) (func(context.Context) error, error) {
+	p.changed = append(p.changed, project+"/"+name+" "+app.GetEnv()["MARIADB_ROOT_PASSWORD"])
 	if p.refuse != nil {
 		return nil, p.refuse
 	}

@@ -6617,6 +6617,9 @@ msgstr "正在询问它的服务器"
 msgid "Cache hit"
 msgstr "缓存命中率"
 
+msgid "Change password"
+msgstr "修改密码"
+
 msgid "Connection string"
 msgstr "连接字符串"
 
@@ -6752,6 +6755,9 @@ msgstr "拥有全部权限"
 
 msgid "Can't sign in"
 msgstr "不可登录"
+
+msgid "Change {who}'s password"
+msgstr "修改 {who} 的密码"
 
 msgid "Databases in {name}"
 msgstr "{name} 中的数据库"

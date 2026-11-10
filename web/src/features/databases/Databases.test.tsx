@@ -7,6 +7,7 @@ import {
   BackupMethod,
   BackupSchema,
   BackupState,
+  type ChangeDatabasePasswordRequest,
   ChangeSchema,
   ChangeState,
   ContainerState,
@@ -802,6 +803,108 @@ describe("adding a user", () => {
     expect(row).toHaveTextContent("api");
     expect(within(table).getByText("shop", { selector: ".databases-name" }).closest("tr")).toHaveTextContent(
       "Not one of Dockwell's",
+    );
+  });
+});
+
+describe("changing a password", () => {
+  const planned = create(ChangeSchema, {
+    id: "chg_password",
+    summary: "Change the password of postgres in db",
+    state: ChangeState.PLANNED,
+    plan: { fingerprint: "abc", resources: [] },
+  });
+
+  it("plans a new password for its first user from beside the password, with nothing to type", async () => {
+    const user = userEvent.setup();
+    const asked = vi.fn((req: ChangeDatabasePasswordRequest) => {
+      void req;
+      return { change: planned };
+    });
+    renderAt(
+      "/databases/svc_db",
+      api([aDatabase()], {
+        databases: {
+          listDatabases: () => ({ databases: [aDatabase()] }),
+          getDatabase: () => ({ database: aDatabase() }),
+          changeDatabasePassword: asked,
+        },
+        changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const card = await screen.findByRole("region", { name: "Connect" });
+    await user.click(within(card).getByRole("button", { name: "Change password" }));
+    await waitFor(() =>
+      expect(asked).toHaveBeenCalledWith(expect.objectContaining({ id: "svc_db", user: "" }), expect.anything()),
+    );
+    expect(await screen.findByText("Change the password of postgres in db")).toBeVisible();
+  });
+
+  it("plans one for a user Dockwell made, from their row, and offers none for one it didn't", async () => {
+    const user = userEvent.setup();
+    const asked = vi.fn((req: ChangeDatabasePasswordRequest) => {
+      void req;
+      return { change: planned };
+    });
+    const db = aDatabase();
+    db.readings[0]?.users.push(
+      create(DatabaseAccountSchema, {
+        name: "orders",
+        canSignIn: true,
+        databases: ["orders"],
+        secret: "ORDERS_DATABASE_PASSWORD",
+        resourceId: "dbu_orders",
+      }),
+    );
+    renderAt(
+      "/databases/svc_db/users",
+      api([db], {
+        databases: {
+          listDatabases: () => ({ databases: [db] }),
+          getDatabase: () => ({ database: db }),
+          changeDatabasePassword: asked,
+        },
+        changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const table = await screen.findByRole("table", { name: "Users of db" });
+    expect(within(table).queryByRole("button", { name: "Change shop's password" })).toBeNull();
+    await user.click(within(table).getByRole("button", { name: "Change orders's password" }));
+    await waitFor(() =>
+      expect(asked).toHaveBeenCalledWith(expect.objectContaining({ id: "svc_db", user: "orders" }), expect.anything()),
+    );
+  });
+
+  it("offers it on a phone too, on the user's row", async () => {
+    const user = userEvent.setup();
+    onPhone();
+    const asked = vi.fn((req: ChangeDatabasePasswordRequest) => {
+      void req;
+      return { change: planned };
+    });
+    const db = aDatabase();
+    db.readings[0]?.users.push(
+      create(DatabaseAccountSchema, {
+        name: "orders",
+        canSignIn: true,
+        secret: "ORDERS_DATABASE_PASSWORD",
+        resourceId: "dbu_orders",
+      }),
+    );
+    renderAt(
+      "/databases/svc_db/users",
+      api([db], {
+        databases: {
+          listDatabases: () => ({ databases: [db] }),
+          getDatabase: () => ({ database: db }),
+          changeDatabasePassword: asked,
+        },
+        changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Change password" }));
+    await waitFor(() =>
+      expect(asked).toHaveBeenCalledWith(expect.objectContaining({ user: "orders" }), expect.anything()),
     );
   });
 });

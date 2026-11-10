@@ -6617,6 +6617,9 @@ msgstr "Asking its server"
 msgid "Cache hit"
 msgstr "Cache hit"
 
+msgid "Change password"
+msgstr "Change password"
+
 msgid "Connection string"
 msgstr "Connection string"
 
@@ -6752,6 +6755,9 @@ msgstr "Can do anything"
 
 msgid "Can't sign in"
 msgstr "Can't sign in"
+
+msgid "Change {who}'s password"
+msgstr "Change {who}'s password"
 
 msgid "Databases in {name}"
 msgstr "Databases in {name}"

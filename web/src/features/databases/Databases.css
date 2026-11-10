@@ -256,7 +256,7 @@
 }
 
 .databases-phone-row.is-static {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .databases-phone-row:not(.is-static):active {
