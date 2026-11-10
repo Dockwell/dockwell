@@ -304,7 +304,7 @@ func waitingForB(t *testing.T, e *Engine, f fleet) (rollback string) {
 	f["srv_A"].agent = hooked{Agent: plain, before: func(resource.Step) { f["srv_B"].online.Store(false) }}
 	defer func() { f["srv_A"].agent = plain }()
 	onB.Spec.(*resourcev1.Container).Image = "nginx:1.28"
-	p := propose(t, e, "Open http and upgrade web", rule("srv_A", "http", 80), onB)
+	p := propose(t, e, "Open http and upgrade web", onA(), onB)
 	var failed *FailedError
 	if err := e.Apply(t.Context(), p.Change); !errors.As(err, &failed) || !errors.Is(failed.RollbackErr, ErrPending) {
 		t.Fatalf("apply as srv_B drops = %v, want it failed, with a rollback that waits for srv_B", err)
@@ -501,7 +501,7 @@ func testARollbackIsNeverLeftPlanned(t *testing.T, backend store.Backend) {
 	}
 	onB := web("nginx:1.27")
 	onB.Ref.Scope = "srv_B"
-	p := propose(t, e, "Open http and run web", rule("srv_A", "http", 80), onB)
+	p := propose(t, e, "Open http and run web", onA(), onB)
 	var failed *FailedError
 	if err := e.Apply(t.Context(), p.Change); !errors.As(err, &failed) || failed.Rollback == "" {
 		t.Fatalf("apply = %v, want it failed and rolled back", err)

@@ -6,6 +6,8 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { FirewallPolicy, FirewallRule } from "../resource/v1alpha1/specs_pb";
+import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
@@ -16,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/firewall.proto.
  */
 export const file_dockwell_v1_firewall: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9maXJld2FsbC5wcm90bxILZG9ja3dlbGwudjEiLQoYR2V0U2VydmVyRmlyZXdhbGxSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJKChlHZXRTZXJ2ZXJGaXJld2FsbFJlc3BvbnNlEi0KCGZpcmV3YWxsGAEgASgLMhsuZG9ja3dlbGwudjEuU2VydmVyRmlyZXdhbGwi+gEKDlNlcnZlckZpcmV3YWxsEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEigKBXRvb2xzGAIgAygLMhkuZG9ja3dlbGwudjEuRmlyZXdhbGxUb29sEi0KCXB1Ymxpc2hlZBgDIAMoCzIaLmRvY2t3ZWxsLnYxLlB1Ymxpc2hlZFBvcnQSLAoJbGlzdGVuaW5nGAQgAygLMhkuZG9ja3dlbGwudjEuSG9zdExpc3RlbmVyEhwKFHB1Ymxpc2hlZF91bnJlYWRhYmxlGAUgASgJEhkKEWRvY2tlcl91c2VyX3J1bGVzGAYgASgNIugBCgxIb3N0TGlzdGVuZXISDwoHYWRkcmVzcxgBIAEoCRIMCgRwb3J0GAIgASgNEhAKCHByb3RvY29sGAMgASgJEikKBXJlYWNoGAQgASgOMhouZG9ja3dlbGwudjEuTGlzdGVuZXJSZWFjaBISCgpkZWNpZGVkX2J5GAUgASgJEg8KB3NvdXJjZXMYBiADKAkSEgoKaW50ZXJmYWNlcxgHIAMoCRIwCgZyZWFzb24YCCABKA4yIC5kb2Nrd2VsbC52MS5MaXN0ZW5lclJlYWNoUmVhc29uEhEKCWlwdjZfb25seRgJIAEoCCL5AgoMRmlyZXdhbGxUb29sEisKBGtpbmQYASABKA4yHS5kb2Nrd2VsbC52MS5GaXJld2FsbFRvb2xLaW5kEgwKBG5hbWUYAiABKAkSDgoGYWN0aXZlGAMgASgIEjUKD2RlZmF1bHRfaW5ib3VuZBgEIAEoDjIcLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVmVyZGljdBIsCgVydWxlcxgFIAMoCzIdLmRvY2t3ZWxsLnYxLkZpcmV3YWxsU2VlblJ1bGUSDQoFb3RoZXIYBiADKAkSEgoKcnVsZV9jb3VudBgHIAEoDRISCgp1bnJlYWRhYmxlGAggASgJEhIKCmludGVyZmFjZXMYCSADKAkSDwoHc291cmNlcxgKIAMoCRIUCgxkZWZhdWx0X3pvbmUYCyABKAgSMgoMaW5wdXRfcG9saWN5GAwgASgOMhwuZG9ja3dlbGwudjEuRmlyZXdhbGxWZXJkaWN0EhMKC2lucHV0X3J1bGVzGA0gASgNIrMBChBGaXJld2FsbFNlZW5SdWxlEi0KB3ZlcmRpY3QYASABKA4yHC5kb2Nrd2VsbC52MS5GaXJld2FsbFZlcmRpY3QSDAoEcG9ydBgCIAEoCRIOCgZzb3VyY2UYAyABKAkSDAoEaXB2NhgEIAEoCBIPCgdjb21tZW50GAUgASgJEgsKA2FwcBgGIAEoCRIRCglpbnRlcmZhY2UYByABKAkSEwoLZGVzdGluYXRpb24YCCABKAkigQEKDVB1Ymxpc2hlZFBvcnQSEQoJY29udGFpbmVyGAEgASgJEg8KB2hvc3RfaXAYAiABKAkSEQoJaG9zdF9wb3J0GAMgASgNEhAKCHByb3RvY29sGAQgASgJEhYKDmNvbnRhaW5lcl9wb3J0GAUgASgNEg8KB3Byb3hpZWQYBiABKAgqswMKE0xpc3RlbmVyUmVhY2hSZWFzb24SJQohTElTVEVORVJfUkVBQ0hfUkVBU09OX1VOU1BFQ0lGSUVEEAASJQohTElTVEVORVJfUkVBQ0hfUkVBU09OX0FQUF9QUk9GSUxFEAESIQodTElTVEVORVJfUkVBQ0hfUkVBU09OX1NFUlZJQ0UQAhIjCh9MSVNURU5FUl9SRUFDSF9SRUFTT05fUklDSF9SVUxFEAMSIwofTElTVEVORVJfUkVBQ0hfUkVBU09OX0lOVEVSRkFDRRAEEiUKIUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9ERVNUSU5BVElPThAFEh8KG0xJU1RFTkVSX1JFQUNIX1JFQVNPTl9aT05FUxAGEiQKIExJU1RFTkVSX1JFQUNIX1JFQVNPTl9VTlJFQURBQkxFEAcSJQohTElTVEVORVJfUkVBQ0hfUkVBU09OX09USEVSX1JVTEVTEAgSKAokTElTVEVORVJfUkVBQ0hfUkVBU09OX0RPQ0tFUl9VTktOT1dOEAkSIgoeTElTVEVORVJfUkVBQ0hfUkVBU09OX0JVSUxUX0lOEAoqmAEKDUxpc3RlbmVyUmVhY2gSHgoaTElTVEVORVJfUkVBQ0hfVU5TUEVDSUZJRUQQABIXChNMSVNURU5FUl9SRUFDSF9PUEVOEAESFwoTTElTVEVORVJfUkVBQ0hfU09NRRACEhkKFUxJU1RFTkVSX1JFQUNIX0NMT1NFRBADEhoKFkxJU1RFTkVSX1JFQUNIX1VOS05PV04QBCreAQoQRmlyZXdhbGxUb29sS2luZBIiCh5GSVJFV0FMTF9UT09MX0tJTkRfVU5TUEVDSUZJRUQQABIaChZGSVJFV0FMTF9UT09MX0tJTkRfVUZXEAESIAocRklSRVdBTExfVE9PTF9LSU5EX0ZJUkVXQUxMRBACEh8KG0ZJUkVXQUxMX1RPT0xfS0lORF9ORlRBQkxFUxADEiYKIkZJUkVXQUxMX1RPT0xfS0lORF9JUFRBQkxFU19MRUdBQ1kQBBIfChtGSVJFV0FMTF9UT09MX0tJTkRfSVBUQUJMRVMQBSqjAQoPRmlyZXdhbGxWZXJkaWN0EiAKHEZJUkVXQUxMX1ZFUkRJQ1RfVU5TUEVDSUZJRUQQABIaChZGSVJFV0FMTF9WRVJESUNUX0FMTE9XEAESGQoVRklSRVdBTExfVkVSRElDVF9ERU5ZEAISGwoXRklSRVdBTExfVkVSRElDVF9SRUpFQ1QQAxIaChZGSVJFV0FMTF9WRVJESUNUX0xJTUlUEAQyxgEKD0ZpcmV3YWxsU2VydmljZRKyAQoRR2V0U2VydmVyRmlyZXdhbGwSJS5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJGaXJld2FsbFJlcXVlc3QaJi5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJGaXJld2FsbFJlc3BvbnNlIk6QAgGguxgBqrsYDwoIZmlyZXdhbGwSA2dldMC7GATIuxgE0LsYBoLT5JMCIhIgL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlyZXdhbGxCpgEKD2NvbS5kb2Nrd2VsbC52MUINRmlyZXdhbGxQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9maXJld2FsbC5wcm90bxILZG9ja3dlbGwudjEiLQoYR2V0U2VydmVyRmlyZXdhbGxSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJWChlHZXRTZXJ2ZXJGaXJld2FsbFJlc3BvbnNlEi0KCGZpcmV3YWxsGAEgASgLMhsuZG9ja3dlbGwudjEuU2VydmVyRmlyZXdhbGxKBAgCEANKBAgDEAQiXAoURG9ja3dlbGxGaXJld2FsbFJ1bGUSDAoEbmFtZRgBIAEoCRI2CgRydWxlGAIgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxSdWxlIqgCCg5TZXJ2ZXJGaXJld2FsbBIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIoCgV0b29scxgCIAMoCzIZLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVG9vbBItCglwdWJsaXNoZWQYAyADKAsyGi5kb2Nrd2VsbC52MS5QdWJsaXNoZWRQb3J0EiwKCWxpc3RlbmluZxgEIAMoCzIZLmRvY2t3ZWxsLnYxLkhvc3RMaXN0ZW5lchIcChRwdWJsaXNoZWRfdW5yZWFkYWJsZRgFIAEoCRIZChFkb2NrZXJfdXNlcl9ydWxlcxgGIAEoDRIsCghkb2Nrd2VsbBgHIAEoCzIaLmRvY2t3ZWxsLnYxLkRvY2t3ZWxsVGFibGUipQIKDURvY2t3ZWxsVGFibGUSEAoIdW51c2FibGUYASABKAkSMAoFcnVsZXMYAiADKAsyIS5kb2Nrd2VsbC52MS5Eb2Nrd2VsbEZpcmV3YWxsUnVsZRI6CgZwb2xpY3kYAyABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFBvbGljeRIWCg53YWl0aW5nX2NoYW5nZRgEIAEoCRI4Cg13YWl0aW5nX3J1bGVzGAUgAygLMiEuZG9ja3dlbGwudjEuRG9ja3dlbGxGaXJld2FsbFJ1bGUSQgoOd2FpdGluZ19wb2xpY3kYBiABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFBvbGljeSLoAQoMSG9zdExpc3RlbmVyEg8KB2FkZHJlc3MYASABKAkSDAoEcG9ydBgCIAEoDRIQCghwcm90b2NvbBgDIAEoCRIpCgVyZWFjaBgEIAEoDjIaLmRvY2t3ZWxsLnYxLkxpc3RlbmVyUmVhY2gSEgoKZGVjaWRlZF9ieRgFIAEoCRIPCgdzb3VyY2VzGAYgAygJEhIKCmludGVyZmFjZXMYByADKAkSMAoGcmVhc29uGAggASgOMiAuZG9ja3dlbGwudjEuTGlzdGVuZXJSZWFjaFJlYXNvbhIRCglpcHY2X29ubHkYCSABKAgi+QIKDEZpcmV3YWxsVG9vbBIrCgRraW5kGAEgASgOMh0uZG9ja3dlbGwudjEuRmlyZXdhbGxUb29sS2luZBIMCgRuYW1lGAIgASgJEg4KBmFjdGl2ZRgDIAEoCBI1Cg9kZWZhdWx0X2luYm91bmQYBCABKA4yHC5kb2Nrd2VsbC52MS5GaXJld2FsbFZlcmRpY3QSLAoFcnVsZXMYBSADKAsyHS5kb2Nrd2VsbC52MS5GaXJld2FsbFNlZW5SdWxlEg0KBW90aGVyGAYgAygJEhIKCnJ1bGVfY291bnQYByABKA0SEgoKdW5yZWFkYWJsZRgIIAEoCRISCgppbnRlcmZhY2VzGAkgAygJEg8KB3NvdXJjZXMYCiADKAkSFAoMZGVmYXVsdF96b25lGAsgASgIEjIKDGlucHV0X3BvbGljeRgMIAEoDjIcLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVmVyZGljdBITCgtpbnB1dF9ydWxlcxgNIAEoDSKzAQoQRmlyZXdhbGxTZWVuUnVsZRItCgd2ZXJkaWN0GAEgASgOMhwuZG9ja3dlbGwudjEuRmlyZXdhbGxWZXJkaWN0EgwKBHBvcnQYAiABKAkSDgoGc291cmNlGAMgASgJEgwKBGlwdjYYBCABKAgSDwoHY29tbWVudBgFIAEoCRILCgNhcHAYBiABKAkSEQoJaW50ZXJmYWNlGAcgASgJEhMKC2Rlc3RpbmF0aW9uGAggASgJIoEBCg1QdWJsaXNoZWRQb3J0EhEKCWNvbnRhaW5lchgBIAEoCRIPCgdob3N0X2lwGAIgASgJEhEKCWhvc3RfcG9ydBgDIAEoDRIQCghwcm90b2NvbBgEIAEoCRIWCg5jb250YWluZXJfcG9ydBgFIAEoDRIPCgdwcm94aWVkGAYgASgIKrMDChNMaXN0ZW5lclJlYWNoUmVhc29uEiUKIUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9VTlNQRUNJRklFRBAAEiUKIUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9BUFBfUFJPRklMRRABEiEKHUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9TRVJWSUNFEAISIwofTElTVEVORVJfUkVBQ0hfUkVBU09OX1JJQ0hfUlVMRRADEiMKH0xJU1RFTkVSX1JFQUNIX1JFQVNPTl9JTlRFUkZBQ0UQBBIlCiFMSVNURU5FUl9SRUFDSF9SRUFTT05fREVTVElOQVRJT04QBRIfChtMSVNURU5FUl9SRUFDSF9SRUFTT05fWk9ORVMQBhIkCiBMSVNURU5FUl9SRUFDSF9SRUFTT05fVU5SRUFEQUJMRRAHEiUKIUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9PVEhFUl9SVUxFUxAIEigKJExJU1RFTkVSX1JFQUNIX1JFQVNPTl9ET0NLRVJfVU5LTk9XThAJEiIKHkxJU1RFTkVSX1JFQUNIX1JFQVNPTl9CVUlMVF9JThAKKpgBCg1MaXN0ZW5lclJlYWNoEh4KGkxJU1RFTkVSX1JFQUNIX1VOU1BFQ0lGSUVEEAASFwoTTElTVEVORVJfUkVBQ0hfT1BFThABEhcKE0xJU1RFTkVSX1JFQUNIX1NPTUUQAhIZChVMSVNURU5FUl9SRUFDSF9DTE9TRUQQAxIaChZMSVNURU5FUl9SRUFDSF9VTktOT1dOEAQq3gEKEEZpcmV3YWxsVG9vbEtpbmQSIgoeRklSRVdBTExfVE9PTF9LSU5EX1VOU1BFQ0lGSUVEEAASGgoWRklSRVdBTExfVE9PTF9LSU5EX1VGVxABEiAKHEZJUkVXQUxMX1RPT0xfS0lORF9GSVJFV0FMTEQQAhIfChtGSVJFV0FMTF9UT09MX0tJTkRfTkZUQUJMRVMQAxImCiJGSVJFV0FMTF9UT09MX0tJTkRfSVBUQUJMRVNfTEVHQUNZEAQSHwobRklSRVdBTExfVE9PTF9LSU5EX0lQVEFCTEVTEAUqowEKD0ZpcmV3YWxsVmVyZGljdBIgChxGSVJFV0FMTF9WRVJESUNUX1VOU1BFQ0lGSUVEEAASGgoWRklSRVdBTExfVkVSRElDVF9BTExPVxABEhkKFUZJUkVXQUxMX1ZFUkRJQ1RfREVOWRACEhsKF0ZJUkVXQUxMX1ZFUkRJQ1RfUkVKRUNUEAMSGgoWRklSRVdBTExfVkVSRElDVF9MSU1JVBAEMsYBCg9GaXJld2FsbFNlcnZpY2USsgEKEUdldFNlcnZlckZpcmV3YWxsEiUuZG9ja3dlbGwudjEuR2V0U2VydmVyRmlyZXdhbGxSZXF1ZXN0GiYuZG9ja3dlbGwudjEuR2V0U2VydmVyRmlyZXdhbGxSZXNwb25zZSJOkAIBoLsYAaq7GA8KCGZpcmV3YWxsEgNnZXTAuxgEyLsYBNC7GAaC0+STAiISIC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpcmV3YWxsQqYBCg9jb20uZG9ja3dlbGwudjFCDUZpcmV3YWxsUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * GetServerFirewallRequest names a server.
@@ -46,7 +48,7 @@ export const GetServerFirewallRequestSchema: GenMessage<GetServerFirewallRequest
  */
 export type GetServerFirewallResponse = Message<"dockwell.v1.GetServerFirewallResponse"> & {
   /**
-   * The firewall, as the agent read it.
+   * The firewall, as the agent read it, Dockwell's own with the rest.
    *
    * @generated from field: dockwell.v1.ServerFirewall firewall = 1;
    */
@@ -59,6 +61,34 @@ export type GetServerFirewallResponse = Message<"dockwell.v1.GetServerFirewallRe
  */
 export const GetServerFirewallResponseSchema: GenMessage<GetServerFirewallResponse> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_firewall, 1);
+
+/**
+ * DockwellFirewallRule is one of Dockwell's own rules for a server.
+ *
+ * @generated from message dockwell.v1.DockwellFirewallRule
+ */
+export type DockwellFirewallRule = Message<"dockwell.v1.DockwellFirewallRule"> & {
+  /**
+   * Its name, as the firewall.rule resource has it.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * The rule.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.FirewallRule rule = 2;
+   */
+  rule?: FirewallRule | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.DockwellFirewallRule.
+ * Use `create(DockwellFirewallRuleSchema)` to create a new message.
+ */
+export const DockwellFirewallRuleSchema: GenMessage<DockwellFirewallRule> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 2);
 
 /**
  * ServerFirewall is what filters a server's inbound traffic, as its agent read it.
@@ -114,6 +144,15 @@ export type ServerFirewall = Message<"dockwell.v1.ServerFirewall"> & {
    * @generated from field: uint32 docker_user_rules = 6;
    */
   dockerUserRules: number;
+
+  /**
+   * Dockwell's own firewall, as the agent holds it: what was confirmed, and a
+   * change that waits for its confirmation. Its table counts in how far what
+   * listens reaches, as the others' do. Unset from an agent too old to say.
+   *
+   * @generated from field: dockwell.v1.DockwellTable dockwell = 7;
+   */
+  dockwell?: DockwellTable | undefined;
 };
 
 /**
@@ -121,7 +160,68 @@ export type ServerFirewall = Message<"dockwell.v1.ServerFirewall"> & {
  * Use `create(ServerFirewallSchema)` to create a new message.
  */
 export const ServerFirewallSchema: GenMessage<ServerFirewall> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_firewall, 2);
+  messageDesc(file_dockwell_v1_firewall, 3);
+
+/**
+ * DockwellTable is Dockwell's own firewall on a server, as its agent holds it
+ * (ADR 0052).
+ *
+ * @generated from message dockwell.v1.DockwellTable
+ */
+export type DockwellTable = Message<"dockwell.v1.DockwellTable"> & {
+  /**
+   * Why the server can't hold Dockwell's firewall, such as that it has no nft,
+   * so no rule or policy can be planned for it. Empty when it can.
+   *
+   * @generated from field: string unusable = 1;
+   */
+  unusable: string;
+
+  /**
+   * Its rules as last confirmed, which the server keeps, by name. Each is a
+   * firewall.rule resource in the server's scope, which a change edits.
+   *
+   * @generated from field: repeated dockwell.v1.DockwellFirewallRule rules = 2;
+   */
+  rules: DockwellFirewallRule[];
+
+  /**
+   * Its policy as last confirmed: what it does with what no rule lets in.
+   * Unset when it has none, which lets in what no rule drops.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.FirewallPolicy policy = 3;
+   */
+  policy?: FirewallPolicy | undefined;
+
+  /**
+   * The change that waits for its confirmation now, if one does. Its rules and
+   * policy are loaded, and go back unless it's kept.
+   *
+   * @generated from field: string waiting_change = 4;
+   */
+  waitingChange: string;
+
+  /**
+   * The rules as that change leaves them, by name.
+   *
+   * @generated from field: repeated dockwell.v1.DockwellFirewallRule waiting_rules = 5;
+   */
+  waitingRules: DockwellFirewallRule[];
+
+  /**
+   * The policy as that change leaves it. Unset when it leaves none.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.FirewallPolicy waiting_policy = 6;
+   */
+  waitingPolicy?: FirewallPolicy | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.DockwellTable.
+ * Use `create(DockwellTableSchema)` to create a new message.
+ */
+export const DockwellTableSchema: GenMessage<DockwellTable> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 4);
 
 /**
  * HostListener is a port something on the server listens on, beyond loopback.
@@ -201,7 +301,7 @@ export type HostListener = Message<"dockwell.v1.HostListener"> & {
  * Use `create(HostListenerSchema)` to create a new message.
  */
 export const HostListenerSchema: GenMessage<HostListener> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_firewall, 3);
+  messageDesc(file_dockwell_v1_firewall, 5);
 
 /**
  * FirewallTool is one firewall on a server, and what it does.
@@ -314,7 +414,7 @@ export type FirewallTool = Message<"dockwell.v1.FirewallTool"> & {
  * Use `create(FirewallToolSchema)` to create a new message.
  */
 export const FirewallToolSchema: GenMessage<FirewallTool> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_firewall, 4);
+  messageDesc(file_dockwell_v1_firewall, 6);
 
 /**
  * FirewallSeenRule is one rule of a firewall Dockwell didn't make.
@@ -386,7 +486,7 @@ export type FirewallSeenRule = Message<"dockwell.v1.FirewallSeenRule"> & {
  * Use `create(FirewallSeenRuleSchema)` to create a new message.
  */
 export const FirewallSeenRuleSchema: GenMessage<FirewallSeenRule> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_firewall, 5);
+  messageDesc(file_dockwell_v1_firewall, 7);
 
 /**
  * PublishedPort is a port Docker publishes on the server for a container.
@@ -444,7 +544,7 @@ export type PublishedPort = Message<"dockwell.v1.PublishedPort"> & {
  * Use `create(PublishedPortSchema)` to create a new message.
  */
 export const PublishedPortSchema: GenMessage<PublishedPort> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_firewall, 6);
+  messageDesc(file_dockwell_v1_firewall, 8);
 
 /**
  * ListenerReachReason is why a listener reaches as far as it does.

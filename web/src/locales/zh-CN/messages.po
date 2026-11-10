@@ -4892,6 +4892,9 @@ msgstr "如果失败，每个应用都会回滚到当前运行的版本"
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "此计划要求的一切都已就绪，没有需要应用的内容。"
 
+msgid "If you close this without keeping it, the change goes back on its own."
+msgstr "如果你不保留就关闭，这项更改会自动撤回。"
+
 msgid "In environment <0>{environment}</0>"
 msgstr "位于环境 <0>{environment}</0>"
 
@@ -5116,6 +5119,51 @@ msgstr "{subject} 已接管"
 
 msgid "{verb} {name}"
 msgstr "{verb} {name}"
+
+msgid "{where} denies everything else"
+msgstr "{where} 拒绝其他一切流量"
+
+msgid "{where} lets in what no rule drops"
+msgstr "{where} 放行没有规则丢弃的流量"
+
+msgid "Check you can still reach {name}"
+msgstr "确认你仍能访问 {name}"
+
+msgid "Keep the change"
+msgstr "保留更改"
+
+msgid "Once kept, SSH stays open only from {from}. If your address changes, it closes to you: add a rule that allows SSH's port from where you'll come."
+msgstr "保留后，SSH 只对 {from} 开放。如果你的地址变了，SSH 就会对你关闭：请添加一条规则，允许你今后来源的地址访问 SSH 端口。"
+
+msgid "Only the person who applied this change can keep it, from where they applied it."
+msgstr "只有应用这项更改的人，在应用它的会话中，才能保留它。"
+
+msgid "Open a new SSH session from where you are now, with your key. If it works, keep the change."
+msgstr "从你现在所在的位置，用你的密钥打开一个新的 SSH 会话。如果能连上，就保留更改。"
+
+msgid "Open a new SSH session to port {portList} from where you are now, with your key. If it works, keep the change."
+msgstr "从你现在所在的位置，用你的密钥打开一个连到端口 {portList} 的新 SSH 会话。如果能连上，就保留更改。"
+
+msgid "Open a new SSH session to port {port} from where you are now, with your key. If it works, keep the change."
+msgstr "从你现在所在的位置，用你的密钥向端口 {port} 打开一个新的 SSH 会话。如果能连上，就保留这项更改。"
+
+msgid "That wait is over: the server kept the change, or put back its firewall. The change goes on as this sheet shows."
+msgstr "这次等待已经结束：服务器保留了更改，或已恢复它的防火墙。更改会按此面板所示继续。"
+
+msgid "Then open the panel in a new tab, at its own address. If that works too, keep the change."
+msgstr "然后在新标签页中用面板自己的地址打开面板。如果也能打开，再保留此更改。"
+
+msgid "or"
+msgstr "或"
+
+msgid "{name} is putting back its firewall as it was."
+msgstr "{name} 正在把防火墙恢复为原样。"
+
+msgid "{name} puts back its firewall as it was in {left} s unless you keep it."
+msgstr "除非你保留这项更改，{name} 将在 {left} 秒后把防火墙恢复为原样。"
+
+msgid "{name}'s agent isn't connected, so it can't hear a confirmation. It puts back its firewall as it was on its own when its time runs out."
+msgstr "{name} 的代理没有连接，因此收不到确认。时间用完后，它会自行把防火墙恢复原样。"
 
 msgid "Details"
 msgstr "详细信息"
@@ -5487,6 +5535,13 @@ msgstr "能读取此应用的任何人都能看到它。只有变量的值会被
 msgid "Check that you have another way in, such as your provider's console, before you apply it."
 msgstr "应用前，请确认你还有其他登录途径，例如服务商的控制台。"
 
+#. placeholder {0}: server.serverName
+msgid "Deny everything else closes what no rule lets in on {0}"
+msgstr "拒绝其他一切流量会关闭 {0} 上没有规则放行的端口"
+
+msgid "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up. Keep a rule that allows the tunnel's UDP port."
+msgstr "“拒绝其他所有流量”会丢弃隧道的下一次握手，经隧道的 SSH 也随之中断，尽管隧道连通时测试仍会通过。请保留一条允许隧道 UDP 端口的规则。"
+
 msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "该网络不是 Dockwell 创建的，并且可以绕过服务器的防火墙。网络上的其他内容（包括其他项目的服务）都能访问 {name}，它也能访问它们。"
 
@@ -5510,6 +5565,9 @@ msgstr "文件在读取时发生了变化，因此可能包含写到一半的内
 
 msgid "If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that."
 msgstr "如果备份失败，升级会就此停止，不做其他操作。撤销会恢复旧版本，但不会恢复新版本对数据的改动：如需恢复数据，请恢复备份。"
+
+msgid "If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later. To keep it open from more, add a rule that allows port {ports} first, from where you choose."
+msgstr "如果你的地址不在其中，或以后不再是其中之一，SSH 就会对你关闭，而且之后没有计时器能发现这一点。要对更多地址开放，请先添加一条规则，允许你选择的来源访问端口 {ports}。"
 
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "如果回滚 {name}，{names} 会保持原样：新版本写入的内容不会被撤销。"
@@ -5589,6 +5647,10 @@ msgstr "升级前不会创建备份"
 msgid "No backup was taken, and the data stays as it is now"
 msgstr "没有做过备份,数据保持现状"
 
+#. placeholder {0}: server.serverName
+msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
+msgstr "{0} 上没有规则允许 WireGuard 隧道 {tunnels}"
+
 msgid "Pulls {image} again, and replaces {name} only if that's a newer image."
 msgstr "将重新拉取 {image}，只有镜像更新时才会替换 {name}。"
 
@@ -5603,6 +5665,14 @@ msgstr "在向其中传入密钥之前，请先阅读文件中的其余部分。
 
 msgid "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
 msgstr "修订版本 {revision} 在各服务器上运行的 {image} 镜像不同，因此 {name} 将运行 {image} 当前指向的镜像"
+
+#. placeholder {0}: server.serverName
+msgid "SSH on {0} stays open from nowhere"
+msgstr "{0} 上的 SSH 不再对任何地址开放"
+
+#. placeholder {0}: server.serverName
+msgid "SSH on {0} stays open only from {from}"
+msgstr "{0} 上的 SSH 只对 {from} 开放"
 
 msgid "Something may still manage {container}"
 msgstr "可能还有其他工具在管理 {container}"
@@ -5654,6 +5724,9 @@ msgstr "服务器的安全取决于它能访问的内容，所以这相当于拥
 
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 msgstr "修订版本 {revision} 运行的 {image}（{digest}）已不在服务器上，其镜像仓库也不提供，因此 {name} 将运行 {image} 当前指向的镜像"
+
+msgid "These ports listen, or Docker publishes them, and no rule lets them in from anywhere: {closes}. SSH stays open as this plan says, and on the control server its own ports stay open."
+msgstr "这些端口正在监听，或由 Docker 发布，且没有规则允许任意来源访问：{closes}。SSH 按此计划所述保持开放，控制服务器自身的端口也保持开放。"
 
 msgid "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
 msgstr "它们在 {name} 运行的环境中运行，因此在服务器上也能访问它能访问的内容：{list}。"
@@ -8455,6 +8528,9 @@ msgstr "Docker 会在 ufw 或 firewalld 的规则看到之前把这些流量转�
 msgid "Dockwell can't read {0}'s firewall"
 msgstr "Dockwell 无法读取 {0} 的防火墙"
 
+msgid "Dockwell's rules cover these too, as Docker forwards them: with deny everything else on, only a port a rule of Dockwell's allows reaches its container."
+msgstr "Docker 转发这些端口时，Dockwell 的规则同样覆盖它们：开启拒绝其他一切流量后，只有 Dockwell 规则放行的端口能到达其容器。"
+
 msgid "Every IPv4 address"
 msgstr "所有 IPv4 地址"
 
@@ -8503,6 +8579,10 @@ msgstr "没有任何东西过滤进入 {0} 的流量：它没有能起作用的 
 
 msgid "On · read-only, as Dockwell didn't make it"
 msgstr "已启用 · 只读，因为不是 Dockwell 创建的"
+
+#. placeholder {0}: server.name
+msgid "Only Dockwell's rules filter what comes in to {0}: it has no ufw, firewalld or other nftables or iptables rules of its own."
+msgstr "只有 Dockwell 的规则过滤进入 {0} 的流量：它自己没有 ufw、firewalld 或其他 nftables、iptables 规则。"
 
 msgid "Only from {sources}, as {by} says"
 msgstr "仅限来自 {sources}，按 {by} 的规则"
@@ -8621,6 +8701,93 @@ msgstr "{count}，其中 {input} 作用于入站流量。"
 
 msgid "{count}. Its input chain drops what no rule lets in."
 msgstr "{count}。其 input 链会丢弃没有规则放行的流量。"
+
+msgid "A change to this firewall waits for you to keep it, so nothing else here changes until it's kept or {name} puts it back."
+msgstr "此防火墙有一项更改正等待你保留，因此在它被保留或 {name} 将其恢复之前，这里的其他内容都不会更改。"
+
+msgid "Add a rule"
+msgstr "添加规则"
+
+#. placeholder {0}: server.name
+msgid "Add a rule to {0}"
+msgstr "为 {0} 添加规则"
+
+msgid "Addresses or ranges, such as 203.0.113.0/24, separated by commas. Empty is anywhere."
+msgstr "地址或范围，例如 203.0.113.0/24，用逗号分隔。留空表示任意来源。"
+
+msgid "Allow {n}/{protocol} on {serverName}"
+msgstr "在 {serverName} 上允许 {n}/{protocol}"
+
+msgid "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, everything they'd drop gets in. Nothing is lost, and nobody is locked out."
+msgstr "{name} 启动时，这些规则会关闭，直到几秒后它的代理启动并重新加载它们：在这几秒里，它们本会丢弃的一切流量都能进入。不会丢失任何内容，也不会有人被锁在外面。"
+
+msgid "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, what they deny gets in. Nothing is lost, and nobody is locked out."
+msgstr "{name} 启动时，这些规则会关闭，直到几秒后它的代理启动并重新加载它们：在这几秒里，它们拒绝的流量能进入。不会丢失任何内容，也不会有人被锁在外面。"
+
+msgid "Change waiting for Keep"
+msgstr "更改等待保留"
+
+msgid "Deny everything else"
+msgstr "拒绝其他一切流量"
+
+msgid "Deny everything else on {name}"
+msgstr "在 {name} 上拒绝其他一切流量"
+
+msgid "Deny everything else, waiting for Keep"
+msgstr "拒绝其他一切流量，等待保留"
+
+msgid "Deny {n}/{protocol} on {serverName}"
+msgstr "在 {serverName} 上拒绝 {n}/{protocol}"
+
+msgid "Dockwell has no rules for {name} yet. What comes in is as the server's own firewall leaves it."
+msgstr "Dockwell 还没有为 {name} 设置规则。入站流量取决于服务器自己的防火墙。"
+
+msgid "Dockwell has no rules for {name}, and denies everything else: only connections already open, SSH from the addresses it keeps, and on the control server its own ports, get in."
+msgstr "Dockwell 没有为 {name} 设置规则，并拒绝其他一切流量：只有已建立的连接、来自它保留的地址的 SSH，以及控制服务器上它自己的端口能进入。"
+
+msgid "Dockwell's rules"
+msgstr "Dockwell 的规则"
+
+msgid "Drops what no rule lets in. Connections already open, SSH from where people come in now, and on the control server its own ports, stay let in."
+msgstr "丢弃没有规则放行的流量。已建立的连接、来自当前登录来源的 SSH，以及控制服务器上它自己的端口，仍然放行。"
+
+msgid "It applies as a plan, and stays only once you confirm you can still reach the server"
+msgstr "它以计划的形式应用，只有在你确认仍能访问服务器后才会保留"
+
+msgid "Let in what no rule drops on {name}"
+msgstr "在 {name} 上放行没有规则丢弃的流量"
+
+msgid "Name a port from 1 to 65535, such as 443."
+msgstr "请填写 1 到 65535 之间的端口，例如 443。"
+
+msgid "Nothing listens"
+msgstr "没有监听"
+
+msgid "Plan it"
+msgstr "生成计划"
+
+msgid "Removal waiting for Keep"
+msgstr "移除等待保留"
+
+#. placeholder {0}: row.id
+msgid "Remove the rule {0}"
+msgstr "移除规则 {0}"
+
+#. placeholder {0}: rule.name
+msgid "Remove the rule {0} from {name}"
+msgstr "从 {name} 移除规则 {0}"
+
+msgid "The server itself"
+msgstr "服务器本身"
+
+msgid "Waiting for Keep"
+msgstr "等待保留"
+
+msgid "Why the rule is there, shown beside it."
+msgstr "说明这条规则的用途，显示在它旁边。"
+
+msgid "{name} can't hold Dockwell's firewall, so no rule or policy can be planned for it: {why}"
+msgstr "{name} 无法承载 Dockwell 的防火墙，因此无法为它规划任何规则或策略：{why}"
 
 msgid "Loading servers"
 msgstr "正在加载服务器"

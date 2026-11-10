@@ -4,6 +4,7 @@ package nftables
 
 import (
 	"net/netip"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -38,7 +39,6 @@ table inet dockwell {
 	chain input {
 		type filter hook input priority filter; policy accept;
 		ct state established,related accept
-		ct state invalid drop
 		iifname "lo" accept
 		icmp type { destination-unreachable, time-exceeded, parameter-problem } accept
 		icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept
@@ -87,6 +87,14 @@ func TestScriptWithNoPolicyAndNoDocker(t *testing.T) {
 	if !strings.Contains(got, "\t\tct status dnat jump published\n") {
 		t.Errorf("script doesn't send every translated packet to its rules:\n%s", got)
 	}
+	// With no Docker on the server, nothing it forwards is a published port.
+	none, err := Table{Denies: []Rule{{Name: "rule x", Protocol: "tcp", Ports: []uint16{3306}}}, NoDocker: true}.Script()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(none, "jump published") || !strings.Contains(none, "tcp dport 3306 drop") {
+		t.Errorf("with no Docker the script filters what the server forwards, or drops its rule:\n%s", none)
+	}
 }
 
 // An IPv4 address written as IPv6, as ::ffff:203.0.113.0/120, matches IPv4
@@ -126,7 +134,7 @@ func TestValidateRefusesWhatNftWouldMisread(t *testing.T) {
 // can't is left out and said, rather than refuse the whole table, which would
 // stop a rollback too (review of #306, finding 7).
 func TestInterfacesNftCantMatchAreSkipped(t *testing.T) {
-	table := Table{DockerInterfaces: []string{"br+lan", `br\lan`, "brücke", "docker0", `br"x`, "br\tx", "br*", "br-0123456789abcdef"}}
+	table := Table{DockerInterfaces: []string{"br+lan", `br\lan`, "brücke", "docker0", `br"x`, "br\tx", "br*", `br-x\`, "br-0123456789abcdef"}}
 	got, err := table.Script()
 	if err != nil {
 		t.Fatal(err)
@@ -134,10 +142,32 @@ func TestInterfacesNftCantMatchAreSkipped(t *testing.T) {
 	if !strings.Contains(got, `iifname { "br+lan", "br\lan", "brücke", "docker0" } accept`) {
 		t.Errorf("script:\n%s", got)
 	}
-	if skipped := table.Skipped(); strings.Join(skipped, "|") != `br"x|br`+"\t"+`x|br*|br-0123456789abcdef` {
+	if skipped := table.Skipped(); strings.Join(skipped, "|") != `br"x|br`+"\t"+`x|br*|br-x\|br-0123456789abcdef` {
 		t.Errorf("skipped %q", skipped)
 	}
 	if words := SkippedWords("br*"); !strings.Contains(words, "Rename its network's bridge") || !strings.Contains(words, "aren't filtered") {
 		t.Errorf("skipped words %q", words)
+	}
+}
+
+// isRuleName takes what the expression it was took, to the byte: its length is
+// checked apart from its form now (ADR 0060).
+func TestIsRuleNameTakesWhatItsExpressionTook(t *testing.T) {
+	was := regexp.MustCompile(`^[A-Za-z0-9 _.:/@-]{1,100}$`)
+	cases := []string{"", "rule web", "pin ssh", "rule a/b:c@d.e_f-g", `rule "x"`, "rule\nx", "rule\tx", "règle", "rule;x", "rule{x}", " "}
+	for _, n := range []int{1, 99, 100, 101, 400} {
+		cases = append(cases, strings.Repeat("a", n), strings.Repeat("a", n-1)+`"`, strings.Repeat(" ", n))
+	}
+	took := 0
+	for _, c := range cases {
+		if was.MatchString(c) {
+			took++
+		}
+		if got, want := isRuleName(c), was.MatchString(c); got != want {
+			t.Errorf("%q (%d bytes): the check says %v, the expression said %v", c, len(c), got, want)
+		}
+	}
+	if took == 0 || took == len(cases) {
+		t.Errorf("the expression took %d of %d cases, which tells nothing", took, len(cases))
 	}
 }

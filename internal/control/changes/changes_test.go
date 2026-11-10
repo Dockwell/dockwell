@@ -57,3 +57,23 @@ func TestAProjectResolvesAsTheScopeTreeDoes(t *testing.T) {
 		t.Errorf("the only project of two = %v, want a choice", err)
 	}
 }
+
+// What a server did with a confirmation reaches whoever sent it: kept is no
+// error; a change whose time ran out first rolled back, and says so; nothing
+// waiting is said apart.
+func TestAConfirmationSaysWhatTheServerDid(t *testing.T) {
+	if err := verdictError("chg_1", resource.AccessKept); err != nil {
+		t.Errorf("kept: %v", err)
+	}
+	for v, want := range map[resource.AccessVerdict]string{
+		resource.AccessRolledBack: "rolled_back",
+		resource.AccessNotWaiting: "not_waiting",
+		0:                         "not_waiting",
+	} {
+		err := verdictError("chg_1", v)
+		var cerr *connect.Error
+		if !errors.As(err, &cerr) || cerr.Code() != connect.CodeFailedPrecondition || cerr.Meta().Get(authapi.ReasonKey) != want {
+			t.Errorf("verdict %v: %v, want %s", v, err, want)
+		}
+	}
+}

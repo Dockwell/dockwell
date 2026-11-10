@@ -3251,7 +3251,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		return 1
 	}
 	slices.SortStableFunc(builds, func(a, b queued) int { return backupFirst(a) - backupFirst(b) })
-	queue := slices.Concat(builds, deletes)
+	queue := accessBetween(e, plan, builds, deletes, func(q queued) (string, resource.Kind) { return q.server, q.step.Ref.Kind })
 	digests := map[at]string{}
 
 	// A removed server takes no steps. What the change took off it is
@@ -3338,6 +3338,16 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		_, u := e.step(c.ID, q.index, StepWaiting, msg)
 		waits = append(waits, u)
 	}
+	// Each server's last step of a kind under the firewall's timer waits for the
+	// change's confirmation there, so one confirmation covers all of that
+	// server's steps (ADR 0052). A change to several servers waits on each in
+	// turn, as its steps run server by server.
+	lastAccess := map[string]int{}
+	for qi, q := range queue {
+		if e.guardsAccess(q.step.Ref.Kind) {
+			lastAccess[q.server] = qi
+		}
+	}
 	done := map[at]bool{}
 	for qi, q := range queue {
 		if e.isStopping() {
@@ -3371,11 +3381,15 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			told.Digest, told.Note, told.Untouched = cmp.Or(o.Digest, told.Digest), cmp.Or(told.Note, o.Note), told.Untouched || o.Untouched
 			told.Did = cmp.Or(o.Did, told.Did)
 			told.Backup = cmp.Or(o.Backup, told.Backup)
+			if o.Waits != nil {
+				e.awaits(c.ID, index, *o.Waits)
+			}
 			if o.Replacing {
 				e.pulledNewer(ctx, c.ID, items, it, q.server, o)
 			}
 		})
-		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c)})
+		last, guarded := lastAccess[q.server]
+		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c), LastAccess: guarded && last == qi})
 		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
 		called()
 		switch {
@@ -4241,6 +4255,19 @@ func (e *Engine) checkRestores(ctx context.Context, plan *Plan, items []item) er
 // deploy of one that started meanwhile would run on data that's being replaced.
 func (e *Engine) holdsToo(ctx context.Context, tx *store.Tx, items []item) ([]item, error) {
 	held := items
+	// A change to who reaches a server waits for its confirmation, and claims the
+	// server's access as it does, so only one waits there at a time: two that
+	// waited at once would each put back a firewall without the other's change
+	// when its timer ran out (ADR 0052).
+	claimed := map[string]bool{}
+	for i := range items {
+		server := items[i].ref.Scope
+		if !e.guardsAccess(items[i].ref.Kind) || claimed[server] {
+			continue
+		}
+		claimed[server] = true
+		held = append(held, item{id: "access " + server, ref: resource.Ref{Kind: "server.access", Scope: server, Name: "this server's firewall"}})
+	}
 	for i := range items {
 		if items[i].restore == nil {
 			continue
@@ -4255,6 +4282,75 @@ func (e *Engine) holdsToo(ctx context.Context, tx *store.Tx, items []item) ([]it
 		}
 	}
 	return held, nil
+}
+
+// accessBetween puts the steps of kinds under the firewall's timer after
+// every other build and before every other delete, each server's together, in
+// their order: a change waits on a server for its confirmation at its last
+// such step there, under a timer that starts at its first, so nothing else
+// runs while the timer does, neither a slow step of another kind nor another
+// server's wait (ADR 0052). Nothing is deleted before the wait, so a change
+// nobody confirms rolls back with everything it would have removed still
+// there. A rule depends on nothing, so where it runs in the change is free.
+func accessBetween[Q any](e *Engine, plan *Plan, builds, deletes []Q, of func(Q) (string, resource.Kind)) []Q {
+	var out, after []Q
+	access := map[string][]Q{}
+	for _, list := range []struct {
+		steps []Q
+		rest  *[]Q
+	}{{builds, &out}, {deletes, &after}} {
+		for _, q := range list.steps {
+			server, kind := of(q)
+			if e.guardsAccess(kind) {
+				access[server] = append(access[server], q)
+			} else {
+				*list.rest = append(*list.rest, q)
+			}
+		}
+	}
+	for _, server := range serversOf(plan) {
+		out = append(out, access[server]...)
+	}
+	return append(out, after...)
+}
+
+// TouchesAccess says whether a plan changes who reaches a server: it has a step
+// of a kind under the firewall's timer, so it waits for a confirmation, and
+// takes a person and a passkey to apply.
+func (e *Engine) TouchesAccess(p *Plan) bool {
+	return p != nil && slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return e.guardsAccess(r.Ref.Kind) })
+}
+
+// AccessConfirmer is an agent that can keep a change to its server's firewall
+// that waits for its confirmation.
+type AccessConfirmer interface {
+	ConfirmAccess(ctx context.Context, changeID string) (resource.AccessVerdict, error)
+}
+
+// ConfirmAccess confirms a change that waits on a server for its confirmation,
+// through that server's agent, and says what the agent did. With a deadline,
+// it confirms only the wait that has it, so a confirmation sent again can't
+// keep another.
+func (e *Engine) ConfirmAccess(ctx context.Context, changeID, server string, deadline time.Time) (resource.AccessVerdict, error) {
+	w := e.Awaiting(changeID, server)
+	if w == nil || !deadline.IsZero() && !deadline.Equal(w.Deadline) {
+		return resource.AccessNotWaiting, nil
+	}
+	agent, online := e.agents.Agent(server)
+	if !online {
+		return 0, fault.New(ErrOffline, "the server's agent isn't connected, so nothing can confirm the change there. Its timer puts back the firewall as it was")
+	}
+	confirmer, ok := agent.(AccessConfirmer)
+	if !ok {
+		return 0, errors.New("the server's agent can't confirm a change")
+	}
+	return confirmer.ConfirmAccess(ctx, changeID)
+}
+
+// guardsAccess says whether a kind applies under the firewall's timer.
+func (e *Engine) guardsAccess(kind resource.Kind) bool {
+	t, err := e.kinds.Type(kind)
+	return err == nil && resource.GuardsAccess(t)
 }
 
 // undoRestore plans putting back what a change's restore replaced, which is all

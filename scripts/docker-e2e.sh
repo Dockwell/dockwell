@@ -251,8 +251,29 @@ for _ in $(seq 300); do
   sleep 0.1
 done
 grep -q 'connected to the control plane' "$log" || fail "the control server's own agent didn't connect within 30 s"
-if grep -q "the agent can't run some kinds" "$log"; then
-  fail "the agent can't run the Docker kinds; is Docker running?"
+# The kinds this script deploys need Docker, so each has to be offered by now.
+# The agent says which kinds it can't run, and why, a line for each reason:
+# only one that names a Docker kind stops the run, and it's said with the
+# agent's own reason. The firewall's kinds and fail2ban's jails are left out
+# here by design: under DOCKWELL_TEST the agent runs no nft, so this job never
+# touches the runner's own firewall, and a runner has no fail2ban. What proves
+# them is the step "The table against real nftables" in CI's Go on Docker job,
+# which loads, keeps and reverts Dockwell's table in a network namespace of
+# its own (ADR 0052).
+docker_kinds='["container","network","route","service","volume"]'
+# cant_run FILTER lists the kinds the agent's log says it doesn't offer, with why, that FILTER takes.
+cant_run() {
+  { grep -E "the agent (can't run some kinds|offers some kinds only once)" "$log" || true; } |
+    jq -r --argjson want "$docker_kinds" "$1"' | "  \(.kinds | join(", ")): \(.reason)"'
+}
+# shellcheck disable=SC2016 # jq's own variables
+missing=$(cant_run 'select(any(.kinds[]; . as $k | $want | index($k)))') || fail "can't read which kinds the agent offers from its log"
+if [[ -n "$missing" ]]; then
+  # shellcheck disable=SC2016 # jq's own variables
+  others=$(cant_run 'select(all(.kinds[]; . as $k | $want | index($k) | not))') || others=""
+  [[ -z "$others" ]] || others=$(printf '\nIt also offers none of these, which this script has no need of:\n%s' "$others")
+  fail "the agent can't run a kind this script deploys:
+$missing$others"
 fi
 
 # Local access acts for the install's owner, so claim it first, with a

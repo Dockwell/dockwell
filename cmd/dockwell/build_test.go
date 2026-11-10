@@ -34,6 +34,7 @@ var agentPackages = []string{
 	"gen/dockwell/resource/v1alpha1",
 	"gen/dockwell/v1",
 	"internal/agent",
+	"internal/agent/access", // who reaches the server, under the firewall's timer (ADR 0052)
 	"internal/agent/collect",
 	"internal/agent/enroll",
 	"internal/agent/files",      // a server's files, for a person (ADR 0032)
@@ -68,6 +69,7 @@ var agentPackages = []string{
 	"internal/resource",
 	"internal/resource/binding",   // a service's environment and label, from what it uses
 	"internal/resource/container", // the Docker driver's kinds
+	"internal/resource/firewall",  // firewall rules and the policy, on every server (ADR 0052)
 	"internal/resource/network",
 	"internal/resource/resourcepb",
 	"internal/resource/route", // the ingress's kind (ADR 0024)
