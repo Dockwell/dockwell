@@ -91,29 +91,23 @@ export function ConfirmAccess({
     >
       <p>
         {ports.length === 0 ? (
-          <Trans>Open a new SSH session from where you are now, with your key. If it works, keep the change.</Trans>
+          <Trans>Open a new SSH session from here with your key, and keep the change if it works.</Trans>
         ) : ports.length === 1 ? (
-          <Trans>
-            Open a new SSH session to port {port} from where you are now, with your key. If it works, keep the change.
-          </Trans>
+          <Trans>Open a new SSH session to port {port} from here with your key, and keep the change if it works.</Trans>
         ) : (
           <Trans>
-            Open a new SSH session to port {portList} from where you are now, with your key. If it works, keep the
-            change.
+            Open a new SSH session to port {portList} from here with your key, and keep the change if it works.
           </Trans>
         )}
       </p>
       {panelPorts ? (
         <p>
-          <Trans>Then open the panel in a new tab, at its own address. If that works too, keep the change.</Trans>
+          <Trans>Then open the panel at its own address in a new tab.</Trans>
         </p>
       ) : null}
       {from ? (
         <p>
-          <Trans>
-            Once kept, SSH stays open only from {from}. If your address changes, it closes to you: add a rule that
-            allows SSH's port from where you'll come.
-          </Trans>
+          <Trans>Once kept, SSH stays open only from {from}.</Trans>
         </p>
       ) : null}
       {theirs ? (
@@ -123,10 +117,7 @@ export function ConfirmAccess({
       ) : null}
       <p className="plan-confirm-left" aria-live="polite">
         {gone ? (
-          <Trans>
-            {name}'s agent isn't connected, so it can't hear a confirmation. It puts back its firewall as it was on its
-            own when its time runs out.
-          </Trans>
+          <Trans>{name}'s agent isn't connected, so it puts back its firewall when its time runs out.</Trans>
         ) : open ? (
           <Trans>
             {name} puts back its firewall as it was in {left} s unless you keep it.
@@ -140,7 +131,7 @@ export function ConfirmAccess({
           {reasonOf(error) === "not_yours"
             ? t`Only the person who applied this change can keep it, from where they applied it.`
             : reasonOf(error) === "not_waiting"
-              ? t`That wait is over: the server kept the change, or put back its firewall. The change goes on as this sheet shows.`
+              ? t`That wait is over: this sheet shows whether the server kept the change.`
               : sentence(error)}
         </p>
       ) : null}

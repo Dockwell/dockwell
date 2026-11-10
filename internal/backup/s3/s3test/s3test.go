@@ -12,6 +12,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,11 @@ type Server struct {
 	// method: POST is how every upload starts.
 	Refuse     string
 	RefuseOnly string
+	// RefuseStatus is the status a refusal answers with: 403 unless set, such as 500.
+	RefuseStatus int
+	// MovedTo answers every request for a bucket as S3 does when it's in another
+	// region: 301 PermanentRedirect, with no Location, and that region in its header.
+	MovedTo string
 	// FinishFails has an upload's last step answer 200 and say it failed, as S3 can.
 	FinishFails bool
 	// Authorizations are the Authorization headers it was sent.
@@ -41,7 +47,10 @@ type Server struct {
 	// path ends with that. Nil holds none.
 	Hold     chan struct{}
 	HoldOnly string
-	srv      *httptest.Server
+	// Buckets are the buckets it lists, and the only ones it holds objects in, when set.
+	// Nil lists none and takes any.
+	Buckets []string
+	srv     *httptest.Server
 }
 
 // New starts a fake that stops when the test ends.
@@ -85,13 +94,36 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(auth, "AWS4-HMAC-SHA256 Credential=") {
 		s.t.Errorf("%s %s isn't signed: %q", r.Method, r.URL, auth)
 	}
+	if s.MovedTo != "" && r.URL.Path != "/" {
+		w.Header().Set("x-amz-bucket-region", s.MovedTo)
+		w.WriteHeader(http.StatusMovedPermanently)
+		fmt.Fprint(w, "<Error><Code>PermanentRedirect</Code><Message>The bucket you are attempting to access must be addressed using the specified endpoint.</Message></Error>")
+		return
+	}
 	if s.Refuse != "" && (s.RefuseOnly == "" || s.RefuseOnly == r.Method) {
-		w.WriteHeader(http.StatusForbidden)
+		status := http.StatusForbidden
+		if s.RefuseStatus != 0 {
+			status = s.RefuseStatus
+		}
+		w.WriteHeader(status)
 		fmt.Fprintf(w, "<Error><Code>%s</Code><Message>no</Message></Error>", s.Refuse)
 		return
 	}
 	key := r.URL.Path
 	q := r.URL.Query()
+	if key == "/" && r.Method == http.MethodGet {
+		fmt.Fprint(w, "<ListAllMyBucketsResult><Buckets>")
+		for _, b := range s.Buckets {
+			fmt.Fprintf(w, "<Bucket><Name>%s</Name><CreationDate>2026-01-01T00:00:00Z</CreationDate></Bucket>", b)
+		}
+		fmt.Fprint(w, "</Buckets></ListAllMyBucketsResult>")
+		return
+	}
+	if bucket, _, _ := strings.Cut(strings.TrimPrefix(key, "/"), "/"); s.Buckets != nil && !slices.Contains(s.Buckets, bucket) {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, "<Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message></Error>")
+		return
+	}
 	id, inUpload := q["uploadId"]
 	switch {
 	case r.Method == http.MethodPost && q.Has("uploads"):

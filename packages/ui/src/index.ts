@@ -19,7 +19,9 @@ export {
   type ConnectionString,
 } from "./components/ConnectionCard/ConnectionCard";
 export { CopyButton, type CopyButtonProps } from "./components/CopyButton/CopyButton";
+export { DnsRecord, type DnsRecordProps } from "./components/DnsRecord/DnsRecord";
 export { FleetGrid, type FleetGridProps, type FleetGroup, type FleetServer } from "./components/FleetGrid/FleetGrid";
+export { type FolderListing, FolderPicker, type FolderPickerProps } from "./components/FolderPicker/FolderPicker";
 export { Glyph, type GlyphProps } from "./components/Glyph/Glyph";
 export { Icon, type IconProps } from "./components/Icon/Icon";
 export { type IconName, iconNames } from "./components/Icon/icons";

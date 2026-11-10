@@ -785,7 +785,7 @@ export async function planFlow(
   await linkRisk.waitFor();
   if (!(await linkRisk.evaluate((el) => el.classList.contains("dw-tone-critical"))))
     fail("a symlink to /etc isn't red");
-  if (!(await linkRisk.innerText()).includes("It leads to /etc")) fail("it doesn't say where the symlink leads");
+  if (!(await linkRisk.innerText()).includes("which leads to /etc")) fail("it doesn't say where the symlink leads");
   if ((await linked.locator(".plan-gate").count()) !== 1) fail("a symlink to /etc asks for no typing");
   await shoot(page, "plan-symlink");
   await linked.getByRole("button", { name: "Cancel" }).click();
