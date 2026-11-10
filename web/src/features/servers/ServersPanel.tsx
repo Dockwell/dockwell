@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Connection, type Server } from "@dockwell/api";
+import { Connection, type Server, ServerStrain } from "@dockwell/api";
 import { Panel, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 
 import { formatBytesOf, formatPercent } from "../../lib/format";
 import { Connecting, FleetUnknown, Reconnecting } from "./FleetNotes";
-import { serverStatus, useServerWords } from "./server";
+import { HIGH_USE, serverStatus, useServerWords } from "./server";
 import { useFleet, useFleetUnread } from "./useFleet";
 import "./ServersPanel.css";
 
@@ -72,7 +72,11 @@ function ServerRow({ server, linked, unknown }: { server: Server; linked: boolea
         ? t`Agent not connected`
         : server.dockerUnreadableSince
           ? t`Can't read Docker`
-          : undefined;
+          : server.strainedSince
+            ? server.strain === ServerStrain.CPU
+              ? t`CPU above ${HIGH_USE}%`
+              : t`Memory above ${HIGH_USE}%`
+            : undefined;
   return (
     <li className="servers-row">
       <div className="servers-name">

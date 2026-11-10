@@ -53,7 +53,7 @@ function saidNotNow(serverId: string): boolean {
  */
 export function OnePanelCallout({ server }: { server: Server }) {
   const { t } = useLingui();
-  const here = useOnePanelHere(server.id);
+  const here = useOnePanelHere(server);
   const [notNow, setNotNow] = useState(() => saidNotNow(server.id));
   if (!here || notNow) return null;
   const dismiss = () => {

@@ -407,6 +407,17 @@ updates_bin="$rollout_dir/updates"
 cat >"$rollout_dir/prepare-apt.sh" <<'SH'
 set -e
 export DEBIAN_FRONTEND=noninteractive
+# The runner's containers have no IPv6 route, and a mirror may be slow: ask over IPv4,
+# try a download again, and give up on one after 30 s. The reader's own refresh, in
+# this container, reads the same settings.
+printf '%s\n' 'Acquire::ForceIPv4 "true";' 'Acquire::Retries "3";' 'Acquire::http::Timeout "30";' >/etc/apt/apt.conf.d/99-e2e-network
+# Where the run names a mirror for Ubuntu, as CI does with the one beside its runners,
+# the archive and security pockets are read from it: the suites, and so what counts as
+# a security fix, stay the same. Debian keeps its own.
+if [ -n "${E2E_UBUNTU_MIRROR:-}" ] && [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+  sed -i -E "s#^URIs: http://(archive|security)\\.ubuntu\\.com/ubuntu/?#URIs: $E2E_UBUNTU_MIRROR#" /etc/apt/sources.list.d/ubuntu.sources
+  echo "raw Ubuntu's packages come from $E2E_UBUNTU_MIRROR" >&2
+fi
 apt-get -qq update >/dev/null
 for p in less tzdata tar gzip bash libssl3 libgnutls30 libsystemd0 libudev1 gpgv libsqlite3-0; do
   count=$(apt-cache madison "$p" | awk -F'|' '{ gsub(/ /, "", $2); print $2 }' | sort -u | wc -l)
@@ -470,11 +481,38 @@ SH
 # JSON on standard output. It runs in a command substitution, so its caller fails
 # for it, by the reader's exit.
 read_updates() {
-  docker run --rm -v "$updates_bin:/usr/local/bin/dockwell-updates:ro" \
+  docker run --rm -e E2E_UBUNTU_MIRROR="${E2E_UBUNTU_MIRROR:-}" -v "$updates_bin:/usr/local/bin/dockwell-updates:ro" \
     -v "$rollout_dir/prepare-$2.sh:/prepare.sh:ro" -v "$rollout_dir/after-$2.sh:/after.sh:ro" "$1" \
     sh -c 'sh /prepare.sh || exit; dockwell-updates; code=$?; sh /after.sh >&2; exit $code' 2>"$rollout_dir/said"
 }
 said() { cat "$rollout_dir/said"; }
+# What a package mirror that is down, slow or half way through a sync leaves in what the tools print.
+mirror_trouble='Failed to fetch|Some index files failed to download|Mirror sync in progress|Could not resolve|Temporary failure|Cannot initiate the connection|Connection timed out|Timeout was reached|Curl error|temporary error|didn.t finish within'
+# read_updates_patiently IMAGE KIND is read_updates, tried up to three times while
+# the mirror is what fails: the reader's exit or its refresh error, with one of the
+# lines above in what was said. Anything else fails at once, as before. It says on
+# standard error how long each read took, so a slow mirror shows in the log.
+read_updates_patiently() {
+  local try out started
+  for try in 1 2 3; do
+    started=$SECONDS
+    if out=$(read_updates "$1" "$2"); then
+      if [[ $try -lt 3 && -n "$(jq -r '.refreshError // ""' <<<"$out" 2>/dev/null)" ]] &&
+        grep -qE "$mirror_trouble" <<<"$out$(said)"; then
+        echo "docker-e2e: on $1 the reader couldn't refresh the package lists (try $try of 3, $((SECONDS - started)) s); trying again in 30 s" >&2
+        sleep 30
+        continue
+      fi
+      echo "docker-e2e: $1 read in $((SECONDS - started)) s" >&2
+      printf '%s\n' "$out"
+      return 0
+    fi
+    [[ $try -lt 3 ]] && grep -qE "$mirror_trouble" "$rollout_dir/said" || return 1
+    echo "docker-e2e: $1's package mirror didn't answer whole (try $try of 3, $((SECONDS - started)) s): $(grep -m1 -E "$mirror_trouble" "$rollout_dir/said"). Trying again in 30 s" >&2
+    sleep 30
+  done
+  return 1
+}
 # raw prints what the tool printed as it was, after a blank line, or nothing.
 raw() {
   local printed
@@ -498,7 +536,7 @@ put_back() {
 }
 for distro in "Ubuntu ubuntu:24.04" "Debian debian:12"; do
   name=${distro%% *}
-  out=$(read_updates "${distro#* }" apt) || fail "the agent's reader failed on $name: $(said)"
+  out=$(read_updates_patiently "${distro#* }" apt) || fail "the agent's reader failed on $name: $(said)"
   jq -e '.manager == "PACKAGE_MANAGER_APT" and .marksSecurity and (.unavailable // "") == "" and (.refreshError // "") == "" and .listsTime != null' >/dev/null <<<"$out" ||
     fail "on $name, the reader said: $out"
   put_back "$name" "$out"
@@ -507,7 +545,7 @@ for distro in "Ubuntu ubuntu:24.04" "Debian debian:12"; do
   diff <(the_reader_says "$out" '.packages[]? | select(.security) | .name') <(the_tool_says security) ||
     fail "on $name, the reader marked other security fixes than apt-get --simulate does"
 done
-alma=$(read_updates almalinux:9 dnf) || fail "the agent's reader failed on AlmaLinux: $(said)"
+alma=$(read_updates_patiently almalinux:9 dnf) || fail "the agent's reader failed on AlmaLinux: $(said)"
 jq -e '.manager == "PACKAGE_MANAGER_DNF" and .marksSecurity and (.refreshError // "") == "" and .listsTime != null' >/dev/null <<<"$alma" ||
   fail "on AlmaLinux, the reader said: $alma$(raw)"
 put_back AlmaLinux "$alma"
@@ -518,7 +556,7 @@ advised=$(the_tool_says advisory | sed -E 's/-[^-]+-[^-]+$//' | sort -u)
 listed=$(the_tool_says name | sed -E 's/\.[^.]+$//' | sort -u)
 diff <(the_reader_says "$alma" '.packages[]? | select(.security) | .name') <(comm -12 <(echo "$advised") <(echo "$listed")) ||
   fail "on AlmaLinux, the reader marked other security fixes than dnf updateinfo names:$(raw)"
-alpine=$(read_updates alpine:3.20 apk) || fail "the agent's reader failed on Alpine: $(said)"
+alpine=$(read_updates_patiently alpine:3.20 apk) || fail "the agent's reader failed on Alpine: $(said)"
 jq -e '.manager == "PACKAGE_MANAGER_APK" and (.marksSecurity // false) == false and (.refreshError // "") == "" and .listsTime != null' >/dev/null <<<"$alpine" ||
   fail "on Alpine, the reader said: $alpine"
 diff <(the_reader_says "$alpine" '.packages[]? | .name + "-" + .installed') <(the_tool_says name) ||

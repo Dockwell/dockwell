@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
-import { ActorKind, Connection, EventKind, type Server } from "@dockwell/api";
+import { ActorKind, Connection, EventKind, type Server, ServerStrain } from "@dockwell/api";
 import { Button, Icon, Metric, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
 
-import { formatBytes, formatFixed, formatLiveBytesOf } from "../../lib/format";
+import { formatBytes, formatClock, formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { EventTimeline } from "../activity/ActivityPage";
@@ -18,7 +18,7 @@ import { useServices } from "../apps/useServices";
 import { shortVersion } from "../shell/version";
 import { trend } from "./history";
 import { providerName, publicAddressOf } from "./network";
-import { isPrivateAddress, serverStatus } from "./server";
+import { HIGH_USE as HIGH, isPrivateAddress, serverStatus } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 
 /** How many of a server's events the inspector shows; its page and Activity have the rest. */
@@ -86,6 +86,7 @@ function unwellSince(server: Server): number | undefined {
   if (server.connection === Connection.CONNECTED && server.dockerUnreadableSince) {
     return timestampMs(server.dockerUnreadableSince);
   }
+  if (server.connection === Connection.CONNECTED && server.strainedSince) return timestampMs(server.strainedSince);
   return undefined;
 }
 
@@ -96,6 +97,13 @@ function Facts({ server, unknown }: { server: Server; unknown: boolean }) {
   const now = useControlPlaneNow(15_000);
   const inv = server.inventory;
   const seen = server.lastSeenTime ? words.ago(timestampDate(server.lastSeenTime), now) : undefined;
+  const since = server.strainedSince ? formatClock(timestampDate(server.strainedSince), i18n.locale) : "";
+  const strained =
+    server.connection === Connection.CONNECTED && server.strainedSince
+      ? server.strain === ServerStrain.CPU
+        ? t`CPU above ${HIGH}% since ${since}`
+        : t`Memory above ${HIGH}% since ${since}`
+      : undefined;
   const why: ReactNode = unknown ? undefined : server.connection === Connection.UNREACHABLE ? (
     seen ? (
       <Trans>
@@ -112,6 +120,9 @@ function Facts({ server, unknown }: { server: Server; unknown: boolean }) {
     </Trans>
   ) : server.dockerUnreadableSince ? (
     <Trans>Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is.</Trans>
+  ) : strained ? (
+    // Why it reads Degraded, as the control plane says once it has lasted, in its own page's words.
+    strained
   ) : undefined;
   const addresses = inv?.addresses ?? [];
   const publicIp = publicAddressOf(server) ?? addresses.find((ip) => !isPrivateAddress(ip));

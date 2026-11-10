@@ -124,6 +124,20 @@ describe("editing an app's environment", () => {
     expect(app?.baseRevision).toBe(7n);
   });
 
+  it("says an app has no variables as an empty state, and draws the table once one is added", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/svc_web/environment", api(anApp("web", "nginx:1.5"), []));
+    expect(await screen.findByRole("heading", { level: 2, name: "No variables yet" })).toBeVisible();
+    expect(screen.getByText(/This app runs with only what its image sets/)).toBeVisible();
+    // No column heads over a sentence.
+    expect(screen.queryByRole("table")).toBeNull();
+    // Adding waits for what the environment has, so a new name can't clash with one there.
+    await waitFor(() => expect(within(form()).getByRole("button", { name: "Add" })).toBeEnabled());
+    await add(user, "FEATURE", "beta");
+    expect(await screen.findByRole("table", { name: "Environment variables of web" })).toBeVisible();
+    expect(screen.queryByRole("heading", { level: 2, name: "No variables yet" })).toBeNull();
+  });
+
   it("uses a variable the environment has as it is, rather than change it for every app", async () => {
     const user = userEvent.setup();
     const proposals: ProposeChangeRequest[] = [];

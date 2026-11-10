@@ -468,3 +468,64 @@ func TestPaceFollowsWatchers(t *testing.T) {
 		t.Fatalf("with a watch open again, pace = %v", got)
 	}
 }
+
+// A server is strained once its memory or CPU has been above 90% for a minute,
+// from the first of those samples, and stays so until both are below 85%, so one
+// near the line doesn't flip back and forth (#287).
+func TestStrainLastsAMinuteAndEndsBelow85(t *testing.T) {
+	h, _ := newHub(t, "hz-1")
+	detach, err := h.Attach(t.Context(), store.Server{ID: "srv_A"}, inventory, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	at := start
+	record := func(memory, cpu float64) *dockwellv1.Server {
+		t.Helper()
+		at = at.Add(10 * time.Second)
+		const total = 1 << 30
+		h.Record("srv_A", &dockwellv1.ServerStats{
+			Time: timestamppb.New(at), CpuPercent: cpu, MemoryTotalBytes: total, MemoryUsedBytes: uint64(memory / 100 * total),
+		})
+		srv, err := h.Get("srv_A")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return srv
+	}
+	// Exactly 90 isn't above it: CPU, a number as the agent says it, sits on the line.
+	for range 8 {
+		if s := record(10, 90); s.GetStrainedSince() != nil {
+			t.Fatalf("at exactly 90%% CPU it's strained: %v", s)
+		}
+	}
+	first := at.Add(10 * time.Second)
+	for i := range 6 {
+		if s := record(95, 10); s.GetStrainedSince() != nil {
+			t.Fatalf("strained after %d s", (i+1)*10)
+		}
+	}
+	s := record(95, 10)
+	if !s.GetStrainedSince().AsTime().Equal(first) || s.GetStrain() != dockwellv1.ServerStrain_SERVER_STRAIN_MEMORY {
+		t.Fatalf("after a minute: since %v (want %v), %v", s.GetStrainedSince().AsTime(), first, s.GetStrain())
+	}
+	// Between 85 and 90 it stays strained; below 85, it isn't.
+	if s := record(88, 10); s.GetStrainedSince() == nil {
+		t.Error("at 88% it stopped being strained")
+	}
+	if s := record(84, 10); s.GetStrainedSince() != nil || s.GetStrain() != dockwellv1.ServerStrain_SERVER_STRAIN_UNSPECIFIED {
+		t.Errorf("at 84%% it's still strained: %v", s)
+	}
+	// CPU too.
+	for range 8 {
+		s = record(40, 97)
+	}
+	if s.GetStrain() != dockwellv1.ServerStrain_SERVER_STRAIN_CPU {
+		t.Errorf("a minute at 97%% CPU reads as %v", s.GetStrain())
+	}
+	// A server that isn't connected says nothing of it.
+	detach()
+	if srv, _ := h.Get("srv_A"); srv.GetStrainedSince() != nil {
+		t.Errorf("a server whose agent left is still strained: %v", srv)
+	}
+}
