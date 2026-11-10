@@ -819,6 +819,28 @@ describe("Alerts and rules", () => {
     expect(review).not.toHaveAccessibleDescription("");
   });
 
+  it.each([
+    ["memory", Condition.MEMORY_HIGH, "When memory in use is over", "90", { threshold: 90 }],
+    ["certificate", Condition.CERTIFICATE_EXPIRING, "When it expires within", "14", { threshold: 14 }],
+    ["late backup", Condition.BACKUP_LATE, "When a run is late by", "1h", { duration: "1h" }],
+  ])("plans a %s rule with no level of its own at the default it shows", async (_, condition, label, shown, sent) => {
+    const user = userEvent.setup();
+    const proposeChange = planned();
+    const bare = create(AlertRuleInfoSchema, { id: "alr_bare", name: "bare", title: "Bare rule", spec: { condition } });
+    renderAt(
+      "/alerts/rules",
+      api([ops], { changes: { proposeChange }, alerts: { listAlertRules: () => ({ rules: [bare] }) } }),
+    );
+    const table = await screen.findByRole("table", { name: "Alert rules" });
+    await user.click(within(table).getByRole("row", { name: /Bare rule/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Bare rule" });
+    expect(within(sheet).getByLabelText(label)).toHaveValue(shown);
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposeChange).toHaveBeenCalled());
+    const spec = proposeChange.mock.calls[0]?.[0].edits[0]?.spec?.kind;
+    expect(spec?.case === "alertRule" ? spec.value : undefined).toMatchObject(sent);
+  });
+
   it("turns a rule off, and asks nothing else of one that's off", async () => {
     const user = userEvent.setup();
     const proposeChange = planned();
