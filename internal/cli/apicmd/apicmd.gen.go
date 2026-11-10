@@ -44,6 +44,17 @@ func Methods() []*apicli.Method {
 			Call: apicli.Unary[v1.TestAlertChannelRequest, v1.TestAlertChannelResponse](dockwellv1connect.AlertServiceTestAlertChannelProcedure),
 		},
 		{
+			Name:      "dockwell.v1.AlertService.ListAlertChecks",
+			Procedure: dockwellv1connect.AlertServiceListAlertChecksProcedure,
+			HTTP:      "GET /v1/alert-checks",
+			Noun:      "alert-checks",
+			Verb:      "list",
+			Short:     "Return every check",
+			Long:      "Return every check, with how it stands and its last runs, newest first. A check\nmade a moment ago reads waiting until its first run.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Call:      apicli.Unary[v1.ListAlertChecksRequest, v1.ListAlertChecksResponse](dockwellv1connect.AlertServiceListAlertChecksProcedure),
+		},
+		{
 			Name:      "dockwell.v1.AlertService.ListAlertDeliveries",
 			Procedure: dockwellv1connect.AlertServiceListAlertDeliveriesProcedure,
 			HTTP:      "GET /v1/alert-deliveries",
@@ -2128,6 +2139,7 @@ func Methods() []*apicli.Method {
 func Nouns() []apicli.Noun {
 	return []apicli.Noun{
 		{Name: "alert-channels", Short: "List, test, create, update or delete alert channels", Long: "A channel is somewhere alerts are sent, such as a webhook. What signs in to it\nis sealed, never shown again, and a plan says only that it changed. Channels are\nresources: creating, changing and deleting one is a change, with a plan, that\nundo takes back. dockwell alert-channels test sends a test message and says what\nthe far end answered.\n\ndockwell alert-channels create, update and delete each propose a change, show\nits plan, and ask before applying it."},
+		{Name: "alert-checks", Short: "List, create, update or delete alert checks", Long: "A check is an address Dockwell asks every so often whether it answers as it\nshould, from the control server: an uptime check. It reads down once as many\nruns in a row as it says have failed, which the check-down rule alerts on.\nChecks are resources: creating, changing and deleting one is a change, with a\nplan, that undo takes back. dockwell alert-checks list shows how each stands and\nits last runs.\n\ndockwell alert-checks create, update and delete each propose a change, show its\nplan, and ask before applying it."},
 		{Name: "alert-deliveries", Short: "Return the newest messages to every channel", Long: "A delivery is a message Dockwell sent a channel, a test among them: what it was\nabout, when, and what the far end answered, with nothing that signs in. Each\nchannel's last one says whether it works."},
 		{Name: "alert-mutes", Short: "List the mutes in force", Long: "A mute holds what a rule or a server sends for a while, during an outage, with\nno change to apply. dockwell alerts mute starts one and dockwell alerts unmute\nends it; both go on Activity."},
 		{Name: "alert-rules", Short: "List, create, update or delete alert rules", Long: "A rule is something Dockwell watches for, such as a disk above 90% for 5\nminutes, and who it tells. An install starts with a rule for each condition,\nwhich sends to every channel once there is one. Rules are resources: creating,\nchanging and deleting one is a change, with a plan, that undo takes back.\n\ndockwell alert-rules create, update and delete each propose a change, show its\nplan, and ask before applying it."},
@@ -2470,6 +2482,23 @@ func Kinds() []*apicli.Kind {
 				{Path: "discord.url", Help: "The webhook's URL, such as \"https://discord.com/api/webhooks/0000/XXXX\". It's what lets anyone post there, so it's sealed, and lists show only its host.", Sensitive: true},
 				{Path: "telegram.bot_token", Help: "The bot's token, such as \"123456789:AAE…\", which BotFather gives.", Sensitive: true},
 				{Path: "telegram.chat_id", Help: "The chat, by its ID, such as \"-1001234567890\" for a group, or a channel's name, such as \"@example_alerts\". The bot has to be in it."},
+			},
+		},
+		{
+			Field: "alert_check",
+			Noun:  "alert-checks",
+			Short: "An address checked for whether it answers, kind \"alert.check\" (ADR 0066)",
+			Long:  "AlertCheck is an address Dockwell asks, every so often, whether it answers as it\nshould: an uptime check. It lives in the organization, and the control plane\nruns it. A run is one GET, with no redirect followed, that keeps nothing of the\nanswer but its status, how long it took, and whether the keyword was there. See\ndocs/adr/0066-checks-of-a-url.md.",
+			Fields: []apicli.Field{
+				{Path: "address", Help: "The address it asks, an http or https URL, such as \"https://shop.example.com/\"."},
+				{Path: "every", Help: "How often it's checked: \"30s\", \"1m\", \"5m\" or \"15m\". \"1m\" unless set."},
+				{Path: "timeout", Help: "How long a run waits for an answer: \"10s\" unless set, at most \"30s\", and less than every."},
+				{Path: "down_after", Help: "How many runs in a row have to fail for it to read down: 2 unless set, 1 to 10. Down, it reads up again after 2 runs in a row pass."},
+				{Path: "expect_from", Help: "The lowest status that counts as up: 200 unless set."},
+				{Path: "expect_to", Help: "The highest status that counts as up: 399 unless set, so a redirect is up."},
+				{Path: "keyword", Help: "Text the answer's first 64 KiB has to hold, when set, such as \"Welcome\"."},
+				{Path: "keyword_absent", Help: "Says the keyword has to be absent instead, such as \"Error\"."},
+				{Path: "inside_network", Help: "Lets the check reach the private networks the control server is on, such as an address only the office's network serves. Unset, it reaches the internet alone, keyword included, and a name that resolves to a private address reads failing with how to allow it. Never this server's loopback, nor a metadata or link-local address. Plans, the Checks tab and Activity show it (ADR 0066)."},
 			},
 		},
 		{

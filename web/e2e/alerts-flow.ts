@@ -98,7 +98,9 @@ export async function alertsFlow(page: Page, { origin, step, shoot, docker, sock
     await page.getByRole("link", { name: /Rules/ }).click();
     const rules = page.getByRole("table", { name: "Alert rules" });
     await rules.getByRole("row", { name: /server\.connected == false/ }).waitFor();
-    if ((await rules.getByRole("row").count()) !== 10) fail("Rules doesn't list the nine rules an install starts with");
+    if ((await rules.getByRole("row").count()) !== 11) fail("Rules doesn't list the ten rules an install starts with");
+    if ((await rules.getByRole("row", { name: /check\.state == down/ }).count()) !== 1)
+      fail("Rules doesn't list Address down, which tells the channels when a watched address stops answering");
 
     step("alerts: a rule changes from its row, as a plan: disk-full says it again weekly");
     // Only how often it repeats, so nothing later in the flow fires that wouldn't have.
@@ -125,6 +127,8 @@ export async function alertsFlow(page: Page, { origin, step, shoot, docker, sock
     await page.getByRole("button", { name: "Add channel" }).click();
     const sheet = page.getByRole("dialog", { name: "Add a channel" });
     await sheet.getByRole("combobox", { name: "Sends to" }).selectOption("webhook");
+    // The name comes from the type; another is a step away, under Advanced.
+    await sheet.getByRole("button", { name: "Advanced" }).click();
     await sheet.getByRole("textbox", { name: "Name" }).fill("ops-hook");
     await sheet.getByRole("textbox", { name: "URL" }).fill(`${far.url}/hook?token=e2e-t0ken`);
     await sheet.getByLabel(/^Signing secret/).fill("e2e-s3cret");

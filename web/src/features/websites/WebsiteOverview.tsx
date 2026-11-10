@@ -9,7 +9,9 @@ import type { ReactNode } from "react";
 
 import { formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
+import { WatchAddress } from "../alerts/WatchAddress";
 import { useDomainState, useSilent } from "../apps/DomainNote";
+import { visitorUrl } from "../apps/domains";
 import { useHealthWords } from "../apps/Health";
 import { DomainPanel } from "./WebsiteConfiguration";
 import { useServesWords } from "./WebsiteFields";
@@ -100,6 +102,9 @@ function DomainStanding({ name, read }: { name: string; read: Parameters<typeof 
         <code>{name}</code>
       </span>
       <StatusBadge status={status} label={word} labelIsState />
+      {read === "read" ? (
+        <WatchAddress url={visitorUrl(domain)} where={name} serving={look.state === "serving"} />
+      ) : null}
       <Link to="/websites/$websiteId/certificate" params={{ websiteId: row.site.id }} className="website-part-link">
         <Trans>Certificate</Trans>
       </Link>

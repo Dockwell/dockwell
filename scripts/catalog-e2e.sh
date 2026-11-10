@@ -75,8 +75,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# project is the Compose project of the app being tried, which its containers carry.
+# project is the Compose project of the app being tried, which its containers carry,
+# and installed its Dockwell project, from its install's plan.
 project=""
+installed=""
 fail() {
   echo "catalog-e2e: $*" >&2
   if [[ -n "$project" ]]; then
@@ -124,25 +126,29 @@ person_answer() {
     -H "Cookie: $(cat "$cookie")" -d "$2" "http://localhost:$port/dockwell.v1.$1"
 }
 change_field() { dw changes get "$1" --json | jq -r ".change.$2"; }
-wait_applied() {
+# settles waits for a change to finish applying: it returns 0 once it's applied, and
+# 1 once it failed.
+settles() {
   local state=""
   for _ in $(seq 1200); do
     state=$(change_field "$1" state) || state=""
     [[ "$state" == CHANGE_STATE_APPLIED ]] && return 0
-    [[ "$state" == CHANGE_STATE_FAILED ]] && fail "$1 failed: $(dw changes get "$1" --json)"
+    [[ "$state" == CHANGE_STATE_FAILED ]] && return 1
     sleep 0.5
   done
   fail "$1 is $state after 10 min, want applied"
 }
-# apply applies a planned change: with the CLI's token when the plan lets one, and as
-# a person does in the panel when it destroys data or reaches the server, confirming
-# with the passkey the claim made when it's as good as root.
-apply() {
+# try_apply applies a planned change: with the CLI's token when the plan lets one, and
+# as a person does in the panel when it destroys data or reaches the server,
+# confirming with the passkey the claim made when it's as good as root. It returns 1
+# when the change failed, and fails at once on anything else.
+try_apply() {
   local plan fingerprint answer proof
   plan=$(dw changes get "$1" --json) || fail "can't read $1"
   if jq -e '.change.plan | (.destructive or .hostAccess) | not' <<<"$plan" >/dev/null; then
-    dw changes apply "$1" --yes >/dev/null || fail "applying $1 failed: $(dw changes get "$1" --json)"
-    return 0
+    dw changes apply "$1" --yes >/dev/null && return 0
+    [[ "$(change_field "$1" state)" == CHANGE_STATE_FAILED ]] && return 1
+    fail "applying $1 failed: $(dw changes get "$1" --json)"
   fi
   fingerprint=$(jq -r .change.plan.fingerprint <<<"$plan")
   answer=$(person_answer ChangeService/ApplyChange "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\"}") || fail "a person can't reach the API to apply $1"
@@ -151,7 +157,42 @@ apply() {
     answer=$(person_answer ChangeService/ApplyChange "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\",\"proof\":\"$proof\"}") || fail "a person can't reach the API to apply $1"
   fi
   [[ "${answer##*$'\n'}" == 200 ]] || fail "a person can't apply $1: $answer"
-  wait_applied "$1"
+  settles "$1"
+}
+# apply applies a planned change, and fails at once if the change fails.
+apply() { try_apply "$1" || fail "$1 failed: $(dw changes get "$1" --json)"; }
+# registry_trouble says a failed change failed on a registry, and nothing about the
+# image or the entry: a step of it comes down to "registry" (StepProgress.reason), a
+# registry that didn't answer a pull properly; or, as CI's pulls time out too, a step
+# says the server can't reach the registry, which the product leaves without a
+# reason, as that may be the server's own network.
+registry_trouble() {
+  dw changes get "$1" --json | jq -e '.change.steps // [] | any(.reason == "registry" or ((.message // "") | contains("can'"'"'t reach the registry")))' >/dev/null
+}
+# apply_patiently applies $change, which the function named $1 plans, setting change.
+# When it fails only as a registry didn't answer a pull properly, it says so, waits
+# for the rollback Dockwell makes of it and 30 s, plans it again and applies that,
+# once, as docker-e2e.sh's read_updates_patiently does for a package mirror. Anything
+# else fails at once, and so does a second failure or a rollback that fails.
+apply_patiently() {
+  local said back
+  try_apply "$change" && return 0
+  registry_trouble "$change" || fail "$change failed: $(dw changes get "$change" --json)"
+  said=$(dw changes get "$change" --json | jq -r '[.change.steps[] | select(.reason == "registry" or ((.message // "") | contains("can'"'"'t reach the registry"))) | "\(.reason // "no reason"): \(.message)"][0]')
+  echo "catalog-e2e: $change failed on a registry, not on the entry (a step says $said). Planning it again in 30 s, once" >&2
+  # The rollback Dockwell makes of it goes on record a moment after the failure.
+  back=""
+  for _ in $(seq 40); do
+    back=$(change_field "$change" rolledBackBy)
+    [[ -z "$back" || "$back" == null ]] || break
+    back=""
+    sleep 0.5
+  done
+  [[ -n "$back" ]] || fail "$change failed on a registry, and no rollback of it came within 20 s: $(dw changes get "$change" --json)"
+  settles "$back" || fail "$change failed on a registry, and its rollback $back failed too: $(dw changes get "$back" --json)"
+  sleep 30
+  "$1"
+  apply "$change"
 }
 
 # container names what a service of the app runs in.
@@ -180,8 +221,8 @@ generated() {
 value() {
   local installs got
   installs=$(dw catalog installs --json) || fail "catalog installs failed"
-  got=$(jq -r --arg p "$id" --arg k "$1" '.installs[] | select(.project == $p) | .pin.values[$k] // empty' <<<"$installs")
-  [[ -n "$got" ]] || fail "the install $id keeps no $1: $installs"
+  got=$(jq -r --arg p "$installed" --arg k "$1" '.installs[] | select(.project == $p) | .pin.values[$k] // empty' <<<"$installs")
+  [[ -n "$got" ]] || fail "the install $installed keeps no $1: $installs"
   echo "$got"
 }
 # answers waits for a URL to answer with a status under 500, and says what it answered.
@@ -840,8 +881,8 @@ held() {
 sealed() {
   local seen service name value logged c logs plan holds
   # Each read joined with &&, as $(a; b) would pass on a failing a.
-  seen=$(dw changes list --json && dw catalog installs --json && dw compose export --project "$id" && dw resources list --json &&
-    dw services list --project "$id" --environment production --json && dw events list --json) || fail "reading the install back failed"
+  seen=$(dw changes list --json && dw catalog installs --json && dw compose export --project "$installed" && dw resources list --json &&
+    dw services list --project "$installed" --environment production --json && dw events list --json) || fail "reading the install back failed"
   for plan in "${plans[@]}"; do
     seen+=$(dw changes get "$plan" --json) || fail "reading the plan $plan back failed"
   done
@@ -856,6 +897,30 @@ sealed() {
     [[ "$logged" == true || "$logs" != *"$value"* ]] || fail "$service writes the secret $name in its log, which takes no passkey to read"
   done <<<"$holds"
   [[ -n "$holds" ]] || [[ "$(jq '[.inputs[]? | select(.type == "INPUT_TYPE_SECRET")] | length' <<<"$entry")" == 0 ]] || fail "$id uses none of its secrets"
+}
+
+# plan_install plans installing $id with its flags, and sets planned, change, installed
+# (the install's project, which is <id>-2 once a rolled-back install has used <id>),
+# environment and project (its Compose project) from the plan. Each plan goes on the
+# list a secret mustn't be in, and its project on the list cleanup removes, a plan a
+# registry failed included.
+plan_install() {
+  planned=$(dw catalog install "$id" "${flags[@]}" --plan-only --json) || fail "planning to install $id failed"
+  change=$(jq -r '.change.id // empty' <<<"$planned")
+  [[ "$change" == chg_* ]] || fail "installing $id planned no change: $planned"
+  plans+=("$change")
+  installed=$(jq -r '[.change.plan.resources[] | select(.resource.kind == "project")][0].resource.name // empty' <<<"$planned")
+  [[ -n "$installed" ]] || fail "installing $id planned no project: $planned"
+  environment=$(jq -r '[.change.plan.resources[] | select(.resource.kind == "service")][0].resource.scope' <<<"$planned")
+  project=${environment,,}
+  projects+=("$project")
+}
+# plan_upgrade plans upgrading the install, and sets planned and change.
+plan_upgrade() {
+  planned=$(dw catalog upgrade "$installed" --plan-only --json) || fail "planning to upgrade $installed failed"
+  change=$(jq -r '.change.id // empty' <<<"$planned")
+  [[ "$change" == chg_* ]] || fail "upgrading $id planned no change: $planned"
+  plans+=("$change")
 }
 
 for id in "$@"; do
@@ -876,30 +941,24 @@ for id in "$@"; do
   else
     step "$id: $version installs, answers and signs in"
   fi
-  planned=$(dw catalog install "$id" "${flags[@]}" --plan-only --json) || fail "planning to install $id failed"
-  change=$(jq -r '.change.id // empty' <<<"$planned")
-  [[ "$change" == chg_* ]] || fail "installing $id planned no change: $planned"
-  plans=("$change")
-  environment=$(jq -r '[.change.plan.resources[] | select(.resource.kind == "service")][0].resource.scope' <<<"$planned")
-  project=${environment,,}
-  projects+=("$project")
-  apply "$change"
+  plans=()
+  plan_install
+  apply_patiently plan_install
   if [[ -n "$before" ]]; then
     settled
     version=${was[0]} "check_$id" first
 
     step "$id: upgrades to $version in one plan, keeping its data and its secrets"
     release "$entry" 2
-    upgrade=$(dw catalog installs --json | jq -r --arg p "$id" '.installs[] | select(.project == $p) | .upgrade.version // empty') || fail "catalog installs failed"
+    upgrade=$(dw catalog installs --json | jq -r --arg p "$installed" '.installs[] | select(.project == $p) | .upgrade.version // empty') || fail "catalog installs failed"
     [[ "$upgrade" == "$version" ]] || fail "$version doesn't read as an upgrade of $id: $(dw catalog installs --json)"
     secrets_before=$(held)
-    planned=$(dw catalog upgrade "$id" --plan-only --json) || fail "planning to upgrade $id failed"
+    plan_upgrade
     if jq -e '.change.plan.resources | any(.resource.kind == "volume")' <<<"$planned" >/dev/null || [[ "$(jq -r .compose <<<"$entry")" == *volumes:* ]]; then
       jq -e '(.change.plan.notes | any(.reason == "backup_first")) and (.change.plan.servers[0].steps | any(.backupFirst != null))' <<<"$planned" >/dev/null ||
         fail "the upgrade of $id doesn't back its volumes up first: $planned"
     fi
-    plans+=("$(jq -r .change.id <<<"$planned")")
-    apply "${plans[-1]}"
+    apply_patiently plan_upgrade
     rm -f "$catalog_dir/$id.yaml"
     secrets_after=$(held)
     [[ "$secrets_after" == "$secrets_before" ]] || fail "an upgrade of $id changed its secrets"
@@ -913,14 +972,14 @@ for id in "$@"; do
 
   step "$id: goes through a plan, and its volumes stay for an undo"
   all=$(dw resources list --json) || fail "listing resources failed"
-  edits=$(jq -c --arg env "$environment" --arg id "$id" '[.resources[] | select(.resource.scope == $env) | {resource: .resource, delete: true}] + [{resource: {kind: "project", name: $id}, delete: true}] | .[]' <<<"$all")
+  edits=$(jq -c --arg env "$environment" --arg p "$installed" '[.resources[] | select(.resource.scope == $env) | {resource: .resource, delete: true}] + [{resource: {kind: "project", name: $p}, delete: true}] | .[]' <<<"$all")
   flags=()
   while read -r e; do flags+=(--edits "$e"); done <<<"$edits"
   planned=$(dw changes propose --summary "Remove $id" "${flags[@]}" --plan-only --json) || fail "planning to remove $id failed"
   apply "$(jq -r .change.id <<<"$planned")"
   left=$(docker ps --all --quiet --filter "label=com.docker.compose.project=$project") || fail "docker ps failed"
   [[ -z "$left" ]] || fail "removing $id left containers: $(docker ps --all --filter "label=com.docker.compose.project=$project" --format '{{.Names}} {{.Status}}')"
-  dw catalog installs --json | jq -e --arg p "$id" '.installs // [] | any(.project == $p) | not' >/dev/null || fail "$id still reads as installed"
+  dw catalog installs --json | jq -e --arg p "$installed" '.installs // [] | any(.project == $p) | not' >/dev/null || fail "$installed still reads as installed"
   mapfile -t volumes < <(jq -r '.compose' <<<"$entry" | sed -n '/^volumes:/,$s/^  \([a-z0-9_-]*\):.*/\1/p')
   if jq -r '.compose' <<<"$entry" | grep -q '^volumes:'; then
     ((${#volumes[@]} > 0)) || fail "the entry $id has volumes:, and this found none in it to check"

@@ -745,6 +745,8 @@ message Spec {
     AlertRule alert_rule = 110;
     // Where alerts are sent, kind "alert.channel".
     AlertChannel alert_channel = 111;
+    // An address checked for whether it answers, kind "alert.check" (ADR 0066).
+    AlertCheck alert_check = 112;
     // Work that runs on a schedule, kind "task". Numbered in the block scheduled
     // tasks hold, as open work adds to this message.
     Task task = 150;
@@ -845,6 +847,9 @@ message AlertRule {
     CONDITION_BACKUP_LATE = 8;
     // A change failed or rolled back, a deploy among them.
     CONDITION_CHANGE_FAILED = 9;
+    // An address a check watches doesn't answer as it should, as many runs in a
+    // row as the check says (ADR 0066).
+    CONDITION_CHECK_DOWN = 10;
   }
   // How much it matters, which a message says and a channel can choose by.
   enum Severity {
@@ -872,6 +877,39 @@ message AlertRule {
   string repeat = 6;
   // Keeps the rule without evaluating it.
   bool disabled = 7;
+}
+
+// AlertCheck is an address Dockwell asks, every so often, whether it answers as
+// it should: an uptime check. It lives in the organization, and the control
+// plane runs it. A run is one GET, with no redirect followed, that keeps nothing
+// of the answer but its status, how long it took, and whether the keyword was
+// there. See docs/adr/0066-checks-of-a-url.md.
+message AlertCheck {
+  // The address it asks, an http or https URL, such as
+  // "https://shop.example.com/".
+  string address = 1;
+  // How often it's checked: "30s", "1m", "5m" or "15m". "1m" unless set.
+  string every = 2;
+  // How long a run waits for an answer: "10s" unless set, at most "30s", and
+  // less than every.
+  string timeout = 3;
+  // How many runs in a row have to fail for it to read down: 2 unless set, 1 to 10.
+  // Down, it reads up again after 2 runs in a row pass.
+  uint32 down_after = 4;
+  // The lowest status that counts as up: 200 unless set.
+  uint32 expect_from = 5;
+  // The highest status that counts as up: 399 unless set, so a redirect is up.
+  uint32 expect_to = 6;
+  // Text the answer's first 64 KiB has to hold, when set, such as "Welcome".
+  string keyword = 7;
+  // Says the keyword has to be absent instead, such as "Error".
+  bool keyword_absent = 8;
+  // Lets the check reach the private networks the control server is on, such as
+  // an address only the office's network serves. Unset, it reaches the internet
+  // alone, keyword included, and a name that resolves to a private address reads
+  // failing with how to allow it. Never this server's loopback, nor a metadata or
+  // link-local address. Plans, the Checks tab and Activity show it (ADR 0066).
+  bool inside_network = 9;
 }
 
 // AlertChannel is somewhere alerts are sent. It lives in the organization. What
