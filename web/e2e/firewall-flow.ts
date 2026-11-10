@@ -7,7 +7,7 @@
 // its ruleset. Nothing is changed by looking (ADR 0052).
 
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import type { Page } from "playwright-core";
 
@@ -39,6 +39,16 @@ export function hostTools(dir: string): string {
   mkdirSync(sbin, { recursive: true });
   writeFileSync(join(sbin, "ufw"), `#!/bin/sh\ncat <<'EOF'\n${ufwStatus}EOF\n`, { mode: 0o755 });
   writeFileSync(join(sbin, "nft"), `#!/bin/sh\necho '{"nftables": []}'\n`, { mode: 0o755 });
+  // systemd as the init, and its systemctl, which prints the agent's fixtures for a
+  // list of system services (ADR 0067) and nothing for anything else it's asked.
+  mkdirSync(join(dir, "run", "systemd", "system"), { recursive: true });
+  mkdirSync(join(dir, "usr", "bin"), { recursive: true });
+  const fix = resolve("internal/agent/system/testdata/systemd");
+  writeFileSync(
+    join(dir, "usr", "bin", "systemctl"),
+    `#!/bin/sh\ncase "$1 $2" in\n"list-units "*) cat '${fix}/list-units.txt' ;;\n"list-unit-files "*) cat '${fix}/list-unit-files.txt' ;;\n"show --property=Id,"*) cat '${fix}/show.txt' ;;\nesac\n`,
+    { mode: 0o755 },
+  );
   return dir;
 }
 

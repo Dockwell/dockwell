@@ -1,0 +1,11 @@
+apparmor.service                       loaded    active   exited  Load AppArmor profiles
+apt-daily.service                      loaded    inactive dead    Daily apt download activities
+containerd.service                     loaded    active   running containerd container runtime
+cron.service                           loaded    active   running Regular background program processing daemon
+docker.service                         loaded    active   running Docker Application Container Engine
+dockwell.service                       loaded    active   running Dockwell
+mysql.service                          not-found inactive dead    mysql.service
+nginx.service                          loaded    failed   failed  A high performance web server and a reverse proxy server
+ssh.service                            loaded    inactive dead    OpenBSD Secure Shell server
+systemd-journald.service               loaded    active   running Journal Service
+ufw.service                            loaded    active   exited  Uncomplicated firewall

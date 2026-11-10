@@ -582,6 +582,9 @@ message Call {
     FinishUploadCall finish_upload = 128;
     // Send a file, or a folder as an archive, over SendFile.
     DownloadFileCall download_file = 129;
+    // List the server's system services (ADR 0067). This area's block is 230
+    // to 239.
+    SystemServicesCall system_services = 235;
   }
 }
 
@@ -639,6 +642,18 @@ message ProcessesCall {}
 message ProcessesResult {
   // What runs.
   dockwell.v1.ProcessList list = 1;
+}
+
+// SystemServicesCall asks for the server's system services, read now with its
+// init system's own tools, on a runner of their own so a firewall change
+// waiting on its confirm timer holds up no list (ADR 0067). The agent keeps
+// nothing of it after.
+message SystemServicesCall {}
+
+// SystemServicesResult is the server's system services.
+message SystemServicesResult {
+  // Its services.
+  dockwell.v1.SystemServiceList list = 1;
 }
 
 // EndProcessCall ends a process: SIGTERM, then SIGKILL 10 s later if it's still
@@ -1585,6 +1600,8 @@ message CallResult {
     FinishUploadResult finish_upload = 128;
     // What download_file sent.
     DownloadFileResult download_file = 129;
+    // What system_services read.
+    SystemServicesResult system_services = 235;
   }
 }
 

@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/agent/terminal"
 	agentupdates "github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/auth"
@@ -78,6 +79,8 @@ func (g *gate) Put(ctx context.Context, name string, rule *resourcev1.FirewallRu
 // testServer is a server with an agent, whose drivers run Docker and a
 // firewall in memory.
 type testServer struct {
+	// system reads its system services, when set.
+	system  *system.Reader
 	id      *enroll.Identity
 	docker  *containertest.Fake
 	fw      *gate
@@ -173,6 +176,7 @@ func (s *testServer) run(t *testing.T) {
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
 		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, OnePanel: s.onePanel, Terminals: s.terms, Access: s.access,
+		System: s.system,
 	}
 	if cfg.Probe == nil {
 		cfg.Probe = answersEverything

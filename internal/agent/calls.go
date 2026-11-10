@@ -649,6 +649,15 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_DiskUse{DiskUse: found}}
+	case call.GetSystemServices() != nil:
+		if c.cfg.System == nil {
+			return fail(errors.New("this agent doesn't read system services"))
+		}
+		list, err := c.cfg.System.Services(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_SystemServices{SystemServices: &agentv1.SystemServicesResult{List: list}}}
 	case call.GetProcesses() != nil:
 		list, err := c.cfg.procs.list(ctx)
 		if err != nil {

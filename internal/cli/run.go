@@ -24,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
+	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/backup"
@@ -295,7 +296,20 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls}),
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Tasks: tasks, Tools: tools, Access: firewalls,
+		System: serverSystem(stdio),
 	}
+}
+
+// serverSystem reads this server's system services (ADR 0067) on a runner of its
+// own, so a list never waits on a firewall change that holds the shared one. A test
+// reads only stand-ins under DOCKWELL_TEST_TOOLS, laid out as the server's files.
+func serverSystem(stdio IO) *system.Reader {
+	tools := hostTools(stdio)
+	r := &system.Reader{Tools: tools, Root: tools.Root}
+	if tools.Off {
+		r.Unavailable = "This is a test, so Dockwell reads no system services here. Set " + envTestTools + " to a folder of stand-ins"
+	}
+	return r
 }
 
 // firewallAccess keeps who reaches the server (ADR 0052). Once the server can

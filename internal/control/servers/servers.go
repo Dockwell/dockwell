@@ -33,6 +33,8 @@ type Service struct {
 	// ident makes join tickets, each confirmed with a passkey people checks.
 	ident  *identity.Authority
 	people *auth.Service
+	// systemFeeds read the system services of each server someone watches.
+	systemFeeds systemFeeds
 }
 
 var _ dockwellv1connect.ServerServiceHandler = (*Service)(nil)

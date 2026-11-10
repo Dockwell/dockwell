@@ -1741,6 +1741,19 @@ func Methods() []*apicli.Method {
 			Call:      apicli.Unary[v1.GetVersionRequest, v1.GetVersionResponse](dockwellv1connect.SystemServiceGetVersionProcedure),
 		},
 		{
+			Name:      "dockwell.v1.ServerService.WatchSystemServices",
+			Procedure: dockwellv1connect.ServerServiceWatchSystemServicesProcedure,
+			Noun:      "system-services",
+			Verb:      "watch",
+			Short:     "Stream a server's system services",
+			Long:      "Stream a server's system services, its systemd units or its OpenRC services,\nabout every 10 s for as long as it's open: each with its state, whether it\nstarts at boot, since when, and for one that runs, its main PID and memory,\nfailed ones first. The panel calls them system services, as a service is an\napp's in Dockwell. The agent reads them only while someone watches, once for\nevery watch of the server, and a session watches 8 servers' at most. Reading\nthem isn't recorded, as reading a server isn't. No API token reads them, so the\nCLI, which signs in with one, is refused: a person reads them in the panel, and\na script runs systemctl over SSH. It has no REST path, as streams have none. See\ndocs/adr/0067-a-servers-system-services-and-its-system-log.md.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "server_id", Help: "The server's ID."},
+			},
+			Call: apicli.ServerStream[v1.WatchSystemServicesRequest, v1.WatchSystemServicesResponse](dockwellv1connect.ServerServiceWatchSystemServicesProcedure),
+		},
+		{
 			Name:      "dockwell.v1.TaskService.GetTask",
 			Procedure: dockwellv1connect.TaskServiceGetTaskProcedure,
 			HTTP:      "GET /v1/tasks/{id}",
@@ -2145,6 +2158,7 @@ func Nouns() []apicli.Noun {
 		{Name: "sessions", Short: "List or revoke sessions, and 8 more", Long: "A session is a browser you're signed in on. Signing in takes a passkey, a code\nfrom an authenticator app, a recovery code, or a one-time link from dockwell\nrecover, and sets a session cookie. No API token can sign in, or list or end\nsessions: how you sign in changes only by signing in, in the panel."},
 		{Name: "settings", Short: "Get, set name or set time zone settings", Long: "The install's settings are what it's called, the time zone new schedules start\nin, and how its panel is served. They change what Dockwell says and suggests,\nnot what runs, so a change needs no plan, and each is on the activity log with\nwhat it replaced."},
 		{Name: "system", Short: "Return the build of the control plane that answers", Long: "SystemService describes the Dockwell install itself. It needs no sign-in, so the\nCLI, agents and other tools can check what they are talking to first."},
+		{Name: "system-services", Short: "Stream a server's system services", Long: "A server's system services: its systemd units, or its OpenRC services, each with\nits state, whether it starts at boot and since when. The panel shows them on a\nserver's System services tab, to an admin signed in. No API token reads them, so\nthe CLI, which signs in with one, is refused, and a script runs systemctl over\nSSH. See docs/adr/0067-a-servers-system-services-and-its-system-log.md."},
 		{Name: "tasks", Short: "List, get, runs, run, create, update or delete tasks", Long: "TaskService is work that runs on a schedule: a shell command on a server, a\ncommand in an app's image, or an HTTP request. A task is a resource of kind\n\"task\", so making, changing, pausing and deleting one is a change with a plan,\nthrough ChangeService. Each server's agent keeps its own tasks' time, so they\nrun while the control plane is away, and the control plane keeps what each run\ndid. See docs/adr/0053-scheduled-tasks.md.\n\ndockwell tasks create, update and delete each propose a change, show its plan,\nand ask before applying it."},
 		{Name: "terminals", Short: "Open, list, attach, write or close terminals", Long: "TerminalService opens a shell on a server, through its agent, and carries what's\ntyped and what it prints. A server's shell is root's, so it's as good as root:\nsee docs/adr/0037-a-terminal-on-a-server.md and docs/security/terminal.md.\n\nEvery method needs an admin in a signed-in session: no API token can call them,\nwhatever its scope. A terminal belongs to the person and the session that opened\nit, and nobody else can reach it. Opening one takes a passkey, just now. Opening\nand closing one are on record in Activity, and what's typed and printed is never\nrecorded.\n\nA terminal runs on its server apart from any connection, so a client that loses\nits stream attaches again from the last byte it had, and misses nothing that\nfits in what the server keeps. dockwell terminals attach streams, so it has no\nREST path."},
 		{Name: "totp", Short: "Get, disable or unlock TOTP, and 4 more", Long: "Code sign-in lets you sign in with a code from an authenticator app, or with a\none-time recovery code, beside your passkeys. Wrong codes slow it down, and too\nmany lock it until dockwell totp unlock turns it back on. Setting it up needs a\nsigned-in session, which no API token gives, and your passkey to confirm it, so\nyou do it in the panel, under Profile and security."},

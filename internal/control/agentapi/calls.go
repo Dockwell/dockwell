@@ -702,6 +702,22 @@ func (s *Session) Processes(ctx context.Context) (*dockwellv1.ProcessList, error
 	return r.GetProcesses().GetList(), nil
 }
 
+// SystemServicesTimeout bounds reading a server's system services: its init's
+// tools, three runs of 10 s at most, and room for the answer.
+const SystemServicesTimeout = 40 * time.Second
+
+// SystemServices asks the agent for the server's system services (ADR 0067).
+func (s *Session) SystemServices(ctx context.Context) (*dockwellv1.SystemServiceList, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_SystemServices{SystemServices: &agentv1.SystemServicesCall{}}}, SystemServicesTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetSystemServices() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetSystemServices().GetList(), nil
+}
+
 // EndProcessTimeout bounds ending a process: SIGTERM's 10 s, SIGKILL's 5, and room
 // for the answer to come back.
 const EndProcessTimeout = 20 * time.Second

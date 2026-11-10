@@ -55,6 +55,9 @@ const (
 	// ServerServiceGetJoinTicketProcedure is the fully-qualified name of the ServerService's
 	// GetJoinTicket RPC.
 	ServerServiceGetJoinTicketProcedure = "/dockwell.v1.ServerService/GetJoinTicket"
+	// ServerServiceWatchSystemServicesProcedure is the fully-qualified name of the ServerService's
+	// WatchSystemServices RPC.
+	ServerServiceWatchSystemServicesProcedure = "/dockwell.v1.ServerService/WatchSystemServices"
 )
 
 // ServerServiceClient is a client for the dockwell.v1.ServerService service.
@@ -92,6 +95,18 @@ type ServerServiceClient interface {
 	// GetJoinTicket says whether a ticket is still waiting for a server, which server
 	// joined with it, or that it expired. It never returns the ticket itself.
 	GetJoinTicket(context.Context, *connect.Request[v1.GetJoinTicketRequest]) (*connect.Response[v1.GetJoinTicketResponse], error)
+	// WatchSystemServices streams a server's system services, its systemd units
+	// or its OpenRC services, about every 10 s for as long as it's open: each
+	// with its state, whether it starts at boot, since when, and for one that
+	// runs, its main PID and memory, failed ones first. The panel calls them
+	// system services, as a service is an app's in Dockwell. The agent reads
+	// them only while someone watches, once for every watch of the server, and a
+	// session watches 8 servers' at most. Reading them isn't recorded, as
+	// reading a server isn't. No API token reads them, so the CLI, which signs in
+	// with one, is refused: a person reads them in the panel, and a script runs
+	// systemctl over SSH. It has no REST path, as streams have none.
+	// See docs/adr/0067-a-servers-system-services-and-its-system-log.md.
+	WatchSystemServices(context.Context, *connect.Request[v1.WatchSystemServicesRequest]) (*connect.ServerStreamForClient[v1.WatchSystemServicesResponse], error)
 }
 
 // NewServerServiceClient constructs a client for the dockwell.v1.ServerService service. By default,
@@ -151,6 +166,12 @@ func NewServerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		watchSystemServices: connect.NewClient[v1.WatchSystemServicesRequest, v1.WatchSystemServicesResponse](
+			httpClient,
+			baseURL+ServerServiceWatchSystemServicesProcedure,
+			connect.WithSchema(serverServiceMethods.ByName("WatchSystemServices")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -163,6 +184,7 @@ type serverServiceClient struct {
 	setServerPublicAddress *connect.Client[v1.SetServerPublicAddressRequest, v1.SetServerPublicAddressResponse]
 	createJoinTicket       *connect.Client[v1.CreateJoinTicketRequest, v1.CreateJoinTicketResponse]
 	getJoinTicket          *connect.Client[v1.GetJoinTicketRequest, v1.GetJoinTicketResponse]
+	watchSystemServices    *connect.Client[v1.WatchSystemServicesRequest, v1.WatchSystemServicesResponse]
 }
 
 // ListServers calls dockwell.v1.ServerService.ListServers.
@@ -200,6 +222,11 @@ func (c *serverServiceClient) GetJoinTicket(ctx context.Context, req *connect.Re
 	return c.getJoinTicket.CallUnary(ctx, req)
 }
 
+// WatchSystemServices calls dockwell.v1.ServerService.WatchSystemServices.
+func (c *serverServiceClient) WatchSystemServices(ctx context.Context, req *connect.Request[v1.WatchSystemServicesRequest]) (*connect.ServerStreamForClient[v1.WatchSystemServicesResponse], error) {
+	return c.watchSystemServices.CallServerStream(ctx, req)
+}
+
 // ServerServiceHandler is an implementation of the dockwell.v1.ServerService service.
 type ServerServiceHandler interface {
 	// ListServers returns every server, connected or not, without history.
@@ -235,6 +262,18 @@ type ServerServiceHandler interface {
 	// GetJoinTicket says whether a ticket is still waiting for a server, which server
 	// joined with it, or that it expired. It never returns the ticket itself.
 	GetJoinTicket(context.Context, *connect.Request[v1.GetJoinTicketRequest]) (*connect.Response[v1.GetJoinTicketResponse], error)
+	// WatchSystemServices streams a server's system services, its systemd units
+	// or its OpenRC services, about every 10 s for as long as it's open: each
+	// with its state, whether it starts at boot, since when, and for one that
+	// runs, its main PID and memory, failed ones first. The panel calls them
+	// system services, as a service is an app's in Dockwell. The agent reads
+	// them only while someone watches, once for every watch of the server, and a
+	// session watches 8 servers' at most. Reading them isn't recorded, as
+	// reading a server isn't. No API token reads them, so the CLI, which signs in
+	// with one, is refused: a person reads them in the panel, and a script runs
+	// systemctl over SSH. It has no REST path, as streams have none.
+	// See docs/adr/0067-a-servers-system-services-and-its-system-log.md.
+	WatchSystemServices(context.Context, *connect.Request[v1.WatchSystemServicesRequest], *connect.ServerStream[v1.WatchSystemServicesResponse]) error
 }
 
 // NewServerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -290,6 +329,12 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	serverServiceWatchSystemServicesHandler := connect.NewServerStreamHandler(
+		ServerServiceWatchSystemServicesProcedure,
+		svc.WatchSystemServices,
+		connect.WithSchema(serverServiceMethods.ByName("WatchSystemServices")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ServerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServerServiceListServersProcedure:
@@ -306,6 +351,8 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 			serverServiceCreateJoinTicketHandler.ServeHTTP(w, r)
 		case ServerServiceGetJoinTicketProcedure:
 			serverServiceGetJoinTicketHandler.ServeHTTP(w, r)
+		case ServerServiceWatchSystemServicesProcedure:
+			serverServiceWatchSystemServicesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -341,4 +388,8 @@ func (UnimplementedServerServiceHandler) CreateJoinTicket(context.Context, *conn
 
 func (UnimplementedServerServiceHandler) GetJoinTicket(context.Context, *connect.Request[v1.GetJoinTicketRequest]) (*connect.Response[v1.GetJoinTicketResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.GetJoinTicket is not implemented"))
+}
+
+func (UnimplementedServerServiceHandler) WatchSystemServices(context.Context, *connect.Request[v1.WatchSystemServicesRequest], *connect.ServerStream[v1.WatchSystemServicesResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.WatchSystemServices is not implemented"))
 }
