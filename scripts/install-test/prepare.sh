@@ -21,8 +21,24 @@ case " $ID ${ID_LIKE:-} " in
 	;;
 *" debian "* | *" ubuntu "*)
 	export DEBIAN_FRONTEND=noninteractive
-	apt-get update -qq
-	apt-get install -y -qq --no-install-recommends curl ca-certificates systemd >/dev/null
+	# A mirror that can't be reached leaves apt-get update with old or partial
+	# package lists and a zero exit, and the install then fails on versions
+	# that don't fit together. So a list that didn't download counts as a
+	# failure, each download is tried again, and the whole step gets three
+	# tries. CI's containers have no IPv6 route, so apt asks over IPv4 only.
+	apt="-o Acquire::ForceIPv4=true -o Acquire::Retries=3 -o Acquire::http::Timeout=30"
+	for try in 1 2 3; do
+		# shellcheck disable=SC2086 # the options are meant to split
+		apt-get update -qq $apt -o APT::Update::Error-Mode=any &&
+			apt-get install -y -qq $apt --no-install-recommends curl ca-certificates systemd >/dev/null &&
+			break
+		[ "$try" -lt 3 ] || {
+			echo "prepare.sh: apt-get couldn't install the packages after 3 tries." >&2
+			exit 1
+		}
+		echo "prepare.sh: apt-get didn't finish; trying again." >&2
+		sleep 5
+	done
 	;;
 *" rhel "* | *" fedora "*)
 	# curl-minimal is already there, and conflicts with the curl package. A
