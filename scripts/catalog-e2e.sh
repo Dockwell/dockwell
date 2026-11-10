@@ -801,8 +801,9 @@ check_linkding() {
   status=$(curl -sS --max-time 15 -b "$jar" -c "$jar" -o /dev/null -w '%{http_code}' \
     --data-urlencode "csrfmiddlewaretoken=$csrf" --data-urlencode username=admin --data-urlencode "password=$password" "$base/login/") || fail "linkding's sign-in doesn't answer"
   [[ "$status" == 302 ]] || fail "linkding answers $status to its generated password, want a signed-in redirect"
-  csrf=$(awk '$6 == "csrftoken" { print $7 }' "$jar" | tail -n 1)
-  [[ -n "$csrf" ]] || fail "linkding's signed-in session has no CSRF cookie"
+  # linkding names its CSRF cookie ld_csrftoken, and rotates it as you sign in.
+  csrf=$(awk '$6 == "ld_csrftoken" { print $7 }' "$jar" | tail -n 1)
+  [[ -n "$csrf" ]] || fail "linkding's signed-in session has no ld_csrftoken cookie"
   if [[ "$1" == first ]]; then
     # This user's test fixture doesn't fetch icons, previews or archives from the
     # Internet. The bookmark itself goes through the signed-in public API.
