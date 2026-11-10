@@ -91,11 +91,16 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
     .filter({ hasText: "Owner" })
     .filter({ hasText: /passkey/ })
     .waitFor();
-  await page.getByRole("region", { name: "What each role can do" }).waitFor();
+  // With one person and nobody invited, what each role can do waits for Invite someone (ADR 0049).
+  if ((await page.getByRole("region", { name: "What each role can do" }).count()) !== 0) {
+    throw new Error("Members shows what each role can do with one person and nobody invited");
+  }
   await shoot(page, "settings-members");
   // This stand serves the panel on localhost alone, where nobody else can accept an invite.
+  // Inviting, the link, the list and revoking run at a domain, in web/e2e/invites.ts.
   await page.getByRole("button", { name: "Invite someone" }).click();
   await page.getByText("Invites need the panel's domain", { exact: true }).waitFor();
+  await page.getByRole("region", { name: "What each role can do" }).waitFor();
   await shoot(page, "settings-members-invite");
 
   step("settings: the audit log lists every event, narrows to an action, and saves what it keeps as CSV");
