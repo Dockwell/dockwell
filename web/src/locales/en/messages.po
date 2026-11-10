@@ -5855,8 +5855,8 @@ msgstr "To keep it hidden, write the {where} as a list, with each word its own v
 msgid "To keep it open from more, add a rule that allows port {ports} first."
 msgstr "To keep it open from more, add a rule that allows port {ports} first."
 
-msgid "Two containers may write to {shared}"
-msgstr "Two containers may write to {shared}"
+msgid "Two containers may write to {shared}, which can corrupt a database"
+msgstr "Two containers may write to {shared}, which can corrupt a database"
 
 msgid "Undo may not bring everything back."
 msgstr "Undo may not bring everything back."
@@ -5990,8 +5990,8 @@ msgstr "{name} takes on the container {path} on {server}"
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 
-msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database."
-msgstr "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database."
+msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes."
+msgstr "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes."
 
 msgid "{name}'s scheduled tasks get the same reach"
 msgstr "{name}'s scheduled tasks get the same reach"

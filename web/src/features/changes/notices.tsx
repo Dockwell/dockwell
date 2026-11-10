@@ -569,9 +569,10 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
         const shared = [...rollout.volumes, ...rollout.paths, ...rollout.imageData, ...rollout.cantTell].join(", ");
         out.push({
           key: `writers-${key}`,
-          title: t`Two containers may write to ${shared}`,
+          // What it can do to the data is the fact to weigh, so it's in the title.
+          title: t`Two containers may write to ${shared}, which can corrupt a database`,
           detail: t`Apply this only if the app can take it.`,
-          more: t`${name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database.`,
+          more: t`${name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes.`,
         });
       }
       if (step.warnings.includes(PlanWarning.MAY_LOCK_OUT) && !applied) {

@@ -5855,8 +5855,8 @@ msgstr "要隐藏它，请把{where}写成列表，每个词使用各自的变�
 msgid "To keep it open from more, add a rule that allows port {ports} first."
 msgstr "要对更多地址开放，请先添加一条允许端口 {ports} 的规则。"
 
-msgid "Two containers may write to {shared}"
-msgstr "两个容器可能同时写入 {shared}"
+msgid "Two containers may write to {shared}, which can corrupt a database"
+msgstr "两个容器可能同时写入 {shared}，这可能损坏数据库"
 
 msgid "Undo may not bring everything back."
 msgstr "撤销可能无法恢复所有内容。"
@@ -5990,8 +5990,8 @@ msgstr "{name} 在 {server} 上接管容器 {path}"
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们。"
 
-msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database."
-msgstr "{name} 的发布顺序设置为先启动，因此在此过程中新旧容器都会写入那里，这可能损坏数据库。"
+msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes."
+msgstr "{name} 的发布顺序设置为先启动，因此在此过程中新旧容器都会写入那里。"
 
 msgid "{name}'s scheduled tasks get the same reach"
 msgstr "{name} 的计划任务获得同样的访问范围"
