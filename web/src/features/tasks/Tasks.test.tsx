@@ -11,13 +11,14 @@ import {
   TaskRunReason,
   TaskRunState,
 } from "@dockwell/api";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { ENV, places, SERVER } from "../../test/apps";
+import { applied, moved, webPlanned } from "../../test/changes";
 import { type Api, onPhone, renderAt, renderWithApi } from "../../test/render";
 import { useTaskWords } from "./useTasks";
 
@@ -321,7 +322,7 @@ describe("scheduled tasks", () => {
     expect(await screen.findByText(/hz-1 runs its tasks all the same, on its own clock/)).toBeVisible();
   });
 
-  it("plans a new shell command, which takes a passkey as it runs as root", async () => {
+  it("plans a new shell command from what it runs, named after it, every day at 04:00", async () => {
     const user = userEvent.setup();
     const proposed = vi.fn((req: ProposeChangeRequest) => {
       void req;
@@ -331,31 +332,104 @@ describe("scheduled tasks", () => {
     await user.click((await screen.findAllByRole("button", { name: /New task/ }))[0] as HTMLElement);
     const sheet = await screen.findByRole("dialog", { name: "New task" });
     expect(within(sheet).getByText(/as root, so applying it takes your passkey/)).toBeVisible();
-    await user.type(within(sheet).getByLabelText("Name"), "rotate-logs");
+    // Only what to run and when are asked; the rest is a line under Advanced.
+    expect(within(sheet).queryByLabelText("Timeout, in minutes")).toBeNull();
     await user.type(within(sheet).getByLabelText("Command"), "find /var/log/app -mtime +7 -delete");
+    expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveTextContent(
+      "Named find · in / · stops after 10 min · no retries",
+    );
+    expect(within(sheet).getByText(/^Next, in UTC: /)).toBeVisible();
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await waitFor(() => expect(proposed).toHaveBeenCalled());
     const edit = proposed.mock.calls[0]?.[0].edits[0];
     expect(edit?.resource?.kind).toBe("task");
-    expect(edit?.resource?.name).toBe("rotate-logs");
+    expect(edit?.resource?.name).toBe("find");
     const spec = edit?.spec?.kind.case === "task" ? edit.spec.kind.value : undefined;
     expect(spec?.schedule).toBe("0 4 * * *");
     expect(spec?.runs.case === "shell" && spec.runs.value.command).toBe("find /var/log/app -mtime +7 -delete");
+    expect(spec?.timeoutSeconds).toBe(600);
   });
 
-  it("refuses a name or a schedule the control plane wouldn't take, before it asks", async () => {
+  it("picks a schedule from lists, and says when it next runs", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((req: ProposeChangeRequest) => {
+      void req;
+      return { change: { id: "chg_1" } };
+    });
+    renderAt("/scheduled-tasks", api([], { changes: { proposeChange: proposed } }));
+    await user.click((await screen.findAllByRole("button", { name: /New task/ }))[0] as HTMLElement);
+    const sheet = await screen.findByRole("dialog", { name: "New task" });
+    await user.type(within(sheet).getByLabelText("Command"), "/usr/local/bin/backup-photos");
+    await user.type(within(sheet).getByLabelText(/^Name/), "Back up photos");
+    await user.selectOptions(within(sheet).getByLabelText("Schedule"), "week");
+    await user.selectOptions(within(sheet).getByLabelText("On"), "5");
+    // A time input takes the whole time at once, as a browser's picker gives it.
+    fireEvent.change(within(sheet).getByLabelText("At"), { target: { value: "21:30" } });
+    expect(within(sheet).getByText("30 21 * * 5")).toBeVisible();
+    expect(within(sheet).getByText(/^Next, in UTC: Fri/)).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    const edit = proposed.mock.calls[0]?.[0].edits[0];
+    expect(edit?.resource?.name).toBe("back-up-photos");
+    const spec = edit?.spec?.kind.case === "task" ? edit.spec.kind.value : undefined;
+    expect(spec?.schedule).toBe("30 21 * * 5");
+    expect(spec?.displayName).toBe("Back up photos");
+  });
+
+  it("takes cron for the rest, and refuses a name or a schedule the control plane wouldn't take", async () => {
     const user = userEvent.setup();
     const proposed = vi.fn();
     renderAt("/scheduled-tasks", api([], { changes: { proposeChange: proposed } }));
     await user.click((await screen.findAllByRole("button", { name: /New task/ }))[0] as HTMLElement);
     const sheet = await screen.findByRole("dialog", { name: "New task" });
-    await user.type(within(sheet).getByLabelText("Name"), "Rotate Logs");
-    await user.clear(within(sheet).getByLabelText("In cron"));
-    await user.type(within(sheet).getByLabelText("In cron"), "every day");
+    await user.type(within(sheet).getByLabelText("Command"), "true");
+    await user.selectOptions(within(sheet).getByLabelText("Schedule"), "cron");
+    const cron = within(sheet).getByLabelText("Cron");
+    expect(cron).toHaveValue("0 4 * * *");
+    await user.clear(cron);
+    await user.type(cron, "every day");
+    expect(within(sheet).getByText("That isn't cron Dockwell reads.")).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    const short = within(sheet).getByLabelText("Short name");
+    await user.clear(short);
+    await user.type(short, "Rotate Logs");
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     expect(await within(sheet).findByText(/Use lowercase letters, digits and hyphens/)).toBeVisible();
     expect(within(sheet).getByText(/Use cron's five fields/)).toBeVisible();
     expect(proposed).not.toHaveBeenCalled();
+  });
+
+  it("opens the task it made once the plan applies, where Run now is", async () => {
+    const user = userEvent.setup();
+    let tasks: TaskInfo[] = [];
+    const made = aTask({
+      id: "tsk_find",
+      resource: { kind: "task", scope: ENV, name: "find" },
+      kind: TaskKind.SHELL,
+      spec: { schedule: "0 4 * * *", runs: { case: "shell", value: { command: "find /tmp -delete" } } },
+    });
+    const planned = moved(webPlanned(), { id: "chg_task", summary: "Run find on a schedule" });
+    renderAt(
+      "/scheduled-tasks",
+      api([], {
+        tasks: { listTasks: () => ({ tasks }), listTaskRuns: () => ({ runs: [] }) },
+        changes: {
+          proposeChange: () => ({ change: planned }),
+          applyChange: () => {
+            tasks = [made];
+            return { change: applied(planned) };
+          },
+        },
+      }),
+    );
+    await user.click((await screen.findAllByRole("button", { name: /New task/ }))[0] as HTMLElement);
+    const sheet = await screen.findByRole("dialog", { name: "New task" });
+    await user.type(within(sheet).getByLabelText("Command"), "find /tmp -delete");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await user.click(await screen.findByRole("button", { name: /Apply plan/ }));
+    await user.click(await screen.findByRole("button", { name: "Open find" }));
+    const panel = await screen.findByRole("region", { name: "find" });
+    expect(within(panel).getByRole("button", { name: "Run now" })).toBeEnabled();
   });
 
   it("is a list of rows on a phone", async () => {

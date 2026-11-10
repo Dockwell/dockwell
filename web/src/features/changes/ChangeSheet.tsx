@@ -27,6 +27,7 @@ import {
   ResourceService,
   StepState,
   StepUpAction,
+  TaskService,
   VariableService,
   WebsiteService,
 } from "@dockwell/api";
@@ -325,7 +326,7 @@ function letGo(client: Client<typeof ChangeService>, proposal: Proposal): void {
   }, 0);
 }
 
-/** Reads what a change applied or undone may have changed again: the resources, the services and their domains, the timeline's pages and the changes. */
+/** Reads what a change applied or undone may have changed again: the resources, the services and their domains, the tasks, the timeline's pages and the changes. */
 function refreshAfter(queryClient: QueryClient): void {
   void readServicesAgain(queryClient);
   for (const schema of [
@@ -338,6 +339,7 @@ function refreshAfter(queryClient: QueryClient): void {
     BackupService,
     WebsiteService,
     AlertService,
+    TaskService,
   ]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }

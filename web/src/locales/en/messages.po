@@ -10377,6 +10377,7 @@ msgstr "Your passkey confirms it. You see the token once, right after you create
 msgid "from <0>{0}</0>"
 msgstr "from <0>{0}</0>"
 
+#. placeholder {0}: folder.trim() || "/"
 #. placeholder {0}: words.span(Math.max(0, when.getTime() - now))
 msgid "in {0}"
 msgstr "in {0}"
@@ -10725,6 +10726,59 @@ msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwe
 msgid "Unreachable"
 msgstr "Unreachable"
 
+msgid "At minute"
+msgstr "At minute"
+
+msgid "Cron"
+msgstr "Cron"
+
+msgid "Custom, in cron"
+msgstr "Custom, in cron"
+
+msgid "Every day"
+msgstr "Every day"
+
+msgid "Every few minutes"
+msgstr "Every few minutes"
+
+msgid "Every hour"
+msgstr "Every hour"
+
+msgid "Every month"
+msgstr "Every month"
+
+msgid "Every week"
+msgstr "Every week"
+
+msgid "Every weekday"
+msgstr "Every weekday"
+
+msgid "Minute, hour, day of the month, month, day of the week."
+msgstr "Minute, hour, day of the month, month, day of the week."
+
+#. placeholder {0}: runs.map((ms) => when.format(new Date(ms))).join(" · ")
+msgid "Next, in {zone}: {0}"
+msgstr "Next, in {zone}: {0}"
+
+msgid "No date matches it, so it never runs."
+msgstr "No date matches it, so it never runs."
+
+msgctxt "a day of the week"
+msgid "On"
+msgstr "On"
+
+msgid "On day"
+msgstr "On day"
+
+msgid "Schedule"
+msgstr "Schedule"
+
+msgid "That isn't cron Dockwell reads."
+msgstr "That isn't cron Dockwell reads."
+
+msgid "{n} minutes"
+msgstr "{n} minutes"
+
 msgid "All runs"
 msgstr "All runs"
 
@@ -10768,9 +10822,6 @@ msgstr "Run now"
 msgid "Runs in"
 msgstr "Runs in"
 
-msgid "Schedule"
-msgstr "Schedule"
-
 #. placeholder {0}: newest.outputCutBytes
 msgid "What it printed before this, {0} bytes, wasn't kept."
 msgstr "What it printed before this, {0} bytes, wasn't kept."
@@ -10801,11 +10852,8 @@ msgstr "{good} succeeded"
 msgid "{retries, plural, one {{timeout}, then retry once} other {{timeout}, then retry # times}}"
 msgstr "{retries, plural, one {{timeout}, then retry once} other {{timeout}, then retry # times}}"
 
-msgid "Another, in cron"
-msgstr "Another, in cron"
-
-msgid "Any 2xx when empty."
-msgstr "Any 2xx when empty."
+msgid "Any 2xx"
+msgstr "Any 2xx"
 
 msgid "Change the task {resourceName}"
 msgstr "Change the task {resourceName}"
@@ -10835,23 +10883,14 @@ msgstr "If a run fails"
 msgid "In an app"
 msgstr "In an app"
 
-msgid "In cron"
-msgstr "In cron"
-
-msgid "It runs in a container of the app's image, with its environment, after its entrypoint. Name sh -c for a shell."
-msgstr "It runs in a container of the app's image, with its environment, after its entrypoint. Name sh -c for a shell."
-
-msgid "It runs on its server's own clock, and every change to it is a plan"
-msgstr "It runs on its server's own clock, and every change to it is a plan"
+msgid "It runs in a new container of the app's image, with its environment."
+msgstr "It runs in a new container of the app's image, with its environment."
 
 msgid "It runs only when you run it now."
 msgstr "It runs only when you run it now."
 
-msgid "It runs with /bin/sh on the server, as root, so applying it takes your passkey."
-msgstr "It runs with /bin/sh on the server, as root, so applying it takes your passkey."
-
-msgid "Its schedule reads in this zone, whatever each server's clock is set to."
-msgstr "Its schedule reads in this zone, whatever each server's clock is set to."
+msgid "It runs with /bin/sh as root, so applying it takes your passkey."
+msgstr "It runs with /bin/sh as root, so applying it takes your passkey."
 
 msgid "Leave it"
 msgstr "Leave it"
@@ -10859,8 +10898,8 @@ msgstr "Leave it"
 msgid "Method"
 msgstr "Method"
 
-msgid "Minute, hour, day of the month, month and day of the week, in its time zone."
-msgstr "Minute, hour, day of the month, month and day of the week, in its time zone."
+msgid "Named {name}"
+msgstr "Named {name}"
 
 msgid "New task"
 msgstr "New task"
@@ -10868,12 +10907,14 @@ msgstr "New task"
 msgid "Nightly sales report"
 msgstr "Nightly sales report"
 
-msgid "Otherwise one runs as the server comes back, however many were missed."
-msgstr "Otherwise one runs as the server comes back, however many were missed."
+msgid "Open {shownName}"
+msgstr "Open {shownName}"
 
-#. placeholder {0}: display.trim() || resourceName
-msgid "Run {0} on a schedule"
-msgstr "Run {0} on a schedule"
+msgid "Otherwise one runs as the server comes back."
+msgstr "Otherwise one runs as the server comes back."
+
+msgid "Run {shownName} on a schedule"
+msgstr "Run {shownName} on a schedule"
 
 msgid "Say what it runs."
 msgstr "Say what it runs."
@@ -10883,6 +10924,9 @@ msgstr "Server it runs on"
 
 msgid "Shell command"
 msgstr "Shell command"
+
+msgid "Short name"
+msgstr "Short name"
 
 msgid "Skip runs missed while the server was off"
 msgstr "Skip runs missed while the server was off"
@@ -10897,8 +10941,8 @@ msgstr "The install's"
 msgid "The install's, {0}"
 msgstr "The install's, {0}"
 
-msgid "The server asks it, so it reaches what the server reaches. A run keeps the status and how long it took, never what came back."
-msgstr "The server asks it, so it reaches what the server reaches. A run keeps the status and how long it took, never what came back."
+msgid "The server asks it, so it reaches what the server reaches."
+msgstr "The server asks it, so it reaches what the server reaches."
 
 msgid "Timeout, in minutes"
 msgstr "Timeout, in minutes"
@@ -10933,12 +10977,31 @@ msgstr "Use lowercase letters, digits and hyphens, such as nightly-report."
 msgid "What it runs"
 msgstr "What it runs"
 
-msgid "What people call it"
-msgstr "What people call it"
+msgid "What the CLI and the API call it."
+msgstr "What the CLI and the API call it."
 
 #. placeholder {0}: task.servers.map((s) => s.serverName).join(", ")
 msgid "Where it runs now: {0}"
 msgstr "Where it runs now: {0}"
+
+msgid "no retries"
+msgstr "no retries"
+
+msgid "one retry"
+msgstr "one retry"
+
+msgid "skips missed runs"
+msgstr "skips missed runs"
+
+#. placeholder {0}: minutes || "?"
+msgid "stops after {0} min"
+msgstr "stops after {0} min"
+
+msgid "three retries"
+msgstr "three retries"
+
+msgid "two retries"
+msgstr "two retries"
 
 msgid "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
 msgstr "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."

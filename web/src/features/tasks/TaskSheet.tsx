@@ -2,8 +2,9 @@
 
 import { create } from "@bufbuild/protobuf";
 import { useQuery } from "@connectrpc/connect-query";
-import { SettingsService, type Task, type TaskInfo, TaskSchema } from "@dockwell/api";
+import { ChangeState, SettingsService, type Task, type TaskInfo, TaskSchema } from "@dockwell/api";
 import {
+  Advanced,
   Button,
   PHONE_QUERY,
   SegmentedControl,
@@ -16,18 +17,58 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
+import { parseCron } from "../../lib/cron";
 import { usePlaces, useServices } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
-import { useTaskWords } from "./useTasks";
+import { ScheduleField } from "./ScheduleField";
+import { useTasks } from "./useTasks";
 
 type Kind = "shell" | "app" | "request";
 
 /** What a task's name takes, as the control plane checks a resource's name. */
 const NAME = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
 
-/** Schedules most tasks want, each with what it is in cron. */
-const PRESETS = ["*/5 * * * *", "0 * * * *", "0 4 * * *", "0 4 * * 1", "0 4 1 * *"] as const;
+/** A name in the control plane's terms from words a person wrote: "Nightly sales report" is nightly-sales-report. */
+export function slug(text: string): string {
+  return text
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 63)
+    .replace(/-+$/g, "");
+}
+
+/**
+ * A name for a new task when nobody gave one: from what people call it, else from
+ * what it runs (the program, the app, the host it asks), made unique among the
+ * names already taken in its place.
+ */
+export function defaultName(
+  display: string,
+  run: { kind: Kind; command: string; app: string; url: string },
+  taken: ReadonlySet<string>,
+): string {
+  let base = slug(display);
+  if (!base) {
+    if (run.kind === "request") {
+      try {
+        base = slug(new URL(run.url.trim()).hostname.split(".")[0] ?? "");
+      } catch {
+        base = "";
+      }
+      base = base ? `ping-${base}` : "request";
+    } else {
+      const program = run.command.trim().split(/\s+/)[0] ?? "";
+      base = slug(program.split("/").pop() ?? "") || (run.kind === "app" ? slug(run.app) : "");
+      if (run.kind === "app" && run.app && base !== slug(run.app)) base = slug(`${run.app}-${base}`);
+    }
+  }
+  base = (base || "task").slice(0, 58).replace(/-+$/, "");
+  if (!taken.has(base)) return base;
+  for (let i = 2; ; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
+}
 
 /**
  * The zone a new task's schedule reads in: the install's from Settings, or UTC where
@@ -48,20 +89,32 @@ function zones(): string[] {
 /**
  * Makes or changes a scheduled task, as a plan: a shell command on a server, which
  * a passkey approves as it runs as root; a command in an app's image; or an HTTP
- * request. Deleting one is a plan too.
+ * request. It asks what to run and when; the name, the folder, the zone, the
+ * timeout and retries start at defaults, summed up under Advanced. Once a new one
+ * is applied, onMade says which, so the page can open it where Run now is. Deleting
+ * one is a plan too.
  */
-export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => void }) {
+export function TaskSheet({
+  task,
+  onClose,
+  onMade,
+}: {
+  task?: TaskInfo;
+  onClose: () => void;
+  /** Called once a new task's change has applied, with its name and where it is. */
+  onMade?: (name: string, scope: string) => void;
+}) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
-  const words = useTaskWords();
   const sheet = useChangeSheet();
   const places = usePlaces();
   const services = useServices().data ?? [];
+  const existing = useTasks().data?.tasks ?? [];
   const { servers } = useFleetView();
   const spec = task?.spec;
   const runs = spec?.runs;
   const [kind, setKind] = useState<Kind>(runs?.case ?? "shell");
-  const [name, setName] = useState(task?.resource?.name ?? "");
+  const [typedName, setTypedName] = useState<string>();
   const [display, setDisplay] = useState(spec?.displayName ?? "");
   const [command, setCommand] = useState(runs?.case === "shell" || runs?.case === "app" ? runs.value.command : "");
   const [folder, setFolder] = useState(runs?.case === "shell" ? runs.value.workingDir : "");
@@ -83,12 +136,18 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
   const scheduleZone = useScheduleZone();
   const [environment, setEnvironment] = useState(task?.resource?.scope ?? places.defaultEnvironment?.id ?? "");
   const [tried, setTried] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
 
   const chosenApp = services.find((s) => `${s.resource?.scope}/${s.resource?.name}` === app);
   const appServers = chosenApp?.deployments.map((d) => ({ id: d.serverId, name: d.serverName })) ?? [];
   const serverChoices = kind === "app" ? appServers : (servers ?? []).map((s) => ({ id: s.id, name: s.name }));
+  const scope = kind === "app" ? (chosenApp?.resource?.scope ?? "") : environment;
+  const taken = new Set(existing.filter((x) => x.resource?.scope === scope).map((x) => x.resource?.name ?? ""));
+  const suggested = defaultName(display, { kind, command, app: chosenApp?.resource?.name ?? "", url }, taken);
+  const name = typedName ?? suggested;
   const minutes = Number(timeout);
-  const said = words.schedule(schedule);
+  // What the schedule's runs read in: the task's own zone, else the install's.
+  const readsIn = zone || scheduleZone.zone || "UTC";
   const errors = {
     name: task || NAME.test(name) ? undefined : t`Use lowercase letters, digits and hyphens, such as nightly-report.`,
     command: kind !== "request" && command.trim() === "" ? t`Say what it runs.` : undefined,
@@ -101,19 +160,20 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
       expect !== "" && !(Number(expect) >= 100 && Number(expect) <= 599)
         ? t`Use an HTTP status from 100 to 599, or leave it empty for any 2xx.`
         : undefined,
-    schedule:
-      schedule.trim().split(/\s+/).length !== 5 && !schedule.trim().startsWith("@")
-        ? t`Use cron's five fields, such as 0 4 * * *.`
-        : undefined,
+    schedule: parseCron(schedule) ? undefined : t`Use cron's five fields, such as 0 4 * * *.`,
     timeout: !(Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440) ? t`Use 1 to 1,440 minutes.` : undefined,
   };
   const valid = Object.values(errors).every((e) => e === undefined);
-  const scope = kind === "app" ? (chosenApp?.resource?.scope ?? "") : environment;
   const resourceName = task?.resource?.name ?? name;
+  const shownName = display.trim() || resourceName;
 
   const review = () => {
     setTried(true);
-    if (!valid) return;
+    if (!valid) {
+      // What's wrong may be under Advanced: open it, so the error is in view.
+      if (errors.name || errors.expect || errors.timeout) setAdvanced(true);
+      return;
+    }
     const value: Task = create(TaskSchema, {
       schedule: schedule.trim(),
       // Left out of a new task, the control plane gives it the install's zone.
@@ -132,7 +192,7 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
     });
     sheet.open({
       kind: "propose",
-      summary: task ? t`Change the task ${resourceName}` : t`Run ${display.trim() || resourceName} on a schedule`,
+      summary: task ? t`Change the task ${resourceName}` : t`Run ${shownName} on a schedule`,
       edits: [
         {
           resource: { kind: "task", scope, name: resourceName },
@@ -141,8 +201,11 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
           servers: server ? [server] : [],
         },
       ],
+      doneLabel: task ? undefined : t`Open ${shownName}`,
       onClose: (change) => {
-        if (change) onClose();
+        if (!change) return;
+        if (!task && change.state === ChangeState.APPLIED) onMade?.(resourceName, scope);
+        onClose();
       },
     });
   };
@@ -158,12 +221,29 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
     });
   };
 
+  // The defaults, in one line, so nobody opens Advanced to find out.
+  const failing = {
+    "0": t`no retries`,
+    "1": t`one retry`,
+    "2": t`two retries`,
+    "3": t`three retries`,
+  }[retries];
+  const summary = [
+    task ? "" : t`Named ${name}`,
+    kind === "shell" ? t`in ${folder.trim() || "/"}` : "",
+    t`stops after ${minutes || "?"} min`,
+    failing ?? "",
+    skipMissed ? t`skips missed runs` : "",
+    kind === "request" ? `${method}${expect ? ` · ${expect}` : ""}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <Sheet
       open
       onClose={onClose}
       title={task ? t`Edit ${display || resourceName}` : t`New task`}
-      subtitle={t`It runs on its server's own clock, and every change to it is a plan`}
       footer={
         <>
           {task ? (
@@ -206,25 +286,6 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
                 ]
           }
         />
-        {task ? null : (
-          <TextField
-            label={t`Name`}
-            value={name}
-            mono
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="nightly-report"
-            error={tried ? errors.name : undefined}
-            onChange={(event) => setName(event.target.value)}
-          />
-        )}
-        <TextField
-          label={t`What people call it`}
-          value={display}
-          optional
-          placeholder={t`Nightly sales report`}
-          onChange={(event) => setDisplay(event.target.value)}
-        />
         {kind === "app" ? (
           <SelectField
             label={t`App`}
@@ -243,33 +304,15 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
           />
         ) : null}
         {kind === "request" ? (
-          <>
-            <TextField
-              label={t`URL`}
-              value={url}
-              mono
-              placeholder="https://example.com/cron"
-              error={tried ? errors.url : undefined}
-              hint={t`The server asks it, so it reaches what the server reaches. A run keeps the status and how long it took, never what came back.`}
-              onChange={(event) => setUrl(event.target.value)}
-            />
-            <SelectField
-              label={t`Method`}
-              value={method}
-              options={["GET", "HEAD", "POST"].map((m) => ({ value: m, label: m }))}
-              onChange={(event) => setMethod(event.target.value)}
-            />
-            <TextField
-              label={t`Status it expects`}
-              value={expect}
-              mono
-              optional
-              placeholder="200"
-              error={tried ? errors.expect : undefined}
-              hint={t`Any 2xx when empty.`}
-              onChange={(event) => setExpect(event.target.value)}
-            />
-          </>
+          <TextField
+            label={t`URL`}
+            value={url}
+            mono
+            placeholder="https://example.com/cron"
+            error={tried ? errors.url : undefined}
+            hint={t`The server asks it, so it reaches what the server reaches.`}
+            onChange={(event) => setUrl(event.target.value)}
+          />
         ) : (
           <TextField
             label={t`Command`}
@@ -280,41 +323,24 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
             error={tried ? errors.command : undefined}
             hint={
               kind === "shell"
-                ? t`It runs with /bin/sh on the server, as root, so applying it takes your passkey.`
-                : t`It runs in a container of the app's image, with its environment, after its entrypoint. Name sh -c for a shell.`
+                ? t`It runs with /bin/sh as root, so applying it takes your passkey.`
+                : t`It runs in a new container of the app's image, with its environment.`
             }
             onChange={(event) => setCommand(event.target.value)}
           />
         )}
-        {kind === "shell" ? (
-          <TextField
-            label={t`Folder it runs in`}
-            value={folder}
-            mono
-            optional
-            placeholder="/"
-            onChange={(event) => setFolder(event.target.value)}
-          />
-        ) : null}
-        <SelectField
-          label={t`Schedule`}
-          value={(PRESETS as readonly string[]).includes(schedule) ? schedule : ""}
-          options={[
-            ...PRESETS.map((p) => ({ value: p, label: words.schedule(p) })),
-            { value: "", label: t`Another, in cron` },
-          ]}
-          onChange={(event) => {
-            if (event.target.value) setSchedule(event.target.value);
-          }}
+        <ScheduleField
+          value={schedule}
+          onChange={setSchedule}
+          zone={readsIn}
+          error={tried ? errors.schedule : undefined}
         />
         <TextField
-          label={t`In cron`}
-          value={schedule}
-          mono
-          spellCheck={false}
-          error={tried ? errors.schedule : undefined}
-          hint={said || t`Minute, hour, day of the month, month and day of the week, in its time zone.`}
-          onChange={(event) => setSchedule(event.target.value)}
+          label={t`Name`}
+          value={display}
+          optional
+          placeholder={t`Nightly sales report`}
+          onChange={(event) => setDisplay(event.target.value)}
         />
         {kind !== "app" && places.environments.length > 1 && !task ? (
           <SelectField
@@ -337,60 +363,105 @@ export function TaskSheet({ task, onClose }: { task?: TaskInfo; onClose: () => v
             onChange={(event) => setServer(event.target.value)}
           />
         ) : null}
-        <SelectField
-          label={t`Time zone`}
-          value={zone}
-          hint={t`Its schedule reads in this zone, whatever each server's clock is set to.`}
-          options={[
-            ...(spec?.timeZone
-              ? []
-              : [
-                  {
-                    value: "",
-                    label:
-                      scheduleZone.zone === undefined
-                        ? t`The install's`
-                        : scheduleZone.set
-                          ? t`The install's, ${scheduleZone.zone}`
-                          : t`UTC, as the install has none set`,
-                  },
-                ]),
-            ...zones().map((z) => ({ value: z, label: z })),
-          ]}
-          onChange={(event) => setZone(event.target.value)}
-        />
-        <TextField
-          label={t`Timeout, in minutes`}
-          value={timeout}
-          mono
-          error={tried ? errors.timeout : undefined}
-          onChange={(event) => setTimeoutMinutes(event.target.value)}
-        />
-        <SelectField
-          label={t`If a run fails`}
-          value={retries}
-          options={[
-            { value: "0", label: t`Leave it` },
-            { value: "1", label: t`Try once more, a minute later` },
-            { value: "2", label: t`Try twice more` },
-            { value: "3", label: t`Try three times more` },
-          ]}
-          onChange={(event) => setRetries(event.target.value)}
-        />
-        <Switch
-          checked={skipMissed}
-          onChange={setSkipMissed}
-          label={t`Skip runs missed while the server was off`}
-          description={t`Otherwise one runs as the server comes back, however many were missed.`}
-        />
-        {task ? (
-          <Switch
-            checked={paused}
-            onChange={setPaused}
-            label={t`Paused`}
-            description={t`It runs only when you run it now.`}
+        <Advanced open={advanced} onOpenChange={setAdvanced} summary={summary}>
+          {task ? null : (
+            <TextField
+              label={t`Short name`}
+              value={name}
+              mono
+              autoComplete="off"
+              spellCheck={false}
+              error={tried ? errors.name : undefined}
+              hint={t`What the CLI and the API call it.`}
+              onChange={(event) => setTypedName(event.target.value)}
+            />
+          )}
+          {kind === "shell" ? (
+            <TextField
+              label={t`Folder it runs in`}
+              value={folder}
+              mono
+              optional
+              placeholder="/"
+              onChange={(event) => setFolder(event.target.value)}
+            />
+          ) : null}
+          {kind === "request" ? (
+            <div className="tasks-form-row">
+              <SelectField
+                label={t`Method`}
+                value={method}
+                options={["GET", "HEAD", "POST"].map((m) => ({ value: m, label: m }))}
+                onChange={(event) => setMethod(event.target.value)}
+              />
+              <TextField
+                label={t`Status it expects`}
+                value={expect}
+                mono
+                optional
+                placeholder={t`Any 2xx`}
+                error={tried ? errors.expect : undefined}
+                onChange={(event) => setExpect(event.target.value)}
+              />
+            </div>
+          ) : null}
+          <SelectField
+            label={t`Time zone`}
+            value={zone}
+            options={[
+              ...(spec?.timeZone
+                ? []
+                : [
+                    {
+                      value: "",
+                      label:
+                        scheduleZone.zone === undefined
+                          ? t`The install's`
+                          : scheduleZone.set
+                            ? t`The install's, ${scheduleZone.zone}`
+                            : t`UTC, as the install has none set`,
+                    },
+                  ]),
+              ...zones().map((z) => ({ value: z, label: z })),
+            ]}
+            onChange={(event) => setZone(event.target.value)}
           />
-        ) : null}
+          <div className="tasks-form-row">
+            <TextField
+              label={t`Timeout, in minutes`}
+              value={timeout}
+              mono
+              inputMode="numeric"
+              error={tried ? errors.timeout : undefined}
+              onChange={(event) => setTimeoutMinutes(event.target.value)}
+            />
+            <SelectField
+              label={t`If a run fails`}
+              value={retries}
+              options={[
+                { value: "0", label: t`Leave it` },
+                { value: "1", label: t`Try once more, a minute later` },
+                { value: "2", label: t`Try twice more` },
+                { value: "3", label: t`Try three times more` },
+              ]}
+              onChange={(event) => setRetries(event.target.value)}
+            />
+          </div>
+          <Switch
+            checked={skipMissed}
+            onChange={setSkipMissed}
+            label={t`Skip runs missed while the server was off`}
+            description={t`Otherwise one runs as the server comes back.`}
+          />
+          {task ? (
+            <Switch
+              checked={paused}
+              onChange={setPaused}
+              label={t`Paused`}
+              description={t`It runs only when you run it now.`}
+            />
+          ) : null}
+        </Advanced>
         <button type="submit" hidden />
       </form>
     </Sheet>
