@@ -1,0 +1,20 @@
+Status: active
+Logging: on (low)
+Default: deny (incoming), allow (outgoing), deny (routed)
+New profiles: skip
+
+To                         Action      From
+--                         ------      ----
+22/tcp (OpenSSH)           ALLOW IN    Anywhere                  
+443/tcp on eth0            ALLOW IN    Anywhere                  
+8000:8100/tcp on tailscale0 ALLOW IN    Anywhere                  
+203.0.113.5 9000/tcp       ALLOW IN    Anywhere                  
+Anywhere                   ALLOW IN    198.51.100.9               (log) # monitoring
+2001:db8:abcd:12::/64 443/tcp ALLOW IN    Anywhere (v6)             
+5432/tcp                   ALLOW IN    2001:db8::/32             
+22/tcp (OpenSSH (v6))      ALLOW IN    Anywhere (v6)             
+80,443/tcp (Nginx Full (v6)) ALLOW IN    Anywhere (v6)             
+
+53/udp                     ALLOW OUT   Anywhere                  
+
+Anywhere on docker0        ALLOW FWD   Anywhere on eth0          
