@@ -41,6 +41,7 @@ func Commands() []string {
 		"firewall",
 		"firewall-rules",
 		"health",
+		"images",
 		"import",
 		"logs",
 		"members",

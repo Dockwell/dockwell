@@ -1059,6 +1059,102 @@ msgstr "That didn't take"
 msgid "since {since}"
 msgstr "since {since}"
 
+msgid "A mute holds what it would send."
+msgstr "A mute holds what it would send."
+
+msgid "Acknowledged"
+msgstr "Acknowledged"
+
+msgid "Alert"
+msgstr "Alert"
+
+msgid "Alerts lists what's open and the newest that resolved. This one resolved before those, or was never there. Activity keeps what fired and resolved."
+msgstr "Alerts lists what's open and the newest that resolved. This one resolved before those, or was never there. Activity keeps what fired and resolved."
+
+msgid "Back to alerts"
+msgstr "Back to alerts"
+
+msgid "Can't load the alerts"
+msgstr "Can't load the alerts"
+
+msgid "Can't load what happened around it"
+msgstr "Can't load what happened around it"
+
+msgid "Delivered"
+msgstr "Delivered"
+
+msgid "Failed"
+msgstr "Failed"
+
+msgid "Fired"
+msgstr "Fired"
+
+#. placeholder {0}: when(alert.resolveTime)
+msgid "It resolved {0}, after {lasted}."
+msgstr "It resolved {0}, after {lasted}."
+
+msgid "Its own events are further back than this page reads. Activity has them."
+msgstr "Its own events are further back than this page reads. Activity has them."
+
+msgid "Lasted"
+msgstr "Lasted"
+
+msgid "Messages about it"
+msgstr "Messages about it"
+
+msgid "More has happened here since than this page reads back through. Activity has all of it."
+msgstr "More has happened here since than this page reads back through. Activity has all of it."
+
+msgid "Nobody did"
+msgstr "Nobody did"
+
+msgid "Nobody yet"
+msgstr "Nobody yet"
+
+msgid "None among the newest messages. Channels has what was sent lately."
+msgstr "None among the newest messages. Channels has what was sent lately."
+
+msgid "Nothing changed here in the hour before, and no check changed its answer."
+msgstr "Nothing changed here in the hour before, and no check changed its answer."
+
+msgid "Nothing more has happened to it."
+msgstr "Nothing more has happened to it."
+
+msgid "Open for"
+msgstr "Open for"
+
+msgid "Sending"
+msgstr "Sending"
+
+#. placeholder {0}: when(alert.sentTime)
+msgid "Sent {0}"
+msgstr "Sent {0}"
+
+msgid "The hour before {firedAt}"
+msgstr "The hour before {firedAt}"
+
+msgid "This alert"
+msgstr "This alert"
+
+msgid "This alert isn't among the newest"
+msgstr "This alert isn't among the newest"
+
+msgid "What changed before it fired"
+msgstr "What changed before it fired"
+
+msgid "What changed while it was open"
+msgstr "What changed while it was open"
+
+msgid "What has changed since"
+msgstr "What has changed since"
+
+msgid "What the rule saw"
+msgstr "What the rule saw"
+
+#. placeholder {0}: sent.length
+msgid "{0, plural, one {# sent} other {# sent}}"
+msgstr "{0, plural, one {# sent} other {# sent}}"
+
 msgid "Alerts sections"
 msgstr "Alerts sections"
 
@@ -1238,9 +1334,6 @@ msgstr "Actions"
 msgid "Add channel"
 msgstr "Add channel"
 
-msgid "Alert"
-msgstr "Alert"
-
 msgid "Alert channels"
 msgstr "Alert channels"
 
@@ -1249,9 +1342,6 @@ msgstr "Can't load the channels"
 
 msgid "Channel"
 msgstr "Channel"
-
-msgid "Delivered"
-msgstr "Delivered"
 
 msgid "Dockwell didn't send a test to {name}"
 msgstr "Dockwell didn't send a test to {name}"
@@ -1352,9 +1442,6 @@ msgstr "{failing, plural, one {# failing} other {# failing}}"
 
 msgid "Alert rules"
 msgstr "Alert rules"
-
-msgid "Can't load the alerts"
-msgstr "Can't load the alerts"
 
 msgid "Can't load the rules"
 msgstr "Can't load the rules"
@@ -2603,9 +2690,6 @@ msgstr "A tunnel or a proxy in front handles HTTPS"
 
 msgid "Expired"
 msgstr "Expired"
-
-msgid "Failed"
-msgstr "Failed"
 
 msgid "Issuing"
 msgstr "Issuing"

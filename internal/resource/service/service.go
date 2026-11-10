@@ -222,7 +222,7 @@ func Target(ref resource.Ref) container.Target {
 // old way goes on being its own until a deploy replaces it (ADR 0035).
 func TargetIn(ctx context.Context, ref resource.Ref) container.Target {
 	t := Target(ref)
-	if name := resource.ScopeName(ctx, ref.Scope); container.ScopeNameRE.MatchString(name) {
+	if name := resource.ScopeName(ctx, ref.Scope); container.IsScopeName(name) {
 		t.Prefix = name
 		t.Name = docker.ReadableName(name, ref.Name, 1)
 	}

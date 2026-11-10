@@ -89,6 +89,9 @@ FileService.SaveFile                           destructive  admin      admin    
 FileService.UploadFile                         apply        admin      admin      install  session
 FirewallService.GetServerFirewall              read         admin      admin      install
 HealthService.ListHealth                       read         viewer     viewer     project
+ImageService.GetImage                          read         developer  developer  project
+ImageService.ListImageTags                     read         developer  developer  project
+ImageService.SearchImages                      read         developer  developer  project
 ImportService.ImportOnePanel                   plan         admin      admin      install
 LogService.ListLogSources                      read         viewer     viewer     project
 LogService.ReadLogs                            read         viewer     viewer     project
