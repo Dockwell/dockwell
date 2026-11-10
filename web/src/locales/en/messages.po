@@ -2779,55 +2779,61 @@ msgstr "This app"
 msgid "What to export"
 msgstr "What to export"
 
-#. placeholder {0}: dir.mode
-msgid "<0>{path}</0> is <1>{theirs}</1>'s, whom the app runs as, but <2>{0}</2>, so it can't install there. Run <3>chmod u+w {path}</3>."
-msgstr "<0>{path}</0> is <1>{theirs}</1>'s, whom the app runs as, but <2>{0}</2>, so it can't install there. Run <3>chmod u+w {path}</3>."
+msgid "Advanced"
+msgstr "Advanced"
 
-msgid "<0>{path}</0> is a file, not a folder. Give the folder that holds the app."
-msgstr "<0>{path}</0> is a file, not a folder. Give the folder that holds the app."
+msgid "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
+msgstr "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
 
-msgid "<0>{path}</0> is root's, and an app from a folder never runs as root, so it can't install there. Run <1>sudo chown -R {user} {path}</1>, or give the folder to the user it runs as."
-msgstr "<0>{path}</0> is root's, and an app from a folder never runs as root, so it can't install there. Run <1>sudo chown -R {user} {path}</1>, or give the folder to the user it runs as."
+msgid "Choose the folder that holds the app."
+msgstr "Choose the folder that holds the app."
 
-msgid "An app from a folder never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
-msgstr "An app from a folder never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
-
-msgid "Changing it later is a plan of its own, which replaces the app's container."
-msgstr "Changing it later is a plan of its own, which replaces the app's container."
-
-msgid "Give the folder on the server that holds the app, such as /srv/shop."
-msgstr "Give the folder on the server that holds the app, such as /srv/shop."
+msgid "Dockwell makes it, owned by <0>{user}</0>."
+msgstr "Dockwell makes it, owned by <0>{user}</0>."
 
 msgid "Holds {found}."
 msgstr "Holds {found}."
 
-msgid "It's given as PORT, and its check and domain go there."
-msgstr "It's given as PORT, and its check and domain go there."
+msgid "It has no <0>{first}</0>. Put the app's files there."
+msgstr "It has no <0>{first}</0>. Put the app's files there."
+
+msgid "It's <0>{theirs}</0>'s, and the app runs as <1>{user}</1>."
+msgstr "It's <0>{theirs}</0>'s, and the app runs as <1>{user}</1>."
+
+#. placeholder {0}: dir.mode
+msgid "Its mode is <0>{0}</0>. Run <1>chmod u+w {path}</1> on the server."
+msgstr "Its mode is <0>{0}</0>. Run <1>chmod u+w {path}</1> on the server."
 
 msgid "Language"
 msgstr "Language"
 
-msgid "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{user}</1>, the user the app runs as. Put the app's files in it with <2>sudo rsync</2>, then <3>sudo chown -R {user} {path}</3>, and restart the app."
-msgstr "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{user}</1>, the user the app runs as. Put the app's files in it with <2>sudo rsync</2>, then <3>sudo chown -R {user} {path}</3>, and restart the app."
+msgid "Name the app, or give its folder on the server, such as /srv/shop."
+msgstr "Name the app, or give its folder on the server, such as /srv/shop."
 
-msgid "On the server. It's mounted at /app, read-write, and what the app installs goes there."
-msgstr "On the server. It's mounted at /app, read-write, and what the app installs goes there."
+msgctxt "a folder that isn't there yet"
+msgid "New"
+msgstr "New"
 
-msgid "Other apps on its network reach it by this name."
-msgstr "Other apps on its network reach it by this name."
+msgid "No {languageWord} app in {path} yet"
+msgstr "No {languageWord} app in {path} yet"
 
-msgid "Run in /app before each start, so what you change in the folder runs from the next restart. Write - to install nothing."
-msgstr "Run in /app before each start, so what you change in the folder runs from the next restart. Write - to install nothing."
+msgid "Run <0>sudo chown -R {user} {path}</0> on the server."
+msgstr "Run <0>sudo chown -R {user} {path}</0> on the server."
+
+msgid "Run as {theirs}"
+msgstr "Run as {theirs}"
 
 msgid "Runs as"
 msgstr "Runs as"
 
-#. placeholder {0}: dir.mode
-msgid "The app runs as <0>{user}</0>, and <1>{path}</1> is <2>{theirs}</2>'s, <3>{0}</3>, so it can't install there. Run it as <4>{theirs}</4>, or run <5>sudo chown -R {user} {path}</5>."
-msgstr "The app runs as <0>{user}</0>, and <1>{path}</1> is <2>{theirs}</2>'s, <3>{0}</3>, so it can't install there. Run it as <4>{theirs}</4>, or run <5>sudo chown -R {user} {path}</5>."
+msgid "Runs before each start. Write - to install nothing."
+msgstr "Runs before each start. Write - to install nothing."
 
-msgid "There's no <0>{first}</0> in <1>{path}</1>, so <2>{start}</2> has nothing of {languageWord}'s to run. Put the app's files there, or say below how it installs and starts."
-msgstr "There's no <0>{first}</0> in <1>{path}</1>, so <2>{start}</2> has nothing of {languageWord}'s to run. Put the app's files there, or say below how it installs and starts."
+msgid "The app can't write to {path}"
+msgstr "The app can't write to {path}"
+
+msgid "The app gets it as PORT."
+msgstr "The app gets it as PORT."
 
 msgid "Use a folder of its own, not the server's root."
 msgstr "Use a folder of its own, not the server's root."
@@ -2841,11 +2847,26 @@ msgstr "Version"
 msgid "Write it as uid:gid, such as 1000:1000."
 msgstr "Write it as uid:gid, such as 1000:1000."
 
-msgid "uid:gid, the folder owner's, so it can write there. Never root."
-msgstr "uid:gid, the folder owner's, so it can write there. Never root."
+msgid "as {user}"
+msgstr "as {user}"
+
+msgid "from {from}"
+msgstr "from {from}"
+
+msgid "port {port}"
+msgstr "port {port}"
+
+msgid "uid:gid of the folder's owner."
+msgstr "uid:gid of the folder's owner."
 
 msgid "{others, plural, one {Holds {found} and # more.} other {Holds {found} and # more.}}"
 msgstr "{others, plural, one {Holds {found} and # more.} other {Holds {found} and # more.}}"
+
+msgid "{path} is a file"
+msgstr "{path} is a file"
+
+msgid "{path} is root's, and an app never runs as root"
+msgstr "{path} is root's, and an app never runs as root"
 
 msgid "A tunnel on this server"
 msgstr "A tunnel on this server"
@@ -3141,6 +3162,9 @@ msgstr "Open {label}"
 
 msgid "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
 msgstr "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
+
+msgid "Other apps on its network reach it by this name."
+msgstr "Other apps on its network reach it by this name."
 
 msgid "Paste a Compose file to review its plan"
 msgstr "Paste a Compose file to review its plan"

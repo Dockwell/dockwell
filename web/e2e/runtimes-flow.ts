@@ -71,23 +71,32 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
   const owner = `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`;
   const name = "storefront";
   try {
-    step("runtimes: New app takes a folder on a language's version, and reads who owns it and what it holds");
+    step("runtimes: New app takes a folder, and reads who owns it, what it holds and what it runs on");
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`${origin}/apps/new`);
     const sheet = page.getByRole("dialog", { name: "New app" });
     await sheet.waitFor();
     await sheet.getByRole("radio", { name: "Folder" }).click();
-    await sheet.getByRole("radio", { name: "Node.js" }).waitFor();
-    const version = sheet.getByRole("combobox", { name: "Version" });
-    const newest = await version.inputValue();
-    if (!/^\d+$/.test(newest)) fail(`New app starts Node.js on '${newest}'`);
     const runsOn = sheet.getByRole("group", { name: "Runs on" });
     if ((await runsOn.count()) > 0) await runsOn.getByRole("checkbox").first().check();
     await sheet.getByRole("textbox", { name: "Folder", exact: true }).fill(folder);
     await sheet.getByText("Holds package.json and 1 more.").waitFor({ timeout: 15_000 });
+    // Its files say what it runs on, so nobody picks a language: the newest Node.js, as nothing names a version.
+    const runtime = sheet.getByText(/^Node\.js \d+$/);
+    await runtime.waitFor({ timeout: 15_000 });
+    await sheet.getByText("from package.json").waitFor();
+    const newest = ((await runtime.textContent()) ?? "").replace("Node.js ", "");
+    if (!/^\d+$/.test(newest)) fail(`New app starts Node.js on '${newest}'`);
+    if ((await sheet.getByRole("radio", { name: "Node.js" }).count()) > 0)
+      fail("New app asks for a language its folder already says");
+    // How it starts and who it runs as are the language's and the folder owner's, under Advanced.
+    await sheet.getByText("Advanced", { exact: true }).click();
     const runsAs = sheet.getByRole("textbox", { name: /^Runs as/ });
     if ((await runsAs.inputValue()) !== owner) fail(`New app runs it as '${await runsAs.inputValue()}', want ${owner}`);
-    await sheet.getByRole("textbox", { name: /^Name/ }).fill(name);
+    await sheet.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+    if ((await sheet.getByRole("textbox", { name: "Folder", exact: true }).inputValue()) !== folder) {
+      fail("naming the app moved the folder someone typed");
+    }
     await sheet.getByRole("textbox", { name: /^Port(?!s)/ }).fill(String(port));
     await shoot(page, "app-new-folder");
 

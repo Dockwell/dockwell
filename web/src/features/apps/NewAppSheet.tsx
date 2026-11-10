@@ -579,6 +579,7 @@ export function NewAppSheet({
                   ? [{ id: only.id, name: only.name }]
                   : chosenServers.map((id) => ({ id, name: servers?.find((s) => s.id === id)?.name ?? id }))
               }
+              asked={runtime !== undefined}
               fieldRef={firstField}
               update={({ name: typedName, ...next }, clear) => {
                 if (typedName !== undefined) setImage((was) => ({ ...was, name: typedName }));

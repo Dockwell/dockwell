@@ -24,6 +24,7 @@ import { aHealth, anApp, aRevision, ENV, places, SERVER } from "../../test/apps"
 import { type Api, feed, onPhone, onScreen, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { forgetDrafts } from "./AppEnvironment";
+import { versionIn } from "./FolderFields";
 
 const hz1 = aServer({ id: SERVER, name: "hz-1" });
 
@@ -181,7 +182,7 @@ afterEach(() => {
 });
 
 describe("New app, from a folder", () => {
-  it("runs a folder on a language's version, as its owner, and plans it with what the server writes left out", async () => {
+  it("asks for a name, and takes the folder, the language and its version from what's there", async () => {
     const user = userEvent.setup();
     const proposals: ProposeChangeRequest[] = [];
     const { container } = renderAt(
@@ -194,23 +195,29 @@ describe("New app, from a folder", () => {
               return { change: planned(req.summary) };
             },
           },
-          files: { listFiles: disk({ "/srv/api": { uid: 1001, entries: ["requirements.txt", "app.py"] } }) },
+          files: {
+            listFiles: disk({ "/srv/api": { uid: 1001, entries: ["requirements.txt", "app.py", ".python-version"] } }),
+            readFile: (req: { path: string }) => ({ path: req.path, content: "3.13.2\n" }),
+          },
         },
         [],
       ),
     );
     const sheet = await screen.findByRole("dialog", { name: "New app" });
     await user.click(within(sheet).getByRole("radio", { name: "Folder" }));
-    await user.click(within(sheet).getByRole("radio", { name: "Python" }));
-    await user.selectOptions(within(sheet).getByLabelText("Version"), "3.13");
-    // What the language does unless you say shows in its fields.
-    expect(within(sheet).getByLabelText(/^Starts with/)).toHaveAttribute("placeholder", "python app.py");
-    expect(within(sheet).getByLabelText(/^Port(?!s)/)).toHaveAttribute("placeholder", "8000");
-    await user.type(within(sheet).getByLabelText("Folder"), "/srv/api");
+    // The folder follows the name until it's typed.
+    await user.type(within(sheet).getByLabelText("Name"), "api");
+    expect(within(sheet).getByLabelText("Folder")).toHaveValue("/srv/api");
     // The server says whose the folder is, and it runs as them.
     await waitFor(() => expect(within(sheet).getByLabelText(/^Runs as/)).toHaveValue("1001:1001"), { timeout: 3_000 });
-    expect(sheet).toHaveTextContent("Holds requirements.txt and 1 more.");
-    expect(within(sheet).getByPlaceholderText("api")).toHaveValue("");
+    expect(sheet).toHaveTextContent("Holds requirements.txt and 2 more.");
+    // Its files say what it runs on, so nobody is asked: the pickers are one click away.
+    await waitFor(() => expect(sheet).toHaveTextContent("RuntimePython 3.13 · from requirements.txt, .python-version"));
+    expect(within(sheet).queryByRole("radio", { name: "Python" })).toBeNull();
+    // What the language does unless you say is under Advanced, and shows on its line.
+    expect(sheet).toHaveTextContent("Advancedpython app.py · port 8000 · as 1001:1001");
+    expect(within(sheet).getByLabelText(/^Starts with/)).toHaveAttribute("placeholder", "python app.py");
+    expect(within(sheet).getByLabelText(/^Port(?!s)/)).toHaveAttribute("placeholder", "8000");
     expect(sheet).toHaveTextContent("You approve what it reaches in the plan");
     await expectAccessible(container);
 
@@ -234,6 +241,35 @@ describe("New app, from a folder", () => {
     expect(spec?.runs.case === "app" ? spec.runs.value.image : "none").toBe("");
   });
 
+  it("leaves the language to whoever picks one, whatever the folder holds", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/new?source=folder",
+      api({ files: { listFiles: disk({ "/srv/api": { uid: 1000, entries: ["package.json"] } }) } }, []),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Name"), "api");
+    await waitFor(() => expect(sheet).toHaveTextContent("RuntimeNode.js 26 · from package.json"), { timeout: 3_000 });
+    await user.click(within(sheet).getByRole("button", { name: "Change" }));
+    await user.click(within(sheet).getByRole("radio", { name: "Go" }));
+    expect(within(sheet).getByRole("radio", { name: "Go" })).toBeChecked();
+    // A folder typed after the name stays as typed, and the name stays too.
+    const folder = within(sheet).getByLabelText("Folder");
+    await user.clear(folder);
+    await user.type(folder, "/srv/other");
+    await user.type(within(sheet).getByLabelText("Name"), "2");
+    expect(folder).toHaveValue("/srv/other");
+    expect(within(sheet).getByRole("radio", { name: "Go" })).toBeChecked();
+  });
+
+  it("reads a version file as Dockwell names its versions", () => {
+    expect(versionIn("node", ".nvmrc", "v24.3.0\n")).toBe("24");
+    expect(versionIn("python", ".python-version", "3.13.2")).toBe("3.13");
+    expect(versionIn("go", "go.mod", "module example.com/shop\n\ngo 1.27.1\n")).toBe("1.27");
+    expect(versionIn("java", ".java-version", "21")).toBe("21");
+    expect(versionIn("node", ".nvmrc", "lts/iron")).toBe("");
+  });
+
   it("says what's wrong with a folder before the plan", async () => {
     const user = userEvent.setup();
     renderAt(
@@ -245,6 +281,7 @@ describe("New app, from a folder", () => {
               "/srv/root": { uid: 0, entries: ["package.json"] },
               "/srv/empty": { uid: 1000, entries: [] },
               "/srv/locked": { uid: 1000, entries: ["package.json"], mode: "dr-xr-xr-x" },
+              "/srv/theirs": { uid: 1001, entries: ["package.json"] },
             }),
           },
         },
@@ -254,47 +291,43 @@ describe("New app, from a folder", () => {
     const sheet = await screen.findByRole("dialog", { name: "New app" });
     const folder = within(sheet).getByLabelText("Folder");
     await user.type(folder, "/srv/root");
-    await waitFor(
-      () => expect(sheet).toHaveTextContent("/srv/root is root's, and an app from a folder never runs as root"),
-      {
-        timeout: 3_000,
-      },
-    );
+    await waitFor(() => expect(sheet).toHaveTextContent("/srv/root is root's, and an app never runs as root"), {
+      timeout: 3_000,
+    });
     await user.clear(folder);
     await user.type(folder, "/srv/empty");
-    await waitFor(
-      () =>
-        expect(sheet).toHaveTextContent(
-          "There's no package.json in /srv/empty, so npm start has nothing of Node.js's to run.",
-        ),
-      { timeout: 3_000 },
-    );
+    await waitFor(() => expect(sheet).toHaveTextContent("No Node.js app in /srv/empty yetIt has no package.json."), {
+      timeout: 3_000,
+    });
     // Its own, closed to itself: the mode is what to change.
     await user.clear(folder);
     await user.type(folder, "/srv/locked");
     await waitFor(
       () =>
         expect(sheet).toHaveTextContent(
-          "/srv/locked is 1000:1000's, whom the app runs as, but dr-xr-xr-x, so it can't install there. Run chmod u+w /srv/locked.",
+          "The app can't write to /srv/lockedIts mode is dr-xr-xr-x. Run chmod u+w /srv/locked on the server.",
         ),
       { timeout: 3_000 },
     );
     await user.clear(folder);
     await user.type(folder, "/srv/new");
-    await waitFor(
-      () => expect(sheet).toHaveTextContent("Nothing is at /srv/new yet. Dockwell makes it as the plan applies"),
-      {
-        timeout: 3_000,
-      },
-    );
+    await waitFor(() => expect(sheet).toHaveTextContent("New Dockwell makes it, owned by 1000:1000."), {
+      timeout: 3_000,
+    });
     // The folder it found before was mira's, and the field took her uid:gid.
     const runsAs = within(sheet).getByLabelText(/^Runs as/);
     expect(runsAs).toHaveValue("1000:1000");
+    // Someone else's folder: one press runs the app as its owner.
+    await user.clear(folder);
+    await user.type(folder, "/srv/theirs");
+    await user.click(await within(sheet).findByRole("button", { name: "Run as 1001:1001" }, { timeout: 3_000 }));
+    expect(runsAs).toHaveValue("1001:1001");
+    await waitFor(() => expect(sheet).toHaveTextContent("Holds package.json."));
     await user.clear(runsAs);
     await user.type(runsAs, "0:0");
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     expect(within(sheet).getByLabelText(/^Runs as/)).toHaveAccessibleDescription(
-      "An app from a folder never runs as root. Use the folder owner's uid:gid, such as 1000:1000.",
+      "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000.",
     );
   });
 
@@ -326,7 +359,7 @@ describe("New app, from a folder", () => {
     const on1 = await within(sheet).findByText("hz-1", { selector: ".app-folder-on span" });
     const on2 = within(sheet).getByText("hz-2", { selector: ".app-folder-on span" });
     await waitFor(() => expect(on1.parentElement).toHaveTextContent("Holds package.json."), { timeout: 3_000 });
-    await waitFor(() => expect(on2.parentElement).toHaveTextContent("Nothing is at /srv/api yet"), { timeout: 3_000 });
+    await waitFor(() => expect(on2.parentElement).toHaveTextContent("New Dockwell makes it"), { timeout: 3_000 });
     // The first server's owner is who it runs as.
     expect(within(sheet).getByLabelText(/^Runs as/)).toHaveValue("1001:1001");
   });
@@ -337,7 +370,7 @@ describe("New app, from a folder", () => {
     expect(within(sheet).getByRole("radio", { name: "Folder" })).toBeChecked();
     expect(within(sheet).getByRole("radio", { name: "Go" })).toBeChecked();
     expect(within(sheet).getByLabelText("Version")).toHaveValue("1.27");
-    expect(within(sheet).getByLabelText("Folder")).toHaveFocus();
+    expect(within(sheet).getByLabelText("Name")).toHaveFocus();
   });
 });
 

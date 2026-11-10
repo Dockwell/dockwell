@@ -2779,55 +2779,61 @@ msgstr "此应用"
 msgid "What to export"
 msgstr "要导出的内容"
 
-#. placeholder {0}: dir.mode
-msgid "<0>{path}</0> is <1>{theirs}</1>'s, whom the app runs as, but <2>{0}</2>, so it can't install there. Run <3>chmod u+w {path}</3>."
-msgstr "<0>{path}</0> 属于应用运行时的用户 <1>{theirs}</1>，但权限为 <2>{0}</2>，所以无法在那里安装。请运行 <3>chmod u+w {path}</3>。"
+msgid "Advanced"
+msgstr "高级"
 
-msgid "<0>{path}</0> is a file, not a folder. Give the folder that holds the app."
-msgstr "<0>{path}</0> 是一个文件，不是文件夹。请填写存放应用的文件夹。"
+msgid "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
+msgstr "应用不会以 root 运行。请使用文件夹所有者的 uid:gid，例如 1000:1000。"
 
-msgid "<0>{path}</0> is root's, and an app from a folder never runs as root, so it can't install there. Run <1>sudo chown -R {user} {path}</1>, or give the folder to the user it runs as."
-msgstr "<0>{path}</0> 属于 root，而来自文件夹的应用从不以 root 运行，所以无法在那里安装。请运行 <1>sudo chown -R {user} {path}</1>，或把文件夹交给它运行时的用户。"
+msgid "Choose the folder that holds the app."
+msgstr "请选择存放应用的文件夹。"
 
-msgid "An app from a folder never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
-msgstr "来自文件夹的应用从不以 root 运行。请使用文件夹所有者的 uid:gid，例如 1000:1000。"
-
-msgid "Changing it later is a plan of its own, which replaces the app's container."
-msgstr "以后更改它需要单独的计划，会替换应用的容器。"
-
-msgid "Give the folder on the server that holds the app, such as /srv/shop."
-msgstr "请填写服务器上存放应用的文件夹，例如 /srv/shop。"
+msgid "Dockwell makes it, owned by <0>{user}</0>."
+msgstr "Dockwell 会创建它，所有者为 <0>{user}</0>。"
 
 msgid "Holds {found}."
 msgstr "包含 {found}。"
 
-msgid "It's given as PORT, and its check and domain go there."
-msgstr "它会作为 PORT 传入，健康检查和域名都指向这里。"
+msgid "It has no <0>{first}</0>. Put the app's files there."
+msgstr "其中没有 <0>{first}</0>。请把应用的文件放进去。"
+
+msgid "It's <0>{theirs}</0>'s, and the app runs as <1>{user}</1>."
+msgstr "它属于 <0>{theirs}</0>，而应用以 <1>{user}</1> 运行。"
+
+#. placeholder {0}: dir.mode
+msgid "Its mode is <0>{0}</0>. Run <1>chmod u+w {path}</1> on the server."
+msgstr "它的权限是 <0>{0}</0>。请在服务器上运行 <1>chmod u+w {path}</1>。"
 
 msgid "Language"
 msgstr "语言"
 
-msgid "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{user}</1>, the user the app runs as. Put the app's files in it with <2>sudo rsync</2>, then <3>sudo chown -R {user} {path}</3>, and restart the app."
-msgstr "<0>{path}</0> 还不存在。应用计划时 Dockwell 会创建它，所有者为应用运行时的用户 <1>{user}</1>。用 <2>sudo rsync</2> 把应用文件放进去，然后运行 <3>sudo chown -R {user} {path}</3>，再重启应用。"
+msgid "Name the app, or give its folder on the server, such as /srv/shop."
+msgstr "请为应用命名，或填写它在服务器上的文件夹，例如 /srv/shop。"
 
-msgid "On the server. It's mounted at /app, read-write, and what the app installs goes there."
-msgstr "在服务器上。它以读写方式挂载到 /app，应用安装的内容也放在这里。"
+msgctxt "a folder that isn't there yet"
+msgid "New"
+msgstr "新建"
 
-msgid "Other apps on its network reach it by this name."
-msgstr "同一网络上的其他应用通过此名称访问它。"
+msgid "No {languageWord} app in {path} yet"
+msgstr "{path} 中还没有 {languageWord} 应用"
 
-msgid "Run in /app before each start, so what you change in the folder runs from the next restart. Write - to install nothing."
-msgstr "每次启动前在 /app 中运行，所以你在文件夹里的改动会从下次重启起生效。填写 - 表示不安装任何东西。"
+msgid "Run <0>sudo chown -R {user} {path}</0> on the server."
+msgstr "请在服务器上运行 <0>sudo chown -R {user} {path}</0>。"
+
+msgid "Run as {theirs}"
+msgstr "以 {theirs} 运行"
 
 msgid "Runs as"
 msgstr "运行用户"
 
-#. placeholder {0}: dir.mode
-msgid "The app runs as <0>{user}</0>, and <1>{path}</1> is <2>{theirs}</2>'s, <3>{0}</3>, so it can't install there. Run it as <4>{theirs}</4>, or run <5>sudo chown -R {user} {path}</5>."
-msgstr "应用以 <0>{user}</0> 运行，而 <1>{path}</1> 属于 <2>{theirs}</2>，权限为 <3>{0}</3>，所以无法在那里安装。请以 <4>{theirs}</4> 运行它，或运行 <5>sudo chown -R {user} {path}</5>。"
+msgid "Runs before each start. Write - to install nothing."
+msgstr "每次启动前运行。填 - 表示不安装。"
 
-msgid "There's no <0>{first}</0> in <1>{path}</1>, so <2>{start}</2> has nothing of {languageWord}'s to run. Put the app's files there, or say below how it installs and starts."
-msgstr "<1>{path}</1> 中没有 <0>{first}</0>，所以 <2>{start}</2> 没有可运行的 {languageWord} 代码。请把应用文件放进去，或在下面说明它如何安装和启动。"
+msgid "The app can't write to {path}"
+msgstr "应用无法写入 {path}"
+
+msgid "The app gets it as PORT."
+msgstr "应用通过 PORT 获得它。"
 
 msgid "Use a folder of its own, not the server's root."
 msgstr "请使用它自己的文件夹，不要用服务器的根目录。"
@@ -2841,11 +2847,26 @@ msgstr "版本"
 msgid "Write it as uid:gid, such as 1000:1000."
 msgstr "请写成 uid:gid，例如 1000:1000。"
 
-msgid "uid:gid, the folder owner's, so it can write there. Never root."
-msgstr "uid:gid，取文件夹所有者的，以便它能在那里写入。从不使用 root。"
+msgid "as {user}"
+msgstr "以 {user} 运行"
+
+msgid "from {from}"
+msgstr "来自 {from}"
+
+msgid "port {port}"
+msgstr "端口 {port}"
+
+msgid "uid:gid of the folder's owner."
+msgstr "文件夹所有者的 uid:gid。"
 
 msgid "{others, plural, one {Holds {found} and # more.} other {Holds {found} and # more.}}"
 msgstr "{others, plural, other {包含 {found} 以及另外 # 项。}}"
+
+msgid "{path} is a file"
+msgstr "{path} 是文件"
+
+msgid "{path} is root's, and an app never runs as root"
+msgstr "{path} 属于 root，而应用不会以 root 运行"
 
 msgid "A tunnel on this server"
 msgstr "此服务器上的隧道"
@@ -3141,6 +3162,9 @@ msgstr "打开 {label}"
 
 msgid "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
 msgstr "这里已有其他应用，因此需要单独的名称，例如 <0>shop</0>。其中的应用会显示为一行，并使用独立的网络。"
+
+msgid "Other apps on its network reach it by this name."
+msgstr "同一网络上的其他应用通过此名称访问它。"
 
 msgid "Paste a Compose file to review its plan"
 msgstr "粘贴 Compose 文件后即可查看计划"
