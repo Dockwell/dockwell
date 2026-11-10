@@ -22,6 +22,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/delivery"
+	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
@@ -774,6 +775,16 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(errors.New("this server asks nothing beyond itself, so it didn't ask"))
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Probe{Probe: found}}
+	}
+	if p := call.GetPorts(); p != nil {
+		if c.cfg.Docker == nil {
+			return fail(errNoPorts)
+		}
+		held, err := portsHeld(ctx, &ingress.Holders{Client: c.cfg.Docker}, p.GetPorts())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Ports{Ports: held}}
 	}
 	if call.GetImage() != nil {
 		read, err := c.cfg.images.read(ctx, call.GetImage())

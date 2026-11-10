@@ -545,6 +545,8 @@ message Call {
     // Read an image from its registry, for a form. Reading images takes 200 to
     // 209 (ADR 0062).
     ImageCall image = 200;
+    // Say what holds some ports on the server, for a form. Ports take 210 to 219.
+    PortsCall ports = 210;
     // Make an empty file or a folder. Numbered apart, as open work adds to
     // this message.
     MakeFileCall make_file = 120;
@@ -796,6 +798,17 @@ message ListUpdatesCall {
 // checking nor error: those are the control plane's.
 message ListUpdatesResult {
   dockwell.v1.ServerUpdates updates = 1;
+}
+
+// PortsCall asks what holds some ports on the server, as its kernel and Docker
+// say, for a form that offers a free one.
+message PortsCall {
+  repeated dockwell.v1.ServerPortAsk ports = 1;
+}
+
+// PortsResult says what holds each port asked, in the order asked.
+message PortsResult {
+  repeated dockwell.v1.ServerPortHeld ports = 1;
 }
 
 // ImageCall reads an image from its registry, through the server's network and
@@ -1535,6 +1548,8 @@ message CallResult {
     ReadOnePanelResult read_onepanel = 180;
     // What image read.
     ImageResult image = 200;
+    // What ports found.
+    PortsResult ports = 210;
     // What make_file made. Numbered apart, as open work adds to this message.
     MakeFileResult make_file = 120;
     // Where move_file moved it.

@@ -66,6 +66,24 @@ service ServerService {
     option (google.api.http) = {get: "/v1/servers/{id}/diskUse"};
   }
 
+  // CheckServerPorts says what holds each of some ports on a server, as its
+  // kernel and Docker say: a process, a container, or nothing, so a form can
+  // offer a port that's free and say what holds one someone typed. It reads
+  // only when asked. What holds a server's ports is the install's to know (ADR
+  // 0048), so it's an admin's.
+  rpc CheckServerPorts(CheckServerPortsRequest) returns (CheckServerPortsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {get: "/v1/servers/{id}/ports"};
+    option (dockwell.v1.command) = {
+      noun: "servers"
+      verb: "check-ports"
+    };
+  }
+
   // SetServerPublicAddress records a server's public address, as a person
   // knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
   // address are kept apart. An empty address goes back to what Dockwell finds
@@ -103,6 +121,37 @@ message GetServerRequest {
 message GetServerResponse {
   // The server, with history.
   Server server = 1;
+}
+
+// CheckServerPortsRequest names a server and the ports to check on it.
+message CheckServerPortsRequest {
+  // The server, by ID or name.
+  string id = 1;
+  // The ports, 64 at most.
+  repeated ServerPortAsk ports = 2;
+}
+
+// ServerPortAsk is a port on a server.
+message ServerPortAsk {
+  uint32 port = 1;
+  // True for UDP.
+  bool udp = 2;
+}
+
+// CheckServerPortsResponse says what holds each port asked, in the order asked.
+message CheckServerPortsResponse {
+  repeated ServerPortHeld ports = 1;
+}
+
+// ServerPortHeld is what holds one port on a server.
+message ServerPortHeld {
+  uint32 port = 1;
+  bool udp = 2;
+  // True when something holds it.
+  bool held = 3;
+  // What holds it, in words, such as "sshd" or "nginx, in the container
+  // legacy-site". Empty when nothing does, and when what does can't be named.
+  string by = 4;
 }
 
 // GetServerDiskUseRequest names a server.

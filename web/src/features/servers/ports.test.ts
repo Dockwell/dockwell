@@ -4,7 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import { Protocol, ServerContainerSchema, ServiceInfoSchema } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
-import { heldPorts, portsFrom } from "./ports";
+import { heldOnServers, heldPorts, portsFrom, portsToAsk } from "./ports";
 
 const app = (id: string, name: string, server: string, ports: { host: number; udp?: boolean }[]) =>
   create(ServiceInfoSchema, {
@@ -77,5 +77,31 @@ describe("the ports held on a server", () => {
     expect(ports.check("8083", false, name, [8083])).toEqual({ state: "taken" });
     expect(ports.check("", false, name)).toEqual({ state: "unknown" });
     expect(portsFrom([], false).check("8083", false, name)).toEqual({ state: "checking" });
+  });
+});
+
+describe("what a server is asked of its ports", () => {
+  it("is a window from 8080, and a few from each port a form watches, 64 at most", () => {
+    expect(portsToAsk([])).toEqual(Array.from({ length: 16 }, (_, i) => 8080 + i));
+    expect(portsToAsk([3000, 8082, 0, 70000])).toEqual([
+      3000,
+      3001,
+      3002,
+      3003,
+      ...Array.from({ length: 16 }, (_, i) => 8080 + i),
+    ]);
+    expect(portsToAsk(Array.from({ length: 40 }, (_, i) => 10000 + i * 10))).toHaveLength(64);
+  });
+
+  it("names what holds a port as the server says, and leaves the free ones out", () => {
+    const held = heldOnServers([
+      [
+        { port: 22, udp: false, held: true, by: "sshd" },
+        { port: 8085, udp: false, held: false, by: "" },
+      ],
+    ] as never);
+    expect(held).toEqual([{ port: 22, udp: false, name: "sshd", kind: "process" }]);
+    const ports = portsFrom(held, true);
+    expect(ports.check("22", false, (h) => h.name)).toEqual({ state: "taken", by: "sshd" });
   });
 });

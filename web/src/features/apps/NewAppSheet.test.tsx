@@ -428,7 +428,7 @@ describe("New app, from an image", () => {
     await user.click(within(sheet).getByRole("button", { name: "Add port" }));
     // What the app listens on is the person's to say; the server's port starts at a free one.
     await user.type(within(sheet).getByLabelText("In the app"), "80");
-    expect(within(sheet).getByLabelText<HTMLInputElement>("On the server").value).toBe("8080");
+    await waitFor(() => expect(within(sheet).getByLabelText<HTMLInputElement>("On the server").value).toBe("8080"));
     await user.click(within(sheet).getByRole("button", { name: "Add variable" }));
     within(sheet).getAllByLabelText("Name")[1]?.focus();
     await user.paste("A=1\nB=2");
@@ -1326,7 +1326,7 @@ describe("New app, its image picked and read", () => {
 
     // Nobody typed a port: the image said 80, and a free one on the server takes it.
     expect(within(sheet).getByLabelText<HTMLInputElement>("In the app").value).toBe("80");
-    expect(within(sheet).getByLabelText<HTMLInputElement>("On the server").value).toBe("8080");
+    await waitFor(() => expect(within(sheet).getByLabelText<HTMLInputElement>("On the server").value).toBe("8080"));
     expect(within(sheet).getByLabelText<HTMLInputElement>("Path in the app").value).toBe("/usr/share/nginx/html");
     expect(within(sheet).getByLabelText<HTMLInputElement>("Volume or server path").value).toBe("nginx-html");
     // What it sets for itself, such as its version, isn't offered; what it lets you set is, as it gives it.

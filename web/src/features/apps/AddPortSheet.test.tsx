@@ -22,7 +22,18 @@ function api(more: Api = {}): Api {
   return {
     resources: places(),
     services: { listServices: () => ({ services: [alone, holder] }), listServiceRevisions: () => ({}) },
-    servers: { watchServers: watch.stream },
+    servers: {
+      watchServers: watch.stream,
+      // sshd holds 8082, outside Docker, which only the server can say.
+      checkServerPorts: (req) => ({
+        ports: req.ports.map((p) => ({
+          port: p.port,
+          udp: p.udp,
+          held: p.port === 8082,
+          by: p.port === 8082 ? "sshd" : "",
+        })),
+      }),
+    },
     containers: {
       listContainers: () => ({
         containers: [{ name: "legacy-site", ports: [{ serverPort: 8081, containerPort: 80, protocol: "tcp" }] }],
@@ -56,10 +67,10 @@ describe("Add a port", () => {
     );
     const sheet = await screen.findByRole("dialog", { name: "Add a port to alone" });
     const host = within(sheet).getByLabelText<HTMLInputElement>("On the server");
-    // 8080 and 8081 are held, so the first free port is 8082.
-    await waitFor(() => expect(host.value).toBe("8082"));
+    // 8080 and 8081 are held by what Dockwell knows of, and 8082 by sshd, as the server says.
+    await waitFor(() => expect(host.value).toBe("8083"));
     expect(host).toHaveAccessibleDescription("Free");
-    expect(within(sheet).getByText("203.0.113.7:8082")).toBeVisible();
+    expect(within(sheet).getByText("203.0.113.7:8083")).toBeVisible();
     await expectAccessible(document.body);
 
     // A port the app listens on that's free on the server is the one it offers.
@@ -80,6 +91,11 @@ describe("Add a port", () => {
     await user.click(within(sheet).getByRole("button", { name: "Use 3000" }));
     expect(host.value).toBe("3000");
     expect(host).toHaveAccessibleDescription("Free");
+    // What holds a port outside Docker, the server says by name.
+    await user.clear(host);
+    await user.type(host, "8082");
+    await waitFor(() => expect(within(sheet).getByRole("alert")).toHaveTextContent("sshd uses it · Use 3000"));
+    await user.click(within(sheet).getByRole("button", { name: "Use 3000" }));
 
     // The protocol, and who reaches it, start at TCP from anywhere, and say so while closed.
     const advanced = within(sheet).getByRole("button", { name: "Advanced" });

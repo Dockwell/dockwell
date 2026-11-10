@@ -211,7 +211,12 @@ export function NewAppSheet({
     () => (fleet ? [...chosenServers] : onlyId ? [onlyId] : []),
     [fleet, chosenServers, onlyId],
   );
-  const ports = useServerPorts(serverIds);
+  // The server is asked about the ports typed, and from those the app listens on.
+  const watch = useMemo(
+    () => image.ports.flatMap((p) => [Number(p.container), Number(p.host)]).filter((n) => n > 0),
+    [image.ports],
+  );
+  const ports = useServerPorts(serverIds, undefined, watch);
   // The form as it plans: each port that follows a free one has it.
   const shown = useMemo(() => withFreePorts(image, ports), [image, ports]);
   const [advancedOpen, setAdvancedOpen] = useState(false);

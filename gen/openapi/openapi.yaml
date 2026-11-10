@@ -2170,6 +2170,37 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{id}/ports:
+        get:
+            tags:
+                - ServerService
+            description: |-
+                CheckServerPorts says what holds each of some ports on a server, as its
+                 kernel and Docker say: a process, a container, or nothing, so a form can
+                 offer a port that's free and say what holds one someone typed. It reads
+                 only when asked. What holds a server's ports is the install's to know (ADR
+                 0048), so it's an admin's.
+            operationId: ServerService_CheckServerPorts
+            parameters:
+                - name: id
+                  in: path
+                  description: The server, by ID or name.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckServerPortsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{id}/updates:
         get:
             tags:
@@ -6181,6 +6212,14 @@ components:
                         - $ref: '#/components/schemas/DomainCheck'
                     description: What DNS says, as the control plane reads it.
             description: CheckDomainResponse says what DNS says of it.
+        CheckServerPortsResponse:
+            type: object
+            properties:
+                ports:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServerPortHeld'
+            description: CheckServerPortsResponse says what holds each port asked, in the order asked.
         CheckServerUpdatesRequest:
             type: object
             properties:
@@ -12997,6 +13036,23 @@ components:
                         True when the server said nothing listens there yet, so the route answers 502
                          until something does. False, with listening empty, when it couldn't say.
             description: ServerPortCheck is a port on the server that a route sends to.
+        ServerPortHeld:
+            type: object
+            properties:
+                port:
+                    type: integer
+                    format: uint32
+                udp:
+                    type: boolean
+                held:
+                    type: boolean
+                    description: True when something holds it.
+                by:
+                    type: string
+                    description: |-
+                        What holds it, in words, such as "sshd" or "nginx, in the container
+                         legacy-site". Empty when nothing does, and when what does can't be named.
+            description: ServerPortHeld is what holds one port on a server.
         ServerStats:
             type: object
             properties:

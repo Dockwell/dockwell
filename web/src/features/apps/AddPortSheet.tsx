@@ -50,10 +50,12 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
   const name = nameOf(service);
   const { servers } = useFleetView();
   const serverIds = useMemo(() => service.deployments.map((d) => d.serverId), [service.deployments]);
-  const ports = useServerPorts(serverIds, service.id);
   const [inApp, setInApp] = useState("");
   // The server's port follows what's free until someone types one.
   const [typedHost, setTypedHost] = useState<string>();
+  // The server is asked about what's typed, and from the port the app listens on.
+  const watch = useMemo(() => [Number(inApp), Number(typedHost ?? "")].filter((n) => n > 0), [inApp, typedHost]);
+  const ports = useServerPorts(serverIds, service.id, watch);
   const [udp, setUdp] = useState(false);
   const [reach, setReach] = useState<Reach>("anyone");
   const [advanced, setAdvanced] = useState(false);

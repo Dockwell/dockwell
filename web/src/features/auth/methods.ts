@@ -145,6 +145,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ResourceService.listResources": "read",
 
   "ServerService.getServer": "unused",
+  "ServerService.checkServerPorts": "may",
   "ServerService.getServerDiskUse": "may",
   "ServerService.listServers": "unused",
   "ServerService.setServerPublicAddress": "may",
