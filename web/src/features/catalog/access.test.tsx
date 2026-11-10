@@ -242,7 +242,15 @@ describe("What an installed app says of itself", () => {
       "/apps/svc_gitea",
       api(gitea, {
         auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
-        services: { listServices: () => ({ services: [anApp("gitea", "gitea/gitea:1.25")] }) },
+        services: {
+          listServices: () => ({
+            services: [
+              anApp("gitea", "gitea/gitea:1.25", {
+                ports: [{ hostIp: "127.0.0.1", hostPort: 3000, containerPort: 3000 }],
+              }),
+            ],
+          }),
+        },
         domains: { listDomains: () => ({ domains: [] }) },
       }),
     );
@@ -250,5 +258,8 @@ describe("What an installed app says of itself", () => {
     const close = await within(panel).findByRole("button", { name: "Close sign-ups" });
     await waitFor(() => expect(close).toHaveAttribute("aria-disabled", "true"));
     expect(close).toHaveAccessibleDescription(/developer or more/);
+    const open = await within(panel).findByRole("button", { name: "Open Gitea" });
+    expect(open).toHaveAttribute("aria-disabled", "true");
+    expect(open).toHaveAccessibleDescription(/developer or more/);
   });
 });

@@ -12,7 +12,7 @@ import { createContext, type ReactNode, use } from "react";
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink, RouterTabLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
-import { nameOf } from "../apps/app";
+import { environmentOf, nameOf } from "../apps/app";
 import { HealthBadge, useHealthTitle, useHealthWords } from "../apps/Health";
 import { useHealth } from "../apps/health";
 import { usePlaces, useServices } from "../apps/useServices";
@@ -178,7 +178,9 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
       backLink={<BackToDatabases />}
       actions={
         <>
-          {tool && onLocalhost ? <OpenAppButton serviceId={tool.id} app={nameOf(tool)} /> : null}
+          {tool && onLocalhost ? (
+            <OpenAppButton serviceId={tool.id} environment={environmentOf(tool)} app={nameOf(tool)} />
+          ) : null}
           <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: db.id }} icon="service">
             <Trans>Open as an app</Trans>
           </RouterButtonLink>

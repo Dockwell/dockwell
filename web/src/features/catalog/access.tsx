@@ -291,6 +291,7 @@ export function useInstallFacts(
       action: onLocalhost ? (
         <OpenAppButton
           serviceId={web.id}
+          environment={install.environmentId}
           port={local.containerPort}
           app={entry.category === "databases" ? nameOf(web) : app}
         />
@@ -314,8 +315,21 @@ export function useInstallFacts(
  * opens as the button is pressed, so no popup blocker stops it, and goes to the app
  * once the control plane hands over its one-time address.
  */
-export function OpenAppButton({ serviceId, port, app }: { serviceId: string; port?: number; app: string }) {
+export function OpenAppButton({
+  serviceId,
+  environment,
+  port,
+  app,
+}: {
+  serviceId: string;
+  /** The service's environment, by ID, whose role decides who may open it. */
+  environment: string;
+  port?: number;
+  app: string;
+}) {
   const { t } = useLingui();
+  // As much as revealing a secret: a developer's, off with why for anyone else (ADR 0059, ADR 0061).
+  const mayOpen = useMay()(ServiceService.method.openService, { environment });
   const transport = useTransport();
   const explain = useAuthError();
   const [busy, setBusy] = useState(false);
@@ -341,7 +355,7 @@ export function OpenAppButton({ serviceId, port, app }: { serviceId: string; por
   };
   return (
     <span className="catalog-open">
-      <Button size="sm" icon="external" loading={busy} onClick={() => void open()}>
+      <Button size="sm" icon="external" loading={busy} onClick={() => void open()} {...mayOpen.off}>
         {t`Open ${app}`}
       </Button>
       {problem ? (

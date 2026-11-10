@@ -156,6 +156,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServiceService.deployService": "may",
   "ServiceService.listServiceRevisions": "read",
   "ServiceService.listServices": "read",
+  "ServiceService.openService": "may",
   "ServiceService.rollBackService": "may",
 
   "SettingsService.getControlPlane": "may",
