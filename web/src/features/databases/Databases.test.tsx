@@ -459,6 +459,9 @@ describe("a database's page", () => {
     );
     expect(screen.getByRole("link", { name: "Its environment" })).toHaveAttribute("href", "/apps/svc_docs/environment");
     expect(screen.getByText("mongodb://docs:27017")).toBeVisible();
+    // No user to sign in as, and no password: the card says so instead of an empty row.
+    expect(screen.queryByRole("term", { name: "User" })).toBeNull();
+    expect(screen.queryByText("User", { selector: "dt" })).toBeNull();
     expect(
       screen.getByText(/Replica set rs0: each backup is one moment, and can't be restored into a member yet$/),
     ).toBeVisible();

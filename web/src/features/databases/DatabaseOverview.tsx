@@ -441,7 +441,8 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
       hint: place ? t`From apps in ${place}` : t`From apps beside it`,
     },
     { label: t`Port`, value: String(db.port) },
-    ...(sql ? [{ label: t`User`, value: firstUser(db, read) }] : []),
+    // One that checks no one has no user to sign in as.
+    ...(sql && firstUser(db, read) && !read?.checksNoOne ? [{ label: t`User`, value: firstUser(db, read) }] : []),
     ...(published
       ? [
           {
