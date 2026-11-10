@@ -8425,6 +8425,10 @@ msgstr "Reading what Docker runs here"
 msgid "See them all with <0>docker ps -a</0> on the server."
 msgstr "See them all with <0>docker ps -a</0> on the server."
 
+#. placeholder {0}: c.name
+msgid "Take {0} on as an app"
+msgstr "Take {0} on as an app"
+
 msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 msgstr "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 
