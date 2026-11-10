@@ -301,6 +301,11 @@ func (r *reconciler) runs(ctx context.Context, rv resource.Reviver, rec desired.
 		return
 	}
 	if st.Exists {
+		if st.Leaving {
+			// On its way out, as docker rm -f leaves it for a moment: not a
+			// stop, and nothing to start. The next look finds it gone.
+			return
+		}
 		if r.finishAction(look, rv, ref, st, act) {
 			return
 		}
@@ -376,8 +381,10 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 		}
 		c := byLabels[[2]string{docker.Project(ref.Scope), ref.Name}]
 		was, ok := r.cfg.Desired.Stands(ref)
-		if c == nil || !ok {
-			continue // gone: it stays as it was last seen
+		if c == nil || !ok || c.State == "removing" || c.State == "dead" {
+			// Gone, or on its way out, as a forced removal leaves it for a
+			// moment after its kill: it stays as it was last seen.
+			continue
 		}
 		st := resource.RunState{Exists: true, Running: c.State == "running" || c.State == "restarting" || c.State == "paused", Volumes: map[string]string{}}
 		for _, m := range c.Mounts {
