@@ -17,8 +17,9 @@
 # check of its own, check_<id>, which says what answering means for it.
 #
 # It uses throwaway data directories and removes what it made, so it never touches a
-# real install. It needs Docker, Go, curl and jq, and the ports the apps' entries
-# suggest. With E2E_ROOT set, as in CI, Dockwell runs as root through sudo, as it does
+# real install. It needs Docker, Go, curl, jq and openssl, and the ports the apps'
+# entries suggest. SFTPGo also needs sshpass and OpenSSH's sftp and ssh-keyscan.
+# With E2E_ROOT set, as in CI, Dockwell runs as root through sudo, as it does
 # on a server.
 #
 #   scripts/catalog-e2e.sh bin/dockwell pgadmin redis
@@ -27,7 +28,7 @@ set -euo pipefail
 export DOCKWELL_TEST=1
 
 usage="usage: scripts/catalog-e2e.sh path/to/dockwell ENTRY..."
-for tool in docker curl go jq; do
+for tool in docker curl go jq openssl; do
   command -v "$tool" >/dev/null || {
     echo "catalog-e2e: $tool isn't installed, and the script needs it. Install it, such as with apt-get install $tool, then run it again" >&2
     exit 1
@@ -55,6 +56,7 @@ echo kept >"$media_dir/e2e.txt"
 chmod -R a+rX "$media_dir"
 projects=()
 plans=()
+input_env=()
 pid=""
 
 as_dockwell=()
@@ -95,7 +97,7 @@ step() { echo "--- $*"; }
 
 # Local access on the control server: the CLI finds the control plane, and makes its
 # own token, from the data directory.
-dw() { priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "$bin" "$@"; }
+dw() { priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "${input_env[@]}" "$bin" "$@"; }
 
 step "Dockwell starts, and its owner claims it"
 "${as_dockwell[@]}" env DOCKWELL_TEST=1 DOCKWELL_CATALOG_DIR="$catalog_dir" \
@@ -739,6 +741,257 @@ check_home-assistant() {
   docker exec "$(container home-assistant)" grep -q 'use_x_forwarded_for: true' /config/configuration.yaml || fail "Home Assistant's configuration.yaml doesn't trust Dockwell's proxy"
 }
 
+check_gotify() {
+  local port base password said app token
+  port=$(value PORT)
+  base="http://127.0.0.1:$port"
+  password=$(generated gotify GOTIFY_DEFAULTUSER_PASS)
+  said=$(curl -fsS --max-time 10 "$base/health") || fail "Gotify's database health doesn't answer"
+  jq -e '.health == "green" and .database == "green"' <<<"$said" >/dev/null || fail "Gotify's database isn't healthy"
+  said=$(curl -sS --max-time 10 -u admin:not-the-password -o /dev/null -w '%{http_code}' "$base/current/user") || fail "Gotify's sign-in doesn't answer"
+  [[ "$said" == 401 ]] || fail "Gotify answers $said to a wrong password, want 401"
+  said=$(curl -fsS --max-time 10 -u "admin:$password" "$base/current/user") || fail "Gotify doesn't take its generated password"
+  jq -e '.name == "admin" and .admin' <<<"$said" >/dev/null || fail "Gotify doesn't sign in as the admin"
+  if [[ "$1" == first ]]; then
+    said=$(curl -fsS --max-time 10 -u "admin:$password" -H 'Content-Type: application/json' -d '{"name":"Catalog e2e"}' "$base/application") || fail "Gotify doesn't create an application"
+    app=$(jq -er '.id' <<<"$said") || fail "Gotify created no application ID"
+    token=$(jq -er '.token | select(length > 0)' <<<"$said") || fail "Gotify created no application token"
+    kept[gotify-app]=$app
+    kept[gotify-token]=$token
+    curl -fsS --max-time 10 -H "X-Gotify-Key: $token" -H 'Content-Type: application/json' \
+      -d '{"title":"Catalog upgrade","message":"kept-through-upgrade","priority":1}' "$base/message" >/dev/null || fail "Gotify doesn't take a notification"
+  else
+    said=$(curl -fsS --max-time 10 -u "admin:$password" "$base/application") || fail "Gotify can't read its applications after upgrade"
+    # The list omits private tokens. Using the original token proves it stayed;
+    # a different message keeps that proof apart from the one already stored.
+    jq -e --argjson id "${kept[gotify-app]}" 'any(.id == $id and .name == "Catalog e2e")' <<<"$said" >/dev/null || fail "Gotify lost its application through upgrade"
+    said=$(curl -fsS --max-time 10 -H "X-Gotify-Key: ${kept[gotify-token]}" -H 'Content-Type: application/json' \
+      -d '{"title":"Catalog upgrade","message":"sent-after-upgrade","priority":1}' "$base/message") || fail "Gotify no longer accepts its original application token"
+    jq -e --argjson id "${kept[gotify-app]}" '.appid == $id and .message == "sent-after-upgrade"' <<<"$said" >/dev/null || fail "Gotify didn't send through the original application"
+  fi
+  said=$(curl -fsS --max-time 10 -u "admin:$password" "$base/message") || fail "Gotify can't read its notifications"
+  jq -e --argjson id "${kept[gotify-app]}" '.messages | any(.appid == $id and .message == "kept-through-upgrade")' <<<"$said" >/dev/null || fail "Gotify lost its notification through upgrade"
+  if [[ "$1" == upgraded ]]; then
+    jq -e --argjson id "${kept[gotify-app]}" '.messages | any(.appid == $id and .message == "sent-after-upgrade")' <<<"$said" >/dev/null || fail "Gotify didn't keep its new notification"
+  fi
+}
+
+# A real browser login proves the generated password works. The API is reached with
+# the same session and CSRF cookie, so no token needs to be read from its database.
+check_linkding() {
+  local port base password jar page csrf status said wrong
+  port=$(value PORT)
+  base="http://127.0.0.1:$port"
+  password=$(generated linkding LD_SUPERUSER_PASSWORD)
+  jar=$(mktemp)
+  page=$(curl -fsS --max-time 15 -c "$jar" "$base/login/") || fail "linkding's login page doesn't answer"
+  csrf=$(sed -n 's/.*name="csrfmiddlewaretoken" value="\([^"]*\)".*/\1/p' <<<"$page" | head -n 1)
+  [[ -n "$csrf" ]] || fail "linkding's login has no CSRF token"
+  # A wrong password gets the login form back and no session. linkding answers it
+  # with 401, as its 1.46.2 image did in CI, where Django's own view says 200. What
+  # counts is that it's the form again, and that the API still refuses the session.
+  wrong=$(mktemp)
+  status=$(curl -sS --max-time 15 -b "$jar" -c "$jar" -o "$wrong" -w '%{http_code}' \
+    --data-urlencode "csrfmiddlewaretoken=$csrf" --data-urlencode username=admin --data-urlencode password=not-the-password "$base/login/") || fail "linkding's sign-in doesn't answer"
+  [[ "$status" == 401 || "$status" == 200 ]] || fail "linkding answers $status to a wrong password, want its login form again, with 401 or 200"
+  grep -q 'name="csrfmiddlewaretoken"' "$wrong" || fail "linkding's answer to a wrong password isn't its login form"
+  rm -f "$wrong"
+  status=$(curl -sS --max-time 10 -b "$jar" -o /dev/null -w '%{http_code}' "$base/api/bookmarks/") || fail "linkding's API doesn't answer"
+  [[ "$status" == 401 || "$status" == 403 ]] || fail "linkding's API answers $status after a wrong password, want it refused"
+  status=$(curl -sS --max-time 15 -b "$jar" -c "$jar" -o /dev/null -w '%{http_code}' \
+    --data-urlencode "csrfmiddlewaretoken=$csrf" --data-urlencode username=admin --data-urlencode "password=$password" "$base/login/") || fail "linkding's sign-in doesn't answer"
+  [[ "$status" == 302 ]] || fail "linkding answers $status to its generated password, want a signed-in redirect"
+  csrf=$(awk '$6 == "csrftoken" { print $7 }' "$jar" | tail -n 1)
+  [[ -n "$csrf" ]] || fail "linkding's signed-in session has no CSRF cookie"
+  if [[ "$1" == first ]]; then
+    # This user's test fixture doesn't fetch icons, previews or archives from the
+    # Internet. The bookmark itself goes through the signed-in public API.
+    docker exec "$(container linkding)" python manage.py shell -c \
+      'from django.contrib.auth import get_user_model; from bookmarks.models import UserProfile; p=get_user_model().objects.get(username="admin").profile; p.web_archive_integration=UserProfile.WEB_ARCHIVE_INTEGRATION_DISABLED; p.enable_favicons=False; p.enable_preview_images=False; p.enable_automatic_html_snapshots=False; p.save()' >/dev/null || fail "can't turn off external bookmark loading for this fixture"
+    said=$(curl -fsS --max-time 15 -b "$jar" -H "X-CSRFToken: $csrf" -H 'Content-Type: application/json' \
+      -d '{"url":"https://example.invalid/catalog-e2e","title":"Kept through upgrade","description":"catalog-e2e"}' "$base/api/bookmarks/?disable_scraping&disable_html_snapshot") || fail "linkding doesn't save a bookmark"
+    kept[linkding-bookmark]=$(jq -er .id <<<"$said") || fail "linkding saved no bookmark ID"
+  fi
+  said=$(curl -fsS --max-time 10 -b "$jar" "$base/api/bookmarks/${kept[linkding-bookmark]}/") || fail "linkding can't read its saved bookmark"
+  jq -e '.url == "https://example.invalid/catalog-e2e" and .title == "Kept through upgrade" and .description == "catalog-e2e"' <<<"$said" >/dev/null || fail "linkding's bookmark didn't stay through upgrade"
+  rm -f "$jar"
+}
+
+check_new-api() {
+  local port base password jar said user
+  port=$(value PORT)
+  base="http://127.0.0.1:$port"
+  generated new-api SESSION_SECRET >/dev/null
+  if [[ "$1" == first ]]; then
+    kept[new-api-password]="$(openssl rand -hex 24)"
+    said=$(curl -fsS --max-time 15 -H 'Content-Type: application/json' \
+      -d "$(jq -nc --arg p "${kept[new-api-password]}" '{username:"owner",password:$p,confirmPassword:$p,SelfUseModeEnabled:true,DemoSiteEnabled:false}')" "$base/api/setup") || fail "new-api's setup doesn't answer"
+    jq -e '.success' <<<"$said" >/dev/null || fail "new-api couldn't make its owner"
+  fi
+  password=${kept[new-api-password]}
+  jar=$(mktemp)
+  said=$(curl -fsS --max-time 15 -c "$jar" -H 'Content-Type: application/json' \
+    -d "$(jq -nc --arg p "$password" '{username:"owner",password:$p}')" "$base/api/user/login") || fail "new-api's sign-in doesn't answer"
+  jq -e '.success and .data.username == "owner"' <<<"$said" >/dev/null || fail "new-api doesn't sign in as its owner"
+  user=$(jq -er .data.id <<<"$said") || fail "new-api's owner has no ID"
+  if [[ "$1" == first ]]; then
+    said=$(curl -fsS --max-time 15 -b "$jar" -H "New-Api-User: $user" -H 'Content-Type: application/json' \
+      -d '{"name":"kept-through-upgrade","expired_time":-1,"unlimited_quota":true}' "$base/api/token/") || fail "new-api can't make an API token"
+    jq -e '.success' <<<"$said" >/dev/null || fail "new-api didn't make an API token"
+  fi
+  said=$(curl -fsS --max-time 15 -b "$jar" -H "New-Api-User: $user" "$base/api/token/") || fail "new-api can't read its tokens"
+  jq -e '.success and (.data.items | any(.name == "kept-through-upgrade"))' <<<"$said" >/dev/null || fail "new-api lost its API token through upgrade"
+  said=$(curl -fsS --max-time 15 -H 'Content-Type: application/json' -d '{"username":"owner","password":"not-the-password"}' "$base/api/user/login") || fail "new-api's sign-in doesn't answer"
+  jq -e '.success == false' <<<"$said" >/dev/null || fail "new-api takes a wrong password"
+  said=$(curl -fsS --max-time 10 "$base/api/setup") || fail "new-api's setup state doesn't answer"
+  jq -e '.success and .data.status' <<<"$said" >/dev/null || fail "new-api forgot that setup was finished"
+  said=$(docker logs "$(container new-api)" 2>&1) || fail "new-api's log can't be read"
+  [[ "$said" != *"$password"* ]] || fail "new-api writes its setup password in its log"
+  rm -f "$jar"
+}
+
+check_openlist() {
+  local port base said token password
+  port=$(value PORT)
+  base="http://127.0.0.1:$port"
+  [[ "$(curl -fsS --max-time 10 "$base/ping")" == pong ]] || fail "OpenList's ping doesn't answer"
+  if [[ "$1" == first ]]; then
+    kept[openlist-password]="$(openssl rand -hex 24)"
+    said=$(curl -fsS --max-time 15 -H 'Content-Type: application/json' \
+      -d "$(jq -nc --arg p "${kept[openlist-password]}" '{username:"owner",password:$p,site_title:"Kept through upgrade"}')" "$base/api/public/init/setup") || fail "OpenList's setup doesn't answer"
+    jq -e '.code == 200' <<<"$said" >/dev/null || fail "OpenList couldn't make its owner"
+  fi
+  password=${kept[openlist-password]}
+  said=$(curl -fsS --max-time 15 -H 'Content-Type: application/json' -d "$(jq -nc --arg p "$password" '{username:"owner",password:$p}')" "$base/api/auth/login") || fail "OpenList's sign-in doesn't answer"
+  token=$(jq -er '.data.token | select(length > 0)' <<<"$said") || fail "OpenList doesn't sign in as its owner"
+  said=$(curl -fsS --max-time 15 -H "Authorization: $token" "$base/api/admin/setting/get?key=site_title") || fail "OpenList can't read its settings"
+  jq -e '.code == 200 and .data.value == "Kept through upgrade"' <<<"$said" >/dev/null || fail "OpenList lost its title through upgrade"
+  said=$(curl -sS --max-time 15 -H 'Content-Type: application/json' -d '{"username":"owner","password":"not-the-password"}' "$base/api/auth/login") || fail "OpenList's sign-in doesn't answer"
+  jq -e '.code == 401 and (.data.token // "") == ""' <<<"$said" >/dev/null || fail "OpenList takes a wrong password"
+  said=$(curl -fsS --max-time 10 "$base/api/public/init_status") || fail "OpenList's setup state doesn't answer"
+  jq -e '.code == 200 and .data.initialized' <<<"$said" >/dev/null || fail "OpenList forgot that setup was finished"
+  said=$(docker logs "$(container openlist)" 2>&1) || fail "OpenList's log can't be read"
+  [[ "$said" != *"$password"* ]] || fail "OpenList writes its setup password in its log"
+}
+
+check_sftpgo() {
+  command -v sshpass >/dev/null || fail "the SFTPGo check needs sshpass, which its CI group installs"
+  local port sftp_port base password said token transfer_dir status
+  port=$(value PORT)
+  sftp_port=$(value SFTP_PORT)
+  base="http://127.0.0.1:$port"
+  password=$(generated sftpgo SFTPGO_DEFAULT_ADMIN_PASSWORD)
+  said=$(curl -fsS --max-time 15 -u "admin:$password" "$base/api/v2/token") || fail "SFTPGo doesn't take its generated admin password"
+  token=$(jq -er '.access_token | select(length > 0)' <<<"$said") || fail "SFTPGo's admin sign-in made no token"
+  status=$(curl -sS --max-time 15 -u admin:not-the-password -o /dev/null -w '%{http_code}' "$base/api/v2/token") || fail "SFTPGo's sign-in doesn't answer"
+  [[ "$status" == 401 ]] || fail "SFTPGo answers $status to a wrong admin password, want 401"
+  transfer_dir=$(mktemp -d)
+  if [[ "$1" == first ]]; then
+    kept[sftpgo-password]="$(openssl rand -hex 24)"
+    said=$(curl -fsS --max-time 15 -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+      -d "$(jq -nc --arg p "${kept[sftpgo-password]}" '{username:"transfer",password:$p,status:1,home_dir:"/srv/sftpgo/data/transfer",permissions:{"/":["*"]}}')" "$base/api/v2/users") || fail "SFTPGo doesn't make a transfer user"
+    jq -e '.username == "transfer"' <<<"$said" >/dev/null || fail "SFTPGo made no transfer user"
+    kept[sftpgo-hostkey]=$(ssh-keyscan -p "$sftp_port" 127.0.0.1 2>/dev/null) || fail "SFTPGo's SSH listener doesn't answer"
+    [[ -n "${kept[sftpgo-hostkey]}" ]] || fail "SFTPGo offered no SSH host key"
+    printf '%s\n' 'kept-through-upgrade' >"$transfer_dir/marker"
+    printf '%s\n' "${kept[sftpgo-hostkey]}" >"$transfer_dir/known_hosts"
+    # -b adds BatchMode=yes, and OpenSSH takes the first value, so the override goes first.
+    SSHPASS=${kept[sftpgo-password]} sshpass -e sftp -q -oBatchMode=no -b - -P "$sftp_port" \
+      -oStrictHostKeyChecking=yes -oConnectTimeout=10 -oUserKnownHostsFile="$transfer_dir/known_hosts" transfer@127.0.0.1 <<EOF || fail "SFTPGo doesn't accept an SFTP upload"
+put $transfer_dir/marker marker
+EOF
+  fi
+  # Keep trusting the original host key after the container and image change too.
+  printf '%s\n' "${kept[sftpgo-hostkey]}" >"$transfer_dir/known_hosts"
+  SSHPASS=${kept[sftpgo-password]} sshpass -e sftp -q -oBatchMode=no -b - -P "$sftp_port" \
+    -oStrictHostKeyChecking=yes -oConnectTimeout=10 -oUserKnownHostsFile="$transfer_dir/known_hosts" transfer@127.0.0.1 <<EOF || fail "SFTPGo doesn't return the uploaded file with its original host key"
+get marker $transfer_dir/read-back
+EOF
+  [[ "$(cat "$transfer_dir/read-back")" == kept-through-upgrade ]] || fail "SFTPGo lost its uploaded file through upgrade"
+  rm -rf "$transfer_dir"
+}
+
+check_hermes-agent() {
+  local port api_port base password key jar said status
+  port=$(value PORT)
+  api_port=$(value API_PORT)
+  base="http://127.0.0.1:$port"
+  password=$(generated hermes HERMES_DASHBOARD_BASIC_AUTH_PASSWORD)
+  key=$(generated hermes API_SERVER_KEY)
+  generated hermes HERMES_DASHBOARD_BASIC_AUTH_SECRET >/dev/null
+  said=$(curl -fsS --max-time 15 "$base/api/status") || fail "Hermes's dashboard doesn't answer"
+  jq -e '.auth_required and (.auth_providers | index("basic") != null)' <<<"$said" >/dev/null || fail "Hermes's dashboard has no password gate"
+  status=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$base/api/config") || fail "Hermes's config route doesn't answer"
+  [[ "$status" == 401 ]] || fail "Hermes answers $status without a dashboard session, want 401"
+  status=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H "Origin: $base" -H 'Content-Type: application/json' \
+    -d '{"provider":"basic","username":"admin","password":"not-the-password"}' "$base/auth/password-login") || fail "Hermes's sign-in doesn't answer"
+  [[ "$status" == 401 ]] || fail "Hermes answers $status to a wrong dashboard password, want 401"
+  jar=$(mktemp)
+  said=$(curl -fsS --max-time 15 -c "$jar" -H "Origin: $base" -H 'Content-Type: application/json' \
+    -d "$(jq -nc --arg p "$password" '{provider:"basic",username:"admin",password:$p}')" "$base/auth/password-login") || fail "Hermes doesn't take its generated dashboard password"
+  jq -e '.ok' <<<"$said" >/dev/null || fail "Hermes didn't sign in"
+  said=$(curl -fsS --max-time 15 -b "$jar" "$base/api/auth/me") || fail "Hermes's dashboard session doesn't work"
+  jq -e '.provider == "basic"' <<<"$said" >/dev/null || fail "Hermes didn't authenticate its password session"
+  if [[ "$1" == first ]]; then
+    said=$(curl -fsS --max-time 15 -b "$jar" -X PUT -H "Origin: $base" -H 'Content-Type: application/json' \
+      -d '{"config":{"agent":{"max_turns":17}}}' "$base/api/config") || fail "Hermes can't save its settings"
+    jq -e '.ok' <<<"$said" >/dev/null || fail "Hermes didn't save its settings"
+  fi
+  said=$(curl -fsS --max-time 15 -b "$jar" "$base/api/config?include_defaults=false") || fail "Hermes can't read its saved settings"
+  jq -e '.agent.max_turns == 17' <<<"$said" >/dev/null || fail "Hermes lost its settings through upgrade"
+  status=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer not-the-api-key' "http://127.0.0.1:$api_port/v1/capabilities") || fail "Hermes's API doesn't answer"
+  [[ "$status" == 401 ]] || fail "Hermes answers $status to a wrong API key, want 401"
+  said=$(curl -fsS --max-time 15 -H "Authorization: Bearer $key" "http://127.0.0.1:$api_port/v1/capabilities") || fail "Hermes doesn't take its generated API key"
+  jq -e 'type == "object" and has("endpoints")' <<<"$said" >/dev/null || fail "Hermes's authenticated capabilities have no endpoint table"
+  rm -f "$jar"
+}
+
+check_openclaw() {
+  local port c token said
+  port=$(value PORT)
+  c=$(container openclaw)
+  token=$(generated openclaw OPENCLAW_GATEWAY_TOKEN)
+  answers "http://127.0.0.1:$port/"
+  # Use a fresh client identity for the negative check, so a retained paired
+  # device's token can't authenticate it in place of the deliberately wrong one.
+  if said=$(timeout 35 docker exec -e OPENCLAW_STATE_DIR=/tmp/catalog-wrong-token -e OPENCLAW_GATEWAY_TOKEN=not-the-token \
+    "$c" node /app/dist/index.js gateway call health --url ws://127.0.0.1:18789 --token not-the-token --timeout 10000 --json 2>&1); then
+    fail "OpenClaw accepts a wrong gateway token"
+  fi
+  [[ "$said" == *unauthorized* || "$said" == *"token mismatch"* || "$said" == *"AUTH_TOKEN_MISMATCH"* ]] || fail "OpenClaw's wrong-token check failed without an auth refusal: ${said:0:300}"
+  said=$(timeout 35 docker exec "$c" node /app/dist/index.js gateway call health --url ws://127.0.0.1:18789 --token "$token" --timeout 10000 --json) || fail "OpenClaw doesn't take its generated gateway token"
+  jq -e '.ok' <<<"$said" >/dev/null || fail "OpenClaw's authenticated health isn't ready"
+  if [[ "$1" == first ]]; then
+    # Agent state is files in its workspace. No paid model or external channel
+    # is needed to prove that a real retained workspace survives replacement.
+    docker exec "$c" node -e 'const f=require("node:fs"), p=process.env.OPENCLAW_WORKSPACE_DIR; f.mkdirSync(p,{recursive:true}); f.writeFileSync(p+"/catalog-e2e.md","kept-through-upgrade\n");' || fail "OpenClaw can't write its workspace"
+    # OpenClaw's config accepts JSON5. A comment retained by its editor must not
+    # stop the next image's startup from reading and merging that config.
+    docker exec "$c" node -e 'const f=require("node:fs"), p=process.env.OPENCLAW_CONFIG_PATH; f.writeFileSync(p,"// retained through upgrade\n"+f.readFileSync(p,"utf8"));' || fail "OpenClaw can't keep JSON5 config"
+  fi
+  docker exec "$c" node -e 'const f=require("node:fs"); if(f.readFileSync(process.env.OPENCLAW_WORKSPACE_DIR+"/catalog-e2e.md","utf8")!=="kept-through-upgrade\n")process.exit(1);' || fail "OpenClaw lost its workspace through upgrade"
+  said=$(docker exec "$c" node /app/dist/index.js gateway call config.get --url ws://127.0.0.1:18789 --token "$token" --timeout 10000 --json) || fail "OpenClaw can't read its config through the authenticated gateway"
+  jq -e --arg port "$port" '.config.gateway.auth.mode == "token" and .config.gateway.mode == "local" and .config.gateway.controlUi.allowedOrigins == ["http://localhost:" + $port, "http://127.0.0.1:" + $port]' <<<"$said" >/dev/null || fail "OpenClaw lost its token gate or explicit control-UI origins"
+}
+
+# LobeChat's browser edition stores no chats on the server. Try both versions
+# against a local model-list fixture, with no real model key or external call.
+check_lobechat() {
+  local port c code payload said status
+  port=$(value PORT)
+  c=$(container lobechat)
+  code=$(generated lobechat ACCESS_CODE)
+  answers "http://127.0.0.1:$port/"
+  docker exec -d "$c" /bin/node -e 'require("node:http").createServer((q,r)=>{r.setHeader("content-type","application/json");r.end(JSON.stringify({object:"list",data:[{id:"gpt-4o-mini",object:"model",created:0,owned_by:"catalog-e2e"}]}));}).listen(19001,"127.0.0.1");' || fail "can't start LobeChat's local provider fixture"
+  docker exec "$c" /bin/node -e 'fetch("http://127.0.0.1:19001/v1/models").then(r=>process.exit(r.ok?0:1),()=>process.exit(1));' || fail "LobeChat's local provider fixture doesn't answer"
+  payload=$(docker exec -e CATALOG_CODE=not-the-access-code "$c" /bin/node -e 'const b=Buffer.from(JSON.stringify({accessCode:process.env.CATALOG_CODE,baseURL:"http://127.0.0.1:19001/v1"})),k=Buffer.from("LobeHub · LobeHub"); for(let i=0;i<b.length;i++)b[i]^=k[i%k.length]; console.log(b.toString("base64"));') || fail "can't build LobeChat's browser auth header"
+  status=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -H "X-lobe-chat-auth: $payload" "http://127.0.0.1:$port/webapi/models/openai") || fail "LobeChat's model route doesn't answer"
+  [[ "$status" == 401 ]] || fail "LobeChat answers $status to a wrong access code, want 401"
+  payload=$(docker exec -e CATALOG_CODE="$code" "$c" /bin/node -e 'const b=Buffer.from(JSON.stringify({accessCode:process.env.CATALOG_CODE,baseURL:"http://127.0.0.1:19001/v1"})),k=Buffer.from("LobeHub · LobeHub"); for(let i=0;i<b.length;i++)b[i]^=k[i%k.length]; console.log(b.toString("base64"));') || fail "can't build LobeChat's browser auth header"
+  said=$(curl -fsS --max-time 20 -H "X-lobe-chat-auth: $payload" "http://127.0.0.1:$port/webapi/models/openai") || fail "LobeChat doesn't take its generated access code"
+  jq -e 'any(.id == "gpt-4o-mini")' <<<"$said" >/dev/null || fail "LobeChat can't list models from its local provider"
+}
+
 # The version before the one each entry pins, which it upgrades from, and the images
 # that version ran in place of the entry's: its version, then each image by digest.
 declare -A previous=(
@@ -761,6 +1014,14 @@ declare -A previous=(
   [adminer]="6.1.2 adminer:6.1.2@sha256:251295c1cd51d3889f1c42ffa4864b24eeab51f0caf395cfe5bf4726c5ec9a2a"
   [jellyfin]="12.2 jellyfin/jellyfin:12.2@sha256:357724bf0ae27a672c7cbaa899db2d9abeb13dbd8657ccce750258a4c059d037"
   [home-assistant]="2026.10.3 ghcr.io/home-assistant/home-assistant:2026.10.3@sha256:407b89cd11a8cb67d388d21739a226c74acbbebe1ac59e3b83b11b43ce76b98f"
+  [openclaw]="2026.10.6 ghcr.io/openclaw/openclaw:2026.10.6@sha256:7dbff0fe5f5359b1badefe90a23efa9f203cd0d3c36bee095f4896c7a1d3864b"
+  [hermes-agent]="0.22.4 nousresearch/hermes-agent:v0.22.4@sha256:7a69201726bc64db2072a1371557137c23312d29705cda2b8ea2a0214a50a4cf"
+  [new-api]="0.13.1-patch.1 calciumion/new-api:v0.13.1-patch.1@sha256:95fab02db3925f8028f8f43b333734893a3c568ac555fa3b5df74650286d9ce3"
+  [lobechat]="1.143.2 lobehub/lobe-chat:1.143.2@sha256:65793dfe2378eecea89c335c01cb1094c240eb67047902859140e0f0b1a15069"
+  [sftpgo]="2.7.5 drakkan/sftpgo:v2.7.5@sha256:9011fe608d336d3daf6ed6224b16fd40443aab8f3335e0b20853d6a539c58738"
+  [openlist]="4.2.7 openlistteam/openlist:v4.2.7@sha256:11b490123d57f88c84ecda46285e1921869cf511da3e5bb4062f183e7e1200b7"
+  [gotify]="3.1.0 gotify/server:3.1.0@sha256:be44495e4609c6f5b06c01a9445ec6198dba902ce49fc3d0d71ab585cda8014c"
+  [linkding]="1.46.2 sissbruecker/linkding:1.46.2@sha256:0c0a9a04c7ebd644293c37f98710872fe7cdff0ea1ff7fd9be4d235e4c4678d2"
 )
 # What a person types for an entry, as dockwell catalog install takes it.
 declare -A given=(
@@ -768,6 +1029,11 @@ declare -A given=(
   [nextcloud]="DOMAIN=cloud.example.com"
   [ghost]="URL=https://blog.example.com"
   [jellyfin]="MEDIA_DIR=$media_dir"
+  [lobechat]="OPENAI_API_KEY"
+)
+# Secret inputs use their names above and values in the CLI's environment, including under sudo.
+declare -A given_env=(
+  [lobechat]="OPENAI_API_KEY=catalog-test-provider-key-never-sent-outside-this-container"
 )
 
 # release writes an entry into the catalog's directory, which takes over from the
@@ -865,6 +1131,7 @@ for id in "$@"; do
   [[ "$entry" != null ]] || fail "the catalog has no $id"
   version=$(jq -r .version <<<"$entry")
   read -r -a values <<<"${given[$id]:-}"
+  read -r -a input_env <<<"${given_env[$id]:-}"
   flags=()
   for v in "${values[@]}"; do flags+=(--values "$v"); done
   before=${previous[$id]:-}
