@@ -317,6 +317,21 @@ describe("a server's Firewall tab", () => {
     );
   });
 
+  it("says a role doesn't cover the firewall as every page does, and something that broke as that", async () => {
+    const refused = await renderFirewall(
+      authError(Code.PermissionDenied, "needs_role", "this needs the admin role on the install"),
+    );
+    const why = (await screen.findByText("Your role doesn't cover this")).closest(".dw-callout");
+    expect(why).toHaveClass("dw-tone-warning");
+    expect(why).toHaveTextContent("Your role doesn't let you do this here. Ask an admin to change your role.");
+    refused.unmount();
+
+    await renderFirewall(authError(Code.Internal, "", "the control plane couldn't complete the request"));
+    const broke = (await screen.findByText("Dockwell can't read hz-1's firewall")).closest(".dw-callout");
+    expect(broke).toHaveClass("dw-tone-critical");
+    expect(broke).toHaveTextContent("The control plane couldn't complete the request");
+  });
+
   it("says how to update an agent older than the control plane", async () => {
     await renderFirewall(
       authError(Code.FailedPrecondition, "agent_outdated", "the agent on hz-1 is older than the control plane"),

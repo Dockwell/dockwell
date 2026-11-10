@@ -219,7 +219,7 @@ export function LogStream({
   className,
 }: LogStreamProps) {
   const strings = useUIStrings();
-  const [follow, setFollow] = useControlled(followProp, true, onFollowChange);
+  const [followSaid, setFollowSaid] = useControlled(followProp, true, onFollowChange);
   const body = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const bodyId = useId();
@@ -238,6 +238,23 @@ export function LogStream({
   }, [linesProp]);
 
   const [, redraw] = useReducer((n: number) => n + 1, 0);
+  // A reader on their way up has stopped following, whatever this draw was told.
+  // Whoever owns following hears of it at once, but says so in a draw of its own,
+  // and a batch of lines can draw first. Until it has said so, nothing here pulls
+  // the reader back to the end: not that batch, and not a scroll taken for the
+  // browser's own.
+  const left = useRef(false);
+  if (!followSaid) left.current = false;
+  const follow = followSaid && !left.current;
+  const following = () => followSaid && !left.current;
+  const setFollow = useCallback(
+    (next: boolean) => {
+      left.current = !next;
+      setFollowSaid(next);
+      redraw();
+    },
+    [setFollowSaid],
+  );
   const index = useRef(new HeightIndex());
   const synced = useRef({ epoch: -1, end: 0 });
   // How the text wraps at the current width.
@@ -378,7 +395,7 @@ export function LogStream({
       // Once it is drawn and measured, this was its place. Until then it was a guess.
       if (rows.current.has(position)) wanted.current = undefined;
       else redraw();
-    } else if (follow && lines.length > 0) {
+    } else if (following() && lines.length > 0) {
       el.scrollTop = el.scrollHeight;
       expected.current = el.scrollTop;
       pendingTop.current = undefined;
@@ -452,6 +469,8 @@ export function LogStream({
     // fingers say so on their own.
     const settling = performance.now() < settledAt.current;
     const atEnd = el.scrollHeight - now - el.clientHeight < AT_END;
+    // As of now, not of the draw this was made in: a wheel may have said since.
+    const follow = following();
     if (!ours && follow && now < lastTop.current && !atEnd) {
       if (settling) el.scrollTop = el.scrollHeight;
       else setFollow(false);
@@ -482,7 +501,7 @@ export function LogStream({
   // the reader back down.
   const touchY = useRef(0);
   const reading = () => {
-    if (follow) setFollow(false);
+    if (following()) setFollow(false);
   };
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowUp" || e.key === "PageUp" || e.key === "Home") reading();

@@ -4,7 +4,9 @@
 // webhook added and tested before it's planned, its plan saying nothing of what
 // signs in, a test from the list, what was sent, a change that moves it refused
 // its kept secret, and the tab on a phone. The webhook is a server this flow
-// starts on this machine, so nothing leaves it.
+// starts on this machine, so nothing leaves it. Then an alert as Alerts.dc.html
+// has it: an app's check fails as the flow starts, so its alert has fired by the
+// end, and the card takes an acknowledgement, says who has it, and gives it back.
 
 import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -12,12 +14,16 @@ import { networkInterfaces } from "node:os";
 
 import type { Page } from "playwright-core";
 
+import { type DockerProbe, dockerHealth } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
 
 interface AlertsFlowOptions {
   origin: string;
   step: (message: string) => void;
   shoot: (page: Page, name: string) => Promise<void>;
+  /** Says what the fake Docker Engine runs, and its socket. */
+  docker: DockerProbe;
+  socket: string;
 }
 
 function fail(message: string): never {
@@ -77,8 +83,12 @@ function privateAddress(): string {
   return found?.address ?? fail("this machine has no address on a private network for the flow's webhook to listen on");
 }
 
-export async function alertsFlow(page: Page, { origin, step, shoot }: AlertsFlowOptions) {
+export async function alertsFlow(page: Page, { origin, step, shoot, docker, socket }: AlertsFlowOptions) {
   const far = await hook();
+  // An app whose check starts failing now: the app-down rule waits two minutes, which the steps below fill.
+  const sick = (await docker()).find((c) => c.service === "checked" && c.running);
+  if (!sick) fail(`Docker runs no checked app for an alert to be about: ${JSON.stringify(await docker())}`);
+  await dockerHealth(socket, sick.id, "unhealthy", "the database refuses connections");
   try {
     step("alerts: the rail leads to Alerts, whose rules came with the install");
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -156,7 +166,28 @@ export async function alertsFlow(page: Page, { origin, step, shoot }: AlertsFlow
     const wide = await page.evaluate(() => document.documentElement.scrollWidth);
     if (wide > 390) fail(`Channels is ${wide} px wide on a 390 px phone`);
     await page.setViewportSize({ width: 1440, height: 900 });
+
+    step("alerts: what's open is a card, which takes an acknowledgement with no plan and gives it back");
+    await page.goto(`${origin}/alerts`);
+    const open = page.getByRole("region", { name: "Open", exact: true });
+    const card = open.getByRole("article").filter({ hasText: "checked fails its health check" });
+    // The rule's two minutes, an evaluation every 15 s, and a slow machine.
+    await card.waitFor({ timeout: 240_000 });
+    await card.getByText("Not acknowledged").waitFor();
+    await card.getByRole("button", { name: /^Acknowledge: checked fails its health check/ }).click();
+    await card.getByText(/^Acknowledged by you /).waitFor();
+    if (await page.getByRole("dialog").count()) fail("acknowledging opened a plan, and it's no change");
+    await shoot(page, "alerts-acknowledged");
+    await page.reload();
+    await card.getByText(/^Acknowledged by you /).waitFor();
+    await page.goto(`${origin}/activity`);
+    await page.getByText("Acknowledged the alert: checked fails its health check", { exact: false }).first().waitFor();
+    await page.goto(`${origin}/alerts`);
+    await card.getByRole("button", { name: /^Take back your acknowledgement of: checked/ }).click();
+    await card.getByText("Not acknowledged").waitFor();
   } finally {
+    // The app is well again for the flows after this one, and its alert resolves.
+    await dockerHealth(socket, sick.id, "healthy", "ok").catch(() => {});
     await far.close();
   }
 }

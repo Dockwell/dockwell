@@ -56,6 +56,12 @@ func TestAServersFilesAreAnAdmins(t *testing.T) {
 		needsRole(t, "a developer reading alert channels", err)
 		_, err = alertAPI.MuteAlerts(ctx, connect.NewRequest(&dockwellv1.MuteAlertsRequest{Rule: "disk", Duration: "1h"}))
 		needsRole(t, "a developer muting a rule", err)
+		// Refused for the role before anything is looked up: an ID that names no alert
+		// reads the same as one that does, so nobody below an admin learns which exist.
+		_, err = alertAPI.AcknowledgeAlert(ctx, connect.NewRequest(&dockwellv1.AcknowledgeAlertRequest{Id: "alt_nothing"}))
+		needsRole(t, "a developer acknowledging an alert that isn't there", err)
+		_, err = alertAPI.UnacknowledgeAlert(ctx, connect.NewRequest(&dockwellv1.UnacknowledgeAlertRequest{Id: "alt_nothing"}))
+		needsRole(t, "a developer taking back an acknowledgement", err)
 
 		hold(onInstall(store.RoleAdmin))
 		if _, err := alertAPI.ListAlerts(ctx, connect.NewRequest(&dockwellv1.ListAlertsRequest{})); err != nil {

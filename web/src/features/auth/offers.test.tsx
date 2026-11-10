@@ -143,19 +143,21 @@ describe("what the panel offers, by what you hold", () => {
     expect(asked).toEqual([]);
   });
 
-  it("says the server's refusal on a server's Updates opened by its address, and doesn't wait", async () => {
+  it("says a role doesn't cover a server's Updates opened by its address, as a refused read does, without asking", async () => {
+    let asked = 0;
     renderAt("/servers/srv_1/updates", {
       ...api(as(["", Role.DEVELOPER])),
       updates: {
         getServerUpdates: () => {
+          asked++;
           throw authError(Code.PermissionDenied, "needs_role", "only an admin or the owner can do this");
         },
       },
     });
-    expect(
-      await screen.findByText("Your role doesn't let you do this here. Ask an admin to change your role."),
-    ).toBeVisible();
+    const why = (await screen.findByText("Your role doesn't cover this")).closest(".dw-callout");
+    expect(why).toHaveTextContent("Your role doesn't let you do this here. Ask an admin to change your role.");
     expect(screen.queryByText(/Asking hz-1/)).not.toBeInTheDocument();
+    expect(asked).toBe(0);
   });
 
   it("shows an admin all of a server's tabs", async () => {

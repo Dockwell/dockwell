@@ -3,6 +3,7 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
+  ActorKind,
   type AlertChannelInfo,
   AlertChannelInfoSchema,
   AlertRuleInfoSchema,
@@ -14,6 +15,7 @@ import {
   AlertEmail_Security as Security,
   AlertRule_Severity as Severity,
   type TestAlertChannelRequest,
+  TokenScope,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -23,6 +25,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { mira } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 
@@ -443,6 +446,228 @@ describe("Alerts and rules", () => {
     );
     // Nothing resolved, so nothing beside them says so.
     expect(screen.queryByRole("complementary", { name: "Resolved" })).toBeNull();
+  });
+
+  describe("acknowledging", () => {
+    const anAlert = (more: object = {}) => ({
+      id: "alt_1",
+      ruleName: "server-unreachable",
+      severity: Severity.CRITICAL,
+      state: AlertState.FIRING,
+      condition: Condition.SERVER_UNREACHABLE,
+      serverId: "srv_2",
+      serverName: "hz-2",
+      openTime: timestampFromDate(new Date(NOW.getTime() - 20 * 60_000)),
+      ...more,
+    });
+    const since = timestampFromDate(new Date(NOW.getTime() - 5 * 60_000));
+
+    it("says nobody has an alert, and takes it as yours without a plan", async () => {
+      const user = userEvent.setup();
+      let alert = anAlert();
+      const acknowledgeAlert = vi.fn((req: { id: string }) => {
+        alert = anAlert({
+          acknowledgeTime: since,
+          acknowledgedBy: { kind: ActorKind.USER, id: mira.id, name: mira.name },
+        });
+        return { alert: { id: req.id } };
+      });
+      const unacknowledgeAlert = vi.fn((req: { id: string }) => {
+        alert = anAlert();
+        return { alert: { id: req.id } };
+      });
+      const proposed = planned();
+      renderAt(
+        "/alerts",
+        api([ops], {
+          alerts: { listAlerts: () => ({ firing: 1, alerts: [alert] }), acknowledgeAlert, unacknowledgeAlert },
+          changes: { proposeChange: proposed },
+        }),
+      );
+      const card = within(await screen.findByRole("region", { name: "Open" })).getByRole("article");
+      expect(card).toHaveTextContent("Not acknowledged");
+      await user.click(within(card).getByRole("button", { name: "Acknowledge: hz-2 can't be reached" }));
+      await waitFor(() => expect(card).toHaveTextContent("Acknowledged by you · 5 min ago"));
+      // Said to someone who can't see it change.
+      expect(within(card).getByRole("status")).toHaveTextContent("Acknowledged by you · 5 min ago");
+      expect(acknowledgeAlert.mock.calls[0]?.[0]).toMatchObject({ id: "alt_1" });
+      // Yours is taken back, not taken again.
+      expect(within(card).queryByRole("button", { name: /^Acknowledge/ })).toBeNull();
+      await user.click(
+        within(card).getByRole("button", { name: "Take back your acknowledgement of: hz-2 can't be reached" }),
+      );
+      await waitFor(() => expect(card).toHaveTextContent("Not acknowledged"));
+      expect(unacknowledgeAlert.mock.calls[0]?.[0]).toMatchObject({ id: "alt_1" });
+      // An audited action, as a mute is: nothing is planned.
+      expect(proposed).not.toHaveBeenCalled();
+    });
+
+    it("names who has it, and offers to take it over", async () => {
+      const user = userEvent.setup();
+      const acknowledgeAlert = vi.fn((req: { id: string }) => ({ alert: { id: req.id } }));
+      renderAt(
+        "/alerts",
+        api([ops], {
+          alerts: {
+            listAlerts: () => ({
+              firing: 1,
+              alerts: [
+                anAlert({
+                  acknowledgeTime: since,
+                  acknowledgedBy: { kind: ActorKind.USER, id: "usr_leo", name: "Leo Park" },
+                }),
+              ],
+            }),
+            acknowledgeAlert,
+          },
+        }),
+      );
+      const card = within(await screen.findByRole("region", { name: "Open" })).getByRole("article");
+      expect(card).toHaveTextContent("Acknowledged by Leo Park · 5 min ago");
+      // A person has no mark: only what isn't one does.
+      expect(card.querySelector(".alerts-card-by")).toBeNull();
+      expect(within(card).queryByRole("button", { name: /^Take back/ })).toBeNull();
+      await user.click(within(card).getByRole("button", { name: "Take over from Leo Park: hz-2 can't be reached" }));
+      await waitFor(() => expect(acknowledgeAlert).toHaveBeenCalledOnce());
+    });
+
+    it("says what the control plane refused, on the card, and reads the alerts again", async () => {
+      const user = userEvent.setup();
+      const { ConnectError, Code } = await import("@connectrpc/connect");
+      const listAlerts = vi.fn(() => ({ firing: 1, alerts: [anAlert()] }));
+      renderAt(
+        "/alerts",
+        api([ops], {
+          alerts: {
+            listAlerts,
+            acknowledgeAlert: () => {
+              throw new ConnectError(
+                "that alert resolved, so there's nothing left to be on",
+                Code.FailedPrecondition,
+                new Headers({ "Dockwell-Error": "alert_resolved" }),
+              );
+            },
+          },
+        }),
+      );
+      const card = within(await screen.findByRole("region", { name: "Open" })).getByRole("article");
+      const before = listAlerts.mock.calls.length;
+      await user.click(within(card).getByRole("button", { name: /^Acknowledge:/ }));
+      expect(await within(card).findByText("That didn't take")).toBeVisible();
+      expect(card).toHaveTextContent("That alert resolved, so there's nothing left to be on.");
+      await waitFor(() => expect(listAlerts.mock.calls.length).toBeGreaterThan(before));
+      // It stays through the re-read, to be read, until it's closed.
+      expect(within(card).getByText("That didn't take")).toBeVisible();
+      await user.click(within(card).getByRole("button", { name: "Close" }));
+      expect(within(card).queryByText("That didn't take")).toBeNull();
+    });
+
+    it("clears a card's refusal when that card is asked again, and leaves another card's alone", async () => {
+      const user = userEvent.setup();
+      const { ConnectError, Code } = await import("@connectrpc/connect");
+      let refuse = true;
+      renderAt(
+        "/alerts",
+        api([ops], {
+          alerts: {
+            listAlerts: () => ({
+              firing: 2,
+              alerts: [anAlert(), anAlert({ id: "alt_2", serverId: "srv_3", serverName: "hz-3" })],
+            }),
+            acknowledgeAlert: (req: { id: string }) => {
+              if (refuse) throw new ConnectError("someone else has that alert now", Code.FailedPrecondition);
+              return { alert: { id: req.id } };
+            },
+          },
+        }),
+      );
+      const [first, second] = within(await screen.findByRole("region", { name: "Open" })).getAllByRole("article");
+      await user.click(within(first as HTMLElement).getByRole("button", { name: /^Acknowledge:/ }));
+      await user.click(within(second as HTMLElement).getByRole("button", { name: /^Acknowledge:/ }));
+      await within(first as HTMLElement).findByText("That didn't take");
+      await within(second as HTMLElement).findByText("That didn't take");
+      refuse = false;
+      await user.click(within(second as HTMLElement).getByRole("button", { name: /^Acknowledge:/ }));
+      await waitFor(() => expect(within(second as HTMLElement).queryByText("That didn't take")).toBeNull());
+      expect(within(first as HTMLElement).getByText("That didn't take")).toBeVisible();
+    });
+
+    it("shows a card as busy while it's asked, and only that card", async () => {
+      const user = userEvent.setup();
+      let answer: () => void = () => {};
+      const asked = new Promise<void>((resolve) => {
+        answer = resolve;
+      });
+      renderAt(
+        "/alerts",
+        api([ops], {
+          alerts: {
+            listAlerts: () => ({
+              firing: 2,
+              alerts: [anAlert(), anAlert({ id: "alt_2", serverId: "srv_3", serverName: "hz-3" })],
+            }),
+            acknowledgeAlert: async (req: { id: string }) => {
+              await asked;
+              return { alert: { id: req.id } };
+            },
+          },
+        }),
+      );
+      const [first, second] = within(await screen.findByRole("region", { name: "Open" })).getAllByRole("article");
+      const button = (card: HTMLElement | undefined) =>
+        within(card as HTMLElement).getByRole("button", { name: /^Acknowledge:/ });
+      await user.click(button(first));
+      await waitFor(() => expect(button(first)).toHaveAttribute("aria-busy", "true"));
+      expect(button(second)).not.toHaveAttribute("aria-busy", "true");
+      answer();
+      await waitFor(() => expect(button(first)).not.toHaveAttribute("aria-busy", "true"));
+    });
+
+    it("names a token as a token, as Activity does, and never as you", async () => {
+      const held = (acknowledgedBy: object) => anAlert({ acknowledgeTime: since, acknowledgedBy });
+      renderAt(
+        "/alerts",
+        api([ops], {
+          alerts: {
+            listAlerts: () => ({
+              firing: 3,
+              alerts: [
+                // A token called what a person is called: its mark says what it is.
+                held({ kind: ActorKind.TOKEN, id: "tok_1", name: "Leo Park" }),
+                // The CLI's own token on the control server, by where it was made, not by its name.
+                {
+                  ...held({
+                    kind: ActorKind.TOKEN,
+                    id: "tok_2",
+                    name: "Local access on hz-1, read-write",
+                    localAccess: { account: "mira@hz-1", scope: TokenScope.READ_WRITE },
+                  }),
+                  id: "alt_2",
+                },
+                // A token with your own ID, were there one: a token is never you.
+                { ...held({ kind: ActorKind.TOKEN, id: mira.id, name: "Mira's deploy token" }), id: "alt_3" },
+              ],
+            }),
+          },
+        }),
+      );
+      const cards = within(await screen.findByRole("region", { name: "Open" })).getAllByRole("article");
+      const [named, cli, own] = cards as HTMLElement[];
+      expect(named).toHaveTextContent("Acknowledged by Leo Park · 5 min ago");
+      expect(named?.querySelector(".alerts-card-by")).not.toBeNull();
+      expect(cli).toHaveTextContent("Acknowledged by CLI on hz-1 · 5 min ago");
+      expect(within(cli as HTMLElement).getByText("Acknowledged by CLI on hz-1")).toHaveAttribute(
+        "title",
+        "Local access token, read-write, tok_2, made by mira@hz-1",
+      );
+      expect(own).toHaveTextContent("Acknowledged by Mira's deploy token · 5 min ago");
+      expect(own).not.toHaveTextContent("Acknowledged by you");
+      // Not yours to take back, so it offers to take over.
+      expect(
+        within(own as HTMLElement).getByRole("button", { name: /^Take over from Mira's deploy token/ }),
+      ).toBeVisible();
+      expect(within(own as HTMLElement).queryByRole("button", { name: /^Take back/ })).toBeNull();
+    });
   });
 
   it("lists the rules", async () => {

@@ -4,7 +4,7 @@ import { Callout } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import type { ComponentProps, ReactNode } from "react";
 
-import { isRoleRefusal, sentence } from "../../lib/errors";
+import { isRoleRefusal, roleRefusalSentence, sentence } from "../../lib/errors";
 
 /**
  * Says a read failed, under the page's own title, with its way to try again.
@@ -29,18 +29,25 @@ export function ReadFailed({
   /** What follows the reason, such as what isn't affected. */
   children?: ReactNode;
 }) {
-  const { t } = useLingui();
-  if (isRoleRefusal(error)) {
-    return (
-      <Callout tone="warning" title={t`Your role doesn't cover this`} className={className}>
-        {sentence(error)}
-      </Callout>
-    );
-  }
+  if (isRoleRefusal(error)) return <RoleRefused className={className} />;
   return (
     <Callout tone={tone} title={title} actions={actions} className={className}>
       {sentence(error)}
       {children ? <> {children}</> : null}
+    </Callout>
+  );
+}
+
+/**
+ * Says a role doesn't cover a page, in the words a refused read gets, for a
+ * page that knows its reader may not make its read and so doesn't make it
+ * (ADR 0059): the same callout either way, so there is one wording.
+ */
+export function RoleRefused({ className }: { className?: string | undefined }) {
+  const { t } = useLingui();
+  return (
+    <Callout tone="warning" title={t`Your role doesn't cover this`} className={className}>
+      {roleRefusalSentence()}
     </Callout>
   );
 }

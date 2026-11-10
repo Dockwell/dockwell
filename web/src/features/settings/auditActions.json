@@ -1,8 +1,10 @@
 [
+  "alert.acknowledge",
   "alert.firing",
   "alert.mute",
   "alert.resolved",
   "alert.test",
+  "alert.unacknowledge",
   "alert.unmute",
   "auth.sign_in",
   "auth.sign_in_failed",

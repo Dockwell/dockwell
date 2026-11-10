@@ -616,6 +616,9 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 			if told.Until != nil {
 				e.Alert.Until = timestamppb.New(*told.Until)
 			}
+			if told.TakenFrom != "" {
+				e.Alert.TakenFrom = look.Actor(told.TakenFrom)
+			}
 		}
 		return e
 	}

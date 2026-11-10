@@ -967,11 +967,14 @@ type EventAlert struct {
 	// condition's titles it is ("unhealthy", "not_running", "restarting",
 	// "flapping"; "failed" or "copy" for a backup), where (a disk's mount point, a
 	// backup's destination) and a value (a percent, or days left).
-	Condition     v1alpha1.AlertRule_Condition `protobuf:"varint,12,opt,name=condition,proto3,enum=dockwell.resource.v1alpha1.AlertRule_Condition" json:"condition,omitempty"`
-	SubjectName   string                       `protobuf:"bytes,13,opt,name=subject_name,json=subjectName,proto3" json:"subject_name,omitempty"`
-	Variant       string                       `protobuf:"bytes,14,opt,name=variant,proto3" json:"variant,omitempty"`
-	Where         string                       `protobuf:"bytes,15,opt,name=where,proto3" json:"where,omitempty"`
-	Value         int32                        `protobuf:"varint,16,opt,name=value,proto3" json:"value,omitempty"`
+	Condition   v1alpha1.AlertRule_Condition `protobuf:"varint,12,opt,name=condition,proto3,enum=dockwell.resource.v1alpha1.AlertRule_Condition" json:"condition,omitempty"`
+	SubjectName string                       `protobuf:"bytes,13,opt,name=subject_name,json=subjectName,proto3" json:"subject_name,omitempty"`
+	Variant     string                       `protobuf:"bytes,14,opt,name=variant,proto3" json:"variant,omitempty"`
+	Where       string                       `protobuf:"bytes,15,opt,name=where,proto3" json:"where,omitempty"`
+	Value       int32                        `protobuf:"varint,16,opt,name=value,proto3" json:"value,omitempty"`
+	// Who had the alert before, on an acknowledgement that took it over from
+	// someone. Unset otherwise.
+	TakenFrom     *Actor `protobuf:"bytes,17,opt,name=taken_from,json=takenFrom,proto3" json:"taken_from,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1116,6 +1119,13 @@ func (x *EventAlert) GetValue() int32 {
 		return x.Value
 	}
 	return 0
+}
+
+func (x *EventAlert) GetTakenFrom() *Actor {
+	if x != nil {
+		return x.TakenFrom
+	}
+	return nil
 }
 
 // EventTerminal is a terminal on a server, as its opening or closing tells of it.
@@ -1762,7 +1772,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\fEventSetting\x12\x18\n" +
 	"\asetting\x18\x01 \x01(\tR\asetting\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\x12\x1a\n" +
-	"\bprevious\x18\x03 \x01(\tR\bprevious\"\xb7\x04\n" +
+	"\bprevious\x18\x03 \x01(\tR\bprevious\"\xea\x04\n" +
 	"\n" +
 	"EventAlert\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -1782,7 +1792,9 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\fsubject_name\x18\r \x01(\tR\vsubjectName\x12\x18\n" +
 	"\avariant\x18\x0e \x01(\tR\avariant\x12\x14\n" +
 	"\x05where\x18\x0f \x01(\tR\x05where\x12\x14\n" +
-	"\x05value\x18\x10 \x01(\x05R\x05value\"\xf1\x01\n" +
+	"\x05value\x18\x10 \x01(\x05R\x05value\x121\n" +
+	"\n" +
+	"taken_from\x18\x11 \x01(\v2\x12.dockwell.v1.ActorR\ttakenFrom\"\xf1\x01\n" +
 	"\rEventTerminal\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x127\n" +
@@ -1923,22 +1935,23 @@ var file_dockwell_v1_event_proto_depIdxs = []int32{
 	17, // 24: dockwell.v1.EventAlert.open_time:type_name -> google.protobuf.Timestamp
 	17, // 25: dockwell.v1.EventAlert.until:type_name -> google.protobuf.Timestamp
 	24, // 26: dockwell.v1.EventAlert.condition:type_name -> dockwell.resource.v1alpha1.AlertRule.Condition
-	17, // 27: dockwell.v1.EventTerminal.open_time:type_name -> google.protobuf.Timestamp
-	25, // 28: dockwell.v1.EventTerminal.end:type_name -> dockwell.v1.TerminalEnd
-	26, // 29: dockwell.v1.EventBackup.method:type_name -> dockwell.v1.BackupMethod
-	27, // 30: dockwell.v1.EventHealth.state:type_name -> dockwell.v1.HealthState
-	27, // 31: dockwell.v1.EventHealth.previous:type_name -> dockwell.v1.HealthState
-	17, // 32: dockwell.v1.EventHealth.since:type_name -> google.protobuf.Timestamp
-	28, // 33: dockwell.v1.EventMember.role:type_name -> dockwell.v1.Role
-	1,  // 34: dockwell.v1.EventService.ListEvents:input_type -> dockwell.v1.ListEventsRequest
-	3,  // 35: dockwell.v1.EventService.WatchEvents:input_type -> dockwell.v1.WatchEventsRequest
-	2,  // 36: dockwell.v1.EventService.ListEvents:output_type -> dockwell.v1.ListEventsResponse
-	4,  // 37: dockwell.v1.EventService.WatchEvents:output_type -> dockwell.v1.WatchEventsResponse
-	36, // [36:38] is the sub-list for method output_type
-	34, // [34:36] is the sub-list for method input_type
-	34, // [34:34] is the sub-list for extension type_name
-	34, // [34:34] is the sub-list for extension extendee
-	0,  // [0:34] is the sub-list for field type_name
+	18, // 27: dockwell.v1.EventAlert.taken_from:type_name -> dockwell.v1.Actor
+	17, // 28: dockwell.v1.EventTerminal.open_time:type_name -> google.protobuf.Timestamp
+	25, // 29: dockwell.v1.EventTerminal.end:type_name -> dockwell.v1.TerminalEnd
+	26, // 30: dockwell.v1.EventBackup.method:type_name -> dockwell.v1.BackupMethod
+	27, // 31: dockwell.v1.EventHealth.state:type_name -> dockwell.v1.HealthState
+	27, // 32: dockwell.v1.EventHealth.previous:type_name -> dockwell.v1.HealthState
+	17, // 33: dockwell.v1.EventHealth.since:type_name -> google.protobuf.Timestamp
+	28, // 34: dockwell.v1.EventMember.role:type_name -> dockwell.v1.Role
+	1,  // 35: dockwell.v1.EventService.ListEvents:input_type -> dockwell.v1.ListEventsRequest
+	3,  // 36: dockwell.v1.EventService.WatchEvents:input_type -> dockwell.v1.WatchEventsRequest
+	2,  // 37: dockwell.v1.EventService.ListEvents:output_type -> dockwell.v1.ListEventsResponse
+	4,  // 38: dockwell.v1.EventService.WatchEvents:output_type -> dockwell.v1.WatchEventsResponse
+	37, // [37:39] is the sub-list for method output_type
+	35, // [35:37] is the sub-list for method input_type
+	35, // [35:35] is the sub-list for extension type_name
+	35, // [35:35] is the sub-list for extension extendee
+	0,  // [0:35] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_event_proto_init() }
