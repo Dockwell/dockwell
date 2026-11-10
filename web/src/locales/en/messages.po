@@ -1061,11 +1061,8 @@ msgstr "{name} was paused on {server}"
 msgid "{server} can't be reached"
 msgstr "{server} can't be reached"
 
-msgid "{server} couldn't put anything back while the control plane was away"
-msgstr "{server} couldn't put anything back while the control plane was away"
-
-msgid "{server} couldn't put {resourceName} back while the control plane was away"
-msgstr "{server} couldn't put {resourceName} back while the control plane was away"
+msgid "{server} couldn't see or put back what it should run"
+msgstr "{server} couldn't see or put back what it should run"
 
 msgid "{server} joined as the control server"
 msgstr "{server} joined as the control server"
@@ -1073,14 +1070,17 @@ msgstr "{server} joined as the control server"
 msgid "{server} joined the fleet"
 msgstr "{server} joined the fleet"
 
+msgid "{server} left {resourceName} as it is, and says why"
+msgstr "{server} left {resourceName} as it is, and says why"
+
 msgid "{server} made {resourceName} again while the control plane was away"
 msgstr "{server} made {resourceName} again while the control plane was away"
 
 msgid "{server} renewed its certificate"
 msgstr "{server} renewed its certificate"
 
-msgid "{server} started {resourceName} again while the control plane was away"
-msgstr "{server} started {resourceName} again while the control plane was away"
+msgid "{server} started {resourceName} again on its own"
+msgstr "{server} started {resourceName} again on its own"
 
 msgid "{server} uses {value}% of its memory"
 msgstr "{server} uses {value}% of its memory"

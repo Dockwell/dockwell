@@ -142,7 +142,7 @@ func (s *stand) checkReconciled(ctx context.Context, r *round) []string {
 		what := strings.TrimPrefix(e.Action, "server.reconciled_")
 		key := what + " " + e.Reconciled.Name
 		if what == "waiting" {
-			waits[key+": "+e.Reconciled.Reason]++
+			waits[key+": "+oneSpaced(e.Reconciled.Reason)]++
 			continue
 		}
 		got[key]++
@@ -154,6 +154,13 @@ func (s *stand) checkReconciled(ctx context.Context, r *round) []string {
 		}
 	}
 	for _, key := range slices.Sorted(maps.Keys(got)) {
+		if r.restarted && strings.HasPrefix(key, "started ") {
+			// Docker was killed: the agent starts what Docker stopped as it came
+			// back, which is whatever ran then (ADR 0054). Invariant 1 checks that
+			// each is the same container, running; how many there were isn't
+			// this check's to say.
+			continue
+		}
 		if _, ok := r.expect[key]; !ok {
 			bad = append(bad, fmt.Sprintf("4. Activity says %q %d times, and nothing in this scenario should have", key, got[key]))
 		}
@@ -168,7 +175,9 @@ func (s *stand) checkReconciled(ctx context.Context, r *round) []string {
 		e := &r.journal[i]
 		key := e.What + " " + e.Ref.Name
 		if e.What == desired.Waiting {
-			if waits[key+": "+e.Reason] == 0 {
+			// The control plane makes a reason one line with single spaces, so
+			// it's compared so.
+			if waits[key+": "+oneSpaced(e.Reason)] == 0 {
 				bad = append(bad, fmt.Sprintf("4. the agent wrote down %q (%s), and Activity doesn't say it", key, e.Reason))
 			}
 		} else if got[key] == 0 {
@@ -262,3 +271,7 @@ func (s *stand) checkRecords(ctx context.Context) error {
 }
 
 func short(id string) string { return id[:min(len(id), 12)] }
+
+// oneSpaced is s with each run of white space as one space, as the control plane
+// keeps what an agent says.
+func oneSpaced(s string) string { return strings.Join(strings.Fields(s), " ") }

@@ -76,6 +76,13 @@ type Image struct {
 // Engine is a fake Docker Engine.
 type Engine struct {
 	memoryKills []memoryKill
+	// events are what the engine says happened to its containers, the newest
+	// docker.EventsHeld of them, as Docker keeps them: in memory, and gone when
+	// the engine is (DaemonKilled).
+	events []event
+	// LiveRestore makes /info say containers keep running while the engine
+	// restarts.
+	LiveRestore bool
 	// EventsFail makes GET /events fail.
 	EventsFail bool
 
@@ -312,6 +319,24 @@ type memoryKill struct {
 	at time.Time
 }
 
+// event is one thing the engine says happened to a container.
+type event struct {
+	action, id string
+	at         time.Time
+}
+
+// emit records what happened to c, in order, as Docker's events do. The caller
+// holds the lock.
+func (e *Engine) emit(c *container, actions ...string) {
+	for _, a := range actions {
+		e.clock++
+		e.events = append(e.events, event{action: a, id: c.ID, at: time.Now().Add(time.Duration(e.clock) * time.Nanosecond)})
+	}
+	if over := len(e.events) - docker.EventsHeld; over > 0 {
+		e.events = append([]event(nil), e.events[over:]...)
+	}
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -384,7 +409,7 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		if driver == "" {
 			driver = docker.LogDriverJSONFile
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver})
+		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore})
 	case parts[0] == "containers":
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "exec" && len(parts) == 3 && parts[2] == "json":
@@ -789,6 +814,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		e.starts[strings.TrimPrefix(c.Name, "/")]++
 		if c.img.imported {
 			c.State = docker.State{Status: "running", Running: true, StartedAt: time.Now().UTC()}
+			e.emit(c, "start")
 			close(c.started)
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -832,9 +858,11 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		c.State = docker.State{Status: "running", Running: true, StartedAt: now}
 		c.log.start()
 		c.log.write(docker.Stdout, c.img.Prints...)
+		e.emit(c, "start")
 		if c.img.Exits {
 			c.State = docker.State{Status: "exited", ExitCode: 1, StartedAt: now, FinishedAt: now}
 			c.log.end()
+			e.emit(c, "die")
 		}
 		if hc := c.Config.Healthcheck; hc != nil && len(hc.Test) > 0 && hc.Test[0] != "NONE" && c.State.Running {
 			c.State.Health = &docker.Health{Status: "healthy", Log: []docker.HealthRun{{End: c.State.StartedAt, Output: "ok\n"}}}
@@ -858,6 +886,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
 		c.log.end()
 		e.detach(c)
+		e.emit(c, "kill", "stop", "die")
 		if c.exited != nil && !c.img.imported {
 			close(c.exited)
 		}
@@ -883,6 +912,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		}
 		c.State = docker.State{Status: "exited", ExitCode: 137, StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
 		c.log.end()
+		e.emit(c, "kill", "die")
 		e.detach(c)
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && action == "x-dockwell-health":
@@ -1923,12 +1953,24 @@ func (e *Engine) serveEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var filters map[string][]string
-	if err := json.Unmarshal([]byte(r.URL.Query().Get("filters")), &filters); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	if f := r.URL.Query().Get("filters"); f != "" {
+		if err := json.Unmarshal([]byte(f), &filters); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 	since, until := eventTime(r.URL.Query().Get("since")), eventTime(r.URL.Query().Get("until"))
 	w.WriteHeader(http.StatusOK)
+	wants := func(key, v string) bool { return len(filters[key]) == 0 || slices.Contains(filters[key], v) }
+	for _, ev := range e.events {
+		if ev.at.Before(since) || ev.at.After(until) || !wants("container", ev.id) || !wants("event", ev.action) || !wants("type", "container") {
+			continue
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"Type": "container", "Action": ev.action, "Actor": map[string]string{"ID": ev.id}, "id": ev.id,
+			"time": ev.at.Unix(), "timeNano": ev.at.UnixNano(),
+		})
+	}
 	for _, kill := range e.memoryKills {
 		if slices.Contains(filters["container"], kill.id) && slices.Contains(filters["event"], "oom") && !kill.at.Before(since) && !kill.at.After(until) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"Type": "container", "Action": "oom", "id": kill.id})
@@ -1970,9 +2012,73 @@ func (e *Engine) Stop(name string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if c := e.byNameOrID(name); c != nil {
+		if c.State.Running {
+			e.emit(c, "kill", "stop", "die")
+		}
 		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
 		c.log.end()
 		e.detach(c)
+	}
+}
+
+// Kill kills a container behind Dockwell's back, as docker kill does.
+func (e *Engine) Kill(name string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if c := e.byNameOrID(name); c != nil && c.State.Running {
+		c.State = docker.State{Status: "exited", ExitCode: 137, StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+		c.log.end()
+		e.detach(c)
+		e.emit(c, "kill", "die")
+	}
+}
+
+// Exit ends a container on its own, with code, as its process returning does:
+// Docker says it died, and nothing stopped or killed it. A restart policy that
+// would bring it back isn't acted out.
+func (e *Engine) Exit(name string, code int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if c := e.byNameOrID(name); c != nil && c.State.Running {
+		c.State = docker.State{Status: "exited", ExitCode: code, StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+		c.log.end()
+		e.detach(c)
+		e.emit(c, "die")
+	}
+}
+
+// DaemonKilled is the engine killed with no warning and started again, without
+// live-restore, as a real one was seen to behave (docs/testing/chaos.md): it
+// remembers no event from before; it stops every container that outlived it,
+// saying kill, stop and die of each as it does of one a person stops, and
+// leaving each exited with no error; and it starts again only those whose
+// policy is always, whether they ran or not. With LiveRestore, what ran keeps
+// running and nothing is said.
+func (e *Engine) DaemonKilled() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.events, e.memoryKills = nil, nil
+	if e.LiveRestore {
+		return
+	}
+	for _, id := range slices.Sorted(maps.Keys(e.containers)) {
+		c := e.containers[id]
+		if c.State.Running {
+			c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+			c.log.end()
+			e.detach(c)
+			e.emit(c, "kill", "stop", "die")
+		}
+	}
+	for _, id := range slices.Sorted(maps.Keys(e.containers)) {
+		c := e.containers[id]
+		if c.HostConfig.RestartPolicy.Name == "always" && c.State.Status == "exited" {
+			e.clock++
+			c.State = docker.State{Status: "running", Running: true, StartedAt: time.Now().Add(time.Duration(e.clock) * time.Nanosecond).UTC()}
+			c.log.start()
+			e.attach(c)
+			e.emit(c, "start")
+		}
 	}
 }
 
@@ -2004,6 +2110,10 @@ func (e *Engine) Remove(name string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if c := e.byNameOrID(name); c != nil {
+		if c.State.Running {
+			e.emit(c, "kill", "die")
+		}
+		e.emit(c, "destroy")
 		e.detach(c)
 		delete(e.containers, c.ID)
 	}

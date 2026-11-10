@@ -77,11 +77,19 @@ type Record struct {
 	Values map[string]string
 	// Image is the image it runs, for a kind that runs one.
 	Image resource.Image
-	// Stopped says the agent last saw it stopped by someone, or exited by itself,
-	// where its restart policy left it, so it isn't made again while the control
-	// plane is away: that would start it (ADR 0054). Keep and Remember carry it
-	// over, unless Started.
+	// Stopped says the agent knows someone stopped it, or that it ended by
+	// itself where its restart policy leaves it, from what Docker said happened
+	// and never from its being down. It isn't started, nor made again while the
+	// control plane is away: that would start it (ADR 0054). Keep and Remember
+	// carry it over, unless Started.
 	Stopped bool
+	// Lost says the agent knows Docker stopped it as Docker came back from
+	// being killed, which nobody asked for, so the agent starts it. Unsure is
+	// why the agent can't tell whether someone stopped it, when it can't: it
+	// isn't started, and Activity is told. Both go with Stopped: carried over
+	// unless Started.
+	Lost   bool
+	Unsure string
 	// Volumes are the volumes Docker made for the paths its image declares, by
 	// path, as the agent last saw them mounted: a database's data, which no spec
 	// names. One made again mounts them by name. Keep and Remember carry them over
@@ -94,11 +102,18 @@ type Record struct {
 
 // Standing is how the agent saw a resource that runs something stand.
 type Standing struct {
-	// Stopped says it was stopped by someone, or exited by itself.
+	// Stopped says someone stopped it, or it ended by itself, as Docker's
+	// events said. Lost says Docker stopped it as it came back from a kill.
+	// Unsure is why neither can be told. At most one of the three is set.
 	Stopped bool
+	Lost    bool
+	Unsure  string
 	// Volumes are the volumes Docker made for its image's paths, by path.
 	Volumes map[string]string
 }
+
+// Down says the agent has settled why it isn't running, one way or another.
+func (a Standing) Down() bool { return a.Stopped || a.Lost || a.Unsure != "" }
 
 // sealed is what a record keeps inside its sealing.
 type sealed struct {
@@ -110,6 +125,8 @@ type sealed struct {
 	Image     string            `json:"image,omitempty"`
 	Digest    string            `json:"digest,omitempty"`
 	Stopped   bool              `json:"stopped,omitempty"`
+	Lost      bool              `json:"lost,omitempty"`
+	Unsure    string            `json:"unsure,omitempty"`
 	Volumes   map[string]string `json:"volumes,omitempty"`
 	// Gone marks a tombstone: the resource was deleted at Revision, at At, in
 	// Unix seconds. It holds nothing else.
@@ -308,7 +325,7 @@ func (s *Store) load() error {
 			s.held[r.Ref] = entry{revision: r.Revision, gone: true, at: at}
 			continue
 		}
-		s.held[r.Ref] = entry{revision: r.Revision, standing: Standing{Stopped: r.Stopped, Volumes: r.Volumes}}
+		s.held[r.Ref] = entry{revision: r.Revision, standing: Standing{Stopped: r.Stopped, Lost: r.Lost, Unsure: r.Unsure, Volumes: r.Volumes}}
 	}
 	return nil
 }
@@ -389,7 +406,7 @@ func (s *Store) carry(r *Record, stopped bool) {
 		return
 	}
 	if stopped {
-		r.Stopped = was.Stopped
+		r.Stopped, r.Lost, r.Unsure = was.Stopped, was.Lost, was.Unsure
 	}
 	if r.Volumes == nil {
 		r.Volumes = was.Volumes
@@ -448,7 +465,7 @@ func (s *Store) dropLocked(ref resource.Ref, why error) error {
 func (s *Store) write(r Record, kept bool) error {
 	in := sealed{
 		ScopeName: r.ScopeName, Revision: r.Revision, Change: r.Change, Spec: r.Spec, Values: r.Values, Image: r.Image.ID, Digest: r.Image.Digest,
-		Stopped: r.Stopped, Volumes: r.Volumes,
+		Stopped: r.Stopped, Lost: r.Lost, Unsure: r.Unsure, Volumes: r.Volumes,
 	}
 	at := s.now()
 	if r.Spec == nil {
@@ -463,7 +480,7 @@ func (s *Store) write(r Record, kept bool) error {
 	if err := writeDurably(filepath.Join(s.dir, fileName(r.Ref)), b); err != nil {
 		return err
 	}
-	e := entry{revision: r.Revision, kept: s.held[r.Ref].kept, standing: Standing{Stopped: r.Stopped, Volumes: r.Volumes}}
+	e := entry{revision: r.Revision, kept: s.held[r.Ref].kept, standing: Standing{Stopped: r.Stopped, Lost: r.Lost, Unsure: r.Unsure, Volumes: r.Volumes}}
 	if kept {
 		e.kept = at
 	}
@@ -516,10 +533,10 @@ func (s *Store) Seen(ref resource.Ref, st Standing, at time.Time) error {
 		return nil
 	}
 	r, _, err := s.read(filepath.Join(s.dir, fileName(ref)))
-	if err != nil || r.Stopped == st.Stopped && maps.Equal(r.Volumes, st.Volumes) {
+	if err != nil || (Standing{Stopped: r.Stopped, Lost: r.Lost, Unsure: r.Unsure, Volumes: r.Volumes}).equal(st) {
 		return err
 	}
-	r.Stopped, r.Volumes = st.Stopped, st.Volumes
+	r.Stopped, r.Lost, r.Unsure, r.Volumes = st.Stopped, st.Lost, st.Unsure, st.Volumes
 	if err := s.write(r, false); err != nil {
 		return s.dropLocked(ref, fmt.Errorf("can't note how %s stands: %w", ref, err))
 	}
@@ -539,7 +556,7 @@ func (s *Store) Stands(ref resource.Ref) (Standing, bool) {
 }
 
 func (a Standing) equal(b Standing) bool {
-	return a.Stopped == b.Stopped && maps.Equal(a.Volumes, b.Volumes)
+	return a.Stopped == b.Stopped && a.Lost == b.Lost && a.Unsure == b.Unsure && maps.Equal(a.Volumes, b.Volumes)
 }
 
 // Wipe removes every record and the key, as for a server removed from the fleet,
@@ -659,7 +676,7 @@ func (s *Store) read(path string) (Record, sealed, error) {
 	}
 	r := Record{
 		Ref: ref, ScopeName: in.ScopeName, Revision: in.Revision, Change: in.Change, Values: in.Values,
-		Image: resource.Image{ID: in.Image, Digest: in.Digest}, Stopped: in.Stopped, Volumes: in.Volumes,
+		Image: resource.Image{ID: in.Image, Digest: in.Digest}, Stopped: in.Stopped, Lost: in.Lost, Unsure: in.Unsure, Volumes: in.Volumes,
 	}
 	if !in.Gone {
 		r.Spec = in.Spec

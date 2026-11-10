@@ -117,15 +117,15 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           };
         case "server.reconciled_started":
           return {
-            title: t`${server} started ${resourceName} again while the control plane was away`,
+            title: t`${server} started ${resourceName} again on its own`,
             icon: "server",
           };
         case "server.reconciled_waiting":
           return {
             // With no resource, it's the whole server's, as when Docker doesn't answer.
             title: resourceName
-              ? t`${server} couldn't put ${resourceName} back while the control plane was away`
-              : t`${server} couldn't put anything back while the control plane was away`,
+              ? t`${server} left ${resourceName} as it is, and says why`
+              : t`${server} couldn't see or put back what it should run`,
             icon: "server",
             tone: "warning",
           };
