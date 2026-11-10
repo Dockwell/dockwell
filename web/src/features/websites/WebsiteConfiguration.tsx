@@ -24,6 +24,7 @@ import {
   refusedField,
   type Serves,
   type Settings,
+  sendable,
   settingsOf,
   specOf,
 } from "./settings";
@@ -70,7 +71,7 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
   const gap = missing(settled);
   const preview = useQuery(
     WebsiteService.method.previewWebsite,
-    { website: specOf(settled) },
+    { website: specOf(sendable(settled, was)) },
     { enabled: gap === undefined, retry: false },
   );
   const refusal = gap ? missingWords(gap) : preview.error ? sentence(preview.error) : "";
@@ -89,7 +90,8 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
   const review = () =>
     sheet.open({
       kind: "plan",
-      make: () => createClient(WebsiteService, transport).updateWebsite({ id: site.id, website: specOf(now) }),
+      make: () =>
+        createClient(WebsiteService, transport).updateWebsite({ id: site.id, website: specOf(sendable(now, was)) }),
       retryLabel: t`Edit and try again`,
       onClose: (after) => {
         if (after?.state === ChangeState.APPLIED) setNow(settingsOf(site.spec));

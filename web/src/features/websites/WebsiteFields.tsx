@@ -6,6 +6,7 @@ import { type FileEntry, FileService, FileType } from "@dockwell/api";
 import { Advanced, type FolderListing, FolderPicker, SelectField, Switch, Tag, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
@@ -130,6 +131,9 @@ export function SplitWebsiteFields(props: {
   const [open, setOpen] = useState(false);
   const { settings, was, errors } = props;
   const refused = ADVANCED_FIELDS.some((field) => errors[field] !== undefined);
+  // A field in it that was refused opens it, and it stays open until it's closed by hand,
+  // so fixing the field doesn't fold it away under the cursor.
+  if (refused && !open) setOpen(true);
   const edited = was ? changed(was, settings).filter((name) => ADVANCED_SETTINGS.has(name)).length : 0;
   return (
     <>
@@ -144,7 +148,7 @@ export function SplitWebsiteFields(props: {
               </Tag>
             ) : null
           }
-          open={open || refused}
+          open={open}
           onOpenChange={setOpen}
         >
           <WebsiteFields {...props} part="advanced" />
@@ -566,7 +570,24 @@ export function FolderNote({
     <span className={`website-folder-state is-${tone}`}>{words}</span>
   );
   if (aboveMissing || !there) {
-    if (existing) return say("new", t`Not on the server. Made as the plan applies.`);
+    // A site that's there already says what's missing, and where to make it now, as no plan
+    // may be on its way.
+    if (existing) {
+      return say(
+        "warning",
+        <>
+          {t`Not on the server yet.`}{" "}
+          <Link
+            className="website-folder-action"
+            to="/servers/$serverId/files"
+            params={{ serverId: server }}
+            search={{ path: parentOf(path) }}
+          >
+            {t`Make it in Files`}
+          </Link>
+        </>,
+      );
+    }
     if (user) return say("new", t`New. Made with the site, for PHP to write in.`);
     // Made as the folder above is owned, so whoever puts files there can put the site's there too.
     const by = parent && parent.uid !== 0 ? parent.owner || `${parent.uid}:${parent.gid}` : "";

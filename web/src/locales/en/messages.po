@@ -12130,9 +12130,6 @@ msgstr "{days, plural, one {certificate valid for # day} other {certificate vali
 msgid "{host} answers {code}"
 msgstr "{host} answers {code}"
 
-msgid "Delete the website and make it again with a domain."
-msgstr "Delete the website and make it again with a domain."
-
 msgid "From Let's Encrypt once DNS points here, and renewed by itself."
 msgstr "From Let's Encrypt once DNS points here, and renewed by itself."
 
@@ -12153,6 +12150,9 @@ msgstr "Not known yet"
 
 msgid "On its way"
 msgstr "On its way"
+
+msgid "Open its configuration"
+msgstr "Open its configuration"
 
 msgid "TLS ends at a tunnel or a proxy in front, so there's no certificate here."
 msgstr "TLS ends at a tunnel or a proxy in front, so there's no certificate here."
@@ -12299,6 +12299,9 @@ msgstr "It sees every visitor as local, so the plan asks you to approve it."
 msgid "Its owner is {theirs}."
 msgstr "Its owner is {theirs}."
 
+msgid "Make it in Files"
+msgstr "Make it in Files"
+
 msgid "New. Made with the site, for PHP to write in."
 msgstr "New. Made with the site, for PHP to write in."
 
@@ -12311,8 +12314,8 @@ msgstr "New. Made with the site."
 msgid "No {first} here yet, so it answers 404 until there is."
 msgstr "No {first} here yet, so it answers 404 until there is."
 
-msgid "Not on the server. Made as the plan applies."
-msgstr "Not on the server. Made as the plan applies."
+msgid "Not on the server yet."
+msgstr "Not on the server yet."
 
 msgid "PHP"
 msgstr "PHP"

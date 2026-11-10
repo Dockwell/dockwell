@@ -735,16 +735,61 @@ describe("A website that serves a folder", () => {
     ).toBeVisible();
   });
 
-  it("says a site's missing folder is made again by its plan, not made new", async () => {
+  it("says a site's folder isn't there, with where to make it, and promises no plan", async () => {
     onWideScreen();
     renderAt(
       "/websites/prj_docs/configuration",
       api([docs], { files: { listFiles: disk({ "/srv/x": { mode: "drwxr-xr-x", entries: [] } }) } }),
     );
-    expect(
-      await screen.findByText("Not on the server. Made as the plan applies.", {}, { timeout: 3_000 }),
-    ).toBeVisible();
+    expect(await screen.findByText(/Not on the server yet\./, {}, { timeout: 3_000 })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Make it in Files" })).toHaveAttribute(
+      "href",
+      `/servers/${SERVER}/files?path=%2Fvar%2Fwww`,
+    );
     expect(screen.queryByText(/^New\./)).not.toBeInTheDocument();
+    expect(screen.queryByText(/the plan applies/)).not.toBeInTheDocument();
+  });
+
+  it("sends a site's stored upload limit when 64 is typed over its default, so the plan lists no change", async () => {
+    onWideScreen();
+    const user = userEvent.setup();
+    let asked: UpdateWebsiteRequest | undefined;
+    renderAt(
+      "/websites/prj_shop/configuration",
+      api([shop], {
+        websites: {
+          updateWebsite: (req) => {
+            asked = req;
+            return { change: planned };
+          },
+        },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+        files: { listFiles: disk({ "/var/www/shop": { mode: "drwxr-xr-x", entries: [entry("index.php")] } }) },
+      }),
+    );
+    expect(await screen.findByRole("heading", { level: 1, name: "shop.example.com" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Advanced" }));
+    await user.type(screen.getByLabelText("Upload limit"), "64");
+    const version = await screen.findByLabelText("PHP version");
+    await waitFor(() => expect(version).toHaveValue("8.3"));
+    await user.selectOptions(version, "8.4");
+    expect(screen.getByText("1 change")).toBeVisible();
+    const plan = screen.getByRole("button", { name: /Review plan/ });
+    await waitFor(() => expect(plan).toBeEnabled(), { timeout: 3_000 });
+    await user.click(plan);
+    await waitFor(() => expect(asked?.website?.serves.case).toBe("php"));
+    expect(asked?.website?.serves.value).toMatchObject({ version: "8.4", uploadLimitMb: 0 });
+  });
+
+  it("offers a site with no domain its configuration, not a procedure", async () => {
+    onWideScreen();
+    renderAt("/websites/prj_docs/certificate", api([docs]));
+    expect(await screen.findByRole("heading", { name: "No domain, so no certificate" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open its configuration" })).toHaveAttribute(
+      "href",
+      "/websites/prj_docs/configuration",
+    );
+    expect(screen.queryByText(/Delete the website/)).not.toBeInTheDocument();
   });
 
   it("shows what serves it, and leads to its files", async () => {

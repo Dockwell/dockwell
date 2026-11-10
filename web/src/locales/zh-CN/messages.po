@@ -12130,9 +12130,6 @@ msgstr "{days, plural, other {证书有效期还有 # 天}}"
 msgid "{host} answers {code}"
 msgstr "{host} 返回 {code}"
 
-msgid "Delete the website and make it again with a domain."
-msgstr "删除此网站，然后带上域名重新创建。"
-
 msgid "From Let's Encrypt once DNS points here, and renewed by itself."
 msgstr "DNS 指向这里后由 Let's Encrypt 签发，并自动续期。"
 
@@ -12153,6 +12150,9 @@ msgstr "尚不清楚"
 
 msgid "On its way"
 msgstr "正在签发"
+
+msgid "Open its configuration"
+msgstr "打开它的配置"
 
 msgid "TLS ends at a tunnel or a proxy in front, so there's no certificate here."
 msgstr "TLS 在前面的隧道或代理处终止，因此这里没有证书。"
@@ -12299,6 +12299,9 @@ msgstr "它会把每个访客都视为本地访客，因此计划会请你批准
 msgid "Its owner is {theirs}."
 msgstr "其所有者是 {theirs}。"
 
+msgid "Make it in Files"
+msgstr "在“文件”中创建"
+
 msgid "New. Made with the site, for PHP to write in."
 msgstr "新文件夹。随网站一起创建，供 PHP 写入。"
 
@@ -12311,8 +12314,8 @@ msgstr "新文件夹。随网站一起创建。"
 msgid "No {first} here yet, so it answers 404 until there is."
 msgstr "这里还没有 {first}，在它出现之前会返回 404。"
 
-msgid "Not on the server. Made as the plan applies."
-msgstr "服务器上没有。计划应用时会创建。"
+msgid "Not on the server yet."
+msgstr "服务器上还没有。"
 
 msgid "PHP"
 msgstr "PHP"

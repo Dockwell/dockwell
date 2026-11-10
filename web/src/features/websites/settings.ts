@@ -118,6 +118,22 @@ export function specOf(s: Settings): MessageInitShape<typeof WebsiteSchema> {
   }
 }
 
+/**
+ * What a form sends for a site it changes: what's typed, except where that means what's
+ * stored, which goes as it's stored, so the plan lists no change the form doesn't make.
+ * 64 MiB typed over a stored default, 0, stays 0.
+ */
+export function sendable(now: Settings, was: Settings): Settings {
+  if (
+    now.serves === "php" &&
+    now.uploadMB !== was.uploadMB &&
+    (Number(now.uploadMB) || 64) === (Number(was.uploadMB) || 64)
+  ) {
+    return { ...now, uploadMB: was.uploadMB };
+  }
+  return now;
+}
+
 /** Which of a form's fields differ from what's stored, by name, for the kind it serves now. */
 export function changed(was: Settings, now: Settings): string[] {
   const out: string[] = [];
