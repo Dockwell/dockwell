@@ -589,20 +589,20 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"TokenScope\x12\x1b\n" +
 	"\x17TOKEN_SCOPE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15TOKEN_SCOPE_READ_ONLY\x10\x01\x12\x1a\n" +
-	"\x16TOKEN_SCOPE_READ_WRITE\x10\x022\x8f\x03\n" +
-	"\fTokenService\x12{\n" +
-	"\vCreateToken\x12\x1f.dockwell.v1.CreateTokenRequest\x1a .dockwell.v1.CreateTokenResponse\")\xa0\xbb\x18\x03\xaa\xbb\x18\f\n" +
+	"\x16TOKEN_SCOPE_READ_WRITE\x10\x022\xb5\x03\n" +
+	"\fTokenService\x12\x87\x01\n" +
+	"\vCreateToken\x12\x1f.dockwell.v1.CreateTokenRequest\x1a .dockwell.v1.CreateTokenResponse\"5\xa0\xbb\x18\x03\xaa\xbb\x18\f\n" +
 	"\n" +
-	"api-tokens\x82\xd3\xe4\x93\x02\x0f:\x01*\"\n" +
-	"/v1/tokens\x12x\n" +
+	"api-tokens\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x0f:\x01*\"\n" +
+	"/v1/tokens\x12\x84\x01\n" +
 	"\n" +
-	"ListTokens\x12\x1e.dockwell.v1.ListTokensRequest\x1a\x1f.dockwell.v1.ListTokensResponse\")\xa0\xbb\x18\x01\xaa\xbb\x18\f\n" +
+	"ListTokens\x12\x1e.dockwell.v1.ListTokensRequest\x1a\x1f.dockwell.v1.ListTokensResponse\"5\xa0\xbb\x18\x01\xaa\xbb\x18\f\n" +
 	"\n" +
-	"api-tokens\x82\xd3\xe4\x93\x02\f\x12\n" +
-	"/v1/tokens\x90\x02\x01\x12\x87\x01\n" +
-	"\vRevokeToken\x12\x1f.dockwell.v1.RevokeTokenRequest\x1a .dockwell.v1.RevokeTokenResponse\"5\xa0\xbb\x18\x04\xaa\xbb\x18\f\n" +
+	"api-tokens\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\f\x12\n" +
+	"/v1/tokens\x90\x02\x01\x12\x93\x01\n" +
+	"\vRevokeToken\x12\x1f.dockwell.v1.RevokeTokenRequest\x1a .dockwell.v1.RevokeTokenResponse\"A\xa0\xbb\x18\x04\xaa\xbb\x18\f\n" +
 	"\n" +
-	"api-tokens\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/tokens/{id}:revokeB\xa3\x01\n" +
+	"api-tokens\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/tokens/{id}:revokeB\xa3\x01\n" +
 	"\x0fcom.dockwell.v1B\n" +
 	"TokenProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 

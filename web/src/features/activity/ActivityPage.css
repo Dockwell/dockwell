@@ -289,3 +289,11 @@
     display: none;
   }
 }
+
+/* Each part of an event's line stays whole, such as "Waits for an admin", and takes a line of its own rather than break. */
+.activity-day .dw-tl-meta > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

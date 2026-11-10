@@ -21,6 +21,9 @@ service DomainService {
   rpc ListDomains(ListDomainsRequest) returns (ListDomainsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/domains"};
   }
 
@@ -33,6 +36,9 @@ service DomainService {
   rpc CheckDomain(CheckDomainRequest) returns (CheckDomainResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_NAMED;
     option (google.api.http) = {
       post: "/v1/domains:check"
       body: "*"

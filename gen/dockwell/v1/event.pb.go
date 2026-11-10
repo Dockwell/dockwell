@@ -1733,12 +1733,12 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x13EVENT_KIND_SETTINGS\x10\n" +
 	"\x12\x14\n" +
 	"\x10EVENT_KIND_ALERT\x10Z\x12\x14\n" +
-	"\x0fEVENT_KIND_TASK\x10\x82\x012\xd2\x01\n" +
-	"\fEventService\x12h\n" +
+	"\x0fEVENT_KIND_TASK\x10\x82\x012\xea\x01\n" +
+	"\fEventService\x12t\n" +
 	"\n" +
-	"ListEvents\x12\x1e.dockwell.v1.ListEventsRequest\x1a\x1f.dockwell.v1.ListEventsResponse\"\x19\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\f\x12\n" +
-	"/v1/events\x90\x02\x01\x12X\n" +
-	"\vWatchEvents\x12\x1f.dockwell.v1.WatchEventsRequest\x1a .dockwell.v1.WatchEventsResponse\"\x04\xa0\xbb\x18\x010\x01B\xa3\x01\n" +
+	"ListEvents\x12\x1e.dockwell.v1.ListEventsRequest\x1a\x1f.dockwell.v1.ListEventsResponse\"%\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\f\x12\n" +
+	"/v1/events\x90\x02\x01\x12d\n" +
+	"\vWatchEvents\x12\x1f.dockwell.v1.WatchEventsRequest\x1a .dockwell.v1.WatchEventsResponse\"\x10\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x040\x01B\xa3\x01\n" +
 	"\x0fcom.dockwell.v1B\n" +
 	"EventProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 

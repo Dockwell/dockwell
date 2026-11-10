@@ -654,7 +654,8 @@ paths:
                  to apply or discard, as ImportCompose does with a file. The plan makes the
                  project, its secrets and what its Compose file runs, and pins the project to
                  this entry. A secret that no one types is generated and sealed here: no
-                 response carries it, and revealing it takes a passkey.
+                 response carries it, and revealing it takes a passkey. Making a project is
+                 an admin's (ADR 0049).
             operationId: CatalogService_InstallCatalogEntry
             parameters:
                 - name: id
@@ -1977,6 +1978,10 @@ paths:
                  it had and checking set when the agent takes more than a few seconds: ask
                  again for the rest. The agent refreshes the server's package lists first
                  when they're more than a day old.
+
+                 A server's updates are its inventory, the install's, so they're an admin's
+                 (ADR 0049). An admin's API token reads them, as it reads the rest of the
+                 server (ADR 0043).
             operationId: UpdateService_GetServerUpdates
             parameters:
                 - name: id
@@ -3676,7 +3681,7 @@ paths:
             tags:
                 - TaskService
             description: |-
-                RunTask runs a task now, on one of its servers, which has to be connected. It
+                RunTask lets an admin run a task now, on one of its servers, which has to be connected. It
                  runs what was approved, as its schedule would, paused or not, and returns
                  once the run has started: follow it with ListTaskRuns.
             operationId: TaskService_RunTask
@@ -5355,6 +5360,7 @@ components:
                         - STEP_UP_ACTION_MOVE_WAY_BACK_IN
                         - STEP_UP_ACTION_DELETE_WAY_BACK_IN
                         - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
+                        - STEP_UP_ACTION_APPROVE_CHANGE
                     type: string
                     description: The action.
                     format: enum
@@ -5765,6 +5771,27 @@ components:
                 restart:
                     type: boolean
                     description: True for a restart, which makes no revision.
+                protected:
+                    type: boolean
+                    description: |-
+                        True on a planned change with an item in a protected environment: a
+                         developer's waits for an admin or the owner to apply it, and someone
+                         else's is approved with a passkey (ADR 0049).
+                approves:
+                    type: boolean
+                    description: |-
+                        On a planned change, for whoever reads it: true when applying it approves
+                         someone else's change in a protected environment, which takes a session,
+                         the plan's fingerprint and a passkey (STEP_UP_ACTION_APPROVE_CHANGE),
+                         whether they planned it in the panel or with an API token.
+                waits:
+                    type: string
+                    description: |-
+                        On a planned change, for whoever reads it below an admin: why it waits for
+                         an admin or the owner to apply it, such as "As it changes web in a
+                         protected environment, an admin or the owner applies this. Leave it
+                         planned for them". Empty when they may apply it, and for a viewer, who
+                         applies nothing.
             description: |-
                 Change is one action's worth of edits to managed resources: planned,
                  then applied, failed or discarded.
@@ -7287,6 +7314,20 @@ components:
                 displayName:
                     type: string
                     description: How the panel shows it, such as "Staging". Empty shows its name.
+                protection:
+                    enum:
+                        - PROTECTION_UNSPECIFIED
+                        - PROTECTION_PROTECTED
+                        - PROTECTION_OPEN
+                    type: string
+                    description: |-
+                        Whether a developer's change here waits for an admin or the owner. Every
+                         environment Dockwell makes has it written: protected for one named
+                         production, open for any other. An edit that leaves it out keeps what's
+                         there. Unset, as on an environment from before, it reads as that default
+                         by its name (ADR 0049). Making one with other than the default, or
+                         changing it, is an admin's.
+                    format: enum
             description: |-
                 Environment is a stage of a project, such as production or staging, with
                  its own config. A project starts with one, named "production", which
@@ -13678,6 +13719,9 @@ components:
                     enum:
                         - ROLE_UNSPECIFIED
                         - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
                     type: string
                     description: What they may do.
                     format: enum
@@ -14259,7 +14303,7 @@ tags:
          as root: see docs/adr/0037-a-terminal-on-a-server.md and
          docs/security/terminal.md.
 
-         Every method needs a signed-in session: no API token can call them, whatever
+         Every method needs an admin in a signed-in session: no API token can call them, whatever
          its scope. A terminal belongs to the person and the session that opened it,
          and nobody else can reach it. Opening one takes a passkey, just now. Opening
          and closing one are on record in Activity, and what's typed and printed is

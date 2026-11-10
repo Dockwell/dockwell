@@ -16,6 +16,7 @@ import {
   PlanAction,
   PlannedResourceSchema,
   ResourceSchema,
+  Role,
   StepProgressSchema,
   StepState,
   Surface,
@@ -31,6 +32,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { authState, mira as signedIn } from "../../test/auth";
 import {
   applied,
   auditEvent,
@@ -825,6 +827,32 @@ describe("Activity", () => {
     expect(screen.getByRole("row", { name: /Created the API token/ })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Show earlier events" }));
     await waitFor(() => expect(pages).toEqual(["page-2", "page-3"]));
+  });
+
+  it("says a plan waits for an admin, or for your approval, as the API says for whoever reads it", async () => {
+    // An admin reads that applying it approves it, however it was planned, a token's included.
+    const approving = moved(webPlanned(), { protected: true, approves: true });
+    const { unmount } = renderAt("/activity", { events: { watchEvents: feedOf(snapshot([changeEvent(approving)])) } });
+    expect(await screen.findByRole("row", { name: /Update web/ })).toHaveTextContent("Waits for your approval");
+    unmount();
+    // Someone below an admin reads that it waits, for whatever reason the API gives.
+    const waiting = moved(webPlanned(), {
+      waits: "As web reaches the server path /srv/shared, an admin or the owner applies this",
+    });
+    const second = renderAt("/activity", {
+      events: { watchEvents: feedOf(snapshot([changeEvent(waiting)])) },
+      auth: { getAuthState: () => authState({ user: { ...signedIn, role: Role.DEVELOPER } }) },
+    });
+    const row = await screen.findByRole("row", { name: /Update web/ });
+    expect(row).toHaveTextContent("Waits for an admin");
+    expect(row).not.toHaveTextContent("Waits for your approval");
+    second.unmount();
+    // Their own plan, or one in an open environment, says neither.
+    renderAt("/activity", {
+      events: { watchEvents: feedOf(snapshot([changeEvent(moved(webPlanned(), { protected: true }))])) },
+    });
+    const plain = await screen.findByRole("row", { name: /Update web/ });
+    expect(plain).not.toHaveTextContent("Waits for");
   });
 
   it("links a failed deploy to the logs of what it deployed", async () => {

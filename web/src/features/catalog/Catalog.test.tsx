@@ -20,7 +20,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, ENV, places, SERVER } from "../../test/apps";
-import { type Api, feed, renderAt } from "../../test/render";
+import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
 const postgres = create(EntrySchema, {
@@ -164,6 +164,17 @@ describe("The catalog", () => {
 });
 
 describe("An app's catalog page", () => {
+  it("goes back from an app with an arrow on a phone, as every page's header does, keeping the filters", async () => {
+    onPhone();
+    renderAt("/catalog/postgres?q=PostgreSQL&category=databases", api());
+    await screen.findByRole("heading", { level: 1, name: "PostgreSQL" });
+    const back = screen.getByRole("link", { name: "Back to catalog" });
+    expect(back).toHaveClass("mobile-header-button");
+    // The arrow alone: the word would stand against the app's name.
+    expect(back).toHaveTextContent("");
+    expect(back.getAttribute("href")).toContain("q=PostgreSQL");
+  });
+
   it("shows the app before asking for an install, and keeps the browsing filters", async () => {
     const user = userEvent.setup();
     const install = vi.fn();

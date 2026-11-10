@@ -12,9 +12,11 @@ import (
 
 // User is a person who signs in to the panel.
 type User struct {
-	ID             string
-	Email          string
-	Name           string
+	ID    string
+	Email string
+	Name  string
+	// Role is what they hold on the whole install, from their grants, or empty
+	// for someone who holds only projects (ADR 0049). CreateUser grants it.
 	Role           string
 	WebAuthnHandle []byte
 	CreatedAt      time.Time
@@ -34,10 +36,13 @@ type User struct {
 	CodesRefusedReportedAt *time.Time
 }
 
-// RoleOwner is the one role so far.
+// RoleOwner is the install's owner's role, held by one person.
 const RoleOwner = "owner"
 
-const userColumns = `id, email, name, role, webauthn_handle, created_at, totp_secret, totp_pending, totp_last_step,
+// userColumns reads a user, with the role they hold on the whole install.
+const userColumns = `id, email, name,
+	COALESCE((SELECT g.role FROM grants g WHERE g.user_id = users.id AND g.project_id = ''), ''),
+	webauthn_handle, created_at, totp_secret, totp_pending, totp_last_step,
 	codes_refused, codes_refused_reported_at, totp_pending_session, totp_pending_expires_at, totp_pending_failures`
 
 func scanUser(row interface{ Scan(...any) error }) (User, error) {
@@ -65,18 +70,22 @@ func (t *Tx) CountUsers(ctx context.Context) (int, error) {
 	return n, nil
 }
 
-// CreateUser records a new user. A taken email, or a second owner, is
-// ErrConflict.
+// CreateUser records a new user, and grants them u.Role on the whole install
+// when it's set. A taken email, or a second owner, is ErrConflict.
 func (t *Tx) CreateUser(ctx context.Context, u User) error {
-	err := t.insert(ctx, `INSERT INTO users (id, email, name, role, webauthn_handle, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		u.ID, u.Email, u.Name, u.Role, u.WebAuthnHandle, millis(u.CreatedAt))
+	err := t.insert(ctx, `INSERT INTO users (id, email, name, webauthn_handle, created_at) VALUES (?, ?, ?, ?, ?)`,
+		u.ID, u.Email, u.Name, u.WebAuthnHandle, millis(u.CreatedAt))
 	if t.unique(err) {
 		return fmt.Errorf("user %s: %w", u.Email, ErrConflict)
 	}
 	if err != nil {
 		return fmt.Errorf("can't record user %s: %w", u.Email, err)
 	}
-	return nil
+	if u.Role == "" {
+		return nil
+	}
+	// The one who claims the install is its owner; there is one, which the index holds.
+	return t.setGrant(ctx, Grant{UserID: u.ID, ProjectID: Install, Role: u.Role, CreatedAt: u.CreatedAt, CreatedBy: "dockwell"})
 }
 
 func (t *Tx) getUser(ctx context.Context, where string, arg any) (User, error) {
@@ -122,8 +131,19 @@ func (t *Tx) GetUserByHandle(ctx context.Context, handle []byte) (User, error) {
 	return t.getUser(ctx, "webauthn_handle", handle)
 }
 
-// Owner returns the install's owner, or ErrNotFound before it is claimed.
-func (t *Tx) Owner(ctx context.Context) (User, error) { return t.getUser(ctx, "role", RoleOwner) }
+// Owner returns the install's owner, by their grant, or ErrNotFound before
+// it is claimed.
+func (t *Tx) Owner(ctx context.Context) (User, error) {
+	var id string
+	err := t.queryRow(ctx, `SELECT user_id FROM grants WHERE role = ?`, RoleOwner).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return User{}, fmt.Errorf("owner: %w", ErrNotFound)
+	}
+	if err != nil {
+		return User{}, fmt.Errorf("can't read the owner: %w", err)
+	}
+	return t.GetUser(ctx, id)
+}
 
 func (t *Tx) updateUser(ctx context.Context, id, query string, args ...any) error {
 	res, err := t.exec(ctx, query, args...)

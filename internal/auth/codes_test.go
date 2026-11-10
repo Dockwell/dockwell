@@ -702,7 +702,7 @@ func testListAndRevokeSessions(t *testing.T, backend store.Backend) {
 	}
 
 	// Revoking a session ends it, and closes its streams.
-	ctx, stop := f.svc.Track(t.Context(), phone, ownerPrincipal(second))
+	ctx, stop := f.svc.Track(t.Context(), phone, ownerPrincipal(second), nil)
 	defer stop()
 	if err := f.svc.RevokeSession(t.Context(), p, second.Session.ID); err != nil {
 		t.Fatal(err)

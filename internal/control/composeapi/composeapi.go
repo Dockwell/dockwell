@@ -26,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/containers"
+	places "github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/control/services"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
@@ -553,7 +554,7 @@ func (h *Handler) destination(ctx context.Context, project, environment, fileNam
 		case named == "" && isExported(fileName):
 			// The name an export gives a file is its environment's Compose
 			// project, so docker compose finds what Dockwell runs.
-			p, e, ok := exportedFrom(tree, fileName)
+			p, e, ok := exportedFrom(ctx, tree, fileName)
 			if !ok {
 				return invalid(fmt.Errorf("the Compose file's name, %s, is an environment's Compose project, and no environment here has it, so it was exported from elsewhere. Change name: in the file, or pass project, to say where it goes", fileName))
 			}
@@ -655,9 +656,15 @@ func isExported(name string) bool {
 }
 
 // exportedFrom finds the environment whose Compose project a name is.
-func exportedFrom(tree scope.Tree, name string) (scope.Project, scope.Environment, bool) {
+func exportedFrom(ctx context.Context, tree scope.Tree, name string) (scope.Project, scope.Environment, bool) {
+	// Below an admin, only an environment in the caller's places is found, so a
+	// file names no project out of their reach (ADR 0049).
+	caller, checked := places.CallerFrom(ctx)
 	for _, p := range tree.Projects {
 		for _, e := range p.Environments {
+			if checked && places.Holds(caller.Grants, places.Place{Project: p.ID, Environment: e.ID}) == "" {
+				continue
+			}
 			if docker.Project(e.ID) == strings.ToLower(name) {
 				return p, e, true
 			}
@@ -791,7 +798,7 @@ func (h *Handler) fileName(ctx context.Context, name string) (string, error) {
 		if err != nil {
 			return err
 		}
-		if p, _, ok := exportedFrom(tree, name); ok {
+		if p, _, ok := exportedFrom(ctx, tree, name); ok {
 			out = p.Name
 		}
 		return nil

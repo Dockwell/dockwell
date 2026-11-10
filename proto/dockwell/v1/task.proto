@@ -24,6 +24,9 @@ service TaskService {
   rpc ListTasks(ListTasksRequest) returns (ListTasksResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/tasks"};
   }
 
@@ -31,6 +34,9 @@ service TaskService {
   rpc GetTask(GetTaskRequest) returns (GetTaskResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/tasks/{id}"};
   }
 
@@ -40,16 +46,22 @@ service TaskService {
   rpc ListTaskRuns(ListTaskRunsRequest) returns (ListTaskRunsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.needs_grant) = TOKEN_GRANT_LOGS;
     option (dockwell.v1.command) = {verb: "runs"};
     option (google.api.http) = {get: "/v1/tasks/{id}/runs"};
   }
 
-  // RunTask runs a task now, on one of its servers, which has to be connected. It
+  // RunTask lets an admin run a task now, on one of its servers, which has to be connected. It
   // runs what was approved, as its schedule would, paused or not, and returns
   // once the run has started: follow it with ListTaskRuns.
   rpc RunTask(RunTaskRequest) returns (RunTaskResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/tasks/{id}:run"
       body: "*"

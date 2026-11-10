@@ -135,6 +135,58 @@ func (EnvironmentType) Validate(spec proto.Message) error {
 	return nil
 }
 
+// DefaultNew writes a new environment's protection when its edit leaves it
+// out: protected for production, open for any other (ADR 0049).
+func (EnvironmentType) DefaultNew(ref resource.Ref, spec proto.Message) {
+	e := spec.(*resourcev1.Environment)
+	if e.GetProtection() == resourcev1.Protection_PROTECTION_UNSPECIFIED {
+		e.Protection = DefaultProtection(ref.Name)
+	}
+}
+
+// Keep keeps an environment's protection when an edit leaves it out, so an edit
+// of its display name alone, or one made before protection was written, doesn't
+// open a protected environment.
+func (EnvironmentType) Keep(current, desired proto.Message) (resource.Kept, error) {
+	d := desired.(*resourcev1.Environment)
+	if d.GetProtection() == resourcev1.Protection_PROTECTION_UNSPECIFIED {
+		d.Protection = current.(*resourcev1.Environment).GetProtection()
+	}
+	return resource.Kept{}, nil
+}
+
+// DefaultProtection is the protection an environment named name is made with:
+// protected for production, open for any other (ADR 0049).
+func DefaultProtection(name string) resourcev1.Protection {
+	if name == DefaultEnvironment {
+		return resourcev1.Protection_PROTECTION_PROTECTED
+	}
+	return resourcev1.Protection_PROTECTION_OPEN
+}
+
+// Protected says whether an environment named name, with spec, is protected:
+// as its spec says, or, for one from before protection was written, by its
+// name. A spec that can't be read counts as protected.
+func Protected(name string, spec *resourcev1.Environment) bool {
+	switch spec.GetProtection() {
+	case resourcev1.Protection_PROTECTION_PROTECTED:
+		return true
+	case resourcev1.Protection_PROTECTION_OPEN:
+		return false
+	case resourcev1.Protection_PROTECTION_UNSPECIFIED:
+	}
+	return DefaultProtection(name) == resourcev1.Protection_PROTECTION_PROTECTED
+}
+
+// ProtectedSpec is Protected for an environment's spec as the store keeps it.
+func ProtectedSpec(name string, spec []byte) bool {
+	e := &resourcev1.Environment{}
+	if err := proto.Unmarshal(spec, e); err != nil {
+		return true
+	}
+	return Protected(name, e)
+}
+
 // CheckName requires a DNS label, fit for URLs and the CLI.
 func (EnvironmentType) CheckName(name string) error {
 	return resource.CheckLabel("environment", name, "staging")
@@ -162,6 +214,8 @@ type Environment struct {
 	Name        string
 	DisplayName string
 	Project     string // the project's ID
+	// Protected says a developer's change here waits for an admin (ADR 0049).
+	Protected bool
 }
 
 // Load reads the organization's projects and environments.
@@ -190,7 +244,7 @@ func Load(ctx context.Context, tx *store.Tx) (Tree, error) {
 			if err := proto.Unmarshal(e.Spec, &spec); err != nil {
 				return Tree{}, fmt.Errorf("can't read environment %s: %w", e.Name, err)
 			}
-			p.Environments = append(p.Environments, Environment{ID: e.ID, Name: e.Name, DisplayName: spec.GetDisplayName(), Project: r.ID})
+			p.Environments = append(p.Environments, Environment{ID: e.ID, Name: e.Name, DisplayName: spec.GetDisplayName(), Project: r.ID, Protected: Protected(e.Name, &spec)})
 		}
 		t.Projects = append(t.Projects, p)
 	}

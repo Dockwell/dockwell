@@ -17,12 +17,21 @@ export function initials(name: string): string {
   return (lead(first) + (last ? lead(last) : "")).toLocaleUpperCase();
 }
 
-/** What a role is called under someone's name, such as "Owner". */
+/**
+ * What a role on the whole install is called under someone's name, such as
+ * "Owner"; nothing for someone who holds projects alone.
+ */
 export function useRoleName(role: Role): string {
   const { t } = useLingui();
   switch (role) {
     case Role.OWNER:
       return t`Owner`;
+    case Role.ADMIN:
+      return t`Admin`;
+    case Role.DEVELOPER:
+      return t`Developer`;
+    case Role.VIEWER:
+      return t`Viewer`;
     default:
       return "";
   }

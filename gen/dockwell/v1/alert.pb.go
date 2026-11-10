@@ -1576,23 +1576,23 @@ const file_dockwell_v1_alert_proto_rawDesc = "" +
 	"AlertState\x12\x1b\n" +
 	"\x17ALERT_STATE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12ALERT_STATE_FIRING\x10\x01\x12\x18\n" +
-	"\x14ALERT_STATE_RESOLVED\x10\x022\xdc\x14\n" +
-	"\fAlertService\x12h\n" +
+	"\x14ALERT_STATE_RESOLVED\x10\x022\xbe\x15\n" +
+	"\fAlertService\x12t\n" +
 	"\n" +
-	"ListAlerts\x12\x1e.dockwell.v1.ListAlertsRequest\x1a\x1f.dockwell.v1.ListAlertsResponse\"\x19\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\f\x12\n" +
-	"/v1/alerts\x90\x02\x01\x12y\n" +
-	"\x0eListAlertRules\x12\".dockwell.v1.ListAlertRulesRequest\x1a#.dockwell.v1.ListAlertRulesResponse\"\x1e\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/alert-rules\x90\x02\x01\x12\x85\x01\n" +
-	"\x11ListAlertChannels\x12%.dockwell.v1.ListAlertChannelsRequest\x1a&.dockwell.v1.ListAlertChannelsResponse\"!\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/alert-channels\x90\x02\x01\x12\xa9\x01\n" +
-	"\x13ListAlertDeliveries\x12'.dockwell.v1.ListAlertDeliveriesRequest\x1a(.dockwell.v1.ListAlertDeliveriesResponse\"?\xa0\xbb\x18\x01\xaa\xbb\x18\x18\n" +
-	"\x10alert-deliveries\x12\x04list\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/alert-deliveries\x90\x02\x01\x12\x87\x01\n" +
-	"\x10TestAlertChannel\x12$.dockwell.v1.TestAlertChannelRequest\x1a%.dockwell.v1.TestAlertChannelResponse\"&\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/alert-channels:test\x12\x90\x01\n" +
-	"\x0eListAlertMutes\x12\".dockwell.v1.ListAlertMutesRequest\x1a#.dockwell.v1.ListAlertMutesResponse\"5\xa0\xbb\x18\x01\xaa\xbb\x18\x13\n" +
-	"\valert-mutes\x12\x04list\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/alert-mutes\x90\x02\x01\x12\x7f\n" +
+	"ListAlerts\x12\x1e.dockwell.v1.ListAlertsRequest\x1a\x1f.dockwell.v1.ListAlertsResponse\"%\xa0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\f\x12\n" +
+	"/v1/alerts\x90\x02\x01\x12\x85\x01\n" +
+	"\x0eListAlertRules\x12\".dockwell.v1.ListAlertRulesRequest\x1a#.dockwell.v1.ListAlertRulesResponse\"*\xa0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/alert-rules\x90\x02\x01\x12\x91\x01\n" +
+	"\x11ListAlertChannels\x12%.dockwell.v1.ListAlertChannelsRequest\x1a&.dockwell.v1.ListAlertChannelsResponse\"-\xa0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/alert-channels\x90\x02\x01\x12\xb5\x01\n" +
+	"\x13ListAlertDeliveries\x12'.dockwell.v1.ListAlertDeliveriesRequest\x1a(.dockwell.v1.ListAlertDeliveriesResponse\"K\xa0\xbb\x18\x01\xaa\xbb\x18\x18\n" +
+	"\x10alert-deliveries\x12\x04list\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/alert-deliveries\x90\x02\x01\x12\x93\x01\n" +
+	"\x10TestAlertChannel\x12$.dockwell.v1.TestAlertChannelRequest\x1a%.dockwell.v1.TestAlertChannelResponse\"2\xa0\xbb\x18\x03\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/alert-channels:test\x12\x9c\x01\n" +
+	"\x0eListAlertMutes\x12\".dockwell.v1.ListAlertMutesRequest\x1a#.dockwell.v1.ListAlertMutesResponse\"A\xa0\xbb\x18\x01\xaa\xbb\x18\x13\n" +
+	"\valert-mutes\x12\x04list\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/alert-mutes\x90\x02\x01\x12\x8b\x01\n" +
 	"\n" +
-	"MuteAlerts\x12\x1e.dockwell.v1.MuteAlertsRequest\x1a\x1f.dockwell.v1.MuteAlertsResponse\"0\xa0\xbb\x18\x03\xaa\xbb\x18\x0e\n" +
-	"\x06alerts\x12\x04mute\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/alert-mutes\x12\x8b\x01\n" +
-	"\fUnmuteAlerts\x12 .dockwell.v1.UnmuteAlertsRequest\x1a!.dockwell.v1.UnmuteAlertsResponse\"6\xa0\xbb\x18\x03\xaa\xbb\x18\x10\n" +
-	"\x06alerts\x12\x06unmute\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/alert-mutes:end\x1a\x86\f\xa2\xbb\x18\xae\x03\n" +
+	"MuteAlerts\x12\x1e.dockwell.v1.MuteAlertsRequest\x1a\x1f.dockwell.v1.MuteAlertsResponse\"<\xa0\xbb\x18\x03\xaa\xbb\x18\x0e\n" +
+	"\x06alerts\x12\x04mute\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/alert-mutes\x12\x97\x01\n" +
+	"\fUnmuteAlerts\x12 .dockwell.v1.UnmuteAlertsRequest\x1a!.dockwell.v1.UnmuteAlertsResponse\"B\xa0\xbb\x18\x03\xaa\xbb\x18\x10\n" +
+	"\x06alerts\x12\x06unmute\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/alert-mutes:end\x1a\x86\f\xa2\xbb\x18\xae\x03\n" +
 	"\x06alerts\x12\xa3\x03An alert is a rule holding for one thing, such as a server's disk, from when it fires until it resolves. Dockwell evaluates the rules on the control plane, from what it hears of servers already, and sends each alert to the rule's channels, and again when it resolves. ListAlerts shows what's firing and what was. MuteAlerts holds what a rule or a server sends for a while, with no change to apply, and goes on Activity.\xa2\xbb\x18\xbe\x02\n" +
 	"\valert-rules\x12\xae\x02A rule is something Dockwell watches for, such as a disk above 90% for 5 minutes, and who it tells. An install starts with a rule for each condition, which sends to every channel once there is one. Rules are resources: creating, changing and deleting one is a change, with a plan, that undo takes back.\xa2\xbb\x18\xdb\x02\n" +
 	"\x0ealert-channels\x12\xc8\x02A channel is somewhere alerts are sent, such as a webhook. What signs in to it is sealed, never shown again, and a plan says only that it changed. Channels are resources: creating, changing and deleting one is a change, with a plan, that undo takes back. TestAlertChannel sends a test message and says what the far end answered.\xa2\xbb\x18\xdb\x01\n" +

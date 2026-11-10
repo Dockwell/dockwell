@@ -393,7 +393,7 @@ func newClaimCmd(stdio IO, g *globalFlags) *cobra.Command {
 }
 
 func newRecoverCmd(stdio IO, g *globalFlags) *cobra.Command {
-	var email string
+	var email, owner string
 	cmd := &cobra.Command{
 		Use:   "recover",
 		Short: "Print a one-time sign-in link, for when you lost your passkey",
@@ -421,6 +421,18 @@ func newRecoverCmd(stdio IO, g *globalFlags) *cobra.Command {
 				return err
 			}
 			defer db.Close()
+			if owner != "" {
+				// From the control server, whoever runs this controls the install already (ADR 0048).
+				made, err := people.MakeOwner(ctx, owner, actor())
+				if errors.Is(err, auth.ErrInvalid) || errors.Is(err, auth.ErrNotFound) {
+					return usageError{errors.New(strings.TrimPrefix(strings.TrimPrefix(err.Error(), auth.ErrInvalid.Error()+": "), auth.ErrNotFound.Error()+": "))}
+				}
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "%s is the owner now. Whoever was before is an admin.\n", made.Email)
+				email = made.Email
+			}
 			link, user, err := people.CreateSignInLink(ctx, email, actor())
 			if errors.Is(err, auth.ErrInvalid) || errors.Is(err, auth.ErrNotFound) {
 				return usageError{errors.New(strings.TrimPrefix(strings.TrimPrefix(err.Error(), auth.ErrInvalid.Error()+": "), auth.ErrNotFound.Error()+": "))}
@@ -444,5 +456,6 @@ func newRecoverCmd(stdio IO, g *globalFlags) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&email, "user", "", "the email of the person to sign in; defaults to the owner")
+	cmd.Flags().StringVar(&owner, "owner", "", "the email of someone who signs in already, to make the owner, as when the owner is gone; whoever was is an admin after")
 	return cmd
 }
