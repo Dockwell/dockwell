@@ -5086,6 +5086,9 @@ msgstr "数据库"
 msgid "Each image pinned by digest"
 msgstr "每个镜像都按摘要固定"
 
+msgid "Engine"
+msgstr "引擎"
+
 msgid "Generated and sealed"
 msgstr "已生成，加密保存"
 
@@ -5097,6 +5100,9 @@ msgstr "请填写{missingLabel}，然后审阅计划"
 
 msgid "Its site"
 msgstr "官网"
+
+msgid "New database"
+msgstr "新建数据库"
 
 msgid "Open {app}"
 msgstr "打开 {app}"
@@ -7285,9 +7291,6 @@ msgstr "{more, plural, other {还有 # 个数据库或用户未在此列出}}"
 msgid "+{left}"
 msgstr "+{left}"
 
-msgid "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
-msgstr "这里的数据库是指用官方镜像运行 PostgreSQL、MySQL、MariaDB、Redis 或 Valkey 的服务。可以从应用目录安装一个，或接管服务器上已在运行的数据库。"
-
 msgid "Beside it"
 msgstr "同环境服务"
 
@@ -7321,9 +7324,6 @@ msgstr "最近运行"
 msgid "Loading the databases"
 msgstr "正在加载数据库"
 
-msgid "New database"
-msgstr "新建数据库"
-
 msgid "No databases yet"
 msgstr "还没有数据库"
 
@@ -7341,6 +7341,9 @@ msgstr "服务器上没有任何改动。页面会自动重试。"
 
 msgid "Nothing has happened to them lately"
 msgstr "最近没有相关动态"
+
+msgid "PostgreSQL, MySQL, MariaDB or Redis, with its password made for you."
+msgstr "PostgreSQL、MySQL、MariaDB 或 Redis，密码会为你生成。"
 
 msgid "Reading what happened"
 msgstr "正在读取动态"
@@ -10248,9 +10251,6 @@ msgstr "Dockwell 还不会检查新版本或自行升级。要安装特定版本
 
 msgid "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
 msgstr "Dockwell 在这里没有作为服务运行，所以请先停止 <0>dockwell run</0>：只有在没有任何写入时，存储才是完整的。然后以 root 身份运行以下命令，完成后再启动 Dockwell。"
-
-msgid "Engine"
-msgstr "引擎"
 
 msgid "From elsewhere"
 msgstr "从其他网络"

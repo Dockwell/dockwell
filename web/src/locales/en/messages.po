@@ -5086,6 +5086,9 @@ msgstr "Database"
 msgid "Each image pinned by digest"
 msgstr "Each image pinned by digest"
 
+msgid "Engine"
+msgstr "Engine"
+
 msgid "Generated and sealed"
 msgstr "Generated and sealed"
 
@@ -5097,6 +5100,9 @@ msgstr "Give {missingLabel} a value to review the plan"
 
 msgid "Its site"
 msgstr "Its site"
+
+msgid "New database"
+msgstr "New database"
 
 msgid "Open {app}"
 msgstr "Open {app}"
@@ -7285,9 +7291,6 @@ msgstr "{more, plural, one {# more database or user isn't listed here} other {# 
 msgid "+{left}"
 msgstr "+{left}"
 
-msgid "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
-msgstr "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
-
 msgid "Beside it"
 msgstr "Beside it"
 
@@ -7321,9 +7324,6 @@ msgstr "Last run"
 msgid "Loading the databases"
 msgstr "Loading the databases"
 
-msgid "New database"
-msgstr "New database"
-
 msgid "No databases yet"
 msgstr "No databases yet"
 
@@ -7341,6 +7341,9 @@ msgstr "Nothing changed on the servers. The page tries again by itself."
 
 msgid "Nothing has happened to them lately"
 msgstr "Nothing has happened to them lately"
+
+msgid "PostgreSQL, MySQL, MariaDB or Redis, with its password made for you."
+msgstr "PostgreSQL, MySQL, MariaDB or Redis, with its password made for you."
 
 msgid "Reading what happened"
 msgstr "Reading what happened"
@@ -10248,9 +10251,6 @@ msgstr "Dockwell doesn't check for releases or upgrade itself yet. For a particu
 
 msgid "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
 msgstr "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
-
-msgid "Engine"
-msgstr "Engine"
 
 msgid "From elsewhere"
 msgstr "From elsewhere"

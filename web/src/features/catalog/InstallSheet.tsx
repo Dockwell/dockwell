@@ -7,6 +7,7 @@ import {
   CatalogService,
   type Change,
   ChangeState,
+  type Entry,
   type HostAccess,
   HostAccessKind,
   type Input,
@@ -52,6 +53,8 @@ import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
+// Its lines and the engine picker, wherever the sheet opens: on the Databases page too, which loads no catalog page.
+import "./Catalog.css";
 
 /** A label as it reads inside a sentence: "Adminer port" is "adminer port", while "API key" keeps its capitals. */
 const inSentence = (label: string) =>
@@ -68,9 +71,19 @@ const asked = (input: Input) => input.generate === 0;
  * under Advanced. Nothing runs until the plan applies, and a password no one
  * types is made and sealed by the control plane, so it's never here. Once it
  * applies, it leads to where what it made is used: a database's page, with how
- * to connect, or the app's.
+ * to connect, or the app's. Given engines, it's New database: the engine is the
+ * first line, picked from them, and picking another keeps the sheet open.
  */
-export function InstallSheet({ id, onClose }: { id: string; onClose: () => void }) {
+export function InstallSheet({
+  id,
+  onClose,
+  engines,
+}: {
+  id: string;
+  onClose: () => void;
+  /** The databases to pick from, for New database on the Databases page. */
+  engines?: { entries: readonly Entry[]; onPick: (id: string) => void };
+}) {
   const { t } = useLingui();
   // Installing makes a project of its own, which is an admin's (ADR 0049): off, with why, for anyone else.
   const mayInstall = useMay()(CatalogService.method.installCatalogEntry);
@@ -99,6 +112,16 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
   // The plan under review takes this sheet over, and Cancel brings the form back as it was.
   const [plan, setPlan] = useState<Opening>();
   const change = (key: string) => setChanging((was) => new Set(was).add(key));
+  // Another engine starts from its own defaults.
+  const [shown, setShown] = useState(id);
+  if (shown !== id) {
+    setShown(id);
+    setTyped({});
+    setTypedName(undefined);
+    setChanging(new Set());
+    setFailure(undefined);
+    setNameError(undefined);
+  }
 
   // What's free is read on the servers it will run on: the one there is, or those chosen.
   const onlyId = only?.id;
@@ -261,8 +284,8 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
     <Sheet
       open
       over={plan ? <PlanView opening={plan} /> : undefined}
-      title={t`Install ${app}`}
-      subtitle={entry?.summary}
+      title={engines ? t`New database` : t`Install ${app}`}
+      subtitle={engines ? undefined : entry?.summary}
       onClose={onClose}
       className={cx("app-sheet", "catalog-sheet", phone && "is-phone")}
       footer={
@@ -316,7 +339,11 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
         {entry ? (
           <>
             <div className="catalog-chosen-list">
-              <Chosen label={t`Version`} value={entry.version} />
+              {engines ? (
+                <EnginePicker entries={engines.entries} value={id} onPick={engines.onPick} />
+              ) : (
+                <Chosen label={t`Version`} value={entry.version} />
+              )}
               {nameOpen ? (
                 <TextField
                   label={t`Name`}
@@ -444,6 +471,42 @@ function Chosen({
             <Trans>Change</Trans>
           </button>
         ) : null}
+      </span>
+    </fieldset>
+  );
+}
+
+/** The engine of a new database, picked from those the catalog has, each with its newest version. */
+function EnginePicker({
+  entries,
+  value,
+  onPick,
+}: {
+  entries: readonly Entry[];
+  value: string;
+  onPick: (id: string) => void;
+}) {
+  const { t } = useLingui();
+  const id = useId();
+  return (
+    <fieldset className="catalog-engines" aria-labelledby={id}>
+      <span id={id} className="catalog-chosen-label">
+        {t`Engine`}
+      </span>
+      <span className="catalog-engines-list">
+        {entries.map((entry) => (
+          <label key={entry.id} className={cx("catalog-engine", entry.id === value && "is-picked")}>
+            <input
+              type="radio"
+              name={id}
+              value={entry.id}
+              checked={entry.id === value}
+              onChange={() => onPick(entry.id)}
+            />
+            <span className="catalog-engine-name">{entry.name}</span>
+            <code className="catalog-engine-version">{entry.version}</code>
+          </label>
+        ))}
       </span>
     </fieldset>
   );
