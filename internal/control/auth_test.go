@@ -41,8 +41,11 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
+	"github.com/dockwell/dockwell/internal/database"
+	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
@@ -57,6 +60,7 @@ import (
 	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // fullServer is a control plane with sign-in, as dockwell run starts it.
@@ -108,9 +112,14 @@ type fullServer struct {
 	server *Server
 	// lastDocker is the server addDockerServer last added.
 	lastDocker *testServer
+	// onePanelRoot is where the next Docker server added has 1Panel installed, if anywhere.
+	onePanelRoot string
 	// volumes wraps the volume driver of the next server added, to see what its
 	// agent hears. Nil leaves it as it is.
 	volumes func(*volume.Driver) resource.Type
+	// probe makes the checks an agent makes of a container on the next server added,
+	// as a fake engine's containers listen nowhere. Nil dials them.
+	probe func(ctx context.Context, c *health.Check, address string) (health.Result, error)
 }
 
 // execSQL runs a statement on the server's database from outside the store,
@@ -122,6 +131,10 @@ func (f *fullServer) execSQL(t *testing.T, query string) {
 
 // askWait is how long these tests give a step-up that was asked for.
 const askWait = 200 * time.Millisecond
+
+// testRecheck is how often the next control plane started rechecks a session for
+// what's open on it. Zero keeps auth's own. A test that sets it puts it back.
+var testRecheck time.Duration
 
 func startFull(t *testing.T, backend store.Backend, public https.Source) *fullServer {
 	t.Helper()
@@ -138,6 +151,13 @@ func startFullLogging(t *testing.T, backend store.Backend, public https.Source, 
 // the panel's proxied listener on ingress if it isn't nil, and with the limits
 // of reading logs changed.
 func startFullWith(t *testing.T, backend store.Backend, public https.Source, logger *slog.Logger, ingress net.Listener, logs logapi.Options) *fullServer {
+	t.Helper()
+	return startFullConfig(t, backend, public, logger, ingress, logs, nil)
+}
+
+// startFullConfig is startFullWith, with tweak changing the control plane's
+// config before it starts.
+func startFullConfig(t *testing.T, backend store.Backend, public https.Source, logger *slog.Logger, ingress net.Listener, logs logapi.Options, tweak func(*Config)) *fullServer {
 	t.Helper()
 	dir := t.TempDir()
 	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
@@ -157,14 +177,14 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	if public != nil {
 		sites.Domain = public.Domain()
 	}
-	people, err := auth.New(auth.Config{DB: db, Key: key, Logger: logger, Sites: sites, AskWait: askWait})
+	people, err := auth.New(auth.Config{DB: db, Key: key, Logger: logger, Sites: sites, AskWait: askWait, Recheck: testRecheck})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
 		t.Fatal(err)
 	}
-	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{})
+	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{})
 	keeper := secretstest.Keeper(db, kinds)
 	agents := agentapi.NewAgents(kinds, logger)
 	engine := revision.New(db, kinds, agents, keeper, logger)
@@ -172,20 +192,6 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 	t.Cleanup(engine.Wait)
 	// No test resolves a real name: what each says is a name's is set on f.names.
 	names := &fakeNames{m: map[string][]netip.Addr{}}
-	config := Config{
-		DNSLookup: names.lookup,
-		Logger:    logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
-		Changes: engine, Agents: agents, Store: db, Secrets: keeper, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
-		EventPoll: 200 * time.Millisecond, Logs: logs,
-	}
-	if public != nil {
-		// As dockwell run says it of a domain on the public ports, which the ingress takes while there are routes.
-		config.HTTPSListen, config.PanelURL, config.PanelCA, config.PanelHandsOver = "[::]:443", "https://"+public.Domain(), "Let's Encrypt", true
-	}
-	srv, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
 	listen := func() net.Listener {
 		var lc net.ListenConfig
 		ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
@@ -195,6 +201,27 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 		return ln
 	}
 	ls := Listeners{API: listen(), Agents: listen(), Ingress: ingress}
+	config := Config{
+		DNSLookup: names.lookup,
+		Logger:    logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
+		Changes: engine, Agents: agents, Store: db, Secrets: keeper, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
+		EventPoll: 200 * time.Millisecond, Logs: logs,
+		DataDir: dir, KeyFile: filepath.Join(dir, "key"), AgentListen: ls.Agents.Addr().String(),
+		// Tests reach their local channel fixtures through an injected client.
+		AlertClient: &http.Client{},
+	}
+	if public != nil {
+		// As dockwell run says it of a domain with plain HTTP on port 80 and HTTPS on 8443: the ingress takes the
+		// public ports while there are routes, and serves the domain on 443.
+		config.PanelURL, config.PanelCA, config.PanelHandsOver = "https://"+public.Domain()+":8443", "Let's Encrypt", true
+	}
+	if tweak != nil {
+		tweak(&config)
+	}
+	srv, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
 	f := &fullServer{
 		names: names,
 		auth:  people, engine: engine, agents: agents, keeper: keeper, ident: ident, store: db, db: path,

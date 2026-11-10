@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 // Vitest runs in the panel's package, web/.
 const web = resolve("src");
 const ui = resolve("../packages/ui/src");
+const api = resolve("../packages/api/src");
 
 /** The source files that ship, without tests, test helpers and generated routes. */
 function sources(dir: string): string[] {
@@ -65,6 +66,33 @@ describe("the panel reaches the API only through the generated client", () => {
 
   it("never calls the network any other way", () => {
     expect(offences(panel)).toEqual([]);
+  });
+
+  // A browser can't send a stream's body over Connect, and a download is a link it
+  // saves, so a file's bytes go over the REST routes the control plane streams (ADR
+  // 0045). Those are the public API's, so they're reached the way the rest is: through
+  // @dockwell/api, where one helper beside the generated client calls them, with their
+  // method, path and media types generated from the OpenAPI document. That helper is
+  // the one thing in the API's own source that calls the network, and the panel calls
+  // it, never the routes.
+  it("streams a file's bytes only through @dockwell/api's helper", () => {
+    const own = sources(api).filter((f) => !relative(api, f).startsWith("gen/") && relative(api, f) !== "index.ts");
+    expect(own.map((f) => relative(api, f))).toContain("streams.ts");
+    expect(offences(own).map((o) => o.replace(/^.*packages\/api\/src\//, ""))).toEqual([
+      "streams.ts uses XMLHttpRequest",
+    ]);
+    const helpers = ["uploadFilePart", "downloadFileURL"];
+    const callers = panel.filter((f) => helpers.some((h) => new RegExp(`\\b${h}\\b`).test(code(f))));
+    expect(callers.map((f) => relative(web, f)).sort()).toEqual([
+      "features/files/FileViewer.tsx",
+      "features/files/FilesPage.tsx",
+      "features/files/upload.tsx",
+    ]);
+    for (const file of callers) {
+      expect(code(file), relative(web, file)).toMatch(
+        /import\s*\{[^}]*\b(uploadFilePart|downloadFileURL)\b[^}]*\}\s*from\s*"@dockwell\/api"/,
+      );
+    }
   });
 
   it("makes its transport in one place", () => {

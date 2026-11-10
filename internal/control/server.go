@@ -40,7 +40,9 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/alerts"
 	"github.com/dockwell/dockwell/internal/control/apidoc"
+	"github.com/dockwell/dockwell/internal/control/audit"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
@@ -54,14 +56,20 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/control/importapi"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
+	"github.com/dockwell/dockwell/internal/control/members"
+	"github.com/dockwell/dockwell/internal/control/processes"
 	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
 	serviceapi "github.com/dockwell/dockwell/internal/control/services"
 	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/control/system"
+	"github.com/dockwell/dockwell/internal/control/tasks"
+	"github.com/dockwell/dockwell/internal/control/terminals"
 	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/control/variables"
+	"github.com/dockwell/dockwell/internal/control/websites"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/panel"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -93,6 +101,16 @@ type Config struct {
 	// Without both there is no agent listener and no ServerService.
 	Identity *identity.Authority
 	Fleet    *fleet.Hub
+	// Standings say whether an app is down, as the health recorder folds its
+	// states, for alerts. Nil judges by the states alone.
+	Standings alerts.Standings
+	// AlertClient sends to alert channels, and tests them, in place of netguard's,
+	// for a test whose channels' far ends listen on loopback. Nil is netguard's.
+	AlertClient *http.Client
+	// ManualAlerts leaves evaluating alert rules to whoever calls the evaluator,
+	// as a test does by its own clock. The install's first rules are made all the
+	// same.
+	ManualAlerts bool
 	// AgentHosts are the names and addresses agents dial; the agent
 	// listener's certificate is valid for them.
 	AgentHosts []string
@@ -102,14 +120,20 @@ type Config struct {
 	// Public serves the panel on its domain over HTTPS. Nil keeps the panel
 	// on loopback.
 	Public https.Source
-	// PanelListen is the loopback address the panel answers on, HTTPSListen
-	// where it serves Public's domain itself, PanelURL its address there, and
-	// PanelCA who issues its certificate, for the settings to say how the panel
-	// is served. PanelHandsOver is true when the server's ingress takes the
-	// public ports while the server has a route, and serves the panel's domain
-	// then (ADR 0024): the settings ask PublicPorts which holds them now.
-	PanelListen, HTTPSListen, PanelURL, PanelCA string
-	PanelHandsOver                              bool
+	// PanelListen is the loopback address the panel answers on, PanelURL its
+	// address on Public's domain while Dockwell serves it, and PanelCA who
+	// issues its certificate, for the settings to say how the panel is served.
+	// PanelHandsOver is true when the server's ingress takes the public ports
+	// while the server has a route, and serves the panel's domain then (ADR
+	// 0024): the settings ask PublicPorts which holds them now, and where.
+	PanelListen, PanelURL, PanelCA string
+	PanelHandsOver                 bool
+	// DataDir is the directory dockwell run keeps its files in, KeyFile the
+	// install's key there, AgentListen where servers' agents reach it, and
+	// ServiceManager what runs it as a service, for the settings to say what
+	// the control plane is, and how to stop it for a backup.
+	DataDir, KeyFile, AgentListen string
+	ServiceManager                dockwellv1.ServiceManager
 	// PublicAddress is this server's public IP address, shown on the claim
 	// screen for pointing a domain at. Empty when it isn't known.
 	PublicAddress string
@@ -156,8 +180,14 @@ type Server struct {
 	addAgentHost func(string)
 	// logs reads service logs, and tells servers what deletions put out of reach.
 	logs *logapi.Handler
+	// alerts evaluates the alert rules, and sends what's due (ADR 0044), unless
+	// manualAlerts leaves that to a test.
+	alerts       *alerts.Evaluator
+	manualAlerts bool
 	// backups takes backups, and those under way end with the control plane.
-	backups   *backups.Handler
+	backups *backups.Handler
+	// tasks reads scheduled tasks' runs from the agents that run them.
+	tasks     *tasks.Handler
 	public    https.Source
 	changes   *revision.Engine
 	stepGrace time.Duration
@@ -184,13 +214,15 @@ func New(cfg Config) (*Server, error) {
 	}
 	var logs *logapi.Handler
 	var backupHandler *backups.Handler
+	var taskHandler *tasks.Handler
 	// Made first, so the settings can ask it who holds the public ports now.
 	ports := &PublicPorts{ready: make(chan struct{})}
-	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler)
+	var evaluator *alerts.Evaluator
+	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator)
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
 	ports.server = s
 	s.ports = ports
 	if s.stepGrace <= 0 {
@@ -223,12 +255,13 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
 	var rest []*vanguard.Service
 	guardREST := func(h http.Handler) http.Handler { return h }
+	var filesHandler http.Handler
 	// handle serves a service's procedures, and its REST paths through
 	// Vanguard, which calls the same handler, interceptors and all.
 	handle := func(path string, h http.Handler) {
@@ -238,14 +271,32 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	}
 	handle(dockwellv1connect.NewSystemServiceHandler(system.New(cfg.Build), opts...))
 	if cfg.Store != nil {
-		serving := settings.Serving{Listen: cfg.PanelListen, HTTPSListen: cfg.HTTPSListen, URL: cfg.PanelURL, CA: cfg.PanelCA}
+		serving := settings.Serving{Listen: cfg.PanelListen, URL: cfg.PanelURL, CA: cfg.PanelCA}
 		if cfg.Public != nil {
 			serving.Domain = cfg.Public.Domain()
+			serving.HTTPS = func() (string, bool) {
+				listen, ok := ports.Serving()
+				// A panel on ports of its own, beside the ingress, never hands them over.
+				return listen, ok || !cfg.PanelHandsOver
+			}
 		}
-		if cfg.PanelHandsOver {
-			serving.Proxied = func() bool { return !ports.Serving() }
+		plane := settings.Plane{
+			Build:          cfg.Build,
+			Started:        time.Now(),
+			DataDir:        cfg.DataDir,
+			KeyFile:        cfg.KeyFile,
+			AgentListen:    cfg.AgentListen,
+			ServiceManager: cfg.ServiceManager,
 		}
-		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving), opts...))
+		if cfg.Identity != nil {
+			plane.AgentURLs = agentURLs(cfg.Identity)
+		}
+		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving, plane), opts...))
+		// For a person signed in alone, as its events name where people signed in from.
+		if cfg.Auth != nil {
+			handle(dockwellv1connect.NewAuditServiceHandler(audit.New(cfg.Store, cfg.Changes, cfg.Logger), opts...))
+			handle(dockwellv1connect.NewMemberServiceHandler(members.New(cfg.Store, cfg.Auth, cfg.Logger), opts...))
+		}
 	}
 	if cfg.Auth != nil {
 		controlServer := func() *dockwellv1.Server { return nil }
@@ -259,7 +310,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		handle(dockwellv1connect.NewTokenServiceHandler(h, opts...))
 	}
 	if cfg.Fleet != nil {
-		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet, cfg.Store), opts...))
+		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet, cfg.Store, cfg.Agents), opts...))
 	}
 	if cfg.Changes != nil {
 		ch := changes.New(cfg.Changes, cfg.Auth, cfg.Store, cfg.Logger)
@@ -268,6 +319,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
 		handle(dockwellv1connect.NewCatalogServiceHandler(catalogapi.New(imports, cfg.Store, cfg.Secrets, cfg.Build.Commit, cfg.Logger), opts...))
+		handle(dockwellv1connect.NewWebsiteServiceHandler(websites.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
 		if cfg.Secrets != nil && cfg.Auth != nil {
@@ -286,7 +338,16 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		}
 		// A person's, so it needs sign-in; the agent decides what it reads.
 		if cfg.Fleet != nil && cfg.Auth != nil {
-			handle(dockwellv1connect.NewFileServiceHandler(files.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
+			path, h := dockwellv1connect.NewFileServiceHandler(files.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...)
+			handle(path, h)
+			filesHandler = h
+			// A person's too, as a command line can hold a password, and ending a process is root.
+			handle(dockwellv1connect.NewProcessServiceHandler(processes.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
+			handle(dockwellv1connect.NewTerminalServiceHandler(terminals.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
+		}
+		// What another panel keeps on a server, read through its agent (ADR 0056).
+		if cfg.Fleet != nil {
+			handle(dockwellv1connect.NewImportServiceHandler(importapi.New(cfg.Fleet, cfg.Agents, imports, ch, cfg.Logger), opts...))
 		}
 		handle(dockwellv1connect.NewServiceServiceHandler(serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
 		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)
@@ -296,17 +357,32 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		rest = append(rest, vanguard.NewService(path, h))
 		services = append(services, strings.Trim(path, "/"))
 		guardREST = logs.GuardREST
-		handle(dockwellv1connect.NewHealthServiceHandler(health.New(cfg.Store, cfg.Agents, cfg.Logger), opts...))
+		healthHandler := health.New(cfg.Store, cfg.Agents, cfg.Logger)
+		handle(dockwellv1connect.NewHealthServiceHandler(healthHandler, opts...))
+		*alertsOut = &alerts.Evaluator{
+			DB: cfg.Store, Keeper: cfg.Secrets, Engine: cfg.Changes, Domains: cfg.Agents, Health: healthHandler,
+			Standings: cfg.Standings, Panel: cfg.PanelURL, Logger: cfg.Logger,
+			Sender: &alerts.Sender{Client: cfg.AlertClient},
+		}
+		if cfg.Fleet != nil {
+			(*alertsOut).Fleet = cfg.Fleet
+		}
+		handle(dockwellv1connect.NewAlertServiceHandler(alerts.New(*alertsOut, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewContainerServiceHandler(own, opts...))
 		*backupsOut = backups.New(ch, cfg.Changes, cfg.Agents, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewBackupServiceHandler(*backupsOut, opts...))
-		handle(dockwellv1connect.NewDatabaseServiceHandler(databases.New(cfg.Agents, *backupsOut, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		handle(dockwellv1connect.NewDatabaseServiceHandler(databases.New(ch, cfg.Agents, *backupsOut, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		*tasksOut = tasks.New(cfg.Changes, cfg.Agents, cfg.Store, cfg.Logger)
+		handle(dockwellv1connect.NewTaskServiceHandler(*tasksOut, opts...))
 	}
-	restPaths, err := restHandler(rest)
+	restPaths, err := restHandler(rest, authapi.Authorizer(cfg.Auth, cfg.Logger))
 	if err != nil {
 		return nil, err
 	}
 	mux.Handle(authapi.RESTPrefix, guardREST(restPaths))
+	if filesHandler != nil {
+		streamTransfers(mux, filesHandler, guardREST)
+	}
 	mux.Handle("GET "+apidoc.Path, apidoc.Handler())
 
 	mux.Handle(grpchealth.NewHandler(grpchealth.NewStaticChecker(services...), opts...))
@@ -373,6 +449,9 @@ type PublicPorts struct {
 	failed func(error)
 	stop   context.CancelFunc
 	done   *sync.WaitGroup
+	// listening is the address the HTTPS listener has while it serves, as
+	// bound, whether at the start or taken back from the ingress.
+	listening string
 	// ended says the server has stopped, so nothing starts from now on, and
 	// every is all that was started, for that stop to wait for.
 	ended bool
@@ -410,6 +489,9 @@ func (p *PublicPorts) serve(httpsLn, httpLn net.Listener) {
 	ctx, stop := context.WithCancel(p.base)
 	done := &sync.WaitGroup{}
 	p.stop, p.done = stop, done
+	if httpsLn != nil {
+		p.listening = httpsLn.Addr().String()
+	}
 	s := p.server
 	listeners := []struct {
 		ln   net.Listener
@@ -436,11 +518,11 @@ func (p *PublicPorts) serve(httpsLn, httpLn net.Listener) {
 }
 
 // Serving reports whether the control plane holds the public ports now,
-// rather than this server's proxy.
-func (p *PublicPorts) Serving() bool {
+// rather than this server's proxy, and where it serves HTTPS on them.
+func (p *PublicPorts) Serving() (httpsAddr string, ok bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.stop != nil
+	return p.listening, p.stop != nil
 }
 
 // Release stops serving on the public ports, and returns once they are free.
@@ -452,7 +534,7 @@ func (p *PublicPorts) Release(ctx context.Context) error {
 	}
 	p.mu.Lock()
 	stop, done := p.stop, p.done
-	p.stop, p.done = nil, nil
+	p.stop, p.done, p.listening = nil, nil, ""
 	p.mu.Unlock()
 	if stop == nil {
 		return nil
@@ -531,6 +613,13 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.backups != nil {
 		s.backups.Recover(ctx)
 	}
+	// An install's first alert rules are there before the API answers, so what
+	// lists rules or changes reads them from the first request (ADR 0044).
+	if s.alerts != nil {
+		if err := s.alerts.MakeDefaults(ctx); err != nil && ctx.Err() == nil {
+			s.logger.ErrorContext(ctx, "can't make the install's first alert rules; it tries again at the next start", slog.String("error", err.Error()))
+		}
+	}
 	apiCtx, stopAPI := context.WithCancel(ctx)
 	defer stopAPI()
 	agentCtx, stopAgents := context.WithCancel(context.WithoutCancel(ctx))
@@ -556,8 +645,14 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.logs != nil {
 		api.Go(func() { s.logs.KeepTelling(apiCtx) })
 	}
+	if s.alerts != nil && !s.manualAlerts {
+		api.Go(func() { s.alerts.Run(apiCtx) })
+	}
 	if s.backups != nil {
 		api.Go(func() { s.backups.KeepRunning(apiCtx) })
+	}
+	if s.tasks != nil {
+		s.tasks.Start(apiCtx)
 	}
 	if ls.Ingress != nil {
 		run(func() error {
@@ -601,4 +696,24 @@ func fleetOf(cfg Config) domains.Servers {
 		return nil
 	}
 	return cfg.Fleet
+}
+
+// agentURLs says where agents reach the control plane, as its authority records it:
+// on the control server's own network, and from elsewhere.
+func agentURLs(a *identity.Authority) func(ctx context.Context) (string, []string, error) {
+	return func(ctx context.Context) (string, []string, error) {
+		local, err := a.AgentURL(ctx)
+		if err != nil {
+			return "", nil, err
+		}
+		public, err := a.PublicAgentURLs(ctx)
+		if err != nil {
+			return "", nil, err
+		}
+		urls := make([]string, 0, len(public))
+		for _, u := range public {
+			urls = append(urls, u.URL)
+		}
+		return local, urls, nil
+	}
 }

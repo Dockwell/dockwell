@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -352,12 +353,17 @@ func TestAFailedDeployShowsAsRolledBack(t *testing.T) {
 			t.Errorf("after the rollback the service is %v", after)
 		}
 		// The API says how it went, and what it put back, for a panel and a CLI that won't guess:
-		// nothing, as this one rolled, so what ran never stopped.
-		read, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: deployed.Msg.GetChange().GetId()}))
-		if err != nil {
-			t.Fatal(err)
-		}
-		status := read.Msg.GetChange().GetRollbackStatus()
+		// nothing, as this one rolled, so what ran never stopped. The rollback's own record says
+		// applied a moment after the service is live again, so wait for that too.
+		var status *dockwellv1.RollbackStatus
+		waitFor(t, "the rollback's record to say how it ended", func() bool {
+			read, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: deployed.Msg.GetChange().GetId()}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			status = read.Msg.GetChange().GetRollbackStatus()
+			return status.GetState() != dockwellv1.RollbackState_ROLLBACK_STATE_APPLYING
+		})
 		if status.GetId() != got.GetRolledBackBy() || status.GetState() != dockwellv1.RollbackState_ROLLBACK_STATE_APPLIED || status.GetSteps() != 1 || len(status.GetRestored()) != 0 {
 			t.Errorf("the rollback's status is %v", status)
 		}
@@ -596,6 +602,227 @@ func TestAPlanReadsWhereASymlinkLeads(t *testing.T) {
 		}
 		if a := got[site]; a == nil || !a.GetSameAsRoot() || a.GetLeadsTo() != "/run/docker.sock" || a.GetKind() != dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_SOCKET {
 			t.Errorf("a symlink to Docker's socket reads %v", a)
+		}
+	})
+}
+
+// The panel edits a service it can't read all of: no response carries the
+// values of its own environment, so an edit names those it keeps, and sends
+// the rest as it read it, from the revision it read. What came between makes
+// it stale, rather than undone. ListServices says what it reaches on the
+// server, so an editor can say a passkey is coming before it plans.
+func TestEditingAServiceWithoutReadingItBack(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		e := f.addDockerServer(t)
+		c := changeClient(b, b.origin)
+		s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+		const secret = "s3cret-pw"
+
+		first := serviceEdit("shop", "ghcr.io/acme/shop:1.4", map[string]string{"API_KEY": secret, "LOG_LEVEL": "info"})
+		first.GetSpec().GetService().GetApp().CapAdd = []string{"NET_ADMIN"}
+		made, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Run the shop", Edits: []*dockwellv1.Edit{first}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := applied(t, c, made.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the first deploy ended %v: %s", got.GetState(), got.GetError())
+		}
+		info := onlyService(t, s)
+		if a := info.GetHostAccess(); len(a) != 1 || a[0].GetKind() != dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY || a[0].GetPath() != "NET_ADMIN" || a[0].GetSameAsRoot() {
+			t.Errorf("ListServices says it reaches %v, want the capability NET_ADMIN, short of root", a)
+		}
+
+		// What the panel sends: the spec as it read it, changed, keeping API_KEY,
+		// dropping LOG_LEVEL and adding DEBUG.
+		edited := func(keep ...string) *dockwellv1.Edit {
+			spec := proto.Clone(info.GetSpec()).(*resourcev1.Service)
+			spec.GetApp().Command = []string{"shop", "serve"}
+			spec.GetApp().Env = map[string]string{"DEBUG": "1"}
+			return &dockwellv1.Edit{
+				Resource:     info.GetResource(),
+				Spec:         &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
+				BaseRevision: info.GetRevision(),
+				KeepEnv:      keep,
+			}
+		}
+		propose := func(edit *dockwellv1.Edit) (*dockwellv1.Change, error) {
+			res, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Serve the shop", Edits: []*dockwellv1.Edit{edit}}))
+			if err != nil {
+				return nil, err
+			}
+			return res.Msg.GetChange(), nil
+		}
+		for _, tc := range []struct {
+			name string
+			edit *dockwellv1.Edit
+			want string
+		}{
+			{"one it hasn't got", edited("API_KEY", "NOPE"), "has no environment variable NOPE of its own"},
+			{"one it sets too", edited("DEBUG"), "has no environment variable DEBUG"},
+			{"one twice", edited("API_KEY", "API_KEY"), "names API_KEY twice"},
+		} {
+			if _, err := propose(tc.edit); reasonOf(err) != "invalid" || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("keeping %s = %v, want %q", tc.name, err, tc.want)
+			}
+		}
+		sets := edited("LOG_LEVEL")
+		sets.GetSpec().GetService().GetApp().Env["LOG_LEVEL"] = "debug"
+		if _, err := propose(sets); reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "both sets and keeps LOG_LEVEL") {
+			t.Errorf("setting and keeping one = %v", err)
+		}
+		other := serviceEdit("cart", "ghcr.io/acme/cart:1", nil)
+		other.KeepEnv = []string{"API_KEY"}
+		// There's nothing to have read it from, so no revision to name.
+		if _, err := propose(other); reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "says no base_revision") {
+			t.Errorf("keeping on a new service = %v", err)
+		}
+
+		change, err := propose(edited("API_KEY"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(change.String(), secret) {
+			t.Error("the plan carries the value it kept")
+		}
+		var said []string
+		for _, n := range change.GetPlan().GetNotes() {
+			said = append(said, n.GetMessage())
+		}
+		if !slices.Contains(said, "shop keeps the value of API_KEY as it is, as nobody read it back") {
+			t.Errorf("the plan says %q, want what it keeps", said)
+		}
+		if got := applied(t, c, change); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the edit ended %v: %s", got.GetState(), got.GetError())
+		}
+		ct := e.Serving(docker.Project(info.GetResource().GetScope()) + "-shop-1")
+		if ct == nil {
+			t.Fatal("Docker runs no shop")
+		}
+		if !hasEnv(ct.Config.Env, "API_KEY="+secret) || !hasEnv(ct.Config.Env, "DEBUG=1") || slices.ContainsFunc(ct.Config.Env, func(v string) bool { return strings.HasPrefix(v, "LOG_LEVEL=") }) {
+			t.Errorf("Docker runs it with %v, want API_KEY kept, DEBUG added and LOG_LEVEL gone", ct.Config.Env)
+		}
+		if !slices.Equal(ct.Config.Cmd, []string{"shop", "serve"}) {
+			t.Errorf("Docker runs %v", ct.Config.Cmd)
+		}
+
+		// Planned from the revision before, it would undo the edit that came between.
+		if _, err := propose(edited("API_KEY")); reasonOf(err) != "plan_stale" {
+			t.Errorf("an edit from revision %d, after revision %d = %v, want it stale", info.GetRevision(), onlyService(t, s).GetRevision(), err)
+		}
+		bad := edited()
+		bad.BaseRevision = -1
+		if _, err := propose(bad); reasonOf(err) != "invalid" {
+			t.Errorf("a base revision of -1 = %v", err)
+		}
+		// Keeping from no revision would undo whatever changed since the read.
+		unread := edited("API_KEY")
+		unread.BaseRevision = 0
+		if _, err := propose(unread); reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "Pass the revision ListServices gave as base_revision") {
+			t.Errorf("keeping with no base revision = %v", err)
+		}
+		gone := &dockwellv1.Edit{Resource: info.GetResource(), Delete: true, KeepEnv: []string{"API_KEY"}}
+		if _, err := propose(gone); reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "deletes, and keeps environment variables too") {
+			t.Errorf("keeping on a delete = %v", err)
+		}
+	})
+}
+
+// A value an edit keeps goes nowhere it hasn't been (ADR 0022): it can't take the
+// service to another server, on a plan alone. Set again in the edit, it can.
+func TestAKeptValueGoesToNoNewServer(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		const secret = "kept-s3cret-9Qz"
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		f.addServerNamed(t, "hz-1", nil, nil)
+		one := f.lastDocker.id.ServerID
+		f.addServerNamed(t, "hz-2", nil, nil)
+		two := f.lastDocker.id.ServerID
+		c := changeClient(b, b.origin)
+		s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+
+		first := serviceEdit("shop", "ghcr.io/acme/shop:1.4", map[string]string{"API_KEY": secret})
+		first.Servers = []string{one}
+		made, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Run the shop", Edits: []*dockwellv1.Edit{first}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := applied(t, c, made.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the first deploy ended %v: %s", got.GetState(), got.GetError())
+		}
+		info := onlyService(t, s)
+		move := func(keep bool, servers ...string) error {
+			spec := proto.Clone(info.GetSpec()).(*resourcev1.Service)
+			spec.GetApp().Env = map[string]string{"API_KEY": "set-again"}
+			edit := &dockwellv1.Edit{
+				Resource:     info.GetResource(),
+				Spec:         &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
+				BaseRevision: info.GetRevision(),
+				Servers:      servers,
+			}
+			if keep {
+				spec.GetApp().Env = nil
+				edit.KeepEnv = []string{"API_KEY"}
+			}
+			_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Move the shop", Edits: []*dockwellv1.Edit{edit}}))
+			return err
+		}
+		for _, servers := range [][]string{{one, two}, {two}} {
+			err := move(true, servers...)
+			if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "can't go on hz-2") || !strings.Contains(err.Error(), "Set them again in the edit to run it there") {
+				t.Errorf("keeping it, onto %v = %v, want it refused, saying what to do", servers, err)
+			}
+			if err != nil && strings.Contains(err.Error(), secret) {
+				t.Errorf("the refusal holds the value: %v", err)
+			}
+		}
+		if err := move(true, one); err != nil {
+			t.Errorf("keeping it where it runs = %v", err)
+		}
+		if err := move(false, one, two); err != nil {
+			t.Errorf("setting it again, onto both = %v", err)
+		}
+	})
+}
+
+// ListServices says what a service reaches as its plan does: through a volume it
+// mounts too, so an editor never says no passkey is coming when one is.
+func TestListServicesSaysWhatAMountedVolumeReaches(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		f.addDockerServer(t)
+		c := changeClient(b, b.origin)
+		s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+		volume := &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "volume", Name: "host-etc"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Volume{Volume: &resourcev1.Volume{
+				Options: map[string]string{"type": "none", "o": "bind", "device": "/etc"},
+			}}},
+		}
+		reader := serviceEdit("reader", "ghcr.io/acme/shop:1.4", nil)
+		reader.GetSpec().GetService().GetApp().Mounts = []*resourcev1.Mount{
+			{Source: &resourcev1.Mount_Volume{Volume: "host-etc"}, Target: "/host-etc", ReadOnly: true},
+		}
+		made, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Read the host", Edits: []*dockwellv1.Edit{volume, reader}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !made.Msg.GetChange().GetPlan().GetHostAccess() {
+			t.Fatal("the plan doesn't say it reaches the server")
+		}
+		applyAsRoot(t, b, made.Msg.GetChange())
+		info := onlyService(t, s)
+		var root []string
+		for _, a := range info.GetHostAccess() {
+			if a.GetSameAsRoot() {
+				root = append(root, a.GetPath())
+			}
+		}
+		if !slices.Equal(root, []string{"/etc"}) {
+			t.Errorf("ListServices says it reaches %v as root, want /etc, through the volume it mounts", info.GetHostAccess())
 		}
 	})
 }

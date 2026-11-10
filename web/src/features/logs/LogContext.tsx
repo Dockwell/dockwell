@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { timestampFromMs } from "@bufbuild/protobuf/wkt";
+import { create } from "@bufbuild/protobuf";
+import { type Timestamp, TimestampSchema, timestampMs } from "@bufbuild/protobuf/wkt";
 import { ConnectError, createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { LogService, type LogSource } from "@dockwell/api";
+import { type LogChunk, LogService, type LogSource } from "@dockwell/api";
 import { Callout, LogStream, type LogStreamHandle, Sheet } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -16,7 +17,32 @@ import { replicaLabel, selectionText } from "./words";
 /** How far around a match to read, and how many lines at most, as a reader wants what led to it. */
 const BEFORE_MS = 60_000;
 const AFTER_MS = 5_000;
-const LINES = 500;
+const BEFORE_LINES = 400;
+const AFTER_LINES = 200;
+/** How many times to narrow what comes after, when the seconds after hold more than a page. */
+const NARROWINGS = 4;
+
+/** A time to the nanosecond, from milliseconds and the nanoseconds within their second, moved on by some. */
+function timeOf(ms: number, nanos: number, plus = 0): Timestamp {
+  const total = BigInt(Math.floor(ms / 1000)) * 1_000_000_000n + BigInt(nanos) + BigInt(plus);
+  return create(TimestampSchema, { seconds: total / 1_000_000_000n, nanos: Number(total % 1_000_000_000n) });
+}
+
+/** How many lines chunks hold, and the time of the oldest, which a page of them reaches back to. */
+function reach(chunks: readonly LogChunk[]): { lines: number; oldest: number | undefined } {
+  let lines = 0;
+  let oldest: number | undefined;
+  for (const chunk of chunks) {
+    for (const line of chunk.lines) {
+      lines++;
+      if (line.time) {
+        const at = timestampMs(line.time);
+        if (oldest === undefined || at < oldest) oldest = at;
+      }
+    }
+  }
+  return { lines, oldest };
+}
 
 /**
  * The lines around a match: a stack frame on its own says little. It reads them
@@ -52,25 +78,32 @@ export function LogContext({
 
   useEffect(() => {
     const abort = new AbortController();
-    void createClient(LogService, transport)
-      .readLogs(
-        {
-          id,
-          server,
-          sourceIds: [entry.source],
-          since: timestampFromMs(entry.ms - BEFORE_MS),
-          until: timestampFromMs(entry.ms + AFTER_MS),
-          pageSize: LINES,
-        },
-        { signal: abort.signal },
-      )
-      .then((res) => {
-        store.addOlder(res.chunks);
+    const client = createClient(LogService, transport);
+    const read = (since: Timestamp, until: Timestamp, pageSize: number) =>
+      client.readLogs({ id, server, sourceIds: [entry.source], since, until, pageSize }, { signal: abort.signal });
+    const at = (plus: number) => timeOf(entry.ms, entry.nanos, plus);
+    void (async () => {
+      try {
+        // A page is the newest of what its window holds, so one window that ended
+        // seconds after the line could hold only what came after, in a busy log.
+        // What led to it ends at it, and so holds it, however busy the seconds after.
+        const before = await read(timeOf(entry.ms - BEFORE_MS, entry.nanos), at(0), BEFORE_LINES);
+        // What came after starts just after it, and narrows until a page reaches back to it.
+        let span = AFTER_MS * 1_000_000;
+        let after = await read(at(1), at(span), AFTER_LINES);
+        for (let i = 0; i < NARROWINGS; i++) {
+          const { lines, oldest } = reach(after.chunks);
+          if (lines < AFTER_LINES || oldest === undefined) break;
+          const held = Math.max(1, Math.round((oldest - entry.ms) * 1_000_000));
+          span = Math.max(1, Math.min(span - 1, span - held));
+          after = await read(at(1), at(span), AFTER_LINES);
+        }
+        store.addOlder([...before.chunks, ...after.chunks]);
         setDone(true);
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         if (!abort.signal.aborted) setError(ConnectError.from(err));
-      });
+      }
+    })();
     return () => abort.abort();
   }, [store, id, server, entry, transport]);
 

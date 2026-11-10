@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -27,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/terminal"
 	agentupdates "github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/backup"
@@ -46,6 +48,7 @@ import (
 	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
+	"github.com/dockwell/dockwell/internal/task"
 )
 
 // gate is a firewall whose rule "slow" takes until its call is cancelled,
@@ -79,9 +82,14 @@ type testServer struct {
 	logs    agent.LogReader
 	// client is the Docker its agent lists containers from, when it has one.
 	client *docker.Client
-	stop   func()
+	// userDir is where its agent keeps what each database user was given.
+	userDir string
+	stop    func()
 	// hello changes what its agent says of itself, to stand in for another version.
 	hello func(*agentv1.Hello)
+	// probe answers what a website's server is asked of what it sends to, as a
+	// test asks nothing beyond this machine. Nil answers everything.
+	probe func(context.Context, *agentv1.ProbeCall) *agentv1.ProbeResult
 	// health says how its services are, when set.
 	health agent.HealthReporter
 	// disk reads its files. dataDir is what that takes for Dockwell's directory.
@@ -91,6 +99,14 @@ type testServer struct {
 	backups *backup.Runner
 	// updates reads its package updates, when set.
 	updates *agentupdates.Reader
+	// onePanel reads what 1Panel keeps on it, when set.
+	onePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
+	// tasks runs its scheduled tasks, when it has Docker.
+	tasks *task.Driver
+	// mounts stands in for the kernel's lists of what's mounted, for its fake Docker.
+	mounts agent.MountTable
+	// terms opens its terminals, as /bin/sh in a directory of its own.
+	terms *terminal.Manager
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -118,6 +134,7 @@ func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool)
 		dataDir: t.TempDir(),
 	}
 	s.disk = agentfiles.New(s.dataDir, nil, nil)
+	s.terms = terminal.New(terminal.Options{Shell: []string{"/bin/sh"}, Home: t.TempDir()})
 	if withDrivers {
 		containers := container.Driver{Runtime: s.docker, RecreateDowntime: 2 * time.Second}
 		s.drivers = resource.NewRegistry(&containers, &firewall.Driver{Backend: s.fw}, &service.Driver{Containers: containers})
@@ -129,6 +146,18 @@ func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool)
 // connect runs the server's agent until stop, and waits for it.
 func (s *testServer) connect(t *testing.T, f *fullServer) {
 	t.Helper()
+	s.run(t)
+	waitConnected(t, f, s.id.ServerID, true)
+}
+
+// run runs the server's agent until stop, whether or not the control plane takes it.
+func (s *testServer) run(t *testing.T) {
+	t.Helper()
+	if s.terms == nil && s.client != nil {
+		s.terms = terminal.New(terminal.Options{
+			Shell: []string{"/bin/sh"}, Home: t.TempDir(), Docker: s.client, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(s.drivers, s.client, agent.FollowPaths, s.mounts),
+		})
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	// It says nothing of the world, whatever machine the test runs on.
@@ -137,13 +166,20 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	cfg := agent.Config{
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates,
+		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, OnePanel: s.onePanel, Terminals: s.terms,
+	}
+	if cfg.Probe == nil {
+		cfg.Probe = answersEverything
 	}
 	if s.backups != nil {
 		cfg.Backups = backup.Calls{Runner: s.backups}
 	}
 	if s.client != nil {
 		cfg.Databases = database.Reader{Client: s.client}
+	}
+	if s.tasks != nil {
+		cfg.Tasks = s.tasks
+		go s.tasks.Keep(ctx)
 	}
 	go func() {
 		_ = agent.Run(ctx, cfg)
@@ -152,7 +188,14 @@ func (s *testServer) connect(t *testing.T, f *fullServer) {
 	var once sync.Once
 	s.stop = func() { once.Do(func() { cancel(); <-done }) }
 	t.Cleanup(s.stop)
-	waitConnected(t, f, s.id.ServerID, true)
+}
+
+// answersEverything stands in for a probe that found everything answering.
+func answersEverything(_ context.Context, call *agentv1.ProbeCall) *agentv1.ProbeResult {
+	if call.GetPort() != 0 {
+		return &agentv1.ProbeResult{Answered: true, Said: fmt.Sprintf("something listens on port %d", call.GetPort())}
+	}
+	return &agentv1.ProbeResult{Answered: true, Said: "200 OK"}
 }
 
 func waitConnected(t *testing.T, f *fullServer, server string, connected bool) {
@@ -456,8 +499,9 @@ func testPlanApplyAndUndoThroughTheAPI(t *testing.T, backend store.Backend) {
 			break
 		}
 	}
-	if len(all) != 5 || all[0].GetId() != undo.GetId() || all[4].GetProposedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL {
-		t.Errorf("ListChanges gave %d changes, newest %s; want 5, newest %s, oldest by Dockwell", len(all), all[0].GetId(), undo.GetId())
+	// The oldest two are Dockwell's own: the default project, and the first alert rules.
+	if len(all) != 6 || all[0].GetId() != undo.GetId() || all[4].GetProposedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL || all[5].GetProposedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL {
+		t.Errorf("ListChanges gave %d changes, newest %s; want 6, newest %s, the oldest two by Dockwell", len(all), all[0].GetId(), undo.GetId())
 	}
 
 	// The audit log has each step for the timeline: the change, who, from

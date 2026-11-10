@@ -141,6 +141,7 @@ export function LogFoot({
   following,
   rangeLabel,
   rangeEnd,
+  rangeFixed,
   levelFiltered,
   phone,
   onPause,
@@ -155,6 +156,8 @@ export function LogFoot({
   following: boolean;
   rangeLabel: string;
   rangeEnd: number;
+  /** The range ends where it ends, as one this view missed while away does: refreshing adds nothing newer. */
+  rangeFixed?: boolean;
   levelFiltered: boolean;
   phone: boolean;
   onPause: () => void;
@@ -164,6 +167,9 @@ export function LogFoot({
   const rate = useOncePerSecond(store, live);
   // What a new search found as soon as it's known, and not with each batch of lines.
   useSyncExternalStore(store.subscribe, () => store.epoch);
+  // When a pause took hold, as soon as it does: the page pauses in the render before
+  // the store holds still, and a pause's time isn't news once a second.
+  useSyncExternalStore(store.subscribe, () => store.heldSince);
   let words: ReactNode = null;
   if (stale) {
     words = <Trans>Press Enter to search all the servers keep.</Trans>;
@@ -190,7 +196,11 @@ export function LogFoot({
     });
   } else if (rangeLabel) {
     const to = clockMinutes(rangeEnd);
-    words = (
+    words = rangeFixed ? (
+      <Trans>
+        {rangeLabel}, to {to}.
+      </Trans>
+    ) : (
       <Trans>
         {rangeLabel}, to {to}. Refresh for newer lines.
       </Trans>

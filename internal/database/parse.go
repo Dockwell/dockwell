@@ -166,6 +166,10 @@ func firstWord(s string) string {
 // mysqlSystem are the schemas MySQL and MariaDB keep for themselves.
 var mysqlSystem = []string{"information_schema", "mysql", "performance_schema", "sys"}
 
+// grantedName is the database a grant names, without the escapes that keep it from
+// being a pattern.
+var grantedName = strings.NewReplacer(`\_`, "_", `\%`, "%")
+
 // mysqlSystemUser says a user is one MySQL, MariaDB or its image made for itself.
 func mysqlSystemUser(e *Engine, name string) bool {
 	return strings.HasPrefix(name, "mysql.") || name == "mariadb.sys" ||
@@ -210,8 +214,10 @@ func parseMySQL(e *Engine, said []byte) (*dockwellv1.DatabaseReading, error) {
 				r.Users = append(r.Users, u)
 			}
 		case f[0] == "g" && len(f) == 4:
-			if u := byUser[f[1]+"@"+f[2]]; u != nil && !slices.Contains(u.Databases, f[3]) {
-				u.Databases = append(u.Databases, f[3])
+			// A grant on one database escapes the _ and % that would make its name a pattern.
+			db := grantedName.Replace(f[3])
+			if u := byUser[f[1]+"@"+f[2]]; u != nil && !slices.Contains(u.Databases, db) {
+				u.Databases = append(u.Databases, db)
 			}
 		case len(f) == 2:
 			n, err := strconv.ParseInt(f[1], 10, 64)

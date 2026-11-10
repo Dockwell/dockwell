@@ -589,6 +589,13 @@ type DatabaseAccount struct {
 	Databases []string `protobuf:"bytes,5,rep,name=databases,proto3" json:"databases,omitempty"`
 	// True for one the server made for itself, such as mysql.sys.
 	System bool `protobuf:"varint,6,opt,name=system,proto3" json:"system,omitempty"`
+	// For a user Dockwell made, a resource of kind "database.user": the secret their
+	// password is in, by name.
+	Secret string `protobuf:"bytes,7,opt,name=secret,proto3" json:"secret,omitempty"`
+	// The services that use that secret, by name, which are what signs in as them.
+	UsedBy []string `protobuf:"bytes,8,rep,name=used_by,json=usedBy,proto3" json:"used_by,omitempty"`
+	// The resource's ID, for a user Dockwell made.
+	ResourceId string `protobuf:"bytes,9,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
 	// The database they sign in to, for MongoDB, as an app names it in authSource,
 	// such as "admin" for its root user.
 	AuthDatabase  string `protobuf:"bytes,10,opt,name=auth_database,json=authDatabase,proto3" json:"auth_database,omitempty"`
@@ -666,6 +673,27 @@ func (x *DatabaseAccount) GetSystem() bool {
 		return x.System
 	}
 	return false
+}
+
+func (x *DatabaseAccount) GetSecret() string {
+	if x != nil {
+		return x.Secret
+	}
+	return ""
+}
+
+func (x *DatabaseAccount) GetUsedBy() []string {
+	if x != nil {
+		return x.UsedBy
+	}
+	return nil
+}
+
+func (x *DatabaseAccount) GetResourceId() string {
+	if x != nil {
+		return x.ResourceId
+	}
+	return ""
 }
 
 func (x *DatabaseAccount) GetAuthDatabase() string {
@@ -824,6 +852,149 @@ func (x *GetDatabaseRequest) GetEnvironment() string {
 	return ""
 }
 
+// CreateDatabaseUserRequest names a database server, and the user and database to
+// make in it.
+type CreateDatabaseUserRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service that runs it, by ID or by name.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The user's name, such as "shop": lowercase letters, digits and underscores,
+	// starting with a letter, at most 32.
+	User string `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	// The database they own, named as a user is. Empty takes the user's name.
+	Database string `protobuf:"bytes,3,opt,name=database,proto3" json:"database,omitempty"`
+	// The secret their password goes in, such as "SHOP_DATABASE_PASSWORD". Empty
+	// takes the user's name in capitals, then "_DATABASE_PASSWORD". It must not be
+	// there already.
+	Secret string `protobuf:"bytes,4,opt,name=secret,proto3" json:"secret,omitempty"`
+	// The project of a service named by name, by name or ID, when more than one has a
+	// service of that name.
+	Project string `protobuf:"bytes,5,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment of a service named by name, by name or ID, when its project has
+	// more than one.
+	Environment   string `protobuf:"bytes,6,opt,name=environment,proto3" json:"environment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateDatabaseUserRequest) Reset() {
+	*x = CreateDatabaseUserRequest{}
+	mi := &file_dockwell_v1_database_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateDatabaseUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateDatabaseUserRequest) ProtoMessage() {}
+
+func (x *CreateDatabaseUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_database_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateDatabaseUserRequest.ProtoReflect.Descriptor instead.
+func (*CreateDatabaseUserRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CreateDatabaseUserRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CreateDatabaseUserRequest) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *CreateDatabaseUserRequest) GetDatabase() string {
+	if x != nil {
+		return x.Database
+	}
+	return ""
+}
+
+func (x *CreateDatabaseUserRequest) GetSecret() string {
+	if x != nil {
+		return x.Secret
+	}
+	return ""
+}
+
+func (x *CreateDatabaseUserRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *CreateDatabaseUserRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+// CreateDatabaseUserResponse carries the planned change.
+type CreateDatabaseUserResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The change, planned, with its plan.
+	Change        *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateDatabaseUserResponse) Reset() {
+	*x = CreateDatabaseUserResponse{}
+	mi := &file_dockwell_v1_database_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateDatabaseUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateDatabaseUserResponse) ProtoMessage() {}
+
+func (x *CreateDatabaseUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_database_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateDatabaseUserResponse.ProtoReflect.Descriptor instead.
+func (*CreateDatabaseUserResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *CreateDatabaseUserResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
 // GetDatabaseResponse is one database.
 type GetDatabaseResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -835,7 +1006,7 @@ type GetDatabaseResponse struct {
 
 func (x *GetDatabaseResponse) Reset() {
 	*x = GetDatabaseResponse{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[7]
+	mi := &file_dockwell_v1_database_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -847,7 +1018,7 @@ func (x *GetDatabaseResponse) String() string {
 func (*GetDatabaseResponse) ProtoMessage() {}
 
 func (x *GetDatabaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[7]
+	mi := &file_dockwell_v1_database_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -860,7 +1031,7 @@ func (x *GetDatabaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDatabaseResponse.ProtoReflect.Descriptor instead.
 func (*GetDatabaseResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetDatabaseResponse) GetDatabase() *Database {
@@ -923,14 +1094,18 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x05owner\x18\x02 \x01(\tR\x05owner\x12\x1d\n" +
 	"\n" +
 	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x16\n" +
-	"\x06system\x18\x04 \x01(\bR\x06system\"\xd2\x01\n" +
+	"\x06system\x18\x04 \x01(\bR\x06system\"\xa4\x02\n" +
 	"\x0fDatabaseAccount\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04host\x18\x02 \x01(\tR\x04host\x12\x1c\n" +
 	"\tsuperuser\x18\x03 \x01(\bR\tsuperuser\x12\x1e\n" +
 	"\vcan_sign_in\x18\x04 \x01(\bR\tcanSignIn\x12\x1c\n" +
 	"\tdatabases\x18\x05 \x03(\tR\tdatabases\x12\x16\n" +
-	"\x06system\x18\x06 \x01(\bR\x06system\x12#\n" +
+	"\x06system\x18\x06 \x01(\bR\x06system\x12\x16\n" +
+	"\x06secret\x18\a \x01(\tR\x06secret\x12\x17\n" +
+	"\aused_by\x18\b \x03(\tR\x06usedBy\x12\x1f\n" +
+	"\vresource_id\x18\t \x01(\tR\n" +
+	"resourceId\x12#\n" +
 	"\rauth_database\x18\n" +
 	" \x01(\tR\fauthDatabase\"\x16\n" +
 	"\x14ListDatabasesRequest\"L\n" +
@@ -939,7 +1114,16 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x12GetDatabaseRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
-	"\venvironment\x18\x03 \x01(\tR\venvironment\"H\n" +
+	"\venvironment\x18\x03 \x01(\tR\venvironment\"\xc2\x01\n" +
+	"\x19CreateDatabaseUserRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04user\x18\x02 \x01(\tR\x04user\x12-\n" +
+	"\bdatabase\x18\x03 \x01(\tB\x11\xa2\xbb\x18\rdatabase-nameR\bdatabase\x12\x16\n" +
+	"\x06secret\x18\x04 \x01(\tR\x06secret\x12\x18\n" +
+	"\aproject\x18\x05 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x06 \x01(\tR\venvironment\"I\n" +
+	"\x1aCreateDatabaseUserResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"H\n" +
 	"\x13GetDatabaseResponse\x121\n" +
 	"\bdatabase\x18\x01 \x01(\v2\x15.dockwell.v1.DatabaseR\bdatabase*\xa9\x02\n" +
 	"\x0eDatabaseEngine\x12\x1f\n" +
@@ -951,10 +1135,12 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x15DATABASE_ENGINE_REDIS\x10\x04\x1a\t\xa2\xbb\x18\x05Redis\x12&\n" +
 	"\x16DATABASE_ENGINE_VALKEY\x10\x05\x1a\n" +
 	"\xa2\xbb\x18\x06Valkey\x12(\n" +
-	"\x17DATABASE_ENGINE_MONGODB\x10\x06\x1a\v\xa2\xbb\x18\aMongoDB2\xfc\x01\n" +
+	"\x17DATABASE_ENGINE_MONGODB\x10\x06\x1a\v\xa2\xbb\x18\aMongoDB2\x9b\x03\n" +
 	"\x0fDatabaseService\x12t\n" +
 	"\rListDatabases\x12!.dockwell.v1.ListDatabasesRequest\x1a\".dockwell.v1.ListDatabasesResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/databases\x90\x02\x01\x12s\n" +
-	"\vGetDatabase\x12\x1f.dockwell.v1.GetDatabaseRequest\x1a .dockwell.v1.GetDatabaseResponse\"!\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/databases/{id}\x90\x02\x01B\xa6\x01\n" +
+	"\vGetDatabase\x12\x1f.dockwell.v1.GetDatabaseRequest\x1a .dockwell.v1.GetDatabaseResponse\"!\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/databases/{id}\x90\x02\x01\x12\x9c\x01\n" +
+	"\x12CreateDatabaseUser\x12&.dockwell.v1.CreateDatabaseUserRequest\x1a'.dockwell.v1.CreateDatabaseUserResponse\"5\xa0\xbb\x18\x02\xaa\xbb\x18\n" +
+	"\x12\badd-user\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/databases/{id}/usersB\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rDatabaseProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -970,41 +1156,47 @@ func file_dockwell_v1_database_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_database_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_dockwell_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_dockwell_v1_database_proto_goTypes = []any{
-	(DatabaseEngine)(0),           // 0: dockwell.v1.DatabaseEngine
-	(*Database)(nil),              // 1: dockwell.v1.Database
-	(*DatabaseReading)(nil),       // 2: dockwell.v1.DatabaseReading
-	(*InnerDatabase)(nil),         // 3: dockwell.v1.InnerDatabase
-	(*DatabaseAccount)(nil),       // 4: dockwell.v1.DatabaseAccount
-	(*ListDatabasesRequest)(nil),  // 5: dockwell.v1.ListDatabasesRequest
-	(*ListDatabasesResponse)(nil), // 6: dockwell.v1.ListDatabasesResponse
-	(*GetDatabaseRequest)(nil),    // 7: dockwell.v1.GetDatabaseRequest
-	(*GetDatabaseResponse)(nil),   // 8: dockwell.v1.GetDatabaseResponse
-	(*ResourceRef)(nil),           // 9: dockwell.v1.ResourceRef
-	(*Backup)(nil),                // 10: dockwell.v1.Backup
-	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
+	(DatabaseEngine)(0),                // 0: dockwell.v1.DatabaseEngine
+	(*Database)(nil),                   // 1: dockwell.v1.Database
+	(*DatabaseReading)(nil),            // 2: dockwell.v1.DatabaseReading
+	(*InnerDatabase)(nil),              // 3: dockwell.v1.InnerDatabase
+	(*DatabaseAccount)(nil),            // 4: dockwell.v1.DatabaseAccount
+	(*ListDatabasesRequest)(nil),       // 5: dockwell.v1.ListDatabasesRequest
+	(*ListDatabasesResponse)(nil),      // 6: dockwell.v1.ListDatabasesResponse
+	(*GetDatabaseRequest)(nil),         // 7: dockwell.v1.GetDatabaseRequest
+	(*CreateDatabaseUserRequest)(nil),  // 8: dockwell.v1.CreateDatabaseUserRequest
+	(*CreateDatabaseUserResponse)(nil), // 9: dockwell.v1.CreateDatabaseUserResponse
+	(*GetDatabaseResponse)(nil),        // 10: dockwell.v1.GetDatabaseResponse
+	(*ResourceRef)(nil),                // 11: dockwell.v1.ResourceRef
+	(*Backup)(nil),                     // 12: dockwell.v1.Backup
+	(*timestamppb.Timestamp)(nil),      // 13: google.protobuf.Timestamp
+	(*Change)(nil),                     // 14: dockwell.v1.Change
 }
 var file_dockwell_v1_database_proto_depIdxs = []int32{
-	9,  // 0: dockwell.v1.Database.resource:type_name -> dockwell.v1.ResourceRef
+	11, // 0: dockwell.v1.Database.resource:type_name -> dockwell.v1.ResourceRef
 	0,  // 1: dockwell.v1.Database.engine:type_name -> dockwell.v1.DatabaseEngine
 	2,  // 2: dockwell.v1.Database.readings:type_name -> dockwell.v1.DatabaseReading
-	10, // 3: dockwell.v1.Database.newest_backup:type_name -> dockwell.v1.Backup
-	10, // 4: dockwell.v1.Database.latest_backup:type_name -> dockwell.v1.Backup
-	11, // 5: dockwell.v1.DatabaseReading.read_time:type_name -> google.protobuf.Timestamp
+	12, // 3: dockwell.v1.Database.newest_backup:type_name -> dockwell.v1.Backup
+	12, // 4: dockwell.v1.Database.latest_backup:type_name -> dockwell.v1.Backup
+	13, // 5: dockwell.v1.DatabaseReading.read_time:type_name -> google.protobuf.Timestamp
 	3,  // 6: dockwell.v1.DatabaseReading.databases:type_name -> dockwell.v1.InnerDatabase
 	4,  // 7: dockwell.v1.DatabaseReading.users:type_name -> dockwell.v1.DatabaseAccount
 	1,  // 8: dockwell.v1.ListDatabasesResponse.databases:type_name -> dockwell.v1.Database
-	1,  // 9: dockwell.v1.GetDatabaseResponse.database:type_name -> dockwell.v1.Database
-	5,  // 10: dockwell.v1.DatabaseService.ListDatabases:input_type -> dockwell.v1.ListDatabasesRequest
-	7,  // 11: dockwell.v1.DatabaseService.GetDatabase:input_type -> dockwell.v1.GetDatabaseRequest
-	6,  // 12: dockwell.v1.DatabaseService.ListDatabases:output_type -> dockwell.v1.ListDatabasesResponse
-	8,  // 13: dockwell.v1.DatabaseService.GetDatabase:output_type -> dockwell.v1.GetDatabaseResponse
-	12, // [12:14] is the sub-list for method output_type
-	10, // [10:12] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	14, // 9: dockwell.v1.CreateDatabaseUserResponse.change:type_name -> dockwell.v1.Change
+	1,  // 10: dockwell.v1.GetDatabaseResponse.database:type_name -> dockwell.v1.Database
+	5,  // 11: dockwell.v1.DatabaseService.ListDatabases:input_type -> dockwell.v1.ListDatabasesRequest
+	7,  // 12: dockwell.v1.DatabaseService.GetDatabase:input_type -> dockwell.v1.GetDatabaseRequest
+	8,  // 13: dockwell.v1.DatabaseService.CreateDatabaseUser:input_type -> dockwell.v1.CreateDatabaseUserRequest
+	6,  // 14: dockwell.v1.DatabaseService.ListDatabases:output_type -> dockwell.v1.ListDatabasesResponse
+	10, // 15: dockwell.v1.DatabaseService.GetDatabase:output_type -> dockwell.v1.GetDatabaseResponse
+	9,  // 16: dockwell.v1.DatabaseService.CreateDatabaseUser:output_type -> dockwell.v1.CreateDatabaseUserResponse
+	14, // [14:17] is the sub-list for method output_type
+	11, // [11:14] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_database_proto_init() }
@@ -1022,7 +1214,7 @@ func file_dockwell_v1_database_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_database_proto_rawDesc), len(file_dockwell_v1_database_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

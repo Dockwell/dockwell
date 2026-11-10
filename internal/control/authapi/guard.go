@@ -301,6 +301,17 @@ func Interceptor(svc *auth.Service, logger *slog.Logger) connect.Interceptor {
 	return &interceptor{svc: svc, logger: logger}
 }
 
+// Authorizer is the check Interceptor makes of a call to procedure, for what
+// reads a call before Interceptor sees it, such as the REST paths, which read
+// path variables first: it refuses what Interceptor would, with the same error.
+func Authorizer(svc *auth.Service, logger *slog.Logger) func(ctx context.Context, procedure string) error {
+	i := &interceptor{svc: svc, logger: logger}
+	return func(ctx context.Context, procedure string) error {
+		_, err := i.authorize(ctx, procedure)
+		return err
+	}
+}
+
 type interceptor struct {
 	svc    *auth.Service
 	logger *slog.Logger

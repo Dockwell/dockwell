@@ -204,6 +204,7 @@ export function textOf(e: Entry, sources: ReadonlyMap<string, LogSource>): strin
   const time = localIso(e.ms);
   if (e.gap) return `${time} -- ${Number(e.gap.lines)} lines from ${source} not shown --`;
   if (e.left !== undefined) return `${time} -- ${e.left} lines left this view while it was paused --`;
+  if (e.away) return `${time} -- not read while this view was away, to ${localIso(e.away.to)} --`;
   if (e.started) return `${time} -- new container ${(s && instanceName(s)) || e.source} of ${source} --`;
   const plain = plainText(e.text);
   const named = NAMES_ITS_LEVEL.test(plain.slice(0, 120));

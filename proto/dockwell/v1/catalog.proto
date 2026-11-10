@@ -100,6 +100,34 @@ message GetCatalogEntryResponse {
   // What each input takes if you give it nothing, by name. A port is one that
   // nothing Dockwell runs has taken. A secret isn't here.
   map<string, string> values = 3;
+  // What installing it runs, one part for each service its Compose file names: what
+  // a person reads before the plan, which says the rest. The one a person opens
+  // comes first.
+  repeated CatalogPart parts = 4;
+}
+
+// CatalogPart is one service an entry installs.
+message CatalogPart {
+  // Its name in the entry's Compose file, such as "db".
+  string service = 1;
+  // The image it runs, by repository and tag, such as "postgres:17.11". The entry
+  // pins it by digest too, which this leaves out.
+  string image = 2;
+  // It's a database the app beside it keeps its data in: one its entry marks as
+  // one, or, for an entry that marks none, one of the images Dockwell knows as a
+  // database, such as postgres or mariadb.
+  bool database = 3;
+  // The volumes it keeps its data on, by name, such as "data".
+  repeated string volumes = 4;
+  // It's what a person opens once it's installed.
+  bool opens = 5;
+  // What it reaches on its server beyond its own containers, as the plan will say
+  // it: a server path, Docker's socket, the server's own network and the like.
+  repeated HostAccess host_access = 6;
+  // The input each server path in host_access comes from, by the path as it reads
+  // here, which is the input's default, so a form shows what a person typed in its
+  // place, such as "MEDIA_DIR" for "/srv/media".
+  map<string, string> path_inputs = 7;
 }
 
 // ListCatalogInstallsRequest asks for everything installed.

@@ -67,6 +67,7 @@ func TestAServiceRunsAndReadsBackAsItsSpec(t *testing.T) {
 		CapAdd:    []string{"NET_ADMIN"}, CapDrop: []string{"NET_RAW"}, GroupAdd: []string{"999"}, Privileged: true,
 		Restart: resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE, RestartRetries: 5,
 		ShmSize: "1G", Tmpfs: []*resourcev1.Tmpfs{{Target: "/run/cache", Size: "64M"}, {Target: "/tmp"}},
+		ExtraHosts: []string{"host.docker.internal:host-gateway", "db.example.com:10.0.0.5"},
 	})
 	planAndApply(t, l, webRef(), spec)
 	c := e.Container(service.ContainerName(webRef()))
@@ -82,6 +83,9 @@ func TestAServiceRunsAndReadsBackAsItsSpec(t *testing.T) {
 	}
 	if !slices.Equal(h.CapAdd, []string{"NET_ADMIN"}) || !slices.Equal(h.CapDrop, []string{"NET_RAW"}) || !slices.Equal(h.GroupAdd, []string{"999"}) || !h.Privileged {
 		t.Errorf("privileges on Docker: %+v", h)
+	}
+	if !slices.Equal(h.ExtraHosts, []string{"db.example.com:10.0.0.5", "host.docker.internal:host-gateway"}) {
+		t.Errorf("hosts on Docker: %v", h.ExtraHosts)
 	}
 	if h.RestartPolicy.Name != "on-failure" || h.RestartPolicy.MaximumRetryCount != 5 {
 		t.Errorf("restart on Docker: %+v", h.RestartPolicy)
@@ -438,6 +442,9 @@ func TestWhatASpecTakes(t *testing.T) {
 		"a capability that isn't":      {&resourcev1.Container{CapAdd: []string{"MAGIC"}}, "isn't a Linux capability"},
 		"dropping one that isn't":      {&resourcev1.Container{CapDrop: []string{"MAGIC"}}, "isn't a Linux capability"},
 		"a group with a space":         {&resourcev1.Container{GroupAdd: []string{"a b"}}, "isn't a group"},
+		"a host with no address":       {&resourcev1.Container{ExtraHosts: []string{"db.example.com"}}, "isn't a host to add"},
+		"a host that isn't a name":     {&resourcev1.Container{ExtraHosts: []string{"a b:10.0.0.5"}}, "isn't a host to add"},
+		"a host at no address":         {&resourcev1.Container{ExtraHosts: []string{"db:somewhere"}}, "isn't an IP address or host-gateway"},
 		"a count on another policy":    {&resourcev1.Container{Restart: resourcev1.RestartPolicy_RESTART_POLICY_ALWAYS, RestartRetries: 2}, "only on-failure restarts a set number of times"},
 		"host beside a network":        {&resourcev1.Container{HostNetwork: true, Networks: []string{"a"}}, "joins no others"},
 		"host beside the server's":     {&resourcev1.Container{HostNetwork: true, ExternalNetworks: []string{"a"}}, "joins no others"},

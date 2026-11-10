@@ -215,6 +215,46 @@ describe("a plan's fields, in words", () => {
     expect(humanize("limits.cpu[2].max_burst")).toBe("limits cpu 3 max burst");
   });
 
+  it("writes a name someone gave as they wrote it, underscores and all", () => {
+    expect(humanize("variables[FEATURE_FLAGS]")).toBe("variables FEATURE_FLAGS");
+    expect(humanize("secrets[DB_PASSWORD].from_env")).toBe("secrets DB_PASSWORD from env");
+    const rows = rowsOf({
+      kind: "service",
+      changes: [
+        create(FieldChangeSchema, { path: "variables[FEATURE_FLAGS]", op: FieldOp.ADDED, to: "FEATURE_FLAGS" }),
+      ],
+    });
+    expect(reads(rows)).toEqual(["variables FEATURE_FLAGS to FEATURE_FLAGS"]);
+  });
+
+  it("says a value it uses moved on, not the revision it's pinned to", () => {
+    const rows = rowsOf({
+      kind: "service",
+      changes: [
+        create(FieldChangeSchema, { path: "revisions[SMTP_HOST]", op: FieldOp.MODIFIED, from: "1", to: "2" }),
+        // One that comes with a value it starts to use says nothing that value's own row doesn't.
+        create(FieldChangeSchema, { path: "revisions[NEW_ONE]", op: FieldOp.ADDED, to: "1" }),
+        create(FieldChangeSchema, { path: "variables[NEW_ONE]", op: FieldOp.ADDED, to: "NEW_ONE" }),
+      ],
+    });
+    expect(reads(rows)).toEqual(["SMTP_HOST to uses its newer value [change]", "variables NEW_ONE to NEW_ONE"]);
+  });
+
+  it("names a database user and what it's given in words", () => {
+    let word: string | undefined;
+    function Read() {
+      word = useFieldRows().kindWord?.("database.user");
+      return null;
+    }
+    renderWithApi(<Read />, {});
+    expect(word).toBe("database user");
+    const rows = rowsOf({
+      kind: "database.user",
+      changes: [added("database_name", "orders"), added("password", "ORDERS_DATABASE_PASSWORD")],
+    });
+    expect(reads(rows)).toEqual(["database to orders", "password in to ORDERS_DATABASE_PASSWORD"]);
+  });
+
   it("reads in Chinese", async () => {
     await activateLocale("zh-CN");
     const rows = rowsOf({

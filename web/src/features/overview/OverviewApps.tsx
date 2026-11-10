@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useQuery } from "@connectrpc/connect-query";
-import { type Domain, DomainService } from "@dockwell/api";
 import { Button, Callout, cx, Glyph, Icon, Panel, PHONE_QUERY, STATUS, Table, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -14,6 +12,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { ListSkeleton, useAppsLead } from "../apps/AppsPage";
 import { type AppGroup, groupApps, groupDeployedAt, imageOf, nameOf, shortImage, sortGroups } from "../apps/app";
+import { useDomainNames } from "../apps/domains";
 import { HealthBadge, phoneWordClass, useHealthWords } from "../apps/Health";
 import { type AppHealth, type HealthView, useHealth, worstHealth } from "../apps/health";
 import { ImageName } from "../apps/ImageName";
@@ -31,24 +30,6 @@ interface Row {
   group: AppGroup;
 }
 
-/**
- * The domains each app answers on, by environment and service name. Names only,
- * so they're read once, not every few seconds as Domains reads where each stands.
- */
-function useDomainsOf(): (group: AppGroup) => string[] {
-  const domains = useQuery(DomainService.method.listDomains, {}, { staleTime: Number.POSITIVE_INFINITY }).data?.domains;
-  return useMemo(() => {
-    const by = new Map<string, string[]>();
-    for (const domain of domains ?? ([] as Domain[])) {
-      for (const route of domain.routes) {
-        const key = `${domain.environmentId}/${route.service}`;
-        by.set(key, [...(by.get(key) ?? []), domain.name]);
-      }
-    }
-    return (group) => [...new Set(group.services.flatMap((s) => by.get(`${group.environment}/${nameOf(s)}`) ?? []))];
-  }, [domains]);
-}
-
 const rowHealth = (row: Row, health: HealthView): AppHealth => worstHealth(row.group.services.map((s) => health.of(s)));
 
 /** A row's name: an app's own, or its project's. */
@@ -62,7 +43,7 @@ function rowName(row: Row): string {
  * and where it answers, what needs a look first, and the rest one click away.
  * A project of several apps is one row, as Apps folds it.
  */
-export function OverviewApps() {
+export function OverviewApps({ fleet = false }: { fleet?: boolean }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const services = useServices();
@@ -108,7 +89,7 @@ export function OverviewApps() {
       </Panel>
     );
   } else {
-    body = phone ? <PhoneRows rows={rows} health={health} /> : <AppsRows rows={rows} health={health} />;
+    body = phone ? <PhoneRows rows={rows} health={health} /> : <AppsRows rows={rows} health={health} fleet={fleet} />;
   }
 
   return (
@@ -129,11 +110,23 @@ export function OverviewApps() {
   );
 }
 
-function AppsRows({ rows, health }: { rows: readonly Row[]; health: HealthView }) {
+/** Where an app or a project's apps run, by server name, as each deployment names it. */
+function serversOf(group: Row["group"]): string[] {
+  const names = new Set<string>();
+  for (const service of group.services) for (const d of service.deployments) if (d.serverName) names.add(d.serverName);
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * The apps as a table. On a fleet, as Overview-Fleet has it, where each runs
+ * takes the place of when it was deployed.
+ */
+function AppsRows({ rows, health, fleet }: { rows: readonly Row[]; health: HealthView; fleet: boolean }) {
   const { t, i18n } = useLingui();
   const time = useTimeWords();
   const navigate = useNavigate();
-  const domainsOf = useDomainsOf();
+  const domainNames = useDomainNames();
+  const domainsOf = (group: AppGroup) => domainNames(group.environment, group.services);
   const words = useHealthWords();
   const newest = useMemo(() => {
     let out: Date | undefined;
@@ -153,7 +146,7 @@ function AppsRows({ rows, health }: { rows: readonly Row[]; health: HealthView }
     <Table<Row>
       className="overview-apps"
       density="compact"
-      caption={t`Apps on this server`}
+      caption={fleet ? t`Apps on your servers` : t`Apps on this server`}
       rows={rows}
       onRowClick={open}
       columns={[
@@ -189,12 +182,34 @@ function AppsRows({ rows, health }: { rows: readonly Row[]; health: HealthView }
             return <HealthBadge health={runs} className="apps-status" title={words.word(runs)} />;
           },
         },
+        ...(fleet
+          ? [
+              {
+                key: "runs",
+                header: t`Runs on`,
+                width: "26%",
+                render: (row: Row) => {
+                  const names = serversOf(row.group);
+                  if (names.length === 0) return <span aria-hidden="true">—</span>;
+                  return (
+                    <span className="overview-runs" title={names.join(", ")}>
+                      <span>{plural(names.length, { one: "# server", other: "# servers" })}</span>
+                      <code className="apps-clip">{names.join(", ")}</code>
+                    </span>
+                  );
+                },
+              },
+            ]
+          : []),
         {
           key: "domain",
           header: t`Domain`,
           width: "32%",
           render: (row) => {
-            const [domain, ...more] = domainsOf(row.group);
+            const names = domainsOf(row.group);
+            // Not read yet, or can't be: nobody can say it has none.
+            if (names === undefined) return null;
+            const [domain, ...more] = names;
             if (!domain) return <span aria-hidden="true">—</span>;
             const others = more.length;
             return (
@@ -205,21 +220,25 @@ function AppsRows({ rows, health }: { rows: readonly Row[]; health: HealthView }
             );
           },
         },
-        {
-          key: "deployed",
-          header: t`Deployed`,
-          width: 104,
-          align: "right",
-          muted: true,
-          render: (row) => {
-            const when = groupDeployedAt(row.group);
-            return (
-              <time dateTime={when.toISOString()} title={formatDateTime(when, i18n.locale)}>
-                {time.ago(when, now)}
-              </time>
-            );
-          },
-        },
+        ...(fleet
+          ? []
+          : [
+              {
+                key: "deployed",
+                header: t`Deployed`,
+                width: 104,
+                align: "right" as const,
+                muted: true,
+                render: (row: Row) => {
+                  const when = groupDeployedAt(row.group);
+                  return (
+                    <time dateTime={when.toISOString()} title={formatDateTime(when, i18n.locale)}>
+                      {time.ago(when, now)}
+                    </time>
+                  );
+                },
+              },
+            ]),
       ]}
     />
   );

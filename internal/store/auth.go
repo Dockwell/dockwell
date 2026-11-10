@@ -90,6 +90,25 @@ func (t *Tx) getUser(ctx context.Context, where string, arg any) (User, error) {
 	return u, nil
 }
 
+// ListUsers returns everyone who can sign in, oldest first: today, the owner
+// alone (ADR 0048).
+func (t *Tx) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := t.query(ctx, `SELECT `+userColumns+` FROM users ORDER BY created_at, id`)
+	if err != nil {
+		return nil, fmt.Errorf("can't list who signs in: %w", err)
+	}
+	defer rows.Close()
+	var out []User
+	for rows.Next() {
+		u, err := scanUser(rows)
+		if err != nil {
+			return nil, fmt.Errorf("can't list who signs in: %w", err)
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 // GetUser returns a user by ID, or ErrNotFound.
 func (t *Tx) GetUser(ctx context.Context, id string) (User, error) { return t.getUser(ctx, "id", id) }
 

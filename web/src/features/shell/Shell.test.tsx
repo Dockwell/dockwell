@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
+  BackupSchema,
+  BackupState,
   ChangeSchema,
   ChangeState,
   Connection,
@@ -86,7 +89,7 @@ describe("the shell on wide screens", () => {
     expect(within(nav).queryByRole("link", { name: "Fleet actions" })).toBeNull();
     expect(await within(nav).findByRole("link", { name: "Dockwell 0.4.0: control plane status" })).toHaveAttribute(
       "href",
-      "/status",
+      "/settings/control-plane",
     );
 
     const top = screen.getByRole("banner");
@@ -300,8 +303,8 @@ describe("the command bar", () => {
 
     await user.keyboard("control plane{Enter}");
 
-    await waitFor(() => expect(router.state.location.pathname).toBe("/status"));
-    expect(await screen.findByRole("heading", { level: 1, name: "The control plane is running" })).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/settings/control-plane"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Control plane" })).toBeVisible();
   });
 
   it("opens from the search button, which teaches the shortcut, and closes on Escape", async () => {
@@ -479,6 +482,39 @@ describe("the shell on phones", () => {
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/more");
   });
 
+  it("says on More how many domains there are, and when the last backup was, as M-More does", async () => {
+    onPhone();
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete);
+    renderAt("/more", {
+      servers: { watchServers: watch.stream },
+      domains: {
+        listDomains: () => ({
+          domains: [
+            { name: "www.example.com", environmentId: "env_prod", routes: [] },
+            { name: "api.example.com", environmentId: "env_prod", routes: [] },
+          ],
+        }),
+      },
+      backups: {
+        listBackups: () => ({
+          backups: [
+            create(BackupSchema, {
+              id: "bkp_1",
+              volume: "orders",
+              state: BackupState.DONE,
+              startedAt: timestampFromDate(new Date(Date.now() - 2 * 3_600_000)),
+            }),
+          ],
+        }),
+      },
+    });
+    expect(await screen.findByRole("link", { name: "Domains 2" })).toHaveAttribute("href", "/domains");
+    const backupsLink = await screen.findByRole("link", { name: /^Backups/ });
+    // By the control plane's clock, as every time the panel says is.
+    await waitFor(() => expect(backupsLink).toHaveTextContent(/^Backups \d+ h ago$/));
+  });
+
   it("lists what the tab bar has no room for on More, and sets the theme there", async () => {
     onPhone();
     const user = userEvent.setup();
@@ -493,7 +529,10 @@ describe("the shell on phones", () => {
         .getAllByRole("link")
         .map((link) => link.textContent),
     ).toEqual(["Alerts", "Scheduled tasks"]);
-    expect(await screen.findByRole("link", { name: "Control plane 0.4.0" })).toHaveAttribute("href", "/status");
+    expect(await screen.findByRole("link", { name: "Control plane 0.4.0" })).toHaveAttribute(
+      "href",
+      "/settings/control-plane",
+    );
     expect(screen.getByRole("link", { name: "Profile and security Mira Chen" })).toHaveAttribute("href", "/profile");
     expect(screen.getByRole("button", { name: "Sign out" })).toBeVisible();
 
@@ -535,11 +574,11 @@ describe("the shell in Simplified Chinese", () => {
 
   it("translates the not-yet page", async () => {
     await activateLocale("zh-CN");
-    renderAt("/websites", {
+    renderAt("/connections", {
       system: { getVersion: () => create(GetVersionResponseSchema, {}) },
       servers: { watchServers: feed<WatchServersResponse>().stream },
     });
-    expect(await screen.findByRole("heading", { level: 1, name: "网站" })).toBeVisible();
+    expect(await screen.findByRole("heading", { level: 1, name: "连接" })).toBeVisible();
     expect(screen.getByRole("heading", { level: 2, name: "此版本尚未提供" })).toBeVisible();
   });
 });

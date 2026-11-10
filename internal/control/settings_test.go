@@ -3,6 +3,10 @@
 package control
 
 import (
+	"net/url"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -10,6 +14,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -59,6 +64,8 @@ func testTheInstallsSettings(t *testing.T, backend store.Backend) {
 	for name, why := range map[string]string{
 		strings.Repeat("a", 65): "64 at most",
 		"two\nlines":            "one line",
+		"two\u2028lines":        "one line",
+		"two\u2029paragraphs":   "one line",
 		// A right-to-left override turns the words around it, and a zero-width space hides in them.
 		"Acme\u202eevil":    "U+202E",
 		"Ac\u200bme":        "U+200B",
@@ -133,8 +140,9 @@ func TestTokensAndTheInstallsSettings(t *testing.T) {
 			script := bearer{token: createToken(t, b, tt.scope), rt: b.client.Transport}
 			c := dockwellv1connect.NewSettingsServiceClient(script, b.origin, connect.WithProtoJSON())
 			_, err := c.SetInstallName(t.Context(), connect.NewRequest(&dockwellv1.SetInstallNameRequest{Name: "Not yours"}))
-			if connect.CodeOf(err) != connect.CodePermissionDenied || reasonOf(err) != "needs_session" {
-				t.Errorf("%v token naming the install: %v, want needs_session", tt.scope, err)
+			// The CLI shows the refusal as it comes, so it names what was refused.
+			if connect.CodeOf(err) != connect.CodePermissionDenied || reasonOf(err) != "needs_session" || !strings.Contains(err.Error(), "rename the install") {
+				t.Errorf("%v token naming the install: %v, want needs_session, saying a token can't rename the install", tt.scope, err)
 			}
 			_, err = c.SetTimeZone(t.Context(), connect.NewRequest(&dockwellv1.SetTimeZoneRequest{TimeZone: "Asia/Kolkata"}))
 			if got := reasonOf(err); (tt.zoneReason == "" && err != nil) || got != tt.zoneReason {
@@ -192,4 +200,91 @@ func TestASchedulesZoneIsTheInstalls(t *testing.T) {
 			t.Errorf("a schedule that names its zone starts in %q", got)
 		}
 	})
+}
+
+// The control plane says what it runs, where it keeps its state and the key,
+// where agents reach it, and how it's doing, so the panel can say how to back
+// it up and how to upgrade it.
+func TestTheControlPlaneSaysWhatItIs(t *testing.T) {
+	storetest.Each(t, testTheControlPlaneSaysWhatItIs)
+}
+
+func testTheControlPlaneSaysWhatItIs(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	if err := f.ident.SetAgentURL(t.Context(), "https://192.0.2.10:7443"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.ident.SetPublicAgentURLs(t.Context(), []identity.JoinURL{{URL: "https://203.0.113.7:7443", WayIn: true}}); err != nil {
+		t.Fatal(err)
+	}
+	b := signedIn(t, f)
+	c := dockwellv1connect.NewSettingsServiceClient(b, b.origin, connect.WithProtoJSON())
+	got, err := c.GetControlPlane(t.Context(), connect.NewRequest(&dockwellv1.GetControlPlaneRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cp := got.Msg.GetControlPlane()
+	if cp.GetBuild().GetVersion() != testBuild.Version || cp.GetStartTime() == nil {
+		t.Errorf("build %v, started %v: want the one that runs, and when", cp.GetBuild(), cp.GetStartTime())
+	}
+	if cp.GetDataDir() != f.config.DataDir || cp.GetKeyFile() != filepath.Join(f.config.DataDir, "key") {
+		t.Errorf("data in %q, key %q", cp.GetDataDir(), cp.GetKeyFile())
+	}
+	st := cp.GetStore()
+	engine := map[store.Backend]dockwellv1.StateStoreEngine{
+		store.SQLite:   dockwellv1.StateStoreEngine_STATE_STORE_ENGINE_SQLITE,
+		store.Postgres: dockwellv1.StateStoreEngine_STATE_STORE_ENGINE_POSTGRES,
+	}[backend]
+	if st.GetEngine() != engine || st.GetVersion() == "" || st.GetSizeBytes() <= 0 || st.GetRoundTrip() == nil {
+		t.Errorf("the state store is %v", st)
+	}
+	if strings.Contains(st.GetLocation(), "password") || strings.Contains(st.GetLocation(), ":"+"secret@") {
+		t.Errorf("the state store's location %q says its password", st.GetLocation())
+	}
+	// CI's server takes a password, which the store's URL carries, and which the location leaves out.
+	if backend == store.Postgres {
+		server, err := url.Parse(os.Getenv(storetest.EnvPostgres))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if password, ok := server.User.Password(); !ok {
+			t.Logf("%s has no password, so nothing shows one isn't said", storetest.EnvPostgres)
+		} else if !strings.Contains(f.db, password) || strings.Contains(st.GetLocation(), password) {
+			t.Errorf("the state store at %q is said as %q, want it without its password", f.db, st.GetLocation())
+		}
+	}
+	// Started by hand, as a test is, nothing runs it as a service to stop it with.
+	if cp.GetServiceManager() != dockwellv1.ServiceManager_SERVICE_MANAGER_NONE {
+		t.Errorf("it runs under %v, want none", cp.GetServiceManager())
+	}
+	if backend == store.SQLite && st.GetLocation() != f.db {
+		t.Errorf("the SQLite file is at %q, want %q", st.GetLocation(), f.db)
+	}
+	agents := cp.GetAgents()
+	if agents.GetListen() != f.agentAddr || agents.GetUrl() != "https://192.0.2.10:7443" ||
+		strings.Join(agents.GetPublicUrls(), " ") != "https://203.0.113.7:7443" {
+		t.Errorf("agents reach it as %v", agents)
+	}
+	if cp.GetPanel().GetListen() != f.config.PanelListen || cp.GetPanel().GetServedBy() != dockwellv1.PanelServedBy_PANEL_SERVED_BY_NONE {
+		t.Errorf("the panel is served as %v", cp.GetPanel())
+	}
+	if runtime.GOOS == "linux" && cp.GetMemoryBytes() < 1<<20 {
+		t.Errorf("it holds %d bytes, want its resident set", cp.GetMemoryBytes())
+	}
+
+	// A script reads what runs and how it's doing, but not where the key and the store are.
+	script := bearer{token: createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY), rt: b.client.Transport}
+	read, err := dockwellv1connect.NewSettingsServiceClient(script, b.origin, connect.WithProtoJSON()).
+		GetControlPlane(t.Context(), connect.NewRequest(&dockwellv1.GetControlPlaneRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := read.Msg.GetControlPlane()
+	if seen.GetDataDir() != "" || seen.GetKeyFile() != "" || seen.GetStore().GetLocation() != "" ||
+		seen.GetAgents().GetUrl() != "" || len(seen.GetAgents().GetPublicUrls()) > 0 {
+		t.Errorf("a token reads the control plane as %v, want no paths, location or agent URLs", seen)
+	}
+	if seen.GetBuild().GetVersion() != testBuild.Version || seen.GetStore().GetVersion() == "" {
+		t.Errorf("a token reads the control plane as %v, want what it runs and how it's doing", seen)
+	}
 }

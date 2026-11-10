@@ -210,6 +210,9 @@ func (Destination) Validate(spec proto.Message) error {
 	switch {
 	case err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http"):
 		return errors.New("a destination's endpoint is the storage's address, such as https://<account>.r2.cloudflarestorage.com")
+	case u.User != nil:
+		// The endpoint shows in the plan and on Integrations, in clear.
+		return errors.New("a destination's endpoint can't hold a key or a password, as the plan shows the endpoint as it is. Take them out of the address, and give them as the destination's access key and secret")
 	case u.Scheme == "http" && !loopback(u.Hostname()):
 		return errors.New("a destination's endpoint has to use HTTPS, as what signs in goes with each request. Only an address on this server may use plain HTTP")
 	case d.GetBucket() == "":

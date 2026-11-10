@@ -69,7 +69,13 @@ const (
 type guard struct {
 	shut   map[identity]string // why each directory is shut
 	places map[identity]place  // the directories Docker's data root is made of
+	// held is where each shut directory is, with every link followed, for what
+	// can't move or delete a folder that holds one.
+	held []shutAt
 }
+
+// shutAt is a shut directory where it is, and why it's shut.
+type shutAt struct{ path, why string }
 
 // guard reads what's refused from the server, as it stands now: the paths
 // these are at can change between calls, and a restart of Docker can move its
@@ -80,6 +86,9 @@ func (s *Server) guard(ctx context.Context) *guard {
 		var st unix.Stat_t
 		if unix.Stat(path, &st) == nil {
 			g.shut[identify(&st)] = why
+			if resolved, err := filepath.EvalSymlinks(path); err == nil {
+				g.held = append(g.held, shutAt{resolved, why})
+			}
 		}
 	}
 	for _, p := range shutPlaces {
@@ -95,6 +104,9 @@ func (s *Server) guard(ctx context.Context) *guard {
 			continue
 		}
 		g.places[identify(&st)] = dockerRoot
+		if resolved, err := filepath.EvalSymlinks(root); err == nil {
+			g.held = append(g.held, shutAt{resolved, whyDocker})
+		}
 		// What's in it is shut by what it is too, wherever else it is mounted.
 		entries, err := os.ReadDir(root)
 		if err != nil {

@@ -6,7 +6,7 @@ import { useLingui } from "@lingui/react/macro";
 
 import { formatBitRate, formatBytes, formatFixed, formatLiveBytesOf, formatPercent } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
-import { recentRun } from "./history";
+import { trend } from "./history";
 import "./ServerMetrics.css";
 
 export interface ServerMetricsProps {
@@ -30,9 +30,13 @@ export function ServerMetrics({ server, fourth, compact = false }: ServerMetrics
   if (!stats) return null;
   const locale = i18n.locale;
   // Trends start after the last gap in reporting, so an outage isn't drawn as part of one.
-  const { samples: history, spanMs } = recentRun(server.history.length > 0 ? server.history : [stats]);
+  const { samples: history, spanMs } = trend(server.history.length > 0 ? server.history : [stats]);
   const cpus = server.inventory?.cpuCount ?? 0;
   const span = words.span(spanMs);
+  const cpuAverage = formatPercent(
+    history.reduce((sum, s) => sum + s.cpuPercent, 0) / Math.max(history.length, 1),
+    locale,
+  );
 
   const [memUsed, memTotal] = formatLiveBytesOf(stats.memoryUsedBytes, stats.memoryTotalBytes, locale);
   const memShare = formatPercent(share(stats.memoryUsedBytes, stats.memoryTotalBytes), locale);
@@ -53,7 +57,8 @@ export function ServerMetrics({ server, fourth, compact = false }: ServerMetrics
       data: history.map((s) => s.cpuPercent),
       min: 0,
       max: 100,
-      caption: [cpus > 0 ? t`Across ${cpus} vCPU` : "", spanMs > 0 ? t`last ${span}` : ""].filter(Boolean).join(" · "),
+      caption:
+        spanMs > 0 ? t`${cpuAverage} on average over the last ${span}` : cpus > 0 ? t`Across ${cpus} vCPU` : undefined,
     },
     {
       id: "memory",

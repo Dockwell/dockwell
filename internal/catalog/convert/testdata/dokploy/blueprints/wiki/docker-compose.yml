@@ -1,0 +1,30 @@
+services:
+  wiki:
+    image: example/wiki:2.1.0
+    restart: unless-stopped
+    environment:
+      - BASE_URL=${BASE_URL}
+      - ADMIN_USER=${ADMIN_USER}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SESSION_KEY=${SESSION_KEY}
+      - TOTP_KEY=${TOTP_KEY}
+      - MODE=${MODE}
+      - SECRET_KEY=${SECRET_KEY}
+      - PASSWORD_MIN_LENGTH=${PASSWORD_MIN_LENGTH}
+      - SITE=https://$main_domain/wiki
+      - SMTP_HOST=${SMTP_HOST}
+    volumes:
+      - wiki-data:/data
+      - ../files/uploads:/uploads
+    depends_on:
+      - db
+  db:
+    image: example/db:16.4
+    env_file:
+      - .env
+    volumes:
+      - db-data:/var/lib/db
+volumes:
+  wiki-data:
+  db-data:

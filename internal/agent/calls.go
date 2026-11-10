@@ -14,10 +14,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/agent/v1/agentv1connect"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -25,6 +28,9 @@ import (
 
 // errNoFiles answers a call for a server's files on an agent set up without them.
 var errNoFiles = errors.New("this agent doesn't read files")
+
+// errNoTerminals answers a call for a terminal on an agent set up without them.
+var errNoTerminals = errors.New("this agent doesn't open terminals")
 
 // drainLimit bounds how long a stream that is moving to a renewed
 // certificate waits for its calls to finish.
@@ -87,6 +93,15 @@ type calls struct {
 	// no more calls on this stream.
 	drained     chan struct{}
 	drainedOnce sync.Once
+
+	// transfers is what uploads and downloads go over: a connection of its own,
+	// as logs have, kept for this stream's calls, so a file's next part doesn't wait
+	// on a handshake. It goes with the stream, so a renewed certificate reaches it.
+	transfers struct {
+		sync.Mutex
+		client  agentv1connect.AgentServiceClient
+		release func()
+	}
 }
 
 func newCalls(ctx context.Context, cfg Config, send func(*agentv1.ConnectRequest) error, key *delivery.Key) *calls {
@@ -148,6 +163,21 @@ func (c *calls) start(call *agentv1.Call) {
 		}()
 		return
 	}
+	// An attachment lasts as long as someone watches, so it doesn't hold up a move
+	// to a renewed certificate either: it stops, its terminal goes on, and the
+	// control plane attaches again over the next stream.
+	if attach := call.GetAttachTerminal(); attach != nil {
+		ctx, cancel := context.WithCancel(c.ctx)
+		c.reading[call.GetId()] = cancel
+		c.wg.Add(1)
+		c.mu.Unlock()
+		go func() {
+			defer c.wg.Done()
+			defer c.doneReading(call.GetId(), cancel)
+			c.reply(call.GetId(), c.attachTerminal(ctx, attach))
+		}()
+		return
+	}
 	ctx, cancel := context.WithTimeout(c.ctx, timeout)
 	c.running[call.GetId()] = cancel
 	c.wg.Add(1)
@@ -157,8 +187,16 @@ func (c *calls) start(call *agentv1.Call) {
 		defer c.done(call.GetId())
 		// A file call keeps its place until its result has gone, so what waits
 		// for a slow stream is bounded, and a call whose caller left drops out.
-		if c.cfg.Files != nil && (call.GetListFiles() != nil || call.GetReadFile() != nil || call.GetSaveFile() != nil) {
-			release, err := c.cfg.Files.Take(ctx)
+		take := (*files.Server).Take
+		if call.GetWriteUpload() != nil || call.GetDownloadFile() != nil {
+			take = (*files.Server).TakeTransfer
+		}
+		if c.cfg.Files != nil && (isFileCall(call) || call.GetWriteUpload() != nil || call.GetDownloadFile() != nil) {
+			release, err := take(c.cfg.Files, ctx)
+			if errors.Is(err, files.ErrBusy) {
+				c.reply(call.GetId(), busy(call))
+				return
+			}
 			if err != nil {
 				c.reply(call.GetId(), &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error()}}})
 				return
@@ -289,6 +327,39 @@ func (c *calls) readLogs(ctx context.Context, call *agentv1.LogsCall) *agentv1.C
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Logs{Logs: &agentv1.LogsResult{}}}
 }
 
+// attachTerminal carries a terminal's bytes over a connection of its own, as logs
+// go, so a shell printing as fast as it can shares nothing with stats, plans and
+// applies, and flow control on it holds up that shell alone. The connection goes
+// with the attachment; the terminal stays.
+func (c *calls) attachTerminal(ctx context.Context, call *agentv1.AttachTerminalCall) *agentv1.CallResult {
+	fail := func(err error) *agentv1.CallResult {
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error(), Draining: c.isClosing() && c.ctx.Err() == nil}}}
+	}
+	if c.cfg.Terminals == nil {
+		return fail(errNoTerminals)
+	}
+	client, release, err := c.cfg.Identity.Client()
+	if err != nil {
+		return fail(err)
+	}
+	defer release()
+	// A send that a slow reader holds up ends only with the stream's context.
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stream := client.Terminal(streamCtx)
+	defer func() { _ = stream.CloseRequest(); _ = stream.CloseResponse() }()
+	result, err := c.cfg.Terminals.Attach(ctx, call, stream)
+	switch {
+	case err != nil && ctx.Err() != nil && c.isClosing():
+		return fail(errors.New("this agent is moving to a new stream, so it stopped carrying a terminal; attach again once the agent reconnects"))
+	case err != nil && ctx.Err() == nil:
+		return fail(err)
+	case result == nil:
+		result = &agentv1.AttachTerminalResult{}
+	}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_AttachTerminal{AttachTerminal: result}}
+}
+
 // reply sends a call's result.
 func (c *calls) reply(id uint64, result *agentv1.CallResult) {
 	result.Id = id
@@ -363,6 +434,7 @@ func (c *calls) busy() bool {
 func (c *calls) stop() {
 	c.close()
 	c.end()
+	defer c.dropTransfers()
 	ended := make(chan struct{})
 	go func() {
 		c.wg.Wait()
@@ -560,6 +632,25 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Containers{Containers: found}}
+	case call.GetDiskUse() != nil:
+		found, err := c.cfg.disks.read(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DiskUse{DiskUse: found}}
+	case call.GetProcesses() != nil:
+		list, err := c.cfg.procs.list(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Processes{Processes: &agentv1.ProcessesResult{List: list}}}
+	case call.GetEndProcess() != nil:
+		end := call.GetEndProcess()
+		was, killed, err := c.cfg.procs.end(ctx, end.GetPid(), end.GetStartTicks())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_EndProcess{EndProcess: &agentv1.EndProcessResult{Killed: killed, Process: was}}}
 	case call.GetAdoption() != nil:
 		found, err := c.adoption(ctx, call.GetAdoption())
 		if err != nil {
@@ -575,6 +666,22 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Database{Database: read}}
+	case call.GetTaskRuns() != nil, call.GetRunTask() != nil:
+		if c.cfg.Tasks == nil {
+			return fail(errors.New("this agent runs no scheduled tasks. Update it to the control plane's version"))
+		}
+		if r := call.GetRunTask(); r != nil {
+			run, err := c.cfg.Tasks.RunNow(ctx, resourcepb.FromRef(r.GetTask()))
+			if err != nil {
+				return fail(err)
+			}
+			return &agentv1.CallResult{Result: &agentv1.CallResult_RunTask{RunTask: &agentv1.RunTaskResult{Run: run}}}
+		}
+		runs, err := c.cfg.Tasks.Runs(call.GetTaskRuns().GetAfter())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_TaskRuns{TaskRuns: runs}}
 	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil, call.GetFetchBackup() != nil, call.GetSendBackup() != nil:
 		if c.cfg.Backups == nil {
 			return fail(errors.New("this agent can't back up volumes, as it has no Docker driver"))
@@ -611,6 +718,26 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_ReadFile{ReadFile: file}}
 	}
+	if open := call.GetOpenTerminal(); open != nil {
+		if c.cfg.Terminals == nil {
+			return fail(errNoTerminals)
+		}
+		opened, err := c.cfg.Terminals.Open(ctx, open)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_OpenTerminal{OpenTerminal: opened}}
+	}
+	if closing := call.GetCloseTerminal(); closing != nil {
+		if c.cfg.Terminals == nil {
+			return fail(errNoTerminals)
+		}
+		end, err := c.cfg.Terminals.Close(closing.GetId(), closing.GetReason())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_CloseTerminal{CloseTerminal: &agentv1.CloseTerminalResult{End: end}}}
+	}
 	if save := call.GetSaveFile(); save != nil {
 		if c.cfg.Files == nil {
 			return fail(errNoFiles)
@@ -630,6 +757,49 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_ListUpdates{ListUpdates: &agentv1.ListUpdatesResult{Updates: found}}}
+	}
+	if p := call.GetProbe(); p != nil {
+		probe := c.cfg.Probe
+		if probe == nil {
+			probe = Probe
+		}
+		found := probe(ctx, p)
+		if found == nil {
+			return fail(errors.New("this server asks nothing beyond itself, so it didn't ask"))
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Probe{Probe: found}}
+	}
+	if call.GetReadOnepanel() != nil {
+		if c.cfg.OnePanel == nil {
+			return fail(errors.New("this agent doesn't read 1Panel's records"))
+		}
+		found, err := c.cfg.OnePanel(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ReadOnepanel{ReadOnepanel: found}}
+	}
+	if w := call.GetWriteUpload(); w != nil {
+		if c.cfg.Files == nil {
+			return fail(errNoFiles)
+		}
+		return c.writeUpload(ctx, w)
+	}
+	if d := call.GetDownloadFile(); d != nil {
+		if c.cfg.Files == nil {
+			return fail(errNoFiles)
+		}
+		return c.download(ctx, d)
+	}
+	if isFileCall(call) {
+		if c.cfg.Files == nil {
+			return fail(errNoFiles)
+		}
+		result, err := manageFiles(ctx, c.cfg.Files, call)
+		if err != nil {
+			return fail(err)
+		}
+		return result
 	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
 		Message: "this agent doesn't know that call; update it to the control plane's version",
@@ -793,4 +963,149 @@ func (c *calls) decode(d *agentv1.DesiredResource) (resource.Ref, proto.Message,
 	}
 	spec, err := c.cfg.Drivers.Decode(ref.Kind, d.GetSpec())
 	return ref, spec, err
+}
+
+// busy is a transfer's answer when the agent has no place for it.
+func busy(call *agentv1.Call) *agentv1.CallResult {
+	if call.GetDownloadFile() != nil {
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DownloadFile{DownloadFile: &agentv1.DownloadFileResult{Refusal: files.Busy()}}}
+	}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_WriteUpload{WriteUpload: &agentv1.UploadResult{Refusal: files.Busy()}}}
+}
+
+// isFileCall reports a call about the server's files, which takes one of their places.
+func isFileCall(call *agentv1.Call) bool {
+	return call.GetListFiles() != nil || call.GetReadFile() != nil || call.GetSaveFile() != nil || call.GetMakeFile() != nil ||
+		call.GetMoveFile() != nil || call.GetDeleteFile() != nil || call.GetListDeleted() != nil || call.GetRestoreFile() != nil ||
+		call.GetPurgeDeleted() != nil || call.GetBeginUpload() != nil || call.GetFinishUpload() != nil
+}
+
+// manageFiles makes, moves, deletes and puts back files, and says what's in Recently
+// deleted (ADR 0045).
+func manageFiles(ctx context.Context, f *files.Server, call *agentv1.Call) (*agentv1.CallResult, error) {
+	switch {
+	case call.GetMakeFile() != nil:
+		m := call.GetMakeFile()
+		out, err := f.Make(ctx, m.GetPath(), m.GetType(), m.GetConfirmedPath())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_MakeFile{MakeFile: out}}, err
+	case call.GetMoveFile() != nil:
+		m := call.GetMoveFile()
+		out, err := f.Move(ctx, m.GetFrom(), m.GetTo(), m.GetConfirmedFrom(), m.GetConfirmedTo())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_MoveFile{MoveFile: out}}, err
+	case call.GetDeleteFile() != nil:
+		d := call.GetDeleteFile()
+		out, err := f.Delete(ctx, d.GetPath(), d.GetForGood(), d.GetConfirmedPath())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DeleteFile{DeleteFile: out}}, err
+	case call.GetListDeleted() != nil:
+		out, err := f.ListDeleted()
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ListDeleted{ListDeleted: out}}, err
+	case call.GetRestoreFile() != nil:
+		r := call.GetRestoreFile()
+		out, err := f.Restore(ctx, r.GetId(), r.GetConfirmedPath())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_RestoreFile{RestoreFile: out}}, err
+	case call.GetPurgeDeleted() != nil:
+		out, err := f.Purge(call.GetPurgeDeleted().GetId())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_PurgeDeleted{PurgeDeleted: out}}, err
+	case call.GetBeginUpload() != nil:
+		b := call.GetBeginUpload()
+		out, err := f.BeginUpload(ctx, b.GetPath(), b.GetSizeBytes(), b.GetUnpack(), b.GetUploadId(), b.GetConfirmedPath(), b.GetOwner())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_BeginUpload{BeginUpload: out}}, err
+	case call.GetFinishUpload() != nil:
+		fin := call.GetFinishUpload()
+		finish := f.FinishUpload
+		if fin.GetCancel() {
+			finish = f.CancelUpload
+		}
+		out, err := finish(ctx, fin.GetUploadId(), fin.GetOwner())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_FinishUpload{FinishUpload: out}}, err
+	}
+	return nil, errors.New("this isn't a call about files")
+}
+
+// transferClient is the client uploads and downloads go over, made the first time
+// one asks.
+func (c *calls) transferClient() (agentv1connect.AgentServiceClient, error) {
+	c.transfers.Lock()
+	defer c.transfers.Unlock()
+	if c.transfers.client == nil {
+		client, release, err := c.cfg.Identity.TransferClient()
+		if err != nil {
+			return nil, err
+		}
+		c.transfers.client, c.transfers.release = client, release
+	}
+	return c.transfers.client, nil
+}
+
+// dropTransfers lets the transfers' connection go once the stream's calls end.
+func (c *calls) dropTransfers() {
+	c.transfers.Lock()
+	defer c.transfers.Unlock()
+	if c.transfers.release != nil {
+		c.transfers.release()
+	}
+	c.transfers.client, c.transfers.release = nil, nil
+}
+
+// writeUpload writes an upload's bytes as ReceiveFile brings them, over the
+// transfers' connection: what's sent waits on flow control, so the agent holds a
+// part at a time, and its stream goes on.
+func (c *calls) writeUpload(ctx context.Context, call *agentv1.WriteUploadCall) *agentv1.CallResult {
+	fail := func(err error) *agentv1.CallResult {
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error()}}}
+	}
+	client, err := c.transferClient()
+	if err != nil {
+		return fail(err)
+	}
+	stream, err := client.ReceiveFile(ctx, connect.NewRequest(&agentv1.ReceiveFileRequest{Stream: call.GetStream()}))
+	if err != nil {
+		return fail(err)
+	}
+	defer stream.Close()
+	next := func() ([]byte, error) {
+		if stream.Receive() {
+			return stream.Msg().GetData(), nil
+		}
+		if err := stream.Err(); err != nil {
+			return nil, err
+		}
+		return nil, io.EOF
+	}
+	out, err := c.cfg.Files.WriteUpload(ctx, call.GetUploadId(), call.GetOwner(), call.GetOffset(), next)
+	if err != nil {
+		return fail(err)
+	}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_WriteUpload{WriteUpload: out}}
+}
+
+// download sends a file, or a folder as an archive, over SendFile, on the
+// transfers' connection.
+func (c *calls) download(ctx context.Context, call *agentv1.DownloadFileCall) *agentv1.CallResult {
+	fail := func(err error) *agentv1.CallResult {
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error()}}}
+	}
+	client, err := c.transferClient()
+	if err != nil {
+		return fail(err)
+	}
+	// A reader that stopped taking parts leaves a send blocked, which only ending
+	// the stream's context ends.
+	sendCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stream := client.SendFile(sendCtx)
+	out, err := c.cfg.Files.Download(ctx, call.GetPath(), func(m *agentv1.SendFileRequest) error {
+		m.Stream = call.GetStream()
+		return stream.Send(m)
+	})
+	if err != nil {
+		cancel()
+		return fail(err)
+	}
+	if out.GetRefusal() != nil {
+		cancel()
+	} else if _, err := stream.CloseAndReceive(); err != nil && !errors.Is(err, io.EOF) {
+		return fail(err)
+	}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_DownloadFile{DownloadFile: out}}
 }

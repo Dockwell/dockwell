@@ -82,7 +82,7 @@ func zeroValue(v any) bool {
 // Compose file names it, where one does.
 var hostConfigRules = map[string]rule{
 	// A spec holds these, as Project reads them.
-	"CapAdd": kept, "CapDrop": kept, "GroupAdd": kept, "Memory": kept, "MemoryReservation": kept,
+	"CapAdd": kept, "CapDrop": kept, "GroupAdd": kept, "ExtraHosts": kept, "Memory": kept, "MemoryReservation": kept,
 	"NanoCpus": kept, "Privileged": kept, "RestartPolicy": kept, "ShmSize": kept,
 	// These say how it was started, or follow from what's refused below by name: the
 	// paths Docker masks depend on its version and on security_opt and privileged.
@@ -102,7 +102,7 @@ var hostConfigRules = map[string]rule{
 	"CpuShares": only("cpu_shares"), "CpusetCpus": only("cpuset"), "CpusetMems": only("cpuset memory nodes"),
 	"DeviceCgroupRules": only("device_cgroup_rules"), "DeviceRequests": only("gpus"), "Devices": only("devices"),
 	"Dns": only("dns"), "DnsOptions": only("dns_opt"), "DnsSearch": only("dns_search"),
-	"ExtraHosts": only("extra_hosts"), "IOMaximumBandwidth": only("an I/O limit"), "IOMaximumIOps": only("an I/O limit"),
+	"IOMaximumBandwidth": only("an I/O limit"), "IOMaximumIOps": only("an I/O limit"),
 	"Init": only("init"), "IpcMode": only("ipc", `"private"`, `"shareable"`), "Isolation": only("isolation", `"default"`),
 	"Links": only("links"), "MemorySwappiness": only("mem_swappiness"), "OomKillDisable": only("oom_kill_disable"),
 	"OomScoreAdj": only("oom_score_adj"), "PidMode": only("pid"), "PublishAllPorts": only("publish_all_ports (-P)"),

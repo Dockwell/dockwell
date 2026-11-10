@@ -670,7 +670,7 @@ func (a Access) Leading(to string) Access {
 // needs a signed-in person; only this asks them for more than a click, as a
 // warning that comes with every folder is a warning nobody reads (ADR 0028).
 func (a Access) AsGoodAsRoot() bool {
-	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork || a.Kind == AccessBackupOf ||
+	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork || a.Kind == AccessBackupOf || a.Kind == AccessServerShell ||
 		a.Kind == AccessNetworkDriver && a.Driver == "host"
 }
 
@@ -754,6 +754,9 @@ const (
 	// AccessBackupOf is a backup of a volume that reached Path, as good as root,
 	// coming back into one that doesn't. What it holds can be read from there.
 	AccessBackupOf
+	// AccessServerShell is a shell command the agent runs on the server as root, on
+	// a schedule (ADR 0053): the same as root.
+	AccessServerShell
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -972,6 +975,8 @@ func AccessWords(a Access) string {
 		return "HTTPS on " + plain(a.Path) + ", which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 	case AccessBackupOf:
 		return "a backup of a volume that reached " + plain(a.Path) + ", which can hold what's there, as good as root"
+	case AccessServerShell:
+		return "a shell command on the server, which runs as root"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }
@@ -1008,6 +1013,25 @@ func plain(s string) string {
 // adopting drift and putting back a revision don't ask it (ADR 0022).
 type Keeper interface {
 	Keep(current, desired proto.Message) (Kept, error)
+}
+
+// ChangeChecker is a kind that checks an edit against the rest of its change, as a
+// website's project changes what it serves only with the route that serves it.
+// current is nil for a resource the change makes, and others are what the change's
+// other edits are of. Like Keep, it's for what a caller wrote, so adopting drift and
+// putting back a revision don't ask it.
+type ChangeChecker interface {
+	CheckInChange(current, desired proto.Message, others []Ref) error
+}
+
+// EnvKeeper is a kind whose spec holds values no response carries, which an edit
+// by a client that can't read them back names to keep as they are, rather than
+// setting them (Edit.keep_env): a service's own environment variables. KeepEnv
+// puts the values of those named into desired from current, and says what it
+// kept for a plan's note, as a Keeper does. It refuses a name current hasn't got,
+// or one desired sets too.
+type EnvKeeper interface {
+	KeepEnv(current, desired proto.Message, names []string) (Kept, error)
 }
 
 // NewChecker is a kind that asks more of a new resource than Validate can of an edit,

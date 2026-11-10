@@ -1,0 +1,6 @@
+name: Amd64 Only
+additionalProperties:
+  key: amd64only
+  type: website
+  architectures:
+    - amd64

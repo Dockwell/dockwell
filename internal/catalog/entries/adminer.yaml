@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: adminer
+name: Adminer
+summary: Manage PostgreSQL, MySQL and MariaDB from one page
+description: |-
+  Adminer gives you a small browser-based workspace for your databases. Browse tables, run SQL, edit records and export data without installing a desktop client.
+
+  This entry installs Adminer on its own. Connect it to a database you already run using that database's address and credentials.
+icon: /catalog-media/adminer-icon.webp
+documentation: https://www.adminer.org/#usage
+appSource: https://github.com/vrana/adminer
+features:
+  - "Browse and edit database tables"
+  - "Run SQL queries in your browser"
+  - "Import and export database data"
+  - "Connect to PostgreSQL, MySQL and MariaDB"
+screenshots:
+  - path: /catalog-media/adminer-table.webp
+    caption: "Browse and edit database tables in Adminer"
+    source: https://www.adminer.org/static/screenshots/table.webp
+category: databases
+version: "6.2.0"
+release: 2
+homepage: https://www.adminer.org
+license: AGPL-3.0-only
+appLicense: Apache-2.0
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/adminer.yaml
+web:
+  service: adminer
+firstSteps: >-
+  Adminer answers only on this server until you add a domain, as it signs in over
+  plain HTTP. Add a domain on its page, over HTTPS or behind your tunnel, and open it
+  there. To open it before that, use an SSH tunnel from your computer: ssh -N -L
+  8086:127.0.0.1:8086 you@your-server, using the port you gave it, then open
+  http://localhost:8086. Sign in to a database by an address Adminer's container
+  reaches: host.docker.internal is this server, for a database it runs with a port of
+  its own, such as one another panel set up. A database installed from this catalog
+  keeps to its own project, where its services reach it by name, such as db, and
+  publishes no port. PostgreSQL, MySQL and MariaDB from this catalog each come with
+  an admin tool of their own already.
+inputs:
+  - name: PORT
+    label: Port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
+    type: INPUT_TYPE_PORT
+    defaultValue: "8086"
+compose: |
+  services:
+    adminer:
+      image: adminer:6.2.0@sha256:400af848ac3f57938abde4867677df1b195674d232c8896a27d111d04b9c088c
+      restart: unless-stopped
+      ports:
+        - "127.0.0.1:${PORT}:8080"
+      # This server, as Adminer reaches it, for a database it runs outside this project.
+      extra_hosts:
+        - host.docker.internal:host-gateway
+      healthcheck:
+        test: ["CMD", "php", "-r", "exit(str_contains((string) @file_get_contents('http://127.0.0.1:8080/'), 'auth[driver]') ? 0 : 1);"]
+        interval: 5s
+        timeout: 5s
+        retries: 12

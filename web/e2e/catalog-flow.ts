@@ -74,46 +74,86 @@ async function chooseServer(sheet: Locator) {
 }
 
 export async function catalogFlow(page: Page, { origin, step, shoot, docker, catalogDir }: CatalogFlowOptions) {
-  step("catalog: the rail leads to it, and it lists the first set");
+  step("catalog: the rail leads to it, and it lists the apps, n8n and pgAdmin among them");
   await page.goto(`${origin}/apps`);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Catalog" }).click();
   await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
-  for (const app of ["PostgreSQL", "MySQL", "Nginx Proxy Manager", "Cloudflare Tunnel", "T3 Code"]) {
-    await page.getByRole("link", { name: `Install ${app}` }).waitFor();
+  for (const app of ["PostgreSQL", "MySQL", "Nginx Proxy Manager", "Cloudflare Tunnel", "T3 Code", "pgAdmin", "n8n"]) {
+    await page.getByRole("link", { name: new RegExp(`^${app}\\b`) }).waitFor();
   }
   await shoot(page, "catalog");
 
   step("catalog: a category and a word each narrow it, and the URL keeps them");
   const chips = page.getByRole("group", { name: "Categories" });
   await chips.getByRole("button", { name: "Networking" }).click();
-  await page.getByRole("link", { name: "Install PostgreSQL" }).waitFor({ state: "hidden" });
-  await page.getByRole("link", { name: "Install Cloudflare Tunnel" }).waitFor();
+  await page.getByRole("link", { name: /^PostgreSQL\b/ }).waitFor({ state: "hidden" });
+  await page.getByRole("link", { name: /^Cloudflare Tunnel\b/ }).waitFor();
   if (!page.url().includes("category=networking")) fail(`the URL doesn't keep the category: ${page.url()}`);
   await chips.getByRole("button", { name: "All" }).click();
   await page.getByRole("textbox", { name: "Search apps" }).fill("relational");
-  await page.getByRole("link", { name: "Install Nginx Proxy Manager" }).waitFor({ state: "hidden" });
-  await page.getByRole("link", { name: "Install MySQL" }).waitFor();
+  await page.getByRole("link", { name: /^Nginx Proxy Manager\b/ }).waitFor({ state: "hidden" });
+  await page.getByRole("link", { name: /^MySQL\b/ }).waitFor();
   await page.getByRole("textbox", { name: "Search apps" }).fill("");
 
-  step(
-    "catalog: at its own address, with no other screen loaded first, its cards are panels and its form's fields sit apart",
-  );
+  step("catalog: browse an app's logo, description and real preview before entering installation");
+  let installRequests = 0;
+  const countInstall = (request: { url(): string }) => {
+    if (request.url().endsWith("/InstallCatalogEntry")) installRequests++;
+  };
+  page.on("request", countInstall);
+  await page.getByRole("textbox", { name: "Search apps" }).fill("PostgreSQL");
+  await page.getByRole("link", { name: /^PostgreSQL\b/ }).click();
+  await page.getByRole("heading", { level: 1, name: "PostgreSQL" }).waitFor();
+  if (await page.getByRole("dialog").count()) fail("browsing an app opened an install form");
+  await page.getByRole("heading", { name: "About PostgreSQL" }).waitFor();
+  await page.getByRole("link", { name: "Documentation", exact: true }).waitFor();
+  const preview = page.getByRole("img", { name: "Table browser in Adminer, included with this install" });
+  await preview.scrollIntoViewIfNeeded();
+  await preview.evaluate((image: HTMLImageElement) => image.decode());
+  const logo = page.locator(".catalog-detail .catalog-icon img").first();
+  await logo.evaluate((image: HTMLImageElement) => image.decode());
+  await shoot(page, "catalog-detail");
+  await page.getByRole("link", { name: "Back to catalog" }).click();
+  if ((await page.getByRole("textbox", { name: "Search apps" }).inputValue()) !== "PostgreSQL")
+    fail("returning from app details lost the catalog search");
+
+  step("catalog: an app's direct address works on desktop and phone");
   await page.goto(`${origin}/catalog/postgres`);
+  await page.getByRole("heading", { name: "About PostgreSQL" }).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("link", { name: "Install PostgreSQL" }).waitFor();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  if (overflow) fail("the app page overflows the phone's viewport");
+  await shoot(page, "catalog-detail-phone");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("link", { name: "Install PostgreSQL" }).click();
   const direct = page.getByRole("dialog", { name: "Install PostgreSQL" });
   await direct.getByLabel("Adminer port").waitFor();
-  const drawn = await page.evaluate(() => {
-    const card = document.querySelector(".catalog-card");
-    const form = document.querySelector(".dw-sheet form");
-    return {
-      card: card ? getComputedStyle(card).borderTopWidth : "missing",
-      fields: form ? getComputedStyle(form).rowGap : "missing",
-    };
-  });
-  if (drawn.card !== "1px" || drawn.fields !== "20px") {
-    fail(`opened at its address, the catalog draws its cards' border and its fields' gap as ${JSON.stringify(drawn)}`);
-  }
+  const gap = await direct.locator("form").evaluate((form) => getComputedStyle(form).rowGap);
+  if (gap !== "20px") fail(`the installation form's fields have a gap of ${gap}`);
+
+  step("catalog: an app's page says what it installs before the plan, the app you open first, each by image");
+  const parts = direct.getByRole("region", { name: "What it installs" });
+  await parts.getByText("App you open").waitFor();
+  for (const image of ["adminer:6.2.0", "postgres:17.11"]) await parts.getByText(image, { exact: true }).waitFor();
+  const order = (await parts.textContent()) ?? "";
+  if (order.indexOf("adminer") > order.indexOf("postgres:17.11"))
+    fail(`What it installs puts the database before the app: ${order}`);
   await direct.getByRole("button", { name: "Cancel" }).click();
-  await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
+  await page.getByRole("heading", { level: 1, name: "PostgreSQL" }).waitFor();
+
+  step("catalog: what an app reaches on the server is among what it installs, in red when it's as good as root");
+  await page.goto(`${origin}/catalog/coder`);
+  await page.getByRole("link", { name: "Install Coder" }).click();
+  const coder = page.getByRole("dialog", { name: "Install Coder" }).getByRole("region", { name: "What it installs" });
+  await coder.getByText("Docker's socket").waitFor();
+  const socket = coder.locator(".dw-diff-critical", { hasText: "/var/run/docker.sock" });
+  if ((await socket.count()) !== 1) fail("Coder's page doesn't mark Docker's socket in red among what it installs");
+  await page.getByRole("dialog", { name: "Install Coder" }).getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("heading", { level: 1, name: "Coder" }).waitFor();
+  if (installRequests !== 0) fail("browsing or cancelling asked to install an app");
+  page.off("request", countInstall);
+  await page.goto(`${origin}/catalog/postgres`);
 
   step("catalog: installing asks only what the app needs, starting from what's free");
   await page.getByRole("link", { name: "Install PostgreSQL" }).click();
@@ -124,7 +164,9 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   if (!/^\d+$/.test(port)) fail(`Adminer's port starts as "${port}"`);
   if ((await sheet.getByLabel("Name").inputValue()) !== "postgres") fail("its name doesn't start as postgres");
   if ((await sheet.getByLabel("Database password").count()) !== 0) fail("it asks for a password it generates");
-  await sheet.getByText(/Dockwell generates Database password and keeps it sealed/).waitFor();
+  await sheet
+    .getByText("Dockwell generates this and keeps it sealed, for you to reveal with your passkey: Database password")
+    .waitFor();
   await shoot(page, "catalog-install");
 
   step("catalog: its plan shows everything it makes, with the password as a secret and no value");
@@ -158,14 +200,22 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await page.getByRole("heading", { level: 1, name: "Variables and secrets" }).waitFor();
   await page.getByText("POSTGRES_PASSWORD", { exact: true }).first().waitFor();
 
-  step("catalog: an installed app says so, and leads to the app");
+  step("catalog: an installed app keeps its details and links to the running app");
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Catalog" }).click();
-  const card = page.getByRole("link", { name: "Open PostgreSQL" });
+  const card = page.getByRole("link", { name: /^PostgreSQL\b/ });
   await card.waitFor();
   await card.getByText("Installed").waitFor();
   await page.getByRole("link", { name: "1 installed" }).waitFor();
+  await card.click();
+  await page
+    .getByRole("region", { name: "Your installations" })
+    .getByRole("link", { name: "Open app: postgres" })
+    .waitFor();
+  await page.getByRole("link", { name: "Install another" }).waitFor();
+  await page.getByRole("link", { name: "Back to catalog" }).click();
 
   step("catalog: what only a person has is asked for out of sight, and what an app reaches is said first");
+  await page.getByRole("link", { name: /^Cloudflare Tunnel\b/ }).click();
   await page.getByRole("link", { name: "Install Cloudflare Tunnel" }).click();
   const tunnel = page.getByRole("dialog", { name: "Install Cloudflare Tunnel" });
   await tunnel.getByText("It reaches past its containers").waitFor();
@@ -177,12 +227,13 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await plan.getByText("not-a-real-token").waitFor({ state: "hidden" });
   await plan.getByRole("button", { name: /Cancel/ }).click();
   await tunnel.getByRole("button", { name: /Cancel/ }).click();
-  await page.getByRole("heading", { level: 1, name: "Catalog" }).waitFor();
+  await page.getByRole("heading", { level: 1, name: "Cloudflare Tunnel" }).waitFor();
 
   step("catalog: a newer release: the panel says so where you'd look for it");
   const entry = join(catalogDir, "e2e-notes.yaml");
   writeFileSync(entry, release(1, "1.0", FIRST_DIGEST));
   await page.goto(`${origin}/catalog/e2e-notes`);
+  await page.getByRole("link", { name: "Install E2E Notes" }).click();
   const notes = page.getByRole("dialog", { name: "Install E2E Notes" });
   await notes.getByLabel("Port").waitFor();
   await chooseServer(notes);

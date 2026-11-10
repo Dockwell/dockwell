@@ -130,7 +130,10 @@ func Generate(p *protogen.Plugin) error {
 	if err != nil {
 		return err
 	}
-	nouns = joinKinds(nouns, kinds)
+	nouns, err = joinKinds(nouns, kinds)
+	if err != nil {
+		return err
+	}
 	g := p.NewGeneratedFile(OutputFile, ImportPath)
 	write(g, methods, nouns, kinds)
 	return nil
@@ -393,7 +396,8 @@ func nounShort(noun string, verbs []string, one string) string {
 		}
 	}
 	short := capitalize(list(all, "or") + " " + words(noun))
-	if len(short) <= maxNounShort || len(single) == 0 {
+	// When every verb is one word, the list of one-word verbs is all of them.
+	if len(short) <= maxNounShort || len(single) == 0 || len(single) == len(all) {
 		return short
 	}
 	return capitalize(list(single, "or")+" "+words(noun)) + fmt.Sprintf(", and %d more", len(all)-len(single))
@@ -406,13 +410,19 @@ var kindVerbs = []string{"create", "update", "delete"}
 // joinKinds gives a noun that a kind's verbs join, as secrets has
 // RevealSecret's reveal and the secret kind's create, update and delete,
 // help that covers them all: its short help lists every verb, and its long
-// help says what the kind's do.
-func joinKinds(nouns []Noun, kinds []Kind) []Noun {
+// help says what the kind's do. A service method with a verb the kind makes
+// is refused, as the two would be one command.
+func joinKinds(nouns []Noun, kinds []Kind) ([]Noun, error) {
 	for i := range nouns {
 		n := &nouns[i]
 		for _, k := range kinds {
 			if k.Noun != n.Name {
 				continue
+			}
+			for _, v := range kindVerbs {
+				if slices.Contains(n.verbs, v) {
+					return nil, fmt.Errorf("dockwell %s %s is both a method's and the kind %s's; drop the method, as a kind's commands propose a change already", n.Name, v, k.Field)
+				}
 			}
 			n.verbs = append(n.verbs, kindVerbs...)
 			n.Short = nounShort(n.Name, n.verbs, n.Short)
@@ -420,7 +430,7 @@ func joinKinds(nouns []Noun, kinds []Kind) []Noun {
 				n.Name, list(kindVerbs, "and")))
 		}
 	}
-	return nouns
+	return nouns, nil
 }
 
 // describe names and describes one method.

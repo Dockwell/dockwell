@@ -1,0 +1,7 @@
+services:
+  keep:
+    image: example/keep:2.0.0
+    ports:
+      - ${PANEL_APP_PORT_HTTP}:80
+    volumes:
+      - ./data:/var/lib/keep

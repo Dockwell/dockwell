@@ -116,6 +116,10 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 		return nil, fmt.Errorf("its image has no %s, so Dockwell can't ask it", e.tool())
 	case refusedSignIn(said) || e.KeyValue() && redisRefused(out.String()):
 		return nil, fmt.Errorf("%s refused Dockwell's sign-in with what its environment holds. Dockwell signs in as its image does, with %s", e.Name, e.SignsInWith())
+	case code != 0 && e.SQL() && sqlRefused.MatchString(said):
+		// It answered, and refused what it was asked, in its own words, which may
+		// follow a notice or two.
+		return nil, fmt.Errorf("%s refused it: %s", e.Name, scrubbed(said[sqlRefused.FindStringIndex(said)[1]:]))
 	case code != 0:
 		return nil, fmt.Errorf("%s didn't answer, with code %d: %s", e.Name, code, scrubbed(said))
 	case out.over:
@@ -335,6 +339,10 @@ func (c *capped) Write(b []byte) (int, error) {
 var quoted = regexp.MustCompile(`'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"`)
 
 // scrubbed keeps the first line of what a database said, without what it quotes,
+// sqlRefused starts what psql, mysql and mariadb say of a statement they refused:
+// "psql:<stdin>:3: ERROR:  ..." or "ERROR 1044 (42000) at line 3: ...".
+var sqlRefused = regexp.MustCompile(`(?m)^(psql:[^\n]*?: ERROR: +|ERROR \d+ \([0-9A-Z]+\)( at line \d+)?: )`)
+
 // which can be a value: a reading is there for anyone who can read the database.
 func scrubbed(said string) string {
 	first, _, _ := strings.Cut(strings.TrimSpace(said), "\n")

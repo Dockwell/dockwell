@@ -3,13 +3,21 @@
 import { Icon, type IconName, Panel, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
+import { useId } from "react";
 
 import { Page } from "../shell/Page";
 import "./Settings.css";
 
 /** A section of Settings, where it is, and the group it's in. */
 interface Section {
-  to: "/settings/general" | "/profile";
+  to:
+    | "/settings/general"
+    | "/settings/members"
+    | "/settings/api-tokens"
+    | "/settings/audit-log"
+    | "/settings/control-plane"
+    | "/settings/integrations"
+    | "/profile";
   label: string;
   icon: IconName;
 }
@@ -18,7 +26,22 @@ interface Section {
 function useSections(): { label: string; sections: Section[] }[] {
   const { t } = useLingui();
   return [
-    { label: t`Install`, sections: [{ to: "/settings/general", label: t`General`, icon: "settings" }] },
+    {
+      label: t`Install`,
+      sections: [
+        { to: "/settings/general", label: t`General`, icon: "settings" },
+        { to: "/settings/members", label: t`Members`, icon: "users" },
+        { to: "/settings/api-tokens", label: t`API tokens`, icon: "key" },
+        { to: "/settings/audit-log", label: t`Audit log`, icon: "file" },
+      ],
+    },
+    {
+      label: t`Platform`,
+      sections: [
+        { to: "/settings/control-plane", label: t`Control plane`, icon: "server" },
+        { to: "/settings/integrations", label: t`Integrations`, icon: "layers" },
+      ],
+    },
     { label: t`Account`, sections: [{ to: "/profile", label: t`Profile and security`, icon: "user" }] },
   ];
 }
@@ -30,10 +53,11 @@ function useSections(): { label: string; sections: Section[] }[] {
  */
 export function SettingsLayout() {
   const phone = useMediaQuery(PHONE_QUERY);
-  if (phone) return <Outlet />;
+  // The page keeps its place in the tree at every width, so turning a phone or narrowing a window doesn't make it
+  // anew and lose what it holds, such as a token shown once.
   return (
-    <div className="settings">
-      <SettingsNav />
+    <div className={phone ? "settings is-phone" : "settings"}>
+      {phone ? null : <SettingsNav />}
       <div className="settings-page">
         <Outlet />
       </div>
@@ -74,12 +98,14 @@ export function SettingsHome() {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const groups = useSections();
+  // Each group's heading names it by its place, as its label is translated and may hold anything.
+  const id = useId();
   if (!phone) return <Navigate to="/settings/general" replace />;
   return (
     <Page title={t`Settings`} back="/more">
-      {groups.map((group) => (
-        <section key={group.label} className="settings-list-group" aria-labelledby={`settings-group-${group.label}`}>
-          <h2 id={`settings-group-${group.label}`} className="settings-list-label">
+      {groups.map((group, i) => (
+        <section key={group.label} className="settings-list-group" aria-labelledby={`${id}-${i}`}>
+          <h2 id={`${id}-${i}`} className="settings-list-label">
             {group.label}
           </h2>
           <Panel flush className="settings-list">

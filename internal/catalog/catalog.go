@@ -11,6 +11,8 @@ import (
 	"cmp"
 	"crypto/rand"
 	"embed"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,8 +27,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 
 	"go.yaml.in/yaml/v4"
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -54,15 +60,9 @@ const DirEnv = "DOCKWELL_CATALOG_DIR"
 // Load returns the catalog: what's built in, and what DirEnv adds. commit is the
 // build's, which an entry built in takes as the commit it came from.
 func Load(commit string) (*Catalog, error) {
-	c, err := builtIn()
+	out, err := BuiltIn(commit)
 	if err != nil {
 		return nil, err
-	}
-	out := &Catalog{entries: make([]*catalogv1.Entry, len(c.entries))}
-	for i, e := range c.entries {
-		e = proto.CloneOf(e)
-		e.GetSource().Commit = cmp.Or(e.GetSource().GetCommit(), commit)
-		out.entries[i] = e
 	}
 	dir := os.Getenv(DirEnv)
 	if dir == "" {
@@ -80,8 +80,38 @@ func Load(commit string) (*Catalog, error) {
 	return out, nil
 }
 
+// sortEntries sorts by name as people read one, whatever its case and accents, so n8n
+// and pgAdmin sit among the others rather than after them all, and É with E. Two of
+// one name keep an order of their own, by ID.
 func sortEntries(entries []*catalogv1.Entry) {
-	slices.SortFunc(entries, func(a, b *catalogv1.Entry) int { return strings.Compare(a.GetName(), b.GetName()) })
+	slices.SortFunc(entries, func(a, b *catalogv1.Entry) int {
+		return cmp.Or(strings.Compare(sortKey(a.GetName()), sortKey(b.GetName())), strings.Compare(a.GetName(), b.GetName()), strings.Compare(a.GetId(), b.GetId()))
+	})
+}
+
+// BuiltIn returns the entries built into the binary alone, whatever DirEnv names,
+// for what must tell Dockwell's own entries from any other.
+func BuiltIn(commit string) (*Catalog, error) {
+	c, err := builtIn()
+	if err != nil {
+		return nil, err
+	}
+	out := &Catalog{entries: make([]*catalogv1.Entry, len(c.entries))}
+	for i, e := range c.entries {
+		e = proto.CloneOf(e)
+		e.GetSource().Commit = cmp.Or(e.GetSource().GetCommit(), commit)
+		out.entries[i] = e
+	}
+	return out, nil
+}
+
+// sortKey is a name as it sorts: in lower case, with its accents taken off.
+func sortKey(name string) string {
+	folded, _, err := transform.String(transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC), name)
+	if err != nil {
+		folded = name
+	}
+	return strings.ToLower(folded)
 }
 
 // load reads every entry that matches a pattern.
@@ -113,6 +143,16 @@ func load(dir fs.FS, pattern string) (*Catalog, error) {
 // it. A field the schema doesn't have is refused, as it would otherwise do
 // nothing without a word.
 func Parse(raw []byte) (*catalogv1.Entry, error) {
+	e, err := Decode(raw)
+	if err != nil {
+		return nil, err
+	}
+	return e, Check(e)
+}
+
+// Decode reads an entry from YAML as Parse does, and checks nothing beyond its
+// fields, for part of one, such as what a converter adds to an entry it makes.
+func Decode(raw []byte) (*catalogv1.Entry, error) {
 	var tree any
 	if err := yaml.Unmarshal(raw, &tree); err != nil {
 		return nil, fmt.Errorf("reading its YAML: %w", err)
@@ -125,7 +165,7 @@ func Parse(raw []byte) (*catalogv1.Entry, error) {
 	if err := protojson.Unmarshal(asJSON, e); err != nil {
 		return nil, fmt.Errorf("reading its fields: %w", err)
 	}
-	return e, Check(e)
+	return e, nil
 }
 
 // All returns every entry, sorted by name. They're the catalog's: read them, and
@@ -165,6 +205,9 @@ func Check(e *catalogv1.Entry) error {
 	if e.GetRelease() == 0 {
 		return errors.New("it has no release. Start at 1, and go up with each change to the entry")
 	}
+	if err := checkPresentation(e); err != nil {
+		return err
+	}
 	images := 0
 	for line := range strings.Lines(e.GetCompose()) {
 		if strings.HasPrefix(strings.TrimSpace(line), "image:") {
@@ -177,6 +220,9 @@ func Check(e *catalogv1.Entry) error {
 	if images == 0 {
 		return errors.New("its Compose file names no image")
 	}
+	if err := checkDatabases(e); err != nil {
+		return err
+	}
 	seen := map[string]bool{}
 	for _, in := range e.GetInputs() {
 		name := in.GetName()
@@ -185,20 +231,41 @@ func Check(e *catalogv1.Entry) error {
 			return fmt.Errorf("the input %q needs a name a Compose file can use, in capitals, such as ADMIN_PORT", name)
 		case seen[name]:
 			return fmt.Errorf("two inputs are named %s. Rename one", name)
-		case !strings.Contains(e.GetCompose(), "${"+name+"}"):
-			return fmt.Errorf("its Compose file doesn't use the input %s. Use it as ${%s}, or remove it", name, name)
+		case !regexp.MustCompile(`\$\{` + name + `(\}|:?[-?+])`).MatchString(e.GetCompose()):
+			return fmt.Errorf("its Compose file doesn't use the input %s. Use it as ${%s}, or as ${%s:-default}, or remove it", name, name, name)
 		case in.GetType() == catalogv1.InputType_INPUT_TYPE_SECRET && in.GetDefaultValue() != "":
 			return fmt.Errorf("the secret %s has a default, which everyone who installs it would share. Set generate, or leave it to a person", name)
 		case in.GetGenerate() > 0 && in.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET:
 			return fmt.Errorf("the input %s sets generate, which only a secret takes", name)
 		case in.GetGenerate() > 0 && in.GetGenerate() < 16:
-			return fmt.Errorf("the secret %s generates %d characters. Generate at least 16", name, in.GetGenerate())
+			return fmt.Errorf("the secret %s generates %d, too few to guess at. Generate at least 16", name, in.GetGenerate())
+		case in.GetGenerateAs() != catalogv1.GenerateAs_GENERATE_AS_UNSPECIFIED && in.GetGenerate() == 0:
+			return fmt.Errorf("the input %s says how to write what it generates, and generates nothing. Set generate, or take generate_as away", name)
 		}
 		seen[name] = true
 		if Secret(in) {
 			if err := standsAlone(e.GetCompose(), name); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+// checkDatabases refuses a database the entry marks that its Compose file doesn't run.
+func checkDatabases(e *catalogv1.Entry) error {
+	if len(e.GetDatabases()) == 0 {
+		return nil
+	}
+	var file struct {
+		Services map[string]any `yaml:"services"`
+	}
+	if err := yaml.Unmarshal([]byte(e.GetCompose()), &file); err != nil {
+		return fmt.Errorf("its Compose file isn't YAML: %w", err)
+	}
+	for _, name := range e.GetDatabases() {
+		if _, ok := file.Services[name]; !ok {
+			return fmt.Errorf("it marks %s as a database, which its Compose file doesn't run. Name one of its services", name)
 		}
 	}
 	return nil
@@ -214,11 +281,13 @@ func standsAlone(file, name string) error {
 		return fmt.Errorf("its Compose file isn't YAML: %w", err)
 	}
 	whole := regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*=)?\$\{` + regexp.QuoteMeta(name) + `\}$`)
+	// The name whole, so KEY isn't found in ${KEY2}.
+	uses := regexp.MustCompile(`\$\{` + regexp.QuoteMeta(name) + `(\}|:?[-?+])`)
 	var walk func(any) error
 	walk = func(v any) error {
 		switch v := v.(type) {
 		case string:
-			if strings.Contains(v, "${"+name) && !whole.MatchString(v) {
+			if uses.MatchString(v) && !whole.MatchString(v) {
 				return fmt.Errorf("the secret %s is inside a longer value, %q, which an upgrade and a rotation couldn't reach. Give the app the secret as a value of its own", name, strings.ReplaceAll(v, "\n", " "))
 			}
 		case []any:
@@ -379,7 +448,7 @@ func fill(e *catalogv1.Entry, given, suggested map[string]string, held map[strin
 		}
 		if in.GetGenerate() > 0 {
 			var err error
-			if value, err = generate(int(in.GetGenerate())); err != nil {
+			if value, err = generateAs(int(in.GetGenerate()), in.GetGenerateAs()); err != nil {
 				return nil, err
 			}
 		}
@@ -442,7 +511,28 @@ func names(e *catalogv1.Entry) string {
 // means the same in a URL, a shell and a config file.
 const generated = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-// generate makes a secret of n characters.
+// generateAs makes a secret as an input asks: n letters and digits, n hex digits, or
+// n random bytes in base64.
+func generateAs(n int, as catalogv1.GenerateAs) (string, error) {
+	switch as {
+	case catalogv1.GenerateAs_GENERATE_AS_HEX:
+		b := make([]byte, (n+1)/2)
+		if _, err := rand.Read(b); err != nil {
+			return "", fmt.Errorf("generating a secret: %w", err)
+		}
+		return hex.EncodeToString(b)[:n], nil
+	case catalogv1.GenerateAs_GENERATE_AS_BASE64:
+		b := make([]byte, n)
+		if _, err := rand.Read(b); err != nil {
+			return "", fmt.Errorf("generating a secret: %w", err)
+		}
+		return base64.StdEncoding.EncodeToString(b), nil
+	default:
+		return generate(n)
+	}
+}
+
+// generate makes a secret of n letters and digits.
 func generate(n int) (string, error) {
 	var b strings.Builder
 	size := big.NewInt(int64(len(generated)))

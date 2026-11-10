@@ -35,7 +35,7 @@ The picker maps each path to the jobs that read it, and its rules are written fr
 | A Go test, `*_test.go` | Go, Go on Docker, Go on Caddy |
 | Other Go code, anywhere, `proto/`, `gen/`, most of `scripts/` | Every CI job, the Memory budgets, and three install legs |
 | `go.mod`, `go.sum`, `tools/`, which build the release | The same, with every install leg |
-| `scripts/install.sh` | Go, Hundreds of containers, Service end to end on Docker, the budgets, and every install leg |
+| `scripts/install.sh` | Go, Hundreds of containers, Transfer load, Service end to end on Docker, the budgets, and every install leg |
 | `scripts/connected.awk`, which runs inside the legs | As Go code, with every install leg |
 | `scripts/install-test/`, the trust root | Every install leg |
 | `.goreleaser.yaml` | The budgets and every install leg |
@@ -43,7 +43,7 @@ The picker maps each path to the jobs that read it, and its rules are written fr
 
 These choices are judgements:
 
-- **The budgets don't run for the panel.** Only the full build embeds the panel, which reads each file once at start to hash it, so a panel change moves the control plane's idle RSS by about its size in file-backed pages. The Panel job holds that size instead: `scripts/check-panel-size.sh` fails above 2.5 MB, against main's 1.67 MB on 2026-11-07, which leaves the control plane far inside its 250 MB budget.
+- **The budgets don't run for the panel.** Only the full build embeds the panel, which reads each file once at start to hash it, so a panel change moves the control plane's idle RSS by about its size in file-backed pages. The Panel job holds that size instead: `scripts/check-panel-size.sh` fails above 3 MB. Its initial 2.5 MB limit allowed about half as much again as main's 1.67 MB on 2026-11-07. On 2026-11-08, the terminal's 392 KB xterm, fitting and search chunk receives a further 0.5 MB allowance; the complete build is 2,548,822 bytes. The control plane's separate 250 MB idle RSS budget still applies.
 - **Go code runs three install legs, not eight and two.** The install script runs the binary's `run`, `join`, `token`, `claim` and `role`, which reach some 40 packages: the control plane, enrolment, the store and its migrations, the keys, and what reads `/etc/os-release` and the architecture. The legs are the only place a pull request runs an arm64 build, Debian, AlmaLinux and Alpine, OpenRC and systemd, and an upgrade, and a hand-kept list of the packages they reach would go stale. So any Go change runs Alpine on arm64, for busybox, musl and OpenRC; AlmaLinux on amd64, for an RPM distribution; and systemd on arm64. That's 3 jobs and about 3.3 runner-minutes on each Go push, against 10 and about 10.6 for every leg. Every leg runs for the install script, its tests, the release, and on main.
 - **A Go test runs no install legs and no budgets.** A test isn't in either build.
 - **A catalog entry runs no budgets.** The full build embeds every entry, and parses them all on the first call to the catalog's API, not at start, so an idle control plane holds none of them, and one that has served the catalog holds a few kilobytes an entry, against a 250 MB budget. The agent build doesn't link the catalog.

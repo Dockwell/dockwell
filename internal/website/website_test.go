@@ -1,0 +1,349 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package website
+
+import (
+	"slices"
+	"strings"
+	"testing"
+
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+)
+
+func proxy(url string, port uint32) *resourcev1.Website {
+	return &resourcev1.Website{Serves: &resourcev1.Website_Proxy{Proxy: &resourcev1.WebsiteProxy{Url: url, Port: port}}}
+}
+
+// A URL is written back as it's used, and anything that could leave its place in a
+// config, or that a container can't reach as the person meant, is refused, saying
+// what to give instead.
+func TestAURLToSendTo(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"https://backend.example.com", "https://backend.example.com"},
+		{"HTTPS://Backend.Example.com/", "https://backend.example.com"},
+		{"  http://10.0.0.5:8080  ", "http://10.0.0.5:8080"},
+		{"http://10.0.0.5:8080/app/", "http://10.0.0.5:8080/app"},
+		{"https://[2001:db8::5]:8443/a/b", "https://[2001:db8::5]:8443/a/b"},
+		{"http://backend/%7Euser", "http://backend/%7Euser"},
+	} {
+		w := proxy(tc.in, 0)
+		if err := Check(w); err != nil {
+			t.Errorf("Check(%q) = %v", tc.in, err)
+			continue
+		}
+		if got := w.GetProxy().GetUrl(); got != tc.want {
+			t.Errorf("Check(%q) wrote %q, want %q", tc.in, got, tc.want)
+		}
+	}
+	for _, tc := range []struct{ in, says string }{
+		{"backend.example.com", "no http:// or https://"},
+		{"ftp://backend.example.com", "over http or https alone"},
+		{"https://user:pass@backend.example.com", "user name or password"},
+		{"https://backend.example.com/?a=1", "has a query"},
+		{"https://backend.example.com/#top", "never leaves a browser"},
+		{"http://127.0.0.1:3000", "give the port in place of a URL"},
+		{"http://localhost:3000", "give the port in place of a URL"},
+		{"http://[::1]:3000", "give the port in place of a URL"},
+		{"http://0.0.0.0", "no address"},
+		{"http://back_end.example.com", "isn't a host name"},
+		{"http://backend.example.com:0", "isn't one"},
+		{"http://backend.example.com:70000", "isn't one"},
+		{"http://backend.example.com/a b", "a space"},
+		{"http://backend.example.com/{path}", "a character a URL can't hold"},
+		{"http://backend.example.com/a\n}", "a space"},
+		{"http://backend.example.com/a;b", "a character a website can't send on"},
+		{"http://backend.example.com/a/../b", "the path it leads to"},
+		{"https://", "names no host"},
+		{"http://169.254.169.254/latest/meta-data", "metadata service"},
+		{"http://[fe80::1]:8080", "link-local"},
+		{"http://metadata.google.internal/computeMetadata/v1", "metadata service"},
+		{"http://metadata/computeMetadata/v1", "metadata service"},
+		{"http://100.100.100.200/latest/meta-data", "metadata service"},
+		{"http://[fd00:ec2::254]/latest/meta-data", "metadata service"},
+		{"http://[::ffff:169.254.169.254]/", "link-local"},
+		{"http://172.17.0.1:2375", "Docker's API"},
+		{"https://docker.example.com:2376", "Docker's API"},
+	} {
+		err := Check(proxy(tc.in, 0))
+		if err == nil || !strings.Contains(err.Error(), tc.says) {
+			t.Errorf("Check(%q) = %v, want it to say %q", tc.in, err, tc.says)
+		}
+	}
+}
+
+func TestWhatAProxyNeeds(t *testing.T) {
+	for _, tc := range []struct {
+		w    *resourcev1.Website
+		says string
+	}{
+		{nil, "needs to say what it serves"},
+		{&resourcev1.Website{}, "needs to say what it serves"},
+		{proxy("", 0), "needs somewhere to send them"},
+		{proxy("https://backend.example.com", 3000), "not both"},
+		{proxy("", 70000), "isn't a port"},
+		{&resourcev1.Website{Serves: &resourcev1.Website_Proxy{Proxy: &resourcev1.WebsiteProxy{Port: 3000, SendTargetHost: true}}}, "no name of its own"},
+	} {
+		err := Check(tc.w)
+		if err == nil || !strings.Contains(err.Error(), tc.says) {
+			t.Errorf("Check(%v) = %v, want it to say %q", tc.w, err, tc.says)
+		}
+	}
+	if err := Check(proxy("", 3000)); err != nil {
+		t.Errorf("a port on the server: %v", err)
+	}
+}
+
+// A port on the server is a route alone, and a URL is the web server with a route to
+// it. Either keeps what's in front of the domain as the route had it.
+func TestWhatServesEachKind(t *testing.T) {
+	front := Front{TLS: "off", TrustedProxies: []string{"127.0.0.1"}}
+	port := Resources(proxy("", 3000), "app.example.com", front)
+	if len(port.Services) != 0 {
+		t.Errorf("a port on the server has services: %v", port.Services)
+	}
+	if r := port.Route; r.GetHostPort() != 3000 || r.GetService() != "" || r.GetPort() != 0 || r.GetDomain() != "app.example.com" || r.GetTls() != "off" || r.GetTrustedProxies()[0] != "127.0.0.1" {
+		t.Errorf("a port on the server's route is %v", r)
+	}
+
+	url := Resources(proxy("https://backend.example.com/app", 0), "app.example.com", Front{})
+	if r := url.Route; r.GetService() != WebService || r.GetPort() != Port || r.GetHostPort() != 0 || r.GetTls() != "" {
+		t.Errorf("a URL's route is %v", r)
+	}
+	web := url.Services[WebService].GetApp()
+	if web == nil {
+		t.Fatalf("a URL has no web server: %v", url.Services)
+	}
+	if web.GetImage() != Image || !strings.Contains(web.GetImage(), "@sha256:") {
+		t.Errorf("the web server runs %s, want the pinned %s", web.GetImage(), Image)
+	}
+	if web.GetUser() != "65532" || !slices.Contains(web.GetCapDrop(), "NET_RAW") || !slices.Contains(web.GetCapDrop(), "SETUID") {
+		t.Errorf("the web server runs as %q, dropping %v", web.GetUser(), web.GetCapDrop())
+	}
+	// Caddy's binary carries this one as a file capability, and won't start without it.
+	if slices.Contains(web.GetCapDrop(), "NET_BIND_SERVICE") || slices.Contains(web.GetCapDrop(), "ALL") || len(web.GetCapAdd()) != 0 {
+		t.Errorf("the web server drops %v and adds %v, and Caddy's file capability needs NET_BIND_SERVICE kept, which adding would make host access", web.GetCapDrop(), web.GetCapAdd())
+	}
+	if !slices.Equal(web.GetNetworks(), []string{SiteNetwork}) || url.Networks[SiteNetwork] == nil {
+		t.Errorf("the web server joins %v of %v, want a network of its own, off Docker's default bridge", web.GetNetworks(), url.Networks)
+	}
+	if web.GetResources().GetMemory() != Memory {
+		t.Errorf("the web server may use %q of memory, want %s", web.GetResources().GetMemory(), Memory)
+	}
+	if len(port.Networks) != 0 {
+		t.Errorf("a port on the server has networks: %v", port.Networks)
+	}
+	if web.GetHealthcheck().GetTcp().GetPort() != Port {
+		t.Errorf("the web server's check is %v, want a connection to %d", web.GetHealthcheck(), Port)
+	}
+	if len(web.GetCommand()) != 1 || web.GetCommand()[0] != Config(proxy("https://backend.example.com/app", 0)) {
+		t.Errorf("the web server's command is %q", web.GetCommand())
+	}
+	if len(web.GetReferences()) != 0 {
+		t.Errorf("the config's $ would be read as a value: %v", web.GetReferences())
+	}
+}
+
+func TestTheProxysConfig(t *testing.T) {
+	got := Config(proxy("https://backend.example.com/app", 0))
+	for _, want := range []string{"admin off", "auto_https off", "trusted_proxies static private_ranges", "\n:8080 {", "rewrite * /app{uri}", "reverse_proxy https://backend.example.com\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the config has no %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "header_up") {
+		t.Errorf("the config sends another Host when it wasn't asked to:\n%s", got)
+	}
+	host := &resourcev1.Website{Serves: &resourcev1.Website_Proxy{Proxy: &resourcev1.WebsiteProxy{Url: "https://backend.example.com", SendTargetHost: true}}}
+	if got := Config(host); !strings.Contains(got, "header_up Host {upstream_hostport}") || strings.Contains(got, "rewrite") {
+		t.Errorf("the config for the target's own name:\n%s", got)
+	}
+	if got := Config(proxy("", 3000)); got != "" {
+		t.Errorf("a port on the server has a config:\n%s", got)
+	}
+}
+
+func TestAWebsitesProjectName(t *testing.T) {
+	for in, want := range map[string]string{
+		"blog.example.com":                       "blog-example-com",
+		"Shop.Example.COM":                       "shop-example-com",
+		"1password.example":                      "site-1password-example",
+		strings.Repeat("a", 60) + ".example.com": strings.Repeat("a", 58),
+	} {
+		if got := ProjectName(in); got != want {
+			t.Errorf("ProjectName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func folder(root string, index ...string) *resourcev1.Website {
+	return &resourcev1.Website{Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: root, Index: index}}}
+}
+
+// A folder is an absolute path, written back clean, with index names that can't
+// leave the folder or their place in a config.
+func TestAFolderToServe(t *testing.T) {
+	w := folder(" /var/www/blog/ ", "index.html", " index.html", "", "home.htm")
+	if err := Check(w); err != nil {
+		t.Fatalf("Check = %v", err)
+	}
+	if got := w.GetFolder(); got.GetRoot() != "/var/www/blog" || !slices.Equal(got.GetIndex(), []string{"index.html", "home.htm"}) {
+		t.Errorf("Check wrote %v", got)
+	}
+	for _, tc := range []struct {
+		w    *resourcev1.Website
+		says string
+	}{
+		{folder(""), "needs the folder"},
+		{folder("var/www/blog"), "isn't an absolute path"},
+		{folder("/"), "the whole server"},
+		{folder("/var/www/../etc"), "Give the folder it leads to"},
+		{folder("/var/www/my site"), "a character a folder's path can't hold"},
+		{folder("/var/www/{blog}"), "a character a folder's path can't hold"},
+		{folder("/var/www/blog", "../secret"), "isn't a file name an index can have"},
+		{folder("/var/www/blog", "a b"), "isn't a file name an index can have"},
+	} {
+		err := Check(tc.w)
+		if err == nil || !strings.Contains(err.Error(), tc.says) {
+			t.Errorf("Check(%v) = %v, want it to say %q", tc.w, err, tc.says)
+		}
+	}
+}
+
+// A folder's website is its web server, which mounts the folder read-only, and a
+// route to it.
+func TestWhatServesAFolder(t *testing.T) {
+	w := folder("/var/www/blog")
+	if err := Check(w); err != nil {
+		t.Fatal(err)
+	}
+	got := Resources(w, "blog.example.com", Front{})
+	if r := got.Route; r.GetService() != WebService || r.GetPort() != Port {
+		t.Errorf("a folder's route is %v", r)
+	}
+	web := got.Services[WebService].GetApp()
+	if len(web.GetMounts()) != 1 {
+		t.Fatalf("the web server mounts %v", web.GetMounts())
+	}
+	m := web.GetMounts()[0]
+	if m.GetHostPath() != "/var/www/blog" || m.GetTarget() != FolderTarget || !m.GetReadOnly() {
+		t.Errorf("the web server mounts %v, want the folder at %s, read-only", m, FolderTarget)
+	}
+	config := Config(w)
+	for _, want := range []string{"root * /srv", "file_server {\n\t\t\tindex index.html index.htm\n\t\t\thide .* *.php *.phtml *.phar", "handle /.well-known/* {"} {
+		if !strings.Contains(config, want) {
+			t.Errorf("the config has no %q:\n%s", want, config)
+		}
+	}
+	if strings.Contains(config, "try_files") {
+		t.Errorf("a folder that isn't a single-page app sends what isn't there somewhere:\n%s", config)
+	}
+	app := &resourcev1.Website{Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: "/var/www/app", Index: []string{"app.html"}, SinglePageApp: true}}}
+	if config := Config(app); !strings.Contains(config, "try_files {path} {path}/ /app.html") {
+		t.Errorf("a single-page app's config:\n%s", config)
+	}
+}
+
+func php(p *resourcev1.WebsitePhp) *resourcev1.Website {
+	return &resourcev1.Website{Serves: &resourcev1.Website_Php{Php: p}}
+}
+
+// A PHP website takes a version Dockwell offers, the newest when it names none, and
+// a user and group by number, www-data's when it names none, and never root's,
+// however it's written.
+func TestWhatAPHPWebsiteTakes(t *testing.T) {
+	w := php(&resourcev1.WebsitePhp{Root: "/var/www/shop/", User: " 1000 "})
+	if err := Check(w); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.GetPhp(); got.GetRoot() != "/var/www/shop" || got.GetVersion() != PHPRuntimes()[0].Version || got.GetUser() != "1000:1000" {
+		t.Errorf("Check wrote %v", got)
+	}
+	for in, want := range map[string]string{"": DefaultPHPUser, "01000:033": "1000:33", "82:82": "82:82"} {
+		w := php(&resourcev1.WebsitePhp{Root: "/var/www/shop", User: in})
+		if err := Check(w); err != nil || w.GetPhp().GetUser() != want {
+			t.Errorf("Check of the user %q = %q, %v; want %q", in, w.GetPhp().GetUser(), err, want)
+		}
+	}
+	for _, tc := range []struct {
+		p    *resourcev1.WebsitePhp
+		says string
+	}{
+		{&resourcev1.WebsitePhp{Root: "/var/www/shop", Version: "5.6"}, "PHP 5.6 isn't one Dockwell offers"},
+		{&resourcev1.WebsitePhp{Root: "/var/www/shop", User: "www-data"}, "a user and group by number"},
+		{&resourcev1.WebsitePhp{Root: "/var/www/shop", User: "0"}, "doesn't run as root"},
+		{&resourcev1.WebsitePhp{Root: "/var/www/shop", User: "00"}, "doesn't run as root"},
+		{&resourcev1.WebsitePhp{Root: "/var/www/shop", User: "0:0"}, "doesn't run as root"},
+		{&resourcev1.WebsitePhp{Root: "/var/www/shop", User: "1000:0"}, "nor in root's group"},
+		{&resourcev1.WebsitePhp{Root: "/var/www/shop", User: "+0"}, "a user and group by number"},
+		{&resourcev1.WebsitePhp{Root: "/var/www/shop", User: "4294967296"}, "a user and group by number"},
+		{&resourcev1.WebsitePhp{Root: "/var/www/shop", UploadLimitMb: 5000}, "more than the 4096 MiB"},
+		{&resourcev1.WebsitePhp{Root: "relative"}, "isn't an absolute path"},
+	} {
+		err := Check(php(tc.p))
+		if err == nil || !strings.Contains(err.Error(), tc.says) {
+			t.Errorf("Check(%v) = %v, want it to say %q", tc.p, err, tc.says)
+		}
+	}
+	for _, r := range PHPRuntimes() {
+		if !strings.Contains(r.Image, "@sha256:") || !strings.HasPrefix(r.Release, r.Version+".") {
+			t.Errorf("PHP %s runs %s, release %s: want an image pinned by digest, of that version", r.Version, r.Image, r.Release)
+		}
+	}
+}
+
+// A PHP website is its web server and PHP-FPM, on a network of their own, each
+// mounting the folder at the same path: the web server read-only, PHP read-write.
+func TestWhatServesAPHPWebsite(t *testing.T) {
+	w := php(&resourcev1.WebsitePhp{Root: "/var/www/shop", Version: "8.3", User: "1000", UploadLimitMb: 128})
+	if err := Check(w); err != nil {
+		t.Fatal(err)
+	}
+	got := Resources(w, "shop.example.com", Front{})
+	if got.Networks[SiteNetwork] == nil || len(got.Networks) != 1 {
+		t.Errorf("a PHP website's networks are %v", got.Networks)
+	}
+	if r := got.Route; r.GetService() != WebService || r.GetPort() != Port {
+		t.Errorf("its route is %v", r)
+	}
+	web, fpm := got.Services[WebService].GetApp(), got.Services[PHPService].GetApp()
+	if web == nil || fpm == nil {
+		t.Fatalf("its services are %v", got.Services)
+	}
+	rt, _ := PHPRuntime("8.3")
+	if fpm.GetImage() != rt.Image || fpm.GetUser() != "1000:1000" || !slices.Equal(fpm.GetEntrypoint(), []string{"docker-php-entrypoint"}) {
+		t.Errorf("PHP runs %s as %q, through %v", fpm.GetImage(), fpm.GetUser(), fpm.GetEntrypoint())
+	}
+	if !slices.Equal(fpm.GetCapDrop(), []string{"ALL"}) || len(fpm.GetCapAdd()) != 0 {
+		t.Errorf("PHP drops %v and adds %v, want every capability dropped", fpm.GetCapDrop(), fpm.GetCapAdd())
+	}
+	if tmp := fpm.GetTmpfs(); len(tmp) != 1 || tmp[0].GetTarget() != "/tmp" || tmp[0].GetSize() != "144M" {
+		t.Errorf("PHP's tmpfs is %v, want /tmp, as big as the upload limit and 16 MB", tmp)
+	}
+	if cmd := strings.Join(fpm.GetCommand(), " "); !strings.Contains(cmd, "upload_max_filesize=128M") || !strings.Contains(cmd, "post_max_size=128M") || !strings.Contains(cmd, "user_ini.filename=") {
+		t.Errorf("PHP's command is %q", cmd)
+	}
+	for name, app := range map[string]*resourcev1.Container{"web": web, "php": fpm} {
+		if !slices.Equal(app.GetNetworks(), []string{SiteNetwork}) {
+			t.Errorf("%s joins %v", name, app.GetNetworks())
+		}
+		if m := app.GetMounts(); len(m) != 1 || m[0].GetHostPath() != "/var/www/shop" || m[0].GetTarget() != PHPTarget || m[0].GetReadOnly() != (name == "web") || m[0].GetMakeOwner() != "1000:1000" {
+			t.Errorf("%s mounts %v", name, m)
+		}
+	}
+	config := Config(w)
+	for _, want := range []string{"php_fastcgi php:9000", "try_files {path} {path}/index.php {path}/index.html index.php", "max_size 128MiB", "hide .* *.php *.phtml", "@dotted path_regexp", "handle /.well-known/* {"} {
+		if !strings.Contains(config, want) {
+			t.Errorf("the config has no %q:\n%s", want, config)
+		}
+	}
+	only := php(&resourcev1.WebsitePhp{Root: "/var/www/shop", FilesOnly: true, Index: []string{"home.html", "app.php"}})
+	if err := Check(only); err != nil {
+		t.Fatal(err)
+	}
+	config = Config(only)
+	for _, want := range []string{"index app.php", "try_files {path} {path}/app.php {path}/home.html =404", "file_server {\n\t\t\tindex home.html\n"} {
+		if !strings.Contains(config, want) {
+			t.Errorf("files only, the config has no %q:\n%s", want, config)
+		}
+	}
+}

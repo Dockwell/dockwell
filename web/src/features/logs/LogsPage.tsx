@@ -43,6 +43,7 @@ import {
 } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
+import { formatClock } from "../../lib/format";
 import { EmptyState } from "../shell/EmptyState";
 import { drawEntry } from "./draw";
 import { LogContext } from "./LogContext";
@@ -90,6 +91,9 @@ const FILTER_LEVELS = [LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR] as const;
 /** Where a view of logs is, in its URL, so a link shows the same thing. */
 export interface LogsSearch {
   range?: LogRange;
+  /** A time range of its own, from and to, in milliseconds, as what a tab away for long didn't read. */
+  from?: number;
+  to?: number;
   /** Which levels show, such as "warn,error". Unset shows all. */
   levels?: string;
   /** Which replica shows, by its label. */
@@ -120,6 +124,16 @@ export function readLogsSearch(search: Record<string, unknown>): LogsSearch {
   for (const key of ["levels", "replica", "q", "change"] as const) {
     const value = text(key);
     if (value) out[key] = value;
+  }
+  const ms = (key: string) => {
+    const value = Number(search[key]);
+    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+  };
+  const from = ms("from");
+  const to = ms("to");
+  if (!out.range && from !== undefined && to !== undefined && from < to) {
+    out.from = from;
+    out.to = to;
   }
   if (search["deep"] === true) out.deep = true;
   if (search["nowrap"] === true) out.nowrap = true;
@@ -215,6 +229,10 @@ export function LogsPage({
   // finds the lines still here, and those written meanwhile.
   const loaded = allSources !== undefined;
   const range = search.range;
+  // A time range of its own, as what a tab away for long didn't read.
+  const spanFrom = search.from;
+  const spanTo = search.to;
+  const span = spanFrom !== undefined && spanTo !== undefined ? { from: spanFrom, to: spanTo } : undefined;
   const chosenChange = chosen?.change ?? search.change ?? "";
   const chosenRevision = chosen ? (chosen.change ? 0n : chosen.revision) : BigInt(search.revision ?? 0);
   const [rangeRead, setRangeRead] = useState(0);
@@ -222,12 +240,22 @@ export function LogsPage({
     if (!loaded || deployGone) return undefined;
     const base = { id, server, changeId: chosenChange, revision: chosenRevision };
     if (range) return { ...base, last: durationFromMs(RANGE_MS[range]), tail: MAX_LINES, once: true };
+    if (spanFrom !== undefined && spanTo !== undefined) {
+      return {
+        ...base,
+        since: timestampFromMs(spanFrom),
+        until: timestampFromMs(spanTo),
+        tail: MAX_LINES,
+        once: true,
+      };
+    }
     if (reading) return { ...base, tail: MAX_LINES, once: true };
     return { ...base, tail: LIVE_TAIL };
-  }, [id, server, range, chosenChange, chosenRevision, reading, deployGone, loaded]);
+  }, [id, server, range, spanFrom, spanTo, chosenChange, chosenRevision, reading, deployGone, loaded]);
   const asking = request;
   // biome-ignore lint/correctness/useExhaustiveDependencies: a range is read again when it changes, and reaches to then
-  const rangeEnd = useMemo(() => Date.now(), [range, rangeRead]);
+  const now = useMemo(() => Date.now(), [range, rangeRead]);
+  const rangeEnd = span?.to ?? now;
 
   const stream = useLogStream(asking, store, refreshSources, rangeRead);
   const levels = useMemo(() => levelsOf({ ...(search.levels ? { levels: search.levels } : {}) }), [search.levels]);
@@ -423,7 +451,7 @@ export function LogsPage({
     onSearch(value === "all" ? rest : { ...rest, replica: value });
   };
   const setRange = (value: string) => {
-    const { range: _r, ...rest } = search;
+    const { range: _r, from: _f, to: _t, ...rest } = search;
     onSearch(value === "live" ? rest : { ...rest, range: value as LogRange });
   };
   const setDeploy = (value: string) => {
@@ -450,7 +478,8 @@ export function LogsPage({
     statuses.every((s) => s.state === ServerLogState.OFFLINE || s.state === ServerLogState.UNAVAILABLE);
   // A dropped stream carries on by itself, so what a reader chose stands while it does.
   const streaming = stream.status === "live" || stream.status === "reconnecting";
-  const live = !deepOn && !search.range && !reading && streaming && !noneReading;
+  // Catching up on what came while the tab was away is said in the note above: a pause holds through it.
+  const live = !deepOn && !search.range && !span && !reading && streaming && !noneReading;
   // A failed deploy opens at what went wrong, not at its last line.
   const opensAtError = Boolean(chosen?.failed && !chosen.current && !search.q);
   const [follow, setFollow] = useState(true);
@@ -585,7 +614,12 @@ export function LogsPage({
   );
   const download = () =>
     saveText(active, `${name || "logs"}-${new Date().toISOString().replaceAll(":", "-")}.log`, sourceMap);
-  const rangeLabel = range ? { "15m": t`Last 15 min`, "1h": t`Last 1 h`, "24h": t`Last 24 h` }[range] : "";
+  const spanWords = span ? formatClock(new Date(span.from), i18n.locale) : "";
+  const rangeLabel = range
+    ? { "15m": t`Last 15 min`, "1h": t`Last 1 h`, "24h": t`Last 24 h` }[range]
+    : span
+      ? t`From ${spanWords}`
+      : "";
   const showScope = !reading;
   const replicasControl =
     replicas.length > 4 ? (
@@ -618,7 +652,7 @@ export function LogsPage({
       <SegmentedControl
         size="sm"
         label={t`Time range`}
-        value={search.range ?? "live"}
+        value={search.range ?? (span ? "span" : "live")}
         onChange={setRange}
         className="logs-range"
         options={[
@@ -688,6 +722,14 @@ export function LogsPage({
         rolledBackTo={chosen?.failed && currentDeploy ? deployRevision(currentDeploy) : undefined}
         noCurrent={noCurrent && !asked}
         locale={i18n.locale}
+        onReadMissed={
+          stream.missed
+            ? () => {
+                const { range: _r, ...rest } = search;
+                onSearch({ ...rest, from: stream.missed?.from, to: stream.missed?.to });
+              }
+            : undefined
+        }
       />
       <div className="logs-tools" role="toolbar" aria-label={t`Log filters`}>
         {phone ? (
@@ -792,6 +834,7 @@ export function LogsPage({
             following={follow}
             rangeLabel={rangeLabel}
             rangeEnd={rangeEnd}
+            rangeFixed={span !== undefined}
             levelFiltered={levelFiltered}
             phone={phone}
             onPause={() => setFollow(false)}

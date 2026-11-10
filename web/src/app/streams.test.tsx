@@ -2,11 +2,17 @@
 
 import { create } from "@bufbuild/protobuf";
 import type { HandlerContext } from "@connectrpc/connect";
-import { HealthState, ListLogSourcesResponseSchema, LogSourceSchema, LogSourceState } from "@dockwell/api";
+import {
+  HealthState,
+  ListLogSourcesResponseSchema,
+  LogSourceSchema,
+  LogSourceState,
+  WatchLogsResponseSchema,
+} from "@dockwell/api";
 import { act, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { HIDDEN_CLOSE_MS } from "../features/activity/EventsHub";
+import { HIDDEN_CLOSE_MS } from "../lib/outOfSight";
 
 import { aHealth, anApp, places } from "../test/apps";
 import { snapshot } from "../test/changes";
@@ -17,19 +23,22 @@ import { aServer, changed, snapshotComplete } from "../test/servers";
  * Over plain HTTP, as through the SSH tunnel, a browser keeps six connections to
  * the panel for all its tabs, and each open stream holds one. A screen holds the
  * fleet's watch and the tab's one events stream, so two tabs fit in six with
- * room for their reads. Logs hold one more, their own.
+ * room for their reads. Logs hold one more, their own, and close it too out of sight.
  */
 const BUDGET = 2;
 
 function counting() {
   let open = 0;
   let most = 0;
-  const held = <T,>(stream: (ctx: HandlerContext) => AsyncGenerator<T>) =>
-    async function* (_req: unknown, ctx: HandlerContext): AsyncGenerator<T> {
+  // Where each of the log's streams asked to start, and the places it was given.
+  const asked: string[] = [];
+  const given: string[] = [];
+  const held = <T, R = unknown>(stream: (ctx: HandlerContext, req: R) => AsyncGenerator<T>) =>
+    async function* (req: R, ctx: HandlerContext): AsyncGenerator<T> {
       open += 1;
       most = Math.max(most, open);
       try {
-        yield* stream(ctx);
+        yield* stream(ctx, req);
       } finally {
         open -= 1;
       }
@@ -66,9 +75,11 @@ function counting() {
             }),
           ],
         }),
-      watchLogs: held(async function* (ctx) {
+      watchLogs: held(async function* (ctx, req: { resumeToken: string }) {
+        asked.push(req.resumeToken);
+        given.push(`place-${given.length + 1}`);
+        yield create(WatchLogsResponseSchema, { resumeToken: given.at(-1), caughtUp: true });
         await untilAborted(ctx.signal);
-        yield* [];
       }),
     },
     services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({}) },
@@ -81,7 +92,7 @@ function counting() {
     containers: { listContainers: () => ({}) },
     changes: { listChanges: () => ({}) },
   };
-  return { api, most: () => most, open: () => open };
+  return { api, most: () => most, open: () => open, asked, given };
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 400));
@@ -102,6 +113,7 @@ describe("the streams a screen holds", () => {
     "/servers/srv_1",
     "/catalog",
     "/profile",
+    "/more",
   ])(`at most ${BUDGET} on %s, so two tabs fit in a browser's six`, async (path) => {
     const { api, most } = counting();
     const { unmount } = renderAt(path, api);
@@ -150,5 +162,30 @@ describe("a tab out of sight", () => {
     act(() => seen("visible"));
     await waitFor(() => expect(open()).toBe(2));
     unmount();
+    // Nothing is left open once the page goes.
+    await waitFor(() => expect(open()).toBe(0));
+  });
+
+  it("closes a log's stream too, and carries on after the last line it had on coming back", async () => {
+    const { api, open, asked, given } = counting();
+    const { unmount } = renderAt("/apps/svc_web/logs", api);
+    await screen.findByRole("heading", { level: 1 });
+    await waitFor(() => expect(open()).toBe(BUDGET + 1));
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    act(() => seen("hidden"));
+    await act(() => vi.advanceTimersByTimeAsync(HIDDEN_CLOSE_MS + 1_000));
+    // Only the fleet's watch stays, which the shell's head reads.
+    await waitFor(() => expect(open()).toBe(1));
+    const last = given.at(-1);
+
+    act(() => seen("visible"));
+    await waitFor(() => expect(open()).toBe(BUDGET + 1));
+    expect(asked.at(-1)).toBe(last);
+    // Coming back is no failure, so nothing says it's reconnecting.
+    expect(screen.queryByText("Reconnecting to the control server")).toBeNull();
+    unmount();
+    // Nothing is left open once the page goes.
+    await waitFor(() => expect(open()).toBe(0));
   });
 });

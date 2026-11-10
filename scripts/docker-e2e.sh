@@ -80,6 +80,7 @@ port=${addr##*:}
 cookie=$(mktemp)
 passkey=$(mktemp)
 stepup=$(mktemp)
+shell=$(mktemp)
 # What a file's relative paths start from. Not the data directory, which no
 # container may mount, and Docker makes what's in it as root.
 real_dir=$(mktemp -d)
@@ -147,8 +148,8 @@ cleanup() {
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
   docker ps --all --quiet --filter label=dev.dockwell.volume-tool | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
-  docker rm --force e2e-s3 e2e-by-hand e2e-take-on e2e-on-bridge e2e-sidecar e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
-  docker volume rm e2e-by-hand-data e2e-take-on-data >/dev/null 2>&1 || true
+  docker rm --force e2e-shell-ash e2e-shell-bash e2e-shell-root e2e-shell-none e2e-shell-vol e2e-shell-link e2e-shell-data e2e-s3 e2e-by-hand e2e-take-on e2e-on-bridge e2e-sidecar e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker volume rm e2e-by-hand-data e2e-take-on-data e2e-shell-etc e2e-shell-data >/dev/null 2>&1 || true
   docker network rm e2e-by-hand-net >/dev/null 2>&1 || true
   moving_tidy
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-lan e2e-tunnel e2e-other >/dev/null 2>&1 || true
@@ -160,7 +161,7 @@ cleanup() {
   done
   wait 2>/dev/null || true
   docker image rm --force dockwell-e2e-app:slow dockwell-e2e-app:never >/dev/null 2>&1 || true
-  priv rm -rf "$log" "$agent_log" "$cookie" "$passkey" "$stepup" "$data" "$agent_data" "$pebble_dir" "$catalog_dir" "$real_dir" "$rollout_dir"
+  priv rm -rf "$log" "$agent_log" "$cookie" "$passkey" "$stepup" "$shell" "$data" "$agent_data" "$pebble_dir" "$catalog_dir" "$real_dir" "$rollout_dir"
 }
 trap cleanup EXIT
 
@@ -292,6 +293,20 @@ wait_applied() {
     sleep 0.5
   done
   fail "$1 is $state after 120 s, want applied"
+}
+# wait_failed waits for a change that's to fail, and says why it did.
+wait_failed() {
+  local state=""
+  for _ in $(seq 240); do
+    state=$(change_field "$1" state) || state=""
+    [[ "$state" == CHANGE_STATE_FAILED ]] && {
+      change_field "$1" error
+      return 0
+    }
+    [[ "$state" == CHANGE_STATE_APPLIED ]] && fail "$1 applied, and it was to fail"
+    sleep 0.5
+  done
+  fail "$1 is $state after 120 s, want failed"
 }
 # take_on has a person plan and apply taking a container on as a service, and checks
 # nothing about it moved. A refusal says why, in what the job prints. It sets taken_plan
@@ -1042,13 +1057,17 @@ answers() { [[ "$(docker exec "$1" redis-cli -a "$2" --no-auth-warning ping 2>&1
 # on this server reads them there.
 nothing_shows() {
   local reads value
-  reads=$({
-    dw changes list --page-size 200 --json
-    dw services list --json
-    dw compose export
-    dw drift list --json
+  # Each read has to work, and each environment's export, by its ID: with more than
+  # one project, an export that names none reads nothing.
+  reads=$(
+    dw changes list --page-size 200 --json || exit 1
+    dw services list --json || exit 1
+    for env in $(dw resources list --json | jq -r '.resources[] | select(.resource.kind == "environment") | .id'); do
+      dw compose export --environment "$env" || exit 1
+    done
+    dw drift list --json || exit 1
     dw events list --page-size 200 --json
-  }) || fail "reading what the install says failed"
+  ) || fail "reading what the install says failed"
   for id in $(dw changes list --page-size 200 --json | jq -r '.changes[].id'); do
     reads+=$(dw changes get "$id" --json) || fail "changes get $id failed"
   done
@@ -2621,6 +2640,238 @@ set -e
 [[ "$status" != 0 ]] || fail "a route went through to Docker's API"
 [[ "$own" == *"Docker's API"* ]] || fail "the refusal of Docker's API says: $own"
 
+step "Websites: one sends to a URL through a web server of its own, moves to a port a person approves, and goes"
+# What a website sends to: something elsewhere, which a container published on the
+# server's own address stands for, as the website's web server is on a network of its
+# own and reaches no other bridge, and something on the server's own port.
+url_port=$((web_port + 5))
+docker run -d --name e2e-site-url -p "$url_port:80" nginx:1.27-alpine sh -c 'echo from-the-url >/usr/share/nginx/html/index.html && exec nginx -g "daemon off;"' >/dev/null ||
+  fail "can't run what the website sends to"
+upstream=$(ip -4 route get 192.0.2.1 | awk '{ for (i = 1; i < NF; i++) if ($i == "src") print $(i + 1) }')
+[[ -n "$upstream" ]] || fail "this server has no address of its own to send to: $(ip -4 route get 192.0.2.1)"
+upstream="$upstream:$url_port"
+site_port=$((web_port + 4))
+docker run -d --name e2e-site-port -p "127.0.0.1:$site_port:80" nginx:1.27-alpine sh -c 'echo from-the-port >/usr/share/nginx/html/index.html && exec nginx -g "daemon off;"' >/dev/null ||
+  fail "can't run something on port $site_port"
+site=site.e2e-dockwell.example.net
+site_says() {
+  local body="" until=$((SECONDS + 90))
+  while ((SECONDS < until)); do
+    body=$(curl -sS --max-time 2 --resolve "$site:80:127.0.0.1" "http://$site/" 2>/dev/null) && [[ "$body" == *"$1"* ]] && return 0
+    sleep 0.2
+  done
+  fail "http://$site/ says '$body', want $1"
+}
+# A URL reaches what any container reaches, so a token's plan is a token's to apply.
+made=$(dw websites create --domain "$site" --website "{\"proxy\":{\"url\":\"http://$upstream/\"}}" --tls off --yes 2>&1) ||
+  fail "websites create failed: $made"
+listed=$(dw websites list --json) || fail "websites list failed"
+[[ "$(jq -r --arg d "$site" '.websites[] | select(.domain == $d) | .serviceId' <<<"$listed")" == svc_* ]] ||
+  fail "the website has no web server: $listed"
+site_says from-the-url
+site_web=$(docker ps --filter label=com.docker.compose.service=web --format '{{.Names}} {{.Image}}' | awk '$2 ~ /^caddy:/ { print $1 }')
+[[ -n "$site_web" && "$site_web" != *$'\n'* ]] || fail "Docker runs '$site_web' for the website's web server, want one: $(docker ps --format '{{.Names}} {{.Image}}')"
+# Caddy's binary carries NET_BIND_SERVICE as a file capability, which it can't start
+# without, so that one stays, and it runs as nobody's user.
+runs_as=$(docker inspect --format '{{.Config.User}} {{json .HostConfig.CapDrop}}' "$site_web") || fail "docker inspect $site_web failed"
+[[ "$runs_as" == "65532 "*NET_RAW* && "$runs_as" == *SETUID* && "$runs_as" != *NET_BIND_SERVICE* ]] ||
+  fail "the website's web server runs as $runs_as"
+# It's on a network of its own and the ingress's, never Docker's default bridge, whose
+# containers could say who a visitor is, and it may use no more than 128 MB.
+on=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}{{.HostConfig.Memory}}' "$site_web") ||
+  fail "docker inspect $site_web failed"
+[[ "$on" == *_site\ * && "$on" == *dockwell_ingress* && "$on" != *"bridge "* && "$on" == *" 134217728" ]] ||
+  fail "the website's web server joins and may use $on, want its own network, the ingress's and 128 MB"
+# The visitor's address goes on to what it sends to, past the ingress and the web server.
+curl -sS --max-time 5 -o /dev/null --resolve "$site:80:127.0.0.1" "http://$site/" || fail "http://$site/ didn't answer"
+sleep 0.5
+seen=$(docker logs --tail 1 e2e-site-url 2>&1) || fail "docker logs e2e-site-url failed"
+[[ "$seen" == *'"127.0.0.1, '* ]] || fail "what the website sends to doesn't read the visitor in X-Forwarded-For: $seen"
+# A port on the server sees every visitor as local, so only a person applies it.
+set +e
+planned=$(dw websites update "$site" --website "{\"proxy\":{\"port\":$site_port}}" --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a website to a port on the server exited $status, want 4: it waits for a person: $planned"
+[[ "$planned" == *"127.0.0.1:$site_port"* ]] || fail "the plan doesn't name the port: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+moving=$(jq -r '.changes[0].id' <<<"$changes")
+token_refused "$moving"
+person_apply "$moving"
+site_says from-the-port
+# Its server says whether anything listens there, apart from deploys.
+reach=""
+for _ in $(seq 60); do
+  reach=$(dw websites list --json | jq -c --arg d "$site" '.websites[] | select(.domain == $d) | .reach // {}')
+  [[ "$reach" == *'"answered":true'* ]] && break
+  sleep 1
+done
+[[ "$reach" == *'"answered":true'* && "$reach" == *"listens on port $site_port"* ]] || fail "the website's port reads $reach, want something listening"
+docker stop e2e-site-port >/dev/null || fail "can't stop what listens on port $site_port"
+for _ in $(seq 60); do
+  reach=$(dw websites list --json | jq -c --arg d "$site" '.websites[] | select(.domain == $d) | .reach // {}')
+  [[ "$reach" == *"nothing listens on port $site_port"* ]] && break
+  sleep 1
+done
+[[ "$reach" == *"nothing listens on port $site_port"* && "$reach" != *'"answered":true'* ]] ||
+  fail "with nothing on port $site_port, the website reads $reach"
+docker start e2e-site-port >/dev/null || fail "can't start what listens on port $site_port again"
+for _ in $(seq 100); do
+  docker inspect "$site_web" >/dev/null 2>&1 || break
+  sleep 0.1
+done
+if docker inspect "$site_web" >/dev/null 2>&1; then fail "the web server stayed once the website sent to a port"; fi
+# Deleting it takes its route, and the name answers as one with no route.
+gone=$(dw websites delete "$site" --yes 2>&1) || fail "websites delete failed: $gone"
+answer=""
+for _ in $(seq 100); do
+  answer=$(curl -sS --max-time 5 --resolve "$site:80:127.0.0.1" "http://$site/" 2>/dev/null) && [[ "$answer" == *"no site at this address"* ]] && break
+  sleep 0.1
+done
+[[ "$answer" == *"no site at this address"* ]] || fail "a deleted website still answers: $answer"
+[[ "$(dw websites list --json | jq '.websites // [] | length')" == 0 ]] || fail "websites list still has it: $(dw websites list --json)"
+[[ "$(drifted)" == "$drift_before" ]] || fail "drift after a website: $(dw drift list --json), and before it was $drift_before"
+docker rm --force e2e-site-url e2e-site-port >/dev/null || fail "can't remove what the website sent to"
+
+step "Websites: one serves a folder a person approves, made as its owner's, and an edit through Files shows with nothing to deploy"
+# The folder isn't there yet: Dockwell makes it for its owner, here whoever runs this,
+# who then puts the site's files in it without sudo, as scp or rsync would.
+site_parent=$(mktemp -d) || fail "can't make a folder for the website"
+chmod 755 "$site_parent" || fail "can't open $site_parent to everyone"
+site_root="$site_parent/site"
+owner="$(id -u):$(id -g)"
+folder_site=folder.e2e-dockwell.example.net
+folder_says() {
+  local body="" until=$((SECONDS + 90))
+  while ((SECONDS < until)); do
+    body=$(curl -sS --max-time 2 --resolve "$folder_site:80:127.0.0.1" "http://$folder_site/" 2>/dev/null) && [[ "$body" == *"$1"* ]] && return 0
+    sleep 0.2
+  done
+  fail "http://$folder_site/ says '$body', want $1"
+}
+set +e
+planned=$(dw websites create --domain "$folder_site" --website "{\"folder\":{\"root\":\"$site_root\",\"owner\":\"$owner\"}}" --tls off --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a website that serves a folder exited $status, want 4: it waits for a person: $planned"
+[[ "$planned" == *"$site_root"* ]] || fail "the plan doesn't name the folder: $planned"
+[[ "$planned" == *"$site_root is made, owned by $owner"* ]] || fail "the plan doesn't say the folder is made for its owner: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+serving=$(jq -r '.changes[0].id' <<<"$changes")
+token_refused "$serving"
+person_apply "$serving"
+made=$(stat -c '%u:%g %a' "$site_root") || fail "Dockwell didn't make $site_root"
+[[ "$made" == "$owner 755" ]] || fail "Dockwell made $site_root as $made, want $owner 755"
+if ! { printf 'from-the-folder\n' >"$site_root/index.html" && chmod 644 "$site_root/index.html"; }; then
+  fail "its owner can't put the website's files in $site_root"
+fi
+folder_says from-the-folder
+# Scripts and dotfiles stay hidden; .well-known is served.
+if ! { mkdir -p "$site_root/.well-known" && chmod 755 "$site_root/.well-known"; }; then fail "can't make .well-known"; fi
+if ! { printf 'Contact: mailto:security@example.com\n' >"$site_root/.well-known/security.txt" && chmod 644 "$site_root/.well-known/security.txt"; }; then
+  fail "can't write security.txt"
+fi
+if ! { printf '<?php echo %s;\n' '"secret"' >"$site_root/config.php" && chmod 644 "$site_root/config.php"; }; then fail "can't write config.php"; fi
+for want in "config.php 404" ".well-known/security.txt 200"; do
+  got=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' --resolve "$folder_site:80:127.0.0.1" "http://$folder_site/${want% *}") ||
+    fail "http://$folder_site/${want% *} didn't answer"
+  [[ "$got" == "${want#* }" ]] || fail "http://$folder_site/${want% *} answers $got, want ${want#* }"
+done
+missing=$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' --resolve "$folder_site:80:127.0.0.1" "http://$folder_site/nothing-here") ||
+  fail "http://$folder_site/nothing-here didn't answer"
+[[ "$missing" == 404 ]] || fail "a path the folder hasn't got answers $missing, want 404"
+folder_web=$(docker ps --filter label=com.docker.compose.service=web --format '{{.Names}} {{.Image}}' | awk '$2 ~ /^caddy:/ { print $1 }')
+[[ -n "$folder_web" && "$folder_web" != *$'\n'* ]] || fail "Docker runs '$folder_web' for the folder's web server, want one"
+mounted=$(docker inspect --format '{{range .Mounts}}{{.Source}}:{{.Destination}}:{{.RW}} {{end}}' "$folder_web") || fail "docker inspect $folder_web failed"
+[[ "$mounted" == *"$site_root:/srv:false"* ]] || fail "the folder's web server mounts $mounted, want $site_root at /srv, read-only"
+# A person edits the file in Files, and the next request has it, with nothing deployed.
+server_id=$(dw servers list --json | jq -r '.servers[0].id') || fail "servers list failed"
+opened=$(person_call FileService/ReadFile "$(jq -nc --arg s "$server_id" --arg p "$site_root/index.html" '{serverId: $s, path: $p}')") ||
+  fail "a person can't read the website's index"
+version=$(jq -r '.version' <<<"$opened")
+person_call FileService/SaveFile "$(jq -nc --arg s "$server_id" --arg p "$site_root/index.html" --arg v "$version" '{serverId: $s, path: $p, content: "edited-in-files\n", version: $v}')" >/dev/null ||
+  fail "a person can't save the website's index"
+folder_says edited-in-files
+# Deleting the website leaves its folder as it was.
+gone=$(dw websites delete "$folder_site" --yes 2>&1) || fail "websites delete failed: $gone"
+[[ "$(cat "$site_root/index.html")" == edited-in-files ]] || fail "deleting the website touched its folder: $(ls -la "$site_root")"
+[[ "$(drifted)" == "$drift_before" ]] || fail "drift after a folder's website: $(dw drift list --json), and before it was $drift_before"
+rm -rf "$site_parent"
+
+step "Websites: a PHP site starts with no folder, made as PHP's, runs as www-data with nothing of root's, writes what it writes as that, and moves to another version"
+php_parent=$(mktemp -d) || fail "can't make a folder for the PHP site"
+chmod 755 "$php_parent" || fail "can't open $php_parent to everyone"
+php_root="$php_parent/site"
+php_site=php.e2e-dockwell.example.net
+# As root, as in CI, Dockwell makes the folder for www-data, 82:82, whom PHP runs as by
+# default. A Dockwell that isn't root can't give a folder away, so it gets one of
+# this user's, and PHP runs as this user.
+php_user=82:82
+php_spec() { jq -nc --arg r "$php_root" --arg v "$1" '{php: {root: $r, version: $v}}'; }
+if [[ -z "${E2E_ROOT:-}" ]]; then
+  php_user="$(id -u):$(id -g)"
+  mkdir -m 755 "$php_root" || fail "can't make $php_root"
+  php_spec() { jq -nc --arg r "$php_root" --arg v "$1" --arg u "$php_user" '{php: {root: $r, version: $v, user: $u}}'; }
+fi
+# Each poll gives up in 90 seconds, well inside the job's time.
+php_says() {
+  local body="" until=$((SECONDS + 90))
+  while ((SECONDS < until)); do
+    body=$(curl -sS --max-time 2 --resolve "$php_site:80:127.0.0.1" "http://$php_site$1" 2>/dev/null) && [[ "$body" == "$2"* ]] && return 0
+    sleep 0.2
+  done
+  fail "http://$php_site$1 says '$body', want $2"
+}
+set +e
+planned=$(dw websites create --domain "$php_site" --website "$(php_spec 8.3)" --tls off --yes 2>&1)
+status=$?
+set -e
+[[ "$status" == 4 ]] || fail "a PHP website exited $status, want 4: it waits for a person: $planned"
+[[ "$planned" == *"$php_root is made, owned by $php_user, the user PHP runs as,"* ]] || fail "the plan doesn't say the folder is made for PHP: $planned"
+changes=$(dw changes list --json) || fail "changes list failed"
+php_change=$(jq -r '.changes[0].id' <<<"$changes")
+person_apply "$php_change"
+made=$(stat -c '%u:%g %a' "$php_root") || fail "Dockwell didn't make $php_root"
+[[ "$made" == "$php_user 755" ]] || fail "$php_root is $made, want $php_user 755"
+php_fpm=$(docker ps --filter label=com.docker.compose.service=php --format '{{.Names}}')
+[[ -n "$php_fpm" && "$php_fpm" != *$'\n'* ]] || fail "Docker runs '$php_fpm' for the site's PHP, want one"
+# PHP-FPM's master runs as PHP's user too, with every capability dropped, and /tmp in memory.
+master=$(docker exec "$php_fpm" sh -c 'grep "^Uid:" /proc/1/status') || fail "can't read who PHP-FPM's master is"
+[[ "$master" =~ ^Uid:[[:space:]]+${php_user%%:*}[[:space:]] ]] || fail "PHP-FPM's master runs as $master, want ${php_user%%:*}"
+hardened=$(docker inspect --format '{{.Config.User}} {{json .HostConfig.CapDrop}} {{json .HostConfig.Tmpfs}}' "$php_fpm") || fail "docker inspect $php_fpm failed"
+[[ "$hardened" == "$php_user "'["ALL"]'* && "$hardened" == *'"/tmp"'* ]] || fail "PHP runs as $hardened, want $php_user, with every capability dropped and /tmp in memory"
+php_mount=$(docker inspect --format '{{range .Mounts}}{{.Source}}:{{.Destination}}:{{.RW}} {{end}}' "$php_fpm") || fail "docker inspect $php_fpm failed"
+[[ "$php_mount" == *"$php_root:/var/www/html:true"* ]] || fail "PHP mounts $php_mount, want $php_root at /var/www/html, read-write"
+# The site's code goes in as PHP's user, as a deploy of it would.
+docker exec -i "$php_fpm" sh -c 'cat >/var/www/html/index.php' <<'PHPEOF' || fail "can't put the PHP site's code in its folder"
+<?php
+if (isset($_GET['write'])) { file_put_contents(__DIR__ . '/written.txt', 'written by PHP'); }
+echo 'php-' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION . ':' . parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+PHPEOF
+docker exec "$php_fpm" sh -c 'printf "a-plain-file\n" >/var/www/html/plain.txt' || fail "can't put a plain file in the PHP site's folder"
+php_says / "php-8.3:/"
+php_says /shop/cart "php-8.3:/shop/cart"
+php_says /plain.txt a-plain-file
+# What PHP writes is its user's, on the server.
+php_says "/?write=1" "php-8.3:/"
+written=$(stat -c '%u:%g' "$php_root/written.txt") || fail "PHP wrote nothing in $php_root"
+[[ "$written" == "$php_user" ]] || fail "what PHP wrote is $written's, want $php_user's"
+source=$(curl -sS --max-time 5 --resolve "$php_site:80:127.0.0.1" "http://$php_site/index.php") || fail "http://$php_site/index.php didn't answer"
+if [[ "$source" == *"<?php"* ]]; then fail "a script's source was sent as a file: $source"; fi
+# What PHP-FPM and its web server take, at rest, for the record.
+php_web=$(docker ps --filter label=com.docker.compose.service=web --format '{{.Names}} {{.Image}}' | awk '$2 ~ /^caddy:/ { print $1 }')
+taken=$(docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' "$php_fpm" "$php_web") || fail "docker stats failed"
+printf 'memory at rest:\n%s\n' "$taken"
+# Another version is PHP's image alone, the same reach, so a token applies it.
+moved=$(dw websites update "$php_site" --website "$(php_spec 8.4)" --yes 2>&1) || fail "moving the PHP site to 8.4 failed: $moved"
+php_says / "php-8.4:/"
+gone=$(dw websites delete "$php_site" --yes 2>&1) || fail "websites delete failed: $gone"
+[[ -z "$(docker ps -a --filter label=com.docker.compose.service=php --format '{{.Names}}')" ]] || fail "PHP stayed once its website went"
+[[ -f "$php_root/written.txt" ]] || fail "deleting the website took what PHP wrote"
+[[ "$(drifted)" == "$drift_before" ]] || fail "drift after a PHP website: $(dw drift list --json), and before it was $drift_before"
+# What PHP wrote is www-data's, which only root removes.
+"${as_dockwell[@]}" rm -rf "$php_parent" || fail "can't remove $php_parent"
+
 step "Ingress: a route with a certificate takes port 443 beside them, and frees it as it goes"
 took=$(dw routes create www --domain "$domain" --service web --port 80 --yes 2>&1) || fail "routes create www failed: $took"
 [[ "$took" == *"takes ports 443/tcp and 443/udp too"* ]] || fail "the plan doesn't say Caddy takes port 443: $took"
@@ -3581,6 +3832,110 @@ jq -e '.readings[0] | (.unread // "") == "" and (.version | startswith("17.")) a
 [[ "$said" != *"$password"* ]] || fail "what PostgreSQL says of itself holds its password"
 pg postgres "SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE query = 'SELECT pg_sleep(30)'" >/dev/null || fail "can't let the client on PostgreSQL go"
 
+step "Databases: a user with a database of their own is a plan, with a password no one typed, and setting it anew signs them in with the new one"
+db_id=$(jq -r '.id' <<<"$said")
+db_env=$(jq -r '.resource.scope' <<<"$said")
+planned=$(dw databases add-user "$db_id" --user buyer --plan-only --json) || fail "planning a user failed: $planned"
+jq -e '[.change.plan.resources[].resource | .kind + " " + .name] | sort == ["database.user buyer", "secret BUYER_DATABASE_PASSWORD"]' <<<"$planned" >/dev/null ||
+  fail "the plan for a user makes: $(jq -c '[.change.plan.resources[].resource]' <<<"$planned")"
+dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes >/dev/null || fail "making the user failed"
+[[ "$(pg postgres "SELECT rolpassword LIKE 'SCRAM-SHA-256\$4096:%' FROM pg_authid WHERE rolname = 'buyer'")" == t ]] ||
+  fail "buyer's password isn't a SCRAM verifier: $(pg postgres "SELECT left(rolpassword, 14) FROM pg_authid WHERE rolname = 'buyer'" 2>&1)"
+[[ "$(pg postgres "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'buyer'")" == buyer ]] || fail "buyer doesn't own the database buyer"
+[[ "$(pg postgres "SELECT has_database_privilege('shopper', 'buyer', 'CONNECT')")" == f ]] || fail "another user can connect to buyer's database"
+said=$(dw databases get "$db_id" --json) || fail "reading the database failed"
+jq -e '.database.readings[0].users[] | select(.name == "buyer") | .secret == "BUYER_DATABASE_PASSWORD" and (.resourceId | startswith("dbu_"))' <<<"$said" >/dev/null ||
+  fail "the database says of buyer: $(jq -c '.database.readings[0].users' <<<"$said")"
+# Setting the secret to a value this step knows reaches the user, which then signs in with it.
+printf 'e2e-buyer-password-7Rk2' >"$data/buyer-password"
+dw secrets update BUYER_DATABASE_PASSWORD --environment "$db_env" --value-file "$data/buyer-password" --yes >/dev/null ||
+  fail "setting buyer's password anew failed"
+# buyer_says signs in as buyer at an address: by the service's name it's over the
+# project's network, where the image checks a password. It answers 42 only from there.
+buyer_says() {
+  docker exec -e PGPASSWORD="$2" "$postgres_db" psql -X -h "$1" -U buyer -d buyer -tAc \
+    "SELECT CASE WHEN inet_client_addr() IS NULL OR inet_client_addr() <<= '127.0.0.0/8' THEN 'from inside' ELSE (40 + 2)::text END" 2>&1
+}
+[[ "$(buyer_says db e2e-buyer-password-7Rk2)" == 42 ]] || fail "buyer can't sign in over the network with the secret's new value: $(buyer_says db e2e-buyer-password-7Rk2)"
+[[ "$(buyer_says db not-the-password)" != 42 ]] || fail "buyer signs in over the network with any password"
+# Inside its own container the image trusts every connection, as the Users tab says.
+[[ "$(buyer_says 127.0.0.1 not-the-password)" == "from inside" ]] ||
+  fail "inside its container, PostgreSQL doesn't let anything in as the Users tab says: $(buyer_says 127.0.0.1 not-the-password)"
+nothing_shows e2e-buyer-password-7Rk2
+# A role with something in another database isn't dropped, and neither is its database:
+# dropping the database first would leave the user.
+pg shop 'CREATE TABLE buyer_reads (id int); GRANT SELECT ON buyer_reads TO buyer' || fail "can't grant buyer something in shop"
+planned=$(dw changes propose --summary "Delete the database user buyer" --edits '{"resource":{"kind":"database.user","scope":"'"$db_env"'","name":"buyer"},"delete":true}' --plan-only --json) ||
+  fail "planning to delete buyer failed: $planned"
+fingerprint=$(change_field "$(jq -r '.change.id' <<<"$planned")" plan.fingerprint) || fail "can't read the plan of the delete"
+person_call ChangeService/ApplyChange "{\"id\":\"$(jq -r '.change.id' <<<"$planned")\",\"fingerprint\":\"$fingerprint\"}" >/dev/null ||
+  fail "a person can't apply the delete"
+blocked=$(wait_failed "$(jq -r '.change.id' <<<"$planned")")
+[[ "$blocked" == *"buyer has something outside its database buyer, so nothing was dropped"* ]] || fail "dropping buyer with a grant in shop says: $blocked"
+[[ "$(pg postgres "SELECT count(*) FROM pg_database WHERE datname = 'buyer'")" == 1 ]] || fail "a drop that stopped took the database buyer with it"
+pg shop 'DROP TABLE buyer_reads' || fail "can't drop what buyer was granted"
+# Deleting it drops the user and the database, which a person applies.
+planned=$(dw changes propose --summary "Delete the database user buyer" --edits '{"resource":{"kind":"database.user","scope":"'"$db_env"'","name":"buyer"},"delete":true}' --plan-only --json) ||
+  fail "planning to delete buyer failed: $planned"
+jq -e '.change.plan.destructive' <<<"$planned" >/dev/null || fail "dropping buyer doesn't say it destroys data: $planned"
+person_apply "$(jq -r '.change.id' <<<"$planned")"
+[[ -z "$(pg postgres "SELECT 1 FROM pg_roles WHERE rolname = 'buyer'")" ]] || fail "buyer is still there"
+[[ -z "$(pg postgres "SELECT 1 FROM pg_database WHERE datname = 'buyer'")" ]] || fail "the database buyer is still there"
+
+step "Scheduled tasks: a shell command, a command in an app and a request each run on their server, keep what they printed, and a failure is on Activity"
+pg_env=$(dw services list --json | jq -r --arg p "$catalog_project" '.services[] | select((.resource.scope | ascii_downcase) == $p and .resource.name == "db") | .resource.scope' | head -1)
+[[ "$pg_env" == env_* ]] || fail "can't find the environment PostgreSQL runs in"
+# task_ran runs a task now, waits for the run to end, and prints it.
+task_ran() {
+  local started run said=""
+  started=$(dw tasks run "$1" --environment "$pg_env" --yes --json) || fail "running $1 failed: $started"
+  run=$(jq -r '.run.id' <<<"$started")
+  for _ in $(seq 120); do
+    said=$(dw tasks runs "$1" --environment "$pg_env" --json) || fail "reading $1's runs failed"
+    jq -e --arg r "$run" '.runs[] | select(.id == $r and .state != "TASK_RUN_STATE_RUNNING")' <<<"$said" && return 0
+    sleep 0.5
+  done
+  fail "$1's run $run didn't end: $said"
+}
+# A shell command is root on the server, so a person applies it with a passkey.
+planned=$(dw tasks create rotate-e2e --environment "$pg_env" --shell-command 'echo rotated-by-dockwell; echo to-stderr >&2' --schedule '@yearly' --plan-only --json) ||
+  fail "planning a shell task failed: $planned"
+jq -e '.change.plan.hostAccess' <<<"$planned" >/dev/null || fail "a shell task plans no host access: $planned"
+person_apply_root "$(jq -r '.change.id' <<<"$planned")"
+run=$(task_ran rotate-e2e)
+jq -e '.state == "TASK_RUN_STATE_SUCCEEDED" and ([.output[].text] | index("rotated-by-dockwell") and index("to-stderr"))' <<<"$run" >/dev/null ||
+  fail "the shell task ran as: $run"
+# A command in an app's image runs as a one-off container with the app's environment, and goes when it ends.
+# shellcheck disable=SC2016 # for the shell in the app's image
+planned=$(dw tasks create psql-e2e --environment "$pg_env" --app-service db --app-command 'sh -c "psql --version; echo user=$POSTGRES_USER"' --schedule '@daily' --plan-only --json) ||
+  fail "planning an app's task failed: $planned"
+person_apply "$(jq -r '.change.id' <<<"$planned")"
+run=$(task_ran psql-e2e)
+jq -e '.state == "TASK_RUN_STATE_SUCCEEDED" and ([.output[].text | select(startswith("psql (PostgreSQL)"))] | length == 1)' <<<"$run" >/dev/null ||
+  fail "the app's task ran as: $run"
+[[ -z "$(docker ps -aq --filter label=dev.dockwell.task=psql-e2e)" ]] || fail "the app's task left its container behind"
+# A request asks a URL from the server, and keeps its status.
+planned=$(dw tasks create ping-e2e --environment "$pg_env" --request-url "http://127.0.0.1:$port/healthz" --schedule '@hourly' --plan-only --json) ||
+  fail "planning a request failed: $planned"
+person_apply "$(jq -r '.change.id' <<<"$planned")"
+run=$(task_ran ping-e2e)
+jq -e '.state == "TASK_RUN_STATE_SUCCEEDED" and .attempts[0].httpStatus == 200' <<<"$run" >/dev/null || fail "the request ran as: $run"
+# A run that fails says so, and is on Activity.
+planned=$(dw tasks create fails-e2e --environment "$pg_env" --shell-command 'echo going; exit 7' --schedule '@yearly' --plan-only --json) ||
+  fail "planning a failing task failed: $planned"
+person_apply_root "$(jq -r '.change.id' <<<"$planned")"
+run=$(task_ran fails-e2e)
+jq -e '.state == "TASK_RUN_STATE_FAILED" and .attempts[0].exitCode == 7 and .error == "it exited with 7"' <<<"$run" >/dev/null || fail "the failing task ran as: $run"
+said=$(dw events list --kinds task --json) || fail "listing task events failed"
+jq -e '[.events[] | select(.action == "task.failed" and .taskRun.task == "fails-e2e" and .taskRun.exitCode == 7)] | length == 1' <<<"$said" >/dev/null ||
+  fail "Activity says of the failing task: $said"
+listed=$(dw tasks list --json) || fail "listing tasks failed"
+jq -e '[.tasks[].resource.name] | index("rotate-e2e") and index("psql-e2e") and index("ping-e2e") and index("fails-e2e")' <<<"$listed" >/dev/null ||
+  fail "the task list is: $listed"
+for name in rotate-e2e psql-e2e ping-e2e fails-e2e; do
+  dw tasks delete "$name" --environment "$pg_env" --yes >/dev/null || fail "deleting $name failed"
+done
+
 step "Catalog: MySQL runs with a password of its own, and phpMyAdmin signs in with it"
 catalog_install mysql
 mysql_db=$(catalog_container db)
@@ -3653,6 +4008,33 @@ jq -e '.readings[0] | (.unread // "") == "" and (.version | startswith("8.4")) a
   fail "MySQL says: $(jq -c '.readings' <<<"$said")"
 [[ "$said" != *"$password"* ]] || fail "what MySQL says of itself holds its password"
 for id in $(my "SELECT ID FROM information_schema.PROCESSLIST WHERE INFO = 'SELECT SLEEP(30)'"); do my "KILL $id" || fail "can't let the client on MySQL go"; done
+
+step "Databases: a user in MySQL is a plan too, and signs in with what its secret is set to"
+db_id=$(jq -r '.id' <<<"$said")
+db_env=$(jq -r '.resource.scope' <<<"$said")
+# A grant reads _ in a name as any character, so a database beside it that matches
+# that pattern shows whether the user reaches only its own.
+my "CREATE DATABASE sellerx1" || fail "can't make a database"
+planned=$(dw databases add-user "$db_id" --user seller --database-name seller_1 --plan-only --json) || fail "planning a MySQL user failed: $planned"
+dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes >/dev/null || fail "making the MySQL user failed"
+[[ "$(my "SELECT COUNT(*) FROM mysql.user WHERE User = 'seller' AND Host = '%'")" == 1 ]] || fail "MySQL has no user seller"
+[[ -n "$(my "SHOW DATABASES LIKE 'seller\\_1'")" ]] || fail "MySQL has no database seller_1"
+said=$(dw databases get "$db_id" --json) || fail "reading the database failed"
+jq -e '.database.readings[0].users[] | select(.name == "seller") | .databases == ["seller_1"] and .secret == "SELLER_DATABASE_PASSWORD"' <<<"$said" >/dev/null ||
+  fail "the database says of seller: $(jq -c '.database.readings[0].users' <<<"$said")"
+printf 'e2e-seller-password-3Wq8' >"$data/seller-password"
+dw secrets update SELLER_DATABASE_PASSWORD --environment "$db_env" --value-file "$data/seller-password" --yes >/dev/null ||
+  fail "setting seller's password anew failed"
+# seller_says runs SQL as seller over the project's network, by the service's name.
+seller_says() { docker exec "$mysql_db" sh -c 'MYSQL_PWD=$1 exec mysql -useller -hdb -N -e "$2"' sh "$1" "$2" 2>&1; }
+[[ "$(seller_says e2e-seller-password-3Wq8 'SELECT 40 + 2')" == 42 ]] ||
+  fail "seller can't sign in with the secret's new value: $(seller_says e2e-seller-password-3Wq8 'SELECT 40 + 2')"
+[[ "$(seller_says not-the-password 'SELECT 40 + 2')" != 42 ]] || fail "seller signs in with any password"
+seller_says e2e-seller-password-3Wq8 'CREATE TABLE seller_1.orders (id INT)' >/dev/null || fail "seller can't make a table in seller_1"
+if seller_says e2e-seller-password-3Wq8 'CREATE TABLE sellerx1.orders (id INT)' >/dev/null; then
+  fail "seller can make a table in sellerx1, which its grant on seller_1 matched as a pattern"
+fi
+nothing_shows e2e-seller-password-3Wq8
 
 step "Databases: MongoDB says what it holds, backs up with its own tools, and moves one release at a time"
 mongo_password=e2e-mongo-root-Pw7x
@@ -3877,7 +4259,8 @@ jq -e '(.change.plan.notes | any(.reason == "backup_first")) and (.change.plan.s
 change=$(jq -r .change.id <<<"$planned")
 dw changes apply "$change" --yes >/dev/null || fail "applying the upgrade failed"
 catalog_runs() {
-  local at runs
+  # port is local, as the script's own names where the control plane listens.
+  local at runs port
   at=$(catalog_container web)
   runs=$(docker inspect --format '{{.Config.Image}}' "$at") || fail "docker inspect $at failed"
   [[ "$runs" == "$1" ]] || fail "it runs $runs, want $1"
@@ -4020,5 +4403,46 @@ for name in e2e-two-own e2e-two-agent; do
 done
 dw containers delete e2e-two-own --on "$own_id" --yes || fail "deleting e2e-two-own failed"
 dw containers delete e2e-two-agent --on "$agent_id" --yes || fail "deleting e2e-two-agent failed"
+
+step "A shell in a container: the first shell its image has, as its user, and a passkey only where it's as good as root"
+(cd "$(dirname "$0")/.." && go build -o "$shell" ./scripts/shell) || fail "can't build scripts/shell"
+docker run -d --name e2e-shell-ash alpine:3.20 sleep 600 >/dev/null || fail "can't run alpine"
+docker run -d --name e2e-shell-bash --user nobody nginx:1.27 sleep 600 >/dev/null || fail "can't run nginx"
+docker run -d --name e2e-shell-root --privileged alpine:3.20 sleep 600 >/dev/null || fail "can't run a privileged alpine"
+docker run -d --name e2e-shell-none registry.k8s.io/pause:3.10 >/dev/null || fail "can't run the pause image"
+# What it mounts counts as where that leads: a volume that binds /etc, and a bind of a
+# link to /etc, each from a container that's otherwise ordinary.
+docker volume create --driver local -o type=none -o o=bind -o device=/etc e2e-shell-etc >/dev/null || fail "can't make a volume that binds /etc"
+ln -sfn /etc "$rollout_dir/etc-link" || fail "can't make a link to /etc"
+docker run -d --name e2e-shell-vol -v e2e-shell-etc:/host-etc:ro alpine:3.20 sleep 600 >/dev/null || fail "can't run alpine with a volume that binds /etc"
+docker run -d --name e2e-shell-link -v "$rollout_dir/etc-link:/host-etc:ro" alpine:3.20 sleep 600 >/dev/null || fail "can't run alpine with a link to /etc"
+# An ordinary named volume is the folder Docker keeps it in, and reaches no further.
+docker run -d --name e2e-shell-data -v e2e-shell-data:/data alpine:3.20 sleep 600 >/dev/null || fail "can't run alpine with a named volume"
+# shellcheck disable=SC2016 # the line is for the container's shell to expand
+in_shell() { "$shell" "http://localhost:$port" "$cookie" "$passkey" "$own_id" "$1" 'echo "in-$((6*7)) $0 $(id -un)"'; }
+said=$(in_shell e2e-shell-ash) || fail "a shell in alpine failed: $said"
+grep -q '^passkey: false' <<<"$said" || fail "a shell in a container that reaches no further than itself asked for the passkey: $said"
+grep -q 'in-42 /bin/ash root' <<<"$said" || fail "a shell in alpine isn't ash, as root: $said"
+said=$(in_shell e2e-shell-bash) || fail "a shell in nginx failed: $said"
+grep -q 'in-42 /bin/bash nobody' <<<"$said" || fail "a shell in nginx isn't bash, as the container's user: $said"
+said=$(in_shell e2e-shell-root) || fail "a shell in a privileged container failed: $said"
+grep -q '^passkey: true' <<<"$said" || fail "a shell in a privileged container opened with no passkey: $said"
+grep -q 'in-42 /bin/ash root' <<<"$said" || fail "a shell in a privileged alpine isn't ash: $said"
+for name in e2e-shell-vol e2e-shell-link; do
+  said=$(in_shell "$name") || fail "a shell in $name failed: $said"
+  grep -q '^passkey: true' <<<"$said" || fail "a shell in $name, which reaches /etc, opened with no passkey: $said"
+done
+# The kernel followed the link as the container started, and keeps /etc mounted
+# whatever the link says since, so the check goes by what's mounted.
+mkdir -p "$rollout_dir/plain" || fail "can't make a plain folder"
+ln -sfn "$rollout_dir/plain" "$rollout_dir/etc-link" || fail "can't move the link"
+said=$(in_shell e2e-shell-link) || fail "a shell in e2e-shell-link, after its link moved, failed: $said"
+grep -q '^passkey: true' <<<"$said" || fail "with its link moved after it started, a shell in e2e-shell-link, which still has /etc mounted, opened with no passkey: $said"
+said=$(in_shell e2e-shell-data) || fail "a shell in a container with a named volume failed: $said"
+grep -q '^passkey: false' <<<"$said" || fail "a shell in a container with an ordinary named volume asked for the passkey: $said"
+if said=$(in_shell e2e-shell-none 2>&1); then fail "a shell opened in the pause image, which has none: $said"; fi
+[[ "$said" == *"has none of /bin/bash, /bin/ash and /bin/sh"* ]] || fail "a container with no shell was refused saying: $said"
+docker rm --force e2e-shell-ash e2e-shell-bash e2e-shell-root e2e-shell-none e2e-shell-vol e2e-shell-link e2e-shell-data >/dev/null || fail "removing the shells' containers failed"
+docker volume rm e2e-shell-etc e2e-shell-data >/dev/null || fail "removing the shells' volumes failed"
 
 echo "docker-e2e: ok"

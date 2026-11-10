@@ -130,7 +130,7 @@ func TestTheAgentBuildJoinsAndRunsTheAgent(t *testing.T) {
 	}()
 	// The hello says which build the agent is, and the control plane keeps
 	// it with the server, where the API serves it.
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(startUp)
 	for {
 		var build *dockwellv1.BuildInfo
 		for _, s := range cp.hub.List() {
@@ -144,8 +144,14 @@ func TestTheAgentBuildJoinsAndRunsTheAgent(t *testing.T) {
 			}
 			break
 		}
+		select {
+		case code := <-done:
+			done <- code // for whatever waits on it after
+			t.Fatalf("dockwell run exited %d before the agent connected:\n%s", code, logs.String())
+		default:
+		}
 		if time.Now().After(deadline) {
-			t.Fatalf("the agent didn't connect within 10 s:\n%s", logs.String())
+			t.Fatalf("the agent didn't connect within %v:\n%s", startUp, logs.String())
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -198,7 +204,7 @@ func TestTheAgentBuildRunsContainers(t *testing.T) {
 	}()
 	var server string
 	var agent resource.Agent
-	for deadline := time.Now().Add(10 * time.Second); agent == nil; time.Sleep(20 * time.Millisecond) {
+	for deadline := time.Now().Add(startUp); agent == nil; time.Sleep(20 * time.Millisecond) {
 		for _, s := range cp.hub.List() {
 			if s.GetName() == "hz-2" {
 				server = s.GetId()
@@ -206,8 +212,16 @@ func TestTheAgentBuildRunsContainers(t *testing.T) {
 		}
 		if a, ok := agents.Agent(server); ok {
 			agent = a
-		} else if time.Now().After(deadline) {
-			t.Fatalf("the agent didn't connect within 10 s:\n%s", logs.String())
+			continue
+		}
+		select {
+		case code := <-done:
+			done <- code // for the cleanup, which waits on it
+			t.Fatalf("dockwell run exited %d before the agent connected:\n%s", code, logs.String())
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the agent didn't connect within %v:\n%s", startUp, logs.String())
 		}
 	}
 

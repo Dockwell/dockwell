@@ -61,7 +61,11 @@ export function Rail({ view }: { view: FleetView }) {
         <Logo variant="logotype" height={14} className="rail-logo" />
         <Logo variant="mark" height={14} className="rail-mark" />
         {!view.fleet && short ? (
-          <Link to="/status" className="rail-version" aria-label={t`Dockwell ${short}: control plane status`}>
+          <Link
+            to="/settings/control-plane"
+            className="rail-version"
+            aria-label={t`Dockwell ${short}: control plane status`}
+          >
             {short}
           </Link>
         ) : null}
@@ -72,7 +76,9 @@ export function Rail({ view }: { view: FleetView }) {
       <Link to="/apps" {...current(segment === "apps")}>
         <ItemBody icon="service" label={t`Apps`} count={apps ? String(apps) : undefined} countSeenOnly />
       </Link>
-      {section("websites")}
+      <Link to="/websites" {...current(segment === "websites")}>
+        <ItemBody icon="browser" label={t`Websites`} />
+      </Link>
       <Link to="/databases" {...current(segment === "databases")}>
         <ItemBody icon="database" label={t`Databases`} />
       </Link>

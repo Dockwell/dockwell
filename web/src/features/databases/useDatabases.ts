@@ -16,6 +16,7 @@ import {
 import { useQueries } from "@tanstack/react-query";
 
 import { READ_EVERY_MS } from "../../lib/standing";
+import { installIn, useCatalog, useInstalls } from "../catalog/useCatalog";
 import { useFleetView } from "../servers/useFleet";
 
 /** Every database, with what each says of itself, read again while a screen shows them. */
@@ -210,4 +211,18 @@ export function useBackupHow(db: Database): BackupHow {
     dump: method === BackupMethod.DUMP,
     database: preview.data?.database ?? "",
   };
+}
+
+/**
+ * The catalog install a database is the point of, such as the catalog's PostgreSQL:
+ * one whose entry is among the catalog's databases. A database an app's install
+ * brings along is that app's to upgrade, from its own page, whatever that does first.
+ */
+export function useOwnInstall(db: Database) {
+  const install = installIn(useInstalls().data?.installs ?? [], db.resource?.scope ?? "");
+  const entries = useCatalog().data?.entries ?? [];
+  const entry = install?.pin?.entry ?? "";
+  const own =
+    entry !== "" && entry === db.catalogEntry && entries.some((e) => e.id === entry && e.category === "databases");
+  return own ? install : undefined;
 }

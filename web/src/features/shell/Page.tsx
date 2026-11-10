@@ -150,7 +150,8 @@ function MobileHeader({ title, machineTitle, sub, back, backLink, action }: Mobi
       {backLink ? (
         backLink
       ) : back ? (
-        <Link to={back} className="mobile-header-button" aria-label={t`Back`}>
+        // Exact, as the page it leads back to is above this one, never this one: the router marks a parent as current.
+        <Link to={back} className="mobile-header-button" aria-label={t`Back`} activeOptions={{ exact: true }}>
           <Icon name="arrow-left" size={20} />
         </Link>
       ) : (

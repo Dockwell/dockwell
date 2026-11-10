@@ -4,7 +4,7 @@ import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from "react"
 
 import { cx } from "../../lib/cx";
 import { useUIStrings } from "../../lib/strings";
-import "./Table.css";
+// Table.css loads with the foundations in styles/index.css, as pages use its classes on their own elements.
 
 /** Keys of Row whose values React can render as they are. */
 export type CellKey<Row> = {
@@ -25,6 +25,8 @@ interface TableColumnBase {
   /** Machine values: images, IPs, domains. */
   mono?: boolean;
   muted?: boolean;
+  /** How the rows are sorted by this column, for a table sorted by its header, said to assistive technology. */
+  sort?: "ascending" | "descending";
 }
 
 /**
@@ -112,6 +114,7 @@ export function Table<Row extends object = Record<string, unknown>>({
                 scope="col"
                 className={cx(column.align === "right" && "is-num")}
                 style={column.width !== undefined ? { width: column.width } : undefined}
+                aria-sort={column.sort}
               >
                 {column.header}
               </th>

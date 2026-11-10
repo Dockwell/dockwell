@@ -7,7 +7,7 @@ import { msg, plural } from "@lingui/core/macro";
 import { formatBytes } from "../../lib/format";
 
 import type { Entry } from "./store";
-import { clock, dayNoteOf, dayOf, gapWords, instanceName, replicaLabel } from "./words";
+import { clock, clockSeconds, dayNoteOf, dayOf, gapWords, instanceName, replicaLabel } from "./words";
 
 /** How an entry shows: a line of what a container printed, or a note about a place in the log. */
 export function drawEntry(e: Entry, sources: ReadonlyMap<string, LogSource>, i18n: I18n): LogLine {
@@ -16,6 +16,20 @@ export function drawEntry(e: Entry, sources: ReadonlyMap<string, LogSource>, i18
   // With the zone, as a phone's log head has no room for it, and a day says when.
   const day = dayNoteOf(e.ms, i18n.locale);
   if (e.gap) return { id: e.id, time: "", source, text: gapWords(e, source, i18n), notice: "warning", day };
+  if (e.away) {
+    const from = clockSeconds(e.away.from);
+    const to = clockSeconds(e.away.to);
+    return {
+      id: e.id,
+      time: "",
+      source: "",
+      notice: "info",
+      day,
+      text: i18n._(
+        msg`This tab was away from ${from} to ${to}, so what came then isn't all here. The note above reads it.`,
+      ),
+    };
+  }
   if (e.left !== undefined) {
     const count = e.left.toLocaleString(i18n.locale);
     return {

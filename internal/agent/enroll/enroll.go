@@ -423,6 +423,29 @@ func (i *Identity) Client() (client agentv1connect.AgentServiceClient, release f
 	return agentv1connect.NewAgentServiceClient(hc, i.ControlURL, connect.WithGRPC()), hc.CloseIdleConnections, nil
 }
 
+// TransferClient is Client for uploads and downloads, whose connection takes in
+// at most transferWindow of each stream, and transferConnWindow in all, before the
+// agent reads it. Go's own is 4 MiB a stream, and three uploads at once, each
+// waiting on a disk, took an agent past its 40 MB. A frame is 128 KiB, so this
+// still has two on their way to each.
+func (i *Identity) TransferClient() (client agentv1connect.AgentServiceClient, release func(), err error) {
+	cfg, err := i.ClientTLS()
+	if err != nil {
+		return nil, nil, err
+	}
+	hc := httpClient(cfg)
+	hc.Transport.(*http.Transport).HTTP2 = &http.HTTP2Config{ //nolint:forcetypeassert // httpClient's own
+		MaxReceiveBufferPerStream:     transferWindow,
+		MaxReceiveBufferPerConnection: transferConnWindow,
+	}
+	return agentv1connect.NewAgentServiceClient(hc, i.ControlURL, connect.WithGRPC()), hc.CloseIdleConnections, nil
+}
+
+const (
+	transferWindow     = 256 << 10
+	transferConnWindow = 1 << 20
+)
+
 // httpClient speaks HTTP/2 over TLS, through a proxy if the environment
 // names one, as gRPC requires.
 func httpClient(cfg *tls.Config) *http.Client {

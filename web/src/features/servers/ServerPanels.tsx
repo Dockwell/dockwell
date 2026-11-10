@@ -3,77 +3,30 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import { Connection, type PublicAddress, type Server, SystemService } from "@dockwell/api";
-import { Button, Panel, StatusBadge } from "@dockwell/ui";
+import { Button, Panel, Sparkline, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
 
-import { formatBitRate, formatBytes, formatDateTime, formatPercent } from "../../lib/format";
+import { formatBitRate, formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { CopyButton } from "./CopyButton";
+import { trend } from "./history";
 import { publicAddressesOf, useNetworkWords } from "./network";
 import { SetPublicAddressSheet } from "./SetPublicAddressSheet";
 import { isPrivateAddress, serverStatus } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 import "./ServerPanels.css";
 
-/** Each disk's use, as a bar of used and free space. */
-export function DisksPanel({ server }: { server: Server }) {
-  const { t, i18n } = useLingui();
-  const disks = server.stats?.disks.filter((disk) => disk.sizeBytes > 0n) ?? [];
-  if (disks.length === 0) return null;
-  const locale = i18n.locale;
-  return (
-    <Panel title={t`Disks`}>
-      <ul className="disks">
-        {disks.map((disk) => {
-          const info = server.inventory?.disks.find((d) => d.mountPoint === disk.mountPoint);
-          const mount = disk.mountPoint;
-          const usedBytes = Number(disk.usedBytes);
-          const sizeBytes = Number(disk.sizeBytes);
-          const used = formatBytes(usedBytes, locale);
-          const free = formatBytes(sizeBytes - usedBytes, locale);
-          const size = formatBytes(sizeBytes, locale);
-          const share = formatPercent((usedBytes / sizeBytes) * 100, locale);
-          return (
-            <li key={mount} className="disk">
-              <div className="disk-head">
-                <code className="disk-mount">{mount}</code>
-                {info ? (
-                  <span className="disk-device">{[info.device, info.filesystem].filter(Boolean).join(" · ")}</span>
-                ) : null}
-                <span className="disk-share">{t`${share} of ${size} used`}</span>
-              </div>
-              <div className="disk-bar" role="img" aria-label={t`${mount}: ${used} used, ${free} free, of ${size}`}>
-                <span className="disk-used" style={{ flexGrow: usedBytes }} />
-                <span className="disk-free" style={{ flexGrow: sizeBytes - usedBytes }} />
-              </div>
-              <dl className="disk-legend">
-                <div>
-                  <dt>
-                    <span className="disk-swatch is-used" />
-                    <Trans>Used</Trans>
-                  </dt>
-                  <dd>{used}</dd>
-                </div>
-                <div>
-                  <dt>
-                    <span className="disk-swatch is-free" />
-                    <Trans>Free</Trans>
-                  </dt>
-                  <dd>{free}</dd>
-                </div>
-              </dl>
-            </li>
-          );
-        })}
-      </ul>
-    </Panel>
-  );
-}
-
 /** What the server is: its system and hardware. */
 export function SystemPanel({ server }: { server: Server }) {
   const { t, i18n } = useLingui();
+  const swapWords = (used: bigint, total: bigint) => {
+    if (total === 0n) return t`None`;
+    const size = formatBytes(total, i18n.locale);
+    if (used === 0n) return t`${size} · none in use`;
+    const inUse = formatBytes(used, i18n.locale);
+    return t`${size} · ${inUse} in use`;
+  };
   const inv = server.inventory;
   const cpus = inv?.cpuCount ?? 0;
   const unknown = <Muted>{t`Unknown`}</Muted>;
@@ -90,6 +43,9 @@ export function SystemPanel({ server }: { server: Server }) {
             {[inv.cpuModel, cpus > 0 ? t`${cpus} vCPU` : ""].filter(Boolean).join(" · ") || unknown}
           </Fact>
           <Fact term={t`Memory`}>{inv.memoryBytes > 0n ? formatBytes(inv.memoryBytes, i18n.locale) : unknown}</Fact>
+          {server.stats ? (
+            <Fact term={t`Swap`}>{swapWords(server.stats.swapUsedBytes, server.stats.swapTotalBytes)}</Fact>
+          ) : null}
           <Fact term={t`Docker`}>
             {inv.dockerVersion ? <code>{inv.dockerVersion}</code> : <Muted>{t`Not installed or not running`}</Muted>}
           </Fact>
@@ -180,17 +136,50 @@ export function NetworkPanel({ server }: { server: Server }) {
             <Muted>{t`None reported`}</Muted>
           </Fact>
         ) : null}
-        {stats ? (
-          <>
-            <Fact term={t`Receiving`}>{formatBitRate(stats.networkRxBytesPerSecond, locale).join(" ")}</Fact>
-            <Fact term={t`Sending`}>{formatBitRate(stats.networkTxBytesPerSecond, locale).join(" ")}</Fact>
-          </>
-        ) : null}
+        {stats ? <Traffic server={server} /> : null}
       </dl>
       {setting !== undefined ? (
         <SetPublicAddressSheet server={server} current={setting ?? undefined} onClose={() => setSetting(undefined)} />
       ) : null}
     </Panel>
+  );
+}
+
+/**
+ * What the server sends and receives now, its shape over the last few minutes in
+ * cobalt, as live traffic is, and how much since it booted.
+ */
+function Traffic({ server }: { server: Server }) {
+  const { t, i18n } = useLingui();
+  const locale = i18n.locale;
+  const stats = server.stats;
+  if (!stats) return null;
+  const rate = (n: bigint) => formatBitRate(n, locale).join(" ");
+  const rx = rate(stats.networkRxBytesPerSecond);
+  const tx = rate(stats.networkTxBytesPerSecond);
+  const { samples } = trend(server.history.length > 0 ? server.history : [stats]);
+  const data = samples.map((s) => Number(s.networkRxBytesPerSecond + s.networkTxBytesPerSecond));
+  const booted = stats.networkRxBytes > 0n || stats.networkTxBytes > 0n;
+  const inTotal = formatBytes(stats.networkRxBytes, locale);
+  const outTotal = formatBytes(stats.networkTxBytes, locale);
+  return (
+    <>
+      <Fact term={t`Traffic`}>
+        <span className="fact-traffic">{t`${rx} in · ${tx} out`}</span>
+        {data.length > 1 ? (
+          <Sparkline
+            className="fact-spark"
+            data={data}
+            tone="cobalt"
+            min={0}
+            width="100%"
+            height={28}
+            label={t`Traffic over the last few minutes, now ${rx} in and ${tx} out`}
+          />
+        ) : null}
+      </Fact>
+      {booted ? <Fact term={t`Since boot`}>{t`${inTotal} in · ${outTotal} out`}</Fact> : null}
+    </>
   );
 }
 
@@ -237,6 +226,13 @@ export function AgentPanel({ server, unknown = false }: { server: Server; unknow
           </Fact>
         ) : null}
         <Fact term={t`Control plane`}>{server.controlServer ? t`Runs on this server` : t`Runs on another server`}</Fact>
+        {server.connection === Connection.CONNECTED && server.stats && server.stats.agentMemoryBytes > 0n ? (
+          <Fact term={t`Memory`}>
+            {server.controlServer
+              ? t`${formatBytes(server.stats.agentMemoryBytes, i18n.locale)}, with the control plane`
+              : formatBytes(server.stats.agentMemoryBytes, i18n.locale)}
+          </Fact>
+        ) : null}
         {connected ? <Fact term={t`Connected`}>{t`For ${connected}`}</Fact> : null}
         {blind ? <DockerFact since={timestampDate(blind)} now={now} /> : null}
         <Fact term={t`Last heartbeat`}>

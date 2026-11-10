@@ -41,6 +41,9 @@ const (
 	// DatabaseServiceGetDatabaseProcedure is the fully-qualified name of the DatabaseService's
 	// GetDatabase RPC.
 	DatabaseServiceGetDatabaseProcedure = "/dockwell.v1.DatabaseService/GetDatabase"
+	// DatabaseServiceCreateDatabaseUserProcedure is the fully-qualified name of the DatabaseService's
+	// CreateDatabaseUser RPC.
+	DatabaseServiceCreateDatabaseUserProcedure = "/dockwell.v1.DatabaseService/CreateDatabaseUser"
 )
 
 // DatabaseServiceClient is a client for the dockwell.v1.DatabaseService service.
@@ -52,6 +55,13 @@ type DatabaseServiceClient interface {
 	// GetDatabase returns one database, by its service's ID or its name, with what
 	// it holds: the databases inside it, and who can sign in to it.
 	GetDatabase(context.Context, *connect.Request[v1.GetDatabaseRequest]) (*connect.Response[v1.GetDatabaseResponse], error)
+	// CreateDatabaseUser plans a database inside a database server, with a user who
+	// owns it, and a password for them that the control plane generates and keeps as a
+	// secret of the environment, which nobody sees unless they reveal it. The user is a
+	// resource, of kind "database.user", so it's a change with a plan, a revision and an
+	// undo, and setting the secret anew changes the password. Only PostgreSQL, MySQL
+	// and MariaDB have users of their own.
+	CreateDatabaseUser(context.Context, *connect.Request[v1.CreateDatabaseUserRequest]) (*connect.Response[v1.CreateDatabaseUserResponse], error)
 }
 
 // NewDatabaseServiceClient constructs a client for the dockwell.v1.DatabaseService service. By
@@ -79,13 +89,20 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		createDatabaseUser: connect.NewClient[v1.CreateDatabaseUserRequest, v1.CreateDatabaseUserResponse](
+			httpClient,
+			baseURL+DatabaseServiceCreateDatabaseUserProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("CreateDatabaseUser")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // databaseServiceClient implements DatabaseServiceClient.
 type databaseServiceClient struct {
-	listDatabases *connect.Client[v1.ListDatabasesRequest, v1.ListDatabasesResponse]
-	getDatabase   *connect.Client[v1.GetDatabaseRequest, v1.GetDatabaseResponse]
+	listDatabases      *connect.Client[v1.ListDatabasesRequest, v1.ListDatabasesResponse]
+	getDatabase        *connect.Client[v1.GetDatabaseRequest, v1.GetDatabaseResponse]
+	createDatabaseUser *connect.Client[v1.CreateDatabaseUserRequest, v1.CreateDatabaseUserResponse]
 }
 
 // ListDatabases calls dockwell.v1.DatabaseService.ListDatabases.
@@ -98,6 +115,11 @@ func (c *databaseServiceClient) GetDatabase(ctx context.Context, req *connect.Re
 	return c.getDatabase.CallUnary(ctx, req)
 }
 
+// CreateDatabaseUser calls dockwell.v1.DatabaseService.CreateDatabaseUser.
+func (c *databaseServiceClient) CreateDatabaseUser(ctx context.Context, req *connect.Request[v1.CreateDatabaseUserRequest]) (*connect.Response[v1.CreateDatabaseUserResponse], error) {
+	return c.createDatabaseUser.CallUnary(ctx, req)
+}
+
 // DatabaseServiceHandler is an implementation of the dockwell.v1.DatabaseService service.
 type DatabaseServiceHandler interface {
 	// ListDatabases returns every database, by name, with how each stands on each
@@ -107,6 +129,13 @@ type DatabaseServiceHandler interface {
 	// GetDatabase returns one database, by its service's ID or its name, with what
 	// it holds: the databases inside it, and who can sign in to it.
 	GetDatabase(context.Context, *connect.Request[v1.GetDatabaseRequest]) (*connect.Response[v1.GetDatabaseResponse], error)
+	// CreateDatabaseUser plans a database inside a database server, with a user who
+	// owns it, and a password for them that the control plane generates and keeps as a
+	// secret of the environment, which nobody sees unless they reveal it. The user is a
+	// resource, of kind "database.user", so it's a change with a plan, a revision and an
+	// undo, and setting the secret anew changes the password. Only PostgreSQL, MySQL
+	// and MariaDB have users of their own.
+	CreateDatabaseUser(context.Context, *connect.Request[v1.CreateDatabaseUserRequest]) (*connect.Response[v1.CreateDatabaseUserResponse], error)
 }
 
 // NewDatabaseServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -130,12 +159,20 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceCreateDatabaseUserHandler := connect.NewUnaryHandler(
+		DatabaseServiceCreateDatabaseUserProcedure,
+		svc.CreateDatabaseUser,
+		connect.WithSchema(databaseServiceMethods.ByName("CreateDatabaseUser")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.DatabaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DatabaseServiceListDatabasesProcedure:
 			databaseServiceListDatabasesHandler.ServeHTTP(w, r)
 		case DatabaseServiceGetDatabaseProcedure:
 			databaseServiceGetDatabaseHandler.ServeHTTP(w, r)
+		case DatabaseServiceCreateDatabaseUserProcedure:
+			databaseServiceCreateDatabaseUserHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -151,4 +188,8 @@ func (UnimplementedDatabaseServiceHandler) ListDatabases(context.Context, *conne
 
 func (UnimplementedDatabaseServiceHandler) GetDatabase(context.Context, *connect.Request[v1.GetDatabaseRequest]) (*connect.Response[v1.GetDatabaseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.GetDatabase is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) CreateDatabaseUser(context.Context, *connect.Request[v1.CreateDatabaseUserRequest]) (*connect.Response[v1.CreateDatabaseUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.CreateDatabaseUser is not implemented"))
 }

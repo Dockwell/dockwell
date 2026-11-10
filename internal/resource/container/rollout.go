@@ -1165,6 +1165,11 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 			return "", nil, err
 		}
 	}
+	// What Docker would make root's, Dockwell makes as the mount says, first.
+	if err := d.makeFolders(spec); err != nil {
+		undo()
+		return "", nil, err
+	}
 	id, err := d.Client.CreateContainer(ctx, name, req)
 	if err != nil {
 		undo()

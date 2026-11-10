@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/change.proto";
+import "dockwell/v1/event.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// AuditService reads the audit log: every event Dockwell records of who did
+// what, from where, as it was recorded. That includes what the timeline leaves
+// out: refusals, such as a wrong code or a refused token, a token's first use
+// from an address, signing out, and the install's own setup. See
+// docs/adr/0047-the-audit-log-for-a-person.md.
+//
+// Its events carry the words Dockwell wrote for people, which name the
+// addresses people signed in from and were refused from, so only a person
+// signed in reads it, never an API token.
+service AuditService {
+  // ListAuditEvents returns the audit log, newest first, a page at a time.
+  // The filters narrow it, and combine: an event must pass each one that is
+  // set.
+  rpc ListAuditEvents(ListAuditEventsRequest) returns (ListAuditEventsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {get: "/v1/auditEvents"};
+  }
+}
+
+// ListAuditEventsRequest asks for a page of the audit log.
+message ListAuditEventsRequest {
+  // How many events to return: 100 when unset, and at most 500.
+  int32 page_size = 1;
+  // Where to start: the next_page_token of the page before. Empty starts with
+  // the newest. Pass the same filters with it.
+  string page_token = 2;
+  // Only what happened at or after this. Unset keeps everything.
+  google.protobuf.Timestamp since = 3;
+  // Only what one kind of actor did.
+  AuditActor actor = 4;
+  // Only what came from one place, such as the panel.
+  Surface surface = 5;
+  // Only events this is in, whatever its case: in the action, such as
+  // "token.create"; in the actor or what the event acted on, by ID or by the
+  // name of the person, token or server; or in the event's words, which name
+  // addresses.
+  string query = 6;
+}
+
+// AuditActor is a kind of actor, for filtering the audit log.
+enum AuditActor {
+  // Every kind.
+  AUDIT_ACTOR_UNSPECIFIED = 0;
+  // People signed in.
+  AUDIT_ACTOR_PERSON = 1;
+  // API tokens.
+  AUDIT_ACTOR_TOKEN = 2;
+  // Dockwell on its own.
+  AUDIT_ACTOR_DOCKWELL = 3;
+  // Servers, such as one joining.
+  AUDIT_ACTOR_SERVER = 4;
+  // Someone in a shell on the control server, such as dockwell recover.
+  AUDIT_ACTOR_SHELL = 5;
+  // Someone who wasn't signed in, such as a refused sign-in.
+  AUDIT_ACTOR_STRANGER = 6;
+}
+
+// ListAuditEventsResponse is a page of the audit log.
+message ListAuditEventsResponse {
+  // The events, newest first.
+  repeated AuditEvent events = 1;
+  // Pass it as page_token for the next page. Empty on the last page.
+  string next_page_token = 2;
+}
+
+// AuditEvent is one event of the audit log, as it was recorded.
+message AuditEvent {
+  // Its ID, such as "evt_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // When it happened.
+  google.protobuf.Timestamp time = 2;
+  // Who did it. Unset for someone who wasn't signed in, whose address is in
+  // address instead.
+  Actor actor = 3;
+  // What happened, such as "auth.sign_in", "token.refuse" or
+  // "change.applied".
+  string action = 4;
+  // Where it came from.
+  Surface surface = 5;
+  // Who or what it acted on, other than its actor, such as the token made or
+  // the server that joined, with its name where Dockwell still knows it.
+  // Unset when there is nothing more to name.
+  EventSubject target = 6;
+  // The ID it is about, such as a change's for a change's events, or the
+  // person's for signing in. Empty when it is about nothing more.
+  string subject = 7;
+  // What Dockwell recorded with it, as it was recorded: words for people,
+  // such as "passkey on localhost from 203.0.113.9, session ses_…" for a
+  // sign-in, or facts for a program, such as a setting's value and the one it
+  // replaced. It may name addresses. Empty when there was nothing more. To say
+  // the event in words, read event.
+  string detail = 8;
+  // The address someone who wasn't signed in came from, such as
+  // "203.0.113.9". Empty for everyone else.
+  string address = 9;
+  // The same event as Activity has it, with the facts it carries, such as a
+  // backup's volume, a health check's state, a setting's value, or a change
+  // with its plan, as it is now, for saying the event in words.
+  Event event = 10;
+}

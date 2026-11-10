@@ -19,6 +19,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -61,8 +62,21 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 		changesTable(w, m, now)
 	case *dockwellv1.ListDriftResponse:
 		driftTable(w, m)
+	case *dockwellv1.ListAlertsResponse:
+		alertsTable(w, m, now)
 	case *dockwellv1.ListLogSourcesResponse:
 		sourcesTable(w, m, now)
+	case *dockwellv1.ListWebsitesResponse:
+		websitesTable(w, m.GetWebsites(), now)
+	case *dockwellv1.PreviewWebsiteResponse:
+		// Where it sends, then the config as its web server runs it, untouched.
+		fmt.Fprintln(w, "Sends to "+sendsTo(m.GetWebsite()))
+		if m.GetConfig() != "" {
+			fmt.Fprintln(w)
+			_, _ = io.WriteString(w, m.GetConfig())
+		}
+	case *dockwellv1.ImportOnePanelResponse:
+		importView(w, m)
 	case *dockwellv1.ExportComposeResponse:
 		// The file alone, so it pipes into docker compose -f -. Its comments
 		// say which variables it leaves out.
@@ -353,6 +367,33 @@ func changesTable(w io.Writer, res *dockwellv1.ListChangesResponse, now time.Tim
 	_ = tw.Flush()
 	if t := res.GetNextPageToken(); t != "" {
 		fmt.Fprintf(w, "\nThere are more. See them with dockwell changes list --page-token %s\n", t)
+	}
+}
+
+func alertsTable(w io.Writer, res *dockwellv1.ListAlertsResponse, now time.Time) {
+	if len(res.GetAlerts()) == 0 {
+		fmt.Fprintln(w, "Nothing has fired. Dockwell watches every server and app, and lists here what a rule held for.")
+		return
+	}
+	tw := newTable(w)
+	row(tw, "State", "Severity", "Alert", "Rule", "Opened", "Resolved")
+	for _, a := range res.GetAlerts() {
+		state := "Firing"
+		if a.GetState() == dockwellv1.AlertState_ALERT_STATE_RESOLVED {
+			state = "Resolved"
+		}
+		if a.GetMuted() {
+			state += ", muted"
+		}
+		severity := "Warning"
+		if a.GetSeverity() == resourcev1.AlertRule_SEVERITY_CRITICAL {
+			severity = "Critical"
+		}
+		row(tw, state, severity, a.GetTitle(), a.GetRuleName(), when(a.GetOpenTime(), now), orDash(when(a.GetResolveTime(), now)))
+	}
+	_ = tw.Flush()
+	if t := res.GetNextPageToken(); t != "" {
+		fmt.Fprintf(w, "\nThere are more. See them with dockwell alerts list --page-token %s\n", t)
 	}
 }
 
@@ -1169,6 +1210,7 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_VOLUME:  resource.AccessExternalVolume,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TAKES_ON:         resource.AccessTakesOn,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF:        resource.AccessBackupOf,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_SHELL:     resource.AccessServerShell,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY:       resource.AccessCapability,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GROUP:            resource.AccessGroup,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PRIVILEGED:       resource.AccessPrivileged,
@@ -1402,3 +1444,28 @@ var finalSteps = []dockwellv1.StepState{
 }
 
 func finalStep(s dockwellv1.StepState) bool { return slices.Contains(finalSteps, s) }
+
+func websitesTable(w io.Writer, sites []*dockwellv1.WebsiteInfo, now time.Time) {
+	if len(sites) == 0 {
+		fmt.Fprintln(w, "No websites yet. Add one with dockwell websites create.")
+		return
+	}
+	tw := newTable(w)
+	row(tw, "Domain", "Sends to", "Server", "Changed")
+	for _, s := range sites {
+		row(tw, orDash(s.GetDomain()), sendsTo(s.GetSpec()), orDash(s.GetServerName()), orDash(when(s.GetUpdateTime(), now)))
+	}
+	_ = tw.Flush()
+}
+
+// sendsTo is where a website sends its requests, in a few words.
+func sendsTo(w *resourcev1.Website) string {
+	p := w.GetProxy()
+	switch {
+	case p.GetPort() != 0:
+		return fmt.Sprintf("port %d on the server", p.GetPort())
+	case p.GetUrl() != "":
+		return p.GetUrl()
+	}
+	return "-"
+}

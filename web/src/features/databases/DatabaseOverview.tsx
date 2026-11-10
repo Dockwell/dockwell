@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
-import { type Database, DatabaseEngine, type DatabaseReading } from "@dockwell/api";
+import { createClient } from "@connectrpc/connect";
+import { useTransport } from "@connectrpc/connect-query";
+import { BackupService, type Database, DatabaseEngine, type DatabaseReading } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -28,12 +30,22 @@ import { usePlaces, useServices } from "../apps/useServices";
 import { BackUpSheet } from "../backups/BackUpSheet";
 import { usePolicies } from "../backups/PoliciesPanel";
 import { useMethodWord, useScheduleWords } from "../backups/words";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { CopyButton } from "../system/CopyCommand";
 import { useThisDatabase } from "./DatabaseLayout";
 import "../servers/ServerMetrics.css";
 import { SchemasSection, UsersSection } from "./DatabaseUsers";
-import { engineName, firstReading, internalURL, policiesOf, readOf, speaksSQL, useBackupHow } from "./useDatabases";
+import {
+  engineName,
+  firstReading,
+  internalURL,
+  policiesOf,
+  readOf,
+  speaksSQL,
+  useBackupHow,
+  useOwnInstall,
+} from "./useDatabases";
 
 /**
  * A database at a glance (Database-Detail): its numbers as it last said them, how it's
@@ -48,6 +60,7 @@ export function DatabaseOverview() {
       {reading && !read ? <UnreadNote db={db} reading={reading} /> : null}
       {read?.checksNoOne ? <ChecksNoOne db={db} /> : null}
       <FromServer db={db} reading={reading} />
+      <UpgradeNote db={db} />
       {db.engine === DatabaseEngine.MONGODB && read ? <MongoLine read={read} /> : null}
       <Numbers db={db} read={read} />
       <div className="database-panels">
@@ -114,6 +127,70 @@ function FromServer({ db, reading }: { db: Database; reading: DatabaseReading | 
   const server = reading.serverName;
   return (
     <p className="database-line">{t`Its numbers, databases and users are as ${server} says, one of the ${count} servers it runs on.`}</p>
+  );
+}
+
+/** A newer release of the catalog entry it came from, and what upgrading does first. */
+function UpgradeNote({ db }: { db: Database }) {
+  const { t } = useLingui();
+  const install = useOwnInstall(db);
+  const how = useBackupHow(db);
+  const next = install?.upgrade?.version ?? "";
+  if (!install?.upgrade) return null;
+  const engine = engineName(db.engine);
+  const dumpOf = how.database || engine;
+  const now = install.pin?.version ?? "";
+  return (
+    <Callout
+      tone="info"
+      title={next === now ? t`A change to how ${engine} ${now} runs is out` : t`${engine} ${next} is out`}
+    >
+      {!how.known ? (
+        <Trans>
+          Upgrading is a plan that backs up its volumes before anything else, and says which backup holds each. Undoing
+          it puts this version back, and leaves the data as the new one left it.
+        </Trans>
+      ) : how.dump ? (
+        <Trans>
+          Upgrading is a plan that backs up its data with {dumpOf}'s own dump before anything else, and says which
+          backup holds it. Undoing it puts this version back, and leaves the data as the new one left it.
+        </Trans>
+      ) : (
+        <Trans>
+          Upgrading is a plan that backs up its volumes before anything else, with a copy of their files, which stops{" "}
+          {engine} for a moment, and says which backup holds each. Undoing it puts this version back, and leaves the
+          data as the new one left it.
+        </Trans>
+      )}
+    </Callout>
+  );
+}
+
+/** Whether Dockwell backs a database up: its data is in a volume Dockwell made. */
+export function backsUp(db: Database): boolean {
+  return db.volume !== "" && !db.volumeExternal && db.volumeId !== "";
+}
+
+/** Why a database has no backups, and what to do about it. */
+export function NoBackups({ db, className }: { db: Database; className?: string }) {
+  const { t } = useLingui();
+  const volume = db.volume;
+  return (
+    <Panel title={t`Backups`} actions={<StatusBadge status="stopped" label={t`None`} />} className={className}>
+      <p className="database-line">
+        {db.volumeExternal ? (
+          <Trans>
+            Its data is in <code>{volume}</code>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it
+            up where it came from, or move the data into a volume of the app's.
+          </Trans>
+        ) : (
+          <Trans>
+            Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give
+            it a volume on its app's page.
+          </Trans>
+        )}
+      </p>
+    </Panel>
   );
 }
 
@@ -212,6 +289,10 @@ function BackupsPanel({ db }: { db: Database }) {
   const time = useTimeWords();
   const { fleet } = useFleetView();
   const [taking, setTaking] = useState(false);
+  const sheet = useChangeSheet();
+  const transport = useTransport();
+  const restore = (id: string) =>
+    sheet.open({ kind: "plan", make: () => createClient(BackupService, transport).restoreBackup({ id }) });
   const engine = engineName(db.engine);
   const how = useBackupHow(db);
   const dumpOf = how.database || engine;
@@ -219,28 +300,9 @@ function BackupsPanel({ db }: { db: Database }) {
   const newest = db.newestBackup;
   const latest = db.latestBackup;
   const latestError = latest?.error ?? "";
-  const volume = db.volume;
   const servers = db.readings.map((r) => r.serverName).join(", ");
   const destination = policy?.spec?.destination ?? "";
-  if (!db.volume || db.volumeExternal) {
-    return (
-      <Panel title={t`Backups`} actions={<StatusBadge status="stopped" label={t`None`} />} className="database-backups">
-        <p className="database-line">
-          {db.volumeExternal ? (
-            <Trans>
-              Its data is in <code>{volume}</code>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back
-              it up where it came from, or move the data into a volume of the app's.
-            </Trans>
-          ) : (
-            <Trans>
-              Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up.
-              Give it a volume on its app's page.
-            </Trans>
-          )}
-        </p>
-      </Panel>
-    );
-  }
+  if (!backsUp(db)) return <NoBackups db={db} className="database-backups" />;
   const took =
     newest?.startedAt && newest.finishedAt
       ? time.span(timestampMs(newest.finishedAt) - timestampMs(newest.startedAt))
@@ -310,8 +372,13 @@ function BackupsPanel({ db }: { db: Database }) {
         <Button size="sm" icon="archive" onClick={() => setTaking(true)}>
           <Trans>Back up now</Trans>
         </Button>
-        <RouterButtonLink to="/backups" variant="ghost" size="sm">
-          <Trans>All backups</Trans>
+        {newest?.onServer ? (
+          <Button size="sm" variant="ghost" icon="undo" onClick={() => restore(newest.id)}>
+            <Trans>Restore the newest</Trans>
+          </Button>
+        ) : null}
+        <RouterButtonLink to="/databases/$serviceId/backups" params={{ serviceId: db.id }} variant="ghost" size="sm">
+          <Trans>All its backups</Trans>
         </RouterButtonLink>
       </div>
       {taking ? (

@@ -27,6 +27,7 @@ import {
   StepProgressSchema,
   StepState,
   Surface,
+  TokenScope,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -143,7 +144,7 @@ describe("an app's frame", () => {
       within(tabs)
         .getAllByRole("link")
         .map((l) => l.textContent),
-    ).toEqual(["Overview", "Deployments 3", "Logs", "Environment"]);
+    ).toEqual(["Overview", "Deployments 3", "Logs", "Environment", "Settings"]);
     expect(within(tabs).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Apps/web");
     expect(document.title).toBe("web · Dockwell");
@@ -255,7 +256,9 @@ describe("an app's frame", () => {
     // It sees TZ under a name of its own, so the row says which it is.
     expect(await (await row("TZ_NAME")).findByText("UTC")).toBeVisible();
     expect((await row("TZ_NAME")).getByRole("cell", { name: "Variable TZ" })).toBeVisible();
-    expect((await row("API_KEY")).getByRole("cell", { name: "Hidden" })).toBeVisible();
+    // A secret is hidden until a passkey reveals it, as on Variables.
+    expect((await row("API_KEY")).getByRole("img", { name: "Hidden" })).toBeVisible();
+    expect((await row("API_KEY")).getByRole("button", { name: "Reveal API_KEY" })).toBeVisible();
     expect((await row("API_KEY")).getByRole("cell", { name: "Secret" })).toBeVisible();
     expect((await row("DB_PASS")).getByRole("cell", { name: "Secret DB_PASSWORD" })).toBeVisible();
     expect((await row("OWN")).getByRole("cell", { name: "Set on this app" })).toBeVisible();
@@ -275,9 +278,9 @@ describe("an app's frame", () => {
     expect(screen.queryByText("None set")).not.toBeInTheDocument();
     await router.navigate({ to: "/apps/$serviceId/environment", params: { serviceId: service.id } });
     expect(await screen.findByRole("cell", { name: "API_KEY" })).toBeVisible();
-    expect(screen.queryByText("No environment variables")).not.toBeInTheDocument();
-    // With nothing plain to show, it asks nothing of the variables.
-    expect(reads).not.toHaveBeenCalled();
+    expect(screen.queryByText(/This app runs with only what its image sets/)).not.toBeInTheDocument();
+    // It reads the environment's variables once, to offer them to the app.
+    await waitFor(() => expect(reads).toHaveBeenCalledOnce());
   });
 
   it("says when a variable's value couldn't be read, not that it's empty", async () => {
@@ -426,7 +429,12 @@ describe("an app's frame", () => {
         id: "chg_3",
         summary: "Deploy",
         state: ChangeState.APPLIED,
-        appliedBy: { kind: ActorKind.TOKEN, name: "Local access on home-t3code, read-write" },
+        appliedBy: {
+          kind: ActorKind.TOKEN,
+          id: "tok_9",
+          name: "Local access on home-t3code, read-write",
+          localAccess: { account: "t3@home-t3code", scope: TokenScope.READ_WRITE },
+        },
         appliedVia: Surface.CLI,
       },
     });
@@ -439,6 +447,31 @@ describe("an app's frame", () => {
     await waitFor(() => expect(container.querySelector(".page-lead")).toHaveTextContent("from the CLI on home-t3code"));
     expect(container.querySelector(".page-lead")).not.toHaveTextContent("Local access");
     expect(container.querySelector(".page-lead")).not.toHaveTextContent("read-write");
+  });
+
+  it("names a token by its name, whatever it's called, unless local access made it", async () => {
+    const lookalike = aRevision(3n, "ghcr.io/acme/web:1.5", {
+      change: {
+        id: "chg_3",
+        summary: "Deploy",
+        state: ChangeState.APPLIED,
+        appliedBy: { kind: ActorKind.TOKEN, id: "tok_8", name: "Local access on prod-1, read-write" },
+        appliedVia: Surface.API,
+      },
+    });
+    const { container } = renderAt(
+      "/apps/svc_web",
+      api([web], {
+        services: {
+          listServices: () => ({ services: [web] }),
+          listServiceRevisions: () => ({ revisions: [lookalike] }),
+        },
+      }),
+    );
+    await waitFor(() =>
+      expect(container.querySelector(".page-lead")).toHaveTextContent("by Local access on prod-1, read-write"),
+    );
+    expect(container.querySelector(".page-lead")).not.toHaveTextContent("the CLI on prod-1");
   });
 
   it("speaks Chinese", async () => {
@@ -1819,8 +1852,12 @@ describe("an app's overview", () => {
           },
         },
       );
-      expect(await screen.findByText(/takes its domains with it/)).toBeVisible();
-      await user.click(screen.getByRole("button", { name: "Delete this app" }));
+      // The danger zone is on Settings, as the mock has it.
+      await user.click(
+        within(screen.getByRole("navigation", { name: "App sections" })).getByRole("link", { name: "Settings" }),
+      );
+      expect(await screen.findByText(/its domains go with it/)).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Delete web" }));
       await screen.findByRole("dialog", { name: "Review plan" });
       expect(edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete])).toEqual([
         ["route", "ours", true],
@@ -3224,7 +3261,7 @@ describe("an app's overview", () => {
     const proposals: { edits: { delete: boolean; resource?: { name: string } }[] }[] = [];
     const applied = webPlanned();
     renderAt(
-      "/apps/svc_web",
+      "/apps/svc_web/settings",
       api([web], {
         changes: {
           proposeChange: (req) => {
@@ -3236,7 +3273,7 @@ describe("an app's overview", () => {
         },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Delete this app" }));
+    await user.click(await screen.findByRole("button", { name: "Delete web" }));
     await screen.findByRole("dialog", { name: "Review plan" });
     expect(proposals[0]?.edits[0]).toMatchObject({ delete: true, resource: { name: "web" } });
   });

@@ -60,8 +60,8 @@ describe("routes", () => {
   });
 
   it("says plainly that a section from the design isn't built yet", async () => {
-    renderAt("/websites");
-    expect(await screen.findByRole("heading", { level: 1, name: "Websites" })).toBeVisible();
+    renderAt("/connections");
+    expect(await screen.findByRole("heading", { level: 1, name: "Connections" })).toBeVisible();
     expect(screen.getByRole("heading", { level: 2, name: "Not in this release yet" })).toBeVisible();
     expect(within(screen.getByRole("main")).getByRole("link", { name: "Go to the overview" })).toHaveAttribute(
       "href",
@@ -69,7 +69,7 @@ describe("routes", () => {
     );
   });
 
-  it.each(["/servers/hz-9/terminal", "/nowhere"])("explains a missing page at %s and links home", async (path) => {
+  it.each(["/servers/hz-9/nowhere", "/nowhere"])("explains a missing page at %s and links home", async (path) => {
     renderAt(path);
     expect(await screen.findByRole("heading", { level: 1, name: "No page here" })).toBeVisible();
     expect(screen.getByText(path).tagName).toBe("CODE");

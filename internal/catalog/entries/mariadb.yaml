@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: mariadb
+name: MariaDB
+summary: Relational database, with phpMyAdmin to manage it
+description: |-
+  MariaDB is a relational database for applications that use SQL. It stores structured data with transactions, indexes and familiar MySQL-compatible tools.
+
+  This entry includes phpMyAdmin so you can browse tables and run queries from your browser. Database data lives on a persistent volume, and Dockwell generates the initial root password.
+icon: /catalog-media/mariadb-icon.webp
+documentation: https://mariadb.com/docs/server
+appSource: https://github.com/MariaDB/server
+features:
+  - "SQL database with transactions"
+  - "MySQL-compatible client tools"
+  - "Included phpMyAdmin web interface"
+  - "Persistent database storage"
+screenshots:
+  - path: /catalog-media/phpmyadmin-tables.webp
+    caption: "Manage MariaDB tables in phpMyAdmin, included with this install"
+    source: https://raw.githubusercontent.com/phpmyadmin/website/9a1840a005292617d3e2b18dbeeffba8dd38f264/pmaweb/static/images/screenshots/structure.png
+category: databases
+version: "12.3.3"
+release: 2
+homepage: https://mariadb.org
+license: AGPL-3.0-only
+appLicense: GPL-2.0-only
+source:
+  repository: https://github.com/Dockwell/dockwell
+  path: internal/catalog/entries/mariadb.yaml
+web:
+  service: phpmyadmin
+firstSteps: >-
+  phpMyAdmin answers only on this server until you add a domain, as it signs in over
+  plain HTTP with MariaDB's root password. Add a domain on its page, over HTTPS or
+  behind your tunnel, and open it there. To open it before that, use an SSH tunnel from
+  your computer: ssh -N -L 8083:127.0.0.1:8083 you@your-server, using the port you gave
+  it, then open http://localhost:8083. Sign in as user root, with the password in the
+  MARIADB_ROOT_PASSWORD secret. That secret sets the password on first
+  start only, so changing it doesn't change what signs in. To change the password, run
+  ALTER USER for both 'root'@'%' and 'root'@'localhost' in phpMyAdmin, then set the
+  secret to match.
+inputs:
+  - name: ADMIN_PORT
+    label: phpMyAdmin port on this server
+    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
+    type: INPUT_TYPE_PORT
+    defaultValue: "8083"
+  - name: MARIADB_ROOT_PASSWORD
+    label: Root password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+databases: [db]
+compose: |
+  services:
+    db:
+      image: mariadb:12.3.3@sha256:d46e102fa8b9b72bfcdeb56f9dd538742092119dc8b11f31fe662605cd234cd9
+      restart: unless-stopped
+      environment:
+        MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+        MARIADB_AUTO_UPGRADE: "1"
+      volumes:
+        - data:/var/lib/mysql
+      healthcheck:
+        test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+        interval: 5s
+        timeout: 5s
+        retries: 30
+        start_period: 30s
+    phpmyadmin:
+      image: phpmyadmin:5.2.3@sha256:f54a37b908b26caa7032c4eb0c7f3495fdd90208a06eed9c4b2c8e691dd1662c
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      environment:
+        PMA_HOST: db
+      ports:
+        - "127.0.0.1:${ADMIN_PORT}:80"
+      healthcheck:
+        test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 80) ? 0 : 1);"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
+  volumes:
+    data: {}

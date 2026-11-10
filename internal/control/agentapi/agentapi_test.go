@@ -22,6 +22,7 @@ import (
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -148,7 +149,13 @@ func fakeCollector() *collect.Collector {
 // waitFor polls the fleet until cond holds for the server.
 func waitFor(t *testing.T, hub *fleet.Hub, id, what string, cond func(*dockwellv1.Server) bool) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	waitForWithin(t, hub, id, what, 5*time.Second, cond)
+}
+
+// waitForWithin is waitFor, giving cond as long as within.
+func waitForWithin(t *testing.T, hub *fleet.Hub, id, what string, within time.Duration, cond func(*dockwellv1.Server) bool) {
+	t.Helper()
+	deadline := time.Now().Add(within)
 	for {
 		s, err := hub.Get(id)
 		if err == nil && cond(s) {
@@ -723,5 +730,197 @@ func TestAJoinGoesThroughAnAddressTheListenerAddedLater(t *testing.T) {
 	s.addHost("localhost")
 	if err := join(); err != nil {
 		t.Errorf("once the certificate names it: %v", err)
+	}
+}
+
+// An agent samples at the stream's heartbeat while nobody watches, and at once, then
+// often, when someone starts to (ADR 0040).
+func TestAgentsSampleOftenOnlyWhileWatched(t *testing.T) {
+	s := startStack(t, time.Minute)
+	id := s.enrollLocal(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = agent.Run(ctx, agent.Config{Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(), Collector: fakeCollector()})
+		close(done)
+	}()
+	defer func() { cancel(); <-done }()
+
+	waitFor(t, s.hub, id.ServerID, "the agent connects, at the pace for nobody watching", func(srv *dockwellv1.Server) bool {
+		return srv.GetConnection() == dockwellv1.Connection_CONNECTION_CONNECTED &&
+			srv.GetStats().GetInterval().AsDuration() == fleet.IdleInterval
+	})
+	watch, stop := context.WithCancel(t.Context())
+	defer stop()
+	s.hub.Watch(watch)
+	// Long before the next heartbeat would come.
+	waitFor(t, s.hub, id.ServerID, "a sample comes at once, at the pace for watching", func(srv *dockwellv1.Server) bool {
+		return srv.GetStats().GetInterval().AsDuration() == fleet.StatsInterval
+	})
+}
+
+// Once the last page goes, agents slow down to the stream's heartbeat, over the
+// stream itself, and the sample after says so (ADR 0040).
+func TestAgentsSlowDownOnceNobodyWatches(t *testing.T) {
+	t.Parallel() // the slower pace takes its own length to show
+	s := startStack(t, time.Minute)
+	s.hub.SlowDownAfter(50 * time.Millisecond)
+	id := s.enrollLocal(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		_ = agent.Run(ctx, agent.Config{Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(), Collector: fakeCollector()})
+		close(done)
+	}()
+	defer func() { cancel(); <-done }()
+
+	watch, stop := context.WithCancel(t.Context())
+	s.hub.Watch(watch)
+	waitFor(t, s.hub, id.ServerID, "a sample at the pace for watching", func(srv *dockwellv1.Server) bool {
+		return srv.GetStats().GetInterval().AsDuration() == fleet.StatsInterval
+	})
+	stop()
+	waitForWithin(t, s.hub, id.ServerID, "a sample at the pace for nobody watching", 2*fleet.IdleInterval, func(srv *dockwellv1.Server) bool {
+		return srv.GetStats().GetInterval().AsDuration() == fleet.IdleInterval
+	})
+}
+
+// An agent from before paces ignores Pace, and its samples say no pace. So it's
+// welcomed at the pace for watching, whoever watches, and told no other, as before
+// paces, and its samples are said to be at that pace, or the panel would take them
+// for another and lose its trends. One that follows a pace hears each change
+// (ADR 0040).
+func TestAnAgentFromBeforePacesStaysAtThePaceForWatching(t *testing.T) {
+	type agentStream struct {
+		stream *connect.BidiStreamForClient[agentv1.ConnectRequest, agentv1.ConnectResponse]
+		heard  chan *agentv1.ConnectResponse
+	}
+	open := func(id *enroll.Identity, follows bool) agentStream {
+		t.Helper()
+		client, release, err := id.Client()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(release)
+		stream := client.Connect(t.Context())
+		t.Cleanup(func() { _ = stream.CloseRequest(); _ = stream.CloseResponse() })
+		if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: &agentv1.Hello{FollowsPace: follows}}}); err != nil {
+			t.Fatal(err)
+		}
+		welcome, err := stream.Receive()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := fleet.IdleInterval
+		if !follows {
+			want = fleet.StatsInterval
+		}
+		if got := welcome.GetWelcome().GetStatsInterval().AsDuration(); got != want {
+			t.Errorf("with nobody watching, an agent that follows a pace (%v) is welcomed at %v, want %v", follows, got, want)
+		}
+		a := agentStream{stream: stream, heard: make(chan *agentv1.ConnectResponse, 16)}
+		go func() {
+			for {
+				msg, err := stream.Receive()
+				if err != nil {
+					return
+				}
+				a.heard <- msg
+			}
+		}()
+		return a
+	}
+	paced := func(a agentStream, within time.Duration) *agentv1.Pace {
+		deadline := time.After(within)
+		for {
+			select {
+			case msg := <-a.heard:
+				if p := msg.GetPace(); p != nil {
+					return p
+				}
+			case <-deadline:
+				return nil
+			}
+		}
+	}
+
+	t.Run("from before paces", func(t *testing.T) {
+		s := startStack(t, time.Minute)
+		id := s.enrollLocal(t)
+		a := open(id, false)
+		// Its samples say no pace, as it's from before them.
+		if err := a.stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Stats{Stats: &dockwellv1.ServerStats{Time: timestamppb.Now()}}}); err != nil {
+			t.Fatal(err)
+		}
+		waitFor(t, s.hub, id.ServerID, "its sample said to be at the pace for watching", func(srv *dockwellv1.Server) bool {
+			return srv.GetStats().GetInterval().AsDuration() == fleet.StatsInterval
+		})
+		watch, stop := context.WithCancel(t.Context())
+		defer stop()
+		s.hub.Watch(watch)
+		if p := paced(a, 200*time.Millisecond); p != nil {
+			t.Errorf("an agent from before paces is told %v", p)
+		}
+	})
+	t.Run("following a pace", func(t *testing.T) {
+		s := startStack(t, time.Minute)
+		s.hub.SlowDownAfter(50 * time.Millisecond)
+		a := open(s.enrollLocal(t), true)
+		watch, stop := context.WithCancel(t.Context())
+		s.hub.Watch(watch)
+		if p := paced(a, 5*time.Second); p.GetStatsInterval().AsDuration() != fleet.StatsInterval {
+			t.Errorf("once someone watches, it's told %v", p)
+		}
+		stop()
+		if p := paced(a, 5*time.Second); p.GetStatsInterval().AsDuration() != fleet.IdleInterval {
+			t.Errorf("once nobody does, it's told %v", p)
+		}
+	})
+}
+
+// An agent made to say what one from before paces says, through Config.Hello, goes
+// on at the pace for watching while nobody does.
+func TestAnAgentThatSaysItsFromBeforePacesSamplesAtThePaceForWatching(t *testing.T) {
+	s := startStack(t, time.Minute)
+	id := s.enrollLocal(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	older := func(h *agentv1.Hello) { h.FollowsPace = false }
+	go func() {
+		_ = agent.Run(ctx, agent.Config{Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(), Collector: fakeCollector(), Hello: older})
+		close(done)
+	}()
+	defer func() { cancel(); <-done }()
+	waitFor(t, s.hub, id.ServerID, "it samples at the pace for watching, with nobody watching", func(srv *dockwellv1.Server) bool {
+		return srv.GetConnection() == dockwellv1.Connection_CONNECTION_CONNECTED &&
+			srv.GetStats().GetInterval().AsDuration() == fleet.StatsInterval
+	})
+}
+
+// A stream may say nothing for a while before it's closed, and an agent is never
+// told a pace slower than a third of that, so a slow uplink or a sample held up
+// by TCP's backoff, or two, doesn't close it.
+func TestNoPaceLeavesAStreamCloseToSilent(t *testing.T) {
+	if 3*fleet.IdleInterval > agentapi.UnreachableAfter {
+		t.Errorf("agents send a sample every %v while nobody watches, too close to the %v a stream may be silent", fleet.IdleInterval, agentapi.UnreachableAfter)
+	}
+	silence := 15 * time.Second
+	s := startStack(t, silence)
+	client, release, err := s.enrollLocal(t).Client()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	stream := client.Connect(t.Context())
+	defer func() { _ = stream.CloseRequest(); _ = stream.CloseResponse() }()
+	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: &agentv1.Hello{FollowsPace: true}}}); err != nil {
+		t.Fatal(err)
+	}
+	welcome, err := stream.Receive()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := welcome.GetWelcome().GetStatsInterval().AsDuration(); got > silence/3 {
+		t.Errorf("a stream closed after %v of silence is welcomed at a pace of %v, want %v at most", silence, got, silence/3)
 	}
 }

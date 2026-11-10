@@ -167,7 +167,7 @@ func saveConfig(path string, cfg cliConfig) error {
 
 // errNoControlPlane says the CLI doesn't know what to call.
 var errNoControlPlane = errors.New("dockwell doesn't know which control plane to call. " +
-	"Sign in with dockwell login and the panel's address, with an API token you make in the panel under Profile and security, " +
+	"Sign in with dockwell login and the panel's address, with an API token you make in the panel, in Settings under API tokens, " +
 	"or set " + apicli.EnvURL + " and " + apicli.EnvToken)
 
 func (a *apiAccess) client(url, token string, local bool) *apicli.Client {
@@ -346,7 +346,7 @@ func (a *apiAccess) noControlPlane(dir datadir.Dir) error {
 	case errors.Is(err, fs.ErrPermission):
 		return fmt.Errorf("there's no API token set, and only root can look in %s, where a control plane on this server keeps its state, so dockwell can't use it. "+
 			"On the control server, run this with sudo. Elsewhere, sign in with dockwell login and the panel's address, "+
-			"with an API token you make in the panel under Profile and security", system.Root)
+			"with an API token you make in the panel, in Settings under API tokens", system.Root)
 	}
 	return errNoControlPlane
 }
@@ -520,7 +520,7 @@ func (a *apiAccess) loginCmd() *cobra.Command {
 		GroupID: apicli.GroupID,
 		Long: "Stores an API token for the control plane at url, such as https://panel.acme.dev, in your config directory, " +
 			"readable only by you, after checking that it works. Commands then call that control plane with it.\n\n" +
-			"Make the token in the panel, under Profile and security. (dockwell token create makes join tickets for servers, not API tokens.) " +
+			"Make the token in the panel, in Settings under API tokens. (dockwell token create makes join tickets for servers, not API tokens.) " +
 			"The token comes from --token or " + apicli.EnvToken + "; otherwise dockwell asks for it on a terminal without showing it, " +
 			"or reads it from standard input.\n\n" +
 			"On the control server, the CLI needs no sign-in: as a user who can read the control plane's data directory, such as root, " +
@@ -557,7 +557,7 @@ func (a *apiAccess) loginCmd() *cobra.Command {
 				}
 			}
 			if !auth.WellFormedToken(token) {
-				return usageError{fmt.Errorf("that isn't a whole API token: tokens start with %s and have %d characters. Copy it again from the panel, under Profile and security",
+				return usageError{fmt.Errorf("that isn't a whole API token: tokens start with %s and have %d characters. Copy it again from the panel, in Settings under API tokens",
 					auth.TokenPrefix, auth.TokenLen)}
 			}
 			c := a.client(base, token, false)
@@ -625,7 +625,7 @@ func (a *apiAccess) logoutCmd() *cobra.Command {
 		Short:   "Forget the API token for a control plane",
 		GroupID: apicli.GroupID,
 		Long: "Removes the API token dockwell login stored for the control plane at url, or for the one it signed in to last. " +
-			"The token still works until you revoke it in the panel, under Profile and security.\n\n" +
+			"The token still works until you revoke it in the panel, in Settings under API tokens.\n\n" +
 			"--local revokes the token local access made on the control server instead; the next command makes a read-only one.",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 1 {
@@ -664,7 +664,7 @@ func (a *apiAccess) logoutCmd() *cobra.Command {
 			if err := saveConfig(path, cfg); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Forgot the API token for %s. It still works until you revoke it in the panel, under Profile and security.\n", base)
+			fmt.Fprintf(cmd.OutOrStdout(), "Forgot the API token for %s. It still works until you revoke it in the panel, in Settings under API tokens.\n", base)
 			return nil
 		},
 	}

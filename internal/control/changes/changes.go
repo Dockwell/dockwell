@@ -109,8 +109,9 @@ type Also struct {
 	Pull bool
 	// Run says this asks what's edited to run (revision.Edit).
 	Run bool
-	// Adopts is what each edit takes on, by the name of what's edited.
-	Adopts map[string]Adoption
+	// Adopts is what each edit takes on, by what's edited. A change can take on
+	// several projects, whose services may share a name.
+	Adopts map[resource.Ref]Adoption
 	// Intent is what the plan is for, when the method proposing it knows.
 	Intent *revision.Intent
 	// BackUp names resources to back up first (revision.Edit).
@@ -157,8 +158,12 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 		return nil, fail(err)
 	}
 	for i := range edits {
-		edits[i].Base, edits[i].Pull, edits[i].Run = also.Base, also.Pull, also.Run
-		a := also.Adopts[edits[i].Ref.Name]
+		// A method that read the spec says where it read it; an edit can say so itself.
+		if also.Base != 0 {
+			edits[i].Base = also.Base
+		}
+		edits[i].Pull, edits[i].Run = also.Pull, also.Run
+		a := also.Adopts[edits[i].Ref]
 		edits[i].Adopt, edits[i].AdoptName = a.ID, a.Name
 		edits[i].Backup = slices.Contains(also.BackUp, edits[i].Ref)
 	}
@@ -734,7 +739,20 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 			if len(e.GetServers()) > 0 {
 				servers = e.GetServers()
 			}
-			out = append(out, revision.Edit{Ref: ref, Spec: spec, Servers: servers})
+			switch {
+			case e.GetBaseRevision() < 0:
+				return fault.New(revision.ErrInvalid, "edit %d's base_revision is %d. Pass the revision the spec was read at, or 0 to check nothing", i+1, e.GetBaseRevision())
+			case len(e.GetKeepEnv()) > 0 && spec == nil:
+				return fault.New(revision.ErrInvalid, "edit %d deletes, and keeps environment variables too. Leave keep_env out", i+1)
+			case len(e.GetKeepEnv()) > 0 && e.GetBaseRevision() == 0:
+				// What it keeps comes from what's there now, and the rest from what it read: from
+				// no revision, a change between the two would be undone with nothing to say so.
+				return fault.New(revision.ErrInvalid, "edit %d keeps environment variables, but says no base_revision, so a change since the spec was read would be undone. "+
+					"Pass the revision ListServices gave as base_revision", i+1)
+			}
+			out = append(out, revision.Edit{
+				Ref: ref, Spec: spec, Servers: servers, Base: int(e.GetBaseRevision()), KeepEnv: e.GetKeepEnv(),
+			})
 		}
 		return nil
 	})
@@ -746,6 +764,19 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 // start in it (ADR 0042). The kind's own default, UTC, is for an install that
 // has none. A copy is changed, never the request.
 func withInstallZone(ctx context.Context, tx *store.Tx, spec proto.Message) (proto.Message, error) {
+	if t, ok := spec.(*resourcev1.Task); ok && t.GetTimeZone() == "" {
+		// A scheduled task too (ADR 0053).
+		zone, err := tx.GetSetting(ctx, store.SettingTimeZone)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			return spec, nil
+		case err != nil:
+			return nil, fmt.Errorf("can't read the install's time zone for a scheduled task: %w", err)
+		}
+		t = proto.CloneOf(t)
+		t.TimeZone = string(zone)
+		return t, nil
+	}
 	p, ok := spec.(*resourcev1.BackupPolicy)
 	if !ok || p.GetTimeZone() != "" {
 		return spec, nil

@@ -219,6 +219,9 @@ type Edit struct {
 	// latest the edit is stale, as it would quietly undo what came between.
 	// Zero is an edit that says the whole spec itself.
 	Base int
+	// KeepEnv names a service's own environment variables to keep as they are,
+	// for a client that can't read their values back (resource.EnvKeeper).
+	KeepEnv []string
 	// Pull asks the server for the resource's image again as this applies, as a
 	// deploy of the tag it already names does: the plan can't know what the tag
 	// points at now, so a revision comes only if it finds a newer image.
@@ -672,6 +675,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
 	p.Notes = unmeasuredNotes(plan, sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))))
+	if p.Notes, err = e.taskNotes(ctx, plan, items, p.Notes); err != nil {
+		return nil, err
+	}
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -731,6 +737,77 @@ func (e *Engine) keptLogsNotes(ctx context.Context, plan *Plan, items []item, no
 		}
 	}
 	return out, nil
+}
+
+// taskNotes are a plan's notes, naming the tasks that run in an app this makes
+// reach what's as good as root on its server, each with its command: they run in
+// what it runs, so they reach it too (ADR 0053).
+func (e *Engine) taskNotes(ctx context.Context, plan *Plan, items []item, notes []Note) ([]Note, error) {
+	out := slices.Clone(notes)
+	for i := range items {
+		it := &items[i]
+		if it.ref.Kind != "service" || it.spec == nil || !slices.ContainsFunc(plan.Resources, func(r ResourcePlan) bool {
+			return r.Ref == it.ref && slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot)
+		}) {
+			continue
+		}
+		commands := map[string]string{}
+		err := e.db.View(ctx, func(tx *store.Tx) error {
+			stored, err := tx.ListResources(ctx, it.ref.Scope, taskKind)
+			if err != nil {
+				return err
+			}
+			for _, r := range stored {
+				spec, err := e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+				if err != nil {
+					return err
+				}
+				if app := appTask(spec); app.GetService() == it.ref.Name {
+					commands[r.Name] = app.GetCommand()
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		// What this change does to a task in the same scope is what counts.
+		for j := range items {
+			other := &items[j]
+			if other.ref.Kind != taskKind || other.ref.Scope != it.ref.Scope {
+				continue
+			}
+			delete(commands, other.ref.Name)
+			if app := appTask(other.spec); app.GetService() == it.ref.Name {
+				commands[other.ref.Name] = app.GetCommand()
+			}
+		}
+		if len(commands) == 0 {
+			continue
+		}
+		var names, said []string
+		for _, name := range slices.Sorted(maps.Keys(commands)) {
+			names = append(names, name, commands[name])
+			said = append(said, name+" runs "+commands[name])
+		}
+		out = append(out, Note{
+			Reason: "tasks_as_root", Ref: it.ref, Names: names, Named: true,
+			Message: fmt.Sprintf("%s's tasks run in what it runs, so they reach what it reaches on its server too: %s.", it.ref.Name, strings.Join(said, "; ")),
+		})
+	}
+	return out, nil
+}
+
+// taskKind is the scheduled tasks' kind (ADR 0053).
+const taskKind = "task"
+
+// appTask is what a task runs in an app, or nil for a task that runs anything else.
+func appTask(spec proto.Message) *resourcev1.TaskApp {
+	t, ok := spec.(*resourcev1.Task)
+	if !ok {
+		return nil
+	}
+	return t.GetApp()
 }
 
 // awayServers names each server a resource was ever placed on that isn't connected and
@@ -1088,6 +1165,17 @@ func (e *Engine) recordPlanned(ctx context.Context, tx *store.RevisionTx, c stor
 	})
 }
 
+// othersThan are what a change's edits are of, but the one at i.
+func othersThan(edits []Edit, i int) []resource.Ref {
+	out := make([]resource.Ref, 0, len(edits)-1)
+	for j := range edits {
+		if j != i {
+			out = append(out, edits[j].Ref)
+		}
+	}
+	return out
+}
+
 // items reads where each edit's resource stands and what the edit wants of
 // it, gives new resources their IDs, and checks the edits as a whole. With
 // rotate, an edit that sets a secret's value rotates it.
@@ -1118,6 +1206,12 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 					return err
 				}
 				it.spec = proto.Clone(ed.Spec)
+				// What the edit keeps is in the spec before anything checks it.
+				if len(ed.KeepEnv) > 0 {
+					if it.kept, err = e.keepEnv(it, ed.KeepEnv); err != nil {
+						return err
+					}
+				}
 				if err := e.kinds.Validate(ed.Ref.Kind, it.spec); err != nil {
 					return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
 				}
@@ -1131,6 +1225,13 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 					if c, ok := t.(resource.NewChecker); ok {
 						if err := c.CheckNew(it.spec); err != nil {
 							return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
+						}
+					}
+				}
+				if t, err := e.kinds.Type(ed.Ref.Kind); err == nil && !ed.Observed && !ed.Reverses {
+					if c, ok := t.(resource.ChangeChecker); ok {
+						if err := c.CheckInChange(it.current, it.spec, othersThan(edits, i)); err != nil {
+							return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
 						}
 					}
 				}
@@ -1166,6 +1267,30 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 		return items, err
 	}
 	return items, e.checkKept(ctx, items)
+}
+
+// keepEnv puts the values an edit names to keep into its spec, from what's there.
+func (e *Engine) keepEnv(it item, names []string) (resource.Kept, error) {
+	t, err := e.kinds.Type(it.ref.Kind)
+	if err != nil {
+		return resource.Kept{}, fault.New(ErrInvalid, "%w", err)
+	}
+	k, ok := t.(resource.EnvKeeper)
+	_, keeper := t.(resource.Keeper)
+	switch {
+	case keeper:
+		// Both would say what they kept in it.kept, and one would drop the other's word.
+		return resource.Kept{}, fmt.Errorf("%s is a kind that keeps what it was made with, so it can't keep environment variables too", it.ref.Kind)
+	case !ok:
+		return resource.Kept{}, fault.New(ErrInvalid, "%s keeps environment variables, which only a service has. Leave keep_env out", it.ref)
+	case it.current == nil:
+		return resource.Kept{}, fault.New(ErrInvalid, "%s keeps environment variables, but there's no %s yet to keep them from. Set them in the spec", it.ref, it.ref.Kind)
+	}
+	kept, err := k.KeepEnv(it.current, it.spec, names)
+	if err != nil {
+		return resource.Kept{}, fault.New(ErrInvalid, "%s: %w", it.ref, err)
+	}
+	return kept, nil
 }
 
 // checkKept refuses an edit that would take what it kept to a server that hasn't got
@@ -2079,7 +2204,12 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			sp.Downtime += s.Downtime
 			sp.UntilHealthy += max(s.Downtime, s.UntilHealthy)
 			actions[ids[s.Ref]] = append(actions[ids[s.Ref]], s.Action)
-			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
+			downtime := s.Downtime
+			if s.BackupFirst != nil {
+				// A backup's cost can change as its volume grows (ADR 0033).
+				downtime = 0
+			}
+			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, downtime, len(s.Changes), s.Destroys, s.Warnings,
 				s.UntilHealthy, s.Kept, s.Restores, s.HealthUnknown, s.HidesLogs)
 			if s.Adopts != "" || s.Releases {
 				fmt.Fprintf(fp, "  adopts %s|%t\n", s.Adopts, s.Releases)
@@ -2203,6 +2333,50 @@ func (e *Engine) writtenAs(kind resource.Kind, spec proto.Message, list []resour
 	}
 }
 
+// Reaches is what each of a page of resources reaches on its servers as its
+// spec says, through what it mounts too, as a plan reads it (reach), but for where
+// a path leads, which only an agent says. So ListServices can tell an editor that
+// a passkey is coming before it plans, from the same rule the plan's gate uses.
+// What they mount is read by kind and scope, once each, so a page costs the same
+// few queries however many it holds. specs[i] is refs[i]'s.
+func (e *Engine) Reaches(ctx context.Context, tx *store.Tx, refs []resource.Ref, specs []proto.Message) ([][]resource.Access, error) {
+	type group struct {
+		scope string
+		kind  resource.Kind
+	}
+	var groups []group
+	for i := range refs {
+		for _, use := range e.kinds.References(refs[i].Kind, specs[i]) {
+			if g := (group{refs[i].Scope, use.Kind}); !use.Apart && !slices.Contains(groups, g) {
+				groups = append(groups, g)
+			}
+		}
+	}
+	named := map[resource.Ref]proto.Message{}
+	for _, g := range groups {
+		list, err := tx.ListResources(ctx, g.scope, string(g.kind))
+		if err != nil {
+			return nil, err
+		}
+		stored := make([]store.StoredSpec, len(list))
+		for k := range list {
+			stored[k] = store.StoredSpec{At: store.InRevision(list[k].ID, list[k].Kind, list[k].Revision), Spec: list[k].Spec}
+		}
+		decoded, err := e.decodeAll(ctx, tx, stored)
+		if err != nil {
+			return nil, fmt.Errorf("reading the %ss of %s: %w", g.kind, g.scope, err)
+		}
+		for k := range list {
+			named[resource.Ref{Kind: g.kind, Scope: g.scope, Name: list[k].Name}] = decoded[k]
+		}
+	}
+	out := make([][]resource.Access, len(refs))
+	for i := range refs {
+		out[i] = e.reach(refs[i], specs[i], named)
+	}
+	return out, nil
+}
+
 // named reads what the items name (resource.Referrer), as it stands
 // before the change, and as the change leaves it.
 func (e *Engine) named(ctx context.Context, items []item) (before, after map[resource.Ref]proto.Message, err error) {
@@ -2286,10 +2460,15 @@ func (e *Engine) runsSomethingElse(it *item, server string) bool {
 	if it.restoreOn(server) != nil {
 		return true
 	}
-	n, ok := e.imageNamer(it.ref.Kind)
 	current, desired := it.currentOn(server), it.desiredOn(server)
-	if !ok || current == nil || desired == nil {
+	if current == nil || desired == nil {
 		return false
+	}
+	n, ok := e.imageNamer(it.ref.Kind)
+	if !ok {
+		// A kind that runs code with no image, as a scheduled task's shell command.
+		w, ok := e.whatRunner(it.ref.Kind)
+		return ok && !proto.Equal(w.WhatRuns(current), w.WhatRuns(desired))
 	}
 	before, after := n.WhatRuns(current), n.WhatRuns(desired)
 	if now := n.ImageOf(desired); docker.Repository(n.ImageOf(current)) == docker.Repository(now) {
@@ -4150,6 +4329,16 @@ func (e *Engine) pinIfMoved(ctx context.Context, tx *store.Tx, rev *store.Revisi
 	out := proto.Clone(spec)
 	namer.SetImage(out, resource.PinnedImage(namer.ImageOf(spec), digest))
 	return out, nil
+}
+
+// whatRunner returns a kind as a WhatRunner, if it is one.
+func (e *Engine) whatRunner(kind resource.Kind) (resource.WhatRunner, bool) {
+	t, err := e.kinds.Type(kind)
+	if err != nil {
+		return nil, false
+	}
+	w, ok := t.(resource.WhatRunner)
+	return w, ok
 }
 
 // imageNamer returns a kind as an ImageNamer, if it is one.

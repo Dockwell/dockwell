@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net"
 	"os"
@@ -142,10 +143,16 @@ func startRun(t *testing.T) string {
 			t.Errorf("run exited %d:\n%s", code, errOut.String())
 		}
 	})
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(startUp)
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "agent", "agent.json")); err == nil {
 			return dir
+		}
+		select {
+		case code := <-done:
+			done <- code // for the cleanup, which waits on it
+			t.Fatalf("dockwell run exited %d before its agent got an identity:\n%s", code, errOut.String())
+		default:
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("the control server's agent never got an identity:\n%s", errOut.String())
@@ -512,6 +519,44 @@ func TestThePanelsAddressAndItsCA(t *testing.T) {
 	} {
 		if got := certificateAuthority(runFlags{domain: tt.domain, acmeDirector: tt.directory}); got != tt.want {
 			t.Errorf("certificateAuthority(%q, %q) = %q, want %q", tt.domain, tt.directory, got, tt.want)
+		}
+	}
+}
+
+// The page's backup command stops what runs Dockwell, so it names that only
+// when stopping it stops this process. Otherwise the copy is of a store that's
+// still writing.
+func TestServiceManager(t *testing.T) {
+	noFile := func(string) ([]byte, error) { return nil, fs.ErrNotExist }
+	cgroup := func(lines string) func(string) ([]byte, error) {
+		return func(string) ([]byte, error) { return []byte(lines), nil }
+	}
+	env := func(name, value string) func(string) string {
+		return func(k string) string {
+			if k == name {
+				return value
+			}
+			return ""
+		}
+	}
+	for _, tt := range []struct {
+		name   string
+		getenv func(string) string
+		read   func(string) ([]byte, error)
+		want   dockwellv1.ServiceManager
+	}{
+		{"the unit, on cgroup v2", env("", ""), cgroup("0::/system.slice/dockwell.service\n"), dockwellv1.ServiceManager_SERVICE_MANAGER_SYSTEMD},
+		{"the unit, on cgroup v1", env("", ""), cgroup("12:pids:/system.slice/dockwell.service\n1:name=systemd:/system.slice/dockwell.service\n"), dockwellv1.ServiceManager_SERVICE_MANAGER_SYSTEMD},
+		{"OpenRC's service", env("RC_SVCNAME", "dockwell"), noFile, dockwellv1.ServiceManager_SERVICE_MANAGER_OPENRC},
+		// A terminal under a systemd user session has an invocation ID of its own.
+		{"a hand run in a session", env("INVOCATION_ID", "0123456789abcdef"), cgroup("0::/user.slice/user-1000.slice/session-2.scope\n"), dockwellv1.ServiceManager_SERVICE_MANAGER_NONE},
+		{"another unit", env("", ""), cgroup("0::/system.slice/dockwell-dev.service\n"), dockwellv1.ServiceManager_SERVICE_MANAGER_NONE},
+		{"another OpenRC service", env("RC_SVCNAME", "local"), noFile, dockwellv1.ServiceManager_SERVICE_MANAGER_NONE},
+		{"a container", env("", ""), cgroup("0::/\n"), dockwellv1.ServiceManager_SERVICE_MANAGER_NONE},
+		{"no /proc", env("", ""), noFile, dockwellv1.ServiceManager_SERVICE_MANAGER_NONE},
+	} {
+		if got := serviceManager(tt.getenv, tt.read); got != tt.want {
+			t.Errorf("%s: serviceManager = %v, want %v", tt.name, got, tt.want)
 		}
 	}
 }
