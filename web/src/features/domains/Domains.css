@@ -120,6 +120,19 @@
   line-height: 16px;
 }
 
+/* Where its DNS leads, under what it reaches: the word, then the addresses it found. */
+.domains-phone-dns {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.domains-phone-dns code {
+  font-size: 11.5px;
+}
+
 .domains-phone-target {
   font-family: var(--font-mono);
   font-size: 12px;
