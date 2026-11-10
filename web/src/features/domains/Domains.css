@@ -230,6 +230,23 @@
   overflow-wrap: anywhere;
 }
 
+/* What DNS says takes a second line before it's cut off: "Can't tell where it points" is the column's width. */
+.domains-dns-word {
+  align-items: flex-start;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.domains-dns-word .dw-glyph {
+  flex: none;
+  margin-top: 4px;
+}
+
+.domains-dns-word .dw-status-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .domains-dns-found {
   overflow: hidden;
   font-size: 12px;

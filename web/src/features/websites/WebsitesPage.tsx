@@ -104,8 +104,9 @@ export function WebsitesPage({ children }: { children?: ReactNode }) {
   return (
     <Page
       title={t`Websites`}
-      // The line is held while they load, so the list doesn't move when it lands.
-      lead={pending || count === 0 ? <span aria-hidden="true">&nbsp;</span> : lead}
+      // The line is held while they load, so the list doesn't move when it lands. With none, there is no line
+      // to hold, and Files stands level with the title rather than under an empty one.
+      lead={pending ? <span aria-hidden="true">&nbsp;</span> : count === 0 ? undefined : lead}
       className="websites-page"
       actions={
         <>

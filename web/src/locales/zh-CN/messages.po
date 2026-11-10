@@ -953,6 +953,49 @@ msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, other {{subject} 的证书将在 # 天内过期}}"
 
+msgid "Critical"
+msgstr "严重"
+
+msgid "Held by a mute"
+msgstr "已被静默"
+
+msgid "History"
+msgstr "历史"
+
+msgid "Inspect"
+msgstr "查看"
+
+msgid "Inspect: {title}"
+msgstr "查看：{title}"
+
+msgid "Memory on {name}, now {percent}%"
+msgstr "{name} 的内存，当前 {percent}%"
+
+msgid "Memory, now {percent}%"
+msgstr "内存，当前 {percent}%"
+
+msgid "Most severe first"
+msgstr "最严重的在前"
+
+msgid "Nothing is open. What fires shows here until it resolves."
+msgstr "没有未恢复的告警。触发的告警会显示在这里，直到恢复。"
+
+msgid "Nothing sent"
+msgstr "未发送"
+
+msgctxt "alerts that haven't resolved"
+msgid "Open"
+msgstr "未恢复"
+
+msgid "Resolved"
+msgstr "已恢复"
+
+msgid "Sent {sent}"
+msgstr "已于 {sent} 发送"
+
+msgid "since {since}"
+msgstr "自 {since} 起"
+
 msgid "Alerts sections"
 msgstr "告警分区"
 
@@ -1144,9 +1187,6 @@ msgstr "无法加载渠道"
 msgid "Channel"
 msgstr "渠道"
 
-msgid "Critical"
-msgstr "严重"
-
 msgid "Delivered"
 msgstr "已送达"
 
@@ -1250,9 +1290,6 @@ msgstr "{failing, plural, other {# 个发送失败}}"
 msgid "Alert rules"
 msgstr "告警规则"
 
-msgid "Alerts, firing first"
-msgstr "告警，触发中的在前"
-
 msgid "Can't load the alerts"
 msgstr "无法加载告警"
 
@@ -1279,12 +1316,6 @@ msgstr "尚未触发任何告警"
 
 msgid "Off"
 msgstr "关闭"
-
-msgid "Opened"
-msgstr "触发时间"
-
-msgid "Resolved"
-msgstr "已恢复"
 
 msgid "Severity"
 msgstr "严重程度"
@@ -8013,9 +8044,6 @@ msgstr "{0, plural, other {{source} 有 {lines} 行未显示：这台服务器�
 #. placeholder {0}: Number(gap.lines)
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, other {{source} 有 {lines} 条较早的匹配未显示：读到末尾时，每个容器只保留最新的 2 MB。}}"
-
-msgid "Inspect"
-msgstr "查看"
 
 msgid "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
 msgstr "它已加入，但它的代理还没有连接。请在服务器上运行 <0>dockwell run</0> 启动它。"

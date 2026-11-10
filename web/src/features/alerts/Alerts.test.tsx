@@ -15,6 +15,7 @@ import {
   AlertRule_Severity as Severity,
   type TestAlertChannelRequest,
   type WatchChangeResponse,
+  type WatchServersResponse,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -23,6 +24,7 @@ import { describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
+import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 
 const NOW = new Date();
 
@@ -350,7 +352,9 @@ describe("Alerts and rules", () => {
                 state: AlertState.FIRING,
                 openTime: timestampFromDate(NOW),
                 condition: Condition.SERVICE_DOWN,
+                subjectId: "svc_web",
                 subjectName: "web",
+                serverId: "srv_1",
                 serverName: "hz-1",
                 variant: "unhealthy",
               },
@@ -367,13 +371,78 @@ describe("Alerts and rules", () => {
         },
       }),
     );
-    const table = await screen.findByRole("table", { name: "Alerts, firing first" });
-    // Its title is put together in the panel, from what it's about.
-    expect(within(table).getByRole("row", { name: /web fails its health check on hz-1/ })).toHaveTextContent(
-      "Critical",
-    );
-    expect(within(table).getByRole("row", { name: /disk/ })).toHaveTextContent("Resolved");
+    // What's open is a card, as Alerts draws it. Its title is put together in the panel, from what it's about.
+    const open = await screen.findByRole("region", { name: "Open" });
+    const card = within(open).getByRole("article");
+    expect(within(card).getByRole("heading", { level: 3 })).toHaveTextContent("web fails its health check on hz-1");
+    expect(card).toHaveTextContent("Critical");
+    expect(card).toHaveTextContent("app-down");
+    expect(within(card).getByRole("link", { name: /^Inspect: web fails/ })).toHaveAttribute("href", "/apps/svc_web");
+    // What resolved is beside it, with the way to the rest.
+    const resolved = screen.getByRole("complementary", { name: "Resolved" });
+    expect(within(resolved).getByRole("listitem")).toHaveTextContent("disk-full");
+    expect(within(resolved).getByRole("link", { name: "History" })).toHaveAttribute("href", "/activity");
     expect(screen.getByText(/1 open · 2 rules · sent to 1 channel/)).toBeVisible();
+  });
+
+  it("draws a server's memory beside the alert that's about it, most severe first, and says what was sent", async () => {
+    const hz1 = aServer({ id: "srv_1", name: "hz-1", history: [sample(20, 7.2), sample(20, 7.4), sample(20, 7.5)] });
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete);
+    const opened = timestampFromDate(new Date(NOW.getTime() - 22 * 60_000));
+    renderAt(
+      "/alerts",
+      api([ops], {
+        servers: { watchServers: watch.stream },
+        alerts: {
+          listAlerts: () => ({
+            firing: 2,
+            alerts: [
+              {
+                id: "alt_mem",
+                ruleName: "memory-high",
+                severity: Severity.WARNING,
+                state: AlertState.FIRING,
+                condition: Condition.MEMORY_HIGH,
+                serverId: "srv_1",
+                serverName: "hz-1",
+                value: 94,
+                openTime: opened,
+                muted: true,
+              },
+              {
+                id: "alt_down",
+                ruleName: "server-unreachable",
+                severity: Severity.CRITICAL,
+                state: AlertState.FIRING,
+                condition: Condition.SERVER_UNREACHABLE,
+                serverId: "srv_2",
+                serverName: "hz-2",
+                openTime: opened,
+                sentTime: opened,
+              },
+            ],
+          }),
+        },
+      }),
+    );
+    const open = await screen.findByRole("region", { name: "Open" });
+    expect(within(open).getByText("Most severe first")).toBeVisible();
+    const [first, second] = within(open).getAllByRole("article");
+    expect(first).toHaveTextContent("hz-2 can't be reached");
+    expect(first).toHaveTextContent(/Sent \d\d:\d\d/);
+    expect(first).toHaveTextContent(/22 min since \d\d:\d\d/);
+    expect(within(first as HTMLElement).queryByRole("img")).toBeNull();
+    expect(second).toHaveTextContent("hz-1 uses 94% of its memory");
+    expect(second).toHaveTextContent("Held by a mute");
+    // 7.5 of 8 GiB, from the minutes the control plane keeps.
+    expect(await within(second as HTMLElement).findByRole("img", { name: "Memory on hz-1, now 94%" })).toBeVisible();
+    expect(within(second as HTMLElement).getByRole("link", { name: /^Inspect: hz-1 uses/ })).toHaveAttribute(
+      "href",
+      "/servers/srv_1",
+    );
+    // Nothing resolved, so nothing beside them says so.
+    expect(screen.queryByRole("complementary", { name: "Resolved" })).toBeNull();
   });
 
   it("lists the rules", async () => {
@@ -406,9 +475,9 @@ describe("Alerts and rules", () => {
         },
       }),
     );
-    const alerts = await screen.findByRole("list", { name: "Alerts, firing first" });
+    const open = await screen.findByRole("region", { name: "Open" });
     expect(screen.queryByRole("table")).toBeNull();
-    const [alert] = within(alerts).getAllByRole("listitem");
+    const alert = within(open).getByRole("article");
     expect(alert).toHaveTextContent("Its visitors get an error there.");
     expect(alert).toHaveTextContent("Critical");
     expect(alert).toHaveTextContent("app-down");

@@ -41,7 +41,8 @@ const LINE_HEIGHT = 20;
 /**
  * A multi-line input for text a machine parses, such as a Compose file, with
  * line numbers, so an error can point at a line. Long lines scroll sideways
- * rather than wrap, so a line number always means one line.
+ * rather than wrap, so a line number always means one line, and the field
+ * fades at an edge that cuts one off.
  */
 export function CodeField({
   label,
@@ -68,9 +69,28 @@ export function CodeField({
   const hasMessage = hasContent(message);
   const gutter = useRef<HTMLDivElement>(null);
   const marks = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement | null>(null);
   const count = useMemo(() => Math.max(value.split("\n").length, 1), [value]);
   const numbers = useMemo(() => Array.from({ length: count }, (_, i) => i + 1).join("\n"), [count]);
+  // Lines don't wrap, so where one runs past an edge the field fades there, as a sign that it scrolls.
+  const edges = () => {
+    const el = input.current;
+    if (!el || !body.current) return;
+    body.current.classList.toggle("is-cut-left", el.scrollLeft > 1);
+    body.current.classList.toggle("is-cut-right", el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: what's cut changes with the text, and with the field's width.
+  useEffect(() => {
+    edges();
+    // The mono font may arrive after the text, and widens or narrows every line when it does.
+    void document.fonts?.ready.then(edges);
+    const el = input.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(edges);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [value]);
   // Only when the mark moves: a file that keeps its fault stays where it was scrolled to.
   useEffect(() => {
     const el = input.current;
@@ -101,7 +121,7 @@ export function CodeField({
             {numbers}
           </div>
         </div>
-        <div className="dw-code-body">
+        <div ref={body} className="dw-code-body">
           <div ref={marks} className="dw-code-marks" aria-hidden="true">
             {markedLine && markedLine > 0 ? (
               <div
@@ -135,6 +155,7 @@ export function CodeField({
               const top = event.currentTarget.scrollTop;
               if (gutter.current) gutter.current.style.transform = `translateY(${-top}px)`;
               if (marks.current) marks.current.style.transform = `translateY(${-top}px)`;
+              edges();
               onScroll?.(event);
             }}
           />

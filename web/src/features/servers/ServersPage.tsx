@@ -166,9 +166,12 @@ function WideServers({ servers, chosen, select, unknown }: ListProps) {
   return (
     <div ref={layout} className={cx("servers-layout", chosen && "is-inspecting")}>
       <div className="servers-main">
-        <section className="dw-panel servers-map" aria-label={t`Servers at a glance`}>
-          <FleetGrid servers={tiles} selectedId={chosen?.id} onSelect={(s) => choose(s.id)} />
-        </section>
+        {/* A map is for telling many apart at a glance. One server is its row, which says the same and more. */}
+        {servers.length > 1 ? (
+          <section className="dw-panel servers-map" aria-label={t`Servers at a glance`}>
+            <FleetGrid servers={tiles} selectedId={chosen?.id} onSelect={(s) => choose(s.id)} />
+          </section>
+        ) : null}
         <ServersTable
           servers={servers}
           tiles={tiles}
@@ -335,9 +338,11 @@ function PhoneServers({ servers, chosen, select, unknown }: ListProps) {
   const cpuWords = (cpu: number) => t`CPU ${cpu}%`;
   return (
     <>
-      <section className="dw-panel servers-map" aria-label={t`Servers at a glance`}>
-        <FleetGrid servers={tiles} size="sm" readout={false} selectedId={chosen?.id} onSelect={(s) => select(s.id)} />
-      </section>
+      {servers.length > 1 ? (
+        <section className="dw-panel servers-map" aria-label={t`Servers at a glance`}>
+          <FleetGrid servers={tiles} size="sm" readout={false} selectedId={chosen?.id} onSelect={(s) => select(s.id)} />
+        </section>
+      ) : null}
       <section className="servers-phone-section" aria-labelledby="servers-phone-heading">
         <div className="servers-phone-head">
           <h2 className="dw-text-heading" id="servers-phone-heading">
