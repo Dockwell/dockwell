@@ -1,12 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Server } from "@dockwell/api";
+import {
+  FileService,
+  FirewallService,
+  ImportService,
+  ProcessService,
+  type Server,
+  TerminalService,
+  UpdateService,
+} from "@dockwell/api";
 import { TabNav, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Fragment, type ReactNode } from "react";
 
 import { RouterTabLink } from "../../lib/links";
+import { useMay } from "../auth/may";
 import { useOnePanelHere } from "../import/onePanelHere";
 import { EmptyState } from "../shell/EmptyState";
 import { Page, type PageProps } from "../shell/Page";
@@ -95,6 +104,7 @@ interface ServerPageProps {
 
 function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: ServerPageProps) {
   const { t } = useLingui();
+  const may = useMay();
   const unread = useFleetUnread();
   const { up, phoneSub } = useServerWords(server);
   const inv = server.inventory;
@@ -132,20 +142,29 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
           <RouterTabLink to="/servers/$serverId" params={{ serverId: server.id }} activeOptions={{ exact: true }}>
             <Trans>Overview</Trans>
           </RouterTabLink>
-          <RouterTabLink to="/servers/$serverId/files" params={{ serverId: server.id }}>
-            <Trans>Files</Trans>
-          </RouterTabLink>
-          <RouterTabLink to="/servers/$serverId/terminal" params={{ serverId: server.id }}>
-            <Trans>Terminal</Trans>
-          </RouterTabLink>
-          <UpdatesTab server={server} />
-          <RouterTabLink to="/servers/$serverId/firewall" params={{ serverId: server.id }}>
-            <Trans>Firewall</Trans>
-          </RouterTabLink>
-          <RouterTabLink to="/servers/$serverId/processes" params={{ serverId: server.id }}>
-            <Trans>Processes</Trans>
-          </RouterTabLink>
-          <MoveInTab server={server} />
+          {/* A way to a place you can't read is left out (ADR 0059). */}
+          {may(FileService.method.listFiles).allowed ? (
+            <RouterTabLink to="/servers/$serverId/files" params={{ serverId: server.id }}>
+              <Trans>Files</Trans>
+            </RouterTabLink>
+          ) : null}
+          {may(TerminalService.method.listTerminals).allowed ? (
+            <RouterTabLink to="/servers/$serverId/terminal" params={{ serverId: server.id }}>
+              <Trans>Terminal</Trans>
+            </RouterTabLink>
+          ) : null}
+          {may(UpdateService.method.getServerUpdates).allowed ? <UpdatesTab server={server} /> : null}
+          {may(FirewallService.method.getServerFirewall).allowed ? (
+            <RouterTabLink to="/servers/$serverId/firewall" params={{ serverId: server.id }}>
+              <Trans>Firewall</Trans>
+            </RouterTabLink>
+          ) : null}
+          {may(ProcessService.method.watchProcesses).allowed ? (
+            <RouterTabLink to="/servers/$serverId/processes" params={{ serverId: server.id }}>
+              <Trans>Processes</Trans>
+            </RouterTabLink>
+          ) : null}
+          {may(ImportService.method.importOnePanel).allowed ? <MoveInTab server={server} /> : null}
         </TabNav>
       )}
       {children}

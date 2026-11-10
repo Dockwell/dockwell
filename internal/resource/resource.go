@@ -1215,7 +1215,18 @@ type NameChecker interface {
 	CheckName(name string) error
 }
 
-var labelRE = regexp.MustCompile(`^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`)
+// labelRE is the form of a DNS label, and maxLabel how long one gets. The length
+// is checked apart from the form: a counted repetition, such as {0,61}, compiles
+// to that many copies of what it repeats, which every agent pays for as it starts
+// (ADR 0060).
+var labelRE = regexp.MustCompile(`^[a-z]([a-z0-9-]*[a-z0-9])?$`)
+
+const maxLabel = 63
+
+// IsLabel reports whether name is one CheckLabel takes.
+func IsLabel(name string) bool {
+	return len(name) <= maxLabel && labelRE.MatchString(name)
+}
 
 // CheckLabel requires a name that is a DNS label, so it fits in URLs, in
 // hostnames such as a service's URL, and on the command line: 1 to 63
@@ -1223,7 +1234,7 @@ var labelRE = regexp.MustCompile(`^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`)
 // with a letter or digit. Projects, environments and services take such
 // names. what names the kind, and example is a name that would do.
 func CheckLabel(what, name, example string) error {
-	if !labelRE.MatchString(name) {
+	if !IsLabel(name) {
 		return fmt.Errorf("%q isn't a valid %s name: use up to 63 lowercase letters, digits and dashes, starting with a letter and ending with a letter or digit, such as %s",
 			name, what, example)
 	}

@@ -9,14 +9,28 @@ Dockwell is a control plane for servers: one VPS or a fleet of thousands, websit
 5. **Machine values in mono, human words in sans.** IPs, hashes, image tags, paths, commands and selectors are `code` or `code-sm`; everything a person reads as language is Host Grotesk.
 6. **Live, not polled.** Numbers update in place with tabular figures, streams follow until the reader scrolls, and nothing reloads the page.
 
+## Interaction principles
+
+These decide how a screen works before any word is written. A screen that meets the content rules but breaks these is not done.
+
+1. **The interface does the work.** If Dockwell can pick, check, create or fill something, it does, and shows what it did. A sentence that tells a person to do something by hand is a missing feature: a picker, a default, a check or a button that does it.
+2. **Defaults first, power one step away.** A form asks only what Dockwell can't decide: usually a name and the one or two choices that change what happens. Everything else starts at a good default, shown as a one-line summary ("Port 8083, free · Change"), and stays reachable under a collapsed "Advanced" section, in the raw editor (Compose, config) or as the equivalent CLI command. Nothing a power user needs is removed; nothing a newcomer doesn't need is in their way.
+3. **Pick, don't type.** Anything that already exists is chosen, not typed: a folder on the server from a folder picker that can also make a new one, a server from a list, a port from what is free, an image or version from the registry, a secret from the secrets. Typing stays available for power users and for values only the person knows.
+4. **Check as they go.** A field is checked against the real server while the person fills it in (port free, folder there or to be made, name taken, DNS pointing here, image found), and the answer is a state and a word beside the field, not an error after Submit.
+5. **State and action, not instructions.** Guidance appears only when it applies, where it applies, as a short state with an action: "DNS doesn't point here yet · Check again", not a standing paragraph on what to do if it doesn't. Advice for one provider or one distribution appears only when Dockwell detects it and a check fails.
+6. **One way in for each task, and the result is usable at once.** After a create, the person lands where they can use what they made: the site's address to open, the database's connection details to copy, the app's logs as it starts. Access a person needs (an admin UI, a password) is a button, not a procedure.
+
+
 ## Content fundamentals
 
-Write like a senior operator explaining something to a colleague: plain, specific, unhurried.
+Write like a senior operator: plain, specific and brief. Words label, state and confirm; they don't stand in for a missing feature (see the interaction principles above).
+
+- **A text budget.** A field's help is one line at most, and most fields need none. A callout is a title and at most one short sentence, with the action that resolves it. A form, sheet, card or table never holds a paragraph. What needs more than that is a disclosure the person opens, a link to the docs ("How this works"), or a state the screen shows when it applies.
 
 - **Sentence case everywhere**: buttons, headings, tabs, table headers. No all-caps labels, no title case.
 - **Address the reader as "you"**; the product never says "I" or "we". The ops assistant speaks in plain sentences, never as a persona.
 - **Verbs name the result**: "Deploy", "Apply plan", "Roll back", "Replace server". The same action keeps its name through the flow: the button "Roll back" produces the toast "Rolled back to r127" and the timeline entry "Rolled back web".
-- **Lead with the fact, then the consequence, then the fix**: "ams-1-03 is down. Its 2 replicas moved to ams-1-04 and ams-1-05. Check the provider console, then reconnect or replace the server."
+- **Errors and alerts lead with the fact, then the consequence, then the fix**, as tightly as that allows, with the fix as a button where there is one: "ams-1-03 is down. Its 2 replicas moved to ams-1-04 and ams-1-05." with "Reconnect" and "Replace server" beside it. This order is for something that went wrong; help and hints are not written as fact, consequence and fix.
 - **Errors say how to fix the problem** and never apologize: "api.acme.dev already routes to another project. Remove it there, or use a different subdomain."
 - **Numbers carry units with a space**: "1.8 GB", "41 s", "11.2k /min", "3 min ago". Round to what a person can act on. Use relative time under a day, then dates ("12 Oct").
 - **No emoji, no exclamation marks, no filler** ("Oops", "Just", "Simply", "Successfully").

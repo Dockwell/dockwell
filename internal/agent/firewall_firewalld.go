@@ -16,8 +16,13 @@ import (
 )
 
 // firewalldZoneName is a zone's name as firewalld allows it, which is all the
-// agent passes to firewall-cmd.
-var firewalldZoneName = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+// agent passes to firewall-cmd, and maxFirewalldZoneName how long one gets. The
+// length is checked apart from the form: a counted repetition, such as {1,64},
+// compiles to that many copies of what it repeats, which every agent pays for as
+// it starts (ADR 0060).
+var firewalldZoneName = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+const maxFirewalldZoneName = 64
 
 // firewalld reads whether firewalld runs and, when it does, every zone that
 // takes traffic: those bound to interfaces or sources, and the default zone,
@@ -58,7 +63,7 @@ func (f *firewallReader) firewalld(ctx context.Context) []*dockwellv1.FirewallTo
 		if zone == "docker" {
 			continue
 		}
-		if !firewalldZoneName.MatchString(zone) {
+		if len(zone) > maxFirewalldZoneName || !firewalldZoneName.MatchString(zone) {
 			return off(fmt.Errorf("firewalld named a zone %q, which Dockwell doesn't pass on", zone))
 		}
 		out, err := f.output(ctx, "firewall-cmd", "--list-all", "--zone="+zone)

@@ -10,6 +10,7 @@ import { Link } from "@tanstack/react-router";
 import { RouterButtonLink } from "../../lib/links";
 import { useHealthWords } from "../apps/Health";
 import { type HealthView, worstHealth } from "../apps/health";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import type { Row } from "./Standing";
 import { useRuntimes } from "./website";
@@ -59,6 +60,7 @@ export function Runtimes({ rows, health }: { rows: readonly Row[]; health: Healt
 
 function RuntimeCard({ runtime, sites, health }: { runtime: WebsiteRuntime; sites: Row[]; health: HealthView }) {
   const { t } = useLingui();
+  const may = useMay();
   const words = useHealthWords();
   const transport = useTransport();
   const sheet = useChangeSheet();
@@ -122,6 +124,7 @@ function RuntimeCard({ runtime, sites, health }: { runtime: WebsiteRuntime; site
                     </span>
                     <Button
                       size="sm"
+                      {...may(WebsiteService.method.updateWebsite, { project: s.id }).off}
                       onClick={() =>
                         sheet.open({
                           kind: "plan",

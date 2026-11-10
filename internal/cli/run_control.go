@@ -113,7 +113,7 @@ func runCommand(cmd *cobra.Command, stdio IO, g *globalFlags) runRole {
 			return err
 		}
 		if role == roleAgent {
-			return runAgent(ctx, stdio, g, logger, dir, id, build, nil, nil)
+			return runAgentAlone(ctx, stdio, g, logger, dir, id, build)
 		}
 		f.listenFromEnv = !cmd.Flags().Changed("listen") && stdio.Getenv(envListen) != ""
 		if f.database, err = g.databaseOf(stdio, dir); err != nil {

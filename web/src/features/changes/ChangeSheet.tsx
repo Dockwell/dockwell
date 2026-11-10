@@ -115,6 +115,7 @@ import {
 import { RollbackLine, rollbackSubject } from "./RollbackLine";
 import { useAlsoWords, useChangeWords } from "./words";
 import "./ChangeSheet.css";
+import { placesOfChange, useMay } from "../auth/may";
 
 /** What every opening may say about what comes next. */
 interface Then {
@@ -525,6 +526,8 @@ function ChangeSheet({
   // someone else's in a protected environment, an admin approves with a
   // passkey, however it was planned: the API says which (ADR 0049).
   const user = useSignedInUser();
+  // Undoing plans a change, which a viewer can't (ADR 0059). Applying and discarding are the plan's to say, below.
+  const mayUndo = useMay()(ChangeService.method.undoChange, placesOfChange(change));
   const waits = phase === "review" && (change?.waits ?? "") !== "";
   const approves = phase === "review" && change?.approves === true;
   // Theirs to discard, as the sheet's own plan is: one they planned in the panel.
@@ -801,6 +804,7 @@ function ChangeSheet({
             icon="undo"
             onClick={() => open({ kind: "undo", id: change.id })}
             className="plan-undo"
+            {...mayUndo.off}
           >
             <Trans>Undo until {deadline}</Trans>
           </Button>

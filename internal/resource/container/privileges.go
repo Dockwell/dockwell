@@ -36,8 +36,13 @@ var rootCapabilities = map[string]bool{"ALL": true, "SYS_ADMIN": true, "SYS_MODU
 // socket usually belongs to.
 var rootGroups = map[string]bool{"0": true, "root": true, "docker": true}
 
-// groupRE is the names and numbers a group can have.
-var groupRE = regexp.MustCompile(`^(\d{1,10}|[a-zA-Z_][a-zA-Z0-9_.-]{0,63})$`)
+// groupRE is the names and numbers a group can have, and maxGroupName how long a
+// name gets, which is longer than a number. The length is checked apart from the
+// form: a counted repetition, such as {0,63}, compiles to that many copies of what
+// it repeats, which every agent pays for as it starts (ADR 0060).
+var groupRE = regexp.MustCompile(`^(\d{1,10}|[a-zA-Z_][a-zA-Z0-9_.-]*)$`)
+
+const maxGroupName = 64
 
 // maxGroups is how many groups a container may join: as many as the kernel lets
 // a process have is far more, and no one needs more than this.
@@ -57,7 +62,7 @@ func validatePrivileges(c *resourcev1.Container) error {
 		return fmt.Errorf("the container joins %d groups, and Dockwell takes up to %d. Join fewer", n, maxGroups)
 	}
 	for _, g := range c.GetGroupAdd() {
-		if !groupRE.MatchString(g) {
+		if len(g) > maxGroupName || !groupRE.MatchString(g) {
 			return fmt.Errorf("%q isn't a group: give its name or number, such as audio or 999", g)
 		}
 	}

@@ -67,4 +67,8 @@ message Resource {
   // The name to show, such as "Storefront", from its spec, for kinds whose
   // spec has one. Empty when it isn't set.
   string display_name = 5;
+  // True for an environment that's protected, where a developer's change
+  // waits for an admin or the owner (ADR 0049): as its spec says, or by its
+  // name for one from before protection was written. False for anything else.
+  bool protected = 6;
 }
