@@ -18,6 +18,7 @@ import {
   DomainCheckState,
   FieldOp,
   HealthState,
+  ImageAnswer,
   IntentKind,
   NetworkShape,
   Protocol,
@@ -3321,6 +3322,7 @@ describe("an app's overview", () => {
     await waitFor(() => expect(file).toHaveTextContent("web: {}"));
     expect(sheet).toHaveTextContent("Left out as they may hold secrets");
     expect(sheet).toHaveTextContent("web.API_KEY");
+    expect(within(sheet).getByRole("button", { name: "Save an .env to fill in" })).toBeVisible();
     expect(asked[0]).toEqual(expect.objectContaining({ service: "web", environment: "env_prod" }));
     await expectAccessible(document.body);
     await user.click(within(sheet).getByRole("radio", { name: "Its whole project" }));
@@ -3709,5 +3711,34 @@ describe("an app's deployments", () => {
     const sheet = await screen.findByRole("dialog", { name: "r2" });
     expect(within(sheet).getByRole("button", { name: "Roll back to r2" })).toBeVisible();
     await expectAccessible(document.body);
+  });
+});
+
+describe("Deploy", () => {
+  it("lists the versions of what it runs, newest first, and says a typed one is there", async () => {
+    const user = userEvent.setup();
+    const service = anApp("web", "ghcr.io/acme/web:1.5");
+    renderAt(
+      "/apps/svc_web",
+      api([service], {
+        images: {
+          listImageTags: () => ({
+            answer: ImageAnswer.FOUND,
+            tags: [{ name: "1.6", latest: true }, { name: "latest", latest: true }, { name: "1.5" }],
+          }),
+          getImage: (req) => ({ answer: req.reference.endsWith(":1.6") ? ImageAnswer.FOUND : ImageAnswer.NOT_FOUND }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Deploy" }));
+    const sheet = await screen.findByRole("dialog", { name: "Deploy web" });
+    const field = within(sheet).getByRole("combobox", { name: "Image" });
+    expect(field).toHaveValue("ghcr.io/acme/web:1.5");
+    // What it runs lists every version, not only itself.
+    const versions = await within(sheet).findAllByRole("option");
+    expect(versions.map((o) => o.textContent)).toEqual(["1.6latest", "latest", "1.5"]);
+    await user.click(versions[0] as HTMLElement);
+    expect(field).toHaveValue("ghcr.io/acme/web:1.6");
+    await waitFor(() => expect(field).toHaveAccessibleDescription(/Found/));
   });
 });

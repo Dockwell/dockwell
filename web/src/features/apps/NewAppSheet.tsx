@@ -1458,7 +1458,7 @@ function ComposeFields({
           error={fileError ? withCode(fileError) : undefined}
           markedLine={refused && refused.field !== "env" ? refused.line : undefined}
           markedTo={refused && refused.field !== "env" ? refused.to : undefined}
-          hint={t`Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan.`}
+          hint={t`Paste it, or drop the file here.`}
           actions={
             <>
               <input
@@ -1495,18 +1495,14 @@ function ComposeFields({
         hint={
           projectKnown ? (
             <Trans>
-              <code>{project}</code> is here already, so the plan updates what's in it.
+              <code>{project}</code> is here already: the plan updates it.
             </Trans>
           ) : projectRequired ? (
             <Trans>
-              Other apps are here, so it needs a name of its own, such as <code>shop</code>. Its apps show as one row,
-              on a network of their own.
+              Other apps are here, so give it a name, such as <code>shop</code>.
             </Trans>
           ) : (
-            <Trans>
-              Its apps show as one row with this name, on a network of their own. Importing under this name again
-              updates them.
-            </Trans>
+            <Trans>Its apps show as one row with this name.</Trans>
           )
         }
         onChange={(event) => onProject(event.target.value)}
@@ -1578,9 +1574,7 @@ function ComposeFields({
         <p className="app-reach-note">
           <Icon name="shield" size={14} />
           <span>
-            <Trans>
-              This file writes more variables in plain sight than these. Read it before you pass one a secret.
-            </Trans>
+            <Trans>It writes more variables in plain sight. Check before you pass one a secret.</Trans>
           </span>
         </p>
       ) : null}
@@ -1647,7 +1641,7 @@ function BesideTheFile({
             placeholder={"REDIS_PASSWORD=...\nTAG=1.27"}
             error={envRefused ? withCode(envRefused.text) : undefined}
             markedLine={envRefused?.line || undefined}
-            hint={t`For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it.`}
+            hint={t`For the variables the file uses. It isn't kept in this browser.`}
             actions={
               <>
                 <input
@@ -1688,8 +1682,7 @@ function BesideTheFile({
           error={directoryRefused ? withCode(directoryRefused.text) : undefined}
           hint={
             <Trans>
-              Where the file is, such as <code>/opt/shop</code>. A path relative to it, such as <code>./data</code>,
-              starts there, and each is a server path you approve in the plan.
+              Where the file is, such as <code>/opt/shop</code>: its relative paths start there.
             </Trans>
           }
           onChange={(event) => onDirectory(event.target.value)}
@@ -1777,16 +1770,9 @@ function ExposedNote({ group }: { group: ExposedGroup }) {
     switch (field) {
       case "command":
       case "entrypoint":
-        return (
-          <Trans>
-            Its value has a space, a quote or another character Compose reads as part of the line, so one name can't
-            stand for it. To keep it hidden, write the {where} as a list, with each word its own variable.
-          </Trans>
-        );
-      case "environment":
-        return <Trans>Only a variable's value is hidden, so don't pass a secret there.</Trans>;
+        return <Trans>Write the {where} as a list to keep it hidden.</Trans>;
       default:
-        return <Trans>It can't be hidden there, so don't pass a secret there.</Trans>;
+        return <Trans>Don't pass a secret there.</Trans>;
     }
   };
   return (

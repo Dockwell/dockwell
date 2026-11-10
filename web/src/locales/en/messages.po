@@ -1687,9 +1687,6 @@ msgstr "A change is applying to {name}. Review this once it ends."
 msgid "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
 msgstr "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
 
-msgid "A variable or secret lives in its environment, and goes only to the servers that run an app using it. Change one here or in <0>Variables and secrets</0>, and its plan restarts each app that uses it. What's set on this app alone is never shown again, as it may hold secrets."
-msgstr "A variable or secret lives in its environment, and goes only to the servers that run an app using it. Change one here or in <0>Variables and secrets</0>, and its plan restarts each app that uses it. What's set on this app alone is never shown again, as it may hold secrets."
-
 msgid "A variable or secret of the environment"
 msgstr "A variable or secret of the environment"
 
@@ -1707,6 +1704,9 @@ msgstr "Can't read the environment's variables and secrets"
 
 msgid "Change"
 msgstr "Change"
+
+msgid "Change a shared one in <0>Variables and secrets</0>. A value set here is never shown again."
+msgstr "Change a shared one in <0>Variables and secrets</0>. A value set here is never shown again."
 
 msgid "Change the environment of {name}"
 msgstr "Change the environment of {name}"
@@ -2841,8 +2841,8 @@ msgstr "Left out as they may hold secrets"
 msgid "Save"
 msgstr "Save"
 
-msgid "Set each variable in the shell, or in an <0>.env</0> file beside the Compose file, before you run <1>docker compose up</1>."
-msgstr "Set each variable in the shell, or in an <0>.env</0> file beside the Compose file, before you run <1>docker compose up</1>."
+msgid "Save an <0>.env</0> to fill in"
+msgstr "Save an <0>.env</0> to fill in"
 
 msgid "This app"
 msgstr "This app"
@@ -3025,8 +3025,8 @@ msgstr "latest"
 msgid ".env file"
 msgstr ".env file"
 
-msgid "<0>{project}</0> is here already, so the plan updates what's in it."
-msgstr "<0>{project}</0> is here already, so the plan updates what's in it."
+msgid "<0>{project}</0> is here already: the plan updates it."
+msgstr "<0>{project}</0> is here already: the plan updates it."
 
 msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
 msgstr "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
@@ -3097,6 +3097,9 @@ msgstr "Directory on the server"
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 
+msgid "Don't pass a secret there."
+msgstr "Don't pass a secret there."
+
 msgid "Empty in the image"
 msgstr "Empty in the image"
 
@@ -3115,8 +3118,8 @@ msgstr "Fix the .env file to review the plan"
 msgid "Fix the file to review the plan"
 msgstr "Fix the file to review the plan"
 
-msgid "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
-msgstr "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
+msgid "For the variables the file uses. It isn't kept in this browser."
+msgstr "For the variables the file uses. It isn't kept in this browser."
 
 msgid "Give each variable a value to review the plan"
 msgstr "Give each variable a value to review the plan"
@@ -3133,14 +3136,11 @@ msgstr "Hide"
 msgid "Hide the value"
 msgstr "Hide the value"
 
-msgid "It can't be hidden there, so don't pass a secret there."
-msgstr "It can't be hidden there, so don't pass a secret there."
+msgid "It writes more variables in plain sight. Check before you pass one a secret."
+msgstr "It writes more variables in plain sight. Check before you pass one a secret."
 
-msgid "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
-msgstr "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
-
-msgid "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
-msgstr "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
+msgid "Its apps show as one row with this name."
+msgstr "Its apps show as one row with this name."
 
 msgid "Keep editing"
 msgstr "Keep editing"
@@ -3180,14 +3180,11 @@ msgstr "Nothing outside the server reaches it until you publish a port."
 msgid "Offline"
 msgstr "Offline"
 
-msgid "Only a variable's value is hidden, so don't pass a secret there."
-msgstr "Only a variable's value is hidden, so don't pass a secret there."
-
 msgid "Open {label}"
 msgstr "Open {label}"
 
-msgid "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
-msgstr "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
+msgid "Other apps are here, so give it a name, such as <0>shop</0>."
+msgstr "Other apps are here, so give it a name, such as <0>shop</0>."
 
 msgid "Other apps on its network reach it by this name."
 msgstr "Other apps on its network reach it by this name."
@@ -3195,8 +3192,8 @@ msgstr "Other apps on its network reach it by this name."
 msgid "Paste a Compose file to review its plan"
 msgstr "Paste a Compose file to review its plan"
 
-msgid "Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan."
-msgstr "Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan."
+msgid "Paste it, or drop the file here."
+msgstr "Paste it, or drop the file here."
 
 msgid "Plans say a value changed, and never show it."
 msgstr "Plans say a value changed, and never show it."
@@ -3282,9 +3279,6 @@ msgstr "This file is too large to read"
 msgid "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 msgstr "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 
-msgid "This file writes more variables in plain sight than these. Read it before you pass one a secret."
-msgstr "This file writes more variables in plain sight than these. Read it before you pass one a secret."
-
 msgid "Up to {cpus} CPUs"
 msgstr "Up to {cpus} CPUs"
 
@@ -3309,11 +3303,14 @@ msgstr "Variables"
 msgid "What this file makes"
 msgstr "What this file makes"
 
-msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
-msgstr "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
+msgid "Where the file is, such as <0>/opt/shop</0>: its relative paths start there."
+msgstr "Where the file is, such as <0>/opt/shop</0>: its relative paths start there."
 
 msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "Without a volume, what it writes is lost when its container is replaced."
+
+msgid "Write the {where} as a list to keep it hidden."
+msgstr "Write the {where} as a list to keep it hidden."
 
 msgid "You approve what it reaches in the plan"
 msgstr "You approve what it reaches in the plan"

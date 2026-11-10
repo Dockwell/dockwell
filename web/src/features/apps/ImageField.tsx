@@ -4,7 +4,7 @@ import { useQuery } from "@connectrpc/connect-query";
 import { ImageAnswer, type ImageConfig, ImageService } from "@dockwell/api";
 import { cx, Glyph, STATUS, TextField, TONE } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
-import { type KeyboardEvent, type Ref, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, type ReactNode, type Ref, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
@@ -76,6 +76,8 @@ export function ImageField({
   error,
   fieldRef,
   onRead,
+  initial,
+  hint,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -86,6 +88,10 @@ export function ImageField({
   error?: string | undefined;
   fieldRef?: Ref<HTMLInputElement>;
   onRead?: (read: ImageRead) => void;
+  /** What it runs now, as Deploy starts from: while the field holds it, every version shows. */
+  initial?: string;
+  /** One line under the field, such as what it runs now. */
+  hint?: ReactNode;
 }) {
   const { t } = useLingui();
   const time = useTimeWords();
@@ -140,7 +146,8 @@ export function ImageField({
 
   const options = useMemo<Option[]>(() => {
     if (tag !== undefined) {
-      const wanted = tag.toLowerCase();
+      // Untouched, a deploy's field lists every version, not only the one it runs.
+      const wanted = initial !== undefined && typed === initial.trim() ? "" : tag.toLowerCase();
       return (tags.data?.tags ?? [])
         .filter((x) => x.name.toLowerCase().startsWith(wanted))
         .slice(0, 50)
@@ -158,7 +165,7 @@ export function ImageField({
       detail: m.description,
       repository: true,
     }));
-  }, [tag, tags.data, search.data, repository, t, time]);
+  }, [tag, tags.data, search.data, repository, t, time, initial, typed]);
 
   // The list starts from its top again as what it lists changes.
   // biome-ignore lint/correctness/useExhaustiveDependencies: it runs when the list changes, which is all it reads
@@ -208,6 +215,8 @@ export function ImageField({
   }, [open]);
 
   const state: { kind: "checking" | "found" | "missing" | "unreachable"; word: string } | undefined = (() => {
+    // What's wrong with it, said under it, is all it says until it's changed.
+    if (error) return undefined;
     if (!checks && typed === "") return undefined;
     if (typed !== settled || (checks && image.isFetching))
       return checks ? { kind: "checking", word: t`Checking` } : undefined;
@@ -234,6 +243,7 @@ export function ImageField({
         value={value}
         placeholder="nginx:1.28"
         error={error}
+        hint={hint}
         role="combobox"
         aria-expanded={shows}
         aria-controls={listId}

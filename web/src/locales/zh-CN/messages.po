@@ -1687,9 +1687,6 @@ msgstr "正在向 {name} 应用一项更改。等它结束后再审查这里。"
 msgid "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
 msgstr "应用已有的名称会得到新值。在你审查并应用计划之前，什么都不会改变。"
 
-msgid "A variable or secret lives in its environment, and goes only to the servers that run an app using it. Change one here or in <0>Variables and secrets</0>, and its plan restarts each app that uses it. What's set on this app alone is never shown again, as it may hold secrets."
-msgstr "变量和密钥存放在所属的环境中，只会发送到运行使用它的应用的服务器。在这里或在<0>变量和密钥</0>中更改一个，它的计划会重启每个使用它的应用。只在此应用上设置的值不会再显示，因为其中可能有机密信息。"
-
 msgid "A variable or secret of the environment"
 msgstr "环境中的变量或密钥"
 
@@ -1707,6 +1704,9 @@ msgstr "无法读取环境中的变量和密钥"
 
 msgid "Change"
 msgstr "更改"
+
+msgid "Change a shared one in <0>Variables and secrets</0>. A value set here is never shown again."
+msgstr "共享的变量请在<0>变量和密钥</0>中修改。在此设置的值不会再次显示。"
 
 msgid "Change the environment of {name}"
 msgstr "更改 {name} 的环境变量"
@@ -2841,8 +2841,8 @@ msgstr "因可能包含机密而未导出"
 msgid "Save"
 msgstr "保存"
 
-msgid "Set each variable in the shell, or in an <0>.env</0> file beside the Compose file, before you run <1>docker compose up</1>."
-msgstr "运行 <1>docker compose up</1> 之前，请在 shell 中或 Compose 文件旁的 <0>.env</0> 文件中设置这些变量。"
+msgid "Save an <0>.env</0> to fill in"
+msgstr "保存待填写的 <0>.env</0>"
 
 msgid "This app"
 msgstr "此应用"
@@ -3025,8 +3025,8 @@ msgstr "latest"
 msgid ".env file"
 msgstr ".env 文件"
 
-msgid "<0>{project}</0> is here already, so the plan updates what's in it."
-msgstr "<0>{project}</0> 已存在，因此计划会更新其中的内容。"
+msgid "<0>{project}</0> is here already: the plan updates it."
+msgstr "<0>{project}</0> 已在此处：计划会更新它。"
 
 msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
 msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权限等同于 root。需要你在计划中批准，API 令牌无法批准。"
@@ -3097,6 +3097,9 @@ msgstr "服务器上的目录"
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "如果卷 <0>{source}</0> 还不存在，Dockwell 会创建它。"
 
+msgid "Don't pass a secret there."
+msgstr "不要在那里传入密钥。"
+
 msgid "Empty in the image"
 msgstr "镜像中为空"
 
@@ -3115,8 +3118,8 @@ msgstr "请修复 .env 文件后再查看计划"
 msgid "Fix the file to review the plan"
 msgstr "修复文件后即可查看计划"
 
-msgid "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
-msgstr "用于文件使用的变量。它只用于读取文件和生成计划，不会保存在此浏览器中，值只有在文件写入的地方才会留下记录。"
+msgid "For the variables the file uses. It isn't kept in this browser."
+msgstr "用于文件使用的变量。不会保存在此浏览器中。"
 
 msgid "Give each variable a value to review the plan"
 msgstr "为每个变量填写值后即可查看计划"
@@ -3133,14 +3136,11 @@ msgstr "隐藏"
 msgid "Hide the value"
 msgstr "隐藏值"
 
-msgid "It can't be hidden there, so don't pass a secret there."
-msgstr "这里无法隐藏值，所以不要在这里传入机密。"
+msgid "It writes more variables in plain sight. Check before you pass one a secret."
+msgstr "它还明文写入了更多变量。传入密钥前请先检查。"
 
-msgid "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
-msgstr "其中的应用会以这个名称显示为一行，并使用独立的网络。再次以此名称导入会更新它们。"
-
-msgid "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
-msgstr "它的值含有空格、引号或 Compose 会当作这一行一部分来读的其他字符，所以一个名称无法代表它。要隐藏它，请把{where}写成列表，每个词使用各自的变量。"
+msgid "Its apps show as one row with this name."
+msgstr "其应用以此名称显示为一行。"
 
 msgid "Keep editing"
 msgstr "继续编辑"
@@ -3180,14 +3180,11 @@ msgstr "在发布端口之前，服务器外部无法访问它。"
 msgid "Offline"
 msgstr "离线"
 
-msgid "Only a variable's value is hidden, so don't pass a secret there."
-msgstr "只有变量的值会被隐藏，所以不要在这里传入机密。"
-
 msgid "Open {label}"
 msgstr "打开 {label}"
 
-msgid "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
-msgstr "这里已有其他应用，因此需要单独的名称，例如 <0>shop</0>。其中的应用会显示为一行，并使用独立的网络。"
+msgid "Other apps are here, so give it a name, such as <0>shop</0>."
+msgstr "此处已有其他应用，请为它命名，例如 <0>shop</0>。"
 
 msgid "Other apps on its network reach it by this name."
 msgstr "同一网络上的其他应用通过此名称访问它。"
@@ -3195,8 +3192,8 @@ msgstr "同一网络上的其他应用通过此名称访问它。"
 msgid "Paste a Compose file to review its plan"
 msgstr "粘贴 Compose 文件后即可查看计划"
 
-msgid "Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan."
-msgstr "粘贴内容，或将文件拖到这里。Dockwell 会在你输入时读取，应用计划之前不会保存任何内容。"
+msgid "Paste it, or drop the file here."
+msgstr "粘贴文件内容，或将文件拖到此处。"
 
 msgid "Plans say a value changed, and never show it."
 msgstr "计划只说明值已更改，绝不显示内容。"
@@ -3282,9 +3279,6 @@ msgstr "文件过大，无法读取"
 msgid "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 msgstr "这个文件有 {kib} KiB，而 Dockwell 最多读取 {limit} KiB。请删除 Dockwell 不会运行的内容，或把服务拆分到多个文件中导入。"
 
-msgid "This file writes more variables in plain sight than these. Read it before you pass one a secret."
-msgstr "此文件明文写入的变量比这里列出的更多。向其中传入机密之前，请先阅读文件。"
-
 msgid "Up to {cpus} CPUs"
 msgstr "最多 {cpus} 个 CPU"
 
@@ -3309,11 +3303,14 @@ msgstr "变量"
 msgid "What this file makes"
 msgstr "此文件会创建的内容"
 
-msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
-msgstr "文件所在的位置，例如 <0>/opt/shop</0>。相对于它的路径（例如 <1>./data</1>）从这里开始，每个都是你在计划中批准的服务器路径。"
+msgid "Where the file is, such as <0>/opt/shop</0>: its relative paths start there."
+msgstr "文件所在位置，例如 <0>/opt/shop</0>：其中的相对路径从这里开始。"
 
 msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "没有卷时，容器被替换后写入的内容会丢失。"
+
+msgid "Write the {where} as a list to keep it hidden."
+msgstr "将 {where} 写成列表即可保持隐藏。"
 
 msgid "You approve what it reaches in the plan"
 msgstr "你将在计划中批准它可访问的内容"

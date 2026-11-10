@@ -931,16 +931,13 @@ describe("New app, from a Compose file", () => {
     expect(command).toHaveTextContent(
       "Anyone who can read shop's command can see the value of REDIS_PASSWORD, API_KEY.",
     );
-    expect(command).toHaveTextContent(
-      "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it.",
-    );
-    expect(command).toHaveTextContent("write the command as a list, with each word its own variable");
+    expect(command).toHaveTextContent("Write the command as a list to keep it hidden.");
     const labels = within(sheet).getByText(/shop's labels/);
-    expect(labels).toHaveTextContent("It can't be hidden there, so don't pass a secret there.");
+    expect(labels).toHaveTextContent("Don't pass a secret there.");
     const names = within(sheet).getByText(/shop's environment variable names/);
-    expect(names).toHaveTextContent("Only a variable's value is hidden, so don't pass a secret there.");
+    expect(names).toHaveTextContent("Don't pass a secret there.");
     expect(within(sheet).getByText(/the network back's driver options/)).toHaveTextContent("MTU");
-    expect(within(sheet).getByText(/more variables in plain sight than these/)).toBeVisible();
+    expect(within(sheet).getByText(/more variables in plain sight/)).toBeVisible();
     // No false promise that a value isn't saved.
     expect(sheet).not.toHaveTextContent("aren't saved");
     await expectAccessible(document.body);
