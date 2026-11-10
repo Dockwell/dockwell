@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 #
 # Measures an agent of the agent build while four apps opened through the panel
-# carry as many connections as it forwards at once, 20 (ADR 0061): for each, three
+# carry as many connections as it forwards at once, 16 (ADR 0061): for each, two
 # uploads to an app that reads them slowly, which is where an agent holds what the
 # browser sent, and two downloads, each through its own connection. The agent holds
 # a window and a message or two of each forward, never the body, so it fails past
@@ -22,7 +22,7 @@ mib=${3:-64}
 settle=${LOAD_SETTLE:-30}
 max_mb=${LOAD_MAX_MB:-40}
 apps=4
-ups=${LOAD_UPS:-3}     # uploads to each app at once
+ups=${LOAD_UPS:-2}     # uploads to each app at once
 downs=${LOAD_DOWNS:-2} # and downloads
 root=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)

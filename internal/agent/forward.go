@@ -32,11 +32,12 @@ const (
 	// together, so a forward to an app that reads slowly holds up no other.
 	forwardsPerConn = enroll.ForwardsPerConn
 	// maxForwards is how many connections to apps opened through the panel this
-	// agent carries at once: three apps with the six a browser holds to each, and
-	// two more. Each holds up to its window and a message or two each way, about
-	// 200 KiB when busy, and an agent's memory has a budget of 40 MB, so past them
-	// it refuses. make forwards-load holds it to that with every one busy.
-	maxForwards = 20
+	// agent carries at once: four apps with four busy connections each. Each holds
+	// up to its window and a message or two each way, about 200 KiB when busy, and
+	// an agent's memory has a budget of 40 MB, so past them it refuses, with room
+	// to spare as the agent grows. make forwards-load holds it to that with every
+	// one busy.
+	maxForwards = 16
 )
 
 // errTooManyForwards is a forward past maxForwards.

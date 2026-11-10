@@ -16,7 +16,7 @@ An open-source control plane for servers, from one VPS to a fleet. One Go codeba
 - The Install workflow also runs `make budgets` (idle memory: agent under 40 MB, with a warning from 30 MB, control plane plus agent under 250 MB; on pull requests, beside main's build) and `make install-test` (the install script in containers; needs Docker and cosign v3). Run them when you change `scripts/install.sh` or anything that could move memory.
 - `make logs-load` measures an agent while a container floods its log, on a fake Docker. Run it when you change how logs are read or sent.
 - `make transfers-load` measures an agent while four files upload and four download at once. Run it when you change how files are uploaded, downloaded or unpacked, or the agent's connection to the control plane.
-- `make forwards-load` measures an agent while four apps opened through the panel carry the 20 connections it forwards at once. Run it when you change how an app opens through the panel or how its connections are carried.
+- `make forwards-load` measures an agent while four apps opened through the panel carry the 16 connections it forwards at once. Run it when you change how an app opens through the panel or how its connections are carried.
 - The store's tests run on SQLite, and on Postgres too when `DOCKWELL_TEST_POSTGRES` names a server, as CI sets it. Set it when you change `internal/store` or any query.
 - The ingress's tests run against real Caddy and Pebble when `DOCKWELL_TEST_CADDY` and `DOCKWELL_TEST_PEBBLE` name them, as CI sets them. `scripts/ingress-tools.sh <dir>` fetches both. Set them when you change `internal/ingress`.
 - `make generate` after any change in `proto/` or `design/system/tokens.json`. Commit what it writes.
