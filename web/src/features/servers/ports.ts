@@ -7,8 +7,8 @@ import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { appOf, nameOf } from "../apps/app";
-import { useMay } from "../auth/may";
 import { useServices } from "../apps/useServices";
+import { useMay } from "../auth/may";
 
 /** What holds a port on a server, as far as Dockwell knows. */
 export interface PortHolder {
