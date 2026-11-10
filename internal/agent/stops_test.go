@@ -576,3 +576,42 @@ func TestWhatDockerStoppedIsStartedWhateverItsNumber(t *testing.T) {
 		t.Fatalf("not started: the journal says %+v", s.said(webRef))
 	}
 }
+
+// More than one container answers to a service, none runs, and nothing says
+// someone stopped any: as after Docker was killed with a failed rollout's leftover
+// beside the one that ran. The agent can't say which is the service, so it starts
+// none, the leftover least of all, and says so once. A stop someone made of the
+// one that ran is still known for a stop, whichever stands now.
+func TestWithMoreThanOneAndNoStopKnownNothingIsStarted(t *testing.T) {
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	ran := s.e.Container("web").ID
+	s.revision = "2"
+	left := s.another(t, "2", "failed")
+	s.connected()
+	s.noted(t)
+	s.e.DaemonKilled()
+	s.noted(t)
+	st := s.stands(t)
+	if st.Unsure == "" || st.Lost || st.Stopped || !strings.Contains(st.Unsure, "more than one container") {
+		t.Fatalf("it stands %+v; want unsure, for more than one container", st)
+	}
+	s.r.startLost(t.Context())
+	s.presence.set(false, time.Now().Add(-time.Hour))
+	s.pass(t)
+	s.nothingStarted(t, ran, left)
+
+	stopped := newStand(t)
+	stopped.run(t, webRef, nginx, nil)
+	live := stopped.e.Container("web").ID
+	stopped.revision = "2"
+	stopped.another(t, "2", "failed")
+	stopped.connected()
+	if err := stopped.e.Client().StopContainer(t.Context(), live, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	stopped.noted(t)
+	if st := stopped.stands(t); !st.Stopped {
+		t.Fatalf("someone stopped the one that ran, and it stands %+v", st)
+	}
+}

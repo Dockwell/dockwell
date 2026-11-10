@@ -5,6 +5,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/agent/desired"
@@ -36,33 +37,51 @@ const eventsMargin = 16
 // lostNote is what the journal says of a start the agent made for this.
 const lostNote = "Docker stopped it as Docker came back from being killed, which nobody asked for, so the agent started it."
 
-// whyDown says why the container with id, which ran and now doesn't, with no
-// error from Docker, isn't running, from what Docker says happened: someone
-// stopped it or it ended by itself (Stopped), Docker stopped it as it came back
-// (Lost), or why the agent can't tell (Unsure). It reads Docker's events once,
-// up to now, and holds nothing after. An error is Docker not answering: nothing
-// is settled, and the next look asks again.
-func whyDown(ctx context.Context, c *docker.Client, id string, now time.Time) (desired.Standing, error) {
+// whyDown says why a service whose containers are ids, none of which runs, isn't
+// running, from what Docker says happened. ids[0] is the one that stands for it;
+// the rest are what else answers to it and isn't leaving, as what a rollout that
+// failed left behind, or a twin made by hand. It says: someone stopped it, or it
+// ended by itself (Stopped); Docker stopped it as it came back (Lost); or why
+// the agent can't tell (Unsure). It reads Docker's events once, up to now, and
+// holds nothing after. An error is Docker not answering: nothing is settled, and
+// the next look asks again.
+//
+// With more than one, a stop someone made of any of them is a stop of the
+// service: it's the one that ran that a person stops, whichever stands now.
+// Otherwise the agent can't say which of them is the service, so it starts
+// none, and says so.
+func whyDown(ctx context.Context, c *docker.Client, ids []string, now time.Time) (desired.Standing, error) {
 	events, err := c.PastEvents(ctx, now)
 	if err != nil {
 		return desired.Standing{}, err
 	}
-	// What happened to it since it last started, or in all Docker holds.
-	var started, stopped, died bool
+	// What happened to each since it last started, or in all Docker holds.
+	type seen struct{ started, stopped, died bool }
+	of := make([]seen, len(ids))
 	for i := range events {
 		e := &events[i]
-		if e.Type != "container" || e.ID != id {
+		k := slices.Index(ids, e.ID)
+		if e.Type != "container" || k < 0 {
 			continue
 		}
 		switch e.Action {
 		case "start":
-			started, stopped, died = true, false, false
+			of[k] = seen{started: true}
 		case "kill", "stop":
-			stopped = true
+			of[k].stopped = true
 		case "die":
-			died = true
+			of[k].died = true
 		}
 	}
+	for _, s := range of {
+		if s.stopped && s.started {
+			return desired.Standing{Stopped: true}, nil
+		}
+	}
+	if len(ids) > 1 {
+		return desired.Standing{Unsure: unsure("more than one container answers to it, none of them running, and nothing says someone stopped any of them, so the agent can't say which is the one to start")}, nil
+	}
+	started, stopped, died := of[0].started, of[0].stopped, of[0].died
 	whole := len(events) < docker.EventsHeld-eventsMargin
 	switch {
 	case stopped && started:

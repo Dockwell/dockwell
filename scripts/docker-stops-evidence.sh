@@ -168,6 +168,19 @@ events "$tf" "$(date +%s)"
 # Free the ports, so what the daemon does with these as it returns isn't the port's doing.
 docker rm -f ev-port-holder ev-port-holder2 >/dev/null
 
+say "the same two, started once their ports are free, and then stopped by a person: is the old error still in the state?"
+# If Docker kept the error of a start it couldn't make after the container had
+# started and run, a container a person then stopped would read as one Docker
+# couldn't start, and the agent would start it.
+docker start ev-failed-first-start ev-failed-restart 2>&1 | sed 's/^/evidence:   docker start said: /'
+sleep 2
+say "states once they run"
+states
+docker stop -t 2 ev-failed-first-start ev-failed-restart 2>&1 | sed 's/^/evidence:   docker stop said: /'
+sleep 2
+say "states after a person's docker stop on what had failed, then run"
+states
+
 say "a forced removal: what docker ps -a and the list API say of a container between docker rm -f's kill and its going"
 # The agent takes "removing" and "dead" for no news, so a look in that moment
 # isn't read as a stop. That Docker lists "removing" then, and not "exited", was

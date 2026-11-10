@@ -476,11 +476,13 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 	// Which of each service's containers stands for it is docker.Pick's to say,
 	// as it is for the driver's own look, so the two can't disagree: never one
 	// that's leaving, which beside a live one would hide it and a stop of it.
-	type standing struct {
+	type stood struct {
 		pick docker.Pick
 		c    *docker.ContainerSummary
+		// others are the rest that answer to the service and aren't leaving.
+		others []string
 	}
-	byLabels := make(map[[2]string]*standing, len(list))
+	byLabels := make(map[[2]string]*stood, len(list))
 	for i := range list {
 		c := &list[i]
 		if c.Labels[docker.LabelOneoff] == "True" {
@@ -489,11 +491,19 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 		key := [2]string{c.Labels[docker.LabelProject], c.Labels[docker.LabelService]}
 		s := byLabels[key]
 		if s == nil {
-			s = &standing{}
+			s = &stood{}
 			byLabels[key] = s
 		}
-		if s.pick.Add(c.Stand()) {
+		switch {
+		case c.Stand().Leaving():
+			s.pick.Add(c.Stand())
+		case s.pick.Add(c.Stand()):
+			if s.c != nil {
+				s.others = append(s.others, s.c.ID)
+			}
 			s.c = c
+		default:
+			s.others = append(s.others, c.ID)
 		}
 	}
 	for _, ref := range r.cfg.Desired.Refs() {
@@ -550,7 +560,7 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 			r.sight[ref] = c.ID + "!"
 			continue
 		}
-		standing, err := whyDown(look, r.cfg.Docker, c.ID, at)
+		standing, err := whyDown(look, r.cfg.Docker, append([]string{c.ID}, of.others...), at)
 		cancel()
 		if err != nil {
 			continue // Docker didn't answer: the next list asks again
