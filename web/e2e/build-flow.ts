@@ -51,8 +51,22 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   const branch = sheet.getByRole("combobox", { name: "Branch" });
   if ((await branch.locator("option:checked").textContent()) !== "main (default)")
     fail("New app doesn't choose the repository's default branch");
+  // How it builds is read and offered, and the port its Dockerfile exposes goes in the app.
+  await sheet
+    .getByRole("status", { name: "Build" })
+    .getByText(/^Dockerfile · busybox:1\.37$/)
+    .waitFor();
+  const inApp = sheet.getByLabel("In the app");
+  await inApp.waitFor();
+  if ((await inApp.inputValue()) !== "8080") fail(`the port in the app reads ${await inApp.inputValue()}, not 8080`);
+  if (!/^\d+$/.test(await sheet.getByLabel("On the server").inputValue())) fail("no port on the server was filled");
   await sheet.getByLabel(/^Name/).fill("storefront");
   await shoot(page, "build-new-app");
+  // A port someone removes stays removed, and later flows publish 8080 themselves.
+  await sheet.getByRole("button", { name: "Remove this port" }).click();
+  await sheet.getByLabel(/^Name/).fill("storefront2");
+  await sheet.getByLabel(/^Name/).fill("storefront");
+  if ((await sheet.getByLabel("In the app").count()) !== 0) fail("a port removed from the form came back");
   await sheet.getByRole("button", { name: "Review plan" }).click();
   const plan = planSheet(page);
   await plan
