@@ -15,7 +15,7 @@ import {
 } from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
 import { focusManager } from "@tanstack/react-query";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -471,6 +471,49 @@ describe("editing a file", () => {
     await userEvent.click(saveButton());
     await waitFor(() => expect(saveFile).toHaveBeenCalled());
     expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: "a\r\nb\r\nc" }), expect.anything()]);
+  });
+
+  it("saves a second time from what the first save wrote, so no untouched line's ending moves", async () => {
+    let version = 1;
+    const saveFile = vi.fn(() => saved(`v${++version}`));
+    await open({ readFile: () => text("\rx\r\nx\n\n\n"), saveFile });
+    const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    // A line inserted at the top, saved; then the third line retyped, saved again.
+    fireEvent.change(field, { target: { value: "x\n\nx\nx\n\n\n" } });
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
+    expect(saveFile.mock.lastCall).toEqual([
+      expect.objectContaining({ content: "x\n\rx\r\nx\n\n\n" }),
+      expect.anything(),
+    ]);
+    await waitFor(() => expect(screen.getAllByText("Saved .user.ini").length).toBeGreaterThan(0));
+    fireEvent.change(field, { target: { value: "x\n\nEDITED\nx\n\n\n" } });
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
+    expect(saveFile.mock.lastCall).toEqual([
+      expect.objectContaining({ content: "x\n\rEDITED\r\nx\n\n\n", version: "v2" }),
+      expect.anything(),
+    ]);
+  });
+
+  it("asks for one ending when an edit moves too much to keep each line's, and saves with it", async () => {
+    const alternating = Array.from({ length: 1200 }, (_, i) => `line ${i}${i % 2 ? "\r\n" : "\n"}`).join("");
+    const saveFile = vi.fn(() => saved());
+    await open({ readFile: () => text(alternating), saveFile });
+    const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    const lines = alternating.replace(/\r\n/g, "\n").split("\n");
+    lines.splice(3, 0, ...Array.from({ length: 501 }, (_, i) => `pasted ${i}`));
+    lines[lines.length - 2] = "the last line, edited";
+    fireEvent.change(field, { target: { value: lines.join("\n") } });
+    await userEvent.click(saveButton());
+    expect(await screen.findByText("This edit moves too much to keep each line's ending")).toBeVisible();
+    expect(saveFile).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Save with CRLF" }));
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
+    expect(saveFile.mock.lastCall).toEqual([
+      expect.objectContaining({ content: lines.join("\r\n") }),
+      expect.anything(),
+    ]);
   });
 
   it.each([

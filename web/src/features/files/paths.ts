@@ -53,13 +53,18 @@ const MATCH_EDITS = 500;
 
 /**
  * A field's text as the file has it: each line keeps the ending it had in original,
- * a line typed over another takes that one's, and a line added takes the one before
- * it. So a file with more than one kind of ending, or a lone CR, changes only on the
- * lines someone touched.
+ * a line typed over another takes that one's, lines joined into one take the last of
+ * theirs, and a line added takes the one before it. So a file with more than one kind
+ * of ending, or a lone CR, changes only on the lines someone touched.
+ *
+ * Undefined when that can't be told: an edit past what the diff looks through, on a
+ * file with more than one kind of ending, where pairing lines by place would move the
+ * endings of lines nobody touched. The person then picks one ending for every line.
  */
-export function withEndings(text: string, original: string): string {
+export function withEndings(text: string, original: string): string | undefined {
   const { lines: a, ends } = linesOf(original);
   if (!ends.some((e) => e === "\r\n" || e === "\r")) return text;
+  const kinds = new Set(ends.filter((e) => e !== ""));
   const b = text.split("\n");
   // Which line of the original each line of text stands for, or -1 for one added.
   const from = new Array<number>(b.length).fill(-1);
@@ -73,12 +78,17 @@ export function withEndings(text: string, original: string): string {
     from[b.length - 1 - end] = a.length - 1 - end;
     end++;
   }
-  const shared = matching(a.slice(start, a.length - end), b.slice(start, b.length - end), MATCH_EDITS) ?? [];
+  const found = matching(a.slice(start, a.length - end), b.slice(start, b.length - end), MATCH_EDITS);
+  // With one kind of ending, every line gets it whatever pairs with what.
+  if (!found && kinds.size > 1) return undefined;
+  const shared = found ?? [];
   let ai = start;
   let bi = start;
-  // Between two lines that match, the lines typed take the places of those removed, in order.
+  // Between two lines that match, the lines typed take the places of those removed, in order,
+  // and when fewer were typed than removed, as when lines are joined, the last takes the last's.
   const pair = (x: number, y: number) => {
     for (let t = 0; bi + t < y && ai + t < x; t++) from[bi + t] = ai + t;
+    if (y > bi && x - ai > y - bi) from[y - 1] = x - 1;
   };
   for (const [x, y] of shared) {
     pair(x + start, y + start);

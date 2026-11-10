@@ -90,21 +90,74 @@ describe("lines", () => {
     ["a line added at the end of CRLF is CRLF", "a\r\nb\r\n", "a\nb\nc", "a\r\nb\r\nc"],
     ["a new last line after one with no ending takes the line before's", "a\r\nb", "a\nb\nc", "a\r\nb\r\nc"],
     ["LF stays LF", "a\nb\n", "a\nx\nb\n", "a\nx\nb\n"],
+    ["lines joined into one take the last of theirs", "a\r\nb\nc\r\n", "ab\nc\n", "ab\nc\r\n"],
   ])("keep each line's ending through an edit: %s", (_, original, typed, saved) => {
     expect(withEndings(typed, original)).toBe(saved);
   });
 
-  it("pairs lines by place past the edits it looks through, and keeps the rest", () => {
-    const n = 1200;
-    const original = Array.from({ length: n }, (_, i) => `line ${i}${i % 2 ? "\r\n" : "\n"}`).join("");
-    const typed = Array.from({ length: n }, (_, i) => (i === 0 || i === n - 1 ? `line ${i}` : `new ${i}`)).join("\n");
-    const saved = withEndings(`${typed}\n`, original);
-    expect(saved).toBe(
-      Array.from(
-        { length: n },
-        (_, i) => `${i === 0 || i === n - 1 ? "line" : "new"} ${i}${i % 2 ? "\r\n" : "\n"}`,
-      ).join(""),
-    );
+  // The reviewer's probe: a long file of alternating endings, many lines pasted near its top, and its last
+  // line edited, which the diff can't look through. Pairing by place would move the endings of every line
+  // after the paste, so it gives nothing, and the person picks one ending.
+  const alternating = (n: number) => Array.from({ length: n }, (_, i) => `line ${i}${i % 2 ? "\r\n" : "\n"}`).join("");
+  const pasted = (n: number) => {
+    const lines = editable(alternating(2000)).split("\n");
+    lines.splice(3, 0, ...Array.from({ length: n }, (_, i) => `pasted ${i}`));
+    lines[lines.length - 2] = "the last line, edited";
+    return lines.join("\n");
+  };
+
+  it("gives nothing past the edits it looks through on a file of more than one ending", () => {
+    expect(withEndings(pasted(501), alternating(2000))).toBeUndefined();
+  });
+
+  it("keeps every untouched line's ending under the edits it looks through", () => {
+    const saved = withEndings(pasted(400), alternating(2000));
+    if (saved === undefined) throw new Error("400 pasted lines gave nothing");
+    const before = alternating(2000).split(/(?<=\n)/);
+    const after = saved.split(/(?<=\n)/);
+    for (const line of before.slice(0, 1999)) {
+      if (!line.startsWith("line ")) continue;
+      expect(after).toContain(line);
+    }
+  });
+
+  it("gives every line the one ending of a file that has one, however much changed", () => {
+    const crlf = Array.from({ length: 1200 }, (_, i) => `line ${i}\r\n`).join("");
+    const typed = Array.from({ length: 1200 }, (_, i) => `new ${i}`).join("\n");
+    expect(withEndings(`${typed}\n`, crlf)).toBe(Array.from({ length: 1200 }, (_, i) => `new ${i}\r\n`).join(""));
+  });
+
+  // The reviewer's second probe: small mixed files, a line inserted and saved, then another line retyped
+  // and saved again over what the first save wrote. No line the second edit didn't touch changes its ending.
+  it("keeps every untouched line's ending through a second save over the first", () => {
+    let seed = 7;
+    const random = (n: number) => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed % n;
+    };
+    const endings = ["\n", "\r\n", "\r"];
+    for (let round = 0; round < 3000; round++) {
+      const count = 2 + random(6);
+      const lines = Array.from({ length: count }, () => (random(3) === 0 ? "x" : `l${random(4)}`));
+      const original = lines.map((l) => l + endings[random(3)]).join("");
+      const first = editable(original).split("\n");
+      first.splice(random(first.length), 0, "inserted");
+      const once = withEndings(first.join("\n"), original);
+      if (once === undefined) throw new Error(`a small edit gave nothing: ${JSON.stringify(original)}`);
+      const second = editable(once).split("\n");
+      const at = random(second.length - 1);
+      second[at] = "EDITED";
+      const twice = withEndings(second.join("\n"), once);
+      if (twice === undefined) throw new Error(`a small edit gave nothing: ${JSON.stringify(once)}`);
+      const was = once.split(/(?<=\r\n|\n|\r(?!\n))/);
+      const now = twice.split(/(?<=\r\n|\n|\r(?!\n))/);
+      expect(now.length).toBe(was.length);
+      for (let k = 0; k < was.length; k++) {
+        if (k === at) continue;
+        if (now[k] !== was[k])
+          throw new Error(`round ${round}: ${JSON.stringify(once)} then line ${at} gave ${JSON.stringify(twice)}`);
+      }
+    }
   });
 
   it("count what an edit touches", () => {

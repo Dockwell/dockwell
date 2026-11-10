@@ -6902,6 +6902,12 @@ msgstr "Reading {name}"
 msgid "Save over it"
 msgstr "Save over it"
 
+msgid "Save with CRLF"
+msgstr "Save with CRLF"
+
+msgid "Save with LF"
+msgstr "Save with LF"
+
 msgid "Saved {name}"
 msgstr "Saved {name}"
 
@@ -6919,6 +6925,9 @@ msgstr "Showing the first 1 MB"
 
 msgid "The passkey prompt closed, so nothing was saved. Save again when you're ready."
 msgstr "The passkey prompt closed, so nothing was saved. Save again when you're ready."
+
+msgid "This edit moves too much to keep each line's ending"
+msgstr "This edit moves too much to keep each line's ending"
 
 msgid "This file changed on the server"
 msgstr "This file changed on the server"
@@ -6968,6 +6977,9 @@ msgstr "{changes, plural, one {# line changed} other {# lines changed}}"
 
 msgid "{name} changed after you opened it, so nothing was saved. What you typed is still here. Save over the server's version, or load it in place of yours."
 msgstr "{name} changed after you opened it, so nothing was saved. What you typed is still here. Save over the server's version, or load it in place of yours."
+
+msgid "{name} has more than one kind of line ending; pick one for every line."
+msgstr "{name} has more than one kind of line ending; pick one for every line."
 
 msgid "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
 msgstr "{name} isn't a text file under 1 MB any more, so it can't be loaded here."

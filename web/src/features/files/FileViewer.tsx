@@ -218,6 +218,8 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
   // Where the file leads now, once that isn't where it led when you read it.
   const [moved, setMoved] = useState<string>();
   const [justSaved, setJustSaved] = useState(false);
+  // An edit too large to keep each line's ending, on a file with more than one kind: the person picks one.
+  const [pickEnding, setPickEnding] = useState(false);
   const who = useSignedInUser()?.id ?? "";
   const [offer, setOffer] = useState<Draft | undefined>(() => heldDraft(serverId, path, who));
   const edited = draft !== base.text;
@@ -235,6 +237,7 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
 
   const client = createClient(FileService, transport);
   const change = (next: string) => {
+    setPickEnding(false);
     setDraft(next);
     setJustSaved(false);
     onEdited(next !== base.text);
@@ -262,9 +265,16 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
     setOffer(undefined);
   };
 
-  const save = async (over: string) => {
+  /** Saves what's typed over the version given, each line with its own ending, or every line with one. */
+  const save = async (over: string, every?: "LF" | "CRLF") => {
     const sent = draft;
-    const content = withEndings(sent, base.original);
+    const content =
+      every === "CRLF" ? sent.replace(/\n/g, "\r\n") : every === "LF" ? sent : withEndings(sent, base.original);
+    if (content === undefined) {
+      setPickEnding(true);
+      return;
+    }
+    setPickEnding(false);
     setSaving(true);
     setProblem(undefined);
     setMayLand(false);
@@ -285,7 +295,8 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
             confirmedPath: base.wayBackIn || proof ? base.where : "",
           }),
       );
-      setBase((was) => ({ ...was, text: sent, version: res.version }));
+      // What was saved is what the next save keeps each line's ending from.
+      setBase((was) => ({ ...was, text: sent, original: content, version: res.version }));
       dropDraft(serverId, path);
       setJustSaved(true);
       onSaved(res.file);
@@ -456,6 +467,26 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
         <span>UTF-8</span>
         <span>{ending === "mixed" ? t`Mixed line endings` : ending}</span>
       </div>
+      {edited && pickEnding ? (
+        <div className="files-note">
+          <Callout
+            tone="warning"
+            title={t`This edit moves too much to keep each line's ending`}
+            actions={
+              <>
+                <Button size="sm" disabled={saving} onClick={() => void save(base.version, "LF")}>
+                  <Trans>Save with LF</Trans>
+                </Button>
+                <Button size="sm" disabled={saving} onClick={() => void save(base.version, "CRLF")}>
+                  <Trans>Save with CRLF</Trans>
+                </Button>
+              </>
+            }
+          >
+            {t`${name} has more than one kind of line ending; pick one for every line.`}
+          </Callout>
+        </div>
+      ) : null}
       {edited ? (
         <div className="files-save">
           <div className="files-save-what">
