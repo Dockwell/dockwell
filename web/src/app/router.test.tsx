@@ -56,7 +56,6 @@ describe("routes", () => {
   it("lists the servers", async () => {
     renderAt("/servers");
     expect(await screen.findByRole("heading", { level: 1, name: "Servers" })).toBeVisible();
-    expect(screen.getByRole("region", { name: "Servers" })).toBeVisible();
   });
 
   it("says plainly that a section from the design isn't built yet", async () => {

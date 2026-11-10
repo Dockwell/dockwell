@@ -1,18 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { Connection, EventKind, type Server } from "@dockwell/api";
-import {
-  cx,
-  FleetGrid,
-  type FleetServer,
-  Metric,
-  type MetricProps,
-  Panel,
-  PHONE_QUERY,
-  useMediaQuery,
-  useUIStrings,
-} from "@dockwell/ui";
+import { EventKind, type Server } from "@dockwell/api";
+import { cx, FleetGrid, Metric, type MetricProps, Panel, PHONE_QUERY, useMediaQuery, useUIStrings } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -21,8 +10,8 @@ import type { ReactNode } from "react";
 import { formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { FleetUnreadNote } from "../servers/FleetNotes";
-import { primaryAddress, serverStatus } from "../servers/server";
-import { useControlPlaneNow, useFleetUnread } from "../servers/useFleet";
+import { useServerTiles } from "../servers/tiles";
+import { useFleetUnread } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { shortVersion } from "../shell/version";
 import { FleetCallout } from "./FleetCallout";
@@ -73,7 +62,7 @@ export function FleetOverview({ servers, status }: { servers: readonly Server[];
       <FleetMetrics servers={servers} compact={phone} />
       <div className="overview-fleet-row">
         <FleetMap servers={servers} compact={phone} />
-        <RecentChanges kinds={FLEET_EVENTS} className="overview-fleet-changes" />
+        <RecentChanges kinds={FLEET_EVENTS} className="overview-fleet-changes" unboxed={phone} />
       </div>
       <OverviewApps fleet />
     </Page>
@@ -167,7 +156,7 @@ function FleetMap({ servers, compact }: { servers: readonly Server[]; compact: b
   const { t } = useLingui();
   const navigate = useNavigate();
   const unknown = useFleetUnread() !== undefined;
-  const tiles = useTiles(servers, unknown);
+  const tiles = useServerTiles(servers, unknown);
   const grid = (
     <FleetGrid
       servers={tiles}
@@ -191,39 +180,4 @@ function FleetMap({ servers, compact }: { servers: readonly Server[]; compact: b
       {grid}
     </Panel>
   );
-}
-
-/**
- * Each server as a tile names it: its state, its numbers while it reports, its address, and why it's not well.
- * While what the fleet last said can't stand, nobody can say how any server is, so each reads Unknown.
- */
-function useTiles(servers: readonly Server[], unknown: boolean): FleetServer[] {
-  const { t } = useLingui();
-  const words = useTimeWords();
-  const now = useControlPlaneNow(15_000);
-  return servers.map((s) => {
-    const stats = s.connection === Connection.CONNECTED ? s.stats : undefined;
-    const total = Number(stats?.memoryTotalBytes ?? 0n);
-    const seen = s.lastSeenTime ? words.ago(timestampDate(s.lastSeenTime), now) : undefined;
-    const note =
-      s.connection === Connection.UNREACHABLE
-        ? seen
-          ? t`Last reported ${seen}`
-          : t`Agent not connected`
-        : s.connection === Connection.PENDING
-          ? t`Waiting for its agent`
-          : s.dockerUnreadableSince
-            ? t`Can't read Docker`
-            : undefined;
-    if (unknown) return { id: s.id, name: s.name, status: "unknown", ip: primaryAddress(s.inventory?.addresses ?? []) };
-    return {
-      id: s.id,
-      name: s.name,
-      status: serverStatus(s),
-      cpu: stats ? Math.round(stats.cpuPercent) : null,
-      mem: stats && total > 0 ? Math.round((Number(stats.memoryUsedBytes) / total) * 100) : null,
-      ip: primaryAddress(s.inventory?.addresses ?? []),
-      note,
-    };
-  });
 }
