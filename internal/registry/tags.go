@@ -3,9 +3,11 @@
 package registry
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -46,10 +48,11 @@ func (c *Client) Tags(ctx context.Context, r Ref) ([]Tag, error) {
 	for i, n := range names {
 		out[i] = Tag{Name: n}
 	}
-	latest, err := c.Head(ctx, Ref{Registry: r.Registry, Repository: r.Repository, Tag: "latest"})
-	if err != nil {
-		// Which point where latest does is a nicety: the list stands without it.
-		latest = ""
+	// Which point where latest does is a nicety: out of time, or with no latest,
+	// the list stands without it.
+	latest := ""
+	if ctx.Err() == nil {
+		latest, _ = c.Head(ctx, Ref{Registry: r.Registry, Repository: r.Repository, Tag: "latest"})
 	}
 	if latest == "" {
 		return out, nil
@@ -60,7 +63,7 @@ func (c *Client) Tags(ctx context.Context, r Ref) ([]Tag, error) {
 			out[i].Digest, out[i].Latest = latest, true
 			continue
 		}
-		if asked >= latestOf || !versionLike(out[i].Name) {
+		if asked >= latestOf || !versionLike(out[i].Name) || ctx.Err() != nil {
 			continue
 		}
 		asked++
@@ -73,31 +76,76 @@ func (c *Client) Tags(ctx context.Context, r Ref) ([]Tag, error) {
 	return out, nil
 }
 
-// tagNames reads a registry's list of a repository's tags, a page at a time.
+// tagNames reads a registry's list of a repository's tags, a page at a time:
+// tagsPerPage names of a page at most, maxTagNames in all, and what a page
+// holds past maxTagPage bytes goes unread, as does any page once time is up.
 func (c *Client) tagNames(ctx context.Context, r Ref) ([]string, error) {
 	var out []string
-	path := "/v2/" + r.Repository + "/tags/list?n=1000"
-	for page := 0; page < maxTagPages && path != ""; page++ {
-		resp, err := c.get(ctx, http.MethodGet, r.Registry, r.Repository, path, "application/json")
+	path := fmt.Sprintf("/v2/%s/tags/list?n=%d", r.Repository, tagsPerPage)
+	for page := 0; page < maxTagPages && path != "" && len(out) < maxTagNames; page++ {
+		if page > 0 && ctx.Err() != nil {
+			break
+		}
+		resp, err := c.get(ctx, http.MethodGet, r.Registry, r.Repository, path, "application/json", false)
 		if err != nil {
 			if page > 0 {
 				break
 			}
 			return nil, err
 		}
-		var list struct {
-			Tags []string `json:"tags"`
-		}
-		err = json.NewDecoder(resp.Body).Decode(&list)
+		names, whole := readTagPage(resp.Body, min(tagsPerPage, maxTagNames-len(out)))
 		next := nextPage(resp.Header.Get("Link"))
 		drain(resp)
-		if err != nil {
-			return nil, fmt.Errorf("%w: its tags can't be read", ErrUnreachable)
+		out = append(out, names...)
+		if !whole {
+			// What a page held before it ran out, or past what Dockwell reads, stands.
+			if len(out) == 0 {
+				return nil, fmt.Errorf("%w: its tags can't be read", ErrUnreachable)
+			}
+			break
 		}
-		out = append(out, list.Tags...)
 		path = next
 	}
-	return out, nil
+	return out, nil //nolint:nilerr // a later page that doesn't come leaves the list as far as it came
+}
+
+// readTagPage reads a page of tags, {"name":…,"tags":[…]}, as it comes,
+// keeping up to limit names that could be tags, and reading no more than
+// maxTagPage bytes of it. It says whether it read as far as it meant to.
+func readTagPage(body io.Reader, limit int) (names []string, whole bool) {
+	dec := json.NewDecoder(io.LimitReader(body, maxTagPage))
+	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
+		return nil, false
+	}
+	for dec.More() {
+		key, err := dec.Token()
+		if err != nil {
+			return names, false
+		}
+		if key != "tags" {
+			var skip json.RawMessage
+			if dec.Decode(&skip) != nil {
+				return names, false
+			}
+			continue
+		}
+		open, err := dec.Token()
+		if err != nil || open != json.Delim('[') {
+			// A repository with no tags says null.
+			return names, err == nil && open == nil
+		}
+		for dec.More() && len(names) < limit {
+			var name string
+			if dec.Decode(&name) != nil {
+				return names, false
+			}
+			if tagRe.MatchString(name) {
+				names = append(names, name)
+			}
+		}
+		return names, true
+	}
+	return names, true
 }
 
 // nextPage is the path a Link header names as the next page, such as
@@ -124,7 +172,7 @@ func (c *Client) hubTags(ctx context.Context, r Ref) ([]Tag, error) {
 	namespace, name, _ := strings.Cut(r.Repository, "/")
 	target := fmt.Sprintf("%s/v2/namespaces/%s/repositories/%s/tags?page_size=100&ordering=last_updated",
 		c.hubAPI(), url.PathEscape(namespace), url.PathEscape(name))
-	resp, err := c.do(ctx, http.MethodGet, target, "application/json", "")
+	resp, err := c.do(ctx, http.MethodGet, target, "application/json", "", false)
 	if err != nil {
 		return nil, err
 	}
@@ -214,44 +262,58 @@ func parseVersion(tag string) version {
 // SortTags orders tags newest version first: numbers compared as numbers, a
 // release before its pre-releases, a plain version before its variants (1.27
 // before 1.27-alpine), and what isn't a version, such as "latest" or "edge",
-// after every version, by name.
+// after every version, by name. Each tag's version is read once.
 func SortTags(tags []string) {
-	slices.SortStableFunc(tags, func(a, b string) int {
-		va, vb := parseVersion(a), parseVersion(b)
-		switch {
-		case va.ok != vb.ok:
-			if va.ok {
-				return -1
-			}
-			return 1
-		case !va.ok:
-			return strings.Compare(a, b)
-		}
-		for i := range max(len(va.nums), len(vb.nums)) {
-			// A number left out is 0, so 1.28 is 1.28.0, and 1.28.0-rc1 comes after it.
-			x, y := 0, 0
-			if i < len(va.nums) {
-				x = va.nums[i]
-			}
-			if i < len(vb.nums) {
-				y = vb.nums[i]
-			}
-			if x != y {
-				return y - x
-			}
-		}
-		if va.pre != vb.pre {
-			if va.pre {
-				return 1
-			}
+	keyed := make([]versioned, len(tags))
+	for i, t := range tags {
+		keyed[i] = versioned{t, parseVersion(t)}
+	}
+	slices.SortStableFunc(keyed, compareVersions)
+	for i, k := range keyed {
+		tags[i] = k.name
+	}
+}
+
+type versioned struct {
+	name string
+	v    version
+}
+
+func compareVersions(x, y versioned) int {
+	a, b, va, vb := x.name, y.name, x.v, y.v
+	switch {
+	case va.ok != vb.ok:
+		if va.ok {
 			return -1
 		}
-		if (va.suffix == "") != (vb.suffix == "") {
-			if va.suffix == "" {
-				return -1
-			}
+		return 1
+	case !va.ok:
+		return strings.Compare(a, b)
+	}
+	for i := range max(len(va.nums), len(vb.nums)) {
+		// A number left out is 0, so 1.28 is 1.28.0, and 1.28.0-rc1 comes after it.
+		x, y := 0, 0
+		if i < len(va.nums) {
+			x = va.nums[i]
+		}
+		if i < len(vb.nums) {
+			y = vb.nums[i]
+		}
+		if x != y {
+			return cmp.Compare(y, x)
+		}
+	}
+	if va.pre != vb.pre {
+		if va.pre {
 			return 1
 		}
-		return strings.Compare(a, b)
-	})
+		return -1
+	}
+	if (va.suffix == "") != (vb.suffix == "") {
+		if va.suffix == "" {
+			return -1
+		}
+		return 1
+	}
+	return strings.Compare(a, b)
 }

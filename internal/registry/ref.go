@@ -28,6 +28,9 @@ var (
 	pathPart = regexp.MustCompile(`^[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*$`)
 	tagRe    = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`)
 	digestRe = regexp.MustCompile(`^[a-z0-9]+(?:[.+_-][a-z0-9]+)*:[a-zA-Z0-9=_-]{32,}$`)
+	// A registry's host, as Docker's grammar has it: a name of dotted labels, or
+	// an IPv6 address in brackets, and a port.
+	hostRe = regexp.MustCompile(`^(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*|\[[0-9A-Fa-f:.]+\])(?::[0-9]{1,5})?$`)
 )
 
 // ErrBadRef is a reference no registry could hold.
@@ -56,7 +59,10 @@ func Parse(s string) (Ref, error) {
 		}
 	}
 	first, rest, hasPath := strings.Cut(name, "/")
-	if hasPath && (strings.ContainsAny(first, ".:") || first == "localhost") {
+	if hasPath && NamesAHost(first) {
+		if !hostRe.MatchString(first) {
+			return Ref{}, fmt.Errorf("%w: %q names a registry that isn't a host", ErrBadRef, s)
+		}
 		r.Registry, name = strings.ToLower(first), rest
 	} else {
 		r.Registry = Hub
@@ -74,6 +80,12 @@ func Parse(s string) (Ref, error) {
 	}
 	r.Repository = name
 	return r, nil
+}
+
+// NamesAHost says whether a reference's first part is a registry's host, as
+// Docker reads one: it holds a dot or a colon, or is localhost.
+func NamesAHost(first string) bool {
+	return strings.ContainsAny(first, ".:") || first == "localhost"
 }
 
 // Reference is what to ask a registry for: the digest, else the tag, else

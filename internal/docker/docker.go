@@ -238,11 +238,14 @@ type RegistryConfig struct {
 	IndexConfigs map[string]struct {
 		Secure bool
 	}
+	// InsecureRegistryCIDRs are the networks whose registries it reaches over
+	// plain HTTP, such as "10.0.0.0/8".
+	InsecureRegistryCIDRs []string
 }
 
 // Insecure reports a registry the engine reaches over plain HTTP: one its
-// daemon.json names as insecure, or one on the server itself, as Docker takes
-// 127.0.0.0/8 to be.
+// daemon.json names as insecure, by name or by its network, or one on the
+// server itself, as Docker takes 127.0.0.0/8 to be.
 func (r *RegistryConfig) Insecure(host string) bool {
 	if r != nil {
 		if c, ok := r.IndexConfigs[host]; ok {
@@ -257,7 +260,17 @@ func (r *RegistryConfig) Insecure(host string) bool {
 		return true
 	}
 	ip := net.ParseIP(name)
-	return ip != nil && ip.IsLoopback()
+	if ip == nil {
+		return false
+	}
+	if r != nil {
+		for _, cidr := range r.InsecureRegistryCIDRs {
+			if _, n, err := net.ParseCIDR(cidr); err == nil && n.Contains(ip) {
+				return true
+			}
+		}
+	}
+	return ip.IsLoopback()
 }
 
 // Rootless reports an engine that runs as an ordinary user, whose host
