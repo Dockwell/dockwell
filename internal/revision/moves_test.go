@@ -27,8 +27,8 @@ func moving(from, to string, external bool) []item {
 
 func reasons(notes []Note) []string {
 	out := make([]string, len(notes))
-	for i, n := range notes {
-		out[i] = n.Reason
+	for i := range notes {
+		out[i] = notes[i].Reason
 	}
 	return out
 }

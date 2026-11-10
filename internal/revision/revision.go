@@ -4202,16 +4202,22 @@ func databaseMoves(items []item, skip bool, features func(serviceID string) stri
 		found, _ := database.FromSpec(desired)
 		switch {
 		case skip:
-			notes = append(notes, Note{Reason: "no_backup", Ref: it.ref, IfItChanges: true,
-				Message: fmt.Sprintf("This move takes no backup of %s first, as you asked. Back up what you can't lose before it", it.ref.Name)})
+			notes = append(notes, Note{
+				Reason: "no_backup", Ref: it.ref, IfItChanges: true,
+				Message: fmt.Sprintf("This move takes no backup of %s first, as you asked. Back up what you can't lose before it", it.ref.Name),
+			})
 		case found.Volume == "" || found.External:
-			notes = append(notes, Note{Reason: "unbacked_move", Ref: it.ref, Named: true, IfItChanges: true,
+			notes = append(notes, Note{
+				Reason: "unbacked_move", Ref: it.ref, Named: true, IfItChanges: true,
 				Message: fmt.Sprintf("%s's data isn't in a volume Dockwell made, so Dockwell can't back it up first. Undoing this puts the old release back, not what the new one changed in its data. "+
-					"Back it up yourself before you apply this", it.ref.Name)})
+					"Back it up yourself before you apply this", it.ref.Name),
+			})
 		default:
 			backUp = append(backUp, resource.Ref{Kind: volumeKind, Scope: it.ref.Scope, Name: found.Volume})
-			notes = append(notes, Note{Reason: "backup_first", Ref: it.ref, IfItChanges: true,
-				Message: fmt.Sprintf("Dockwell backs up %s's volume %s before it changes anything. If the backup fails, the move stops there, with nothing else done", it.ref.Name, found.Volume)})
+			notes = append(notes, Note{
+				Reason: "backup_first", Ref: it.ref, IfItChanges: true,
+				Message: fmt.Sprintf("Dockwell backs up %s's volume %s before it changes anything. If the backup fails, the move stops there, with nothing else done", it.ref.Name, found.Volume),
+			})
 		}
 	}
 	return notes, backUp, nil

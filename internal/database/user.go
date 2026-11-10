@@ -491,6 +491,9 @@ func (e *Engine) make(user, db, password string, create bool) (string, error) {
 			return "SET SESSION sql_mode = '';\nALTER USER " + myUser(user) + " " + identified + ";\n", nil
 		}
 		return "SET SESSION sql_mode = '';\n" + myCreate(user, db, identified), nil
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
+		// Its users are read, and making them comes after (ADR 0038).
+		return "", fmt.Errorf("%s's users can't be made by Dockwell yet", e.Name)
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
 		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
 	}

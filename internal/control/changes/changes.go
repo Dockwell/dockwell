@@ -139,10 +139,6 @@ func (h *Handler) Propose(ctx context.Context, summary string, edits []*dockwell
 	return h.proposeAlso(ctx, who, summary, edits, field, also)
 }
 
-func (h *Handler) propose(ctx context.Context, who revision.By, summary string, in []*dockwellv1.Edit, field func(*scope.ChoiceError, string) string) (*dockwellv1.Change, error) {
-	return h.proposeAlso(ctx, who, summary, in, field, Also{})
-}
-
 func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary string, in []*dockwellv1.Edit, field func(*scope.ChoiceError, string) string, also Also) (*dockwellv1.Change, error) {
 	fail := func(err error) error {
 		var choice *scope.ChoiceError

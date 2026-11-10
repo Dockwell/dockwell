@@ -52,7 +52,9 @@ func TestAMongoDBMovesOneReleaseAtATime(t *testing.T) {
 	// It backs up the database's volume before it moves, as a step of the plan,
 	// unless it's asked not to.
 	steps := next.GetPlan().GetServers()[0].GetSteps()
-	first := slices.IndexFunc(steps, func(s *dockwellv1.PlanStep) bool { return s.GetBackupFirst() != nil && s.GetResource().GetName() == "data" })
+	first := slices.IndexFunc(steps, func(s *dockwellv1.PlanStep) bool {
+		return s.GetBackupFirst() != nil && s.GetResource().GetName() == "data"
+	})
 	replace := slices.IndexFunc(steps, func(s *dockwellv1.PlanStep) bool {
 		return s.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_REPLACE && s.GetResource().GetName() == "docs"
 	})

@@ -5,6 +5,7 @@ package database
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -210,7 +211,7 @@ func (r Reader) mongoSays(ctx context.Context, id string, e *Engine, port uint32
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
 	var s mongoRelease
 	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &s); err != nil || s.Version == "" {
-		return mongoRelease{}, fmt.Errorf("can't read the release MongoDB runs from what it said, so nothing changed. Check it's healthy, then apply this again")
+		return mongoRelease{}, errors.New("can't read the release MongoDB runs from what it said, so nothing changed. Check it's healthy, then apply this again")
 	}
 	return s, nil
 }
