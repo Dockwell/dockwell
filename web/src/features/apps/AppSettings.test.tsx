@@ -184,7 +184,14 @@ describe("an app's settings", () => {
     await user.click(screen.getByRole("button", { name: "Edit Ports" }));
     const form = screen.getByRole("form", { name: "Edit Ports" });
     await user.click(within(form).getByRole("button", { name: "Add a port" }));
-    await user.type(within(form).getByRole("textbox", { name: "Port 2 on the server" }), "8080");
+    // A port added takes a free one on the server: the app's own first port holds 8080.
+    const second = within(form).getByRole("textbox", { name: "Port 2 on the server" });
+    await waitFor(() => expect(second).toHaveValue("8081"));
+    expect(second).toHaveAccessibleDescription(/Free/);
+    await user.clear(second);
+    await user.type(second, "8080");
+    // The other row holds it, which is said as it's typed.
+    expect(second).toHaveAccessibleDescription(/Taken/);
     await user.type(within(form).getByRole("textbox", { name: "Port 2 in the app" }), "81");
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));
     expect(within(form).getByText("It publishes this port already.")).toBeVisible();
@@ -257,6 +264,7 @@ describe("an app's settings, where it could go wrong", () => {
     await user.click(screen.getByRole("button", { name: "Edit Ports" }));
     const form = screen.getByRole("form", { name: "Edit Ports" });
     await user.click(within(form).getByRole("button", { name: "Add a port" }));
+    await user.clear(within(form).getByRole("textbox", { name: "Port 2 on the server" }));
     await user.type(within(form).getByRole("textbox", { name: "Port 2 on the server" }), "9090");
     await user.type(within(form).getByRole("textbox", { name: "Port 2 in the app" }), "90");
 
@@ -303,6 +311,7 @@ describe("an app's settings, where it could go wrong", () => {
     await user.click(screen.getByRole("button", { name: "Edit Ports" }));
     const form = screen.getByRole("form", { name: "Edit Ports" });
     await user.click(within(form).getByRole("button", { name: "Add a port" }));
+    await user.clear(within(form).getByRole("textbox", { name: "Port 2 on the server" }));
     await user.type(within(form).getByRole("textbox", { name: "Port 2 on the server" }), "9090");
     await user.type(within(form).getByRole("textbox", { name: "Port 2 in the app" }), "90");
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));

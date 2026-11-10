@@ -21,7 +21,7 @@ export type PortCheck =
   | { state: "unknown" };
 
 export interface PortFieldProps
-  extends Omit<TextFieldProps, "value" | "onChange" | "inputMode" | "suffix" | "prefix" | "type" | "mono"> {
+  extends Omit<TextFieldProps, "value" | "onChange" | "inputMode" | "suffix" | "type" | "mono"> {
   value: string;
   onChange: (value: string) => void;
   /** What is known of the port typed, checked against the server as it is typed. */

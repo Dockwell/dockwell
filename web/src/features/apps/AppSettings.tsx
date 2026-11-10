@@ -20,19 +20,23 @@ import {
   Button,
   Callout,
   cx,
+  Glyph,
   Icon,
   Panel,
   PHONE_QUERY,
+  PortField,
   SegmentedControl,
   SelectField,
   Switch,
   TextField,
   useMediaQuery,
+  useUIStrings,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useApp } from "./AppContext";
 import { useDeleteApp } from "./AppOverview";
 import { appOf, environmentOf, isMoving, nameOf } from "./app";
@@ -956,6 +960,8 @@ interface PortRow {
   inApp: string;
   udp: boolean;
   hostIp: string;
+  /** A port added here follows a free one on the server, until someone types their own. */
+  auto?: boolean;
 }
 
 function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
@@ -969,10 +975,27 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
       hostIp: p.hostIp,
     }),
   );
-  const [rows, setRows] = useState<PortRow[]>(first);
+  const [typed, setRows] = useState<PortRow[]>(first);
   const [next, setNext] = useState(first.length);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const unchanged = JSON.stringify(rows) === JSON.stringify(first);
+  // What holds each port on its servers, besides this app, whose ports are its own to keep.
+  const serverIds = useMemo(() => service.deployments.map((d) => d.serverId), [service.deployments]);
+  const ports = useServerPorts(serverIds, service.id);
+  const holderName = (holder: PortHolder) => (holder.kind === "proxy" ? t`Dockwell's proxy` : holder.name);
+  const strings = useUIStrings();
+  const id = useId();
+  // A port added here takes a free one, in order, so no two rows take one.
+  const rows = useMemo(() => {
+    if (!ports.ready) return typed;
+    const taken = typed.filter((r) => !r.auto && validPort(r.host)).map((r) => Number(r.host));
+    return typed.map((r) => {
+      if (!r.auto) return r;
+      const free = ports.free(validPort(r.inApp) ? Number(r.inApp) : undefined, r.udp, taken);
+      taken.push(free);
+      return { ...r, host: String(free) };
+    });
+  }, [typed, ports]);
+  const unchanged = JSON.stringify(rows.map(({ auto: _, ...r }) => r)) === JSON.stringify(first);
   const change = (key: number, part: Partial<PortRow>) =>
     setRows((was) => was.map((r) => (r.key === key ? { ...r, ...part } : r)));
   const submit = (event: FormEvent) => {
@@ -1011,19 +1034,39 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
         <ul className="app-settings-rows">
           {rows.map((row, i) => {
             const n = i + 1;
+            const others = rows
+              .filter((r) => r.key !== row.key && r.udp === row.udp && validPort(r.host))
+              .map((r) => Number(r.host));
+            const check = ports.check(row.host, row.udp, holderName, others);
+            const offer =
+              check.state === "taken"
+                ? ports.free(validPort(row.inApp) ? Number(row.inApp) : undefined, row.udp, [
+                    ...others,
+                    Number(row.host),
+                  ])
+                : undefined;
+            // What's wrong with its server port, under the row, across it, so the row's fields stay level.
+            const said =
+              errors[`${row.key}.host`] ??
+              (check.state === "taken" ? (
+                <>
+                  {check.by ? strings.portField.takenBy(check.by) : strings.portField.taken}
+                  {offer !== undefined ? (
+                    <>
+                      {" · "}
+                      <button
+                        type="button"
+                        className="dw-port-use"
+                        onClick={() => change(row.key, { host: String(offer), auto: false })}
+                      >
+                        {strings.portField.use(offer)}
+                      </button>
+                    </>
+                  ) : null}
+                </>
+              ) : undefined);
             return (
               <li key={row.key} className="app-settings-row is-port">
-                <TextField
-                  aria-label={t`Port ${n} on the server`}
-                  label={i === 0 ? t`On the server` : undefined}
-                  mono
-                  inputMode="numeric"
-                  // An address it's bound to stays as it is, and shows, as the port is its.
-                  prefix={row.hostIp ? `${row.hostIp}:` : undefined}
-                  value={row.host}
-                  error={errors[`${row.key}.host`]}
-                  onChange={(event) => change(row.key, { host: event.target.value })}
-                />
                 <TextField
                   aria-label={t`Port ${n} in the app`}
                   label={i === 0 ? t`In the app` : undefined}
@@ -1032,6 +1075,18 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
                   value={row.inApp}
                   error={errors[`${row.key}.app`]}
                   onChange={(event) => change(row.key, { inApp: event.target.value })}
+                />
+                <PortField
+                  aria-label={t`Port ${n} on the server`}
+                  label={i === 0 ? t`On the server` : undefined}
+                  // An address it's bound to stays as it is, and shows, as the port is its.
+                  prefix={row.hostIp ? `${row.hostIp}:` : undefined}
+                  inRow
+                  value={row.host}
+                  check={check}
+                  invalid={Boolean(errors[`${row.key}.host`])}
+                  aria-describedby={said ? `${id}-${row.key}` : undefined}
+                  onChange={(host) => change(row.key, { host, auto: false })}
                 />
                 <Switch label="UDP" checked={row.udp} onChange={(udp) => change(row.key, { udp })} />
                 <Button
@@ -1042,6 +1097,12 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
                   aria-label={t`Remove port ${n}`}
                   onClick={() => setRows((was) => was.filter((r) => r.key !== row.key))}
                 />
+                {said ? (
+                  <p id={`${id}-${row.key}`} className="dw-field-error app-settings-row-note" role="alert">
+                    <Glyph shape="square" size={9} />
+                    <span>{said}</span>
+                  </p>
+                ) : null}
               </li>
             );
           })}
@@ -1053,7 +1114,7 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
           variant="secondary"
           icon="plus"
           onClick={() => {
-            setRows((was) => [...was, { key: next, host: "", inApp: "", udp: false, hostIp: "" }]);
+            setRows((was) => [...was, { key: next, host: "", inApp: "", udp: false, hostIp: "", auto: true }]);
             setNext(next + 1);
           }}
         >
