@@ -2553,3 +2553,11 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* An empty list's ways in: the start page's cards, under its title. */
+.apps-section .empty-state > .start-choices {
+  width: 100%;
+  max-width: 880px;
+  margin-top: var(--space-4);
+  text-align: left;
+}
