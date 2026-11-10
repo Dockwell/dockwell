@@ -322,6 +322,21 @@ describe("ProcessesPage", () => {
     await expectAccessible(phone.container);
   });
 
+  it("says an older agent is outdated, with the way to update it, and stops asking", async () => {
+    const { processes } = await renderProcesses();
+    // What the control plane sends for an agent that doesn't know the call.
+    processes.fail(
+      authError(
+        Code.FailedPrecondition,
+        "agent_outdated",
+        "hz-1's agent is older than the control plane, and can't list processes. Update its agent, then look again",
+      ),
+    );
+    expect(await screen.findByText("hz-1's agent is outdated")).toBeVisible();
+    expect(screen.getByText("It's older than the control plane, so it can't list processes.")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Update its agent" })).toHaveAttribute("href", "/servers/srv_1/updates");
+  });
+
   it("speaks Simplified Chinese", async () => {
     await activateLocale("zh-CN");
     const { processes } = await renderProcesses();

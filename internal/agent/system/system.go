@@ -134,7 +134,7 @@ func (r *Reader) systemd(ctx context.Context) ([]*dockwellv1.SystemServiceInfo, 
 		return nil, err
 	}
 	names := firstColumn(units)
-	for _, n := range firstColumn(files) {
+	for _, n := range unitFiles(files) {
 		if !slices.Contains(names, n) {
 			names = append(names, n)
 		}
@@ -171,14 +171,33 @@ func firstColumn(out []byte) []string {
 	return names
 }
 
+// unitFiles is each installed unit's name, leaving out an alias, such as Debian's
+// sshd.service for ssh.service: show reads it as the unit it names, which is
+// listed already.
+func unitFiles(out []byte) []string {
+	var names []string
+	sc := bufio.NewScanner(bytes.NewReader(out))
+	sc.Buffer(make([]byte, 64<<10), hosttool.MaxOutput)
+	for sc.Scan() {
+		f := strings.Fields(sc.Text())
+		if len(f) == 0 || len(f) > 1 && f[1] == "alias" {
+			continue
+		}
+		names = append(names, f[0])
+	}
+	return names
+}
+
 // noMemory is what systemctl says of memory a unit doesn't account: [not set],
 // or the largest number, as systemd 239 prints it.
 const noMemory = "18446744073709551615"
 
 // parseShow reads systemctl show's blocks, one a unit, KEY=VALUE lines apart by a
-// blank line. A unit systemd doesn't know isn't listed.
+// blank line. A unit systemd doesn't know isn't listed, nor one listed already,
+// as an alias reads as the unit it names.
 func parseShow(out []byte) []*dockwellv1.SystemServiceInfo {
 	var services []*dockwellv1.SystemServiceInfo
+	seen := map[string]bool{}
 	for _, block := range bytes.Split(out, []byte("\n\n")) {
 		props := map[string]string{}
 		for _, line := range strings.Split(string(block), "\n") {
@@ -186,9 +205,10 @@ func parseShow(out []byte) []*dockwellv1.SystemServiceInfo {
 				props[k] = v
 			}
 		}
-		if props["Id"] == "" || props["LoadState"] == "not-found" {
+		if props["Id"] == "" || props["LoadState"] == "not-found" || seen[props["Id"]] {
 			continue
 		}
+		seen[props["Id"]] = true
 		s := &dockwellv1.SystemServiceInfo{
 			Name:        props["Id"],
 			Description: props["Description"],

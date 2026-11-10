@@ -19,6 +19,12 @@ import (
 // fixtures and notes each call. init is "systemd", "openrc" or "" for another.
 func stand(t *testing.T, init string) (root string, calls func() []string) {
 	t.Helper()
+	return standOf(t, init, init)
+}
+
+// standOf is stand with the fixtures in testdata/set.
+func standOf(t *testing.T, init, set string) (root string, calls func() []string) {
+	t.Helper()
 	root = t.TempDir()
 	fixtures, err := filepath.Abs("testdata")
 	if err != nil {
@@ -37,7 +43,7 @@ func stand(t *testing.T, init string) (root string, calls func() []string) {
 	switch init {
 	case "systemd":
 		write("run/systemd/system/.keep", "", 0o644)
-		write("usr/bin/systemctl", head+"case \"$1\" in\nlist-units) cat '"+fixtures+"/systemd/list-units.txt' ;;\nlist-unit-files) cat '"+fixtures+"/systemd/list-unit-files.txt' ;;\nshow) cat '"+fixtures+"/systemd/show.txt' ;;\nesac\n", 0o755)
+		write("usr/bin/systemctl", head+"case \"$1\" in\nlist-units) cat '"+fixtures+"/"+set+"/list-units.txt' ;;\nlist-unit-files) cat '"+fixtures+"/"+set+"/list-unit-files.txt' ;;\nshow) cat '"+fixtures+"/"+set+"/show.txt' ;;\nesac\n", 0o755)
 	case "openrc":
 		write("run/openrc/softlevel", "default\n", 0o644)
 		write("sbin/rc-status", head+"cat '"+fixtures+"/openrc/rc-status.txt'\n", 0o755)
@@ -124,6 +130,64 @@ func TestASystemdServersServicesAreListedFailedFirst(t *testing.T) {
 		if s.GetNeeded() != needed {
 			t.Errorf("%s reads needed %t", s.GetName(), s.GetNeeded())
 		}
+	}
+}
+
+// On Debian and Ubuntu, list-unit-files lists aliases as units of their own, such
+// as sshd.service for ssh.service and procps.service for systemd-sysctl.service.
+// Each unit is listed once: an alias isn't asked about, and one show reads as the
+// unit it names isn't listed again. The unit files are this machine's (systemd
+// 257), with Debian 12's sshd.service; show's blocks are as systemd prints them.
+func TestAnAliasIsntListedAsASecondUnit(t *testing.T) {
+	root, calls := standOf(t, "systemd", "debian-aliases")
+	list := read(t, root)
+	want := []string{
+		"dbus.service", "ssh.service", "systemd-logind.service",
+		"kmod-static-nodes.service", "systemd-modules-load.service", "systemd-sysctl.service",
+	}
+	if got := names(list); !slices.Equal(got, want) {
+		t.Errorf("listed %v\nwant   %v", got, want)
+	}
+	for _, c := range calls() {
+		if !strings.HasPrefix(c, "show ") {
+			continue
+		}
+		for _, alias := range []string{"sshd.service", "procps.service", "kmod.service", "dbus-org.freedesktop.login1.service"} {
+			if slices.Contains(strings.Fields(c), alias) {
+				t.Errorf("show was asked about the alias %s: %s", alias, c)
+			}
+		}
+	}
+}
+
+// A name systemctl prints that reads as a flag goes after "--", where it's a name;
+// one with "=" isn't a unit's, and isn't asked about. A systemctl that fails says
+// so, and lists nothing.
+func TestOddNamesAndAFailingSystemctl(t *testing.T) {
+	root, calls := standOf(t, "systemd", "odd")
+	if got := names(read(t, root)); !slices.Equal(got, []string{"cron.service"}) {
+		t.Errorf("listed %v, want cron.service alone", got)
+	}
+	for _, c := range calls() {
+		if !strings.HasPrefix(c, "show ") {
+			continue
+		}
+		args := strings.Fields(c)
+		dashes, flag := slices.Index(args, "--"), slices.Index(args, "--now.service")
+		if dashes < 0 || flag < dashes {
+			t.Errorf("a name that reads as a flag came before \"--\": %s", c)
+		}
+		if slices.Contains(args, "a=b.service") {
+			t.Errorf("a name with \"=\" was asked about: %s", c)
+		}
+	}
+
+	if err := os.WriteFile(filepath.Join(root, "usr", "bin", "systemctl"), []byte("#!/bin/sh\necho 'Failed to connect to bus: No such file or directory' >&2\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r := &Reader{Tools: &hosttool.Runner{Root: root}, Root: root}
+	if list, err := r.Services(t.Context()); err == nil || !strings.Contains(err.Error(), "can't read the server's system services") || !strings.Contains(err.Error(), "Failed to connect to bus") {
+		t.Errorf("a failing systemctl reads %v, %v", list, err)
 	}
 }
 

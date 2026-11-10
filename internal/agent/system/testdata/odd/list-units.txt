@@ -1,0 +1,3 @@
+--now.service                loaded active running A name that reads as a flag
+a=b.service                  loaded active running A name with an equals sign
+cron.service                 loaded active running Regular background program processing daemon

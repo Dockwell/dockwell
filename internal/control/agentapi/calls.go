@@ -696,6 +696,9 @@ func (s *Session) DiskUse(ctx context.Context) (*dockwellv1.ServerDiskUse, error
 // Processes asks the agent what runs on its server.
 func (s *Session) Processes(ctx context.Context) (*dockwellv1.ProcessList, error) {
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Processes{Processes: &agentv1.ProcessesCall{}}}, ObserveTimeout, nil)
+	if unknownCall(err) {
+		return nil, ErrOlderAgent
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -712,6 +715,9 @@ const SystemServicesTimeout = 40 * time.Second
 // SystemServices asks the agent for the server's system services (ADR 0067).
 func (s *Session) SystemServices(ctx context.Context) (*dockwellv1.SystemServiceList, error) {
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_SystemServices{SystemServices: &agentv1.SystemServicesCall{}}}, SystemServicesTimeout, nil)
+	if unknownCall(err) {
+		return nil, ErrOlderAgent
+	}
 	if err != nil {
 		return nil, err
 	}

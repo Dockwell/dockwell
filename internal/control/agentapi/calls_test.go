@@ -1503,4 +1503,29 @@ func TestAnOlderAgentIsToUpdate(t *testing.T) {
 	if err := <-done; !errors.Is(err, agentapi.ErrAgentOutdated) {
 		t.Errorf("an older agent's answer reads as %v", err)
 	}
+
+	// The same answer to reading processes or system services reads as older too,
+	// not as a failure to try again.
+	for _, read := range []struct {
+		name string
+		call func() error
+		is   func(*agentv1.Call) bool
+	}{
+		{"processes", func() error { _, err := session.Processes(t.Context()); return err }, func(c *agentv1.Call) bool { return c.GetProcesses() != nil }},
+		{"system services", func() error { _, err := session.SystemServices(t.Context()); return err }, func(c *agentv1.Call) bool { return c.GetSystemServices() != nil }},
+	} {
+		go func() { done <- read.call() }()
+		msg, err := nextCall(stream)
+		if err != nil || !read.is(msg.GetCall()) {
+			t.Fatalf("the control plane sent %v, %v, want a read of %s", msg, err, read.name)
+		}
+		if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: &agentv1.CallResult{
+			Id: msg.GetCall().GetId(), Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: "this agent doesn't know that call; update it to the control plane's version"}},
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; !errors.Is(err, agentapi.ErrOlderAgent) {
+			t.Errorf("an older agent's answer to reading %s reads as %v", read.name, err)
+		}
+	}
 }

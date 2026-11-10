@@ -22,6 +22,7 @@ import { sentence } from "../../lib/errors";
 import { formatBytes, formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { useServices } from "../apps/useServices";
+import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
 import { EndProcessSheet } from "./EndProcessSheet";
 import {
   FIRST_WAY,
@@ -83,6 +84,12 @@ function Processes({ server }: { server: Server }) {
     { value: "containers" as const, label: t`Containers`, count: containers.length },
   ];
 
+  const failure = !error ? null : isAgentOutdated(error) ? (
+    <AgentOutdated server={server}>{t`It's older than the control plane, so it can't list processes.`}</AgentOutdated>
+  ) : (
+    <p className="procs-note">{sentence(error)}</p>
+  );
+
   let body: ReactNode;
   if (!connected) {
     body = (
@@ -91,7 +98,7 @@ function Processes({ server }: { server: Server }) {
       </p>
     );
   } else if (!list) {
-    body = error ? <p className="procs-note">{sentence(error)}</p> : <ProcessesSkeleton />;
+    body = failure ?? <ProcessesSkeleton />;
   } else if (view === "processes") {
     const rows = found.slice(0, shown);
     body = (
@@ -183,7 +190,7 @@ function Processes({ server }: { server: Server }) {
             />
           </div>
         </div>
-        {list && error ? <p className="procs-note">{sentence(error)}</p> : null}
+        {list ? failure : null}
         {body}
       </section>
       <div className="procs-side">

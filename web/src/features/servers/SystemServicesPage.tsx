@@ -19,6 +19,7 @@ import { useDeferredValue, useMemo, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
+import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
 import { ServerFrame } from "./ServerFrame";
 import { inView, matchesService, STATE, type SystemView, useSystemServices } from "./systemServices";
 import { useControlPlaneNow } from "./useFleet";
@@ -56,6 +57,21 @@ function SystemServices({ server }: { server: Server }) {
     { value: "running" as const, label: t({ message: "Running", context: "system services" }), count: running },
   ];
 
+  const failure = !error ? null : isAgentOutdated(error) ? (
+    <AgentOutdated
+      server={server}
+    >{t`It's older than the control plane, so it can't list system services.`}</AgentOutdated>
+  ) : (
+    <p className="procs-note">{sentence(error)}</p>
+  );
+  // What shows when no row does: nothing typed in Failed is a server with nothing failed.
+  const none =
+    filter.trim() === "" && view === "failed"
+      ? t`Nothing has failed on ${server.name}.`
+      : filter.trim() === ""
+        ? t`${server.name} lists no system services here.`
+        : t`No system service matches.`;
+
   let body: React.ReactNode;
   if (!connected) {
     body = (
@@ -64,7 +80,7 @@ function SystemServices({ server }: { server: Server }) {
       </p>
     );
   } else if (!list) {
-    body = error ? <p className="procs-note">{sentence(error)}</p> : <p className="procs-note">{t`Reading…`}</p>;
+    body = failure ?? <p className="procs-note">{t`Reading…`}</p>;
   } else if (list.init === SystemInit.OTHER) {
     body = (
       <p className="procs-note" role="status">
@@ -72,9 +88,9 @@ function SystemServices({ server }: { server: Server }) {
       </p>
     );
   } else if (phone) {
-    body = <PhoneRows rows={shown} onOpen={setOpen} />;
+    body = <PhoneRows rows={shown} onOpen={setOpen} none={none} />;
   } else {
-    body = <ServiceTable rows={shown} onOpen={setOpen} caption={t`System services on ${server.name}`} />;
+    body = <ServiceTable rows={shown} onOpen={setOpen} caption={t`System services on ${server.name}`} none={none} />;
   }
 
   return (
@@ -105,7 +121,7 @@ function SystemServices({ server }: { server: Server }) {
           />
         </div>
       </div>
-      {list && error ? <p className="procs-note">{sentence(error)}</p> : null}
+      {list ? failure : null}
       {body}
       {opened ? <ServiceSheet server={server} service={opened} onClose={() => setOpen(undefined)} /> : null}
     </section>
@@ -124,6 +140,32 @@ function useStateLine() {
       return [since, why].filter(Boolean).join(" · ");
     }
     return since;
+  };
+}
+
+/**
+ * Whether a unit starts at boot, in words for the common states, and the init's
+ * own word for the rest, as indirect or generated; the sheet says the word too.
+ */
+function useAtBoot() {
+  const { t } = useLingui();
+  return (word: string): string => {
+    switch (word) {
+      case "enabled":
+      case "enabled-runtime":
+        return t({ message: "Starts", context: "at boot" });
+      case "disabled":
+        return t({ message: "Doesn't start", context: "at boot" });
+      case "static":
+        return t({ message: "When needed", context: "at boot" });
+      case "masked":
+      case "masked-runtime":
+        return t({ message: "Masked", context: "at boot" });
+      case "":
+        return "–";
+      default:
+        return word;
+    }
   };
 }
 
@@ -156,16 +198,19 @@ function ServiceTable({
   rows,
   onOpen,
   caption,
+  none,
 }: {
   rows: readonly SystemServiceInfo[];
   onOpen: (name: string) => void;
   caption: string;
+  none: string;
 }) {
   const { t, i18n } = useLingui();
+  const atBoot = useAtBoot();
   const columns: TableColumn<SystemServiceInfo>[] = [
     { key: "name", header: t`Service`, render: (s) => <Name service={s} /> },
     { key: "state", header: t`State`, width: 220, render: (s) => <State service={s} /> },
-    { key: "atBoot", header: t`At boot`, width: 112, muted: true, render: (s) => s.atBoot || "–" },
+    { key: "atBoot", header: t`At boot`, width: 112, muted: true, render: (s) => atBoot(s.atBoot) },
     {
       key: "memory",
       header: t`Memory`,
@@ -183,14 +228,22 @@ function ServiceTable({
       rowKey="name"
       onRowClick={(s) => onOpen(s.name)}
       caption={caption}
-      empty={<p className="procs-note">{t`No system service matches.`}</p>}
+      empty={<p className="procs-note">{none}</p>}
     />
   );
 }
 
-function PhoneRows({ rows, onOpen }: { rows: readonly SystemServiceInfo[]; onOpen: (name: string) => void }) {
+function PhoneRows({
+  rows,
+  onOpen,
+  none,
+}: {
+  rows: readonly SystemServiceInfo[];
+  onOpen: (name: string) => void;
+  none: string;
+}) {
   const { t } = useLingui();
-  if (rows.length === 0) return <p className="procs-note">{t`No system service matches.`}</p>;
+  if (rows.length === 0) return <p className="procs-note">{none}</p>;
   return (
     <ul className="procs-rows" aria-label={t`System services`}>
       {rows.map((s) => (
@@ -217,6 +270,7 @@ function ServiceSheet({
 }) {
   const { t, i18n } = useLingui();
   const line = useStateLine()(service);
+  const atBoot = useAtBoot();
   const state = STATE[service.state];
   return (
     <Sheet open title={service.name} subtitle={t`On ${server.name}`} onClose={onClose}>
@@ -230,14 +284,22 @@ function ServiceSheet({
           </dd>
           {service.detail ? (
             <>
-              <dt>{t`As its init says`}</dt>
+              <dt>{t`Init state`}</dt>
               <dd>
                 <code>{service.detail}</code>
               </dd>
             </>
           ) : null}
           <dt>{t`At boot`}</dt>
-          <dd>{service.atBoot ? <code>{service.atBoot}</code> : t`Not started at boot`}</dd>
+          <dd>
+            {service.atBoot ? (
+              <>
+                {atBoot(service.atBoot)} <code>{service.atBoot}</code>
+              </>
+            ) : (
+              t`Not started at boot`
+            )}
+          </dd>
           {service.mainPid ? (
             <>
               <dt>{t`Main process`}</dt>

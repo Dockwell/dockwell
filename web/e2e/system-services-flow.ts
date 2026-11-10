@@ -41,10 +41,15 @@ export async function systemServicesFlow(page: Page, { origin, step, shoot }: Sy
     .waitFor();
   await shoot(page, "server-system-services");
 
+  // Each waits for the view it asked for, as the filter applies a moment after typing.
   await page.getByRole("radio", { name: /^Running/ }).click();
-  if ((await table.getByText("nginx.service").count()) !== 0) fail("Running shows a failed unit");
+  await table
+    .getByText("nginx.service")
+    .waitFor({ state: "detached" })
+    .catch(() => fail("Running shows a failed unit"));
   await page.getByRole("radio", { name: /^All/ }).click();
   await page.getByRole("textbox", { name: "Filter system services" }).fill("key-value");
+  await table.getByText("nginx.service").waitFor({ state: "detached" });
   await table.getByText("redis-server.service").waitFor();
   if ((await table.locator("tbody tr").count()) !== 1) fail("the search for key-value found more than the one unit");
   await page.getByRole("textbox", { name: "Filter system services" }).fill("");

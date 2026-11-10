@@ -2,7 +2,7 @@
 
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Code, ConnectError } from "@connectrpc/connect";
+import { Code } from "@connectrpc/connect";
 import {
   Role,
   SystemInit,
@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { authState, mira } from "../../test/auth";
+import { authError, authState, mira } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -99,11 +99,11 @@ describe("SystemServicesPage", () => {
     system.push(listOf(SystemInit.SYSTEMD, services));
     await screen.findByRole("table", { name: "System services on hz-1" });
     expect(rows()[0]).toHaveTextContent(
-      /^nginx\.serviceA high performance web serverFailed25 min ago · exit-code, status 1enabled––$/,
+      /^nginx\.serviceA high performance web serverFailed25 min ago · exit-code, status 1Starts––$/,
     );
     expect(rows()[1]).toHaveTextContent("docker.serviceDockwell needs itDocker Application Container EngineRunning");
     expect(rows()[1]).toHaveTextContent("84 MB1024");
-    expect(rows()[3]).toHaveTextContent("redis-server.serviceAdvanced key-value storeInactivedisabled––");
+    expect(rows()[3]).toHaveTextContent("redis-server.serviceAdvanced key-value storeInactiveDoesn't start––");
     expect(screen.getByText("Live")).toBeVisible();
   });
 
@@ -137,7 +137,7 @@ describe("SystemServicesPage", () => {
     expect(sheet).toHaveTextContent("Docker Application Container Engine");
     expect(sheet).toHaveTextContent("Main process1024");
     expect(sheet).toHaveTextContent("Memory84 MB");
-    expect(sheet).toHaveTextContent("At bootenabled");
+    expect(sheet).toHaveTextContent("At bootStarts enabled");
     expect(sheet).toHaveTextContent("DockwellNeeds it on hz-1");
     await expectAccessible(sheet);
   });
@@ -153,25 +153,42 @@ describe("SystemServicesPage", () => {
     expect(screen.queryByRole("table")).toBeNull();
   });
 
-  it("says why an older agent can't list them, and stops asking", async () => {
+  it("says an older agent is outdated, with the way to update it, and stops asking", async () => {
     let asked = 0;
     await renderServices({
       servers: {
         // biome-ignore lint/correctness/useYield: it fails before it would send
         watchSystemServices: async function* () {
           asked++;
-          throw new ConnectError(
-            "hz-1's agent is older than the control plane, and can't list its system services. Update the agent on hz-1, then look again",
+          // What the control plane sends for an agent that doesn't know the call.
+          throw authError(
             Code.FailedPrecondition,
-            undefined,
-            undefined,
-            undefined,
+            "agent_outdated",
+            "hz-1's agent is older than the control plane, and can't list system services. Update its agent, then look again",
           );
         },
       },
     });
-    expect(await screen.findByText(/can't list its system services/)).toBeVisible();
-    expect(asked).toBeGreaterThan(0);
+    expect(await screen.findByText("hz-1's agent is outdated")).toBeVisible();
+    expect(screen.getByText("It's older than the control plane, so it can't list system services.")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Update its agent" })).toHaveAttribute("href", "/servers/srv_1/updates");
+    await new Promise((resolve) => setTimeout(resolve, 1_200));
+    expect(asked).toBe(1);
+  });
+
+  it("says nothing has failed when nothing has, and what nothing matches", async () => {
+    const user = userEvent.setup();
+    const { system } = await renderServices();
+    system.push(
+      listOf(
+        SystemInit.SYSTEMD,
+        services.filter((s) => s.state !== SystemServiceState.FAILED),
+      ),
+    );
+    await screen.findByRole("table", { name: "System services on hz-1" });
+    await user.click(within(screen.getByRole("radiogroup", { name: "Show" })).getByRole("radio", { name: /Failed/ }));
+    expect(await screen.findByText("Nothing has failed on hz-1.")).toBeVisible();
+    expect(screen.queryByText("No system service matches.")).toBeNull();
   });
 
   it("lists them as rows on a phone, each opening its facts", async () => {
