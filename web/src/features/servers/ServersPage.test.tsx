@@ -196,6 +196,23 @@ describe("Servers", () => {
     expect(within(inspector).queryByText("CPU")).toBeNull();
   });
 
+  it("draws no map for one server, wide or on a phone: its row says it all", async () => {
+    const wide = renderServers([web1]);
+    expect(await rowOf(/^web-1/)).toHaveTextContent("Healthy");
+    expect(screen.queryByRole("region", { name: "Servers at a glance" })).toBeNull();
+    wide.unmount();
+
+    onPhone();
+    renderServers([web1]);
+    expect(await screen.findByRole("button", { name: /web-1/ })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Servers at a glance" })).toBeNull();
+  });
+
+  it("draws the map from two servers on", async () => {
+    renderServers([web1, web2()]);
+    expect(await screen.findByRole("region", { name: "Servers at a glance" })).toBeVisible();
+  });
+
   it("says why a server isn't well in its row, and which is the control server", async () => {
     renderServers([
       aServer({ ...web1, dockerUnreadableSince: timestampFromDate(new Date()) }),
