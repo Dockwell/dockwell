@@ -1,9 +1,5 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-.alerts-tabs {
-  margin-bottom: var(--space-6);
-}
-
 /* The channels and what was sent on the left, routing beside them, as the mock lays them out. */
 .alerts-columns {
   display: flex;
@@ -200,15 +196,39 @@
   cursor: pointer;
 }
 
-.alerts-phone-delivery {
+.alerts-phone-delivery,
+.alerts-phone-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
+  min-width: 0;
   padding: var(--space-3);
 }
 
-.alerts-phone-delivery + .alerts-phone-delivery {
+.alerts-phone-delivery + .alerts-phone-delivery,
+.alerts-phone-item + .alerts-phone-item {
   border-top: 1px solid var(--line);
+}
+
+/* An alert or a rule on a phone: what it says, then its state beside what names it. */
+.alerts-phone-title {
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.alerts-phone-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  margin-top: var(--space-1);
+}
+
+.alerts-phone-meta code {
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .alerts-delivery-about {
