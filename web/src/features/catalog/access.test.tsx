@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
-import { EntrySchema, InputType, type ProposeChangeRequest, type WatchServersResponse } from "@dockwell/api";
+import { EntrySchema, InputType, type ProposeChangeRequest, Role, type WatchServersResponse } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, ENV, places, SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -52,9 +53,7 @@ function api(entry = gitea, more: Api = {}): Api {
   return {
     servers: { watchServers: watch.stream },
     resources: places(),
-    auth: {
-      getAuthState: () => ({ claimed: true, user: { id: "usr_1", name: "Mira Chen", email: "mira@example.com" } }),
-    },
+    auth: { getAuthState: () => authState({ user: { ...mira, email: "mira@example.com" } }) },
     catalog: {
       listCatalogEntries: () => ({ entries: [entry] }),
       getCatalogEntry: () => ({ entry, project: entry.id, values: {}, parts: [] }),
@@ -196,5 +195,20 @@ describe("What an installed app says of itself", () => {
     await user.click(within(panel).getByRole("button", { name: "Copy the SSH tunnel command" }));
     expect(writeText).toHaveBeenCalledWith("ssh -N -L 3000:127.0.0.1:3000 203.0.113.7");
     expect(within(panel).getByText("Its first account is its owner: make yours before it has a domain")).toBeVisible();
+  });
+
+  it("leaves Close sign-ups and the sign-in's Reveal in place for a viewer, off, with why", async () => {
+    renderAt(
+      "/apps/svc_gitea",
+      api(gitea, {
+        auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
+        services: { listServices: () => ({ services: [anApp("gitea", "gitea/gitea:1.25")] }) },
+        domains: { listDomains: () => ({ domains: [] }) },
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    const close = await within(panel).findByRole("button", { name: "Close sign-ups" });
+    await waitFor(() => expect(close).toHaveAttribute("aria-disabled", "true"));
+    expect(close).toHaveAccessibleDescription(/developer or more/);
   });
 });

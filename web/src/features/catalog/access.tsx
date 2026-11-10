@@ -3,6 +3,7 @@
 import { useQuery } from "@connectrpc/connect-query";
 import {
   type CatalogInstall,
+  ChangeService,
   DomainService,
   type Entry,
   type Input,
@@ -18,6 +19,7 @@ import { sentence } from "../../lib/errors";
 import { appOf, environmentOf, nameOf, valuesOf } from "../apps/app";
 import { type EnvEdit, envEdits } from "../apps/envEdit";
 import { useServices } from "../apps/useServices";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { useReveals } from "../variables/useReveal";
@@ -107,6 +109,7 @@ export function SignInCard({ entry, install }: { entry: Entry; install: CatalogI
   const secretId = variables.data?.variables.find((v) => v.secret && v.name === secretName)?.id ?? "";
   const reveals = useReveals();
   const shown = secretId ? reveals.get(secretId) : {};
+  const mayReveal = useMay()(VariableService.method.revealSecret, { environment });
   if (!signIn) return null;
   const userInput = inputNamed(entry, signIn.userInput);
   const user = signIn.user || install.pin?.values[signIn.userInput] || userInput?.defaultValue || "";
@@ -131,6 +134,7 @@ export function SignInCard({ entry, install }: { entry: Entry; install: CatalogI
               problem: shown.problem ?? (variables.error ? sentence(variables.error) : undefined),
               hint:
                 password.setOnce && where ? t`Set as it first started: change it in ${app}, in ${where}` : undefined,
+              revealOff: mayReveal.off.off,
               onReveal: () => {
                 if (secretId) reveals.reveal(secretId);
               },
@@ -157,6 +161,7 @@ export function useInstallFacts(
   const { t } = useLingui();
   const sheet = useChangeSheet();
   const services = useServices().data ?? [];
+  const mayPropose = useMay()(ChangeService.method.proposeChange, { environment: install?.environmentId ?? "" });
   const { servers } = useFleetView();
   const domains =
     useQuery(
@@ -202,6 +207,7 @@ export function useInstallFacts(
         <Button
           size="sm"
           variant="ghost"
+          {...mayPropose.off}
           onClick={() =>
             sheet.open({
               kind: "propose",
@@ -239,6 +245,7 @@ export function useInstallFacts(
           <Button
             size="sm"
             variant="ghost"
+            {...mayPropose.off}
             onClick={() => sheet.open({ kind: "propose", summary: t`Point ${app} at ${domain}`, edits })}
           >
             <Trans>Set to {domain}</Trans>
