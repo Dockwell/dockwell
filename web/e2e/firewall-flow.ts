@@ -30,15 +30,55 @@ const ufwStatus = [
   "",
 ].join("\n");
 
+/** sshd -T on an Ubuntu 24.04 cloud image whose cloud-init turned passwords off, cut to what the agent reads. */
+const sshdT = [
+  "port 22",
+  "permitrootlogin without-password",
+  "pubkeyauthentication yes",
+  "passwordauthentication no",
+  "kbdinteractiveauthentication no",
+  "authorizedkeyscommand none",
+  "gssapiauthentication no",
+  "",
+].join("\n");
+
+/** fail2ban-client 1.0.2 with an sshd jail that reads the journal and bans two addresses. */
+const fail2banClient = `case "$*" in
+version) echo 1.0.2 ;;
+ping) echo 'Server replied: pong' ;;
+status) printf 'Status\\n|- Number of jail:\\t1\\n\`- Jail list:\\tsshd\\n' ;;
+"status sshd") printf 'Status for the jail: sshd\\n|- Filter\\n|  |- Currently failed:\\t1\\n|  |- Total failed:\\t27\\n|  \`- Journal matches:\\t_SYSTEMD_UNIT=sshd.service + _COMM=sshd\\n\`- Actions\\n   |- Currently banned:\\t2\\n   |- Total banned:\\t5\\n   \`- Banned IP list:\\t198.51.100.77 192.0.2.211\\n' ;;
+"get sshd maxretry") echo 5 ;;
+"get sshd findtime") echo 600 ;;
+"get sshd bantime") echo 3600 ;;
+"get sshd banip --with-time") printf '198.51.100.77 \\t2026-11-08 03:10:00 + 3600 = 2026-11-08 04:10:00\\n192.0.2.211 \\t2026-11-08 02:40:00 + 3600 = 2026-11-08 03:40:00\\n' ;;
+*) echo "Invalid command ($*)" >&2; exit 255 ;;
+esac
+`;
+
 /**
  * Writes stand-ins for the server's own tools into dir, laid out as the paths
- * they stand in for, for DOCKWELL_TEST_TOOLS, and returns dir.
+ * they stand in for, for DOCKWELL_TEST_TOOLS, and returns dir: ufw and nft;
+ * sshd, with the files it reads under etc/ssh; and fail2ban-client.
  */
 export function hostTools(dir: string): string {
   const sbin = join(dir, "usr", "sbin");
-  mkdirSync(sbin, { recursive: true });
+  const bin = join(dir, "usr", "bin");
+  const ssh = join(dir, "etc", "ssh");
+  for (const d of [sbin, bin, join(ssh, "sshd_config.d")]) mkdirSync(d, { recursive: true });
   writeFileSync(join(sbin, "ufw"), `#!/bin/sh\ncat <<'EOF'\n${ufwStatus}EOF\n`, { mode: 0o755 });
   writeFileSync(join(sbin, "nft"), `#!/bin/sh\necho '{"nftables": []}'\n`, { mode: 0o755 });
+  writeFileSync(
+    join(sbin, "sshd"),
+    `#!/bin/sh\ncase "$1" in\n-T) cat <<'EOF'\n${sshdT}EOF\n;;\n-V) echo 'OpenSSH_9.6p1 Ubuntu-3ubuntu13.5, OpenSSL 3.0.13 30 Jan 2024' >&2 ;;\nesac\n`,
+    { mode: 0o755 },
+  );
+  writeFileSync(
+    join(ssh, "sshd_config"),
+    "Include /etc/ssh/sshd_config.d/*.conf\nKbdInteractiveAuthentication no\nUsePAM yes\n",
+  );
+  writeFileSync(join(ssh, "sshd_config.d", "50-cloud-init.conf"), "PasswordAuthentication no\n");
+  writeFileSync(join(bin, "fail2ban-client"), `#!/bin/sh\n${fail2banClient}`, { mode: 0o755 });
   return dir;
 }
 
@@ -80,6 +120,35 @@ export async function firewallFlow(page: Page, { origin, step, shoot }: Firewall
     fail(`the Firewall tab says something went wrong: ${await page.getByRole("alert").first().innerText()}`);
   }
   await shoot(page, "server-firewall");
+
+  step("SSH and fail2ban say how people sign in and whom fail2ban bans, as each runs, read-only");
+  const ssh = page.getByRole("region", { name: "SSH" });
+  await ssh.getByText("Password login").waitFor({ timeout: 15_000 });
+  const sshText = await ssh.innerText();
+  // The card says whose word its values are, and never that the sshd that listens has read them.
+  for (const want of [
+    "Off",
+    "50-cloud-init.conf, line 1",
+    "Keys only",
+    "sshd's default",
+    "OpenSSH_9.6p1",
+    "These are what sshd's files say; sshd uses what it read",
+  ]) {
+    if (!sshText.includes(want)) fail(`the SSH card doesn't say ${want}: ${sshText}`);
+  }
+  const f2b = page.getByRole("region", { name: "Fail2ban" });
+  await f2b.getByText("198.51.100.77").waitFor({ timeout: 15_000 });
+  const f2bText = await f2b.innerText();
+  for (const want of ["Running", "sshd", "5 failed sign-ins in 10 min · bans for 1 hour", "192.0.2.211"]) {
+    if (!f2bText.includes(want)) fail(`the fail2ban card doesn't say ${want}: ${f2bText}`);
+  }
+  await shoot(page, "server-firewall-access");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await f2b.scrollIntoViewIfNeeded();
+  const wide = await page.evaluate(() => document.documentElement.scrollWidth);
+  if (wide > 390) fail(`the Firewall tab is ${wide} px wide on a 390 px phone`);
+  await shoot(page, "server-firewall-access-phone");
+  await page.setViewportSize({ width: 1440, height: 900 });
 
   step(
     "a rule of Dockwell's own applies with a passkey, waits for you to say you can still reach the server, and stays",

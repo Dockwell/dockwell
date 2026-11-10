@@ -35,32 +35,75 @@ func New(hub *fleet.Hub, agents *agentapi.Agents) *Handler {
 
 // GetServerFirewall asks a server's agent what filters its inbound traffic.
 func (h *Handler) GetServerFirewall(ctx context.Context, req *connect.Request[dockwellv1.GetServerFirewallRequest]) (*connect.Response[dockwellv1.GetServerFirewallResponse], error) {
-	srv, err := h.fleet.Get(req.Msg.GetServerId())
-	if errors.Is(err, fleet.ErrNotFound) {
-		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no server %s. List them with ListServers", req.Msg.GetServerId()), "not_found")
-	}
+	srv, session, err := h.session(ctx, req.Msg.GetServerId(), "what filters its traffic")
 	if err != nil {
 		return nil, err
+	}
+	read, err := session.Firewall(ctx)
+	if err != nil {
+		return nil, readError(srv, "the firewall", "what filters its traffic", err)
+	}
+	return connect.NewResponse(&dockwellv1.GetServerFirewallResponse{Firewall: read}), nil
+}
+
+// GetServerSsh asks a server's agent how SSH lets people in.
+//
+//nolint:revive // the generated FirewallServiceHandler names it
+func (h *Handler) GetServerSsh(ctx context.Context, req *connect.Request[dockwellv1.GetServerSshRequest]) (*connect.Response[dockwellv1.GetServerSshResponse], error) {
+	srv, session, err := h.session(ctx, req.Msg.GetServerId(), "how SSH lets people in")
+	if err != nil {
+		return nil, err
+	}
+	read, err := session.SSH(ctx)
+	if err != nil {
+		return nil, readError(srv, "SSH", "how SSH lets people in", err)
+	}
+	return connect.NewResponse(&dockwellv1.GetServerSshResponse{Ssh: read}), nil
+}
+
+// GetServerFail2Ban asks a server's agent what fail2ban does.
+func (h *Handler) GetServerFail2Ban(ctx context.Context, req *connect.Request[dockwellv1.GetServerFail2BanRequest]) (*connect.Response[dockwellv1.GetServerFail2BanResponse], error) {
+	srv, session, err := h.session(ctx, req.Msg.GetServerId(), "what fail2ban does")
+	if err != nil {
+		return nil, err
+	}
+	read, err := session.Fail2ban(ctx)
+	if err != nil {
+		return nil, readError(srv, "fail2ban", "what fail2ban does", err)
+	}
+	return connect.NewResponse(&dockwellv1.GetServerFail2BanResponse{Fail2Ban: read}), nil
+}
+
+// session is a server and its agent's session, which a read goes through, or
+// why there's none: what says what the read would have said.
+func (h *Handler) session(ctx context.Context, serverID, what string) (*dockwellv1.Server, *agentapi.Session, error) {
+	srv, err := h.fleet.Get(serverID)
+	if errors.Is(err, fleet.ErrNotFound) {
+		return nil, nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no server %s. List them with ListServers", serverID), "not_found")
+	}
+	if err != nil {
+		return nil, nil, err
 	}
 	var session *agentapi.Session
 	if h.agents != nil && srv.GetConnection() == dockwellv1.Connection_CONNECTION_CONNECTED {
 		session, _ = h.agents.SessionPastMove(ctx, srv.GetId(), agentapi.MoveGrace)
 	}
 	if session == nil {
-		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf(
-			"the agent on %s isn't connected, so nothing can say what filters its traffic now. Check the server; this works again when its agent reconnects", srv.GetName()), authapi.ReasonUnavailable)
+		return nil, nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf(
+			"the agent on %s isn't connected, so nothing can say %s now. Check the server; this works again when its agent reconnects", srv.GetName(), what), authapi.ReasonUnavailable)
 	}
-	read, err := session.Firewall(ctx)
+	return srv, session, nil
+}
+
+// readError is what a read through an agent that failed answers.
+func readError(srv *dockwellv1.Server, thing, what string, err error) error {
 	if errors.Is(err, agentapi.ErrAgentOutdated) {
-		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
-			"the agent on %s is older than the control plane, so it can't read the firewall. Update it by running the install script on %s again", srv.GetName(), srv.GetName()), authapi.ReasonAgentOutdated)
+		return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
+			"the agent on %s is older than the control plane, so it can't read %s. Update it by running the install script on %s again", srv.GetName(), thing, srv.GetName()), authapi.ReasonAgentOutdated)
 	}
-	if err != nil {
-		var se *resource.ServerError
-		if errors.As(err, &se) {
-			err = se.Err
-		}
-		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't say what filters its traffic now: %w", srv.GetName(), err), authapi.ReasonUnavailable)
+	var se *resource.ServerError
+	if errors.As(err, &se) {
+		err = se.Err
 	}
-	return connect.NewResponse(&dockwellv1.GetServerFirewallResponse{Firewall: read}), nil
+	return authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't say %s now: %w", srv.GetName(), what, err), authapi.ReasonUnavailable)
 }

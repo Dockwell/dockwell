@@ -8867,6 +8867,146 @@ msgstr "{name} didn't stop within 10 s, so it was killed."
 msgid "{name} stopped."
 msgstr "{name} stopped."
 
+msgid "<0>Match {criteria}</0> · {file}, line {line}"
+msgstr "<0>Match {criteria}</0> · {file}, line {line}"
+
+msgid "<0>Match {criteria}</0> · {file}, line {line} · sets {sets}"
+msgstr "<0>Match {criteria}</0> · {file}, line {line} · sets {sets}"
+
+msgid "Banned now"
+msgstr "Banned now"
+
+msgid "Can't tell"
+msgstr "Can't tell"
+
+msgid "Copy {command}"
+msgstr "Copy {command}"
+
+msgid "Fail2ban"
+msgstr "Fail2ban"
+
+msgid "Forced commands only"
+msgstr "Forced commands only"
+
+msgid "Jails"
+msgstr "Jails"
+
+msgid "Keys only"
+msgstr "Keys only"
+
+msgid "No"
+msgstr "No"
+
+msgid "Not installed"
+msgstr "Not installed"
+
+msgid "Nowhere"
+msgstr "Nowhere"
+
+msgid "Password login"
+msgstr "Password login"
+
+msgid "Reading fail2ban on {name}"
+msgstr "Reading fail2ban on {name}"
+
+msgid "Reading how SSH lets people in on {name}"
+msgstr "Reading how SSH lets people in on {name}"
+
+msgid "Recent bans"
+msgstr "Recent bans"
+
+msgid "Root login"
+msgstr "Root login"
+
+msgid "SSH"
+msgstr "SSH"
+
+msgid "The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name} again to update it."
+msgstr "The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name} again to update it."
+
+msgid "The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on {name} again to update it."
+msgstr "The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on {name} again to update it."
+
+msgid "The sshd that listens may not use these files"
+msgstr "The sshd that listens may not use these files"
+
+msgid "These are what sshd's files say; sshd uses what it read when it last started or reloaded."
+msgstr "These are what sshd's files say; sshd uses what it read when it last started or reloaded."
+
+msgid "Until it reloads, it may still accept what this says is off."
+msgstr "Until it reloads, it may still accept what this says is off."
+
+msgid "Yes"
+msgstr "Yes"
+
+msgid "fail2ban isn't installed on {name}, so nothing bans an address that keeps failing to sign in."
+msgstr "fail2ban isn't installed on {name}, so nothing bans an address that keeps failing to sign in."
+
+msgid "fail2ban isn't running on {name}, so it bans nobody: {why}"
+msgstr "fail2ban isn't running on {name}, so it bans nobody: {why}"
+
+msgid "fail2ban runs with no jails, so it bans nobody."
+msgstr "fail2ban runs with no jails, so it bans nobody."
+
+msgid "on {iface}"
+msgstr "on {iface}"
+
+msgid "sshd hasn't read {files} since it changed"
+msgstr "sshd hasn't read {files} since it changed"
+
+msgid "sshd lets in only who these allow: {lists}."
+msgstr "sshd lets in only who these allow: {lists}."
+
+msgid "sshd's default"
+msgstr "sshd's default"
+
+msgid "sshd_config includes no drop-in folder, so Dockwell won't change SSH here."
+msgstr "sshd_config includes no drop-in folder, so Dockwell won't change SSH here."
+
+msgid "systemd holds SSH's port, through {unit}."
+msgstr "systemd holds SSH's port, through {unit}."
+
+#. placeholder {0}: ssh.ports.length
+msgid "{0, plural, one {Port} other {Ports}}"
+msgstr "{0, plural, one {Port} other {Ports}}"
+
+msgid "{bannedNow, plural, one {address} other {addresses}}"
+msgstr "{bannedNow, plural, one {address} other {addresses}}"
+
+msgid "{bannedTotal, plural, one {# ban since fail2ban started} other {# bans since fail2ban started}}"
+msgstr "{bannedTotal, plural, one {# ban since fail2ban started} other {# bans since fail2ban started}}"
+
+msgid "{count, plural, one {Defaults for every connection: # Match block can set them otherwise} other {Defaults for every connection: # Match blocks can set them otherwise}}"
+msgstr "{count, plural, one {Defaults for every connection: # Match block can set them otherwise} other {Defaults for every connection: # Match blocks can set them otherwise}}"
+
+msgid "{failures} · bans for good"
+msgstr "{failures} · bans for good"
+
+msgid "{failures} · bans for {span}"
+msgstr "{failures} · bans for {span}"
+
+msgid "{file}, line {line}"
+msgstr "{file}, line {line}"
+
+msgid "{file}, line {line} · not in effect until sshd reloads"
+msgstr "{file}, line {line} · not in effect until sshd reloads"
+
+#. placeholder {0}: time.ago(timestampDate(ban.since), now)
+msgid "{jail} · {0}"
+msgstr "{jail} · {0}"
+
+msgid "{more, plural, one {and # more} other {and # more}}"
+msgstr "{more, plural, one {and # more} other {and # more}}"
+
+msgid "{tries, plural, one {# failed sign-in in {within}} other {# failed sign-ins in {within}}}"
+msgstr "{tries, plural, one {# failed sign-in in {within}} other {# failed sign-ins in {within}}}"
+
+msgid "{tries, plural, one {# failed sign-in} other {# failed sign-ins}}"
+msgstr "{tries, plural, one {# failed sign-in} other {# failed sign-ins}}"
+
+msgid "{ways} also let people in, which Dockwell can't check."
+msgstr "{ways} also let people in, which Dockwell can't check."
+
 msgid "Action"
 msgstr "Action"
 
@@ -8884,9 +9024,6 @@ msgstr "Any {proto} port"
 
 msgid "Anywhere, IPv6"
 msgstr "Anywhere, IPv6"
-
-msgid "Can't tell"
-msgstr "Can't tell"
 
 msgid "Can't tell: Docker isn't answering, and this may be a port it publishes, which {by} doesn't cover"
 msgstr "Can't tell: Docker isn't answering, and this may be a port it publishes, which {by} doesn't cover"
@@ -9076,9 +9213,6 @@ msgstr "nftables"
 #. placeholder {0}: tool.name
 msgid "nftables table {0}"
 msgstr "nftables table {0}"
-
-msgid "on {iface}"
-msgstr "on {iface}"
 
 msgid "ufw"
 msgstr "ufw"
@@ -9791,9 +9925,6 @@ msgstr "Looked up, {when}. That's its way out, and may not be a way in"
 msgid "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 msgstr "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 
-msgid "No"
-msgstr "No"
-
 msgid "Not checked"
 msgstr "Not checked"
 
@@ -9841,9 +9972,6 @@ msgstr "The certificate authority couldn't connect for {domain} on port 80 or 44
 
 msgid "The cloud's metadata says so, {when}"
 msgstr "The cloud's metadata says so, {when}"
-
-msgid "Yes"
-msgstr "Yes"
 
 msgid "{provider}'s metadata says so, {when}"
 msgstr "{provider}'s metadata says so, {when}"
@@ -12077,9 +12205,6 @@ msgstr "{extra, plural, one {and # more} other {and # more}}"
 
 msgid "{inUse, plural, one {# in use · each PHP website runs its own} other {# in use · each PHP website runs its own}}"
 msgstr "{inUse, plural, one {# in use · each PHP website runs its own} other {# in use · each PHP website runs its own}}"
-
-msgid "{more, plural, one {and # more} other {and # more}}"
-msgstr "{more, plural, one {and # more} other {and # more}}"
 
 msgid "Can't reach {host}"
 msgstr "Can't reach {host}"

@@ -1433,6 +1433,36 @@ func (s *Session) RunTask(ctx context.Context, ref resource.Ref) (*dockwellv1.Ta
 	return r.GetRunTask().GetRun(), nil
 }
 
+// SSH asks the server's agent how SSH lets people in.
+func (s *Session) SSH(ctx context.Context) (*dockwellv1.ServerSsh, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Ssh{Ssh: &agentv1.SshCall{}}}, ObserveTimeout, nil)
+	if unknownCall(err) {
+		return nil, ErrAgentOutdated
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.GetSsh() == nil {
+		return nil, ErrAgentOutdated
+	}
+	return r.GetSsh(), nil
+}
+
+// Fail2ban asks the server's agent what fail2ban does.
+func (s *Session) Fail2ban(ctx context.Context) (*dockwellv1.ServerFail2Ban, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Fail2Ban{Fail2Ban: &agentv1.Fail2BanCall{}}}, ObserveTimeout, nil)
+	if unknownCall(err) {
+		return nil, ErrAgentOutdated
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.GetFail2Ban() == nil {
+		return nil, ErrAgentOutdated
+	}
+	return r.GetFail2Ban(), nil
+}
+
 // accessWait reads what a step waits for, if anything, with its deadline by
 // the control plane's clock where the agent said how long was left.
 func accessWait(w *agentv1.AccessWait) *resource.AccessWait {

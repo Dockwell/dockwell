@@ -662,6 +662,18 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_EndProcess{EndProcess: &agentv1.EndProcessResult{Killed: killed, Process: was}}}
+	case call.GetSsh() != nil:
+		read, err := c.cfg.ssh.read(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Ssh{Ssh: read}}
+	case call.GetFail2Ban() != nil:
+		read, err := c.cfg.fail2ban.read(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Fail2Ban{Fail2Ban: read}}
 	case call.GetAdoption() != nil:
 		found, err := c.adoption(ctx, call.GetAdoption())
 		if err != nil {

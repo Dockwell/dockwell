@@ -127,6 +127,9 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "FileService.uploadFile": { within: "FileService.listFiles" },
 
   "FirewallService.getServerFirewall": "may",
+  // The SSH and fail2ban cards are on the Firewall tab, offered where its read is.
+  "FirewallService.getServerFail2ban": { within: "FirewallService.getServerFirewall" },
+  "FirewallService.getServerSsh": { within: "FirewallService.getServerFirewall" },
 
   "HealthService.listHealth": "read",
 

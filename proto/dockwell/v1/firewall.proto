@@ -7,11 +7,25 @@ package dockwell.v1;
 import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 // FirewallService says what filters a server's inbound traffic. Reading it
 // changes nothing. See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
 service FirewallService {
+  option (dockwell.v1.nouns) = {
+    name: "firewall"
+    help: "What filters a server's inbound traffic: the firewalls already there, ufw, firewalld and nftables, each read with its own tool, how far what listens reaches past them, and the ports Docker publishes, which reach their containers past them. Dockwell's own rules are firewall.rule resources, which a change edits."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "ssh"
+    help: "How SSH lets people in on a server: password and root login, its ports, as sshd's files say, the file that sets each, and whether the sshd that listens has read them. Reading it changes nothing."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "fail2ban"
+    help: "What fail2ban does on a server: whether it runs, its jails as it runs them, and the addresses each has banned now. Reading it changes nothing."
+  };
+
   // GetServerFirewall reads, through the server's agent, the firewalls already
   // there, each with its own tool: ufw, firewalld's zones, nftables's tables
   // other than ufw's, Docker's and firewalld's, and iptables-legacy, or
@@ -32,6 +46,44 @@ service FirewallService {
       verb: "get"
     };
     option (google.api.http) = {get: "/v1/servers/{server_id}/firewall"};
+  }
+
+  // GetServerSsh reads, through the server's agent, how SSH lets people in: the
+  // values sshd's files say, with sshd -T, which file sets each, the
+  // Match blocks that may set them otherwise for some, and whether sshd_config
+  // includes the drop-in folder Dockwell would write to. Reading it changes
+  // nothing. How SSH lets people in is the whole server's, so reading it is an
+  // admin's (ADR 0049), as reading its firewall is.
+  rpc GetServerSsh(GetServerSshRequest) returns (GetServerSshResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "ssh"
+      verb: "get"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/ssh"};
+  }
+
+  // GetServerFail2ban reads, through the server's agent, what fail2ban does:
+  // whether it's installed and running, each jail as fail2ban says it runs,
+  // and the addresses each has banned now, through fail2ban-client. Reading it
+  // changes nothing. fail2ban is the whole server's, and its bans name the
+  // addresses of people who tried to sign in, so reading it is an admin's (ADR
+  // 0049).
+  rpc GetServerFail2ban(GetServerFail2banRequest) returns (GetServerFail2banResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "fail2ban"
+      verb: "get"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/fail2ban"};
   }
 }
 
@@ -278,4 +330,249 @@ message PublishedPort {
   // IPv6 to a container on networks without IPv6. That traffic arrives on the
   // input chain, so the server's input rules cover it, as for what listens.
   bool proxied = 6;
+}
+
+// GetServerSshRequest names a server.
+message GetServerSshRequest {
+  // The server's ID.
+  string server_id = 1;
+}
+
+// GetServerSshResponse is how SSH lets people in on a server.
+message GetServerSshResponse {
+  // SSH, as the agent read it.
+  ServerSsh ssh = 1;
+}
+
+// ServerSsh is how SSH lets people in on a server, as its agent read it: the
+// values sshd's files say, read with sshd -T, which may not be what any one file writes,
+// as sshd keeps the first value it reads of each.
+message ServerSsh {
+  // When the agent read it.
+  google.protobuf.Timestamp time = 1;
+  // Why the agent couldn't read sshd's values, such as that the server has no
+  // sshd, or what sshd -T said. Empty when it could; the rest is unset then.
+  // Every value here is what sshd's files say now, read with sshd -T. The
+  // sshd that listens keeps what it read as it started or last reloaded:
+  // loaded says whether that is the same.
+  string unreadable = 2;
+  // The SSH server and its version, as it says them, such as "OpenSSH_9.6p1".
+  string version = 3;
+  // Whether a password signs in, as sshd's files say: PasswordAuthentication
+  // is on, or KbdInteractiveAuthentication with UsePAM, through which PAM asks
+  // for one. Unspecified when sshd -T didn't say, which is "can't tell", never
+  // "no".
+  SshAnswer password_login = 4;
+  // Whether root may sign in, and how.
+  SshRootLogin root_login = 5;
+  // The ports sshd's files name. Empty when sshd -T named none, which is
+  // "can't tell".
+  repeated uint32 ports = 6;
+  // Whether a key signs in (PubkeyAuthentication). Unspecified when sshd -T
+  // didn't say.
+  SshAnswer key_login = 7;
+  // Where each of PasswordAuthentication, KbdInteractiveAuthentication,
+  // PermitRootLogin and Port is set: the line sshd reads first of each, outside
+  // a Match block, or every Port line, as each adds a port. One that no file
+  // sets is sshd's default, and isn't here.
+  repeated SshSource set_in = 8;
+  // Every Match block that isn't "Match all", whatever it sets: sshd -T doesn't
+  // apply them, so the values above are the defaults for every connection, and
+  // a block may set them otherwise for those it matches.
+  repeated SshMatch matches = 9;
+  // The drop-in folder sshd_config includes before its own lines, such as
+  // "/etc/ssh/sshd_config.d", where Dockwell would write its own file. Empty
+  // when it includes none, so Dockwell can't change SSH there: it never edits
+  // sshd_config.
+  string drop_in_folder = 10;
+  // True when Dockwell's own drop-in, 00-dockwell.conf, is there.
+  bool dockwell_drop_in = 11;
+  // The systemd socket unit that holds SSH's port, such as "ssh.socket", when
+  // one does, as on Ubuntu 22.10 and later. Empty when sshd holds it itself.
+  string socket_unit = 12;
+  // AllowUsers, AllowGroups, DenyUsers and DenyGroups, as sshd -T says them,
+  // such as "allowusers deploy admin": who may sign in at all.
+  repeated string access_lists = 13;
+  // Ways in Dockwell can't check, set here: AuthorizedKeysCommand,
+  // TrustedUserCAKeys, AuthorizedPrincipalsFile, GSSAPIAuthentication and
+  // HostbasedAuthentication.
+  repeated string unchecked = 14;
+  // What Dockwell can say against the values, if anything: it never says the
+  // sshd that listens has read the files as they are.
+  SshLoaded loaded = 15;
+  // With loaded apart, how the sshd that listens differs, in a sentence for a
+  // person. With loaded unspecified, what Dockwell couldn't read, for the
+  // record: the panel doesn't show it, as it's no warning.
+  string loaded_why = 16;
+  // With loaded stale: the files, links and folders that changed after sshd
+  // last wrote its PID file.
+  repeated string changed_files = 17;
+  // With loaded stale: when the sshd that listens last wrote its PID file.
+  google.protobuf.Timestamp loaded_time = 18;
+  // With loaded stale: the command that reloads the sshd that listens, as
+  // the agent can tell how it runs: "systemctl reload ssh.service" under
+  // systemd, "rc-service sshd reload" under OpenRC, or "kill -HUP 812".
+  string reload_command = 19;
+}
+
+// SshAnswer is yes or no, or neither when Dockwell can't tell.
+enum SshAnswer {
+  // Dockwell can't tell: what would say wasn't there to read.
+  SSH_ANSWER_UNSPECIFIED = 0;
+  SSH_ANSWER_YES = 1;
+  SSH_ANSWER_NO = 2;
+}
+
+// SshLoaded is what Dockwell can say against the values: never that the sshd
+// that listens runs with them. sshd reads its files as it starts and as it
+// reloads, and never between, and nothing Dockwell reads of files and times
+// can prove it has read them as they are, so the evidence is only ever used
+// to warn (ADR 0052). A "confirmed" state may come back only with an answer
+// from the daemon itself (#423).
+enum SshLoaded {
+  // 1 said the listening sshd had read its files, and 3 that they're read as
+  // each sshd starts: neither can be shown from files and times.
+  reserved 1, 3;
+  reserved "SSH_LOADED_CURRENT", "SSH_LOADED_AT_EACH_START";
+
+  // Nothing to warn of, which isn't a confirmation: the values are what the
+  // files say, and the sshd that listens uses what it read as it last started
+  // or reloaded. loaded_why may say what Dockwell couldn't read.
+  SSH_LOADED_UNSPECIFIED = 0;
+  // A file changed after the sshd that listens last wrote its PID file, as it
+  // does each time it reads its files (changed_files): until it reloads, it
+  // runs with what they said before, and may still let in what the values
+  // here say is off.
+  SSH_LOADED_STALE = 2;
+  // The sshd that listens doesn't take what it runs with from these files
+  // alone, and loaded_why says how: it's another sshd than the one Dockwell
+  // asked, or it was started with -o, -f, -p or -C.
+  SSH_LOADED_APART = 4;
+}
+
+// SshRootLogin is whether root may sign in over SSH, and how (PermitRootLogin).
+enum SshRootLogin {
+  SSH_ROOT_LOGIN_UNSPECIFIED = 0;
+  // With a password or a key.
+  SSH_ROOT_LOGIN_YES = 1;
+  // With a key alone (prohibit-password, or without-password, as sshd -T
+  // prints it).
+  SSH_ROOT_LOGIN_KEYS_ONLY = 2;
+  // With a key whose authorized_keys line forces a command alone.
+  SSH_ROOT_LOGIN_FORCED_COMMANDS_ONLY = 3;
+  // Not at all.
+  SSH_ROOT_LOGIN_NO = 4;
+}
+
+// SshSource is a line that sets one of sshd's values.
+message SshSource {
+  // The keyword, as sshd reads it, such as "PasswordAuthentication".
+  string keyword = 1;
+  // The file, such as "/etc/ssh/sshd_config.d/50-cloud-init.conf".
+  string file = 2;
+  // The line, from 1.
+  uint32 line = 3;
+  // The value it sets there, as the file writes it, such as "yes".
+  string value = 4;
+  // True when the file changed after the sshd that listens last read it, so
+  // this value isn't what runs yet.
+  bool changed = 5;
+}
+
+// SshMatch is a Match block that sets one of the values ServerSsh says, for
+// some people or addresses.
+message SshMatch {
+  // The file it's in.
+  string file = 1;
+  // The line the block starts on, from 1.
+  uint32 line = 2;
+  // What it matches, as the file writes it, such as "User deploy".
+  string criteria = 3;
+  // The keywords it sets, of those ServerSsh says, such as
+  // "PasswordAuthentication". Empty when it sets none of them, or only ones
+  // Dockwell doesn't read.
+  repeated string sets = 4;
+}
+
+// GetServerFail2banRequest names a server.
+message GetServerFail2banRequest {
+  // The server's ID.
+  string server_id = 1;
+}
+
+// GetServerFail2banResponse is what fail2ban does on a server.
+message GetServerFail2banResponse {
+  // fail2ban, as the agent read it.
+  ServerFail2ban fail2ban = 1;
+}
+
+// ServerFail2ban is what fail2ban does on a server, as its agent read it
+// through fail2ban-client. A jail is as fail2ban says it runs, which may not
+// be what any one file writes, as fail2ban keeps the last value it reads.
+message ServerFail2ban {
+  // When the agent read it.
+  google.protobuf.Timestamp time = 1;
+  // Whether it's there and running.
+  Fail2banState state = 2;
+  // Why it isn't running, or couldn't be read, as fail2ban-client said. Empty
+  // otherwise.
+  string why = 3;
+  // fail2ban's version, such as "1.0.2".
+  string version = 4;
+  // Its jails, by name.
+  repeated Fail2banJail jails = 5;
+}
+
+// Fail2banState is whether fail2ban is there and running.
+enum Fail2banState {
+  FAIL2BAN_STATE_UNSPECIFIED = 0;
+  // fail2ban-client isn't installed.
+  FAIL2BAN_STATE_NOT_INSTALLED = 1;
+  // It's installed, and its server isn't running.
+  FAIL2BAN_STATE_STOPPED = 2;
+  // It runs.
+  FAIL2BAN_STATE_RUNNING = 3;
+  // It runs, or may, and the agent couldn't read it: why says why.
+  FAIL2BAN_STATE_UNREADABLE = 4;
+}
+
+// Fail2banJail is one of fail2ban's jails, as it runs.
+message Fail2banJail {
+  // Its name, such as "sshd".
+  string name = 1;
+  // How many failures within find_time ban an address.
+  uint32 max_retry = 2;
+  // How far back failures count.
+  google.protobuf.Duration find_time = 3;
+  // How long a ban lasts. Unset when it lasts for good, or fail2ban didn't say.
+  google.protobuf.Duration ban_time = 4;
+  // True when a ban lasts for good.
+  bool bans_for_good = 5;
+  // Addresses that failed within find_time, not banned yet.
+  uint32 failed_now = 6;
+  // Failures since fail2ban started.
+  uint32 failed_total = 7;
+  // Addresses banned now.
+  uint32 banned_now = 8;
+  // Bans since fail2ban started.
+  uint32 banned_total = 9;
+  // The log files it follows, when it reads files.
+  repeated string files = 10;
+  // What it reads from the journal, when it reads the journal, such as
+  // "_SYSTEMD_UNIT=sshd.service + _COMM=sshd".
+  repeated string journal_matches = 11;
+  // The addresses banned now, the latest first.
+  repeated Fail2banBan bans = 12;
+  // Why some of the jail couldn't be read. Empty when all of it could.
+  string unreadable = 13;
+}
+
+// Fail2banBan is an address a jail has banned.
+message Fail2banBan {
+  // The address, such as "198.51.100.77".
+  string address = 1;
+  // When the ban began. Unset when fail2ban didn't say.
+  google.protobuf.Timestamp since = 2;
+  // When it ends. Unset when it lasts for good, or fail2ban didn't say.
+  google.protobuf.Timestamp until = 3;
 }

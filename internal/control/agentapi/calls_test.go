@@ -1486,21 +1486,28 @@ func TestAnOlderAgentIsToUpdate(t *testing.T) {
 	if !ok {
 		t.Fatal("no session")
 	}
-	done := make(chan error, 1)
-	go func() {
-		_, err := session.Firewall(t.Context())
-		done <- err
-	}()
-	msg, err := nextCall(stream)
-	if err != nil || msg.GetCall().GetFirewall() == nil {
-		t.Fatalf("the control plane sent %v, %v, want a firewall read", msg, err)
+	reads := map[string]struct {
+		read func() error
+		is   func(*agentv1.Call) bool
+	}{
+		"firewall": {func() error { _, err := session.Firewall(t.Context()); return err }, func(c *agentv1.Call) bool { return c.GetFirewall() != nil }},
+		"ssh":      {func() error { _, err := session.SSH(t.Context()); return err }, func(c *agentv1.Call) bool { return c.GetSsh() != nil }},
+		"fail2ban": {func() error { _, err := session.Fail2ban(t.Context()); return err }, func(c *agentv1.Call) bool { return c.GetFail2Ban() != nil }},
 	}
-	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: &agentv1.CallResult{
-		Id: msg.GetCall().GetId(), Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: "this agent doesn't know that call; update it to the control plane's version"}},
-	}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := <-done; !errors.Is(err, agentapi.ErrAgentOutdated) {
-		t.Errorf("an older agent's answer reads as %v", err)
+	for name, r := range reads {
+		done := make(chan error, 1)
+		go func() { done <- r.read() }()
+		msg, err := nextCall(stream)
+		if err != nil || !r.is(msg.GetCall()) {
+			t.Fatalf("the control plane sent %v, %v, want a %s read", msg, err, name)
+		}
+		if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: &agentv1.CallResult{
+			Id: msg.GetCall().GetId(), Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: "this agent doesn't know that call; update it to the control plane's version"}},
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; !errors.Is(err, agentapi.ErrAgentOutdated) {
+			t.Errorf("an older agent's answer to a %s read reads as %v", name, err)
+		}
 	}
 }

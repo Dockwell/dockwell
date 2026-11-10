@@ -18,9 +18,11 @@ import {
 import { Callout, Panel, PHONE_QUERY, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import type { ReactNode } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { ReadFailed } from "../shell/ReadFailed";
+import { Fail2banPanel, SshPanel } from "./FirewallAccess";
 import { DockwellRules } from "./FirewallRules";
 import { ServerFrame } from "./ServerFrame";
 import "./FirewallPage.css";
@@ -45,39 +47,89 @@ function weighed(tool: FirewallTool): boolean {
   return tool.kind === FirewallToolKind.UFW || tool.kind === FirewallToolKind.FIREWALLD;
 }
 
-function Firewall({ server }: { server: Server }) {
-  const { t } = useLingui();
-  const connected = server.connection === Connection.CONNECTED;
-  const read = useQuery(
+/** The firewall's read, every READ_EVERY_MS while the tab is open. */
+function useFirewallRead(server: Server, connected: boolean) {
+  return useQuery(
     FirewallService.method.getServerFirewall,
     { serverId: server.id },
     { enabled: connected, refetchInterval: READ_EVERY_MS, retry: false },
   );
+}
+
+function Firewall({ server }: { server: Server }) {
+  const { t } = useLingui();
+  const connected = server.connection === Connection.CONNECTED;
+  const read = useFirewallRead(server, connected);
   if (!connected) {
     return (
       <Callout tone="info">{t`${server.name} isn't reporting, so what filters its traffic can't be read now.`}</Callout>
     );
   }
+  const fw = read.data?.firewall;
+  return (
+    <div className="firewall">
+      <div className="firewall-main">
+        <FirewallRead
+          server={server}
+          read={read}
+          ssh={<SshPanel key="ssh" server={server} connected={connected} listening={fw?.listening} />}
+        />
+      </div>
+      <div className="firewall-side">
+        <Fail2banPanel server={server} connected={connected} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What the firewall read says: Dockwell's rules, the firewalls already there,
+ * then SSH, which the mock puts after the rules, then what listens and what
+ * Docker publishes. SSH reads on its own, so it shows whatever this read does,
+ * and keeps its place by its key as this read lands.
+ */
+function FirewallRead({
+  server,
+  read,
+  ssh,
+}: {
+  server: Server;
+  read: ReturnType<typeof useFirewallRead>;
+  ssh: ReactNode;
+}) {
+  const { t } = useLingui();
   if (read.error) {
     if (reasonOf(read.error) === "agent_outdated") {
       return (
-        <Callout tone="warning">
-          <Trans>
-            The agent on {server.name} is older than the control plane, so it can't read the firewall. Run the install
-            script on {server.name} again to update it.
-          </Trans>
-        </Callout>
+        <>
+          <Callout tone="warning">
+            <Trans>
+              The agent on {server.name} is older than the control plane, so it can't read the firewall. Run the install
+              script on {server.name} again to update it.
+            </Trans>
+          </Callout>
+          {ssh}
+        </>
       );
     }
-    // A role that doesn't cover the firewall is told so as everywhere else, not as something that broke.
-    return <ReadFailed error={read.error} title={t`Dockwell can't read ${server.name}'s firewall`} />;
+    // A role that doesn't cover the firewall is told so as everywhere else, not as something that broke;
+    // it doesn't cover SSH and fail2ban either, so they aren't asked. Otherwise each card reads on its own.
+    return (
+      <>
+        <ReadFailed error={read.error} title={t`Dockwell can't read ${server.name}'s firewall`} />
+        {reasonOf(read.error) === "needs_role" ? null : ssh}
+      </>
+    );
   }
   const fw = read.data?.firewall;
   if (!fw) {
     return (
-      <p className="firewall-note" aria-busy="true">
-        <Trans>Reading what filters {server.name}'s traffic</Trans>
-      </p>
+      <>
+        <p className="firewall-note" aria-busy="true">
+          <Trans>Reading what filters {server.name}'s traffic</Trans>
+        </p>
+        {ssh}
+      </>
     );
   }
   const there = fw.tools.filter((tool) => tool.active || tool.unreadable);
@@ -91,7 +143,7 @@ function Firewall({ server }: { server: Server }) {
     (dockwell?.policy?.denyEverythingElse ?? false) ||
     (dockwell?.waitingChange ?? "") !== "";
   return (
-    <div className="firewall">
+    <>
       <DockwellRules server={server} fw={fw} onChanged={() => void read.refetch()} />
       {there.length === 0 ? (
         <Panel title={t`Inbound traffic`}>
@@ -112,10 +164,11 @@ function Firewall({ server }: { server: Server }) {
       ) : (
         primary.map((tool) => <ToolPanel key={`${tool.kind}-${tool.name}`} tool={tool} />)
       )}
+      {ssh}
       <ListeningPanel server={server} listening={fw.listening} />
       <PublishedPanel fw={fw} filtered={filtered} dockwellDenies={dockwell?.policy?.denyEverythingElse ?? false} />
       {others.length > 0 ? <OtherRulesPanel tools={others} /> : null}
-    </div>
+    </>
   );
 }
 

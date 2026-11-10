@@ -10,15 +10,15 @@ import type { FirewallPolicy, FirewallRule } from "../resource/v1alpha1/specs_pb
 import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
-import type { Timestamp } from "@bufbuild/protobuf/wkt";
-import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
+import type { Duration, Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_duration, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file dockwell/v1/firewall.proto.
  */
 export const file_dockwell_v1_firewall: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9maXJld2FsbC5wcm90bxILZG9ja3dlbGwudjEiLQoYR2V0U2VydmVyRmlyZXdhbGxSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJWChlHZXRTZXJ2ZXJGaXJld2FsbFJlc3BvbnNlEi0KCGZpcmV3YWxsGAEgASgLMhsuZG9ja3dlbGwudjEuU2VydmVyRmlyZXdhbGxKBAgCEANKBAgDEAQiXAoURG9ja3dlbGxGaXJld2FsbFJ1bGUSDAoEbmFtZRgBIAEoCRI2CgRydWxlGAIgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxSdWxlIqgCCg5TZXJ2ZXJGaXJld2FsbBIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIoCgV0b29scxgCIAMoCzIZLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVG9vbBItCglwdWJsaXNoZWQYAyADKAsyGi5kb2Nrd2VsbC52MS5QdWJsaXNoZWRQb3J0EiwKCWxpc3RlbmluZxgEIAMoCzIZLmRvY2t3ZWxsLnYxLkhvc3RMaXN0ZW5lchIcChRwdWJsaXNoZWRfdW5yZWFkYWJsZRgFIAEoCRIZChFkb2NrZXJfdXNlcl9ydWxlcxgGIAEoDRIsCghkb2Nrd2VsbBgHIAEoCzIaLmRvY2t3ZWxsLnYxLkRvY2t3ZWxsVGFibGUipQIKDURvY2t3ZWxsVGFibGUSEAoIdW51c2FibGUYASABKAkSMAoFcnVsZXMYAiADKAsyIS5kb2Nrd2VsbC52MS5Eb2Nrd2VsbEZpcmV3YWxsUnVsZRI6CgZwb2xpY3kYAyABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFBvbGljeRIWCg53YWl0aW5nX2NoYW5nZRgEIAEoCRI4Cg13YWl0aW5nX3J1bGVzGAUgAygLMiEuZG9ja3dlbGwudjEuRG9ja3dlbGxGaXJld2FsbFJ1bGUSQgoOd2FpdGluZ19wb2xpY3kYBiABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFBvbGljeSLoAQoMSG9zdExpc3RlbmVyEg8KB2FkZHJlc3MYASABKAkSDAoEcG9ydBgCIAEoDRIQCghwcm90b2NvbBgDIAEoCRIpCgVyZWFjaBgEIAEoDjIaLmRvY2t3ZWxsLnYxLkxpc3RlbmVyUmVhY2gSEgoKZGVjaWRlZF9ieRgFIAEoCRIPCgdzb3VyY2VzGAYgAygJEhIKCmludGVyZmFjZXMYByADKAkSMAoGcmVhc29uGAggASgOMiAuZG9ja3dlbGwudjEuTGlzdGVuZXJSZWFjaFJlYXNvbhIRCglpcHY2X29ubHkYCSABKAgi+QIKDEZpcmV3YWxsVG9vbBIrCgRraW5kGAEgASgOMh0uZG9ja3dlbGwudjEuRmlyZXdhbGxUb29sS2luZBIMCgRuYW1lGAIgASgJEg4KBmFjdGl2ZRgDIAEoCBI1Cg9kZWZhdWx0X2luYm91bmQYBCABKA4yHC5kb2Nrd2VsbC52MS5GaXJld2FsbFZlcmRpY3QSLAoFcnVsZXMYBSADKAsyHS5kb2Nrd2VsbC52MS5GaXJld2FsbFNlZW5SdWxlEg0KBW90aGVyGAYgAygJEhIKCnJ1bGVfY291bnQYByABKA0SEgoKdW5yZWFkYWJsZRgIIAEoCRISCgppbnRlcmZhY2VzGAkgAygJEg8KB3NvdXJjZXMYCiADKAkSFAoMZGVmYXVsdF96b25lGAsgASgIEjIKDGlucHV0X3BvbGljeRgMIAEoDjIcLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVmVyZGljdBITCgtpbnB1dF9ydWxlcxgNIAEoDSKzAQoQRmlyZXdhbGxTZWVuUnVsZRItCgd2ZXJkaWN0GAEgASgOMhwuZG9ja3dlbGwudjEuRmlyZXdhbGxWZXJkaWN0EgwKBHBvcnQYAiABKAkSDgoGc291cmNlGAMgASgJEgwKBGlwdjYYBCABKAgSDwoHY29tbWVudBgFIAEoCRILCgNhcHAYBiABKAkSEQoJaW50ZXJmYWNlGAcgASgJEhMKC2Rlc3RpbmF0aW9uGAggASgJIoEBCg1QdWJsaXNoZWRQb3J0EhEKCWNvbnRhaW5lchgBIAEoCRIPCgdob3N0X2lwGAIgASgJEhEKCWhvc3RfcG9ydBgDIAEoDRIQCghwcm90b2NvbBgEIAEoCRIWCg5jb250YWluZXJfcG9ydBgFIAEoDRIPCgdwcm94aWVkGAYgASgIKrMDChNMaXN0ZW5lclJlYWNoUmVhc29uEiUKIUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9VTlNQRUNJRklFRBAAEiUKIUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9BUFBfUFJPRklMRRABEiEKHUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9TRVJWSUNFEAISIwofTElTVEVORVJfUkVBQ0hfUkVBU09OX1JJQ0hfUlVMRRADEiMKH0xJU1RFTkVSX1JFQUNIX1JFQVNPTl9JTlRFUkZBQ0UQBBIlCiFMSVNURU5FUl9SRUFDSF9SRUFTT05fREVTVElOQVRJT04QBRIfChtMSVNURU5FUl9SRUFDSF9SRUFTT05fWk9ORVMQBhIkCiBMSVNURU5FUl9SRUFDSF9SRUFTT05fVU5SRUFEQUJMRRAHEiUKIUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9PVEhFUl9SVUxFUxAIEigKJExJU1RFTkVSX1JFQUNIX1JFQVNPTl9ET0NLRVJfVU5LTk9XThAJEiIKHkxJU1RFTkVSX1JFQUNIX1JFQVNPTl9CVUlMVF9JThAKKpgBCg1MaXN0ZW5lclJlYWNoEh4KGkxJU1RFTkVSX1JFQUNIX1VOU1BFQ0lGSUVEEAASFwoTTElTVEVORVJfUkVBQ0hfT1BFThABEhcKE0xJU1RFTkVSX1JFQUNIX1NPTUUQAhIZChVMSVNURU5FUl9SRUFDSF9DTE9TRUQQAxIaChZMSVNURU5FUl9SRUFDSF9VTktOT1dOEAQq3gEKEEZpcmV3YWxsVG9vbEtpbmQSIgoeRklSRVdBTExfVE9PTF9LSU5EX1VOU1BFQ0lGSUVEEAASGgoWRklSRVdBTExfVE9PTF9LSU5EX1VGVxABEiAKHEZJUkVXQUxMX1RPT0xfS0lORF9GSVJFV0FMTEQQAhIfChtGSVJFV0FMTF9UT09MX0tJTkRfTkZUQUJMRVMQAxImCiJGSVJFV0FMTF9UT09MX0tJTkRfSVBUQUJMRVNfTEVHQUNZEAQSHwobRklSRVdBTExfVE9PTF9LSU5EX0lQVEFCTEVTEAUqowEKD0ZpcmV3YWxsVmVyZGljdBIgChxGSVJFV0FMTF9WRVJESUNUX1VOU1BFQ0lGSUVEEAASGgoWRklSRVdBTExfVkVSRElDVF9BTExPVxABEhkKFUZJUkVXQUxMX1ZFUkRJQ1RfREVOWRACEhsKF0ZJUkVXQUxMX1ZFUkRJQ1RfUkVKRUNUEAMSGgoWRklSRVdBTExfVkVSRElDVF9MSU1JVBAEMsYBCg9GaXJld2FsbFNlcnZpY2USsgEKEUdldFNlcnZlckZpcmV3YWxsEiUuZG9ja3dlbGwudjEuR2V0U2VydmVyRmlyZXdhbGxSZXF1ZXN0GiYuZG9ja3dlbGwudjEuR2V0U2VydmVyRmlyZXdhbGxSZXNwb25zZSJOkAIBoLsYAaq7GA8KCGZpcmV3YWxsEgNnZXTAuxgEyLsYBNC7GAaC0+STAiISIC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpcmV3YWxsQqYBCg9jb20uZG9ja3dlbGwudjFCDUZpcmV3YWxsUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9maXJld2FsbC5wcm90bxILZG9ja3dlbGwudjEiLQoYR2V0U2VydmVyRmlyZXdhbGxSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJWChlHZXRTZXJ2ZXJGaXJld2FsbFJlc3BvbnNlEi0KCGZpcmV3YWxsGAEgASgLMhsuZG9ja3dlbGwudjEuU2VydmVyRmlyZXdhbGxKBAgCEANKBAgDEAQiXAoURG9ja3dlbGxGaXJld2FsbFJ1bGUSDAoEbmFtZRgBIAEoCRI2CgRydWxlGAIgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxSdWxlIqgCCg5TZXJ2ZXJGaXJld2FsbBIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIoCgV0b29scxgCIAMoCzIZLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVG9vbBItCglwdWJsaXNoZWQYAyADKAsyGi5kb2Nrd2VsbC52MS5QdWJsaXNoZWRQb3J0EiwKCWxpc3RlbmluZxgEIAMoCzIZLmRvY2t3ZWxsLnYxLkhvc3RMaXN0ZW5lchIcChRwdWJsaXNoZWRfdW5yZWFkYWJsZRgFIAEoCRIZChFkb2NrZXJfdXNlcl9ydWxlcxgGIAEoDRIsCghkb2Nrd2VsbBgHIAEoCzIaLmRvY2t3ZWxsLnYxLkRvY2t3ZWxsVGFibGUipQIKDURvY2t3ZWxsVGFibGUSEAoIdW51c2FibGUYASABKAkSMAoFcnVsZXMYAiADKAsyIS5kb2Nrd2VsbC52MS5Eb2Nrd2VsbEZpcmV3YWxsUnVsZRI6CgZwb2xpY3kYAyABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFBvbGljeRIWCg53YWl0aW5nX2NoYW5nZRgEIAEoCRI4Cg13YWl0aW5nX3J1bGVzGAUgAygLMiEuZG9ja3dlbGwudjEuRG9ja3dlbGxGaXJld2FsbFJ1bGUSQgoOd2FpdGluZ19wb2xpY3kYBiABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFBvbGljeSLoAQoMSG9zdExpc3RlbmVyEg8KB2FkZHJlc3MYASABKAkSDAoEcG9ydBgCIAEoDRIQCghwcm90b2NvbBgDIAEoCRIpCgVyZWFjaBgEIAEoDjIaLmRvY2t3ZWxsLnYxLkxpc3RlbmVyUmVhY2gSEgoKZGVjaWRlZF9ieRgFIAEoCRIPCgdzb3VyY2VzGAYgAygJEhIKCmludGVyZmFjZXMYByADKAkSMAoGcmVhc29uGAggASgOMiAuZG9ja3dlbGwudjEuTGlzdGVuZXJSZWFjaFJlYXNvbhIRCglpcHY2X29ubHkYCSABKAgi+QIKDEZpcmV3YWxsVG9vbBIrCgRraW5kGAEgASgOMh0uZG9ja3dlbGwudjEuRmlyZXdhbGxUb29sS2luZBIMCgRuYW1lGAIgASgJEg4KBmFjdGl2ZRgDIAEoCBI1Cg9kZWZhdWx0X2luYm91bmQYBCABKA4yHC5kb2Nrd2VsbC52MS5GaXJld2FsbFZlcmRpY3QSLAoFcnVsZXMYBSADKAsyHS5kb2Nrd2VsbC52MS5GaXJld2FsbFNlZW5SdWxlEg0KBW90aGVyGAYgAygJEhIKCnJ1bGVfY291bnQYByABKA0SEgoKdW5yZWFkYWJsZRgIIAEoCRISCgppbnRlcmZhY2VzGAkgAygJEg8KB3NvdXJjZXMYCiADKAkSFAoMZGVmYXVsdF96b25lGAsgASgIEjIKDGlucHV0X3BvbGljeRgMIAEoDjIcLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVmVyZGljdBITCgtpbnB1dF9ydWxlcxgNIAEoDSKzAQoQRmlyZXdhbGxTZWVuUnVsZRItCgd2ZXJkaWN0GAEgASgOMhwuZG9ja3dlbGwudjEuRmlyZXdhbGxWZXJkaWN0EgwKBHBvcnQYAiABKAkSDgoGc291cmNlGAMgASgJEgwKBGlwdjYYBCABKAgSDwoHY29tbWVudBgFIAEoCRILCgNhcHAYBiABKAkSEQoJaW50ZXJmYWNlGAcgASgJEhMKC2Rlc3RpbmF0aW9uGAggASgJIoEBCg1QdWJsaXNoZWRQb3J0EhEKCWNvbnRhaW5lchgBIAEoCRIPCgdob3N0X2lwGAIgASgJEhEKCWhvc3RfcG9ydBgDIAEoDRIQCghwcm90b2NvbBgEIAEoCRIWCg5jb250YWluZXJfcG9ydBgFIAEoDRIPCgdwcm94aWVkGAYgASgIIigKE0dldFNlcnZlclNzaFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIjsKFEdldFNlcnZlclNzaFJlc3BvbnNlEiMKA3NzaBgBIAEoCzIWLmRvY2t3ZWxsLnYxLlNlcnZlclNzaCLPBAoJU2VydmVyU3NoEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCnVucmVhZGFibGUYAiABKAkSDwoHdmVyc2lvbhgDIAEoCRIuCg5wYXNzd29yZF9sb2dpbhgEIAEoDjIWLmRvY2t3ZWxsLnYxLlNzaEFuc3dlchItCgpyb290X2xvZ2luGAUgASgOMhkuZG9ja3dlbGwudjEuU3NoUm9vdExvZ2luEg0KBXBvcnRzGAYgAygNEikKCWtleV9sb2dpbhgHIAEoDjIWLmRvY2t3ZWxsLnYxLlNzaEFuc3dlchImCgZzZXRfaW4YCCADKAsyFi5kb2Nrd2VsbC52MS5Tc2hTb3VyY2USJgoHbWF0Y2hlcxgJIAMoCzIVLmRvY2t3ZWxsLnYxLlNzaE1hdGNoEhYKDmRyb3BfaW5fZm9sZGVyGAogASgJEhgKEGRvY2t3ZWxsX2Ryb3BfaW4YCyABKAgSEwoLc29ja2V0X3VuaXQYDCABKAkSFAoMYWNjZXNzX2xpc3RzGA0gAygJEhEKCXVuY2hlY2tlZBgOIAMoCRImCgZsb2FkZWQYDyABKA4yFi5kb2Nrd2VsbC52MS5Tc2hMb2FkZWQSEgoKbG9hZGVkX3doeRgQIAEoCRIVCg1jaGFuZ2VkX2ZpbGVzGBEgAygJEi8KC2xvYWRlZF90aW1lGBIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIWCg5yZWxvYWRfY29tbWFuZBgTIAEoCSJYCglTc2hTb3VyY2USDwoHa2V5d29yZBgBIAEoCRIMCgRmaWxlGAIgASgJEgwKBGxpbmUYAyABKA0SDQoFdmFsdWUYBCABKAkSDwoHY2hhbmdlZBgFIAEoCCJGCghTc2hNYXRjaBIMCgRmaWxlGAEgASgJEgwKBGxpbmUYAiABKA0SEAoIY3JpdGVyaWEYAyABKAkSDAoEc2V0cxgEIAMoCSItChhHZXRTZXJ2ZXJGYWlsMmJhblJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIkoKGUdldFNlcnZlckZhaWwyYmFuUmVzcG9uc2USLQoIZmFpbDJiYW4YASABKAsyGy5kb2Nrd2VsbC52MS5TZXJ2ZXJGYWlsMmJhbiKtAQoOU2VydmVyRmFpbDJiYW4SKAoEdGltZRgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKQoFc3RhdGUYAiABKA4yGi5kb2Nrd2VsbC52MS5GYWlsMmJhblN0YXRlEgsKA3doeRgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEigKBWphaWxzGAUgAygLMhkuZG9ja3dlbGwudjEuRmFpbDJiYW5KYWlsItkCCgxGYWlsMmJhbkphaWwSDAoEbmFtZRgBIAEoCRIRCgltYXhfcmV0cnkYAiABKA0SLAoJZmluZF90aW1lGAMgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uEisKCGJhbl90aW1lGAQgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uEhUKDWJhbnNfZm9yX2dvb2QYBSABKAgSEgoKZmFpbGVkX25vdxgGIAEoDRIUCgxmYWlsZWRfdG90YWwYByABKA0SEgoKYmFubmVkX25vdxgIIAEoDRIUCgxiYW5uZWRfdG90YWwYCSABKA0SDQoFZmlsZXMYCiADKAkSFwoPam91cm5hbF9tYXRjaGVzGAsgAygJEiYKBGJhbnMYDCADKAsyGC5kb2Nrd2VsbC52MS5GYWlsMmJhbkJhbhISCgp1bnJlYWRhYmxlGA0gASgJInQKC0ZhaWwyYmFuQmFuEg8KB2FkZHJlc3MYASABKAkSKQoFc2luY2UYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEikKBXVudGlsGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCqzAwoTTGlzdGVuZXJSZWFjaFJlYXNvbhIlCiFMSVNURU5FUl9SRUFDSF9SRUFTT05fVU5TUEVDSUZJRUQQABIlCiFMSVNURU5FUl9SRUFDSF9SRUFTT05fQVBQX1BST0ZJTEUQARIhCh1MSVNURU5FUl9SRUFDSF9SRUFTT05fU0VSVklDRRACEiMKH0xJU1RFTkVSX1JFQUNIX1JFQVNPTl9SSUNIX1JVTEUQAxIjCh9MSVNURU5FUl9SRUFDSF9SRUFTT05fSU5URVJGQUNFEAQSJQohTElTVEVORVJfUkVBQ0hfUkVBU09OX0RFU1RJTkFUSU9OEAUSHwobTElTVEVORVJfUkVBQ0hfUkVBU09OX1pPTkVTEAYSJAogTElTVEVORVJfUkVBQ0hfUkVBU09OX1VOUkVBREFCTEUQBxIlCiFMSVNURU5FUl9SRUFDSF9SRUFTT05fT1RIRVJfUlVMRVMQCBIoCiRMSVNURU5FUl9SRUFDSF9SRUFTT05fRE9DS0VSX1VOS05PV04QCRIiCh5MSVNURU5FUl9SRUFDSF9SRUFTT05fQlVJTFRfSU4QCiqYAQoNTGlzdGVuZXJSZWFjaBIeChpMSVNURU5FUl9SRUFDSF9VTlNQRUNJRklFRBAAEhcKE0xJU1RFTkVSX1JFQUNIX09QRU4QARIXChNMSVNURU5FUl9SRUFDSF9TT01FEAISGQoVTElTVEVORVJfUkVBQ0hfQ0xPU0VEEAMSGgoWTElTVEVORVJfUkVBQ0hfVU5LTk9XThAEKt4BChBGaXJld2FsbFRvb2xLaW5kEiIKHkZJUkVXQUxMX1RPT0xfS0lORF9VTlNQRUNJRklFRBAAEhoKFkZJUkVXQUxMX1RPT0xfS0lORF9VRlcQARIgChxGSVJFV0FMTF9UT09MX0tJTkRfRklSRVdBTExEEAISHwobRklSRVdBTExfVE9PTF9LSU5EX05GVEFCTEVTEAMSJgoiRklSRVdBTExfVE9PTF9LSU5EX0lQVEFCTEVTX0xFR0FDWRAEEh8KG0ZJUkVXQUxMX1RPT0xfS0lORF9JUFRBQkxFUxAFKqMBCg9GaXJld2FsbFZlcmRpY3QSIAocRklSRVdBTExfVkVSRElDVF9VTlNQRUNJRklFRBAAEhoKFkZJUkVXQUxMX1ZFUkRJQ1RfQUxMT1cQARIZChVGSVJFV0FMTF9WRVJESUNUX0RFTlkQAhIbChdGSVJFV0FMTF9WRVJESUNUX1JFSkVDVBADEhoKFkZJUkVXQUxMX1ZFUkRJQ1RfTElNSVQQBCpOCglTc2hBbnN3ZXISGgoWU1NIX0FOU1dFUl9VTlNQRUNJRklFRBAAEhIKDlNTSF9BTlNXRVJfWUVTEAESEQoNU1NIX0FOU1dFUl9OTxACKo0BCglTc2hMb2FkZWQSGgoWU1NIX0xPQURFRF9VTlNQRUNJRklFRBAAEhQKEFNTSF9MT0FERURfU1RBTEUQAhIUChBTU0hfTE9BREVEX0FQQVJUEAQiBAgBEAEiBAgDEAMqElNTSF9MT0FERURfQ1VSUkVOVCoYU1NIX0xPQURFRF9BVF9FQUNIX1NUQVJUKqQBCgxTc2hSb290TG9naW4SHgoaU1NIX1JPT1RfTE9HSU5fVU5TUEVDSUZJRUQQABIWChJTU0hfUk9PVF9MT0dJTl9ZRVMQARIcChhTU0hfUk9PVF9MT0dJTl9LRVlTX09OTFkQAhInCiNTU0hfUk9PVF9MT0dJTl9GT1JDRURfQ09NTUFORFNfT05MWRADEhUKEVNTSF9ST09UX0xPR0lOX05PEAQqqAEKDUZhaWwyYmFuU3RhdGUSHgoaRkFJTDJCQU5fU1RBVEVfVU5TUEVDSUZJRUQQABIgChxGQUlMMkJBTl9TVEFURV9OT1RfSU5TVEFMTEVEEAESGgoWRkFJTDJCQU5fU1RBVEVfU1RPUFBFRBACEhoKFkZBSUwyQkFOX1NUQVRFX1JVTk5JTkcQAxIdChlGQUlMMkJBTl9TVEFURV9VTlJFQURBQkxFEAQy0gkKD0ZpcmV3YWxsU2VydmljZRKyAQoRR2V0U2VydmVyRmlyZXdhbGwSJS5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJGaXJld2FsbFJlcXVlc3QaJi5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJGaXJld2FsbFJlc3BvbnNlIk6QAgGguxgBqrsYDwoIZmlyZXdhbGwSA2dldMC7GATIuxgE0LsYBoLT5JMCIhIgL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlyZXdhbGwSmQEKDEdldFNlcnZlclNzaBIgLmRvY2t3ZWxsLnYxLkdldFNlcnZlclNzaFJlcXVlc3QaIS5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJTc2hSZXNwb25zZSJEkAIBoLsYAaq7GAoKA3NzaBIDZ2V0wLsYBMi7GATQuxgGgtPkkwIdEhsvdjEvc2VydmVycy97c2VydmVyX2lkfS9zc2gSsgEKEUdldFNlcnZlckZhaWwyYmFuEiUuZG9ja3dlbGwudjEuR2V0U2VydmVyRmFpbDJiYW5SZXF1ZXN0GiYuZG9ja3dlbGwudjEuR2V0U2VydmVyRmFpbDJiYW5SZXNwb25zZSJOkAIBoLsYAaq7GA8KCGZhaWwyYmFuEgNnZXTAuxgEyLsYBNC7GAaC0+STAiISIC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZhaWwyYmFuGrgForsYxAIKCGZpcmV3YWxsErcCV2hhdCBmaWx0ZXJzIGEgc2VydmVyJ3MgaW5ib3VuZCB0cmFmZmljOiB0aGUgZmlyZXdhbGxzIGFscmVhZHkgdGhlcmUsIHVmdywgZmlyZXdhbGxkIGFuZCBuZnRhYmxlcywgZWFjaCByZWFkIHdpdGggaXRzIG93biB0b29sLCBob3cgZmFyIHdoYXQgbGlzdGVucyByZWFjaGVzIHBhc3QgdGhlbSwgYW5kIHRoZSBwb3J0cyBEb2NrZXIgcHVibGlzaGVzLCB3aGljaCByZWFjaCB0aGVpciBjb250YWluZXJzIHBhc3QgdGhlbS4gRG9ja3dlbGwncyBvd24gcnVsZXMgYXJlIGZpcmV3YWxsLnJ1bGUgcmVzb3VyY2VzLCB3aGljaCBhIGNoYW5nZSBlZGl0cy6iuxjKAQoDc3NoEsIBSG93IFNTSCBsZXRzIHBlb3BsZSBpbiBvbiBhIHNlcnZlcjogcGFzc3dvcmQgYW5kIHJvb3QgbG9naW4sIGl0cyBwb3J0cywgYXMgc3NoZCdzIGZpbGVzIHNheSwgdGhlIGZpbGUgdGhhdCBzZXRzIGVhY2gsIGFuZCB3aGV0aGVyIHRoZSBzc2hkIHRoYXQgbGlzdGVucyBoYXMgcmVhZCB0aGVtLiBSZWFkaW5nIGl0IGNoYW5nZXMgbm90aGluZy6iuxibAQoIZmFpbDJiYW4SjgFXaGF0IGZhaWwyYmFuIGRvZXMgb24gYSBzZXJ2ZXI6IHdoZXRoZXIgaXQgcnVucywgaXRzIGphaWxzIGFzIGl0IHJ1bnMgdGhlbSwgYW5kIHRoZSBhZGRyZXNzZXMgZWFjaCBoYXMgYmFubmVkIG5vdy4gUmVhZGluZyBpdCBjaGFuZ2VzIG5vdGhpbmcuQqYBCg9jb20uZG9ja3dlbGwudjFCDUZpcmV3YWxsUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * GetServerFirewallRequest names a server.
@@ -547,6 +547,554 @@ export const PublishedPortSchema: GenMessage<PublishedPort> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_firewall, 8);
 
 /**
+ * GetServerSshRequest names a server.
+ *
+ * @generated from message dockwell.v1.GetServerSshRequest
+ */
+export type GetServerSshRequest = Message<"dockwell.v1.GetServerSshRequest"> & {
+  /**
+   * The server's ID.
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.GetServerSshRequest.
+ * Use `create(GetServerSshRequestSchema)` to create a new message.
+ */
+export const GetServerSshRequestSchema: GenMessage<GetServerSshRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 9);
+
+/**
+ * GetServerSshResponse is how SSH lets people in on a server.
+ *
+ * @generated from message dockwell.v1.GetServerSshResponse
+ */
+export type GetServerSshResponse = Message<"dockwell.v1.GetServerSshResponse"> & {
+  /**
+   * SSH, as the agent read it.
+   *
+   * @generated from field: dockwell.v1.ServerSsh ssh = 1;
+   */
+  ssh?: ServerSsh | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.GetServerSshResponse.
+ * Use `create(GetServerSshResponseSchema)` to create a new message.
+ */
+export const GetServerSshResponseSchema: GenMessage<GetServerSshResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 10);
+
+/**
+ * ServerSsh is how SSH lets people in on a server, as its agent read it: the
+ * values sshd's files say, read with sshd -T, which may not be what any one file writes,
+ * as sshd keeps the first value it reads of each.
+ *
+ * @generated from message dockwell.v1.ServerSsh
+ */
+export type ServerSsh = Message<"dockwell.v1.ServerSsh"> & {
+  /**
+   * When the agent read it.
+   *
+   * @generated from field: google.protobuf.Timestamp time = 1;
+   */
+  time?: Timestamp | undefined;
+
+  /**
+   * Why the agent couldn't read sshd's values, such as that the server has no
+   * sshd, or what sshd -T said. Empty when it could; the rest is unset then.
+   * Every value here is what sshd's files say now, read with sshd -T. The
+   * sshd that listens keeps what it read as it started or last reloaded:
+   * loaded says whether that is the same.
+   *
+   * @generated from field: string unreadable = 2;
+   */
+  unreadable: string;
+
+  /**
+   * The SSH server and its version, as it says them, such as "OpenSSH_9.6p1".
+   *
+   * @generated from field: string version = 3;
+   */
+  version: string;
+
+  /**
+   * Whether a password signs in, as sshd's files say: PasswordAuthentication
+   * is on, or KbdInteractiveAuthentication with UsePAM, through which PAM asks
+   * for one. Unspecified when sshd -T didn't say, which is "can't tell", never
+   * "no".
+   *
+   * @generated from field: dockwell.v1.SshAnswer password_login = 4;
+   */
+  passwordLogin: SshAnswer;
+
+  /**
+   * Whether root may sign in, and how.
+   *
+   * @generated from field: dockwell.v1.SshRootLogin root_login = 5;
+   */
+  rootLogin: SshRootLogin;
+
+  /**
+   * The ports sshd's files name. Empty when sshd -T named none, which is
+   * "can't tell".
+   *
+   * @generated from field: repeated uint32 ports = 6;
+   */
+  ports: number[];
+
+  /**
+   * Whether a key signs in (PubkeyAuthentication). Unspecified when sshd -T
+   * didn't say.
+   *
+   * @generated from field: dockwell.v1.SshAnswer key_login = 7;
+   */
+  keyLogin: SshAnswer;
+
+  /**
+   * Where each of PasswordAuthentication, KbdInteractiveAuthentication,
+   * PermitRootLogin and Port is set: the line sshd reads first of each, outside
+   * a Match block, or every Port line, as each adds a port. One that no file
+   * sets is sshd's default, and isn't here.
+   *
+   * @generated from field: repeated dockwell.v1.SshSource set_in = 8;
+   */
+  setIn: SshSource[];
+
+  /**
+   * Every Match block that isn't "Match all", whatever it sets: sshd -T doesn't
+   * apply them, so the values above are the defaults for every connection, and
+   * a block may set them otherwise for those it matches.
+   *
+   * @generated from field: repeated dockwell.v1.SshMatch matches = 9;
+   */
+  matches: SshMatch[];
+
+  /**
+   * The drop-in folder sshd_config includes before its own lines, such as
+   * "/etc/ssh/sshd_config.d", where Dockwell would write its own file. Empty
+   * when it includes none, so Dockwell can't change SSH there: it never edits
+   * sshd_config.
+   *
+   * @generated from field: string drop_in_folder = 10;
+   */
+  dropInFolder: string;
+
+  /**
+   * True when Dockwell's own drop-in, 00-dockwell.conf, is there.
+   *
+   * @generated from field: bool dockwell_drop_in = 11;
+   */
+  dockwellDropIn: boolean;
+
+  /**
+   * The systemd socket unit that holds SSH's port, such as "ssh.socket", when
+   * one does, as on Ubuntu 22.10 and later. Empty when sshd holds it itself.
+   *
+   * @generated from field: string socket_unit = 12;
+   */
+  socketUnit: string;
+
+  /**
+   * AllowUsers, AllowGroups, DenyUsers and DenyGroups, as sshd -T says them,
+   * such as "allowusers deploy admin": who may sign in at all.
+   *
+   * @generated from field: repeated string access_lists = 13;
+   */
+  accessLists: string[];
+
+  /**
+   * Ways in Dockwell can't check, set here: AuthorizedKeysCommand,
+   * TrustedUserCAKeys, AuthorizedPrincipalsFile, GSSAPIAuthentication and
+   * HostbasedAuthentication.
+   *
+   * @generated from field: repeated string unchecked = 14;
+   */
+  unchecked: string[];
+
+  /**
+   * What Dockwell can say against the values, if anything: it never says the
+   * sshd that listens has read the files as they are.
+   *
+   * @generated from field: dockwell.v1.SshLoaded loaded = 15;
+   */
+  loaded: SshLoaded;
+
+  /**
+   * With loaded apart, how the sshd that listens differs, in a sentence for a
+   * person. With loaded unspecified, what Dockwell couldn't read, for the
+   * record: the panel doesn't show it, as it's no warning.
+   *
+   * @generated from field: string loaded_why = 16;
+   */
+  loadedWhy: string;
+
+  /**
+   * With loaded stale: the files, links and folders that changed after sshd
+   * last wrote its PID file.
+   *
+   * @generated from field: repeated string changed_files = 17;
+   */
+  changedFiles: string[];
+
+  /**
+   * With loaded stale: when the sshd that listens last wrote its PID file.
+   *
+   * @generated from field: google.protobuf.Timestamp loaded_time = 18;
+   */
+  loadedTime?: Timestamp | undefined;
+
+  /**
+   * With loaded stale: the command that reloads the sshd that listens, as
+   * the agent can tell how it runs: "systemctl reload ssh.service" under
+   * systemd, "rc-service sshd reload" under OpenRC, or "kill -HUP 812".
+   *
+   * @generated from field: string reload_command = 19;
+   */
+  reloadCommand: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ServerSsh.
+ * Use `create(ServerSshSchema)` to create a new message.
+ */
+export const ServerSshSchema: GenMessage<ServerSsh> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 11);
+
+/**
+ * SshSource is a line that sets one of sshd's values.
+ *
+ * @generated from message dockwell.v1.SshSource
+ */
+export type SshSource = Message<"dockwell.v1.SshSource"> & {
+  /**
+   * The keyword, as sshd reads it, such as "PasswordAuthentication".
+   *
+   * @generated from field: string keyword = 1;
+   */
+  keyword: string;
+
+  /**
+   * The file, such as "/etc/ssh/sshd_config.d/50-cloud-init.conf".
+   *
+   * @generated from field: string file = 2;
+   */
+  file: string;
+
+  /**
+   * The line, from 1.
+   *
+   * @generated from field: uint32 line = 3;
+   */
+  line: number;
+
+  /**
+   * The value it sets there, as the file writes it, such as "yes".
+   *
+   * @generated from field: string value = 4;
+   */
+  value: string;
+
+  /**
+   * True when the file changed after the sshd that listens last read it, so
+   * this value isn't what runs yet.
+   *
+   * @generated from field: bool changed = 5;
+   */
+  changed: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.SshSource.
+ * Use `create(SshSourceSchema)` to create a new message.
+ */
+export const SshSourceSchema: GenMessage<SshSource> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 12);
+
+/**
+ * SshMatch is a Match block that sets one of the values ServerSsh says, for
+ * some people or addresses.
+ *
+ * @generated from message dockwell.v1.SshMatch
+ */
+export type SshMatch = Message<"dockwell.v1.SshMatch"> & {
+  /**
+   * The file it's in.
+   *
+   * @generated from field: string file = 1;
+   */
+  file: string;
+
+  /**
+   * The line the block starts on, from 1.
+   *
+   * @generated from field: uint32 line = 2;
+   */
+  line: number;
+
+  /**
+   * What it matches, as the file writes it, such as "User deploy".
+   *
+   * @generated from field: string criteria = 3;
+   */
+  criteria: string;
+
+  /**
+   * The keywords it sets, of those ServerSsh says, such as
+   * "PasswordAuthentication". Empty when it sets none of them, or only ones
+   * Dockwell doesn't read.
+   *
+   * @generated from field: repeated string sets = 4;
+   */
+  sets: string[];
+};
+
+/**
+ * Describes the message dockwell.v1.SshMatch.
+ * Use `create(SshMatchSchema)` to create a new message.
+ */
+export const SshMatchSchema: GenMessage<SshMatch> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 13);
+
+/**
+ * GetServerFail2banRequest names a server.
+ *
+ * @generated from message dockwell.v1.GetServerFail2banRequest
+ */
+export type GetServerFail2banRequest = Message<"dockwell.v1.GetServerFail2banRequest"> & {
+  /**
+   * The server's ID.
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.GetServerFail2banRequest.
+ * Use `create(GetServerFail2banRequestSchema)` to create a new message.
+ */
+export const GetServerFail2banRequestSchema: GenMessage<GetServerFail2banRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 14);
+
+/**
+ * GetServerFail2banResponse is what fail2ban does on a server.
+ *
+ * @generated from message dockwell.v1.GetServerFail2banResponse
+ */
+export type GetServerFail2banResponse = Message<"dockwell.v1.GetServerFail2banResponse"> & {
+  /**
+   * fail2ban, as the agent read it.
+   *
+   * @generated from field: dockwell.v1.ServerFail2ban fail2ban = 1;
+   */
+  fail2ban?: ServerFail2ban | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.GetServerFail2banResponse.
+ * Use `create(GetServerFail2banResponseSchema)` to create a new message.
+ */
+export const GetServerFail2banResponseSchema: GenMessage<GetServerFail2banResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 15);
+
+/**
+ * ServerFail2ban is what fail2ban does on a server, as its agent read it
+ * through fail2ban-client. A jail is as fail2ban says it runs, which may not
+ * be what any one file writes, as fail2ban keeps the last value it reads.
+ *
+ * @generated from message dockwell.v1.ServerFail2ban
+ */
+export type ServerFail2ban = Message<"dockwell.v1.ServerFail2ban"> & {
+  /**
+   * When the agent read it.
+   *
+   * @generated from field: google.protobuf.Timestamp time = 1;
+   */
+  time?: Timestamp | undefined;
+
+  /**
+   * Whether it's there and running.
+   *
+   * @generated from field: dockwell.v1.Fail2banState state = 2;
+   */
+  state: Fail2banState;
+
+  /**
+   * Why it isn't running, or couldn't be read, as fail2ban-client said. Empty
+   * otherwise.
+   *
+   * @generated from field: string why = 3;
+   */
+  why: string;
+
+  /**
+   * fail2ban's version, such as "1.0.2".
+   *
+   * @generated from field: string version = 4;
+   */
+  version: string;
+
+  /**
+   * Its jails, by name.
+   *
+   * @generated from field: repeated dockwell.v1.Fail2banJail jails = 5;
+   */
+  jails: Fail2banJail[];
+};
+
+/**
+ * Describes the message dockwell.v1.ServerFail2ban.
+ * Use `create(ServerFail2banSchema)` to create a new message.
+ */
+export const ServerFail2banSchema: GenMessage<ServerFail2ban> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 16);
+
+/**
+ * Fail2banJail is one of fail2ban's jails, as it runs.
+ *
+ * @generated from message dockwell.v1.Fail2banJail
+ */
+export type Fail2banJail = Message<"dockwell.v1.Fail2banJail"> & {
+  /**
+   * Its name, such as "sshd".
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * How many failures within find_time ban an address.
+   *
+   * @generated from field: uint32 max_retry = 2;
+   */
+  maxRetry: number;
+
+  /**
+   * How far back failures count.
+   *
+   * @generated from field: google.protobuf.Duration find_time = 3;
+   */
+  findTime?: Duration | undefined;
+
+  /**
+   * How long a ban lasts. Unset when it lasts for good, or fail2ban didn't say.
+   *
+   * @generated from field: google.protobuf.Duration ban_time = 4;
+   */
+  banTime?: Duration | undefined;
+
+  /**
+   * True when a ban lasts for good.
+   *
+   * @generated from field: bool bans_for_good = 5;
+   */
+  bansForGood: boolean;
+
+  /**
+   * Addresses that failed within find_time, not banned yet.
+   *
+   * @generated from field: uint32 failed_now = 6;
+   */
+  failedNow: number;
+
+  /**
+   * Failures since fail2ban started.
+   *
+   * @generated from field: uint32 failed_total = 7;
+   */
+  failedTotal: number;
+
+  /**
+   * Addresses banned now.
+   *
+   * @generated from field: uint32 banned_now = 8;
+   */
+  bannedNow: number;
+
+  /**
+   * Bans since fail2ban started.
+   *
+   * @generated from field: uint32 banned_total = 9;
+   */
+  bannedTotal: number;
+
+  /**
+   * The log files it follows, when it reads files.
+   *
+   * @generated from field: repeated string files = 10;
+   */
+  files: string[];
+
+  /**
+   * What it reads from the journal, when it reads the journal, such as
+   * "_SYSTEMD_UNIT=sshd.service + _COMM=sshd".
+   *
+   * @generated from field: repeated string journal_matches = 11;
+   */
+  journalMatches: string[];
+
+  /**
+   * The addresses banned now, the latest first.
+   *
+   * @generated from field: repeated dockwell.v1.Fail2banBan bans = 12;
+   */
+  bans: Fail2banBan[];
+
+  /**
+   * Why some of the jail couldn't be read. Empty when all of it could.
+   *
+   * @generated from field: string unreadable = 13;
+   */
+  unreadable: string;
+};
+
+/**
+ * Describes the message dockwell.v1.Fail2banJail.
+ * Use `create(Fail2banJailSchema)` to create a new message.
+ */
+export const Fail2banJailSchema: GenMessage<Fail2banJail> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 17);
+
+/**
+ * Fail2banBan is an address a jail has banned.
+ *
+ * @generated from message dockwell.v1.Fail2banBan
+ */
+export type Fail2banBan = Message<"dockwell.v1.Fail2banBan"> & {
+  /**
+   * The address, such as "198.51.100.77".
+   *
+   * @generated from field: string address = 1;
+   */
+  address: string;
+
+  /**
+   * When the ban began. Unset when fail2ban didn't say.
+   *
+   * @generated from field: google.protobuf.Timestamp since = 2;
+   */
+  since?: Timestamp | undefined;
+
+  /**
+   * When it ends. Unset when it lasts for good, or fail2ban didn't say.
+   *
+   * @generated from field: google.protobuf.Timestamp until = 3;
+   */
+  until?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.Fail2banBan.
+ * Use `create(Fail2banBanSchema)` to create a new message.
+ */
+export const Fail2banBanSchema: GenMessage<Fail2banBan> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 18);
+
+/**
  * ListenerReachReason is why a listener reaches as far as it does.
  *
  * @generated from enum dockwell.v1.ListenerReachReason
@@ -787,6 +1335,175 @@ export const FirewallVerdictSchema: GenEnum<FirewallVerdict> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_firewall, 3);
 
 /**
+ * SshAnswer is yes or no, or neither when Dockwell can't tell.
+ *
+ * @generated from enum dockwell.v1.SshAnswer
+ */
+export enum SshAnswer {
+  /**
+   * Dockwell can't tell: what would say wasn't there to read.
+   *
+   * @generated from enum value: SSH_ANSWER_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: SSH_ANSWER_YES = 1;
+   */
+  YES = 1,
+
+  /**
+   * @generated from enum value: SSH_ANSWER_NO = 2;
+   */
+  NO = 2,
+}
+
+/**
+ * Describes the enum dockwell.v1.SshAnswer.
+ */
+export const SshAnswerSchema: GenEnum<SshAnswer> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_firewall, 4);
+
+/**
+ * SshLoaded is what Dockwell can say against the values: never that the sshd
+ * that listens runs with them. sshd reads its files as it starts and as it
+ * reloads, and never between, and nothing Dockwell reads of files and times
+ * can prove it has read them as they are, so the evidence is only ever used
+ * to warn (ADR 0052). A "confirmed" state may come back only with an answer
+ * from the daemon itself (#423).
+ *
+ * @generated from enum dockwell.v1.SshLoaded
+ */
+export enum SshLoaded {
+  /**
+   * Nothing to warn of, which isn't a confirmation: the values are what the
+   * files say, and the sshd that listens uses what it read as it last started
+   * or reloaded. loaded_why may say what Dockwell couldn't read.
+   *
+   * @generated from enum value: SSH_LOADED_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * A file changed after the sshd that listens last wrote its PID file, as it
+   * does each time it reads its files (changed_files): until it reloads, it
+   * runs with what they said before, and may still let in what the values
+   * here say is off.
+   *
+   * @generated from enum value: SSH_LOADED_STALE = 2;
+   */
+  STALE = 2,
+
+  /**
+   * The sshd that listens doesn't take what it runs with from these files
+   * alone, and loaded_why says how: it's another sshd than the one Dockwell
+   * asked, or it was started with -o, -f, -p or -C.
+   *
+   * @generated from enum value: SSH_LOADED_APART = 4;
+   */
+  APART = 4,
+}
+
+/**
+ * Describes the enum dockwell.v1.SshLoaded.
+ */
+export const SshLoadedSchema: GenEnum<SshLoaded> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_firewall, 5);
+
+/**
+ * SshRootLogin is whether root may sign in over SSH, and how (PermitRootLogin).
+ *
+ * @generated from enum dockwell.v1.SshRootLogin
+ */
+export enum SshRootLogin {
+  /**
+   * @generated from enum value: SSH_ROOT_LOGIN_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * With a password or a key.
+   *
+   * @generated from enum value: SSH_ROOT_LOGIN_YES = 1;
+   */
+  YES = 1,
+
+  /**
+   * With a key alone (prohibit-password, or without-password, as sshd -T
+   * prints it).
+   *
+   * @generated from enum value: SSH_ROOT_LOGIN_KEYS_ONLY = 2;
+   */
+  KEYS_ONLY = 2,
+
+  /**
+   * With a key whose authorized_keys line forces a command alone.
+   *
+   * @generated from enum value: SSH_ROOT_LOGIN_FORCED_COMMANDS_ONLY = 3;
+   */
+  FORCED_COMMANDS_ONLY = 3,
+
+  /**
+   * Not at all.
+   *
+   * @generated from enum value: SSH_ROOT_LOGIN_NO = 4;
+   */
+  NO = 4,
+}
+
+/**
+ * Describes the enum dockwell.v1.SshRootLogin.
+ */
+export const SshRootLoginSchema: GenEnum<SshRootLogin> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_firewall, 6);
+
+/**
+ * Fail2banState is whether fail2ban is there and running.
+ *
+ * @generated from enum dockwell.v1.Fail2banState
+ */
+export enum Fail2banState {
+  /**
+   * @generated from enum value: FAIL2BAN_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * fail2ban-client isn't installed.
+   *
+   * @generated from enum value: FAIL2BAN_STATE_NOT_INSTALLED = 1;
+   */
+  NOT_INSTALLED = 1,
+
+  /**
+   * It's installed, and its server isn't running.
+   *
+   * @generated from enum value: FAIL2BAN_STATE_STOPPED = 2;
+   */
+  STOPPED = 2,
+
+  /**
+   * It runs.
+   *
+   * @generated from enum value: FAIL2BAN_STATE_RUNNING = 3;
+   */
+  RUNNING = 3,
+
+  /**
+   * It runs, or may, and the agent couldn't read it: why says why.
+   *
+   * @generated from enum value: FAIL2BAN_STATE_UNREADABLE = 4;
+   */
+  UNREADABLE = 4,
+}
+
+/**
+ * Describes the enum dockwell.v1.Fail2banState.
+ */
+export const Fail2banStateSchema: GenEnum<Fail2banState> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_firewall, 7);
+
+/**
  * FirewallService says what filters a server's inbound traffic. Reading it
  * changes nothing. See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
  *
@@ -810,6 +1527,36 @@ export const FirewallService: GenService<{
     methodKind: "unary";
     input: typeof GetServerFirewallRequestSchema;
     output: typeof GetServerFirewallResponseSchema;
+  },
+  /**
+   * GetServerSsh reads, through the server's agent, how SSH lets people in: the
+   * values sshd's files say, with sshd -T, which file sets each, the
+   * Match blocks that may set them otherwise for some, and whether sshd_config
+   * includes the drop-in folder Dockwell would write to. Reading it changes
+   * nothing. How SSH lets people in is the whole server's, so reading it is an
+   * admin's (ADR 0049), as reading its firewall is.
+   *
+   * @generated from rpc dockwell.v1.FirewallService.GetServerSsh
+   */
+  getServerSsh: {
+    methodKind: "unary";
+    input: typeof GetServerSshRequestSchema;
+    output: typeof GetServerSshResponseSchema;
+  },
+  /**
+   * GetServerFail2ban reads, through the server's agent, what fail2ban does:
+   * whether it's installed and running, each jail as fail2ban says it runs,
+   * and the addresses each has banned now, through fail2ban-client. Reading it
+   * changes nothing. fail2ban is the whole server's, and its bans name the
+   * addresses of people who tried to sign in, so reading it is an admin's (ADR
+   * 0049).
+   *
+   * @generated from rpc dockwell.v1.FirewallService.GetServerFail2ban
+   */
+  getServerFail2ban: {
+    methodKind: "unary";
+    input: typeof GetServerFail2banRequestSchema;
+    output: typeof GetServerFail2banResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_firewall, 0);

@@ -8867,6 +8867,146 @@ msgstr "{name} 在 10 秒内没有停止，因此已被强制结束。"
 msgid "{name} stopped."
 msgstr "{name} 已停止。"
 
+msgid "<0>Match {criteria}</0> · {file}, line {line}"
+msgstr "<0>Match {criteria}</0> · {file}，第 {line} 行"
+
+msgid "<0>Match {criteria}</0> · {file}, line {line} · sets {sets}"
+msgstr "<0>Match {criteria}</0> · {file}，第 {line} 行 · 设置 {sets}"
+
+msgid "Banned now"
+msgstr "当前封禁"
+
+msgid "Can't tell"
+msgstr "无法判断"
+
+msgid "Copy {command}"
+msgstr "复制 {command}"
+
+msgid "Fail2ban"
+msgstr "Fail2ban"
+
+msgid "Forced commands only"
+msgstr "仅限强制命令"
+
+msgid "Jails"
+msgstr "Jail"
+
+msgid "Keys only"
+msgstr "仅限密钥"
+
+msgid "No"
+msgstr "否"
+
+msgid "Not installed"
+msgstr "未安装"
+
+msgid "Nowhere"
+msgstr "无来源"
+
+msgid "Password login"
+msgstr "密码登录"
+
+msgid "Reading fail2ban on {name}"
+msgstr "正在读取 {name} 上的 fail2ban"
+
+msgid "Reading how SSH lets people in on {name}"
+msgstr "正在读取 {name} 上 SSH 的登录方式"
+
+msgid "Recent bans"
+msgstr "最近的封禁"
+
+msgid "Root login"
+msgstr "root 登录"
+
+msgid "SSH"
+msgstr "SSH"
+
+msgid "The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name} again to update it."
+msgstr "{name} 上的代理比控制平面旧，因此无法读取 SSH。请在 {name} 上再次运行安装脚本来更新它。"
+
+msgid "The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on {name} again to update it."
+msgstr "{name} 上的代理比控制平面旧，因此无法读取 fail2ban。请在 {name} 上再次运行安装脚本来更新它。"
+
+msgid "The sshd that listens may not use these files"
+msgstr "正在监听的 sshd 可能并不使用这些文件"
+
+msgid "These are what sshd's files say; sshd uses what it read when it last started or reloaded."
+msgstr "以上是 sshd 配置文件的内容；sshd 使用的是它上次启动或重新加载时读取的配置。"
+
+msgid "Until it reloads, it may still accept what this says is off."
+msgstr "重新加载之前，它可能仍接受此处显示为关闭的登录方式。"
+
+msgid "Yes"
+msgstr "是"
+
+msgid "fail2ban isn't installed on {name}, so nothing bans an address that keeps failing to sign in."
+msgstr "{name} 上没有安装 fail2ban，因此反复登录失败的地址不会被封禁。"
+
+msgid "fail2ban isn't running on {name}, so it bans nobody: {why}"
+msgstr "{name} 上的 fail2ban 没有运行，所以不会封禁任何人：{why}"
+
+msgid "fail2ban runs with no jails, so it bans nobody."
+msgstr "fail2ban 正在运行，但没有任何 jail，因此不会封禁任何人。"
+
+msgid "on {iface}"
+msgstr "经 {iface}"
+
+msgid "sshd hasn't read {files} since it changed"
+msgstr "{files} 更改后，sshd 还没有读取过"
+
+msgid "sshd lets in only who these allow: {lists}."
+msgstr "sshd 只放行以下规则允许的人：{lists}。"
+
+msgid "sshd's default"
+msgstr "sshd 默认值"
+
+msgid "sshd_config includes no drop-in folder, so Dockwell won't change SSH here."
+msgstr "sshd_config 没有引入配置片段目录，所以 Dockwell 不会在这里更改 SSH。"
+
+msgid "systemd holds SSH's port, through {unit}."
+msgstr "systemd 通过 {unit} 占用 SSH 的端口。"
+
+#. placeholder {0}: ssh.ports.length
+msgid "{0, plural, one {Port} other {Ports}}"
+msgstr "{0, plural, other {端口}}"
+
+msgid "{bannedNow, plural, one {address} other {addresses}}"
+msgstr "{bannedNow, plural, other {个地址}}"
+
+msgid "{bannedTotal, plural, one {# ban since fail2ban started} other {# bans since fail2ban started}}"
+msgstr "{bannedTotal, plural, other {自 fail2ban 启动以来共封禁 # 次}}"
+
+msgid "{count, plural, one {Defaults for every connection: # Match block can set them otherwise} other {Defaults for every connection: # Match blocks can set them otherwise}}"
+msgstr "{count, plural, other {所有连接的默认值：有 # 个 Match 块可以另行设置}}"
+
+msgid "{failures} · bans for good"
+msgstr "{failures} · 永久封禁"
+
+msgid "{failures} · bans for {span}"
+msgstr "{failures} · 封禁 {span}"
+
+msgid "{file}, line {line}"
+msgstr "{file}，第 {line} 行"
+
+msgid "{file}, line {line} · not in effect until sshd reloads"
+msgstr "{file}，第 {line} 行 · sshd 重新加载后才生效"
+
+#. placeholder {0}: time.ago(timestampDate(ban.since), now)
+msgid "{jail} · {0}"
+msgstr "{jail} · {0}"
+
+msgid "{more, plural, one {and # more} other {and # more}}"
+msgstr "{more, plural, other {以及另外 # 个}}"
+
+msgid "{tries, plural, one {# failed sign-in in {within}} other {# failed sign-ins in {within}}}"
+msgstr "{tries, plural, other {{within}内登录失败 # 次}}"
+
+msgid "{tries, plural, one {# failed sign-in} other {# failed sign-ins}}"
+msgstr "{tries, plural, other {登录失败 # 次}}"
+
+msgid "{ways} also let people in, which Dockwell can't check."
+msgstr "{ways} 也能让人登录，Dockwell 无法检查这些方式。"
+
 msgid "Action"
 msgstr "操作"
 
@@ -8884,9 +9024,6 @@ msgstr "任意 {proto} 端口"
 
 msgid "Anywhere, IPv6"
 msgstr "任意来源，IPv6"
-
-msgid "Can't tell"
-msgstr "无法判断"
 
 msgid "Can't tell: Docker isn't answering, and this may be a port it publishes, which {by} doesn't cover"
 msgstr "无法判断：Docker 没有响应，这可能是它发布的端口，而 {by} 不覆盖这类端口"
@@ -9076,9 +9213,6 @@ msgstr "nftables"
 #. placeholder {0}: tool.name
 msgid "nftables table {0}"
 msgstr "nftables 表 {0}"
-
-msgid "on {iface}"
-msgstr "经 {iface}"
 
 msgid "ufw"
 msgstr "ufw"
@@ -9791,9 +9925,6 @@ msgstr "查询所得，{when}。这是它的出站地址，不一定能从这里
 msgid "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 msgstr "查询所得，{when}。这可能是你路由器的地址，只能出站，不能入站"
 
-msgid "No"
-msgstr "否"
-
 msgid "Not checked"
 msgstr "未检查"
 
@@ -9841,9 +9972,6 @@ msgstr "证书颁发机构无法通过 80 或 443 端口连接 {domain}，截至
 
 msgid "The cloud's metadata says so, {when}"
 msgstr "云服务商的元数据服务给出此地址，{when}"
-
-msgid "Yes"
-msgstr "是"
 
 msgid "{provider}'s metadata says so, {when}"
 msgstr "{provider} 的元数据服务给出此地址，{when}"
@@ -12077,9 +12205,6 @@ msgstr "{extra, plural, other {以及另外 # 个}}"
 
 msgid "{inUse, plural, one {# in use · each PHP website runs its own} other {# in use · each PHP website runs its own}}"
 msgstr "{inUse, plural, other {# 个正在使用 · 每个 PHP 网站各自运行一个}}"
-
-msgid "{more, plural, one {and # more} other {and # more}}"
-msgstr "{more, plural, other {以及另外 # 个}}"
 
 msgid "Can't reach {host}"
 msgstr "无法访问 {host}"

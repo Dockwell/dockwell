@@ -124,7 +124,12 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(LogService, api.logs ?? {});
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
-      service(FirewallService, { getServerFirewall: () => ({ firewall: {} }), ...api.firewall });
+      service(FirewallService, {
+        getServerFirewall: () => ({ firewall: {} }),
+        getServerSsh: () => ({ ssh: {} }),
+        getServerFail2ban: () => ({ fail2ban: {} }),
+        ...api.firewall,
+      });
       service(FileService, api.files ?? {});
       service(ProcessService, { watchProcesses: quietWatch, ...api.processes });
       service(AuditService, { listAuditEvents: () => ({}), ...api.audit });

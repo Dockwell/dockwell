@@ -121,6 +121,10 @@ type Config struct {
 	unfinished *unfinished
 	// firewall reads what filters the server's inbound traffic, when asked.
 	firewall *firewallReader
+	// ssh reads how SSH lets people in, when asked.
+	ssh *sshReader
+	// fail2ban reads what fail2ban does, when asked.
+	fail2ban *fail2banReader
 	// outlook keeps what the server found out from one stream to the next.
 	outlook *outlook
 	// disks adds up what takes the disk Docker's data is on, when asked.
@@ -389,6 +393,8 @@ func Run(ctx context.Context, cfg Config) error {
 	cfg.firewall = newFirewallReader(cfg)
 	cfg.disks = &diskUse{docker: cfg.Docker, collector: cfg.Collector, now: time.Now}
 	cfg.procs = newProcesses(cfg.Collector, cfg.Docker)
+	cfg.ssh = newSSHReader(cfg)
+	cfg.fail2ban = newFail2banReader(cfg)
 	if cfg.Drivers == nil {
 		cfg.Drivers = resource.NewRegistry()
 	}
