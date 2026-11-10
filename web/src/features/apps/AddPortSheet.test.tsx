@@ -49,6 +49,39 @@ afterEach(() => {
 });
 
 describe("Add a port", () => {
+  it("asks about the free port it offers, past the ports first asked, and a UDP port over UDP", async () => {
+    const user = userEvent.setup();
+    const asked: { port: number; udp: boolean }[] = [];
+    renderAt(
+      "/apps/svc_alone?add=port",
+      api({
+        servers: {
+          watchServers: api().servers?.watchServers,
+          // Every TCP port below 8100 is held, and 5353 over UDP.
+          checkServerPorts: (req) => ({
+            ports: req.ports.map((p) => {
+              asked.push({ port: p.port, udp: p.udp });
+              const held = p.udp ? p.port === 5353 : p.port < 8100;
+              return { port: p.port, udp: p.udp, held, by: held ? (p.udp ? "dnsmasq" : "sshd") : "" };
+            }),
+          }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to alone" });
+    const host = within(sheet).getByLabelText<HTMLInputElement>("On the server");
+    await waitFor(() => expect(host.value).toBe("8100"), { timeout: 5000 });
+    // Then 8100 is asked about too, and stays offered, as it's free.
+    await waitFor(() => expect(asked).toContainEqual({ port: 8100, udp: false }), { timeout: 5000 });
+    expect(host.value).toBe("8100");
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    await user.click(within(sheet).getByRole("radio", { name: "UDP" }));
+    await user.clear(host);
+    await user.type(host, "5353");
+    await waitFor(() => expect(host).toHaveAccessibleDescription(/dnsmasq uses it/), { timeout: 5000 });
+    expect(asked).toContainEqual({ port: 5353, udp: true });
+  });
+
   it("picks a free port on the server, says what holds one that isn't, and where it answers", async () => {
     const user = userEvent.setup();
     const asked: unknown[] = [];

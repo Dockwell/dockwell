@@ -6,14 +6,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/ingress"
 )
 
-// maxPortsAsked bounds the ports one call asks about.
-const maxPortsAsked = 64
+const (
+	// maxPortsAsked bounds the ports one call asks about.
+	maxPortsAsked = 64
+	// socketOwnersFor is how long the processes that hold sockets are kept, as
+	// reading them walks every process's open files, and a form asks again each
+	// time typing pauses.
+	socketOwnersFor = 3 * time.Second
+)
 
 // portsHeld says what holds each port asked, as the kernel and Docker say, in
 // the order asked, for a form that offers a free port and says what holds a

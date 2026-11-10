@@ -55,8 +55,9 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
   const [typedHost, setTypedHost] = useState<string>();
   // The server is asked about what's typed, and from the port the app listens on.
   const watch = useMemo(() => [Number(inApp), Number(typedHost ?? "")].filter((n) => n > 0), [inApp, typedHost]);
-  const ports = useServerPorts(serverIds, service.id, watch);
   const [udp, setUdp] = useState(false);
+  const watchUdp = useMemo(() => (udp && Number(typedHost) > 0 ? [Number(typedHost)] : []), [udp, typedHost]);
+  const ports = useServerPorts(serverIds, service.id, watch, watchUdp);
   const [reach, setReach] = useState<Reach>("anyone");
   const [advanced, setAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);

@@ -743,3 +743,41 @@ func TestAFailedConnectionNamesTheFirewalls(t *testing.T) {
 		}
 	}
 }
+
+// Which process holds a socket is kept for OwnersFor, as a form asks again each
+// time typing pauses, and read again for a socket it doesn't name, or once it's old.
+func TestSocketOwnersAreKeptAWhile(t *testing.T) {
+	p := newProc(t)
+	p.listen("tcp", 80, "0A", "21")
+	p.process(50, "apache2", "0::/system.slice/apache2.service", "21")
+	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	h := holdersOn(t, dockertest.New(t), p)
+	h.OwnersFor, h.Now = 3*time.Second, func() time.Time { return now }
+	name := func(port int) string {
+		t.Helper()
+		got, err := h.Of(t.Context(), []Port{{Number: port}})
+		if err != nil || len(got) != 1 {
+			t.Fatalf("Of(%d) = %+v, %v", port, got, err)
+		}
+		return got[0].Words
+	}
+	if got := name(80); got != "apache2" {
+		t.Fatalf("port 80 is held by %q", got)
+	}
+	// A socket the kept owners don't name is read afresh.
+	p.listen("tcp", 8080, "0A", "22")
+	p.process(51, "nginx", "0::/system.slice/nginx.service", "22")
+	if got := name(8080); got != "nginx" {
+		t.Errorf("a new socket within the time reads %q", got)
+	}
+	// Kept, the processes aren't walked again within the time: one that comes to
+	// hold the socket too is seen only after it, as the last one listed.
+	p.process(52, "caddy", "0::/system.slice/caddy.service", "21")
+	if got := name(80); got != "apache2" {
+		t.Errorf("within the time, port 80 reads %q", got)
+	}
+	now = now.Add(3 * time.Second)
+	if got := name(80); got != "caddy" {
+		t.Errorf("after the time, port 80 reads %q", got)
+	}
+}

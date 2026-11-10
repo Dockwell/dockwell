@@ -22,7 +22,6 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/delivery"
-	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
@@ -780,7 +779,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if c.cfg.Docker == nil {
 			return fail(errNoPorts)
 		}
-		held, err := portsHeld(ctx, &ingress.Holders{Client: c.cfg.Docker}, p.GetPorts())
+		held, err := portsHeld(ctx, c.cfg.ports, p.GetPorts())
 		if err != nil {
 			return fail(err)
 		}

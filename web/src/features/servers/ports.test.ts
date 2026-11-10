@@ -4,7 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import { Protocol, ServerContainerSchema, ServiceInfoSchema } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
-import { heldOnServers, heldPorts, portsFrom, portsToAsk } from "./ports";
+import { heldOnServers, heldPorts, portsFrom, portsToAsk, udpToAsk } from "./ports";
 
 const app = (id: string, name: string, server: string, ports: { host: number; udp?: boolean }[]) =>
   create(ServiceInfoSchema, {
@@ -91,6 +91,17 @@ describe("what a server is asked of its ports", () => {
       ...Array.from({ length: 16 }, (_, i) => 8080 + i),
     ]);
     expect(portsToAsk(Array.from({ length: 40 }, (_, i) => 10000 + i * 10))).toHaveLength(64);
+  });
+
+  it("asks over UDP the ports a form watches over UDP, leaving room for them in the 64", () => {
+    expect(udpToAsk([5353, 5353, 0, 70000, 53])).toEqual([53, 5353]);
+    expect(udpToAsk(Array.from({ length: 20 }, (_, i) => 6000 + i))).toHaveLength(8);
+    expect(
+      portsToAsk(
+        Array.from({ length: 40 }, (_, i) => 10000 + i * 10),
+        2,
+      ),
+    ).toHaveLength(62);
   });
 
   it("names what holds a port as the server says, and leaves the free ones out", () => {

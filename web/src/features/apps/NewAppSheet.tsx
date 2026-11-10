@@ -216,7 +216,11 @@ export function NewAppSheet({
     () => image.ports.flatMap((p) => [Number(p.container), Number(p.host)]).filter((n) => n > 0),
     [image.ports],
   );
-  const ports = useServerPorts(serverIds, undefined, watch);
+  const watchUdp = useMemo(
+    () => image.ports.filter((p) => p.protocol === "udp").map((p) => Number(p.host)),
+    [image.ports],
+  );
+  const ports = useServerPorts(serverIds, undefined, watch, watchUdp);
   // The form as it plans: each port that follows a free one has it.
   const shown = useMemo(() => withFreePorts(image, ports), [image, ports]);
   const [advancedOpen, setAdvancedOpen] = useState(false);

@@ -47,15 +47,29 @@ const AROUND = 4;
 /** How long typing pauses before the server is asked again. */
 const ASK_AFTER_MS = 400;
 
-/** The ports to ask a server about: a window from 8080, and a few from each a form watches, 64 at most. */
-export function portsToAsk(watch: readonly number[]): number[] {
+/** The most ports one ask names, as the agent answers no more, and of them those over UDP. */
+const MAX_ASKED = 64;
+const MAX_UDP = 8;
+
+const isPort = (p: number) => Number.isInteger(p) && p >= 1 && p <= 65535;
+
+/**
+ * The TCP ports to ask a server about: a window from 8080, and a few from each
+ * a form watches, leaving room for the UDP ports it asks about too.
+ */
+export function portsToAsk(watch: readonly number[], udp = 0): number[] {
   const out = new Set<number>();
   for (let p = FIRST_FREE; p < FIRST_FREE + WINDOW; p++) out.add(p);
   for (const w of watch) {
-    if (!Number.isInteger(w) || w < 1 || w > 65535) continue;
+    if (!isPort(w)) continue;
     for (let p = w; p < Math.min(w + AROUND, 65536); p++) out.add(p);
   }
-  return [...out].sort((a, b) => a - b).slice(0, 64);
+  return [...out].sort((a, b) => a - b).slice(0, MAX_ASKED - Math.min(udp, MAX_UDP));
+}
+
+/** The UDP ports to ask about: each a form watches, as few are held. */
+export function udpToAsk(watch: readonly number[]): number[] {
+  return [...new Set(watch.filter(isPort))].sort((a, b) => a - b).slice(0, MAX_UDP);
 }
 
 /** What the servers said holds the ports asked, as holders. */
@@ -118,6 +132,7 @@ export function useServerPorts(
   serverIds: readonly string[],
   except?: string,
   watch: readonly number[] = [],
+  watchUdp: readonly number[] = [],
 ): ServerPorts {
   const transport = useTransport();
   const services = useServices();
@@ -126,20 +141,27 @@ export function useServerPorts(
   const may = useMay();
   const canList = may(ContainerService.method.listContainers).allowed;
   const canCheck = may(ServerService.method.checkServerPorts).allowed;
+  // The free port offered, when it's past what was asked, is asked about too.
+  const [beyond, setBeyond] = useState<number[]>([]);
   // What the form watches settles a moment after typing pauses, so each key doesn't ask.
-  const wanted = portsToAsk(watch).join(",");
+  const udp = udpToAsk(watchUdp);
+  const wanted = `${portsToAsk([...watch, ...beyond], udp.length).join(",")}/${udp.join(",")}`;
   const [asking, setAsking] = useState(wanted);
   useEffect(() => {
     const timer = setTimeout(() => setAsking(wanted), ASK_AFTER_MS);
     return () => clearTimeout(timer);
   }, [wanted]);
+  const [askingTcp = "", askingUdp = ""] = asking.split("/");
+  const asks = useMemo(
+    () => [
+      ...askingTcp.split(",").map((p) => ({ port: Number(p), udp: false })),
+      ...(askingUdp === "" ? [] : askingUdp.split(",").map((p) => ({ port: Number(p), udp: true }))),
+    ],
+    [askingTcp, askingUdp],
+  );
   const asked = useQueries({
     queries: (canCheck ? serverIds : []).map((id) => ({
-      ...createQueryOptions(
-        ServerService.method.checkServerPorts,
-        { id, ports: asking.split(",").map((p) => ({ port: Number(p) })) },
-        { transport },
-      ),
+      ...createQueryOptions(ServerService.method.checkServerPorts, { id, ports: asks }, { transport }),
       retry: false,
       staleTime: 10_000,
       // Asking again keeps what was said meanwhile, so a port shown doesn't blank as the form changes.
@@ -165,7 +187,14 @@ export function useServerPorts(
     ],
     [serverIds.join(","), services.data, containersKey, askedKey, except],
   );
-  return useMemo(() => portsFrom(held, ready), [held, ready]);
+  const found = useMemo(() => portsFrom(held, ready), [held, ready]);
+  // A free port past what the server was asked about isn't known to be free there: ask.
+  const offered = found.free();
+  useEffect(() => {
+    if (!canCheck || !found.ready || askingTcp.split(",").includes(String(offered))) return;
+    setBeyond((was) => (was.includes(offered) ? was : [...was.slice(-3), offered]));
+  }, [canCheck, found.ready, askingTcp, offered]);
+  return found;
 }
 
 /** What a form asks of the ports held. */
