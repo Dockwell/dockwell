@@ -317,7 +317,11 @@ export function NewAppSheet({
         }
         // Undone in the same sheet, it has no page to open.
         if (open === "app" && service && after.reverts === "") {
-          void navigate({ to: "/apps/$serviceId", params: { serviceId: service.id } });
+          // An app built from Git lands on its build, with its log as it comes.
+          void navigate({
+            to: source === "git" ? "/apps/$serviceId/deployments" : "/apps/$serviceId",
+            params: { serviceId: service.id },
+          });
         } else void navigate({ to: "/apps" });
       },
     });
@@ -784,6 +788,21 @@ function GitFields({
     }
   };
   const placeholderName = nameFromRepository(git.url) || "web";
+  const repository = useRepository(git.url);
+  // The default branch first, as the one it builds when none is chosen, then the
+  // rest, and a tag or commit someone typed, which the repository's branches don't list.
+  const branchOptions = [
+    ...repository.branches.map((name) =>
+      name === repository.defaultBranch ? { value: "", label: t`${name} (default)` } : { value: name, label: name },
+    ),
+    ...(git.ref !== "" && git.ref !== repository.defaultBranch && !repository.branches.includes(git.ref)
+      ? [{ value: git.ref, label: git.ref }]
+      : []),
+  ];
+  // What the Dockerfile exposes is the port to publish, offered beside Ports for
+  // one press: publishing a port on the server is a person's choice, and under
+  // roles an admin's to apply, so it is never filled in unasked.
+  const [exposed, setExposed] = useState<readonly number[]>([]);
   return (
     <>
       <div className="git-source">
@@ -793,31 +812,39 @@ function GitFields({
           mono
           placeholder="https://github.com/acme/web"
           value={git.url}
-          error={errors["git.url"]}
+          error={errors["git.url"] ?? repository.failed}
+          hint={repository.state}
           onChange={(event) => onGit({ url: event.target.value }, "git.url")}
         />
-        <TextField
-          label={t`Branch`}
-          icon="branch"
-          mono
-          placeholder="main"
-          value={git.ref}
-          error={errors["git.ref"]}
-          onChange={(event) => onGit({ ref: event.target.value }, "git.ref")}
-        />
+        {branchOptions.length > 1 ? (
+          <SelectField
+            label={t`Branch`}
+            mono
+            value={git.ref === repository.defaultBranch ? "" : git.ref}
+            error={errors["git.ref"]}
+            options={branchOptions}
+            onChange={(event) => onGit({ ref: event.target.value }, "git.ref")}
+          />
+        ) : (
+          <TextField
+            label={t`Branch`}
+            icon="branch"
+            mono
+            placeholder={repository.defaultBranch || "main"}
+            value={git.ref}
+            error={errors["git.ref"]}
+            onChange={(event) => onGit({ ref: event.target.value }, "git.ref")}
+          />
+        )}
       </div>
-      <p className="dw-field-hint git-hint">
-        <Trans>
-          A public repository, over HTTPS. Pushes don't deploy yet: Deploy builds the newest commit of the branch, or
-          the default branch when you leave it empty.
-        </Trans>
-      </p>
       <BuildRow
         git={git}
         server={server}
         waitForServer={waitForServer || !serversKnown}
         showBuild={showBuild}
         onShowBuild={onShowBuild}
+        onExposed={setExposed}
+        checked={repository.checked}
       />
       {showBuild ? (
         <div className="git-build-fields">
@@ -839,16 +866,26 @@ function GitFields({
             </div>
             <span className="dw-field-hint">
               {git.builder === "dockerfile" ? (
-                <Trans>The commit's Dockerfile builds it, and the build fails without one.</Trans>
+                <Trans>The commit's Dockerfile.</Trans>
               ) : git.builder === "railpack" ? (
-                <Trans>
-                  Railpack reads what the app is, such as Node from its package.json, and builds it with no Dockerfile.
-                </Trans>
+                <Trans>Railpack, with no Dockerfile.</Trans>
               ) : (
-                <Trans>The Dockerfile when the commit has one, and Railpack when it hasn't.</Trans>
+                <Trans>The Dockerfile when there is one, and Railpack when there isn't.</Trans>
               )}
             </span>
           </div>
+          {branchOptions.length > 1 ? (
+            <TextField
+              label={t`Tag or commit`}
+              icon="branch"
+              mono
+              optional
+              placeholder="v1.4.0"
+              value={repository.branches.includes(git.ref) ? "" : git.ref}
+              hint={t`In place of a branch.`}
+              onChange={(event) => onGit({ ref: event.target.value }, "git.ref")}
+            />
+          ) : null}
           <div className="git-source">
             <TextField
               label={t`Folder`}
@@ -857,7 +894,7 @@ function GitFields({
               placeholder="."
               value={git.context}
               error={errors["git.context"]}
-              hint={t`What the build starts from, in the repository.`}
+              hint={t`Where the build starts, in the repository.`}
               onChange={(event) => onGit({ context: event.target.value }, "git.context")}
             />
             {git.builder === "railpack" ? null : (
@@ -904,11 +941,7 @@ function GitFields({
             autoComplete="off"
             placeholder={"NODE_ENV=production"}
             error={errors["git.args"]}
-            hint={
-              git.builder === "dockerfile"
-                ? t`A NAME=value a line, as docker build's --build-arg. They aren't secret: they stay in the image's history.`
-                : t`A NAME=value a line. A Dockerfile reads them as --build-arg, and Railpack as variables, such as RAILPACK_NODE_VERSION=20.`
-            }
+            hint={t`A NAME=value a line. They aren't secret.`}
             onChange={(event) => onGit({ args: event.target.value }, "git.args")}
           />
         </div>
@@ -924,11 +957,50 @@ function GitFields({
         onChange={(event) => update({ name: event.target.value }, "name")}
       />
       <div className="app-rule" />
-      <PortsSection form={form} errors={errors} update={update} clear={clear} />
+      <PortsSection form={form} errors={errors} update={update} clear={clear} exposed={exposed[0]} />
       <EnvSection form={form} errors={errors} update={update} clear={clear} />
       <MountsSection form={form} errors={errors} update={update} clear={clear} />
     </>
   );
+}
+
+/**
+ * A repository, asked from the control server as its URL is typed: that it is
+ * there and public, as a state beside the field, and its branches to choose from,
+ * the default first.
+ */
+function useRepository(typed: string): {
+  state?: ReactNode;
+  failed?: string;
+  /** True once it answered for the URL as it is typed now. */
+  checked: boolean;
+  branches: readonly string[];
+  defaultBranch: string;
+} {
+  const { t } = useLingui();
+  const [url, setUrl] = useState(typed.trim());
+  useEffect(() => {
+    const id = setTimeout(() => setUrl(typed.trim()), 600);
+    return () => clearTimeout(id);
+  }, [typed]);
+  const worth = looksLikeRepository(typed);
+  const asked = useQuery(
+    BuildService.method.listRepositoryBranches,
+    { url },
+    { enabled: looksLikeRepository(url), retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
+  );
+  if (!worth) return { checked: false, branches: [], defaultBranch: "" };
+  if (url !== typed.trim() || asked.isFetching)
+    return { state: t`Checking the repository`, checked: false, branches: [], defaultBranch: "" };
+  if (asked.error) return { failed: sentence(asked.error), checked: false, branches: [], defaultBranch: "" };
+  const branches = asked.data?.branches ?? [];
+  const count = asked.data?.total || branches.length;
+  return {
+    checked: true,
+    state: plural(count, { one: "Public · # branch", other: "Public · # branches" }),
+    branches,
+    defaultBranch: asked.data?.defaultBranch ?? "",
+  };
 }
 
 /** A repository's URL that is worth reading: a host, then a path. */
@@ -947,12 +1019,18 @@ function BuildRow({
   waitForServer,
   showBuild,
   onShowBuild,
+  onExposed,
+  checked,
 }: {
   git: GitForm;
   server: string;
   waitForServer: boolean;
   showBuild: boolean;
   onShowBuild: (shown: boolean) => void;
+  /** Hears which ports the reading says the Dockerfile exposes, none while there is no reading. */
+  onExposed: (ports: readonly number[]) => void;
+  /** True once the repository is known to be there: its own field says when it isn't, and nothing reads how it builds until it is. */
+  checked: boolean;
 }) {
   const { t } = useLingui();
   const words = useDetectionWords();
@@ -977,15 +1055,21 @@ function BuildRow({
     settled,
   ) as [string, string, string, string, GitForm["builder"], string, string, string, string, boolean];
   // A reading checks out on the server that will build it, and none is chosen yet.
-  const ready = looksLikeRepository(url) && !waiting;
+  const ready = looksLikeRepository(url) && !waiting && checked;
   const read = useQuery(
     BuildService.method.detectBuild,
     { build: buildOf({ url, ref, context, dockerfile, builder, buildCommand, startCommand, args }), server: on },
     { enabled: ready, retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
   );
-  const reading = looksLikeRepository(git.url) && !waitForServer && (settled !== wanted || read.isFetching);
+  const reading = looksLikeRepository(git.url) && !waitForServer && checked && (settled !== wanted || read.isFetching);
   const d = ready && !reading ? read.data?.detection : undefined;
   const failed = ready && !reading && read.error ? sentence(read.error) : undefined;
+  const exposed = d?.exposedPorts.join(",") ?? "";
+  const heard = useRef(onExposed);
+  heard.current = onExposed;
+  useEffect(() => {
+    heard.current(exposed === "" ? [] : exposed.split(",").map(Number));
+  }, [exposed]);
 
   let icon: ReactNode = <Icon name="branch" size={16} className="git-build-muted" />;
   let headline: ReactNode;
@@ -1104,18 +1188,31 @@ function SectionHead({
   );
 }
 
-function PortsSection({ form, errors, update, clear }: SectionProps) {
+function PortsSection({
+  form,
+  errors,
+  update,
+  clear,
+  exposed,
+}: SectionProps & {
+  /** The port the build says the app listens on, offered while no port is published. */
+  exposed?: number;
+}) {
   const { t } = useLingui();
   const id = useId();
-  const add = () => update({ ports: [...form.ports, { key: nextKey(), host: "", container: "", protocol: "tcp" }] });
+  const offer = form.ports.length === 0 && exposed ? String(exposed) : "";
+  const add = () =>
+    update({ ports: [...form.ports, { key: nextKey(), host: offer, container: offer, protocol: "tcp" }] });
   const change = (row: PortRow, next: Partial<PortRow>) =>
     update({ ports: form.ports.map((p) => (p.key === row.key ? { ...p, ...next } : p)) });
   return (
     <fieldset className="app-section" aria-labelledby={id}>
-      <SectionHead title={t`Ports`} id={id} add={t`Add port`} onAdd={add}>
-        {form.ports.length === 0
-          ? t`Nothing outside the server reaches it until you publish a port.`
-          : t`Such as 8080 on the server, to 80 in the app.`}
+      <SectionHead title={t`Ports`} id={id} add={offer ? t`Publish ${offer}` : t`Add port`} onAdd={add}>
+        {offer
+          ? t`The build exposes ${offer}.`
+          : form.ports.length === 0
+            ? t`Nothing outside the server reaches it until you publish a port.`
+            : t`Such as 8080 on the server, to 80 in the app.`}
       </SectionHead>
       {form.ports.map((row, i) => (
         <div key={row.key} className="app-row-group">

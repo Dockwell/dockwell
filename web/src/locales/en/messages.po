@@ -2944,17 +2944,11 @@ msgstr "<0>{project}</0> is here already, so the plan updates what's in it."
 msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
 msgstr "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
 
-msgid "A NAME=value a line, as docker build's --build-arg. They aren't secret: they stay in the image's history."
-msgstr "A NAME=value a line, as docker build's --build-arg. They aren't secret: they stay in the image's history."
-
-msgid "A NAME=value a line. A Dockerfile reads them as --build-arg, and Railpack as variables, such as RAILPACK_NODE_VERSION=20."
-msgstr "A NAME=value a line. A Dockerfile reads them as --build-arg, and Railpack as variables, such as RAILPACK_NODE_VERSION=20."
+msgid "A NAME=value a line. They aren't secret."
+msgstr "A NAME=value a line. They aren't secret."
 
 msgid "A URL has no spaces. Write it as https://github.com/acme/web."
 msgstr "A URL has no spaces. Write it as https://github.com/acme/web."
-
-msgid "A public repository, over HTTPS. Pushes don't deploy yet: Deploy builds the newest commit of the branch, or the default branch when you leave it empty."
-msgstr "A public repository, over HTTPS. Pushes don't deploy yet: Deploy builds the newest commit of the branch, or the default branch when you leave it empty."
 
 msgid "A volume such as data at /data, or a server path."
 msgstr "A volume such as data at /data, or a server path."
@@ -3012,6 +3006,9 @@ msgstr "Check the image and its variables, then try again."
 
 msgid "Check the image and tag, then try again."
 msgstr "Check the image and tag, then try again."
+
+msgid "Checking the repository"
+msgstr "Checking the repository"
 
 msgid "Choose a file"
 msgstr "Choose a file"
@@ -3078,6 +3075,9 @@ msgstr "Hide"
 
 msgid "Hide the value"
 msgstr "Hide the value"
+
+msgid "In place of a branch."
+msgstr "In place of a branch."
 
 msgid "In that folder."
 msgstr "In that folder."
@@ -3150,15 +3150,18 @@ msgstr "Project"
 msgid "Project name"
 msgstr "Project name"
 
+msgid "Publish {offer}"
+msgstr "Publish {offer}"
+
 msgid "Railpack"
 msgstr "Railpack"
-
-msgid "Railpack reads what the app is, such as Node from its package.json, and builds it with no Dockerfile."
-msgstr "Railpack reads what the app is, such as Node from its package.json, and builds it with no Dockerfile."
 
 #. placeholder {0}: warned.join(" ")
 msgid "Railpack says: {0}"
 msgstr "Railpack says: {0}"
+
+msgid "Railpack, with no Dockerfile."
+msgstr "Railpack, with no Dockerfile."
 
 msgid "Reaches {path}"
 msgstr "Reaches {path}"
@@ -3220,11 +3223,17 @@ msgstr "Start command"
 msgid "Such as 8080 on the server, to 80 in the app."
 msgstr "Such as 8080 on the server, to 80 in the app."
 
-msgid "The Dockerfile when the commit has one, and Railpack when it hasn't."
-msgstr "The Dockerfile when the commit has one, and Railpack when it hasn't."
+msgid "Tag or commit"
+msgstr "Tag or commit"
 
-msgid "The commit's Dockerfile builds it, and the build fails without one."
-msgstr "The commit's Dockerfile builds it, and the build fails without one."
+msgid "The Dockerfile when there is one, and Railpack when there isn't."
+msgstr "The Dockerfile when there is one, and Railpack when there isn't."
+
+msgid "The build exposes {offer}."
+msgstr "The build exposes {offer}."
+
+msgid "The commit's Dockerfile."
+msgstr "The commit's Dockerfile."
 
 msgid "The file uses these, and has no default for them."
 msgstr "The file uses these, and has no default for them."
@@ -3253,14 +3262,14 @@ msgstr "Use lowercase letters, digits and dashes, starting with a letter, such a
 msgid "Variables"
 msgstr "Variables"
 
-msgid "What the build starts from, in the repository."
-msgstr "What the build starts from, in the repository."
-
 msgid "What the image starts with."
 msgstr "What the image starts with."
 
 msgid "What this file makes"
 msgstr "What this file makes"
+
+msgid "Where the build starts, in the repository."
+msgstr "Where the build starts, in the repository."
 
 msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
 msgstr "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
@@ -3326,8 +3335,14 @@ msgstr "{0, plural, one {Volume} other {Volumes}}"
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 msgstr "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 
+msgid "{count, plural, one {Public · # branch} other {Public · # branches}}"
+msgstr "{count, plural, one {Public · # branch} other {Public · # branches}}"
+
 msgid "{count, plural, one {Show it} other {Show them}}"
 msgstr "{count, plural, one {Show it} other {Show them}}"
+
+msgid "{name} (default)"
+msgstr "{name} (default)"
 
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, one {# variable} other {# variables}}"

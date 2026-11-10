@@ -2944,17 +2944,11 @@ msgstr "<0>{project}</0> 已存在，因此计划会更新其中的内容。"
 msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
 msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权限等同于 root。需要你在计划中批准，API 令牌无法批准。"
 
-msgid "A NAME=value a line, as docker build's --build-arg. They aren't secret: they stay in the image's history."
-msgstr "每行一个 NAME=value，相当于 docker build 的 --build-arg。它们不是机密：会留在镜像的历史记录中。"
-
-msgid "A NAME=value a line. A Dockerfile reads them as --build-arg, and Railpack as variables, such as RAILPACK_NODE_VERSION=20."
-msgstr "每行一个 NAME=value。Dockerfile 把它们当作 --build-arg 读取，Railpack 当作变量读取，比如 RAILPACK_NODE_VERSION=20。"
+msgid "A NAME=value a line. They aren't secret."
+msgstr "每行一个 NAME=value。它们不是机密。"
 
 msgid "A URL has no spaces. Write it as https://github.com/acme/web."
 msgstr "URL 中不能有空格。请写成 https://github.com/acme/web。"
-
-msgid "A public repository, over HTTPS. Pushes don't deploy yet: Deploy builds the newest commit of the branch, or the default branch when you leave it empty."
-msgstr "通过 HTTPS 访问的公开仓库。推送暂不会自动部署：点击部署会构建该分支的最新提交，留空则使用默认分支。"
 
 msgid "A volume such as data at /data, or a server path."
 msgstr "可以是卷（例如挂载到 /data 的 data），也可以是服务器路径。"
@@ -3012,6 +3006,9 @@ msgstr "请检查镜像及其变量，然后重试。"
 
 msgid "Check the image and tag, then try again."
 msgstr "请检查镜像和标签，然后重试。"
+
+msgid "Checking the repository"
+msgstr "正在检查仓库"
 
 msgid "Choose a file"
 msgstr "选择文件"
@@ -3078,6 +3075,9 @@ msgstr "隐藏"
 
 msgid "Hide the value"
 msgstr "隐藏值"
+
+msgid "In place of a branch."
+msgstr "用来代替分支。"
 
 msgid "In that folder."
 msgstr "位于该文件夹中。"
@@ -3150,15 +3150,18 @@ msgstr "项目"
 msgid "Project name"
 msgstr "项目名称"
 
+msgid "Publish {offer}"
+msgstr "发布 {offer}"
+
 msgid "Railpack"
 msgstr "Railpack"
-
-msgid "Railpack reads what the app is, such as Node from its package.json, and builds it with no Dockerfile."
-msgstr "Railpack 会识别应用的类型，比如从 package.json 识别出 Node，无需 Dockerfile 即可构建。"
 
 #. placeholder {0}: warned.join(" ")
 msgid "Railpack says: {0}"
 msgstr "Railpack 提示：{0}"
+
+msgid "Railpack, with no Dockerfile."
+msgstr "使用 Railpack，无需 Dockerfile。"
 
 msgid "Reaches {path}"
 msgstr "可访问 {path}"
@@ -3220,11 +3223,17 @@ msgstr "启动命令"
 msgid "Such as 8080 on the server, to 80 in the app."
 msgstr "例如将服务器上的 8080 映射到应用内的 80。"
 
-msgid "The Dockerfile when the commit has one, and Railpack when it hasn't."
-msgstr "提交中有 Dockerfile 时用 Dockerfile，没有时用 Railpack。"
+msgid "Tag or commit"
+msgstr "标签或提交"
 
-msgid "The commit's Dockerfile builds it, and the build fails without one."
-msgstr "用该提交中的 Dockerfile 构建，没有 Dockerfile 时构建会失败。"
+msgid "The Dockerfile when there is one, and Railpack when there isn't."
+msgstr "有 Dockerfile 时用它，没有时用 Railpack。"
+
+msgid "The build exposes {offer}."
+msgstr "构建声明了端口 {offer}。"
+
+msgid "The commit's Dockerfile."
+msgstr "该提交的 Dockerfile。"
 
 msgid "The file uses these, and has no default for them."
 msgstr "文件用到了这些变量，且没有默认值。"
@@ -3253,14 +3262,14 @@ msgstr "请使用小写字母、数字和短横线，并以字母开头，例如
 msgid "Variables"
 msgstr "变量"
 
-msgid "What the build starts from, in the repository."
-msgstr "构建在仓库中的起始位置。"
-
 msgid "What the image starts with."
 msgstr "镜像启动时运行的命令。"
 
 msgid "What this file makes"
 msgstr "此文件会创建的内容"
+
+msgid "Where the build starts, in the repository."
+msgstr "构建在仓库中的起始位置。"
 
 msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
 msgstr "文件所在的位置，例如 <0>/opt/shop</0>。相对于它的路径（例如 <1>./data</1>）从这里开始，每个都是你在计划中批准的服务器路径。"
@@ -3326,8 +3335,14 @@ msgstr "{0, plural, other {卷}}"
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 msgstr "{count, plural, other {这里还有 # 个其他应用。否则它们保持不变。}}"
 
+msgid "{count, plural, one {Public · # branch} other {Public · # branches}}"
+msgstr "{count, plural, other {公开 · # 个分支}}"
+
 msgid "{count, plural, one {Show it} other {Show them}}"
 msgstr "{count, plural, other {显示}}"
+
+msgid "{name} (default)"
+msgstr "{name}（默认）"
 
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, other {# 个变量}}"

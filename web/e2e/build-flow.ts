@@ -45,7 +45,12 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   if (!(await sheet.getByRole("radio", { name: "Git" }).isChecked()))
     fail("New app doesn't open on Git, as Apps-New has it");
   await sheet.getByLabel("Repository").fill(`${git}/web.git`);
-  await sheet.getByLabel("Branch").fill("main");
+  // The repository is checked as it's typed, and its branches are there to choose
+  // from, with the default one, main, chosen already.
+  await sheet.getByText(/^Public · \d+ branches$/).waitFor();
+  const branch = sheet.getByRole("combobox", { name: "Branch" });
+  if ((await branch.locator("option:checked").textContent()) !== "main (default)")
+    fail("New app doesn't choose the repository's default branch");
   await sheet.getByLabel(/^Name/).fill("storefront");
   await shoot(page, "build-new-app");
   await sheet.getByRole("button", { name: "Review plan" }).click();
@@ -131,7 +136,8 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await page.goto(`${origin}/apps/new`);
   const next = page.getByRole("dialog", { name: "New app" });
   await next.getByLabel("Repository").fill(`${git}/web.git`);
-  await next.getByLabel("Branch").fill("node");
+  await next.getByText(/^Public · \d+ branches$/).waitFor();
+  await next.getByRole("combobox", { name: "Branch" }).selectOption("node");
   await next.getByLabel(/^Name/).fill("catalog");
   const row = next.getByRole("status", { name: "Build" });
   await row.getByText("Railpack · Node 22", { exact: true }).waitFor({ timeout: 60_000 });
@@ -158,7 +164,8 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await page.goto(`${origin}/apps/new`);
   const docs = page.getByRole("dialog", { name: "New app" });
   await docs.getByLabel("Repository").fill(`${git}/web.git`);
-  await docs.getByLabel("Branch").fill("docs");
+  await docs.getByText(/^Public · \d+ branches$/).waitFor();
+  await docs.getByRole("combobox", { name: "Branch" }).selectOption("docs");
   await docs.getByLabel(/^Name/).fill("docs");
   await docs
     .getByRole("status", { name: "Build" })

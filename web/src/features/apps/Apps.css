@@ -2507,10 +2507,6 @@
   gap: var(--space-3);
 }
 
-.git-hint {
-  margin: calc(-1 * var(--space-2)) 0 0;
-}
-
 /* How it builds, on one line, with the way to change it. */
 .git-build {
   display: flex;

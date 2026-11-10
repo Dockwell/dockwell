@@ -63,6 +63,9 @@ function api(more: Api = {}, ...servers: ReturnType<typeof aServer>[]): Api {
     services: { listServices: () => ({}), listServiceRevisions: () => ({}) },
     servers: { watchServers: watch.stream },
     ...more,
+    // A repository answers with one branch unless a test says otherwise, as nothing
+    // reads how it builds until it is there.
+    builds: { listRepositoryBranches: () => ({ branches: ["main"], defaultBranch: "main" }), ...more.builds },
   };
 }
 
@@ -179,6 +182,128 @@ describe("New app, from Git", () => {
         ),
       { timeout: 3000 },
     );
+  });
+
+  it("checks the repository as you type, offers its branches to choose, and offers the port the build exposes", async () => {
+    const user = userEvent.setup();
+    const proposed: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/new",
+      api({
+        builds: {
+          listRepositoryBranches: (req) => {
+            expect(req.url).toBe("github.com/acme/search-ui");
+            return { branches: ["main", "fix/cart", "next"], defaultBranch: "main" };
+          },
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            ref: "main",
+            serverName: "hz-1",
+            detection: {
+              builder: ImageBuild_Builder.DOCKERFILE,
+              dockerfile: "Dockerfile",
+              baseImage: "node:22-alpine",
+              exposedPorts: [8080, 9090],
+            },
+          }),
+        },
+        changes: {
+          proposeChange: (req) => {
+            proposed.push(req);
+            return { change: planned() };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    // Before there is a repository to ask, a branch is typed, as a power user's still is.
+    expect(within(sheet).getByRole("textbox", { name: "Branch" })).toBeVisible();
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/search-ui");
+    // A state beside the field, and no paragraph about what a repository has to be.
+    await within(sheet).findByText("Public · 3 branches", {}, { timeout: 3000 });
+    expect(sheet).not.toHaveTextContent("Pushes don't deploy yet");
+    const branch = within(sheet).getByRole("combobox", { name: "Branch" });
+    expect(
+      within(branch)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["main (default)", "fix/cart", "next"]);
+    expect(branch).toHaveValue("");
+    // What the Dockerfile exposes is offered as the port, for one press, and nothing is published unasked.
+    await within(sheet).findByText("The build exposes 8080.", {}, { timeout: 3000 });
+    expect(within(sheet).queryByLabelText("On the server")).not.toBeInTheDocument();
+    await user.click(within(sheet).getByRole("button", { name: "Publish 8080" }));
+    expect(within(sheet).getByLabelText("On the server")).toHaveValue("8080");
+    expect(within(sheet).getByLabelText("In the app")).toHaveValue("8080");
+    await user.selectOptions(branch, "next");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed.length).toBe(1));
+    const spec = proposed[0]?.edits[0]?.spec?.kind;
+    expect(spec?.case === "service" ? spec.value.build?.source : undefined).toMatchObject({
+      case: "git",
+      value: { url: "github.com/acme/search-ui", ref: "next" },
+    });
+    expect(spec?.case === "service" && spec.value.runs.case === "app" ? spec.value.runs.value.ports : []).toMatchObject(
+      [{ hostPort: 8080, containerPort: 8080 }],
+    );
+  });
+
+  it("says at the repository's own field that it can't be read, once, and still takes a branch you type", async () => {
+    const user = userEvent.setup();
+    const detected: unknown[] = [];
+    renderAt(
+      "/apps/new",
+      api({
+        builds: {
+          listRepositoryBranches: () => {
+            throw new ConnectError(
+              "there's no repository at github.com/acme/gone. Check the URL",
+              Code.FailedPrecondition,
+            );
+          },
+          detectBuild: (req) => {
+            detected.push(req);
+            return {};
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/gone");
+    await within(sheet).findByText(
+      "There's no repository at github.com/acme/gone. Check the URL.",
+      {},
+      { timeout: 3000 },
+    );
+    expect(within(sheet).getByRole("textbox", { name: "Branch" })).toBeVisible();
+    // The build's row doesn't ask a server to read what isn't there, or say it again.
+    expect(within(sheet).getByRole("status", { name: "Build" })).not.toHaveTextContent("Couldn't read the repository");
+    expect(detected).toEqual([]);
+  });
+
+  it("lands on the app's build once it is applied, where its log is", async () => {
+    const user = userEvent.setup();
+    const watch = feed<WatchChangeResponse>();
+    const { router } = renderAt(
+      "/apps/new",
+      api({
+        changes: {
+          proposeChange: () => ({ change: planned() }),
+          watchChange: watch.stream,
+          applyChange: () => ({ change: planned({ state: ChangeState.APPLYING }) }),
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/nginx");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    const plan = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(within(plan).getByRole("button", { name: /Apply plan/ }));
+    watch.push(watched(moved(planned(), { state: ChangeState.APPLIED })));
+    const done = await screen.findByRole("dialog", { name: "nginx is deployed" });
+    await user.click(within(done).getByRole("button", { name: "Open nginx" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_nginx/deployments"));
   });
 
   it("says when Railpack can't tell how to build it, and what to do", async () => {
