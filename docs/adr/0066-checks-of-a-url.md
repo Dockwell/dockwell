@@ -36,17 +36,23 @@ The PRD's P0 row "Uptime checks and alerts to email, Slack, Discord, Telegram, n
 
 ### History
 
-As [ADR 0065](https://github.com/Dockwell/dockwell/pull/463) keeps a server's samples, and in the same shape: the control plane adds up each check's runs a minute at a time, in memory, and writes one row a minute for each check (runs, failures, latency summed and highest, the last status) and rolls them into hours, a minute's rows for a day and an hour's for a month, at most 2,184 rows a check. The Checks tab draws a day as a strip of minutes, up, down or slow, and a month as hours.
+As [ADR 0065](https://github.com/Dockwell/dockwell/pull/463) keeps a server's samples, and in the same shape:
+
+- **A minute for a day.** The control plane adds up each check's runs in memory, keyed by its own clock's minute: runs, failures, latency summed and highest, and the last status. At each minute's end it writes one row for every check, in one transaction, with 0 runs for a check that didn't run that minute. So a minute with a row is one Dockwell was there for, and a minute with no row is a control plane that wasn't, which the strip draws grey rather than down. A minute write whose commit result is lost isn't retried, as a minute lost is safer than one counted twice. Minute rows merge as ADR 0065's do: sums add, the highest stays the highest, with the dialect's `MAX` or `GREATEST`.
+- **An hour for a month, rebuilt.** Hour H is computed from its minute rows once H:59 is written, and replaces any row already there, so a restart or a retry can't count it twice. As the control plane starts, it rolls every hour of the last 24 that has minute rows and no hour row.
+- **A hard cap,** at most 1,440 minute rows and 744 hour rows a check, by a range delete past them on each write and an hourly prune by age; a deleted check's rows go after 31 days. So at most 2,184 rows a check, ever, in one table, `check_history`, keyed by check, tier and time. The merge, the roll-up and the catch-up are tested on SQLite and Postgres.
+- **Read by an admin,** as the check is: `ListAlertChecks` and the history read are `NEEDS_ADMIN`, `REACH_INSTALL`. The Checks tab draws a day as a strip of minutes, up, down, slow, or grey where Dockwell wasn't there, and a month as hours, drawing a bucket only when Dockwell was there for at least half of it.
 
 ### What it costs
 
-- **The control plane:** a few hundred bytes a check for its state and last answer, one request a check an interval, so 100 checks every minute are under 2 requests a second; one history row a check a minute.
+- **The control plane:** a few hundred bytes a check for its state and its last 10 answers, one request a check an interval, so 100 checks every minute are under 2 requests a second; one history row a check a minute, so 100 checks write 100 rows a minute in one transaction.
+- **The store:** a row is 7 integers and its key, about 100 to 130 B on SQLite and 200 to 280 B on Postgres with its index and the dead rows rolling deletes leave, so at most about 0.3 MB and 0.6 MB a check, and for 100 checks about 30 MB and 60 MB. That's the ceiling, not a growth rate, and the control-plane backup (#356) carries it.
 - **An agent:** nothing between runs; a run is one request, at most 64 KiB read, in the call that asked for it. Measured with `make budgets` in the slice that has agents run checks.
 - **The network:** the requests themselves, a few kilobytes each.
 
 ### Numbers
 
-The agent protocol takes this area's block: `Call.check` and `CallResult.check` 234 (230 and 231 are #459's, and 231 to 233 are proposed for ADR 0064).
+The agent protocol takes this area's block: `Call.check` and `CallResult.check` 234, in slice 2. #459 takes 230 in `Hello` and 230 and 231 in its listing messages, and ADR 0064 takes `Hello.boot_id` 231 and `DesiredResource` 232 and 233. A check of a URL needs nothing in the public `ServerStats`.
 
 ## Consequences
 
