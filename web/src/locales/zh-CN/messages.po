@@ -6918,6 +6918,15 @@ msgstr "所有者 <0>{owner}</0>"
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, other {# 项}}"
 
+msgid "Hide the folders in {name}"
+msgstr "收起 {name} 中的文件夹"
+
+msgid "Show the folders in {name}"
+msgstr "展开 {name} 中的文件夹"
+
+msgid "{more, plural, one {and # more, in its list} other {and # more, in its list}}"
+msgstr "{more, plural, other {还有 # 个，见其列表}}"
+
 msgid "A name can't have a / in it. Make the folder first, then this in it."
 msgstr "名称中不能有 /。请先创建文件夹，再在其中创建它。"
 

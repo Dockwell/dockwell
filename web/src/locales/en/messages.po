@@ -6918,6 +6918,15 @@ msgstr "owned by <0>{owner}</0>"
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, one {# item} other {# items}}"
 
+msgid "Hide the folders in {name}"
+msgstr "Hide the folders in {name}"
+
+msgid "Show the folders in {name}"
+msgstr "Show the folders in {name}"
+
+msgid "{more, plural, one {and # more, in its list} other {and # more, in its list}}"
+msgstr "{more, plural, one {and # more, in its list} other {and # more, in its list}}"
+
 msgid "A name can't have a / in it. Make the folder first, then this in it."
 msgstr "A name can't have a / in it. Make the folder first, then this in it."
 
