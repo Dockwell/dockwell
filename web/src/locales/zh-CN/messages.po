@@ -5169,6 +5169,9 @@ msgstr "能读取此应用的任何人都能看到它。它的值含有空格、
 msgid "Anyone who can read this app can see it. Only a variable's value is hidden, so don't write a secret in its name."
 msgstr "能读取此应用的任何人都能看到它。只有变量的值会被隐藏，因此不要把机密写在变量名中。"
 
+msgid "Before it moves, Dockwell asks what features its data uses, and stops there, with nothing changed, if {to} can't run them. Lower its feature compatibility version to {to} first if it's higher."
+msgstr "迁移前，Dockwell 会询问它的数据用到了哪些功能；如果 {to} 无法运行这些功能，就在那里停止，不做任何更改。如果它的功能兼容版本更高，请先降到 {to}。"
+
 msgid "Check that you have another way in, such as your provider's console, before you apply it."
 msgstr "应用前，请确认你还有其他登录途径，例如服务商的控制台。"
 
@@ -5223,6 +5226,9 @@ msgstr "在此期间无法读取；服务器恢复连接且满 7 天后，这些
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "它拥有 Linux 能力 <0>{path}</0>，相当于 root。"
 
+msgid "It isn't in a volume Dockwell made, so Dockwell can't back it up. Undoing this puts the old release back, not what the new one changed in its data. Back it up yourself before you apply this."
+msgstr "它的数据不在 Dockwell 创建的卷中，因此 Dockwell 无法备份。撤销会放回旧版本，但不会恢复新版本对数据所做的更改。应用前请自行备份。"
+
 msgid "It joins the group <0>{path}</0>, which is the same as root."
 msgstr "它加入用户组 <0>{path}</0>，相当于 root。"
 
@@ -5264,6 +5270,9 @@ msgstr "它的环境变量会加密后一同进入 Dockwell。任何计划或日
 
 msgid "Its feature compatibility version goes up to {from} where it's lower, so its data may use {from}'s features. Undoing this puts back {from}, which still runs that data; the release before it can't."
 msgstr "如果它的功能兼容版本低于 {from}，会先提升到 {from}，此后它的数据可能用到 {from} 的功能。撤销会放回 {from}，它仍能运行这些数据；更早的版本则不能。"
+
+msgid "Its last reading says so, and applying this stops before it moves, with nothing changed. Lower its feature compatibility version to {to} first."
+msgstr "它最近一次读数是这样说的，因此应用此更改会在迁移前停止，不做任何更改。请先把它的功能兼容版本降到 {to}。"
 
 msgid "Its volumes are backed up first"
 msgstr "它的卷会先备份"
@@ -5494,6 +5503,9 @@ msgstr "{name} 挂载了 <1>{heldIn}</1> 中的 <0>{path}</0>，而 {heldBy} 可
 msgid "{name} mounts the volume {path} on {server}"
 msgstr "{name} 在 {server} 上挂载卷 {path}"
 
+msgid "{name} moves back to {to} only if its data allows"
+msgstr "只有数据允许时，{name} 才会退回 {to}"
+
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} 在 {server} 上可访问端口 {path}"
 
@@ -5520,6 +5532,12 @@ msgstr "{name} 在 {server} 上停止 {path} 的 HTTPS"
 
 msgid "{name} takes on the container {path} on {server}"
 msgstr "{name} 在 {server} 上接管容器 {path}"
+
+msgid "{name}'s data isn't backed up first"
+msgstr "{name} 的数据不会先备份"
+
+msgid "{name}'s data uses {features}'s features, which {to} can't run"
+msgstr "{name} 的数据用到了 {features} 的功能，{to} 无法运行"
 
 msgid "{name}'s features go up to {from} before it moves to {to}"
 msgstr "{name} 在升级到 {to} 之前，功能先提升到 {from}"
@@ -6231,8 +6249,8 @@ msgstr "内部地址"
 msgid "It runs alone, without a replica set, so a backup isn't one moment if something writes while it runs."
 msgstr "它单独运行，没有副本集，因此备份期间若有写入，备份就不是同一时刻的快照。"
 
-msgid "It runs without --auth, so anything that reaches its port signs in as anyone, with no password. To close it, make a user with the root role in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1> on its app to that user's, which turns --auth on."
-msgstr "它在没有 --auth 的情况下运行，因此任何能访问其端口的程序都能以任意用户身份登录，无需密码。要关闭它，请在其中创建一个具有 root 角色的用户，然后在其应用上将 <0>MONGO_INITDB_ROOT_USERNAME</0> 和 <1>MONGO_INITDB_ROOT_PASSWORD</1> 设为该用户的值，这样就会开启 --auth。"
+msgid "It runs without <0>--auth</0>, so anything that reaches its port signs in as anyone, with no password. To check who signs in, make a user with the root role in it, then set <1>MONGO_INITDB_ROOT_USERNAME</1> and <2>MONGO_INITDB_ROOT_PASSWORD</2> on its app to that user's, which turns <3>--auth</3> on."
+msgstr "它运行时没有 <0>--auth</0>，因此任何能访问其端口的程序都能以任意身份登录，无需密码。要开启身份验证，请先在其中创建一个具有 root 角色的用户，再把它的应用上的 <1>MONGO_INITDB_ROOT_USERNAME</1> 和 <2>MONGO_INITDB_ROOT_PASSWORD</2> 设为该用户的用户名和密码，这样就会启用 <3>--auth</3>。"
 
 msgid "It runs {version} with {features}'s features, so {features} can still run its data. Its next upgrade raises them first."
 msgstr "它运行 {version}，使用 {features} 的功能，因此 {features} 仍能运行它的数据。下次升级会先提升它们。"
@@ -6243,8 +6261,14 @@ msgstr "未设置上限"
 msgid "It takes no password Dockwell keeps."
 msgstr "它没有使用 Dockwell 保存的密码。"
 
-msgid "It's a member of the replica set {set}, so each backup is one moment."
-msgstr "它是副本集 {set} 的成员，因此每次备份都是同一时刻的快照。"
+msgid "It takes no password, as it checks no one."
+msgstr "它未开启身份验证，因此不需要密码。"
+
+msgid "It's a member of the replica set {set}, and a member that checks sign-ins needs a key file every member shares: mount one and add <0>--keyFile</0> to its command first, or it won't start."
+msgstr "它是副本集 {set} 的成员，而开启身份验证的成员需要一个所有成员共用的密钥文件：请先挂载密钥文件并在其命令中加上 <0>--keyFile</0>，否则它无法启动。"
+
+msgid "It's a member of the replica set {set}, so each backup is one moment. Dockwell can't restore a backup into a member yet: to restore one, take --replSet out of its command first, and put it back after."
+msgstr "它是副本集 {set} 的成员，因此每次备份都是同一时刻的快照。Dockwell 暂时无法把备份恢复到副本集成员中：要恢复，请先从其命令中去掉 --replSet，恢复后再加回去。"
 
 msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
 msgstr "它的数据在 <0>{volume}</0> 中，这个卷不是 Dockwell 创建的，因此 Dockwell 不会备份它。请在它原来的地方备份，或把数据移到该应用自己的卷中。"
@@ -6350,7 +6374,7 @@ msgid "{dumpOf}'s own dump, while it runs: nothing stops"
 msgstr "{dumpOf} 自带的转储，运行中进行：不会停止任何服务"
 
 msgid "{engine} checks no one"
-msgstr "{engine} 不检查任何人"
+msgstr "{engine} 未开启身份验证"
 
 msgid "{engine} didn't say how it is"
 msgstr "{engine} 没有报告它的状况"
@@ -6378,6 +6402,9 @@ msgstr "不可登录"
 
 msgid "Databases in {name}"
 msgstr "{name} 中的数据库"
+
+msgid "Dockwell lists MongoDB's users, and can't add one yet. To add one, run <0>db.createUser</0> in <1>mongosh</1>, in the database they sign in to. They show here once they're there."
+msgstr "Dockwell 会列出 MongoDB 的用户，但暂时无法添加。要添加用户，请在 <1>mongosh</1> 中进入该用户登录的数据库并运行 <0>db.createUser</0>。创建后会显示在这里。"
 
 msgid "Granted on"
 msgstr "已授权"

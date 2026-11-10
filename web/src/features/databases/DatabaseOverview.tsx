@@ -58,7 +58,7 @@ export function DatabaseOverview() {
   return (
     <div className="database-overview">
       {reading && !read ? <UnreadNote db={db} reading={reading} /> : null}
-      {read?.checksNoOne ? <ChecksNoOne db={db} /> : null}
+      {read?.checksNoOne ? <ChecksNoOne db={db} read={read} /> : null}
       <FromServer db={db} reading={reading} />
       <UpgradeNote db={db} />
       {db.engine === DatabaseEngine.MONGODB && read ? <MongoLine read={read} /> : null}
@@ -81,16 +81,26 @@ export function DatabaseOverview() {
  * A MongoDB that runs without --auth, as its image does with no root user set:
  * anything that reaches its port signs in as anyone.
  */
-function ChecksNoOne({ db }: { db: Database }) {
+function ChecksNoOne({ db, read }: { db: Database; read: DatabaseReading }) {
   const { t } = useLingui();
   const engine = engineName(db.engine);
+  const set = read.replicaSet;
   return (
     <Callout tone="warning" title={t`${engine} checks no one`}>
       <Trans>
-        It runs without --auth, so anything that reaches its port signs in as anyone, with no password. To close it,
-        make a user with the root role in it, then set <code>MONGO_INITDB_ROOT_USERNAME</code> and{" "}
-        <code>MONGO_INITDB_ROOT_PASSWORD</code> on its app to that user's, which turns --auth on.
+        It runs without <code>--auth</code>, so anything that reaches its port signs in as anyone, with no password. To
+        check who signs in, make a user with the root role in it, then set <code>MONGO_INITDB_ROOT_USERNAME</code> and{" "}
+        <code>MONGO_INITDB_ROOT_PASSWORD</code> on its app to that user's, which turns <code>--auth</code> on.
       </Trans>
+      {set ? (
+        <>
+          {" "}
+          <Trans>
+            It's a member of the replica set {set}, and a member that checks sign-ins needs a key file every member
+            shares: mount one and add <code>--keyFile</code> to its command first, or it won't start.
+          </Trans>
+        </>
+      ) : null}
     </Callout>
   );
 }
@@ -113,7 +123,7 @@ function MongoLine({ read }: { read: DatabaseReading }) {
   const set = read.replicaSet;
   lines.push(
     set
-      ? t`It's a member of the replica set ${set}, so each backup is one moment.`
+      ? t`It's a member of the replica set ${set}, so each backup is one moment. Dockwell can't restore a backup into a member yet: to restore one, take --replSet out of its command first, and put it back after.`
       : t`It runs alone, without a replica set, so a backup isn't one moment if something writes while it runs.`,
   );
   return <p className="database-line">{lines.join(" ")}</p>;
@@ -446,7 +456,9 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
           }
         />
         <p className="database-line">
-          {db.passwordSecret ? (
+          {read?.checksNoOne ? (
+            <Trans>It takes no password, as it checks no one.</Trans>
+          ) : db.passwordSecret ? (
             <Trans>
               The password is in the secret <code>{secret}</code>, which you reveal with your passkey on{" "}
               <Link to="/variables">Variables and secrets</Link>.

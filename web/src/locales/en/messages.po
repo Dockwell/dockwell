@@ -5169,6 +5169,9 @@ msgstr "Anyone who can read this app can see it. Its value has a space, a quote 
 msgid "Anyone who can read this app can see it. Only a variable's value is hidden, so don't write a secret in its name."
 msgstr "Anyone who can read this app can see it. Only a variable's value is hidden, so don't write a secret in its name."
 
+msgid "Before it moves, Dockwell asks what features its data uses, and stops there, with nothing changed, if {to} can't run them. Lower its feature compatibility version to {to} first if it's higher."
+msgstr "Before it moves, Dockwell asks what features its data uses, and stops there, with nothing changed, if {to} can't run them. Lower its feature compatibility version to {to} first if it's higher."
+
 msgid "Check that you have another way in, such as your provider's console, before you apply it."
 msgstr "Check that you have another way in, such as your provider's console, before you apply it."
 
@@ -5223,6 +5226,9 @@ msgstr "It can't be read meanwhile, and it goes once the server is back and the 
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "It has the Linux capability <0>{path}</0>, which is the same as root."
 
+msgid "It isn't in a volume Dockwell made, so Dockwell can't back it up. Undoing this puts the old release back, not what the new one changed in its data. Back it up yourself before you apply this."
+msgstr "It isn't in a volume Dockwell made, so Dockwell can't back it up. Undoing this puts the old release back, not what the new one changed in its data. Back it up yourself before you apply this."
+
 msgid "It joins the group <0>{path}</0>, which is the same as root."
 msgstr "It joins the group <0>{path}</0>, which is the same as root."
 
@@ -5264,6 +5270,9 @@ msgstr "Its environment comes into Dockwell with it, sealed. No plan or log show
 
 msgid "Its feature compatibility version goes up to {from} where it's lower, so its data may use {from}'s features. Undoing this puts back {from}, which still runs that data; the release before it can't."
 msgstr "Its feature compatibility version goes up to {from} where it's lower, so its data may use {from}'s features. Undoing this puts back {from}, which still runs that data; the release before it can't."
+
+msgid "Its last reading says so, and applying this stops before it moves, with nothing changed. Lower its feature compatibility version to {to} first."
+msgstr "Its last reading says so, and applying this stops before it moves, with nothing changed. Lower its feature compatibility version to {to} first."
 
 msgid "Its volumes are backed up first"
 msgstr "Its volumes are backed up first"
@@ -5494,6 +5503,9 @@ msgstr "{name} mounts <0>{path}</0>, inside <1>{heldIn}</1>, which {heldBy} can 
 msgid "{name} mounts the volume {path} on {server}"
 msgstr "{name} mounts the volume {path} on {server}"
 
+msgid "{name} moves back to {to} only if its data allows"
+msgstr "{name} moves back to {to} only if its data allows"
+
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} reaches the port {path} on {server}"
 
@@ -5520,6 +5532,12 @@ msgstr "{name} stops HTTPS on {path} on {server}"
 
 msgid "{name} takes on the container {path} on {server}"
 msgstr "{name} takes on the container {path} on {server}"
+
+msgid "{name}'s data isn't backed up first"
+msgstr "{name}'s data isn't backed up first"
+
+msgid "{name}'s data uses {features}'s features, which {to} can't run"
+msgstr "{name}'s data uses {features}'s features, which {to} can't run"
 
 msgid "{name}'s features go up to {from} before it moves to {to}"
 msgstr "{name}'s features go up to {from} before it moves to {to}"
@@ -6231,8 +6249,8 @@ msgstr "Internal URL"
 msgid "It runs alone, without a replica set, so a backup isn't one moment if something writes while it runs."
 msgstr "It runs alone, without a replica set, so a backup isn't one moment if something writes while it runs."
 
-msgid "It runs without --auth, so anything that reaches its port signs in as anyone, with no password. To close it, make a user with the root role in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1> on its app to that user's, which turns --auth on."
-msgstr "It runs without --auth, so anything that reaches its port signs in as anyone, with no password. To close it, make a user with the root role in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1> on its app to that user's, which turns --auth on."
+msgid "It runs without <0>--auth</0>, so anything that reaches its port signs in as anyone, with no password. To check who signs in, make a user with the root role in it, then set <1>MONGO_INITDB_ROOT_USERNAME</1> and <2>MONGO_INITDB_ROOT_PASSWORD</2> on its app to that user's, which turns <3>--auth</3> on."
+msgstr "It runs without <0>--auth</0>, so anything that reaches its port signs in as anyone, with no password. To check who signs in, make a user with the root role in it, then set <1>MONGO_INITDB_ROOT_USERNAME</1> and <2>MONGO_INITDB_ROOT_PASSWORD</2> on its app to that user's, which turns <3>--auth</3> on."
 
 msgid "It runs {version} with {features}'s features, so {features} can still run its data. Its next upgrade raises them first."
 msgstr "It runs {version} with {features}'s features, so {features} can still run its data. Its next upgrade raises them first."
@@ -6243,8 +6261,14 @@ msgstr "It sets no most"
 msgid "It takes no password Dockwell keeps."
 msgstr "It takes no password Dockwell keeps."
 
-msgid "It's a member of the replica set {set}, so each backup is one moment."
-msgstr "It's a member of the replica set {set}, so each backup is one moment."
+msgid "It takes no password, as it checks no one."
+msgstr "It takes no password, as it checks no one."
+
+msgid "It's a member of the replica set {set}, and a member that checks sign-ins needs a key file every member shares: mount one and add <0>--keyFile</0> to its command first, or it won't start."
+msgstr "It's a member of the replica set {set}, and a member that checks sign-ins needs a key file every member shares: mount one and add <0>--keyFile</0> to its command first, or it won't start."
+
+msgid "It's a member of the replica set {set}, so each backup is one moment. Dockwell can't restore a backup into a member yet: to restore one, take --replSet out of its command first, and put it back after."
+msgstr "It's a member of the replica set {set}, so each backup is one moment. Dockwell can't restore a backup into a member yet: to restore one, take --replSet out of its command first, and put it back after."
 
 msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
 msgstr "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
@@ -6378,6 +6402,9 @@ msgstr "Can't sign in"
 
 msgid "Databases in {name}"
 msgstr "Databases in {name}"
+
+msgid "Dockwell lists MongoDB's users, and can't add one yet. To add one, run <0>db.createUser</0> in <1>mongosh</1>, in the database they sign in to. They show here once they're there."
+msgstr "Dockwell lists MongoDB's users, and can't add one yet. To add one, run <0>db.createUser</0> in <1>mongosh</1>, in the database they sign in to. They show here once they're there."
 
 msgid "Granted on"
 msgstr "Granted on"

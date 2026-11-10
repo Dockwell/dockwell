@@ -74,3 +74,24 @@ func TestAMongoDBMovesOneReleaseAtATime(t *testing.T) {
 		t.Errorf("skipping says nothing: %v", skipped.GetNotes())
 	}
 }
+
+// MongoDB's users are read, and Dockwell makes none yet: asking for one is refused
+// in words that say what to do instead, before anything is planned (ADR 0038).
+func TestAMongoDBUserIsRefusedInWords(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	e.AddLocalImage("mongo:8.0", dockertest.Image{Config: docker.Config{Cmd: []string{"mongod"}}, Volumes: []string{"/data/db", "/data/configdb"}})
+	c := changeClient(b, b.origin)
+	cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	file := "services:\n  docs:\n    image: mongo:8.0\n    volumes:\n      - data:/data/db\nvolumes:\n  data: {}\n"
+	if got := apply(t, c, importCompose(t, cc, file, nil, false)); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("MongoDB 8.0: %v", got.GetError())
+	}
+	dc := dockwellv1connect.NewDatabaseServiceClient(b, b.origin, connect.WithProtoJSON())
+	_, err := dc.CreateDatabaseUser(t.Context(), connect.NewRequest(&dockwellv1.CreateDatabaseUserRequest{Id: "docs", User: "shop"}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument ||
+		!strings.Contains(err.Error(), "docs runs MongoDB, and Dockwell can't make users in MongoDB yet. Make one with db.createUser in mongosh") {
+		t.Errorf("a user in MongoDB: %v", err)
+	}
+}

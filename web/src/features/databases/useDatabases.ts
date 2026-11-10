@@ -49,6 +49,15 @@ export function speaksSQL(engine: DatabaseEngine): boolean {
   return engine !== DatabaseEngine.REDIS && engine !== DatabaseEngine.VALKEY;
 }
 
+/**
+ * Whether Dockwell makes users in an engine, each with a database of their own and
+ * a password kept as a secret. MongoDB's are listed, and making them comes later
+ * (ADR 0038).
+ */
+export function makesUsers(engine: DatabaseEngine): boolean {
+  return engine === DatabaseEngine.POSTGRESQL || engine === DatabaseEngine.MYSQL || engine === DatabaseEngine.MARIADB;
+}
+
 /** What the URL of each engine starts with. */
 const SCHEMES: Readonly<Record<DatabaseEngine, string>> = {
   [DatabaseEngine.UNSPECIFIED]: "",

@@ -602,7 +602,8 @@ export function useDataLeft(
       detail: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore the backup taken first if it doesn't.`,
     };
   }
-  if (!plan?.notes.some((note) => ["no_backup", "undo_no_backup", "unbacked_move"].includes(note.reason))) return undefined;
+  if (!plan?.notes.some((note) => ["no_backup", "undo_no_backup", "unbacked_move"].includes(note.reason)))
+    return undefined;
   return {
     title: t`No backup was taken, and the data stays as it is now`,
     detail: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore a backup of your own if it doesn't.`,

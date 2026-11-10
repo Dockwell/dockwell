@@ -372,15 +372,35 @@ describe("a database's page", () => {
         .map((r) => r.textContent),
     ).toEqual(["rootadminCan do anythingNone of their own", "shoppershopSigns inshop"]);
     expect(screen.queryByText(/checks no one/)).toBeNull();
+    // Dockwell makes no MongoDB users yet, so there's nothing to add, and no secret to name.
+    expect(screen.queryByRole("button", { name: "Add a user" })).toBeNull();
+    expect(within(users).queryByRole("columnheader", { name: "Password in" })).toBeNull();
+    expect(screen.getByText(/Dockwell lists MongoDB's users, and can't add one yet/)).toHaveTextContent(
+      "To add one, run db.createUser in mongosh, in the database they sign in to.",
+    );
     await expectAccessible(container);
   });
 
-  it("warns of a MongoDB that checks no one, and says how to close it", async () => {
+  it("offers no way to add a MongoDB user on its Users tab either", async () => {
+    renderAt("/databases/svc_docs/users", api([mongo()]));
+    expect(await screen.findByRole("table", { name: "Users of docs" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Add a user" })).toBeNull();
+    expect(screen.getByText(/can't add one yet/)).toBeVisible();
+  });
+
+  it("warns of a MongoDB that checks no one, and says how to check who signs in", async () => {
     renderAt("/databases/svc_docs", api([mongo({ checksNoOne: true, user: "", users: [], replicaSet: "rs0" })]));
     expect(await screen.findByText("MongoDB checks no one")).toBeVisible();
     expect(screen.getByText(/anything that reaches its port signs in as anyone/)).toBeVisible();
     expect(screen.getByLabelText("Internal URL")).toHaveValue("mongodb://docs:27017");
-    expect(screen.getByText(/member of the replica set rs0, so each backup is one moment/)).toBeVisible();
+    expect(screen.getByText(/member of the replica set rs0, so each backup is one moment/)).toHaveTextContent(
+      "Dockwell can't restore a backup into a member yet: to restore one, take --replSet out of its command first",
+    );
+    // A member that checks sign-ins needs a key file, or it won't start.
+    expect(screen.getByText(/a member that checks sign-ins needs a key file every member shares/)).toBeVisible();
+    // It takes no password, so the page doesn't say one is kept sealed.
+    expect(screen.getByText("It takes no password, as it checks no one.")).toBeVisible();
+    expect(screen.queryByText(/keeps sealed and never shows/)).toBeNull();
   });
 
   it("says why it can't tell how it is, and keeps the rest", async () => {

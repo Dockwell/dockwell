@@ -184,6 +184,10 @@ func (h *Handler) CreateDatabaseUser(ctx context.Context, req *connect.Request[d
 		return nil, h.fail(ctx, err)
 	}
 	engine := database.Of(server.db.GetEngine())
+	if engine.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
+		// Its users are read, and making them comes after (ADR 0038).
+		return nil, authapi.Invalid(fmt.Errorf("%s runs MongoDB, and Dockwell can't make users in MongoDB yet. Make one with db.createUser in mongosh, in the database they sign in to", server.ref.Name))
+	}
 	if !engine.SQL() {
 		return nil, authapi.Invalid(fmt.Errorf("%s runs %s, which has no users of its own", server.ref.Name, engine.Name))
 	}
