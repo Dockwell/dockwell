@@ -757,6 +757,9 @@ function PhoneRow({
 }) {
   const [status, word] = useDomainState(row.domain, row.look, row.silent, read);
   const target = useRouteTarget()(row.route);
+  // Where its DNS leads, as the wide list's column says it, once a server has read it and the list can be believed.
+  const check = dnsOf(row.domain);
+  const dns = useDnsWord()(check);
   const { tone, shape } = STATUS[status];
   const says = fleet || environment?.(row.domain.environmentId);
   const body = (
@@ -769,6 +772,17 @@ function PhoneRow({
         <span className={`${phoneWordClass(tone)} domains-phone-word`}>{word}</span>
         {/* Lines of their own, as what it reaches is half of what a row is for, and a clipped name says neither. */}
         <span className="domains-phone-target">{target}</span>
+        {check && read === "read" && row.first ? (
+          <span className="domains-phone-dns">
+            {dns.word}
+            {dns.found ? (
+              <>
+                {" · "}
+                <code>{dns.found}</code>
+              </>
+            ) : null}
+          </span>
+        ) : null}
         {says ? (
           <span className="domains-where">
             <Where row={row} fleet={fleet} environment={environment} />
