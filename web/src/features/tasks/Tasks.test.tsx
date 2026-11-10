@@ -303,6 +303,16 @@ describe("scheduled tasks", () => {
     expect(container.querySelector(".dw-panel")).toBeNull();
   });
 
+  it("doesn't count the runs of a task that hasn't run", async () => {
+    renderAt("/scheduled-tasks", {
+      ...api([aTask()]),
+      tasks: { listTasks: () => ({ tasks: [aTask()] }), listTaskRuns: () => ({ runs: [] }) },
+    });
+    expect(await screen.findByText("It hasn't run yet. Run it now to see what it does.")).toBeVisible();
+    expect(screen.getByText("None yet")).toBeVisible();
+    expect(screen.queryByText("Last 0 runs")).toBeNull();
+  });
+
   it("says a server that isn't connected runs its tasks all the same", async () => {
     const away = aTask();
     const first = away.servers[0];
