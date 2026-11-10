@@ -94,7 +94,8 @@ export async function firewallFlow(page: Page, { origin, step, shoot }: Firewall
   // The browser's virtual authenticator gives the passkey the change takes. Then the server waits.
   const keep = page.getByRole("button", { name: "Keep the change" });
   await keep.waitFor({ timeout: 30_000 });
-  const test = await page.getByText(/^Open a new SSH session to port /).innerText();
+  // The test names SSH's port where the server has an SSH server, and none where it has none, as here.
+  const test = await page.getByText(/^Open a new SSH session /).innerText();
   if (!test.includes("with your key")) fail(`the confirmation's test says ${test}`);
   await shoot(page, "server-firewall-confirm");
   await keep.click();
