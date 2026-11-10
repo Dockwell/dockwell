@@ -23,6 +23,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { mira } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 
@@ -443,6 +444,105 @@ describe("Alerts and rules", () => {
     );
     // Nothing resolved, so nothing beside them says so.
     expect(screen.queryByRole("complementary", { name: "Resolved" })).toBeNull();
+  });
+
+  describe("acknowledging", () => {
+    const anAlert = (more: object = {}) => ({
+      id: "alt_1",
+      ruleName: "server-unreachable",
+      severity: Severity.CRITICAL,
+      state: AlertState.FIRING,
+      condition: Condition.SERVER_UNREACHABLE,
+      serverId: "srv_2",
+      serverName: "hz-2",
+      openTime: timestampFromDate(new Date(NOW.getTime() - 20 * 60_000)),
+      ...more,
+    });
+    const since = timestampFromDate(new Date(NOW.getTime() - 5 * 60_000));
+
+    it("says nobody has an alert, and takes it as yours without a plan", async () => {
+      const user = userEvent.setup();
+      let alert = anAlert();
+      const acknowledgeAlert = vi.fn((req: { id: string }) => {
+        alert = anAlert({ acknowledgeTime: since, acknowledgedBy: { id: mira.id, name: mira.name } });
+        return { alert: { id: req.id } };
+      });
+      const unacknowledgeAlert = vi.fn((req: { id: string }) => {
+        alert = anAlert();
+        return { alert: { id: req.id } };
+      });
+      const proposed = planned();
+      renderAt(
+        "/alerts",
+        api([ops], {
+          alerts: { listAlerts: () => ({ firing: 1, alerts: [alert] }), acknowledgeAlert, unacknowledgeAlert },
+          changes: { proposeChange: proposed },
+        }),
+      );
+      const card = within(await screen.findByRole("region", { name: "Open" })).getByRole("article");
+      expect(card).toHaveTextContent("Not acknowledged");
+      await user.click(within(card).getByRole("button", { name: "Acknowledge: hz-2 can't be reached" }));
+      await waitFor(() => expect(card).toHaveTextContent("Acknowledged by you 5 min ago"));
+      expect(acknowledgeAlert.mock.calls[0]?.[0]).toMatchObject({ id: "alt_1" });
+      // Yours is taken back, not taken again.
+      expect(within(card).queryByRole("button", { name: /^Acknowledge/ })).toBeNull();
+      await user.click(
+        within(card).getByRole("button", { name: "Take back your acknowledgement of: hz-2 can't be reached" }),
+      );
+      await waitFor(() => expect(card).toHaveTextContent("Not acknowledged"));
+      expect(unacknowledgeAlert.mock.calls[0]?.[0]).toMatchObject({ id: "alt_1" });
+      // An audited action, as a mute is: nothing is planned.
+      expect(proposed).not.toHaveBeenCalled();
+    });
+
+    it("names who has it, and offers to take it over", async () => {
+      const user = userEvent.setup();
+      const acknowledgeAlert = vi.fn((req: { id: string }) => ({ alert: { id: req.id } }));
+      renderAt(
+        "/alerts",
+        api([ops], {
+          alerts: {
+            listAlerts: () => ({
+              firing: 1,
+              alerts: [anAlert({ acknowledgeTime: since, acknowledgedBy: { id: "usr_leo", name: "Leo Park" } })],
+            }),
+            acknowledgeAlert,
+          },
+        }),
+      );
+      const card = within(await screen.findByRole("region", { name: "Open" })).getByRole("article");
+      expect(card).toHaveTextContent("Acknowledged by Leo Park 5 min ago");
+      expect(within(card).queryByRole("button", { name: /^Take back/ })).toBeNull();
+      await user.click(within(card).getByRole("button", { name: "Take over from Leo Park: hz-2 can't be reached" }));
+      await waitFor(() => expect(acknowledgeAlert).toHaveBeenCalledOnce());
+    });
+
+    it("says what the control plane refused, on the card, and reads the alerts again", async () => {
+      const user = userEvent.setup();
+      const { ConnectError, Code } = await import("@connectrpc/connect");
+      const listAlerts = vi.fn(() => ({ firing: 1, alerts: [anAlert()] }));
+      renderAt(
+        "/alerts",
+        api([ops], {
+          alerts: {
+            listAlerts,
+            acknowledgeAlert: () => {
+              throw new ConnectError(
+                "that alert resolved, so there's nothing left to be on",
+                Code.FailedPrecondition,
+                new Headers({ "Dockwell-Error": "alert_resolved" }),
+              );
+            },
+          },
+        }),
+      );
+      const card = within(await screen.findByRole("region", { name: "Open" })).getByRole("article");
+      const before = listAlerts.mock.calls.length;
+      await user.click(within(card).getByRole("button", { name: /^Acknowledge:/ }));
+      expect(await within(card).findByText("That didn't take")).toBeVisible();
+      expect(card).toHaveTextContent("That alert resolved, so there's nothing left to be on.");
+      await waitFor(() => expect(listAlerts.mock.calls.length).toBeGreaterThan(before));
+    });
   });
 
   it("lists the rules", async () => {

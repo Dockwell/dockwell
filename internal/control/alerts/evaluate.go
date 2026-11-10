@@ -66,12 +66,16 @@ const (
 	ActionResolved = "alert.resolved"
 	ActionMute     = "alert.mute"
 	ActionUnmute   = "alert.unmute"
+	// ActionAcknowledge and ActionUnacknowledge are someone saying they're on an
+	// alert, and taking that back.
+	ActionAcknowledge   = "alert.acknowledge"
+	ActionUnacknowledge = "alert.unacknowledge"
 	// ActionTest is a test sent to a channel, kept or as a form held it.
 	ActionTest = "alert.test"
 )
 
 // Actions are every action an alert event has.
-var Actions = []string{ActionFiring, ActionResolved, ActionMute, ActionUnmute, ActionTest}
+var Actions = []string{ActionFiring, ActionResolved, ActionMute, ActionUnmute, ActionAcknowledge, ActionUnacknowledge, ActionTest}
 
 // settingChangesTold is where the last failed change told is kept, as Unix
 // milliseconds.

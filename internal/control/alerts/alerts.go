@@ -76,7 +76,7 @@ func (h *Handler) internal(ctx context.Context, err error) error {
 }
 
 // alertOf is an alert as the API says it.
-func alertOf(a store.Alert, serverName string, mutes []store.AlertMute, now time.Time) *dockwellv1.Alert {
+func alertOf(a store.Alert, serverName string, mutes []store.AlertMute, names actors.Lookup, now time.Time) *dockwellv1.Alert {
 	out := &dockwellv1.Alert{
 		Id: a.ID, RuleId: a.RuleID, RuleName: a.RuleName,
 		Condition: resourcev1.AlertRule_Condition(a.Condition), Severity: resourcev1.AlertRule_Severity(a.Severity),
@@ -96,6 +96,10 @@ func alertOf(a store.Alert, serverName string, mutes []store.AlertMute, now time
 		out.ServerName = facts.Server
 	}
 	out.Muted = a.ResolvedAt == nil && muted(mutes, a.RuleName, a.ServerID, now)
+	if a.AcknowledgedAt != nil {
+		out.AcknowledgeTime = timestamppb.New(*a.AcknowledgedAt)
+		out.AcknowledgedBy = names.Actor(a.AcknowledgedBy)
+	}
 	return out
 }
 
@@ -121,6 +125,7 @@ func (h *Handler) ListAlerts(ctx context.Context, req *connect.Request[dockwellv
 		if err != nil {
 			return err
 		}
+		names := actors.New().In(ctx, tx)
 		open, err := tx.OpenAlerts(ctx)
 		if err != nil {
 			return err
@@ -131,7 +136,7 @@ func (h *Handler) ListAlerts(ctx context.Context, req *connect.Request[dockwellv
 				return cmp.Or(cmp.Compare(b.Severity, a.Severity), b.OpenedAt.Compare(a.OpenedAt), strings.Compare(b.ID, a.ID))
 			})
 			for i := range open {
-				res.Alerts = append(res.Alerts, alertOf(open[i], servers[open[i].ServerID], mutes, now))
+				res.Alerts = append(res.Alerts, alertOf(open[i], servers[open[i].ServerID], mutes, names, now))
 			}
 		}
 		if m.GetFiringOnly() {
@@ -151,7 +156,7 @@ func (h *Handler) ListAlerts(ctx context.Context, req *connect.Request[dockwellv
 			res.NextPageToken = paging.Token(paging.Cursor{At: last.OpenedAt, ID: last.ID})
 		}
 		for i := range page {
-			res.Alerts = append(res.Alerts, alertOf(page[i], servers[page[i].ServerID], mutes, now))
+			res.Alerts = append(res.Alerts, alertOf(page[i], servers[page[i].ServerID], mutes, names, now))
 		}
 		return nil
 	})
@@ -529,6 +534,113 @@ func (h *Handler) UnmuteAlerts(ctx context.Context, req *connect.Request[dockwel
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("that isn't muted, so there's no mute to end"), "not_muted")
 	}
 	return connect.NewResponse(&dockwellv1.UnmuteAlertsResponse{}), nil
+}
+
+// AcknowledgeAlert records that the caller is on an open alert, over whoever
+// had it. It holds nothing back and sends nothing (ADR 0044).
+func (h *Handler) AcknowledgeAlert(ctx context.Context, req *connect.Request[dockwellv1.AcknowledgeAlertRequest]) (*connect.Response[dockwellv1.AcknowledgeAlertResponse], error) {
+	said, err := h.acknowledge(ctx, req.Msg.GetId(), true)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.AcknowledgeAlertResponse{Alert: said}), nil
+}
+
+// UnacknowledgeAlert takes an open alert's acknowledgement back.
+func (h *Handler) UnacknowledgeAlert(ctx context.Context, req *connect.Request[dockwellv1.UnacknowledgeAlertRequest]) (*connect.Response[dockwellv1.UnacknowledgeAlertResponse], error) {
+	said, err := h.acknowledge(ctx, req.Msg.GetId(), false)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.UnacknowledgeAlertResponse{Alert: said}), nil
+}
+
+// acknowledge records that the caller has an open alert, or that nobody has it
+// any more, on the alert and on the audit log, and returns the alert as it now
+// stands. The caller acknowledging what they already have changes nothing, and
+// tells nobody twice.
+func (h *Handler) acknowledge(ctx context.Context, alertID string, on bool) (*dockwellv1.Alert, error) {
+	p, ok := authapi.PrincipalFrom(ctx)
+	if !ok {
+		return nil, authapi.ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, authapi.ReasonUnauthenticated)
+	}
+	client, _ := authapi.ClientFrom(ctx)
+	alertID = strings.TrimSpace(alertID)
+	if alertID == "" {
+		return nil, authapi.Invalid(errors.New("name the alert by its ID, such as alt_…. List them to find it"))
+	}
+	// To the millisecond, as the store keeps it, so the answer is what a later read says.
+	now := h.eval.now().Truncate(time.Millisecond)
+	var said *dockwellv1.Alert
+	err := h.db.Update(ctx, func(tx *store.Tx) error {
+		a, err := tx.GetAlert(ctx, alertID)
+		if errors.Is(err, store.ErrNotFound) {
+			return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no alert %s. List them to find its ID", alertID), "not_found")
+		}
+		if err != nil {
+			return err
+		}
+		switch {
+		case a.ResolvedAt != nil && on:
+			return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("that alert resolved, so there's nothing left to be on"), "alert_resolved")
+		case a.ResolvedAt != nil || (!on && a.AcknowledgedAt == nil):
+			return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("nobody has acknowledged that alert, or it resolved, so there's nothing to take back"), "not_acknowledged")
+		}
+		same := on && a.AcknowledgedAt != nil && a.AcknowledgedBy == p.Actor()
+		if !same {
+			var done bool
+			action := ActionAcknowledge
+			if on {
+				done, err = tx.AcknowledgeAlert(ctx, a.ID, now, p.Actor())
+				a.AcknowledgedAt, a.AcknowledgedBy = &now, p.Actor()
+			} else {
+				action = ActionUnacknowledge
+				done, err = tx.UnacknowledgeAlert(ctx, a.ID)
+				a.AcknowledgedAt, a.AcknowledgedBy = nil, ""
+			}
+			if err != nil {
+				return err
+			}
+			if !done {
+				// The read above saw it open, in this transaction, so this is for a store that says otherwise.
+				return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("that alert resolved, so there's nothing left to be on"), "alert_resolved")
+			}
+			if err := recordSeen(ctx, tx, action, a, p.Actor(), client.Surface(p), now); err != nil {
+				return err
+			}
+		}
+		servers, err := serverNames(ctx, tx)
+		if err != nil {
+			return err
+		}
+		mutes, err := tx.AlertMutes(ctx)
+		if err != nil {
+			return err
+		}
+		said = alertOf(a, servers[a.ServerID], mutes, actors.New().In(ctx, tx), now)
+		return nil
+	})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	return said, nil
+}
+
+// recordSeen puts an acknowledgement, or its taking back, on the audit log, and
+// so on Activity: the alert as its firing named it, by who did it.
+func recordSeen(ctx context.Context, tx *store.Tx, action string, a store.Alert, actor, surface string, now time.Time) error {
+	opened := a.OpenedAt
+	detail, err := json.Marshal(Told{
+		ID: a.ID, Rule: a.RuleName, Severity: a.Severity, Condition: a.Condition, Title: a.Title,
+		SubjectName: a.SubjectName, Facts: ReadFacts(a.Facts), ServerID: a.ServerID, Path: a.Path, OpenedAt: &opened,
+	})
+	if err != nil {
+		return err
+	}
+	return tx.RecordEvent(ctx, store.Event{
+		ID: id.New(id.Event), At: now, Actor: actor, Action: action,
+		Subject: cmp.Or(a.SubjectID, a.ServerID), Target: a.ServerID, Detail: string(detail), Surface: surface,
+	})
 }
 
 func recordMute(ctx context.Context, tx *store.Tx, action string, m store.AlertMute, subject, serverID, actor, surface string, now time.Time) error {

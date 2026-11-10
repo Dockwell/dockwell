@@ -516,6 +516,9 @@ msgstr "A scheduled task succeeded after a failure"
 msgid "A service"
 msgstr "A service"
 
+msgid "Acknowledged the alert: {title}"
+msgstr "Acknowledged the alert: {title}"
+
 msgid "Added a passkey"
 msgstr "Added a passkey"
 
@@ -825,6 +828,9 @@ msgstr "The backup of {volume} failed"
 msgid "The health of {name} changed on {server}"
 msgstr "The health of {name} changed on {server}"
 
+msgid "Took back the acknowledgement of the alert: {title}"
+msgstr "Took back the acknowledgement of the alert: {title}"
+
 msgid "Turned off codes from an authenticator app"
 msgstr "Turned off codes from an authenticator app"
 
@@ -953,6 +959,18 @@ msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps don
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 
+msgid "Acknowledge"
+msgstr "Acknowledge"
+
+msgid "Acknowledge: {title}"
+msgstr "Acknowledge: {title}"
+
+msgid "Acknowledged by you {ago}"
+msgstr "Acknowledged by you {ago}"
+
+msgid "Acknowledged by {name} {ago}"
+msgstr "Acknowledged by {name} {ago}"
+
 msgid "Critical"
 msgstr "Critical"
 
@@ -977,6 +995,9 @@ msgstr "Memory, now {percent}%"
 msgid "Most severe first"
 msgstr "Most severe first"
 
+msgid "Not acknowledged"
+msgstr "Not acknowledged"
+
 msgid "Nothing is open. What fires shows here until it resolves."
 msgstr "Nothing is open. What fires shows here until it resolves."
 
@@ -992,6 +1013,21 @@ msgstr "Resolved"
 
 msgid "Sent {sent}"
 msgstr "Sent {sent}"
+
+msgid "Take back"
+msgstr "Take back"
+
+msgid "Take back your acknowledgement of: {title}"
+msgstr "Take back your acknowledgement of: {title}"
+
+msgid "Take over"
+msgstr "Take over"
+
+msgid "Take over from {name}: {title}"
+msgstr "Take over from {name}: {title}"
+
+msgid "That didn't take"
+msgstr "That didn't take"
 
 msgid "since {since}"
 msgstr "since {since}"

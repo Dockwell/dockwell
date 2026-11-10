@@ -108,3 +108,70 @@ func TestTheAlertsOutbox(t *testing.T) {
 		}
 	})
 }
+
+// An acknowledgement is who has an open alert and since when. It replaces whoever
+// had it, is taken back only where there is one, never touches an alert that
+// resolved, and stays on the alert once it resolves.
+func TestWhoHasAnAlert(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		t0 := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+		update := func(f func(tx *store.Tx) error) {
+			t.Helper()
+			if err := db.Update(ctx, f); err != nil {
+				t.Fatal(err)
+			}
+		}
+		update(func(tx *store.Tx) error {
+			for _, a := range []store.Alert{
+				{ID: "alt_open", RuleID: "alr_1", RuleName: "app-down", Thing: "svc:a", Title: "a", OpenedAt: t0},
+				{ID: "alt_done", RuleID: "alr_1", RuleName: "app-down", Thing: "svc:b", Title: "b", OpenedAt: t0, ResolvedAt: &t0},
+			} {
+				if err := tx.OpenAlert(ctx, a); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		update(func(tx *store.Tx) error {
+			a, err := tx.GetAlert(ctx, "alt_open")
+			if err != nil || a.AcknowledgedAt != nil || a.AcknowledgedBy != "" {
+				t.Errorf("a new alert is %+v, %v; want nobody's", a, err)
+			}
+			if had, err := tx.UnacknowledgeAlert(ctx, "alt_open"); err != nil || had {
+				t.Errorf("taking back what nobody has = %v, %v", had, err)
+			}
+			for _, who := range []string{"usr_mira", "usr_leo"} {
+				if ok, err := tx.AcknowledgeAlert(ctx, "alt_open", t0.Add(time.Minute), who); err != nil || !ok {
+					t.Errorf("AcknowledgeAlert by %s = %v, %v", who, ok, err)
+				}
+			}
+			if ok, err := tx.AcknowledgeAlert(ctx, "alt_done", t0, "usr_mira"); err != nil || ok {
+				t.Errorf("acknowledging an alert that resolved = %v, %v", ok, err)
+			}
+			if ok, err := tx.AcknowledgeAlert(ctx, "alt_nothing", t0, "usr_mira"); err != nil || ok {
+				t.Errorf("acknowledging an alert that isn't there = %v, %v", ok, err)
+			}
+			return nil
+		})
+		update(func(tx *store.Tx) error {
+			open, err := tx.OpenAlerts(ctx)
+			if err != nil || len(open) != 1 || open[0].AcknowledgedBy != "usr_leo" || open[0].AcknowledgedAt == nil || !open[0].AcknowledgedAt.Equal(t0.Add(time.Minute)) {
+				t.Errorf("OpenAlerts = %+v, %v; want usr_leo to have it since a minute past", open, err)
+			}
+			// Resolving it keeps who had it, and nothing takes that back after.
+			if err := tx.ResolveAlert(ctx, "alt_open", t0.Add(time.Hour), "", false); err != nil {
+				return err
+			}
+			if had, err := tx.UnacknowledgeAlert(ctx, "alt_open"); err != nil || had {
+				t.Errorf("taking back the acknowledgement of an alert that resolved = %v, %v", had, err)
+			}
+			a, err := tx.GetAlert(ctx, "alt_open")
+			if err != nil || a.AcknowledgedBy != "usr_leo" {
+				t.Errorf("resolved, the alert is %+v, %v; want it to keep who had it", a, err)
+			}
+			return nil
+		})
+	})
+}
