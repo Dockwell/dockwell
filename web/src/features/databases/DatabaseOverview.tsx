@@ -35,6 +35,7 @@ import { useFleetView } from "../servers/useFleet";
 import { useReveals } from "../variables/useReveal";
 import { useThisDatabase } from "./DatabaseLayout";
 import "../servers/ServerMetrics.css";
+import { useMay } from "../auth/may";
 import { SchemasSection, UsersSection } from "./DatabaseUsers";
 import {
   connectionURL,
@@ -248,6 +249,7 @@ function BackupsPanel({ db }: { db: Database }) {
   const [taking, setTaking] = useState(false);
   const sheet = useChangeSheet();
   const transport = useTransport();
+  const may = useMay();
   const restore = (id: string) =>
     sheet.open({ kind: "plan", make: () => createClient(BackupService, transport).restoreBackup({ id }) });
   const engine = engineName(db.engine);
@@ -330,7 +332,13 @@ function BackupsPanel({ db }: { db: Database }) {
           <Trans>Back up now</Trans>
         </Button>
         {newest?.onServer ? (
-          <Button size="sm" variant="ghost" icon="undo" onClick={() => restore(newest.id)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="undo"
+            onClick={() => restore(newest.id)}
+            {...may(BackupService.method.restoreBackup, { environment: newest.environmentId }).off}
+          >
             <Trans>Restore the newest</Trans>
           </Button>
         ) : null}

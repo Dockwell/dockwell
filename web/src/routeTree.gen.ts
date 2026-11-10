@@ -25,6 +25,7 @@ import { Route as ShellScheduledTasksRouteImport } from './routes/_shell/schedul
 import { Route as ShellVariablesRouteImport } from './routes/_shell/variables'
 import { Route as ShellSettingsProfileRouteImport } from './routes/_shell/_settings/profile'
 import { Route as ShellAlertsIndexRouteImport } from './routes/_shell/alerts.index'
+import { Route as ShellAlertsAlertIdRouteImport } from './routes/_shell/alerts.$alertId'
 import { Route as ShellAlertsChannelsRouteImport } from './routes/_shell/alerts.channels'
 import { Route as ShellAlertsRulesRouteImport } from './routes/_shell/alerts.rules'
 import { Route as ShellAppsIndexRouteImport } from './routes/_shell/apps.index'
@@ -145,6 +146,11 @@ const ShellSettingsProfileRoute = ShellSettingsProfileRouteImport.update({
 const ShellAlertsIndexRoute = ShellAlertsIndexRouteImport.update({
   id: '/alerts/',
   path: '/alerts/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellAlertsAlertIdRoute = ShellAlertsAlertIdRouteImport.update({
+  id: '/alerts/$alertId',
+  path: '/alerts/$alertId',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellAlertsChannelsRoute = ShellAlertsChannelsRouteImport.update({
@@ -404,6 +410,7 @@ export interface FileRoutesByFullPath {
   '/scheduled-tasks': typeof ShellScheduledTasksRoute
   '/variables': typeof ShellVariablesRoute
   '/profile': typeof ShellSettingsProfileRoute
+  '/alerts/$alertId': typeof ShellAlertsAlertIdRoute
   '/alerts/channels': typeof ShellAlertsChannelsRoute
   '/alerts/rules': typeof ShellAlertsRulesRoute
   '/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
@@ -463,6 +470,7 @@ export interface FileRoutesByTo {
   '/scheduled-tasks': typeof ShellScheduledTasksRoute
   '/variables': typeof ShellVariablesRoute
   '/profile': typeof ShellSettingsProfileRoute
+  '/alerts/$alertId': typeof ShellAlertsAlertIdRoute
   '/alerts/channels': typeof ShellAlertsChannelsRoute
   '/alerts/rules': typeof ShellAlertsRulesRoute
   '/apps/new': typeof ShellAppsNewRoute
@@ -522,6 +530,7 @@ export interface FileRoutesById {
   '/_shell/variables': typeof ShellVariablesRoute
   '/_shell/': typeof ShellIndexRoute
   '/_shell/_settings/profile': typeof ShellSettingsProfileRoute
+  '/_shell/alerts/$alertId': typeof ShellAlertsAlertIdRoute
   '/_shell/alerts/channels': typeof ShellAlertsChannelsRoute
   '/_shell/alerts/rules': typeof ShellAlertsRulesRoute
   '/_shell/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
@@ -583,6 +592,7 @@ export interface FileRouteTypes {
     | '/scheduled-tasks'
     | '/variables'
     | '/profile'
+    | '/alerts/$alertId'
     | '/alerts/channels'
     | '/alerts/rules'
     | '/apps/$serviceId'
@@ -642,6 +652,7 @@ export interface FileRouteTypes {
     | '/scheduled-tasks'
     | '/variables'
     | '/profile'
+    | '/alerts/$alertId'
     | '/alerts/channels'
     | '/alerts/rules'
     | '/apps/new'
@@ -700,6 +711,7 @@ export interface FileRouteTypes {
     | '/_shell/variables'
     | '/_shell/'
     | '/_shell/_settings/profile'
+    | '/_shell/alerts/$alertId'
     | '/_shell/alerts/channels'
     | '/_shell/alerts/rules'
     | '/_shell/apps/$serviceId'
@@ -866,6 +878,13 @@ declare module '@tanstack/react-router' {
       path: '/alerts'
       fullPath: '/alerts/'
       preLoaderRoute: typeof ShellAlertsIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/alerts/$alertId': {
+      id: '/_shell/alerts/$alertId'
+      path: '/alerts/$alertId'
+      fullPath: '/alerts/$alertId'
+      preLoaderRoute: typeof ShellAlertsAlertIdRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/alerts/channels': {
@@ -1282,6 +1301,7 @@ interface ShellRouteChildren {
   ShellScheduledTasksRoute: typeof ShellScheduledTasksRoute
   ShellVariablesRoute: typeof ShellVariablesRoute
   ShellIndexRoute: typeof ShellIndexRoute
+  ShellAlertsAlertIdRoute: typeof ShellAlertsAlertIdRoute
   ShellAlertsChannelsRoute: typeof ShellAlertsChannelsRoute
   ShellAlertsRulesRoute: typeof ShellAlertsRulesRoute
   ShellAppsServiceIdRoute: typeof ShellAppsServiceIdRouteWithChildren
@@ -1317,6 +1337,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellScheduledTasksRoute: ShellScheduledTasksRoute,
   ShellVariablesRoute: ShellVariablesRoute,
   ShellIndexRoute: ShellIndexRoute,
+  ShellAlertsAlertIdRoute: ShellAlertsAlertIdRoute,
   ShellAlertsChannelsRoute: ShellAlertsChannelsRoute,
   ShellAlertsRulesRoute: ShellAlertsRulesRoute,
   ShellAppsServiceIdRoute: ShellAppsServiceIdRouteWithChildren,

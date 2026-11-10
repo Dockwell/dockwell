@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/resource.proto.
  */
 export const file_dockwell_v1_resource: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9yZXNvdXJjZS5wcm90bxILZG9ja3dlbGwudjEiWgoUTGlzdFJlc291cmNlc1JlcXVlc3QSDAoEa2luZBgBIAEoCRINCgVzY29wZRgCIAEoCRIRCglwYWdlX3NpemUYAyABKAUSEgoKcGFnZV90b2tlbhgEIAEoCSJaChVMaXN0UmVzb3VyY2VzUmVzcG9uc2USKAoJcmVzb3VyY2VzGAEgAygLMhUuZG9ja3dlbGwudjEuUmVzb3VyY2USFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIpsBCghSZXNvdXJjZRIKCgJpZBgBIAEoCRIqCghyZXNvdXJjZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEhAKCHJldmlzaW9uGAMgASgDEi8KC3VwZGF0ZV90aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIUCgxkaXNwbGF5X25hbWUYBSABKAkylAEKD1Jlc291cmNlU2VydmljZRKAAQoNTGlzdFJlc291cmNlcxIhLmRvY2t3ZWxsLnYxLkxpc3RSZXNvdXJjZXNSZXF1ZXN0GiIuZG9ja3dlbGwudjEuTGlzdFJlc291cmNlc1Jlc3BvbnNlIiiQAgGguxgBwLsYAsi7GALQuxgEgtPkkwIPEg0vdjEvcmVzb3VyY2VzQqYBCg9jb20uZG9ja3dlbGwudjFCDVJlc291cmNlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9yZXNvdXJjZS5wcm90bxILZG9ja3dlbGwudjEiWgoUTGlzdFJlc291cmNlc1JlcXVlc3QSDAoEa2luZBgBIAEoCRINCgVzY29wZRgCIAEoCRIRCglwYWdlX3NpemUYAyABKAUSEgoKcGFnZV90b2tlbhgEIAEoCSJaChVMaXN0UmVzb3VyY2VzUmVzcG9uc2USKAoJcmVzb3VyY2VzGAEgAygLMhUuZG9ja3dlbGwudjEuUmVzb3VyY2USFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIq4BCghSZXNvdXJjZRIKCgJpZBgBIAEoCRIqCghyZXNvdXJjZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEhAKCHJldmlzaW9uGAMgASgDEi8KC3VwZGF0ZV90aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIUCgxkaXNwbGF5X25hbWUYBSABKAkSEQoJcHJvdGVjdGVkGAYgASgIMpQBCg9SZXNvdXJjZVNlcnZpY2USgAEKDUxpc3RSZXNvdXJjZXMSIS5kb2Nrd2VsbC52MS5MaXN0UmVzb3VyY2VzUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkxpc3RSZXNvdXJjZXNSZXNwb25zZSIokAIBoLsYAcC7GALIuxgC0LsYBILT5JMCDxINL3YxL3Jlc291cmNlc0KmAQoPY29tLmRvY2t3ZWxsLnYxQg1SZXNvdXJjZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListResourcesRequest asks for a page of resources.
@@ -134,6 +134,15 @@ export type Resource = Message<"dockwell.v1.Resource"> & {
    * @generated from field: string display_name = 5;
    */
   displayName: string;
+
+  /**
+   * True for an environment that's protected, where a developer's change
+   * waits for an admin or the owner (ADR 0049): as its spec says, or by its
+   * name for one from before protection was written. False for anything else.
+   *
+   * @generated from field: bool protected = 6;
+   */
+  protected: boolean;
 };
 
 /**

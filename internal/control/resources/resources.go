@@ -18,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -77,6 +78,7 @@ func (h *Handler) ListResources(ctx context.Context, req *connect.Request[dockwe
 			Revision:    int64(r.Revision),
 			UpdateTime:  timestamppb.New(r.UpdatedAt),
 			DisplayName: h.displayName(resource.Kind(r.Kind), r.Spec),
+			Protected:   r.Kind == string(scope.EnvironmentKind) && scope.ProtectedSpec(r.Name, r.Spec),
 		})
 	}
 	return connect.NewResponse(res), nil
