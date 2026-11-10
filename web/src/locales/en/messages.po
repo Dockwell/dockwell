@@ -4823,6 +4823,9 @@ msgstr "Each app rolls back to what it runs now if this fails"
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "Everything this plan asks for is already as it says, so there is nothing to apply."
 
+msgid "How this works"
+msgstr "How this works"
+
 msgid "In environment <0>{environment}</0>"
 msgstr "In environment <0>{environment}</0>"
 
@@ -5394,29 +5397,71 @@ msgstr "<0>{path}</0> gives it control of Docker on the server, the same as root
 msgid "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
 msgstr "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
 
-msgid "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check before you apply, and restore a backup if it won't."
-msgstr "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check before you apply, and restore a backup if it won't."
+msgid "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it."
+msgstr "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it."
 
-msgid "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check that it does, and restore a backup if it won't."
-msgstr "A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check that it does, and restore a backup if it won't."
+msgid "A rollback puts back which variables and secrets it uses, not what they held then."
+msgstr "A rollback puts back which variables and secrets it uses, not what they held then."
 
-msgid "A rollback puts back which variables and secrets it uses, not what they held then. To go back on a value, change it in Variables and secrets."
-msgstr "A rollback puts back which variables and secrets it uses, not what they held then. To go back on a value, change it in Variables and secrets."
+msgid "A service of the same name in the file replaces it, and one the file doesn't name is deleted."
+msgstr "A service of the same name in the file replaces it, and one the file doesn't name is deleted."
+
+msgid "A service of the same name in the file replaces it."
+msgstr "A service of the same name in the file replaces it."
 
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
 msgstr "Anyone who can reach this server gets it, around whatever is in front of it."
 
-msgid "Anyone who can read this app can see it. It can't be hidden there, so if it's a secret, set it in environment for the app to read instead."
-msgstr "Anyone who can read this app can see it. It can't be hidden there, so if it's a secret, set it in environment for the app to read instead."
+msgid "Anyone who can read this app can see it, as it can't be hidden there."
+msgstr "Anyone who can read this app can see it, as it can't be hidden there."
 
-msgid "Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
-msgstr "Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
+msgid "Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it."
+msgstr "Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it."
 
-msgid "Anyone who can read this app can see it. Only a variable's value is hidden, so don't write a secret in its name."
-msgstr "Anyone who can read this app can see it. Only a variable's value is hidden, so don't write a secret in its name."
+msgid "Anyone who can read this app can see it. Only a variable's value is hidden."
+msgstr "Anyone who can read this app can see it. Only a variable's value is hidden."
+
+msgid "Apply this only if the app can take it."
+msgstr "Apply this only if the app can take it."
+
+msgid "Back it up first if you need it: undo may not bring it back."
+msgstr "Back it up first if you need it: undo may not bring it back."
+
+msgid "Back it up once from Backups, and the next plan goes by how large that was."
+msgstr "Back it up once from Backups, and the next plan goes by how large that was."
+
+msgid "Back up what you can't lose before this."
+msgstr "Back up what you can't lose before this."
+
+msgid "Back up what you can't lose first, or stay on the new version."
+msgstr "Back up what you can't lose first, or stay on the new version."
+
+msgid "Back up what you can't lose first."
+msgstr "Back up what you can't lose first."
+
+msgid "Check that it reads its data, and restore a backup if it won't."
+msgstr "Check that it reads its data, and restore a backup if it won't."
+
+msgid "Check that it will before you apply, and restore a backup if it won't."
+msgstr "Check that it will before you apply, and restore a backup if it won't."
+
+msgid "Check that the app reads its data, and if it doesn't, restore {which}, from {when}."
+msgstr "Check that the app reads its data, and if it doesn't, restore {which}, from {when}."
+
+msgid "Check that the app reads its data, and restore a backup of your own if it doesn't."
+msgstr "Check that the app reads its data, and restore a backup of your own if it doesn't."
+
+msgid "Check that the app reads its data, and restore the backup taken first if it doesn't."
+msgstr "Check that the app reads its data, and restore the backup taken first if it doesn't."
+
+msgid "Check that the app reads its data."
+msgstr "Check that the app reads its data."
 
 msgid "Check that you have another way in, such as your provider's console, before you apply it."
 msgstr "Check that you have another way in, such as your provider's console, before you apply it."
+
+msgid "Deploy {writtenBy} first, or restore a dump instead."
+msgstr "Deploy {writtenBy} first, or restore a dump instead."
 
 msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
@@ -5426,6 +5471,12 @@ msgstr "Dockwell didn't make that network. Whatever else is on it, other project
 
 msgid "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
 msgstr "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
+
+msgid "Don't start its Compose project again."
+msgstr "Don't start its Compose project again."
+
+msgid "Don't write a secret in a variable's name."
+msgstr "Don't write a secret in a variable's name."
 
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
 msgstr "Everything in {name} on {server} goes back to what was there before the restore"
@@ -5439,8 +5490,17 @@ msgstr "Everything in {name} on {server} is replaced with the dump from {taken}"
 msgid "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 msgstr "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 
+msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
+msgstr "Give it one, such as {target}:size=64m, or give {name} a memory limit."
+
 msgid "If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that."
 msgstr "If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that."
+
+msgid "If it's a secret, set it in environment for the app to read instead."
+msgstr "If it's a secret, set it in environment for the app to read instead."
+
+msgid "If that isn't what you meant, change name: in the file to give it a project of its own."
+msgstr "If that isn't what you meant, change name: in the file to give it a project of its own."
 
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
@@ -5454,8 +5514,8 @@ msgstr "It can read and write that path on the server."
 msgid "It can read that path on the server."
 msgstr "It can read that path on the server."
 
-msgid "It can take half the server's memory. Give it one, such as {target}:size=64m, or give {name} a memory limit."
-msgstr "It can take half the server's memory. Give it one, such as {target}:size=64m, or give {name} a memory limit."
+msgid "It can take half the server's memory."
+msgstr "It can take half the server's memory."
 
 msgid "It can write to <0>{holder}</0>, which holds <1>{held}</1>, which it mounts as well. So it can turn that into a link to anywhere on the server, which it follows when it next starts. That's as good as root, so from now on any change to {name} but another tag asks for a passkey."
 msgstr "It can write to <0>{holder}</0>, which holds <1>{held}</1>, which it mounts as well. So it can turn that into a link to anywhere on the server, which it follows when it next starts. That's as good as root, so from now on any change to {name} but another tag asks for a passkey."
@@ -5499,11 +5559,11 @@ msgstr "It runs through the Compose project {project}. Until Dockwell changes it
 msgid "It takes that proxy's word for where a request came from."
 msgstr "It takes that proxy's word for where a request came from."
 
-msgid "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is, so name a network the proxy has to itself."
-msgstr "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is, so name a network the proxy has to itself."
+msgid "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is."
+msgstr "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is."
 
-msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done. Back it up once from Backups, and the next plan goes by how large that was."
-msgstr "It took too long to measure. If an hour is too short, this stops there, with nothing else done. Back it up once from Backups, and the next plan goes by how large that was."
+msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
+msgstr "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
 
 msgid "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 msgstr "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
@@ -5511,14 +5571,26 @@ msgstr "Its environment comes into Dockwell with it, sealed. No plan or log show
 msgid "Its volumes are backed up first"
 msgstr "Its volumes are backed up first"
 
+msgid "Leave it alone in 1Panel from now on, and never uninstall it there."
+msgstr "Leave it alone in 1Panel from now on, and never uninstall it there."
+
+msgid "Leave it alone in {tool} from now on."
+msgstr "Leave it alone in {tool} from now on."
+
 msgid "More than one container answers to {shared} on {network}"
 msgstr "More than one container answers to {shared} on {network}"
+
+msgid "Name a network the proxy has to itself."
+msgstr "Name a network the proxy has to itself."
 
 msgid "No backup is taken first"
 msgstr "No backup is taken first"
 
 msgid "No backup was taken, and the data stays as it is now"
 msgstr "No backup was taken, and the data stays as it is now"
+
+msgid "Point what uses it at a name only one of them has."
+msgstr "Point what uses it at a name only one of them has."
 
 msgid "Pulls {image} again, and replaces {name} only if that's a newer image."
 msgstr "Pulls {image} again, and replaces {name} only if that's a newer image."
@@ -5531,6 +5603,9 @@ msgstr "Pulls {image} again, and replaces {name} with what that names now, in pl
 
 msgid "Read it for the rest before you pass one a secret."
 msgstr "Read it for the rest before you pass one a secret."
+
+msgid "Restore {which}, from {when}, from Backups after this."
+msgstr "Restore {which}, from {when}, from Backups after this."
 
 msgid "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
 msgstr "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
@@ -5562,8 +5637,8 @@ msgstr "That's what the server kept on {taken}, {size}. What's in the volume now
 msgid "The data stays as it is now"
 msgstr "The data stays as it is now"
 
-msgid "The database may not start on files from another release. Deploy {writtenBy} first and restore then, or restore a dump instead."
-msgstr "The database may not start on files from another release. Deploy {writtenBy} first and restore then, or restore a dump instead."
+msgid "The database may not start on files from another release."
+msgstr "The database may not start on files from another release."
 
 msgid "The file writes more variables in plain sight than these"
 msgstr "The file writes more variables in plain sight than these"
@@ -5592,12 +5667,6 @@ msgstr "They run in what {name} runs, so they reach what it reaches on its serve
 msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 msgstr "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 
-msgid "This changes what runs: a service of the same name in the file replaces it, and {deleted}, which the file doesn't name, would be deleted. If that isn't what you meant, change name: in the file to give it a project of its own."
-msgstr "This changes what runs: a service of the same name in the file replaces it, and {deleted}, which the file doesn't name, would be deleted. If that isn't what you meant, change name: in the file to give it a project of its own."
-
-msgid "This changes what runs: a service of the same name in the file replaces it. If that isn't what you meant, change name: in the file to give it a project of its own."
-msgstr "This changes what runs: a service of the same name in the file replaces it. If that isn't what you meant, change name: in the file to give it a project of its own."
-
 msgid "This copy was taken with the app running"
 msgstr "This copy was taken with the app running"
 
@@ -5605,29 +5674,35 @@ msgstr "This copy was taken with the app running"
 msgid "This may cut off access to {0}"
 msgstr "This may cut off access to {0}"
 
-msgid "This one and {also}, as they do now. What asks for {shared} there can reach either, so point what uses it at a name only one of them has."
-msgstr "This one and {also}, as they do now. What asks for {shared} there can reach either, so point what uses it at a name only one of them has."
+msgid "This one and {also}, as they do now. What asks for {shared} there can reach either."
+msgstr "This one and {also}, as they do now. What asks for {shared} there can reach either."
 
 msgid "This plan destroys data, may cut off access, or lets two containers write to one place"
 msgstr "This plan destroys data, may cut off access, or lets two containers write to one place"
 
-msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Check that the app reads its data, and restore a backup of your own if it doesn't."
-msgstr "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Check that the app reads its data, and restore a backup of your own if it doesn't."
+msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken."
+msgstr "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken."
 
-msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data, and if it doesn't, restore what the upgrade backed up first: {which}, on {when}."
-msgstr "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data, and if it doesn't, restore what the upgrade backed up first: {which}, on {when}."
+msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone."
+msgstr "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone."
 
-msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data. The backup the upgrade took first is gone."
-msgstr "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data. The backup the upgrade took first is gone."
+msgid "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first."
+msgstr "This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first."
 
-msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version."
-msgstr "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version."
+msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken."
+msgstr "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken."
 
-msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone, so back up what you can't lose before this."
-msgstr "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone, so back up what you can't lose before this."
+msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone."
+msgstr "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone."
 
-msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first, in {which}, on {when}: restore that from Backups after this."
-msgstr "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first, in {which}, on {when}: restore that from Backups after this."
+msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first."
+msgstr "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first."
+
+msgid "To go back on a value, change it in Variables and secrets."
+msgstr "To go back on a value, change it in Variables and secrets."
+
+msgid "To keep it hidden, write the {where} as a list, with each word its own variable."
+msgstr "To keep it hidden, write the {where} as a list, with each word its own variable."
 
 msgid "Two containers may write to {shared}"
 msgstr "Two containers may write to {shared}"
@@ -5635,14 +5710,8 @@ msgstr "Two containers may write to {shared}"
 msgid "Undo may not bring everything back."
 msgstr "Undo may not bring everything back."
 
-msgid "Undo may not bring it back. Back it up first if you need it."
-msgstr "Undo may not bring it back. Back it up first if you need it."
-
-msgid "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore a backup of your own if it doesn't."
-msgstr "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore a backup of your own if it doesn't."
-
-msgid "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore the backup taken first if it doesn't."
-msgstr "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore the backup taken first if it doesn't."
+msgid "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it."
+msgstr "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it."
 
 msgid "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
 msgstr "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
@@ -5653,8 +5722,8 @@ msgstr "Where SELinux is enforced, Docker relabels everything there as private t
 msgid "Where SELinux is enforced, Docker relabels everything there, to share it between containers."
 msgstr "Where SELinux is enforced, Docker relabels everything there, to share it between containers."
 
-msgid "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
-msgstr "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first."
+msgid "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated."
+msgstr "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated."
 
 msgid "https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out."
 msgstr "https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out."
@@ -5767,8 +5836,8 @@ msgstr "{name} takes on the container {path} on {server}"
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 
-msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
-msgstr "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it."
+msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database."
+msgstr "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database."
 
 msgid "{name}'s scheduled tasks get the same reach"
 msgstr "{name}'s scheduled tasks get the same reach"
@@ -5795,6 +5864,9 @@ msgstr "{name}: {0}"
 
 msgid "{project} already runs {names}"
 msgstr "{project} already runs {names}"
+
+msgid "{project} already runs {names}, and this deletes {deleted}"
+msgstr "{project} already runs {names}, and this deletes {deleted}"
 
 msgid "{server} is offline, so what it kept of {name} stays on its disk until it's back"
 msgstr "{server} is offline, so what it kept of {name} stays on its disk until it's back"

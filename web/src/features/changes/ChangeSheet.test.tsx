@@ -49,7 +49,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { applied, moved, shopPlanned, watched, webPlanned } from "../../test/changes";
+import { applied, moved, openHowItWorks, shopPlanned, watched, webPlanned } from "../../test/changes";
 import { type Api, type CacheOptions, feed, onPhone, quietWatch, renderWithApi, untilAborted } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { ChangeSheetProvider, type Opening, useChangeSheet } from "./ChangeSheet";
@@ -417,7 +417,7 @@ describe("the plan sheet", () => {
     expect(effects).toHaveTextContent("It can read that path on the server.");
     // Who writes a folder, where that's root or may be, as that's more than the folder (#247).
     expect(effects).toHaveTextContent(
-      "web reaches /srv/app/data on hz-1It can read and write that path on the server. ghcr.io/acme/web writes there as root, so it can change any file there, whoever owns it, and leave files that run as root.",
+      "web reaches /srv/app/data on hz-1How this worksIt can read and write that path on the server. ghcr.io/acme/web writes there as root, so it can change any file there, whoever owns it, and leave files that run as root.",
     );
     expect(effects).toHaveTextContent(
       "ghcr.io/acme/web writes there as its own user, who is root unless the image says otherwise.",
@@ -426,6 +426,8 @@ describe("the plan sheet", () => {
     expect(effects).toHaveTextContent(
       "ghcr.io/stranger/ops writes there. Code from another image asks again, as a program in any image can run as root.",
     );
+    // Opened, How this works says whose each reason is.
+    openHowItWorks(risk);
     expect(risk).toHaveTextContent(
       "web loses what its image keeps at /var/lib/postgresql/data. The server keeps that data for 7 days",
     );
@@ -896,6 +898,12 @@ describe("the plan sheet", () => {
     });
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     expect(await within(sheet).findByText("1Panel still manages 1Panel-blog-Ab3x")).toBeVisible();
+    // What to do is in sight; why, and what each tool does, is one step away.
+    expect(
+      within(sheet).getByText("Leave it alone in 1Panel from now on, and never uninstall it there."),
+    ).toBeVisible();
+    expect(within(sheet).getByText(/anything done to it in 1Panel acts on this container/)).not.toBeVisible();
+    openHowItWorks(sheet);
     expect(within(sheet).getByText(/anything done to it in 1Panel acts on this container/)).toBeVisible();
     expect(
       within(sheet).getByText(/Start, Rebuild, Upgrade or editing its settings there starts a second copy/),
@@ -948,7 +956,7 @@ describe("the plan sheet", () => {
     await within(sheet).findByText(/More than one container answers to/);
     expect(sheet.textContent).toContain("More than one container answers to redis on 1panel-network");
     expect(sheet.textContent).toContain("This one and 1Panel-redis2-EfGh, as they do now");
-    expect(sheet.textContent).toContain("point what uses it at a name only one of them has");
+    expect(sheet.textContent).toContain("Point what uses it at a name only one of them has.");
   });
 
   it("says what a server's note means in its own words, so they translate", async () => {
@@ -1083,12 +1091,15 @@ describe("the plan sheet", () => {
       changes: { proposeChange: () => ({ change: noted }), watchChange: feed<WatchChangeResponse>().stream },
     });
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
-    const callout = (await within(sheet).findByText(/keeps what is in/)).closest(".dw-callout") as HTMLElement;
+    // The title leads the callout, and says whose each reason is under How this works.
+    const [said] = await within(sheet).findAllByText(/keeps what is in/);
+    const callout = said?.closest(".dw-callout") as HTMLElement;
     expect(callout).toHaveClass("dw-tone-warning");
     expect(callout.querySelector(".dw-callout-title")).toHaveTextContent(
       "web keeps what is in data, /srv/data as it is",
     );
     expect(callout).toHaveTextContent("A rollback puts back its spec, not its data");
+    openHowItWorks(callout);
     expect(callout).toHaveTextContent(
       "web's command holds the value of TOKEN. Anyone who can read this app can see it.",
     );
@@ -1096,7 +1107,7 @@ describe("the plan sheet", () => {
     expect(callout).not.toHaveTextContent("TOKEN from your .env");
     // Where it came from an .env, it says so, and what can't be hidden where it lands.
     expect(callout).toHaveTextContent("cache's labels hold the value of REDIS_PASSWORD from your .env");
-    expect(callout).toHaveTextContent("It can't be hidden there, so if it's a secret, set it in environment");
+    expect(callout).toHaveTextContent("If it's a secret, set it in environment for the app to read instead.");
     expect(callout).toHaveTextContent("This reason is new. The panel doesn't know it yet.");
     expect(sheet.querySelector(".plan-body")?.firstElementChild).toBe(callout);
     // It stops nobody.
@@ -2824,7 +2835,8 @@ describe("the plan sheet, once it runs", () => {
         changes: { proposeChange: () => ({ change: undoing }), watchChange: feed<WatchChangeResponse>().stream },
       });
       const sheet = await screen.findByRole("dialog", { name: /plan/i });
-      const said = within(sheet).getByText(/The upgrade backed it up first/);
+      const said = within(sheet).getByText(/from Backups after this/);
+      expect(said).toBeVisible();
       expect(said).toHaveTextContent("bkp_1 and bkp_2");
       expect(said).toHaveTextContent("2026");
     });
@@ -2841,7 +2853,9 @@ describe("the plan sheet, once it runs", () => {
         changes: { proposeChange: () => ({ change: undoing }), watchChange: feed<WatchChangeResponse>().stream },
       });
       const sheet = await screen.findByRole("dialog", { name: /plan/i });
-      expect(await within(sheet).findByText(/The backup the upgrade took first is gone/)).toBeVisible();
+      expect(await within(sheet).findByText("Back up what you can't lose before this.")).toBeVisible();
+      openHowItWorks(sheet);
+      expect(within(sheet).getByText(/The backup the upgrade took first is gone/)).toBeVisible();
     });
 
     it("says when the time a backup gets is a guess", async () => {

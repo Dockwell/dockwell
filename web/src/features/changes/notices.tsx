@@ -26,8 +26,10 @@ export interface Notice {
   key: string;
   /** The fact, short: "web gets root on hz-1". */
   title: ReactNode;
-  /** The consequence, and the fix if there is one. */
+  /** One short sentence: what to do about it, where something resolves it. */
   detail?: ReactNode;
+  /** Why, and how it comes about, for whoever opens "How this works". */
+  more?: ReactNode;
   /** It comes down to what the resource runs, which only whoever applies it can judge. */
   trust?: boolean;
   /** Something to know that someone may well have chosen, so it stands out, and isn't an alarm. */
@@ -186,7 +188,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return {
           key,
           title: t`${name} gets root on ${server}`,
-          detail: leadsTo ? (
+          more: leadsTo ? (
             <Trans>
               <code>{path}</code> leads to <code>{leadsTo}</code> through a symlink, which gives it control of Docker on
               the server, the same as root.
@@ -202,7 +204,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return {
           key,
           title: t`${name} gets root on ${server}`,
-          detail: t`It runs in privileged mode, which gives it every device and capability on the server.`,
+          more: t`It runs in privileged mode, which gives it every device and capability on the server.`,
           trust: true,
         };
       case HostAccessKind.CAPABILITY:
@@ -210,7 +212,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           ? {
               key,
               title: t`${name} gets root on ${server}`,
-              detail: (
+              more: (
                 <Trans>
                   It has the Linux capability <code>{path}</code>, which is the same as root.
                 </Trans>
@@ -220,14 +222,14 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           : {
               key,
               title: t`${name} has the Linux capability ${path} on ${server}`,
-              detail: t`That goes beyond what Docker gives a container by default.`,
+              more: t`That goes beyond what Docker gives a container by default.`,
             };
       case HostAccessKind.GROUP:
         return access.sameAsRoot
           ? {
               key,
               title: t`${name} gets root on ${server}`,
-              detail: (
+              more: (
                 <Trans>
                   It joins the group <code>{path}</code>, which is the same as root.
                 </Trans>
@@ -237,7 +239,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           : {
               key,
               title: t`${name} joins the group ${path} on ${server}`,
-              detail: t`That is the same as root if it is the group that owns Docker's socket on the server.`,
+              more: t`That is the same as root if it is the group that owns Docker's socket on the server.`,
             };
       case HostAccessKind.EXTERNAL_NETWORK:
         return {
@@ -245,7 +247,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           title: leadsTo
             ? t`${name} joins the ${leadsTo} network ${path} on ${server}`
             : t`${name} joins the network ${path} on ${server}`,
-          detail: leadsTo
+          more: leadsTo
             ? t`Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach ${name}, and it them.`
             : t`Dockwell didn't make that network. Whatever else is on it, other projects' services too, can reach ${name}, and it them.`,
         };
@@ -253,7 +255,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return {
           key,
           title: t`${name} mounts the volume ${path} on ${server}`,
-          detail: andWriter(
+          more: andWriter(
             t`Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds.`,
           ),
         };
@@ -261,13 +263,13 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return {
           key,
           title: t`${name} runs a shell command as root on ${server}`,
-          detail: t`It runs on its schedule, and whenever someone runs it now. Whatever it runs, it runs with everything root can do there.`,
+          more: t`It runs on its schedule, and whenever someone runs it now. Whatever it runs, it runs with everything root can do there.`,
         };
       case HostAccessKind.BACKUP_OF:
         return {
           key,
           title: t`${name} gets back what reached root on ${server}`,
-          detail: (
+          more: (
             <Trans>
               This backup was taken when the volume reached <code>{path}</code>, so whatever mounts it can read what
               comes back.
@@ -279,14 +281,14 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return {
           key,
           title: t`${name} takes on the container ${path} on ${server}`,
-          detail: t`Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running.`,
+          more: t`Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running.`,
         };
       case HostAccessKind.SERVER_PORT: {
         const at = plain(access.detail);
         return {
           key,
           title: t`${name} reaches the port ${path} on ${server}`,
-          detail:
+          more:
             access.type === "http"
               ? t`That is the server itself, past its containers, at ${at} over plain HTTP.`
               : t`That is the server itself, past its containers, at ${at}.`,
@@ -296,27 +298,30 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return {
           key,
           title: t`${name} believes the proxy ${path} on ${server}`,
-          detail: namesARange(access.path)
-            ? t`It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is, so name a network the proxy has to itself.`
-            : t`It takes that proxy's word for where a request came from.`,
+          ...(namesARange(access.path)
+            ? {
+                detail: t`Name a network the proxy has to itself.`,
+                more: t`It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is.`,
+              }
+            : { more: t`It takes that proxy's word for where a request came from.` }),
         };
       case HostAccessKind.PLAIN_FOR_ANYONE:
         return {
           key,
           title: t`${name} answers plain HTTP on ${path} on ${server}`,
-          detail: t`Anyone who can reach this server gets it, around whatever is in front of it.`,
+          more: t`Anyone who can reach this server gets it, around whatever is in front of it.`,
         };
       case HostAccessKind.HTTPS_OFF:
         return {
           key,
           title: t`${name} stops HTTPS on ${path} on ${server}`,
-          detail: t`https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out.`,
+          more: t`https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out.`,
         };
       case HostAccessKind.HOST_NETWORK:
         return {
           key,
           title: t`${name} shares ${server}'s own network`,
-          detail: t`It reaches what the server reaches, past Docker's network and the firewall.`,
+          more: t`It reaches what the server reaches, past Docker's network and the firewall.`,
           trust: true,
         };
       case HostAccessKind.SERVER_PATH: {
@@ -328,7 +333,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           return {
             key,
             title: t`${name} can move what ${held} leads to on ${server}`,
-            detail:
+            more:
               holdsFor !== "" ? (
                 <Trans>
                   It can write to <code>{holder}</code>, which holds <code>{held}</code>, which {holdsFor} mounts. So it
@@ -349,7 +354,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           return {
             key,
             title: t`${heldBy} can move what ${path} leads to on ${server}`,
-            detail: (
+            more: (
               <Trans>
                 {name} mounts <code>{path}</code>, inside <code>{heldIn}</code>, which {heldBy} can write. So {heldBy}{" "}
                 can turn it into a link to anywhere on the server, which {name} follows when it next starts. That's as
@@ -363,7 +368,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           ? {
               key,
               title: t`${name} reaches ${path} on ${server}`,
-              detail: andRelabel(
+              more: andRelabel(
                 leadsTo ? (
                   <Trans>
                     It leads to <code>{leadsTo}</code> through a symlink, and the server's security rests on what is
@@ -378,7 +383,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           : {
               key,
               title: t`${name} reaches ${path} on ${server}`,
-              detail: andRelabel(
+              more: andRelabel(
                 leadsTo ? (
                   access.readOnly ? (
                     <Trans>
@@ -408,7 +413,7 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
       ...(isDomain
         ? {}
         : {
-            detail: asGoodAsRoot(access)
+            more: asGoodAsRoot(access)
               ? t`The server's security rests on what that reaches, so it is as good as root.`
               : andWriter(t`That goes beyond what Docker keeps for it.`),
           }),
@@ -435,19 +440,22 @@ function useManagedElsewhere(): (note: PlanNote, key: string) => Notice {
       return {
         key,
         title: t`1Panel still manages ${container}`,
-        detail: t`It runs through the Compose project ${project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, 1Panel shows it in error, as it can't find the container. Leave that as it is: Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes ${where}, which holds what this service mounts.`,
+        detail: t`Leave it alone in 1Panel from now on, and never uninstall it there.`,
+        more: t`It runs through the Compose project ${project}. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, 1Panel shows it in error, as it can't find the container. Leave that as it is: Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes ${where}, which holds what this service mounts.`,
       };
     }
     return tool !== ""
       ? {
           key,
           title: t`${tool} still manages ${container}`,
-          detail: t`It runs through the Compose project ${project}. Until Dockwell changes its image, what you do to it in ${tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to ${where}, as it may delete what this service mounts.`,
+          detail: t`Leave it alone in ${tool} from now on.`,
+          more: t`It runs through the Compose project ${project}. Until Dockwell changes its image, what you do to it in ${tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to ${where}, as it may delete what this service mounts.`,
         }
       : {
           key,
           title: t`Something may still manage ${container}`,
-          detail: t`It came from the Compose project ${project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to ${where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again.`,
+          detail: t`Don't start its Compose project again.`,
+          more: t`It came from the Compose project ${project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to ${where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again.`,
         };
   };
 }
@@ -472,26 +480,26 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
       out.push({
         key: `restore-${key}`,
         title: t`Everything in ${name} on ${server} goes back to what was there before the restore`,
-        detail: t`That's what the server kept on ${taken}, ${size}. What's in the volume now goes to a copy the server keeps for 7 days.`,
+        more: t`That's what the server kept on ${taken}, ${size}. What's in the volume now goes to a copy the server keeps for 7 days.`,
       });
     } else if (restore.method === BackupMethod.DUMP) {
       out.push({
         key: `restore-${key}`,
         title: t`Everything in ${name} on ${server} is replaced with the dump from ${taken}`,
-        detail: t`${database} starts anew on an empty volume and loads the dump, ${size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back.`,
+        more: t`${database} starts anew on an empty volume and loads the dump, ${size}, so what was made since goes, and passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back.`,
       });
     } else {
       out.push({
         key: `restore-${key}`,
         title: t`Everything in ${name} on ${server} is replaced with the copy from ${taken}`,
-        detail: t`That copy is ${size}. What was made since goes. The server keeps a copy of what's there now for 7 days, and undoing this puts it back.`,
+        more: t`That copy is ${size}. What was made since goes. The server keeps a copy of what's there now for 7 days, and undoing this puts it back.`,
       });
     }
     if (restore.method === BackupMethod.COPY_RUNNING) {
       out.push({
         key: `restore-running-${key}`,
         title: t`This copy was taken with the app running`,
-        detail: t`Files changed as they were read, so it can hold half a write, and the app may not start from it.`,
+        more: t`Files changed as they were read, so it can hold half a write, and the app may not start from it.`,
       });
     }
     if (restore.stops.length > 0) {
@@ -501,7 +509,7 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
           one: `${list} stops while this happens`,
           other: `${list} stop while this happens`,
         }),
-        detail: t`What stops starts again once the volume is restored. If the restore fails, what's there now goes back first.`,
+        more: t`What stops starts again once the volume is restored. If the restore fails, what's there now goes back first.`,
       });
     }
     if (restore.writtenBy !== "") {
@@ -510,7 +518,8 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
         key: `restore-release-${key}`,
         amber: true,
         title: t`${writtenBy} wrote these files, and ${runsOn} runs on them now`,
-        detail: t`The database may not start on files from another release. Deploy ${writtenBy} first and restore then, or restore a dump instead.`,
+        detail: t`Deploy ${writtenBy} first, or restore a dump instead.`,
+        more: t`The database may not start on files from another release.`,
       });
     }
     return out;
@@ -541,13 +550,13 @@ export function useRisks(plan: Plan | undefined): Notice[] {
         out.push({
           key: `data-${key}`,
           title: t`${name} loses what its image keeps at ${paths}`,
-          detail: t`The server keeps that data for 7 days, and undoing this brings it back. After that it is gone.`,
+          more: t`The server keeps that data for 7 days, and undoing this brings it back. After that it is gone.`,
         });
       } else if (step.destroysData) {
         out.push({
           key: `data-${key}`,
           title: t`${name} loses its data on ${server.serverName}`,
-          detail: t`Undo may not bring it back. Back it up first if you need it.`,
+          detail: t`Back it up first if you need it: undo may not bring it back.`,
         });
       }
       // Only a person can say whether this data can take it, so it needs one.
@@ -557,7 +566,8 @@ export function useRisks(plan: Plan | undefined): Notice[] {
         out.push({
           key: `writers-${key}`,
           title: t`Two containers may write to ${shared}`,
-          detail: t`${name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database. Apply this only if the app can take it.`,
+          detail: t`Apply this only if the app can take it.`,
+          more: t`${name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database.`,
         });
       }
       if (step.warnings.includes(PlanWarning.MAY_LOCK_OUT)) {
@@ -599,13 +609,15 @@ export function useDataLeft(
   if (backedUp || plan?.notes.some((note) => note.reason === "undo_backup_first")) {
     return {
       title: t`The data stays as it is now`,
-      detail: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore the backup taken first if it doesn't.`,
+      detail: t`Check that the app reads its data, and restore the backup taken first if it doesn't.`,
+      more: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it.`,
     };
   }
   if (!plan?.notes.some((note) => note.reason === "no_backup" || note.reason === "undo_no_backup")) return undefined;
   return {
     title: t`No backup was taken, and the data stays as it is now`,
-    detail: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore a backup of your own if it doesn't.`,
+    detail: t`Check that the app reads its data, and restore a backup of your own if it doesn't.`,
+    more: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it.`,
   };
 }
 
@@ -640,7 +652,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         return {
           key,
           title: t`More than one container answers to ${shared} on ${network}`,
-          detail: t`This one and ${also}, as they do now. What asks for ${shared} there can reach either, so point what uses it at a name only one of them has.`,
+          detail: t`Point what uses it at a name only one of them has.`,
+          more: t`This one and ${also}, as they do now. What asks for ${shared} there can reach either.`,
         };
       }
       case "volumes_stay": {
@@ -649,8 +662,9 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           key,
           title: t`${name} keeps what is in ${names} as it is`,
           detail: applied
-            ? t`A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check that it does, and restore a backup if it won't.`
-            : t`A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it. Check before you apply, and restore a backup if it won't.`,
+            ? t`Check that it reads its data, and restore a backup if it won't.`
+            : t`Check that it will before you apply, and restore a backup if it won't.`,
+          more: t`A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it.`,
         };
       }
       case "first_steps":
@@ -659,13 +673,14 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         return {
           key,
           title: t`Its volumes are backed up first`,
-          detail: t`If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that.`,
+          more: t`If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that.`,
         };
       case "backup_unmeasured":
         return {
           key,
           title: t`The hour ${name}'s backup gets is a guess`,
-          detail: t`It took too long to measure. If an hour is too short, this stops there, with nothing else done. Back it up once from Backups, and the next plan goes by how large that was.`,
+          detail: t`Back it up once from Backups, and the next plan goes by how large that was.`,
+          more: t`It took too long to measure. If an hour is too short, this stops there, with nothing else done.`,
         };
       case "undo_backup_first": {
         const [taken = "", ...ids] = note.names;
@@ -677,18 +692,26 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           title: t`The old version may not read its data`,
           detail: applied
             ? gone
-              ? t`This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data. The backup the upgrade took first is gone.`
-              : t`This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. Check that the app reads its data, and if it doesn't, restore what the upgrade backed up first: ${which}, on ${when}.`
+              ? t`Check that the app reads its data.`
+              : t`Check that the app reads its data, and if it doesn't, restore ${which}, from ${when}.`
             : gone
-              ? t`This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone, so back up what you can't lose before this.`
-              : t`This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first, in ${which}, on ${when}: restore that from Backups after this.`,
+              ? t`Back up what you can't lose before this.`
+              : t`Restore ${which}, from ${when}, from Backups after this.`,
+          more: applied
+            ? gone
+              ? t`This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone.`
+              : t`This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first.`
+            : gone
+              ? t`This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The backup the upgrade took first is gone.`
+              : t`This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first.`,
         };
       }
       case "no_backup":
         return {
           key,
           title: t`No backup is taken first`,
-          detail: t`You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first.`,
+          detail: t`Back up what you can't lose first.`,
+          more: t`You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated.`,
         };
       case "tasks_as_root": {
         const tasks: string[] = [];
@@ -697,7 +720,7 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         return {
           key,
           title: t`${name}'s scheduled tasks get the same reach`,
-          detail: t`They run in what ${name} runs, so they reach what it reaches on its server too: ${list}.`,
+          more: t`They run in what ${name} runs, so they reach what it reaches on its server too: ${list}.`,
         };
       }
       case "tmpfs_no_size": {
@@ -705,7 +728,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         return {
           key,
           title: t`${name}'s tmpfs at ${target} has no size`,
-          detail: t`It can take half the server's memory. Give it one, such as ${target}:size=64m, or give ${name} a memory limit.`,
+          detail: t`Give it one, such as ${target}:size=64m, or give ${name} a memory limit.`,
+          more: t`It can take half the server's memory.`,
         };
       }
       case "undo_no_backup":
@@ -713,15 +737,19 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           key,
           title: t`The old version may not read its data`,
           detail: applied
-            ? t`This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Check that the app reads its data, and restore a backup of your own if it doesn't.`
-            : t`This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken. Back up what you can't lose first, or stay on the new version.`,
+            ? t`Check that the app reads its data, and restore a backup of your own if it doesn't.`
+            : t`Back up what you can't lose first, or stay on the new version.`,
+          more: applied
+            ? t`This put the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken.`
+            : t`This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it, and no backup was taken.`,
         };
       case "values_latest": {
         const names = note.names.join(", ");
         return {
           key,
           title: t`${name} runs with the latest value of ${names}`,
-          detail: t`A rollback puts back which variables and secrets it uses, not what they held then. To go back on a value, change it in Variables and secrets.`,
+          detail: t`To go back on a value, change it in Variables and secrets.`,
+          more: t`A rollback puts back which variables and secrets it uses, not what they held then.`,
         };
       }
       case "kept_logs_offline": {
@@ -729,7 +757,7 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         return {
           key,
           title: t`${server} is offline, so what it kept of ${name} stays on its disk until it's back`,
-          detail: t`It can't be read meanwhile, and it goes once the server is back and the 7 days are up.`,
+          more: t`It can't be read meanwhile, and it goes once the server is back and the 7 days are up.`,
         };
       }
       case "updates_project": {
@@ -741,11 +769,16 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         const deleted = note.deleted.join(", ");
         return {
           key,
-          title: t`${project} already runs ${names}`,
-          detail:
+          // What it deletes is the fact to weigh, so it's in the title.
+          title:
             deleted !== ""
-              ? t`This changes what runs: a service of the same name in the file replaces it, and ${deleted}, which the file doesn't name, would be deleted. If that isn't what you meant, change name: in the file to give it a project of its own.`
-              : t`This changes what runs: a service of the same name in the file replaces it. If that isn't what you meant, change name: in the file to give it a project of its own.`,
+              ? t`${project} already runs ${names}, and this deletes ${deleted}`
+              : t`${project} already runs ${names}`,
+          detail: t`If that isn't what you meant, change name: in the file to give it a project of its own.`,
+          more:
+            deleted !== ""
+              ? t`A service of the same name in the file replaces it, and one the file doesn't name is deleted.`
+              : t`A service of the same name in the file replaces it.`,
         };
       }
       case "digest_pinned": {
@@ -802,12 +835,20 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         return {
           key,
           title,
-          detail:
-            field === "command" || field === "entrypoint"
-              ? t`Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the ${where} as a list, with each word its own variable.`
-              : field === "environment"
-                ? t`Anyone who can read this app can see it. Only a variable's value is hidden, so don't write a secret in its name.`
-                : t`Anyone who can read this app can see it. It can't be hidden there, so if it's a secret, set it in environment for the app to read instead.`,
+          ...(field === "command" || field === "entrypoint"
+            ? {
+                detail: t`To keep it hidden, write the ${where} as a list, with each word its own variable.`,
+                more: t`Anyone who can read this app can see it. Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it.`,
+              }
+            : field === "environment"
+              ? {
+                  detail: t`Don't write a secret in a variable's name.`,
+                  more: t`Anyone who can read this app can see it. Only a variable's value is hidden.`,
+                }
+              : {
+                  detail: t`If it's a secret, set it in environment for the app to read instead.`,
+                  more: t`Anyone who can read this app can see it, as it can't be hidden there.`,
+                }),
         };
       }
     }

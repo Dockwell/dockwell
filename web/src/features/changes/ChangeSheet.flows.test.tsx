@@ -44,7 +44,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { authError, authState, requestOptions, mira as signedIn, stubPasskeys } from "../../test/auth";
-import { applied, mira, moved, watched, webPlanned } from "../../test/changes";
+import { applied, mira, moved, openHowItWorks, watched, webPlanned } from "../../test/changes";
 import { feed, renderWithApi } from "../../test/render";
 import { ChangeSheetProvider, type Opening, useChangeSheet } from "./ChangeSheet";
 import { shortFingerprint } from "./plan";
@@ -1058,6 +1058,8 @@ describe("what a plan asks of whoever applies it", () => {
     show(change);
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     await within(sheet).findByText("It can read that path on the server.");
+    openHowItWorks(sheet);
+    expect(within(sheet).getByText("It can read that path on the server.")).toBeVisible();
     expect(within(sheet).getByText("It can read and write that path on the server.")).toBeVisible();
   });
 
