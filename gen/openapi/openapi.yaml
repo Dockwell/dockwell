@@ -12539,6 +12539,23 @@ components:
                     description: |-
                         How the server meets the internet, as far as that's known. The addresses
                          on its own interfaces are in its inventory.
+                strainedSince:
+                    type: string
+                    description: |-
+                        Since when its memory or CPU has been above 90%, on the server's clock, once
+                         that has lasted a minute. It ends once both are below 85%, so a server
+                         near the line doesn't flip back and forth. The control plane decides it,
+                         from the samples it keeps, so every page, the CLI and alerts read one
+                         state. Unset while it isn't, and for a server that isn't connected.
+                    format: date-time
+                strain:
+                    enum:
+                        - SERVER_STRAIN_UNSPECIFIED
+                        - SERVER_STRAIN_MEMORY
+                        - SERVER_STRAIN_CPU
+                    type: string
+                    description: 'What''s above 90%: memory, or else CPU.'
+                    format: enum
             description: Server is one machine running the agent.
         ServerContainer:
             type: object
@@ -12808,7 +12825,10 @@ components:
                     type: array
                     items:
                         type: string
-                    description: The server's non-loopback IP addresses.
+                    description: |-
+                        The server's non-loopback IP addresses: its physical interfaces' alone
+                         when addresses_physical says so, and every interface's, Docker's bridges
+                         included, from an agent from before that.
                 dockerLogDriver:
                     type: string
                     description: |-
@@ -12819,6 +12839,12 @@ components:
                     description: |-
                         The address its route to the internet leaves from. Empty when it has no
                          such route, or from an agent from before this.
+                addressesPhysical:
+                    type: boolean
+                    description: |-
+                        True when addresses lists only physical interfaces' addresses, so a
+                         private one there is a private network the server is on, as a cloud's is,
+                         and never a Docker bridge's.
             description: 'ServerInventory is what a server is: its system and hardware.'
         ServerLogStatus:
             type: object

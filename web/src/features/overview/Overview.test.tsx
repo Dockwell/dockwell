@@ -17,6 +17,7 @@ import {
   PackageManager,
   type Server,
   ServerInventorySchema,
+  ServerStrain,
   type WatchEventsResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -328,6 +329,15 @@ describe("Overview with a fleet", () => {
 
     expect(await screen.findByText("hz-2 can't read Docker")).toBeVisible();
     expectMetric("Servers serving", "2", "of 2", "1 can't read Docker");
+  });
+
+  it("says why a strained server reads Degraded, in the server list's words", async () => {
+    const user = userEvent.setup();
+    renderFleet([hz1, hz2({ strainedSince: timestampFromDate(new Date()), strain: ServerStrain.MEMORY })]);
+
+    const map = await screen.findByRole("region", { name: "Servers" });
+    await user.hover(within(map).getByRole("button", { name: /^hz-2, Degraded/ }));
+    expect(within(map).getByText("Memory above 90%")).toBeVisible();
   });
 
   it("lists the apps with where each runs, and what changed, apps' health included", async () => {

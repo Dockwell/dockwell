@@ -346,20 +346,22 @@ async function main() {
   step("make a folder, rename it, delete it, and put it back");
   await page.goto(at({ path: site }));
   await page.getByRole("button", { name: "New folder" }).click();
+  // In the list: the tree beside it names the same folders.
+  const listed = page.getByRole("table", { name: `Files in ${site}` });
   const naming = page.getByRole("dialog", { name: /^New folder in/ });
   await naming.getByRole("textbox", { name: "Name" }).fill("uploads");
   await naming.getByRole("button", { name: "Make folder" }).click();
   await naming.waitFor({ state: "detached" });
-  await page.getByText("uploads", { exact: true }).waitFor();
+  await listed.getByText("uploads", { exact: true }).waitFor();
   if (!statSync(join(site, "uploads")).isDirectory()) fail("the new folder isn't on the disk");
-  await page.getByText("uploads", { exact: true }).hover();
+  await listed.getByText("uploads", { exact: true }).hover();
   await page.getByRole("button", { name: "Rename uploads" }).click();
   const renaming = page.getByRole("dialog", { name: "Rename uploads" });
   await renaming.getByRole("textbox", { name: "Name" }).fill("media");
   await renaming.getByRole("button", { name: "Rename" }).click();
-  await page.getByText("media", { exact: true }).waitFor();
+  await listed.getByText("media", { exact: true }).waitFor();
   if (existsSync(join(site, "uploads")) || !existsSync(join(site, "media"))) fail("the rename isn't on the disk");
-  await page.getByText("media", { exact: true }).hover();
+  await listed.getByText("media", { exact: true }).hover();
   await page.getByRole("button", { name: "Delete media" }).click();
   const deleting = page.getByRole("dialog", { name: "Delete media" });
   await deleting.getByText("and everything in it go to Recently deleted", { exact: false }).waitFor();
@@ -368,7 +370,7 @@ async function main() {
   if (existsSync(join(site, "media"))) fail("the deleted folder is still on the disk");
   await shoot(page, "deleted");
   await page.getByRole("button", { name: "Put back" }).click();
-  await page.getByText("media", { exact: true }).waitFor();
+  await listed.getByText("media", { exact: true }).waitFor();
   if (!existsSync(join(site, "media"))) fail("what was put back isn't on the disk");
 
   step("upload a file and an archive to unpack, then download a file and a folder");
