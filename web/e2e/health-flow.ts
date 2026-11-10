@@ -373,7 +373,7 @@ services:
     await page.goto(`${origin}/servers/${second}`);
     const agentPanel = page.getByRole("region", { name: "Agent" });
     await agentPanel.getByText("Can't read Docker").first().waitFor({ timeout: SEEN_WITHIN });
-    await agentPanel.getByText("systemctl status docker").waitFor();
+    await agentPanel.getByRole("button", { name: "Copy the command that restarts Docker" }).waitFor();
     if ((await agentPanel.locator(".dw-tone-healthy").count()) > 0)
       fail("an agent started with Docker down reads green");
     await page

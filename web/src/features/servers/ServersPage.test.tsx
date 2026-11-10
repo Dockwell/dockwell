@@ -114,9 +114,8 @@ describe("Servers", () => {
     // Chosen once, into the URL, so it stays put as others change.
     await waitFor(() => expect(router.state.location.search).toEqual({ server: "srv_2" }));
     expect(inspector).toHaveTextContent("Downfor 3 min");
-    expect(inspector).toHaveTextContent(
-      "Its agent last reported 3 min ago. Check that dockwell run is still running on the server.",
-    );
+    expect(inspector).toHaveTextContent("Last heard 3 min ago.");
+    expect(within(inspector).getByRole("button", { name: "Copy the restart command" })).toBeVisible();
     expect(inspector).toHaveTextContent("Public IP198.51.100.20");
     // Its numbers are from before it stopped, so none are shown.
     expect(within(inspector).queryByText("CPU")).toBeNull();

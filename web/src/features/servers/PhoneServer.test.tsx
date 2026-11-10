@@ -189,26 +189,27 @@ describe("a server on a phone", () => {
     expect(within(status).getByRole("button", { name: "Copy Public IP 203.0.113.7" })).toBeVisible();
   });
 
-  it("says how long it hasn't reported, and what to do", async () => {
+  it("says how long it hasn't reported, with the command that restarts its agent to copy", async () => {
     await renderPhone(aServer({ ...hz1, connection: Connection.UNREACHABLE, lastSeenTime: minutesAgo(5) }));
     const status = screen.getByRole("region", { name: "Status" });
     expect(status).toHaveTextContent("Not reporting for 5 min");
-    expect(status).toHaveTextContent("Check that dockwell run is still running on the server.");
+    expect(within(status).getByRole("button", { name: "Copy the restart command" })).toBeVisible();
   });
 
-  it("says a server waits for its agent, and how to start it", async () => {
+  it("says a server waits for its agent, with the command that starts it to copy", async () => {
     await renderPhone(aServer({ ...hz1, connection: Connection.PENDING, stats: undefined, history: [] }));
     expect(screen.getByRole("region", { name: "Status" })).toHaveTextContent("Private IP10.0.0.2");
     const status = screen.getByRole("region", { name: "Status" });
     expect(status).toHaveTextContent("Waiting for its agent");
-    expect(status).toHaveTextContent("Start it with dockwell run on the server.");
+    expect(within(status).getByRole("button", { name: "Copy the start command" })).toBeVisible();
   });
 
-  it("says how long Docker hasn't answered", async () => {
+  it("says how long Docker hasn't answered, with the command that restarts it to copy", async () => {
     await renderPhone(aServer({ ...hz1, dockerUnreadableSince: minutesAgo(10) }));
     const status = screen.getByRole("region", { name: "Status" });
     expect(status).toHaveTextContent("Docker hasn't answered for 10 min");
     expect(status).toHaveTextContent("Degraded");
+    expect(within(status).getByRole("button", { name: "Copy the command that restarts Docker" })).toBeVisible();
   });
 
   it("says it can't say how the server is while the panel can't hear the control plane", async () => {

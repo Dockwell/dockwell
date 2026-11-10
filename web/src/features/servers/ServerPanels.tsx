@@ -10,6 +10,7 @@ import { type ReactNode, useState } from "react";
 import { formatBitRate, formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { CopyButton } from "./CopyButton";
+import { serviceCommands } from "./commands";
 import { trend } from "./history";
 import { publicAddressesOf, useNetworkWords } from "./network";
 import { SetPublicAddressSheet } from "./SetPublicAddressSheet";
@@ -245,7 +246,7 @@ export function AgentPanel({ server, unknown = false }: { server: Server; unknow
           </Fact>
         ) : null}
         {connected ? <Fact term={t`Connected`}>{t`For ${connected}`}</Fact> : null}
-        {blind ? <DockerFact since={timestampDate(blind)} now={now} /> : null}
+        {blind ? <DockerFact since={timestampDate(blind)} now={now} server={server} /> : null}
         <Fact term={t`Last heartbeat`}>
           {server.lastSeenTime ? words.ago(timestampDate(server.lastSeenTime), now) : <Muted>{t`Never`}</Muted>}
         </Fact>
@@ -259,16 +260,17 @@ export function AgentPanel({ server, unknown = false }: { server: Server; unknow
   );
 }
 
-/** An agent that can't read Docker: since when, what that means, and how to check it. */
-function DockerFact({ since, now }: { since: Date; now: number }) {
+/** An agent that can't read Docker: since when, and the command that restarts it, to copy. */
+function DockerFact({ since, now, server }: { since: Date; now: number; server: Server }) {
   const { t } = useLingui();
   const ago = useTimeWords().ago(since, now);
+  const command = serviceCommands(server).restartDocker;
   return (
     <Fact term={t`Docker`}>
-      <Trans>
-        Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with{" "}
-        <code>systemctl status docker</code>.
-      </Trans>
+      <span className="fact-copy">
+        {t`Not answering since ${ago}`}
+        <CopyButton text={command} label={t`Copy the command that restarts Docker`} />
+      </span>
     </Fact>
   );
 }
