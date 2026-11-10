@@ -76,6 +76,7 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       }
       const task = event.taskRun?.displayName || event.taskRun?.task || name;
       const server = name || event.subject?.id || t`a server`;
+      const resourceName = event.reconciled?.name ?? "";
       switch (event.action) {
         case "task.failed":
           return {
@@ -107,6 +108,36 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
               ? t`Set the public address of ${server} to ${address}, which was ${previous}`
               : t`Set the public address of ${server} to ${address}`,
             icon: "server",
+          };
+        }
+        case "server.reconciled_made":
+          return {
+            title: t`${server} made ${resourceName} again while the control plane was away`,
+            icon: "server",
+          };
+        case "server.reconciled_started":
+          return {
+            title: t`${server} started ${resourceName} again while the control plane was away`,
+            icon: "server",
+          };
+        case "server.reconciled_waiting":
+          return {
+            // With no resource, it's the whole server's, as when Docker doesn't answer.
+            title: resourceName
+              ? t`${server} couldn't put ${resourceName} back while the control plane was away`
+              : t`${server} couldn't put anything back while the control plane was away`,
+            icon: "server",
+            tone: "warning",
+          };
+        case "server.reconciled_dropped": {
+          const count = event.reconciled?.dropped ?? 0;
+          return {
+            title: plural(count, {
+              one: `${server} dropped # entry of what it did while the control plane was away, as it keeps 500`,
+              other: `${server} dropped # entries of what it did while the control plane was away, as it keeps 500`,
+            }),
+            icon: "server",
+            tone: "warning",
           };
         }
         case "server.desired_sent": {

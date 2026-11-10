@@ -319,6 +319,25 @@ func (t *Tx) RecordEvent(ctx context.Context, e Event) error {
 	return nil
 }
 
+// RecordEventOnce records e unless an event of its ID is there, as for one a server
+// sends again, and says whether it recorded it.
+func (t *Tx) RecordEventOnce(ctx context.Context, e Event) (bool, error) {
+	res, err := t.exec(ctx, `INSERT INTO audit_events (id, at, actor, action, subject, detail, surface, target) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO NOTHING`,
+		e.ID, millis(e.At), e.Actor, e.Action, e.Subject, e.Detail, e.Surface, e.Target)
+	if err != nil {
+		return false, fmt.Errorf("can't record audit event %s: %w", e.Action, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil || n == 0 {
+		return false, err
+	}
+	if t.recorded != nil {
+		*t.recorded = true
+	}
+	return true, nil
+}
+
 // UpdateEvent rewrites an event that tells of something still going on, as a
 // service that keeps changing: its time and what it says, so one event stands for
 // all of it rather than one each few minutes. It changes nothing else, and only an

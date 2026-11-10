@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
@@ -31,8 +32,9 @@ type Rememberer interface {
 	// Holds is what the agent keeps, by resource and revision, its cache's ID,
 	// and whether it keeps anything at all.
 	Holds() (held map[resource.Ref]int64, cache string, keeps bool)
-	// Remember has the agent keep what ref runs now, and says whether it did.
-	Remember(ctx context.Context, ref resource.Ref, spec proto.Message, revision int, change string) (bool, error)
+	// Remember has the agent keep what ref runs now, with the image it ran by
+	// its registry's digest, if one's known, and says whether it did.
+	Remember(ctx context.Context, ref resource.Ref, spec proto.Message, revision int, change, imageDigest string) (bool, error)
 	// Forget has the agent forget ref, which its server no longer runs, if it
 	// keeps it at revision, and says whether it did.
 	Forget(ctx context.Context, ref resource.Ref, revision int64) (bool, error)
@@ -155,15 +157,19 @@ func (e *Engine) Remember(ctx context.Context, server string) (Filled, error) {
 		l := &send[i]
 		// Opened one at a time, and dropped once sent.
 		var spec proto.Message
+		var digest string
 		if err := e.db.View(ctx, func(tx *store.Tx) error {
 			var err error
-			spec, err = e.decode(ctx, tx, store.InRevision(l.res.ID, l.res.Kind, l.res.Revision), l.res.Spec)
+			if spec, err = e.decode(ctx, tx, store.InRevision(l.res.ID, l.res.Kind, l.res.Revision), l.res.Spec); err != nil {
+				return err
+			}
+			digest, err = e.ranImage(ctx, tx, l.res, server, spec)
 			return err
 		}); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", l.ref, err))
 			continue
 		}
-		kept, err := r.Remember(ctx, l.ref, spec, l.res.Revision, l.res.ChangeID)
+		kept, err := r.Remember(ctx, l.ref, spec, l.res.Revision, l.res.ChangeID, digest)
 		switch {
 		case err != nil:
 			errs = append(errs, fmt.Errorf("%s: %w", l.ref, err))
@@ -187,6 +193,27 @@ func (e *Engine) Remember(ctx context.Context, server string) (Filled, error) {
 		errs = append(errs, err)
 	}
 	return n, errors.Join(errs...)
+}
+
+// ranImage is the image a resource's revision ran on server, as its registry
+// knows it, name@digest, for an agent that can't see it, as when its container is
+// gone; or "" if that isn't known.
+func (e *Engine) ranImage(ctx context.Context, tx *store.Tx, res store.Resource, server string, spec proto.Message) (string, error) {
+	t, err := e.kinds.Type(resource.Kind(res.Kind))
+	namer, ok := t.(resource.ImageNamer)
+	if err != nil || !ok {
+		return "", nil //nolint:nilerr // a kind this control plane doesn't know runs no image it can name
+	}
+	deps, err := tx.Deployments(ctx, res.ID, res.Revision)
+	if err != nil {
+		return "", err
+	}
+	for i := range deps {
+		if d := &deps[i]; d.Server == server && d.Digest != "" {
+			return docker.Repository(namer.ImageOf(spec)) + "@" + d.Digest, nil
+		}
+	}
+	return "", nil
 }
 
 // noteCache keeps the ID of the server's agent's cache, and puts on the server's

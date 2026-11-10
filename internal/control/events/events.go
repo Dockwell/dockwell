@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/control/processes"
+	"github.com/dockwell/dockwell/internal/control/reconciled"
 	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/control/tasks"
 	"github.com/dockwell/dockwell/internal/control/terminals"
@@ -100,6 +101,7 @@ var (
 	serverActions = slices.Concat([]string{
 		"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear,
 		processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed, revision.ActionDesiredSent, revision.ActionDesiredUnknown,
+		reconciled.ActionMade, reconciled.ActionStarted, reconciled.ActionWaiting, reconciled.ActionDropped,
 	},
 		// Who had a root shell on a server, and when (ADR 0037).
 		terminals.Actions, fileWrites)
@@ -647,6 +649,16 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 			e.DesiredSent = &dockwellv1.EventDesiredSent{
 				Resources: uint32(max(sent.Resources, 0)), WithValues: uint32(max(sent.WithValues, 0)), Unknown: uint32(max(sent.Unknown, 0)), //nolint:gosec // counts of resources
 				NewCache: sent.NewCache, FirstCache: sent.FirstCache, ServerName: look.Name(a.Target),
+			}
+		}
+	}
+	if slices.Contains(reconciled.Actions, a.Action) {
+		// What a server's agent did on its own, which internal/control/reconciled
+		// made fit to show before it kept it.
+		if told, ok := reconciled.ReadTold(a.Detail); ok {
+			e.Reconciled = &dockwellv1.EventReconciled{
+				ServerName: look.Name(a.Target), Kind: told.Kind, Name: told.Name, Reason: told.Reason,
+				Dropped: uint32(max(told.Dropped, 0)), //nolint:gosec // at most 1<<20
 			}
 		}
 	}

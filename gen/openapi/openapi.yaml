@@ -7987,6 +7987,13 @@ components:
                         What the control plane sent a server's agent to keep as what the server
                          runs, for an event with the action "server.desired_sent", or found it keeps
                          and doesn't know, for "server.desired_unknown" (ADR 0054).
+                reconciled:
+                    allOf:
+                        - $ref: '#/components/schemas/EventReconciled'
+                    description: |-
+                        What a server's agent did, or couldn't do, on its own while the control
+                         plane was away, for an event with an action that starts "server.reconciled"
+                         (ADR 0054).
             description: Event is one thing that happened.
         EventAlert:
             type: object
@@ -8234,6 +8241,28 @@ components:
                     type: string
                     description: What a person had set before, so it can be put back. Empty when they hadn't.
             description: EventPublicAddress is a server's public address as a person changed it.
+        EventReconciled:
+            type: object
+            properties:
+                serverName:
+                    type: string
+                    description: The server's name.
+                kind:
+                    type: string
+                    description: The resource, by its kind and name.
+                name:
+                    type: string
+                reason:
+                    type: string
+                    description: Why it couldn't put the resource back, for people.
+                dropped:
+                    type: integer
+                    description: For dropped entries, how many.
+                    format: uint32
+            description: |-
+                EventReconciled is what a server's agent did, or couldn't do, on its own while
+                 the control plane was away. The event's action says which: made it again,
+                 started it, couldn't put it back, or dropped entries it couldn't keep.
         EventSetting:
             type: object
             properties:

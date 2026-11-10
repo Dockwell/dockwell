@@ -1028,6 +1028,9 @@ msgstr "{count, plural, one {Sent {server}'s agent the variables and secrets of 
 msgid "{count, plural, one {Sent {server}'s agent, which kept none before, the variables and secrets of # resource it runs} other {Sent {server}'s agent, which kept none before, the variables and secrets of # resources it runs}}"
 msgstr "{count, plural, one {Sent {server}'s agent, which kept none before, the variables and secrets of # resource it runs} other {Sent {server}'s agent, which kept none before, the variables and secrets of # resources it runs}}"
 
+msgid "{count, plural, one {{server} dropped # entry of what it did while the control plane was away, as it keeps 500} other {{server} dropped # entries of what it did while the control plane was away, as it keeps 500}}"
+msgstr "{count, plural, one {{server} dropped # entry of what it did while the control plane was away, as it keeps 500} other {{server} dropped # entries of what it did while the control plane was away, as it keeps 500}}"
+
 msgid "{count, plural, one {{server}'s agent has a new cache, and was sent the variables and secrets of # resource it runs} other {{server}'s agent has a new cache, and was sent the variables and secrets of # resources it runs}}"
 msgstr "{count, plural, one {{server}'s agent has a new cache, and was sent the variables and secrets of # resource it runs} other {{server}'s agent has a new cache, and was sent the variables and secrets of # resources it runs}}"
 
@@ -1058,14 +1061,26 @@ msgstr "{name} was paused on {server}"
 msgid "{server} can't be reached"
 msgstr "{server} can't be reached"
 
+msgid "{server} couldn't put anything back while the control plane was away"
+msgstr "{server} couldn't put anything back while the control plane was away"
+
+msgid "{server} couldn't put {resourceName} back while the control plane was away"
+msgstr "{server} couldn't put {resourceName} back while the control plane was away"
+
 msgid "{server} joined as the control server"
 msgstr "{server} joined as the control server"
 
 msgid "{server} joined the fleet"
 msgstr "{server} joined the fleet"
 
+msgid "{server} made {resourceName} again while the control plane was away"
+msgstr "{server} made {resourceName} again while the control plane was away"
+
 msgid "{server} renewed its certificate"
 msgstr "{server} renewed its certificate"
+
+msgid "{server} started {resourceName} again while the control plane was away"
+msgstr "{server} started {resourceName} again while the control plane was away"
 
 msgid "{server} uses {value}% of its memory"
 msgstr "{server} uses {value}% of its memory"

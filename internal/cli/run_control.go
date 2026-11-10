@@ -36,6 +36,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	controlhealth "github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/control/reconciled"
 	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/datadir"
@@ -306,6 +307,9 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	// long as the control plane runs, and it stops with it.
 	recorder := &controlhealth.Recorder{DB: db, Logger: logger}
 	agents.OnHealth(recorder.Heard)
+	// Puts on the timeline what each server's agent did on its own while the
+	// control plane was away, once each (ADR 0054).
+	agents.OnReconciled((&reconciled.Recorder{DB: db}).Heard)
 
 	srv, err := control.New(control.Config{
 		Logger:      logger,

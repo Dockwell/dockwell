@@ -349,6 +349,39 @@ describe("Activity", () => {
     expect(within(detail).queryByText("Resources sent")).toBeNull();
   });
 
+  it("says what a server's agent did on its own while the control plane was away, and why it couldn't", async () => {
+    const on = { id: "srv_1", name: "hz-1" };
+    const at = (hours: number) => timestampFromDate(new Date(Date.now() - hours * HOUR));
+    const reconciled = (id: string, action: string, hours: number, more: object) =>
+      auditEvent({
+        id,
+        action,
+        kind: EventKind.SERVER,
+        time: at(hours),
+        subject: on,
+        reconciled: { serverName: "hz-1", kind: "service", name: "web", ...more },
+      });
+    const watch = feed<WatchEventsResponse>();
+    watch.push(
+      snapshot([
+        reconciled("evt_wait", "server.reconciled_waiting", 0, { reason: "its image is gone" }),
+        reconciled("evt_made", "server.reconciled_made", 1, {}),
+        reconciled("evt_started", "server.reconciled_started", 2, {}),
+        reconciled("evt_dropped", "server.reconciled_dropped", 3, { name: "", dropped: 4 }),
+      ]),
+    );
+    renderActivity(watch, {}, "/activity?event=evt_wait");
+    await screen.findByRole("row", { name: /hz-1 made web again while the control plane was away/ });
+    await screen.findByRole("row", { name: /hz-1 started web again while the control plane was away/ });
+    await screen.findByRole("row", {
+      name: /hz-1 dropped 4 entries of what it did while the control plane was away, as it keeps 500/,
+    });
+    const detail = await screen.findByRole("region", {
+      name: /hz-1 couldn't put web back while the control plane was away/,
+    });
+    expect(within(detail).getByText("its image is gone")).toBeVisible();
+  });
+
   it("says what the install's settings were set to, and what they were, so they can be put back", async () => {
     const at = (hours: number) => timestampFromDate(new Date(Date.now() - hours * HOUR));
     const events = [

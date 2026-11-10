@@ -6,6 +6,7 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -38,6 +39,7 @@ type remembered struct {
 	revision int
 	change   string
 	spec     proto.Message
+	digest   string
 }
 
 func (k *keeping) Holds() (map[resource.Ref]int64, string, bool) {
@@ -46,10 +48,10 @@ func (k *keeping) Holds() (map[resource.Ref]int64, string, bool) {
 	return maps.Clone(k.held), k.cache, k.keeps
 }
 
-func (k *keeping) Remember(_ context.Context, ref resource.Ref, spec proto.Message, revision int, change string) (bool, error) {
+func (k *keeping) Remember(_ context.Context, ref resource.Ref, spec proto.Message, revision int, change, digest string) (bool, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	k.got = append(k.got, remembered{ref: ref, revision: revision, change: change, spec: spec})
+	k.got = append(k.got, remembered{ref: ref, revision: revision, change: change, spec: spec, digest: digest})
 	return true, nil
 }
 
@@ -335,5 +337,32 @@ func testAFillWithValuesGoesOnTheTimeline(t *testing.T, backend store.Backend) {
 	}
 	if len(got) != 3 || firsts != 1 || news != 1 {
 		t.Errorf("the timeline has %+v, want 3 fills, the first said so and one of a new cache", got)
+	}
+}
+
+// A fill carries the image the step ran, by its registry's digest, for an agent
+// whose container is gone and can't read it from the server.
+func TestAFillCarriesTheImagesDigest(t *testing.T) {
+	storetest.Each(t, testAFillCarriesTheImagesDigest)
+}
+
+func testAFillCarriesTheImagesDigest(t *testing.T, backend store.Backend) {
+	e, f, db := setup(t, backend, "srv_A")
+	apply(t, e, propose(t, e, "Run web", web("nginx:1.27")))
+	digest := "sha256:" + strings.Repeat("ab", 32)
+	if err := db.Revise(t.Context(), func(tx *store.RevisionTx) error {
+		res, err := tx.ListLive(t.Context(), "srv_A")
+		if err != nil || len(res) != 1 {
+			t.Fatalf("live %v, %v", res, err)
+		}
+		return tx.SetDeploymentDigest(t.Context(), res[0].ID, res[0].Revision, "srv_A", digest, false)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	k := &keeping{Agent: f["srv_A"].agent, keeps: true, cache: "c1", held: map[resource.Ref]int64{}, forgot: map[resource.Ref]int64{}}
+	f["srv_A"].agent = k
+	fill(t, e, Filled{Kept: 1, FirstCache: true})
+	if got := k.sent()["web"].digest; got != "nginx@"+digest {
+		t.Errorf("sent the digest %q, want nginx@%s", got, digest)
 	}
 }

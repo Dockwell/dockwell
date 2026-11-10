@@ -109,6 +109,8 @@ type Agents struct {
 	runsHearer func(server string)
 	// terminalHearer hears how each terminal ended.
 	terminalHearer func(server string, ended *agentv1.TerminalEnded)
+	// reconciledHearer hears what agents did on their own (OnReconciled).
+	reconciledHearer func(ctx context.Context, server string, r *agentv1.Reconciled) error
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
@@ -155,6 +157,36 @@ func (a *Agents) reportTaskRunsReady(server string) {
 	if hear != nil {
 		hear(server)
 	}
+}
+
+// OnReconciled has fn hear what each server's agent did, or couldn't do, on its own
+// while the control plane was away (ADR 0054), as its stream opens.
+func (a *Agents) OnReconciled(fn func(ctx context.Context, server string, r *agentv1.Reconciled) error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.reconciledHearer = fn
+}
+
+// reconciled has the hook hear what a server's agent did on its own while the
+// control plane was away, and, once it has it, tells the agent, which then drops
+// it. What the hook can't keep is sent again on the agent's next stream.
+func (a *Agents) reconciled(ctx context.Context, server string, s *Session, r *agentv1.Reconciled) {
+	a.mu.Lock()
+	fn := a.reconciledHearer
+	a.mu.Unlock()
+	if fn == nil {
+		return
+	}
+	if err := fn(ctx, server, r); err != nil {
+		a.logger.Warn("can't record what a server's agent did on its own while the control plane was away; the agent sends it again when it next connects",
+			slog.String("server", server), slog.String("error", err.Error()))
+		return
+	}
+	last := ""
+	if entries := r.GetEntries(); len(entries) > 0 {
+		last = entries[len(entries)-1].GetId()
+	}
+	_ = s.write(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Heard{Heard: &agentv1.Heard{Last: last}}})
 }
 
 // OnHealth calls fn with each report of how a server's services are, in the
@@ -1127,7 +1159,7 @@ func (s *Session) Holds() (held map[resource.Ref]int64, cache string, keeps bool
 // there has it, with the values it uses sealed to this stream, as a step's are.
 // It changes nothing on the server. It says whether the agent kept it, which it
 // doesn't when it keeps a later revision.
-func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Message, revision int, change string) (bool, error) {
+func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Message, revision int, change, imageDigest string) (bool, error) {
 	if err := s.supports(ref); err != nil {
 		return false, err
 	}
@@ -1150,7 +1182,7 @@ func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Mes
 		return false, err
 	}
 	defer clear(values)
-	call := &agentv1.RememberCall{Desired: dr, Deploy: &agentv1.Deploy{Revision: int64(revision), ChangeId: change}}
+	call := &agentv1.RememberCall{Desired: dr, Deploy: &agentv1.Deploy{Revision: int64(revision), ChangeId: change}, ImageDigest: imageDigest}
 	var seal func(*Session) error
 	if uses {
 		seal = func(on *Session) error {

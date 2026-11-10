@@ -91,6 +91,18 @@ type Monitor struct {
 	// started is when the monitor started, which is since when Docker hasn't
 	// answered, until a first list has come.
 	started time.Time
+	// onList is told each list as it comes (OnList).
+	onList func(ctx context.Context, at time.Time, list []docker.ContainerSummary)
+}
+
+// OnList has fn told each list of the server's containers as it comes, with when
+// it was read, so the agent can note how what it keeps a record of stands without
+// a second look of its own (ADR 0054). fn runs on the scan's own loop, so it
+// should be quick, and a later fn takes the place of an earlier one.
+func (m *Monitor) OnList(fn func(ctx context.Context, at time.Time, list []docker.ContainerSummary)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.onList = fn
 }
 
 // watched is what a Monitor keeps of one container.
@@ -423,9 +435,13 @@ func (m *Monitor) scan(ctx context.Context) time.Duration {
 		m.dirty = true
 	}
 	n := len(m.watched)
+	onList := m.onList
 	m.mu.Unlock()
 	if changed {
 		m.tell()
+	}
+	if onList != nil {
+		onList(ctx, now, list)
 	}
 	for _, r := range slices.Concat(toRead, quiet) {
 		m.read(ctx, r.id, r.w)

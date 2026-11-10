@@ -128,6 +128,9 @@ message ConnectRequest {
     // Numbered in the block scheduled tasks hold, as open work adds to this
     // message.
     TaskRunsReady task_runs_ready = 150;
+    // What the agent did, or couldn't do, on its own while the control plane
+    // was away, sent as its stream opens (ADR 0054).
+    Reconciled reconciled = 163;
   }
 }
 
@@ -281,6 +284,52 @@ message UnavailableKind {
   string reason = 2;
 }
 
+// Reconciled is what an agent did, or couldn't do, on its own while the control
+// plane was away (ADR 0054), as its journal holds it. It holds no value and no
+// spec.
+message Reconciled {
+  // What it did, oldest first.
+  repeated LocalEntry entries = 1;
+  // How many entries it dropped before these, as its journal keeps at most 500.
+  uint32 dropped = 2;
+  // The ID of the newest entry it dropped, which names the count, so the same
+  // count sent again is one event.
+  string dropped_to = 3;
+}
+
+// LocalEntry is one thing an agent did, or couldn't do, on its own.
+message LocalEntry {
+  // The boot's ID and a sequence, so it means one thing however often it's sent.
+  string id = 1;
+  // The resource.
+  dockwell.v1.ResourceRef resource = 2;
+  // What it did.
+  LocalAction action = 3;
+  // Why it couldn't, for people, for LOCAL_ACTION_WAITING.
+  string reason = 4;
+  // When.
+  google.protobuf.Timestamp time = 5;
+}
+
+// LocalAction is what an agent did on its own.
+enum LocalAction {
+  LOCAL_ACTION_UNSPECIFIED = 0;
+  // It made the resource again, as it was gone.
+  LOCAL_ACTION_MADE = 1;
+  // It started the resource, which Docker couldn't.
+  LOCAL_ACTION_STARTED = 2;
+  // It couldn't put the resource back, and waits for the control plane.
+  LOCAL_ACTION_WAITING = 3;
+}
+
+// Heard says the control plane has what an agent did on its own, up to and
+// including an entry, which the agent then drops, with the count of those it
+// dropped before.
+message Heard {
+  // The last entry the control plane has. Empty when it was sent none.
+  string last = 1;
+}
+
 // Draining says the agent takes no more calls on this stream.
 message Draining {}
 
@@ -402,6 +451,8 @@ message ConnectResponse {
     // changes, to an agent whose hello says it follows a pace. Numbered apart,
     // as open work adds to this message.
     Pace pace = 40;
+    // Says the control plane has what the agent sent of what it did on its own.
+    Heard heard = 164;
   }
 }
 
@@ -850,6 +901,10 @@ message RememberCall {
   // The values of the variables and secrets the spec uses, sealed as an
   // ApplyCall's are. Unset when it uses none.
   bytes values = 3;
+  // What the image the resource runs is called in its registry, as name@digest,
+  // as the control plane kept it when the step ran, for an agent that can't see
+  // the image on the server, as when its container is gone.
+  string image_digest = 4;
 }
 
 // RememberResult answers a RememberCall.

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -76,6 +77,27 @@ type Record struct {
 	Values map[string]string
 	// Image is the image it runs, for a kind that runs one.
 	Image resource.Image
+	// Stopped says the agent last saw it stopped by someone, or exited by itself,
+	// where its restart policy left it, so it isn't made again while the control
+	// plane is away: that would start it (ADR 0054). Keep and Remember carry it
+	// over, unless Started.
+	Stopped bool
+	// Volumes are the volumes Docker made for the paths its image declares, by
+	// path, as the agent last saw them mounted: a database's data, which no spec
+	// names. One made again mounts them by name. Keep and Remember carry them over
+	// when they're nil.
+	Volumes map[string]string
+	// Started says the step that kept it started the container, so it runs:
+	// Keep doesn't carry over what was seen of it stopped. It isn't kept.
+	Started bool
+}
+
+// Standing is how the agent saw a resource that runs something stand.
+type Standing struct {
+	// Stopped says it was stopped by someone, or exited by itself.
+	Stopped bool
+	// Volumes are the volumes Docker made for its image's paths, by path.
+	Volumes map[string]string
 }
 
 // sealed is what a record keeps inside its sealing.
@@ -87,6 +109,8 @@ type sealed struct {
 	Values    map[string]string `json:"values,omitempty"`
 	Image     string            `json:"image,omitempty"`
 	Digest    string            `json:"digest,omitempty"`
+	Stopped   bool              `json:"stopped,omitempty"`
+	Volumes   map[string]string `json:"volumes,omitempty"`
 	// Gone marks a tombstone: the resource was deleted at Revision, at At, in
 	// Unix seconds. It holds nothing else.
 	Gone bool  `json:"gone,omitempty"`
@@ -103,6 +127,12 @@ type entry struct {
 	// it couldn't be replaced, and couldn't be removed either. Nothing reads it,
 	// and no hello lists it, so the control plane sends it again.
 	unusable bool
+	// kept is when a step or the control plane last had it kept, so a look at
+	// how it stands from before then is old news (Seen).
+	kept time.Time
+	// standing is how the agent last saw it stand, as its record says, so a look
+	// that sees nothing new costs no read of the record.
+	standing Standing
 }
 
 // Store is an agent's cache of desired state.
@@ -278,7 +308,7 @@ func (s *Store) load() error {
 			s.held[r.Ref] = entry{revision: r.Revision, gone: true, at: at}
 			continue
 		}
-		s.held[r.Ref] = entry{revision: r.Revision}
+		s.held[r.Ref] = entry{revision: r.Revision, standing: Standing{Stopped: r.Stopped, Volumes: r.Volumes}}
 	}
 	return nil
 }
@@ -314,7 +344,8 @@ func (s *Store) Keep(r Record) error {
 	if r.Revision == 0 {
 		r.Revision = s.held[r.Ref].revision
 	}
-	if err := s.write(r); err != nil {
+	s.carry(&r, !r.Started)
+	if err := s.write(r, true); err != nil {
 		return s.dropLocked(r.Ref, fmt.Errorf("can't keep %s as this server runs it now: %w", r.Ref, err))
 	}
 	return nil
@@ -336,10 +367,33 @@ func (s *Store) Remember(r Record) (bool, error) {
 	if was, ok := s.held[r.Ref]; ok && !was.unusable && (r.Revision < was.revision || was.gone && r.Revision <= was.revision) {
 		return false, nil
 	}
-	if err := s.write(r); err != nil {
+	s.carry(&r, true)
+	if err := s.write(r, true); err != nil {
 		return false, s.dropLocked(r.Ref, fmt.Errorf("can't keep %s as this server runs it: %w", r.Ref, err))
 	}
 	return true, nil
+}
+
+// carry has r take over what the agent saw of the resource as it last stood: its
+// image's volumes, unless r says them, and, if stopped, whether it was stopped. A
+// step or a fill says what should run, not how it stands, which only a look can.
+func (s *Store) carry(r *Record, stopped bool) {
+	if r.Spec == nil {
+		return
+	}
+	if e, ok := s.held[r.Ref]; !ok || e.gone || e.unusable {
+		return
+	}
+	was, _, err := s.read(filepath.Join(s.dir, fileName(r.Ref)))
+	if err != nil {
+		return
+	}
+	if stopped {
+		r.Stopped = was.Stopped
+	}
+	if r.Volumes == nil {
+		r.Volumes = was.Volumes
+	}
 }
 
 // Forget removes the record of a resource the control plane says this server no
@@ -374,20 +428,28 @@ func (s *Store) dropLocked(ref resource.Ref, why error) error {
 	if !ok {
 		return why
 	}
-	err := os.Remove(filepath.Join(s.dir, fileName(ref)))
+	path := filepath.Join(s.dir, fileName(ref))
+	err := os.Remove(path)
 	if err == nil || errors.Is(err, fs.ErrNotExist) {
 		delete(s.held, ref)
 		_ = syncDir(s.dir)
 		return fmt.Errorf("%w, so the agent forgot what it kept of it. Check that the agent's data folder is writable", why)
 	}
+	// A folder that can't take a removal may still let the record itself be
+	// written: cut short, it doesn't open after a restart either, and goes aside.
+	_ = os.Truncate(path, 0)
 	was.unusable = true
 	s.held[ref] = was
 	return fmt.Errorf("%w, nor can what it kept of it be removed (%w), so the agent reads it no more. Check that the agent's data folder is writable", why, err)
 }
 
 // write seals r into its record, or a tombstone for a nil spec, and indexes it.
-func (s *Store) write(r Record) error {
-	in := sealed{ScopeName: r.ScopeName, Revision: r.Revision, Change: r.Change, Spec: r.Spec, Values: r.Values, Image: r.Image.ID, Digest: r.Image.Digest}
+// kept says a step or the control plane had it kept, rather than a look.
+func (s *Store) write(r Record, kept bool) error {
+	in := sealed{
+		ScopeName: r.ScopeName, Revision: r.Revision, Change: r.Change, Spec: r.Spec, Values: r.Values, Image: r.Image.ID, Digest: r.Image.Digest,
+		Stopped: r.Stopped, Volumes: r.Volumes,
+	}
 	at := s.now()
 	if r.Spec == nil {
 		in = sealed{Revision: r.Revision, Gone: true, At: at.Unix()}
@@ -401,11 +463,14 @@ func (s *Store) write(r Record) error {
 	if err := writeDurably(filepath.Join(s.dir, fileName(r.Ref)), b); err != nil {
 		return err
 	}
-	if r.Spec == nil {
-		s.held[r.Ref] = entry{revision: r.Revision, gone: true, at: time.Unix(at.Unix(), 0)}
-	} else {
-		s.held[r.Ref] = entry{revision: r.Revision}
+	e := entry{revision: r.Revision, kept: s.held[r.Ref].kept, standing: Standing{Stopped: r.Stopped, Volumes: r.Volumes}}
+	if kept {
+		e.kept = at
 	}
+	if r.Spec == nil {
+		e.gone, e.at = true, time.Unix(at.Unix(), 0)
+	}
+	s.held[r.Ref] = e
 	return nil
 }
 
@@ -425,6 +490,71 @@ func (s *Store) Read(ref resource.Ref) (Record, bool, error) {
 		return Record{}, false, fmt.Errorf("the record of %s holds %s", ref, r.Ref)
 	}
 	return r, true, nil
+}
+
+// Refs lists the resources the cache holds a record of, by kind, scope and name.
+func (s *Store) Refs() []resource.Ref {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	refs := make([]resource.Ref, 0, len(s.held))
+	for ref, e := range s.held {
+		if !e.gone && !e.unusable {
+			refs = append(refs, ref)
+		}
+	}
+	slices.SortFunc(refs, func(a, b resource.Ref) int { return strings.Compare(a.String(), b.String()) })
+	return refs
+}
+
+// Seen notes how the agent saw ref stand, in a look at at, rewriting its record
+// only when that changes. What isn't held, or no longer, is left alone, and so is
+// what a step or the control plane had kept since the look, which is old news.
+func (s *Store) Seen(ref resource.Ref, st Standing, at time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if e, ok := s.held[ref]; !ok || e.gone || e.unusable || e.kept.After(at) || e.standing.equal(st) {
+		return nil
+	}
+	r, _, err := s.read(filepath.Join(s.dir, fileName(ref)))
+	if err != nil || r.Stopped == st.Stopped && maps.Equal(r.Volumes, st.Volumes) {
+		return err
+	}
+	r.Stopped, r.Volumes = st.Stopped, st.Volumes
+	if err := s.write(r, false); err != nil {
+		return s.dropLocked(ref, fmt.Errorf("can't note how %s stands: %w", ref, err))
+	}
+	return nil
+}
+
+// Stands says how the agent last saw ref stand, as its record says, and whether
+// it holds a record of ref to say it.
+func (s *Store) Stands(ref resource.Ref) (Standing, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.held[ref]
+	if !ok || e.gone || e.unusable {
+		return Standing{}, false
+	}
+	return e.standing, true
+}
+
+func (a Standing) equal(b Standing) bool {
+	return a.Stopped == b.Stopped && maps.Equal(a.Volumes, b.Volumes)
+}
+
+// Wipe removes every record and the key, as for a server removed from the fleet,
+// whose agent then keeps nothing of what it ran.
+func (s *Store) Wipe() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := os.RemoveAll(s.dir); err != nil {
+		return fmt.Errorf("can't remove %s: %w", s.dir, err)
+	}
+	if err := os.Remove(filepath.Join(filepath.Dir(s.dir), KeyFile)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("can't remove the key to this server's desired state: %w", err)
+	}
+	clear(s.held)
+	return nil
 }
 
 // Holds says what the cache keeps, for the agent's hello: each resource it holds
@@ -529,7 +659,7 @@ func (s *Store) read(path string) (Record, sealed, error) {
 	}
 	r := Record{
 		Ref: ref, ScopeName: in.ScopeName, Revision: in.Revision, Change: in.Change, Values: in.Values,
-		Image: resource.Image{ID: in.Image, Digest: in.Digest},
+		Image: resource.Image{ID: in.Image, Digest: in.Digest}, Stopped: in.Stopped, Volumes: in.Volumes,
 	}
 	if !in.Gone {
 		r.Spec = in.Spec
