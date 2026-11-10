@@ -91,8 +91,8 @@ It isn't a route, so Protect isn't offered and nothing here reaches it. A passwo
 - **Whoever may change a route may protect it,** with no new permission; opening it up takes a person, as above. Each change is on the timeline and in the audit log, with every password masked.
 - **A plan says what changes in words:** "Asks for a password: 1 user, mira (password set)", "Only from 203.0.113.7/32 and 198.51.100.0/24", "Refuses 192.0.2.0/24", "Anyone can reach app.example.com again".
 - **An undo past a new password brings the old one back,** as revisions don't change, so the plan says it by name: "mira's password goes back to the one from 12 Nov".
-- **The CLI refuses a sensitive value written inline,** for any kind whose spec it sets, not one kind at a time, so a password comes from a file or standard input and stays out of a shell's history.
-- **What the proxy has reads back.** The Caddy driver reads a route's `access` back from Caddy, users and hashes included, so drift compares as for any field: a user or a range added by hand reads as that change, and anything else in those handlers reads as a hand edit.
+- **The CLI refuses a sealed value written inline,** for any kind, a route's password among them, rather than one kind at a time, so the next sealed field needs no rule of its own and a password comes from a file or standard input, out of a shell's history. A container's own environment still goes inline, as `--env` does ([ADR 0022](0022-secrets-encrypted-at-rest.md)).
+- **What the proxy has reads back.** The Caddy driver reads a route's `access` back from Caddy, users and hashes included, so drift compares as for any field: a user added by hand reads as that change. Anything else in those handlers reads as a hand edit, a range added by hand included, as Dockwell writes each range with its IPv6-mapped twin.
 
 ### In the panel
 
