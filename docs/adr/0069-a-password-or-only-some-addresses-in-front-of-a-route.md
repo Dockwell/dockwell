@@ -52,7 +52,7 @@ It isn't a route, so Protect isn't offered and nothing here reaches it. A passwo
 - **Opening a route up asks nothing more,** but the plan says it in amber: "Anyone can reach app.example.com again."
 - **A plan says what changes in words:** "Asks for a password: 1 user, mira (password set)", "Only from 203.0.113.7 and 198.51.100.0/24", "Refuses 192.0.2.0/24".
 - **The CLI and REST take the same fields.** A password goes in an edit read from a file or standard input, so it isn't in a shell's history.
-- **What the proxy has reads back.** The Caddy driver reads a route's `access` back from Caddy, users and hashes included, so drift compares as for any field, and a hand edit of those handlers reads as edited.
+- **What the proxy has reads back.** The Caddy driver reads a route's `access` back from Caddy, users and hashes included, so drift compares as for any field: a user or a range added by hand reads as that change, and anything else in those handlers reads as a hand edit.
 
 ### In the panel, slice 1
 
