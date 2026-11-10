@@ -3,7 +3,7 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ConnectError } from "@connectrpc/connect";
-import { Connection, ServerInventorySchema } from "@dockwell/api";
+import { Connection, ServerInventorySchema, ServerStrain } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
 import addresses from "../../../../internal/resource/testdata/addresses.json";
@@ -57,10 +57,28 @@ describe("fleetView", () => {
   it("stays the same object while only the numbers change", () => {
     const before = fleetView({ status: "live", servers: [hz1, hz2] });
     const after = fleetView(
-      { status: "live", servers: [aServer({ ...hz1, stats: sample(90) }), aServer({ ...hz2, stats: sample(5) })] },
+      { status: "live", servers: [aServer({ ...hz1, stats: sample(80) }), aServer({ ...hz2, stats: sample(5) })] },
       before,
     );
     expect(after).toBe(before);
+  });
+
+  it("changes when the control plane says a server is strained, which reads as degraded everywhere", () => {
+    const strained = aServer({
+      ...hz1,
+      strainedSince: timestampFromDate(new Date(2026, 10, 7, 13, 58)),
+      strain: ServerStrain.MEMORY,
+    });
+    const before = fleetView({ status: "live", servers: [hz1, hz2] });
+    const after = fleetView({ status: "live", servers: [strained, hz2] }, before);
+    expect(after).not.toBe(before);
+    expect(after.servers?.[0]?.strained).toBe(true);
+    expect(after.servers?.[1]).toBe(before.servers?.[1]);
+    expect(after.counts.strained).toBe(1);
+    expect(serverStatus(after.servers?.[0] ?? hz1)).toBe("degraded");
+    expect(serverStatus(strained)).toBe("degraded");
+    // One sample past 90 isn't strain: the control plane decides that, once it has lasted.
+    expect(serverStatus(aServer({ ...hz1, stats: sample(97, 7.6) }))).toBe("healthy");
   });
 
   it("changes when a server drops, keeping the parts that didn't", () => {
@@ -71,7 +89,7 @@ describe("fleetView", () => {
     );
     expect(after).not.toBe(before);
     expect(after.servers?.[0]).toBe(before.servers?.[0]);
-    expect(after.counts).toEqual({ connected: 1, down: 1, waiting: 0, unknown: 0, docker: 0 });
+    expect(after.counts).toEqual({ connected: 1, down: 1, waiting: 0, unknown: 0, docker: 0, strained: 0 });
   });
 
   it("changes when the watch starts reconnecting", () => {
@@ -92,14 +110,14 @@ describe("fleetView", () => {
         aServer({ id: "d", connection: 9 as Connection }),
       ],
     });
-    expect(view.counts).toEqual({ connected: 1, down: 1, waiting: 1, unknown: 2, docker: 0 });
+    expect(view.counts).toEqual({ connected: 1, down: 1, waiting: 1, unknown: 2, docker: 0, strained: 0 });
   });
 
   it("counts a connected server whose agent can't read Docker, and changes when it can again", () => {
     const since = new Date(Date.now() - 60_000);
     const blind = aServer({ ...hz2, dockerUnreadableSince: timestampFromDate(since) });
     const before = fleetView({ status: "live", servers: [hz1, blind] });
-    expect(before.counts).toEqual({ connected: 2, down: 0, waiting: 0, unknown: 0, docker: 1 });
+    expect(before.counts).toEqual({ connected: 2, down: 0, waiting: 0, unknown: 0, docker: 1, strained: 0 });
     expect(before.servers?.[1]?.dockerUnreadableSince).toBe(since.getTime());
     const after = fleetView({ status: "live", servers: [hz1, hz2] }, before);
     expect(after).not.toBe(before);

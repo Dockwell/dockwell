@@ -10,11 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/netif"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -185,12 +185,19 @@ func ownInterfaces() ([]ownInterface, error) {
 	return out, nil
 }
 
-// serving keeps the addresses of all a domain could point at, without Docker's own
-// bridges or a TUN's.
+// serving keeps the addresses of all a domain could point at: its physical
+// interfaces', as sysfs says, which the agent's inventory lists too
+// (internal/netif), and never a Docker or Podman bridge's, a VPN's or a TUN's.
+// Where sysfs can't say, as in a container, it goes by name and by what's a TUN.
 func serving(all []ownInterface) []netip.Addr {
+	names := make([]string, 0, len(all))
+	for _, i := range all {
+		names = append(names, i.name)
+	}
+	physical, known := netif.Physicals(os.DirFS(sysClassNet), names)
 	var out []netip.Addr
 	for _, i := range all {
-		if i.name == "docker0" || strings.HasPrefix(i.name, "br-") || strings.HasPrefix(i.name, "veth") || strings.HasPrefix(i.name, "dw-") || isTun(i.name) {
+		if known && !physical[i.name] || !known && (netif.Virtual(i.name) || isTun(i.name)) {
 			continue
 		}
 		out = append(out, i.addrs...)

@@ -113,7 +113,7 @@ describe("FilesPage", () => {
     expect(await screen.findByRole("link", { name: "Files" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("groups its places as Server-Files does: the common ones, then the server's root, with yours marked", async () => {
+  it("groups its places as Server-Files does: the common ones, then the server's folders, with yours marked", async () => {
     await renderFiles("/servers/srv_1/files?path=/var/www/site", { listFiles: () => site });
     const places = await screen.findByRole("navigation", { name: "Places" });
     const common = within(places).getByRole("group", { name: "Common places" });
@@ -123,15 +123,81 @@ describe("FilesPage", () => {
         .map((l) => l.textContent),
     ).toEqual(["Websites", "Logs", "Docker volumes"]);
     const server = within(places).getByRole("group", { name: "Server" });
+    // The server's own folders are a tree, from its root.
+    expect(within(server).getAllByRole("link")[0]).toHaveTextContent(/^\/$/);
+    // A folder inside a place is in that place, not in the root that holds them all.
+    expect(within(common).getByRole("link", { name: "Websites" })).toHaveAttribute("aria-current", "location");
+    expect(within(server).getAllByRole("link")[0]).not.toHaveAttribute("aria-current");
+    expect(places.querySelector(".files-places-rule")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("shows the server's folders as a tree, open down to where you are, and opens another in place", async () => {
+    const at = (path: string, ...names: EntryInit[]) =>
+      create(ListFilesResponseSchema, {
+        path,
+        directory: folderEntry(path),
+        entries: names.map((more) => folderEntry(String(more.name), more)),
+      });
+    const folders: Record<string, ReturnType<typeof at>> = {
+      "/": at("/", { name: "etc" }, { name: "var" }),
+      "/var": at("/var", { name: "lib", refused: true }, { name: "www" }),
+      "/var/www": create(ListFilesResponseSchema, {
+        path: "/var/www",
+        directory: folderEntry("www"),
+        entries: [entry("index.php"), folderEntry("blog")],
+      }),
+      "/etc": at("/etc", { name: "nginx" }),
+    };
+    const listFiles = vi.fn((req: { path: string; lookup: boolean }) => folders[req.path] ?? at(req.path));
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    const server = within(await screen.findByRole("navigation", { name: "Places" })).getByRole("group", {
+      name: "Server",
+    });
+    // Folders only, each level under the one that holds it; what's beside the way stays shut.
+    await within(server).findByRole("link", { name: "blog" });
     expect(
       within(server)
         .getAllByRole("link")
         .map((l) => l.textContent),
-    ).toEqual(["Server root"]);
-    // A folder inside a place is in that place, not in the root that holds them all.
-    expect(within(common).getByRole("link", { name: "Websites" })).toHaveAttribute("aria-current", "location");
-    expect(within(server).getByRole("link", { name: "Server root" })).not.toHaveAttribute("aria-current");
-    expect(places.querySelector(".files-places-rule")).toHaveAttribute("aria-hidden", "true");
+    ).toEqual(["/", "etc", "var", "lib", "www", "blog"]);
+    expect(within(server).getByRole("link", { name: "www" })).toHaveAttribute("aria-current", "page");
+    expect(within(server).getByRole("link", { name: "www" })).toHaveAttribute(
+      "href",
+      "/servers/srv_1/files?path=%2Fvar%2Fwww",
+    );
+    // The folder you're in is the page's own listing. The ones above are lookups, which go on no Activity.
+    const asked = () => listFiles.mock.calls.map(([req]) => `${req.path}${req.lookup ? " lookup" : ""}`).sort();
+    expect(asked()).toEqual(["/ lookup", "/var lookup", "/var/www"]);
+    // What Dockwell doesn't open has nothing to show.
+    expect(within(server).queryByRole("button", { name: "Show the folders in lib" })).toBeNull();
+
+    await userEvent.click(within(server).getByRole("button", { name: "Show the folders in etc" }));
+    expect(await within(server).findByRole("link", { name: "nginx" })).toBeVisible();
+    expect(within(server).getByRole("button", { name: "Hide the folders in etc" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    // And the way to where you are closes too, without leaving the folder.
+    await userEvent.click(within(server).getByRole("button", { name: "Hide the folders in var" }));
+    expect(within(server).queryByRole("link", { name: "www" })).toBeNull();
+    expect(screen.getByRole("table", { name: "Files in /var/www" })).toBeVisible();
+  });
+
+  it("keeps the way to where you are in the tree, past what one folder shows of its own", async () => {
+    const many = Array.from({ length: 70 }, (_, i) => folderEntry(`pkg-${String(i).padStart(2, "0")}`));
+    const listFiles = (req: { path: string }) =>
+      create(ListFilesResponseSchema, {
+        path: req.path,
+        directory: folderEntry(req.path),
+        entries: req.path === "/" ? many : [],
+      });
+    await renderFiles("/servers/srv_1/files?path=/pkg-68", { listFiles });
+    const server = within(await screen.findByRole("navigation", { name: "Places" })).getByRole("group", {
+      name: "Server",
+    });
+    expect(await within(server).findByRole("link", { name: "pkg-68" })).toHaveAttribute("aria-current", "page");
+    expect(within(server).queryByRole("link", { name: "pkg-69" })).toBeNull();
+    expect(within(server).getByText("and 9 more, in its list")).toBeVisible();
   });
 
   it("marks the place you're on as yours, and only it", async () => {
@@ -161,9 +227,10 @@ describe("FilesPage", () => {
   it("opens a folder, and follows a link to one", async () => {
     const listFiles = vi.fn(() => site);
     const { router } = await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
-    await userEvent.click(await screen.findByText("wp-admin"));
+    const list = () => screen.findByRole("table");
+    await userEvent.click(await within(await list()).findByText("wp-admin"));
     await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www/wp-admin" }));
-    await userEvent.click(await screen.findByText("current"));
+    await userEvent.click(await within(await list()).findByText("current"));
     await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www/current" }));
   });
 
@@ -242,7 +309,7 @@ describe("FilesPage", () => {
     // A download would be refused the same way, and a browser would say only "Failed".
     expect(screen.queryByRole("link", { name: "Download key" })).toBeNull();
     // The folder stays, to go on from.
-    expect(screen.getByText("wp-admin")).toBeVisible();
+    expect(within(screen.getByRole("table")).getByText("wp-admin")).toBeVisible();
   });
 
   it("says why a folder can't be read, and offers a way up", async () => {
@@ -284,7 +351,9 @@ describe("FilesPage", () => {
     await renderFiles("/servers/srv_1/files?path=/mnt/nas", { listFiles });
     expect(await screen.findByText("This path isn't answering")).toBeVisible();
     expect(screen.getByText("/mnt/nas isn't answering", { exact: false })).toBeVisible();
-    expect(listFiles).toHaveBeenCalledTimes(1);
+    // Once for the path itself: the tree asks for the folders above it, never for it again.
+    const asked = (listFiles.mock.calls as unknown as [{ path: string }][]).map(([req]) => req.path);
+    expect(asked.filter((path) => path === "/mnt/nas")).toHaveLength(1);
   });
 
   it("says when a file isn't answering", async () => {
