@@ -4,6 +4,7 @@ package nftables
 
 import (
 	"net/netip"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -146,5 +147,27 @@ func TestInterfacesNftCantMatchAreSkipped(t *testing.T) {
 	}
 	if words := SkippedWords("br*"); !strings.Contains(words, "Rename its network's bridge") || !strings.Contains(words, "aren't filtered") {
 		t.Errorf("skipped words %q", words)
+	}
+}
+
+// isRuleName takes what the expression it was took, to the byte: its length is
+// checked apart from its form now (ADR 0060).
+func TestIsRuleNameTakesWhatItsExpressionTook(t *testing.T) {
+	was := regexp.MustCompile(`^[A-Za-z0-9 _.:/@-]{1,100}$`)
+	cases := []string{"", "rule web", "pin ssh", "rule a/b:c@d.e_f-g", `rule "x"`, "rule\nx", "rule\tx", "règle", "rule;x", "rule{x}", " "}
+	for _, n := range []int{1, 99, 100, 101, 400} {
+		cases = append(cases, strings.Repeat("a", n), strings.Repeat("a", n-1)+`"`, strings.Repeat(" ", n))
+	}
+	took := 0
+	for _, c := range cases {
+		if was.MatchString(c) {
+			took++
+		}
+		if got, want := isRuleName(c), was.MatchString(c); got != want {
+			t.Errorf("%q (%d bytes): the check says %v, the expression said %v", c, len(c), got, want)
+		}
+	}
+	if took == 0 || took == len(cases) {
+		t.Errorf("the expression took %d of %d cases, which tells nothing", took, len(cases))
 	}
 }

@@ -120,12 +120,28 @@ type holder struct {
 // so that one says nothing.
 var preAuthTitles = []string{"[accepted]", "[rexeced]", "[net]", "[session-auth"}
 
-// rootSession is what the one process of root's session calls itself once root
+// A root session is what the one process of root's session calls itself once root
 // has signed in (session.c): "root", or "root@pts/0", "root@notty" and the
 // like. Nothing a connection sends can make another process's title match:
 // the name someone asks to sign in as is followed by " [priv]", and a name so
 // long that it's cut off isn't these few characters.
-var rootSession = regexp.MustCompile(`^root(@[A-Za-z0-9/,._-]{1,64})?$`)
+//
+// Its length is checked apart from its form: a counted repetition compiles to
+// as many copies of what it repeats, which every agent pays for as it starts
+// (ADR 0060).
+var rootSessionTTY = regexp.MustCompile(`^[A-Za-z0-9/,._-]+$`)
+
+// maxRootSessionTTY is how long what follows "root@" gets.
+const maxRootSessionTTY = 64
+
+// isRootSession reports a title of root's session once root has signed in.
+func isRootSession(title string) bool {
+	if title == "root" {
+		return true
+	}
+	tty, ok := strings.CutPrefix(title, "root@")
+	return ok && len(tty) <= maxRootSessionTTY && rootSessionTTY.MatchString(tty)
+}
 
 // signedIn says whether someone has signed in on a connection, by who holds
 // it. It's kernel facts first: OpenSSH hands a signed-in connection to a
@@ -157,7 +173,7 @@ func signedIn(holders []holder, privsep int) bool {
 			// Which user is sshd's own isn't known, so its title has to agree.
 			in = in || (h.title != "" && !strings.Contains(h.title, "["))
 		case h.uid == 0:
-			in = in || rootSession.MatchString(h.title)
+			in = in || isRootSession(h.title)
 		}
 	}
 	return in
