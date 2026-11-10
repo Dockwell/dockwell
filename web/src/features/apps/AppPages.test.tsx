@@ -467,6 +467,32 @@ describe("an app's frame", () => {
     expect(container.querySelector(".page-lead")).not.toHaveTextContent("read-write");
   });
 
+  it("says once where a deploy came from, when its name says it already", async () => {
+    const cli = aRevision(3n, "ghcr.io/acme/web:1.5", {
+      change: {
+        id: "chg_3",
+        summary: "Deploy",
+        state: ChangeState.APPLIED,
+        appliedBy: {
+          kind: ActorKind.TOKEN,
+          id: "tok_9",
+          name: "Local access on home-t3code, read-write",
+          localAccess: { account: "t3@home-t3code", scope: TokenScope.READ_WRITE },
+        },
+        appliedVia: Surface.CLI,
+      },
+    });
+    renderAt(
+      "/apps/svc_web/deployments",
+      api([web], {
+        services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: [cli] }) },
+      }),
+    );
+    const row = await screen.findByRole("row", { name: /r3/ });
+    expect(row).toHaveTextContent("the CLI on home-t3code");
+    expect(row).not.toHaveTextContent("From the CLI");
+  });
+
   it("names a token by its name, whatever it's called, unless local access made it", async () => {
     const lookalike = aRevision(3n, "ghcr.io/acme/web:1.5", {
       change: {
