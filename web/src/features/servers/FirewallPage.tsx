@@ -479,7 +479,11 @@ function OtherRulesPanel({ tools }: { tools: readonly FirewallTool[] }) {
   };
   const rows: OtherRow[] = tools.map((tool) => ({ id: `${tool.kind}-${tool.name}`, tool }));
   const columns: TableColumn<OtherRow>[] = [
-    { key: "name", header: t`Rules`, render: ({ tool }) => <code>{name(tool)}</code> },
+    {
+      key: "name",
+      header: t({ message: "Rules", context: "firewall rule sets" }),
+      render: ({ tool }) => <code>{name(tool)}</code>,
+    },
     { key: "what", header: t`What they hold`, render: ({ tool }) => what(tool) },
   ];
   return (

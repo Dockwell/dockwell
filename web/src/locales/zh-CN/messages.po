@@ -8119,9 +8119,6 @@ msgstr "开放，{by} 放行了它"
 msgid "Open: nothing here closes it"
 msgstr "开放：这里没有规则关闭它"
 
-msgid "Port"
-msgstr "端口"
-
 msgid "Ports Docker publishes"
 msgstr "Docker 发布的端口"
 
@@ -8138,6 +8135,7 @@ msgstr "拒收"
 msgid "Rich rules, which run before the rest"
 msgstr "富规则，先于其他规则执行"
 
+msgctxt "firewall rule sets"
 msgid "Rules"
 msgstr "规则集"
 
@@ -8203,11 +8201,6 @@ msgstr "ufw"
 #. placeholder {0}: ports.length
 msgid "{0, plural, one {# port} other {# ports}}"
 msgstr "{0, plural, other {# 个端口}}"
-
-#. placeholder {0}: tool.inputRules
-#. placeholder {0}: tool.ruleCount
-msgid "{0, plural, one {# rule} other {# rules}}"
-msgstr "{0, plural, other {# 条规则}}"
 
 #. placeholder {0}: fw.dockerUserRules
 msgid "{0, plural, one {Docker's DOCKER-USER chain holds # rule, which filters these, and which Dockwell doesn't weigh.} other {Docker's DOCKER-USER chain holds # rules, which filter these, and which Dockwell doesn't weigh one by one.}}"
