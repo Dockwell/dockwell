@@ -53,6 +53,8 @@ type Stats struct {
 	// disk from another. Only a measure says them.
 	Free       int64  `json:"free,omitempty"`
 	Filesystem string `json:"filesystem,omitempty"`
+	// Size is how large that disk is.
+	Size int64 `json:"size,omitempty"`
 	// Done marks the last line.
 	Done bool `json:"done,omitempty"`
 }
@@ -560,6 +562,7 @@ func Measure(dir string) (Stats, error) {
 		return stats, fmt.Errorf("can't read how much is free beside the volume: %w", err)
 	}
 	stats.Free = int64(st.Bavail) * int64(st.Bsize) //nolint:gosec,unconvert // a disk's size fits, and Bsize's type differs by architecture
+	stats.Size = int64(st.Blocks) * int64(st.Bsize) //nolint:gosec,unconvert // as above
 	stats.Filesystem = fmt.Sprint(st.Fsid)
 	stats.Done = true
 	return stats, nil

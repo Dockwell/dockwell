@@ -37,6 +37,7 @@ AuthService.SignOut                            apply        nothing    nothing  
 AuthService.UnlockCodeSignIn                   apply        viewer     viewer     self
 BackupService.CreateBackup                     apply        developer  admin      project
 BackupService.DeleteBackup                     destructive  developer  admin      project  session
+BackupService.DrillBackup                      apply        developer  admin      project
 BackupService.FetchBackup                      apply        developer  admin      project
 BackupService.GetBackup                        read         viewer     viewer     project
 BackupService.ListBackupDestinations           read         viewer     viewer     named

@@ -1235,7 +1235,10 @@ type EventBackup struct {
 	// Why it failed, for people. Empty unless it did.
 	Error string `protobuf:"bytes,6,opt,name=error,proto3" json:"error,omitempty"`
 	// The destination it went to or didn't, by name.
-	Destination   string `protobuf:"bytes,7,opt,name=destination,proto3" json:"destination,omitempty"`
+	Destination string `protobuf:"bytes,7,opt,name=destination,proto3" json:"destination,omitempty"`
+	// How a restore drill of it went, for backup.drill (ADR 0068). error says what
+	// failed, or why it wasn't checked.
+	Drill         DrillResult `protobuf:"varint,8,opt,name=drill,proto3,enum=dockwell.v1.DrillResult" json:"drill,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1317,6 +1320,13 @@ func (x *EventBackup) GetDestination() string {
 		return x.Destination
 	}
 	return ""
+}
+
+func (x *EventBackup) GetDrill() DrillResult {
+	if x != nil {
+		return x.Drill
+	}
+	return DrillResult_DRILL_RESULT_UNSPECIFIED
 }
 
 // EventPublicAddress is a server's public address as a person changed it.
@@ -1603,7 +1613,7 @@ var File_dockwell_v1_event_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/event.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x18dockwell/v1/health.proto\x1a\x19dockwell/v1/options.proto\x1a\x16dockwell/v1/task.proto\x1a\x1adockwell/v1/terminal.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8d\x02\n" +
+	"\x17dockwell/v1/event.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/backup.proto\x1a\x18dockwell/v1/change.proto\x1a\x18dockwell/v1/health.proto\x1a\x19dockwell/v1/options.proto\x1a\x16dockwell/v1/task.proto\x1a\x1adockwell/v1/terminal.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8d\x02\n" +
 	"\x11ListEventsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -1702,7 +1712,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x03end\x18\x04 \x01(\v2\x18.dockwell.v1.TerminalEndR\x03end\x12\x14\n" +
 	"\x05error\x18\x05 \x01(\tR\x05error\x12\x1c\n" +
 	"\tcontainer\x18\x06 \x01(\tR\tcontainer\x12!\n" +
-	"\fcontainer_id\x18\a \x01(\tR\vcontainerId\"\xe0\x01\n" +
+	"\fcontainer_id\x18\a \x01(\tR\vcontainerId\"\x90\x02\n" +
 	"\vEventBackup\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06volume\x18\x02 \x01(\tR\x06volume\x12\x1f\n" +
@@ -1712,7 +1722,8 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\n" +
 	"size_bytes\x18\x05 \x01(\x03R\tsizeBytes\x12\x14\n" +
 	"\x05error\x18\x06 \x01(\tR\x05error\x12 \n" +
-	"\vdestination\x18\a \x01(\tR\vdestination\"J\n" +
+	"\vdestination\x18\a \x01(\tR\vdestination\x12.\n" +
+	"\x05drill\x18\b \x01(\x0e2\x18.dockwell.v1.DrillResultR\x05drill\"J\n" +
 	"\x12EventPublicAddress\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1a\n" +
 	"\bprevious\x18\x02 \x01(\tR\bprevious\"\x91\x02\n" +
@@ -1795,7 +1806,8 @@ var file_dockwell_v1_event_proto_goTypes = []any{
 	(v1alpha1.AlertRule_Condition)(0), // 23: dockwell.resource.v1alpha1.AlertRule.Condition
 	(*TerminalEnd)(nil),               // 24: dockwell.v1.TerminalEnd
 	(BackupMethod)(0),                 // 25: dockwell.v1.BackupMethod
-	(HealthState)(0),                  // 26: dockwell.v1.HealthState
+	(DrillResult)(0),                  // 26: dockwell.v1.DrillResult
+	(HealthState)(0),                  // 27: dockwell.v1.HealthState
 }
 var file_dockwell_v1_event_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.ListEventsRequest.kinds:type_name -> dockwell.v1.EventKind
@@ -1828,18 +1840,19 @@ var file_dockwell_v1_event_proto_depIdxs = []int32{
 	16, // 27: dockwell.v1.EventTerminal.open_time:type_name -> google.protobuf.Timestamp
 	24, // 28: dockwell.v1.EventTerminal.end:type_name -> dockwell.v1.TerminalEnd
 	25, // 29: dockwell.v1.EventBackup.method:type_name -> dockwell.v1.BackupMethod
-	26, // 30: dockwell.v1.EventHealth.state:type_name -> dockwell.v1.HealthState
-	26, // 31: dockwell.v1.EventHealth.previous:type_name -> dockwell.v1.HealthState
-	16, // 32: dockwell.v1.EventHealth.since:type_name -> google.protobuf.Timestamp
-	1,  // 33: dockwell.v1.EventService.ListEvents:input_type -> dockwell.v1.ListEventsRequest
-	3,  // 34: dockwell.v1.EventService.WatchEvents:input_type -> dockwell.v1.WatchEventsRequest
-	2,  // 35: dockwell.v1.EventService.ListEvents:output_type -> dockwell.v1.ListEventsResponse
-	4,  // 36: dockwell.v1.EventService.WatchEvents:output_type -> dockwell.v1.WatchEventsResponse
-	35, // [35:37] is the sub-list for method output_type
-	33, // [33:35] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	26, // 30: dockwell.v1.EventBackup.drill:type_name -> dockwell.v1.DrillResult
+	27, // 31: dockwell.v1.EventHealth.state:type_name -> dockwell.v1.HealthState
+	27, // 32: dockwell.v1.EventHealth.previous:type_name -> dockwell.v1.HealthState
+	16, // 33: dockwell.v1.EventHealth.since:type_name -> google.protobuf.Timestamp
+	1,  // 34: dockwell.v1.EventService.ListEvents:input_type -> dockwell.v1.ListEventsRequest
+	3,  // 35: dockwell.v1.EventService.WatchEvents:input_type -> dockwell.v1.WatchEventsRequest
+	2,  // 36: dockwell.v1.EventService.ListEvents:output_type -> dockwell.v1.ListEventsResponse
+	4,  // 37: dockwell.v1.EventService.WatchEvents:output_type -> dockwell.v1.WatchEventsResponse
+	36, // [36:38] is the sub-list for method output_type
+	34, // [34:36] is the sub-list for method input_type
+	34, // [34:34] is the sub-list for extension type_name
+	34, // [34:34] is the sub-list for extension extendee
+	0,  // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_event_proto_init() }
@@ -1847,6 +1860,7 @@ func file_dockwell_v1_event_proto_init() {
 	if File_dockwell_v1_event_proto != nil {
 		return
 	}
+	file_dockwell_v1_backup_proto_init()
 	file_dockwell_v1_change_proto_init()
 	file_dockwell_v1_health_proto_init()
 	file_dockwell_v1_options_proto_init()

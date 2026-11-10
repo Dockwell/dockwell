@@ -3,7 +3,7 @@
 package control
 
 // What #304's first review found, as tests: an evaluator on a control plane with
-// its nine default rules and one webhook, run by the test's clock against fakes of
+// its default rules and one webhook, run by the test's clock against fakes of
 // the fleet and of how apps are.
 
 import (
@@ -65,7 +65,7 @@ func connectedAt(now time.Time, memPct uint64) []*dockwellv1.Server {
 	}}
 }
 
-// evalStand is a control plane with its nine default rules and one webhook at url,
+// evalStand is a control plane with its default rules and one webhook at url,
 // whose own evaluator stays still, so the test's runs by the test's clock alone.
 func evalStand(t *testing.T, url string) (*fullServer, dockwellv1connect.ChangeServiceClient, *browser) {
 	t.Helper()
@@ -78,7 +78,7 @@ func evalStand(t *testing.T, url string) (*fullServer, dockwellv1connect.ChangeS
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(res.Msg.GetRules()) == 9 || time.Now().After(deadline) {
+		if len(res.Msg.GetRules()) == len(alert.Defaults()) || time.Now().After(deadline) {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)

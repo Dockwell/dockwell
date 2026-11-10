@@ -403,7 +403,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
 		followsPace: hello.GetFollowsPace(),
 		pending:     map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
@@ -486,6 +486,8 @@ type Session struct {
 	managesFiles bool
 	// transfersFiles says the agent uploads and downloads them.
 	transfersFiles bool
+	// drills says the agent checks that a backup restores (ADR 0068).
+	drills bool
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -1510,6 +1512,25 @@ func (s *Session) Backup(ctx context.Context, call *agentv1.BackupCall) (*agentv
 		return nil, err
 	}
 	return r.GetBackup(), nil
+}
+
+// DrillTimeout bounds one restore drill: the agent's own most, and a moment to clean
+// up after it.
+const DrillTimeout = 6*time.Hour + 10*time.Minute
+
+// Drills says the agent checks that a backup restores (ADR 0068).
+func (s *Session) Drills() bool { return s.drills }
+
+// DrillBackup asks the agent to check that a backup on its disk restores, in a
+// container and a volume it throws away. How it went is its result, however it
+// ended; an error is a call that didn't run or didn't come back. Progress comes
+// through ctx.
+func (s *Session) DrillBackup(ctx context.Context, call *agentv1.DrillBackupCall) (*agentv1.DrillBackupResult, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DrillBackup{DrillBackup: call}}, DrillTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetDrillBackup(), nil
 }
 
 // SendBackup asks the agent to send a backup that's on the disk to its destination,

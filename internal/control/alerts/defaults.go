@@ -4,7 +4,6 @@ package alerts
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -15,25 +14,24 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// settingDefaults records that an install's first rules were made, so rules
-// someone deleted stay deleted.
+// settingDefaults records that an install's first rules were made. Rules someone
+// deleted stay deleted as the store remembers every rule it ever managed.
 const settingDefaults = "alerts.defaults"
 
 // DefaultsSummary is what the change that makes the first rules says.
 const DefaultsSummary = "Set up the default alert rules"
 
-// MakeDefaults makes an install's first rules, one for each condition, as
-// Dockwell's own change applied at once, the first time a control plane with
-// alerts starts, whether the install is new or upgraded (ADR 0044). A rule of the
-// same name that's there already stays as it is.
+// MakeDefaults makes an install's default rules, one for each condition, as
+// Dockwell's own change applied at once, as a control plane with alerts starts,
+// whether the install is new or upgraded (ADR 0044). A default added in a later
+// release, such as restore-drill-failed (ADR 0068), comes to an install that
+// upgrades the same way. A rule of a default's name that's there, or ever was, stays
+// as it is, so one someone deleted stays deleted.
 func (e *Evaluator) MakeDefaults(ctx context.Context) error {
 	e.init()
 	var org string
 	var taken map[string]bool
 	err := e.DB.View(ctx, func(tx *store.Tx) error {
-		if _, err := tx.GetSetting(ctx, settingDefaults); err == nil || !errors.Is(err, store.ErrNotFound) {
-			return err
-		}
 		tree, err := scope.Load(ctx, tx)
 		if err != nil {
 			return err

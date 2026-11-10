@@ -74,6 +74,10 @@ func postgres(x dockertest.Exec) int {
 		}
 		_, _ = x.Stdout.Write(data)
 		_, _ = io.WriteString(x.Stdout, "\n-- PostgreSQL database cluster dump complete\n")
+	case len(x.Cmd) > 0 && x.Cmd[0] == "psql" && slices.Contains(x.Cmd, "-c"):
+		// A question a restore drill asks, psql itself with -c, which comes with nothing
+		// on stdin (ADR 0068). A reading runs psql under sh -c, with its SQL on stdin.
+		return postgresAnswer(x, file)
 	case strings.Contains(script, "psql"):
 		data, err := io.ReadAll(x.Stdin)
 		if err != nil {
@@ -109,7 +113,38 @@ func readRoles(dir string) postgresRoles {
 	return r
 }
 
+// postgresAnswer answers what a restore drill asks of a database, from what was loaded:
+// that it answers, its databases, its tables, and which of them have no rows, which
+// here is none.
+func postgresAnswer(x dockertest.Exec, file string) int {
+	query := ""
+	if i := slices.Index(x.Cmd, "-c"); i >= 0 && i+1 < len(x.Cmd) {
+		query = x.Cmd[i+1]
+	}
+	data, err := os.ReadFile(file) //nolint:gosec // a directory of this fake's own
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return 2
+	}
+	sql := string(data)
+	switch {
+	case query == "SELECT 1":
+		_, _ = io.WriteString(x.Stdout, "1\n")
+	case strings.Contains(query, "FROM pg_database"):
+		_, _ = io.WriteString(x.Stdout, "postgres\ntemplate0\ntemplate1\n")
+		for _, m := range dumpedDB.FindAllStringSubmatch(sql, -1) {
+			_, _ = io.WriteString(x.Stdout, strings.Trim(m[1], `"'`)+"\n")
+		}
+	case strings.Contains(query, "FROM pg_tables"):
+		for _, m := range dumpedTable.FindAllStringSubmatch(sql, -1) {
+			_, _ = fmt.Fprintf(x.Stdout, "%s\t%s\n", strings.Trim(m[1], `"`), strings.Trim(m[2], `"`))
+		}
+	}
+	return 0
+}
+
 var (
+	dumpedDB    = regexp.MustCompile(`(?m)^(?:CREATE DATABASE |\\connect (?:-reuse-previous=on "dbname=)?)("?[^" ;]+"?|'[^']+')`)
+	dumpedTable = regexp.MustCompile(`(?m)^CREATE TABLE ("?[^". ]+"?)\.("?[^". (]+"?) \(`)
 	madeRole    = regexp.MustCompile(`ALTER ROLE "([a-z0-9_]+)" LOGIN PASSWORD '([^']*)'`)
 	madeDB      = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"' WHERE NOT EXISTS`)
 	droppedRole = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)

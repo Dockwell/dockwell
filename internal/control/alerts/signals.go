@@ -3,6 +3,7 @@
 package alerts
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -52,6 +53,8 @@ func (s *signals) of(ctx context.Context, r rule) ([]finding, error) {
 		return s.backupsLate(ctx)
 	case resourcev1.AlertRule_CONDITION_CHANGE_FAILED:
 		return s.changesFailed(ctx, r)
+	case resourcev1.AlertRule_CONDITION_RESTORE_DRILL_FAILED:
+		return s.drillsFailed(ctx)
 	case resourcev1.AlertRule_CONDITION_UNSPECIFIED:
 	}
 	return nil, fmt.Errorf("no signal for %v", r.spec.GetCondition())
@@ -365,6 +368,73 @@ func (s *signals) backupsFailed(ctx context.Context) ([]finding, error) {
 				f.detail = sentence(b.CopyError) + ". It's on its server alone, so it goes if the server does. Backups says more."
 			}
 			out = append(out, f)
+		}
+		return nil
+	})
+	return out, err
+}
+
+// drillsFailed follows each volume's newest backup that a restore drill checked, on
+// each server (ADR 0068): it holds while that backup's drill failed, and resolves once
+// a backup at least as new passes. Deleting the failed backup alone doesn't resolve
+// it, and a drill of an older backup, or one that wasn't checked, says nothing here.
+func (s *signals) drillsFailed(ctx context.Context) ([]finding, error) {
+	var out []finding
+	err := s.e.DB.View(ctx, func(tx *store.Tx) error {
+		volumes, err := tx.ListKind(ctx, "volume")
+		if err != nil {
+			return err
+		}
+		for i := range volumes {
+			drills, err := tx.ListDrills(ctx, store.DrillFilter{VolumeID: volumes[i].ID})
+			if err != nil {
+				return err
+			}
+			if len(drills) == 0 {
+				continue
+			}
+			type judged struct {
+				drill  store.Drill
+				backup time.Time // when what it checked was taken
+				volume string
+			}
+			newest := map[string]judged{} // by server
+			for k := range drills {
+				d := &drills[k]
+				if d.Result != store.DrillPassed && d.Result != store.DrillFailed {
+					continue
+				}
+				b, err := tx.GetBackup(ctx, d.BackupID)
+				switch {
+				case errors.Is(err, store.ErrNotFound):
+					// A failed backup that's gone still counts, until a newer one passes.
+					if d.Result != store.DrillFailed {
+						continue
+					}
+					b = store.Backup{StartedAt: d.StartedAt, Volume: volumes[i].Name}
+				case err != nil:
+					return err
+				}
+				had, ok := newest[d.ServerID]
+				// Drills come newest first: of two of one backup, the newest stands.
+				if !ok || b.StartedAt.After(had.backup) {
+					newest[d.ServerID] = judged{drill: *d, backup: b.StartedAt, volume: cmp.Or(b.Volume, volumes[i].Name)}
+				}
+			}
+			for server := range newest {
+				j := newest[server]
+				f := finding{thing: "drill:" + volumes[i].ID + ":" + server, serverID: server, subjectID: volumes[i].ID, subjectName: j.volume, path: "/backups", verdict: fine}
+				if j.drill.Result == store.DrillFailed {
+					at := j.drill.StartedAt
+					if j.drill.FinishedAt != nil {
+						at = *j.drill.FinishedAt
+					}
+					f.verdict, f.since = holds, at
+					f.title = "The newest checked backup of " + j.volume + " doesn't restore"
+					f.detail = sentence(j.drill.Why) + ". A restore of it would fail the same way. Backups says more: fix what it says, then back it up and check it again."
+				}
+				out = append(out, f)
+			}
 		}
 		return nil
 	})

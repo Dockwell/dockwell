@@ -59,6 +59,10 @@ func ManagedBy(labels map[string]string) string {
 // a backup or a restore (ADR 0033).
 const LabelVolumeTool = OwnPrefix + "volume-tool"
 
+// LabelDrill marks a restore drill's container and volume, with the drill's ID, which
+// it throws away whatever comes of it (ADR 0068).
+const LabelDrill = OwnPrefix + "drill"
+
 // IsOwnLabel reports a label Dockwell or Compose sets, which a spec can't.
 func IsOwnLabel(key string) bool {
 	return strings.HasPrefix(key, ComposePrefix) || strings.HasPrefix(key, OwnPrefix)

@@ -693,7 +693,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_TaskRuns{TaskRuns: runs}}
-	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil, call.GetFetchBackup() != nil, call.GetSendBackup() != nil:
+	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil, call.GetFetchBackup() != nil, call.GetSendBackup() != nil, call.GetDrillBackup() != nil:
 		if c.cfg.Backups == nil {
 			return fail(errors.New("this agent can't back up volumes, as it has no Docker driver"))
 		}
@@ -841,6 +841,14 @@ func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.Cal
 			return nil, err
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Backup{Backup: out}}, nil
+	case call.GetDrillBackup() != nil:
+		progress := c.progress(call.GetId())
+		defer progress.stop()
+		out, err := c.cfg.Backups.Drill(resource.WithProgress(ctx, progress.say), call.GetDrillBackup())
+		if err != nil {
+			return nil, err
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DrillBackup{DrillBackup: out}}, nil
 	case call.GetSendBackup() != nil:
 		send := call.GetSendBackup()
 		destination, err := c.openDestination(send.GetVolume(), send.GetDestination())

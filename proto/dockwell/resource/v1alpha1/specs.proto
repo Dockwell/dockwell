@@ -845,6 +845,9 @@ message AlertRule {
     CONDITION_BACKUP_LATE = 8;
     // A change failed or rolled back, a deploy among them.
     CONDITION_CHANGE_FAILED = 9;
+    // The newest backup of a volume that has been drilled failed its drill: it
+    // didn't restore, or didn't hold what it should (ADR 0068).
+    CONDITION_RESTORE_DRILL_FAILED = 20;
   }
   // How much it matters, which a message says and a channel can choose by.
   enum Severity {

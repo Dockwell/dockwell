@@ -92,6 +92,11 @@ type HostConfig struct {
 	Memory     int64 `json:"Memory,omitempty"`
 	MemorySwap int64 `json:"MemorySwap,omitempty"`
 	PidsLimit  int64 `json:"PidsLimit,omitempty"`
+	// CPUShares weighs its share of the CPUs against other containers', 1024 each
+	// unless set, when they compete. OomScoreAdj makes the kernel kill it sooner,
+	// up to 1000, or later, when the server runs out of memory.
+	CPUShares   int64 `json:"CpuShares,omitempty"`
+	OomScoreAdj int   `json:"OomScoreAdj,omitempty"`
 	// UsernsMode "host" keeps it in the server's user namespace on an engine
 	// with userns-remap, which refuses the host network otherwise. Elsewhere it
 	// changes nothing.
