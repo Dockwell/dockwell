@@ -130,25 +130,35 @@ describe("lines", () => {
   // The reviewer's second probe: small mixed files, a line inserted and saved, then another line retyped
   // and saved again over what the first save wrote. No line the second edit didn't touch changes its ending.
   it("keeps every untouched line's ending through a second save over the first", () => {
+    // mulberry32: 32-bit integer steps, so every bit of a draw varies.
     let seed = 7;
     const random = (n: number) => {
-      seed = (seed * 1103515245 + 12345) % 2147483648;
-      return seed % n;
+      seed = (seed + 0x6d2b79f5) | 0;
+      let z = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      z = (z + Math.imul(z ^ (z >>> 7), 61 | z)) ^ z;
+      return ((z ^ (z >>> 14)) >>> 0) % n;
     };
+    const kinds = new Set<string>();
     const endings = ["\n", "\r\n", "\r"];
     for (let round = 0; round < 3000; round++) {
       const count = 2 + random(6);
-      const lines = Array.from({ length: count }, () => (random(3) === 0 ? "x" : `l${random(4)}`));
+      const lines = Array.from({ length: count }, () => ["", "x", `l${random(4)}`][random(3)] ?? "");
       const original = lines.map((l) => l + endings[random(3)]).join("");
       const first = editable(original).split("\n");
       first.splice(random(first.length), 0, "inserted");
+      kinds.add(lines.join(","));
       const once = withEndings(first.join("\n"), original);
       if (once === undefined) throw new Error(`a small edit gave nothing: ${JSON.stringify(original)}`);
+      // What's saved reads back as what was typed, every line kept.
+      if (editable(once) !== first.join("\n"))
+        throw new Error(`round ${round}: ${JSON.stringify(original)} saved as ${JSON.stringify(once)}`);
       const second = editable(once).split("\n");
       const at = random(second.length - 1);
       second[at] = "EDITED";
       const twice = withEndings(second.join("\n"), once);
       if (twice === undefined) throw new Error(`a small edit gave nothing: ${JSON.stringify(once)}`);
+      if (editable(twice) !== second.join("\n"))
+        throw new Error(`round ${round}: ${JSON.stringify(once)} saved as ${JSON.stringify(twice)}`);
       const was = once.split(/(?<=\r\n|\n|\r(?!\n))/);
       const now = twice.split(/(?<=\r\n|\n|\r(?!\n))/);
       expect(now.length).toBe(was.length);
@@ -158,6 +168,18 @@ describe("lines", () => {
           throw new Error(`round ${round}: ${JSON.stringify(once)} then line ${at} gave ${JSON.stringify(twice)}`);
       }
     }
+    // The draws vary: the files aren't the same few over and over.
+    expect(kinds.size).toBeGreaterThan(1000);
+  });
+
+  // The re-check's low: a line added at the top of a file that mostly ends in a lone CR took CR, and
+  // before an empty line that ends in LF the two read back as one CRLF, so the empty line went.
+  it("never lets a lone CR and the next empty line's LF read back as one ending", () => {
+    expect(withEndings("inserted\n\nx\nx\n", "\nx\rx\r")).toBe("inserted\n\nx\rx\r");
+    expect(withEndings("x\n\ny\ny\ny\n", "\ny\ry\ry\r\n")).toBe("x\n\ny\ry\ry\r\n");
+    // A line removed between a CR and an empty line with LF.
+    const saved = withEndings("a\n\n", "a\rb\n\n");
+    expect(saved === undefined ? undefined : editable(saved)).toBe("a\n\n");
   });
 
   it("count what an edit touches", () => {

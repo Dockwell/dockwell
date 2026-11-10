@@ -97,16 +97,22 @@ export function withEndings(text: string, original: string): string | undefined 
     bi = y + start + 1;
   }
   pair(a.length - end, b.length - end);
-  const usual = mostUsed(ends);
-  let out = b[0] ?? "";
-  let last = usual;
-  for (let i = 1; i < b.length; i++) {
-    const at = from[i - 1] ?? -1;
+  // The ending after each line of text but the last.
+  const after: string[] = [];
+  let last = mostUsed(ends);
+  for (let i = 0; i < b.length - 1; i++) {
+    const at = from[i] ?? -1;
     // The original's last line had no ending, so one after it takes the line before's.
-    const ending = (at >= 0 ? ends[at] : "") || last;
-    out += ending + b[i];
-    last = ending;
+    last = (at >= 0 ? ends[at] : "") || last;
+    after.push(last);
   }
+  // A lone CR before an empty line that ends in LF reads back as one CRLF, which would
+  // lose the empty line, so that line takes LF.
+  for (let i = 0; i + 1 < after.length; i++) {
+    if (after[i] === "\r" && b[i + 1] === "" && after[i + 1] === "\n") after[i] = "\n";
+  }
+  let out = b[0] ?? "";
+  for (let i = 1; i < b.length; i++) out += (after[i - 1] ?? "") + (b[i] ?? "");
   return out;
 }
 

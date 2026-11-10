@@ -516,6 +516,40 @@ describe("editing a file", () => {
     ]);
   });
 
+  // The re-check's medium: Save over it rereads the file, then asks for an ending again, and the pick
+  // saved over the version first read, which the server refused again, round after round.
+  it("saves a large edit over the server's version once you pick an ending after Save over it", async () => {
+    const alternating = Array.from({ length: 1200 }, (_, i) => `line ${i}${i % 2 ? "\r\n" : "\n"}`).join("");
+    let server = "v1";
+    const readFile = vi.fn(() => text(alternating, { version: server }));
+    const saveFile = vi.fn((req: { version: string }) => {
+      if (req.version !== server) throw refused("file_changed", "it changed", Code.FailedPrecondition);
+      server = "v9";
+      return saved("v9");
+    });
+    await open({ readFile, saveFile });
+    const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    const lines = alternating.replace(/\r\n/g, "\n").split("\n");
+    lines.splice(3, 0, ...Array.from({ length: 501 }, (_, i) => `pasted ${i}`));
+    lines[lines.length - 2] = "the last line, edited";
+    fireEvent.change(field, { target: { value: lines.join("\n") } });
+    // Someone else saves the file meanwhile.
+    server = "v3";
+    await userEvent.click(saveButton());
+    await userEvent.click(await screen.findByRole("button", { name: "Save with CRLF" }));
+    await screen.findByText("This file changed on the server");
+    await userEvent.click(screen.getByRole("button", { name: "Save over it" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Save with CRLF" }));
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
+    expect(saveFile.mock.calls.map(([req]) => req.version)).toEqual(["v1", "v3"]);
+    expect(saveFile.mock.lastCall).toEqual([
+      expect.objectContaining({ content: lines.join("\r\n"), version: "v3" }),
+      expect.anything(),
+    ]);
+    expect(server).toBe("v9");
+    await waitFor(() => expect(screen.getAllByText("Saved .user.ini").length).toBeGreaterThan(0));
+  });
+
   it.each([
     ["one stray CRLF", "#!/bin/sh\necho a\r\necho b\n", "#!/bin/sh\necho a\r\necho b\nx"],
     ["a lone CR", "a\rb\n", "a\rb\nx"],

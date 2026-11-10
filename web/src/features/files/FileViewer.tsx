@@ -218,8 +218,9 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
   // Where the file leads now, once that isn't where it led when you read it.
   const [moved, setMoved] = useState<string>();
   const [justSaved, setJustSaved] = useState(false);
-  // An edit too large to keep each line's ending, on a file with more than one kind: the person picks one.
-  const [pickEnding, setPickEnding] = useState(false);
+  // An edit too large to keep each line's ending, on a file with more than one kind: the person picks one,
+  // and it's saved over the version this holds, the one the save that asked was going to save over.
+  const [pickEnding, setPickEnding] = useState<string>();
   const who = useSignedInUser()?.id ?? "";
   const [offer, setOffer] = useState<Draft | undefined>(() => heldDraft(serverId, path, who));
   const edited = draft !== base.text;
@@ -237,7 +238,7 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
 
   const client = createClient(FileService, transport);
   const change = (next: string) => {
-    setPickEnding(false);
+    setPickEnding(undefined);
     setDraft(next);
     setJustSaved(false);
     onEdited(next !== base.text);
@@ -271,10 +272,10 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
     const content =
       every === "CRLF" ? sent.replace(/\n/g, "\r\n") : every === "LF" ? sent : withEndings(sent, base.original);
     if (content === undefined) {
-      setPickEnding(true);
+      setPickEnding(over);
       return;
     }
-    setPickEnding(false);
+    setPickEnding(undefined);
     setSaving(true);
     setProblem(undefined);
     setMayLand(false);
@@ -467,17 +468,17 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
         <span>UTF-8</span>
         <span>{ending === "mixed" ? t`Mixed line endings` : ending}</span>
       </div>
-      {edited && pickEnding ? (
+      {edited && pickEnding !== undefined ? (
         <div className="files-note">
           <Callout
             tone="warning"
             title={t`This edit moves too much to keep each line's ending`}
             actions={
               <>
-                <Button size="sm" disabled={saving} onClick={() => void save(base.version, "LF")}>
+                <Button size="sm" disabled={saving} onClick={() => void save(pickEnding, "LF")}>
                   <Trans>Save with LF</Trans>
                 </Button>
-                <Button size="sm" disabled={saving} onClick={() => void save(base.version, "CRLF")}>
+                <Button size="sm" disabled={saving} onClick={() => void save(pickEnding, "CRLF")}>
                   <Trans>Save with CRLF</Trans>
                 </Button>
               </>
