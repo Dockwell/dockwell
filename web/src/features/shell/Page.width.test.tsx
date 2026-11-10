@@ -49,7 +49,7 @@ describe("a page's width by its kind", () => {
     expect(kindOf(await pageAt(path, heading, [hz1], ready))).toBe(kind);
   });
 
-  it("makes a fleet's Overview, a list of its servers, a standard page", async () => {
-    expect(kindOf(await pageAt("/", "Overview", [hz1, hz2], "hz-2"))).toBe("standard");
+  it("makes a fleet's Overview a wide page, a dashboard as one server's is", async () => {
+    expect(kindOf(await pageAt("/", "Overview", [hz1, hz2], "Servers serving"))).toBe("wide");
   });
 });

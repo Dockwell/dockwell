@@ -2211,7 +2211,12 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			sp.Downtime += s.Downtime
 			sp.UntilHealthy += max(s.Downtime, s.UntilHealthy)
 			actions[ids[s.Ref]] = append(actions[ids[s.Ref]], s.Action)
-			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
+			downtime := s.Downtime
+			if s.BackupFirst != nil {
+				// A backup's cost can change as its volume grows (ADR 0033).
+				downtime = 0
+			}
+			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, downtime, len(s.Changes), s.Destroys, s.Warnings,
 				s.UntilHealthy, s.Kept, s.Restores, s.HealthUnknown, s.HidesLogs)
 			if s.Adopts != "" || s.Releases {
 				fmt.Fprintf(fp, "  adopts %s|%t\n", s.Adopts, s.Releases)

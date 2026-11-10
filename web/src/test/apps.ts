@@ -65,6 +65,8 @@ export interface HealthOn {
   lastSaid?: HealthState;
   /** How long ago its agent stopped being able to read Docker, for one that can't. */
   dockerUnreadableMsAgo?: number;
+  /** A one-shot job that ran to its end, with a state of not running. */
+  finished?: boolean;
 }
 
 /** How a service runs, on each server, as ListHealth has it: on hz-1, unless it says otherwise. */
@@ -104,6 +106,7 @@ export function aHealth(id: string, ...on: HealthOn[]): ServiceHealth {
                 state: o.lastSaid ?? o.state,
                 check: o.check ?? (o.state === HealthState.NO_CHECK ? HealthCheckKind.NONE : HealthCheckKind.HTTP),
                 failing: o.failing ?? 0,
+                finished: o.finished ?? false,
                 since,
                 confirmedAt: since,
                 ...(o.said === undefined

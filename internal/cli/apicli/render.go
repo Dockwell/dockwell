@@ -62,6 +62,8 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 		changesTable(w, m, now)
 	case *dockwellv1.ListDriftResponse:
 		driftTable(w, m)
+	case *dockwellv1.ListAlertsResponse:
+		alertsTable(w, m, now)
 	case *dockwellv1.ListLogSourcesResponse:
 		sourcesTable(w, m, now)
 	case *dockwellv1.ListWebsitesResponse:
@@ -373,6 +375,33 @@ func changesTable(w io.Writer, res *dockwellv1.ListChangesResponse, now time.Tim
 	_ = tw.Flush()
 	if t := res.GetNextPageToken(); t != "" {
 		fmt.Fprintf(w, "\nThere are more. See them with dockwell changes list --page-token %s\n", t)
+	}
+}
+
+func alertsTable(w io.Writer, res *dockwellv1.ListAlertsResponse, now time.Time) {
+	if len(res.GetAlerts()) == 0 {
+		fmt.Fprintln(w, "Nothing has fired. Dockwell watches every server and app, and lists here what a rule held for.")
+		return
+	}
+	tw := newTable(w)
+	row(tw, "State", "Severity", "Alert", "Rule", "Opened", "Resolved")
+	for _, a := range res.GetAlerts() {
+		state := "Firing"
+		if a.GetState() == dockwellv1.AlertState_ALERT_STATE_RESOLVED {
+			state = "Resolved"
+		}
+		if a.GetMuted() {
+			state += ", muted"
+		}
+		severity := "Warning"
+		if a.GetSeverity() == resourcev1.AlertRule_SEVERITY_CRITICAL {
+			severity = "Critical"
+		}
+		row(tw, state, severity, a.GetTitle(), a.GetRuleName(), when(a.GetOpenTime(), now), orDash(when(a.GetResolveTime(), now)))
+	}
+	_ = tw.Flush()
+	if t := res.GetNextPageToken(); t != "" {
+		fmt.Fprintf(w, "\nThere are more. See them with dockwell alerts list --page-token %s\n", t)
 	}
 }
 

@@ -2,9 +2,28 @@
 id: gitea
 name: Gitea
 summary: Git hosting with code review
+description: |-
+  Gitea hosts Git repositories with the collaboration tools around them. Keep source code on your server, track issues, and review changes through pull requests in a browser.
+
+  This install gives you a Gitea server and persistent storage. Set up the first account after installation, then create or import your repositories.
+icon: /catalog-media/gitea-icon.webp
+documentation: https://docs.gitea.com
+appSource: https://github.com/go-gitea/gitea
+features:
+  - "Git repositories on your server"
+  - "Pull requests and code review"
+  - "Issue tracking and project collaboration"
+  - "Repository permissions and webhooks"
+screenshots:
+  - path: /catalog-media/gitea-repository.webp
+    caption: "Browse a Git repository in Gitea"
+    source: https://about.gitea.com/img/home-screenshot.png
+  - path: /catalog-media/gitea-review.webp
+    caption: "Collaborate on code in Gitea"
+    source: https://about.gitea.com/img/home-screenshot-2.png
 category: developer tools
 version: "28.2.0"
-release: 1
+release: 2
 homepage: https://about.gitea.com
 license: AGPL-3.0-only
 appLicense: MIT

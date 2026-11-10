@@ -23,8 +23,13 @@ describe("every recorded action", () => {
       await activateLocale(locale);
       const say = renderHookWithApi(useAuditWords, {}).result.current;
       const bare = actions.filter((action) => {
-        // A health event is said by its kind, which events.FromAudit always sets for it.
-        const kind = action === "service.health" ? EventKind.HEALTH : EventKind.ACCESS;
+        // Health and alert events are described by kind, as events.FromAudit sets them.
+        const kind =
+          action === "service.health"
+            ? EventKind.HEALTH
+            : action.startsWith("alert.")
+              ? EventKind.ALERT
+              : EventKind.ACCESS;
         const said = say(create(AuditEventSchema, { action, event: { action, kind } })).title;
         return said === action || said.includes(action);
       });
