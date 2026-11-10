@@ -1,6 +1,7 @@
 # service.method                                effect       min_role   protected  reach    session
 AlertService.AcknowledgeAlert                  apply        admin      admin      install
 AlertService.ListAlertChannels                 read         admin      admin      install
+AlertService.ListAlertChecks                   read         admin      admin      install
 AlertService.ListAlertDeliveries               read         admin      admin      install
 AlertService.ListAlertMutes                    read         admin      admin      install
 AlertService.ListAlertRules                    read         admin      admin      install

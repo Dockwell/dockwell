@@ -1254,6 +1254,10 @@ msgstr "Alerts sections"
 msgid "Channels"
 msgstr "Channels"
 
+msgctxt "checks of a URL"
+msgid "Checks"
+msgstr "Checks"
+
 msgid "Nothing open"
 msgstr "Nothing open"
 
@@ -1557,6 +1561,60 @@ msgstr "{failing, plural, one {# failing} other {# failing}}"
 msgid "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
 msgstr "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
 
+msgid "Address"
+msgstr "Address"
+
+msgid "Can't load the checks"
+msgstr "Can't load the checks"
+
+msgid "Every 15 min"
+msgstr "Every 15 min"
+
+msgid "Every 30 s"
+msgstr "Every 30 s"
+
+msgid "Every 5 min"
+msgstr "Every 5 min"
+
+msgid "Every minute"
+msgstr "Every minute"
+
+msgid "Inside the network"
+msgstr "Inside the network"
+
+msgid "Last answers"
+msgstr "Last answers"
+
+#. placeholder {0}: runs.length
+msgid "Last {0} runs"
+msgstr "Last {0} runs"
+
+msgid "No address is watched yet"
+msgstr "No address is watched yet"
+
+msgid "No answer yet"
+msgstr "No answer yet"
+
+msgctxt "how a check runs"
+msgid "Runs"
+msgstr "Runs"
+
+msgid "Watch an address"
+msgstr "Watch an address"
+
+msgid "Watch one from its app's or website's domain, and Dockwell alerts when it stops answering."
+msgstr "Watch one from its app's or website's domain, and Dockwell alerts when it stops answering."
+
+msgid "the control server"
+msgstr "the control server"
+
+#. placeholder {0}: run.status
+msgid "{0} in {ms} ms"
+msgstr "{0} in {ms} ms"
+
+msgid "{often} from {from}"
+msgstr "{often} from {from}"
+
 msgid "Alert rules"
 msgstr "Alert rules"
 
@@ -1658,6 +1716,136 @@ msgstr "{h} h {m} min"
 
 msgid "{m} min"
 msgstr "{m} min"
+
+msgid "Watch"
+msgstr "Watch"
+
+msgid "Watch {where}"
+msgstr "Watch {where}"
+
+msgid "Watched · {word}"
+msgstr "Watched · {word}"
+
+msgid "{where} is watched: {word}"
+msgstr "{where} is watched: {word}"
+
+msgid "Asking {host} from the control server…"
+msgstr "Asking {host} from the control server…"
+
+msgid "Change the check of {host}"
+msgstr "Change the check of {host}"
+
+msgid "Change the check of {host}, inside the network"
+msgstr "Change the check of {host}, inside the network"
+
+msgid "Dockwell asks it from the control server, and alerts when it stops answering."
+msgstr "Dockwell asks it from the control server, and alerts when it stops answering."
+
+msgid "Down after"
+msgstr "Down after"
+
+msgid "Every 15 minutes"
+msgstr "Every 15 minutes"
+
+msgid "Every 30 seconds"
+msgstr "Every 30 seconds"
+
+msgid "Every 5 minutes"
+msgstr "Every 5 minutes"
+
+msgid "How often"
+msgstr "How often"
+
+msgid "It alerts once it has been down {hold}, and reads up again after 2 passing runs in a row."
+msgstr "It alerts once it has been down {hold}, and reads up again after 2 passing runs in a row."
+
+#. placeholder {0}: run.status
+msgid "It answered {0} in {ms} ms."
+msgstr "It answered {0} in {ms} ms."
+
+#. placeholder {0}: run.status
+msgid "It answered {0}."
+msgstr "It answered {0}."
+
+#. placeholder {0}: run.said
+msgid "It didn't answer as it should: {0}."
+msgstr "It didn't answer as it should: {0}."
+
+msgid "It shows in plans and on Activity, so leave tokens and passwords out of it."
+msgstr "It shows in plans and on Activity, so leave tokens and passwords out of it."
+
+msgid "Leave the user and password out: a check asks as a visitor does."
+msgstr "Leave the user and password out: a check asks as a visitor does."
+
+msgid "Reach an address on the control server's private networks too. Without it, a check reaches the internet alone."
+msgstr "Reach an address on the control server's private networks too. Without it, a check reaches the internet alone."
+
+msgid "See every check"
+msgstr "See every check"
+
+msgid "Stop watching"
+msgstr "Stop watching"
+
+msgid "Stop watching {host}"
+msgstr "Stop watching {host}"
+
+msgid "Type the address to watch, such as https://shop.example.com/."
+msgstr "Type the address to watch, such as https://shop.example.com/."
+
+msgid "Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
+msgstr "Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
+
+msgid "Use an http or https address, such as https://shop.example.com/."
+msgstr "Use an http or https address, such as https://shop.example.com/."
+
+msgid "Watch this address"
+msgstr "Watch this address"
+
+msgid "Watch {host}"
+msgstr "Watch {host}"
+
+msgid "Watch {host}, inside the network"
+msgstr "Watch {host}, inside the network"
+
+msgid "Watching {host}"
+msgstr "Watching {host}"
+
+msgid "alerts every channel"
+msgstr "alerts every channel"
+
+msgid "alerts {names}"
+msgstr "alerts {names}"
+
+msgid "inside the network"
+msgstr "inside the network"
+
+msgid "the Address down rule is off, so nothing is sent"
+msgstr "the Address down rule is off, so nothing is sent"
+
+#. placeholder {0}: check.spec?.downAfter || CHECK_DEFAULTS.downAfter
+msgid "{0, plural, one {Dockwell asks again on its own, and the check reads down after # failed run.} other {Dockwell asks again on its own, and the check reads down after # failed runs in a row.}}"
+msgstr "{0, plural, one {Dockwell asks again on its own, and the check reads down after # failed run.} other {Dockwell asks again on its own, and the check reads down after # failed runs in a row.}}"
+
+msgid "{n, plural, one {# failed run} other {# failed runs}}"
+msgstr "{n, plural, one {# failed run} other {# failed runs}}"
+
+msgid "{n, plural, one {down after # failure} other {down after # failures}}"
+msgstr "{n, plural, one {down after # failure} other {down after # failures}}"
+
+msgctxt "check state"
+msgid "Down"
+msgstr "Down"
+
+msgctxt "check state"
+msgid "Failing"
+msgstr "Failing"
+
+msgctxt "check state"
+msgid "Up"
+msgstr "Up"
+
+msgid "Waiting for its first run"
+msgstr "Waiting for its first run"
 
 msgid "Discord"
 msgstr "Discord"
@@ -4693,9 +4881,6 @@ msgstr "Dockwell can't say yet what each backup takes, as this volume is empty o
 
 msgid "Hourly"
 msgstr "Hourly"
-
-msgid "How often"
-msgstr "How often"
 
 msgid "In UTC. Set the install's time zone in Settings to use another."
 msgstr "In UTC. Set the install's time zone in Settings to use another."
@@ -8925,9 +9110,6 @@ msgstr "{name} stopped."
 msgid "Action"
 msgstr "Action"
 
-msgid "Address"
-msgstr "Address"
-
 msgid "Allow"
 msgstr "Allow"
 
@@ -11312,9 +11494,6 @@ msgstr "Every day at {at}"
 
 msgid "Every hour at {at}"
 msgstr "Every hour at {at}"
-
-msgid "Every minute"
-msgstr "Every minute"
 
 msgid "Every weekday at {at}"
 msgstr "Every weekday at {at}"
