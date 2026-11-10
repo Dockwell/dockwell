@@ -1031,6 +1031,13 @@ type WriterNamer interface {
 	WriterOf(spec proto.Message) string
 }
 
+// NewDefaulter is a kind whose new resources take a default from their ref
+// where their edit leaves it out, such as an environment's protection from its
+// name. An edit of one that's there keeps what's there instead (Keeper).
+type NewDefaulter interface {
+	DefaultNew(ref Ref, spec proto.Message)
+}
+
 // EnvKeeper is a kind whose spec holds values no response carries, which an edit
 // by a client that can't read them back names to keep as they are, rather than
 // setting them (Edit.keep_env): a service's own environment variables. KeepEnv

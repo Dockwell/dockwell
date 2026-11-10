@@ -333,7 +333,7 @@ export async function appsFlow(
   if (fits.tabs.over > 0 && fits.tabs.more === "")
     fail(`at 360 px the tabs overflow by ${fits.tabs.over} px, and nothing says so`);
   if (!fits.tabs.current) fail("at 360 px the tab of the page you're on is out of sight");
-  if (fits.offers.join() !== "Restart,Deploy") fail(`the thumb bar offers ${fits.offers.join()}`);
+  if (fits.offers.join() !== "Logs,Restart,Deploy") fail(`the thumb bar offers ${fits.offers.join()}`);
   if (fits.callout.wraps !== "anywhere") fail(`a callout's image wraps as ${fits.callout.wraps}`);
   if (!fits.callout.stacked) fail("at 360 px a callout's actions don't sit under its text");
   await shoot(page, "apps-phone");

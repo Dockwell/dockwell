@@ -498,10 +498,10 @@ const file_dockwell_v1_variable_proto_rawDesc = "" +
 	"\x05proof\x18\x02 \x01(\tR\x05proof\"H\n" +
 	"\x14RevealSecretResponse\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\x03R\brevision2\xd8\a\n" +
-	"\x0fVariableService\x12t\n" +
-	"\rListVariables\x12!.dockwell.v1.ListVariablesRequest\x1a\".dockwell.v1.ListVariablesResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/variables\x90\x02\x01\x12\x7f\n" +
-	"\fRevealSecret\x12 .dockwell.v1.RevealSecretRequest\x1a!.dockwell.v1.RevealSecretResponse\"*\xa0\xbb\x18\x01\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/secrets/{id}:reveal\x1a\xcd\x05\xa2\xbb\x18\xa4\x02\n" +
+	"\brevision\x18\x02 \x01(\x03R\brevision2\xf2\a\n" +
+	"\x0fVariableService\x12\x80\x01\n" +
+	"\rListVariables\x12!.dockwell.v1.ListVariablesRequest\x1a\".dockwell.v1.ListVariablesResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/variables\x90\x02\x01\x12\x8b\x01\n" +
+	"\fRevealSecret\x12 .dockwell.v1.RevealSecretRequest\x1a!.dockwell.v1.RevealSecretResponse\"6\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/secrets/{id}:reveal\x1a\xcd\x05\xa2\xbb\x18\xa4\x02\n" +
 	"\tvariables\x12\x96\x02A variable is a value of an environment that its services use, such as LOG_LEVEL=info. It isn't secret: plans and the panel show it. Services use variables and secrets by reference, under the names they expect, so changing one is a plan that restarts every service that uses it.\xa2\xbb\x18\x9f\x03\n" +
 	"\asecrets\x12\x93\x03A secret is a value of an environment that its services use without anyone reading it back, such as a database password. Dockwell keeps it encrypted, sends it only to the servers that run a service that uses it, and never shows it in plans, history or logs. Its value is read from standard input or a file, never from a flag. Revealing it takes a passkey, in the panel, and is audited: no API token can.B\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rVariableProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"

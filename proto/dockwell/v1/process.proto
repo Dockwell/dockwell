@@ -24,6 +24,9 @@ service ProcessService {
   // none.
   rpc WatchProcesses(WatchProcessesRequest) returns (stream WatchProcessesResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
   }
 
@@ -41,6 +44,9 @@ service ProcessService {
   // whatever took the PID. It's on the activity log, without the command line.
   rpc EndProcess(EndProcessRequest) returns (EndProcessResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "processes"

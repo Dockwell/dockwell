@@ -444,6 +444,12 @@ msgstr "撤销者"
 msgid "Volume"
 msgstr "卷"
 
+msgid "Waits for an admin"
+msgstr "等待管理员"
+
+msgid "Waits for your approval"
+msgstr "等待你批准"
+
 msgid "What changed"
 msgstr "变更内容"
 
@@ -4028,8 +4034,17 @@ msgstr "你尚未登录。请登录后重试。"
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "你的会话已结束，所以这个操作没有执行。请重新登录后重试。"
 
+msgid "Admin"
+msgstr "管理员"
+
+msgid "Developer"
+msgstr "开发者"
+
 msgid "Owner"
 msgstr "所有者"
+
+msgid "Viewer"
+msgstr "查看者"
 
 msgid "All backups"
 msgstr "全部备份"
@@ -4701,6 +4716,9 @@ msgstr "重启无法撤销，因为它不会改变任何可恢复的内容。"
 msgid "A step failed, so the change stopped there."
 msgstr "有一个步骤失败，更改就此停止。"
 
+msgid "An admin or the owner applies this"
+msgstr "此计划由管理员或所有者应用"
+
 msgid "Applied {when} by {by}, and undone since."
 msgstr "由 {by} 于 {when} 应用，之后已撤销。"
 
@@ -4715,6 +4733,14 @@ msgstr "只有信任它运行的内容时才应用。"
 
 msgid "Applying"
 msgstr "正在应用"
+
+#. placeholder {0}: change.proposedBy.name
+msgid "Applying this approves a change planned with the API token {0}, with your passkey"
+msgstr "应用此计划即批准用 API 令牌 {0} 计划的变更，需要验证你的通行密钥"
+
+#. placeholder {0}: change?.proposedBy?.name
+msgid "Applying this approves {0}'s change, with your passkey"
+msgstr "应用此计划即批准 {0} 的变更，需要验证你的通行密钥"
 
 msgid "Applying this asks for your passkey"
 msgstr "应用此计划时会要求验证你的通行密钥"
@@ -4763,6 +4789,9 @@ msgstr "关闭这里后它会继续应用。"
 
 msgid "Keep this only if you trust what it runs."
 msgstr "请仅在信任其运行内容时保留。"
+
+msgid "Leave it for an admin"
+msgstr "留给管理员处理"
 
 msgid "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
 msgstr "接下来，将 {on} 上的隧道指向 http://127.0.0.1:80。使用 https:// 会失败，因为此路由不使用证书。"
@@ -4850,6 +4879,9 @@ msgstr "如果发生替换，{undoDays} 天内可撤销"
 
 msgid "Undo until {deadline}"
 msgstr "可撤销至 {deadline}"
+
+msgid "Waits for an admin or the owner"
+msgstr "等待管理员或所有者"
 
 msgid "What applying means"
 msgstr "应用的影响"
@@ -6686,8 +6718,14 @@ msgstr "无法加载域名"
 msgid "Can't read your apps"
 msgstr "无法读取你的应用"
 
+msgid "Certificates"
+msgstr "证书"
+
 msgid "Clear the filters"
 msgstr "清除筛选"
+
+msgid "DNS"
+msgstr "DNS"
 
 msgid "Domains"
 msgstr "域名"
@@ -6704,8 +6742,14 @@ msgstr "这里没有符合所选条件的域名。请试试名称的一部分，
 msgid "No domains yet"
 msgstr "还没有域名"
 
+msgid "Renewed automatically"
+msgstr "自动续期"
+
 msgid "Routes to"
 msgstr "路由到"
+
+msgid "Runs out first"
+msgstr "最先到期"
 
 msgid "Send a domain to one of your apps. You review a plan before anything changes."
 msgstr "把域名指向你的某个应用。任何改动生效前，你都会先审阅计划。"
@@ -6733,6 +6777,27 @@ msgstr "你的域名所提供的服务不受影响。"
 
 msgid "{count, plural, one {# domain} other {# domains}}"
 msgstr "{count, plural, other {# 个域名}}"
+
+msgid "{days, plural, one {in # day} other {in # days}}"
+msgstr "{days, plural, other {# 天后}}"
+
+msgid "Can't tell where it points"
+msgstr "无法判断指向哪里"
+
+msgid "No record yet"
+msgstr "还没有记录"
+
+msgid "Not read yet"
+msgstr "尚未读取"
+
+msgid "Points elsewhere"
+msgstr "指向别处"
+
+msgid "Points here"
+msgstr "指向此服务器"
+
+msgid "Proxied by Cloudflare"
+msgstr "由 Cloudflare 代理"
 
 msgid "Bring them back"
 msgstr "恢复这些更改"
@@ -6839,6 +6904,9 @@ msgstr "这些更改是你在会话结束前输入的，此后服务器上的文
 
 msgid "You typed them before your session ended."
 msgstr "这些更改是你在会话结束前输入的。"
+
+msgid "Your role doesn't cover this"
+msgstr "你的角色无权访问这里"
 
 #. placeholder {0}: lineCount(draft)
 msgid "{0, plural, one {# line} other {# lines}}"
@@ -9699,6 +9767,12 @@ msgstr "舍弃了一项变更"
 msgid "Discarded {summary}"
 msgstr "已舍弃 {summary}"
 
+msgid "Made {name} the owner"
+msgstr "已将 {name} 设为所有者"
+
+msgid "Moved ownership of this install"
+msgstr "转移了此安装的所有权"
+
 msgid "Planned a change"
 msgstr "规划了一项变更"
 
@@ -9716,6 +9790,9 @@ msgstr "读取了日志"
 
 msgid "Read the logs of {name}"
 msgstr "读取了 {name} 的日志"
+
+msgid "Refused a call their role doesn't cover"
+msgstr "拒绝了其角色无权发起的调用"
 
 msgid "Refused a call this token can't make"
 msgstr "拒绝了此令牌无权发起的调用"
@@ -11536,6 +11613,9 @@ msgstr "{count, plural, other {{1} 上有 # 个网站}}"
 
 msgid "{count, plural, one {# site} other {# sites}}"
 msgstr "{count, plural, other {# 个网站}}"
+
+msgid "Your role doesn't let you do this here. Ask an admin to change your role."
+msgstr "你的角色不能在这里执行此操作。请让管理员更改你的角色。"
 
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, other {# 天}}"

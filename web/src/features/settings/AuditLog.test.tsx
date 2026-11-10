@@ -297,6 +297,29 @@ describe("Audit log", () => {
     expect(screen.queryByText(/"previous"/)).toBeNull();
   });
 
+  it("words a call refused for its role, and ownership moving", async () => {
+    const refused = anEvent({
+      id: "evt_r",
+      action: "role.refuse",
+      actor: mira,
+      subject: "usr_1",
+      detail:
+        "/dockwell.v1.AuditService/ListAuditEvents, which needs an admin, from 203.0.113.9: the caller is a viewer",
+    });
+    const moved = anEvent({
+      id: "evt_o",
+      action: "owner.transfer",
+      actor: { kind: ActorKind.DOCKWELL, name: "Dockwell" },
+      surface: Surface.CLI,
+      subject: "usr_2",
+      target: { id: "usr_2", name: "Ada Park" },
+      detail: "made ada@example.com the owner, in place of mira@example.com, who is an admin now",
+    });
+    renderAt("/settings/audit-log", { audit: { listAuditEvents: () => ({ events: [refused, moved] }) } });
+    expect(await screen.findByText("Refused a call their role doesn't cover")).toBeVisible();
+    expect(screen.getByText("Made Ada Park the owner")).toBeVisible();
+  });
+
   it("writes CSV that a spreadsheet reads back", () => {
     expect(csvLine(["plain", 'a "quote"', "a,comma", "two\nlines"])).toBe('plain,"a ""quote""","a,comma","two\nlines"');
     const said = (e: AuditEvent) => `said ${e.action}`;

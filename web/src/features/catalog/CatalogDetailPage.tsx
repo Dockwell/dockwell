@@ -39,6 +39,12 @@ export function CatalogDetailPage({
       <Trans>Catalog</Trans>
     </Link>
   );
+  // A phone's header has room for an arrow, as every other page's has, not for the word beside the app's name.
+  const phoneBack = (
+    <Link to="/catalog" search={search} className="mobile-header-button" aria-label={t`Back to catalog`}>
+      <Icon name="arrow-left" size={20} />
+    </Link>
+  );
   const install = entry ? (
     <RouterButtonLink
       to="/catalog/$entryId/install"
@@ -54,7 +60,7 @@ export function CatalogDetailPage({
     <Page
       title={app}
       breadcrumb={back}
-      backLink={back}
+      backLink={phoneBack}
       lead={entry?.summary}
       badge={entry ? <AppIcon name={app} path={entry.icon} large /> : undefined}
       actions={install}

@@ -549,8 +549,18 @@
   flex: 1 1 560px;
   grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr));
   gap: var(--space-6);
-  align-items: start;
+  /* Two sections sharing a row end on one line, as App-Settings draws them, whatever each holds. */
+  align-items: stretch;
   min-width: 0;
+}
+
+.app-settings-anchor {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-settings-anchor > .dw-panel {
+  flex: 1 1 auto;
 }
 
 .app-settings-anchor.is-wide {

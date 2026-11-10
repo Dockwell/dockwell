@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createClient, type Transport } from "@connectrpc/connect";
-import { AuthService, type StepUpAction } from "@dockwell/api";
+import { ConnectError, createClient, type Transport } from "@connectrpc/connect";
+import { AuthService, type StepUpAction, StepUpNeededSchema } from "@dockwell/api";
 
 import { reasonOf } from "../../lib/errors";
 import { getPasskey } from "../../lib/webauthn";
@@ -27,7 +27,9 @@ export async function stepUp(transport: Transport, action: StepUpAction, target 
  * any other reason, such as the last way in or a missing name, before the
  * browser asks for a passkey. Only once it answers needs_step_up does the
  * browser ask, and the call go again with the proof. Adding a passkey just
- * after signing in another way may need none.
+ * after signing in another way may need none. When the refusal says which
+ * step-up it takes, such as approving someone else's change rather than
+ * applying one as root, that's the one asked for.
  */
 export async function withStepUpIfAsked<T>(
   transport: Transport,
@@ -40,6 +42,8 @@ export async function withStepUpIfAsked<T>(
     return await call("");
   } catch (err) {
     if (reasonOf(err) !== "needs_step_up") throw err;
+    const asked = ConnectError.from(err).findDetails(StepUpNeededSchema)[0];
+    if (asked) return call(await stepUp(transport, asked.action, asked.target));
   }
   // A page that couldn't know a passkey was needed says why first, and the browser
   // asks only once the person goes on.

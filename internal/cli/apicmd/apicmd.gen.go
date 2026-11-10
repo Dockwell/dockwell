@@ -352,7 +352,7 @@ func Methods() []*apicli.Method {
 			Noun:      "catalog",
 			Verb:      "install",
 			Short:     "Plan installing an app as a project of its own",
-			Long:      "Plan installing an app as a project of its own, ready to apply or discard, as\ndockwell compose import does with a file. The plan makes the project, its\nsecrets and what its Compose file runs, and pins the project to this entry. A\nsecret that no one types is generated and sealed here: no response carries it,\nand revealing it takes a passkey.",
+			Long:      "Plan installing an app as a project of its own, ready to apply or discard, as\ndockwell compose import does with a file. The plan makes the project, its\nsecrets and what its Compose file runs, and pins the project to this entry. A\nsecret that no one types is generated and sealed here: no response carries it,\nand revealing it takes a passkey. Making a project is an admin's (ADR 0049).",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The entry's ID, such as \"postgres\".", Arg: true},
@@ -1688,8 +1688,8 @@ func Methods() []*apicli.Method {
 			HTTP:      "POST /v1/tasks/{id}:run",
 			Noun:      "tasks",
 			Verb:      "run",
-			Short:     "Run a task now",
-			Long:      "Run a task now, on one of its servers, which has to be connected. It runs what\nwas approved, as its schedule would, paused or not, and returns once the run has\nstarted: follow it with dockwell tasks runs.",
+			Short:     "Let an admin run a task now",
+			Long:      "Let an admin run a task now, on one of its servers, which has to be connected.\nIt runs what was approved, as its schedule would, paused or not, and returns\nonce the run has started: follow it with dockwell tasks runs.",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The task's ID, or its name with project and environment.", Arg: true},
@@ -1908,7 +1908,7 @@ func Methods() []*apicli.Method {
 			Noun:      "updates",
 			Verb:      "get",
 			Short:     "Say which package updates wait on a server",
-			Long:      "Say which package updates wait on a server, which are security fixes, whether\nthe server needs a reboot, and Dockwell's own version against its newest\nrelease. An answer stands for 10 minutes. Past that, or with none yet, this asks\nthe server's agent, and answers with what it had and checking set when the agent\ntakes more than a few seconds: ask again for the rest. The agent refreshes the\nserver's package lists first when they're more than a day old.",
+			Long:      "Say which package updates wait on a server, which are security fixes, whether\nthe server needs a reboot, and Dockwell's own version against its newest\nrelease. An answer stands for 10 minutes. Past that, or with none yet, this asks\nthe server's agent, and answers with what it had and checking set when the agent\ntakes more than a few seconds: ask again for the rest. The agent refreshes the\nserver's package lists first when they're more than a day old.\n\nA server's updates are its inventory, the install's, so they're an admin's (ADR\n0049). An admin's API token reads them, as it reads the rest of the server (ADR\n0043).",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The server's ID, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\".", Arg: true},
@@ -2059,7 +2059,7 @@ func Nouns() []apicli.Noun {
 		{Name: "settings", Short: "Get, set name or set time zone settings", Long: "The install's settings are what it's called, the time zone new schedules start\nin, and how its panel is served. They change what Dockwell says and suggests,\nnot what runs, so a change needs no plan, and each is on the activity log with\nwhat it replaced."},
 		{Name: "system", Short: "Return the build of the control plane that answers", Long: "SystemService describes the Dockwell install itself. It needs no sign-in, so the\nCLI, agents and other tools can check what they are talking to first."},
 		{Name: "tasks", Short: "List, get, runs, run, create, update or delete tasks", Long: "TaskService is work that runs on a schedule: a shell command on a server, a\ncommand in an app's image, or an HTTP request. A task is a resource of kind\n\"task\", so making, changing, pausing and deleting one is a change with a plan,\nthrough ChangeService. Each server's agent keeps its own tasks' time, so they\nrun while the control plane is away, and the control plane keeps what each run\ndid. See docs/adr/0053-scheduled-tasks.md.\n\ndockwell tasks create, update and delete each propose a change, show its plan,\nand ask before applying it."},
-		{Name: "terminals", Short: "Open, list, attach, write or close terminals", Long: "TerminalService opens a shell on a server, through its agent, and carries what's\ntyped and what it prints. A server's shell is root's, so it's as good as root:\nsee docs/adr/0037-a-terminal-on-a-server.md and docs/security/terminal.md.\n\nEvery method needs a signed-in session: no API token can call them, whatever its\nscope. A terminal belongs to the person and the session that opened it, and\nnobody else can reach it. Opening one takes a passkey, just now. Opening and\nclosing one are on record in Activity, and what's typed and printed is never\nrecorded.\n\nA terminal runs on its server apart from any connection, so a client that loses\nits stream attaches again from the last byte it had, and misses nothing that\nfits in what the server keeps. dockwell terminals attach streams, so it has no\nREST path."},
+		{Name: "terminals", Short: "Open, list, attach, write or close terminals", Long: "TerminalService opens a shell on a server, through its agent, and carries what's\ntyped and what it prints. A server's shell is root's, so it's as good as root:\nsee docs/adr/0037-a-terminal-on-a-server.md and docs/security/terminal.md.\n\nEvery method needs an admin in a signed-in session: no API token can call them,\nwhatever its scope. A terminal belongs to the person and the session that opened\nit, and nobody else can reach it. Opening one takes a passkey, just now. Opening\nand closing one are on record in Activity, and what's typed and printed is never\nrecorded.\n\nA terminal runs on its server apart from any connection, so a client that loses\nits stream attaches again from the last byte it had, and misses nothing that\nfits in what the server keeps. dockwell terminals attach streams, so it has no\nREST path."},
 		{Name: "totp", Short: "Get, disable or unlock TOTP, and 4 more", Long: "Code sign-in lets you sign in with a code from an authenticator app, or with a\none-time recovery code, beside your passkeys. Wrong codes slow it down, and too\nmany lock it until dockwell totp unlock turns it back on. Setting it up needs a\nsigned-in session, which no API token gives, and your passkey to confirm it, so\nyou do it in the panel, under Profile and security."},
 		{Name: "updates", Short: "Get or check updates", Long: "UpdateService says which package updates wait on a server, through its agent,\nwhich reads them with the server's own package manager: apt, dnf or apk. Nothing\nis read while nobody asks, and a server's package lists are refreshed at most\ndaily. See docs/adr/0043-package-updates-on-a-server.md."},
 		{Name: "variables", Short: "List, create, update or delete variables", Long: "A variable is a value of an environment that its services use, such as\nLOG_LEVEL=info. It isn't secret: plans and the panel show it. Services use\nvariables and secrets by reference, under the names they expect, so changing one\nis a plan that restarts every service that uses it.\n\ndockwell variables create, update and delete each propose a change, show its\nplan, and ask before applying it."},
@@ -2107,6 +2107,7 @@ func Kinds() []*apicli.Kind {
 			Long:  "Environment is a stage of a project, such as production or staging, with its own\nconfig. A project starts with one, named \"production\", which stays out of sight\nuntil there is a second.",
 			Fields: []apicli.Field{
 				{Path: "display_name", Help: "How the panel shows it, such as \"Staging\". Empty shows its name."},
+				{Path: "protection", Help: "Whether a developer's change here waits for an admin or the owner. Every environment Dockwell makes has it written: protected for one named production, open for any other. An edit that leaves it out keeps what's there. Unset, as on an environment from before, it reads as that default by its name (ADR 0049). Making one with other than the default, or changing it, is an admin's."},
 			},
 		},
 		{
