@@ -13,6 +13,7 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -76,6 +77,67 @@ func (x AlertState) Number() protoreflect.EnumNumber {
 // Deprecated: Use AlertState.Descriptor instead.
 func (AlertState) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{0}
+}
+
+// AlertCheckState is how a check stands.
+type AlertCheckState int32
+
+const (
+	AlertCheckState_ALERT_CHECK_STATE_UNSPECIFIED AlertCheckState = 0
+	// It hasn't run yet.
+	AlertCheckState_ALERT_CHECK_STATE_WAITING AlertCheckState = 1
+	// Its last run passed, and if it was down, the one before passed too.
+	AlertCheckState_ALERT_CHECK_STATE_UP AlertCheckState = 2
+	// Its last run failed, and not yet as many in a row as make it down.
+	AlertCheckState_ALERT_CHECK_STATE_FAILING AlertCheckState = 3
+	// As many runs in a row as it says have failed, and not yet 2 in a row passed
+	// since.
+	AlertCheckState_ALERT_CHECK_STATE_DOWN AlertCheckState = 4
+)
+
+// Enum value maps for AlertCheckState.
+var (
+	AlertCheckState_name = map[int32]string{
+		0: "ALERT_CHECK_STATE_UNSPECIFIED",
+		1: "ALERT_CHECK_STATE_WAITING",
+		2: "ALERT_CHECK_STATE_UP",
+		3: "ALERT_CHECK_STATE_FAILING",
+		4: "ALERT_CHECK_STATE_DOWN",
+	}
+	AlertCheckState_value = map[string]int32{
+		"ALERT_CHECK_STATE_UNSPECIFIED": 0,
+		"ALERT_CHECK_STATE_WAITING":     1,
+		"ALERT_CHECK_STATE_UP":          2,
+		"ALERT_CHECK_STATE_FAILING":     3,
+		"ALERT_CHECK_STATE_DOWN":        4,
+	}
+)
+
+func (x AlertCheckState) Enum() *AlertCheckState {
+	p := new(AlertCheckState)
+	*p = x
+	return p
+}
+
+func (x AlertCheckState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AlertCheckState) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_alert_proto_enumTypes[1].Descriptor()
+}
+
+func (AlertCheckState) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_alert_proto_enumTypes[1]
+}
+
+func (x AlertCheckState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AlertCheckState.Descriptor instead.
+func (AlertCheckState) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{1}
 }
 
 // Alert is one rule holding for one thing, such as a server's disk, from when
@@ -738,6 +800,291 @@ func (x *AlertRuleInfo) GetBuiltIn() bool {
 	return false
 }
 
+// AlertCheckInfo is a check, how it stands, and its last runs.
+type AlertCheckInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The check's ID, "chk_…", and its name.
+	Id   string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// What it is.
+	Spec *v1alpha1.AlertCheck `protobuf:"bytes,3,opt,name=spec,proto3" json:"spec,omitempty"`
+	// How it stands.
+	State AlertCheckState `protobuf:"varint,4,opt,name=state,proto3,enum=dockwell.v1.AlertCheckState" json:"state,omitempty"`
+	// Since when it has stood so. Unset while it waits for its first run.
+	Since *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=since,proto3" json:"since,omitempty"`
+	// Its last runs, newest first, at most 10. They're in memory, so a restart of
+	// the control plane starts them again.
+	Runs []*AlertCheckRun `protobuf:"bytes,6,rep,name=runs,proto3" json:"runs,omitempty"`
+	// Where it runs from, in words, such as "the control server".
+	From string `protobuf:"bytes,7,opt,name=from,proto3" json:"from,omitempty"`
+	// Why Dockwell can't run the check now, such as a spec it can't read; empty
+	// while it can. A check with a problem keeps the alert it had open.
+	Problem       string `protobuf:"bytes,8,opt,name=problem,proto3" json:"problem,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AlertCheckInfo) Reset() {
+	*x = AlertCheckInfo{}
+	mi := &file_dockwell_v1_alert_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AlertCheckInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AlertCheckInfo) ProtoMessage() {}
+
+func (x *AlertCheckInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_alert_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AlertCheckInfo.ProtoReflect.Descriptor instead.
+func (*AlertCheckInfo) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *AlertCheckInfo) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AlertCheckInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AlertCheckInfo) GetSpec() *v1alpha1.AlertCheck {
+	if x != nil {
+		return x.Spec
+	}
+	return nil
+}
+
+func (x *AlertCheckInfo) GetState() AlertCheckState {
+	if x != nil {
+		return x.State
+	}
+	return AlertCheckState_ALERT_CHECK_STATE_UNSPECIFIED
+}
+
+func (x *AlertCheckInfo) GetSince() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Since
+	}
+	return nil
+}
+
+func (x *AlertCheckInfo) GetRuns() []*AlertCheckRun {
+	if x != nil {
+		return x.Runs
+	}
+	return nil
+}
+
+func (x *AlertCheckInfo) GetFrom() string {
+	if x != nil {
+		return x.From
+	}
+	return ""
+}
+
+func (x *AlertCheckInfo) GetProblem() string {
+	if x != nil {
+		return x.Problem
+	}
+	return ""
+}
+
+// AlertCheckRun is one run of a check.
+type AlertCheckRun struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// When it ran.
+	Time *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=time,proto3" json:"time,omitempty"`
+	// Whether it passed.
+	Ok bool `protobuf:"varint,2,opt,name=ok,proto3" json:"ok,omitempty"`
+	// The status the address answered with. 0 when nothing answered.
+	Status uint32 `protobuf:"varint,3,opt,name=status,proto3" json:"status,omitempty"`
+	// How long the answer took, to its headers.
+	Took *durationpb.Duration `protobuf:"bytes,4,opt,name=took,proto3" json:"took,omitempty"`
+	// What went wrong, in words, such as "no answer within 10s" or "502, outside
+	// 200 to 399". Empty when it passed.
+	Said string `protobuf:"bytes,5,opt,name=said,proto3" json:"said,omitempty"`
+	// True for a run that didn't start, as every slot for runs was taken: it says
+	// nothing of the address, and counts neither as up nor as a failure.
+	Skipped       bool `protobuf:"varint,6,opt,name=skipped,proto3" json:"skipped,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AlertCheckRun) Reset() {
+	*x = AlertCheckRun{}
+	mi := &file_dockwell_v1_alert_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AlertCheckRun) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AlertCheckRun) ProtoMessage() {}
+
+func (x *AlertCheckRun) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_alert_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AlertCheckRun.ProtoReflect.Descriptor instead.
+func (*AlertCheckRun) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *AlertCheckRun) GetTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Time
+	}
+	return nil
+}
+
+func (x *AlertCheckRun) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *AlertCheckRun) GetStatus() uint32 {
+	if x != nil {
+		return x.Status
+	}
+	return 0
+}
+
+func (x *AlertCheckRun) GetTook() *durationpb.Duration {
+	if x != nil {
+		return x.Took
+	}
+	return nil
+}
+
+func (x *AlertCheckRun) GetSaid() string {
+	if x != nil {
+		return x.Said
+	}
+	return ""
+}
+
+func (x *AlertCheckRun) GetSkipped() bool {
+	if x != nil {
+		return x.Skipped
+	}
+	return false
+}
+
+// ListAlertChecksRequest asks for every check.
+type ListAlertChecksRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAlertChecksRequest) Reset() {
+	*x = ListAlertChecksRequest{}
+	mi := &file_dockwell_v1_alert_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAlertChecksRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAlertChecksRequest) ProtoMessage() {}
+
+func (x *ListAlertChecksRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_alert_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAlertChecksRequest.ProtoReflect.Descriptor instead.
+func (*ListAlertChecksRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{10}
+}
+
+// ListAlertChecksResponse lists the checks.
+type ListAlertChecksResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Checks        []*AlertCheckInfo      `protobuf:"bytes,1,rep,name=checks,proto3" json:"checks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAlertChecksResponse) Reset() {
+	*x = ListAlertChecksResponse{}
+	mi := &file_dockwell_v1_alert_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAlertChecksResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAlertChecksResponse) ProtoMessage() {}
+
+func (x *ListAlertChecksResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_alert_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAlertChecksResponse.ProtoReflect.Descriptor instead.
+func (*ListAlertChecksResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ListAlertChecksResponse) GetChecks() []*AlertCheckInfo {
+	if x != nil {
+		return x.Checks
+	}
+	return nil
+}
+
 // ListAlertRulesRequest asks for every rule.
 type ListAlertRulesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -747,7 +1094,7 @@ type ListAlertRulesRequest struct {
 
 func (x *ListAlertRulesRequest) Reset() {
 	*x = ListAlertRulesRequest{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[8]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -759,7 +1106,7 @@ func (x *ListAlertRulesRequest) String() string {
 func (*ListAlertRulesRequest) ProtoMessage() {}
 
 func (x *ListAlertRulesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[8]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -772,7 +1119,7 @@ func (x *ListAlertRulesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAlertRulesRequest.ProtoReflect.Descriptor instead.
 func (*ListAlertRulesRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{12}
 }
 
 // ListAlertRulesResponse lists the rules.
@@ -785,7 +1132,7 @@ type ListAlertRulesResponse struct {
 
 func (x *ListAlertRulesResponse) Reset() {
 	*x = ListAlertRulesResponse{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[9]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -797,7 +1144,7 @@ func (x *ListAlertRulesResponse) String() string {
 func (*ListAlertRulesResponse) ProtoMessage() {}
 
 func (x *ListAlertRulesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[9]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -810,7 +1157,7 @@ func (x *ListAlertRulesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAlertRulesResponse.ProtoReflect.Descriptor instead.
 func (*ListAlertRulesResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListAlertRulesResponse) GetRules() []*AlertRuleInfo {
@@ -840,7 +1187,7 @@ type AlertDelivery struct {
 
 func (x *AlertDelivery) Reset() {
 	*x = AlertDelivery{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[10]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -852,7 +1199,7 @@ func (x *AlertDelivery) String() string {
 func (*AlertDelivery) ProtoMessage() {}
 
 func (x *AlertDelivery) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[10]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -865,7 +1212,7 @@ func (x *AlertDelivery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertDelivery.ProtoReflect.Descriptor instead.
 func (*AlertDelivery) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *AlertDelivery) GetTime() *timestamppb.Timestamp {
@@ -928,7 +1275,7 @@ type AlertChannelInfo struct {
 
 func (x *AlertChannelInfo) Reset() {
 	*x = AlertChannelInfo{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[11]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -940,7 +1287,7 @@ func (x *AlertChannelInfo) String() string {
 func (*AlertChannelInfo) ProtoMessage() {}
 
 func (x *AlertChannelInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[11]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -953,7 +1300,7 @@ func (x *AlertChannelInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertChannelInfo.ProtoReflect.Descriptor instead.
 func (*AlertChannelInfo) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{11}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *AlertChannelInfo) GetId() string {
@@ -1021,7 +1368,7 @@ type ListAlertChannelsRequest struct {
 
 func (x *ListAlertChannelsRequest) Reset() {
 	*x = ListAlertChannelsRequest{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[12]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1033,7 +1380,7 @@ func (x *ListAlertChannelsRequest) String() string {
 func (*ListAlertChannelsRequest) ProtoMessage() {}
 
 func (x *ListAlertChannelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[12]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1046,7 +1393,7 @@ func (x *ListAlertChannelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAlertChannelsRequest.ProtoReflect.Descriptor instead.
 func (*ListAlertChannelsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{12}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{16}
 }
 
 // ListAlertChannelsResponse lists the channels, by name.
@@ -1059,7 +1406,7 @@ type ListAlertChannelsResponse struct {
 
 func (x *ListAlertChannelsResponse) Reset() {
 	*x = ListAlertChannelsResponse{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[13]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1071,7 +1418,7 @@ func (x *ListAlertChannelsResponse) String() string {
 func (*ListAlertChannelsResponse) ProtoMessage() {}
 
 func (x *ListAlertChannelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[13]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1084,7 +1431,7 @@ func (x *ListAlertChannelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAlertChannelsResponse.ProtoReflect.Descriptor instead.
 func (*ListAlertChannelsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{13}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListAlertChannelsResponse) GetChannels() []*AlertChannelInfo {
@@ -1105,7 +1452,7 @@ type ListAlertDeliveriesRequest struct {
 
 func (x *ListAlertDeliveriesRequest) Reset() {
 	*x = ListAlertDeliveriesRequest{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[14]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1117,7 +1464,7 @@ func (x *ListAlertDeliveriesRequest) String() string {
 func (*ListAlertDeliveriesRequest) ProtoMessage() {}
 
 func (x *ListAlertDeliveriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[14]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1130,7 +1477,7 @@ func (x *ListAlertDeliveriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAlertDeliveriesRequest.ProtoReflect.Descriptor instead.
 func (*ListAlertDeliveriesRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{14}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListAlertDeliveriesRequest) GetPageSize() int32 {
@@ -1150,7 +1497,7 @@ type ListAlertDeliveriesResponse struct {
 
 func (x *ListAlertDeliveriesResponse) Reset() {
 	*x = ListAlertDeliveriesResponse{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[15]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1162,7 +1509,7 @@ func (x *ListAlertDeliveriesResponse) String() string {
 func (*ListAlertDeliveriesResponse) ProtoMessage() {}
 
 func (x *ListAlertDeliveriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[15]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1175,7 +1522,7 @@ func (x *ListAlertDeliveriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAlertDeliveriesResponse.ProtoReflect.Descriptor instead.
 func (*ListAlertDeliveriesResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{15}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListAlertDeliveriesResponse) GetDeliveries() []*AlertDelivery {
@@ -1199,7 +1546,7 @@ type TestAlertChannelRequest struct {
 
 func (x *TestAlertChannelRequest) Reset() {
 	*x = TestAlertChannelRequest{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[16]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1211,7 +1558,7 @@ func (x *TestAlertChannelRequest) String() string {
 func (*TestAlertChannelRequest) ProtoMessage() {}
 
 func (x *TestAlertChannelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[16]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1224,7 +1571,7 @@ func (x *TestAlertChannelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestAlertChannelRequest.ProtoReflect.Descriptor instead.
 func (*TestAlertChannelRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{16}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *TestAlertChannelRequest) GetName() string {
@@ -1251,7 +1598,7 @@ type TestAlertChannelResponse struct {
 
 func (x *TestAlertChannelResponse) Reset() {
 	*x = TestAlertChannelResponse{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[17]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1263,7 +1610,7 @@ func (x *TestAlertChannelResponse) String() string {
 func (*TestAlertChannelResponse) ProtoMessage() {}
 
 func (x *TestAlertChannelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[17]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1276,7 +1623,7 @@ func (x *TestAlertChannelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestAlertChannelResponse.ProtoReflect.Descriptor instead.
 func (*TestAlertChannelResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{17}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *TestAlertChannelResponse) GetDelivery() *AlertDelivery {
@@ -1305,7 +1652,7 @@ type AlertMute struct {
 
 func (x *AlertMute) Reset() {
 	*x = AlertMute{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[18]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1317,7 +1664,7 @@ func (x *AlertMute) String() string {
 func (*AlertMute) ProtoMessage() {}
 
 func (x *AlertMute) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[18]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1330,7 +1677,7 @@ func (x *AlertMute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertMute.ProtoReflect.Descriptor instead.
 func (*AlertMute) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{18}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *AlertMute) GetRule() string {
@@ -1384,7 +1731,7 @@ type ListAlertMutesRequest struct {
 
 func (x *ListAlertMutesRequest) Reset() {
 	*x = ListAlertMutesRequest{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[19]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1396,7 +1743,7 @@ func (x *ListAlertMutesRequest) String() string {
 func (*ListAlertMutesRequest) ProtoMessage() {}
 
 func (x *ListAlertMutesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[19]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1409,7 +1756,7 @@ func (x *ListAlertMutesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAlertMutesRequest.ProtoReflect.Descriptor instead.
 func (*ListAlertMutesRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{19}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{23}
 }
 
 // ListAlertMutesResponse lists them.
@@ -1422,7 +1769,7 @@ type ListAlertMutesResponse struct {
 
 func (x *ListAlertMutesResponse) Reset() {
 	*x = ListAlertMutesResponse{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[20]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1434,7 +1781,7 @@ func (x *ListAlertMutesResponse) String() string {
 func (*ListAlertMutesResponse) ProtoMessage() {}
 
 func (x *ListAlertMutesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[20]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1447,7 +1794,7 @@ func (x *ListAlertMutesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAlertMutesResponse.ProtoReflect.Descriptor instead.
 func (*ListAlertMutesResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{20}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ListAlertMutesResponse) GetMutes() []*AlertMute {
@@ -1474,7 +1821,7 @@ type MuteAlertsRequest struct {
 
 func (x *MuteAlertsRequest) Reset() {
 	*x = MuteAlertsRequest{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[21]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1486,7 +1833,7 @@ func (x *MuteAlertsRequest) String() string {
 func (*MuteAlertsRequest) ProtoMessage() {}
 
 func (x *MuteAlertsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[21]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1499,7 +1846,7 @@ func (x *MuteAlertsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MuteAlertsRequest.ProtoReflect.Descriptor instead.
 func (*MuteAlertsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{21}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *MuteAlertsRequest) GetRule() string {
@@ -1540,7 +1887,7 @@ type MuteAlertsResponse struct {
 
 func (x *MuteAlertsResponse) Reset() {
 	*x = MuteAlertsResponse{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[22]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1552,7 +1899,7 @@ func (x *MuteAlertsResponse) String() string {
 func (*MuteAlertsResponse) ProtoMessage() {}
 
 func (x *MuteAlertsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[22]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1565,7 +1912,7 @@ func (x *MuteAlertsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MuteAlertsResponse.ProtoReflect.Descriptor instead.
 func (*MuteAlertsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{22}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *MuteAlertsResponse) GetMute() *AlertMute {
@@ -1588,7 +1935,7 @@ type UnmuteAlertsRequest struct {
 
 func (x *UnmuteAlertsRequest) Reset() {
 	*x = UnmuteAlertsRequest{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[23]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1600,7 +1947,7 @@ func (x *UnmuteAlertsRequest) String() string {
 func (*UnmuteAlertsRequest) ProtoMessage() {}
 
 func (x *UnmuteAlertsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[23]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1613,7 +1960,7 @@ func (x *UnmuteAlertsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnmuteAlertsRequest.ProtoReflect.Descriptor instead.
 func (*UnmuteAlertsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{23}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *UnmuteAlertsRequest) GetRule() string {
@@ -1639,7 +1986,7 @@ type UnmuteAlertsResponse struct {
 
 func (x *UnmuteAlertsResponse) Reset() {
 	*x = UnmuteAlertsResponse{}
-	mi := &file_dockwell_v1_alert_proto_msgTypes[24]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1651,7 +1998,7 @@ func (x *UnmuteAlertsResponse) String() string {
 func (*UnmuteAlertsResponse) ProtoMessage() {}
 
 func (x *UnmuteAlertsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_alert_proto_msgTypes[24]
+	mi := &file_dockwell_v1_alert_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1664,14 +2011,14 @@ func (x *UnmuteAlertsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnmuteAlertsResponse.ProtoReflect.Descriptor instead.
 func (*UnmuteAlertsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{24}
+	return file_dockwell_v1_alert_proto_rawDescGZIP(), []int{28}
 }
 
 var File_dockwell_v1_alert_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_alert_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/alert.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xea\x06\n" +
+	"\x17dockwell/v1/alert.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xea\x06\n" +
 	"\x05Alert\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\arule_id\x18\x02 \x01(\tR\x06ruleId\x12\x1b\n" +
@@ -1728,7 +2075,26 @@ const file_dockwell_v1_alert_proto_rawDesc = "" +
 	"\x0flast_fired_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\rlastFiredTime\x12;\n" +
 	"\vmuted_until\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"mutedUntil\x12\x19\n" +
-	"\bbuilt_in\x18\t \x01(\bR\abuiltIn\"\x17\n" +
+	"\bbuilt_in\x18\t \x01(\bR\abuiltIn\"\xb4\x02\n" +
+	"\x0eAlertCheckInfo\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12:\n" +
+	"\x04spec\x18\x03 \x01(\v2&.dockwell.resource.v1alpha1.AlertCheckR\x04spec\x122\n" +
+	"\x05state\x18\x04 \x01(\x0e2\x1c.dockwell.v1.AlertCheckStateR\x05state\x120\n" +
+	"\x05since\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x05since\x12.\n" +
+	"\x04runs\x18\x06 \x03(\v2\x1a.dockwell.v1.AlertCheckRunR\x04runs\x12\x12\n" +
+	"\x04from\x18\a \x01(\tR\x04from\x12\x18\n" +
+	"\aproblem\x18\b \x01(\tR\aproblem\"\xc4\x01\n" +
+	"\rAlertCheckRun\x12.\n" +
+	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x0e\n" +
+	"\x02ok\x18\x02 \x01(\bR\x02ok\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\rR\x06status\x12-\n" +
+	"\x04took\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x04took\x12\x12\n" +
+	"\x04said\x18\x05 \x01(\tR\x04said\x12\x18\n" +
+	"\askipped\x18\x06 \x01(\bR\askipped\"\x18\n" +
+	"\x16ListAlertChecksRequest\"N\n" +
+	"\x17ListAlertChecksResponse\x123\n" +
+	"\x06checks\x18\x01 \x03(\v2\x1b.dockwell.v1.AlertCheckInfoR\x06checks\"\x17\n" +
 	"\x15ListAlertRulesRequest\"J\n" +
 	"\x16ListAlertRulesResponse\x120\n" +
 	"\x05rules\x18\x01 \x03(\v2\x1a.dockwell.v1.AlertRuleInfoR\x05rules\"\x93\x01\n" +
@@ -1787,12 +2153,19 @@ const file_dockwell_v1_alert_proto_rawDesc = "" +
 	"AlertState\x12\x1b\n" +
 	"\x17ALERT_STATE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12ALERT_STATE_FIRING\x10\x01\x12\x18\n" +
-	"\x14ALERT_STATE_RESOLVED\x10\x022\xae\x18\n" +
+	"\x14ALERT_STATE_RESOLVED\x10\x02*\xd4\x01\n" +
+	"\x0fAlertCheckState\x12!\n" +
+	"\x1dALERT_CHECK_STATE_UNSPECIFIED\x10\x00\x12*\n" +
+	"\x19ALERT_CHECK_STATE_WAITING\x10\x01\x1a\v\xa2\xbb\x18\aWaiting\x12 \n" +
+	"\x14ALERT_CHECK_STATE_UP\x10\x02\x1a\x06\xa2\xbb\x18\x02Up\x12*\n" +
+	"\x19ALERT_CHECK_STATE_FAILING\x10\x03\x1a\v\xa2\xbb\x18\aFailing\x12$\n" +
+	"\x16ALERT_CHECK_STATE_DOWN\x10\x04\x1a\b\xa2\xbb\x18\x04Down2\xd6\x1c\n" +
 	"\fAlertService\x12t\n" +
 	"\n" +
 	"ListAlerts\x12\x1e.dockwell.v1.ListAlertsRequest\x1a\x1f.dockwell.v1.ListAlertsResponse\"%\xa0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\f\x12\n" +
 	"/v1/alerts\x90\x02\x01\x12\x85\x01\n" +
-	"\x0eListAlertRules\x12\".dockwell.v1.ListAlertRulesRequest\x1a#.dockwell.v1.ListAlertRulesResponse\"*\xa0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/alert-rules\x90\x02\x01\x12\x91\x01\n" +
+	"\x0eListAlertRules\x12\".dockwell.v1.ListAlertRulesRequest\x1a#.dockwell.v1.ListAlertRulesResponse\"*\xa0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/alert-rules\x90\x02\x01\x12\x89\x01\n" +
+	"\x0fListAlertChecks\x12#.dockwell.v1.ListAlertChecksRequest\x1a$.dockwell.v1.ListAlertChecksResponse\"+\xa0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/alert-checks\x90\x02\x01\x12\x91\x01\n" +
 	"\x11ListAlertChannels\x12%.dockwell.v1.ListAlertChannelsRequest\x1a&.dockwell.v1.ListAlertChannelsResponse\"-\xa0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/alert-channels\x90\x02\x01\x12\xb5\x01\n" +
 	"\x13ListAlertDeliveries\x12'.dockwell.v1.ListAlertDeliveriesRequest\x1a(.dockwell.v1.ListAlertDeliveriesResponse\"K\xa0\xbb\x18\x01\xaa\xbb\x18\x18\n" +
 	"\x10alert-deliveries\x12\x04list\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/alert-deliveries\x90\x02\x01\x12\x93\x01\n" +
@@ -1807,10 +2180,11 @@ const file_dockwell_v1_alert_proto_rawDesc = "" +
 	"\x12UnacknowledgeAlert\x12&.dockwell.v1.UnacknowledgeAlertRequest\x1a'.dockwell.v1.UnacknowledgeAlertResponse\"S\xa0\xbb\x18\x03\xaa\xbb\x18\x17\n" +
 	"\x06alerts\x12\runacknowledge\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\":\x01*\"\x1d/v1/alerts/{id}:unacknowledge\x12\x97\x01\n" +
 	"\fUnmuteAlerts\x12 .dockwell.v1.UnmuteAlertsRequest\x1a!.dockwell.v1.UnmuteAlertsResponse\"B\xa0\xbb\x18\x03\xaa\xbb\x18\x10\n" +
-	"\x06alerts\x12\x06unmute\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/alert-mutes:end\x1a\x86\f\xa2\xbb\x18\xae\x03\n" +
+	"\x06alerts\x12\x06unmute\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/alert-mutes:end\x1a\xa2\x0f\xa2\xbb\x18\xae\x03\n" +
 	"\x06alerts\x12\xa3\x03An alert is a rule holding for one thing, such as a server's disk, from when it fires until it resolves. Dockwell evaluates the rules on the control plane, from what it hears of servers already, and sends each alert to the rule's channels, and again when it resolves. ListAlerts shows what's firing and what was. MuteAlerts holds what a rule or a server sends for a while, with no change to apply, and goes on Activity.\xa2\xbb\x18\xbe\x02\n" +
 	"\valert-rules\x12\xae\x02A rule is something Dockwell watches for, such as a disk above 90% for 5 minutes, and who it tells. An install starts with a rule for each condition, which sends to every channel once there is one. Rules are resources: creating, changing and deleting one is a change, with a plan, that undo takes back.\xa2\xbb\x18\xdb\x02\n" +
-	"\x0ealert-channels\x12\xc8\x02A channel is somewhere alerts are sent, such as a webhook. What signs in to it is sealed, never shown again, and a plan says only that it changed. Channels are resources: creating, changing and deleting one is a change, with a plan, that undo takes back. TestAlertChannel sends a test message and says what the far end answered.\xa2\xbb\x18\xdb\x01\n" +
+	"\x0ealert-channels\x12\xc8\x02A channel is somewhere alerts are sent, such as a webhook. What signs in to it is sealed, never shown again, and a plan says only that it changed. Channels are resources: creating, changing and deleting one is a change, with a plan, that undo takes back. TestAlertChannel sends a test message and says what the far end answered.\xa2\xbb\x18\x97\x03\n" +
+	"\falert-checks\x12\x86\x03A check is an address Dockwell asks every so often whether it answers as it should, from the control server: an uptime check. It reads down once as many runs in a row as it says have failed, which the check-down rule alerts on. Checks are resources: creating, changing and deleting one is a change, with a plan, that undo takes back. ListAlertChecks shows how each stands and its last runs.\xa2\xbb\x18\xdb\x01\n" +
 	"\x10alert-deliveries\x12\xc6\x01A delivery is a message Dockwell sent a channel, a test among them: what it was about, when, and what the far end answered, with nothing that signs in. Each channel's last one says whether it works.\xa2\xbb\x18\xcb\x01\n" +
 	"\valert-mutes\x12\xbb\x01A mute holds what a rule or a server sends for a while, during an outage, with no change to apply. dockwell alerts mute starts one and dockwell alerts unmute ends it; both go on Activity.B\xa3\x01\n" +
 	"\x0fcom.dockwell.v1B\n" +
@@ -1828,93 +2202,109 @@ func file_dockwell_v1_alert_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_alert_proto_rawDescData
 }
 
-var file_dockwell_v1_alert_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_alert_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_dockwell_v1_alert_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_dockwell_v1_alert_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_dockwell_v1_alert_proto_goTypes = []any{
 	(AlertState)(0),                     // 0: dockwell.v1.AlertState
-	(*Alert)(nil),                       // 1: dockwell.v1.Alert
-	(*AcknowledgeAlertRequest)(nil),     // 2: dockwell.v1.AcknowledgeAlertRequest
-	(*AcknowledgeAlertResponse)(nil),    // 3: dockwell.v1.AcknowledgeAlertResponse
-	(*UnacknowledgeAlertRequest)(nil),   // 4: dockwell.v1.UnacknowledgeAlertRequest
-	(*UnacknowledgeAlertResponse)(nil),  // 5: dockwell.v1.UnacknowledgeAlertResponse
-	(*ListAlertsRequest)(nil),           // 6: dockwell.v1.ListAlertsRequest
-	(*ListAlertsResponse)(nil),          // 7: dockwell.v1.ListAlertsResponse
-	(*AlertRuleInfo)(nil),               // 8: dockwell.v1.AlertRuleInfo
-	(*ListAlertRulesRequest)(nil),       // 9: dockwell.v1.ListAlertRulesRequest
-	(*ListAlertRulesResponse)(nil),      // 10: dockwell.v1.ListAlertRulesResponse
-	(*AlertDelivery)(nil),               // 11: dockwell.v1.AlertDelivery
-	(*AlertChannelInfo)(nil),            // 12: dockwell.v1.AlertChannelInfo
-	(*ListAlertChannelsRequest)(nil),    // 13: dockwell.v1.ListAlertChannelsRequest
-	(*ListAlertChannelsResponse)(nil),   // 14: dockwell.v1.ListAlertChannelsResponse
-	(*ListAlertDeliveriesRequest)(nil),  // 15: dockwell.v1.ListAlertDeliveriesRequest
-	(*ListAlertDeliveriesResponse)(nil), // 16: dockwell.v1.ListAlertDeliveriesResponse
-	(*TestAlertChannelRequest)(nil),     // 17: dockwell.v1.TestAlertChannelRequest
-	(*TestAlertChannelResponse)(nil),    // 18: dockwell.v1.TestAlertChannelResponse
-	(*AlertMute)(nil),                   // 19: dockwell.v1.AlertMute
-	(*ListAlertMutesRequest)(nil),       // 20: dockwell.v1.ListAlertMutesRequest
-	(*ListAlertMutesResponse)(nil),      // 21: dockwell.v1.ListAlertMutesResponse
-	(*MuteAlertsRequest)(nil),           // 22: dockwell.v1.MuteAlertsRequest
-	(*MuteAlertsResponse)(nil),          // 23: dockwell.v1.MuteAlertsResponse
-	(*UnmuteAlertsRequest)(nil),         // 24: dockwell.v1.UnmuteAlertsRequest
-	(*UnmuteAlertsResponse)(nil),        // 25: dockwell.v1.UnmuteAlertsResponse
-	(v1alpha1.AlertRule_Condition)(0),   // 26: dockwell.resource.v1alpha1.AlertRule.Condition
-	(v1alpha1.AlertRule_Severity)(0),    // 27: dockwell.resource.v1alpha1.AlertRule.Severity
-	(*timestamppb.Timestamp)(nil),       // 28: google.protobuf.Timestamp
-	(*Actor)(nil),                       // 29: dockwell.v1.Actor
-	(*v1alpha1.AlertRule)(nil),          // 30: dockwell.resource.v1alpha1.AlertRule
-	(*v1alpha1.AlertChannel)(nil),       // 31: dockwell.resource.v1alpha1.AlertChannel
+	(AlertCheckState)(0),                // 1: dockwell.v1.AlertCheckState
+	(*Alert)(nil),                       // 2: dockwell.v1.Alert
+	(*AcknowledgeAlertRequest)(nil),     // 3: dockwell.v1.AcknowledgeAlertRequest
+	(*AcknowledgeAlertResponse)(nil),    // 4: dockwell.v1.AcknowledgeAlertResponse
+	(*UnacknowledgeAlertRequest)(nil),   // 5: dockwell.v1.UnacknowledgeAlertRequest
+	(*UnacknowledgeAlertResponse)(nil),  // 6: dockwell.v1.UnacknowledgeAlertResponse
+	(*ListAlertsRequest)(nil),           // 7: dockwell.v1.ListAlertsRequest
+	(*ListAlertsResponse)(nil),          // 8: dockwell.v1.ListAlertsResponse
+	(*AlertRuleInfo)(nil),               // 9: dockwell.v1.AlertRuleInfo
+	(*AlertCheckInfo)(nil),              // 10: dockwell.v1.AlertCheckInfo
+	(*AlertCheckRun)(nil),               // 11: dockwell.v1.AlertCheckRun
+	(*ListAlertChecksRequest)(nil),      // 12: dockwell.v1.ListAlertChecksRequest
+	(*ListAlertChecksResponse)(nil),     // 13: dockwell.v1.ListAlertChecksResponse
+	(*ListAlertRulesRequest)(nil),       // 14: dockwell.v1.ListAlertRulesRequest
+	(*ListAlertRulesResponse)(nil),      // 15: dockwell.v1.ListAlertRulesResponse
+	(*AlertDelivery)(nil),               // 16: dockwell.v1.AlertDelivery
+	(*AlertChannelInfo)(nil),            // 17: dockwell.v1.AlertChannelInfo
+	(*ListAlertChannelsRequest)(nil),    // 18: dockwell.v1.ListAlertChannelsRequest
+	(*ListAlertChannelsResponse)(nil),   // 19: dockwell.v1.ListAlertChannelsResponse
+	(*ListAlertDeliveriesRequest)(nil),  // 20: dockwell.v1.ListAlertDeliveriesRequest
+	(*ListAlertDeliveriesResponse)(nil), // 21: dockwell.v1.ListAlertDeliveriesResponse
+	(*TestAlertChannelRequest)(nil),     // 22: dockwell.v1.TestAlertChannelRequest
+	(*TestAlertChannelResponse)(nil),    // 23: dockwell.v1.TestAlertChannelResponse
+	(*AlertMute)(nil),                   // 24: dockwell.v1.AlertMute
+	(*ListAlertMutesRequest)(nil),       // 25: dockwell.v1.ListAlertMutesRequest
+	(*ListAlertMutesResponse)(nil),      // 26: dockwell.v1.ListAlertMutesResponse
+	(*MuteAlertsRequest)(nil),           // 27: dockwell.v1.MuteAlertsRequest
+	(*MuteAlertsResponse)(nil),          // 28: dockwell.v1.MuteAlertsResponse
+	(*UnmuteAlertsRequest)(nil),         // 29: dockwell.v1.UnmuteAlertsRequest
+	(*UnmuteAlertsResponse)(nil),        // 30: dockwell.v1.UnmuteAlertsResponse
+	(v1alpha1.AlertRule_Condition)(0),   // 31: dockwell.resource.v1alpha1.AlertRule.Condition
+	(v1alpha1.AlertRule_Severity)(0),    // 32: dockwell.resource.v1alpha1.AlertRule.Severity
+	(*timestamppb.Timestamp)(nil),       // 33: google.protobuf.Timestamp
+	(*Actor)(nil),                       // 34: dockwell.v1.Actor
+	(*v1alpha1.AlertRule)(nil),          // 35: dockwell.resource.v1alpha1.AlertRule
+	(*v1alpha1.AlertCheck)(nil),         // 36: dockwell.resource.v1alpha1.AlertCheck
+	(*durationpb.Duration)(nil),         // 37: google.protobuf.Duration
+	(*v1alpha1.AlertChannel)(nil),       // 38: dockwell.resource.v1alpha1.AlertChannel
 }
 var file_dockwell_v1_alert_proto_depIdxs = []int32{
-	26, // 0: dockwell.v1.Alert.condition:type_name -> dockwell.resource.v1alpha1.AlertRule.Condition
-	27, // 1: dockwell.v1.Alert.severity:type_name -> dockwell.resource.v1alpha1.AlertRule.Severity
+	31, // 0: dockwell.v1.Alert.condition:type_name -> dockwell.resource.v1alpha1.AlertRule.Condition
+	32, // 1: dockwell.v1.Alert.severity:type_name -> dockwell.resource.v1alpha1.AlertRule.Severity
 	0,  // 2: dockwell.v1.Alert.state:type_name -> dockwell.v1.AlertState
-	28, // 3: dockwell.v1.Alert.open_time:type_name -> google.protobuf.Timestamp
-	28, // 4: dockwell.v1.Alert.resolve_time:type_name -> google.protobuf.Timestamp
-	28, // 5: dockwell.v1.Alert.sent_time:type_name -> google.protobuf.Timestamp
-	28, // 6: dockwell.v1.Alert.acknowledge_time:type_name -> google.protobuf.Timestamp
-	29, // 7: dockwell.v1.Alert.acknowledged_by:type_name -> dockwell.v1.Actor
-	1,  // 8: dockwell.v1.AcknowledgeAlertResponse.alert:type_name -> dockwell.v1.Alert
-	1,  // 9: dockwell.v1.UnacknowledgeAlertResponse.alert:type_name -> dockwell.v1.Alert
-	1,  // 10: dockwell.v1.ListAlertsResponse.alerts:type_name -> dockwell.v1.Alert
-	30, // 11: dockwell.v1.AlertRuleInfo.spec:type_name -> dockwell.resource.v1alpha1.AlertRule
-	28, // 12: dockwell.v1.AlertRuleInfo.last_fired_time:type_name -> google.protobuf.Timestamp
-	28, // 13: dockwell.v1.AlertRuleInfo.muted_until:type_name -> google.protobuf.Timestamp
-	8,  // 14: dockwell.v1.ListAlertRulesResponse.rules:type_name -> dockwell.v1.AlertRuleInfo
-	28, // 15: dockwell.v1.AlertDelivery.time:type_name -> google.protobuf.Timestamp
-	11, // 16: dockwell.v1.AlertChannelInfo.last:type_name -> dockwell.v1.AlertDelivery
-	31, // 17: dockwell.v1.AlertChannelInfo.channel:type_name -> dockwell.resource.v1alpha1.AlertChannel
-	12, // 18: dockwell.v1.ListAlertChannelsResponse.channels:type_name -> dockwell.v1.AlertChannelInfo
-	11, // 19: dockwell.v1.ListAlertDeliveriesResponse.deliveries:type_name -> dockwell.v1.AlertDelivery
-	31, // 20: dockwell.v1.TestAlertChannelRequest.channel:type_name -> dockwell.resource.v1alpha1.AlertChannel
-	11, // 21: dockwell.v1.TestAlertChannelResponse.delivery:type_name -> dockwell.v1.AlertDelivery
-	28, // 22: dockwell.v1.AlertMute.until:type_name -> google.protobuf.Timestamp
-	19, // 23: dockwell.v1.ListAlertMutesResponse.mutes:type_name -> dockwell.v1.AlertMute
-	19, // 24: dockwell.v1.MuteAlertsResponse.mute:type_name -> dockwell.v1.AlertMute
-	6,  // 25: dockwell.v1.AlertService.ListAlerts:input_type -> dockwell.v1.ListAlertsRequest
-	9,  // 26: dockwell.v1.AlertService.ListAlertRules:input_type -> dockwell.v1.ListAlertRulesRequest
-	13, // 27: dockwell.v1.AlertService.ListAlertChannels:input_type -> dockwell.v1.ListAlertChannelsRequest
-	15, // 28: dockwell.v1.AlertService.ListAlertDeliveries:input_type -> dockwell.v1.ListAlertDeliveriesRequest
-	17, // 29: dockwell.v1.AlertService.TestAlertChannel:input_type -> dockwell.v1.TestAlertChannelRequest
-	20, // 30: dockwell.v1.AlertService.ListAlertMutes:input_type -> dockwell.v1.ListAlertMutesRequest
-	22, // 31: dockwell.v1.AlertService.MuteAlerts:input_type -> dockwell.v1.MuteAlertsRequest
-	2,  // 32: dockwell.v1.AlertService.AcknowledgeAlert:input_type -> dockwell.v1.AcknowledgeAlertRequest
-	4,  // 33: dockwell.v1.AlertService.UnacknowledgeAlert:input_type -> dockwell.v1.UnacknowledgeAlertRequest
-	24, // 34: dockwell.v1.AlertService.UnmuteAlerts:input_type -> dockwell.v1.UnmuteAlertsRequest
-	7,  // 35: dockwell.v1.AlertService.ListAlerts:output_type -> dockwell.v1.ListAlertsResponse
-	10, // 36: dockwell.v1.AlertService.ListAlertRules:output_type -> dockwell.v1.ListAlertRulesResponse
-	14, // 37: dockwell.v1.AlertService.ListAlertChannels:output_type -> dockwell.v1.ListAlertChannelsResponse
-	16, // 38: dockwell.v1.AlertService.ListAlertDeliveries:output_type -> dockwell.v1.ListAlertDeliveriesResponse
-	18, // 39: dockwell.v1.AlertService.TestAlertChannel:output_type -> dockwell.v1.TestAlertChannelResponse
-	21, // 40: dockwell.v1.AlertService.ListAlertMutes:output_type -> dockwell.v1.ListAlertMutesResponse
-	23, // 41: dockwell.v1.AlertService.MuteAlerts:output_type -> dockwell.v1.MuteAlertsResponse
-	3,  // 42: dockwell.v1.AlertService.AcknowledgeAlert:output_type -> dockwell.v1.AcknowledgeAlertResponse
-	5,  // 43: dockwell.v1.AlertService.UnacknowledgeAlert:output_type -> dockwell.v1.UnacknowledgeAlertResponse
-	25, // 44: dockwell.v1.AlertService.UnmuteAlerts:output_type -> dockwell.v1.UnmuteAlertsResponse
-	35, // [35:45] is the sub-list for method output_type
-	25, // [25:35] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	33, // 3: dockwell.v1.Alert.open_time:type_name -> google.protobuf.Timestamp
+	33, // 4: dockwell.v1.Alert.resolve_time:type_name -> google.protobuf.Timestamp
+	33, // 5: dockwell.v1.Alert.sent_time:type_name -> google.protobuf.Timestamp
+	33, // 6: dockwell.v1.Alert.acknowledge_time:type_name -> google.protobuf.Timestamp
+	34, // 7: dockwell.v1.Alert.acknowledged_by:type_name -> dockwell.v1.Actor
+	2,  // 8: dockwell.v1.AcknowledgeAlertResponse.alert:type_name -> dockwell.v1.Alert
+	2,  // 9: dockwell.v1.UnacknowledgeAlertResponse.alert:type_name -> dockwell.v1.Alert
+	2,  // 10: dockwell.v1.ListAlertsResponse.alerts:type_name -> dockwell.v1.Alert
+	35, // 11: dockwell.v1.AlertRuleInfo.spec:type_name -> dockwell.resource.v1alpha1.AlertRule
+	33, // 12: dockwell.v1.AlertRuleInfo.last_fired_time:type_name -> google.protobuf.Timestamp
+	33, // 13: dockwell.v1.AlertRuleInfo.muted_until:type_name -> google.protobuf.Timestamp
+	36, // 14: dockwell.v1.AlertCheckInfo.spec:type_name -> dockwell.resource.v1alpha1.AlertCheck
+	1,  // 15: dockwell.v1.AlertCheckInfo.state:type_name -> dockwell.v1.AlertCheckState
+	33, // 16: dockwell.v1.AlertCheckInfo.since:type_name -> google.protobuf.Timestamp
+	11, // 17: dockwell.v1.AlertCheckInfo.runs:type_name -> dockwell.v1.AlertCheckRun
+	33, // 18: dockwell.v1.AlertCheckRun.time:type_name -> google.protobuf.Timestamp
+	37, // 19: dockwell.v1.AlertCheckRun.took:type_name -> google.protobuf.Duration
+	10, // 20: dockwell.v1.ListAlertChecksResponse.checks:type_name -> dockwell.v1.AlertCheckInfo
+	9,  // 21: dockwell.v1.ListAlertRulesResponse.rules:type_name -> dockwell.v1.AlertRuleInfo
+	33, // 22: dockwell.v1.AlertDelivery.time:type_name -> google.protobuf.Timestamp
+	16, // 23: dockwell.v1.AlertChannelInfo.last:type_name -> dockwell.v1.AlertDelivery
+	38, // 24: dockwell.v1.AlertChannelInfo.channel:type_name -> dockwell.resource.v1alpha1.AlertChannel
+	17, // 25: dockwell.v1.ListAlertChannelsResponse.channels:type_name -> dockwell.v1.AlertChannelInfo
+	16, // 26: dockwell.v1.ListAlertDeliveriesResponse.deliveries:type_name -> dockwell.v1.AlertDelivery
+	38, // 27: dockwell.v1.TestAlertChannelRequest.channel:type_name -> dockwell.resource.v1alpha1.AlertChannel
+	16, // 28: dockwell.v1.TestAlertChannelResponse.delivery:type_name -> dockwell.v1.AlertDelivery
+	33, // 29: dockwell.v1.AlertMute.until:type_name -> google.protobuf.Timestamp
+	24, // 30: dockwell.v1.ListAlertMutesResponse.mutes:type_name -> dockwell.v1.AlertMute
+	24, // 31: dockwell.v1.MuteAlertsResponse.mute:type_name -> dockwell.v1.AlertMute
+	7,  // 32: dockwell.v1.AlertService.ListAlerts:input_type -> dockwell.v1.ListAlertsRequest
+	14, // 33: dockwell.v1.AlertService.ListAlertRules:input_type -> dockwell.v1.ListAlertRulesRequest
+	12, // 34: dockwell.v1.AlertService.ListAlertChecks:input_type -> dockwell.v1.ListAlertChecksRequest
+	18, // 35: dockwell.v1.AlertService.ListAlertChannels:input_type -> dockwell.v1.ListAlertChannelsRequest
+	20, // 36: dockwell.v1.AlertService.ListAlertDeliveries:input_type -> dockwell.v1.ListAlertDeliveriesRequest
+	22, // 37: dockwell.v1.AlertService.TestAlertChannel:input_type -> dockwell.v1.TestAlertChannelRequest
+	25, // 38: dockwell.v1.AlertService.ListAlertMutes:input_type -> dockwell.v1.ListAlertMutesRequest
+	27, // 39: dockwell.v1.AlertService.MuteAlerts:input_type -> dockwell.v1.MuteAlertsRequest
+	3,  // 40: dockwell.v1.AlertService.AcknowledgeAlert:input_type -> dockwell.v1.AcknowledgeAlertRequest
+	5,  // 41: dockwell.v1.AlertService.UnacknowledgeAlert:input_type -> dockwell.v1.UnacknowledgeAlertRequest
+	29, // 42: dockwell.v1.AlertService.UnmuteAlerts:input_type -> dockwell.v1.UnmuteAlertsRequest
+	8,  // 43: dockwell.v1.AlertService.ListAlerts:output_type -> dockwell.v1.ListAlertsResponse
+	15, // 44: dockwell.v1.AlertService.ListAlertRules:output_type -> dockwell.v1.ListAlertRulesResponse
+	13, // 45: dockwell.v1.AlertService.ListAlertChecks:output_type -> dockwell.v1.ListAlertChecksResponse
+	19, // 46: dockwell.v1.AlertService.ListAlertChannels:output_type -> dockwell.v1.ListAlertChannelsResponse
+	21, // 47: dockwell.v1.AlertService.ListAlertDeliveries:output_type -> dockwell.v1.ListAlertDeliveriesResponse
+	23, // 48: dockwell.v1.AlertService.TestAlertChannel:output_type -> dockwell.v1.TestAlertChannelResponse
+	26, // 49: dockwell.v1.AlertService.ListAlertMutes:output_type -> dockwell.v1.ListAlertMutesResponse
+	28, // 50: dockwell.v1.AlertService.MuteAlerts:output_type -> dockwell.v1.MuteAlertsResponse
+	4,  // 51: dockwell.v1.AlertService.AcknowledgeAlert:output_type -> dockwell.v1.AcknowledgeAlertResponse
+	6,  // 52: dockwell.v1.AlertService.UnacknowledgeAlert:output_type -> dockwell.v1.UnacknowledgeAlertResponse
+	30, // 53: dockwell.v1.AlertService.UnmuteAlerts:output_type -> dockwell.v1.UnmuteAlertsResponse
+	43, // [43:54] is the sub-list for method output_type
+	32, // [32:43] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_alert_proto_init() }
@@ -1929,8 +2319,8 @@ func file_dockwell_v1_alert_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_alert_proto_rawDesc), len(file_dockwell_v1_alert_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   25,
+			NumEnums:      2,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
