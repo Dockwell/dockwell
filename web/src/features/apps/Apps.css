@@ -2534,3 +2534,16 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
   gap: var(--space-4) var(--space-3);
 }
+
+/* Where an app answers, in its header's line: its address, which opens it. */
+.app-head-at {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+.app-head-at:hover code {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

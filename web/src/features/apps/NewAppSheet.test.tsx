@@ -130,8 +130,9 @@ describe("New app, from an image", () => {
     expect(applies[0]?.fingerprint).toBe("feedfacefeedfacefeedfacefeedface");
     watch.push(watched(moved(planned(), { state: ChangeState.APPLIED })));
     const done = await screen.findByRole("dialog", { name: "nginx is deployed" });
+    // Once it's up, the arrival's own button opens the app at its log.
     await user.click(within(done).getByRole("button", { name: "Open nginx" }));
-    await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_nginx"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_nginx/logs"));
   });
 
   it("comes back to the form when the first deploy fails, which Dockwell rolled back", async () => {

@@ -345,9 +345,10 @@ export function NewAppSheet({
           setPlan(undefined);
           return;
         }
-        // Undone in the same sheet, it has no page to open.
+        // Undone in the same sheet, it has no page to open. Made, it opens at its log, which
+        // starts from its first line, with where it answers in its head.
         if (open === "app" && service && after.reverts === "") {
-          void navigate({ to: "/apps/$serviceId", params: { serviceId: service.id } });
+          void navigate({ to: "/apps/$serviceId/logs", params: { serviceId: service.id } });
         } else void navigate({ to: "/apps" });
       },
     });
