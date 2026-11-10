@@ -1055,7 +1055,7 @@ func Methods() []*apicli.Method {
 			Noun:      "firewall",
 			Verb:      "get",
 			Short:     "Reads",
-			Long:      "Reads, through the server's agent, the firewalls already there, each with its\nown tool: ufw, firewalld's zones, nftables's tables other than ufw's, Docker's\nand firewalld's, and iptables-legacy, or iptables on a server without nft. It\nsays what each allows and drops; what listens on the server, and how far each\nreaches past them, never open where it can't tell; and the ports Docker\npublishes, which reach their containers past ufw's and firewalld's input rules.",
+			Long:      "Reads, through the server's agent, the firewalls already there, each with its\nown tool: ufw, firewalld's zones, nftables's tables other than ufw's, Docker's\nand firewalld's, and iptables-legacy, or iptables on a server without nft. It\nsays what each allows and drops; what listens on the server, and how far each\nreaches past them, never open where it can't tell; and the ports Docker\npublishes, which reach their containers past ufw's and firewalld's input rules.\nA server's firewall is the whole server's, not a project's, so reading it is an\nadmin's (ADR 0049), as reading its updates is.",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server's ID."},

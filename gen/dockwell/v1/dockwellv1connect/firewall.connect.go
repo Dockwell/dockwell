@@ -48,7 +48,9 @@ type FirewallServiceClient interface {
 	// iptables on a server without nft. It says what each allows and drops; what
 	// listens on the server, and how far each reaches past them, never open
 	// where it can't tell; and the ports Docker publishes, which reach their
-	// containers past ufw's and firewalld's input rules.
+	// containers past ufw's and firewalld's input rules. A server's firewall is
+	// the whole server's, not a project's, so reading it is an admin's (ADR
+	// 0049), as reading its updates is.
 	GetServerFirewall(context.Context, *connect.Request[v1.GetServerFirewallRequest]) (*connect.Response[v1.GetServerFirewallResponse], error)
 }
 
@@ -91,7 +93,9 @@ type FirewallServiceHandler interface {
 	// iptables on a server without nft. It says what each allows and drops; what
 	// listens on the server, and how far each reaches past them, never open
 	// where it can't tell; and the ports Docker publishes, which reach their
-	// containers past ufw's and firewalld's input rules.
+	// containers past ufw's and firewalld's input rules. A server's firewall is
+	// the whole server's, not a project's, so reading it is an admin's (ADR
+	// 0049), as reading its updates is.
 	GetServerFirewall(context.Context, *connect.Request[v1.GetServerFirewallRequest]) (*connect.Response[v1.GetServerFirewallResponse], error)
 }
 

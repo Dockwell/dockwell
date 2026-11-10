@@ -1074,10 +1074,10 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\x16FIREWALL_VERDICT_ALLOW\x10\x01\x12\x19\n" +
 	"\x15FIREWALL_VERDICT_DENY\x10\x02\x12\x1b\n" +
 	"\x17FIREWALL_VERDICT_REJECT\x10\x03\x12\x1a\n" +
-	"\x16FIREWALL_VERDICT_LIMIT\x10\x042\xba\x01\n" +
-	"\x0fFirewallService\x12\xa6\x01\n" +
-	"\x11GetServerFirewall\x12%.dockwell.v1.GetServerFirewallRequest\x1a&.dockwell.v1.GetServerFirewallResponse\"B\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +
-	"\bfirewall\x12\x03get\x82\xd3\xe4\x93\x02\"\x12 /v1/servers/{server_id}/firewall\x90\x02\x01B\xa6\x01\n" +
+	"\x16FIREWALL_VERDICT_LIMIT\x10\x042\xc6\x01\n" +
+	"\x0fFirewallService\x12\xb2\x01\n" +
+	"\x11GetServerFirewall\x12%.dockwell.v1.GetServerFirewallRequest\x1a&.dockwell.v1.GetServerFirewallResponse\"N\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +
+	"\bfirewall\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\"\x12 /v1/servers/{server_id}/firewall\x90\x02\x01B\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rFirewallProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

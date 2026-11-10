@@ -17,10 +17,15 @@ service FirewallService {
   // iptables on a server without nft. It says what each allows and drops; what
   // listens on the server, and how far each reaches past them, never open
   // where it can't tell; and the ports Docker publishes, which reach their
-  // containers past ufw's and firewalld's input rules.
+  // containers past ufw's and firewalld's input rules. A server's firewall is
+  // the whole server's, not a project's, so reading it is an admin's (ADR
+  // 0049), as reading its updates is.
   rpc GetServerFirewall(GetServerFirewallRequest) returns (GetServerFirewallResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.command) = {
       noun: "firewall"
       verb: "get"
