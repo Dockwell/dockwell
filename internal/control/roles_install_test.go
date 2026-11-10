@@ -29,7 +29,7 @@ func TestAServersFilesAreAnAdmins(t *testing.T) {
 		b := signedIn(t, f)
 		hold := aMember(t, f)
 		files := dockwellv1connect.NewFileServiceClient(b, b.origin, connect.WithProtoJSON())
-		alerts := dockwellv1connect.NewAlertServiceClient(b, b.origin, connect.WithProtoJSON())
+		alertAPI := dockwellv1connect.NewAlertServiceClient(b, b.origin, connect.WithProtoJSON())
 		ctx := t.Context()
 
 		hold(onInstall(store.RoleDeveloper))
@@ -50,15 +50,15 @@ func TestAServersFilesAreAnAdmins(t *testing.T) {
 
 		// Alerts are about every server and project, and their channels say where
 		// messages go, so reading and muting them is an admin's too.
-		_, err = alerts.ListAlerts(ctx, connect.NewRequest(&dockwellv1.ListAlertsRequest{}))
+		_, err = alertAPI.ListAlerts(ctx, connect.NewRequest(&dockwellv1.ListAlertsRequest{}))
 		needsRole(t, "a developer reading alerts", err)
-		_, err = alerts.ListAlertChannels(ctx, connect.NewRequest(&dockwellv1.ListAlertChannelsRequest{}))
+		_, err = alertAPI.ListAlertChannels(ctx, connect.NewRequest(&dockwellv1.ListAlertChannelsRequest{}))
 		needsRole(t, "a developer reading alert channels", err)
-		_, err = alerts.MuteAlerts(ctx, connect.NewRequest(&dockwellv1.MuteAlertsRequest{Rule: "disk", Duration: "1h"}))
+		_, err = alertAPI.MuteAlerts(ctx, connect.NewRequest(&dockwellv1.MuteAlertsRequest{Rule: "disk", Duration: "1h"}))
 		needsRole(t, "a developer muting a rule", err)
 
 		hold(onInstall(store.RoleAdmin))
-		if _, err := alerts.ListAlerts(ctx, connect.NewRequest(&dockwellv1.ListAlertsRequest{})); err != nil {
+		if _, err := alertAPI.ListAlerts(ctx, connect.NewRequest(&dockwellv1.ListAlertsRequest{})); err != nil {
 			t.Errorf("an admin reading alerts: %v", err)
 		}
 		res, _ := rawREST(t, b, http.MethodPut, "/v1/servers/srv_none/uploads/upl_none?offset=later", []byte("abc"), nil)
