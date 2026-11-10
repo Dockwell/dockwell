@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Server } from "@dockwell/api";
+import { type Server, ServerService } from "@dockwell/api";
 import {
   Button,
   cx,
@@ -19,6 +19,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
 import { useServices } from "../apps/useServices";
+import { useMay } from "../auth/may";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AddServerSheet } from "./AddServerSheet";
@@ -67,6 +68,7 @@ export function ServersPage({
   const status = usePageReconnecting(fleet.status);
   const phone = useMediaQuery(PHONE_QUERY);
   const [adding, setAdding] = useState(false);
+  const mayAdd = useMay()(ServerService.method.createJoinTicket);
   const servers = useMemo(
     () => (fleet.status === "connecting" ? [] : [...fleet.servers].sort((a, b) => a.name.localeCompare(b.name))),
     [fleet],
@@ -105,19 +107,22 @@ export function ServersPage({
       phoneSub={lead}
       status={status}
       actions={
-        <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>
+        <Button variant="primary" icon="plus" onClick={() => setAdding(true)} {...mayAdd.off}>
           <Trans>Add server</Trans>
         </Button>
       }
       phoneAction={
-        <button
-          type="button"
-          className="mobile-header-button"
-          aria-label={t`Add server`}
-          onClick={() => setAdding(true)}
-        >
-          <Icon name="plus" size={20} />
-        </button>
+        // A header icon has no room for a reason: it's there only for whoever may use it.
+        mayAdd.allowed ? (
+          <button
+            type="button"
+            className="mobile-header-button"
+            aria-label={t`Add server`}
+            onClick={() => setAdding(true)}
+          >
+            <Icon name="plus" size={20} />
+          </button>
+        ) : undefined
       }
     >
       {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : null}
@@ -126,7 +131,7 @@ export function ServersPage({
           icon="server"
           title={<Trans>No servers yet</Trans>}
           action={
-            <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>
+            <Button variant="primary" icon="plus" onClick={() => setAdding(true)} {...mayAdd.off}>
               <Trans>Add server</Trans>
             </Button>
           }

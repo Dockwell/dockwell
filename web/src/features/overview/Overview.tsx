@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Connection, type Server } from "@dockwell/api";
+import { Connection, type Server, ServerService } from "@dockwell/api";
 import { Button, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
+import { useMay } from "../auth/may";
 import { AddServerSheet } from "../servers/AddServerSheet";
 import { Connecting, FleetUnreadNote, usePageReconnecting } from "../servers/FleetNotes";
 import { ServerCallout } from "../servers/ServerCallout";
@@ -118,13 +119,14 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
 /** No server has joined: adding one is the way on. */
 function NoServers() {
   const [adding, setAdding] = useState(false);
+  const mayAdd = useMay()(ServerService.method.createJoinTicket);
   return (
     <>
       <EmptyState
         icon="server"
         title={<Trans>No servers yet</Trans>}
         action={
-          <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>
+          <Button variant="primary" icon="plus" onClick={() => setAdding(true)} {...mayAdd.off}>
             <Trans>Add server</Trans>
           </Button>
         }

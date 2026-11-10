@@ -20,6 +20,7 @@ import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { useNow } from "../../lib/time";
 import { PasskeyError } from "../../lib/webauthn";
+import { useMay } from "../auth/may";
 import { StepUpDeclined, withStepUpIfAsked } from "../auth/stepUp";
 import { shortVersion } from "../shell/version";
 import { CopyCommand } from "../system/CopyCommand";
@@ -69,6 +70,9 @@ export function AddServerSheet({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
   const [addressing, setAddressing] = useState(false);
+  const may = useMay();
+  const mayMake = may(ServerService.method.createJoinTicket);
+  const maySetAddress = may(ServerService.method.setServerPublicAddress);
   const now = useNow(15_000);
   const read = useQuery(
     ServerService.method.getJoinTicket,
@@ -145,7 +149,7 @@ export function AddServerSheet({
           </Callout>
         ) : null}
         <div className="servers-add-make">
-          <Button variant="primary" icon="key" loading={busy} onClick={() => void make()}>
+          <Button variant="primary" icon="key" loading={busy} onClick={() => void make()} {...mayMake.off}>
             {busy ? t`Making the command` : t`Make the command`}
           </Button>
           <span className="servers-add-meta">
@@ -206,7 +210,7 @@ export function AddServerSheet({
           {expired ? (
             <>
               <StatusBadge status="stopped" label={t`This command expired`} labelIsState />
-              <Button size="sm" icon="key" loading={busy} onClick={() => void make()}>
+              <Button size="sm" icon="key" loading={busy} onClick={() => void make()} {...mayMake.off}>
                 <Trans>Make a new command</Trans>
               </Button>
             </>
@@ -227,7 +231,7 @@ export function AddServerSheet({
             }
             actions={
               controlServer ? (
-                <Button size="sm" onClick={() => setAddressing(true)}>
+                <Button size="sm" onClick={() => setAddressing(true)} {...maySetAddress.off}>
                   <Trans>Set public address</Trans>
                 </Button>
               ) : null
