@@ -126,3 +126,25 @@ func TestPresentationChangesDoNotOfferAnUpgrade(t *testing.T) {
 		}
 	}
 }
+
+// What an install's plan says a person needs comes from the entry's fields, a short
+// sentence each, for the CLI as for the panel.
+func TestFirstWordsSayHowToSignIn(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]string{
+		"postgres":    "Sign in to adminer to server db as postgres, with the password in the POSTGRES_PASSWORD secret.",
+		"pgadmin":     "Sign in to pgadmin as your email, with the password in the PGADMIN_PASSWORD secret.",
+		"nextcloud":   "Sign in to nextcloud as the admin user you give, with the password in the NEXTCLOUD_ADMIN_PASSWORD secret.",
+		"gitea":       "Its first account is its owner, so make yours before it has a domain.",
+		"t3code":      "Sign in to t3code with the key in the T3_SETUP_KEY secret. Open /__setup on its domain and sign in with the setup key.",
+		"cloudflared": "In Cloudflare, publish your domain on this tunnel to http://127.0.0.1:80, then add it to an app here as behind a tunnel.",
+	} {
+		e, _ := c.Entry(id)
+		if got := catalog.FirstWords(e); got != want {
+			t.Errorf("%s says %q, want %q", id, got, want)
+		}
+	}
+}

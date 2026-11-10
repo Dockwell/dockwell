@@ -100,8 +100,8 @@ const (
 	// A value kept as one of the project's secrets, encrypted and used by
 	// reference. Its ${NAME} must be a whole environment value, or a word of a
 	// command or a health check, so that a rotation reaches the service. An app
-	// that reads it on first start alone keeps what it read, which the entry's
-	// first steps must say.
+	// that reads it on first start alone keeps what it read, which the input's
+	// set_once says.
 	InputType_INPUT_TYPE_SECRET InputType = 4
 )
 
@@ -188,8 +188,10 @@ type Entry struct {
 	// The service a person opens once it's installed. Unset for an app with
 	// nothing to open, such as a tunnel.
 	Web *Web `protobuf:"bytes,13,opt,name=web,proto3" json:"web,omitempty"`
-	// What to do first once it runs, in a sentence or two, such as how to sign
-	// in. Empty when there's nothing to say.
+	// What to do first once it runs, in one short sentence, where no field below
+	// says it: the panel shows sign_in, first_visitor_owns, signups and
+	// address_variables as state and actions, and never as words here. Empty when
+	// there's nothing more to say, as for most entries.
 	FirstSteps string `protobuf:"bytes,14,opt,name=first_steps,json=firstSteps,proto3" json:"first_steps,omitempty"`
 	// What it reaches on its server beyond its own containers, in words, such as
 	// "The server's own network, to reach routes on loopback". A person approves
@@ -213,7 +215,23 @@ type Entry struct {
 	// The app's source repository, distinct from the source of this entry.
 	AppSource string `protobuf:"bytes,21,opt,name=app_source,json=appSource,proto3" json:"app_source,omitempty"`
 	// A short list of things the app can do, in the catalog's own words.
-	Features      []string `protobuf:"bytes,22,rep,name=features,proto3" json:"features,omitempty"`
+	Features []string `protobuf:"bytes,22,rep,name=features,proto3" json:"features,omitempty"`
+	// How a person signs in to what web opens, which the panel shows with the
+	// password to reveal and copy, rather than says. Unset for an app with no
+	// sign-in of its own, or whose first visitor makes the account.
+	SignIn *SignIn `protobuf:"bytes,23,opt,name=sign_in,json=signIn,proto3" json:"sign_in,omitempty"`
+	// The first person to open what web opens makes its owner account. The
+	// panel says so on its page, and before a domain makes it public.
+	FirstVisitorOwns bool `protobuf:"varint,24,opt,name=first_visitor_owns,json=firstVisitorOwns,proto3" json:"first_visitor_owns,omitempty"`
+	// What closes sign-ups once the owner's account is made, for an app that lets
+	// anyone who reaches it make one. The panel offers to close them.
+	Signups *Signups `protobuf:"bytes,25,opt,name=signups,proto3" json:"signups,omitempty"`
+	// Variables a service builds its links or checks requests from, which follow
+	// the domain added to what web opens, such as Ghost's url.
+	AddressVariables []*AddressVariable `protobuf:"bytes,26,rep,name=address_variables,json=addressVariables,proto3" json:"address_variables,omitempty"`
+	// What a person may want to know of the app as it runs here, a line each,
+	// such as "Transcodes on the server's CPU". Never steps to follow.
+	Notes         []string `protobuf:"bytes,27,rep,name=notes,proto3" json:"notes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -402,6 +420,256 @@ func (x *Entry) GetFeatures() []string {
 	return nil
 }
 
+func (x *Entry) GetSignIn() *SignIn {
+	if x != nil {
+		return x.SignIn
+	}
+	return nil
+}
+
+func (x *Entry) GetFirstVisitorOwns() bool {
+	if x != nil {
+		return x.FirstVisitorOwns
+	}
+	return false
+}
+
+func (x *Entry) GetSignups() *Signups {
+	if x != nil {
+		return x.Signups
+	}
+	return nil
+}
+
+func (x *Entry) GetAddressVariables() []*AddressVariable {
+	if x != nil {
+		return x.AddressVariables
+	}
+	return nil
+}
+
+func (x *Entry) GetNotes() []string {
+	if x != nil {
+		return x.Notes
+	}
+	return nil
+}
+
+// SignIn is how a person signs in to an app once it's installed.
+type SignIn struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The user, as the app's sign-in asks for it, such as "root". Empty when
+	// user_input holds it.
+	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	// The input that holds the user, such as "ADMIN_EMAIL".
+	UserInput string `protobuf:"bytes,2,opt,name=user_input,json=userInput,proto3" json:"user_input,omitempty"`
+	// The secret input that holds the password, such as
+	// "MARIADB_ROOT_PASSWORD".
+	PasswordInput string `protobuf:"bytes,3,opt,name=password_input,json=passwordInput,proto3" json:"password_input,omitempty"`
+	// The server the sign-in asks for, where it asks, such as "db" for Adminer.
+	Server string `protobuf:"bytes,4,opt,name=server,proto3" json:"server,omitempty"`
+	// Where in the app a person changes the password, for an app that reads it
+	// on its first start alone (the input's set_once), such as "Profile".
+	ChangedIn     string `protobuf:"bytes,5,opt,name=changed_in,json=changedIn,proto3" json:"changed_in,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignIn) Reset() {
+	*x = SignIn{}
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignIn) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignIn) ProtoMessage() {}
+
+func (x *SignIn) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignIn.ProtoReflect.Descriptor instead.
+func (*SignIn) Descriptor() ([]byte, []int) {
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SignIn) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *SignIn) GetUserInput() string {
+	if x != nil {
+		return x.UserInput
+	}
+	return ""
+}
+
+func (x *SignIn) GetPasswordInput() string {
+	if x != nil {
+		return x.PasswordInput
+	}
+	return ""
+}
+
+func (x *SignIn) GetServer() string {
+	if x != nil {
+		return x.Server
+	}
+	return ""
+}
+
+func (x *SignIn) GetChangedIn() string {
+	if x != nil {
+		return x.ChangedIn
+	}
+	return ""
+}
+
+// Signups is the variable that closes an app's sign-ups.
+type Signups struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service, by its name in the Compose file, such as "gitea".
+	Service string `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	// The variable, such as "SIGNUPS_ALLOWED".
+	Variable string `protobuf:"bytes,2,opt,name=variable,proto3" json:"variable,omitempty"`
+	// What closes them, such as "false".
+	Closed        string `protobuf:"bytes,3,opt,name=closed,proto3" json:"closed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Signups) Reset() {
+	*x = Signups{}
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Signups) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Signups) ProtoMessage() {}
+
+func (x *Signups) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Signups.ProtoReflect.Descriptor instead.
+func (*Signups) Descriptor() ([]byte, []int) {
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Signups) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *Signups) GetVariable() string {
+	if x != nil {
+		return x.Variable
+	}
+	return ""
+}
+
+func (x *Signups) GetClosed() string {
+	if x != nil {
+		return x.Closed
+	}
+	return ""
+}
+
+// AddressVariable is a variable that follows the domain an app is reached at.
+type AddressVariable struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service, by its name in the Compose file, such as "ghost".
+	Service string `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	// The variable, such as "url".
+	Variable string `protobuf:"bytes,2,opt,name=variable,proto3" json:"variable,omitempty"`
+	// What it's set to, with {domain} where the domain goes, such as
+	// "https://{domain}", or a value of its own that goes with a domain, such
+	// as "https" for Nextcloud's OVERWRITEPROTOCOL.
+	Value         string `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddressVariable) Reset() {
+	*x = AddressVariable{}
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddressVariable) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddressVariable) ProtoMessage() {}
+
+func (x *AddressVariable) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddressVariable.ProtoReflect.Descriptor instead.
+func (*AddressVariable) Descriptor() ([]byte, []int) {
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *AddressVariable) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *AddressVariable) GetVariable() string {
+	if x != nil {
+		return x.Variable
+	}
+	return ""
+}
+
+func (x *AddressVariable) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
 // Screenshot is a preview a person can read before starting an installation.
 // Media ships with the panel; browsing never asks a third-party host for it.
 type Screenshot struct {
@@ -418,7 +686,7 @@ type Screenshot struct {
 
 func (x *Screenshot) Reset() {
 	*x = Screenshot{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[1]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -430,7 +698,7 @@ func (x *Screenshot) String() string {
 func (*Screenshot) ProtoMessage() {}
 
 func (x *Screenshot) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[1]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -443,7 +711,7 @@ func (x *Screenshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Screenshot.ProtoReflect.Descriptor instead.
 func (*Screenshot) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Screenshot) GetPath() string {
@@ -482,7 +750,7 @@ type Source struct {
 
 func (x *Source) Reset() {
 	*x = Source{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[2]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -494,7 +762,7 @@ func (x *Source) String() string {
 func (*Source) ProtoMessage() {}
 
 func (x *Source) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[2]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -507,7 +775,7 @@ func (x *Source) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Source.ProtoReflect.Descriptor instead.
 func (*Source) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Source) GetRepository() string {
@@ -558,14 +826,18 @@ type Input struct {
 	Logged bool `protobuf:"varint,8,opt,name=logged,proto3" json:"logged,omitempty"`
 	// How a generated secret is written, for an app that reads it as a key: letters
 	// and digits unless set.
-	GenerateAs    GenerateAs `protobuf:"varint,80,opt,name=generate_as,json=generateAs,proto3,enum=dockwell.catalog.v1alpha1.GenerateAs" json:"generate_as,omitempty"`
+	GenerateAs GenerateAs `protobuf:"varint,80,opt,name=generate_as,json=generateAs,proto3,enum=dockwell.catalog.v1alpha1.GenerateAs" json:"generate_as,omitempty"`
+	// The app reads this secret on its first start alone, or encrypts what it
+	// keeps with it, so setting the secret anew changes nothing or loses what it
+	// encrypted. The panel marks it, and says where to change it, if anywhere.
+	SetOnce       bool `protobuf:"varint,9,opt,name=set_once,json=setOnce,proto3" json:"set_once,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Input) Reset() {
 	*x = Input{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[3]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -577,7 +849,7 @@ func (x *Input) String() string {
 func (*Input) ProtoMessage() {}
 
 func (x *Input) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[3]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -590,7 +862,7 @@ func (x *Input) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Input.ProtoReflect.Descriptor instead.
 func (*Input) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Input) GetName() string {
@@ -656,6 +928,13 @@ func (x *Input) GetGenerateAs() GenerateAs {
 	return GenerateAs_GENERATE_AS_UNSPECIFIED
 }
 
+func (x *Input) GetSetOnce() bool {
+	if x != nil {
+		return x.SetOnce
+	}
+	return false
+}
+
 // Web says what a person opens once an entry is installed.
 type Web struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -667,7 +946,7 @@ type Web struct {
 
 func (x *Web) Reset() {
 	*x = Web{}
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[4]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -679,7 +958,7 @@ func (x *Web) String() string {
 func (*Web) ProtoMessage() {}
 
 func (x *Web) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[4]
+	mi := &file_dockwell_catalog_v1alpha1_entry_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -692,7 +971,7 @@ func (x *Web) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Web.ProtoReflect.Descriptor instead.
 func (*Web) Descriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Web) GetService() string {
@@ -706,7 +985,7 @@ var File_dockwell_catalog_v1alpha1_entry_proto protoreflect.FileDescriptor
 
 const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\n" +
-	"%dockwell/catalog/v1alpha1/entry.proto\x12\x19dockwell.catalog.v1alpha1\"\xed\x05\n" +
+	"%dockwell/catalog/v1alpha1/entry.proto\x12\x19dockwell.catalog.v1alpha1\"\x84\b\n" +
 	"\x05Entry\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -734,7 +1013,28 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\rdocumentation\x18\x14 \x01(\tR\rdocumentation\x12\x1d\n" +
 	"\n" +
 	"app_source\x18\x15 \x01(\tR\tappSource\x12\x1a\n" +
-	"\bfeatures\x18\x16 \x03(\tR\bfeatures\"R\n" +
+	"\bfeatures\x18\x16 \x03(\tR\bfeatures\x12:\n" +
+	"\asign_in\x18\x17 \x01(\v2!.dockwell.catalog.v1alpha1.SignInR\x06signIn\x12,\n" +
+	"\x12first_visitor_owns\x18\x18 \x01(\bR\x10firstVisitorOwns\x12<\n" +
+	"\asignups\x18\x19 \x01(\v2\".dockwell.catalog.v1alpha1.SignupsR\asignups\x12W\n" +
+	"\x11address_variables\x18\x1a \x03(\v2*.dockwell.catalog.v1alpha1.AddressVariableR\x10addressVariables\x12\x14\n" +
+	"\x05notes\x18\x1b \x03(\tR\x05notes\"\x99\x01\n" +
+	"\x06SignIn\x12\x12\n" +
+	"\x04user\x18\x01 \x01(\tR\x04user\x12\x1d\n" +
+	"\n" +
+	"user_input\x18\x02 \x01(\tR\tuserInput\x12%\n" +
+	"\x0epassword_input\x18\x03 \x01(\tR\rpasswordInput\x12\x16\n" +
+	"\x06server\x18\x04 \x01(\tR\x06server\x12\x1d\n" +
+	"\n" +
+	"changed_in\x18\x05 \x01(\tR\tchangedIn\"W\n" +
+	"\aSignups\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\x12\x1a\n" +
+	"\bvariable\x18\x02 \x01(\tR\bvariable\x12\x16\n" +
+	"\x06closed\x18\x03 \x01(\tR\x06closed\"]\n" +
+	"\x0fAddressVariable\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\x12\x1a\n" +
+	"\bvariable\x18\x02 \x01(\tR\bvariable\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\"R\n" +
 	"\n" +
 	"Screenshot\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
@@ -745,7 +1045,7 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"repository\x18\x01 \x01(\tR\n" +
 	"repository\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
-	"\x06commit\x18\x03 \x01(\tR\x06commit\"\xbc\x02\n" +
+	"\x06commit\x18\x03 \x01(\tR\x06commit\"\xd7\x02\n" +
 	"\x05Input\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12\x12\n" +
@@ -756,7 +1056,8 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\bgenerate\x18\a \x01(\rR\bgenerate\x12\x16\n" +
 	"\x06logged\x18\b \x01(\bR\x06logged\x12F\n" +
 	"\vgenerate_as\x18P \x01(\x0e2%.dockwell.catalog.v1alpha1.GenerateAsR\n" +
-	"generateAs\"\x1f\n" +
+	"generateAs\x12\x19\n" +
+	"\bset_once\x18\t \x01(\bR\asetOnce\"\x1f\n" +
 	"\x03Web\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice*V\n" +
 	"\n" +
@@ -786,28 +1087,34 @@ func file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_catalog_v1alpha1_entry_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_dockwell_catalog_v1alpha1_entry_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_dockwell_catalog_v1alpha1_entry_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_dockwell_catalog_v1alpha1_entry_proto_goTypes = []any{
-	(GenerateAs)(0),    // 0: dockwell.catalog.v1alpha1.GenerateAs
-	(InputType)(0),     // 1: dockwell.catalog.v1alpha1.InputType
-	(*Entry)(nil),      // 2: dockwell.catalog.v1alpha1.Entry
-	(*Screenshot)(nil), // 3: dockwell.catalog.v1alpha1.Screenshot
-	(*Source)(nil),     // 4: dockwell.catalog.v1alpha1.Source
-	(*Input)(nil),      // 5: dockwell.catalog.v1alpha1.Input
-	(*Web)(nil),        // 6: dockwell.catalog.v1alpha1.Web
+	(GenerateAs)(0),         // 0: dockwell.catalog.v1alpha1.GenerateAs
+	(InputType)(0),          // 1: dockwell.catalog.v1alpha1.InputType
+	(*Entry)(nil),           // 2: dockwell.catalog.v1alpha1.Entry
+	(*SignIn)(nil),          // 3: dockwell.catalog.v1alpha1.SignIn
+	(*Signups)(nil),         // 4: dockwell.catalog.v1alpha1.Signups
+	(*AddressVariable)(nil), // 5: dockwell.catalog.v1alpha1.AddressVariable
+	(*Screenshot)(nil),      // 6: dockwell.catalog.v1alpha1.Screenshot
+	(*Source)(nil),          // 7: dockwell.catalog.v1alpha1.Source
+	(*Input)(nil),           // 8: dockwell.catalog.v1alpha1.Input
+	(*Web)(nil),             // 9: dockwell.catalog.v1alpha1.Web
 }
 var file_dockwell_catalog_v1alpha1_entry_proto_depIdxs = []int32{
-	4, // 0: dockwell.catalog.v1alpha1.Entry.source:type_name -> dockwell.catalog.v1alpha1.Source
-	5, // 1: dockwell.catalog.v1alpha1.Entry.inputs:type_name -> dockwell.catalog.v1alpha1.Input
-	6, // 2: dockwell.catalog.v1alpha1.Entry.web:type_name -> dockwell.catalog.v1alpha1.Web
-	3, // 3: dockwell.catalog.v1alpha1.Entry.screenshots:type_name -> dockwell.catalog.v1alpha1.Screenshot
-	1, // 4: dockwell.catalog.v1alpha1.Input.type:type_name -> dockwell.catalog.v1alpha1.InputType
-	0, // 5: dockwell.catalog.v1alpha1.Input.generate_as:type_name -> dockwell.catalog.v1alpha1.GenerateAs
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	7, // 0: dockwell.catalog.v1alpha1.Entry.source:type_name -> dockwell.catalog.v1alpha1.Source
+	8, // 1: dockwell.catalog.v1alpha1.Entry.inputs:type_name -> dockwell.catalog.v1alpha1.Input
+	9, // 2: dockwell.catalog.v1alpha1.Entry.web:type_name -> dockwell.catalog.v1alpha1.Web
+	6, // 3: dockwell.catalog.v1alpha1.Entry.screenshots:type_name -> dockwell.catalog.v1alpha1.Screenshot
+	3, // 4: dockwell.catalog.v1alpha1.Entry.sign_in:type_name -> dockwell.catalog.v1alpha1.SignIn
+	4, // 5: dockwell.catalog.v1alpha1.Entry.signups:type_name -> dockwell.catalog.v1alpha1.Signups
+	5, // 6: dockwell.catalog.v1alpha1.Entry.address_variables:type_name -> dockwell.catalog.v1alpha1.AddressVariable
+	1, // 7: dockwell.catalog.v1alpha1.Input.type:type_name -> dockwell.catalog.v1alpha1.InputType
+	0, // 8: dockwell.catalog.v1alpha1.Input.generate_as:type_name -> dockwell.catalog.v1alpha1.GenerateAs
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_catalog_v1alpha1_entry_proto_init() }
@@ -821,7 +1128,7 @@ func file_dockwell_catalog_v1alpha1_entry_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_catalog_v1alpha1_entry_proto_rawDesc), len(file_dockwell_catalog_v1alpha1_entry_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   5,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

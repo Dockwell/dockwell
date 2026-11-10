@@ -4966,8 +4966,8 @@ msgstr "文档"
 msgid "Explore the app"
 msgstr "了解应用"
 
-msgid "Getting started"
-msgstr "开始使用"
+msgid "Good to know"
+msgstr "须知"
 
 msgid "Included in this install"
 msgstr "本次安装包含"
@@ -5138,11 +5138,11 @@ msgstr "{version} 的运行方式有更新。"
 msgid "From the catalog"
 msgstr "来自应用目录"
 
+msgid "Its secrets"
+msgstr "它的密钥"
+
 msgid "Review the change"
 msgstr "查看更改"
-
-msgid "Show its secrets"
-msgstr "查看它的密钥"
 
 msgid "Upgrade to {next}"
 msgstr "升级到 {next}"
@@ -5152,6 +5152,60 @@ msgstr "已发布版本 {next}。"
 
 msgid "{name} {version}"
 msgstr "{name} {version}"
+
+msgid "Answers on this server alone, on port {port}, until it has a domain"
+msgstr "在有域名之前，只在此服务器的 {port} 端口上响应"
+
+msgid "Anyone who reaches it can make an account until sign-ups close"
+msgstr "在关闭注册之前，任何能访问它的人都可以创建账号"
+
+msgid "Anyone who reaches it can make an account, until you close sign-ups"
+msgstr "在你关闭注册之前，任何能访问它的人都可以创建账号"
+
+msgid "Close sign-ups"
+msgstr "关闭注册"
+
+msgid "Close sign-ups to {app}"
+msgstr "关闭 {app} 的注册"
+
+msgid "Copy the SSH tunnel command"
+msgstr "复制 SSH 隧道命令"
+
+msgid "Its first account is its owner"
+msgstr "它的第一个账号就是所有者"
+
+msgid "Its first account is its owner: make yours before it has a domain"
+msgstr "它的第一个账号就是所有者：请在它有域名之前创建你的账号"
+
+msgid "Point {app} at {domain}"
+msgstr "将 {app} 指向 {domain}"
+
+msgid "SSH tunnel command copied"
+msgstr "已复制 SSH 隧道命令"
+
+msgid "Set as it first started: change it in {app}, in {where}"
+msgstr "首次启动时设定：请在 {app} 的「{where}」中修改"
+
+msgid "Set to {domain}"
+msgstr "设为 {domain}"
+
+msgid "Signs in as {user}"
+msgstr "以 {user} 登录"
+
+msgid "Signs in as {user}, with a password Dockwell generates and seals"
+msgstr "以 {user} 登录，密码由 Dockwell 生成并加密保存"
+
+msgid "Signs in with a key Dockwell generates and seals"
+msgstr "使用 Dockwell 生成并加密保存的密钥登录"
+
+msgid "Signs in with a key you give"
+msgstr "使用你提供的密钥登录"
+
+msgid "{names} follow its domain, {domain}"
+msgstr "{names} 跟随它的域名 {domain}"
+
+msgid "{names} follow the domain you add"
+msgstr "{names} 跟随你添加的域名"
 
 msgid "Open full size"
 msgstr "查看原图"

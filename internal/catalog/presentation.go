@@ -3,6 +3,7 @@
 package catalog
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/url"
@@ -63,4 +64,43 @@ func checkPresentation(e *catalogv1.Entry) error {
 func presentationLink(address string) bool {
 	u, err := url.Parse(address)
 	return err == nil && u.Scheme == "https" && u.Hostname() != "" && u.User == nil && !strings.ContainsAny(address, "\r\n\t ")
+}
+
+// FirstWords is what an install's plan says a person needs, in words, as the CLI
+// shows a plan as the panel does: how to sign in, that its first account owns it, and
+// its first steps, a short sentence each. The panel shows the same as state on the
+// app's page once it runs.
+func FirstWords(e *catalogv1.Entry) string {
+	var out []string
+	if s := e.GetSignIn(); s != nil {
+		web := cmp.Or(e.GetWeb().GetService(), e.GetName())
+		user := s.GetUser()
+		for _, in := range e.GetInputs() {
+			if user == "" && in.GetName() == s.GetUserInput() {
+				label := strings.ToLower(in.GetLabel())
+				if user = label; !strings.HasPrefix(label, "your ") {
+					user = "the " + label + " you give"
+				}
+			}
+		}
+		server := ""
+		if s.GetServer() != "" {
+			server = " to server " + s.GetServer()
+		}
+		switch {
+		case user != "" && s.GetPasswordInput() != "":
+			out = append(out, fmt.Sprintf("Sign in to %s%s as %s, with the password in the %s secret.", web, server, user, s.GetPasswordInput()))
+		case s.GetPasswordInput() != "":
+			out = append(out, fmt.Sprintf("Sign in to %s with the key in the %s secret.", web, s.GetPasswordInput()))
+		case user != "":
+			out = append(out, fmt.Sprintf("Sign in to %s%s as %s.", web, server, user))
+		}
+	}
+	if e.GetFirstVisitorOwns() {
+		out = append(out, "Its first account is its owner, so make yours before it has a domain.")
+	}
+	if steps := strings.TrimSpace(e.GetFirstSteps()); steps != "" {
+		out = append(out, steps)
+	}
+	return strings.Join(out, " ")
 }

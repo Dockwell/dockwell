@@ -50,6 +50,7 @@ import { asGoodAsRoot } from "../changes/plan";
 import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
+import { Facts, useEntryFacts } from "./access";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
 
@@ -148,6 +149,8 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
   const more = inputs.filter((input) => !onTop(input));
 
   const name = (typedName ?? got.data?.project ?? "").trim();
+  // What it says of itself, as state, beside its defaults; how it signs in is under Advanced.
+  const facts = useEntryFacts(entry).filter((f) => f.key !== "sign-in");
   const nameOpen = changing.has("name") || nameError !== undefined;
   // A default shows as its field once someone changes it, and from the start when there's no default to show.
   const open = (input: Input) => changing.has(input.name) || suggested(input) === "";
@@ -365,6 +368,7 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
               )}
               {entry.hostAccess ? <Chosen label={t`Reaches`} value={entry.hostAccess} tone="warning" /> : null}
             </div>
+            <Facts facts={facts} className="catalog-sheet-facts" />
             <Advanced open={advancedOpen} onOpenChange={setAdvancedOpen} summary={summary}>
               {more.map(field)}
               {generated.length > 0 ? (

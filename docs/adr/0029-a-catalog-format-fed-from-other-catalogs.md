@@ -208,6 +208,21 @@ On 8 Nov 2026, at Dokploy's `b40194a4`, it read 602 templates. 80 convert once a
 
 **Converted entries aren't committed yet.** A run is about 1 MB of entries, reports and pins, and nothing keeps them current: a source moves, a young version comes of age, and a pin's image is rebuilt. They're committed once a scheduled job reruns the converter with the overlays and pins, so what's in a repository is what the converter writes today, and a person reviews only what changed.
 
+### What an entry says, as state
+
+*Added with #426, as every entry's first steps had grown into a paragraph, shown four times: on its store page, in the install sheet, in the plan and on its app's page.*
+
+Most of what the first steps said was something the panel could show or do: where to sign in and with what, that the first visitor owns the app, that sign-ups stay open until closed, which variables follow a domain, which secret is set once. Each is now a field the panel shows as state, with the action that resolves it, and the first steps are one short sentence at most, for what no field says.
+
+- **`sign_in`** names the user, or the input that holds it, the secret input that holds the password, the server a sign-in form asks for, and where the app keeps its password once set. The app's page shows it as a card to copy from, with the password to reveal in place, not as a sentence naming a secret.
+- **`first_visitor_owns`** says the first person to open the app makes its owner account. The app's page says so, and until the app has a domain, to make that account first.
+- **`signups`** names the variable that closes sign-ups, and its value. The app's page offers to close them, as a plan.
+- **`address_variables`** name the variables that follow the domain added to what the app opens, with `{domain}` where it goes, or a value that goes with a domain, such as `https`. The app's page offers to set them to the domain it has, as a plan.
+- **`notes`** are what a person may want to know of the app as it runs here, one line each, which the store page lists. Never steps to follow.
+- **`Input.set_once`** marks a secret the app reads on its first start alone, or encrypts with, so setting it anew changes nothing or loses what it encrypted. A database's own users aren't among them since ADR 0038 says how their passwords follow their secrets.
+- What the panel can tell from the entry or the server says nothing in words: a port on loopback answers only on this server, and the panel says so beside it; how to reach it before a domain is the panel's to offer (ADR 0061), not a tunnel command in a note.
+- `Check` refuses a field that names no input or service of the entry's own, and a note that isn't one line of 120 characters at most. The built-in entries keep their first steps to one sentence of 140 characters, and each field's hint to one line, which their tests check. The converters' entries keep writing first steps as before, which a person's overlay moves into these fields.
+
 ### What we turned down
 
 - **Running 1Panel's format directly.** It would tie the product to a format that can't express plans, secrets or backups, and it would run scripts on the host.

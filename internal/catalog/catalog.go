@@ -223,6 +223,9 @@ func Check(e *catalogv1.Entry) error {
 	if err := checkDatabases(e); err != nil {
 		return err
 	}
+	if err := checkAccess(e); err != nil {
+		return err
+	}
 	seen := map[string]bool{}
 	for _, in := range e.GetInputs() {
 		name := in.GetName()
@@ -241,6 +244,8 @@ func Check(e *catalogv1.Entry) error {
 			return fmt.Errorf("the secret %s generates %d, too few to guess at. Generate at least 16", name, in.GetGenerate())
 		case in.GetGenerateAs() != catalogv1.GenerateAs_GENERATE_AS_UNSPECIFIED && in.GetGenerate() == 0:
 			return fmt.Errorf("the input %s says how to write what it generates, and generates nothing. Set generate, or take generate_as away", name)
+		case in.GetSetOnce() && in.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET:
+			return fmt.Errorf("the input %s is set once, which only a secret is. Take set_once away", name)
 		}
 		seen[name] = true
 		if Secret(in) {
@@ -269,6 +274,70 @@ func checkDatabases(e *catalogv1.Entry) error {
 		}
 	}
 	return nil
+}
+
+// checkAccess refuses what an entry says of signing in, sign-ups and its address
+// that names no input or service of its own, and a note that isn't one short line.
+func checkAccess(e *catalogv1.Entry) error {
+	inputs := map[string]*catalogv1.Input{}
+	for _, in := range e.GetInputs() {
+		inputs[in.GetName()] = in
+	}
+	if s := e.GetSignIn(); s != nil {
+		password := inputs[s.GetPasswordInput()]
+		switch {
+		case s.GetUser() != "" && s.GetUserInput() != "":
+			return errors.New("its sign-in names a user and an input for one. Keep one")
+		case s.GetUserInput() != "" && (inputs[s.GetUserInput()] == nil || Secret(inputs[s.GetUserInput()])):
+			return fmt.Errorf("its sign-in takes the user from %s, which isn't an input of its own that isn't a secret", s.GetUserInput())
+		case s.GetPasswordInput() != "" && (password == nil || !Secret(password)):
+			return fmt.Errorf("its sign-in takes the password from %s, which isn't one of its secret inputs", s.GetPasswordInput())
+		case s.GetChangedIn() != "" && !password.GetSetOnce():
+			return fmt.Errorf("its sign-in says where the password changes in the app, and %s isn't set once. Set set_once on it, or take changed_in away", s.GetPasswordInput())
+		case e.GetWeb().GetService() == "":
+			return errors.New("it says how to sign in, and has no web service to sign in to. Set web")
+		}
+	}
+	services, err := composeServices(e.GetCompose())
+	if err != nil {
+		return err
+	}
+	if s := e.GetSignups(); s != nil {
+		if _, ok := services[s.GetService()]; !ok || !envName.MatchString(s.GetVariable()) || s.GetClosed() == "" {
+			return fmt.Errorf("its sign-ups close with %s=%s on %s, which needs a service it runs, a variable's name and a value", s.GetVariable(), s.GetClosed(), s.GetService())
+		}
+	}
+	for _, a := range e.GetAddressVariables() {
+		if _, ok := services[a.GetService()]; !ok || !envName.MatchString(a.GetVariable()) || a.GetValue() == "" {
+			return fmt.Errorf("its address sets %s on %s, which needs a service it runs, a variable's name and a value", a.GetVariable(), a.GetService())
+		}
+		if strings.Contains(strings.ReplaceAll(a.GetValue(), "{domain}", ""), "{") {
+			return fmt.Errorf("its address sets %s to %q, which names something other than {domain}", a.GetVariable(), a.GetValue())
+		}
+	}
+	for _, n := range e.GetNotes() {
+		if strings.TrimSpace(n) == "" || strings.ContainsAny(n, "\r\n") || len(n) > maxNote {
+			return fmt.Errorf("its note %q isn't one line of up to %d characters. Split it, or say it in fewer words", n, maxNote)
+		}
+	}
+	return nil
+}
+
+// maxNote is how long a note may be: one line, as a person reads it.
+const maxNote = 120
+
+// envName is a variable a service's environment takes, in any case, as Ghost's url is.
+var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*$`)
+
+// composeServices is a Compose file's services, by name.
+func composeServices(compose string) (map[string]any, error) {
+	var file struct {
+		Services map[string]any `yaml:"services"`
+	}
+	if err := yaml.Unmarshal([]byte(compose), &file); err != nil {
+		return nil, fmt.Errorf("its Compose file isn't YAML: %w", err)
+	}
+	return file.Services, nil
 }
 
 // standsAlone refuses a secret inside a longer value. An upgrade stands something in for
