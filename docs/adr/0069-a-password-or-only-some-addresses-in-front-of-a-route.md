@@ -24,7 +24,7 @@ What there is to build on:
 ### A password: only its hash is kept, and never shown again
 
 - **A user** is a name (1 to 64 characters, no `:` or space) and a password. A route has at most 20.
-- **An edit gives a password, or a bcrypt hash** (`$2a$`, `$2b$` or `$2y$`, as htpasswd and a 1Panel import have them). A password is at least 12 characters. The control plane keeps only a bcrypt hash at cost 10: validating a route hashes a password that isn't a hash, so no revision, change, event or log ever holds the password. `password` is `(sensitive)`, so the hash is sealed at rest, masked in plans, and never in a response. There is nothing to reveal, with a passkey or without one.
+- **An edit gives a password, or a bcrypt hash** (`$2a$`, `$2b$` or `$2y$`, as htpasswd and a 1Panel import have them). A password is at least 12 characters. The control plane keeps only a bcrypt hash at cost 10: as an edit is proposed, before anything compares or stores it, the control plane hashes a password that isn't a hash. The route kind's own checks, which the agent runs too, take only a hash. So no revision, change, event, log or server ever holds the password, and bcrypt stays out of the agent build. `password` is `(sensitive)`, so the hash is sealed at rest, masked in plans, and never in a response. There is nothing to reveal, with a passkey or without one.
 - **No guess is confirmed.** A password is hashed with a new salt each time, so setting one always plans as a change, whatever it is, as setting a secret does. A hash given as a hash compares as any field: whoever has it gains nothing.
 - **What an edit doesn't give, it keeps.** An edit that names a user with no password keeps that user's hash (`resource.Keeper`), so changing a route's port from a client that can't read hashes keeps every password. A user the edit leaves out is gone; a new user with no password is refused.
 - **Where it goes:** to the agent of each server the route runs on, as the route's own config, and into that Caddy's config. Nothing else is sent anywhere.
@@ -69,4 +69,4 @@ The PRD's "OIDC proxy" is a third member of `access`, not built here: `sign_in`,
 - Basic auth and an app's own `Authorization` header don't mix; an address list does.
 - Address lists are only as good as the address a route believes, which ADR 0030 set; behind a tunnel with no trusted proxy, they say nothing, and the plan says so.
 - The panel's own domain is out of scope by design.
-- The agent build gains no dependency: hashing is the control plane's, and the agent only writes what the route says into Caddy's config.
+- The agent build gains no dependency: hashing is the control plane's, outside the route kind's package, which the agent links, and the agent only writes the hash the route holds into Caddy's config.
