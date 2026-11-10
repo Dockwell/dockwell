@@ -1283,6 +1283,16 @@ type Unplaced interface {
 	Unplaced()
 }
 
+// Capped is a Type an install keeps at most so many of, such as checks of a URL,
+// which each cost the control plane a request an interval (ADR 0066). A plan
+// that would take the install past Cap is refused, with CapWords' reason.
+type Capped interface {
+	Cap() int
+	// CapWords says why a plan that would make the install have more than Cap
+	// is refused, and what to do instead.
+	CapWords(have int) string
+}
+
 // Rotates is a Type whose sensitive fields plan as a change whenever an edit sets
 // them, as a secret's value does, and are never compared with what's there, so a
 // plan can't confirm a guess at one (ADR 0022).

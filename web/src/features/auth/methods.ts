@@ -22,13 +22,14 @@ export type PanelUse =
 
 export const PANEL_METHODS: Record<string, PanelUse> = {
   "AlertService.acknowledgeAlert": { within: "AlertService.listAlerts" },
+  "AlertService.listAlertChecks": "may",
   "AlertService.listAlertChannels": { within: "AlertService.listAlerts" },
   "AlertService.listAlertDeliveries": { within: "AlertService.listAlerts" },
   "AlertService.listAlertMutes": "unused",
   "AlertService.listAlertRules": { within: "AlertService.listAlerts" },
   "AlertService.listAlerts": "may",
   "AlertService.muteAlerts": "unused",
-  "AlertService.testAlertChannel": { within: "AlertService.listAlerts" },
+  "AlertService.testAlertChannel": "may",
   "AlertService.unmuteAlerts": "unused",
   "AlertService.unacknowledgeAlert": { within: "AlertService.listAlerts" },
 

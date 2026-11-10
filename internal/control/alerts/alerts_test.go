@@ -375,6 +375,14 @@ func TestWhatAMessageSaysOfManyAndOfOneClosed(t *testing.T) {
 	if got := (Message{Status: "firing", Rule: r, Alerts: down(30), At: t0}).Title(); got != "30 apps are down" {
 		t.Errorf("30 apps down reads %q", got)
 	}
+	addresses := down(3)
+	for i := range addresses {
+		addresses[i].Condition = int32(resourcev1.AlertRule_CONDITION_CHECK_DOWN)
+	}
+	checkDown := &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_CHECK_DOWN}
+	if got := (Message{Status: "firing", Rule: checkDown, Alerts: addresses, At: t0}).Title(); got != "3 addresses are down" {
+		t.Errorf("3 addresses down reads %q", got)
+	}
 	gone := down(1)[0]
 	at := t0.Add(time.Hour)
 	gone.ResolvedAt, gone.Ended = &at, "removed"

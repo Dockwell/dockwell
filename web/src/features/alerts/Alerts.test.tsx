@@ -182,7 +182,74 @@ describe("Alert channels", () => {
     expect(await screen.findByRole("dialog", { name: "Add a channel" })).toBeVisible();
   });
 
-  it("adds an email channel: a test sends what the form holds, and the plan carries it", async () => {
+  it("leaves a channel's Review plan off, with why, for someone who can't plan the install's channels", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/alerts/channels",
+      api([], {
+        auth: {
+          getAuthState: () =>
+            authState({
+              user: { ...mira, role: Role.UNSPECIFIED },
+              grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+            }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add channel" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
+    const review = within(sheet).getByRole("button", { name: "Review plan" });
+    expect(review).toHaveAttribute("aria-disabled", "true");
+    expect(review).not.toHaveAccessibleDescription("");
+  });
+
+  it("adds email through a mail service, which fills in its server, named from its type", async () => {
+    const user = userEvent.setup();
+    const asked: TestAlertChannelRequest[] = [];
+    const proposed = planned();
+    renderAt(
+      "/alerts/channels",
+      api([ops], {
+        alerts: {
+          testAlertChannel: (req) => {
+            asked.push(req);
+            return { delivery: { ok: true, said: "accepted by smtp.gmail.com" } };
+          },
+        },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add channel" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
+    expect(within(sheet).getByLabelText("Mail service")).toHaveValue("gmail");
+    // The server's settings and the name wait under Advanced, said in a line.
+    expect(within(sheet).queryByLabelText("SMTP server")).toBeNull();
+    expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveTextContent(
+      "Named email · smtp.gmail.com:587 · STARTTLS",
+    );
+    const send = within(sheet).getByRole("button", { name: "Send a test" });
+    await user.type(within(sheet).getByLabelText("To"), "ops@example.com, oncall@example.com");
+    await user.type(within(sheet).getByLabelText("From"), "alerts@example.com");
+    await user.type(within(sheet).getByLabelText(/^User/), "alerts@example.com");
+    expect(send).toBeDisabled();
+    await user.type(within(sheet).getByLabelText(/^Password/), "s3cret");
+    await user.click(send);
+    expect(await within(sheet).findByText("The test arrived")).toBeVisible();
+    expect(asked[0]?.channel?.to).toMatchObject({
+      case: "email",
+      value: {
+        host: "smtp.gmail.com",
+        port: 587,
+        security: Security.STARTTLS,
+        to: ["ops@example.com", "oncall@example.com"],
+      },
+    });
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    expect(proposed.mock.calls[0]?.[0].edits[0]?.resource).toMatchObject({ kind: "alert.channel", name: "email" });
+  });
+
+  it("takes another SMTP server as typed, and a name of one's own under Advanced", async () => {
     const user = userEvent.setup();
     const asked: TestAlertChannelRequest[] = [];
     const proposed = planned();
@@ -200,32 +267,28 @@ describe("Alert channels", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Add channel" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
-    const send = within(sheet).getByRole("button", { name: "Send a test" });
-    expect(send).toBeDisabled();
-    await user.type(within(sheet).getByLabelText("Name"), "team-email");
-    await user.type(within(sheet).getByLabelText("To"), "ops@example.com, oncall@example.com");
+    await user.selectOptions(within(sheet).getByLabelText("Mail service"), "other");
+    const server = within(sheet).getByLabelText("SMTP server");
+    // Another server starts empty, not as the service picked before.
+    expect(server).toHaveValue("");
+    await user.type(server, "smtp.example.net");
+    await user.type(within(sheet).getByLabelText("To"), "ops@example.com");
     await user.type(within(sheet).getByLabelText("From"), "alerts@example.com");
-    await user.type(within(sheet).getByLabelText("SMTP server"), "smtp.example.net");
     await user.type(within(sheet).getByLabelText(/^User/), "alerts");
-    expect(send).toBeDisabled();
     await user.type(within(sheet).getByLabelText(/^Password/), "s3cret");
-    await user.click(send);
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    const name = within(sheet).getByLabelText("Name");
+    await user.clear(name);
+    await user.type(name, "team-email");
+    await user.click(within(sheet).getByRole("button", { name: "Send a test" }));
     expect(await within(sheet).findByText("The test arrived")).toBeVisible();
-    expect(asked[0]?.name).toBe("");
     expect(asked[0]?.channel?.to).toMatchObject({
       case: "email",
-      value: {
-        host: "smtp.example.net",
-        username: "alerts",
-        password: "s3cret",
-        to: ["ops@example.com", "oncall@example.com"],
-      },
+      value: { host: "smtp.example.net", username: "alerts" },
     });
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await waitFor(() => expect(proposed).toHaveBeenCalled());
-    const edit = proposed.mock.calls[0]?.[0].edits[0];
-    expect(edit?.resource).toMatchObject({ kind: "alert.channel", name: "team-email" });
-    expect(edit?.spec?.kind).toMatchObject({ case: "alertChannel", value: { to: { case: "email" } } });
+    expect(proposed.mock.calls[0]?.[0].edits[0]?.resource).toMatchObject({ kind: "alert.channel", name: "team-email" });
   });
 
   it("changes a channel without asking again for what it keeps sealed", async () => {
@@ -285,22 +348,81 @@ describe("Alert channels", () => {
       api([ops], {
         alerts: {
           testAlertChannel: () => {
-            throw new ConnectError(
-              "the email's server, port, security or user changes, so it needs its password again: Dockwell won't send what it kept to where it hasn't sent before",
-              Code.InvalidArgument,
-            );
+            throw new ConnectError("the to address example.invalid has no mail server", Code.InvalidArgument);
           },
         },
       }),
     );
     await user.click(await channelRow(/ops-email/));
     const sheet = await screen.findByRole("dialog", { name: "Change ops-email" });
+    await user.click(within(sheet).getByRole("button", { name: "Send a test" }));
+    expect(await within(sheet).findByText("Dockwell didn't send it")).toBeVisible();
+    expect(within(sheet).getByText(/has no mail server/)).toBeVisible();
+  });
+
+  it("asks for the password again once the mail server it was kept for changes", async () => {
+    const user = userEvent.setup();
+    const asked: TestAlertChannelRequest[] = [];
+    renderAt(
+      "/alerts/channels",
+      api([ops], {
+        alerts: {
+          testAlertChannel: (req) => {
+            asked.push(req);
+            return { delivery: { ok: true, said: "accepted by smtp.example.net" } };
+          },
+        },
+      }),
+    );
+    await user.click(await channelRow(/ops-email/));
+    const sheet = await screen.findByRole("dialog", { name: "Change ops-email" });
+    const password = within(sheet).getByLabelText(/^Password/);
+    expect(password).toHaveAttribute("placeholder", "Kept, sealed");
     const host = within(sheet).getByLabelText("SMTP server");
     await user.clear(host);
     await user.type(host, "smtp.example.net");
+    // The control plane won't send the kept one there: the field says so, and nothing goes without it.
+    expect(within(sheet).getByText("Its server changed, so give the password again.")).toBeVisible();
+    expect(password).not.toHaveAttribute("placeholder");
+    expect(within(sheet).getByRole("button", { name: "Send a test" })).toBeDisabled();
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
+    await user.type(password, "n3w-s3cret");
     await user.click(within(sheet).getByRole("button", { name: "Send a test" }));
-    expect(await within(sheet).findByText("Dockwell didn't send it")).toBeVisible();
-    expect(within(sheet).getByText(/needs its password again/)).toBeVisible();
+    expect(await within(sheet).findByText("The test arrived")).toBeVisible();
+    expect(asked[0]?.channel?.to).toMatchObject({
+      case: "email",
+      value: { host: "smtp.example.net", password: "n3w-s3cret" },
+    });
+    // Back on the server it was kept for, the kept one does again.
+    await user.clear(password);
+    await user.clear(host);
+    await user.type(host, "SMTP.example.com");
+    expect(within(sheet).getByText("Dockwell keeps it sealed. Leave it empty to keep it.")).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled();
+  });
+
+  it("says why a name can't be taken, with Advanced held open on it", async () => {
+    const user = userEvent.setup();
+    renderAt("/alerts/channels", api([ops]));
+    await user.click(await screen.findByRole("button", { name: "Add channel" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
+    await user.type(within(sheet).getByLabelText("To"), "ops@example.com");
+    await user.type(within(sheet).getByLabelText("From"), "alerts@example.com");
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    const name = within(sheet).getByLabelText("Name");
+    await user.clear(name);
+    expect(within(sheet).getByText("A channel needs a name: lowercase letters, digits and dashes.")).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
+    // Closing Advanced would hide why the buttons are off: it stays open.
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    expect(within(sheet).getByLabelText("Name")).toBeVisible();
+    await user.type(name, "ops-email");
+    expect(within(sheet).getByText(/Another channel has this name/)).toBeVisible();
+    await user.clear(name);
+    // What's typed becomes a name it can take.
+    await user.type(name, "Team Hooks");
+    expect(name).toHaveValue("team-hooks");
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled();
   });
 
   it("lists channels on a phone, with a test for each", async () => {
@@ -754,6 +876,28 @@ describe("Alerts and rules", () => {
     const review = within(sheet).getByRole("button", { name: "Review plan" });
     expect(review).toHaveAttribute("aria-disabled", "true");
     expect(review).not.toHaveAccessibleDescription("");
+  });
+
+  it.each([
+    ["memory", Condition.MEMORY_HIGH, "When memory in use is over", "90", { threshold: 90 }],
+    ["certificate", Condition.CERTIFICATE_EXPIRING, "When it expires within", "14", { threshold: 14 }],
+    ["late backup", Condition.BACKUP_LATE, "When a run is late by", "1h", { duration: "1h" }],
+  ])("plans a %s rule with no level of its own at the default it shows", async (_, condition, label, shown, sent) => {
+    const user = userEvent.setup();
+    const proposeChange = planned();
+    const bare = create(AlertRuleInfoSchema, { id: "alr_bare", name: "bare", title: "Bare rule", spec: { condition } });
+    renderAt(
+      "/alerts/rules",
+      api([ops], { changes: { proposeChange }, alerts: { listAlertRules: () => ({ rules: [bare] }) } }),
+    );
+    const table = await screen.findByRole("table", { name: "Alert rules" });
+    await user.click(within(table).getByRole("row", { name: /Bare rule/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Bare rule" });
+    expect(within(sheet).getByLabelText(label)).toHaveValue(shown);
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposeChange).toHaveBeenCalled());
+    const spec = proposeChange.mock.calls[0]?.[0].edits[0]?.spec?.kind;
+    expect(spec?.case === "alertRule" ? spec.value : undefined).toMatchObject(sent);
   });
 
   it("turns a rule off, and asks nothing else of one that's off", async () => {

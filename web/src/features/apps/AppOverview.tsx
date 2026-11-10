@@ -40,6 +40,7 @@ import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { happenedAt, useDescribe, useHealthEventWords } from "../activity/describe";
+import { WatchAddress } from "../alerts/WatchAddress";
 import { type Offer, useMay } from "../auth/may";
 import { AppBackups } from "../backups/AppBackups";
 import { InstalledPanel } from "../catalog/InstalledPanel";
@@ -621,6 +622,9 @@ function DomainRow({
         <DomainFacts domain={domain} route={route} look={look} silent={silent} read={read} />
       </div>
       <div className="app-reach-acts">
+        {said ? (
+          <WatchAddress url={visitorUrl(domain, route)} where={where} serving={look.state === "serving"} />
+        ) : null}
         {said && look.state === "serving" ? (
           <a
             className="app-reach-open"

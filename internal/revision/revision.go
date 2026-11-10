@@ -651,6 +651,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		if err := e.checkRoles(ctx, tx, p.Actor, nil, items, planning); err != nil {
 			return err
 		}
+		if err := e.capsHeld(ctx, tx, items); err != nil {
+			return err
+		}
 		return e.portsOutOfReach(ctx, tx, items)
 	}); err != nil {
 		return nil, err
@@ -3119,6 +3122,15 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 		// rollback since it was planned.
 		if err := e.unmoved(ctx, tx.Tx, c, items); err != nil {
 			return err
+		}
+		// A kind's cap holds as the change commits, not only as it was planned:
+		// plans made side by side each counted the same, and this transaction,
+		// held under e.mu, is the one count no other apply runs beside. A
+		// rollback puts back what was, which held the cap then.
+		if !rollback {
+			if err := e.capsHeld(ctx, tx.Tx, items); err != nil {
+				return err
+			}
 		}
 		for i := range items {
 			it := &items[i]
