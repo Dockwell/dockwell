@@ -94,6 +94,8 @@ const (
 	// StepUpInvite invites someone. Its target is the email, the role and the
 	// place, as InviteTarget writes them.
 	StepUpInvite StepUpAction = "member.invite"
+	// StepUpAddServer makes a ticket that adds a server to the fleet.
+	StepUpAddServer StepUpAction = "server.add"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -120,6 +122,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpDeleteWayBackIn:  {"deleting", true},
 	StepUpRestoreWayBackIn: {"putting back", true},
 	StepUpInvite:           {"inviting", true},
+	StepUpAddServer:        {"adding a server", false},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".

@@ -1,0 +1,40 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* The state sits inside the field, after the number, as a word with its shape. */
+.dw-port-field .dw-input-suffix {
+  background: transparent;
+  border-left: 0;
+  padding-left: 0;
+}
+.dw-port-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans, inherit);
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.dw-port-state.is-free {
+  color: var(--healthy);
+}
+.dw-port-state.is-taken {
+  color: var(--critical);
+}
+.dw-port-state.is-checking .dw-glyph {
+  color: var(--cobalt);
+}
+/* Taking the free port offered is a link-sized action in the line under the field. */
+.dw-port-use {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--cobalt);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.dw-port-use:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

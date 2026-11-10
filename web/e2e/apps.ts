@@ -167,6 +167,11 @@ try {
     await page.getByLabel("Your name").fill("Mira Chen");
     await page.getByLabel("Email").fill("mira@acme.dev");
     await page.getByRole("button", { name: "Create passkey" }).click();
+    // A new owner starts where the first app comes from, with the overview a click away.
+    await page
+      .getByRole("heading", { level: 1, name: "What do you want to run?", exact: true })
+      .waitFor({ timeout: 15_000 });
+    await page.getByRole("link", { name: "Skip to the overview" }).click();
     await page.getByRole("heading", { level: 1, name: "Overview", exact: true }).waitFor({ timeout: 15_000 });
     await page.locator(".dw-metric", { hasText: "CPU" }).waitFor({ timeout: 20_000 });
     await appsFlow(page, {

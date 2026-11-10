@@ -2499,3 +2499,26 @@
 .app-env-hidden textarea {
   -webkit-text-security: disc;
 }
+
+/* Where a port will answer, as it's typed, under the port: an address in mono. */
+.app-port-at {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: calc(-1 * var(--space-2)) 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.app-port-at-where {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* An empty list's ways in: the start page's cards, under its title. */
+.apps-section .empty-state > .start-choices {
+  width: 100%;
+  max-width: 880px;
+  margin-top: var(--space-4);
+  text-align: left;
+}

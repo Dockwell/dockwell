@@ -5,6 +5,7 @@ package logs
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -236,5 +237,47 @@ func TestAFollowSaysWhatHasGoneWithNothingKept(t *testing.T) {
 	cancel()
 	if err := <-done; err != nil {
 		t.Errorf("Stream = %v after its reader left", err)
+	}
+}
+
+// A first copy that ran out of time partway never learned whether the log held more
+// than it copies. When the two copies together hold more lines than that, older ones
+// may be missing, and the kept log says so, though the last copy reached the first.
+func TestAKeptLogWhoseFirstCopyRanOutOfTimeSaysSoPastItsLineLimit(t *testing.T) {
+	e := dockertest.New(t)
+	c := e.AddContainer(docker.Container{
+		Name: "/app-1", Created: time.Now().UTC(),
+		Config: docker.Config{Image: "app", Labels: map[string]string{docker.LabelProject: "env_01test", docker.LabelService: "web", docker.LabelNumber: "1"}},
+		State:  docker.State{Status: "running", Running: true, StartedAt: time.Now().UTC()},
+	})
+	batch := slices.Repeat([]string{"short"}, 10_000)
+	for range 41 {
+		e.Print("app-1", docker.Stdout, batch...)
+	}
+	dir, err := filepath.Abs(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &Archive{Dir: dir, Client: e.Client(), Free: func(string) (uint64, error) { return 1 << 40, nil }, CopyWait: -1}
+	ctx := t.Context()
+	k, ok := a.Begin(ctx, c, false).(*keep)
+	if !ok || !k.outOfTime || k.meta.CutShort {
+		t.Fatalf("a first copy with no time: %+v", k)
+	}
+	// Its time being up partway, without a clock: the same read of the newest lines,
+	// which the engine ends 10,001 lines before the last.
+	e.BreakLog("app-1", copyTail-10_000)
+	if _, _, err := k.copy(ctx, c, docker.LogOptions{Tail: copyTail + 1}); err == nil {
+		t.Fatal("the read didn't stop partway")
+	}
+	e.Stop("app-1")
+	k.Finish(ctx, e.Container("app-1"))
+	a.WaitPruned()
+	kept := a.List("env_01test", "web")
+	if len(kept) != 1 {
+		t.Fatalf("kept = %v", kept)
+	}
+	if got := kept[0]; got.Lines != copyTail+1 || !got.CutShort || !got.HoleTo.IsZero() {
+		t.Errorf("kept %d of 410,000 lines, with cut_short %v and a hole to %v", got.Lines, got.CutShort, got.HoleTo)
 	}
 }

@@ -219,6 +219,9 @@ const (
 	// email, lowercased, the role's name and the place, apart by spaces, as
 	// "ada@example.com developer prj_…", or "install" for the whole install.
 	StepUpAction_STEP_UP_ACTION_INVITE StepUpAction = 110
+	// Making a ticket that adds a server, with ServerService.CreateJoinTicket. It
+	// has no target of its own: the person's ID, which BeginStepUp fills in.
+	StepUpAction_STEP_UP_ACTION_ADD_SERVER StepUpAction = 130
 )
 
 // Enum value maps for StepUpAction.
@@ -242,6 +245,7 @@ var (
 		93:  "STEP_UP_ACTION_RESTORE_WAY_BACK_IN",
 		114: "STEP_UP_ACTION_APPROVE_CHANGE",
 		110: "STEP_UP_ACTION_INVITE",
+		130: "STEP_UP_ACTION_ADD_SERVER",
 	}
 	StepUpAction_value = map[string]int32{
 		"STEP_UP_ACTION_UNSPECIFIED":               0,
@@ -262,6 +266,7 @@ var (
 		"STEP_UP_ACTION_RESTORE_WAY_BACK_IN":       93,
 		"STEP_UP_ACTION_APPROVE_CHANGE":            114,
 		"STEP_UP_ACTION_INVITE":                    110,
+		"STEP_UP_ACTION_ADD_SERVER":                130,
 	}
 )
 
@@ -3831,7 +3836,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"!SIGN_IN_METHOD_AUTHENTICATOR_CODE\x10\x03\x12 \n" +
 	"\x1cSIGN_IN_METHOD_RECOVERY_CODE\x10\x04\x12\x17\n" +
 	"\x13SIGN_IN_METHOD_LINK\x10\x05\x12\x19\n" +
-	"\x15SIGN_IN_METHOD_INVITE\x10\x06*\x89\x05\n" +
+	"\x15SIGN_IN_METHOD_INVITE\x10\x06*\xa9\x05\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
@@ -3851,7 +3856,8 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"!STEP_UP_ACTION_DELETE_WAY_BACK_IN\x10\\\x12&\n" +
 	"\"STEP_UP_ACTION_RESTORE_WAY_BACK_IN\x10]\x12!\n" +
 	"\x1dSTEP_UP_ACTION_APPROVE_CHANGE\x10r\x12\x19\n" +
-	"\x15STEP_UP_ACTION_INVITE\x10n2\xd2-\n" +
+	"\x15STEP_UP_ACTION_INVITE\x10n\x12\x1e\n" +
+	"\x19STEP_UP_ACTION_ADD_SERVER\x10\x82\x012\xd2-\n" +
 	"\vAuthService\x12}\n" +
 	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12\x89\x01\n" +
 	"\n" +

@@ -2,9 +2,10 @@
 
 // Walks a server's files in headless Chromium, against a real `dockwell run` and
 // its own agent, on this machine's disk, in a temporary directory: browsing, a
-// file, what isn't text, what's too large, what's refused, a path that leads
-// nowhere, and a phone. It edits and saves a file, on a desktop and a phone, finds
-// a file changed under it, keeps what it typed, stops at a link swapped in, keeps a
+// folder past a listing's page and a search through it, a file, what isn't text,
+// what's too large, what's refused, a path that leads nowhere, and a phone. It
+// edits and saves a file, on a desktop and a phone, finds a file changed under
+// it, keeps what it typed, stops at a link swapped in, keeps a
 // byte order mark, which this build's binary format loses on the way in, and finds
 // what it did on Activity. It makes, renames, deletes and puts back a folder, and
 // uploads a file and an archive it unpacks, then downloads a file and a folder.
@@ -124,6 +125,10 @@ function makeSite() {
   // A folder longer than its pane, as /etc is.
   mkdirSync(join(site, "many"));
   for (let i = 0; i < 120; i++) writeFileSync(join(site, "many", `part-${String(i).padStart(3, "0")}.conf`), "");
+  // A folder past a listing's page, made backwards so the disk's order isn't the names'.
+  mkdirSync(join(site, "big"));
+  for (let i = 5049; i >= 0; i--) writeFileSync(join(site, "big", `item-${String(i).padStart(5, "0")}.txt`), "");
+  writeFileSync(join(site, "big", "zz-needle.log"), "");
 }
 
 async function shoot(page: Page, name: string) {
@@ -220,6 +225,21 @@ async function main() {
   await page.goto(at({ path: site }));
   await page.getByText("nginx.conf").waitFor();
 
+  step("a folder past a page lists by name, Show more brings the rest, and a search finds a name on any page");
+  await page.goto(at({ path: join(site, "big") }));
+  await page.getByText(/^More than 5,000 items/).waitFor();
+  await page.getByText("item-00000.txt").waitFor({ state: "attached" });
+  if ((await page.getByText("zz-needle.log").count()) > 0) fail("the first page went past the first 5,000 names");
+  await page.getByRole("button", { name: "Show more" }).click();
+  await page.getByText("zz-needle.log").waitFor({ state: "attached" });
+  await page.goto(at({ path: join(site, "big") }));
+  await page.getByText(/^More than 5,000 items/).waitFor();
+  await page.getByRole("textbox", { name: "Search in big" }).fill("needle");
+  await page.getByText("zz-needle.log").waitFor({ state: "attached" });
+  await shoot(page, "big-folder-search");
+  await page.goto(at({ path: site }));
+  await page.getByText("nginx.conf").waitFor();
+
   step("open a file");
   await page.getByText("nginx.conf").click();
   const code = page.getByRole("textbox", { name: "Contents of nginx.conf" });
@@ -274,9 +294,17 @@ async function main() {
     fail(`a save changed bytes nobody touched: ${readFileSync(join(site, "app.ini")).toString("hex")}`);
   }
 
-  step("a file with more than one kind of line ending reads, and doesn't edit");
+  step("a file with more than one kind of line ending edits, and a save keeps each line's");
   await page.getByText("mixed.sh").click();
-  await page.getByText("This file can't be edited here").waitFor();
+  const mixed = page.getByRole("textbox", { name: "Contents of mixed.sh" });
+  await mixed.waitFor();
+  await page.getByText("Mixed line endings").waitFor();
+  await mixed.fill("#!/bin/sh\necho a\necho c\n");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByText("Saved mixed.sh").first().waitFor();
+  const kept = readFileSync(join(site, "mixed.sh"), "utf8");
+  if (kept !== "#!/bin/sh\necho a\r\necho c\n")
+    fail(`a save changed line endings nobody touched: ${JSON.stringify(kept)}`);
   await page.getByRole("button", { name: "Close mixed.sh" }).click();
 
   step("a link swapped in under what you typed isn't saved through, whatever its text");

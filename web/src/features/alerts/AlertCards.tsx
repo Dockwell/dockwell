@@ -177,7 +177,12 @@ function AlertCard({
         <Icon name={MARK[alert.condition] ?? "alert"} size={18} />
       </span>
       <div className="alerts-card-head">
-        <h3 className="alerts-card-title">{title}</h3>
+        <h3 className="alerts-card-title">
+          {/* Its own page: what changed around it, what was sent, and how it ends. */}
+          <Link to="/alerts/$alertId" params={{ alertId: alert.id }}>
+            {title}
+          </Link>
+        </h3>
         {critical ? (
           <StatusBadge status="down" label={t`Critical`} variant="pill" labelIsState />
         ) : (
@@ -301,11 +306,16 @@ function Inspect({ alert, title }: { alert: Alert; title: string }) {
       );
   }
   // Whatever else it's about is on a server, and so is an app or a change the alert doesn't name by ID.
+  // With nowhere better, the alert's own page.
   return alert.serverId ? (
     <RouterButtonLink to="/servers/$serverId" params={{ serverId: alert.serverId }} {...small}>
       {words}
     </RouterButtonLink>
-  ) : null;
+  ) : (
+    <RouterButtonLink to="/alerts/$alertId" params={{ alertId: alert.id }} {...small}>
+      {words}
+    </RouterButtonLink>
+  );
 }
 
 /** A server's memory over the minutes the control plane keeps, for an alert that's about it, while it reports. */
@@ -365,7 +375,9 @@ export function ResolvedAlerts({ alerts }: { alerts: readonly Alert[] }) {
               <span className="alerts-resolved-mark" aria-hidden="true">
                 <Icon name="check" size={14} />
               </span>
-              <span className="alerts-resolved-title">{alertTitle(alert, i18n)}</span>
+              <Link to="/alerts/$alertId" params={{ alertId: alert.id }} className="alerts-resolved-title">
+                {alertTitle(alert, i18n)}
+              </Link>
               <span className="alerts-resolved-at">
                 {alert.resolveTime ? formatDateTime(timestampDate(alert.resolveTime), i18n.locale) : ""}
               </span>

@@ -20,6 +20,15 @@ import "google/protobuf/timestamp.proto";
 // the stream opens it with Connect, gRPC or gRPC-Web. See
 // docs/adr/0015-rest-and-openapi-from-the-schema.md.
 service ServerService {
+  option (dockwell.v1.nouns) = {
+    name: "servers"
+    help: "The servers Dockwell manages, with their live state as each server's agent reports it. WatchServers has no REST path: REST has no way to stream messages, so a REST client polls ListServers or GetServer instead, and anything that wants the stream opens it with Connect, gRPC or gRPC-Web. See docs/adr/0015-rest-and-openapi-from-the-schema.md."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "join-tickets"
+    help: "A join ticket adds one server: dockwell join with it, on the new server, gives that server a name and a certificate, and its agent connects. CreateJoinTicket makes one with a passkey, and GetJoinTicket says whether a server has used it. dockwell token create makes the same ticket on the control server."
+  };
+
   // ListServers returns every server, connected or not, without history.
   rpc ListServers(ListServersRequest) returns (ListServersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -82,6 +91,121 @@ service ServerService {
       body: "*"
     };
   }
+
+  // CreateJoinTicket makes a ticket that adds one server: dockwell join with it,
+  // on the new server, gives that server a name and a certificate, and its agent
+  // connects. The ticket works once, for an hour unless ttl_seconds says otherwise,
+  // and is shown only in this response. It gives a server a place in the fleet, so
+  // it takes a passkey just now: call it without a proof first, and it refuses with
+  // the reason needs_step_up, then again with the proof from FinishStepUp for
+  // STEP_UP_ACTION_ADD_SERVER. It's on the activity log. dockwell token create makes
+  // the same ticket on the control server.
+  rpc CreateJoinTicket(CreateJoinTicketRequest) returns (CreateJoinTicketResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "join-tickets"
+      verb: "create"
+    };
+    option (google.api.http) = {
+      post: "/v1/joinTickets"
+      body: "*"
+    };
+  }
+
+  // GetJoinTicket says whether a ticket is still waiting for a server, which server
+  // joined with it, or that it expired. It never returns the ticket itself.
+  rpc GetJoinTicket(GetJoinTicketRequest) returns (GetJoinTicketResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "join-tickets"
+      verb: "get"
+    };
+    option (google.api.http) = {get: "/v1/joinTickets/{id}"};
+  }
+}
+
+// CreateJoinTicketRequest says how long the ticket works.
+message CreateJoinTicketRequest {
+  // How long it works, in seconds: an hour when unset, and at most a day.
+  uint32 ttl_seconds = 1;
+  // The proof from FinishStepUp for STEP_UP_ACTION_ADD_SERVER.
+  string proof = 2;
+}
+
+// CreateJoinTicketResponse carries the ticket, once.
+message CreateJoinTicketResponse {
+  // What the ticket is and where it leads, as GetJoinTicket reads it.
+  JoinTicket ticket = 1;
+  // The ticket itself, for dockwell join on the new server. Nothing shows it again.
+  string value = 2;
+}
+
+// GetJoinTicketRequest names a ticket.
+message GetJoinTicketRequest {
+  // The ticket's ID, from CreateJoinTicket.
+  string id = 1;
+}
+
+// GetJoinTicketResponse carries the ticket as it stands.
+message GetJoinTicketResponse {
+  // The ticket, without its secret.
+  JoinTicket ticket = 1;
+}
+
+// JoinTicket is a ticket that adds one server, without its secret.
+message JoinTicket {
+  // Its ID, which starts jtk_.
+  string id = 1;
+  // Whether a server has joined with it yet.
+  JoinTicketState state = 2;
+  // When it stops working, used or not.
+  google.protobuf.Timestamp expire_time = 3;
+  // Where a joining server reaches the control plane, in the order it tries them.
+  // Only CreateJoinTicket says it, as the ticket holds it and nothing else keeps it.
+  repeated JoinAddress addresses = 4;
+  // The server that joined with it, by ID and by name, once one has.
+  string server_id = 5;
+  string server_name = 6;
+}
+
+// JoinTicketState is where a ticket is in its life.
+enum JoinTicketState {
+  JOIN_TICKET_STATE_UNSPECIFIED = 0;
+  // It works, and no server has used it yet.
+  JOIN_TICKET_STATE_WAITING = 1 [(dockwell.v1.word) = "Waiting"];
+  // A server joined with it.
+  JOIN_TICKET_STATE_JOINED = 2 [(dockwell.v1.word) = "Joined"];
+  // It ran out before any server used it.
+  JOIN_TICKET_STATE_EXPIRED = 3 [(dockwell.v1.word) = "Expired"];
+}
+
+// JoinAddress is one address a ticket names, and who can reach it.
+message JoinAddress {
+  // The control plane's agent URL, such as https://203.0.113.7:7601.
+  string url = 1;
+  // Who reaches it.
+  JoinReach reach = 2;
+}
+
+// JoinReach is who can reach an address a ticket names.
+enum JoinReach {
+  JOIN_REACH_UNSPECIFIED = 0;
+  // A public address the control server is reached at, or a name a person gave:
+  // a server anywhere reaches it once its port is open.
+  JOIN_REACH_ANYWHERE = 1 [(dockwell.v1.word) = "Anywhere"];
+  // The public address the control server reaches the internet from, which may
+  // not lead back in, as behind a router.
+  JOIN_REACH_WAY_OUT = 2 [(dockwell.v1.word) = "Way out only"];
+  // A private address: only a server on the same network reaches it.
+  JOIN_REACH_SAME_NETWORK = 3 [(dockwell.v1.word) = "Same network"];
 }
 
 // ListServersRequest takes no parameters yet.

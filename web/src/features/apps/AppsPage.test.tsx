@@ -67,11 +67,19 @@ function dropping(err: unknown) {
 }
 
 describe("the apps list", () => {
-  it("invites the first app when there is none, with one primary button", async () => {
+  it("offers the ways to a first app when there is none, each opening its own flow", async () => {
     const { container } = renderAt("/apps", api([]));
     expect(await screen.findByRole("heading", { name: "No apps yet" })).toBeVisible();
-    expect(screen.getAllByRole("link", { name: "New app" })).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "New app" })).toHaveAttribute("href", "/apps/new");
+    const ways = screen.getByRole("list", { name: "Ways to run your first app" });
+    expect(within(ways).getByRole("link", { name: "From the catalog" })).toHaveAttribute("href", "/catalog");
+    expect(within(ways).getByRole("link", { name: "A Docker image" })).toHaveAttribute("href", "/apps/new");
+    expect(within(ways).getByRole("link", { name: "A Compose file" })).toHaveAttribute(
+      "href",
+      "/apps/new?source=compose",
+    );
+    // A website lists on Websites, and the head's New app would be a second way to the same sheet.
+    expect(within(ways).queryByRole("link", { name: "A website" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "New app" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Export" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Filter apps")).not.toBeInTheDocument();
     await expectAccessible(container);
@@ -325,6 +333,33 @@ describe("the apps list", () => {
     await user.clear(filter);
     await user.type(filter, "nothing-like-it");
     expect(await screen.findByRole("heading", { name: "Nothing matches" })).toBeVisible();
+    expect(screen.getByText(/in its name, image or domain/)).toHaveTextContent(
+      "No app here has nothing-like-it in its name, image or domain.",
+    );
+    await user.click(screen.getByRole("button", { name: "Clear the filter" }));
+    expect(filter).toHaveValue("");
+    expect(await screen.findByRole("link", { name: "a" })).toBeVisible();
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+  });
+
+  it("names the server or environment a list is narrowed to when it holds nothing, with a button to show all", async () => {
+    const user = userEvent.setup();
+    const hz2 = aServer({ id: "srv_2", name: "hz-2" });
+    const onServer = renderAt("/apps?server=srv_2", api([anApp("web", "nginx")], hz1, hz2));
+    expect(await screen.findByRole("heading", { name: "No apps on hz-2" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Show all servers" }));
+    await waitFor(() => expect(onServer.router.state.location.search).toEqual({}));
+    expect(await screen.findByRole("link", { name: "web" })).toBeVisible();
+    onServer.unmount();
+
+    const inStaging = renderAt("/apps?environment=env_staging", {
+      ...api([anApp("web", "nginx")]),
+      resources: places("staging"),
+    });
+    expect(await screen.findByRole("heading", { name: "No apps in staging" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Show all environments" }));
+    await waitFor(() => expect(inStaging.router.state.location.search).toEqual({}));
+    expect(await screen.findByRole("link", { name: "web" })).toBeVisible();
   });
 
   it("finds all of a project by its name", async () => {

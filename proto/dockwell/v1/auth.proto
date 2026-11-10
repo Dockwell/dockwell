@@ -851,6 +851,9 @@ enum StepUpAction {
   // email, lowercased, the role's name and the place, apart by spaces, as
   // "ada@example.com developer prj_…", or "install" for the whole install.
   STEP_UP_ACTION_INVITE = 110;
+  // Making a ticket that adds a server, with ServerService.CreateJoinTicket. It
+  // has no target of its own: the person's ID, which BeginStepUp fills in.
+  STEP_UP_ACTION_ADD_SERVER = 130;
 }
 
 // StepUpNeeded is the detail of an error whose reason is "needs_step_up",
