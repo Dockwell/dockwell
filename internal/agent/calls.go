@@ -180,6 +180,20 @@ func (c *calls) start(call *agentv1.Call) {
 		}()
 		return
 	}
+	// A forward lasts as long as its connection, as an attachment lasts as long as
+	// someone watches, so it doesn't hold up a move either.
+	if forward := call.GetForward(); forward != nil {
+		ctx, cancel := context.WithCancel(c.ctx)
+		c.reading[call.GetId()] = cancel
+		c.wg.Add(1)
+		c.mu.Unlock()
+		go func() {
+			defer c.wg.Done()
+			defer c.doneReading(call.GetId(), cancel)
+			c.reply(call.GetId(), c.forward(ctx, forward))
+		}()
+		return
+	}
 	ctx, cancel := context.WithTimeout(c.ctx, timeout)
 	c.running[call.GetId()] = cancel
 	c.wg.Add(1)

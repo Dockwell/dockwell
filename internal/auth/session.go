@@ -387,6 +387,12 @@ func (s *Service) stillLive(ctx context.Context, client Client, p Principal, use
 	return true
 }
 
+// SessionLive reports whether a session still works on client's site, as a
+// stream's check of it does, and records the check as a use of it.
+func (s *Service) SessionLive(ctx context.Context, client Client, sessionID string) bool {
+	return s.stillLive(ctx, client, Principal{Session: store.Session{ID: sessionID}}, true)
+}
+
 // maxUserAgent is how much of a browser's User-Agent header is kept.
 const maxUserAgent = 512
 

@@ -35,6 +35,26 @@ func Highest(grants []store.Grant) string {
 	return best
 }
 
+// RoleOn is the highest role a user holds on a project: one on the whole install,
+// or one on that project, or "" for none.
+func (s *Service) RoleOn(ctx context.Context, userID, projectID string) (string, error) {
+	var grants []store.Grant
+	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
+		grants, err = tx.Grants(ctx, userID)
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	best := ""
+	for _, g := range grants {
+		if (g.ProjectID == store.Install || g.ProjectID == projectID) && store.RoleRank(g.Role) > store.RoleRank(best) {
+			best = g.Role
+		}
+	}
+	return best, nil
+}
+
 // errNoOwner says an install has no owner, and how to give it one: claim it
 // when nobody signs in, or make someone who does the owner.
 func errNoOwner(ctx context.Context, tx *store.Tx, what string) error {

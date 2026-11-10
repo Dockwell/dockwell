@@ -12,9 +12,12 @@ import { createContext, type ReactNode, use } from "react";
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink, RouterTabLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { nameOf } from "../apps/app";
 import { HealthBadge, useHealthTitle, useHealthWords } from "../apps/Health";
 import { useHealth } from "../apps/health";
-import { usePlaces } from "../apps/useServices";
+import { usePlaces, useServices } from "../apps/useServices";
+import { useSignedIn } from "../auth/useAuthState";
+import { OpenAppButton } from "../catalog/access";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAgoNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -127,6 +130,9 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
   const sheet = useChangeSheet();
   const transport = useTransport();
   const install = useOwnInstall(db);
+  // The admin tool a catalog install runs beside it opens through the panel (ADR 0061).
+  const onLocalhost = useSignedIn()?.rpId === "localhost";
+  const tool = useServices().data?.find((s) => s.id === install?.webServiceId && s.id !== db.id);
   const next = install?.upgrade?.version ?? "";
   const upgrade = install?.upgrade
     ? () =>
@@ -172,6 +178,7 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
       backLink={<BackToDatabases />}
       actions={
         <>
+          {tool && onLocalhost ? <OpenAppButton serviceId={tool.id} app={nameOf(tool)} /> : null}
           <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: db.id }} icon="service">
             <Trans>Open as an app</Trans>
           </RouterButtonLink>

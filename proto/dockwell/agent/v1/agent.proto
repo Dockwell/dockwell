@@ -82,6 +82,14 @@ service AgentService {
   rpc SendFile(stream SendFileRequest) returns (SendFileResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
   }
+  // Forward carries one connection to a port a service publishes on its server
+  // (ForwardCall), which the agent opens on a connection of its own, as
+  // Terminal does: the bytes from the service go up, and those to it come
+  // down. Flow control is the backpressure. A person opens an app's web UI
+  // this way, through the panel (ADR 0061).
+  rpc Forward(stream ForwardRequest) returns (stream ForwardResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
 }
 
 // ConnectRequest is one message from the agent.
@@ -352,6 +360,9 @@ message Hello {
   // plane plans a new one only through an agent that does. Catalog and
   // databases work takes 200 to 202 and 220 to 229 in agent messages.
   bool first_passwords = 200;
+  // True when the agent carries a connection to a port a service publishes
+  // (ForwardCall), so the panel opens an app's web UI through it (ADR 0061).
+  bool forwards = 202;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -566,6 +577,9 @@ message Call {
     RunTaskCall run_task = 151;
     // Read what 1Panel keeps on the server. The importer takes 180 to 189.
     ReadOnePanelCall read_onepanel = 180;
+    // Carry a connection to a port a service publishes, over Forward (ADR
+    // 0061). Catalog and databases work takes 200 to 209.
+    ForwardCall forward = 201;
     // Make an empty file or a folder. Numbered apart, as open work adds to
     // this message.
     MakeFileCall make_file = 120;
@@ -777,6 +791,47 @@ message CloseTerminalCall {
 // CloseTerminalResult says how the terminal ended.
 message CloseTerminalResult {
   dockwell.v1.TerminalEnd end = 1;
+}
+
+// ForwardCall has the agent connect to the port a service publishes for one of
+// its container's ports, on this server, and carry the connection's bytes over
+// Forward until either end closes, or the control plane cancels the call. The
+// agent finds the service's running container, and where Docker publishes that
+// port, itself: it dials nothing a call names by address.
+message ForwardCall {
+  // The service's Compose project, as its containers' labels name it.
+  string project = 1;
+  // The service, by name.
+  string service = 2;
+  // The port in its container, such as 80, which the container publishes.
+  uint32 port = 3;
+  // Names the call's Forward stream.
+  uint64 stream = 4;
+}
+
+// ForwardResult says how a forward ended.
+message ForwardResult {
+  // How many bytes went each way.
+  uint64 sent = 1;
+  uint64 received = 2;
+}
+
+// ForwardRequest is one message of Forward from the agent.
+message ForwardRequest {
+  // The call's stream, on the first message.
+  uint64 stream = 1;
+  // What the service sent.
+  bytes data = 2;
+  // True once the service has closed its side.
+  bool closed = 3;
+}
+
+// ForwardResponse is one message of Forward from the control plane.
+message ForwardResponse {
+  // What to send the service.
+  bytes data = 1;
+  // True once the client has closed its side.
+  bool closed = 2;
 }
 
 // TerminalRequest is one message of Terminal from the agent.
@@ -1570,6 +1625,8 @@ message CallResult {
     RunTaskResult run_task = 151;
     // What read_onepanel found.
     ReadOnePanelResult read_onepanel = 180;
+    // How a forward ended.
+    ForwardResult forward = 201;
     // What make_file made. Numbered apart, as open work adds to this message.
     MakeFileResult make_file = 120;
     // Where move_file moved it.

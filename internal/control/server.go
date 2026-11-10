@@ -21,11 +21,13 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -61,6 +63,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/importapi"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/control/members"
+	"github.com/dockwell/dockwell/internal/control/opener"
 	"github.com/dockwell/dockwell/internal/control/processes"
 	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
@@ -272,6 +275,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	var rest []*vanguard.Service
 	guardREST := func(h http.Handler) http.Handler { return h }
 	var filesHandler http.Handler
+	var appOpener *opener.Opener
 	// handle serves a service's procedures, and its REST paths through
 	// Vanguard, which calls the same handler, interceptors and all.
 	handle := func(path string, h http.Handler) {
@@ -360,7 +364,25 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.Fleet != nil {
 			handle(dockwellv1connect.NewImportServiceHandler(importapi.New(cfg.Fleet, cfg.Agents, imports, ch, cfg.Logger), opts...))
 		}
-		handle(dockwellv1connect.NewServiceServiceHandler(serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		serviceHandler := serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
+		if cfg.Auth != nil && cfg.Agents != nil && cfg.DataDir != "" {
+			key, err := opener.LoadKey(filepath.Join(cfg.DataDir, "opener.key"))
+			if err != nil {
+				return nil, err
+			}
+			appOpener = &opener.Opener{
+				Dial: func(ctx context.Context, t opener.Target) (net.Conn, error) {
+					s, ok := cfg.Agents.Session(t.Server)
+					if !ok {
+						return nil, fmt.Errorf("the server %s isn't connected, so its apps don't open", t.Server)
+					}
+					return s.Forward(ctx, t.Project, t.Service, t.Port)
+				},
+				Live: cfg.Auth.SessionLive, Role: cfg.Auth.RoleOn, Key: key, Logger: cfg.Logger,
+			}
+			serviceHandler.Opener = appOpener
+		}
+		handle(dockwellv1connect.NewServiceServiceHandler(serviceHandler, opts...))
 		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)
 		*logsOut = logs
 		path, h := dockwellv1connect.NewLogServiceHandler(logs, opts...)
@@ -416,7 +438,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	if cfg.Auth != nil {
 		sites = cfg.Auth.Sites()
 	}
-	return serve.Recover(cfg.Logger, authapi.Guard(sites, cfg.Logger, mux)), nil
+	// An app opened through the panel answers on an origin of its own, ahead of the
+	// panel's guard, which answers none but the panel's (ADR 0061).
+	return serve.Recover(cfg.Logger, opener.Dispatch(appOpener, authapi.Guard(sites, cfg.Logger, mux))), nil
 }
 
 // Serve serves the API and panel on ln until ctx is done.

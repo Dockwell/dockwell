@@ -550,6 +550,9 @@ const (
 	ReasonOrigin = "origin"
 	// ReasonMisdirected: the call was for a host the panel doesn't answer on.
 	ReasonMisdirected = "misdirected"
+	// ReasonTwoSessions: a request on localhost carried the session cookie twice,
+	// as only a page on another origin under localhost could make it (ADR 0061).
+	ReasonTwoSessions = "two_sessions"
 	// ReasonUnavailable: the session or API token couldn't be checked just
 	// now.
 	ReasonUnavailable = "unavailable"

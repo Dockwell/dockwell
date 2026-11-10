@@ -834,6 +834,12 @@ msgstr "在 {server} 上打开了终端"
 msgid "Opened a terminal on {server}, as {as}"
 msgstr "在 {server} 上以 {as} 打开了终端"
 
+msgid "Opened an app through the panel"
+msgstr "通过面板打开了一个应用"
+
+msgid "Opened {name} through the panel"
+msgstr "通过面板打开了 {name}"
+
 msgid "Put back {path} on {server}"
 msgstr "已放回 {server} 上的 {path}"
 

@@ -173,6 +173,22 @@ func Guard(sites auth.Sites, logger *slog.Logger, next http.Handler) http.Handle
 			}
 			w.Header().Set("Cache-Control", "no-store")
 		}
+		// On localhost the session cookie can't take the __Host- prefix, so a page on an
+		// app's origin under localhost could set a second one for localhost (ADR 0061).
+		// Two are refused, rather than one of them chosen.
+		if !site.Secure && !req.hasBearer {
+			same := 0
+			for _, c := range r.Cookies() {
+				if c.Name == site.CookieName() {
+					same++
+				}
+			}
+			if same > 1 {
+				refuse(w, r, http.StatusBadRequest, connect.CodeInvalidArgument, ReasonTwoSessions,
+					"Dockwell refused a request that carried its sign-in cookie twice, as a page on another origin under localhost can set one. Clear this browser's cookies for localhost, then sign in again.")
+				return
+			}
+		}
 		if c, err := r.Cookie(site.CookieName()); err == nil && !req.hasBearer {
 			req.token = c.Value
 		}

@@ -53,6 +53,8 @@ type Handler struct {
 	db      *store.DB
 	keeper  *secrets.Keeper
 	logger  *slog.Logger
+	// Opener issues the addresses OpenService hands out. Nil opens no app.
+	Opener Opener
 }
 
 var _ dockwellv1connect.ServiceServiceHandler = (*Handler)(nil)

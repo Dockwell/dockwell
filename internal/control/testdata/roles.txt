@@ -112,6 +112,7 @@ ServiceService.AddServicePort                  plan         developer  developer
 ServiceService.DeployService                   plan         developer  developer  project
 ServiceService.ListServiceRevisions            read         viewer     viewer     project
 ServiceService.ListServices                    read         viewer     viewer     project
+ServiceService.OpenService                     read         developer  admin      project  session
 ServiceService.RollBackService                 plan         developer  developer  project
 SettingsService.GetControlPlane                read         admin      admin      install
 SettingsService.GetSettings                    read         viewer     viewer     shared

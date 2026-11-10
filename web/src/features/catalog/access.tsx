@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { useQuery } from "@connectrpc/connect-query";
+import { createClient } from "@connectrpc/connect";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   type CatalogInstall,
   ChangeService,
@@ -11,17 +12,20 @@ import {
   type Input,
   InputType,
   type ServiceInfo,
+  ServiceService,
   VariableService,
 } from "@dockwell/api";
 import { Button, ConnectionCard, type ConnectionItem, CopyButton, Icon, type IconName } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { appOf, environmentOf, nameOf, valuesOf } from "../apps/app";
 import { type EnvEdit, envEdits } from "../apps/envEdit";
 import { useServices } from "../apps/useServices";
 import { useMay } from "../auth/may";
+import { useAuthError } from "../auth/messages";
+import { useSignedIn } from "../auth/useAuthState";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { useReveals } from "../variables/useReveal";
@@ -198,6 +202,7 @@ export function useInstallFacts(
   const services = useServices().data ?? [];
   const mayPropose = useMay()(ChangeService.method.proposeChange, { environment: install?.environmentId ?? "" });
   const { servers } = useFleetView();
+  const onLocalhost = useSignedIn()?.rpId === "localhost";
   const domains =
     useQuery(
       DomainService.method.listDomains,
@@ -270,19 +275,26 @@ export function useInstallFacts(
       });
     }
   }
-  // Until it opens through the panel (ADR 0061), the way in before a domain is a tunnel,
-  // which is a command to copy with what only the panel knows filled in, not a paragraph.
+  // Before a domain, it opens through the panel on localhost (ADR 0061). On the panel's
+  // domain, which doesn't open apps yet, the way in is a tunnel: a command to copy with
+  // what only the panel knows filled in, not a paragraph.
   const local = web && domains.length === 0 ? appOf(web)?.ports.find((p) => p.hostIp === "127.0.0.1") : undefined;
   const server = servers?.find((s) => s.id === web?.deployments[0]?.serverId);
   const address = server?.address;
-  if (local && address) {
+  if (local && web && (onLocalhost || address)) {
     const port = String(local.hostPort);
-    const tunnel = `ssh -N -L ${port}:127.0.0.1:${port} ${address}`;
+    const tunnel = `ssh -N -L ${port}:127.0.0.1:${port} ${address ?? ""}`;
     out.push({
       key: "local",
       icon: "lock",
       text: t`Answers on this server alone, on port ${port}, until it has a domain`,
-      action: (
+      action: onLocalhost ? (
+        <OpenAppButton
+          serviceId={web.id}
+          port={local.containerPort}
+          app={entry.category === "databases" ? nameOf(web) : app}
+        />
+      ) : (
         <CopyButton
           text={tunnel}
           label={t`Copy the SSH tunnel command`}
@@ -295,4 +307,48 @@ export function useInstallFacts(
   for (const [i, note] of entry.notes.entries()) out.push({ key: `note-${i}`, icon: "question", text: note });
   if (entry.firstSteps) out.push({ key: "first", icon: "arrow-right", text: entry.firstSteps });
   return out;
+}
+
+/**
+ * Opens a service's web UI through the panel, in a tab of its own (ADR 0061). The tab
+ * opens as the button is pressed, so no popup blocker stops it, and goes to the app
+ * once the control plane hands over its one-time address.
+ */
+export function OpenAppButton({ serviceId, port, app }: { serviceId: string; port?: number; app: string }) {
+  const { t } = useLingui();
+  const transport = useTransport();
+  const explain = useAuthError();
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string>();
+  const open = async () => {
+    setProblem(undefined);
+    setBusy(true);
+    const tab = window.open("about:blank", "_blank");
+    try {
+      const res = await createClient(ServiceService, transport).openService({ id: serviceId, port: port ?? 0 });
+      if (tab) {
+        tab.opener = null;
+        tab.location.href = res.url;
+      } else {
+        window.location.assign(res.url);
+      }
+    } catch (err) {
+      tab?.close();
+      setProblem(explain(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <span className="catalog-open">
+      <Button size="sm" icon="external" loading={busy} onClick={() => void open()}>
+        {t`Open ${app}`}
+      </Button>
+      {problem ? (
+        <span className="catalog-open-problem" role="alert">
+          {problem}
+        </span>
+      ) : null}
+    </span>
+  );
 }

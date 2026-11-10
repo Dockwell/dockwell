@@ -51,6 +51,8 @@ const (
 	AgentServiceReceiveFileProcedure = "/dockwell.agent.v1.AgentService/ReceiveFile"
 	// AgentServiceSendFileProcedure is the fully-qualified name of the AgentService's SendFile RPC.
 	AgentServiceSendFileProcedure = "/dockwell.agent.v1.AgentService/SendFile"
+	// AgentServiceForwardProcedure is the fully-qualified name of the AgentService's Forward RPC.
+	AgentServiceForwardProcedure = "/dockwell.agent.v1.AgentService/Forward"
 )
 
 // AgentServiceClient is a client for the dockwell.agent.v1.AgentService service.
@@ -89,6 +91,12 @@ type AgentServiceClient interface {
 	// SendFile carries what's downloaded for one DownloadFileCall, from the
 	// agent to the control plane, on a connection of its own.
 	SendFile(context.Context) *connect.ClientStreamForClient[v1.SendFileRequest, v1.SendFileResponse]
+	// Forward carries one connection to a port a service publishes on its server
+	// (ForwardCall), which the agent opens on a connection of its own, as
+	// Terminal does: the bytes from the service go up, and those to it come
+	// down. Flow control is the backpressure. A person opens an app's web UI
+	// this way, through the panel (ADR 0061).
+	Forward(context.Context) *connect.BidiStreamForClient[v1.ForwardRequest, v1.ForwardResponse]
 }
 
 // NewAgentServiceClient constructs a client for the dockwell.agent.v1.AgentService service. By
@@ -144,6 +152,12 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("SendFile")),
 			connect.WithClientOptions(opts...),
 		),
+		forward: connect.NewClient[v1.ForwardRequest, v1.ForwardResponse](
+			httpClient,
+			baseURL+AgentServiceForwardProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("Forward")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -156,6 +170,7 @@ type agentServiceClient struct {
 	terminal         *connect.Client[v1.TerminalRequest, v1.TerminalResponse]
 	receiveFile      *connect.Client[v1.ReceiveFileRequest, v1.ReceiveFileResponse]
 	sendFile         *connect.Client[v1.SendFileRequest, v1.SendFileResponse]
+	forward          *connect.Client[v1.ForwardRequest, v1.ForwardResponse]
 }
 
 // Join calls dockwell.agent.v1.AgentService.Join.
@@ -191,6 +206,11 @@ func (c *agentServiceClient) ReceiveFile(ctx context.Context, req *connect.Reque
 // SendFile calls dockwell.agent.v1.AgentService.SendFile.
 func (c *agentServiceClient) SendFile(ctx context.Context) *connect.ClientStreamForClient[v1.SendFileRequest, v1.SendFileResponse] {
 	return c.sendFile.CallClientStream(ctx)
+}
+
+// Forward calls dockwell.agent.v1.AgentService.Forward.
+func (c *agentServiceClient) Forward(ctx context.Context) *connect.BidiStreamForClient[v1.ForwardRequest, v1.ForwardResponse] {
+	return c.forward.CallBidiStream(ctx)
 }
 
 // AgentServiceHandler is an implementation of the dockwell.agent.v1.AgentService service.
@@ -229,6 +249,12 @@ type AgentServiceHandler interface {
 	// SendFile carries what's downloaded for one DownloadFileCall, from the
 	// agent to the control plane, on a connection of its own.
 	SendFile(context.Context, *connect.ClientStream[v1.SendFileRequest]) (*connect.Response[v1.SendFileResponse], error)
+	// Forward carries one connection to a port a service publishes on its server
+	// (ForwardCall), which the agent opens on a connection of its own, as
+	// Terminal does: the bytes from the service go up, and those to it come
+	// down. Flow control is the backpressure. A person opens an app's web UI
+	// this way, through the panel (ADR 0061).
+	Forward(context.Context, *connect.BidiStream[v1.ForwardRequest, v1.ForwardResponse]) error
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -280,6 +306,12 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("SendFile")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceForwardHandler := connect.NewBidiStreamHandler(
+		AgentServiceForwardProcedure,
+		svc.Forward,
+		connect.WithSchema(agentServiceMethods.ByName("Forward")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.agent.v1.AgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AgentServiceJoinProcedure:
@@ -296,6 +328,8 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceReceiveFileHandler.ServeHTTP(w, r)
 		case AgentServiceSendFileProcedure:
 			agentServiceSendFileHandler.ServeHTTP(w, r)
+		case AgentServiceForwardProcedure:
+			agentServiceForwardHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -331,4 +365,8 @@ func (UnimplementedAgentServiceHandler) ReceiveFile(context.Context, *connect.Re
 
 func (UnimplementedAgentServiceHandler) SendFile(context.Context, *connect.ClientStream[v1.SendFileRequest]) (*connect.Response[v1.SendFileResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.agent.v1.AgentService.SendFile is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) Forward(context.Context, *connect.BidiStream[v1.ForwardRequest, v1.ForwardResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.agent.v1.AgentService.Forward is not implemented"))
 }

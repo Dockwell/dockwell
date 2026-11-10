@@ -176,6 +176,8 @@ describe("What an installed app says of itself", () => {
     renderAt(
       "/apps/svc_gitea",
       api(gitea, {
+        // A panel at its domain, which doesn't open apps yet (ADR 0061, slice 1).
+        auth: { getAuthState: () => authState({ rpId: "panel.example.com" }) },
         services: {
           listServices: () => ({
             services: [
@@ -197,6 +199,44 @@ describe("What an installed app says of itself", () => {
     expect(within(panel).getByText("Its first account is its owner: make yours before it has a domain")).toBeVisible();
   });
 
+  it("opens it through the panel on localhost, in a tab of its own", async () => {
+    const user = userEvent.setup();
+    const asked: { id: string; port: number }[] = [];
+    const tab = { opener: {} as unknown, location: { href: "" }, close: vi.fn() };
+    vi.stubGlobal(
+      "open",
+      vi.fn(() => tab),
+    );
+    renderAt(
+      "/apps/svc_gitea",
+      api(gitea, {
+        auth: { getAuthState: () => authState({ user: { ...mira, email: "mira@example.com" }, rpId: "localhost" }) },
+        services: {
+          listServices: () => ({
+            services: [
+              anApp("gitea", "gitea/gitea:1.25", {
+                ports: [{ hostIp: "127.0.0.1", hostPort: 3000, containerPort: 3000 }],
+              }),
+            ],
+          }),
+          openService: (req: { id: string; port: number }) => {
+            asked.push({ id: req.id, port: req.port });
+            return {
+              url: "http://abcde23456.localhost:7600/.dockwell/open?ticket=t",
+              origin: "http://abcde23456.localhost:7600",
+            };
+          },
+        },
+        domains: { listDomains: () => ({ domains: [] }) },
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    await user.click(await within(panel).findByRole("button", { name: "Open Gitea" }));
+    await waitFor(() => expect(tab.location.href).toBe("http://abcde23456.localhost:7600/.dockwell/open?ticket=t"));
+    expect(asked).toEqual([{ id: "svc_gitea", port: 3000 }]);
+    expect(tab.opener).toBeNull();
+    expect(within(panel).queryByRole("button", { name: "Copy the SSH tunnel command" })).toBeNull();
+  });
   it("leaves Close sign-ups and the sign-in's Reveal in place for a viewer, off, with why", async () => {
     renderAt(
       "/apps/svc_gitea",

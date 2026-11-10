@@ -834,6 +834,12 @@ msgstr "Opened a terminal on {server}"
 msgid "Opened a terminal on {server}, as {as}"
 msgstr "Opened a terminal on {server}, as {as}"
 
+msgid "Opened an app through the panel"
+msgstr "Opened an app through the panel"
+
+msgid "Opened {name} through the panel"
+msgstr "Opened {name} through the panel"
+
 msgid "Put back {path} on {server}"
 msgstr "Put back {path} on {server}"
 

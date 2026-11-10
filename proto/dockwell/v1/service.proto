@@ -96,6 +96,52 @@ service ServiceService {
       body: "*"
     };
   }
+  // OpenService gives the person who asks a one-time address that opens the web
+  // UI a service publishes on its server, through the panel, on an origin of
+  // the service's own (ADR 0061): a browser that opens it within a minute, in
+  // the same sign-in session, gets that app and nothing else, for as long as
+  // the session lasts. It's as much as revealing a secret, as an admin tool or
+  // an app's first account may be behind it, so it takes a developer in a
+  // session, never a token, and goes on the audit log. Only a panel reached on
+  // localhost opens apps for now: on its domain, this is refused, and says so.
+  rpc OpenService(OpenServiceRequest) returns (OpenServiceResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {verb: "open"};
+    option (google.api.http) = {
+      post: "/v1/services/{id}:open"
+      body: "*"
+    };
+  }
+}
+
+// OpenServiceRequest names a service and the port of its web UI.
+message OpenServiceRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The port in its container that answers HTTP, such as 80. Empty takes the
+  // one port it publishes, where it publishes one.
+  uint32 port = 2;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 3;
+  // The environment of a service named by name, by name or ID, when its
+  // project has more than one.
+  string environment = 4;
+}
+
+// OpenServiceResponse carries where to open it.
+message OpenServiceResponse {
+  // Where a browser opens it, such as "http://abcde23456.localhost:7600/.dockwell/open?ticket=…".
+  // It works once.
+  string url = 1;
+  // When the address stops working, if it hasn't been opened.
+  google.protobuf.Timestamp expire_time = 2;
+  // The origin the app answers on, such as "http://abcde23456.localhost:7600".
+  string origin = 3;
 }
 
 // ListServicesRequest asks for a page of services.
