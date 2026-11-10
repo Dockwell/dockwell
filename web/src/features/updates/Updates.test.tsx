@@ -393,6 +393,9 @@ describe("UpdatesPage", () => {
       "libssl-extra 3.0.13-0ubuntu3.5Pulled inSecurity fix",
     ]);
     expect(sheet).toHaveTextContent("Docker restarts: every app and website on hz-1 stops until it's back");
+    // What restarts beyond Docker can't be told ahead, so it says they may.
+    expect(sheet).toHaveTextContent("Services these packages run may restart as they're installed.");
+    expect(sheet).not.toHaveTextContent("Nothing else restarts");
     // As good as root, with no undo, and Docker's restart is the server's downtime.
     expect(within(sheet).getByText("Applying this asks for your passkey")).toBeVisible();
     expect(within(sheet).getByText("No undo")).toBeVisible();

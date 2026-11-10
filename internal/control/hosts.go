@@ -108,5 +108,11 @@ func (h *Hosts) Make(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return h.Engine.Apply(ctx, plan.Change)
+	if err := h.Engine.Apply(ctx, plan.Change); err != nil {
+		// A plan that didn't apply, as an agent that went between the two, isn't
+		// left behind: the next look makes another.
+		_ = h.Engine.Discard(context.WithoutCancel(ctx), plan.Change, revision.By{Actor: revision.SystemActor, Via: revision.ViaAutomatic})
+		return err
+	}
+	return nil
 }

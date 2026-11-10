@@ -110,7 +110,13 @@ func (d *Driver) JudgeInstall(ctx context.Context, _ resource.Ref, ask resource.
 		return resource.Decision{}, false, nil
 	}
 	// The step carries the whole plan: what's done reads done again as it applies.
+	// What it needs after is each package's, as the plan said: an apply plans
+	// again, and its fingerprint has to read as the plan's did.
 	dec.Install = &resource.Install{Packages: ask.Packages}
+	for _, p := range ask.Packages {
+		dec.Install.Reboot = dec.Install.Reboot || p.Reboot
+		dec.Install.DockerRestarts = dec.Install.DockerRestarts || p.Docker
+	}
 	return dec, true, nil
 }
 

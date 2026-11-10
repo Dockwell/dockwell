@@ -35,8 +35,11 @@ import (
 const (
 	PlanTimeout    = time.Minute
 	ObserveTimeout = time.Minute
-	ApplyTimeout   = 10 * time.Minute
 )
+
+// ApplyTimeout is how long any step may take, on top of its own budget. Agents
+// take it as they're made, so a test shortens it first.
+var ApplyTimeout = 10 * time.Minute
 
 // ErrLost means a server's stream ended while a call on it was waiting
 // for its result. The call may or may not have run. It is resource.ErrLost,
@@ -66,6 +69,8 @@ var ErrMoving = errors.New("the agent is moving to a new stream")
 type Agents struct {
 	kinds  *resource.Registry
 	logger *slog.Logger
+	// applyTimeout is ApplyTimeout as the Agents were made.
+	applyTimeout time.Duration
 	// values finds the values of the variables and secrets a service uses,
 	// for the server it is about to run on.
 	values resource.Values
@@ -115,6 +120,7 @@ func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
 		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, links: map[uint64]*TerminalLink{}, transfers: map[uint64]*transfer{}, opened: make(chan struct{}), moved: map[string]time.Time{},
 		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{}, health: map[string]health.Report{},
+		applyTimeout: ApplyTimeout,
 	}
 }
 
@@ -1077,7 +1083,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	}
 	// What a step waits on by design, such as a health check with a long start
 	// period, comes on top of the time any step gets.
-	_, err = s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, ApplyTimeout+step.Budget(), seal)
+	_, err = s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, s.agents.applyTimeout+step.Budget(), seal)
 	return err
 }
 
@@ -1555,7 +1561,7 @@ func (s *Session) FetchBackup(ctx context.Context, call *agentv1.FetchBackupCall
 // was sent, if destination says. It says if the destination kept it.
 func (s *Session) DeleteBackup(ctx context.Context, call *agentv1.DeleteBackupCall, destination map[string]string) (*agentv1.DeleteBackupResult, error) {
 	prepare := s.sealing(call.GetVolume(), destination, func(sealed []byte) { call.Destination = sealed })
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DeleteBackup{DeleteBackup: call}}, ApplyTimeout, prepare)
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DeleteBackup{DeleteBackup: call}}, s.agents.applyTimeout, prepare)
 	if err != nil {
 		return nil, err
 	}

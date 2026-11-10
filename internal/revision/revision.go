@@ -163,6 +163,11 @@ type Engine struct {
 	// A change claims its resources before it plans, so two changes never
 	// run steps on one resource at once.
 	busy map[string]string
+	// on names the servers each owned change runs steps on, and dockerFor the
+	// change whose install restarts Docker on a server, so neither runs beside
+	// the other there (ADR 0064, Holds).
+	on        map[string][]string
+	dockerFor map[string]string
 	// waiters are the owned changes Resume waits on: it skipped a change
 	// because one of these held it or one of its resources, or a rollback
 	// ended its first run waiting for a server that is back. Once one lets
@@ -2229,7 +2234,10 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				for _, p := range in.Packages {
 					fmt.Fprintf(fp, "install %s|%s|%s|%s|%s\n", server, ref(s.Ref), p.Name, p.From, p.To)
 				}
-				fmt.Fprintf(fp, "install-after %s|%t|%t|%t\n", server, in.Reboot, in.DockerRestarts, in.KeepsRunning)
+				// What it needs after is its packages', so an apply's plan reads the
+				// same; whether containers keep running is the engine's setting,
+				// which the plan only says.
+				fmt.Fprintf(fp, "install-after %s|%t|%t\n", server, in.Reboot, in.DockerRestarts)
 			}
 			if s.Action == resource.ActionNone {
 				was := unfinishedOn(its, s.Ref, server)
@@ -3098,6 +3106,9 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 	}
 	plan, err := e.plan(ctx, c.ID, items, rollback)
 	if err != nil {
+		return nil, err
+	}
+	if err := e.holdServers(c.ID, plan, rollback); err != nil {
 		return nil, err
 	}
 	if rollback {
@@ -4148,8 +4159,6 @@ func restoreIn(c store.Change, ref resource.Ref) (*resource.RestoreSource, map[s
 	return nil, nil
 }
 
-// restarts reports a change that restarts a resource, as its plan says: a
-// restart isn't in the spec the store keeps for the change's item.
 // installIn is the install of updates change c asks of ref, as its plan fixed
 // it, or nil: what a resume plans what's left of against.
 func installIn(c store.Change, ref resource.Ref) *resource.InstallAsked {
@@ -4173,6 +4182,8 @@ func installIn(c store.Change, ref resource.Ref) *resource.InstallAsked {
 	return nil
 }
 
+// restarts reports a change that restarts a resource, as its plan says: a
+// restart isn't in the spec the store keeps for the change's item.
 func restarts(c store.Change, ref resource.Ref) bool {
 	if len(c.Plan) == 0 {
 		return false

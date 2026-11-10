@@ -5099,6 +5099,12 @@ msgstr "In project <0>{project}</0>"
 msgid "In project <0>{project}</0>, environment <1>{environment}</1>"
 msgstr "In project <0>{project}</0>, environment <1>{environment}</1>"
 
+msgid "Installing updates on {server}"
+msgstr "Installing updates on {server}"
+
+msgid "Installing updates on {server} failed"
+msgstr "Installing updates on {server} failed"
+
 msgid "It keeps applying if you close this."
 msgstr "It keeps applying if you close this."
 
@@ -5194,6 +5200,9 @@ msgstr "Undo for {undoDays} days if this replaces anything"
 
 msgid "Undo until {deadline}"
 msgstr "Undo until {deadline}"
+
+msgid "Updates are installed on {server}"
+msgstr "Updates are installed on {server}"
 
 msgid "Waits for an admin or the owner"
 msgstr "Waits for an admin or the owner"
@@ -5394,8 +5403,8 @@ msgstr "Brings back the data the server kept"
 msgid "Destroys data"
 msgstr "Destroys data"
 
-msgid "Docker restarts, and keeps containers running while it does"
-msgstr "Docker restarts, and keeps containers running while it does"
+msgid "Docker restarts, and keeps containers running while it does: it's a patch release, and live-restore is on"
+msgstr "Docker restarts, and keeps containers running while it does: it's a patch release, and live-restore is on"
 
 msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
 msgstr "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
@@ -5412,9 +5421,6 @@ msgstr "No downtime"
 msgid "No steps: it left the fleet"
 msgstr "No steps: it left the fleet"
 
-msgid "Nothing else restarts. It can't be undone: what it installs stays installed"
-msgstr "Nothing else restarts. It can't be undone: what it installs stays installed"
-
 msgid "Packages it installs on {server}"
 msgstr "Packages it installs on {server}"
 
@@ -5427,6 +5433,9 @@ msgstr "Reaches {reach} on {server}"
 msgctxt "a package update"
 msgid "Security fix"
 msgstr "Security fix"
+
+msgid "Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed"
+msgstr "Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed"
 
 msgid "Steps"
 msgstr "Steps"

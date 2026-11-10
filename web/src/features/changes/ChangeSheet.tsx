@@ -897,6 +897,13 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   const words = useChangeWords();
   const intent = intentOf(plan);
   const health = useHealth();
+  // An install says what it does, not that its server's host is changed.
+  if (installs(plan)) {
+    const server = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? "";
+    if (phase === "applying") return t`Installing updates on ${server}`;
+    if (phase === "failed" && !wentOffline(change)) return t`Installing updates on ${server} failed`;
+    if (phase === "history" || phase === "arrived") return t`Updates are installed on ${server}`;
+  }
   switch (phase) {
     case "planning":
       return t`Planning`;

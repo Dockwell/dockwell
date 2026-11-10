@@ -5099,6 +5099,12 @@ msgstr "位于项目 <0>{project}</0>"
 msgid "In project <0>{project}</0>, environment <1>{environment}</1>"
 msgstr "位于项目 <0>{project}</0>，环境 <1>{environment}</1>"
 
+msgid "Installing updates on {server}"
+msgstr "正在 {server} 上安装更新"
+
+msgid "Installing updates on {server} failed"
+msgstr "在 {server} 上安装更新失败"
+
 msgid "It keeps applying if you close this."
 msgstr "关闭这里后它会继续应用。"
 
@@ -5194,6 +5200,9 @@ msgstr "如果发生替换，{undoDays} 天内可撤销"
 
 msgid "Undo until {deadline}"
 msgstr "可撤销至 {deadline}"
+
+msgid "Updates are installed on {server}"
+msgstr "{server} 上的更新已安装"
 
 msgid "Waits for an admin or the owner"
 msgstr "等待管理员或所有者"
@@ -5394,8 +5403,8 @@ msgstr "恢复服务器保留的数据"
 msgid "Destroys data"
 msgstr "会销毁数据"
 
-msgid "Docker restarts, and keeps containers running while it does"
-msgstr "Docker 会重启，重启期间容器保持运行"
+msgid "Docker restarts, and keeps containers running while it does: it's a patch release, and live-restore is on"
+msgstr "Docker 会重启，期间容器保持运行：这是补丁版本，且已开启 live-restore"
 
 msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
 msgstr "Docker 会重启：{server} 上的所有应用和网站都会停止，直到它恢复，Caddy 在那里提供的域名也一样"
@@ -5412,9 +5421,6 @@ msgstr "不会停机"
 msgid "No steps: it left the fleet"
 msgstr "没有步骤：它已离开集群"
 
-msgid "Nothing else restarts. It can't be undone: what it installs stays installed"
-msgstr "不会重启其他内容。此操作无法撤销：装上的内容会一直保留"
-
 msgid "Packages it installs on {server}"
 msgstr "它在 {server} 上安装的软件包"
 
@@ -5427,6 +5433,9 @@ msgstr "可访问 {server} 上的 {reach}"
 msgctxt "a package update"
 msgid "Security fix"
 msgstr "安全修复"
+
+msgid "Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed"
+msgstr "这些软件包运行的服务可能会在安装时重启。此操作无法撤销：已安装的内容会保留"
 
 msgid "Steps"
 msgstr "步骤"

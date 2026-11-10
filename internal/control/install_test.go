@@ -8,26 +8,33 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// packages is a server's packages, which a fake host installs.
+// packages is a server's packages, which a fake host installs as the agent does:
+// in a unit of its own that outlives whoever started it, followed until it ends.
 type packages struct {
 	mu        sync.Mutex
 	waiting   *resource.Install
 	installed map[string]string
-	installs  int
+	// installs counts the installs started, follows each call that started or
+	// followed one.
+	installs, follows int
 	// hold, when set, keeps an install going until it's closed.
 	hold chan struct{}
+	// ended is closed as the running install's unit ends; nil while none runs.
+	ended chan struct{}
 }
 
 func (p *packages) Plan(context.Context, bool) (*resource.Install, error) {
@@ -36,7 +43,9 @@ func (p *packages) Plan(context.Context, bool) (*resource.Install, error) {
 	if p.waiting == nil {
 		return &resource.Install{}, nil
 	}
-	return &resource.Install{Packages: slices.Clone(p.waiting.Packages), Reboot: p.waiting.Reboot}, nil
+	in := *p.waiting
+	in.Packages = slices.Clone(p.waiting.Packages)
+	return &in, nil
 }
 
 func (p *packages) Left(_ context.Context, _ string, planned []resource.InstallPackage) ([]resource.InstallPackage, bool, error) {
@@ -48,41 +57,59 @@ func (p *packages) Left(_ context.Context, _ string, planned []resource.InstallP
 			left = append(left, pk)
 		}
 	}
-	return left, false, nil
+	return left, p.ended != nil, nil
 }
 
 func (p *packages) Install(ctx context.Context, _ string, planned []resource.InstallPackage, say func(string)) error {
 	p.mu.Lock()
-	p.installs++
-	hold := p.hold
+	p.follows++
+	if p.ended == nil {
+		done := true
+		for _, pk := range planned {
+			done = done && p.installed[pk.Name] == pk.To
+		}
+		if done {
+			// What a run that ended unobserved installed reads done, as on the agent.
+			p.mu.Unlock()
+			return nil
+		}
+		p.installs++
+		ended, hold := make(chan struct{}), p.hold
+		p.ended = ended
+		go func() {
+			if hold != nil {
+				<-hold
+			}
+			p.mu.Lock()
+			for _, pk := range planned {
+				p.installed[pk.Name] = pk.To
+			}
+			p.waiting, p.ended = nil, nil
+			p.mu.Unlock()
+			close(ended)
+		}()
+	}
+	ended := p.ended
 	p.mu.Unlock()
 	for _, pk := range planned {
 		say("Setting up " + pk.Name + " (" + pk.To + ")")
 	}
-	if hold != nil {
-		select {
-		case <-hold:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+	select {
+	case <-ended:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	for _, pk := range planned {
-		p.installed[pk.Name] = pk.To
-	}
-	p.waiting = nil
-	return nil
 }
 
-// addHostServer adds a server whose host installs from packages.
-func (f *fullServer) addHostServer(t *testing.T, name string, p *packages) *testServer {
+// addHostServer adds web-1, whose host installs from packages.
+func (f *fullServer) addHostServer(t *testing.T, p *packages) *testServer {
 	t.Helper()
 	key, csr, err := pki.NewServerKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	joined, err := f.ident.EnrollLocal(t.Context(), csr, name)
+	joined, err := f.ident.EnrollLocal(t.Context(), csr, "web-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,6 +119,24 @@ func (f *fullServer) addHostServer(t *testing.T, name string, p *packages) *test
 		dataDir: t.TempDir(),
 	}
 	s.connect(t, f)
+	// The control plane makes the server's host as its agent connects: a plan
+	// made before that lands would read as out of date.
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		var made bool
+		if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+			hosts, err := tx.ListKind(t.Context(), string(host.Kind))
+			made = slices.ContainsFunc(hosts, func(r store.Resource) bool { return r.Scope == s.id.ServerID })
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if made {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the server's host wasn't made")
+		}
+	}
 	return s
 }
 
@@ -110,7 +155,7 @@ func TestInstallingUpdatesIsAPlanAPersonAppliesWithAPasskey(t *testing.T) {
 		}},
 	}
 	p.hold = make(chan struct{})
-	s := f.addHostServer(t, "web-1", p)
+	s := f.addHostServer(t, p)
 	c := changeClient(b, b.origin)
 
 	// No API token plans or applies it: a person does, signed in.
@@ -188,6 +233,136 @@ func TestInstallingUpdatesIsAPlanAPersonAppliesWithAPasskey(t *testing.T) {
 				t.Errorf("a plan with nothing to install was left: %v", ch.GetSummary())
 			}
 		}
+	}
+}
+
+// A plan that needs a reboot after, or restarts Docker, applies: the apply plans
+// again, and what it needs after reads as the plan said, so the fingerprint holds.
+func TestAnInstallThatRebootsOrRestartsDockerApplies(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		waiting *resource.Install
+	}{
+		{"a reboot", &resource.Install{Reboot: true, Packages: []resource.InstallPackage{
+			{Name: "linux-image-6.8.0-52-generic", To: "6.8.0-52.53", Security: true, Reboot: true},
+			{Name: "openssl", From: "3.0.13-0ubuntu3.4", To: "3.0.13-0ubuntu3.5", Security: true},
+		}}},
+		{"Docker restarting", &resource.Install{DockerRestarts: true, KeepsRunning: true, Packages: []resource.InstallPackage{
+			{Name: "docker-ce", From: "5:27.4.0-1~ubuntu.24.04~noble", To: "5:27.4.1-1~ubuntu.24.04~noble", Security: true, Docker: true},
+		}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := startFull(t, store.SQLite, nil)
+			b := signedIn(t, f)
+			p := &packages{installed: map[string]string{}, waiting: tc.waiting}
+			s := f.addHostServer(t, p)
+			c := changeClient(b, b.origin)
+			res, err := c.PlanInstallUpdates(t.Context(), connect.NewRequest(&dockwellv1.PlanInstallUpdatesRequest{ServerIds: []string{s.id.ServerID}}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			change := res.Msg.GetChange()
+			proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, change.GetId())
+			if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint(), Proof: proof})); err != nil {
+				t.Fatalf("applying a plan with %s: %v", tc.name, err)
+			}
+			done := waitChange(t, c, change.GetId(), "the install applies", func(ch *dockwellv1.Change) bool {
+				return ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED || ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_FAILED
+			})
+			if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+				t.Fatalf("the install with %s ended %v: %s", tc.name, done.GetState(), done.GetError())
+			}
+		})
+	}
+}
+
+// An install that takes longer than any step's time goes on to the end and
+// applies: its step has hours of its own, so it isn't failed while it still runs.
+func TestAnInstallLongerThanAnyStepsTimeApplies(t *testing.T) {
+	was := agentapi.ApplyTimeout
+	agentapi.ApplyTimeout = 300 * time.Millisecond
+	t.Cleanup(func() { agentapi.ApplyTimeout = was })
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	p := &packages{installed: map[string]string{}, waiting: &resource.Install{Packages: []resource.InstallPackage{
+		{Name: "linux-modules-extra-6.8.0-52-generic", To: "6.8.0-52.53", Security: true, Reboot: true},
+	}, Reboot: true}}
+	p.hold = make(chan struct{})
+	s := f.addHostServer(t, p)
+	c := changeClient(b, b.origin)
+	res, err := c.PlanInstallUpdates(t.Context(), connect.NewRequest(&dockwellv1.PlanInstallUpdatesRequest{ServerIds: []string{s.id.ServerID}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := res.Msg.GetChange()
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, change.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint(), Proof: proof})); err != nil {
+		t.Fatal(err)
+	}
+	// Five times what any step gets, and it still runs.
+	time.Sleep(5 * agentapi.ApplyTimeout)
+	close(p.hold)
+	done := waitChange(t, c, change.GetId(), "the install applies", func(ch *dockwellv1.Change) bool {
+		return ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED || ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_FAILED
+	})
+	if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("an install longer than a step's %s ended %v: %s", agentapi.ApplyTimeout, done.GetState(), done.GetError())
+	}
+}
+
+// The control plane restarts while an install runs: the install goes on in its
+// unit, and the change, resumed, follows it to the end, starting nothing again.
+func TestAnInstallIsFollowedAgainAfterTheControlPlaneRestarts(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	p := &packages{installed: map[string]string{}, waiting: &resource.Install{Packages: []resource.InstallPackage{
+		{Name: "openssl", From: "3.0.13-0ubuntu3.4", To: "3.0.13-0ubuntu3.5", Security: true},
+	}}}
+	p.hold = make(chan struct{})
+	s := f.addHostServer(t, p)
+	c := changeClient(b, b.origin)
+	res, err := c.PlanInstallUpdates(t.Context(), connect.NewRequest(&dockwellv1.PlanInstallUpdatesRequest{ServerIds: []string{s.id.ServerID}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := res.Msg.GetChange()
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, change.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint(), Proof: proof})); err != nil {
+		t.Fatal(err)
+	}
+	waitChange(t, c, change.GetId(), "the install runs", func(ch *dockwellv1.Change) bool {
+		return slices.ContainsFunc(ch.GetSteps(), func(st *dockwellv1.StepProgress) bool { return strings.HasPrefix(st.GetActivity(), "Setting up ") })
+	})
+
+	_, letIn := f.restart(t, func(*Server) {})
+	// dockwell run resumes what's left applying as each server reconnects.
+	engine := f.engine
+	f.agents.OnConnect(func(string) { _ = engine.Resume(context.WithoutCancel(t.Context())) })
+	letIn()
+	// The install ends only once the resumed change follows it.
+	for deadline := time.Now().Add(15 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		p.mu.Lock()
+		follows := p.follows
+		p.mu.Unlock()
+		if follows >= 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("nothing followed the install after the restart")
+		}
+	}
+	close(p.hold)
+	done := waitChange(t, c, change.GetId(), "the resumed install ends", func(ch *dockwellv1.Change) bool {
+		return ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED || ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_FAILED
+	})
+	if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("after a restart, the install ended %v: %s", done.GetState(), done.GetError())
+	}
+	p.mu.Lock()
+	installs := p.installs
+	p.mu.Unlock()
+	if installs != 1 {
+		t.Errorf("the install started %d times, want once", installs)
 	}
 }
 

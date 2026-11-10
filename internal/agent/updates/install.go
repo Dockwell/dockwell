@@ -9,11 +9,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -26,8 +28,23 @@ const (
 	DownloadTimeout = 30 * time.Minute
 	// followEvery is how often the install's output is read while it runs.
 	followEvery = time.Second
+	// stillAfter is when following says the install still runs, and goes on.
+	stillAfter = 30 * time.Minute
+	// unitWait is how long following waits out systemctl failing, as while a
+	// systemd upgrade re-executes it, before it gives up.
+	unitWait = time.Minute
+	// finishing is the suffix of the unit that finishes what dpkg left.
+	finishing = "-finish"
 	// unitPrefix names an install's unit after its change.
 	unitPrefix = "dockwell-install-"
+)
+
+// packageName and packageVersion are what a package's name and version may hold,
+// as Debian's policy says, an architecture after the name included: the agent
+// installs nothing else, whatever it's sent.
+var (
+	packageName    = regexp.MustCompile(`^[a-z0-9][a-z0-9+.-]*(:[a-z0-9-]+)?$`)
+	packageVersion = regexp.MustCompile(`^[A-Za-z0-9.+~:-]+$`)
 )
 
 // ErrChanged is an install whose updates aren't what its plan said any more, at
@@ -76,6 +93,9 @@ func (r *Reader) PlanInstall(ctx context.Context, all bool) (*InstallPlan, error
 	}
 	if got.GetManager() != dockwellv1.PackageManager_PACKAGE_MANAGER_APT {
 		return nil, resource.Plainly("Dockwell installs updates with apt for now. Install them on this server over SSH, with the command the Updates tab shows.", ErrNotYet)
+	}
+	if !r.exists("run/systemd/system") {
+		return nil, resource.Plainly("This server doesn't run systemd, which Dockwell installs updates under so nothing stops them halfway. Install them on it over SSH, with the command the Updates tab shows.", ErrNoUnits)
 	}
 	var pick []*dockwellv1.PackageUpdate
 	for _, p := range got.GetPackages() {
@@ -132,9 +152,30 @@ func (r *Reader) simulate(ctx context.Context, ps []*dockwellv1.PackageUpdate, l
 	for _, p := range waiting {
 		p.Effect = effectOf(dockwellv1.PackageManager_PACKAGE_MANAGER_APT, p.GetName())
 		plan.Reboot = plan.Reboot || p.GetEffect() == dockwellv1.PackageEffect_PACKAGE_EFFECT_REBOOT
-		plan.DockerRestarts = plan.DockerRestarts || p.GetEffect() == dockwellv1.PackageEffect_PACKAGE_EFFECT_DOCKER_RESTART
+		if p.GetEffect() == dockwellv1.PackageEffect_PACKAGE_EFFECT_DOCKER_RESTART {
+			plan.DockerRestarts = true
+			// live-restore keeps containers across Docker's patch releases alone: a
+			// new minor version, or containerd or runc, stops them.
+			plan.KeepsRunning = plan.KeepsRunning && slices.Contains(dockerEngines, p.GetName()) && samePatchLine(p.GetInstalled(), p.GetAvailable())
+		}
 	}
 	return plan, nil
+}
+
+// samePatchLine reports two versions of Docker's engine apart by a patch release
+// at most: "5:27.4.0-1~ubuntu.24.04~noble" and "5:27.4.1-1~..." are; 27.5 isn't.
+func samePatchLine(from, to string) bool {
+	line := func(v string) string {
+		if _, after, ok := strings.Cut(v, ":"); ok {
+			v = after
+		}
+		parts := strings.SplitN(v, ".", 3)
+		if len(parts) < 2 {
+			return ""
+		}
+		return parts[0] + "." + parts[1]
+	}
+	return from != "" && line(from) != "" && line(from) == line(to)
 }
 
 // pinned is each package as name=version, for apt to install exactly that.
@@ -172,11 +213,25 @@ func (in *Installer) Install(ctx context.Context, change string, planned []*dock
 	if len(planned) == 0 {
 		return nil
 	}
+	for _, p := range planned {
+		if !packageName.MatchString(p.GetName()) || !packageVersion.MatchString(p.GetAvailable()) {
+			return fmt.Errorf("refused to install %q at %q: that isn't a package's name and version", p.GetName(), p.GetAvailable())
+		}
+	}
 	if err := os.MkdirAll(in.Dir, 0o700); err != nil {
 		return fmt.Errorf("can't make a folder for the install's output: %w", err)
 	}
+	in.sweep(ctx, change)
 	name := unit(change)
-	if active, err := in.Units.Active(ctx, name); err != nil {
+	if active, err := in.active(ctx, name+finishing); err != nil {
+		return err
+	} else if active {
+		say("Following dpkg as it finishes what a stopped install left")
+		if err := in.watch(ctx, change, name+finishing, say); err != nil {
+			return err
+		}
+	}
+	if active, err := in.active(ctx, name); err != nil {
 		return err
 	} else if active {
 		say("Following the install that's running")
@@ -184,6 +239,11 @@ func (in *Installer) Install(ctx context.Context, change string, planned []*dock
 	}
 	_, err := os.Stat(in.log(change))
 	started := err == nil
+	if started {
+		// A run that ended while nobody followed it is let go, so its unit's name
+		// is free to start the rest under.
+		_, _ = in.Units.Ended(ctx, name)
+	}
 	left, err := in.left(ctx, planned)
 	if err != nil {
 		return err
@@ -194,7 +254,7 @@ func (in *Installer) Install(ctx context.Context, change string, planned []*dock
 	}
 	if started {
 		// A stopped run can leave packages unpacked and not configured.
-		if err := in.finishDpkg(ctx, say); err != nil {
+		if err := in.finishDpkg(ctx, change, say); err != nil {
 			return err
 		}
 		if left, err = in.left(ctx, planned); err != nil {
@@ -270,50 +330,52 @@ func (in *Installer) download(ctx context.Context, ps []*dockwellv1.PackageUpdat
 	return nil
 }
 
-// follow says the install's output as it comes until its unit ends, then checks
-// every package reached its version. A caller that leaves stops the following,
-// never the install, which the next start follows again.
-func (in *Installer) follow(ctx context.Context, change string, planned []*dockwellv1.PackageUpdate, say func(string)) error {
-	name := unit(change)
-	var offset int64
-	var partial string
-	read := func() {
-		f, err := os.Open(in.log(change))
-		if err != nil {
-			return
-		}
-		defer f.Close()
-		if _, err := f.Seek(offset, io.SeekStart); err != nil {
-			return
-		}
-		b, _ := io.ReadAll(io.LimitReader(f, maxOutput))
-		offset += int64(len(b))
-		text := partial + string(b)
-		lines := strings.Split(text, "\n")
-		partial = lines[len(lines)-1]
-		for _, l := range lines[:len(lines)-1] {
-			if l = strings.TrimSpace(l); l != "" {
-				say(l)
-			}
-		}
-	}
+// watch says what a unit prints as it comes until it ends, then says whether it
+// ended well. A caller that leaves stops the watching, never the unit, which the
+// next start follows again.
+func (in *Installer) watch(ctx context.Context, change, name string, say func(string)) error {
+	tail := &tailer{path: in.log(change)}
+	now := in.now
+	began := now()
+	still := false
 	tick := time.NewTicker(followEvery)
 	defer tick.Stop()
 	for {
-		read()
-		active, err := in.Units.Active(ctx, name)
+		tail.read(say)
+		active, err := in.active(ctx, name)
 		if err != nil {
 			return err
 		}
 		if !active {
-			read()
+			tail.read(say)
 			break
+		}
+		if !still && now().Sub(began) >= stillAfter {
+			still = true
+			say("Still installing after " + human.Duration(stillAfter) + "; it goes on")
 		}
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("stopped following the install, which goes on in its own unit; it's followed again when the change resumes: %w", ctx.Err())
+			return resource.Plainly("Dockwell stopped following the install, which goes on in its own unit, "+name+", on this server. Check it with systemctl status "+name+", then plan again once it ends.",
+				fmt.Errorf("stopped following the install, which goes on in its own unit: %w", ctx.Err()))
 		case <-tick.C:
 		}
+	}
+	if strings.HasSuffix(name, finishing) {
+		code, _ := in.Units.Ended(ctx, name)
+		if code != 0 {
+			return fmt.Errorf("dpkg ended with status %d finishing what a stopped install left: %s", code, cmpOr(lastLines(string(in.tail(change))), "it said nothing"))
+		}
+	}
+	return nil
+}
+
+// follow says the install's output as it comes until its unit ends, then checks
+// every package reached its version.
+func (in *Installer) follow(ctx context.Context, change string, planned []*dockwellv1.PackageUpdate, say func(string)) error {
+	name := unit(change)
+	if err := in.watch(ctx, change, name, say); err != nil {
+		return err
 	}
 	code, _ := in.Units.Ended(ctx, name)
 	left, err := in.left(ctx, planned)
@@ -322,11 +384,108 @@ func (in *Installer) follow(ctx context.Context, change string, planned []*dockw
 	}
 	if len(left) > 0 {
 		tail := lastLines(string(in.tail(change)))
+		msg := fmt.Sprintf("the install ended with status %d, and %s didn't reach the planned version: %s", code, plural(len(left), "package"), cmpOr(tail, "it said nothing"))
+		if half, _ := in.halfDone(ctx); half != "" {
+			msg += ". dpkg left packages half done, which the next install on this server finishes first"
+		}
 		in.done(ctx, change)
-		return fmt.Errorf("the install ended with status %d, and %s didn't reach the planned version: %s", code, plural(len(left), "package"), cmpOr(tail, "it said nothing"))
+		return errors.New(msg)
+	}
+	if code > 0 {
+		say(fmt.Sprintf("apt ended with status %d, though every package reached its planned version: %s", code, cmpOr(lastLines(string(in.tail(change))), "it said nothing")))
 	}
 	in.done(ctx, change)
 	return nil
+}
+
+// active reports whether a unit runs, waiting out systemctl failing for a while,
+// as it can while a systemd upgrade re-executes it.
+func (in *Installer) active(ctx context.Context, name string) (bool, error) {
+	var first time.Time
+	for {
+		active, err := in.Units.Active(ctx, name)
+		if err == nil {
+			return active, nil
+		}
+		if first.IsZero() {
+			first = in.now()
+		}
+		if in.now().Sub(first) >= unitWait {
+			return false, err
+		}
+		select {
+		case <-ctx.Done():
+			return false, err
+		case <-time.After(followEvery):
+		}
+	}
+}
+
+func (in *Installer) now() time.Time {
+	if in.Now != nil {
+		return in.Now()
+	}
+	return time.Now()
+}
+
+// tailer reads what's been added to a file since it last looked, a chunk at a
+// time, and says each whole line.
+type tailer struct {
+	path    string
+	offset  int64
+	partial string
+}
+
+func (t *tailer) read(say func(string)) {
+	f, err := os.Open(t.path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	if _, err := f.Seek(t.offset, io.SeekStart); err != nil {
+		return
+	}
+	buf := make([]byte, 64<<10)
+	for range maxOutput / len(buf) {
+		n, err := f.Read(buf)
+		if n > 0 {
+			t.offset += int64(n)
+			lines := strings.Split(t.partial+string(buf[:n]), "\n")
+			t.partial = lines[len(lines)-1]
+			if len(t.partial) > errTail {
+				// A line that long, as a progress bar's, is cut, not kept whole.
+				t.partial = t.partial[len(t.partial)-errTail:]
+			}
+			for _, l := range lines[:len(lines)-1] {
+				if l = strings.TrimSpace(l); l != "" {
+					say(l)
+				}
+			}
+		}
+		if err != nil {
+			return
+		}
+	}
+}
+
+// sweep lets go of what installs of other changes left that no unit runs any
+// more, as a change that failed while its install went on: their output is
+// deleted, and their units let go.
+func (in *Installer) sweep(ctx context.Context, keep string) {
+	logs, _ := filepath.Glob(filepath.Join(in.Dir, "*.log"))
+	for _, l := range logs {
+		change := strings.TrimSuffix(filepath.Base(l), ".log")
+		if change == keep {
+			continue
+		}
+		if active, err := in.Units.Active(ctx, unit(change)); err != nil || active {
+			continue
+		}
+		if active, err := in.Units.Active(ctx, unit(change)+finishing); err != nil || active {
+			continue
+		}
+		in.done(ctx, change)
+	}
 }
 
 // left are the planned packages not yet at their planned version.
@@ -335,7 +494,7 @@ func (in *Installer) left(ctx context.Context, planned []*dockwellv1.PackageUpda
 	for _, p := range planned {
 		names = append(names, p.GetName())
 	}
-	args := append([]string{"-W", "-f=${Package}\t${Version}\t${db:Status-Abbrev}\n", "--"}, names...)
+	args := append([]string{"-W", "-f=${Package}\t${Architecture}\t${Version}\t${db:Status-Abbrev}\n", "--"}, names...)
 	res, err := in.Reader.run(ctx, "Reading the installed versions", dpkgQuery, ReadTimeout, args...)
 	if err != nil {
 		return nil, err
@@ -344,52 +503,78 @@ func (in *Installer) left(ctx context.Context, planned []*dockwellv1.PackageUpda
 	if res.code != 0 && res.code != 1 {
 		return nil, fail("Reading the installed versions", res)
 	}
+	// Each by name and architecture: dpkg names libc6:i386 libc6, as it does the
+	// native one.
 	have := map[string]string{}
 	for line := range strings.Lines(string(res.out)) {
-		parts := strings.SplitN(strings.TrimRight(line, "\n"), "\t", 3)
+		parts := strings.SplitN(strings.TrimRight(line, "\n"), "\t", 4)
 		// Only a package installed and configured ("ii") counts.
-		if len(parts) == 3 && strings.HasPrefix(parts[2], "ii") {
-			have[parts[0]] = parts[1]
+		if len(parts) == 4 && strings.HasPrefix(parts[3], "ii") {
+			have[parts[0]+"\t"+parts[1]] = parts[2]
+			if _, ok := have[parts[0]]; !ok {
+				have[parts[0]] = parts[2]
+			}
 		}
 	}
 	var out []*dockwellv1.PackageUpdate
 	for _, p := range planned {
-		if have[p.GetName()] != p.GetAvailable() {
+		name, arch, _ := strings.Cut(p.GetName(), ":")
+		arch = cmpOr(arch, p.GetArchitecture())
+		got, ok := have[name+"\t"+arch]
+		if !ok {
+			// One of no architecture of its own ("all"), or a plan that didn't say.
+			got, ok = have[name+"\tall"]
+		}
+		if !ok && arch == "" {
+			got = have[name]
+		}
+		if got != p.GetAvailable() {
 			out = append(out, p)
 		}
 	}
 	return out, nil
 }
 
-// finishDpkg configures what a stopped run left unpacked, when dpkg says it did.
-func (in *Installer) finishDpkg(ctx context.Context, say func(string)) error {
+// halfDone is what dpkg says it left unpacked and not configured, or "".
+func (in *Installer) halfDone(ctx context.Context) (string, error) {
 	res, err := in.Reader.run(ctx, "Asking dpkg what it left half done", dpkg, ReadTimeout, "--audit")
 	if err != nil {
-		return err
+		return "", err
 	}
-	if strings.TrimSpace(string(res.out)) == "" {
-		return nil
+	return strings.TrimSpace(string(res.out)), nil
+}
+
+// finishDpkg configures what a stopped run left unpacked, when dpkg says it did,
+// in a unit of its own as the install runs: a dropped stream, a restart or a
+// deadline can't stop dpkg partway through a package's scripts.
+func (in *Installer) finishDpkg(ctx context.Context, change string, say func(string)) error {
+	left, err := in.halfDone(ctx)
+	if err != nil || left == "" {
+		return err
 	}
 	say("Finishing what a stopped install left half done")
-	res, err = in.Reader.run(ctx, "Finishing what a stopped install left", dpkg, InstallTimeout, "--force-confold", "--configure", "-a")
-	if err != nil {
-		return err
+	name := unit(change) + finishing
+	_, _ = in.Units.Ended(ctx, name)
+	argv := []string{in.Reader.path(dpkg), "--force-confold", "--force-confdef", "--configure", "-a"}
+	if err := in.Units.Start(ctx, name, argv, env, in.log(change)); err != nil {
+		return fmt.Errorf("can't start finishing what a stopped install left: %w", err)
 	}
-	if res.code != 0 {
-		return fail("Finishing what a stopped install left", res)
-	}
-	return nil
+	return in.watch(ctx, change, name, say)
 }
 
 // tail is the end of the install's output, for a failure's words.
 func (in *Installer) tail(change string) []byte {
-	b, err := os.ReadFile(in.log(change))
+	f, err := os.Open(in.log(change))
 	if err != nil {
 		return nil
 	}
-	if len(b) > errTail {
-		b = b[len(b)-errTail:]
+	defer f.Close()
+	if st, err := f.Stat(); err == nil && st.Size() > errTail {
+		if _, err := f.Seek(st.Size()-errTail, io.SeekStart); err != nil {
+			return nil
+		}
 	}
+	b, _ := io.ReadAll(io.LimitReader(f, errTail))
 	return b
 }
 
@@ -397,6 +582,7 @@ func (in *Installer) tail(change string) []byte {
 func (in *Installer) done(ctx context.Context, change string) {
 	_ = os.Remove(in.log(change))
 	_, _ = in.Units.Ended(ctx, unit(change))
+	_, _ = in.Units.Ended(ctx, unit(change)+finishing)
 }
 
 func plural(n int, what string) string {

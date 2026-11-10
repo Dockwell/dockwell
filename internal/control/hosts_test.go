@@ -20,7 +20,7 @@ func TestAServerGetsItsHostAsItsAgentConnects(t *testing.T) {
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
 	older := f.addServer(t, false)
-	web := f.addHostServer(t, "web-1", &packages{installed: map[string]string{}})
+	web := f.addHostServer(t, &packages{installed: map[string]string{}})
 
 	hosts := func() []string {
 		t.Helper()

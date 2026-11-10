@@ -476,13 +476,17 @@ var rebootFor = map[dockwellv1.PackageManager][]string{
 // one is installed, and every container with it.
 var dockerEngines = []string{"docker-ce", "docker.io", "docker-engine", "moby-engine"}
 
+// dockerRestarters restart Docker as they're installed: its engine, and the
+// containerd and runc it runs containers with, which docker.service requires.
+var dockerRestarters = append(slices.Clone(dockerEngines), "containerd.io", "containerd", "runc")
+
 // effectOf is what installing a package needs beyond replacing its files.
 func effectOf(m dockwellv1.PackageManager, name string) dockwellv1.PackageEffect {
 	switch {
 	case slices.Contains(rebootFor[m], name),
 		m == dockwellv1.PackageManager_PACKAGE_MANAGER_APT && (strings.HasPrefix(name, "linux-image-") || strings.HasPrefix(name, "linux-signed-image-") || strings.HasPrefix(name, "linux-modules-")):
 		return dockwellv1.PackageEffect_PACKAGE_EFFECT_REBOOT
-	case slices.Contains(dockerEngines, name):
+	case slices.Contains(dockerRestarters, name):
 		return dockwellv1.PackageEffect_PACKAGE_EFFECT_DOCKER_RESTART
 	}
 	return dockwellv1.PackageEffect_PACKAGE_EFFECT_UNSPECIFIED

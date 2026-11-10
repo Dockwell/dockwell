@@ -438,10 +438,18 @@ func (r *RolloutPlan) TwoWriters() bool {
 	return r != nil && r.Rolling && r.Chosen
 }
 
+// InstallBudget is how long installing a server's updates may take on top of
+// what any step gets: the download's half hour, then an install that can build
+// kernel modules and initramfs images on a small server (ADR 0064).
+const InstallBudget = 3 * time.Hour
+
 // Budget is the most a step may take beyond its pull and its own work: how
 // long it may wait on a health check, on what is in flight, and on old
 // containers to stop. An agent's call for the step gets this much more time.
 func (d Decision) Budget() time.Duration {
+	if d.Install != nil {
+		return InstallBudget
+	}
 	if d.Restore != nil {
 		return restoreBudget(d.Restore.Size)
 	}

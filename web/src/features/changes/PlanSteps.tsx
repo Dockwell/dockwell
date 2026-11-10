@@ -305,7 +305,7 @@ function InstallList({ install, server }: { install: PackageInstall; server: str
       <span className="plan-step-meta">
         {install.dockerRestarts ? (
           install.keepsRunning ? (
-            <span>{t`Docker restarts, and keeps containers running while it does`}</span>
+            <span>{t`Docker restarts, and keeps containers running while it does: it's a patch release, and live-restore is on`}</span>
           ) : (
             <span className="plan-step-warn">
               {t`Docker restarts: every app and website on ${server} stops until it's back, the domains Caddy serves there too`}
@@ -315,7 +315,9 @@ function InstallList({ install, server }: { install: PackageInstall; server: str
         {install.reboot ? (
           <span className="plan-step-warn">{t`${server} needs a reboot for this to take effect, which is a change of its own`}</span>
         ) : null}
-        <span>{t`Nothing else restarts. It can't be undone: what it installs stays installed`}</span>
+        <span>
+          {t`Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed`}
+        </span>
       </span>
     </div>
   );

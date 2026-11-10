@@ -64,15 +64,10 @@ func (u *units) Start(_ context.Context, name string, argv, env []string, log st
 	return nil
 }
 
-func (u *units) Active(context.Context, string) (bool, error) {
+func (u *units) Active(_ context.Context, name string) (bool, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	for _, r := range u.running {
-		if r {
-			return true, nil
-		}
-	}
-	return false, nil
+	return u.running[name], nil
 }
 
 func (u *units) Ended(_ context.Context, name string) (int, error) {
@@ -105,7 +100,7 @@ func installStand(t *testing.T) *stand {
       n="${a%%=*}"; v="${a#*=}"
       echo "Unpacking $n ($v)"
       while [ -e "$ROOT/hold" ]; do sleep 0.05; done
-      grep -v "^$n	" "$ROOT/installed" > "$ROOT/installed.new"; printf '%s\t%s\tii \n' "$n" "$v" >> "$ROOT/installed.new"; mv "$ROOT/installed.new" "$ROOT/installed"
+      grep -v "^$n	" "$ROOT/installed" > "$ROOT/installed.new"; printf '%s\tamd64\t%s\tii \n' "$n" "$v" >> "$ROOT/installed.new"; mv "$ROOT/installed.new" "$ROOT/installed"
       echo "Setting up $n ($v)"
   done ;;
 *) echo "unexpected: $*" >&2; exit 2 ;;
@@ -118,7 +113,8 @@ esac`)
 "--audit") cat "$ROOT/audit" 2>/dev/null ;;
 *"--configure -a") sed 's/	iU $/	ii /' "$ROOT/installed" > "$ROOT/installed.new"; mv "$ROOT/installed.new" "$ROOT/installed"; rm -f "$ROOT/audit"; echo "Setting up what was left" ;;
 esac`)
-	write(t, s.root, "installed", "libssl3t64\t3.0.13-0ubuntu3.4\tii \nopenssl\t3.0.13-0ubuntu3.4\tii \n", 0o644)
+	write(t, s.root, "installed", "libssl3t64\tamd64\t3.0.13-0ubuntu3.4\tii \nopenssl\tamd64\t3.0.13-0ubuntu3.4\tii \n", 0o644)
+	write(t, s.root, "run/systemd/system/.keep", "", 0o644)
 	return s
 }
 
@@ -136,8 +132,8 @@ func (s *stand) versions() map[string]string {
 	out := map[string]string{}
 	for line := range strings.Lines(string(b)) {
 		parts := strings.Split(strings.TrimRight(line, "\n"), "\t")
-		if len(parts) == 3 {
-			out[parts[0]] = parts[1]
+		if len(parts) == 4 {
+			out[parts[0]] = parts[2]
 		}
 	}
 	return out
@@ -293,7 +289,7 @@ func TestAResumeCountsWhatsDoneAndFinishesWhatDpkgLeft(t *testing.T) {
 		t.Fatal(err)
 	}
 	write(t, in.Dir, "chg_1.log", "Unpacking libssl3t64\n", 0o600)
-	write(t, s.root, "installed", "libssl3t64\t3.0.13-0ubuntu3.5\tii \nopenssl\t3.0.13-0ubuntu3.5\tiU \n", 0o644)
+	write(t, s.root, "installed", "libssl3t64\tamd64\t3.0.13-0ubuntu3.5\tii \nopenssl\tamd64\t3.0.13-0ubuntu3.5\tiU \n", 0o644)
 	write(t, s.root, "audit", "openssl is unpacked, but not configured\n", 0o644)
 	// libssl-extra is left, at its planned version still.
 	write(t, s.root, "sim", "Inst libssl-extra (3.0.13-0ubuntu3.5 Ubuntu:24.04/noble-security [amd64])\nInst systemd [255.4-1] (255.4-2 Ubuntu:24.04/noble-updates [amd64])\n", 0o644)
@@ -301,11 +297,16 @@ func TestAResumeCountsWhatsDoneAndFinishesWhatDpkgLeft(t *testing.T) {
 	if err := in.Install(t.Context(), "chg_1", planned, func(string) {}); err != nil {
 		t.Fatal(err)
 	}
-	if s.called("dpkg_--force-confold_--configure_-a") != 1 {
+	if s.called("dpkg_--force-confold_--force-confdef_--configure_-a") != 1 {
 		t.Errorf("calls %v, want dpkg to finish what was left", s.calls())
 	}
-	if u.starts() != 1 || s.versions()["libssl-extra"] != "3.0.13-0ubuntu3.5" {
-		t.Errorf("started %d installs, installed %v", u.starts(), s.versions())
+	// dpkg finishes in a unit of its own, as the install runs, so nothing that
+	// stops the agent's call stops it partway.
+	u.mu.Lock()
+	started := slices.Clone(u.started)
+	u.mu.Unlock()
+	if !slices.Equal(started, []string{"dockwell-install-chg_1-finish", "dockwell-install-chg_1"}) || s.versions()["libssl-extra"] != "3.0.13-0ubuntu3.5" {
+		t.Errorf("started %v, installed %v", started, s.versions())
 	}
 }
 
