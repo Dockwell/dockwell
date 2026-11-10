@@ -2924,6 +2924,9 @@ msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权�
 msgid "A volume such as data at /data, or a server path."
 msgstr "可以是卷（例如挂载到 /data 的 data），也可以是服务器路径。"
 
+msgid "Add a port first."
+msgstr "请先添加端口。"
+
 msgid "Add an .env file"
 msgstr "添加 .env 文件"
 
@@ -2935,6 +2938,9 @@ msgstr "添加变量"
 
 msgid "Add volume"
 msgstr "添加卷"
+
+msgid "Always restarts"
+msgstr "总是重启"
 
 msgid "An app named {name} already runs here. Choose another name, or deploy to it from its page."
 msgstr "名为 {name} 的应用已在此运行。请换一个名称，或在它的页面上部署。"
@@ -2948,6 +2954,9 @@ msgstr "服务器能够拉取的任意镜像，例如 nginx:1.27。"
 msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
 msgstr "能读取 {holder} 的{where}的任何人，都能看到 {names} 的值。"
 
+msgid "Asked over HTTP on port {port}."
+msgstr "通过 HTTP 在端口 {port} 上检查。"
+
 msgid "Can't make a plan"
 msgstr "无法生成计划"
 
@@ -2959,6 +2968,9 @@ msgstr "请检查镜像及其变量，然后重试。"
 
 msgid "Check the image and tag, then try again."
 msgstr "请检查镜像和标签，然后重试。"
+
+msgid "Checks {path}"
+msgstr "检查 {path}"
 
 msgid "Choose a file"
 msgstr "选择文件"
@@ -3002,6 +3014,9 @@ msgstr "为每个变量填写值后即可查看计划"
 msgid "Give {first} a value to review the plan"
 msgstr "为 {first} 填写值后即可查看计划"
 
+msgid "Health check path"
+msgstr "健康检查路径"
+
 msgid "Hide"
 msgstr "隐藏"
 
@@ -3040,6 +3055,15 @@ msgstr "请填写要运行的镜像，例如 nginx:1.27。"
 msgid "Near lines {0}–{1}: {2}"
 msgstr "第 {0}–{1} 行附近：{2}"
 
+msgid "Never restarts"
+msgstr "从不重启"
+
+msgid "No health check"
+msgstr "无健康检查"
+
+msgid "No limits"
+msgstr "不限制资源"
+
 msgid "Nothing outside the server reaches it until you publish a port."
 msgstr "在发布端口之前，服务器外部无法访问它。"
 
@@ -3073,6 +3097,9 @@ msgstr "项目"
 msgid "Project name"
 msgstr "项目名称"
 
+msgid "Reachable at <0>{at}</0>"
+msgstr "访问地址 <0>{at}</0>"
+
 msgid "Reaches {path}"
 msgstr "可访问 {path}"
 
@@ -3093,6 +3120,12 @@ msgstr "移除不在此文件中的内容"
 
 msgid "Required"
 msgstr "必填"
+
+msgid "Restarts on errors"
+msgstr "出错时重启"
+
+msgid "Restarts unless stopped"
+msgstr "除非手动停止否则重启"
 
 msgid "Run a Compose file"
 msgstr "运行 Compose 文件"
@@ -3121,14 +3154,17 @@ msgstr "查看应用"
 msgid "Show the value"
 msgstr "显示值"
 
-msgid "Such as 8080 on the server, to 80 in the app."
-msgstr "例如将服务器上的 8080 映射到应用内的 80。"
+msgid "Start it with /, such as /healthz."
+msgstr "以 / 开头，例如 /healthz。"
 
 msgid "The file uses these, and has no default for them."
 msgstr "文件用到了这些变量，且没有默认值。"
 
 msgid "The file uses these. Leave one with a default empty to use its default."
 msgstr "文件使用这些变量。有默认值的留空即使用默认值。"
+
+msgid "The image's command"
+msgstr "镜像自带的命令"
 
 msgid "This file is too large to read"
 msgstr "文件过大，无法读取"
@@ -3138,6 +3174,15 @@ msgstr "这个文件有 {kib} KiB，而 Dockwell 最多读取 {limit} KiB。请�
 
 msgid "This file writes more variables in plain sight than these. Read it before you pass one a secret."
 msgstr "此文件明文写入的变量比这里列出的更多。向其中传入机密之前，请先阅读文件。"
+
+msgid "Up to {cpus} CPUs"
+msgstr "最多 {cpus} 个 CPU"
+
+msgid "Up to {memory}"
+msgstr "最多 {memory}"
+
+msgid "Up to {memory} and {cpus} CPUs"
+msgstr "最多 {memory}、{cpus} 个 CPU"
 
 msgid "Use an absolute path, such as /data."
 msgstr "请使用绝对路径，例如 /data。"
@@ -3199,6 +3244,9 @@ msgstr "{0, plural, other {这会创建 # 个应用}}"
 #. placeholder {0}: volumes.length
 msgid "{0, plural, one {Volume} other {Volumes}}"
 msgstr "{0, plural, other {卷}}"
+
+msgid "{changed, plural, one {# changed} other {# changed}}"
+msgstr "{changed, plural, other {已更改 # 项}}"
 
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 msgstr "{count, plural, other {这里还有 # 个其他应用。否则它们保持不变。}}"

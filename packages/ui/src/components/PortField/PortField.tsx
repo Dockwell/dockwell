@@ -28,6 +28,12 @@ export interface PortFieldProps
   check?: PortCheck;
   /** A free port to offer while the field is empty, or holds one that's taken. */
   suggestion?: number | undefined;
+  /**
+   * One field in a row of them: it says nothing under itself, so the row's
+   * fields stay level, and marks itself invalid when the port is taken. The
+   * row says what holds it, under the row.
+   */
+  inRow?: boolean;
 }
 
 /** The ports a server has, as a field takes them. */
@@ -43,7 +49,17 @@ export function validPortNumber(value: string): boolean {
  * form fills it with a free port to start with (defaults first), so most
  * people never type one. Only digits go in.
  */
-export function PortField({ value, onChange, check, suggestion, error, hint, className, ...rest }: PortFieldProps) {
+export function PortField({
+  value,
+  onChange,
+  check,
+  suggestion,
+  inRow = false,
+  error,
+  hint,
+  className,
+  ...rest
+}: PortFieldProps) {
   const strings = useUIStrings();
   const words = strings.portField;
   const stateId = useId();
@@ -90,8 +106,9 @@ export function PortField({ value, onChange, check, suggestion, error, hint, cla
       maxLength={5}
       value={value}
       onChange={(event) => onChange(event.target.value.replace(/\D/g, ""))}
-      error={message}
-      hint={help}
+      error={inRow ? undefined : message}
+      hint={inRow ? undefined : help}
+      invalid={inRow ? message !== undefined || rest.invalid === true : rest.invalid}
       aria-describedby={cx(shown && shown.state !== "unknown" && stateId, rest["aria-describedby"]) || undefined}
       suffix={
         shown && shown.state !== "unknown" ? (

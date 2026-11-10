@@ -2924,6 +2924,9 @@ msgstr "<0>{source}</0> gives this app control of Docker on the server, the same
 msgid "A volume such as data at /data, or a server path."
 msgstr "A volume such as data at /data, or a server path."
 
+msgid "Add a port first."
+msgstr "Add a port first."
+
 msgid "Add an .env file"
 msgstr "Add an .env file"
 
@@ -2935,6 +2938,9 @@ msgstr "Add variable"
 
 msgid "Add volume"
 msgstr "Add volume"
+
+msgid "Always restarts"
+msgstr "Always restarts"
 
 msgid "An app named {name} already runs here. Choose another name, or deploy to it from its page."
 msgstr "An app named {name} already runs here. Choose another name, or deploy to it from its page."
@@ -2948,6 +2954,9 @@ msgstr "Any image your server can pull, such as nginx:1.27."
 msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
 msgstr "Anyone who can read {holder}'s {where} can see the value of {names}."
 
+msgid "Asked over HTTP on port {port}."
+msgstr "Asked over HTTP on port {port}."
+
 msgid "Can't make a plan"
 msgstr "Can't make a plan"
 
@@ -2959,6 +2968,9 @@ msgstr "Check the image and its variables, then try again."
 
 msgid "Check the image and tag, then try again."
 msgstr "Check the image and tag, then try again."
+
+msgid "Checks {path}"
+msgstr "Checks {path}"
 
 msgid "Choose a file"
 msgstr "Choose a file"
@@ -3002,6 +3014,9 @@ msgstr "Give each variable a value to review the plan"
 msgid "Give {first} a value to review the plan"
 msgstr "Give {first} a value to review the plan"
 
+msgid "Health check path"
+msgstr "Health check path"
+
 msgid "Hide"
 msgstr "Hide"
 
@@ -3040,6 +3055,15 @@ msgstr "Name the image to run, such as nginx:1.27."
 msgid "Near lines {0}–{1}: {2}"
 msgstr "Near lines {0}–{1}: {2}"
 
+msgid "Never restarts"
+msgstr "Never restarts"
+
+msgid "No health check"
+msgstr "No health check"
+
+msgid "No limits"
+msgstr "No limits"
+
 msgid "Nothing outside the server reaches it until you publish a port."
 msgstr "Nothing outside the server reaches it until you publish a port."
 
@@ -3073,6 +3097,9 @@ msgstr "Project"
 msgid "Project name"
 msgstr "Project name"
 
+msgid "Reachable at <0>{at}</0>"
+msgstr "Reachable at <0>{at}</0>"
+
 msgid "Reaches {path}"
 msgstr "Reaches {path}"
 
@@ -3093,6 +3120,12 @@ msgstr "Remove what isn't in this file"
 
 msgid "Required"
 msgstr "Required"
+
+msgid "Restarts on errors"
+msgstr "Restarts on errors"
+
+msgid "Restarts unless stopped"
+msgstr "Restarts unless stopped"
 
 msgid "Run a Compose file"
 msgstr "Run a Compose file"
@@ -3121,14 +3154,17 @@ msgstr "Show the apps"
 msgid "Show the value"
 msgstr "Show the value"
 
-msgid "Such as 8080 on the server, to 80 in the app."
-msgstr "Such as 8080 on the server, to 80 in the app."
+msgid "Start it with /, such as /healthz."
+msgstr "Start it with /, such as /healthz."
 
 msgid "The file uses these, and has no default for them."
 msgstr "The file uses these, and has no default for them."
 
 msgid "The file uses these. Leave one with a default empty to use its default."
 msgstr "The file uses these. Leave one with a default empty to use its default."
+
+msgid "The image's command"
+msgstr "The image's command"
 
 msgid "This file is too large to read"
 msgstr "This file is too large to read"
@@ -3138,6 +3174,15 @@ msgstr "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. L
 
 msgid "This file writes more variables in plain sight than these. Read it before you pass one a secret."
 msgstr "This file writes more variables in plain sight than these. Read it before you pass one a secret."
+
+msgid "Up to {cpus} CPUs"
+msgstr "Up to {cpus} CPUs"
+
+msgid "Up to {memory}"
+msgstr "Up to {memory}"
+
+msgid "Up to {memory} and {cpus} CPUs"
+msgstr "Up to {memory} and {cpus} CPUs"
 
 msgid "Use an absolute path, such as /data."
 msgstr "Use an absolute path, such as /data."
@@ -3199,6 +3244,9 @@ msgstr "{0, plural, one {This makes # app} other {This makes # apps}}"
 #. placeholder {0}: volumes.length
 msgid "{0, plural, one {Volume} other {Volumes}}"
 msgstr "{0, plural, one {Volume} other {Volumes}}"
+
+msgid "{changed, plural, one {# changed} other {# changed}}"
+msgstr "{changed, plural, one {# changed} other {# changed}}"
 
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 msgstr "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"

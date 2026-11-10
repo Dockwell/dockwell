@@ -12,6 +12,7 @@ import {
   type ImportComposeRequest,
   PlanAction,
   type ProposeChangeRequest,
+  RestartPolicy,
   StepProgressSchema,
   StepState,
   type WatchChangeResponse,
@@ -423,8 +424,9 @@ describe("New app, from an image", () => {
     );
     await user.type(within(sheet).getByLabelText("Image"), "nginx:1.27");
     await user.click(within(sheet).getByRole("button", { name: "Add port" }));
-    await user.type(within(sheet).getByLabelText("On the server"), "8080");
+    // What the app listens on is the person's to say; the server's port starts at a free one.
     await user.type(within(sheet).getByLabelText("In the app"), "80");
+    expect(within(sheet).getByLabelText<HTMLInputElement>("On the server").value).toBe("8080");
     await user.click(within(sheet).getByRole("button", { name: "Add variable" }));
     within(sheet).getAllByLabelText("Name")[1]?.focus();
     await user.paste("A=1\nB=2");
@@ -444,6 +446,8 @@ describe("New app, from an image", () => {
     await screen.findByRole("dialog", { name: "Review plan" });
     const edits = proposals[0]?.edits ?? [];
     expect(edits.map((e) => `${e.resource?.kind} ${e.resource?.name}`)).toEqual(["volume site", "service nginx"]);
+    const app = edits[1]?.spec?.kind.case === "service" ? edits[1].spec.kind.value.runs.value : undefined;
+    expect(app?.ports.map((p) => `${p.hostPort}:${p.containerPort}`)).toEqual(["8080:80"]);
   });
 
   it("says what a server path reaches at the field, and the plan asks a person for it", async () => {
@@ -1149,5 +1153,121 @@ describe("what a Compose file reads beside it", () => {
     await user.type(directory, "opt/shop");
     await waitFor(() => expect(directory).toHaveAttribute("aria-invalid", "true"));
     expect(sheet).toHaveTextContent("isn't an absolute path");
+  });
+});
+
+describe("New app, what it picks and what waits under Advanced", () => {
+  const withHolder = (more: Api = {}) =>
+    api({
+      services: {
+        listServices: () => ({
+          services: [anApp("cache", "redis:7.4", { ports: [{ hostPort: 8080, containerPort: 6379 }] })],
+        }),
+        listServiceRevisions: () => ({}),
+      },
+      ...more,
+    });
+
+  it("takes a free port on the server, and says what holds one that's typed", async () => {
+    const user = userEvent.setup();
+    const { sheet } = await openImage(withHolder());
+    await user.type(within(sheet).getByLabelText("Image"), "nginx:1.27");
+    await user.click(within(sheet).getByRole("button", { name: "Add port" }));
+    await user.type(within(sheet).getByLabelText("In the app"), "80");
+    const host = within(sheet).getByLabelText<HTMLInputElement>("On the server");
+    // cache publishes 8080, so the first free port is 8081.
+    await waitFor(() => expect(host.value).toBe("8081"));
+    expect(host).toHaveAccessibleDescription(/Free/);
+    await user.clear(host);
+    await user.type(host, "8080");
+    expect(host).toHaveAttribute("aria-invalid", "true");
+    expect(sheet).toHaveTextContent("cache uses it · Use 8081");
+    await user.click(within(sheet).getByRole("button", { name: "Use 8081" }));
+    expect(host.value).toBe("8081");
+
+    // A second port doesn't take the first one's.
+    await user.click(within(sheet).getByRole("button", { name: "Add port" }));
+    const second = within(sheet).getAllByLabelText<HTMLInputElement>("On the server")[1];
+    expect(second?.value).toBe("8082");
+  });
+
+  it("starts the rest at defaults it names, and plans what's changed, with the command that does the same", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const { sheet } = await openImage(
+      withHolder({
+        changes: {
+          proposeChange: (req) => {
+            proposals.push(req);
+            return { change: planned() };
+          },
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    await user.type(within(sheet).getByLabelText("Image"), "nginx:1.27");
+    const advanced = within(sheet).getByRole("button", { name: "Advanced" });
+    expect(advanced).toHaveAccessibleDescription(
+      "The image's command · Restarts unless stopped · No limits · No health check",
+    );
+    await user.click(within(sheet).getByRole("button", { name: "Add port" }));
+    await user.type(within(sheet).getByLabelText("In the app"), "80");
+    await user.click(advanced);
+    await user.type(within(sheet).getByLabelText("Memory limit"), "512");
+    await user.type(within(sheet).getByLabelText("Health check path"), "/healthz");
+    await user.selectOptions(within(sheet).getByLabelText("Restarts"), String(RestartPolicy.ON_FAILURE));
+
+    // An amount that isn't one is said at its field, with Advanced open.
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    expect(within(sheet).getByLabelText("Memory limit")).toHaveAccessibleDescription(/Use an amount from 6M/);
+    expect(proposals).toEqual([]);
+    // The refused field has focus, its text selected to type over.
+    await waitFor(() => expect(within(sheet).getByLabelText("Memory limit")).toHaveFocus());
+    await user.clear(within(sheet).getByLabelText("Memory limit"));
+    await user.type(within(sheet).getByLabelText("Memory limit"), "512M");
+
+    await user.click(within(sheet).getByRole("button", { name: "Copy as CLI command" }));
+    expect(writeText).toHaveBeenCalledWith(
+      `dockwell services create nginx --app-image nginx:1.27 --app-ports '{"hostPort":8081,"containerPort":80,"protocol":"PROTOCOL_TCP"}' --app-restart on-failure --app-healthcheck-http-port 80 --app-healthcheck-http-path /healthz --app-resources-memory 512M`,
+    );
+
+    // Closed again, it says what was changed.
+    await user.click(within(sheet).getByRole("button", { name: /^Advanced/ }));
+    expect(within(sheet).getByText("3 changed")).toBeVisible();
+
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    const edit = proposals[0]?.edits[0];
+    const app = edit?.spec?.kind.case === "service" ? edit.spec.kind.value.runs.value : undefined;
+    expect(app).toMatchObject({
+      restart: RestartPolicy.ON_FAILURE,
+      resources: { memory: "512M", cpus: "" },
+      healthcheck: { http: { port: 80, path: "/healthz" } },
+    });
+    expect(app?.command).toEqual([]);
+  });
+
+  it("takes variables from an .env file, in place of any of the same name", async () => {
+    const user = userEvent.setup();
+    const { sheet } = await openImage(api());
+    await user.click(within(sheet).getByRole("button", { name: "Add variable" }));
+    await user.type(within(sheet).getByLabelText("Name"), "A");
+    await user.upload(
+      sheet.querySelector<HTMLInputElement>('.app-section input[type="file"]') as HTMLInputElement,
+      new File(["# comment\nA=one\nexport B='two'\n"], ".env", { type: "text/plain" }),
+    );
+    await waitFor(() => expect(within(sheet).getAllByLabelText("Value")).toHaveLength(2));
+    expect(
+      within(sheet)
+        .getAllByLabelText<HTMLInputElement>(/^Name$/)
+        .map((n) => n.value),
+    ).toEqual(["A", "B"]);
+    expect(
+      within(sheet)
+        .getAllByLabelText<HTMLInputElement>("Value")
+        .map((v) => v.value),
+    ).toEqual(["one", "two"]);
   });
 });

@@ -2514,3 +2514,23 @@
   color: var(--ink);
   overflow-wrap: anywhere;
 }
+
+/* A section's ways to add, side by side at its head. */
+.app-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+/* Where a row's port answers, under the row, as an error would be. */
+.app-row-note {
+  margin-top: calc(-1 * var(--space-1));
+}
+
+/* Advanced's settings: two to a line where there's room. */
+.app-more {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-4) var(--space-3);
+}

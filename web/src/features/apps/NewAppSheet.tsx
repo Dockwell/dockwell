@@ -11,8 +11,10 @@ import {
   Connection,
   type ExposedVariable,
   ResourceService,
+  RestartPolicy,
 } from "@dockwell/api";
 import {
+  Advanced,
   Button,
   Callout,
   CodeField,
@@ -20,6 +22,7 @@ import {
   Glyph,
   Icon,
   PHONE_QUERY,
+  PortField,
   SegmentedControl,
   SelectField,
   Sheet,
@@ -29,6 +32,7 @@ import {
   TextField,
   type TextFieldProps,
   useMediaQuery,
+  useUIStrings,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -46,10 +50,13 @@ import {
   useState,
 } from "react";
 
+import { editCommand } from "../../lib/cli";
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
+import { type PortHolder, type ServerPorts, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
+import { CopyAsCommand } from "../system/CopyCommand";
 import {
   appOf,
   environmentOf,
@@ -65,11 +72,15 @@ import {
 import { composeRefusal, type RefusedAt, waitsForValues, withCode } from "./composeWords";
 import {
   appEdits,
+  changedSettings,
+  checkPort,
+  DEFAULT_SETTINGS,
   type EnvRow,
   type FormErrors,
   fieldOf,
   type ImageForm,
   isServerPath,
+  type MoreSettings,
   type MountRow,
   type PortRow,
   parseEnv,
@@ -77,8 +88,14 @@ import {
   validEnvName,
   validPort,
 } from "./form";
+import { joinWords, splitWords, validCpus, validMemory } from "./specEdit";
 import { usePlaces, useServices } from "./useServices";
+import { useAppWords } from "./words";
 
+/**
+ * Where a new app comes from. Each is one more choice beside these, as a Git
+ * repository (#336) and a folder with a runtime (#358) will be.
+ */
 export type NewAppSource = "image" | "compose";
 
 /** A running count that gives each row of the form a key of its own. */
@@ -175,7 +192,19 @@ export function NewAppSheet({
 
   const volumes = useQuery(ResourceService.method.listResources, { kind: "volume", scope }, { enabled: scope !== "" })
     .data?.resources;
+  const volumeNames = useMemo(() => (volumes ?? []).map((v) => v.resource?.name ?? ""), [volumes]);
   const name = image.name.trim() || nameFromImage(image.image);
+  // What's free is read on the servers it will run on: the one there is, or those chosen.
+  const onlyId = only?.id;
+  const serverIds = useMemo(
+    () => (fleet ? [...chosenServers] : onlyId ? [onlyId] : []),
+    [fleet, chosenServers, onlyId],
+  );
+  const ports = useServerPorts(serverIds);
+  // The form as it plans: each port that follows a free one has it.
+  const shown = useMemo(() => withFreePorts(image, ports), [image, ports]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const address = servers?.find((s) => s.id === serverIds[0])?.address;
 
   const inEnvironment = useMemo(
     () => (services ?? []).filter((s) => !scope || environmentOf(s) === scope),
@@ -218,7 +247,7 @@ export function NewAppSheet({
     } else if (inEnvironment.some((s) => nameOf(s) === name)) {
       out["name"] = t`An app named ${name} already runs here. Choose another name, or deploy to it from its page.`;
     }
-    for (const row of image.ports) {
+    for (const row of shown.ports) {
       if (!validPort(row.host)) out[`ports.${row.key}.host`] = t`Use a port from 1 to 65535.`;
       if (!validPort(row.container)) out[`ports.${row.key}.container`] = t`Use a port from 1 to 65535.`;
     }
@@ -232,6 +261,15 @@ export function NewAppSheet({
         out[`mounts.${row.key}.source`] = t`Name a volume, or an absolute path on the server.`;
       if (!row.target.trim().startsWith("/")) out[`mounts.${row.key}.target`] = t`Use an absolute path, such as /data.`;
     }
+    const more = image.more ?? DEFAULT_SETTINGS;
+    if (splitWords(more.command) === undefined)
+      out["more.command"] = t`A quote isn't closed. Close it, or leave it out.`;
+    if (more.memory.trim() !== "" && !validMemory(more.memory))
+      out["more.memory"] = t`Use an amount from 6M, such as 512M or 2G.`;
+    if (more.cpus.trim() !== "" && !validCpus(more.cpus))
+      out["more.cpus"] = t`Use a number of CPUs above 0, such as 0.5 or 2.`;
+    if (more.healthPath.trim() !== "" && !more.healthPath.trim().startsWith("/"))
+      out["more.healthPath"] = t`Start it with /, such as /healthz.`;
     return out;
   };
 
@@ -283,7 +321,7 @@ export function NewAppSheet({
             const message = failedAtField(after, name, fix);
             if (source === "image") {
               // What ran is what to change, unless it says what else was wrong.
-              setErrors({ [fieldOf(message, image, name) || "image"]: message });
+              setErrors({ [fieldOf(message, shown, name) || "image"]: message });
               revealAfter.current = true;
             } else setFailure(message);
           }
@@ -337,6 +375,8 @@ export function NewAppSheet({
     const found = validate();
     setErrors(found);
     if (Object.keys(found).length > 0) {
+      // What it refused under Advanced has to be in sight to be fixed.
+      if (Object.keys(found).some((key) => key.startsWith("more."))) setAdvancedOpen(true);
       revealError();
       return;
     }
@@ -345,16 +385,16 @@ export function NewAppSheet({
       const wanted = image.image.trim();
       const res = await changes.proposeChange({
         summary: t`Run ${wanted} as ${name}`,
-        edits: appEdits(image, name, {
+        edits: appEdits(shown, name, {
           environment: choosesEnvironment ? scope : "",
           servers: chosenServers,
-          volumes: (volumes ?? []).map((v) => v.resource?.name ?? ""),
+          volumes: volumeNames,
         }),
       });
       review(res.change, "app");
     } catch (err) {
       const message = tidyMessage(sentence(err));
-      const field = reasonOf(err) === "invalid" ? fieldOf(message, image, name) : "";
+      const field = reasonOf(err) === "invalid" ? fieldOf(message, shown, name) : "";
       if (field) {
         setErrors({ [field]: message });
         revealError();
@@ -425,6 +465,23 @@ export function NewAppSheet({
     target?.scrollIntoView({ block: "center" });
     target?.focus();
   };
+
+  // The commands that do what this form does, for whoever would rather script it.
+  const command =
+    source === "image" && image.image.trim() !== ""
+      ? appEdits(shown, name, {
+          environment: choosesEnvironment ? scope : "",
+          servers: chosenServers,
+          volumes: volumeNames,
+        })
+          .map((edit) =>
+            editCommand("create", edit, {
+              environment: choosesEnvironment ? scope : undefined,
+              on: fleet ? chosenServers : undefined,
+            }),
+          )
+          .join("\n")
+      : "";
 
   const hostReach = source === "image" && image.mounts.some((m) => pathReach(m.source));
   const fileReach =
@@ -517,16 +574,30 @@ export function NewAppSheet({
             />
           </div>
         </div>
-        {source === "image" && choosesEnvironment ? (
-          <SelectField
-            label={places.showsEnvironment ? t`Environment` : t`Project`}
-            value={scope}
-            options={places.environments.map((e) => ({ value: e.id, label: e.label }))}
-            onChange={(event) => setEnvironment(event.target.value)}
-          />
-        ) : null}
         {source === "image" ? (
-          <ImageFields form={image} errors={errors} update={update} onError={setErrors} fieldRef={firstField} />
+          <ImageFields
+            form={shown}
+            errors={errors}
+            update={update}
+            onError={setErrors}
+            fieldRef={firstField}
+            ports={ports}
+            address={address}
+            volumes={volumeNames}
+            advancedOpen={advancedOpen}
+            onAdvanced={setAdvancedOpen}
+            command={command}
+            place={
+              choosesEnvironment ? (
+                <SelectField
+                  label={places.showsEnvironment ? t`Environment` : t`Project`}
+                  value={scope}
+                  options={places.environments.map((e) => ({ value: e.id, label: e.label }))}
+                  onChange={(event) => setEnvironment(event.target.value)}
+                />
+              ) : null
+            }
+          />
         ) : (
           <ComposeFields
             file={file}
@@ -634,6 +705,25 @@ function Orphans({
   );
 }
 
+/**
+ * The form with each port that follows a free one given that port, in order,
+ * so no two take one, and what's shown is what's planned.
+ */
+function withFreePorts(form: ImageForm, ports: ServerPorts): ImageForm {
+  if (!ports.ready || !form.ports.some((p) => p.auto)) return form;
+  const taken = form.ports.filter((p) => !p.auto && validPort(p.host)).map((p) => Number(p.host));
+  return {
+    ...form,
+    ports: form.ports.map((p) => {
+      if (!p.auto) return p;
+      const listens = validPort(p.container) ? Number(p.container) : undefined;
+      const free = ports.free(listens, p.protocol === "udp", taken);
+      taken.push(free);
+      return { ...p, host: String(free) };
+    }),
+  };
+}
+
 /** The image, its name, and what else it takes once you ask for it. */
 function ImageFields({
   form,
@@ -641,12 +731,30 @@ function ImageFields({
   update,
   onError,
   fieldRef,
+  ports,
+  address,
+  volumes,
+  advancedOpen,
+  onAdvanced,
+  command,
+  place,
 }: {
   fieldRef: Ref<HTMLInputElement & HTMLTextAreaElement>;
   form: ImageForm;
   errors: FormErrors;
   update: (next: Partial<ImageForm>, clear?: string) => void;
   onError: (errors: FormErrors) => void;
+  ports: ServerPorts;
+  /** The address of the server it runs on, to say where a port answers. */
+  address: string | undefined;
+  /** The volumes there are already, to offer. */
+  volumes: readonly string[];
+  advancedOpen: boolean;
+  onAdvanced: (open: boolean) => void;
+  /** The CLI's commands that do what the form does. */
+  command: string;
+  /** Where it goes, where there's a choice. */
+  place: React.ReactNode;
 }) {
   const { t } = useLingui();
   const clear = (key: string) => {
@@ -664,6 +772,7 @@ function ImageFields({
         mono
         value={form.image}
         error={errors["image"]}
+        placeholder="nginx:1.27"
         hint={t`Any image your server can pull, such as nginx:1.27.`}
         onChange={(event) => update({ image: event.target.value }, "image")}
       />
@@ -677,10 +786,20 @@ function ImageFields({
         hint={t`Other apps on its network reach it by this name.`}
         onChange={(event) => update({ name: event.target.value }, "name")}
       />
+      {place}
       <div className="app-rule" />
-      <PortsSection form={form} errors={errors} update={update} clear={clear} />
+      <PortsSection form={form} errors={errors} update={update} clear={clear} ports={ports} address={address} />
       <EnvSection form={form} errors={errors} update={update} clear={clear} />
-      <MountsSection form={form} errors={errors} update={update} clear={clear} />
+      <MountsSection form={form} errors={errors} update={update} clear={clear} volumes={volumes} />
+      <MoreSection
+        form={form}
+        errors={errors}
+        update={update}
+        clear={clear}
+        open={advancedOpen}
+        onOpen={onAdvanced}
+        command={command}
+      />
     </>
   );
 }
@@ -697,12 +816,15 @@ function SectionHead({
   id,
   add,
   onAdd,
+  more,
   children,
 }: {
   title: string;
   id: string;
   add: string;
   onAdd: () => void;
+  /** Another way to add, beside the button, such as from a file. */
+  more?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
@@ -713,78 +835,133 @@ function SectionHead({
         </span>
         {children ? <span className="dw-field-hint">{children}</span> : null}
       </div>
-      <Button variant="ghost" size="sm" icon="plus" onClick={onAdd} className="app-section-add">
-        {add}
-      </Button>
+      <div className="app-section-actions">
+        {more}
+        <Button variant="ghost" size="sm" icon="plus" onClick={onAdd} className="app-section-add">
+          {add}
+        </Button>
+      </div>
     </div>
   );
 }
 
-function PortsSection({ form, errors, update, clear }: SectionProps) {
+/**
+ * Each port: what the app listens on first, then the server's port, which
+ * starts at a free one, says beside it whether a typed one is free, and says
+ * under the row what holds it if not, and where it will answer if so.
+ */
+function PortsSection({
+  form,
+  errors,
+  update,
+  clear,
+  ports,
+  address,
+}: SectionProps & { ports: ServerPorts; address: string | undefined }) {
   const { t } = useLingui();
+  const strings = useUIStrings();
   const id = useId();
-  const add = () => update({ ports: [...form.ports, { key: nextKey(), host: "", container: "", protocol: "tcp" }] });
+  const add = () =>
+    update({ ports: [...form.ports, { key: nextKey(), host: "", container: "", protocol: "tcp", auto: true }] });
   const change = (row: PortRow, next: Partial<PortRow>) =>
     update({ ports: form.ports.map((p) => (p.key === row.key ? { ...p, ...next } : p)) });
+  const holderName = (holder: PortHolder) => (holder.kind === "proxy" ? t`Dockwell's proxy` : holder.name);
   return (
     <fieldset className="app-section" aria-labelledby={id}>
       <SectionHead title={t`Ports`} id={id} add={t`Add port`} onAdd={add}>
-        {form.ports.length === 0
-          ? t`Nothing outside the server reaches it until you publish a port.`
-          : t`Such as 8080 on the server, to 80 in the app.`}
+        {form.ports.length === 0 ? t`Nothing outside the server reaches it until you publish a port.` : null}
       </SectionHead>
-      {form.ports.map((row, i) => (
-        <div key={row.key} className="app-row-group">
-          <div className={cx("app-row app-port", i === 0 && "is-first")}>
-            <TextField
-              {...rowLabel(i, t`On the server`)}
-              mono
-              inputMode="numeric"
-              autoFocus={row.host === "" && row.container === ""}
-              value={row.host}
-              invalid={Boolean(errors[`ports.${row.key}.host`])}
-              aria-describedby={`${id}-${row.key}`}
-              onChange={(event) => {
-                change(row, { host: event.target.value });
-                clear(`ports.${row.key}.host`);
-              }}
-            />
-            <Icon name="arrow-right" size={14} className="app-port-arrow" />
-            <TextField
-              {...rowLabel(i, t`In the app`)}
-              mono
-              inputMode="numeric"
-              value={row.container}
-              invalid={Boolean(errors[`ports.${row.key}.container`])}
-              aria-describedby={`${id}-${row.key}`}
-              onChange={(event) => {
-                change(row, { container: event.target.value });
-                clear(`ports.${row.key}.container`);
-              }}
-            />
-            <SelectField
-              {...rowLabel(i, t`Protocol`)}
-              className="app-port-protocol"
-              value={row.protocol}
-              options={[
-                { value: "tcp", label: "TCP" },
-                { value: "udp", label: "UDP" },
-              ]}
-              onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-                change(row, { protocol: event.target.value === "udp" ? "udp" : "tcp" })
-              }
-            />
-            <RemoveRow
-              label={t`Remove this port`}
-              onClick={() => update({ ports: form.ports.filter((p) => p.key !== row.key) })}
-            />
+      {form.ports.map((row, i) => {
+        const udp = row.protocol === "udp";
+        // The rows above and below hold their ports too.
+        const others = form.ports.filter((p) => p.key !== row.key && validPort(p.host)).map((p) => Number(p.host));
+        const check = ports.check(row.host, udp, holderName, others);
+        const listens = validPort(row.container) ? Number(row.container) : undefined;
+        const offer = check.state === "taken" ? ports.free(listens, udp, [...others, Number(row.host)]) : undefined;
+        const refused = errors[`ports.${row.key}.container`] ?? errors[`ports.${row.key}.host`];
+        const at =
+          address && validPort(row.host) && check.state !== "taken" && !udp && listens !== undefined
+            ? `${address.includes(":") ? `[${address}]` : address}:${Number(row.host)}`
+            : undefined;
+        return (
+          <div key={row.key} className="app-row-group">
+            <div className={cx("app-row app-port", i === 0 && "is-first")}>
+              <TextField
+                {...rowLabel(i, t`In the app`)}
+                mono
+                inputMode="numeric"
+                placeholder="80"
+                autoFocus={row.container === ""}
+                value={row.container}
+                invalid={Boolean(errors[`ports.${row.key}.container`])}
+                aria-describedby={`${id}-${row.key}`}
+                onChange={(event) => {
+                  change(row, { container: event.target.value });
+                  clear(`ports.${row.key}.container`);
+                }}
+              />
+              <Icon name="arrow-right" size={14} className="app-port-arrow" />
+              <PortField
+                {...rowLabel(i, t`On the server`)}
+                inRow
+                value={row.host}
+                check={check}
+                invalid={Boolean(errors[`ports.${row.key}.host`])}
+                aria-describedby={`${id}-${row.key}`}
+                onChange={(next) => {
+                  change(row, { host: next, auto: false });
+                  clear(`ports.${row.key}.host`);
+                }}
+              />
+              <SelectField
+                {...rowLabel(i, t`Protocol`)}
+                className="app-port-protocol"
+                value={row.protocol}
+                options={[
+                  { value: "tcp", label: "TCP" },
+                  { value: "udp", label: "UDP" },
+                ]}
+                onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+                  change(row, { protocol: event.target.value === "udp" ? "udp" : "tcp" })
+                }
+              />
+              <RemoveRow
+                label={t`Remove this port`}
+                onClick={() => update({ ports: form.ports.filter((p) => p.key !== row.key) })}
+              />
+            </div>
+            {refused ? (
+              <RowError id={`${id}-${row.key}`} message={refused} />
+            ) : check.state === "taken" ? (
+              <div id={`${id}-${row.key}`} className="dw-field-error app-row-error">
+                <Glyph shape="square" size={9} />
+                <span>
+                  {check.by ? strings.portField.takenBy(check.by) : strings.portField.taken}
+                  {offer !== undefined ? (
+                    <>
+                      {" · "}
+                      <button
+                        type="button"
+                        className="dw-port-use"
+                        onClick={() => change(row, { host: String(offer), auto: false })}
+                      >
+                        {strings.portField.use(offer)}
+                      </button>
+                    </>
+                  ) : null}
+                </span>
+              </div>
+            ) : at ? (
+              <p className="app-port-at app-row-note">
+                <Icon name="globe" size={14} />
+                <Trans>
+                  Reachable at <code className="app-port-at-where">{at}</code>
+                </Trans>
+              </p>
+            ) : null}
           </div>
-          <RowError
-            id={`${id}-${row.key}`}
-            message={errors[`ports.${row.key}.host`] ?? errors[`ports.${row.key}.container`]}
-          />
-        </div>
-      ))}
+        );
+      })}
     </fieldset>
   );
 }
@@ -805,9 +982,41 @@ function EnvSection({ form, errors, update, clear }: SectionProps) {
     const at = form.env.findIndex((e) => e.key === row.key);
     update({ env: [...form.env.slice(0, at), ...rows, ...form.env.slice(at + 1)] });
   };
+  // An .env file adds its variables to those here, and takes the place of one of the same name.
+  const file = useRef<HTMLInputElement>(null);
+  const importFile = async (chosen: File | undefined) => {
+    const parsed = chosen ? parseEnv(await chosen.text()) : undefined;
+    if (!parsed) return;
+    const named = new Map(parsed.map((e) => [e.name, e.value]));
+    const kept = form.env.filter((e) => !named.has(e.name.trim()) && (e.name.trim() !== "" || e.value !== ""));
+    update({ env: [...kept, ...parsed.map((e) => ({ key: nextKey(), ...e }))] });
+  };
   return (
     <fieldset className="app-section" aria-labelledby={id}>
-      <SectionHead title={t`Environment variables`} id={id} add={t`Add variable`} onAdd={add}>
+      <SectionHead
+        title={t`Environment variables`}
+        id={id}
+        add={t`Add variable`}
+        onAdd={add}
+        more={
+          <>
+            <input
+              ref={file}
+              type="file"
+              className="dw-sr"
+              tabIndex={-1}
+              aria-hidden="true"
+              onChange={(event) => {
+                void importFile(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+            <Button variant="ghost" size="sm" icon="upload" onClick={() => file.current?.click()}>
+              <Trans>Import .env</Trans>
+            </Button>
+          </>
+        }
+      >
         {t`Plans say a value changed, and never show it.`}
       </SectionHead>
       {form.env.map((row, i) => (
@@ -843,9 +1052,10 @@ function EnvSection({ form, errors, update, clear }: SectionProps) {
   );
 }
 
-function MountsSection({ form, errors, update, clear }: SectionProps) {
+function MountsSection({ form, errors, update, clear, volumes }: SectionProps & { volumes: readonly string[] }) {
   const { t } = useLingui();
   const id = useId();
+  const listId = `${id}-volumes`;
   const add = () => update({ mounts: [...form.mounts, { key: nextKey(), source: "", target: "", readOnly: false }] });
   const change = (row: MountRow, next: Partial<MountRow>) =>
     update({ mounts: form.mounts.map((m) => (m.key === row.key ? { ...m, ...next } : m)) });
@@ -867,6 +1077,8 @@ function MountsSection({ form, errors, update, clear }: SectionProps) {
               <TextField
                 {...rowLabel(i, t`Volume or server path`)}
                 mono
+                list={volumes.length > 0 ? listId : undefined}
+                autoComplete="off"
                 autoFocus={row.source === ""}
                 value={row.source}
                 invalid={Boolean(errors[`mounts.${row.key}.source`])}
@@ -930,7 +1142,132 @@ function MountsSection({ form, errors, update, clear }: SectionProps) {
           </div>
         );
       })}
+      {volumes.length > 0 ? (
+        <datalist id={listId}>
+          {volumes.map((v) => (
+            <option key={v} value={v} />
+          ))}
+        </datalist>
+      ) : null}
     </fieldset>
+  );
+}
+
+/** When Docker restarts it, as the select offers it: its default first, which leaves restart unset. */
+const RESTARTS = [RestartPolicy.UNSPECIFIED, RestartPolicy.ALWAYS, RestartPolicy.ON_FAILURE, RestartPolicy.NO];
+
+/**
+ * What the app starts at a good default, under Advanced, which says those
+ * defaults in a line while it's closed, and how many were changed. The CLI
+ * command that does what the whole form does is at its end.
+ */
+function MoreSection({
+  form,
+  errors,
+  update,
+  clear,
+  open,
+  onOpen,
+  command,
+}: SectionProps & { open: boolean; onOpen: (open: boolean) => void; command: string }) {
+  const { t } = useLingui();
+  const words = useAppWords();
+  const more = form.more ?? DEFAULT_SETTINGS;
+  const set = (next: Partial<MoreSettings>, key: keyof MoreSettings) => {
+    update({ more: { ...more, ...next } });
+    clear(`more.${key}`);
+  };
+  const port = checkPort(form);
+  const changed = changedSettings(more);
+  const restartWords: Record<RestartPolicy, string> = {
+    [RestartPolicy.UNSPECIFIED]: t`Restarts unless stopped`,
+    [RestartPolicy.UNLESS_STOPPED]: t`Restarts unless stopped`,
+    [RestartPolicy.ALWAYS]: t`Always restarts`,
+    [RestartPolicy.ON_FAILURE]: t`Restarts on errors`,
+    [RestartPolicy.NO]: t`Never restarts`,
+  };
+  const cmd = splitWords(more.command.trim()) ?? [];
+  const memory = more.memory.trim();
+  const cpus = more.cpus.trim();
+  const path = more.healthPath.trim();
+  const summary = [
+    cmd.length > 0 ? joinWords(cmd) : t`The image's command`,
+    restartWords[more.restart],
+    memory && cpus
+      ? t`Up to ${memory} and ${cpus} CPUs`
+      : memory
+        ? t`Up to ${memory}`
+        : cpus
+          ? t`Up to ${cpus} CPUs`
+          : t`No limits`,
+    path && port ? t`Checks ${path}` : t`No health check`,
+  ].join(" · ");
+  return (
+    <Advanced
+      open={open}
+      onOpenChange={onOpen}
+      summary={summary}
+      badge={changed > 0 ? <Tag words>{plural(changed, { one: "# changed", other: "# changed" })}</Tag> : undefined}
+    >
+      <div className="app-more">
+        <TextField
+          label={t`Command`}
+          mono
+          value={more.command}
+          placeholder={t`The image's own`}
+          error={errors["more.command"]}
+          spellCheck={false}
+          autoComplete="off"
+          onChange={(event) => set({ command: event.target.value }, "command")}
+        />
+        <TextField
+          label={t`User`}
+          mono
+          value={more.user}
+          placeholder={t`The image's own`}
+          spellCheck={false}
+          autoComplete="off"
+          onChange={(event) => set({ user: event.target.value }, "user")}
+        />
+        <SelectField
+          label={t`Restarts`}
+          value={String(more.restart)}
+          options={RESTARTS.map((p) => ({ value: String(p), label: words.restart(p) }))}
+          onChange={(event) => set({ restart: Number(event.target.value) as RestartPolicy }, "restart")}
+        />
+        <TextField
+          label={t`Memory limit`}
+          mono
+          value={more.memory}
+          placeholder={t`No limit`}
+          error={errors["more.memory"]}
+          autoComplete="off"
+          onChange={(event) => set({ memory: event.target.value }, "memory")}
+        />
+        <TextField
+          label={t`CPU limit`}
+          mono
+          inputMode="decimal"
+          value={more.cpus}
+          placeholder={t`No limit`}
+          error={errors["more.cpus"]}
+          autoComplete="off"
+          onChange={(event) => set({ cpus: event.target.value }, "cpus")}
+        />
+        <TextField
+          label={t`Health check path`}
+          mono
+          value={more.healthPath}
+          placeholder="/healthz"
+          disabled={port === undefined}
+          error={errors["more.healthPath"]}
+          hint={port === undefined ? t`Add a port first.` : t`Asked over HTTP on port ${port}.`}
+          autoComplete="off"
+          onChange={(event) => set({ healthPath: event.target.value }, "healthPath")}
+        />
+      </div>
+      {command ? <CopyAsCommand command={command} /> : null}
+    </Advanced>
   );
 }
 

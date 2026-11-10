@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { type EditSchema, Protocol } from "@dockwell/api";
+import { type EditSchema, Protocol, RestartPolicy } from "@dockwell/api";
+
+import { splitWords } from "./specEdit";
 
 /** One port someone is publishing. */
 export interface PortRow {
@@ -9,6 +11,8 @@ export interface PortRow {
   host: string;
   container: string;
   protocol: "tcp" | "udp";
+  /** The server's port follows a free one, until someone types their own. */
+  auto?: boolean;
 }
 
 /** One environment variable someone is setting. */
@@ -26,6 +30,29 @@ export interface MountRow {
   readOnly: boolean;
 }
 
+/** What New app starts at a default, under Advanced: each empty takes the image's own, or none. */
+export interface MoreSettings {
+  /** The command, as a shell line. */
+  command: string;
+  user: string;
+  restart: RestartPolicy;
+  /** The most memory it may use, such as 512M. */
+  memory: string;
+  /** The most CPUs it may use, such as 0.5. */
+  cpus: string;
+  /** A path to ask over HTTP on its first port, such as /healthz, which makes it a health check. */
+  healthPath: string;
+}
+
+export const DEFAULT_SETTINGS: MoreSettings = {
+  command: "",
+  user: "",
+  restart: RestartPolicy.UNSPECIFIED,
+  memory: "",
+  cpus: "",
+  healthPath: "",
+};
+
 /** New app's form, for an image. */
 export interface ImageForm {
   image: string;
@@ -34,6 +61,23 @@ export interface ImageForm {
   ports: PortRow[];
   env: EnvRow[];
   mounts: MountRow[];
+  /** What Advanced holds; leaving it out leaves each at its default. */
+  more?: MoreSettings;
+}
+
+/** How many of Advanced's settings differ from their defaults. */
+export function changedSettings(more: MoreSettings | undefined): number {
+  if (!more) return 0;
+  return (Object.keys(DEFAULT_SETTINGS) as (keyof MoreSettings)[]).filter((k) => {
+    const v = more[k];
+    return typeof v === "string" ? v.trim() !== DEFAULT_SETTINGS[k] : v !== DEFAULT_SETTINGS[k];
+  }).length;
+}
+
+/** The port in the app a health check over HTTP asks on: the first one the form publishes. */
+export function checkPort(form: ImageForm): number | undefined {
+  const row = form.ports.find((p) => validPort(p.container) && p.protocol === "tcp");
+  return row ? Number(row.container) : undefined;
 }
 
 /** The form's fields, by a path a refusal can point at, such as "ports.3.host", with the row's key. */
@@ -105,6 +149,7 @@ export function appEdits(
                   target: m.target.trim(),
                   readOnly: m.readOnly,
                 })),
+              ...moreFields(form),
             },
           },
         },
@@ -113,6 +158,24 @@ export function appEdits(
     servers,
   });
   return edits;
+}
+
+/** What Advanced sets in the app's spec: only what someone changed from its default. */
+function moreFields(form: ImageForm) {
+  const more = form.more;
+  if (!more) return {};
+  const command = splitWords(more.command.trim()) ?? [];
+  const port = checkPort(form);
+  const path = more.healthPath.trim();
+  return {
+    ...(command.length > 0 ? { command } : {}),
+    ...(more.user.trim() ? { user: more.user.trim() } : {}),
+    ...(more.restart !== RestartPolicy.UNSPECIFIED ? { restart: more.restart } : {}),
+    ...(more.memory.trim() || more.cpus.trim()
+      ? { resources: { memory: more.memory.trim(), cpus: more.cpus.trim() } }
+      : {}),
+    ...(path && port ? { healthcheck: { http: { port, path } } } : {}),
+  };
 }
 
 /** A name a process's environment takes. */
