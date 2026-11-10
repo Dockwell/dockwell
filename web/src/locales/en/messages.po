@@ -8153,6 +8153,10 @@ msgstr "Deny"
 msgid "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them, but for what Docker's proxy takes, as marked."
 msgstr "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them, but for what Docker's proxy takes, as marked."
 
+#. placeholder {0}: server.name
+msgid "Dockwell can't read {0}'s firewall"
+msgstr "Dockwell can't read {0}'s firewall"
+
 msgid "Every IPv4 address"
 msgstr "Every IPv4 address"
 

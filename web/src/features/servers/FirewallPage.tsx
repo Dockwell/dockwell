@@ -20,6 +20,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { reasonOf, sentence } from "../../lib/errors";
+import { ReadFailed } from "../shell/ReadFailed";
 import { ServerFrame } from "./ServerFrame";
 import "./FirewallPage.css";
 
@@ -67,7 +68,8 @@ function Firewall({ server }: { server: Server }) {
         </Callout>
       );
     }
-    return <Callout tone="critical">{sentence(read.error)}</Callout>;
+    // A role that doesn't cover the firewall is told so as everywhere else, not as something that broke.
+    return <ReadFailed error={read.error} title={t`Dockwell can't read ${server.name}'s firewall`} />;
   }
   const fw = read.data?.firewall;
   if (!fw) {
