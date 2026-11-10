@@ -903,7 +903,9 @@ paths:
                  still reach the server as the confirmation says. Only the person who
                  applied it may confirm it, in the session they applied it from. Without a
                  confirmation in time, the server puts back its firewall as it was, and the
-                 change rolls back (ADR 0052).
+                 change rolls back (ADR 0052). A server's firewall is the whole server's,
+                 so confirming is an admin's, as applying such a change is, and no API
+                 token can call it.
             operationId: ChangeService_ConfirmChange
             parameters:
                 - name: id

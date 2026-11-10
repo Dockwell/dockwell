@@ -423,7 +423,7 @@ func Methods() []*apicli.Method {
 			Noun:      "changes",
 			Verb:      "confirm",
 			Short:     "Keep a change to a server's firewall that waits for its confirmation (Change.confirmation)",
-			Long:      "Keep a change to a server's firewall that waits for its confirmation\n(Change.confirmation), once you have checked that you can still reach the server\nas the confirmation says. Only the person who applied it may confirm it, in the\nsession they applied it from. Without a confirmation in time, the server puts\nback its firewall as it was, and the change rolls back (ADR 0052).",
+			Long:      "Keep a change to a server's firewall that waits for its confirmation\n(Change.confirmation), once you have checked that you can still reach the server\nas the confirmation says. Only the person who applied it may confirm it, in the\nsession they applied it from. Without a confirmation in time, the server puts\nback its firewall as it was, and the change rolls back (ADR 0052). A server's\nfirewall is the whole server's, so confirming is an admin's, as applying such a\nchange is, and no API token can call it.",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The change's ID.", Arg: true},

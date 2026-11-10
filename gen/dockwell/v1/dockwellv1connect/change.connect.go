@@ -124,7 +124,9 @@ type ChangeServiceClient interface {
 	// still reach the server as the confirmation says. Only the person who
 	// applied it may confirm it, in the session they applied it from. Without a
 	// confirmation in time, the server puts back its firewall as it was, and the
-	// change rolls back (ADR 0052).
+	// change rolls back (ADR 0052). A server's firewall is the whole server's,
+	// so confirming is an admin's, as applying such a change is, and no API
+	// token can call it.
 	ConfirmChange(context.Context, *connect.Request[v1.ConfirmChangeRequest]) (*connect.Response[v1.ConfirmChangeResponse], error)
 	// DiscardChange drops a planned change without applying it. The change
 	// stays on record as discarded.
@@ -367,7 +369,9 @@ type ChangeServiceHandler interface {
 	// still reach the server as the confirmation says. Only the person who
 	// applied it may confirm it, in the session they applied it from. Without a
 	// confirmation in time, the server puts back its firewall as it was, and the
-	// change rolls back (ADR 0052).
+	// change rolls back (ADR 0052). A server's firewall is the whole server's,
+	// so confirming is an admin's, as applying such a change is, and no API
+	// token can call it.
 	ConfirmChange(context.Context, *connect.Request[v1.ConfirmChangeRequest]) (*connect.Response[v1.ConfirmChangeResponse], error)
 	// DiscardChange drops a planned change without applying it. The change
 	// stays on record as discarded.

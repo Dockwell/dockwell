@@ -49,6 +49,7 @@ CatalogService.ListCatalogInstalls             read         viewer     viewer   
 CatalogService.UpgradeCatalogInstall           plan         developer  developer  project
 ChangeService.AdoptDrift                       plan         developer  developer  project
 ChangeService.ApplyChange                      apply        developer  admin      project
+ChangeService.ConfirmChange                    apply        admin      admin      install  session
 ChangeService.DiscardChange                    plan         developer  developer  project
 ChangeService.GetChange                        read         viewer     viewer     project
 ChangeService.ListChanges                      read         viewer     viewer     project

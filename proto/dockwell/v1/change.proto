@@ -142,9 +142,15 @@ service ChangeService {
   // still reach the server as the confirmation says. Only the person who
   // applied it may confirm it, in the session they applied it from. Without a
   // confirmation in time, the server puts back its firewall as it was, and the
-  // change rolls back (ADR 0052).
+  // change rolls back (ADR 0052). A server's firewall is the whole server's,
+  // so confirming is an admin's, as applying such a change is, and no API
+  // token can call it.
   rpc ConfirmChange(ConfirmChangeRequest) returns (ConfirmChangeResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
     option (google.api.http) = {
       post: "/v1/changes/{id}:confirm"
       body: "*"

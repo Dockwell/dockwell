@@ -182,8 +182,8 @@ func testAFirewallChangeWaitsForItsConfirmation(t *testing.T, backend store.Back
 	// Nobody else confirms it: an API token can't, nor anyone outside the session.
 	token := createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
 	script := changeClient(bearer{token: token, rt: b.client.Transport}, b.origin)
-	if _, err := script.ConfirmChange(t.Context(), confirmation(open.GetId(), wait)); reasonOf(err) != "not_yours" {
-		t.Errorf("a token confirming = %v, want not_yours", err)
+	if _, err := script.ConfirmChange(t.Context(), confirmation(open.GetId(), wait)); reasonOf(err) != "needs_session" {
+		t.Errorf("a token confirming = %v, want needs_session", err)
 	}
 
 	// The same person, signed in elsewhere, isn't where they applied it from.
