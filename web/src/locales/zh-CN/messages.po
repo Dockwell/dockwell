@@ -6740,14 +6740,17 @@ msgstr "{where} 离开 {from}，转到 {to}。"
 msgid "Add a user to {name}"
 msgstr "为 {name} 添加用户"
 
-msgid "Dockwell makes a password of 32 characters and keeps it in this secret, which an app uses by name. Nobody sees it unless they reveal it with a passkey."
-msgstr "Dockwell 会生成 32 位密码并保存在这个密钥中，应用按名称使用它。除非用通行密钥查看，否则没有人能看到它。"
+msgid "Database {theDatabase} · secret {theSecret}"
+msgstr "数据库 {theDatabase} · 密钥 {theSecret}"
 
-msgid "It's theirs, to do anything in."
-msgstr "归该用户所有，可在其中做任何操作。"
+msgid "Dockwell generates the password into it; apps use it by name."
+msgstr "Dockwell 会把生成的密码放进去；应用按名称使用它。"
 
 msgid "Secret for the password"
 msgstr "存放密码的密钥"
+
+msgid "Theirs, to do anything in."
+msgstr "归该用户所有，可在其中做任何事。"
 
 msgid "This user can't be planned"
 msgstr "无法为此用户生成计划"
@@ -6758,11 +6761,20 @@ msgstr "请使用字母、数字和下划线，以字母开头，例如 SHOP_DAT
 msgid "Use up to 32 lowercase letters, digits and underscores, starting with a letter, such as shop."
 msgstr "请使用最多 32 个小写字母、数字和下划线，以字母开头，例如 shop。"
 
-msgid "Who signs in to {engine}. Their database takes this name too, unless you give it another."
-msgstr "登录 {engine} 的用户。除非另行指定，其数据库也使用这个名称。"
+msgid "Who signs in to {engine}."
+msgstr "登录 {engine} 的用户。"
 
 msgid "With a database of their own, and a password Dockwell makes"
 msgstr "附带其专属数据库和由 Dockwell 生成的密码"
+
+msgid "{name} has a database called {theDatabase} already."
+msgstr "{name} 已有名为 {theDatabase} 的数据库。"
+
+msgid "{theSecret} is a secret already."
+msgstr "{theSecret} 已经是一个密钥。"
+
+msgid "{wanted} signs in to {name} already."
+msgstr "{wanted} 已经可以登录 {name}。"
 
 msgid "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
 msgstr "恢复会通过一个说明此事的计划替换现有内容，并把被替换的内容保留 7 天。"
