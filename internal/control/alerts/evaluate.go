@@ -400,7 +400,9 @@ func muted(mutes []store.AlertMute, ruleName, serverID string, now time.Time) bo
 }
 
 // Tick evaluates every rule once, queues what's due in the outbox, and sends what
-// the outbox has due.
+// the outbox has due. A rule whose alerts can't be written waits for the next
+// look, and the rest go on: one bad write never silences every alert. What failed
+// comes back joined, once everything else is done.
 func (e *Evaluator) Tick(ctx context.Context) error {
 	e.init()
 	now := e.now()
@@ -408,6 +410,7 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	var failed []error
 	sig := &signals{e: e, now: now}
 	byRule := map[string][]store.Alert{}
 	for i := range st.open {
@@ -439,11 +442,15 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 			}
 		}
 		if err := e.write(ctx, opens, resolves, now); err != nil {
-			return err
+			// What's held for them stays, so the next look opens and resolves them at
+			// once; its failed changes aren't marked told either, so it tells them.
+			failed = append(failed, fmt.Errorf("can't record the alerts of rule %s, so they wait for the next look: %w", r.name, err))
+			continue
 		}
+		e.letGo(r.id, opens, resolves)
 		if notice {
 			if err := e.advanceChanges(ctx, sig.lastChange); err != nil {
-				return err
+				failed = append(failed, fmt.Errorf("can't keep how far rule %s has told failed changes, so the next start may tell them again: %w", r.name, err))
 			}
 		}
 	}
@@ -461,17 +468,21 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 	}
 	if len(gone) > 0 {
 		if err := e.write(ctx, nil, gone, now); err != nil {
-			return err
+			failed = append(failed, fmt.Errorf("can't close the alerts of rules that went, so they close at the next look: %w", err))
 		}
 	}
 	e.forget(live)
+	// What was queued before still goes out when queueing fails.
 	if err := e.queue(ctx, now); err != nil {
-		return err
+		failed = append(failed, err)
 	}
 	if err := e.deliver(ctx, now); err != nil {
-		return err
+		failed = append(failed, err)
 	}
-	return e.prune(ctx, now)
+	if err := e.prune(ctx, now); err != nil {
+		failed = append(failed, err)
+	}
+	return errors.Join(failed...)
 }
 
 // forget drops what's held for rules that went, or were turned off, so one that
@@ -544,8 +555,7 @@ func (e *Evaluator) judge(r rule, found []finding, open []store.Alert, now time.
 				e.clearing[key] = cleared
 			}
 			if now.Sub(cleared) >= wait {
-				delete(e.clearing, key)
-				resolves = append(resolves, resolution{alert: *a})
+				resolves = append(resolves, resolution{alert: *a}) // held until its write lands: see letGo
 			}
 			continue
 		}
@@ -567,7 +577,7 @@ func (e *Evaluator) judge(r rule, found []finding, open []store.Alert, now time.
 			}
 			continue
 		}
-		delete(e.pending, key)
+		// What's pending stays held until the alert's write lands: see letGo.
 		opens = append(opens, store.Alert{
 			ID: id.New(id.Alert), RuleID: r.id, RuleName: r.name, Thing: f.thing,
 			Condition: int32(r.spec.GetCondition()), Severity: int32(r.spec.GetSeverity()),
@@ -596,6 +606,20 @@ func (e *Evaluator) judge(r rule, found []finding, open []store.Alert, now time.
 		}
 	}
 	return opens, resolves
+}
+
+// letGo lets go of what was held for alerts once their write has landed. One
+// that failed leaves it held, so the next look opens or resolves them at once,
+// rather than after the rule's duration again.
+func (e *Evaluator) letGo(ruleID string, opens []store.Alert, resolves []resolution) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for i := range opens {
+		delete(e.pending, ruleID+"|"+opens[i].Thing)
+	}
+	for i := range resolves {
+		delete(e.clearing, ruleID+"|"+resolves[i].alert.Thing)
+	}
 }
 
 // write records what opened and closed, each that resolved on Activity.
