@@ -119,6 +119,22 @@ export interface UIStrings {
   };
   /** Timeline: the default undo button. */
   undo: string;
+  /** Advanced: what the disclosure is called when the form gives it no name of its own. */
+  advanced: string;
+  portField: {
+    /** Beside a port while the server is asked. */
+    checking: string;
+    /** Beside a port nothing holds. */
+    free: string;
+    /** Beside a port something holds, and under it when what holds it isn't known. */
+    taken: string;
+    /** Under a port something holds, naming what, such as "redis uses it". */
+    takenBy: (by: ReactNode) => ReactNode;
+    /** Takes the free port offered, such as "Use 8084". */
+    use: (port: number) => string;
+    /** Under a number that isn't a port. */
+    range: string;
+  };
 }
 
 const count = (n: number) => n.toLocaleString("en");
@@ -236,6 +252,15 @@ export const englishStrings: UIStrings = {
     to: "to",
   },
   undo: "Undo",
+  advanced: "Advanced",
+  portField: {
+    checking: "Checking",
+    free: "Free",
+    taken: "Taken",
+    takenBy: (by) => <>{by} uses it</>,
+    use: (port) => `Use ${port}`,
+    range: "Use a port from 1 to 65535.",
+  },
 };
 
 const StringsContext = createContext<UIStrings>(englishStrings);

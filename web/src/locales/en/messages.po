@@ -10,11 +10,18 @@ msgstr ""
 msgid "10k+ new lines"
 msgstr "10k+ new lines"
 
+msgid "Advanced"
+msgstr "Advanced"
+
 msgid "CPU"
 msgstr "CPU"
 
 msgid "Cancel"
 msgstr "Cancel"
+
+msgctxt "a port on the server"
+msgid "Checking"
+msgstr "Checking"
 
 msgid "Close"
 msgstr "Close"
@@ -54,6 +61,10 @@ msgstr "Follow"
 
 msgid "Following"
 msgstr "Following"
+
+msgctxt "a port on the server"
+msgid "Free"
+msgstr "Free"
 
 msgid "Healthy"
 msgstr "Healthy"
@@ -127,6 +138,10 @@ msgstr "Show all of this line"
 msgid "Stopped"
 msgstr "Stopped"
 
+msgctxt "a port on the server"
+msgid "Taken"
+msgstr "Taken"
+
 msgid "Undo"
 msgstr "Undo"
 
@@ -138,6 +153,12 @@ msgstr "Update in place"
 
 msgid "Updated in place"
 msgstr "Updated in place"
+
+msgid "Use a port from 1 to 65535."
+msgstr "Use a port from 1 to 65535."
+
+msgid "Use {port}"
+msgstr "Use {port}"
 
 msgid "Warning"
 msgstr "Warning"
@@ -247,6 +268,9 @@ msgstr "variable"
 
 msgid "volume"
 msgstr "volume"
+
+msgid "{by} uses it"
+msgstr "{by} uses it"
 
 msgid "{count, plural, one {# new line} other {# new lines}}"
 msgstr "{count, plural, one {# new line} other {# new lines}}"
@@ -1446,9 +1470,6 @@ msgstr "Port on the server"
 msgid "Send {wanted} to {name}"
 msgstr "Send {wanted} to {name}"
 
-msgid "Use a port from 1 to 65535."
-msgstr "Use a port from 1 to 65535."
-
 msgid "What the app listens on, such as 80."
 msgstr "What the app listens on, such as 80."
 
@@ -1458,11 +1479,17 @@ msgstr "{typed} goes to {leavesApp} now. Going on moves it here, and it leaves {
 msgid "Add a port to {name}"
 msgstr "Add a port to {name}"
 
+msgid "Anywhere"
+msgstr "Anywhere"
+
 msgid "Check the port in the app, then try again."
 msgstr "Check the port in the app, then try again."
 
 msgid "Dockwell is putting {name} back. You can review this plan once that ends."
 msgstr "Dockwell is putting {name} back. You can review this plan once that ends."
+
+msgid "Dockwell's proxy"
+msgstr "Dockwell's proxy"
 
 msgid "In the app"
 msgstr "In the app"
@@ -1470,8 +1497,8 @@ msgstr "In the app"
 msgid "On the server"
 msgstr "On the server"
 
-msgid "People outside the server reach the app through this port"
-msgstr "People outside the server reach the app through this port"
+msgid "Only the server"
+msgstr "Only the server"
 
 msgid "Protocol"
 msgstr "Protocol"
@@ -1479,8 +1506,23 @@ msgstr "Protocol"
 msgid "Publish port {hostPort} on {name}"
 msgstr "Publish port {hostPort} on {name}"
 
-msgid "What people connect to, such as 8080."
-msgstr "What people connect to, such as 8080."
+msgid "Reachable at <0>{where}</0>"
+msgstr "Reachable at <0>{where}</0>"
+
+msgid "Reachable from"
+msgstr "Reachable from"
+
+msgid "TCP · from anywhere"
+msgstr "TCP · from anywhere"
+
+msgid "TCP · only from the server"
+msgstr "TCP · only from the server"
+
+msgid "UDP · from anywhere"
+msgstr "UDP · from anywhere"
+
+msgid "UDP · only from the server"
+msgstr "UDP · only from the server"
 
 msgid "{name} is still deploying. You can review this plan once that ends."
 msgstr "{name} is still deploying. You can review this plan once that ends."
@@ -8196,9 +8238,6 @@ msgstr "Any port"
 msgid "Any {proto} port"
 msgstr "Any {proto} port"
 
-msgid "Anywhere"
-msgstr "Anywhere"
-
 msgid "Anywhere, IPv6"
 msgstr "Anywhere, IPv6"
 
@@ -10166,8 +10205,20 @@ msgstr "Scheduled tasks"
 msgid "Command copied"
 msgstr "Command copied"
 
+msgid "Copied the command"
+msgstr "Copied the command"
+
+msgid "Copy as CLI command"
+msgstr "Copy as CLI command"
+
 msgid "Copy command"
 msgstr "Copy command"
+
+msgid "Hide it"
+msgstr "Hide it"
+
+msgid "Show it"
+msgstr "Show it"
 
 msgid "No page here"
 msgstr "No page here"
