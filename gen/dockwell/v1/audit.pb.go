@@ -420,9 +420,9 @@ const file_dockwell_v1_audit_proto_rawDesc = "" +
 	"\x14AUDIT_ACTOR_DOCKWELL\x10\x03\x12\x16\n" +
 	"\x12AUDIT_ACTOR_SERVER\x10\x04\x12\x15\n" +
 	"\x11AUDIT_ACTOR_SHELL\x10\x05\x12\x18\n" +
-	"\x14AUDIT_ACTOR_STRANGER\x10\x062\x91\x01\n" +
-	"\fAuditService\x12\x80\x01\n" +
-	"\x0fListAuditEvents\x12#.dockwell.v1.ListAuditEventsRequest\x1a$.dockwell.v1.ListAuditEventsResponse\"\"\xa0\xbb\x18\x01\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/auditEvents\x90\x02\x01B\xa3\x01\n" +
+	"\x14AUDIT_ACTOR_STRANGER\x10\x062\x9d\x01\n" +
+	"\fAuditService\x12\x8c\x01\n" +
+	"\x0fListAuditEvents\x12#.dockwell.v1.ListAuditEventsRequest\x1a$.dockwell.v1.ListAuditEventsResponse\".\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/auditEvents\x90\x02\x01B\xa3\x01\n" +
 	"\x0fcom.dockwell.v1B\n" +
 	"AuditProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 

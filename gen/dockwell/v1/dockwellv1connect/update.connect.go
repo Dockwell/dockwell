@@ -52,6 +52,10 @@ type UpdateServiceClient interface {
 	// it had and checking set when the agent takes more than a few seconds: ask
 	// again for the rest. The agent refreshes the server's package lists first
 	// when they're more than a day old.
+	//
+	// A server's updates are its inventory, the install's, so they're an admin's
+	// (ADR 0049). An admin's API token reads them, as it reads the rest of the
+	// server (ADR 0043).
 	GetServerUpdates(context.Context, *connect.Request[v1.GetServerUpdatesRequest]) (*connect.Response[v1.GetServerUpdatesResponse], error)
 	// CheckServerUpdates refreshes a server's package lists now, whatever their
 	// age, and reads what waits again. It answers at once, with checking set, and
@@ -114,6 +118,10 @@ type UpdateServiceHandler interface {
 	// it had and checking set when the agent takes more than a few seconds: ask
 	// again for the rest. The agent refreshes the server's package lists first
 	// when they're more than a day old.
+	//
+	// A server's updates are its inventory, the install's, so they're an admin's
+	// (ADR 0049). An admin's API token reads them, as it reads the rest of the
+	// server (ADR 0043).
 	GetServerUpdates(context.Context, *connect.Request[v1.GetServerUpdatesRequest]) (*connect.Response[v1.GetServerUpdatesResponse], error)
 	// CheckServerUpdates refreshes a server's package lists now, whatever their
 	// age, and reads what waits again. It answers at once, with checking set, and

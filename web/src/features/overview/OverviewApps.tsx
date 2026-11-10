@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Button, Callout, cx, Glyph, Icon, Panel, PHONE_QUERY, STATUS, Table, useMediaQuery } from "@dockwell/ui";
+import { Button, cx, Glyph, Icon, Panel, PHONE_QUERY, STATUS, Table, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
 
-import { sentence } from "../../lib/errors";
 import { formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
@@ -20,6 +19,7 @@ import { usePlaces, useServices } from "../apps/useServices";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import "../apps/Apps.css";
 import "./Overview.css";
+import { ReadFailed } from "../shell/ReadFailed";
 
 /** How many apps the overview lists before View all. */
 const SHOWN = 8;
@@ -63,8 +63,8 @@ export function OverviewApps({ fleet = false }: { fleet?: boolean }) {
     body = <ListSkeleton label={t`Loading apps`} />;
   } else if (services.error) {
     body = (
-      <Callout
-        tone="critical"
+      <ReadFailed
+        error={services.error}
         title={t`Can't load the apps`}
         actions={
           <Button onClick={() => void services.refetch()} loading={services.isFetching}>
@@ -72,8 +72,8 @@ export function OverviewApps({ fleet = false }: { fleet?: boolean }) {
           </Button>
         }
       >
-        {sentence(services.error)} <Trans>What runs on your servers isn't affected.</Trans>
-      </Callout>
+        <Trans>What runs on your servers isn't affected.</Trans>
+      </ReadFailed>
     );
   } else if (rows.length === 0) {
     body = (

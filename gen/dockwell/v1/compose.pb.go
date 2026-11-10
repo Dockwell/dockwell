@@ -942,12 +942,12 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\aservice\x18\x03 \x01(\tR\aservice\"K\n" +
 	"\x15ExportComposeResponse\x12\x18\n" +
 	"\acompose\x18\x01 \x01(\tR\acompose\x12\x18\n" +
-	"\aomitted\x18\x02 \x03(\tR\aomitted2\xf1\x03\n" +
-	"\x0eComposeService\x12y\n" +
-	"\rImportCompose\x12!.dockwell.v1.ImportComposeRequest\x1a\".dockwell.v1.ImportComposeResponse\"!\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/compose:import\x12y\n" +
-	"\fAdoptCompose\x12 .dockwell.v1.AdoptComposeRequest\x1a!.dockwell.v1.AdoptComposeResponse\"$\xa0\xbb\x18\x02\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:adopt\x12u\n" +
-	"\fCheckCompose\x12 .dockwell.v1.CheckComposeRequest\x1a!.dockwell.v1.CheckComposeResponse\" \xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:check\x12r\n" +
-	"\rExportCompose\x12!.dockwell.v1.ExportComposeRequest\x1a\".dockwell.v1.ExportComposeResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/compose\x90\x02\x01B\xa5\x01\n" +
+	"\aomitted\x18\x02 \x03(\tR\aomitted2\xa4\x04\n" +
+	"\x0eComposeService\x12\x85\x01\n" +
+	"\rImportCompose\x12!.dockwell.v1.ImportComposeRequest\x1a\".dockwell.v1.ImportComposeResponse\"-\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/compose:import\x12\x85\x01\n" +
+	"\fAdoptCompose\x12 .dockwell.v1.AdoptComposeRequest\x1a!.dockwell.v1.AdoptComposeResponse\"0\xa0\xbb\x18\x02\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:adopt\x12\x81\x01\n" +
+	"\fCheckCompose\x12 .dockwell.v1.CheckComposeRequest\x1a!.dockwell.v1.CheckComposeResponse\",\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:check\x12~\n" +
+	"\rExportCompose\x12!.dockwell.v1.ExportComposeRequest\x1a\".dockwell.v1.ExportComposeResponse\"&\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\r\x12\v/v1/compose\x90\x02\x01B\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fComposeProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

@@ -5,6 +5,7 @@ package control
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -51,10 +52,23 @@ const (
 var transferStall = 60 * time.Second
 
 // streamTransfers serves the REST paths for uploads and downloads on mux, through
-// guard, ahead of Vanguard's, with the FileService handler h.
-func streamTransfers(mux *http.ServeMux, h http.Handler, guard func(http.Handler) http.Handler) {
-	mux.Handle(uploadPath, guard(uploadREST(h)))
-	mux.Handle(downloadPath, guard(downloadREST(h)))
+// guard, ahead of Vanguard's, with the FileService handler h. authorize is the
+// check restHandler makes before it reads a call, made here before either path
+// reads its query, so whoever may not call hears that and nothing of the request.
+func streamTransfers(mux *http.ServeMux, h http.Handler, guard func(http.Handler) http.Handler, authorize func(ctx context.Context, procedure string) error) {
+	admitted := func(procedure string, next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if authorize != nil {
+				if err := authorize(r.Context(), procedure); err != nil {
+					restRefuse(w, err)
+					return
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+	mux.Handle(uploadPath, guard(admitted(dockwellv1connect.FileServiceUploadFileProcedure, uploadREST(h))))
+	mux.Handle(downloadPath, guard(admitted(dockwellv1connect.FileServiceDownloadFileProcedure, downloadREST(h))))
 }
 
 // Connect's envelope: a byte of flags, then the message's length.

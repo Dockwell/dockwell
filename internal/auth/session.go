@@ -296,8 +296,12 @@ func (s *Service) RevokeOtherSessions(ctx context.Context, p Principal) (int, er
 // revoking commits, then ends the session's registered streams. Either the
 // stream was registered by then and is ended, or the check here reads the
 // committed revocation.
-func (s *Service) Track(ctx context.Context, client Client, p Principal) (context.Context, func()) {
-	return s.track(ctx, client, p, true)
+//
+// still, when set, is asked too, at the start and on each recheck, whether the
+// caller may still make the stream, as their role says now: a stream ends
+// when it errs, as it does once a role is gone (ADR 0048).
+func (s *Service) Track(ctx context.Context, client Client, p Principal, still ...func(context.Context) error) (context.Context, func()) {
+	return s.track(ctx, client, p, true, still...)
 }
 
 // Follow is Track for what outlives the request that made it and isn't a page in
@@ -309,11 +313,19 @@ func (s *Service) Follow(ctx context.Context, client Client, p Principal) (conte
 	return s.track(ctx, client, p, false)
 }
 
-func (s *Service) track(ctx context.Context, client Client, p Principal, use bool) (context.Context, func()) {
+func (s *Service) track(ctx context.Context, client Client, p Principal, use bool, still ...func(context.Context) error) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	credential := p.credential()
 	entry := s.streams.add(credential, cancel)
-	if !s.stillLive(ctx, client, p, use) {
+	may := func() bool {
+		for _, check := range still {
+			if check != nil && check(ctx) != nil {
+				return false
+			}
+		}
+		return true
+	}
+	if !s.stillLive(ctx, client, p, use) || !may() {
 		cancel()
 	}
 	done := make(chan struct{})
@@ -329,6 +341,11 @@ func (s *Service) track(ctx context.Context, client Client, p Principal, use boo
 			case <-t.C:
 				if !s.stillLive(ctx, client, p, use) {
 					s.logger.DebugContext(ctx, "closing a stream whose session or token ended", slog.String("credential", credential))
+					cancel()
+					return
+				}
+				if !may() {
+					s.logger.DebugContext(ctx, "closing a stream its caller may no longer make", slog.String("credential", credential))
 					cancel()
 					return
 				}

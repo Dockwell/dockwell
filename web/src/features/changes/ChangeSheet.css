@@ -53,9 +53,17 @@
   color: var(--tone);
 }
 
-/* A long name in a label ends in an ellipsis, and never pushes the footer's other button out of the sheet. */
+/*
+ * The footer's buttons keep their labels whole: the note beside them takes what room is left and wraps, and a row
+ * too narrow for both puts the buttons on a row of their own. Only a label longer than the sheet ends in an ellipsis.
+ */
+.plan-view .dw-sheet-foot {
+  flex-wrap: wrap;
+}
+
 .plan-view .dw-sheet-foot .dw-btn {
-  min-width: 0;
+  flex: none;
+  max-width: 100%;
 }
 
 .plan-view .dw-sheet-foot .dw-btn-label {
@@ -546,6 +554,12 @@ a.plan-reach-at:focus-visible {
 
 .plan-gate-note .dw-sheet-note {
   margin: 0;
+}
+
+/* The footer's note takes what room its buttons leave, and wraps (above). */
+.plan-view .dw-sheet-foot > .dw-sheet-note {
+  flex: 1 1 14rem;
+  min-width: 0;
 }
 
 .plan-gate-cancel {

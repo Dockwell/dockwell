@@ -259,9 +259,9 @@ const file_dockwell_v1_resource_proto_rawDesc = "" +
 	"\brevision\x18\x03 \x01(\x03R\brevision\x12;\n" +
 	"\vupdate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"updateTime\x12!\n" +
-	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName2\x87\x01\n" +
-	"\x0fResourceService\x12t\n" +
-	"\rListResources\x12!.dockwell.v1.ListResourcesRequest\x1a\".dockwell.v1.ListResourcesResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/resources\x90\x02\x01B\xa6\x01\n" +
+	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName2\x94\x01\n" +
+	"\x0fResourceService\x12\x80\x01\n" +
+	"\rListResources\x12!.dockwell.v1.ListResourcesRequest\x1a\".dockwell.v1.ListResourcesResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/resources\x90\x02\x01B\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rResourceProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

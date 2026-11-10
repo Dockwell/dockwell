@@ -320,9 +320,9 @@ const file_dockwell_v1_member_proto_rawDesc = "" +
 	"SignInKind\x12\x1c\n" +
 	"\x18SIGN_IN_KIND_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14SIGN_IN_KIND_PASSKEY\x10\x01\x12\"\n" +
-	"\x1eSIGN_IN_KIND_AUTHENTICATOR_APP\x10\x022\x81\x01\n" +
-	"\rMemberService\x12p\n" +
-	"\vListMembers\x12\x1f.dockwell.v1.ListMembersRequest\x1a .dockwell.v1.ListMembersResponse\"\x1e\xa0\xbb\x18\x01\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/members\x90\x02\x01B\xa4\x01\n" +
+	"\x1eSIGN_IN_KIND_AUTHENTICATOR_APP\x10\x022\x8d\x01\n" +
+	"\rMemberService\x12|\n" +
+	"\vListMembers\x12\x1f.dockwell.v1.ListMembersRequest\x1a .dockwell.v1.ListMembersResponse\"*\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\r\x12\v/v1/members\x90\x02\x01B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vMemberProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

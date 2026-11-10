@@ -10,6 +10,7 @@ import {
   Connection,
   GetVersionResponseSchema,
   ListChangesResponseSchema,
+  Role,
   ServerInventorySchema,
   Surface,
   type WatchServersResponse,
@@ -21,6 +22,7 @@ import { describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { anApp } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 
@@ -162,6 +164,15 @@ describe("the shell on wide screens", () => {
     const you = within(rail()).getByRole("link", { name: "Mira Chen Owner" });
     expect(you).toHaveAttribute("href", "/profile");
     expect(you.querySelector(".rail-avatar")).toHaveTextContent("MC");
+  });
+
+  it("names a viewer's role under their name", async () => {
+    renderAt("/", { auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) } });
+    expect(
+      await within(await screen.findByRole("navigation", { name: "Main" })).findByRole("link", {
+        name: "Mira Chen Viewer",
+      }),
+    ).toHaveAttribute("href", "/profile");
   });
 
   // Someone who didn't run the CLI learns that a change waits for them (#112).

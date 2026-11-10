@@ -40,7 +40,8 @@ func Setup(ctx context.Context, db *store.DB, logger *slog.Logger) (bool, error)
 		if err != nil {
 			return err
 		}
-		environment, err := resource.Encode(&resourcev1.Environment{})
+		first := &resourcev1.Environment{Protection: scope.DefaultProtection(scope.DefaultEnvironment)}
+		environment, err := resource.Encode(first)
 		if err != nil {
 			return err
 		}
@@ -54,7 +55,7 @@ func Setup(ctx context.Context, db *store.DB, logger *slog.Logger) (bool, error)
 			ID: id.New(id.Change), Summary: "Set up the default project and environment", Actor: SystemActor,
 			State: store.ChangePlanned, CreatedAt: now, ProposedVia: ViaAutomatic,
 		}
-		specs := []proto.Message{&resourcev1.Project{}, &resourcev1.Environment{}}
+		specs := []proto.Message{&resourcev1.Project{}, first}
 		for i := range revs {
 			r := &revs[i]
 			items[i] = item{ref: resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}, id: r.ID, spec: specs[i], encoded: r.Spec}

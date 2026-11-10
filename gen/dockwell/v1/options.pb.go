@@ -138,6 +138,147 @@ func (TokenGrant) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_options_proto_rawDescGZIP(), []int{1}
 }
 
+// Needs is the lowest role a method needs (ADR 0049). A role holds where its
+// grant does: on a project, or on the install, which covers every project.
+type Needs int32
+
+const (
+	Needs_NEEDS_UNSPECIFIED Needs = 0
+	// No role: a call before signing in, or signing out, which someone with no
+	// grant left may still do.
+	Needs_NEEDS_NOTHING Needs = 1
+	// A viewer's grant: reading.
+	Needs_NEEDS_VIEWER Needs = 2
+	// A developer's grant: planning, and applying outside protected
+	// environments.
+	Needs_NEEDS_DEVELOPER Needs = 3
+	// An admin's grant, which is on the whole install.
+	Needs_NEEDS_ADMIN Needs = 4
+	// The owner.
+	Needs_NEEDS_OWNER Needs = 5
+)
+
+// Enum value maps for Needs.
+var (
+	Needs_name = map[int32]string{
+		0: "NEEDS_UNSPECIFIED",
+		1: "NEEDS_NOTHING",
+		2: "NEEDS_VIEWER",
+		3: "NEEDS_DEVELOPER",
+		4: "NEEDS_ADMIN",
+		5: "NEEDS_OWNER",
+	}
+	Needs_value = map[string]int32{
+		"NEEDS_UNSPECIFIED": 0,
+		"NEEDS_NOTHING":     1,
+		"NEEDS_VIEWER":      2,
+		"NEEDS_DEVELOPER":   3,
+		"NEEDS_ADMIN":       4,
+		"NEEDS_OWNER":       5,
+	}
+)
+
+func (x Needs) Enum() *Needs {
+	p := new(Needs)
+	*p = x
+	return p
+}
+
+func (x Needs) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Needs) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_options_proto_enumTypes[2].Descriptor()
+}
+
+func (Needs) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_options_proto_enumTypes[2]
+}
+
+func (x Needs) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Needs.Descriptor instead.
+func (Needs) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_options_proto_rawDescGZIP(), []int{2}
+}
+
+// Reach says what a method's objects are, for how its role is checked
+// (ADR 0049).
+type Reach int32
+
+const (
+	Reach_REACH_UNSPECIFIED Reach = 0
+	// Nobody's: a call before signing in, such as signing in or the version.
+	Reach_REACH_ANYONE Reach = 1
+	// The caller's own sign-in, sessions and tokens, and nobody else's.
+	Reach_REACH_SELF Reach = 2
+	// The same for everyone who holds a grant, such as the catalog's apps.
+	Reach_REACH_SHARED Reach = 3
+	// A project's own objects, named by ID or listed, each placed by the
+	// resolver. What a list or a filter holds on a server alone, such as a
+	// firewall rule, a container on its own or an access event, is placed as
+	// the install's.
+	Reach_REACH_PROJECT Reach = 4
+	// What projects name on the install, such as servers and backup
+	// destinations, read or checked; below an admin, a response holds names and
+	// states only.
+	Reach_REACH_NAMED Reach = 5
+	// The install's own, such as files, terminals and settings.
+	Reach_REACH_INSTALL Reach = 6
+)
+
+// Enum value maps for Reach.
+var (
+	Reach_name = map[int32]string{
+		0: "REACH_UNSPECIFIED",
+		1: "REACH_ANYONE",
+		2: "REACH_SELF",
+		3: "REACH_SHARED",
+		4: "REACH_PROJECT",
+		5: "REACH_NAMED",
+		6: "REACH_INSTALL",
+	}
+	Reach_value = map[string]int32{
+		"REACH_UNSPECIFIED": 0,
+		"REACH_ANYONE":      1,
+		"REACH_SELF":        2,
+		"REACH_SHARED":      3,
+		"REACH_PROJECT":     4,
+		"REACH_NAMED":       5,
+		"REACH_INSTALL":     6,
+	}
+)
+
+func (x Reach) Enum() *Reach {
+	p := new(Reach)
+	*p = x
+	return p
+}
+
+func (x Reach) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Reach) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_options_proto_enumTypes[3].Descriptor()
+}
+
+func (Reach) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_options_proto_enumTypes[3]
+}
+
+func (x Reach) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Reach.Descriptor instead.
+func (Reach) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_options_proto_rawDescGZIP(), []int{3}
+}
+
 // Command names a method's command in the dockwell CLI, dockwell <noun>
 // <verb>, where the generator's rules give a name that is taken or
 // misleading. By the rules, the noun is the collection in the method's REST
@@ -291,6 +432,30 @@ var file_dockwell_v1_options_proto_extTypes = []protoimpl.ExtensionInfo{
 		Filename:      "dockwell/v1/options.proto",
 	},
 	{
+		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
+		ExtensionType: (*Needs)(nil),
+		Field:         50104,
+		Name:          "dockwell.v1.min_role",
+		Tag:           "varint,50104,opt,name=min_role,enum=dockwell.v1.Needs",
+		Filename:      "dockwell/v1/options.proto",
+	},
+	{
+		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
+		ExtensionType: (*Needs)(nil),
+		Field:         50105,
+		Name:          "dockwell.v1.min_role_protected",
+		Tag:           "varint,50105,opt,name=min_role_protected,enum=dockwell.v1.Needs",
+		Filename:      "dockwell/v1/options.proto",
+	},
+	{
+		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
+		ExtensionType: (*Reach)(nil),
+		Field:         50106,
+		Name:          "dockwell.v1.reach",
+		Tag:           "varint,50106,opt,name=reach,enum=dockwell.v1.Reach",
+		Filename:      "dockwell/v1/options.proto",
+	},
+	{
 		ExtendedType:  (*descriptorpb.ServiceOptions)(nil),
 		ExtensionType: ([]*Noun)(nil),
 		Field:         50100,
@@ -348,6 +513,23 @@ var (
 	//
 	// optional dockwell.v1.TokenGrant needs_grant = 50103;
 	E_NeedsGrant = &file_dockwell_v1_options_proto_extTypes[3]
+	// The lowest role the method needs where its objects are in an open
+	// environment, or in none. Every Dockwell method sets it, and a test fails
+	// the build on one that doesn't. See
+	// docs/adr/0049-roles-and-invites-by-project.md.
+	//
+	// optional dockwell.v1.Needs min_role = 50104;
+	E_MinRole = &file_dockwell_v1_options_proto_extTypes[4]
+	// The lowest role the method needs where any of its objects is in a
+	// protected environment. Every Dockwell method sets it too.
+	//
+	// optional dockwell.v1.Needs min_role_protected = 50105;
+	E_MinRoleProtected = &file_dockwell_v1_options_proto_extTypes[5]
+	// What the method's objects are, which says how its role is checked.
+	// Every Dockwell method sets it.
+	//
+	// optional dockwell.v1.Reach reach = 50106;
+	E_Reach = &file_dockwell_v1_options_proto_extTypes[6]
 )
 
 // Extension fields to descriptorpb.ServiceOptions.
@@ -357,7 +539,7 @@ var (
 	// unset, and its comment is that noun's help.
 	//
 	// repeated dockwell.v1.Noun nouns = 50100;
-	E_Nouns = &file_dockwell_v1_options_proto_extTypes[4]
+	E_Nouns = &file_dockwell_v1_options_proto_extTypes[7]
 )
 
 // Extension fields to descriptorpb.FieldOptions.
@@ -367,13 +549,13 @@ var (
 	// such as --token for a claim link's token. Most fields leave it unset.
 	//
 	// optional string flag = 50100;
-	E_Flag = &file_dockwell_v1_options_proto_extTypes[5]
+	E_Flag = &file_dockwell_v1_options_proto_extTypes[8]
 	// The dockwell CLI's flag for a request's text field also reads it from a
 	// file, as --compose @compose.yaml, or from standard input with -, as a JSON
 	// flag does, so a file that may hold a secret needn't go on the command line.
 	//
 	// optional bool from_file = 50101;
-	E_FromFile = &file_dockwell_v1_options_proto_extTypes[6]
+	E_FromFile = &file_dockwell_v1_options_proto_extTypes[9]
 )
 
 // Extension fields to descriptorpb.EnumValueOptions.
@@ -383,7 +565,7 @@ var (
 	// HEALTH_STATE_NO_CHECK. Most values leave it unset.
 	//
 	// optional string word = 50100;
-	E_Word = &file_dockwell_v1_options_proto_extTypes[7]
+	E_Word = &file_dockwell_v1_options_proto_extTypes[10]
 )
 
 var File_dockwell_v1_options_proto protoreflect.FileDescriptor
@@ -406,12 +588,31 @@ const file_dockwell_v1_options_proto_rawDesc = "" +
 	"\n" +
 	"TokenGrant\x12\x1b\n" +
 	"\x17TOKEN_GRANT_UNSPECIFIED\x10\x00\x12\x14\n" +
-	"\x10TOKEN_GRANT_LOGS\x10\x01:M\n" +
+	"\x10TOKEN_GRANT_LOGS\x10\x01*z\n" +
+	"\x05Needs\x12\x15\n" +
+	"\x11NEEDS_UNSPECIFIED\x10\x00\x12\x11\n" +
+	"\rNEEDS_NOTHING\x10\x01\x12\x10\n" +
+	"\fNEEDS_VIEWER\x10\x02\x12\x13\n" +
+	"\x0fNEEDS_DEVELOPER\x10\x03\x12\x0f\n" +
+	"\vNEEDS_ADMIN\x10\x04\x12\x0f\n" +
+	"\vNEEDS_OWNER\x10\x05*\x89\x01\n" +
+	"\x05Reach\x12\x15\n" +
+	"\x11REACH_UNSPECIFIED\x10\x00\x12\x10\n" +
+	"\fREACH_ANYONE\x10\x01\x12\x0e\n" +
+	"\n" +
+	"REACH_SELF\x10\x02\x12\x10\n" +
+	"\fREACH_SHARED\x10\x03\x12\x11\n" +
+	"\rREACH_PROJECT\x10\x04\x12\x0f\n" +
+	"\vREACH_NAMED\x10\x05\x12\x11\n" +
+	"\rREACH_INSTALL\x10\x06:M\n" +
 	"\x06effect\x12\x1e.google.protobuf.MethodOptions\x18\xb4\x87\x03 \x01(\x0e2\x13.dockwell.v1.EffectR\x06effect:P\n" +
 	"\acommand\x12\x1e.google.protobuf.MethodOptions\x18\xb5\x87\x03 \x01(\v2\x14.dockwell.v1.CommandR\acommand:E\n" +
 	"\rneeds_session\x12\x1e.google.protobuf.MethodOptions\x18\xb6\x87\x03 \x01(\bR\fneedsSession:Z\n" +
 	"\vneeds_grant\x12\x1e.google.protobuf.MethodOptions\x18\xb7\x87\x03 \x01(\x0e2\x17.dockwell.v1.TokenGrantR\n" +
-	"needsGrant:J\n" +
+	"needsGrant:O\n" +
+	"\bmin_role\x12\x1e.google.protobuf.MethodOptions\x18\xb8\x87\x03 \x01(\x0e2\x12.dockwell.v1.NeedsR\aminRole:b\n" +
+	"\x12min_role_protected\x12\x1e.google.protobuf.MethodOptions\x18\xb9\x87\x03 \x01(\x0e2\x12.dockwell.v1.NeedsR\x10minRoleProtected:J\n" +
+	"\x05reach\x12\x1e.google.protobuf.MethodOptions\x18\xba\x87\x03 \x01(\x0e2\x12.dockwell.v1.ReachR\x05reach:J\n" +
 	"\x05nouns\x12\x1f.google.protobuf.ServiceOptions\x18\xb4\x87\x03 \x03(\v2\x11.dockwell.v1.NounR\x05nouns:3\n" +
 	"\x04flag\x12\x1d.google.protobuf.FieldOptions\x18\xb4\x87\x03 \x01(\tR\x04flag:<\n" +
 	"\tfrom_file\x12\x1d.google.protobuf.FieldOptions\x18\xb5\x87\x03 \x01(\bR\bfromFile:7\n" +
@@ -430,35 +631,43 @@ func file_dockwell_v1_options_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_options_proto_rawDescData
 }
 
-var file_dockwell_v1_options_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_dockwell_v1_options_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
 var file_dockwell_v1_options_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_dockwell_v1_options_proto_goTypes = []any{
 	(Effect)(0),                           // 0: dockwell.v1.Effect
 	(TokenGrant)(0),                       // 1: dockwell.v1.TokenGrant
-	(*Command)(nil),                       // 2: dockwell.v1.Command
-	(*Noun)(nil),                          // 3: dockwell.v1.Noun
-	(*descriptorpb.MethodOptions)(nil),    // 4: google.protobuf.MethodOptions
-	(*descriptorpb.ServiceOptions)(nil),   // 5: google.protobuf.ServiceOptions
-	(*descriptorpb.FieldOptions)(nil),     // 6: google.protobuf.FieldOptions
-	(*descriptorpb.EnumValueOptions)(nil), // 7: google.protobuf.EnumValueOptions
+	(Needs)(0),                            // 2: dockwell.v1.Needs
+	(Reach)(0),                            // 3: dockwell.v1.Reach
+	(*Command)(nil),                       // 4: dockwell.v1.Command
+	(*Noun)(nil),                          // 5: dockwell.v1.Noun
+	(*descriptorpb.MethodOptions)(nil),    // 6: google.protobuf.MethodOptions
+	(*descriptorpb.ServiceOptions)(nil),   // 7: google.protobuf.ServiceOptions
+	(*descriptorpb.FieldOptions)(nil),     // 8: google.protobuf.FieldOptions
+	(*descriptorpb.EnumValueOptions)(nil), // 9: google.protobuf.EnumValueOptions
 }
 var file_dockwell_v1_options_proto_depIdxs = []int32{
-	4,  // 0: dockwell.v1.effect:extendee -> google.protobuf.MethodOptions
-	4,  // 1: dockwell.v1.command:extendee -> google.protobuf.MethodOptions
-	4,  // 2: dockwell.v1.needs_session:extendee -> google.protobuf.MethodOptions
-	4,  // 3: dockwell.v1.needs_grant:extendee -> google.protobuf.MethodOptions
-	5,  // 4: dockwell.v1.nouns:extendee -> google.protobuf.ServiceOptions
-	6,  // 5: dockwell.v1.flag:extendee -> google.protobuf.FieldOptions
-	6,  // 6: dockwell.v1.from_file:extendee -> google.protobuf.FieldOptions
-	7,  // 7: dockwell.v1.word:extendee -> google.protobuf.EnumValueOptions
-	0,  // 8: dockwell.v1.effect:type_name -> dockwell.v1.Effect
-	2,  // 9: dockwell.v1.command:type_name -> dockwell.v1.Command
-	1,  // 10: dockwell.v1.needs_grant:type_name -> dockwell.v1.TokenGrant
-	3,  // 11: dockwell.v1.nouns:type_name -> dockwell.v1.Noun
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	8,  // [8:12] is the sub-list for extension type_name
-	0,  // [0:8] is the sub-list for extension extendee
+	6,  // 0: dockwell.v1.effect:extendee -> google.protobuf.MethodOptions
+	6,  // 1: dockwell.v1.command:extendee -> google.protobuf.MethodOptions
+	6,  // 2: dockwell.v1.needs_session:extendee -> google.protobuf.MethodOptions
+	6,  // 3: dockwell.v1.needs_grant:extendee -> google.protobuf.MethodOptions
+	6,  // 4: dockwell.v1.min_role:extendee -> google.protobuf.MethodOptions
+	6,  // 5: dockwell.v1.min_role_protected:extendee -> google.protobuf.MethodOptions
+	6,  // 6: dockwell.v1.reach:extendee -> google.protobuf.MethodOptions
+	7,  // 7: dockwell.v1.nouns:extendee -> google.protobuf.ServiceOptions
+	8,  // 8: dockwell.v1.flag:extendee -> google.protobuf.FieldOptions
+	8,  // 9: dockwell.v1.from_file:extendee -> google.protobuf.FieldOptions
+	9,  // 10: dockwell.v1.word:extendee -> google.protobuf.EnumValueOptions
+	0,  // 11: dockwell.v1.effect:type_name -> dockwell.v1.Effect
+	4,  // 12: dockwell.v1.command:type_name -> dockwell.v1.Command
+	1,  // 13: dockwell.v1.needs_grant:type_name -> dockwell.v1.TokenGrant
+	2,  // 14: dockwell.v1.min_role:type_name -> dockwell.v1.Needs
+	2,  // 15: dockwell.v1.min_role_protected:type_name -> dockwell.v1.Needs
+	3,  // 16: dockwell.v1.reach:type_name -> dockwell.v1.Reach
+	5,  // 17: dockwell.v1.nouns:type_name -> dockwell.v1.Noun
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	11, // [11:18] is the sub-list for extension type_name
+	0,  // [0:11] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
 }
 
@@ -472,9 +681,9 @@ func file_dockwell_v1_options_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_options_proto_rawDesc), len(file_dockwell_v1_options_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      4,
 			NumMessages:   2,
-			NumExtensions: 8,
+			NumExtensions: 11,
 			NumServices:   0,
 		},
 		GoTypes:           file_dockwell_v1_options_proto_goTypes,

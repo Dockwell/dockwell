@@ -117,6 +117,57 @@ describe("Members", () => {
     expect(await screen.findByText("mira@example.com")).toBeVisible();
   });
 
+  it("names each role on the install, and none for someone who holds projects alone", async () => {
+    const as = (id: string, name: string, role: Role) =>
+      create(MemberSchema, { user: { id, name, email: `${id}@example.com`, role }, signIn: [SignInKind.PASSKEY] });
+    renderAt("/settings/members", {
+      members: {
+        listMembers: () => ({
+          members: [
+            owner,
+            as("usr_3", "Sam Okafor", Role.ADMIN),
+            as("usr_4", "Lin Wei", Role.DEVELOPER),
+            as("usr_5", "Noor Haddad", Role.VIEWER),
+            as("usr_6", "Tess Moreau", Role.UNSPECIFIED),
+          ],
+        }),
+      },
+    });
+    const table = await screen.findByRole("table", { name: "Who signs in to this install" });
+    const roleOf = (name: string) =>
+      within(table)
+        .getAllByRole("row")
+        .find((row) => row.textContent?.includes(name))
+        ?.querySelector(".members-role")?.textContent;
+    expect(roleOf("Mira Chen")).toBe("Owner");
+    expect(roleOf("Sam Okafor")).toBe("Admin");
+    expect(roleOf("Lin Wei")).toBe("Developer");
+    expect(roleOf("Noor Haddad")).toBe("Viewer");
+    expect(roleOf("Tess Moreau")).toBe("–");
+  });
+
+  it("says when your role doesn't cover who signs in, with nothing to try again", async () => {
+    const refused = () => {
+      throw new ConnectError(
+        "only an admin or the owner can do this, and you're a viewer, so it didn't happen. Ask an admin to change your role",
+        Code.PermissionDenied,
+        new Headers({ "Dockwell-Error": "needs_role" }),
+      );
+    };
+    const { unmount } = renderAt("/settings/members", { members: { listMembers: refused } });
+    expect(await screen.findByText("Your role doesn't cover this")).toBeVisible();
+    expect(screen.getByText("Your role doesn't let you do this here. Ask an admin to change your role.")).toBeVisible();
+    expect(screen.queryByText("Dockwell can't say who signs in")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    unmount();
+
+    // In Chinese it's all Chinese: the server's English never shows.
+    await activateLocale("zh-CN");
+    renderAt("/settings/members", { members: { listMembers: refused } });
+    const callout = (await screen.findByText("你的角色无权访问这里")).closest(".dw-callout");
+    expect(callout?.textContent).not.toMatch(/[A-Za-z]/);
+  });
+
   it("stacks a person's facts on a phone, under Settings", async () => {
     onPhone();
     renderAt("/settings/members", { members: { listMembers: () => ({ members: [owner] }) } });

@@ -26,6 +26,9 @@ service ImportService {
   // no password, key, script, environment or URL path.
   rpc ImportOnePanel(ImportOnePanelRequest) returns (ImportOnePanelResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.command) = {
       noun: "import"
       verb: "1panel"

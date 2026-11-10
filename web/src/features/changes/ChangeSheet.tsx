@@ -5,6 +5,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type Client, createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
+  ActorKind,
   AlertService,
   BackupService,
   CatalogService,
@@ -70,6 +71,7 @@ import { readHealthSoon, useHealth } from "../apps/health";
 import { readServicesAgain, useServices } from "../apps/useServices";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
+import { useSignedInUser } from "../auth/useAuthState";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
@@ -355,7 +357,7 @@ function later(was: Change | undefined, next: Change | undefined): Change | unde
   return next;
 }
 
-type Busy = "apply" | undefined;
+type Busy = "apply" | "discard" | undefined;
 
 /** How often a plan refused for another change's sake looks to see whether that has ended. */
 const BUSY_LOOK_MS = 1_500;
@@ -517,6 +519,16 @@ function ChangeSheet({
     })
     .map((s) => s.serverName);
   const canApply = confirmed && offline.length === 0;
+  // A plan the reader's role doesn't cover waits for an admin or the owner, and
+  // someone else's in a protected environment, an admin approves with a
+  // passkey, however it was planned: the API says which (ADR 0049).
+  const user = useSignedInUser();
+  const waits = phase === "review" && (change?.waits ?? "") !== "";
+  const approves = phase === "review" && change?.approves === true;
+  // Theirs to discard, as the sheet's own plan is: one they planned in the panel.
+  const theirs =
+    proposal.current !== undefined ||
+    (change?.proposedBy?.kind === ActorKind.USER && change.proposedBy.id === user?.id);
 
   const apply = useCallback(async () => {
     if (!change || !canApply || busy) return;
@@ -554,20 +566,22 @@ function ChangeSheet({
   const leave = phase === "failed" && opening.onDone ? opening.onDone : close;
 
   // ⌘↵ (Ctrl+Enter elsewhere) goes on through the flow, as each button says:
-  // it applies the plan, and once that is over, takes the way on. A key held
-  // down from the step before doesn't count, so it never applies a plan unseen.
+  // it applies the plan, and once that is over, takes the way on. A plan that
+  // waits for an admin offers no Apply, so it takes what the footer offers. A
+  // key held down from the step before doesn't count, so it never applies a
+  // plan unseen.
   const over = phase === "arrived" || phase === "failed" || phase === "history" || phase === "discarded";
   useEffect(() => {
     if (away || (phase !== "review" && !over)) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey) || event.isComposing || event.repeat) return;
       event.preventDefault();
-      if (phase === "review") void apply();
+      if (phase === "review" && !waits) void apply();
       else primary.current?.click();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [away, phase, over, apply]);
+  }, [away, phase, over, waits, apply]);
 
   // Focus goes where the next step is, so a keyboard needs no Tab to go on, and
   // never falls out of the sheet as a button it was on goes away. It stays on
@@ -638,8 +652,51 @@ function ChangeSheet({
     </span>
   );
 
+  // Leaving a plan that waits keeps it planned, for an admin to find on Activity.
+  const leaveForAdmin = useCallback(() => {
+    const held = proposal.current;
+    if (held) held.keep = true;
+    close();
+  }, [close]);
+
+  // Discarding a plan that waits: the sheet's own goes as it closes; one
+  // reopened from Activity is discarded here, and the sheet says it was.
+  const discard = useCallback(async () => {
+    if (proposal.current || !change) {
+      close();
+      return;
+    }
+    setBusy("discard");
+    setFailure(undefined);
+    try {
+      const res = await client.discardChange({ id: change.id });
+      setChange((was) => later(was, res.change));
+    } catch (err) {
+      setFailure(err);
+    } finally {
+      setBusy(undefined);
+    }
+  }, [change, client, close]);
+
   let footer: ReactNode;
-  if (phase === "planning" || phase === "unplanned" || phase === "nothing") {
+  if (waits) {
+    footer = (
+      <>
+        <span className="dw-sheet-note">
+          <Icon name="shield" size={14} />
+          <Trans>An admin or the owner applies this</Trans>
+        </span>
+        {theirs ? (
+          <Button variant="ghost" size={size} onClick={() => void discard()} loading={busy === "discard"}>
+            <Trans>Discard</Trans>
+          </Button>
+        ) : null}
+        <Button variant="primary" size={size} onClick={leaveForAdmin} ref={primary}>
+          <Trans>Leave it for an admin</Trans>
+        </Button>
+      </>
+    );
+  } else if (phase === "planning" || phase === "unplanned" || phase === "nothing") {
     footer = (
       <Button variant="secondary" size={size} onClick={close} ref={primary}>
         <Trans>Close</Trans>
@@ -673,7 +730,7 @@ function ChangeSheet({
         />
         <div className="plan-gate-note">
           {undoNote}
-          {needsPasskey(plan) ? (
+          {needsPasskey(plan) || approves ? (
             <span className="dw-sheet-note">
               <Icon name="key" size={14} />
               <Trans>Applying this asks for your passkey</Trans>
@@ -690,6 +747,18 @@ function ChangeSheet({
         {offline.length > 0 ? (
           <span className="dw-sheet-note">
             <Trans>{offline.join(", ")} has to reconnect first</Trans>
+          </span>
+        ) : approves && change?.proposedBy?.kind === ActorKind.TOKEN ? (
+          <span className="dw-sheet-note">
+            <Icon name="key" size={14} />
+            <Trans>
+              Applying this approves a change planned with the API token {change.proposedBy.name}, with your passkey
+            </Trans>
+          </span>
+        ) : approves ? (
+          <span className="dw-sheet-note">
+            <Icon name="key" size={14} />
+            <Trans>Applying this approves {change?.proposedBy?.name}'s change, with your passkey</Trans>
           </span>
         ) : (
           undoNote
@@ -1033,6 +1102,12 @@ function PlanBody({
       ) : null}
       {/* A change Dockwell made on its own says why first, as nobody asked for it. */}
       {change?.because ? <BecauseNotice because={change.because} /> : null}
+      {/* A plan that waits for an admin says why, in the server's words, which name what it reaches. */}
+      {phase === "review" && change?.waits ? (
+        <Callout tone="info" title={t`Waits for an admin or the owner`}>
+          <MachineWords>{change.waits}</MachineWords>
+        </Callout>
+      ) : null}
       {/* What it reaches stays said while it runs and once it has, so nothing moves as it lands. */}
       {phase === "review" || phase === "applying" || phase === "arrived" ? (
         <TopNotice risks={risks} warnings={warnings} offline={phase === "review" ? offline : []} phase={phase} />

@@ -96,6 +96,17 @@ code.tasks-sub,
   white-space: nowrap;
 }
 
+/* The name gives way, with an ellipsis, and how often it runs stays whole. */
+.tasks-lane-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tasks-lane-name .tasks-sub {
+  flex: none;
+}
+
 .tasks-lane.is-chosen .tasks-lane-name {
   font-weight: 550;
 }
@@ -170,6 +181,10 @@ code.tasks-sub,
 
 .tasks-axis-label.is-strong {
   color: var(--ink);
+}
+
+.tasks-axis-label.is-hidden {
+  visibility: hidden;
 }
 
 /* The chosen task. */
@@ -394,8 +409,13 @@ code.tasks-sub,
     gap: var(--space-4);
   }
 
+  /* A phone has no room for a name beside its track, so each lane's name stands over it. */
   .tasks-lane {
-    grid-template-columns: minmax(0, 104px) minmax(0, 1fr);
-    gap: var(--space-2);
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .tasks-axis > span:first-child {
+    display: none;
   }
 }

@@ -58,7 +58,7 @@ type TaskServiceClient interface {
 	// run's output can hold anything its command prints, so reading it takes what
 	// reading logs takes.
 	ListTaskRuns(context.Context, *connect.Request[v1.ListTaskRunsRequest]) (*connect.Response[v1.ListTaskRunsResponse], error)
-	// RunTask runs a task now, on one of its servers, which has to be connected. It
+	// RunTask lets an admin run a task now, on one of its servers, which has to be connected. It
 	// runs what was approved, as its schedule would, paused or not, and returns
 	// once the run has started: follow it with ListTaskRuns.
 	RunTask(context.Context, *connect.Request[v1.RunTaskRequest]) (*connect.Response[v1.RunTaskResponse], error)
@@ -145,7 +145,7 @@ type TaskServiceHandler interface {
 	// run's output can hold anything its command prints, so reading it takes what
 	// reading logs takes.
 	ListTaskRuns(context.Context, *connect.Request[v1.ListTaskRunsRequest]) (*connect.Response[v1.ListTaskRunsResponse], error)
-	// RunTask runs a task now, on one of its servers, which has to be connected. It
+	// RunTask lets an admin run a task now, on one of its servers, which has to be connected. It
 	// runs what was approved, as its schedule would, paused or not, and returns
 	// once the run has started: follow it with ListTaskRuns.
 	RunTask(context.Context, *connect.Request[v1.RunTaskRequest]) (*connect.Response[v1.RunTaskResponse], error)

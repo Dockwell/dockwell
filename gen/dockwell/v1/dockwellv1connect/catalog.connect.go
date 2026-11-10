@@ -79,7 +79,8 @@ type CatalogServiceClient interface {
 	// to apply or discard, as ImportCompose does with a file. The plan makes the
 	// project, its secrets and what its Compose file runs, and pins the project to
 	// this entry. A secret that no one types is generated and sealed here: no
-	// response carries it, and revealing it takes a passkey.
+	// response carries it, and revealing it takes a passkey. Making a project is
+	// an admin's (ADR 0049).
 	InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error)
 }
 
@@ -191,7 +192,8 @@ type CatalogServiceHandler interface {
 	// to apply or discard, as ImportCompose does with a file. The plan makes the
 	// project, its secrets and what its Compose file runs, and pins the project to
 	// this entry. A secret that no one types is generated and sealed here: no
-	// response carries it, and revealing it takes a passkey.
+	// response carries it, and revealing it takes a passkey. Making a project is
+	// an admin's (ADR 0049).
 	InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error)
 }
 
