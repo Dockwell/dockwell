@@ -217,6 +217,53 @@ describe("SSH on a server's Firewall tab", () => {
     expect(fact(card, "Port")).toEqual(["2222", "60-port.conf, line 2"]);
   });
 
+  it("says nothing more than the lead line when the agent has nothing to warn of", async () => {
+    await renderAccess({ ssh: { ...ubuntu, loaded: SshLoaded.NOTHING_TO_WARN_OF } });
+    const card = await screen.findByRole("region", { name: "SSH" });
+    await within(card).findByText("Password login");
+    expect(card).toHaveTextContent(lead);
+    for (const never of confirming) expect(card).not.toHaveTextContent(never);
+    expect(within(card).queryByRole("heading", { name: /sshd hasn't read|may not use/ })).toBeNull();
+  });
+
+  it("names a folder by its path, two files of one name by theirs, and says they changed", async () => {
+    await renderAccess({
+      ssh: {
+        ...ubuntu,
+        loaded: SshLoaded.STALE,
+        changedFiles: ["/etc/ssh/", "/etc/ssh/a/port.conf", "/etc/ssh/b/port.conf"],
+        reloadCommand: "systemctl reload ssh.service",
+      },
+    });
+    const card = await screen.findByRole("region", { name: "SSH" });
+    expect(
+      await within(card).findByText(
+        "sshd hasn't read /etc/ssh/, /etc/ssh/a/port.conf, /etc/ssh/b/port.conf since they changed",
+      ),
+    ).toBeVisible();
+  });
+
+  it("gives the command that moves a port systemd's socket still holds, and none where the socket names its own", async () => {
+    const socketWarning = {
+      ...ubuntu,
+      loaded: SshLoaded.STALE,
+      changedFiles: ["/etc/ssh/sshd_config.d/60-port.conf"],
+      setIn: [{ keyword: "Port", file: "/etc/ssh/sshd_config.d/60-port.conf", line: 2, value: "2222", changed: true }],
+    };
+    const { unmount } = await renderAccess({
+      ssh: { ...socketWarning, reloadCommand: "systemctl daemon-reload && systemctl restart ssh.socket" },
+    });
+    let card = await screen.findByRole("region", { name: "SSH" });
+    expect(await within(card).findByText("sshd hasn't read 60-port.conf since it changed")).toBeVisible();
+    expect(within(card).getByText("systemctl daemon-reload && systemctl restart ssh.socket")).toBeVisible();
+    expect(fact(card, "Port")).toEqual(["2222", "60-port.conf, line 2 · not in effect until sshd reloads"]);
+    unmount();
+    await renderAccess({ ssh: socketWarning });
+    card = await screen.findByRole("region", { name: "SSH" });
+    expect(await within(card).findByText("sshd hasn't read 60-port.conf since it changed")).toBeVisible();
+    expect(within(card).queryByRole("button", { name: /^Copy / })).toBeNull();
+  });
+
   it("says can't tell for each value sshd -T didn't say, never Off, and only the lead line when nothing can be read", async () => {
     await renderAccess({
       ssh: {

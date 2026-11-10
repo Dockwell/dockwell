@@ -127,12 +127,34 @@ func (d *systemdDeadMan) Disarm(ctx context.Context) error { return d.stop(ctx, 
 // keep's: a timer that has fired has started a service of its name, which
 // stopping the timer alone would leave to load the file.
 func (d *systemdDeadMan) stop(ctx context.Context, keep string) error {
+	units, err := d.armed(ctx, keep)
+	for try := 0; err == nil && len(units) > 0; try++ {
+		res, rerr := d.tools.Run(ctx, systemctl, 10*time.Second, nil, append([]string{"stop"}, units...)...)
+		switch {
+		case rerr == nil && res.Code == 0:
+			return nil
+		case rerr == nil && res.Code == 5 && try == 0:
+			// A revert that fired and ended between the list and the stop is gone, and
+			// --collect has let it go, which systemctl says as exit 5, "not loaded":
+			// what's still there is stopped once more.
+			units, err = d.armed(ctx, keep)
+			continue
+		case rerr == nil:
+			rerr = hosttool.Fail("systemctl", res)
+		}
+		return fmt.Errorf("can't stop the firewall's reverts armed before, %s: %w. Check systemctl stop works for the agent on this server", strings.Join(units, ", "), rerr)
+	}
+	return err
+}
+
+// armed lists the timers armed and the services of those that fired, but for keep's.
+func (d *systemdDeadMan) armed(ctx context.Context, keep string) ([]string, error) {
 	res, err := d.tools.Run(ctx, systemctl, 10*time.Second, nil, "list-units", "--all", "--plain", "--no-legend", "--type=timer", "--type=service", deadManUnit+"-*")
 	if err == nil && res.Code != 0 {
 		err = hosttool.Fail("systemctl", res)
 	}
 	if err != nil {
-		return fmt.Errorf("can't list the firewall's reverts armed with systemd: %w. Check systemctl list-units works for the agent on this server", err)
+		return nil, fmt.Errorf("can't list the firewall's reverts armed with systemd: %w. Check systemctl list-units works for the agent on this server", err)
 	}
 	var units []string
 	for line := range strings.SplitSeq(string(res.Out), "\n") {
@@ -142,17 +164,7 @@ func (d *systemdDeadMan) stop(ctx context.Context, keep string) error {
 			units = append(units, f[0])
 		}
 	}
-	if len(units) == 0 {
-		return nil
-	}
-	res, err = d.tools.Run(ctx, systemctl, 10*time.Second, nil, append([]string{"stop"}, units...)...)
-	if err == nil && res.Code != 0 {
-		err = hosttool.Fail("systemctl", res)
-	}
-	if err != nil {
-		return fmt.Errorf("can't stop the firewall's reverts armed before, %s: %w. Check systemctl stop works for the agent on this server", strings.Join(units, ", "), err)
-	}
-	return nil
+	return units, nil
 }
 
 // ChildDeadMan arms a child in a session of its own, which sleeps, and then

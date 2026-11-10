@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/netip"
 	"os"
 	"path"
 	"slices"
@@ -122,6 +123,7 @@ func (r *sshReader) readNow(ctx context.Context) *dockwellv1.ServerSsh {
 	}
 	out.Version = r.version(ctx)
 	out.SocketUnit = r.socketUnit(ctx)
+	socket := r.socket(ctx, out.SocketUnit)
 	files := readSSHDConfig(r.root, r.changed)
 	out.SetIn, out.Matches, out.DropInFolder = files.setIn, files.matches, files.dropIns
 	asked, _ := r.tools.Find(sshTools["sshd"])
@@ -129,7 +131,7 @@ func (r *sshReader) readNow(ctx context.Context) *dockwellv1.ServerSsh {
 		// A test's tools stand in a folder of their own; the listener's is the server's path.
 		asked = "/" + strings.TrimPrefix(strings.TrimPrefix(asked, r.tools.Root), "/")
 	}
-	r.warn(out, files.walked, pidFile, asked, now())
+	r.warn(out, files.walked, pidFile, asked, socket, now())
 	if out.DropInFolder != "" {
 		if _, err := fs.Stat(r.root, strings.TrimPrefix(path.Join(out.DropInFolder, dockwellDropIn), "/")); err == nil {
 			out.DockwellDropIn = true
@@ -265,6 +267,56 @@ func (r *sshReader) socketUnit(ctx context.Context) string {
 	return ""
 }
 
+// sshSocket is what systemd holds for sshd in a socket unit, where it does.
+type sshSocket struct {
+	unit string
+	// ports are the ports it listens on, as systemctl shows them; none when
+	// it couldn't say.
+	ports []uint32
+	// generated says Ubuntu's generator builds its ports from sshd_config at
+	// each daemon-reload, as on Ubuntu 22.10 and later; elsewhere the unit
+	// names its ports itself.
+	generated bool
+}
+
+// socketGenerators are where Ubuntu's sshd-socket-generator is, and the
+// drop-in it writes for ssh.socket.
+var socketGenerators = []string{
+	"usr/lib/systemd/system-generators/sshd-socket-generator",
+	"lib/systemd/system-generators/sshd-socket-generator",
+	"run/systemd/generator/ssh.socket.d/addresses.conf",
+}
+
+// socket reads the ports systemd holds for sshd in unit, if any.
+func (r *sshReader) socket(ctx context.Context, unit string) sshSocket {
+	out := sshSocket{unit: unit}
+	if unit == "" {
+		return out
+	}
+	res, err := r.tools.Run(ctx, sshTools["systemctl"], sshWait, nil, "show", unit, "--property=Listen", "--value")
+	if err != nil || res.Code != 0 {
+		return out
+	}
+	// "0.0.0.0:22 (Stream)" and "[::]:22 (Stream)", a line each, or "22 (Stream)".
+	for line := range strings.SplitSeq(string(res.Out), "\n") {
+		addr, _, _ := strings.Cut(strings.TrimSpace(line), " ")
+		var port uint64
+		if ap, err := netip.ParseAddrPort(addr); err == nil {
+			port = uint64(ap.Port())
+		} else if n, err := strconv.ParseUint(addr, 10, 16); err == nil {
+			port = n
+		}
+		if port > 0 && !slices.Contains(out.ports, uint32(port)) {
+			out.ports = append(out.ports, uint32(port))
+		}
+	}
+	out.generated = unit == "ssh.socket" && slices.ContainsFunc(socketGenerators, func(name string) bool {
+		_, err := fs.Stat(r.root, name)
+		return err == nil
+	})
+	return out
+}
+
 // sshdFiles is what sshd's files set, read as sshd reads them.
 type sshdFiles struct {
 	setIn   []*dockwellv1.SshSource
@@ -364,6 +416,9 @@ type walkedFile struct {
 	path string
 	// changed is when it last changed. Zero when it couldn't be read.
 	changed time.Time
+	// dir says it's a folder, which a warning names with "/" after it, as a
+	// folder's own name reads as a file's.
+	dir bool
 }
 
 // readSSHDConfig reads sshd_config as sshd does: line by line, each Include
@@ -386,7 +441,8 @@ func readSSHDConfig(root fs.FS, changed func(root fs.FS, name string) time.Time)
 		if slices.ContainsFunc(out.walked, func(w walkedFile) bool { return w.path == file }) {
 			return
 		}
-		out.walked = append(out.walked, walkedFile{path: file, changed: changed(root, file)})
+		info, err := fs.Stat(root, strings.TrimPrefix(file, "/"))
+		out.walked = append(out.walked, walkedFile{path: file, changed: changed(root, file), dir: err == nil && info.IsDir()})
 		// The folder it's in says what the file can't: one put in its place by a
 		// rename, with an older time of its own, or taken away.
 		if dir := path.Dir(file); dir != file && dir != "/" && dir != "/etc" {

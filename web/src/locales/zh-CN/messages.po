@@ -6626,8 +6626,8 @@ msgstr "从这里用你的密钥向端口 {port} 打开一个新的 SSH 会话�
 msgid "That wait is over: this sheet shows whether the server kept the change."
 msgstr "这次等待已经结束：此面板会显示服务器是否保留了更改。"
 
-msgid "The server couldn't keep it yet, so it still waits. Keep it again."
-msgstr "服务器还没能保留此更改，所以它仍在等待。请再次点击保留。"
+msgid "The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again."
+msgstr "服务器还没能保留此更改，所以它仍在等待。请先释放服务器磁盘空间，再点击保留。"
 
 msgid "Then open the panel at its own address in a new tab."
 msgstr "然后在新标签页中用面板自己的地址打开面板。"
@@ -10611,9 +10611,6 @@ msgstr "经 {iface}"
 msgid "signed in over SSH now"
 msgstr "现在通过 SSH 登录"
 
-msgid "sshd hasn't read {files} since it changed"
-msgstr "{files} 更改后，sshd 还没有读取过"
-
 msgid "sshd lets in only who these allow: {lists}."
 msgstr "sshd 只放行以下规则允许的人：{lists}。"
 
@@ -10632,6 +10629,10 @@ msgstr "你现在所在的地址"
 #. placeholder {0}: ssh.ports.length
 msgid "{0, plural, one {Port} other {Ports}}"
 msgstr "{0, plural, other {端口}}"
+
+#. placeholder {0}: ssh.changedFiles.length
+msgid "{0, plural, one {sshd hasn't read {files} since it changed} other {sshd hasn't read {files} since they changed}}"
+msgstr "{0, plural, other {{files} 更改后，sshd 还没有读取过}}"
 
 msgid "{bannedNow, plural, one {address} other {addresses}}"
 msgstr "{bannedNow, plural, other {个地址}}"

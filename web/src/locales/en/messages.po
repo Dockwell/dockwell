@@ -6626,8 +6626,8 @@ msgstr "Open a new SSH session to port {port} from here with your key, and keep 
 msgid "That wait is over: this sheet shows whether the server kept the change."
 msgstr "That wait is over: this sheet shows whether the server kept the change."
 
-msgid "The server couldn't keep it yet, so it still waits. Keep it again."
-msgstr "The server couldn't keep it yet, so it still waits. Keep it again."
+msgid "The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again."
+msgstr "The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again."
 
 msgid "Then open the panel at its own address in a new tab."
 msgstr "Then open the panel at its own address in a new tab."
@@ -10611,9 +10611,6 @@ msgstr "on {iface}"
 msgid "signed in over SSH now"
 msgstr "signed in over SSH now"
 
-msgid "sshd hasn't read {files} since it changed"
-msgstr "sshd hasn't read {files} since it changed"
-
 msgid "sshd lets in only who these allow: {lists}."
 msgstr "sshd lets in only who these allow: {lists}."
 
@@ -10632,6 +10629,10 @@ msgstr "where you are now"
 #. placeholder {0}: ssh.ports.length
 msgid "{0, plural, one {Port} other {Ports}}"
 msgstr "{0, plural, one {Port} other {Ports}}"
+
+#. placeholder {0}: ssh.changedFiles.length
+msgid "{0, plural, one {sshd hasn't read {files} since it changed} other {sshd hasn't read {files} since they changed}}"
+msgstr "{0, plural, one {sshd hasn't read {files} since it changed} other {sshd hasn't read {files} since they changed}}"
 
 msgid "{bannedNow, plural, one {address} other {addresses}}"
 msgstr "{bannedNow, plural, one {address} other {addresses}}"

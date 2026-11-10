@@ -315,6 +315,23 @@ describe("a change that waits for its confirmation", () => {
       "That wait is over: this sheet shows whether the server kept the change.",
     );
   });
+
+  it("says a change the server couldn't keep still waits, with what to free first, and offers Keep again", async () => {
+    let tries = 0;
+    const { change, watch } = show(() => {
+      tries++;
+      throw authError(Code.FailedPrecondition, "not_kept", "the server couldn't keep it yet");
+    });
+    const user = await applyAndWait(change, watch, waiting(change, 45));
+    await user.click(await screen.findByRole("button", { name: "Keep the change" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again.",
+    );
+    const keep = screen.getByRole("button", { name: "Keep the change" });
+    expect(keep).toBeEnabled();
+    await user.click(keep);
+    await waitFor(() => expect(tries).toBe(2));
+  });
 });
 
 /** A planned change that turns deny everything else on, on hz-1, where it closes two ports. */
