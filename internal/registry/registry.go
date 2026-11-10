@@ -9,6 +9,7 @@
 package registry
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -52,6 +54,10 @@ const (
 	MaxBody = 1 << 20
 	// MaxConfig caps an image's config, which is a few kilobytes.
 	MaxConfig = 256 << 10
+	// MaxEnv is the most variables kept of a config, and maxListed the most
+	// ports and volumes: an image declares a handful.
+	MaxEnv    = 1000
+	maxListed = 256
 	// maxTagPage caps a page of a registry's list of tags.
 	maxTagPage = 256 << 10
 	// maxRedirects bounds following a blob to where a registry keeps it.
@@ -318,6 +324,10 @@ func (c *Client) do(ctx context.Context, method, target, accept, bearer string, 
 	case errors.Is(err, netguard.ErrForbidden):
 		// Where it sent Dockwell, not the registry, is what's wrong.
 		return nil, fmt.Errorf("%w: %s", ErrRefused, netguard.Words(err))
+	case err != nil && ctx.Err() != nil:
+		// The read ran out of its own time, or whoever asked left: that says
+		// nothing of the registry, which may well have answered.
+		return nil, fmt.Errorf("%w: %w", ErrUnreachable, ctx.Err())
 	case err != nil:
 		return nil, fmt.Errorf("%w: %s", ErrDown, netguard.Words(err))
 	}
@@ -649,22 +659,29 @@ func Ports(exposed map[string]struct{}) []Port {
 		}
 		out = append(out, Port{Number: uint32(n), UDP: proto == "udp"})
 	}
-	sortPorts(out)
-	return out
-}
-
-func sortPorts(ports []Port) {
-	for i := 1; i < len(ports); i++ {
-		for j := i; j > 0 && (ports[j].Number < ports[j-1].Number || ports[j].Number == ports[j-1].Number && !ports[j].UDP && ports[j-1].UDP); j-- {
-			ports[j], ports[j-1] = ports[j-1], ports[j]
+	slices.SortFunc(out, func(a, b Port) int {
+		if c := cmp.Compare(a.Number, b.Number); c != 0 {
+			return c
 		}
-	}
+		// TCP before UDP on one port.
+		switch {
+		case a.UDP == b.UDP:
+			return 0
+		case b.UDP:
+			return -1
+		}
+		return 1
+	})
+	return out[:min(len(out), maxListed)]
 }
 
-// Vars reads an image's NAME=value environment.
+// Vars reads an image's NAME=value environment, the first MaxEnv of it.
 func Vars(env []string) []Var {
-	out := make([]Var, 0, len(env))
+	out := make([]Var, 0, min(len(env), MaxEnv))
 	for _, e := range env {
+		if len(out) == MaxEnv {
+			break
+		}
 		name, value, _ := strings.Cut(e, "=")
 		if name != "" {
 			out = append(out, Var{Name: name, Value: value})
@@ -679,10 +696,6 @@ func Volumes(v map[string]struct{}) []string {
 	for p := range v {
 		out = append(out, p)
 	}
-	for i := 1; i < len(out); i++ {
-		for j := i; j > 0 && out[j] < out[j-1]; j-- {
-			out[j], out[j-1] = out[j-1], out[j]
-		}
-	}
-	return out
+	slices.Sort(out)
+	return out[:min(len(out), maxListed)]
 }
