@@ -127,6 +127,9 @@ type Agents interface {
 type Engine struct {
 	// onBackup hears of each backup a step takes.
 	onBackup func(context.Context, BackupStep)
+	// features says what a service's database last said of the features its data
+	// uses, by the service's ID, or nothing.
+	features func(serviceID string) string
 	db       *store.DB
 	kinds    *resource.Registry
 	agents   Agents
@@ -288,6 +291,9 @@ type Proposal struct {
 	Unpinned *Proposal
 	// Intent is what it is for, when the method that proposed it knows.
 	Intent *Intent
+	// SkipBackup leaves out the backup a database's move to a release it can't come
+	// back from takes first (ADR 0038).
+	SkipBackup bool
 }
 
 // Place is where a plan's resources live, as far as anyone has a choice: Project
@@ -634,6 +640,21 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err != nil {
 		return nil, err
 	}
+	// Before planning, which pulls what the servers don't have: a move that skips
+	// a release is refused without one. A move that raises a database's features
+	// backs up its volume first, unless the proposal says not to.
+	moves, backUp, err := databaseMoves(items, p.SkipBackup, e.features)
+	if err != nil {
+		return nil, err
+	}
+	if len(backUp) > 0 {
+		if p.Edits, err = e.withBackups(ctx, p.Edits, backUp); err != nil {
+			return nil, err
+		}
+		if items, err = e.items(ctx, p.Edits, rotate); err != nil {
+			return nil, err
+		}
+	}
 	changeID := id.New(id.Change)
 	for i := range items {
 		if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Restart && ed.Ref == items[i].ref }) {
@@ -651,12 +672,6 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			items[i].restore = &restore
 		}
 	}
-	// Before planning, which pulls what the servers don't have: a move that skips
-	// a release is refused without one.
-	moves, err := databaseMoves(items)
-	if err != nil {
-		return nil, err
-	}
 	plan, err := e.plan(ctx, changeID, items, false)
 	if err != nil {
 		return nil, err
@@ -664,6 +679,10 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err := e.checkRestores(ctx, plan, items); err != nil {
 		return nil, err
 	}
+	// A caller that backs up first, or was asked not to, says so once for the plan.
+	moves = slices.DeleteFunc(moves, func(n Note) bool {
+		return (n.Reason == "backup_first" || n.Reason == "no_backup") && slices.ContainsFunc(p.Notes, func(m Note) bool { return m.Reason == n.Reason })
+	})
 	p.Notes = append(p.Notes, moves...)
 	if p.Unpinned != nil && plan.imageGone() {
 		return e.propose(ctx, *p.Unpinned, reverts, rotate)
@@ -4122,11 +4141,19 @@ func (e *Engine) restore(ctx context.Context, ref resource.Ref, source resource.
 	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: ref, Spec: it.current, Restore: &source}}}, reverts, false)
 }
 
+// FeaturesFrom says where a plan finds what a database last said of the features its
+// data uses, by its service's ID, so a move back can say whether it will go.
+func (e *Engine) FeaturesFrom(fn func(serviceID string) string) { e.features = fn }
+
 // databaseMoves are a plan's notes on the databases it moves from one release to
-// another, or why it's refused: MongoDB moves one major release at a time, and
-// raises the features its data may use first (ADR 0038).
-func databaseMoves(items []item) ([]Note, error) {
-	var out []Note
+// another, the volumes to back up first, or why it's refused: MongoDB moves one
+// major release at a time, raises the features its data may use first, which the
+// release before can't run, so its volume is backed up first unless skip says not
+// to, and moves back only while its data uses nothing newer, which features says
+// where a reading did (ADR 0038).
+func databaseMoves(items []item, skip bool, features func(serviceID string) string) ([]Note, []resource.Ref, error) {
+	var notes []Note
+	var backUp []resource.Ref
 	for i := range items {
 		it := &items[i]
 		current, ok := it.current.(*resourcev1.Service)
@@ -4139,16 +4166,82 @@ func databaseMoves(items []item) ([]Note, error) {
 		}
 		move, err := database.MoveOf(it.ref.Name, current, desired)
 		if err != nil {
-			return nil, fault.New(ErrInvalid, "%w", err)
+			return nil, nil, fault.New(ErrInvalid, "%w", err)
 		}
-		if move == nil || !move.RaisesFeatures {
+		switch {
+		case move == nil:
+			continue
+		case move.Lowers:
+			fcv := ""
+			if features != nil && it.id != "" {
+				fcv = features(it.id)
+			}
+			n := Note{
+				Reason: "lowers_release", Ref: it.ref, Names: []string{move.From, move.To}, Named: true, IfItChanges: true,
+				Message: fmt.Sprintf("%s moves back to %s %s only while its data uses no newer features. Before it moves, Dockwell asks it, and stops there, with nothing changed, if %s can't run them. "+
+					"Lower its feature compatibility version to %s first if it's higher", it.ref.Name, move.Engine.Name, move.To, move.To, move.To),
+			}
+			if database.Above(fcv, move.To) {
+				n.Names = append(n.Names, fcv)
+				n.Message = fmt.Sprintf("%s's last reading says its data uses %s %s's features, which %s can't run, so applying this stops before it moves, with nothing changed. "+
+					"Lower its feature compatibility version to %s first, with setFeatureCompatibilityVersion and confirm: true", it.ref.Name, move.Engine.Name, fcv, move.To, move.To)
+			}
+			notes = append(notes, n)
 			continue
 		}
-		out = append(out, Note{
-			Reason: "raises_features", Ref: it.ref, Names: []string{move.From, move.To}, Named: true, IfItChanges: true,
-			Message: fmt.Sprintf("Before %s moves to %s %s, its feature compatibility version goes up to %s where it's lower, so its data may use %s's features. "+
-				"Undoing this puts back %s, which still runs that data; the release before %s can't.", it.ref.Name, move.Engine.Name, move.To, move.From, move.From, move.From, move.From),
+		// A tag that names a major alone runs its newest release, which the agent asks.
+		from := move.From
+		if !strings.Contains(from, ".") {
+			from += ".x"
+		}
+		notes = append(notes, Note{
+			Reason: "raises_features", Ref: it.ref, Names: []string{from, move.To}, Named: true, IfItChanges: true,
+			Message: fmt.Sprintf("Before %s moves to %s %s, its feature compatibility version goes up to the release it runs, %s, where it's lower, so its data may use that release's features. "+
+				"Undoing this puts back %s, which still runs that data; the release before it can't.", it.ref.Name, move.Engine.Name, move.To, from, from),
 		})
+		found, _ := database.FromSpec(desired)
+		switch {
+		case skip:
+			notes = append(notes, Note{Reason: "no_backup", Ref: it.ref, IfItChanges: true,
+				Message: fmt.Sprintf("This move takes no backup of %s first, as you asked. Back up what you can't lose before it", it.ref.Name)})
+		case found.Volume == "" || found.External:
+			notes = append(notes, Note{Reason: "unbacked_move", Ref: it.ref, Named: true, IfItChanges: true,
+				Message: fmt.Sprintf("%s's data isn't in a volume Dockwell made, so Dockwell can't back it up first. Undoing this puts the old release back, not what the new one changed in its data. "+
+					"Back it up yourself before you apply this", it.ref.Name)})
+		default:
+			backUp = append(backUp, resource.Ref{Kind: volumeKind, Scope: it.ref.Scope, Name: found.Volume})
+			notes = append(notes, Note{Reason: "backup_first", Ref: it.ref, IfItChanges: true,
+				Message: fmt.Sprintf("Dockwell backs up %s's volume %s before it changes anything. If the backup fails, the move stops there, with nothing else done", it.ref.Name, found.Volume)})
+		}
+	}
+	return notes, backUp, nil
+}
+
+// volumeKind is the volumes' kind, which a backup is of (volume.Kind, which this
+// package doesn't import).
+const volumeKind resource.Kind = "volume"
+
+// withBackups marks each volume to back up first in edits, adding an edit that
+// keeps a volume as it is where the proposal doesn't name it.
+func (e *Engine) withBackups(ctx context.Context, edits []Edit, refs []resource.Ref) ([]Edit, error) {
+	out := slices.Clone(edits)
+	for _, ref := range refs {
+		if j := slices.IndexFunc(out, func(ed Edit) bool { return ed.Ref == ref }); j >= 0 {
+			out[j].Backup = true
+			continue
+		}
+		var it item
+		if err := e.db.View(ctx, func(tx *store.Tx) error {
+			var err error
+			it, err = e.load(ctx, tx, ref)
+			return err
+		}); err != nil {
+			return nil, err
+		}
+		if it.current == nil {
+			continue
+		}
+		out = append(out, Edit{Ref: ref, Spec: it.current, Backup: true})
 	}
 	return out, nil
 }

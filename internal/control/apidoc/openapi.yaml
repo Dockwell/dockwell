@@ -8533,6 +8533,12 @@ components:
                         The directory the file is in on the servers, as an absolute path, such as
                          /opt/1panel/apps/postgresql/pg. A path relative to the file, such as
                          ./data, starts there. Each is a server path, which a person approves.
+                skipBackup:
+                    type: boolean
+                    description: |-
+                        Leave out the backup that comes first when a database moves to a release
+                         its data can't come back from, such as MongoDB raising its feature
+                         compatibility version (ADR 0038). The plan says so.
             description: ImportComposeRequest is a Compose file to plan into a project.
         ImportComposeResponse:
             type: object
@@ -10395,17 +10401,20 @@ components:
                          password it was made with, whatever an edit gave, "kept_passphrase" for a backup
                          destination that keeps its passphrase the same way, and "kept_options" for one
                          that keeps its options, as an edit gave none, "first_steps" for what a catalog
-                         app needs a person to know and do, "backup_first" for one that backs up its volumes first, "backup_unmeasured" for a
-                         volume whose backup gets a guess at the time it needs, "no_backup" for a catalog
-                         upgrade that runs without a backup first, "upgrade_kept" for what a person changed that the upgrade
+                         app needs a person to know and do, "backup_first" for one that backs up its volumes first, as a catalog
+                         upgrade or a database's move to a release it can't come back from does, "backup_unmeasured" for a
+                         volume whose backup gets a guess at the time it needs, "no_backup" for such an
+                         upgrade or move that runs without a backup first, as asked, "upgrade_kept" for what a person changed that the upgrade
                          changes too, which stays, "upgrade_dropped" for what they changed that it
                          drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
                          whose data stays as the new version left it, "tmpfs_no_size" for a Compose
                          file's tmpfs that nothing stops taking half the server's memory,
                          "tasks_as_root" for an app this makes reach what's as good as root, whose
-                         scheduled tasks run in it and reach the same, and "raises_features" for a
-                         MongoDB this moves to its next release, whose feature compatibility version
-                         goes up first. Another reason may come: its message says what it means.
+                         scheduled tasks run in it and reach the same, "raises_features" for a MongoDB
+                         this moves to its next release, whose feature compatibility version goes up
+                         first, "unbacked_move" for one whose data isn't in a volume Dockwell can back up
+                         first, and "lowers_release" for one this moves back, which goes only while its
+                         data uses nothing newer. Another reason may come: its message says what it means.
                 message:
                     type: string
                     description: 'What it says, for people: the fact, what it means, and what to do.'
@@ -10422,7 +10431,9 @@ components:
                          "exposed_variable"; the project, then the services it runs, for
                          "updates_project"; the volumes and server paths for "volumes_stay"; the path
                          for "tmpfs_no_size"; each task, then its command, for "tasks_as_root"; the
-                         release it leaves, then the one it moves to, for "raises_features"; the
+                         release it leaves, then the one it moves to, for "raises_features" and
+                         "lowers_release", which adds the feature compatibility version its last
+                         reading said where the release it moves to can't run it; the
                          variables and secrets, by the names the service sees, for "values_latest";
                          the image, the revision and its digest for "digest_pinned" and "digest_gone",
                          and the image and the revision for "digest_differs"; the container_name, or
@@ -10861,6 +10872,12 @@ components:
                     description: |-
                         The edits, at most one for each resource. They apply in this order,
                          and deletions last, in reverse.
+                skipBackup:
+                    type: boolean
+                    description: |-
+                        Leave out the backup that comes first when a database moves to a release
+                         its data can't come back from, such as MongoDB raising its feature
+                         compatibility version (ADR 0038). The plan says so.
             description: ProposeChangeRequest is a set of edits to plan together.
         ProposeChangeResponse:
             type: object

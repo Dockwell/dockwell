@@ -135,9 +135,11 @@ func TestAMongoPreludeSaysWhetherThereIsAnOplog(t *testing.T) {
 
 // mongo stands in for MongoDB's image: its data is one archive, which mongodump
 // writes and mongorestore reads, and it says whether a restore replayed an oplog.
+// set is the replica set its configuration file makes it a member of.
 type mongo struct {
 	mu       sync.Mutex
 	replayed []bool
+	set      string
 }
 
 func (m *mongo) exec(x dockertest.Exec) int {
@@ -163,7 +165,10 @@ func (m *mongo) exec(x dockertest.Exec) int {
 			return 1
 		}
 		return 0
-	case strings.Contains(script, "quit(forked"):
+	case strings.Contains(script, "isWritablePrimary"):
+		return 0
+	case strings.Contains(script, "print(set.replSet"):
+		_, _ = io.WriteString(x.Stdout, m.set+"\n")
 		return 0
 	}
 	return 127
@@ -219,5 +224,51 @@ func TestMongoDBsToolsHoldNoPassword(t *testing.T) {
 		if name != "ready" && !strings.Contains(script, "--config /dev/fd/3") {
 			t.Errorf("the %s doesn't read its password from a descriptor: %q", name, script)
 		}
+	}
+}
+
+// A dump doesn't load into a member of a replica set, as the new server it starts
+// knows no set: the restore is refused when it's planned, before anything stops,
+// whether the member's command line says so or its configuration file (#373).
+func TestADumpIsntRestoredIntoAReplicaSetMember(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		cmd   []string
+		asked string
+	}{
+		{"its command line", []string{"mongod", "--replSet", "rs0"}, ""},
+		{"its command line, with =", []string{"mongod", "--bind_ip_all", "--replSet=rs0"}, ""},
+		{"its configuration file", []string{"mongod", "--config", "/etc/mongod.conf"}, "rs0"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			b := newBench(t)
+			m := &mongo{set: c.asked}
+			b.engine.AddLocalImage("mongo:8.0", dockertest.Image{Exec: m.exec, Config: docker.Config{Cmd: []string{"mongod"}}})
+			b.write("data.archive", string(archiveOf(shop)))
+			id := b.run("db", "mongo:8.0", "/data/db", c.cmd...)
+			b.take(false)
+			b.write("data.archive", "what changed since")
+			_, _, err := b.runner.JudgeRestore(t.Context(), ref, resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"})
+			if err == nil || !strings.Contains(err.Error(), "db is a member of the replica set rs0, and Dockwell can't restore a member in place yet") ||
+				!strings.Contains(err.Error(), "take --replSet out of its command") || !strings.Contains(err.Error(), "#373") {
+				t.Fatalf("restoring into a member: %v", err)
+			}
+			if !b.running(id) || b.read("data.archive") != "what changed since" {
+				t.Error("a refused restore changed something")
+			}
+		})
+	}
+}
+
+func TestAMembersSetIsOnItsCommandLine(t *testing.T) {
+	for want, cmd := range map[string][]string{
+		"rs0": {"mongod", "--replSet", "rs0"}, "rs1": {"--replSet=rs1", "--port", "27018"}, "": {"mongod", "--replSet"},
+	} {
+		if got := replicaSetOf(cmd); got != want {
+			t.Errorf("%q: %q, want %q", cmd, got, want)
+		}
+	}
+	if replicaSetOf([]string{"mongod"}) != "" {
+		t.Error("one that runs alone is a member")
 	}
 }

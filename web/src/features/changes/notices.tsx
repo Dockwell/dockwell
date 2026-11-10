@@ -602,7 +602,7 @@ export function useDataLeft(
       detail: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore the backup taken first if it doesn't.`,
     };
   }
-  if (!plan?.notes.some((note) => note.reason === "no_backup" || note.reason === "undo_no_backup")) return undefined;
+  if (!plan?.notes.some((note) => ["no_backup", "undo_no_backup", "unbacked_move"].includes(note.reason))) return undefined;
   return {
     title: t`No backup was taken, and the data stays as it is now`,
     detail: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it. Check that the app reads its data, and restore a backup of your own if it doesn't.`,
@@ -708,6 +708,26 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           detail: t`They run in what ${name} runs, so they reach what it reaches on its server too: ${list}.`,
         };
       }
+      case "lowers_release": {
+        const [, to = "", features = ""] = note.names;
+        return features
+          ? {
+              key,
+              title: t`${name}'s data uses ${features}'s features, which ${to} can't run`,
+              detail: t`Its last reading says so, and applying this stops before it moves, with nothing changed. Lower its feature compatibility version to ${to} first.`,
+            }
+          : {
+              key,
+              title: t`${name} moves back to ${to} only if its data allows`,
+              detail: t`Before it moves, Dockwell asks what features its data uses, and stops there, with nothing changed, if ${to} can't run them. Lower its feature compatibility version to ${to} first if it's higher.`,
+            };
+      }
+      case "unbacked_move":
+        return {
+          key,
+          title: t`${name}'s data isn't backed up first`,
+          detail: t`It isn't in a volume Dockwell made, so Dockwell can't back it up. Undoing this puts the old release back, not what the new one changed in its data. Back it up yourself before you apply this.`,
+        };
       case "tmpfs_no_size": {
         const [target = ""] = note.names;
         return {

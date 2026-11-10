@@ -91,8 +91,9 @@ var databaseKinds = []*databaseKind{
 		name: "MongoDB", image: "mongo", data: "/data/db", dataFlag: "--dbpath", series: 2, portFlags: true, portVar: "DW_PORT",
 		dump: mongoDump, load: mongoLoad, ready: mongoReady,
 		format: formatMongoDump, verify: verifyMongoArchive, replays: true,
-		// mongoReady exits 2 for a sign-in its server refuses for good.
-		neverReady: func(code int, _ string) bool { return code == 2 },
+		// mongoReady exits 2 for a sign-in its server refuses for good, and 3 for a
+		// member of a set with no configuration.
+		neverReady: func(code int, _ string) bool { return code == 2 || code == 3 },
 	},
 }
 
@@ -260,6 +261,8 @@ type database struct {
 	kind  *databaseKind
 	image string
 	port  string // what its command line set, for its tools to ask for
+	// set is the MongoDB replica set its command line makes it a member of.
+	set string
 }
 
 // tool is one of the database's commands, with the port it listens on.
@@ -318,6 +321,9 @@ func (r *Runner) users(ctx context.Context, t volume.Target) (*users, error) {
 			out.db = &database{user: u, kind: k, image: c.Config.Image}
 			if k.portFlags {
 				out.db.port = portOf(c.Config.Cmd)
+			}
+			if k.replays {
+				out.db.set = replicaSetOf(c.Config.Cmd)
 			}
 		}
 	}

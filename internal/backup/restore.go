@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
@@ -163,6 +164,29 @@ func (r *Runner) stopsFor(ctx context.Context, t volume.Target, u *users, m *Man
 	return stops, db, nil
 }
 
+// refuseMember refuses loading a dump into a member of a MongoDB replica set, before
+// anything stops: the new server a load starts doesn't know its set, whose
+// configuration a dump leaves out, so it takes no writes and the load fails (#373).
+// Its command line says, or the server does when the set is in its configuration
+// file. One that can't say is left to mongoReady, which stops before the load.
+func (r *Runner) refuseMember(ctx context.Context, db *database) error {
+	if db == nil || !db.kind.replays {
+		return nil
+	}
+	set := db.set
+	if set == "" && db.running {
+		out := &tail{}
+		if code, err := r.Client.Exec(ctx, db.id, db.tool(mongoSet), docker.Streams{Stdout: out}); err == nil && code == 0 {
+			set = strings.TrimSpace(out.String())
+		}
+	}
+	if set == "" {
+		return nil
+	}
+	return fmt.Errorf("%s is a member of the replica set %s, and Dockwell can't restore a member in place yet: a dump leaves out the set's configuration, so the new server it starts takes no writes, and nothing changed. "+
+		"To restore it, take --replSet out of its command and apply that, restore this, then put --replSet back and initiate the set again. Restoring a set in place is issue #373", db.name, set)
+}
+
 // estimate is about how long a restore takes what it stops out of service: time
 // to stop and start, then copying what's there and bringing the backup back, at a
 // speed a small server keeps. A dump loads slower than files unpack.
@@ -236,8 +260,11 @@ func (r *Runner) JudgeRestore(ctx context.Context, ref resource.Ref, src resourc
 	if err != nil {
 		return resource.Decision{}, false, err
 	}
-	stops, _, err := r.stopsFor(ctx, t, u, m)
+	stops, db, err := r.stopsFor(ctx, t, u, m)
 	if err != nil {
+		return resource.Decision{}, false, err
+	}
+	if err := r.refuseMember(ctx, db); err != nil {
 		return resource.Decision{}, false, err
 	}
 	dec := resource.Decision{

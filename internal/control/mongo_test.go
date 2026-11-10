@@ -45,7 +45,32 @@ func TestAMongoDBMovesOneReleaseAtATime(t *testing.T) {
 		t.Fatalf("moving to 7.0 says nothing of its features: %v", next.GetPlan().GetNotes())
 	}
 	if n := next.GetPlan().GetNotes()[i]; !slices.Equal(n.GetNames(), []string{"6.0", "7.0"}) || n.GetResource().GetName() != "docs" ||
-		!strings.Contains(n.GetMessage(), "its feature compatibility version goes up to 6.0") {
+		!strings.Contains(n.GetMessage(), "its feature compatibility version goes up to the release it runs, 6.0, where") {
 		t.Errorf("the note is %v", n)
+	}
+
+	// It backs up the database's volume before it moves, as a step of the plan,
+	// unless it's asked not to.
+	steps := next.GetPlan().GetServers()[0].GetSteps()
+	first := slices.IndexFunc(steps, func(s *dockwellv1.PlanStep) bool { return s.GetBackupFirst() != nil && s.GetResource().GetName() == "data" })
+	replace := slices.IndexFunc(steps, func(s *dockwellv1.PlanStep) bool {
+		return s.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_REPLACE && s.GetResource().GetName() == "docs"
+	})
+	if first < 0 || replace < 0 || first > replace {
+		t.Errorf("the backup isn't before the move: %v", steps)
+	}
+	if !slices.ContainsFunc(next.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "backup_first" }) {
+		t.Errorf("the plan doesn't say it backs up first: %v", next.GetPlan().GetNotes())
+	}
+	res, err := cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Project: scope.DefaultProject, Compose: compose("mongo:7.0"), SkipBackup: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	skipped := res.Msg.GetChange().GetPlan()
+	if slices.ContainsFunc(skipped.GetServers()[0].GetSteps(), func(s *dockwellv1.PlanStep) bool { return s.GetBackupFirst() != nil }) {
+		t.Error("it backs up what it was told not to")
+	}
+	if !slices.ContainsFunc(skipped.GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == "no_backup" }) {
+		t.Errorf("skipping says nothing: %v", skipped.GetNotes())
 	}
 }

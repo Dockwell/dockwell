@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 // MongoDB's tools, as its official image has them (ADR 0038). Each signs in as the
@@ -54,9 +55,11 @@ var mongoLoad = []string{"sh", "-c", mongoSignIn + `set -- --host 127.0.0.1 --po
 [ -n "$u" ] && set -- "$@" --username "$u" --authenticationDatabase admin --config /dev/fd/3
 exec mongorestore "$@" ` + mongoConfig}
 
-// mongoReady exits 0 once MongoDB takes connections as itself: not the temporary
-// server its image runs to make its root user, which forks, nor before that user
-// is there. It exits 2 when MongoDB refuses the sign-in for good.
+// mongoReady exits 0 once MongoDB takes writes as itself: not the temporary server
+// its image runs to make its root user, which forks, nor before that user is there,
+// nor a member of a replica set before it's the primary. It exits 2 when MongoDB
+// refuses the sign-in for good, and 3 for a member whose set has no configuration,
+// as a dump leaves it out, so it never takes writes (#373).
 var mongoReady = []string{"sh", "-c", mongoSignIn + `export DW_PORT="$port"
 script='const env = process.env;
 const admin = new Mongo("mongodb://127.0.0.1:" + env.DW_PORT + "/?directConnection=true&serverSelectionTimeoutMS=2000").getDB("admin");
@@ -71,8 +74,42 @@ try {
   try { o = admin.runCommand({ getCmdLineOpts: 1 }); } catch (e) {}
   quit(o.ok && forked(o) ? 1 : 2);
 }
-quit(forked(admin.runCommand({ getCmdLineOpts: 1 })) ? 1 : 0);'
-` + mongoShell + `exit "$c"`}
+const o = admin.runCommand({ getCmdLineOpts: 1 });
+if (forked(o)) quit(1);
+const set = ((o.parsed || {}).replication || {});
+if (!set.replSet && !set.replSetName) quit(0);
+const h = admin.runCommand({ hello: 1 });
+if (h.isWritablePrimary) quit(0);
+if (h.isreplicaset) {
+  print("it is a member of the replica set " + (set.replSet || set.replSetName) + ", which has no configuration, as a dump holds none, so it takes no writes");
+  quit(3);
+}
+quit(1);'
+` + mongoShell + `[ "$c" = 3 ] && printf '%s\n' "$said" >&2; exit "$c"`}
+
+// mongoSet prints the replica set a MongoDB is a member of, as its command line or
+// its configuration file says, or nothing when it runs alone.
+var mongoSet = []string{"sh", "-c", mongoSignIn + `export DW_PORT="$port"
+script='const env = process.env;
+const admin = new Mongo("mongodb://127.0.0.1:" + env.DW_PORT + "/?directConnection=true&serverSelectionTimeoutMS=5000").getDB("admin");
+if (env.MONGO_INITDB_ROOT_USERNAME) admin.auth(env.MONGO_INITDB_ROOT_USERNAME, env.MONGO_INITDB_ROOT_PASSWORD || "");
+const set = ((admin.runCommand({ getCmdLineOpts: 1 }).parsed || {}).replication || {});
+print(set.replSet || set.replSetName || "");'
+` + mongoShell + `[ "$c" = 0 ] || exit "$c"; printf '%s\n' "$said"`}
+
+// replicaSetOf reads the replica set a MongoDB's command line makes it a member of:
+// --replSet rs0 or --replSet=rs0.
+func replicaSetOf(cmd []string) string {
+	for i, arg := range cmd {
+		switch {
+		case arg == "--replSet" && i+1 < len(cmd):
+			return cmd[i+1]
+		case strings.HasPrefix(arg, "--replSet="):
+			return strings.TrimPrefix(arg, "--replSet=")
+		}
+	}
+	return ""
+}
 
 // mongoMagic starts an archive mongodump writes.
 const mongoMagic = 0x8199e26d

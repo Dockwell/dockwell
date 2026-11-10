@@ -471,6 +471,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "summary", Help: "What the change is for, in your words, such as \"Add a staging environment\". Required: the timeline shows it."},
 				{Path: "edits", Help: "The edits, at most one for each resource. They apply in this order, and deletions last, in reverse."},
+				{Path: "skip_backup", Help: "Leave out the backup that comes first when a database moves to a release its data can't come back from, such as MongoDB raising its feature compatibility version (ADR 0038). The plan says so."},
 			},
 			Call: apicli.Unary[v1.ProposeChangeRequest, v1.ProposeChangeResponse](dockwellv1connect.ChangeServiceProposeChangeProcedure),
 		},
@@ -617,6 +618,7 @@ func Methods() []*apicli.Method {
 				{Path: "remove_orphans", Help: "Also deletes the environment's services and networks that aren't in the file, as docker compose up --remove-orphans does. Volumes stay, with their data; delete one on its own to remove it."},
 				{Path: "env", Help: "The .env file beside the Compose file, as its text, of up to 64 KiB, for the variables the file uses. The CLI takes it as a file, --env-file .env, as it may hold secrets. It reads as docker compose reads one, except that a value naming a variable with no value is refused, rather than left blank. A value for a secret the file's services use is refused, as any is.", Sensitive: true},
 				{Path: "directory", Help: "The directory the file is in on the servers, as an absolute path, such as /opt/1panel/apps/postgresql/pg. A path relative to the file, such as ./data, starts there. Each is a server path, which a person approves."},
+				{Path: "skip_backup", Help: "Leave out the backup that comes first when a database moves to a release its data can't come back from, such as MongoDB raising its feature compatibility version (ADR 0038). The plan says so."},
 			},
 			Call: apicli.Unary[v1.ImportComposeRequest, v1.ImportComposeResponse](dockwellv1connect.ComposeServiceImportComposeProcedure),
 		},

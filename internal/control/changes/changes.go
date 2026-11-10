@@ -88,7 +88,7 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 	if summary == "" {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("a change needs a summary that says what it is for, such as \"Add a staging environment\""), "invalid")
 	}
-	c, err := h.propose(ctx, who, summary, req.Msg.GetEdits(), nil)
+	c, err := h.proposeAlso(ctx, who, summary, req.Msg.GetEdits(), nil, Also{SkipBackup: req.Msg.GetSkipBackup()})
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +116,9 @@ type Also struct {
 	Intent *revision.Intent
 	// BackUp names resources to back up first (revision.Edit).
 	BackUp []resource.Ref
+	// SkipBackup leaves out the backup a database's move takes first
+	// (revision.Proposal).
+	SkipBackup bool
 }
 
 // Adoption is a container a change takes on: its full ID, and what it is called.
@@ -169,6 +172,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{
 		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing, Intent: also.Intent,
+		SkipBackup: also.SkipBackup,
 	})
 	if err != nil {
 		return nil, fail(err)

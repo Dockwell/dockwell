@@ -82,6 +82,9 @@ type Handler struct {
 
 	mu   sync.Mutex
 	kept map[string]keptReading
+	// features is the feature compatibility version each service's database said
+	// last, by the service's ID, for a plan that moves it back (LastFeatures).
+	features map[string]string
 }
 
 var _ dockwellv1connect.DatabaseServiceHandler = (*Handler)(nil)
@@ -96,7 +99,7 @@ type keptReading struct {
 // New returns a handler that reads the store through keeper, asks agents what each
 // database says, and backups for what's kept of each.
 func New(ch Changes, agents *agentapi.Agents, backups Backups, db *store.DB, keeper Secrets, logger *slog.Logger) *Handler {
-	return &Handler{changes: ch, agents: agents, backups: backups, db: db, keeper: keeper, logger: logger, now: time.Now, kept: map[string]keptReading{}}
+	return &Handler{changes: ch, agents: agents, backups: backups, db: db, keeper: keeper, logger: logger, now: time.Now, kept: map[string]keptReading{}, features: map[string]string{}}
 }
 
 // placed is a database with where it runs.
@@ -630,6 +633,9 @@ func (h *Handler) ask(ctx context.Context, server store.Server, dbs []*placed) [
 		}
 		r.ServerId, r.ServerName, r.ReadTime = server.ID, server.Name, timestamppb.New(at)
 		out[i] = r
+		if fcv := r.GetFeatureCompatibility(); fcv != "" {
+			h.features[p.db.GetId()] = fcv
+		}
 		if keep {
 			h.kept[server.ID+"/"+p.db.GetId()] = keptReading{reading: proto.CloneOf(r), at: at, made: p.made}
 		}
@@ -640,6 +646,14 @@ func (h *Handler) ask(ctx context.Context, server store.Server, dbs []*placed) [
 		}
 	}
 	return out
+}
+
+// LastFeatures is the feature compatibility version a service's database said in its
+// last reading since the control plane started, or "" where none did.
+func (h *Handler) LastFeatures(serviceID string) string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.features[serviceID]
 }
 
 // fail turns what went wrong into what the API says. An error made for the caller

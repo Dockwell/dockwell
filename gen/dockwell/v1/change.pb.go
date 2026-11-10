@@ -1109,7 +1109,11 @@ type ProposeChangeRequest struct {
 	Summary string `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
 	// The edits, at most one for each resource. They apply in this order,
 	// and deletions last, in reverse.
-	Edits         []*Edit `protobuf:"bytes,2,rep,name=edits,proto3" json:"edits,omitempty"`
+	Edits []*Edit `protobuf:"bytes,2,rep,name=edits,proto3" json:"edits,omitempty"`
+	// Leave out the backup that comes first when a database moves to a release
+	// its data can't come back from, such as MongoDB raising its feature
+	// compatibility version (ADR 0038). The plan says so.
+	SkipBackup    bool `protobuf:"varint,3,opt,name=skip_backup,json=skipBackup,proto3" json:"skip_backup,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1156,6 +1160,13 @@ func (x *ProposeChangeRequest) GetEdits() []*Edit {
 		return x.Edits
 	}
 	return nil
+}
+
+func (x *ProposeChangeRequest) GetSkipBackup() bool {
+	if x != nil {
+		return x.SkipBackup
+	}
+	return false
 }
 
 // Edit sets one resource's desired spec, or deletes it.
@@ -3461,17 +3472,20 @@ type PlanNote struct {
 	// password it was made with, whatever an edit gave, "kept_passphrase" for a backup
 	// destination that keeps its passphrase the same way, and "kept_options" for one
 	// that keeps its options, as an edit gave none, "first_steps" for what a catalog
-	// app needs a person to know and do, "backup_first" for one that backs up its volumes first, "backup_unmeasured" for a
-	// volume whose backup gets a guess at the time it needs, "no_backup" for a catalog
-	// upgrade that runs without a backup first, "upgrade_kept" for what a person changed that the upgrade
+	// app needs a person to know and do, "backup_first" for one that backs up its volumes first, as a catalog
+	// upgrade or a database's move to a release it can't come back from does, "backup_unmeasured" for a
+	// volume whose backup gets a guess at the time it needs, "no_backup" for such an
+	// upgrade or move that runs without a backup first, as asked, "upgrade_kept" for what a person changed that the upgrade
 	// changes too, which stays, "upgrade_dropped" for what they changed that it
 	// drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
 	// whose data stays as the new version left it, "tmpfs_no_size" for a Compose
 	// file's tmpfs that nothing stops taking half the server's memory,
 	// "tasks_as_root" for an app this makes reach what's as good as root, whose
-	// scheduled tasks run in it and reach the same, and "raises_features" for a
-	// MongoDB this moves to its next release, whose feature compatibility version
-	// goes up first. Another reason may come: its message says what it means.
+	// scheduled tasks run in it and reach the same, "raises_features" for a MongoDB
+	// this moves to its next release, whose feature compatibility version goes up
+	// first, "unbacked_move" for one whose data isn't in a volume Dockwell can back up
+	// first, and "lowers_release" for one this moves back, which goes only while its
+	// data uses nothing newer. Another reason may come: its message says what it means.
 	Reason string `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
 	// What it says, for people: the fact, what it means, and what to do.
 	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
@@ -3481,7 +3495,9 @@ type PlanNote struct {
 	// "exposed_variable"; the project, then the services it runs, for
 	// "updates_project"; the volumes and server paths for "volumes_stay"; the path
 	// for "tmpfs_no_size"; each task, then its command, for "tasks_as_root"; the
-	// release it leaves, then the one it moves to, for "raises_features"; the
+	// release it leaves, then the one it moves to, for "raises_features" and
+	// "lowers_release", which adds the feature compatibility version its last
+	// reading said where the release it moves to can't run it; the
 	// variables and secrets, by the names the service sees, for "values_latest";
 	// the image, the revision and its digest for "digest_pinned" and "digest_gone",
 	// and the image and the revision for "digest_differs"; the container_name, or
@@ -5915,10 +5931,12 @@ var File_dockwell_v1_change_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/change.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x19dockwell/v1/options.proto\x1a\x17dockwell/v1/token.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"Y\n" +
+	"\x18dockwell/v1/change.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x19dockwell/v1/options.proto\x1a\x17dockwell/v1/token.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"z\n" +
 	"\x14ProposeChangeRequest\x12\x18\n" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12'\n" +
-	"\x05edits\x18\x02 \x03(\v2\x11.dockwell.v1.EditR\x05edits\"\xfe\x01\n" +
+	"\x05edits\x18\x02 \x03(\v2\x11.dockwell.v1.EditR\x05edits\x12\x1f\n" +
+	"\vskip_backup\x18\x03 \x01(\bR\n" +
+	"skipBackup\"\xfe\x01\n" +
 	"\x04Edit\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x124\n" +
 	"\x04spec\x18\x02 \x01(\v2 .dockwell.resource.v1alpha1.SpecR\x04spec\x12\x16\n" +
