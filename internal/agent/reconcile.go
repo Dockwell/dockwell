@@ -370,7 +370,13 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 	for i := range list {
 		c := &list[i]
 		key := [2]string{c.Labels[docker.LabelProject], c.Labels[docker.LabelService]}
-		if c.Labels[docker.LabelOneoff] == "True" || c.Number() > 1 {
+		if c.Labels[docker.LabelOneoff] == "True" {
+			continue
+		}
+		// The service's container is the one with the highest number, as its
+		// driver has it: each rollout that starts the new one first numbers it
+		// one on, so a service deployed more than once has no number 1.
+		if had := byLabels[key]; had != nil && had.Number() > c.Number() {
 			continue
 		}
 		byLabels[key] = c
