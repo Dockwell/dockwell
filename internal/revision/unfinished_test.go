@@ -381,15 +381,16 @@ func TestADeleteCutShortHasNoCheckToPass(t *testing.T) {
 	r := setupRolling(t, store.SQLite)
 	apply(t, r.engine, propose(t, r.engine, "Run web", r.edit("good:1")))
 	p := propose(t, r.engine, "Delete web", Edit{Ref: r.ref})
-	var once sync.Once
-	r.docker.Intercept(func(req *http.Request) error {
-		if req.Method == http.MethodDelete && strings.Contains(req.URL.Path, "/containers/") {
-			once.Do(r.halt)
-		}
-		return nil
+	// Hold the delete until its request is cancelled: halted closing alone doesn't
+	// mean the asynchronous cancellation has reached the agent call yet.
+	reached := holdUntilStopped(r.docker, func(req *http.Request) bool {
+		return req.Method == http.MethodDelete && strings.Contains(req.URL.Path, "/containers/")
 	})
-	r.started(t, p)
-	r.docker.Intercept(nil)
+	if err := r.engine.Start(t.Context(), p.Change, By{Actor: "user:usr_mira", Via: ViaPanel}); err != nil {
+		t.Fatal(err)
+	}
+	stopNow(t, r.engine, r.docker, reached)
+	r.engine.Wait()
 	r.wants(t, p.Change, "stopped", store.ChangeApplying, "")
 	if n := r.newest(); n != nil {
 		r.docker.Remove(strings.TrimPrefix(n.Name, "/"))
