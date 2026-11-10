@@ -185,8 +185,16 @@ func TestFailuresSayWhatTheyComeDownTo(t *testing.T) {
 		// registry's own trouble says so, as the same pull may work in a while.
 		`Get "https://registry-1.docker.io/v2/": dial tcp: lookup registry-1.docker.io: no such host`: "",
 		"received unexpected HTTP status: 503 Service Unavailable":                                    resource.ReasonRegistry,
-		"toomanyrequests: You have reached your pull rate limit.":                                     "",
-		"the moon is in the way": "",
+		"received unexpected HTTP status: 502 Bad Gateway":                                            resource.ReasonRegistry,
+		"unexpected EOF": resource.ReasonRegistry,
+		`Get "https://registry-1.docker.io/v2/library/nginx/manifests/1.27": EOF`: resource.ReasonRegistry,
+		// A limit, a certificate and a refusal aren't the registry's trouble, and a
+		// retry won't help them.
+		"toomanyrequests: You have reached your pull rate limit.":                               "",
+		`Get "https://registry.example.com/v2/": x509: certificate signed by unknown authority`: "",
+		"denied: requested access to the resource is denied":                                    resource.ReasonImage,
+		"unauthorized: authentication required":                                                 resource.ReasonImage,
+		"the moon is in the way":                                                                "",
 	} {
 		if got := resource.ReasonOf(pullFailure("acme/web:1.0", errors.New(said))); got != want {
 			t.Errorf("pull: %s comes down to %q, want %q", said, got, want)
