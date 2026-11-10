@@ -14,6 +14,11 @@ package apinames
 // noun of the methods of dockwell.v1, and one for each kind of resource.
 func Commands() []string {
 	return []string{
+		"alert-channels",
+		"alert-deliveries",
+		"alert-mutes",
+		"alert-rules",
+		"alerts",
 		"api-tokens",
 		"audit-events",
 		"auth-state",

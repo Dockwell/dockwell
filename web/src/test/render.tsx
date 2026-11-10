@@ -3,6 +3,7 @@
 import { create } from "@bufbuild/protobuf";
 import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
 import {
+  AlertService,
   AuditService,
   AuthService,
   BackupService,
@@ -75,6 +76,7 @@ export type Api = {
   members?: Partial<ServiceImpl<typeof MemberService>>;
   imports?: Partial<ServiceImpl<typeof ImportService>>;
   tasks?: Partial<ServiceImpl<typeof TaskService>>;
+  alerts?: Partial<ServiceImpl<typeof AlertService>>;
   terminals?: Partial<ServiceImpl<typeof TerminalService>>;
 };
 
@@ -130,6 +132,13 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(UpdateService, api.updates ?? {});
       service(ImportService, api.imports ?? {});
       service(TaskService, { listTasks: () => ({}), listTaskRuns: () => ({}), ...api.tasks });
+      service(AlertService, {
+        listAlerts: () => ({}),
+        listAlertRules: () => ({}),
+        listAlertChannels: () => ({}),
+        listAlertDeliveries: () => ({}),
+        ...api.alerts,
+      });
       service(TerminalService, { listTerminals: () => ({}), ...api.terminals });
       service(BackupService, {
         listBackups: () => ({}),

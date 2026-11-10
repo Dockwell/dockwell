@@ -5,6 +5,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type Client, createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
+  AlertService,
   BackupService,
   CatalogService,
   type Change,
@@ -331,6 +332,7 @@ function refreshAfter(queryClient: QueryClient): void {
     CatalogService,
     BackupService,
     WebsiteService,
+    AlertService,
   ]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }
@@ -888,6 +890,8 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
           return t`${name} isn't running`;
         case "paused":
           return t`${name} is paused`;
+        case "finished":
+          return t`${name} ran to its end`;
         case "unknown":
       }
     }

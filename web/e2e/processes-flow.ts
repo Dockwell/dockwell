@@ -10,6 +10,7 @@ import { spawn } from "node:child_process";
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { ownServerPath } from "./own-server.ts";
 
 interface ProcessesFlowOptions {
   origin: string;
@@ -28,9 +29,7 @@ export async function processesFlow(page: Page, { origin, step, shoot }: Process
   try {
     const pid = sleeper.pid ?? fail("couldn't start a process to stop");
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`${origin}/`);
-    const link = await page.locator('a[href^="/servers/srv_"]').first().getAttribute("href");
-    if (!link) fail("the overview links to no server");
+    const link = await ownServerPath(page, origin);
     await page.goto(`${origin}${link}`);
     await page
       .getByRole("navigation", { name: /^Server / })

@@ -46,6 +46,7 @@ const CHECKED = `name: checked
 services:
   checked:
     image: nginx:1.27-alpine
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "test ! -f /tmp/sick"]
       interval: 1s

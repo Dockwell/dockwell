@@ -21,9 +21,11 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/actors"
+	"github.com/dockwell/dockwell/internal/control/alerts"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/changes"
@@ -106,7 +108,9 @@ var (
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
 	backupActions = backups.Actions
 	// A scheduled task's run is an event; making or changing the task is a change (ADR 0053).
-	taskActions   = tasks.Actions
+	taskActions = tasks.Actions
+	// An alert is the control plane's record, and a mute no change (ADR 0044).
+	alertActions  = alerts.Actions
 	accessActions = []string{
 		"owner.claim", "auth.sign_in", "session.revoke",
 		"passkey.add", "passkey.add_with_recovery_code", "passkey.add_with_authenticator_code", "passkey.remove",
@@ -573,6 +577,32 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		}
 		return e
 	}
+	if slices.Contains(alertActions, a.Action) {
+		// As for health: only internal/control/alerts writes these, and what it
+		// writes holds nothing that signs in, nor any address.
+		e.Kind = dockwellv1.EventKind_EVENT_KIND_ALERT
+		if a.Subject != "" {
+			e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject), Scope: look.Scope(a.Subject)}
+		}
+		e.Alert = &dockwellv1.EventAlert{ServerId: a.Target, ServerName: look.Name(a.Target)}
+		if told, ok := alerts.ReadTold(a.Detail); ok {
+			e.Alert.Id, e.Alert.Rule, e.Alert.Title, e.Alert.Path = told.ID, told.Rule, told.Title, told.Path
+			e.Alert.Reason, e.Alert.Detail = told.Reason, told.Detail
+			e.Alert.Condition, e.Alert.SubjectName = resourcev1.AlertRule_Condition(told.Condition), told.SubjectName
+			e.Alert.Variant, e.Alert.Where, e.Alert.Value = told.Facts.Variant, told.Facts.Where, told.Facts.Value
+			if told.Facts.Server != "" && e.Alert.GetServerName() == "" {
+				e.Alert.ServerName = told.Facts.Server
+			}
+			e.Alert.Severity = resourcev1.AlertRule_Severity(told.Severity)
+			if told.OpenedAt != nil {
+				e.Alert.OpenTime = timestamppb.New(*told.OpenedAt)
+			}
+			if told.Until != nil {
+				e.Alert.Until = timestamppb.New(*told.Until)
+			}
+		}
+		return e
+	}
 	if a.Target != "" {
 		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
 	}
@@ -631,7 +661,10 @@ func filter(kinds []dockwellv1.EventKind, serverID, resourceID, actorID string, 
 	if every || want[dockwellv1.EventKind_EVENT_KIND_TASK] {
 		f.Actions = append(f.Actions, taskActions...)
 	}
-	f.ResourceActions = append(append(slices.Clone(healthActions), backupActions...), taskActions...)
+	if every || want[dockwellv1.EventKind_EVENT_KIND_ALERT] {
+		f.Actions = append(f.Actions, alertActions...)
+	}
+	f.ResourceActions = slices.Concat(healthActions, backupActions, alertActions, taskActions)
 	if actorID != "" {
 		a, ok := actors.Store(actorID)
 		if !ok {

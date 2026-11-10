@@ -7,9 +7,25 @@
 id: n8n
 name: n8n
 summary: Automate workflows across your tools
+description: |-
+  n8n connects the tools you use into automated workflows. Build a flow on a visual canvas, trigger it with an event or schedule, and inspect the data that passes through each step.
+
+  This entry runs n8n on your server and keeps its workflow data. You connect the accounts and services each workflow needs after installation. Check n8n's licence for the way you intend to use it.
+icon: /catalog-media/n8n-icon.webp
+documentation: https://docs.n8n.io/
+appSource: https://github.com/n8n-io/n8n
+features:
+  - "Visual workflow editor"
+  - "Scheduled and event-driven workflows"
+  - "Integrations with external services"
+  - "Execution history and debugging"
+screenshots:
+  - path: /catalog-media/n8n-workflow.webp
+    caption: "Build an automation on the n8n workflow canvas"
+    source: https://raw.githubusercontent.com/n8n-io/n8n/93243edc00b288a840fbb562a5e9f64177f2337f/assets/n8n-screenshot.png
 category: automation
 version: "2.45.5"
-release: 1
+release: 2
 homepage: https://n8n.io
 license: AGPL-3.0-only
 appLicense: Sustainable Use, with Enterprise code under n8n's own

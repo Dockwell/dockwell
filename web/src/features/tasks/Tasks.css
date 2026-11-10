@@ -165,7 +165,6 @@ code.tasks-sub,
 
 .tasks-axis-label {
   position: absolute;
-  transform: translateX(-50%);
   white-space: nowrap;
 }
 
