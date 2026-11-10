@@ -1199,7 +1199,7 @@ func (d *Docker) ImageAt(ctx context.Context, t Target) (resource.Image, error) 
 // RunStateAt is how the container at t stands: whether it runs, why Docker
 // couldn't start it, if it couldn't, and whether its policy has it run.
 func (d *Docker) RunStateAt(ctx context.Context, t Target) (resource.RunState, error) {
-	c, err := d.current(ctx, t)
+	c, err := d.stands(ctx, t)
 	if err != nil || c == nil {
 		return resource.RunState{}, err
 	}
@@ -1215,7 +1215,7 @@ func (d *Docker) RunStateAt(ctx context.Context, t Target) (resource.RunState, e
 
 // StartAt starts the container at t, as it is.
 func (d *Docker) StartAt(ctx context.Context, t Target) error {
-	c, err := d.current(ctx, t)
+	c, err := d.stands(ctx, t)
 	if err != nil {
 		return err
 	}
@@ -1223,6 +1223,36 @@ func (d *Docker) StartAt(ctx context.Context, t Target) error {
 		return fmt.Errorf("there's no container for %s to start", t.Name)
 	}
 	return d.Client.StartContainer(ctx, c.ID)
+}
+
+// stands is the container that says how t stands, for the agent's own look while
+// the control plane is away: chosen as the health monitor's list is read, so the
+// two looks can't disagree (docker.Stand). One that's leaving stands only when
+// nothing else answers to t, and then says so (RunState.Leaving). A step reads
+// current instead, whose order finishes a rollout that was cut short.
+func (d *Docker) stands(ctx context.Context, t Target) (*docker.Container, error) {
+	all, err := d.instances(ctx, t)
+	if err != nil {
+		return nil, err
+	}
+	var best, leaving *instance
+	for _, i := range all {
+		switch s := i.Stand(i.number); {
+		case s.Leaving():
+			if leaving == nil {
+				leaving = i
+			}
+		case best == nil || s.Over(best.Stand(best.number)):
+			best = i
+		}
+	}
+	switch {
+	case best != nil:
+		return best.Container, nil
+	case leaving != nil:
+		return leaving.Container, nil
+	}
+	return d.find(ctx, t.Name)
 }
 
 // HoldAt says why the container at t can't be made again from spec now, with

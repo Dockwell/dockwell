@@ -4,11 +4,15 @@ package agent
 
 import (
 	"maps"
+	"strings"
 	"testing"
 	"time"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
 // docker rm -f kills a container and then removes it. A look that lands between
@@ -123,5 +127,233 @@ func TestARedeployedServicesContainerIsNoted(t *testing.T) {
 		if rec, _, _ := s.store.Read(webRef); rec.Stopped {
 			t.Fatalf("with the older one last=%t, a running service was noted as stopped", olderLast)
 		}
+	}
+}
+
+// another makes a second container answering to web's service, as a rollout that
+// was cut short, or a hand, leaves one: numbered number, and left as state has
+// it. It returns its ID.
+func (s *stand) another(t *testing.T, number, state string) string {
+	t.Helper()
+	web := s.e.Container("web")
+	if web == nil {
+		t.Fatal("there's no web to make another of")
+	}
+	cfg := web.Config
+	cfg.Labels = maps.Clone(cfg.Labels)
+	cfg.Labels[docker.LabelNumber] = number
+	name := "web-another-" + number + "-" + state
+	id, err := s.e.Client().CreateContainer(t.Context(), name, &docker.CreateRequest{Config: cfg, HostConfig: web.HostConfig})
+	if err != nil {
+		t.Fatal(err)
+	}
+	switch state {
+	case "created":
+	case "running", "exited", "dead", "removing":
+		if err := s.e.Client().StartContainer(t.Context(), id); err != nil {
+			t.Fatal(err)
+		}
+		switch state {
+		case "exited":
+			s.e.Stop(name)
+		case "dead":
+			s.e.Stop(name)
+			s.e.Dead(name)
+		case "removing":
+			s.e.Stop(name)
+			s.e.Removing(name)
+		}
+	default:
+		t.Fatalf("no such state to leave one in: %s", state)
+	}
+	return id
+}
+
+// A start-first rollout that fails, and can't remove the container it made,
+// leaves a higher-numbered one dead beside the one that runs. It mustn't stand
+// for the service: a stop of the live one while the control plane is there is
+// noted all the same, so once both are pruned the agent doesn't make and start
+// it (the review of #411, its high).
+func TestALeavingLeftoverDoesntHideAStop(t *testing.T) {
+	for _, state := range []string{"dead", "removing"} {
+		t.Run(state, func(t *testing.T) {
+			s := newStand(t)
+			s.run(t, webRef, nginx, nil)
+			live := s.e.Container("web").ID
+			left := s.another(t, "2", state)
+			s.presence.set(true, time.Now())
+			s.noted(t)
+			if rec, _, _ := s.store.Read(webRef); rec.Stopped {
+				t.Fatal("a running service was noted as stopped for its leftover")
+			}
+			if err := s.e.Client().StopContainer(t.Context(), live, time.Second); err != nil {
+				t.Fatal(err)
+			}
+			s.noted(t)
+			if rec, _, _ := s.store.Read(webRef); !rec.Stopped {
+				t.Fatalf("someone stopped the live container, and the %s leftover hid it", state)
+			}
+			// A prune takes both, and the control plane goes away.
+			s.e.Remove(left)
+			s.e.Remove(live)
+			s.presence.set(false, time.Now().Add(-time.Hour))
+			s.pass(t)
+			if c := s.e.Container("web"); c != nil {
+				t.Fatalf("made again what someone stopped: %+v", c.State)
+			}
+			if got := s.said(webRef); got.What != desired.Waiting || !strings.Contains(got.Reason, "It was stopped") {
+				t.Errorf("the journal says %+v", got)
+			}
+		})
+	}
+}
+
+// A rollout cut short after it made the new container leaves that one made and
+// never started beside the one that runs. The service runs: it isn't noted as
+// stopped, by the monitor's list or by the reconciler's own look, and nothing is
+// started (the review of #411, its medium).
+func TestALeftoverThatNeverRanDoesntMarkARunningServiceStopped(t *testing.T) {
+	for _, state := range []string{"created", "exited"} {
+		t.Run(state, func(t *testing.T) {
+			s := newStand(t)
+			s.run(t, webRef, nginx, nil)
+			live := s.e.Container("web").ID
+			left := s.another(t, "2", state)
+			s.presence.set(true, time.Now())
+			s.noted(t)
+			s.presence.set(false, time.Now().Add(-time.Hour))
+			s.pass(t)
+			if rec, _, _ := s.store.Read(webRef); rec.Stopped {
+				t.Fatalf("a running service was noted as stopped for a higher-numbered container that's %s", state)
+			}
+			st, err := s.local.Reviver(webRef).RunState(t.Context(), webRef)
+			if err != nil || st.ID != live || !st.Running {
+				t.Fatalf("the driver's own look reads %+v, %v; want the live container, %s", st, err, live)
+			}
+			if c, err := s.e.Client().InspectContainer(t.Context(), left); err != nil || c.State.Running {
+				t.Fatalf("the leftover is %+v, %v; want it left as it was", c, err)
+			}
+		})
+	}
+}
+
+// Two with one number, as a stop-first swap cut short leaves them: whichever the
+// list has first, the monitor's list and the driver's own look take the same one,
+// the one that runs, and with neither running the same one again.
+func TestATieIsDecidedTheSameWayByBothLooks(t *testing.T) {
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	live := s.e.Container("web").ID
+	s.another(t, "1", "exited")
+	s.presence.set(true, time.Now())
+	list, err := s.e.Client().ListContainers(t.Context(), map[string][]string{"label": {docker.LabelProject}})
+	if err != nil || len(list) != 2 {
+		t.Fatalf("listed %d containers, %v", len(list), err)
+	}
+	for _, order := range [][]docker.ContainerSummary{{list[0], list[1]}, {list[1], list[0]}} {
+		s.r.noted(t.Context(), time.Now(), order)
+		s.r.noted(t.Context(), time.Now(), order)
+		if rec, _, _ := s.store.Read(webRef); rec.Stopped {
+			t.Fatalf("with %s first, a running service was noted as stopped", order[0].ID[:8])
+		}
+	}
+	if st, err := s.local.Reviver(webRef).RunState(t.Context(), webRef); err != nil || st.ID != live {
+		t.Fatalf("the driver's own look reads %+v, %v; want the one that runs", st, err)
+	}
+
+	// Neither running: both looks still take one and the same.
+	if err := s.e.Client().StopContainer(t.Context(), live, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	list, err = s.e.Client().ListContainers(t.Context(), map[string][]string{"label": {docker.LabelProject}})
+	if err != nil || len(list) != 2 {
+		t.Fatalf("listed %d containers, %v", len(list), err)
+	}
+	want := list[0].Stand()
+	if list[1].Stand().Over(want) {
+		want = list[1].Stand()
+	}
+	st, err := s.local.Reviver(webRef).RunState(t.Context(), webRef)
+	if err != nil || st.ID != want.ID {
+		t.Fatalf("the driver's own look reads %s, %v; the list's choice is %s", st.ID, err, want.ID)
+	}
+}
+
+// Dead alone, with nothing else answering to the service: no news to either look.
+// It's not noted as stopped, nothing is started, and nothing is written down.
+func TestOneThatsDeadAloneIsNoNews(t *testing.T) {
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	s.noted(t)
+	s.e.Stop("web")
+	s.e.Dead("web")
+	s.noted(t)
+	s.pass(t)
+	if rec, _, _ := s.store.Read(webRef); rec.Stopped {
+		t.Fatal("a dead container was noted as stopped")
+	}
+	if entries, _, _ := s.journal.Pending(); len(entries) != 0 {
+		t.Errorf("the journal says %+v of a dead container", entries)
+	}
+}
+
+// The driver's own look says a container on its way out is leaving, and reads a
+// live one beside it instead.
+func TestTheDriversLookSaysLeaving(t *testing.T) {
+	for _, state := range []string{"dead", "removing"} {
+		s := newStand(t)
+		s.run(t, webRef, nginx, nil)
+		live := s.e.Container("web").ID
+		left := s.another(t, "2", state)
+		rv := s.local.Reviver(webRef)
+		if st, err := rv.RunState(t.Context(), webRef); err != nil || st.Leaving || st.ID != live {
+			t.Fatalf("with a %s one beside a live one, it reads %+v, %v; want the live one", state, st, err)
+		}
+		s.e.Remove(live)
+		if st, err := rv.RunState(t.Context(), webRef); err != nil || !st.Exists || !st.Leaving || st.ID != left {
+			t.Fatalf("with only a %s one, it reads %+v, %v; want it, leaving", state, st, err)
+		}
+	}
+}
+
+// Deployed twice through the driver, starting the new container first: the second
+// is numbered 2, by the driver's own numbering, and it's still noted. Stopped by
+// someone while the control plane is there, and pruned, it waits once it's away.
+// This is the fault as a server has it; at #357 it was made again and started.
+func TestAServiceDeployedTwiceIsStillNoted(t *testing.T) {
+	s := newStand(t)
+	api := resource.Ref{Kind: service.Kind, Scope: standEnv, Name: "api"}
+	deploy := func(n string) *resourcev1.Service {
+		return &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+			Image: "nginx:1.27", Env: map[string]string{"DEPLOY": n},
+			Rollout: &resourcev1.Rollout{Order: resourcev1.RolloutOrder_ROLLOUT_ORDER_START_FIRST},
+		}}}
+	}
+	s.run(t, api, deploy("1"), nil)
+	s.run(t, api, deploy("2"), nil)
+	list, err := s.e.Client().ListContainers(t.Context(), map[string][]string{"label": {docker.LabelProject}})
+	if err != nil || len(list) != 1 {
+		t.Fatalf("after two deploys there are %d containers, %v; want the second alone", len(list), err)
+	}
+	if n := list[0].Number(); n < 2 {
+		t.Fatalf("the second deploy's container is numbered %d; this test needs the driver to number it on", n)
+	}
+	s.presence.set(true, time.Now())
+	s.noted(t)
+	if err := s.e.Client().StopContainer(t.Context(), list[0].ID, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	s.noted(t)
+	if rec, _, _ := s.store.Read(api); !rec.Stopped {
+		t.Fatal("stopped by someone, a twice-deployed service wasn't noted as stopped")
+	}
+	s.e.Remove(list[0].ID)
+	s.presence.set(false, time.Now().Add(-time.Hour))
+	s.pass(t)
+	if again, _ := s.e.Client().ListContainers(t.Context(), map[string][]string{"label": {docker.LabelProject}}); len(again) != 0 {
+		t.Fatalf("made again what someone stopped: %d containers", len(again))
+	}
+	if got := s.said(api); got.What != desired.Waiting || !strings.Contains(got.Reason, "It was stopped") {
+		t.Errorf("the journal says %+v", got)
 	}
 }
