@@ -12,7 +12,7 @@ import {
 } from "@dockwell/api";
 import { type PortCheck, validPortNumber } from "@dockwell/ui";
 import { useQueries } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { appOf, nameOf } from "../apps/app";
 import { useServices } from "../apps/useServices";
@@ -168,6 +168,15 @@ export function useServerPorts(
       placeholderData: (previous: CheckServerPortsResponse | undefined) => previous,
     })),
   });
+  // What each server said last stands while it's asked again, as a form's ports change: a new
+  // ask is a new query, which starts empty, and the field's port mustn't blank meanwhile.
+  const said = useRef(new Map<string, CheckServerPortsResponse>());
+  const answers = (canCheck ? serverIds : []).map((id, i): Pick<CheckServerPortsResponse, "ports"> | undefined => {
+    const data = asked[i]?.data;
+    if (data) said.current.set(id, data);
+    // A server that couldn't be asked says nothing, as before it was asked: the plan's check still has it.
+    return data ?? said.current.get(id) ?? (asked[i]?.isError ? { ports: [] } : undefined);
+  });
   const askedKey = asked.map((r) => r.dataUpdatedAt).join(",");
   const reads = useQueries({
     queries: (canList ? serverIds : []).map((server) => ({
@@ -178,12 +187,13 @@ export function useServerPorts(
   });
   const containers = reads.map((r) => r.data?.containers ?? []);
   const containersKey = reads.map((r) => r.dataUpdatedAt).join(",");
-  const ready = services.data !== undefined && reads.every((r) => !r.isPending) && asked.every((r) => !r.isPending);
+  const ready =
+    services.data !== undefined && reads.every((r) => !r.isPending) && answers.every((a) => a !== undefined);
   // biome-ignore lint/correctness/useExhaustiveDependencies: the containers and what servers said change when their reads do, as their keys say
   const held = useMemo(
     () => [
       ...heldPorts(serverIds, services.data ?? [], containers, except),
-      ...heldOnServers(asked.map((r) => r.data?.ports ?? [])),
+      ...heldOnServers(answers.map((a) => a?.ports ?? [])),
     ],
     [serverIds.join(","), services.data, containersKey, askedKey, except],
   );
