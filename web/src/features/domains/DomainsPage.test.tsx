@@ -351,6 +351,60 @@ describe("the list of domains", () => {
     expect(row).toHaveTextContent(said);
   });
 
+  it("measures again whether the line holds the note when the row draws again, not only when its width changes", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    let height = 0;
+    const tall = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(() => height);
+    try {
+      renderAt(
+        "/domains",
+        api([aDomain({ name: "app.example.com", certificate: certificate(CertificateState.FAILED, noRecord) })]),
+      );
+      const row = await rowOf(/app\.example\.com/);
+      expect(within(row).queryByRole("button", { name: /^More about/ })).toBeNull();
+      // The words outgrow the line with the width unchanged, as when the list's next read
+      // says more: the next time the row draws, More is there.
+      height = 40;
+      await user.type(screen.getByRole("searchbox", { name: /Filter/ }), "app");
+      expect(
+        await within(await rowOf(/app\.example\.com/)).findByRole("button", { name: "More about app.example.com" }),
+      ).toBeVisible();
+    } finally {
+      tall.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("doesn't cut short a note that ends in its own way to put it right", async () => {
+    // However long the line, a note with a link in it is never one line with More, as
+    // the link would be out of sight and still in the tab order.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const tall = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(40);
+    try {
+      renderAt("/domains", api([aDomain({ name: "old.example.com", certificate: issued, server: { stale: true } })]));
+      const row = await rowOf(/old\.example\.com/);
+      await waitFor(() => expect(row.querySelector(".domains-note-text")).not.toHaveClass("is-one-line"));
+      expect(within(row).getByRole("link", { name: "Check its page" })).toBeVisible();
+      expect(within(row).queryByRole("button", { name: /^More about/ })).toBeNull();
+    } finally {
+      tall.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("says a server that isn't connected last said a certificate had run out, not that it's valid", async () => {
     const expired = certificate(CertificateState.ISSUED, "", -2);
     renderAt("/domains", api([aDomain({ name: "old.example.com", certificate: expired, server: { stale: true } })]));
@@ -440,9 +494,16 @@ describe("the list of domains", () => {
       const row = await rowOf(/app\.example\.com/);
       const text = row.querySelector(".domains-note-text");
       expect(text).toHaveClass("is-one-line");
-      await user.click(await within(row).findByRole("button", { name: "More" }));
+      // Each row's toggle is named for its domain, so a list of buttons tells them apart.
+      const more = await within(row).findByRole("button", { name: "More about app.example.com" });
+      expect(more).toHaveTextContent("More");
+      expect(more).toHaveAttribute("aria-controls", text?.id ?? "");
+      await user.click(more);
       expect(text).not.toHaveClass("is-one-line");
-      expect(within(row).getByRole("button", { name: "Less" })).toHaveAttribute("aria-expanded", "true");
+      expect(within(row).getByRole("button", { name: "Less about app.example.com" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
     } finally {
       tall.mockRestore();
       vi.unstubAllGlobals();

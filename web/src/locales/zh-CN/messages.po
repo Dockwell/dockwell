@@ -7208,14 +7208,22 @@ msgstr "域名"
 msgid "Filter domains"
 msgstr "筛选域名"
 
+msgctxt "show less of the rest"
 msgid "Less"
 msgstr "收起"
+
+msgid "Less about {name}"
+msgstr "收起 {name} 的详情"
 
 msgid "Loading domains"
 msgstr "正在加载域名"
 
+msgctxt "show the rest"
 msgid "More"
-msgstr "更多"
+msgstr "展开"
+
+msgid "More about {name}"
+msgstr "展开 {name} 的详情"
 
 msgid "No domain here matches what you've chosen. Try part of a name, or another state."
 msgstr "这里没有符合所选条件的域名。请试试名称的一部分，或换一种状态。"
@@ -10870,6 +10878,9 @@ msgstr "{address}，私有地址"
 
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} 不能用作名称。请使用小写字母、数字和连字符，并以字母开头"
+
+msgid "More"
+msgstr "更多"
 
 msgid "Operate"
 msgstr "运维"

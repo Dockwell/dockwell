@@ -7208,14 +7208,22 @@ msgstr "Domains"
 msgid "Filter domains"
 msgstr "Filter domains"
 
+msgctxt "show less of the rest"
 msgid "Less"
 msgstr "Less"
+
+msgid "Less about {name}"
+msgstr "Less about {name}"
 
 msgid "Loading domains"
 msgstr "Loading domains"
 
+msgctxt "show the rest"
 msgid "More"
 msgstr "More"
+
+msgid "More about {name}"
+msgstr "More about {name}"
 
 msgid "No domain here matches what you've chosen. Try part of a name, or another state."
 msgstr "No domain here matches what you've chosen. Try part of a name, or another state."
@@ -10870,6 +10878,9 @@ msgstr "{address}, private"
 
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
+
+msgid "More"
+msgstr "More"
 
 msgid "Operate"
 msgstr "Operate"
