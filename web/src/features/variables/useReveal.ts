@@ -22,6 +22,8 @@ export interface Reveals {
   get(id: string): Shown;
   reveal(id: string): void;
   hide(id: string): void;
+  /** The environment the page's secrets are in, by ID, where it's known: revealing is asked for there (ADR 0059). */
+  environment: string | undefined;
 }
 
 const RevealsContext = createContext<Reveals | undefined>(undefined);
@@ -36,7 +38,7 @@ export const RevealsProvider = RevealsContext.Provider;
  * Values live in this state alone, never in a cache, and each hides again
  * after a minute, or when the page goes.
  */
-export function useReveals(): Reveals {
+export function useReveals(environment?: string): Reveals {
   const transport = useTransport();
   const explain = useAuthError();
   const [shown, setShown] = useState<Readonly<Record<string, Shown>>>({});
@@ -91,7 +93,10 @@ export function useReveals(): Reveals {
     [transport, explain, set, hide],
   );
 
-  return useMemo(() => ({ get: (id: string) => shown[id] ?? {}, reveal, hide }), [shown, reveal, hide]);
+  return useMemo(
+    () => ({ get: (id: string) => shown[id] ?? {}, reveal, hide, environment }),
+    [shown, reveal, hide, environment],
+  );
 }
 
 /** One secret's reveal, from the page's RevealsProvider. */
@@ -105,5 +110,6 @@ export function useReveal(id: string) {
     problem: shown.problem,
     reveal: () => reveals.reveal(id),
     hide: () => reveals.hide(id),
+    environment: reveals.environment,
   };
 }
