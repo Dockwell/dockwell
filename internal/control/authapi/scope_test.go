@@ -127,3 +127,13 @@ func TestSetPath(t *testing.T) {
 		}
 	}
 }
+
+// A database's password changes by its service's name too, which the scope check
+// reads as a name, so it looks for it in the caller's projects alone.
+func TestADatabaseNamedForANewPasswordIsReadAsAName(t *testing.T) {
+	m := (&dockwellv1.ChangeDatabasePasswordRequest{Id: "db"}).ProtoReflect()
+	ref, _ := requested(dockwellv1connect.DatabaseServiceChangeDatabasePasswordProcedure, m)
+	if ref.named != "db" || len(ref.ids) != 0 {
+		t.Errorf("ChangeDatabasePassword{id: db} names %+v, want the service named db", ref)
+	}
+}
