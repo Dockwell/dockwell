@@ -4874,20 +4874,23 @@ msgstr "<0>{path}</0>, read-only"
 msgid "App you open"
 msgstr "App you open"
 
+msgid "Change {what}"
+msgstr "Change {what}"
+
 msgid "Database"
 msgstr "Database"
 
 msgid "Each image pinned by digest"
 msgstr "Each image pinned by digest"
 
+msgid "Generated and sealed"
+msgstr "Generated and sealed"
+
+msgid "Generated, in {app}'s log"
+msgstr "Generated, in {app}'s log"
+
 msgid "Give {missingLabel} a value to review the plan"
 msgstr "Give {missingLabel} a value to review the plan"
-
-msgid "It reaches past its containers"
-msgstr "It reaches past its containers"
-
-msgid "Its project, which keeps it apart from your other apps."
-msgstr "Its project, which keeps it apart from your other apps."
 
 msgid "Its site"
 msgstr "Its site"
@@ -4895,14 +4898,11 @@ msgstr "Its site"
 msgid "Open {app}"
 msgstr "Open {app}"
 
-msgid "Version {version}"
-msgstr "Version {version}"
+msgid "Reaches"
+msgstr "Reaches"
 
 msgid "What it installs"
 msgstr "What it installs"
-
-msgid "What to do first"
-msgstr "What to do first"
 
 msgid "capability"
 msgstr "capability"
@@ -4922,13 +4922,9 @@ msgstr "server's network"
 msgid "the server's own"
 msgstr "the server's own"
 
-#. placeholder {0}: sealed.length
-msgid "{0, plural, one {Dockwell generates this and keeps it sealed, for you to reveal with your passkey: {made}} other {Dockwell generates these and keeps them sealed, for you to reveal with your passkey: {made}}}"
-msgstr "{0, plural, one {Dockwell generates this and keeps it sealed, for you to reveal with your passkey: {made}} other {Dockwell generates these and keeps them sealed, for you to reveal with your passkey: {made}}}"
-
-#. placeholder {0}: logged.length
-msgid "{0, plural, one {Dockwell generates this, but {app} writes it in its log, which takes no passkey to read, so change it after you first sign in: {inLog}} other {Dockwell generates these, but {app} writes them in its log, which takes no passkey to read, so change them after you first sign in: {inLog}}}"
-msgstr "{0, plural, one {Dockwell generates this, but {app} writes it in its log, which takes no passkey to read, so change it after you first sign in: {inLog}} other {Dockwell generates these, but {app} writes them in its log, which takes no passkey to read, so change them after you first sign in: {inLog}}}"
+#. placeholder {0}: generated.length
+msgid "{0, plural, one {# secret generated} other {# secrets generated}}"
+msgstr "{0, plural, one {# secret generated} other {# secrets generated}}"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
@@ -6053,6 +6049,9 @@ msgstr "What ran before this failed may have changed the data, such as with a mi
 
 msgid "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
 msgstr "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
+
+msgid "What to do first"
+msgstr "What to do first"
 
 msgid "What's in the volume now goes to a copy the server keeps for 7 days."
 msgstr "What's in the volume now goes to a copy the server keeps for 7 days."
