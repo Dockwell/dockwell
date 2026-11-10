@@ -348,22 +348,81 @@ describe("Alert channels", () => {
       api([ops], {
         alerts: {
           testAlertChannel: () => {
-            throw new ConnectError(
-              "the email's server, port, security or user changes, so it needs its password again: Dockwell won't send what it kept to where it hasn't sent before",
-              Code.InvalidArgument,
-            );
+            throw new ConnectError("the to address example.invalid has no mail server", Code.InvalidArgument);
           },
         },
       }),
     );
     await user.click(await channelRow(/ops-email/));
     const sheet = await screen.findByRole("dialog", { name: "Change ops-email" });
+    await user.click(within(sheet).getByRole("button", { name: "Send a test" }));
+    expect(await within(sheet).findByText("Dockwell didn't send it")).toBeVisible();
+    expect(within(sheet).getByText(/has no mail server/)).toBeVisible();
+  });
+
+  it("asks for the password again once the mail server it was kept for changes", async () => {
+    const user = userEvent.setup();
+    const asked: TestAlertChannelRequest[] = [];
+    renderAt(
+      "/alerts/channels",
+      api([ops], {
+        alerts: {
+          testAlertChannel: (req) => {
+            asked.push(req);
+            return { delivery: { ok: true, said: "accepted by smtp.example.net" } };
+          },
+        },
+      }),
+    );
+    await user.click(await channelRow(/ops-email/));
+    const sheet = await screen.findByRole("dialog", { name: "Change ops-email" });
+    const password = within(sheet).getByLabelText(/^Password/);
+    expect(password).toHaveAttribute("placeholder", "Kept, sealed");
     const host = within(sheet).getByLabelText("SMTP server");
     await user.clear(host);
     await user.type(host, "smtp.example.net");
+    // The control plane won't send the kept one there: the field says so, and nothing goes without it.
+    expect(within(sheet).getByText("Its server changed, so give the password again.")).toBeVisible();
+    expect(password).not.toHaveAttribute("placeholder");
+    expect(within(sheet).getByRole("button", { name: "Send a test" })).toBeDisabled();
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
+    await user.type(password, "n3w-s3cret");
     await user.click(within(sheet).getByRole("button", { name: "Send a test" }));
-    expect(await within(sheet).findByText("Dockwell didn't send it")).toBeVisible();
-    expect(within(sheet).getByText(/needs its password again/)).toBeVisible();
+    expect(await within(sheet).findByText("The test arrived")).toBeVisible();
+    expect(asked[0]?.channel?.to).toMatchObject({
+      case: "email",
+      value: { host: "smtp.example.net", password: "n3w-s3cret" },
+    });
+    // Back on the server it was kept for, the kept one does again.
+    await user.clear(password);
+    await user.clear(host);
+    await user.type(host, "SMTP.example.com");
+    expect(within(sheet).getByText("Dockwell keeps it sealed. Leave it empty to keep it.")).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled();
+  });
+
+  it("says why a name can't be taken, with Advanced held open on it", async () => {
+    const user = userEvent.setup();
+    renderAt("/alerts/channels", api([ops]));
+    await user.click(await screen.findByRole("button", { name: "Add channel" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
+    await user.type(within(sheet).getByLabelText("To"), "ops@example.com");
+    await user.type(within(sheet).getByLabelText("From"), "alerts@example.com");
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    const name = within(sheet).getByLabelText("Name");
+    await user.clear(name);
+    expect(within(sheet).getByText("A channel needs a name: lowercase letters, digits and dashes.")).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
+    // Closing Advanced would hide why the buttons are off: it stays open.
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    expect(within(sheet).getByLabelText("Name")).toBeVisible();
+    await user.type(name, "ops-email");
+    expect(within(sheet).getByText(/Another channel has this name/)).toBeVisible();
+    await user.clear(name);
+    // What's typed becomes a name it can take.
+    await user.type(name, "Team Hooks");
+    expect(name).toHaveValue("team-hooks");
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled();
   });
 
   it("lists channels on a phone, with a test for each", async () => {

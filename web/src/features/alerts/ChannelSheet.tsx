@@ -128,10 +128,40 @@ function specOf(f: Form): Spec {
   }
 }
 
+/** A channel's name as the control plane takes it: lowercase letters, digits and dashes. */
+const NAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+
+/** What's typed as a name, as one could be: lowercase, with a dash for each run of anything else. */
+function nameOf(typed: string): string {
+  return typed
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+/, "");
+}
+
+/** The port a mail server is reached on, as the control plane reads it (alert.EmailPort). */
+function portOf(f: Form): number {
+  return Number(f.port) || (f.security === Security.TLS ? 465 : f.security === Security.NONE ? 25 : 587);
+}
+
+/**
+ * Whether a mail channel now sends to a server, port, security or user its kept password hasn't
+ * been sent to, which the control plane then asks for again (alert.Channel's Keep).
+ */
+function mailMoved(f: Form, was: Form | undefined): boolean {
+  if (!was || f.type !== "email") return false;
+  return (
+    f.host.trim().toLowerCase() !== was.host.trim().toLowerCase() ||
+    portOf(f) !== portOf(was) ||
+    f.security !== was.security ||
+    f.username.trim() !== was.username.trim()
+  );
+}
+
 /** Whether a form has what its type needs, given what the channel keeps sealed already. */
 function ready(f: Form, kept: ReadonlySet<string>): boolean {
   const has = (value: string, path: string) => value.trim() !== "" || kept.has(path);
-  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(f.name)) return false;
+  if (!NAME.test(f.name)) return false;
   switch (f.type) {
     case "webhook":
       return has(f.url, "webhook.url");
@@ -216,11 +246,20 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
   const queryClient = useQueryClient();
   const client = useMemo(() => createClient(AlertService, transport), [transport]);
   // A channel is the install's, in no project, so planning one is an admin's: off, with why, otherwise (ADR 0059).
-  const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
+  const may = useMay();
+  const mayPlan = may(ChangeService.method.proposeChange, { install: true });
+  // Sending a test is an admin's too: it reaches the far end with what signs in.
+  const mayTest = may(AlertService.method.testAlertChannel, { install: true });
   const [form, setForm] = useState<Form>(() => (channel ? fromInfo(channel) : blank()));
   const [testing, setTesting] = useState(false);
   const [tested, setTested] = useState<{ delivery?: AlertDelivery; error?: unknown }>();
-  const kept = useMemo(() => new Set(channel?.sealed ?? []), [channel]);
+  const was = useMemo(() => (channel ? fromInfo(channel) : undefined), [channel]);
+  // What the channel keeps sealed, less a password its mail server, port, security or user moved away from.
+  const moved = mailMoved(form, was);
+  const kept = useMemo(
+    () => new Set((channel?.sealed ?? []).filter((path) => !(moved && path === "email.password"))),
+    [channel, moved],
+  );
   const others = useChannels().data?.channels;
   // A new channel's name comes from its type, unless a person gives one under Advanced.
   const taken = useMemo(
@@ -230,7 +269,16 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
   // What a person typed, which may be empty while they type; until then, the type's name.
   const [typedName, setTypedName] = useState<string>();
   const name = channel ? form.name : (typedName ?? freeName(form.type, taken));
+  const nameError =
+    channel || NAME.test(name)
+      ? taken.has(name) && !channel
+        ? t`Another channel has this name. Rules name a channel by it, so give this one another.`
+        : undefined
+      : name === ""
+        ? t`A channel needs a name: lowercase letters, digits and dashes.`
+        : t`Lowercase letters, digits and dashes, starting and ending with a letter or digit.`;
   const [mail, setMail] = useState<Mail>(() => mailOf(channel ? fromInfo(channel).host : MAIL.gmail.host));
+  // Advanced won't close on a name that can't be taken, so what holds the buttons back stays in view.
   const [advanced, setAdvanced] = useState(false);
   const pickMail = (next: Mail, region = "us-east-1") => {
     setMail(next);
@@ -259,7 +307,7 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
   const keptHint = (path: string, otherwise: string) =>
     kept.has(path) ? t`Dockwell keeps it sealed. Leave it empty to keep it.` : otherwise;
   const keptPlaceholder = (path: string) => (kept.has(path) ? t`Kept, sealed` : undefined);
-  const canSend = ready({ ...form, name }, kept);
+  const canSend = ready({ ...form, name }, kept) && nameError === undefined;
   const kind = CHANNEL_KIND[form.type];
   const kindName = i18n._(kind.label);
   const said = tested?.delivery?.said ?? "";
@@ -356,7 +404,7 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
               <Trans>Remove</Trans>
             </Button>
           ) : null}
-          <Button variant="secondary" disabled={!canSend || testing} onClick={() => void test()}>
+          <Button variant="secondary" disabled={!canSend || testing} onClick={() => void test()} {...mayTest.off}>
             {testing ? <Trans>Sending a test…</Trans> : <Trans>Send a test</Trans>}
           </Button>
           <Button variant="primary" disabled={!canSend} onClick={review} {...mayPlan.off}>
@@ -534,7 +582,11 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
                 optional={form.username.trim() === ""}
                 value={form.password}
                 placeholder={keptPlaceholder("email.password")}
-                hint={keptHint("email.password", t`Sent only over TLS, and kept sealed.`)}
+                hint={
+                  moved && channel?.sealed.includes("email.password") && form.username.trim() !== ""
+                    ? t`Its server changed, so give the password again.`
+                    : keptHint("email.password", t`Sent only over TLS, and kept sealed.`)
+                }
                 onChange={text("password")}
               />
             </div>
@@ -542,14 +594,19 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
         ) : null}
 
         {advancedHolds ? (
-          <Advanced open={advanced} onOpenChange={setAdvanced} summary={summary}>
+          <Advanced
+            open={advanced}
+            onOpenChange={(open) => setAdvanced(open || nameError !== undefined)}
+            summary={summary}
+          >
             {channel ? null : (
               <TextField
                 label={t`Name`}
                 mono
                 value={name}
                 hint={t`Rules name a channel by it.`}
-                onChange={(event) => setTypedName(event.target.value)}
+                error={nameError}
+                onChange={(event) => setTypedName(nameOf(event.target.value))}
               />
             )}
             {form.type === "email" && mail !== "other" ? smtpServer : null}

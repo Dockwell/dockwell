@@ -1276,6 +1276,9 @@ msgstr "{0, plural, other {发送到 # 个渠道}}"
 msgid "{firing} open"
 msgstr "{firing} 个未解决"
 
+msgid "A channel needs a name: lowercase letters, digits and dashes."
+msgstr "渠道需要一个名称：使用小写字母、数字和连字符。"
+
 msgid "A group's ID or a channel's @name, with the bot added to it."
 msgstr "群组 ID 或频道的 @名称，需先把机器人加进去。"
 
@@ -1293,6 +1296,9 @@ msgstr "邮件服务用来发信的地址。"
 
 msgid "Another SMTP server"
 msgstr "其他 SMTP 服务器"
+
+msgid "Another channel has this name. Rules name a channel by it, so give this one another."
+msgstr "已有渠道使用这个名称。规则用名称来指代渠道，请换一个。"
 
 msgid "Bot token"
 msgstr "机器人令牌"
@@ -1331,8 +1337,14 @@ msgstr "在 Slack 应用的 Incoming Webhooks 中。加密保存。"
 msgid "It said: {said}."
 msgstr "它说：{said}。"
 
+msgid "Its server changed, so give the password again."
+msgstr "它的服务器变了，请重新输入密码。"
+
 msgid "Kept, sealed"
 msgstr "已保留，已加密"
+
+msgid "Lowercase letters, digits and dashes, starting and ending with a letter or digit."
+msgstr "使用小写字母、数字和连字符，并以字母或数字开头和结尾。"
 
 msgid "Made hard to guess, and kept sealed. Subscribe to it in the ntfy app."
 msgstr "已设为难以猜到并加密保存。在 ntfy 应用中订阅它。"

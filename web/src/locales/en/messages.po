@@ -1276,6 +1276,9 @@ msgstr "{0, plural, one {sent to # channel} other {sent to # channels}}"
 msgid "{firing} open"
 msgstr "{firing} open"
 
+msgid "A channel needs a name: lowercase letters, digits and dashes."
+msgstr "A channel needs a name: lowercase letters, digits and dashes."
+
 msgid "A group's ID or a channel's @name, with the bot added to it."
 msgstr "A group's ID or a channel's @name, with the bot added to it."
 
@@ -1293,6 +1296,9 @@ msgstr "An address the mail service sends as."
 
 msgid "Another SMTP server"
 msgstr "Another SMTP server"
+
+msgid "Another channel has this name. Rules name a channel by it, so give this one another."
+msgstr "Another channel has this name. Rules name a channel by it, so give this one another."
 
 msgid "Bot token"
 msgstr "Bot token"
@@ -1331,8 +1337,14 @@ msgstr "From your Slack app's Incoming Webhooks. Kept sealed."
 msgid "It said: {said}."
 msgstr "It said: {said}."
 
+msgid "Its server changed, so give the password again."
+msgstr "Its server changed, so give the password again."
+
 msgid "Kept, sealed"
 msgstr "Kept, sealed"
+
+msgid "Lowercase letters, digits and dashes, starting and ending with a letter or digit."
+msgstr "Lowercase letters, digits and dashes, starting and ending with a letter or digit."
 
 msgid "Made hard to guess, and kept sealed. Subscribe to it in the ntfy app."
 msgstr "Made hard to guess, and kept sealed. Subscribe to it in the ntfy app."
