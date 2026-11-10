@@ -5327,6 +5327,9 @@ msgstr "Open a new SSH session to port {port} from here with your key, and keep 
 msgid "That wait is over: this sheet shows whether the server kept the change."
 msgstr "That wait is over: this sheet shows whether the server kept the change."
 
+msgid "The server couldn't keep it yet, so it still waits. Keep it again."
+msgstr "The server couldn't keep it yet, so it still waits. Keep it again."
+
 msgid "Then open the panel at its own address in a new tab."
 msgstr "Then open the panel at its own address in a new tab."
 

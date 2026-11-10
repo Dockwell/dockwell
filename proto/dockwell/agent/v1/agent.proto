@@ -633,6 +633,10 @@ enum AccessVerdict {
   ACCESS_VERDICT_ROLLED_BACK = 2;
   // No such change waits on this server, and the agent knows of none.
   ACCESS_VERDICT_NOT_WAITING = 3;
+  // The change still waits: the agent couldn't keep it just now, as it couldn't
+  // write what its revert would load once kept. Its timer goes on, and the
+  // confirmation may be sent again.
+  ACCESS_VERDICT_NOT_KEPT = 4;
 }
 
 // ProcessesCall asks what runs on the server. CPU covers the time since the last

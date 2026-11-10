@@ -168,6 +168,13 @@ jobs:
           sudo unshare -n env DOCKWELL_TEST=1 DOCKWELL_TEST_NFT="$(command -v nft)" \
             "$RUNNER_TEMP/nftables.test" -test.run 'TestTheTableLoadsInRealNftables' -test.v | tee "$RUNNER_TEMP/nftables.out"
           grep -q -- '--- PASS: TestTheTableLoadsInRealNftables' "$RUNNER_TEMP/nftables.out"
+          # The revert that fires without the agent: the agent is killed while a
+          # change waits, and the kernel's table goes back all the same. In the
+          # same kind of namespace, so only its own firewall is touched.
+          go test -c -o "$RUNNER_TEMP/access.test" ./internal/agent/access
+          sudo unshare -n env DOCKWELL_TEST=1 DOCKWELL_TEST_NFT="$(command -v nft)" \
+            "$RUNNER_TEMP/access.test" -test.run 'TestTheRevertOutsideTheAgentWorksOnRealNftablesWithTheAgentKilled' -test.v | tee "$RUNNER_TEMP/access.out"
+          grep -q -- '--- PASS: TestTheRevertOutsideTheAgentWorksOnRealNftablesWithTheAgentKilled' "$RUNNER_TEMP/access.out"
 
   caddy-go:
     name: Go on Caddy

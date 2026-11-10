@@ -435,6 +435,9 @@ func verdictError(changeID string, v resource.AccessVerdict) error {
 	case resource.AccessRolledBack:
 		return authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("the server's time for %s ran out before the confirmation reached it, so it put back its firewall as it was, and the change rolls back", changeID), "rolled_back")
+	case resource.AccessNotKept:
+		return authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("the server couldn't keep %s yet, as it couldn't write what puts its firewall back if the agent stops, so it still waits. Check the server's disk has room, then keep it again", changeID), "not_kept")
 	case resource.AccessNotWaiting:
 	}
 	return authapi.ReasonError(connect.CodeFailedPrecondition,
