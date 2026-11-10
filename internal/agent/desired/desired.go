@@ -678,21 +678,23 @@ func writeTemp(dir, prefix string, b []byte) (string, error) {
 		return "", err
 	}
 	tmp := f.Name()
-	if err := f.Chmod(0o600); err == nil {
-		if _, err = f.Write(b); err == nil {
-			err = f.Sync()
-		}
-		if cerr := f.Close(); err == nil {
-			err = cerr
-		}
-		if err == nil {
-			return tmp, nil
-		}
-	} else {
-		_ = f.Close()
+	// One err all the way down: a write that fails, as on a full disk, has to
+	// come back as what it was, not as nothing with no file to rename.
+	err = f.Chmod(0o600)
+	if err == nil {
+		_, err = f.Write(b)
 	}
-	_ = os.Remove(tmp)
-	return "", err
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_ = os.Remove(tmp)
+		return "", err
+	}
+	return tmp, nil
 }
 
 // writeDurably writes b to path, so a power cut leaves what was there or b: a

@@ -28,11 +28,6 @@ const (
 // Actions are all of them.
 var Actions = []string{ActionMade, ActionStarted, ActionWaiting, ActionDropped}
 
-var actions = map[agentv1.LocalAction]string{
-	agentv1.LocalAction_LOCAL_ACTION_MADE: ActionMade, agentv1.LocalAction_LOCAL_ACTION_STARTED: ActionStarted,
-	agentv1.LocalAction_LOCAL_ACTION_WAITING: ActionWaiting,
-}
-
 // Told is what an event of these keeps: the resource, and why, never a value or a
 // spec.
 type Told struct {
@@ -84,8 +79,7 @@ func (r *Recorder) Heard(ctx context.Context, server string, rec *agentv1.Reconc
 	return r.DB.Update(ctx, func(tx *store.Tx) error {
 		entries := rec.GetEntries()
 		for _, e := range entries[:min(len(entries), maxEntries)] {
-			action, ok := actions[e.GetAction()]
-			if !ok || e.GetId() == "" {
+			if e.GetId() == "" {
 				continue
 			}
 			ref := resourcepb.FromRef(e.GetResource())
@@ -95,7 +89,21 @@ func (r *Recorder) Heard(ctx context.Context, server string, rec *agentv1.Reconc
 			// Named by the time the agent sent, not the one shown, which depends on
 			// when it's heard, so an entry sent again is one event.
 			sent := e.GetTime().AsTime()
-			if err := record(ctx, tx, server, id.At(id.Event, sent, server+"\x00"+fit(e.GetId())), at(sent), action, told); err != nil {
+			eventID := id.At(id.Event, sent, server+"\x00"+fit(e.GetId()))
+			// Each action by its own name, so the audit log's inventory of what's
+			// recorded reads them here (internal/control/audit).
+			var err error
+			switch e.GetAction() {
+			case agentv1.LocalAction_LOCAL_ACTION_MADE:
+				err = record(ctx, tx, server, eventID, at(sent), ActionMade, told)
+			case agentv1.LocalAction_LOCAL_ACTION_STARTED:
+				err = record(ctx, tx, server, eventID, at(sent), ActionStarted, told)
+			case agentv1.LocalAction_LOCAL_ACTION_WAITING:
+				err = record(ctx, tx, server, eventID, at(sent), ActionWaiting, told)
+			case agentv1.LocalAction_LOCAL_ACTION_UNSPECIFIED:
+				// One this control plane doesn't know: it keeps nothing of it.
+			}
+			if err != nil {
 				return err
 			}
 		}

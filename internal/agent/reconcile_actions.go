@@ -114,7 +114,10 @@ func (r *reconciler) finishAction(ctx context.Context, rv resource.Reviver, ref 
 			if !act || !r.canStart(ref, st.Failed) {
 				return true
 			}
-			if !r.tryStart(ctx, rv, ref) {
+			if why := r.tryStart(ctx, rv, ref); why != "" {
+				// The creation's receipt stays: its container is there, made
+				// and never started, and the next look tries its first start again.
+				r.journal(ref, desired.Waiting, why)
 				return true
 			}
 			st.Running = true
