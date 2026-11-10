@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createClient } from "@connectrpc/connect";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   BuildService,
@@ -326,13 +326,14 @@ export function NewAppSheet({
         }
         // Undone in the same sheet, it has no page to open.
         if (open === "app" && service && after.reverts === "") {
-          // An app built from Git lands on its first build, with its log as it
-          // comes, on a phone too, where a revision opens only when named.
+          // An app built from Git lands on its build, with its log as it comes, on a
+          // phone too, where a revision opens only when named. Its revision is the one
+          // after where the plan starts: a name an app had before goes on counting.
           if (source === "git") {
             void navigate({
               to: "/apps/$serviceId/deployments",
               params: { serviceId: service.id },
-              search: { revision: "1" },
+              search: { revision: String(service.baseRevision + 1n) },
             });
           } else void navigate({ to: "/apps/$serviceId", params: { serviceId: service.id } });
         } else void navigate({ to: "/apps" });
@@ -820,19 +821,56 @@ function GitFields({
   // The port the Dockerfile exposes goes in "In the app", with a free port on the
   // server, once for each reading and only into a form with no port yet, as an
   // image's does: a port someone removed stays removed.
-  const [exposed, setExposed] = useState<readonly number[]>([]);
+  // A port the panel filled, while nobody changes it, follows the next reading, as of
+  // another repository: its port, or none.
+  const [exposed, setExposed] = useState<readonly number[] | undefined>(undefined);
   const serverPorts = useServerPorts(runsOn);
-  const filledFor = useRef("");
+  const filledFor = useRef<string | undefined>(undefined);
+  const filled = useRef<PortRow | undefined>(undefined);
   useEffect(() => {
-    const port = exposed[0];
+    if (exposed === undefined || !serverPorts.ready) return;
     const key = exposed.join(",");
-    if (port === undefined || !serverPorts.ready || filledFor.current === key) return;
+    if (filledFor.current === key) return;
     filledFor.current = key;
-    if (form.ports.length > 0) return;
-    update({
-      ports: [{ key: nextKey(), host: String(serverPorts.free(port)), container: String(port), protocol: "tcp" }],
-    });
-  }, [exposed, serverPorts, form.ports.length, update]);
+    const mine = filled.current;
+    const only = form.ports.length === 1 ? form.ports[0] : undefined;
+    const untouched =
+      mine !== undefined &&
+      only?.key === mine.key &&
+      only.host === mine.host &&
+      only.container === mine.container &&
+      only.protocol === mine.protocol;
+    if (form.ports.length > 0 && !untouched) return;
+    const port = exposed[0];
+    if (port === undefined) {
+      filled.current = undefined;
+      if (untouched) update({ ports: [] });
+      return;
+    }
+    const row: PortRow = {
+      key: nextKey(),
+      host: String(serverPorts.free(port)),
+      container: String(port),
+      protocol: "tcp",
+    };
+    filled.current = row;
+    update({ ports: [row] });
+  }, [exposed, serverPorts, form.ports, update]);
+  // The text of a tag or commit typed under Change, which a branch of the same
+  // beginning doesn't clear as it's typed.
+  const [tag, setTag] = useState(() => (git.ref !== "" && !repository.branches.includes(git.ref) ? git.ref : ""));
+  // A branch chosen from one repository that the next one hasn't goes back to the default.
+  const seen = useRef<{ url: string; branches: readonly string[] } | undefined>(undefined);
+  useEffect(() => {
+    if (!repository.checked) return;
+    const was = seen.current;
+    seen.current = { url: repository.url, branches: repository.branches };
+    if (!was || was.url === repository.url) return;
+    if (git.ref !== "" && was.branches.includes(git.ref) && !repository.branches.includes(git.ref)) {
+      setTag("");
+      onGit({ ref: "" }, "git.ref");
+    }
+  }, [repository.checked, repository.url, repository.branches, git.ref, onGit]);
   return (
     <>
       <div className="git-source">
@@ -853,7 +891,10 @@ function GitFields({
             value={git.ref === repository.defaultBranch ? "" : git.ref}
             error={errors["git.ref"]}
             options={branchOptions}
-            onChange={(event) => onGit({ ref: event.target.value }, "git.ref")}
+            onChange={(event) => {
+              setTag("");
+              onGit({ ref: event.target.value }, "git.ref");
+            }}
           />
         ) : (
           <TextField
@@ -911,9 +952,12 @@ function GitFields({
               mono
               optional
               placeholder="v1.4.0"
-              value={repository.branches.includes(git.ref) ? "" : git.ref}
+              value={tag}
               hint={t`In place of a branch.`}
-              onChange={(event) => onGit({ ref: event.target.value }, "git.ref")}
+              onChange={(event) => {
+                setTag(event.target.value);
+                onGit({ ref: event.target.value.trim() }, "git.ref");
+              }}
             />
           ) : null}
           <div className="git-source">
@@ -1001,9 +1045,11 @@ function GitFields({
  */
 function useRepository(typed: string): {
   state?: ReactNode;
-  failed?: string;
+  failed?: ReactNode;
   /** True once it answered for the URL as it is typed now. */
   checked: boolean;
+  /** The URL it answered for. */
+  url: string;
   branches: readonly string[];
   defaultBranch: string;
 } {
@@ -1021,14 +1067,38 @@ function useRepository(typed: string): {
     { url },
     { enabled: allowed && looksLikeRepository(url), retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
   );
-  if (!worth) return { checked: false, branches: [], defaultBranch: "" };
+  if (!worth) return { checked: false, url, branches: [], defaultBranch: "" };
   if (url !== typed.trim() || asked.isFetching)
-    return { state: t`Checking the repository`, checked: false, branches: [], defaultBranch: "" };
-  if (asked.error) return { failed: sentence(asked.error), checked: false, branches: [], defaultBranch: "" };
+    return { state: t`Checking the repository`, checked: false, url, branches: [], defaultBranch: "" };
+  if (asked.error) {
+    // A URL that can't be one says what to change; anything else may answer if asked again.
+    const again =
+      asked.error instanceof ConnectError && asked.error.code === Code.InvalidArgument ? null : (
+        <>
+          {" "}
+          <button type="button" className="git-check-again" onClick={() => void asked.refetch()}>
+            {t`Check again`}
+          </button>
+        </>
+      );
+    return {
+      failed: (
+        <>
+          {sentence(asked.error)}
+          {again}
+        </>
+      ),
+      checked: false,
+      url,
+      branches: [],
+      defaultBranch: "",
+    };
+  }
   const branches = asked.data?.branches ?? [];
   const count = asked.data?.total || branches.length;
   return {
     checked: true,
+    url,
     state: plural(count, { one: "Public · # branch", other: "Public · # branches" }),
     branches,
     defaultBranch: asked.data?.defaultBranch ?? "",
@@ -1059,7 +1129,7 @@ function BuildRow({
   waitForServer: boolean;
   showBuild: boolean;
   onShowBuild: (shown: boolean) => void;
-  /** Hears which ports the reading says the Dockerfile exposes, none while there is no reading. */
+  /** Hears which ports a reading that answered says the Dockerfile exposes. */
   onExposed: (ports: readonly number[]) => void;
   /** True once the repository is known to be there: its own field says when it isn't, and nothing reads how it builds until it is. */
   checked: boolean;
@@ -1098,11 +1168,12 @@ function BuildRow({
   const reading = looksLikeRepository(git.url) && !waitForServer && checked && (settled !== wanted || read.isFetching);
   const d = ready && !reading ? read.data?.detection : undefined;
   const failed = ready && !reading && read.error ? sentence(read.error) : undefined;
-  const exposed = d?.exposedPorts.join(",") ?? "";
+  // Only a reading that answered says what it exposes: none while one is under way.
+  const exposed = d ? d.exposedPorts.join(",") : undefined;
   const heard = useRef(onExposed);
   heard.current = onExposed;
   useEffect(() => {
-    heard.current(exposed === "" ? [] : exposed.split(",").map(Number));
+    if (exposed !== undefined) heard.current(exposed === "" ? [] : exposed.split(",").map(Number));
   }, [exposed]);
 
   let icon: ReactNode = <Icon name="branch" size={16} className="git-build-muted" />;

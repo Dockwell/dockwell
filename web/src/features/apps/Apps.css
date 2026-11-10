@@ -2507,6 +2507,23 @@
   gap: var(--space-3);
 }
 
+/* Asking a repository again, inside the line that says it didn't answer. */
+.git-check-again {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--cobalt);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.git-check-again:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* How it builds, on one line, with the way to change it. */
 .git-build {
   display: flex;

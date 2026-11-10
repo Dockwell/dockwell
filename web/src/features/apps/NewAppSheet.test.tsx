@@ -305,14 +305,25 @@ describe("New app, from Git", () => {
     expect(detected).toEqual([]);
   });
 
-  it("lands on the app's build once it is applied, where its log is", async () => {
+  // A name an app had before goes on counting its revisions, so the new app's first
+  // build is the one after where its plan starts.
+  it.each([
+    { base: 0n, want: "1", what: "a new name" },
+    { base: 2n, want: "3", what: "the name of an app that was deleted" },
+  ])("lands on the app's build once it is applied, where its log is, under $what", async ({ base, want }) => {
     const user = userEvent.setup();
     const watch = feed<WatchChangeResponse>();
+    const change = () => {
+      const c = planned();
+      const r = c.plan?.resources[0];
+      if (r) r.baseRevision = base;
+      return c;
+    };
     const { router } = renderAt(
       "/apps/new",
       api({
         changes: {
-          proposeChange: () => ({ change: planned() }),
+          proposeChange: () => ({ change: change() }),
           watchChange: watch.stream,
           applyChange: () => ({ change: planned({ state: ChangeState.APPLYING }) }),
           discardChange: () => ({}),
@@ -324,11 +335,150 @@ describe("New app, from Git", () => {
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
     await user.click(within(plan).getByRole("button", { name: /Apply plan/ }));
-    watch.push(watched(moved(planned(), { state: ChangeState.APPLIED })));
+    watch.push(watched(moved(change(), { state: ChangeState.APPLIED })));
     const done = await screen.findByRole("dialog", { name: "nginx is deployed" });
     await user.click(within(done).getByRole("button", { name: "Open nginx" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_nginx/deployments"));
-    expect(router.state.location.search).toEqual({ revision: "1" });
+    expect(router.state.location.search).toEqual({ revision: want });
+  });
+
+  it("keeps a typed tag as it's typed, though a branch begins the same way", async () => {
+    const user = userEvent.setup();
+    const proposed: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/new",
+      api({
+        builds: { listRepositoryBranches: () => ({ branches: ["main", "release"], defaultBranch: "main" }) },
+        changes: {
+          proposeChange: (req) => {
+            proposed.push(req);
+            return { change: planned() };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/web");
+    await within(sheet).findByText("Public · 2 branches", {}, { timeout: 3000 });
+    await user.click(within(sheet).getByRole("button", { name: "Change" }));
+    const tag = within(sheet).getByLabelText(/^Tag or commit/);
+    await user.type(tag, "release-2026.11");
+    expect(tag).toHaveValue("release-2026.11");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed.length).toBe(1));
+    const spec = proposed[0]?.edits[0]?.spec?.kind;
+    expect(spec?.case === "service" ? spec.value.build?.source : undefined).toMatchObject({
+      case: "git",
+      value: { ref: "release-2026.11" },
+    });
+  });
+
+  it("follows another repository: its port in place of the one the panel filled, and its default branch", async () => {
+    const user = userEvent.setup();
+    const repos: Record<string, { branches: string[]; exposed: number[] }> = {
+      "github.com/acme/shop": { branches: ["main", "next"], exposed: [8080] },
+      "github.com/acme/blog": { branches: ["main"], exposed: [3000] },
+      "github.com/acme/docs": { branches: ["main", "draft"], exposed: [] },
+    };
+    renderAt(
+      "/apps/new",
+      api({
+        builds: {
+          listRepositoryBranches: (req) => ({ branches: repos[req.url]?.branches ?? [], defaultBranch: "main" }),
+          detectBuild: (req) => {
+            const url = req.build?.source.case === "git" ? req.build.source.value.url : "";
+            return {
+              commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+              ref: "main",
+              serverName: "hz-1",
+              detection: {
+                builder: ImageBuild_Builder.DOCKERFILE,
+                dockerfile: "Dockerfile",
+                exposedPorts: repos[url]?.exposed ?? [],
+              },
+            };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    const repository = within(sheet).getByLabelText("Repository");
+    await user.type(repository, "github.com/acme/shop");
+    await within(sheet).findByText("Public · 2 branches", {}, { timeout: 3000 });
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "Branch" }), "next");
+    await waitFor(() => expect(within(sheet).getByLabelText("In the app")).toHaveValue("8080"), { timeout: 3000 });
+    // Another repository: its own port in place of the filled one, and next, which it hasn't, goes.
+    await user.clear(repository);
+    await user.type(repository, "github.com/acme/blog");
+    await waitFor(() => expect(within(sheet).getByLabelText("In the app")).toHaveValue("3000"), { timeout: 4000 });
+    expect(within(sheet).getAllByLabelText("In the app")).toHaveLength(1);
+    expect(within(sheet).queryByRole("combobox", { name: "Branch" })).not.toBeInTheDocument();
+    expect(within(sheet).getByRole("textbox", { name: "Branch" })).toHaveValue("");
+    // One that exposes nothing takes the filled port away.
+    await user.clear(repository);
+    await user.type(repository, "github.com/acme/docs");
+    await waitFor(() => expect(within(sheet).queryByLabelText("In the app")).not.toBeInTheDocument(), {
+      timeout: 4000,
+    });
+  });
+
+  it("keeps a port someone typed when the next repository exposes another", async () => {
+    const user = userEvent.setup();
+    let exposed = [8080];
+    renderAt(
+      "/apps/new",
+      api({
+        builds: {
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            ref: "main",
+            serverName: "hz-1",
+            detection: { builder: ImageBuild_Builder.DOCKERFILE, dockerfile: "Dockerfile", exposedPorts: exposed },
+          }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    const repository = within(sheet).getByLabelText("Repository");
+    await user.type(repository, "github.com/acme/shop");
+    const host = await within(sheet).findByLabelText("On the server", {}, { timeout: 3000 });
+    await user.clear(host);
+    await user.type(host, "9000");
+    exposed = [3000];
+    await user.clear(repository);
+    await user.type(repository, "github.com/acme/blog");
+    await within(sheet).findByText(/Dockerfile/, { selector: ".git-build-headline" }, { timeout: 4000 });
+    expect(within(sheet).getByLabelText("On the server")).toHaveValue("9000");
+    expect(within(sheet).getByLabelText("In the app")).toHaveValue("8080");
+  });
+
+  it("offers to check a repository again when it didn't answer, and not when its URL can't be one", async () => {
+    const user = userEvent.setup();
+    let asks = 0;
+    renderAt(
+      "/apps/new",
+      api({
+        builds: {
+          listRepositoryBranches: (req) => {
+            asks++;
+            if (req.url.includes("bad"))
+              throw new ConnectError("a repository's URL can't have a ? in it", Code.InvalidArgument);
+            if (asks === 1)
+              throw new ConnectError("github.com/acme/web didn't answer within 10s", Code.FailedPrecondition);
+            return { branches: ["main"], defaultBranch: "main" };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    const repository = within(sheet).getByLabelText("Repository");
+    await user.type(repository, "github.com/acme/web");
+    await user.click(await within(sheet).findByRole("button", { name: "Check again" }, { timeout: 3000 }));
+    await within(sheet).findByText("Public · 1 branch", {}, { timeout: 3000 });
+    await user.clear(repository);
+    await user.type(repository, "github.com/acme/bad");
+    await within(sheet).findByText(/can't have a \? in it/, {}, { timeout: 3000 });
+    expect(within(sheet).queryByRole("button", { name: "Check again" })).not.toBeInTheDocument();
   });
 
   it("says when Railpack can't tell how to build it, and what to do", async () => {
