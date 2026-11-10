@@ -152,6 +152,9 @@ func (d *Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resou
 			return dec, err
 		}
 	}
+	if s, ok := d.Backend.(Stayer); ok {
+		dec.Stays = s.StaysAfterRule(was, r)
+	}
 	return dec, nil
 }
 

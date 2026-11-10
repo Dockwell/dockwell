@@ -72,6 +72,9 @@ type Manager struct {
 	// Pins says what keeps the server reachable beyond the table's own: SSH from
 	// where people come in now, and the control plane's ports on its server.
 	Pins func(ctx context.Context) (Pins, error)
+	// Tunnels lists the server's WireGuard tunnels, for a plan that turns deny
+	// everything else on to say which the policy would drop. Nil lists none.
+	Tunnels func(ctx context.Context) []Tunnel
 	// PanelOverSSH is a control server whose panel has no domain, so people
 	// reach it through SSH (ssh -L): there, deny everything else is refused
 	// unless a rule allows SSH's port.
@@ -1009,6 +1012,99 @@ func (m *Manager) CheckRule(actual, desired *resourcev1.FirewallRule) error {
 			s.Rules["\x00planned"] = desired
 		}
 	})
+}
+
+// Tunnel is a WireGuard tunnel on the server.
+type Tunnel struct {
+	Name string
+	// Port is the UDP port it listens on, 0 when Dockwell couldn't read it.
+	Port uint16
+}
+
+// StaysAfterRule says who still reaches SSH once a planned edit to a rule is
+// kept, or nil when it leaves SSH open to anywhere.
+func (m *Manager) StaysAfterRule(actual, desired *resourcev1.FirewallRule) *resource.AccessStays {
+	return m.stays(func(s *state) {
+		if actual != nil {
+			for _, name := range slices.Sorted(maps.Keys(s.Rules)) {
+				if proto.Equal(s.Rules[name], actual) {
+					delete(s.Rules, name)
+					break
+				}
+			}
+		}
+		if desired != nil {
+			s.Rules["\x00planned"] = desired
+		}
+	}, false)
+}
+
+// StaysAfterPolicy says who still reaches SSH once a planned policy is kept.
+func (m *Manager) StaysAfterPolicy(desired *resourcev1.FirewallPolicy) *resource.AccessStays {
+	return m.stays(func(s *state) { s.Policy = desired }, desired.GetDenyEverythingElse())
+}
+
+// stays judges what was confirmed, as one planned edit leaves it, as the
+// server is now: where that narrows SSH, the addresses pinned to it and what
+// rules allow its ports from; and, where the edit turns deny everything else
+// on, the WireGuard tunnels whose port no rule allows, and the panel's own
+// ports on the control server. Nil when there's nothing of it to say. What it
+// can't read, it leaves out: the plan-time check has refused by then what
+// can't be judged.
+func (m *Manager) stays(fn func(*state), turnsOn bool) *resource.AccessStays {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*readWait)
+	defer cancel()
+	h := m.readHost(ctx)
+	if h.pinsErr != nil {
+		return nil
+	}
+	m.mu.Lock()
+	next := m.confirmed.clone()
+	fn(&next)
+	nets, _ := m.networksLocked(ctx, h)
+	m.mu.Unlock()
+	pins := withPinned(h.pins, next.Pinned, nets.Subnets)
+	out := &resource.AccessStays{}
+	if narrowsSSH(next, pins.SSHPorts) {
+		for _, p := range sshPortsOr22(pins.SSHPorts) {
+			out.SSHPorts = append(out.SSHPorts, uint32(p))
+		}
+		for _, from := range pins.SSHFrom {
+			out.Pinned = append(out.Pinned, from.String())
+		}
+		for _, name := range slices.Sorted(maps.Keys(next.Rules)) {
+			r := next.Rules[name]
+			if isDeny(r) || protocolOf(r) != "tcp" || !slices.Contains(sshPortsOr22(pins.SSHPorts), portOf(r)) {
+				continue
+			}
+			for _, src := range r.GetSources() {
+				out.Allowed = appendNew(out.Allowed, src)
+			}
+		}
+	}
+	if turnsOn {
+		for _, p := range pins.Own {
+			out.PanelPorts = append(out.PanelPorts, uint32(p))
+		}
+		if m.Tunnels != nil {
+			for _, t := range m.Tunnels(ctx) {
+				allowed := slices.ContainsFunc(slices.Collect(maps.Values(next.Rules)), func(r *resourcev1.FirewallRule) bool {
+					return !isDeny(r) && protocolOf(r) == "udp" && t.Port != 0 && portOf(r) == t.Port
+				})
+				switch {
+				case allowed:
+				case t.Port == 0:
+					out.Tunnels = append(out.Tunnels, t.Name)
+				default:
+					out.Tunnels = append(out.Tunnels, fmt.Sprintf("%s (%d/udp)", t.Name, t.Port))
+				}
+			}
+		}
+	}
+	if len(out.SSHPorts)+len(out.PanelPorts)+len(out.Tunnels) == 0 {
+		return nil
+	}
+	return out
 }
 
 // CheckPolicy refuses, when it's planned, a policy that leaves the server

@@ -3,12 +3,13 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type ChangeConfirmation, ChangeService, Connection } from "@dockwell/api";
+import { type AccessStays, type ChangeConfirmation, ChangeService, Connection } from "@dockwell/api";
 import { Button, Callout } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
+import { useSignedInUser } from "../auth/useAuthState";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 
 /**
@@ -21,8 +22,23 @@ import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 /** How long before its deadline a confirmation stops being offered. */
 const KEEP_MARGIN_MS = 2000;
 
-export function ConfirmAccess({ changeId, wait }: { changeId: string; wait: ChangeConfirmation }) {
+export function ConfirmAccess({
+  changeId,
+  wait,
+  stays,
+  appliedBy,
+}: {
+  changeId: string;
+  wait: ChangeConfirmation;
+  /** Who SSH stays open from once this is kept, as the plan says, when it narrows SSH. */
+  stays?: AccessStays;
+  /** The ID of whoever applied the change: only they can keep it. */
+  appliedBy?: string;
+}) {
   const { t } = useLingui();
+  const me = useSignedInUser();
+  // Someone else watching: the server would refuse them, so they aren't offered it.
+  const theirs = appliedBy !== undefined && appliedBy !== "" && me !== undefined && me.id !== appliedBy;
   const transport = useTransport();
   const client = useMemo(() => createClient(ChangeService, transport), [transport]);
   const now = useControlPlaneNow(1000);
@@ -42,6 +58,8 @@ export function ConfirmAccess({ changeId, wait }: { changeId: string; wait: Chan
   const ports = wait.sshPorts;
   const port = ports[0] ?? 0;
   const portList = ports.join(` ${t`or`} `);
+  const from = stays && stays.sshPorts.length > 0 ? [...stays.pinned, ...stays.allowed].join(", ") : "";
+  const panelPorts = (stays?.panelPorts.length ?? 0) > 0;
   const keep = async () => {
     setBusy(true);
     setError(undefined);
@@ -61,9 +79,11 @@ export function ConfirmAccess({ changeId, wait }: { changeId: string; wait: Chan
       title={t`Check you can still reach ${name}`}
       className="plan-confirm"
       actions={
-        <Button variant="primary" onClick={keep} disabled={busy || !open}>
-          <Trans>Keep the change</Trans>
-        </Button>
+        theirs ? undefined : (
+          <Button variant="primary" onClick={keep} disabled={busy || !open}>
+            <Trans>Keep the change</Trans>
+          </Button>
+        )
       }
     >
       <p>
@@ -80,6 +100,24 @@ export function ConfirmAccess({ changeId, wait }: { changeId: string; wait: Chan
           </Trans>
         )}
       </p>
+      {panelPorts ? (
+        <p>
+          <Trans>Then open the panel in a new tab, at its own address. If that works too, keep the change.</Trans>
+        </p>
+      ) : null}
+      {from ? (
+        <p>
+          <Trans>
+            Once kept, SSH stays open only from {from}. If your address changes, it closes to you: add a rule that
+            allows SSH's port from where you'll come.
+          </Trans>
+        </p>
+      ) : null}
+      {theirs ? (
+        <p>
+          <Trans>Only the person who applied this change can keep it, from where they applied it.</Trans>
+        </p>
+      ) : null}
       <p className="plan-confirm-left" aria-live="polite">
         {gone ? (
           <Trans>

@@ -797,6 +797,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 					fmt.Fprintln(tw, "      May cut off remote access to "+s.GetServerName()+", such as SSH.")
 				}
 			}
+			for _, line := range staysWords(st.GetStays(), s.GetServerName()) {
+				fmt.Fprintln(tw, "      "+line)
+			}
 		}
 		_ = tw.Flush()
 	}
@@ -1468,4 +1471,30 @@ func sendsTo(w *resourcev1.Website) string {
 		return p.GetUrl()
 	}
 	return "-"
+}
+
+// staysWords says who SSH stays open from once a step that narrows it is kept,
+// and what else deny everything else would drop, as the plan has them.
+func staysWords(a *dockwellv1.AccessStays, server string) []string {
+	if a == nil {
+		return nil
+	}
+	var out []string
+	if len(a.GetSshPorts()) > 0 {
+		from := strings.Join(slices.Concat(a.GetPinned(), a.GetAllowed()), ", ")
+		if from == "" {
+			from = "nowhere"
+		} else {
+			from = "only from " + from
+		}
+		ports := make([]string, len(a.GetSshPorts()))
+		for i, p := range a.GetSshPorts() {
+			ports[i] = strconv.FormatUint(uint64(p), 10)
+		}
+		out = append(out, fmt.Sprintf("SSH on %s stays open %s. If your address isn't one of these, or stops being one, SSH closes to you. To keep it open from more, add a rule that allows port %s first.", server, from, strings.Join(ports, ", ")))
+	}
+	if len(a.GetTunnels()) > 0 {
+		out = append(out, fmt.Sprintf("No rule allows the WireGuard tunnel %s, so deny everything else drops its next handshake, and SSH over it. Add a rule that allows the tunnel's UDP port first.", strings.Join(a.GetTunnels(), ", ")))
+	}
+	return out
 }

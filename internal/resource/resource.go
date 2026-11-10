@@ -134,6 +134,18 @@ func GuardsAccess(t Type) bool {
 	return ok
 }
 
+// AccessStays is who still reaches a server's SSH once a change that narrows it
+// is kept: the addresses pinned, what rules allow SSH's ports from, any
+// WireGuard tunnel whose port no rule allows, and the panel's own ports where
+// the change turns deny everything else on on the control server.
+type AccessStays struct {
+	SSHPorts   []uint32 `json:",omitempty"`
+	Pinned     []string `json:",omitempty"`
+	Allowed    []string `json:",omitempty"`
+	Tunnels    []string `json:",omitempty"`
+	PanelPorts []uint32 `json:",omitempty"`
+}
+
 // Decision is a driver's judgement of one step.
 type Decision struct {
 	// PlannedLeads says where the server paths the resource mounts led when this
@@ -264,6 +276,9 @@ type Decision struct {
 	// that listens or that Docker publishes, that no rule lets in from anywhere,
 	// such as "8080/tcp (shop-web-1)" (ADR 0052). It never stops a plan.
 	Closes []string `json:",omitempty"`
+	// Stays is who still reaches the server's SSH once a step that narrows it is
+	// kept (ADR 0052). It never stops a plan.
+	Stays *AccessStays `json:",omitempty"`
 	// Goes says what someone visiting a route finds once the step takes it away, as
 	// a route stops nothing the plan counts as downtime and yet stops people reaching
 	// what it served. It never stops a plan, and a fingerprint leaves it out, as it

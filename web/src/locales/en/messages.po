@@ -4849,6 +4849,9 @@ msgstr "Check you can still reach {name}"
 msgid "Keep the change"
 msgstr "Keep the change"
 
+msgid "Once kept, SSH stays open only from {from}. If your address changes, it closes to you: add a rule that allows SSH's port from where you'll come."
+msgstr "Once kept, SSH stays open only from {from}. If your address changes, it closes to you: add a rule that allows SSH's port from where you'll come."
+
 msgid "Only the person who applied this change can keep it, from where they applied it."
 msgstr "Only the person who applied this change can keep it, from where they applied it."
 
@@ -4863,6 +4866,9 @@ msgstr "Open a new SSH session to port {port} from where you are now, with your 
 
 msgid "That wait is over: the server kept the change, or put back its firewall. The change goes on as this sheet shows."
 msgstr "That wait is over: the server kept the change, or put back its firewall. The change goes on as this sheet shows."
+
+msgid "Then open the panel in a new tab, at its own address. If that works too, keep the change."
+msgstr "Then open the panel in a new tab, at its own address. If that works too, keep the change."
 
 msgid "or"
 msgstr "or"
@@ -5250,6 +5256,9 @@ msgstr "Check that you have another way in, such as your provider's console, bef
 msgid "Deny everything else closes what no rule lets in on {0}"
 msgstr "Deny everything else closes what no rule lets in on {0}"
 
+msgid "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up. Add a rule that allows the tunnel's UDP port first."
+msgstr "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up. Add a rule that allows the tunnel's UDP port first."
+
 msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 
@@ -5273,6 +5282,9 @@ msgstr "Files changed as they were read, so it can hold half a write, and the ap
 
 msgid "If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that."
 msgstr "If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that."
+
+msgid "If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later. To keep it open from more, add a rule that allows port {ports} first, from where you choose."
+msgstr "If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later. To keep it open from more, add a rule that allows port {ports} first, from where you choose."
 
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
@@ -5352,6 +5364,10 @@ msgstr "No backup is taken first"
 msgid "No backup was taken, and the data stays as it is now"
 msgstr "No backup was taken, and the data stays as it is now"
 
+#. placeholder {0}: server.serverName
+msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
+msgstr "No rule allows the WireGuard tunnel {tunnels} on {0}"
+
 msgid "Pulls {image} again, and replaces {name} only if that's a newer image."
 msgstr "Pulls {image} again, and replaces {name} only if that's a newer image."
 
@@ -5366,6 +5382,14 @@ msgstr "Read it for the rest before you pass one a secret."
 
 msgid "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
 msgstr "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
+
+#. placeholder {0}: server.serverName
+msgid "SSH on {0} stays open from nowhere"
+msgstr "SSH on {0} stays open from nowhere"
+
+#. placeholder {0}: server.serverName
+msgid "SSH on {0} stays open only from {from}"
+msgstr "SSH on {0} stays open only from {from}"
 
 msgid "Something may still manage {container}"
 msgstr "Something may still manage {container}"
@@ -5418,8 +5442,8 @@ msgstr "The server's security rests on what that reaches, so it is as good as ro
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 msgstr "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 
-msgid "These ports listen, or Docker publishes them, and no rule lets them in from anywhere: {closes}. SSH, and on the control server its own ports, stay let in."
-msgstr "These ports listen, or Docker publishes them, and no rule lets them in from anywhere: {closes}. SSH, and on the control server its own ports, stay let in."
+msgid "These ports listen, or Docker publishes them, and no rule lets them in from anywhere: {closes}. SSH stays open as this plan says, and on the control server its own ports stay open."
+msgstr "These ports listen, or Docker publishes them, and no rule lets them in from anywhere: {closes}. SSH stays open as this plan says, and on the control server its own ports stay open."
 
 msgid "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
 msgstr "They run in what {name} runs, so they reach what it reaches on its server too: {list}."

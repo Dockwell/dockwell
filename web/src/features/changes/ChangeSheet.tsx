@@ -1116,7 +1116,16 @@ function PlanBody({
         </Callout>
       ) : null}
       {/* A change to who reaches a server waits for you to say you still can: that comes first. */}
-      {confirmation && change ? <ConfirmAccess changeId={change.id} wait={confirmation} /> : null}
+      {confirmation && change ? (
+        <ConfirmAccess
+          changeId={change.id}
+          wait={confirmation}
+          stays={
+            plan?.servers.find((s) => s.serverId === confirmation.serverId)?.steps.find((step) => step.stays)?.stays
+          }
+          appliedBy={change.appliedBy?.id}
+        />
+      ) : null}
       {/* A change Dockwell made on its own says why first, as nobody asked for it. */}
       {change?.because ? <BecauseNotice because={change.because} /> : null}
       {/* A plan that waits for an admin says why, in the server's words, which name what it reaches. */}

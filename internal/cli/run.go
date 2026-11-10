@@ -294,6 +294,7 @@ func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, t
 		Dir: filepath.Join(dir.Agent(), "access"), Table: &nftables.Firewall{Run: tools}, Logger: logger,
 		Pins: pins.Read, Docker: networks, Exposed: exposed,
 		PanelOverSSH: panelOverSSH,
+		Tunnels:      access.WireGuardTunnels(os.DirFS("/sys/class/net"), tools),
 	}
 	if err := m.Ready(ctx); err != nil {
 		logger.InfoContext(ctx, "the agent offers no firewall kinds until this server can hold Dockwell's firewall", slog.String("reason", err.Error()))

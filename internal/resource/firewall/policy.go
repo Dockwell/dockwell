@@ -35,6 +35,13 @@ type Closer interface {
 	Closes(desired *resourcev1.FirewallPolicy) []string
 }
 
+// Stayer is a backend that says who still reaches SSH once an edit that narrows
+// it is kept, for the plan to name (ADR 0052).
+type Stayer interface {
+	StaysAfterPolicy(desired *resourcev1.FirewallPolicy) *resource.AccessStays
+	StaysAfterRule(actual, desired *resourcev1.FirewallRule) *resource.AccessStays
+}
+
 // PolicyDriver manages a server's firewall policy.
 type PolicyDriver struct {
 	Backend PolicyBackend
@@ -105,6 +112,9 @@ func (d *PolicyDriver) Plan(actual, desired proto.Message, _ []resource.Change) 
 		if err := c.CheckPolicy(p); err != nil {
 			return dec, err
 		}
+	}
+	if s, ok := d.Backend.(Stayer); ok {
+		dec.Stays = s.StaysAfterPolicy(p)
 	}
 	return dec, nil
 }

@@ -13,9 +13,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
@@ -1456,5 +1458,82 @@ func TestTheClosesListIsWhatNoRuleLetsIn(t *testing.T) {
 	dec, err := (&firewall.PolicyDriver{Backend: m}).Plan(nil, policy, nil)
 	if err != nil || fmt.Sprint(dec.Closes) != "[53/udp 5432/tcp 8080/tcp (shop-web-1)]" {
 		t.Errorf("the policy's plan: %v, closes %v", err, dec.Closes)
+	}
+}
+
+// A plan that narrows SSH names who it stays open from: the addresses pinned,
+// and what rules allow its port from, so a person sees whether theirs is there,
+// and a stranger's. One that leaves SSH open to anywhere says nothing. Turning
+// deny everything else on also names a WireGuard tunnel whose port no rule
+// allows, and the panel's own ports on the control server.
+func TestThePlanNamesWhoSSHStaysOpenFrom(t *testing.T) {
+	s := &sessions{own: []uint16{7600}}
+	s.set(office, "2001:db8::7/128")
+	m := start(t, t.TempDir(), &table{}, s, time.Minute, func(m *Manager) {
+		m.Tunnels = func(context.Context) []Tunnel { return []Tunnel{{Name: "wg0", Port: 51820}, {Name: "wg1"}} }
+	})
+	if got := m.StaysAfterRule(nil, http); got != nil {
+		t.Errorf("allowing 80 says %+v", got)
+	}
+	got := m.StaysAfterPolicy(policy)
+	if got == nil || fmt.Sprint(got.SSHPorts) != "[22]" || fmt.Sprint(got.Pinned) != "[203.0.113.7/32 2001:db8::7/128]" || len(got.Allowed) != 0 {
+		t.Fatalf("deny everything else says %+v", got)
+	}
+	if fmt.Sprint(got.Tunnels) != "[wg0 (51820/udp) wg1]" || fmt.Sprint(got.PanelPorts) != "[7600]" {
+		t.Errorf("tunnels %v, the panel's ports %v", got.Tunnels, got.PanelPorts)
+	}
+	deny := m.StaysAfterRule(nil, &resourcev1.FirewallRule{Port: 22, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY})
+	if deny == nil || fmt.Sprint(deny.Pinned) != "[203.0.113.7/32 2001:db8::7/128]" || len(deny.Tunnels)+len(deny.PanelPorts) != 0 {
+		t.Errorf("denying 22 says %+v", deny)
+	}
+
+	// A rule allows SSH from the office's range, and the tunnel's port: both are said.
+	if err := m.Put(step("chg_1", false), "ssh", &resourcev1.FirewallRule{Port: 22, Sources: []string{"198.51.100.0/24"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Put(step("chg_1", false), "wg", &resourcev1.FirewallRule{Port: 51820, Protocol: resourcev1.Protocol_PROTOCOL_UDP}); err != nil {
+		t.Fatal(err)
+	}
+	confirm(m, "chg_1")
+	got = m.StaysAfterPolicy(policy)
+	if got == nil || fmt.Sprint(got.Allowed) != "[198.51.100.0/24]" || fmt.Sprint(got.Tunnels) != "[wg1]" {
+		t.Errorf("with a rule for SSH and one for the tunnel: %+v", got)
+	}
+
+	// A rule that allows SSH from anywhere leaves nothing to name but the panel and the tunnel.
+	if err := m.Put(step("chg_2", false), "ssh", &resourcev1.FirewallRule{Port: 22}); err != nil {
+		t.Fatal(err)
+	}
+	confirm(m, "chg_2")
+	if got := m.StaysAfterPolicy(policy); got == nil || len(got.SSHPorts)+len(got.Pinned) != 0 || fmt.Sprint(got.PanelPorts) != "[7600]" {
+		t.Errorf("with SSH allowed from anywhere: %+v", got)
+	}
+	dec, err := (&firewall.PolicyDriver{Backend: m}).Plan(nil, policy, nil)
+	if err != nil || dec.Stays == nil || fmt.Sprint(dec.Stays.PanelPorts) != "[7600]" {
+		t.Errorf("the policy's plan: %v, %+v", err, dec.Stays)
+	}
+}
+
+// WireGuard's tunnels are the interfaces /sys calls wireguard, with the port wg says.
+func TestWireGuardTunnelsAreRead(t *testing.T) {
+	net := fstest.MapFS{
+		"eth0/uevent": {Data: []byte("INTERFACE=eth0\nIFINDEX=2\n")},
+		"wg0/uevent":  {Data: []byte("DEVTYPE=wireguard\nINTERFACE=wg0\nIFINDEX=7\n")},
+		"wg1/uevent":  {Data: []byte("DEVTYPE=wireguard\nINTERFACE=wg1\n")},
+	}
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "usr", "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/bin/sh\n[ \"$*\" = 'show wg0 listen-port' ] && { echo 51820; exit 0; }\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(root, "usr", "bin", "wg"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got := WireGuardTunnels(net, &hosttool.Runner{Root: root})(t.Context())
+	if fmt.Sprint(got) != "[{wg0 51820} {wg1 0}]" {
+		t.Errorf("tunnels %v", got)
+	}
+	if got := WireGuardTunnels(fstest.MapFS{}, nil)(t.Context()); len(got) != 0 {
+		t.Errorf("with none: %v", got)
 	}
 }
