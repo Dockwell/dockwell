@@ -862,6 +862,12 @@ msgstr "退出了其他会话"
 msgid "Stopped {what} (PID {pid}) on {server}"
 msgstr "已在 {server} 上停止 {what}（PID {pid}）"
 
+msgid "Tested backup storage"
+msgstr "测试了备份存储"
+
+msgid "Tested backup storage at {host}"
+msgstr "测试了 {host} 上的备份存储"
+
 msgid "The backup of {subject} didn't reach {where}"
 msgstr "{subject} 的备份未能送达 {where}"
 
@@ -4397,38 +4403,32 @@ msgstr "最新的 {shown} 个"
 msgid "Access key"
 msgstr "访问密钥"
 
+msgid "Account ID"
+msgstr "账户 ID"
+
 msgid "Add a destination"
 msgstr "添加目的地"
 
 msgid "At least 16 characters."
 msgstr "至少 16 个字符。"
 
-msgid "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
-msgstr "在添加其他存放位置之前，备份只保存在各服务器的磁盘上。任何兼容 S3 的存储都可以，例如 Cloudflare R2、Backblaze B2 或 Amazon S3。"
-
 msgid "Bucket"
 msgstr "存储桶"
-
-msgid "Copies an earlier destination sealed open only with the passphrase it had."
-msgstr "之前的目的地加密的副本，只能用它当时的密码短语打开。"
 
 msgid "Copy the passphrase"
 msgstr "复制密码短语"
 
-msgid "Destinations"
-msgstr "目的地"
-
-msgid "Dockwell keeps it encrypted, and sends it only to a server sending a backup."
-msgstr "Dockwell 会加密保存它，只发送给正在传送备份的服务器。"
-
-msgid "Each backup is encrypted with this before it leaves its server, so your storage provider can't read it. Nothing else opens one, and Dockwell shows it only now. If you lose this install, you need it to open what's in the bucket."
-msgstr "每份备份在离开服务器之前都会用它加密，因此存储服务商无法读取。只有它能打开备份，且 Dockwell 只在此处显示一次。如果失去此安装，你需要用它打开存储桶中的内容。"
-
-msgid "Encrypted on each server before upload"
-msgstr "上传前在各服务器上加密"
-
 msgid "Endpoint"
 msgstr "端点"
+
+msgid "Find buckets"
+msgstr "查找存储桶"
+
+msgid "Folder in the bucket"
+msgstr "存储桶中的文件夹"
+
+msgid "For storage an earlier install sealed with it."
+msgstr "用于以前的安装用它加密过的存储。"
 
 msgid "I've kept a copy of the passphrase"
 msgstr "我已保存密码短语的副本"
@@ -4436,12 +4436,23 @@ msgstr "我已保存密码短语的副本"
 msgid "Keep this passphrase somewhere else"
 msgstr "请将此密码短语保存到其他地方"
 
-#. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
-msgid "Last upload {0}"
-msgstr "上次上传 {0}"
+msgid "MinIO or other S3 storage"
+msgstr "MinIO 或其他 S3 存储"
 
-msgid "Leave it out for storage that has none, such as R2."
-msgstr "没有区域的存储（例如 R2）可留空。"
+msgid "Named {name}"
+msgstr "名为 {name}"
+
+msgid "No test"
+msgstr "未能测试"
+
+msgid "Nothing answered at {endpoint}"
+msgstr "{endpoint} 没有响应"
+
+msgid "Nothing else opens these backups, and Dockwell shows it only now."
+msgstr "只有它能打开这些备份，Dockwell 只在此时显示它。"
+
+msgid "On the R2 page of your Cloudflare dashboard."
+msgstr "在 Cloudflare 控制台的 R2 页面上。"
 
 msgid "Passphrase"
 msgstr "密码短语"
@@ -4452,21 +4463,92 @@ msgstr "密码短语已复制"
 msgid "Region"
 msgstr "区域"
 
-msgid "Remove this destination"
-msgstr "移除此目的地"
-
 msgid "Secret key"
 msgstr "私密密钥"
 
 msgid "Send backups to {name}"
 msgstr "将备份发送到 {name}"
 
-#. placeholder {0}: d.name
-msgid "Stop sending backups to {0}"
-msgstr "停止将备份发送到 {0}"
+msgid "Signed in · these keys can't list buckets, so type the bucket's name"
+msgstr "已登录 · 这些密钥无法列出存储桶，请输入存储桶名称"
+
+msgid "Signed in · these keys list no bucket"
+msgstr "已登录 · 这些密钥列不出存储桶"
+
+msgid "Storage"
+msgstr "存储"
+
+msgid "Test"
+msgstr "测试"
+
+msgid "The storage answered with an error"
+msgstr "存储返回了错误"
+
+msgid "The storage refused these keys"
+msgstr "存储拒绝了这些密钥"
+
+msgid "There's no bucket {bucket} there"
+msgstr "那里没有存储桶 {bucket}"
+
+msgid "These keys can't write to {bucket}"
+msgstr "这些密钥无法写入 {bucket}"
+
+msgid "Type a name"
+msgstr "输入名称"
 
 msgid "Use a passphrase I already have"
 msgstr "使用我已有的密码短语"
+
+msgid "Use {movedTo}"
+msgstr "使用 {movedTo}"
+
+msgid "What schedules and the CLI call it."
+msgstr "计划和 CLI 用它来指代。"
+
+msgid "Wrote and deleted a test file in {bucket}"
+msgstr "已在 {bucket} 中写入并删除了一个测试文件"
+
+msgid "Wrote it, but couldn't delete the test file: {leftFile}"
+msgstr "已写入，但无法删除测试文件：{leftFile}"
+
+msgid "a passphrase made for you"
+msgstr "为你生成的密码短语"
+
+msgid "at the bucket's top"
+msgstr "在存储桶根目录"
+
+msgid "in {folder}/"
+msgstr "在 {folder}/ 中"
+
+msgid "your passphrase"
+msgstr "你的密码短语"
+
+#. placeholder {0}: answer.said.buckets.length
+msgid "{0, plural, one {Signed in · # bucket} other {Signed in · # buckets}}"
+msgstr "{0, plural, other {已登录 · # 个存储桶}}"
+
+msgid "{bucket} is in {movedTo}"
+msgstr "{bucket} 在 {movedTo}"
+
+msgid "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
+msgstr "在添加其他存放位置之前，备份只保存在各服务器的磁盘上。任何兼容 S3 的存储都可以，例如 Cloudflare R2、Backblaze B2 或 Amazon S3。"
+
+msgid "Destinations"
+msgstr "目的地"
+
+msgid "Encrypted on each server before upload"
+msgstr "上传前在各服务器上加密"
+
+#. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
+msgid "Last upload {0}"
+msgstr "上次上传 {0}"
+
+msgid "Remove this destination"
+msgstr "移除此目的地"
+
+#. placeholder {0}: d.name
+msgid "Stop sending backups to {0}"
+msgstr "停止将备份发送到 {0}"
 
 #. placeholder {0}: d.backups
 #. placeholder {1}: formatBytes(d.usedBytes, i18n.locale)
@@ -4851,9 +4933,6 @@ msgstr "网络"
 
 msgid "Notes"
 msgstr "笔记"
-
-msgid "Storage"
-msgstr "存储"
 
 msgid "<0>{name}</0> has stopped on <1>{names}</1>"
 msgstr "<0>{name}</0> 已在 <1>{names}</1> 上停止"

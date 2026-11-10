@@ -405,6 +405,39 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/backup-destinations:test:
+        post:
+            tags:
+                - BackupService
+            description: |-
+                TestBackupDestination signs in to storage with what a destination form holds,
+                 before anything is planned, and says what it found: the buckets the keys may
+                 list, and, given a bucket, whether a file can be written there, which it writes
+                 under the destination's prefix and deletes. It reaches the storage from the
+                 control server, which may reach what some servers can't, or not what they can:
+                 the internet and private networks, never the control server's own loopback, and
+                 it follows no redirect. It keeps nothing, and it's on the activity log without
+                 what signs in.
+            operationId: BackupService_TestBackupDestination
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/TestBackupDestinationRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TestBackupDestinationResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/backup-policies:
         get:
             tags:
@@ -14296,6 +14329,60 @@ components:
                 delivery:
                     $ref: '#/components/schemas/AlertDelivery'
             description: TestAlertChannelResponse says how the test went.
+        TestBackupDestinationRequest:
+            type: object
+            properties:
+                destination:
+                    allOf:
+                        - $ref: '#/components/schemas/BackupDestination'
+                    description: The storage's endpoint, region, bucket (empty to list them alone), prefix and keys.
+            description: |-
+                TestBackupDestinationRequest is what a destination form holds. The passphrase is
+                 left out: nothing is sealed in a test.
+        TestBackupDestinationResponse:
+            type: object
+            properties:
+                signedIn:
+                    type: boolean
+                    description: Whether the storage answered at the endpoint, and took the keys.
+                buckets:
+                    type: array
+                    items:
+                        type: string
+                    description: The buckets the keys may list, by name. A key scoped to one bucket may list none.
+                listed:
+                    type: boolean
+                    description: Whether the keys may list buckets at all.
+                wrote:
+                    type: boolean
+                    description: |-
+                        Whether a test file was written to the bucket. With no problem it was deleted
+                         again; with CANT_DELETE it's still there, as test_file.
+                problem:
+                    enum:
+                        - BACKUP_DESTINATION_PROBLEM_UNSPECIFIED
+                        - BACKUP_DESTINATION_PROBLEM_UNREACHABLE
+                        - BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED
+                        - BACKUP_DESTINATION_PROBLEM_NO_BUCKET
+                        - BACKUP_DESTINATION_PROBLEM_CANT_WRITE
+                        - BACKUP_DESTINATION_PROBLEM_WRONG_REGION
+                        - BACKUP_DESTINATION_PROBLEM_CANT_DELETE
+                        - BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR
+                    type: string
+                    description: What went wrong, when something did.
+                    format: enum
+                said:
+                    type: string
+                    description: |-
+                        What the storage said of it, as its own code, such as AccessDenied, with nothing
+                         that signs in.
+                region:
+                    type: string
+                    description: The region the storage says the bucket is in, with WRONG_REGION.
+                testFile:
+                    type: string
+                    description: The test file that was written and couldn't be deleted, with CANT_DELETE.
+            description: TestBackupDestinationResponse says what the storage answered.
         Tmpfs:
             type: object
             properties:

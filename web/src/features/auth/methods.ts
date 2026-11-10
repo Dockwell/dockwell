@@ -69,6 +69,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "BackupService.listBackups": "read",
   "BackupService.previewBackup": "read",
   "BackupService.restoreBackup": "may",
+  "BackupService.testBackupDestination": "may",
 
   "CatalogService.getCatalogEntry": "read",
   "CatalogService.installCatalogEntry": "may",

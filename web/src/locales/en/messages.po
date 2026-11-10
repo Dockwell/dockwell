@@ -862,6 +862,12 @@ msgstr "Signed out other sessions"
 msgid "Stopped {what} (PID {pid}) on {server}"
 msgstr "Stopped {what} (PID {pid}) on {server}"
 
+msgid "Tested backup storage"
+msgstr "Tested backup storage"
+
+msgid "Tested backup storage at {host}"
+msgstr "Tested backup storage at {host}"
+
 msgid "The backup of {subject} didn't reach {where}"
 msgstr "The backup of {subject} didn't reach {where}"
 
@@ -4397,38 +4403,32 @@ msgstr "{shown} newest"
 msgid "Access key"
 msgstr "Access key"
 
+msgid "Account ID"
+msgstr "Account ID"
+
 msgid "Add a destination"
 msgstr "Add a destination"
 
 msgid "At least 16 characters."
 msgstr "At least 16 characters."
 
-msgid "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
-msgstr "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
-
 msgid "Bucket"
 msgstr "Bucket"
-
-msgid "Copies an earlier destination sealed open only with the passphrase it had."
-msgstr "Copies an earlier destination sealed open only with the passphrase it had."
 
 msgid "Copy the passphrase"
 msgstr "Copy the passphrase"
 
-msgid "Destinations"
-msgstr "Destinations"
-
-msgid "Dockwell keeps it encrypted, and sends it only to a server sending a backup."
-msgstr "Dockwell keeps it encrypted, and sends it only to a server sending a backup."
-
-msgid "Each backup is encrypted with this before it leaves its server, so your storage provider can't read it. Nothing else opens one, and Dockwell shows it only now. If you lose this install, you need it to open what's in the bucket."
-msgstr "Each backup is encrypted with this before it leaves its server, so your storage provider can't read it. Nothing else opens one, and Dockwell shows it only now. If you lose this install, you need it to open what's in the bucket."
-
-msgid "Encrypted on each server before upload"
-msgstr "Encrypted on each server before upload"
-
 msgid "Endpoint"
 msgstr "Endpoint"
+
+msgid "Find buckets"
+msgstr "Find buckets"
+
+msgid "Folder in the bucket"
+msgstr "Folder in the bucket"
+
+msgid "For storage an earlier install sealed with it."
+msgstr "For storage an earlier install sealed with it."
 
 msgid "I've kept a copy of the passphrase"
 msgstr "I've kept a copy of the passphrase"
@@ -4436,12 +4436,23 @@ msgstr "I've kept a copy of the passphrase"
 msgid "Keep this passphrase somewhere else"
 msgstr "Keep this passphrase somewhere else"
 
-#. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
-msgid "Last upload {0}"
-msgstr "Last upload {0}"
+msgid "MinIO or other S3 storage"
+msgstr "MinIO or other S3 storage"
 
-msgid "Leave it out for storage that has none, such as R2."
-msgstr "Leave it out for storage that has none, such as R2."
+msgid "Named {name}"
+msgstr "Named {name}"
+
+msgid "No test"
+msgstr "No test"
+
+msgid "Nothing answered at {endpoint}"
+msgstr "Nothing answered at {endpoint}"
+
+msgid "Nothing else opens these backups, and Dockwell shows it only now."
+msgstr "Nothing else opens these backups, and Dockwell shows it only now."
+
+msgid "On the R2 page of your Cloudflare dashboard."
+msgstr "On the R2 page of your Cloudflare dashboard."
 
 msgid "Passphrase"
 msgstr "Passphrase"
@@ -4452,21 +4463,92 @@ msgstr "Passphrase copied"
 msgid "Region"
 msgstr "Region"
 
-msgid "Remove this destination"
-msgstr "Remove this destination"
-
 msgid "Secret key"
 msgstr "Secret key"
 
 msgid "Send backups to {name}"
 msgstr "Send backups to {name}"
 
-#. placeholder {0}: d.name
-msgid "Stop sending backups to {0}"
-msgstr "Stop sending backups to {0}"
+msgid "Signed in · these keys can't list buckets, so type the bucket's name"
+msgstr "Signed in · these keys can't list buckets, so type the bucket's name"
+
+msgid "Signed in · these keys list no bucket"
+msgstr "Signed in · these keys list no bucket"
+
+msgid "Storage"
+msgstr "Storage"
+
+msgid "Test"
+msgstr "Test"
+
+msgid "The storage answered with an error"
+msgstr "The storage answered with an error"
+
+msgid "The storage refused these keys"
+msgstr "The storage refused these keys"
+
+msgid "There's no bucket {bucket} there"
+msgstr "There's no bucket {bucket} there"
+
+msgid "These keys can't write to {bucket}"
+msgstr "These keys can't write to {bucket}"
+
+msgid "Type a name"
+msgstr "Type a name"
 
 msgid "Use a passphrase I already have"
 msgstr "Use a passphrase I already have"
+
+msgid "Use {movedTo}"
+msgstr "Use {movedTo}"
+
+msgid "What schedules and the CLI call it."
+msgstr "What schedules and the CLI call it."
+
+msgid "Wrote and deleted a test file in {bucket}"
+msgstr "Wrote and deleted a test file in {bucket}"
+
+msgid "Wrote it, but couldn't delete the test file: {leftFile}"
+msgstr "Wrote it, but couldn't delete the test file: {leftFile}"
+
+msgid "a passphrase made for you"
+msgstr "a passphrase made for you"
+
+msgid "at the bucket's top"
+msgstr "at the bucket's top"
+
+msgid "in {folder}/"
+msgstr "in {folder}/"
+
+msgid "your passphrase"
+msgstr "your passphrase"
+
+#. placeholder {0}: answer.said.buckets.length
+msgid "{0, plural, one {Signed in · # bucket} other {Signed in · # buckets}}"
+msgstr "{0, plural, one {Signed in · # bucket} other {Signed in · # buckets}}"
+
+msgid "{bucket} is in {movedTo}"
+msgstr "{bucket} is in {movedTo}"
+
+msgid "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
+msgstr "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
+
+msgid "Destinations"
+msgstr "Destinations"
+
+msgid "Encrypted on each server before upload"
+msgstr "Encrypted on each server before upload"
+
+#. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
+msgid "Last upload {0}"
+msgstr "Last upload {0}"
+
+msgid "Remove this destination"
+msgstr "Remove this destination"
+
+#. placeholder {0}: d.name
+msgid "Stop sending backups to {0}"
+msgstr "Stop sending backups to {0}"
 
 #. placeholder {0}: d.backups
 #. placeholder {1}: formatBytes(d.usedBytes, i18n.locale)
@@ -4851,9 +4933,6 @@ msgstr "Networking"
 
 msgid "Notes"
 msgstr "Notes"
-
-msgid "Storage"
-msgstr "Storage"
 
 msgid "<0>{name}</0> has stopped on <1>{names}</1>"
 msgstr "<0>{name}</0> has stopped on <1>{names}</1>"

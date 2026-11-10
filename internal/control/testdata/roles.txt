@@ -44,6 +44,7 @@ BackupService.ListBackupPolicies               read         viewer     viewer   
 BackupService.ListBackups                      read         viewer     viewer     project
 BackupService.PreviewBackup                    read         viewer     viewer     project
 BackupService.RestoreBackup                    plan         developer  developer  project
+BackupService.TestBackupDestination            apply        admin      admin      install
 CatalogService.GetCatalogEntry                 read         viewer     viewer     shared
 CatalogService.InstallCatalogEntry             plan         admin      admin      install
 CatalogService.ListCatalogEntries              read         viewer     viewer     shared
