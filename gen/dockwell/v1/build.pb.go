@@ -98,7 +98,8 @@ func (BuildState) EnumDescriptor() ([]byte, []int) {
 // ListRepositoryBranchesRequest names a repository to ask for its branches.
 type ListRepositoryBranchesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The repository's URL, such as "https://github.com/acme/web.git".
+	// The repository's URL, such as "https://github.com/acme/web.git", which
+	// the CLI takes as --repository.
 	Url           string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1282,9 +1283,10 @@ var File_dockwell_v1_build_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_build_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/build.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"1\n" +
-	"\x1dListRepositoryBranchesRequest\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\"y\n" +
+	"\x17dockwell/v1/build.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"A\n" +
+	"\x1dListRepositoryBranchesRequest\x12 \n" +
+	"\x03url\x18\x01 \x01(\tB\x0e\xa2\xbb\x18\n" +
+	"repositoryR\x03url\"y\n" +
 	"\x1eListRepositoryBranchesResponse\x12\x1a\n" +
 	"\bbranches\x18\x01 \x03(\tR\bbranches\x12%\n" +
 	"\x0edefault_branch\x18\x02 \x01(\tR\rdefaultBranch\x12\x14\n" +

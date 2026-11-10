@@ -10615,7 +10615,9 @@ components:
             properties:
                 url:
                     type: string
-                    description: The repository's URL, such as "https://github.com/acme/web.git".
+                    description: |-
+                        The repository's URL, such as "https://github.com/acme/web.git", which
+                         the CLI takes as --repository.
             description: ListRepositoryBranchesRequest names a repository to ask for its branches.
         ListRepositoryBranchesResponse:
             type: object

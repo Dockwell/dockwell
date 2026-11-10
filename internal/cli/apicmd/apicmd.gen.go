@@ -383,7 +383,7 @@ func Methods() []*apicli.Method {
 			Long:      "Ask a public Git repository for its branches, from the control server, as a plan\nthat builds from it does: to check a URL as someone types it, and to choose a\nbranch from. Nothing is fetched or built.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
-				{Path: "url", Help: "The repository's URL, such as \"https://github.com/acme/web.git\"."},
+				{Path: "url", Flag: "repository", Help: "The repository's URL, such as \"https://github.com/acme/web.git\", which the CLI takes as --repository."},
 			},
 			Call: apicli.Unary[v1.ListRepositoryBranchesRequest, v1.ListRepositoryBranchesResponse](dockwellv1connect.BuildServiceListRepositoryBranchesProcedure),
 		},

@@ -132,8 +132,9 @@ service BuildService {
 
 // ListRepositoryBranchesRequest names a repository to ask for its branches.
 message ListRepositoryBranchesRequest {
-  // The repository's URL, such as "https://github.com/acme/web.git".
-  string url = 1;
+  // The repository's URL, such as "https://github.com/acme/web.git", which
+  // the CLI takes as --repository.
+  string url = 1 [(dockwell.v1.flag) = "repository"];
 }
 
 // ListRepositoryBranchesResponse is a repository's branches, as it says them.
