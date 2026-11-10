@@ -182,7 +182,74 @@ describe("Alert channels", () => {
     expect(await screen.findByRole("dialog", { name: "Add a channel" })).toBeVisible();
   });
 
-  it("adds an email channel: a test sends what the form holds, and the plan carries it", async () => {
+  it("leaves a channel's Review plan off, with why, for someone who can't plan the install's channels", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/alerts/channels",
+      api([], {
+        auth: {
+          getAuthState: () =>
+            authState({
+              user: { ...mira, role: Role.UNSPECIFIED },
+              grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+            }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add channel" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
+    const review = within(sheet).getByRole("button", { name: "Review plan" });
+    expect(review).toHaveAttribute("aria-disabled", "true");
+    expect(review).not.toHaveAccessibleDescription("");
+  });
+
+  it("adds email through a mail service, which fills in its server, named from its type", async () => {
+    const user = userEvent.setup();
+    const asked: TestAlertChannelRequest[] = [];
+    const proposed = planned();
+    renderAt(
+      "/alerts/channels",
+      api([ops], {
+        alerts: {
+          testAlertChannel: (req) => {
+            asked.push(req);
+            return { delivery: { ok: true, said: "accepted by smtp.gmail.com" } };
+          },
+        },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add channel" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
+    expect(within(sheet).getByLabelText("Mail service")).toHaveValue("gmail");
+    // The server's settings and the name wait under Advanced, said in a line.
+    expect(within(sheet).queryByLabelText("SMTP server")).toBeNull();
+    expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveTextContent(
+      "Named email · smtp.gmail.com:587 · STARTTLS",
+    );
+    const send = within(sheet).getByRole("button", { name: "Send a test" });
+    await user.type(within(sheet).getByLabelText("To"), "ops@example.com, oncall@example.com");
+    await user.type(within(sheet).getByLabelText("From"), "alerts@example.com");
+    await user.type(within(sheet).getByLabelText(/^User/), "alerts@example.com");
+    expect(send).toBeDisabled();
+    await user.type(within(sheet).getByLabelText(/^Password/), "s3cret");
+    await user.click(send);
+    expect(await within(sheet).findByText("The test arrived")).toBeVisible();
+    expect(asked[0]?.channel?.to).toMatchObject({
+      case: "email",
+      value: {
+        host: "smtp.gmail.com",
+        port: 587,
+        security: Security.STARTTLS,
+        to: ["ops@example.com", "oncall@example.com"],
+      },
+    });
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    expect(proposed.mock.calls[0]?.[0].edits[0]?.resource).toMatchObject({ kind: "alert.channel", name: "email" });
+  });
+
+  it("takes another SMTP server as typed, and a name of one's own under Advanced", async () => {
     const user = userEvent.setup();
     const asked: TestAlertChannelRequest[] = [];
     const proposed = planned();
@@ -200,32 +267,28 @@ describe("Alert channels", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Add channel" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
-    const send = within(sheet).getByRole("button", { name: "Send a test" });
-    expect(send).toBeDisabled();
-    await user.type(within(sheet).getByLabelText("Name"), "team-email");
-    await user.type(within(sheet).getByLabelText("To"), "ops@example.com, oncall@example.com");
+    await user.selectOptions(within(sheet).getByLabelText("Mail service"), "other");
+    const server = within(sheet).getByLabelText("SMTP server");
+    // Another server starts empty, not as the service picked before.
+    expect(server).toHaveValue("");
+    await user.type(server, "smtp.example.net");
+    await user.type(within(sheet).getByLabelText("To"), "ops@example.com");
     await user.type(within(sheet).getByLabelText("From"), "alerts@example.com");
-    await user.type(within(sheet).getByLabelText("SMTP server"), "smtp.example.net");
     await user.type(within(sheet).getByLabelText(/^User/), "alerts");
-    expect(send).toBeDisabled();
     await user.type(within(sheet).getByLabelText(/^Password/), "s3cret");
-    await user.click(send);
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    const name = within(sheet).getByLabelText("Name");
+    await user.clear(name);
+    await user.type(name, "team-email");
+    await user.click(within(sheet).getByRole("button", { name: "Send a test" }));
     expect(await within(sheet).findByText("The test arrived")).toBeVisible();
-    expect(asked[0]?.name).toBe("");
     expect(asked[0]?.channel?.to).toMatchObject({
       case: "email",
-      value: {
-        host: "smtp.example.net",
-        username: "alerts",
-        password: "s3cret",
-        to: ["ops@example.com", "oncall@example.com"],
-      },
+      value: { host: "smtp.example.net", username: "alerts" },
     });
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await waitFor(() => expect(proposed).toHaveBeenCalled());
-    const edit = proposed.mock.calls[0]?.[0].edits[0];
-    expect(edit?.resource).toMatchObject({ kind: "alert.channel", name: "team-email" });
-    expect(edit?.spec?.kind).toMatchObject({ case: "alertChannel", value: { to: { case: "email" } } });
+    expect(proposed.mock.calls[0]?.[0].edits[0]?.resource).toMatchObject({ kind: "alert.channel", name: "team-email" });
   });
 
   it("changes a channel without asking again for what it keeps sealed", async () => {

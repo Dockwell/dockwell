@@ -125,6 +125,8 @@ export async function alertsFlow(page: Page, { origin, step, shoot, docker, sock
     await page.getByRole("button", { name: "Add channel" }).click();
     const sheet = page.getByRole("dialog", { name: "Add a channel" });
     await sheet.getByRole("combobox", { name: "Sends to" }).selectOption("webhook");
+    // The name comes from the type; another is a step away, under Advanced.
+    await sheet.getByRole("button", { name: "Advanced" }).click();
     await sheet.getByRole("textbox", { name: "Name" }).fill("ops-hook");
     await sheet.getByRole("textbox", { name: "URL" }).fill(`${far.url}/hook?token=e2e-t0ken`);
     await sheet.getByLabel(/^Signing secret/).fill("e2e-s3cret");

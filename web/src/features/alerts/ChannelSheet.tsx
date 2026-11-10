@@ -8,16 +8,18 @@ import {
   type AlertChannelSchema,
   type AlertDelivery,
   AlertService,
+  ChangeService,
   AlertEmail_Security as Security,
 } from "@dockwell/api";
-import { Button, Callout, SelectField, Sheet, TextField } from "@dockwell/ui";
+import { Advanced, Button, Callout, SelectField, Sheet, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { CHANNEL_KIND, CHANNEL_TYPES, type ChannelType, isChannelType } from "./useAlerts";
+import { CHANNEL_KIND, CHANNEL_TYPES, type ChannelType, isChannelType, useChannels } from "./useAlerts";
 
 type Spec = MessageInitShape<typeof AlertChannelSchema>;
 
@@ -53,9 +55,9 @@ function blank(): Form {
     name: "",
     url: "",
     secret: "",
-    host: "",
-    port: "",
-    security: Security.STARTTLS,
+    host: MAIL.gmail.host,
+    port: String(MAIL.gmail.port),
+    security: MAIL.gmail.security,
     username: "",
     password: "",
     from: "",
@@ -151,6 +153,56 @@ function ready(f: Form, kept: ReadonlySet<string>): boolean {
   }
 }
 
+/** Mail services a person picks, each with the SMTP settings it takes. */
+type Mail = "gmail" | "microsoft" | "fastmail" | "ses" | "sendgrid" | "mailgun" | "postmark" | "other";
+
+const MAIL: Record<
+  Exclude<Mail, "other">,
+  { label: string; host: string; port: number; security: Security; user?: string }
+> = {
+  gmail: { label: "Gmail", host: "smtp.gmail.com", port: 587, security: Security.STARTTLS },
+  microsoft: {
+    label: "Microsoft 365 or Outlook.com",
+    host: "smtp.office365.com",
+    port: 587,
+    security: Security.STARTTLS,
+  },
+  fastmail: { label: "Fastmail", host: "smtp.fastmail.com", port: 465, security: Security.TLS },
+  ses: { label: "Amazon SES", host: "email-smtp.us-east-1.amazonaws.com", port: 587, security: Security.STARTTLS },
+  sendgrid: { label: "SendGrid", host: "smtp.sendgrid.net", port: 587, security: Security.STARTTLS, user: "apikey" },
+  mailgun: { label: "Mailgun", host: "smtp.mailgun.org", port: 587, security: Security.STARTTLS },
+  postmark: { label: "Postmark", host: "smtp.postmarkapp.com", port: 587, security: Security.STARTTLS },
+};
+
+/** Amazon SES's regions, whose SMTP endpoints differ by region. */
+const SES_REGIONS = [
+  "us-east-1",
+  "us-east-2",
+  "us-west-2",
+  "ca-central-1",
+  "eu-west-1",
+  "eu-west-2",
+  "eu-central-1",
+  "ap-south-1",
+  "ap-southeast-1",
+  "ap-southeast-2",
+  "ap-northeast-1",
+];
+
+/** Which mail service an SMTP server is, or other. */
+function mailOf(host: string): Mail {
+  const h = host.trim().toLowerCase();
+  if (/^email-smtp\.[a-z0-9-]+\.amazonaws\.com$/.test(h)) return "ses";
+  const found = (Object.keys(MAIL) as Exclude<Mail, "other" | "ses">[]).find((m) => MAIL[m].host === h);
+  return found ?? (h === "" ? "gmail" : "other");
+}
+
+/** A channel's name, not yet taken: its type's, then numbered. */
+function freeName(base: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(base)) return base;
+  for (let i = 2; ; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
+}
+
 /**
  * Adds a channel, or changes one, then its plan. "Send a test" sends what the form
  * holds before anything is planned, and says what the far end answered. What
@@ -163,10 +215,40 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
   const transport = useTransport();
   const queryClient = useQueryClient();
   const client = useMemo(() => createClient(AlertService, transport), [transport]);
+  // A channel is the install's, in no project, so planning one is an admin's: off, with why, otherwise (ADR 0059).
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
   const [form, setForm] = useState<Form>(() => (channel ? fromInfo(channel) : blank()));
   const [testing, setTesting] = useState(false);
   const [tested, setTested] = useState<{ delivery?: AlertDelivery; error?: unknown }>();
   const kept = useMemo(() => new Set(channel?.sealed ?? []), [channel]);
+  const others = useChannels().data?.channels;
+  // A new channel's name comes from its type, unless a person gives one under Advanced.
+  const taken = useMemo(
+    () => new Set((others ?? []).filter((c) => c.name !== channel?.name).map((c) => c.name)),
+    [others, channel],
+  );
+  // What a person typed, which may be empty while they type; until then, the type's name.
+  const [typedName, setTypedName] = useState<string>();
+  const name = channel ? form.name : (typedName ?? freeName(form.type, taken));
+  const [mail, setMail] = useState<Mail>(() => mailOf(channel ? fromInfo(channel).host : MAIL.gmail.host));
+  const [advanced, setAdvanced] = useState(false);
+  const pickMail = (next: Mail, region = "us-east-1") => {
+    setMail(next);
+    setTested(undefined);
+    if (next === "other") {
+      // A service's server isn't another's: the person types theirs.
+      setForm((f) => ({ ...f, host: "", port: "" }));
+      return;
+    }
+    const preset = MAIL[next];
+    setForm((f) => ({
+      ...f,
+      host: next === "ses" ? `email-smtp.${region}.amazonaws.com` : preset.host,
+      port: String(preset.port),
+      security: preset.security,
+      username: preset.user ?? (f.username === "apikey" ? "" : f.username),
+    }));
+  };
   const set =
     <K extends keyof Form>(key: K) =>
     (value: Form[K]) => {
@@ -177,7 +259,7 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
   const keptHint = (path: string, otherwise: string) =>
     kept.has(path) ? t`Dockwell keeps it sealed. Leave it empty to keep it.` : otherwise;
   const keptPlaceholder = (path: string) => (kept.has(path) ? t`Kept, sealed` : undefined);
-  const canSend = ready(form, kept);
+  const canSend = ready({ ...form, name }, kept);
   const kind = CHANNEL_KIND[form.type];
   const kindName = i18n._(kind.label);
   const said = tested?.delivery?.said ?? "";
@@ -203,10 +285,10 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
   const review = () =>
     sheet.open({
       kind: "propose",
-      summary: channel ? t`Change the alert channel ${form.name}` : t`Add the alert channel ${form.name}`,
+      summary: channel ? t`Change the alert channel ${name}` : t`Add the alert channel ${name}`,
       edits: [
         {
-          resource: { kind: "alert.channel", name: form.name },
+          resource: { kind: "alert.channel", name },
           spec: { kind: { case: "alertChannel", value: specOf(form) } },
         },
       ],
@@ -218,12 +300,49 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
   const remove = () =>
     sheet.open({
       kind: "propose",
-      summary: t`Remove the alert channel ${form.name}`,
-      edits: [{ resource: { kind: "alert.channel", name: form.name }, delete: true }],
+      summary: t`Remove the alert channel ${name}`,
+      edits: [{ resource: { kind: "alert.channel", name }, delete: true }],
       onClose: (change) => {
         if (change) onClose();
       },
     });
+
+  const smtpServer = (
+    <>
+      <TextField label={t`SMTP server`} mono value={form.host} placeholder="smtp.example.com" onChange={text("host")} />
+      <div className="alerts-sheet-row">
+        <SelectField
+          label={t`Security`}
+          value={String(form.security)}
+          options={[
+            { value: String(Security.STARTTLS), label: t`STARTTLS` },
+            { value: String(Security.TLS), label: t`TLS` },
+            { value: String(Security.NONE), label: t`None, on this network` },
+          ]}
+          onChange={(event) => set("security")(Number(event.target.value) as Security)}
+        />
+        <TextField
+          label={t`Port`}
+          mono
+          inputMode="numeric"
+          optional
+          value={form.port}
+          placeholder={form.security === Security.TLS ? "465" : form.security === Security.NONE ? "25" : "587"}
+          onChange={text("port")}
+        />
+      </div>
+    </>
+  );
+  const securityWord =
+    form.security === Security.TLS ? "TLS" : form.security === Security.NONE ? t`no TLS` : "STARTTLS";
+  // What Advanced holds, in a line: the name a new channel takes, and a mail service's server.
+  const summary = [
+    channel ? "" : t`Named ${name}`,
+    form.type === "email" && mail !== "other" ? `${form.host}:${form.port || "587"} · ${securityWord}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const advancedHolds = !channel || (form.type === "email" && mail !== "other");
 
   return (
     <Sheet
@@ -233,14 +352,14 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
       footer={
         <>
           {channel ? (
-            <Button variant="ghost" icon="trash" onClick={remove} className="alerts-sheet-remove">
+            <Button variant="ghost" icon="trash" onClick={remove} className="alerts-sheet-remove" {...mayPlan.off}>
               <Trans>Remove</Trans>
             </Button>
           ) : null}
           <Button variant="secondary" disabled={!canSend || testing} onClick={() => void test()}>
             {testing ? <Trans>Sending a test…</Trans> : <Trans>Send a test</Trans>}
           </Button>
-          <Button variant="primary" disabled={!canSend} onClick={review}>
+          <Button variant="primary" disabled={!canSend} onClick={review} {...mayPlan.off}>
             <Trans>Review plan</Trans>
           </Button>
         </>
@@ -250,22 +369,12 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
         {channel ? (
           <p className="alerts-sheet-kind">{kindName}</p>
         ) : (
-          <>
-            <SelectField
-              label={t`Sends to`}
-              value={form.type}
-              options={CHANNEL_TYPES.map((type) => ({ value: type, label: i18n._(CHANNEL_KIND[type].label) }))}
-              onChange={(event) => set("type")(event.target.value as ChannelType)}
-            />
-            <TextField
-              label={t`Name`}
-              mono
-              value={form.name}
-              placeholder={form.type === "email" ? "ops-email" : `ops-${form.type}`}
-              hint={t`Lowercase letters, digits and dashes. Rules name a channel by it.`}
-              onChange={text("name")}
-            />
-          </>
+          <SelectField
+            label={t`Sends to`}
+            value={form.type}
+            options={CHANNEL_TYPES.map((type) => ({ value: type, label: i18n._(CHANNEL_KIND[type].label) }))}
+            onChange={(event) => set("type")(event.target.value as ChannelType)}
+          />
         )}
 
         {form.type === "webhook" ? (
@@ -276,10 +385,7 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
               autoComplete="off"
               value={form.url}
               placeholder={keptPlaceholder("webhook.url") ?? "https://hooks.example.com/dockwell"}
-              hint={keptHint(
-                "webhook.url",
-                t`Dockwell posts each alert to it as JSON. It may hold a token, so it's kept sealed, and lists show only its host.`,
-              )}
+              hint={keptHint("webhook.url", t`Each alert is posted to it as JSON. Kept sealed; lists show its host.`)}
               onChange={text("url")}
             />
             <TextField
@@ -290,10 +396,7 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
               optional
               value={form.secret}
               placeholder={keptPlaceholder("webhook.secret")}
-              hint={keptHint(
-                "webhook.secret",
-                t`Signs each request in a Dockwell-Signature header, so your endpoint can tell it came from this install.`,
-              )}
+              hint={keptHint("webhook.secret", t`Signs each request, in a Dockwell-Signature header.`)}
               onChange={text("secret")}
             />
           </>
@@ -314,8 +417,8 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
             hint={keptHint(
               `${form.type}.url`,
               form.type === "slack"
-                ? t`From your Slack app's Incoming Webhooks page. Anyone with it can post there, so it's kept sealed.`
-                : t`From the channel's settings, under Integrations, then Webhooks. Anyone with it can post there, so it's kept sealed.`,
+                ? t`From your Slack app's Incoming Webhooks. Kept sealed.`
+                : t`From the channel's Integrations, then Webhooks. Kept sealed.`,
             )}
             onChange={text("url")}
           />
@@ -338,7 +441,7 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
               mono
               value={form.chatId}
               placeholder="-1001234567890"
-              hint={t`A group's ID, or a channel's name, such as @example_alerts. Add the bot to it first.`}
+              hint={t`A group's ID or a channel's @name, with the bot added to it.`}
               onChange={text("chatId")}
             />
           </>
@@ -361,10 +464,7 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
               autoComplete="off"
               value={form.topic}
               placeholder={keptPlaceholder("ntfy.topic")}
-              hint={keptHint(
-                "ntfy.topic",
-                t`On ntfy.sh anyone who knows a topic can read it, so this one is hard to guess, and kept sealed. Subscribe to it in the ntfy app.`,
-              )}
+              hint={keptHint("ntfy.topic", t`Made hard to guess, and kept sealed. Subscribe to it in the ntfy app.`)}
               onChange={text("topic")}
             />
             <TextField
@@ -383,12 +483,29 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
 
         {form.type === "email" ? (
           <>
+            <SelectField
+              label={t`Mail service`}
+              value={mail}
+              options={[
+                ...(Object.keys(MAIL) as Exclude<Mail, "other">[]).map((m) => ({ value: m, label: MAIL[m].label })),
+                { value: "other", label: t`Another SMTP server` },
+              ]}
+              onChange={(event) => pickMail(event.target.value as Mail)}
+            />
+            {mail === "ses" ? (
+              <SelectField
+                label={t`Region`}
+                value={/^email-smtp\.([a-z0-9-]+)\.amazonaws\.com$/.exec(form.host)?.[1] ?? "us-east-1"}
+                options={SES_REGIONS.map((r) => ({ value: r, label: r }))}
+                onChange={(event) => pickMail("ses", event.target.value)}
+              />
+            ) : null}
             <TextField
               label={t`To`}
               mono
               value={form.to}
               placeholder="ops@example.com, oncall@example.com"
-              hint={t`Up to 10 addresses, separated by commas.`}
+              hint={t`Up to 10, separated by commas.`}
               onChange={text("to")}
             />
             <TextField
@@ -396,70 +513,57 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
               mono
               value={form.from}
               placeholder="Dockwell <alerts@example.com>"
-              hint={t`An address your SMTP server sends as.`}
+              hint={t`An address the mail service sends as.`}
               onChange={text("from")}
             />
-            <TextField
-              label={t`SMTP server`}
-              mono
-              value={form.host}
-              placeholder="smtp.example.com"
-              onChange={text("host")}
-            />
+            {mail === "other" ? smtpServer : null}
             <div className="alerts-sheet-row">
-              <SelectField
-                label={t`Security`}
-                value={String(form.security)}
-                options={[
-                  { value: String(Security.STARTTLS), label: t`STARTTLS` },
-                  { value: String(Security.TLS), label: t`TLS` },
-                  { value: String(Security.NONE), label: t`None, on this network` },
-                ]}
-                onChange={(event) => set("security")(Number(event.target.value) as Security)}
+              <TextField
+                label={t`User`}
+                mono
+                autoComplete="off"
+                optional
+                value={form.username}
+                onChange={text("username")}
               />
               <TextField
-                label={t`Port`}
+                label={t`Password`}
                 mono
-                inputMode="numeric"
-                optional
-                value={form.port}
-                placeholder={form.security === Security.TLS ? "465" : form.security === Security.NONE ? "25" : "587"}
-                onChange={text("port")}
+                type="password"
+                autoComplete="off"
+                optional={form.username.trim() === ""}
+                value={form.password}
+                placeholder={keptPlaceholder("email.password")}
+                hint={keptHint("email.password", t`Sent only over TLS, and kept sealed.`)}
+                onChange={text("password")}
               />
             </div>
-            <TextField
-              label={t`User`}
-              mono
-              autoComplete="off"
-              optional
-              value={form.username}
-              onChange={text("username")}
-            />
-            <TextField
-              label={t`Password`}
-              mono
-              type="password"
-              autoComplete="off"
-              optional={form.username.trim() === ""}
-              value={form.password}
-              placeholder={keptPlaceholder("email.password")}
-              hint={keptHint(
-                "email.password",
-                t`Sent only over TLS, and kept sealed. Changing the server, port, security or user asks for it again.`,
-              )}
-              onChange={text("password")}
-            />
           </>
+        ) : null}
+
+        {advancedHolds ? (
+          <Advanced open={advanced} onOpenChange={setAdvanced} summary={summary}>
+            {channel ? null : (
+              <TextField
+                label={t`Name`}
+                mono
+                value={name}
+                hint={t`Rules name a channel by it.`}
+                onChange={(event) => setTypedName(event.target.value)}
+              />
+            )}
+            {form.type === "email" && mail !== "other" ? smtpServer : null}
+          </Advanced>
         ) : null}
 
         {tested?.delivery ? (
           tested.delivery.ok ? (
             <Callout tone="healthy" title={t`The test arrived`}>
-              {t`${kindName} answered ${said}. Look for a message titled Dockwell test message.`}
+              {t`${kindName} answered ${said}.`}
             </Callout>
           ) : (
             <Callout tone="critical" title={t`The test didn't arrive`}>
-              {t`It said: ${said}. Check what the form holds, then send another.`}
+              {t`It said: ${said}.`}
             </Callout>
           )
         ) : tested?.error ? (
