@@ -7,7 +7,6 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
 
 import { formatDateTime } from "../../lib/format";
-import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { ListSkeleton, useAppsLead } from "../apps/AppsPage";
 import { type AppGroup, groupApps, groupDeployedAt, imageOf, nameOf, shortImage, sortGroups } from "../apps/app";
@@ -18,6 +17,7 @@ import { ImageName } from "../apps/ImageName";
 import { usePlaces, useServices } from "../apps/useServices";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import "../apps/Apps.css";
+import { StartChoices } from "./StartChoices";
 import "./Overview.css";
 import { ReadFailed } from "../shell/ReadFailed";
 
@@ -76,18 +76,7 @@ export function OverviewApps({ fleet = false }: { fleet?: boolean }) {
       </ReadFailed>
     );
   } else if (rows.length === 0) {
-    body = (
-      <Panel>
-        <div className="overview-empty">
-          <p>
-            <Trans>No apps yet. Run an image, a Compose file or an app from the catalog.</Trans>
-          </p>
-          <RouterButtonLink to="/apps/new" size="sm" icon="plus">
-            <Trans>New app</Trans>
-          </RouterButtonLink>
-        </div>
-      </Panel>
-    );
+    body = <StartChoices compact />;
   } else {
     body = phone ? <PhoneRows rows={rows} health={health} /> : <AppsRows rows={rows} health={health} fleet={fleet} />;
   }

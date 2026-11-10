@@ -150,6 +150,26 @@ export interface UIStrings {
     newName: string;
     use: string;
   };
+  connection: {
+    /** The card's heading when the page gives none. */
+    title: string;
+    /** The button that reveals a secret, as it reads. */
+    revealShort: string;
+    /** Its accessible name, given the secret's label, such as "Password". */
+    reveal: (label: string) => string;
+    /** The button that hides it again. */
+    hide: string;
+    /** Read in place of a hidden secret. */
+    hidden: string;
+    /** A copy button's name, given what it copies, such as "Host". */
+    copy: (label: string) => string;
+    /** The same, once it has copied. */
+    copied: (label: string) => string;
+    /** A copy button that leaves a hidden secret out, given what it copies and the secret's label. */
+    copyWithout: (label: string, secret: string) => string;
+    /** The same, once it has copied. */
+    copiedWithout: (label: string, secret: string) => string;
+  };
   /** Advanced: what the disclosure is called when the form gives it no name of its own. */
   advanced: string;
   portField: {
@@ -168,6 +188,9 @@ export interface UIStrings {
   };
 }
 
+/** A label as it reads inside a sentence: "Host" is "host", while "API key" and "MySQL" keep their capitals. */
+export const inSentence = (label: string) =>
+  /^[A-Z][a-z]*(\s|$)/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label;
 const count = (n: number) => n.toLocaleString("en");
 const one = (n: number, singular: string, plural: string) => `${count(n)} ${n === 1 ? singular : plural}`;
 
@@ -302,6 +325,17 @@ export const englishStrings: UIStrings = {
     newIn: (path) => `New folder in ${path}`,
     newName: "name",
     use: "Use",
+  },
+  connection: {
+    title: "Connect",
+    revealShort: "Reveal",
+    reveal: (label) => `Reveal ${inSentence(label)}`,
+    hide: "Hide",
+    hidden: "Hidden",
+    copy: (label) => `Copy ${inSentence(label)}`,
+    copied: (label) => `${label} copied`,
+    copyWithout: (label, secret) => `Copy ${inSentence(label)}, without the ${inSentence(secret)}`,
+    copiedWithout: (label, secret) => `${label} copied, without the ${inSentence(secret)}`,
   },
   advanced: "Advanced",
   portField: {
