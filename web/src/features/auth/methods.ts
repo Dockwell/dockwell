@@ -127,6 +127,10 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   "HealthService.listHealth": "read",
 
+  "ImageService.getImage": "may",
+  "ImageService.listImageTags": "may",
+  "ImageService.searchImages": "may",
+
   "ImportService.importOnePanel": "may",
 
   "LogService.listLogSources": "read",

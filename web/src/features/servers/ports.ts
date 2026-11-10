@@ -7,6 +7,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { appOf, nameOf } from "../apps/app";
+import { useMay } from "../auth/may";
 import { useServices } from "../apps/useServices";
 
 /** What holds a port on a server, as far as Dockwell knows. */
@@ -84,8 +85,10 @@ export interface ServerPorts {
 export function useServerPorts(serverIds: readonly string[], except?: string): ServerPorts {
   const transport = useTransport();
   const services = useServices();
+  // Only an admin may list the containers Dockwell didn't make (ADR 0048); for anyone else they go unseen.
+  const canList = useMay()(ContainerService.method.listContainers).allowed;
   const reads = useQueries({
-    queries: serverIds.map((server) => ({
+    queries: (canList ? serverIds : []).map((server) => ({
       ...createQueryOptions(ContainerService.method.listContainers, { server }, { transport }),
       retry: false,
       staleTime: 10_000,

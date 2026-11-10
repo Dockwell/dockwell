@@ -7,6 +7,7 @@ import { useLingui } from "@lingui/react/macro";
 import { type KeyboardEvent, type Ref, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
 import "./ImageField.css";
 
 /** How long typing pauses before an image is looked up. */
@@ -97,24 +98,29 @@ export function ImageField({
   const typed = value.trim();
   const { repository, tag } = splitTag(typed);
   const where = { environment, server: server ?? "" };
+  // Reading an image is the start of planning an app, which is a developer's (ADR 0059).
+  const may = useMay();
+  const canSearch = may(ImageService.method.searchImages).allowed;
+  const canList = may(ImageService.method.listImageTags).allowed;
+  const canRead = may(ImageService.method.getImage).allowed;
 
   // Names while there's no tag, of Docker Hub's alone; a repository's tags after its colon.
   const term = useSettled(tag === undefined && !elsewhere(repository) ? repository : "", LOOK_AFTER_MS);
   const search = useQuery(
     ImageService.method.searchImages,
     { term, ...where },
-    { enabled: open && term.length >= 2, staleTime: READ_FOR_MS, retry: false },
+    { enabled: canSearch && open && term.length >= 2, staleTime: READ_FOR_MS, retry: false },
   );
   const tagsOf = tag === undefined ? "" : repository;
   const tags = useQuery(
     ImageService.method.listImageTags,
     { repository: tagsOf, ...where },
-    { enabled: open && tagsOf !== "" && REFERENCE.test(tagsOf), staleTime: READ_FOR_MS, retry: false },
+    { enabled: canList && open && tagsOf !== "" && REFERENCE.test(tagsOf), staleTime: READ_FOR_MS, retry: false },
   );
 
   // Whether it's there, once typing pauses on what could be a reference.
   const settled = useSettled(typed, LOOK_AFTER_MS);
-  const checks = settled !== "" && REFERENCE.test(settled) && !settled.endsWith(":");
+  const checks = canRead && settled !== "" && REFERENCE.test(settled) && !settled.endsWith(":");
   const image = useQuery(
     ImageService.method.getImage,
     { reference: settled, ...where },
