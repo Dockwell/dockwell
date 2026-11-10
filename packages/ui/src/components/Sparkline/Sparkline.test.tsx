@@ -65,6 +65,44 @@ describe("Sparkline", () => {
     expect(spark).not.toHaveAttribute("aria-label");
   });
 
+  // A gap is where nothing was heard: the line breaks there, never drawing it as zero, and keeps
+  // each point at its time, so what comes after a gap sits where it happened.
+  it("breaks the line at a gap, keeps each point at its place, and draws a lone point as a dot", () => {
+    const { container } = render(
+      <Sparkline data={[10, 20, null, null, 30, null, 40, 50]} min={0} max={50} height={20} />,
+    );
+    const d = container.querySelector(".dw-spark-line")?.getAttribute("d") ?? "";
+    const runs = d.split("M").filter(Boolean);
+    expect(runs).toHaveLength(3);
+    // Eight points across 100 units: 30 at index 4 sits at 57.14, alone, as a dot.
+    expect(runs[1]).toBe("57.14 8.40h0");
+    expect(runs[2]?.startsWith("85.71 ")).toBe(true);
+    expect(d).not.toContain(` ${(2 + 16).toFixed(2)}L`);
+    // The area follows each run down to the bottom, and nothing under the gaps.
+    expect(container.querySelectorAll(".dw-spark-area")).toHaveLength(3);
+    expect(screen.getByRole("img", { name: "Trend over 5 samples, latest 50" })).toBeVisible();
+  });
+
+  it("draws nothing for a series that was never heard", () => {
+    const { container } = render(<Sparkline data={[null, null, null]} label="Nothing heard" />);
+    expect(container.querySelector(".dw-spark-line")).toBeNull();
+    expect(container.querySelector(".dw-spark-area")).toBeNull();
+    expect(screen.getByRole("img", { name: "Nothing heard" })).toBeVisible();
+  });
+
+  // An hour that averaged 20 and touched 100 doesn't read as a calm one.
+  it("draws each point's peak as a band above the line, and scales to it", () => {
+    const { container } = render(<Sparkline data={[20, 20, null, 20]} peaks={[20, 100, null, 40]} height={20} />);
+    const bands = container.querySelectorAll(".dw-spark-peak");
+    // A band for each run that has a peak above its average.
+    expect(bands).toHaveLength(2);
+    // Scaled to the peak, 100 is at the top: 2 px of padding.
+    expect(bands[0]?.getAttribute("d")).toContain("33.33 2.00");
+    // Without peaks, there's no band.
+    const { container: plain } = render(<Sparkline data={[20, 20]} />);
+    expect(plain.querySelector(".dw-spark-peak")).toBeNull();
+  });
+
   it("uses the translated default name", () => {
     render(
       <UIStringsProvider

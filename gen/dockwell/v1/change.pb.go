@@ -6326,7 +6326,9 @@ type StepProgress struct {
 	Detail string `protobuf:"bytes,10,opt,name=detail,proto3" json:"detail,omitempty"`
 	// What a failure comes down to, when the driver knows, so a client can say
 	// what to do about it where it is: "image", "command", "exits", "unhealthy",
-	// "port" or "mount". Empty when it doesn't, and it may gain others.
+	// "port", "mount", or "registry" for a registry that didn't answer a pull
+	// properly, where the same pull may work in a while. Empty when it doesn't,
+	// and it may gain others.
 	Reason string `protobuf:"bytes,11,opt,name=reason,proto3" json:"reason,omitempty"`
 	// True when the server went away during the step, so nothing can say whether
 	// it ran until the server is back.

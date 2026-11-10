@@ -50,6 +50,13 @@ function plane(init: Plane = {}) {
 }
 
 const control = aServer({ id: "srv_1", name: "hz-1", controlServer: true, agentBuild: { version: "v0.4.0" } });
+// Joined, its agent never connected: joining gave it a last-seen time all the same.
+const waiting = aServer({
+  id: "srv_4",
+  name: "hz-4",
+  connection: Connection.PENDING,
+  lastSeenTime: timestampFromDate(new Date(Date.now() - 22 * 60_000)),
+});
 const away = aServer({
   id: "srv_2",
   name: "hz-2",
@@ -160,6 +167,13 @@ describe("Control plane", () => {
     );
     expect(within(updates).getByText("sudo sh -s -- --version 0.4.0")).toBeVisible();
     expect(within(updates).queryByText(/current|latest/i)).toBeNull();
+  });
+
+  it("says an agent that joined and never connected hasn't, whatever its join's time", async () => {
+    renderPlane({}, {}, [control, waiting]);
+    const agents = await panel("Agents");
+    expect(within(agents).getByText("hasn't connected yet")).toBeVisible();
+    expect(agents).not.toHaveTextContent("last heard");
   });
 
   it("counts its agents, and names those away or on another version", async () => {

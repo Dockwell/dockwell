@@ -7,6 +7,7 @@ import {
   BackupMethod,
   BackupSchema,
   BackupState,
+  type ChangeDatabasePasswordRequest,
   ChangeSchema,
   ChangeState,
   ContainerState,
@@ -701,7 +702,7 @@ describe("adding a user", () => {
     plan: { fingerprint: "abc", resources: [] },
   });
 
-  it("asks only for a name, and plans a user with a database and a password of their own", async () => {
+  it("asks only for a name, checked as it's typed, and plans a user with a database and a password of their own", async () => {
     const user = userEvent.setup();
     const asked = vi.fn((req: CreateDatabaseUserRequest) => {
       void req;
@@ -720,10 +721,20 @@ describe("adding a user", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Add a user" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a user to db" });
+    // Nothing else is asked: its database and secret are defaults, under Advanced.
+    expect(within(sheet).queryByLabelText(/Secret for the password/)).not.toBeInTheDocument();
     await user.type(within(sheet).getByLabelText("User"), "Orders");
-    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     expect(await within(sheet).findByText(/Use up to 32 lowercase letters/)).toBeVisible();
+    await user.clear(within(sheet).getByLabelText("User"));
+    await user.type(within(sheet).getByLabelText("User"), "orders");
+    const advanced = within(sheet).getByRole("button", { name: "Advanced" });
+    expect(advanced).toHaveAccessibleDescription("Database orders · secret ORDERS_DATABASE_PASSWORD");
     expect(asked).not.toHaveBeenCalled();
+    // A user it has already says so, and so does the database of their name, under an Advanced that opens for it.
+    await user.clear(within(sheet).getByLabelText("User"));
+    await user.type(within(sheet).getByLabelText("User"), "shop");
+    expect(await within(sheet).findByText("shop signs in to db already.")).toBeVisible();
+    expect(within(sheet).getByText("db has a database called shop already.")).toBeVisible();
     await user.clear(within(sheet).getByLabelText("User"));
     await user.type(within(sheet).getByLabelText("User"), "orders");
     expect(within(sheet).getByLabelText(/Secret for the password/)).toHaveAttribute(
@@ -746,6 +757,47 @@ describe("adding a user", () => {
         /Inside its own container, PostgreSQL's official image lets anything sign in as any user/,
       ),
     ).toBeVisible();
+  });
+
+  it("says a default that's taken beside it, as it's typed, under an Advanced that opens for it", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/databases/svc_db/users",
+      api([aDatabase()], {
+        databases: { getDatabase: () => ({ database: aDatabase() }) },
+        variables: {
+          listVariables: () => ({
+            environmentId: ENV,
+            variables: [{ id: "sec_orders", name: "ORDERS_DATABASE_PASSWORD", secret: true, revision: 1n }],
+          }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a user" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a user to db" });
+    await user.type(within(sheet).getByLabelText("User"), "orders");
+    await waitFor(() =>
+      expect(within(sheet).getByLabelText(/Secret for the password/)).toHaveAccessibleDescription(
+        /ORDERS_DATABASE_PASSWORD is a secret already/,
+      ),
+    );
+    await user.type(within(sheet).getByLabelText(/Secret for the password/), "ORDERS_PASSWORD");
+    expect(within(sheet).getByLabelText(/Secret for the password/)).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("copies the same as a CLI command, under Advanced", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    renderAt(
+      "/databases/svc_db/users",
+      api([aDatabase()], { databases: { getDatabase: () => ({ database: aDatabase() }) } }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a user" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a user to db" });
+    await user.type(within(sheet).getByLabelText("User"), "orders");
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    await user.click(within(sheet).getByRole("button", { name: "Copy as CLI command" }));
+    expect(writeText).toHaveBeenCalledWith("dockwell databases add-user db --user orders");
   });
 
   it("says a refusal of one field beside it, and anything else above the buttons", async () => {
@@ -802,6 +854,122 @@ describe("adding a user", () => {
     expect(row).toHaveTextContent("api");
     expect(within(table).getByText("shop", { selector: ".databases-name" }).closest("tr")).toHaveTextContent(
       "Not one of Dockwell's",
+    );
+  });
+});
+
+describe("changing a password", () => {
+  const planned = create(ChangeSchema, {
+    id: "chg_password",
+    summary: "Change the password of postgres in db",
+    state: ChangeState.PLANNED,
+    plan: { fingerprint: "abc", resources: [] },
+  });
+
+  it("plans a new password for its first user from beside the password, with nothing to type", async () => {
+    const user = userEvent.setup();
+    const asked = vi.fn((req: ChangeDatabasePasswordRequest) => {
+      void req;
+      return { change: planned };
+    });
+    renderAt(
+      "/databases/svc_db",
+      api([aDatabase()], {
+        databases: {
+          listDatabases: () => ({ databases: [aDatabase()] }),
+          getDatabase: () => ({ database: aDatabase() }),
+          changeDatabasePassword: asked,
+        },
+        changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const card = await screen.findByRole("region", { name: "Connect" });
+    await user.click(within(card).getByRole("button", { name: "Change password" }));
+    await waitFor(() =>
+      expect(asked).toHaveBeenCalledWith(expect.objectContaining({ id: "svc_db", user: "" }), expect.anything()),
+    );
+    expect(await screen.findByText("Change the password of postgres in db")).toBeVisible();
+  });
+
+  it("plans one for a user Dockwell made, from their row, and offers none for one it didn't", async () => {
+    const user = userEvent.setup();
+    const asked = vi.fn((req: ChangeDatabasePasswordRequest) => {
+      void req;
+      return { change: planned };
+    });
+    const db = aDatabase();
+    db.readings[0]?.users.push(
+      create(DatabaseAccountSchema, {
+        name: "orders",
+        canSignIn: true,
+        databases: ["orders"],
+        secret: "ORDERS_DATABASE_PASSWORD",
+        resourceId: "dbu_orders",
+      }),
+    );
+    renderAt(
+      "/databases/svc_db/users",
+      api([db], {
+        databases: {
+          listDatabases: () => ({ databases: [db] }),
+          getDatabase: () => ({ database: db }),
+          changeDatabasePassword: asked,
+        },
+        changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const table = await screen.findByRole("table", { name: "Users of db" });
+    expect(within(table).queryByRole("button", { name: "Change shop's password" })).toBeNull();
+    await user.click(within(table).getByRole("button", { name: "Change orders's password" }));
+    await waitFor(() =>
+      expect(asked).toHaveBeenCalledWith(expect.objectContaining({ id: "svc_db", user: "orders" }), expect.anything()),
+    );
+  });
+
+  it("leaves Change password and Reveal in place for a viewer, off, with why", async () => {
+    renderAt("/databases/svc_db", {
+      ...api([aDatabase()]),
+      auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
+    });
+    const card = await screen.findByRole("region", { name: "Connect" });
+    const change = await within(card).findByRole("button", { name: "Change password" });
+    await waitFor(() => expect(change).toHaveAttribute("aria-disabled", "true"));
+    expect(change).toHaveAccessibleDescription(/developer or more/);
+    const reveal = within(card).getByRole("button", { name: "Reveal password" });
+    expect(reveal).toHaveAttribute("aria-disabled", "true");
+    expect(reveal).toHaveAccessibleDescription(/developer or more/);
+  });
+
+  it("offers it on a phone too, on the user's row", async () => {
+    const user = userEvent.setup();
+    onPhone();
+    const asked = vi.fn((req: ChangeDatabasePasswordRequest) => {
+      void req;
+      return { change: planned };
+    });
+    const db = aDatabase();
+    db.readings[0]?.users.push(
+      create(DatabaseAccountSchema, {
+        name: "orders",
+        canSignIn: true,
+        secret: "ORDERS_DATABASE_PASSWORD",
+        resourceId: "dbu_orders",
+      }),
+    );
+    renderAt(
+      "/databases/svc_db/users",
+      api([db], {
+        databases: {
+          listDatabases: () => ({ databases: [db] }),
+          getDatabase: () => ({ database: db }),
+          changeDatabasePassword: asked,
+        },
+        changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Change password" }));
+    await waitFor(() =>
+      expect(asked).toHaveBeenCalledWith(expect.objectContaining({ user: "orders" }), expect.anything()),
     );
   });
 });

@@ -20,6 +20,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, ENV, places, SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -387,35 +388,49 @@ describe("Installing from the catalog", () => {
   it("says what each part reaches on the server, in red when it's as good as root, with a path as typed", async () => {
     const user = userEvent.setup();
     const { container } = renderAt("/catalog/jellyfin/install", reaching);
-    const parts = await screen.findByRole("region", { name: "What it installs" });
+    const sheet = await screen.findByRole("dialog", { name: "Install Jellyfin" });
+    await user.click(await within(sheet).findByRole("button", { name: "Advanced" }));
+    const parts = within(sheet).getByRole("region", { name: "What it installs" });
     const socket = within(parts).getByText("/var/run/docker.sock");
     expect(within(parts).getByText("Docker's socket")).toBeVisible();
     expect(socket.closest(".dw-diff-critical")).not.toBeNull();
-    const folder = within(parts).getByText("/srv/media");
-    expect(folder.closest(".dw-diff-warning")).not.toBeNull();
+    const reached = within(parts).getByText("/srv/media");
+    expect(reached.closest(".dw-diff-warning")).not.toBeNull();
     expect(within(parts).getByText(/read-only/)).toBeVisible();
-    // What a person types in its place is what it reaches.
-    const sheet = screen.getByRole("dialog", { name: "Install Jellyfin" });
-    await user.clear(within(sheet).getByLabelText("Media folder"));
-    await user.type(within(sheet).getByLabelText("Media folder"), "/data/films");
+    // The folder is a default on a line of its own, and what a person types in its place is what it reaches.
+    const folder = within(sheet).getByRole("group", { name: "Media folder" });
+    expect(folder).toHaveTextContent("/srv/media");
+    await user.click(within(folder).getByRole("button", { name: "Change media folder" }));
+    const field = within(sheet).getByRole("textbox", { name: "Media folder" });
+    expect(field).toHaveFocus();
+    await user.clear(field);
+    await user.type(field, "/data/films");
     expect(await within(parts).findByText("/data/films")).toBeVisible();
     expect(within(parts).queryByText("/srv/media")).not.toBeInTheDocument();
     await expectAccessible(container);
   });
 
-  it("names every secret it makes in one sentence, as a list", async () => {
+  it("says what it generates as state, one line each, under Advanced", async () => {
+    const user = userEvent.setup();
     renderAt("/catalog/jellyfin/install", reaching);
     const sheet = await screen.findByRole("dialog", { name: "Install Jellyfin" });
-    expect(
-      await within(sheet).findByText(
-        "Dockwell generates these and keeps them sealed, for you to reveal with your passkey: API key and Database password",
-      ),
-    ).toBeVisible();
+    const advanced = await within(sheet).findByRole("button", { name: "Advanced" });
+    // Closed, it says what's in it, so nobody opens it to find out.
+    expect(advanced).toHaveAccessibleDescription(
+      /2 secrets generated · jellyfin\/jellyfin:12\.3 · ghcr\.io\/example\/agent:1\.0/,
+    );
+    await user.click(advanced);
+    expect(within(sheet).getByRole("group", { name: "API key" })).toHaveTextContent("Generated and sealed");
+    expect(within(sheet).getByRole("group", { name: "Database password" })).toHaveTextContent("Generated and sealed");
+    expect(within(sheet).queryByRole("textbox", { name: "API key" })).not.toBeInTheDocument();
   });
 
   it("says what it installs before the plan: the app you open, then its database, each by image", async () => {
+    const user = userEvent.setup();
     const { container } = renderAt("/catalog/postgres/install", api());
-    const parts = await screen.findByRole("region", { name: "What it installs" });
+    const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
+    await user.click(await within(sheet).findByRole("button", { name: "Advanced" }));
+    const parts = within(sheet).getByRole("region", { name: "What it installs" });
     expect(within(parts).getByText("Each image pinned by digest")).toBeVisible();
     const text = parts.textContent ?? "";
     expect(text.indexOf("adminer")).toBeLessThan(text.indexOf("postgres:17.11"));
@@ -425,7 +440,7 @@ describe("Installing from the catalog", () => {
     await expectAccessible(container);
   });
 
-  it("starts from what's free, asks nothing it can generate, and plans it", async () => {
+  it("starts from its defaults, a line each, with a port that's free on the server, and plans it", async () => {
     const user = userEvent.setup();
     let asked: InstallCatalogEntryRequest | undefined;
     const change = create(ChangeSchema, {
@@ -451,26 +466,35 @@ describe("Installing from the catalog", () => {
           return { change };
         },
       }),
-      changes: {
-        watchChange: feed<WatchChangeResponse>().stream,
+      // A container Dockwell didn't make holds the port the control plane suggests.
+      containers: {
+        listContainers: () => ({
+          containers: [{ name: "legacy", ports: [{ serverPort: 8085, containerPort: 80, protocol: "tcp" }] }],
+        }),
       },
+      changes: { watchChange: feed<WatchChangeResponse>().stream },
     });
     const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
-    expect(await within(sheet).findByLabelText("Adminer port")).toHaveValue("8085");
-    expect(within(sheet).getByLabelText("Name")).toHaveValue("postgres");
-    // A password no one types has no field: it's made and sealed where it runs.
-    expect(within(sheet).queryByLabelText("Database password")).not.toBeInTheDocument();
-    expect(
-      within(sheet).getByText(
-        "Dockwell generates this and keeps it sealed, for you to reveal with your passkey: Database password",
-      ),
-    ).toBeVisible();
-    // What to do first is here, before anyone reviews a plan, let alone applies it.
-    expect(within(sheet).getByText(/Add a domain first, then sign in/)).toBeVisible();
+    expect(await within(sheet).findByRole("group", { name: "Version" })).toHaveTextContent("17.11");
+    expect(within(sheet).getByRole("group", { name: "Name" })).toHaveTextContent("postgres");
+    expect(within(sheet).getByRole("group", { name: "Runs on" })).toHaveTextContent("hz-1");
+    const port = within(sheet).getByRole("group", { name: "Adminer port" });
+    await waitFor(() => expect(port).toHaveTextContent("8086Free"));
+    // Nothing to read first: no callout, no paragraph, no field it fills itself.
+    expect(within(sheet).queryByRole("textbox", { name: "Name" })).not.toBeInTheDocument();
+    expect(within(sheet).queryByText(/Add a domain first/)).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole("textbox", { name: "Database password" })).not.toBeInTheDocument();
     await expectAccessible(container);
 
-    await user.clear(within(sheet).getByLabelText("Adminer port"));
-    await user.type(within(sheet).getByLabelText("Adminer port"), "9090");
+    await user.click(within(port).getByRole("button", { name: "Change adminer port" }));
+    const field = within(sheet).getByRole("textbox", { name: "Adminer port" });
+    expect(field).toHaveValue("8086");
+    await user.clear(field);
+    await user.type(field, "8085");
+    expect(await within(sheet).findByText(/legacy uses it/)).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Use 8086" }));
+    await user.clear(field);
+    await user.type(field, "9090");
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toBeDefined());
     expect(asked?.id).toBe("postgres");
@@ -479,13 +503,53 @@ describe("Installing from the catalog", () => {
     expect(await screen.findByRole("dialog", { name: "Review plan" })).toBeVisible();
   });
 
-  it("needs what only a person has, keeps it out of sight, and says what the app reaches", async () => {
+  it("plans the free port it shows, though nobody changed it", async () => {
+    const user = userEvent.setup();
+    let asked: InstallCatalogEntryRequest | undefined;
+    renderAt("/catalog/postgres/install", {
+      ...api({
+        installCatalogEntry: (req) => {
+          asked = req;
+          throw new ConnectError("stop here", Code.FailedPrecondition);
+        },
+      }),
+      containers: {
+        listContainers: () => ({
+          containers: [{ name: "legacy", ports: [{ serverPort: 8085, containerPort: 80, protocol: "tcp" }] }],
+        }),
+      },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
+    await waitFor(() => expect(within(sheet).getByRole("group", { name: "Adminer port" })).toHaveTextContent("8086"));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked?.values).toEqual({ ADMIN_PORT: "8086" }));
+  });
+
+  it("copies the same install as a CLI command, under Advanced", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    renderAt("/catalog/postgres/install", { ...api(), containers: { listContainers: () => ({ containers: [] }) } });
+    const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
+    await waitFor(() =>
+      expect(within(sheet).getByRole("group", { name: "Adminer port" })).toHaveTextContent("8085Free"),
+    );
+    await user.click(within(sheet).getByRole("button", { name: "Change adminer port" }));
+    await user.clear(within(sheet).getByRole("textbox", { name: "Adminer port" }));
+    await user.type(within(sheet).getByRole("textbox", { name: "Adminer port" }), "9090");
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    await user.click(within(sheet).getByRole("button", { name: "Copy as CLI command" }));
+    expect(writeText).toHaveBeenCalledWith("dockwell catalog install postgres --values ADMIN_PORT=9090");
+  });
+
+  it("needs what only a person has as a field, keeps it out of sight, and says what the app reaches as a line", async () => {
     const user = userEvent.setup();
     renderAt("/catalog/cloudflared/install", api());
     const sheet = await screen.findByRole("dialog", { name: "Install Cloudflare Tunnel" });
     const token = await within(sheet).findByLabelText("Tunnel token");
     expect(token).toHaveAttribute("type", "password");
-    expect(within(sheet).getByText(/It reaches past its containers/)).toBeVisible();
+    expect(within(sheet).getByRole("group", { name: "Reaches" })).toHaveTextContent(
+      "The server's own network, so the tunnel reaches routes on this server's port 80.",
+    );
     const review = within(sheet).getByRole("button", { name: /Review plan/ });
     expect(review).toBeDisabled();
     expect(within(sheet).getByText("Give Tunnel token a value to review the plan")).toBeVisible();
@@ -493,15 +557,33 @@ describe("Installing from the catalog", () => {
     expect(review).toBeEnabled();
   });
 
-  it("doesn't call a password sealed when the app writes it in its log, and says to change it", async () => {
+  it("doesn't call a password sealed when the app writes it in its log", async () => {
+    const user = userEvent.setup();
     renderAt("/catalog/nginx-proxy-manager/install", api());
     const sheet = await screen.findByRole("dialog", { name: "Install Nginx Proxy Manager" });
-    expect(
-      await within(sheet).findByText(
-        "Dockwell generates this, but Nginx Proxy Manager writes it in its log, which takes no passkey to read, so change it after you first sign in: Console password",
-      ),
-    ).toBeVisible();
+    await user.click(await within(sheet).findByRole("button", { name: "Advanced" }));
+    expect(within(sheet).getByRole("group", { name: "Console password" })).toHaveTextContent(
+      "Generated, in Nginx Proxy Manager's log",
+    );
     expect(within(sheet).queryByText(/sealed/)).not.toBeInTheDocument();
+  });
+
+  it("starts an email it asks for as yours", async () => {
+    const admin = create(EntrySchema, {
+      id: "pgadmin",
+      name: "pgAdmin",
+      summary: "PostgreSQL's admin tool",
+      category: "databases",
+      version: "9.10",
+      appLicense: "PostgreSQL",
+      inputs: [{ name: "ADMIN_EMAIL", label: "Admin email", type: InputType.EMAIL }],
+    });
+    renderAt("/catalog/pgadmin/install", {
+      ...api({ getCatalogEntry: () => ({ entry: admin, project: "pgadmin", values: {}, parts: [] }) }),
+      auth: { getAuthState: () => authState({ user: { ...mira, email: "mira@example.com" } }) },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Install pgAdmin" });
+    expect(await within(sheet).findByRole("group", { name: "Admin email" })).toHaveTextContent("mira@example.com");
   });
 
   it("shows a taken name at its field", async () => {
@@ -517,10 +599,10 @@ describe("Installing from the catalog", () => {
       }),
     );
     const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
-    await within(sheet).findByLabelText("Adminer port");
+    await within(sheet).findByRole("group", { name: "Adminer port" });
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     expect(await within(sheet).findByText(/a project named postgres is here already/i)).toBeVisible();
-    expect(within(sheet).getByLabelText("Name")).toHaveAttribute("aria-invalid", "true");
+    expect(within(sheet).getByRole("textbox", { name: "Name" })).toHaveAttribute("aria-invalid", "true");
     expect(within(sheet).queryByText("Can't make a plan")).not.toBeInTheDocument();
   });
 });

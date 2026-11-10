@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"maps"
 	"strings"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -45,7 +46,21 @@ const Kind resource.Kind = "service"
 // checks specs, its Containers needs no Runtime.
 type Driver struct {
 	Containers container.Driver
+	// Passwords, where set, keeps a database's first user's password the one its
+	// container starts with, as a replace gives it a new one (database.FirstPasswords).
+	Passwords Passwords
 }
+
+// Passwords changes a database's first user's password in what runs of a service, to
+// the one app starts with, before app replaces it, and says how to put it back should
+// what runs afterwards be the container from before. A nil undo means it changed
+// nothing.
+type Passwords interface {
+	Change(ctx context.Context, project, service string, app *resourcev1.Container) (undo func(context.Context) error, err error)
+}
+
+// passwordsBack is how long putting a password back may take, after a rollout failed.
+const passwordsBack = 30 * time.Second
 
 var (
 	_ resource.Driver   = (*Driver)(nil)
@@ -463,7 +478,23 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 		return err
 	}
 	app := binding.App(svc, env)
-	return d.Containers.ApplyAt(ctx, TargetIn(ctx, step.Ref), step, app)
+	t := TargetIn(ctx, step.Ref)
+	var undo func(context.Context) error
+	if d.Passwords != nil && step.Action == resource.ActionReplace {
+		if undo, err = d.Passwords.Change(ctx, t.Project, t.Service, app); err != nil {
+			return err
+		}
+	}
+	err = d.Containers.ApplyAt(ctx, t, step, app)
+	if err != nil && undo != nil {
+		// What failed may have put the old container back, which starts with the old one.
+		back, cancel := resource.Finishing(ctx, passwordsBack)
+		defer cancel()
+		if undoErr := undo(back); undoErr != nil {
+			return fmt.Errorf("%w. %w", err, undoErr)
+		}
+	}
+	return err
 }
 
 // Verify checks the service's container is healthy.
