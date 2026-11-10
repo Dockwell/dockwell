@@ -102,4 +102,66 @@ describe("Add a port", () => {
       hostIp: "127.0.0.1",
     });
   });
+
+  it("leaves a port someone types alone when the free one lands as they type", async () => {
+    const user = userEvent.setup();
+    const asked: { hostPort: number; containerPort: number }[] = [];
+    // The server's ports come back only when told to, as on a slow server.
+    let answer = () => {};
+    const read = new Promise<void>((resolve) => (answer = resolve));
+    renderAt(
+      "/apps/svc_alone?add=port",
+      api({
+        services: {
+          listServices: api().services?.listServices,
+          listServiceRevisions: () => ({}),
+          addServicePort: (req) => {
+            asked.push(req);
+            return { change: webPlanned() };
+          },
+        },
+        containers: {
+          listContainers: async () => {
+            await read;
+            return { containers: [] };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to alone" });
+    const host = within(sheet).getByLabelText<HTMLInputElement>("On the server");
+    // Into the field while it's still empty, and the free port lands before the first key.
+    await user.click(host);
+    answer();
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: "Use 8081" })).toBeVisible());
+    expect(host.value).toBe("");
+    await user.type(host, "94");
+    await user.type(within(sheet).getByLabelText("In the app"), "8080");
+    expect(host.value).toBe("94");
+    await user.type(host, "11");
+    expect(host.value).toBe("9411");
+    expect(within(sheet).queryByText("Use a port from 1 to 65535.")).toBeNull();
+
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    expect(await screen.findByRole("dialog", { name: "Review plan" })).toBeVisible();
+    expect(asked.at(-1)).toMatchObject({ hostPort: 9411, containerPort: 8080 });
+  });
+
+  it("follows the free port until someone types one, as passing through the field types nothing", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/svc_alone?add=port", api());
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to alone" });
+    const host = within(sheet).getByLabelText<HTMLInputElement>("On the server");
+    const inApp = within(sheet).getByLabelText("In the app");
+    await waitFor(() => expect(host.value).toBe("8082"));
+    await user.click(host);
+    await user.tab();
+    await user.type(inApp, "3000");
+    expect(host.value).toBe("3000");
+    await user.clear(host);
+    await user.type(host, "3005");
+    await user.clear(inApp);
+    await user.type(inApp, "3001");
+    expect(host.value).toBe("3005");
+  });
 });
