@@ -29,6 +29,8 @@ func TestParse(t *testing.T) {
 		{"ghcr.io/acme/web:1.4.2", "ghcr.io", "acme/web", "1.4.2", "", "ghcr.io/acme/web", "1.4.2", "ghcr.io/acme/web:1.4.2"},
 		{"localhost:5000/app", "localhost:5000", "app", "", "", "localhost:5000/app", "latest", "localhost:5000/app"},
 		{"localhost/app:dev", "localhost", "app", "dev", "", "localhost/app", "dev", "localhost/app:dev"},
+		{"[::1]:5000/app:1", "[::1]:5000", "app", "1", "", "[::1]:5000/app", "1", "[::1]:5000/app:1"},
+		{"GHCR.IO/acme/web", "ghcr.io", "acme/web", "", "", "ghcr.io/acme/web", "latest", "ghcr.io/acme/web"},
 		{
 			"nginx@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", Hub, "library/nginx", "",
 			"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", "nginx",
@@ -47,7 +49,12 @@ func TestParse(t *testing.T) {
 			t.Errorf("Parse(%q): name %q, reference %q, string %q", c.in, r.Name(), r.Reference(), r.String())
 		}
 	}
-	for _, bad := range []string{"", "Nginx", "nginx:", "two words", "nginx@sha256:short", "ghcr.io/Acme/web", "a//b"} {
+	// A registry's part is a host, so nothing in it can move the path into a query or a fragment.
+	bad := []string{
+		"", "Nginx", "nginx:", "two words", "nginx@sha256:short", "ghcr.io/Acme/web", "a//b",
+		"127.0.0.1:8080?x=/acme/web", "evil.example#/acme/web", "user@evil.example/acme/web", "evil.example:http/acme/web",
+	}
+	for _, bad := range bad {
 		if _, err := Parse(bad); !errors.Is(err, ErrBadRef) {
 			t.Errorf("Parse(%q) = %v, want ErrBadRef", bad, err)
 		}
@@ -188,7 +195,7 @@ func newFakeRegistry(t *testing.T) *fakeRegistry {
 func (f *fakeRegistry) client() *Client {
 	c := f.srv.Client()
 	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return New(Options{Test: f.srv.URL, Secure: c, Plain: c})
+	return New(Options{Test: f.srv.URL, Secure: c, Plain: c, Public: c})
 }
 
 func TestHead(t *testing.T) {

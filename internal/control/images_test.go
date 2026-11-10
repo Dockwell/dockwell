@@ -84,6 +84,11 @@ func TestImagesAreReadThroughTheServersAgent(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "Write it as nginx:1.27") {
 		t.Errorf("a reference that isn't one: %v", err)
 	}
+	// Only Docker Hub is searched: the engine would search a registry a term names.
+	_, err = ic.SearchImages(t.Context(), connect.NewRequest(&dockwellv1.SearchImagesRequest{Term: "127.0.0.1:2375/x"}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "only Docker Hub is searched") {
+		t.Errorf("a search naming a registry: %v", err)
+	}
 	_, err = ic.ListImageTags(t.Context(), connect.NewRequest(&dockwellv1.ListImageTagsRequest{Repository: "nginx:1.27"}))
 	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "Name its repository alone") {
 		t.Errorf("a repository with a tag: %v", err)

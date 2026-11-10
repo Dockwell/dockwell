@@ -48,6 +48,10 @@ func (s *Service) SearchImages(ctx context.Context, req *connect.Request[dockwel
 	if len(term) > 100 {
 		return nil, authapi.Invalid(errors.New("a search is 100 characters at most. Shorten it"))
 	}
+	// Only Docker Hub is searched (ADR 0062): the engine would search a registry a term names.
+	if first, _, path := strings.Cut(term, "/"); path && registry.NamesAHost(first) {
+		return nil, authapi.Invalid(fmt.Errorf("only Docker Hub is searched, so %s names no image to search for. Type a name, such as nginx, or the whole reference", term))
+	}
 	got, err := s.read(ctx, req.Msg.GetServer(), &agentv1.ImageCall{Ask: &agentv1.ImageCall_Search{Search: &dockwellv1.SearchImagesRequest{Term: term}}})
 	if err != nil {
 		return nil, err

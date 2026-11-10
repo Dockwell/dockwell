@@ -33,19 +33,41 @@ var (
 	ErrUnreachable = errors.New("the registry couldn't be reached")
 	// ErrLimited is a registry that is limiting how often it's asked.
 	ErrLimited = errors.New("the registry is limiting how often it's asked")
+	// ErrDown is a registry that didn't answer at all: no connection, or no
+	// answer in time. It alone says a registry is down; what came back, however
+	// odd, says something of one image.
+	ErrDown = fmt.Errorf("%w: it didn't answer", ErrUnreachable)
+	// ErrRefused is an answer that sends Dockwell somewhere it doesn't go: another
+	// path than the registry's, or the server's own networks from a registry that
+	// isn't on them.
+	ErrRefused = fmt.Errorf("%w: it sends Dockwell where it doesn't go", ErrUnreachable)
+	// ErrTooLarge is an answer longer than Dockwell reads of it.
+	ErrTooLarge = fmt.Errorf("%w: its answer is longer than Dockwell reads", ErrUnreachable)
 )
 
 const (
 	// RequestTimeout bounds one request to a registry (ADR 0062).
 	RequestTimeout = 5 * time.Second
-	// MaxBody caps what a manifest, a config or a page of tags reads.
-	MaxBody = 4 << 20
+	// MaxBody caps any answer, such as a manifest or Docker Hub's page of tags.
+	MaxBody = 1 << 20
+	// MaxConfig caps an image's config, which is a few kilobytes.
+	MaxConfig = 256 << 10
+	// maxTagPage caps a page of a registry's list of tags.
+	maxTagPage = 256 << 10
 	// maxRedirects bounds following a blob to where a registry keeps it.
 	maxRedirects = 3
 	// maxTagPages bounds reading a repository's tags, a page at a time.
 	maxTagPages = 10
+	// tagsPerPage is the most names kept of a page, as many as a page is asked
+	// for, and maxTagNames of all of them, after which no page is read.
+	tagsPerPage = 1000
+	maxTagNames = 2000
 	// MaxTags is the most tags a list returns.
 	MaxTags = 200
+	// maxToken is the longest token kept, and tokenBytes what all of them may
+	// take, the oldest going first.
+	maxToken   = 8 << 10
+	tokenBytes = 128 << 10
 	// latestOf is how many of the newest versions a registry that lists names
 	// alone is asked the digest of, to tell which point where "latest" does.
 	latestOf = 10
@@ -77,11 +99,16 @@ type Options struct {
 	// Test, in a test, is where every registry and Docker Hub's API are read,
 	// such as "http://127.0.0.1:5001": nothing else is reached.
 	Test string
-	// Secure and Plain send requests over HTTPS and plain HTTP. Nil takes
-	// netguard's clients, which allow the server's own networks, as a registry is
-	// often there and the pull reaches it anyway, and refuse the rest of what a
-	// request must never reach.
+	// Secure and Plain send requests to a registry over HTTPS and plain HTTP.
+	// Nil takes netguard's clients, which allow the server's own networks, as a
+	// registry is often there and the pull reaches it anyway, and refuse the rest
+	// of what a request must never reach.
 	Secure, Plain Doer
+	// Public sends what a registry sends Dockwell to on another host: a blob
+	// kept elsewhere, or a token's realm. Nil takes netguard's client for the
+	// internet alone, so a registry can't send Dockwell into the server's own
+	// networks unless it is there itself.
+	Public Doer
 	// Hub is Docker Hub's API. Empty takes https://hub.docker.com.
 	Hub string
 	// Now is the clock; nil takes time.Now.
@@ -93,11 +120,14 @@ type Client struct {
 	o      Options
 	mu     sync.Mutex
 	tokens map[string]token
+	// held is what the tokens take, in bytes.
+	held int
 }
 
 type token struct {
 	value string
 	until time.Time
+	at    time.Time
 }
 
 // New makes a Client.
@@ -107,6 +137,9 @@ func New(o Options) *Client {
 	}
 	if o.Plain == nil {
 		o.Plain = netguard.Client(netguard.Options{Private: true, Loopback: true, Local: true, MaxBody: MaxBody, Timeout: RequestTimeout})
+	}
+	if o.Public == nil {
+		o.Public = netguard.Client(netguard.Options{MaxBody: MaxBody, Timeout: RequestTimeout})
 	}
 	if o.Hub == "" {
 		o.Hub = "https://hub.docker.com"
@@ -144,65 +177,111 @@ func (c *Client) hubAPI() string {
 	return strings.TrimSuffix(c.o.Hub, "/")
 }
 
-// send sends one request, through the client its URL's scheme takes.
-func (c *Client) send(req *http.Request) (*http.Response, error) {
-	if req.URL.Scheme == "http" {
+// send sends one request: to the registry through the client its URL's
+// scheme takes, and elsewhere through the client for the internet.
+func (c *Client) send(req *http.Request, elsewhere bool) (*http.Response, error) {
+	switch {
+	case elsewhere:
+		return c.o.Public.Do(req)
+	case req.URL.Scheme == "http":
 		return c.o.Plain.Do(req)
 	}
 	return c.o.Secure.Do(req)
 }
 
 // get asks a registry for a path, with a token if it asks for one, from each of
-// its bases in turn until one answers. A blob a registry keeps elsewhere is
-// followed there, without the token.
-func (c *Client) get(ctx context.Context, method, host, repo, path, accept string) (*http.Response, error) {
-	last := ErrUnreachable
+// its bases in turn until one answers. Only a blob a registry keeps elsewhere
+// is followed there, without the token. A base that answered says more than
+// one that didn't, so a mirror that answers keeps Docker Hub from reading as
+// down.
+func (c *Client) get(ctx context.Context, method, host, repo, path, accept string, blob bool) (*http.Response, error) {
+	var said error
 	for _, base := range c.bases(host) {
-		resp, err := c.getFrom(ctx, method, base, repo, path, accept)
+		resp, err := c.getFrom(ctx, method, base, repo, path, accept, blob)
 		if err == nil {
 			return resp, nil
 		}
-		last = err
+		if said == nil || errors.Is(said, ErrDown) && !errors.Is(err, ErrDown) {
+			said = err
+		}
 		// A mirror that hasn't got it says nothing of Docker Hub, which is asked next.
 		if ctx.Err() != nil {
 			break
 		}
 	}
-	return nil, last
+	if said == nil {
+		said = ErrDown
+	}
+	return nil, said
 }
 
-func (c *Client) getFrom(ctx context.Context, method, base, repo, path, accept string) (*http.Response, error) {
+// sameHost says whether a URL is on the registry's own scheme, host and port.
+func sameHost(base string, u *url.URL) bool {
+	b, err := url.Parse(base)
+	return err == nil && b.Scheme == u.Scheme && strings.EqualFold(b.Host, u.Host)
+}
+
+// elsewhere checks where a registry sends Dockwell: back to its own /v2/, or
+// to another host over HTTPS, which goes through the client for the internet.
+// It says whether the target is another host. In a test, every host is the
+// test's.
+func (c *Client) elsewhere(base string, u *url.URL, paths ...string) (bool, error) {
+	if u.Scheme != "https" && u.Scheme != "http" || u.Host == "" || u.User != nil {
+		return false, ErrRefused
+	}
+	if sameHost(base, u) {
+		for _, p := range paths {
+			if strings.HasPrefix(u.Path, p) {
+				return false, nil
+			}
+		}
+		return false, ErrRefused
+	}
+	// Another host is one on the internet, over HTTPS, whatever its name resolves
+	// to, as the client for the internet checks as it dials.
+	if c.o.Test == "" && (u.Scheme != "https" || netguard.Forbidden(u.Host, netguard.Options{}) != "") {
+		return false, ErrRefused
+	}
+	return true, nil
+}
+
+func (c *Client) getFrom(ctx context.Context, method, base, repo, path, accept string, blob bool) (*http.Response, error) {
 	target := base + path
 	key := base + " " + repo
+	away := false
 	for redirects := 0; ; redirects++ {
-		resp, err := c.do(ctx, method, target, accept, c.token(key))
+		resp, err := c.do(ctx, method, target, accept, c.token(key), away)
 		if err != nil {
 			return nil, err
 		}
-		if resp.StatusCode == http.StatusUnauthorized {
+		if resp.StatusCode == http.StatusUnauthorized && !away {
 			challenge := resp.Header.Get("Www-Authenticate")
 			drain(resp)
 			if !strings.HasPrefix(strings.ToLower(challenge), "bearer ") || c.token(key) != "" {
 				return nil, ErrNotFound
 			}
-			if err := c.authorize(ctx, key, repo, challenge); err != nil {
+			if err := c.authorize(ctx, base, key, repo, challenge); err != nil {
 				return nil, err
 			}
-			resp, err = c.do(ctx, method, target, accept, c.token(key))
+			resp, err = c.do(ctx, method, target, accept, c.token(key), away)
 			if err != nil {
 				return nil, err
 			}
 		}
 		switch {
-		case resp.StatusCode >= 300 && resp.StatusCode < 400 && resp.Header.Get("Location") != "" && redirects < maxRedirects:
+		case resp.StatusCode >= 300 && resp.StatusCode < 400 && resp.Header.Get("Location") != "":
 			next, err := url.Parse(resp.Header.Get("Location"))
 			drain(resp)
-			if err != nil {
-				return nil, ErrUnreachable
+			// A registry moves a blob to where it keeps it, and nothing else.
+			if err != nil || !blob || redirects >= maxRedirects {
+				return nil, ErrRefused
 			}
 			from, _ := url.Parse(target)
 			next = from.ResolveReference(next)
-			if next.Host != from.Host {
+			if away, err = c.elsewhere(base, next, "/v2/"); err != nil {
+				return nil, err
+			}
+			if away {
 				// Where a registry keeps a blob takes no token of the registry's.
 				key = ""
 			}
@@ -223,7 +302,7 @@ func (c *Client) getFrom(ctx context.Context, method, base, repo, path, accept s
 	}
 }
 
-func (c *Client) do(ctx context.Context, method, target, accept, bearer string) (*http.Response, error) {
+func (c *Client) do(ctx context.Context, method, target, accept, bearer string, away bool) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, target, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrUnreachable, err)
@@ -234,9 +313,13 @@ func (c *Client) do(ctx context.Context, method, target, accept, bearer string) 
 	if bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+bearer)
 	}
-	resp, err := c.send(req)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrUnreachable, netguard.Words(err))
+	resp, err := c.send(req, away)
+	switch {
+	case errors.Is(err, netguard.ErrForbidden):
+		// Where it sent Dockwell, not the registry, is what's wrong.
+		return nil, fmt.Errorf("%w: %s", ErrRefused, netguard.Words(err))
+	case err != nil:
+		return nil, fmt.Errorf("%w: %s", ErrDown, netguard.Words(err))
 	}
 	return resp, nil
 }
@@ -254,15 +337,42 @@ func (c *Client) token(key string) string {
 	defer c.mu.Unlock()
 	t, ok := c.tokens[key]
 	if !ok || !c.o.Now().Before(t.until) {
-		delete(c.tokens, key)
+		c.dropToken(key)
 		return ""
 	}
 	return t.value
 }
 
+// dropToken lets a token go. The caller holds c.mu.
+func (c *Client) dropToken(key string) {
+	if t, ok := c.tokens[key]; ok {
+		c.held -= len(key) + len(t.value)
+		delete(c.tokens, key)
+	}
+}
+
+// keepToken keeps a token within tokenBytes, letting the oldest go first.
+func (c *Client) keepToken(key string, t token) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.dropToken(key)
+	for c.held+len(key)+len(t.value) > tokenBytes && len(c.tokens) > 0 {
+		oldest := ""
+		for k, v := range c.tokens {
+			if oldest == "" || v.at.Before(c.tokens[oldest].at) {
+				oldest = k
+			}
+		}
+		c.dropToken(oldest)
+	}
+	c.tokens[key] = t
+	c.held += len(key) + len(t.value)
+}
+
 // authorize gets the token a registry hands any client for pulling a
-// repository, from the realm its challenge names.
-func (c *Client) authorize(ctx context.Context, key, repo, challenge string) error {
+// repository, from the realm its challenge names: on the registry's own host,
+// or on the internet over HTTPS.
+func (c *Client) authorize(ctx context.Context, base, key, repo, challenge string) error {
 	params := challengeParams(challenge[len("bearer "):])
 	realm, err := url.Parse(params["realm"])
 	if err != nil || realm.Host == "" || (realm.Scheme != "https" && realm.Scheme != "http") {
@@ -283,7 +393,11 @@ func (c *Client) authorize(ctx context.Context, key, repo, challenge string) err
 		test, _ := url.Parse(c.o.Test)
 		realm.Scheme, realm.Host = test.Scheme, test.Host
 	}
-	resp, err := c.do(ctx, http.MethodGet, realm.String(), "application/json", "")
+	away, err := c.elsewhere(base, realm, realm.Path)
+	if err != nil {
+		return err
+	}
+	resp, err := c.do(ctx, http.MethodGet, realm.String(), "application/json", "", away)
 	if err != nil {
 		return err
 	}
@@ -303,7 +417,7 @@ func (c *Client) authorize(ctx context.Context, key, repo, challenge string) err
 	if value == "" {
 		value = t.AccessToken
 	}
-	if value == "" {
+	if value == "" || len(value) > maxToken {
 		return ErrNotFound
 	}
 	// A token says how long it lasts, 60 s when it doesn't, and is kept no longer
@@ -313,9 +427,8 @@ func (c *Client) authorize(ctx context.Context, key, repo, challenge string) err
 		life = time.Duration(t.ExpiresIn) * time.Second
 	}
 	life = min(life, tokenFor)
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.tokens[key] = token{value: value, until: c.o.Now().Add(life - 5*time.Second)}
+	now := c.o.Now()
+	c.keepToken(key, token{value: value, until: now.Add(life - 5*time.Second), at: now})
 	return nil
 }
 
@@ -348,7 +461,7 @@ func challengeParams(s string) map[string]string {
 // Head says whether a registry has an image, and its digest, with a HEAD of its
 // manifest, which no registry counts as a pull.
 func (c *Client) Head(ctx context.Context, r Ref) (string, error) {
-	resp, err := c.get(ctx, http.MethodHead, r.Registry, r.Repository, "/v2/"+r.Repository+"/manifests/"+r.Reference(), manifestTypes)
+	resp, err := c.get(ctx, http.MethodHead, r.Registry, r.Repository, "/v2/"+r.Repository+"/manifests/"+r.Reference(), manifestTypes, false)
 	if err != nil {
 		return "", err
 	}
@@ -435,14 +548,21 @@ func (c *Client) Config(ctx context.Context, r Ref, want Platform) (*Config, str
 	if m.Config == nil || m.Config.Digest == "" {
 		return nil, digest, fmt.Errorf("%w: its manifest names no config", ErrNotFound)
 	}
-	if m.Config.Size > MaxBody {
-		return nil, digest, fmt.Errorf("%w: its config is larger than Dockwell reads", ErrUnreachable)
+	if m.Config.Size > MaxConfig {
+		return nil, digest, ErrTooLarge
 	}
-	resp, err := c.get(ctx, http.MethodGet, r.Registry, r.Repository, "/v2/"+r.Repository+"/blobs/"+m.Config.Digest, "")
+	resp, err := c.get(ctx, http.MethodGet, r.Registry, r.Repository, "/v2/"+r.Repository+"/blobs/"+m.Config.Digest, "", true)
 	if err != nil {
 		return nil, digest, err
 	}
 	defer drain(resp)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxConfig+1))
+	switch {
+	case len(body) > MaxConfig:
+		return nil, digest, ErrTooLarge
+	case err != nil:
+		return nil, digest, fmt.Errorf("%w: its config can't be read", ErrUnreachable)
+	}
 	var raw struct {
 		OS           string `json:"os"`
 		Architecture string `json:"architecture"`
@@ -460,7 +580,7 @@ func (c *Client) Config(ctx context.Context, r Ref, want Platform) (*Config, str
 			} `json:"Healthcheck"`
 		} `json:"config"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, digest, fmt.Errorf("%w: its config can't be read", ErrUnreachable)
 	}
 	out := &Config{
@@ -480,7 +600,7 @@ func (c *Client) Config(ctx context.Context, r Ref, want Platform) (*Config, str
 }
 
 func (c *Client) manifest(ctx context.Context, r Ref, reference string) (*manifest, string, error) {
-	resp, err := c.get(ctx, http.MethodGet, r.Registry, r.Repository, "/v2/"+r.Repository+"/manifests/"+reference, manifestTypes)
+	resp, err := c.get(ctx, http.MethodGet, r.Registry, r.Repository, "/v2/"+r.Repository+"/manifests/"+reference, manifestTypes, false)
 	if err != nil {
 		return nil, "", err
 	}
