@@ -2830,9 +2830,14 @@ describe("an app's overview", () => {
     const note = await screen.findByRole("status");
     await within(note).findByText(/hz-1 isn't connected/);
     expect(note).toHaveTextContent("Once it reconnects, Dockwell puts nginx:1.27 back");
-    expect(note).toHaveTextContent("Until then it can't tell what is running there.");
-    expect(note).not.toHaveTextContent("The deploy waits");
+    expect(note).not.toHaveTextContent("The deploy carries on");
     expect(within(note).getByRole("button", { name: "See why" })).toBeVisible();
+    // What brings the server back is on its page, one step away, never a shell command here.
+    expect(within(note).getByRole("link", { name: "Open hz-1" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/servers/"),
+    );
+    expect(note).not.toHaveTextContent("dockwell run");
     expect(container.querySelector(".page-lead")).toHaveTextContent(
       "Dockwell puts nginx:1.27 back once hz-1 reconnects",
     );

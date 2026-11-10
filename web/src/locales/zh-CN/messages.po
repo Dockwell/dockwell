@@ -1993,6 +1993,9 @@ msgstr "连接端口 {0}"
 msgid "Add a port"
 msgstr "添加端口"
 
+msgid "Add one"
+msgstr "添加"
+
 msgid "All deployments"
 msgstr "全部部署"
 
@@ -2026,6 +2029,9 @@ msgstr "正在部署 {name} 的 {revision}"
 msgid "Directory"
 msgstr "目录"
 
+msgid "Docker isn't answering the agent on {server}. It may well be running."
+msgstr "{server} 上的 Docker 没有响应代理。它很可能仍在运行。"
+
 msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
 msgstr "Docker 只会在它出错退出时重启它，而现在不会。请重启或部署。"
 
@@ -2038,8 +2044,8 @@ msgstr "Docker 套接字"
 msgid "Dockwell can't read what {name} runs"
 msgstr "Dockwell 无法读取 {name} 运行的内容"
 
-msgid "Dockwell can't see {name} there or change it until its agent reconnects. It may well be running. Check that <0>dockwell run</0> is still running on the server."
-msgstr "在代理重新连接之前，Dockwell 看不到也无法更改那里的 {name}。它很可能仍在运行。请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
+msgid "Dockwell can't see or change {name} there until its agent reconnects. It may well be running."
+msgstr "在代理重新连接之前，Dockwell 无法在那里查看或更改 {name}。它很可能仍在运行。"
 
 msgid "Dockwell put <0>{image}</0> back, as it was before that deploy."
 msgstr "Dockwell 已恢复 <0>{image}</0>，与那次部署之前一样。"
@@ -2072,9 +2078,6 @@ msgstr "无论你是否留在此页，部署都会继续。步骤显示在计划
 msgid "It may be reached at more than this says. Nothing has changed."
 msgstr "它的访问地址可能不止这里所示。没有任何内容发生变化。"
 
-msgid "It may well be running. Check that <0>dockwell run</0> is still running on {server}."
-msgstr "它很可能仍在运行。请检查 {server} 上的 <0>dockwell run</0> 是否仍在运行。"
-
 msgid "It said"
 msgstr "检查结果"
 
@@ -2099,11 +2102,8 @@ msgstr "无法确定 {name} 的运行情况"
 msgid "None set"
 msgstr "未设置"
 
-msgid "None set here. The image may have one."
-msgstr "这里没有设置。镜像可能自带检查。"
-
-msgid "None. Without one, Running only means it started."
-msgstr "无。没有检查时，“正在运行”只表示它已启动。"
+msgid "None."
+msgstr "无。"
 
 msgid "Nothing outside the server reaches it yet."
 msgstr "服务器外部暂时无法访问它。"
@@ -2117,14 +2117,17 @@ msgstr "没有任何机制会自动再次启动它。请重启或部署。"
 msgid "Nothing yet. It runs once the deploy finishes."
 msgstr "暂无。部署完成后开始运行。"
 
-msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
-msgstr "部署失败后，服务器重新连接时，Dockwell 会恢复 <0>{image}</0>。在此之前，无法确定那里正在运行什么。"
+msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed."
+msgstr "重新连接后，Dockwell 会在部署失败后恢复 <0>{image}</0>。"
 
 msgid "Open the plan"
 msgstr "打开计划"
 
 msgid "Open {at}"
 msgstr "打开 {at}"
+
+msgid "Open {name}"
+msgstr "打开 {name}"
 
 msgid "Open {where}"
 msgstr "打开 {where}"
@@ -2171,20 +2174,26 @@ msgstr "查看原因"
 msgid "Server path"
 msgstr "服务器路径"
 
+msgid "Set one"
+msgstr "设置"
+
 msgid "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
 msgstr "{name} 有部分在运行，但 Dockwell 无法确定是哪个版本。请检查后部署应当运行的版本，或在服务器上修复。"
 
-msgid "The agent on {server} can't read Docker, so it can't say what runs there. Check that Docker is running on the server, with <0>systemctl status docker</0>."
-msgstr "{server} 上的代理无法读取 Docker，因此无法确定那里运行着什么。请用 <0>systemctl status docker</0> 检查服务器上的 Docker 是否在运行。"
+msgid "The agent on {server} hasn't said how it runs lately. It may well be running."
+msgstr "{server} 上的代理最近没有报告它的运行情况。它很可能仍在运行。"
 
-msgid "The agent on {server} is connected, and hasn't said how it runs lately. It may well be running. If this goes on, read the agent's log on the server, with <0>journalctl -u dockwell</0>."
-msgstr "{server} 上的代理已连接，但最近没有报告它的运行情况。它很可能仍在运行。如果一直这样，请在服务器上用 <0>journalctl -u dockwell</0> 查看代理的日志。"
+msgid "The agent on {server} isn't connected. It may well be running."
+msgstr "{server} 上的代理未连接。它很可能仍在运行。"
 
-msgid "The deploy waits for its agent, and carries on once it reconnects. Check that <0>dockwell run</0> is still running on the server."
-msgstr "部署正在等待其代理，重新连接后会继续。请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
+msgid "The deploy carries on once its agent reconnects."
+msgstr "代理重新连接后，部署会继续进行。"
 
 msgid "The image's own"
 msgstr "镜像自带"
+
+msgid "The image's own, if it has one."
+msgstr "镜像自带的检查（如果有）。"
 
 msgid "The last deploy failed, so Dockwell rolled it back"
 msgstr "上次部署失败，Dockwell 已将其回滚"
@@ -2196,8 +2205,11 @@ msgstr "{name} 的上次部署失败"
 msgid "The newest is {0}. They were proposed with API tokens, and their plans are ones only a signed-in person may apply. Nothing changes until someone does; Activity lists them all."
 msgstr "最新的是 {0}。它们是用 API 令牌提出的，它们的计划只有已登录的人才能应用。在有人应用之前，什么都不会改变；动态页面列出了全部。"
 
-msgid "Turned off. Without one, Running only means it started."
-msgstr "已关闭。没有检查时，“正在运行”只表示它已启动。"
+msgid "Turn it on"
+msgstr "开启"
+
+msgid "Turned off."
+msgstr "已关闭。"
 
 msgid "Unknown until this is put back"
 msgstr "恢复完成前无法确定"
@@ -2930,6 +2942,9 @@ msgstr "由你写明连接此服务器的来源。"
 msgid "Checking"
 msgstr "正在检查"
 
+msgid "Docker hasn't answered the agent on {name} since {since}."
+msgstr "自 {since} 起，{name} 上的 Docker 一直没有响应代理。"
+
 msgid "Finished"
 msgstr "已完成"
 
@@ -2954,11 +2969,11 @@ msgstr "它的检查一直失败。"
 msgid "Its check passed."
 msgstr "它的检查已通过。"
 
+msgid "No health check, so Running only means it started."
+msgstr "没有健康检查，因此“运行中”只表示它已启动。"
+
 msgid "Nobody can say how {name} runs now."
 msgstr "现在无法确定 {name} 的运行情况。"
-
-msgid "Nothing checks it, so this only means it started."
-msgstr "没有任何检查，因此这只表示它已启动。"
 
 #. placeholder {0}: server.container
 #. placeholder {1}: server.serverName
@@ -2976,9 +2991,6 @@ msgstr "有人暂停了它，因此它不提供服务，也不会运行检查。
 
 msgid "Starting"
 msgstr "正在启动"
-
-msgid "The agent on {name} can't read Docker, since {since}, so it can't say how this runs. Check that Docker is running there, with {command}."
-msgstr "{name} 上的代理自 {since}起无法读取 Docker，因此无法确定它的运行情况。请用 {command} 检查那里的 Docker 是否在运行。"
 
 msgid "The agent on {name} hasn't read how this runs yet."
 msgstr "{name} 上的代理还没有读取它的运行情况。"
@@ -9019,9 +9031,6 @@ msgstr "最近 {span}"
 
 msgid "No apps run here."
 msgstr "这里没有运行任何应用。"
-
-msgid "Open {name}"
-msgstr "打开 {name}"
 
 msgid "Provider"
 msgstr "云服务商"

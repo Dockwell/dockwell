@@ -1993,6 +1993,9 @@ msgstr "A connection to port {0}"
 msgid "Add a port"
 msgstr "Add a port"
 
+msgid "Add one"
+msgstr "Add one"
+
 msgid "All deployments"
 msgstr "All deployments"
 
@@ -2026,6 +2029,9 @@ msgstr "Deploying {revision} of {name}"
 msgid "Directory"
 msgstr "Directory"
 
+msgid "Docker isn't answering the agent on {server}. It may well be running."
+msgstr "Docker isn't answering the agent on {server}. It may well be running."
+
 msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
 msgstr "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
 
@@ -2038,8 +2044,8 @@ msgstr "Docker's socket"
 msgid "Dockwell can't read what {name} runs"
 msgstr "Dockwell can't read what {name} runs"
 
-msgid "Dockwell can't see {name} there or change it until its agent reconnects. It may well be running. Check that <0>dockwell run</0> is still running on the server."
-msgstr "Dockwell can't see {name} there or change it until its agent reconnects. It may well be running. Check that <0>dockwell run</0> is still running on the server."
+msgid "Dockwell can't see or change {name} there until its agent reconnects. It may well be running."
+msgstr "Dockwell can't see or change {name} there until its agent reconnects. It may well be running."
 
 msgid "Dockwell put <0>{image}</0> back, as it was before that deploy."
 msgstr "Dockwell put <0>{image}</0> back, as it was before that deploy."
@@ -2072,9 +2078,6 @@ msgstr "It keeps going whether or not you stay here. Its steps show in the plan.
 msgid "It may be reached at more than this says. Nothing has changed."
 msgstr "It may be reached at more than this says. Nothing has changed."
 
-msgid "It may well be running. Check that <0>dockwell run</0> is still running on {server}."
-msgstr "It may well be running. Check that <0>dockwell run</0> is still running on {server}."
-
 msgid "It said"
 msgstr "It said"
 
@@ -2099,11 +2102,8 @@ msgstr "Nobody can say how {name} runs"
 msgid "None set"
 msgstr "None set"
 
-msgid "None set here. The image may have one."
-msgstr "None set here. The image may have one."
-
-msgid "None. Without one, Running only means it started."
-msgstr "None. Without one, Running only means it started."
+msgid "None."
+msgstr "None."
 
 msgid "Nothing outside the server reaches it yet."
 msgstr "Nothing outside the server reaches it yet."
@@ -2117,14 +2117,17 @@ msgstr "Nothing starts it again on its own. Restart it, or deploy."
 msgid "Nothing yet. It runs once the deploy finishes."
 msgstr "Nothing yet. It runs once the deploy finishes."
 
-msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
-msgstr "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
+msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed."
+msgstr "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed."
 
 msgid "Open the plan"
 msgstr "Open the plan"
 
 msgid "Open {at}"
 msgstr "Open {at}"
+
+msgid "Open {name}"
+msgstr "Open {name}"
 
 msgid "Open {where}"
 msgstr "Open {where}"
@@ -2171,20 +2174,26 @@ msgstr "See why"
 msgid "Server path"
 msgstr "Server path"
 
+msgid "Set one"
+msgstr "Set one"
+
 msgid "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
 msgstr "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
 
-msgid "The agent on {server} can't read Docker, so it can't say what runs there. Check that Docker is running on the server, with <0>systemctl status docker</0>."
-msgstr "The agent on {server} can't read Docker, so it can't say what runs there. Check that Docker is running on the server, with <0>systemctl status docker</0>."
+msgid "The agent on {server} hasn't said how it runs lately. It may well be running."
+msgstr "The agent on {server} hasn't said how it runs lately. It may well be running."
 
-msgid "The agent on {server} is connected, and hasn't said how it runs lately. It may well be running. If this goes on, read the agent's log on the server, with <0>journalctl -u dockwell</0>."
-msgstr "The agent on {server} is connected, and hasn't said how it runs lately. It may well be running. If this goes on, read the agent's log on the server, with <0>journalctl -u dockwell</0>."
+msgid "The agent on {server} isn't connected. It may well be running."
+msgstr "The agent on {server} isn't connected. It may well be running."
 
-msgid "The deploy waits for its agent, and carries on once it reconnects. Check that <0>dockwell run</0> is still running on the server."
-msgstr "The deploy waits for its agent, and carries on once it reconnects. Check that <0>dockwell run</0> is still running on the server."
+msgid "The deploy carries on once its agent reconnects."
+msgstr "The deploy carries on once its agent reconnects."
 
 msgid "The image's own"
 msgstr "The image's own"
+
+msgid "The image's own, if it has one."
+msgstr "The image's own, if it has one."
 
 msgid "The last deploy failed, so Dockwell rolled it back"
 msgstr "The last deploy failed, so Dockwell rolled it back"
@@ -2196,8 +2205,11 @@ msgstr "The last deploy of {name} failed"
 msgid "The newest is {0}. They were proposed with API tokens, and their plans are ones only a signed-in person may apply. Nothing changes until someone does; Activity lists them all."
 msgstr "The newest is {0}. They were proposed with API tokens, and their plans are ones only a signed-in person may apply. Nothing changes until someone does; Activity lists them all."
 
-msgid "Turned off. Without one, Running only means it started."
-msgstr "Turned off. Without one, Running only means it started."
+msgid "Turn it on"
+msgstr "Turn it on"
+
+msgid "Turned off."
+msgstr "Turned off."
 
 msgid "Unknown until this is put back"
 msgstr "Unknown until this is put back"
@@ -2930,6 +2942,9 @@ msgstr "You name what connects to this server."
 msgid "Checking"
 msgstr "Checking"
 
+msgid "Docker hasn't answered the agent on {name} since {since}."
+msgstr "Docker hasn't answered the agent on {name} since {since}."
+
 msgid "Finished"
 msgstr "Finished"
 
@@ -2954,11 +2969,11 @@ msgstr "Its check keeps failing."
 msgid "Its check passed."
 msgstr "Its check passed."
 
+msgid "No health check, so Running only means it started."
+msgstr "No health check, so Running only means it started."
+
 msgid "Nobody can say how {name} runs now."
 msgstr "Nobody can say how {name} runs now."
-
-msgid "Nothing checks it, so this only means it started."
-msgstr "Nothing checks it, so this only means it started."
 
 #. placeholder {0}: server.container
 #. placeholder {1}: server.serverName
@@ -2976,9 +2991,6 @@ msgstr "Someone paused it, so it serves nothing and no check runs. Unpause it wi
 
 msgid "Starting"
 msgstr "Starting"
-
-msgid "The agent on {name} can't read Docker, since {since}, so it can't say how this runs. Check that Docker is running there, with {command}."
-msgstr "The agent on {name} can't read Docker, since {since}, so it can't say how this runs. Check that Docker is running there, with {command}."
 
 msgid "The agent on {name} hasn't read how this runs yet."
 msgstr "The agent on {name} hasn't read how this runs yet."
@@ -9019,9 +9031,6 @@ msgstr "Last {span}"
 
 msgid "No apps run here."
 msgstr "No apps run here."
-
-msgid "Open {name}"
-msgstr "Open {name}"
 
 msgid "Provider"
 msgstr "Provider"
