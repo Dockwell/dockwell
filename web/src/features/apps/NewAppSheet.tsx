@@ -19,6 +19,8 @@ import {
   Callout,
   CodeField,
   cx,
+  type FolderListing,
+  FolderPicker,
   Glyph,
   Icon,
   PHONE_QUERY,
@@ -72,6 +74,7 @@ import {
   toLabel,
 } from "./app";
 import { composeRefusal, type RefusedAt, waitsForValues, withCode } from "./composeWords";
+import { useServerFolders } from "./folders";
 import {
   appEdits,
   changedSettings,
@@ -221,6 +224,8 @@ export function NewAppSheet({
     [image.ports],
   );
   const ports = useServerPorts(serverIds, undefined, watch, watchUdp);
+  // A volume's server path is picked from the folders of the server it will run on.
+  const folders = useServerFolders(fleet ? chosenServers[0] : onlyId);
   // The form as it plans: each port that follows a free one has it.
   const shown = useMemo(() => withFreePorts(image, ports), [image, ports]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -612,6 +617,7 @@ export function NewAppSheet({
             ports={ports}
             address={address}
             volumes={volumeNames}
+            folders={folders}
             advancedOpen={advancedOpen}
             onAdvanced={setAdvancedOpen}
             command={command}
@@ -765,6 +771,7 @@ function ImageFields({
   ports,
   address,
   volumes,
+  folders,
   advancedOpen,
   onAdvanced,
   command,
@@ -783,6 +790,8 @@ function ImageFields({
   address: string | undefined;
   /** The volumes there are already, to offer. */
   volumes: readonly string[];
+  /** Reads the server's folders, where its reader may, for a volume's server path. */
+  folders: ((path: string) => Promise<FolderListing>) | undefined;
   advancedOpen: boolean;
   onAdvanced: (open: boolean) => void;
   /** The CLI's commands that do what the form does. */
@@ -827,7 +836,7 @@ function ImageFields({
       <div className="app-rule" />
       <PortsSection form={form} errors={errors} update={update} clear={clear} ports={ports} address={address} />
       <EnvSection form={form} errors={errors} update={update} clear={clear} />
-      <MountsSection form={form} errors={errors} update={update} clear={clear} volumes={volumes} />
+      <MountsSection form={form} errors={errors} update={update} clear={clear} volumes={volumes} folders={folders} />
       <MoreSection
         form={form}
         errors={errors}
@@ -1093,10 +1102,24 @@ function EnvSection({ form, errors, update, clear }: SectionProps) {
   );
 }
 
-function MountsSection({ form, errors, update, clear, volumes }: SectionProps & { volumes: readonly string[] }) {
+function MountsSection({
+  form,
+  errors,
+  update,
+  clear,
+  volumes,
+  folders,
+}: SectionProps & {
+  volumes: readonly string[];
+  /** Reads the server's folders, where its reader may: a server path is picked then, else typed. */
+  folders: ((path: string) => Promise<FolderListing>) | undefined;
+}) {
   const { t } = useLingui();
   const id = useId();
   const listId = `${id}-volumes`;
+  // Rows switched to a server folder with its button, whose picker opens as it appears; a path
+  // typed into a row stays typed.
+  const [picking, setPicking] = useState<ReadonlySet<number>>(new Set());
   const add = () => update({ mounts: [...form.mounts, { key: nextKey(), source: "", target: "", readOnly: false }] });
   const change = (row: MountRow, next: Partial<MountRow>) =>
     update({ mounts: form.mounts.map((m) => (m.key === row.key ? { ...m, ...next, fromImage: false } : m)) });
@@ -1115,22 +1138,36 @@ function MountsSection({ form, errors, update, clear, volumes }: SectionProps & 
         return (
           <div key={row.key} className="app-row-group">
             <div className={cx("app-row app-mount-row", i === 0 && "is-first")}>
-              {/* A server path is picked with the folder picker (#429) once it lands, which can also make
-                  the folder; a volume's name stays typed, with the environment's offered. */}
-              <TextField
-                {...rowLabel(i, t`Volume or server path`)}
-                mono
-                list={volumes.length > 0 ? listId : undefined}
-                autoComplete="off"
-                autoFocus={row.source === ""}
-                value={row.source}
-                invalid={Boolean(errors[`mounts.${row.key}.source`])}
-                aria-describedby={`${id}-${row.key}`}
-                onChange={(event) => {
-                  change(row, { source: event.target.value });
-                  clear(`mounts.${row.key}.source`);
-                }}
-              />
+              {/* A server path is picked from the server's folders, where its reader may list them; a
+                  volume's name stays typed, with the environment's offered. */}
+              {folders && picking.has(row.key) ? (
+                <FolderPicker
+                  label={t`Server folder`}
+                  value={row.source}
+                  onChange={(path) => {
+                    change(row, { source: path });
+                    clear(`mounts.${row.key}.source`);
+                  }}
+                  list={folders}
+                  defaultOpen
+                  error={errors[`mounts.${row.key}.source`]}
+                />
+              ) : (
+                <TextField
+                  {...rowLabel(i, t`Volume or server path`)}
+                  mono
+                  list={volumes.length > 0 ? listId : undefined}
+                  autoComplete="off"
+                  autoFocus={row.source === ""}
+                  value={row.source}
+                  invalid={Boolean(errors[`mounts.${row.key}.source`])}
+                  aria-describedby={`${id}-${row.key}`}
+                  onChange={(event) => {
+                    change(row, { source: event.target.value });
+                    clear(`mounts.${row.key}.source`);
+                  }}
+                />
+              )}
               <TextField
                 {...rowLabel(i, t`Path in the app`)}
                 mono
@@ -1148,6 +1185,26 @@ function MountsSection({ form, errors, update, clear, volumes }: SectionProps & 
               />
             </div>
             <RowError id={`${id}-${row.key}`} message={refused} />
+            {folders ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon={picking.has(row.key) ? "database" : "folder"}
+                onClick={() => {
+                  const toFolder = !picking.has(row.key);
+                  change(row, { source: toFolder ? "/" : "" });
+                  setPicking((was) => {
+                    const next = new Set(was);
+                    if (toFolder) next.add(row.key);
+                    else next.delete(row.key);
+                    return next;
+                  });
+                }}
+              >
+                {picking.has(row.key) ? t`Use a volume instead` : t`Pick a folder on the server`}
+              </Button>
+            ) : null}
             <label className="app-check">
               <input
                 type="checkbox"

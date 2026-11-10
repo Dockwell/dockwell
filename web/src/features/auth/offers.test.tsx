@@ -131,6 +131,15 @@ describe("what the panel offers, by what you hold", () => {
     expect(asked).toEqual([]);
   });
 
+  it("offers a developer no server folder to pick for a volume, as only an admin reads a server's files", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/new", api(as(["prj_1", Role.DEVELOPER])));
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(await within(sheet).findByRole("button", { name: "Add volume" }));
+    expect(within(sheet).getByLabelText("Volume or server path")).toBeVisible();
+    expect(within(sheet).queryByRole("button", { name: "Pick a folder on the server" })).toBeNull();
+  });
+
   it("offers nothing in a project its reader holds nothing in", async () => {
     renderAt("/apps/svc_web", api(as(["prj_other", Role.DEVELOPER])));
     expectOff(

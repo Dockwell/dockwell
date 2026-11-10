@@ -8,6 +8,7 @@ import {
   ChangeSchema,
   ChangeState,
   CheckComposeResponseSchema,
+  FileType,
   HostAccessKind,
   ImageAnswer,
   type ImportComposeRequest,
@@ -388,6 +389,53 @@ describe("New app, from an image", () => {
     expect(path).not.toHaveAccessibleDescription(/env_01M6M9/);
     await waitFor(() => expect(path).toHaveFocus());
     expect(screen.queryByRole("dialog", { name: "Review plan" })).not.toBeInTheDocument();
+  });
+
+  it("picks a volume's server folder from the server's own folders", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    const listed: string[] = [];
+    const { sheet } = await openImage(
+      api({
+        files: {
+          listFiles: (req) => {
+            listed.push(`${req.serverId} ${req.path} ${req.lookup}`);
+            const folder = (name: string) => ({ name, type: FileType.DIRECTORY });
+            return req.path === "/"
+              ? { path: "/", entries: [folder("srv"), folder("etc"), { name: "notes.txt", type: FileType.FILE }] }
+              : { path: req.path, entries: [] };
+          },
+        },
+        changes: {
+          proposeChange: (req) => {
+            proposals.push(req);
+            throw new ConnectError("stop here", Code.FailedPrecondition);
+          },
+        },
+      }),
+    );
+    await user.type(within(sheet).getByLabelText("Image"), "nginx:1.27");
+    await user.click(within(sheet).getByRole("button", { name: "Add volume" }));
+    await user.click(within(sheet).getByRole("button", { name: "Pick a folder on the server" }));
+    // The picker opens on the server's folders, as a lookup, and a file isn't one.
+    const folders = await within(sheet).findByRole("list", { name: "Folders in /" });
+    expect(
+      within(folders)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["srv", "etc"]);
+    expect(listed[0]).toBe(`${SERVER} / true`);
+    await user.click(within(folders).getByRole("button", { name: "srv" }));
+    await user.type(within(sheet).getByLabelText("Path in the app"), "/data");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const edit = proposals[0]?.edits.find((e) => e.resource?.kind === "service");
+    const service = edit?.spec?.kind.case === "service" ? edit.spec.kind.value : undefined;
+    const mounts = service?.runs.case === "app" ? service.runs.value.mounts : [];
+    expect(mounts[0]?.source).toEqual({ case: "hostPath", value: "/srv" });
+    // And back to a volume, typed.
+    await user.click(within(sheet).getByRole("button", { name: "Use a volume instead" }));
+    expect(within(sheet).getByLabelText("Volume or server path")).toHaveValue("");
   });
 
   it("says above the form what is about none of its fields", async () => {

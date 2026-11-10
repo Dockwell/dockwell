@@ -3283,6 +3283,9 @@ msgstr "粘贴 Compose 文件后即可查看计划"
 msgid "Paste it, or drop the file here."
 msgstr "粘贴文件内容，或将文件拖到此处。"
 
+msgid "Pick a folder on the server"
+msgstr "选择服务器上的目录"
+
 msgid "Plans say a value changed, and never show it."
 msgstr "计划只说明值已更改，绝不显示内容。"
 
@@ -3340,6 +3343,9 @@ msgstr "请说明文件所在位置后再查看计划"
 msgid "Say which directory it's in"
 msgstr "说明它所在的目录"
 
+msgid "Server folder"
+msgstr "服务器目录"
+
 msgid "Show"
 msgstr "显示"
 
@@ -3375,6 +3381,9 @@ msgstr "最多 {memory}"
 
 msgid "Up to {memory} and {cpus} CPUs"
 msgstr "最多 {memory}、{cpus} 个 CPU"
+
+msgid "Use a volume instead"
+msgstr "改用卷"
 
 msgid "Use an absolute path, such as /data."
 msgstr "请使用绝对路径，例如 /data。"

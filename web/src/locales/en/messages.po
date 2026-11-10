@@ -3283,6 +3283,9 @@ msgstr "Paste a Compose file to review its plan"
 msgid "Paste it, or drop the file here."
 msgstr "Paste it, or drop the file here."
 
+msgid "Pick a folder on the server"
+msgstr "Pick a folder on the server"
+
 msgid "Plans say a value changed, and never show it."
 msgstr "Plans say a value changed, and never show it."
 
@@ -3340,6 +3343,9 @@ msgstr "Say where the file is to review the plan"
 msgid "Say which directory it's in"
 msgstr "Say which directory it's in"
 
+msgid "Server folder"
+msgstr "Server folder"
+
 msgid "Show"
 msgstr "Show"
 
@@ -3375,6 +3381,9 @@ msgstr "Up to {memory}"
 
 msgid "Up to {memory} and {cpus} CPUs"
 msgstr "Up to {memory} and {cpus} CPUs"
+
+msgid "Use a volume instead"
+msgstr "Use a volume instead"
 
 msgid "Use an absolute path, such as /data."
 msgstr "Use an absolute path, such as /data."
