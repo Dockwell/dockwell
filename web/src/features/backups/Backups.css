@@ -69,6 +69,35 @@
   white-space: normal;
 }
 
+/* How a backup's restore drill went (ADR 0068): a failure in red, the rest as facts,
+   each with its check as a link-sized action after it. */
+.backup-drill.is-failed {
+  color: var(--critical);
+}
+
+.backup-drill-said {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.backup-drill .backup-drill-action {
+  display: inline;
+  height: auto;
+  min-height: 0;
+  margin-left: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  vertical-align: baseline;
+}
+
 .backup-actions {
   display: inline-flex;
   gap: var(--space-1);

@@ -4,8 +4,10 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
+	"slices"
 )
 
 // Volume is a volume as the engine reports it.
@@ -15,6 +17,27 @@ type Volume struct {
 	Options   map[string]string `json:"Options"`
 	Labels    map[string]string `json:"Labels"`
 	CreatedAt string            `json:"CreatedAt"`
+	// Mountpoint is where its files are on the server, for a local volume.
+	Mountpoint string `json:"Mountpoint,omitempty"`
+}
+
+// ListVolumes lists the volumes that have a label, whatever its value.
+func (c *Client) ListVolumes(ctx context.Context, label string) ([]Volume, error) {
+	filters, err := json.Marshal(map[string][]string{"label": {label}})
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Volumes []Volume `json:"Volumes"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/volumes", url.Values{"filters": {string(filters)}}, nil, &out); err != nil {
+		return nil, err
+	}
+	// An engine that reads no filters lists every volume.
+	return slices.DeleteFunc(out.Volumes, func(v Volume) bool {
+		_, ok := v.Labels[label]
+		return !ok
+	}), nil
 }
 
 // VolumeCreate is the body of a volume create.

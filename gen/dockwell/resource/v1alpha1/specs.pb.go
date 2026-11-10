@@ -442,6 +442,9 @@ const (
 	// An address a check watches doesn't answer as it should, as many runs in a
 	// row as the check says (ADR 0066).
 	AlertRule_CONDITION_CHECK_DOWN AlertRule_Condition = 10
+	// The newest backup of a volume that has been drilled failed its drill: it
+	// didn't restore, or didn't hold what it should (ADR 0068).
+	AlertRule_CONDITION_RESTORE_DRILL_FAILED AlertRule_Condition = 20
 )
 
 // Enum value maps for AlertRule_Condition.
@@ -458,6 +461,7 @@ var (
 		8:  "CONDITION_BACKUP_LATE",
 		9:  "CONDITION_CHANGE_FAILED",
 		10: "CONDITION_CHECK_DOWN",
+		20: "CONDITION_RESTORE_DRILL_FAILED",
 	}
 	AlertRule_Condition_value = map[string]int32{
 		"CONDITION_UNSPECIFIED":          0,
@@ -471,6 +475,7 @@ var (
 		"CONDITION_BACKUP_LATE":          8,
 		"CONDITION_CHANGE_FAILED":        9,
 		"CONDITION_CHECK_DOWN":           10,
+		"CONDITION_RESTORE_DRILL_FAILED": 20,
 	}
 )
 
@@ -4914,7 +4919,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\vTaskRequest\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x16\n" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12#\n" +
-	"\rexpect_status\x18\x03 \x01(\rR\fexpectStatus\"\xd3\x05\n" +
+	"\rexpect_status\x18\x03 \x01(\rR\fexpectStatus\"\xf7\x05\n" +
 	"\tAlertRule\x12M\n" +
 	"\tcondition\x18\x01 \x01(\x0e2/.dockwell.resource.v1alpha1.AlertRule.ConditionR\tcondition\x12\x1c\n" +
 	"\tthreshold\x18\x02 \x01(\rR\tthreshold\x12\x1a\n" +
@@ -4922,7 +4927,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\bseverity\x18\x04 \x01(\x0e2..dockwell.resource.v1alpha1.AlertRule.SeverityR\bseverity\x12\x1a\n" +
 	"\bchannels\x18\x05 \x03(\tR\bchannels\x12\x16\n" +
 	"\x06repeat\x18\x06 \x01(\tR\x06repeat\x12\x1a\n" +
-	"\bdisabled\x18\a \x01(\bR\bdisabled\"\xcd\x02\n" +
+	"\bdisabled\x18\a \x01(\bR\bdisabled\"\xf1\x02\n" +
 	"\tCondition\x12\x19\n" +
 	"\x15CONDITION_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16CONDITION_SERVICE_DOWN\x10\x01\x12 \n" +
@@ -4935,7 +4940,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x15CONDITION_BACKUP_LATE\x10\b\x12\x1b\n" +
 	"\x17CONDITION_CHANGE_FAILED\x10\t\x12\x18\n" +
 	"\x14CONDITION_CHECK_DOWN\x10\n" +
-	"\"Q\n" +
+	"\x12\"\n" +
+	"\x1eCONDITION_RESTORE_DRILL_FAILED\x10\x14\"Q\n" +
 	"\bSeverity\x12\x18\n" +
 	"\x14SEVERITY_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10SEVERITY_WARNING\x10\x01\x12\x15\n" +

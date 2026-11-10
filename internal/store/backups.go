@@ -133,8 +133,11 @@ func (t *Tx) GetBackup(ctx context.Context, id string) (Backup, error) {
 	return b, nil
 }
 
-// DeleteBackup forgets a backup.
+// DeleteBackup forgets a backup, and its drills with it.
 func (t *Tx) DeleteBackup(ctx context.Context, id string) error {
+	if err := t.DeleteDrills(ctx, id); err != nil {
+		return err
+	}
 	if _, err := t.exec(ctx, `DELETE FROM backups WHERE id = ?`, id); err != nil {
 		return fmt.Errorf("can't forget backup %s: %w", id, err)
 	}

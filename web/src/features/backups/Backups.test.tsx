@@ -15,6 +15,8 @@ import {
   ChangeState,
   type CreateBackupRequest,
   type DeleteBackupRequest,
+  type DrillBackupRequest,
+  DrillResult,
   type FetchBackupRequest,
   PlanAction,
   PreviewBackupResponseSchema,
@@ -803,6 +805,68 @@ describe("the backups page", () => {
     const sheet = await screen.findByRole("dialog", { name: /Delete this backup/ });
     expect(within(sheet).getByText(/where it was sealed with an earlier passphrase/)).toBeVisible();
     expect(within(sheet).queryByRole("button", { name: "Remove from the server only" })).toBeNull();
+  });
+
+  it("checks that a backup restores from its row, and says how that went where you look", async () => {
+    const user = userEvent.setup();
+    const asked: DrillBackupRequest[] = [];
+    const finished = timestampFromDate(new Date(Date.now() - 2 * 3600_000));
+    const rows = [
+      aBackup({ id: "bkp_never" }),
+      aBackup({ id: "bkp_ok", drill: { result: DrillResult.PASSED, finishedAt: finished } }),
+      aBackup({ id: "bkp_files", drill: { result: DrillResult.PASSED, unpackedOnly: true, finishedAt: finished } }),
+      aBackup({
+        id: "bkp_bad",
+        drill: {
+          result: DrillResult.FAILED,
+          why: "orders.items has no rows, and the dump fills it",
+          finishedAt: finished,
+        },
+      }),
+      aBackup({
+        id: "bkp_skip",
+        drill: { result: DrillResult.NOT_CHECKED, why: "the disk it restores to has 1 GB free." },
+      }),
+      aBackup({ id: "bkp_now", drill: { result: DrillResult.RUNNING } }),
+    ];
+    const { container } = renderAt(
+      "/backups",
+      copies(rows, {
+        drillBackup: (req) => {
+          asked.push(req);
+          return { drill: { id: "drl_1", result: DrillResult.RUNNING } };
+        },
+      }),
+    );
+    expect(await screen.findByText("Restored and checked 2 h ago")).toBeVisible();
+    expect(screen.getByText("Unpacked whole 2 h ago")).toBeVisible();
+    expect(
+      screen.getByText("Restore check failed 2 h ago: orders.items has no rows, and the dump fills it"),
+    ).toBeVisible();
+    expect(screen.getByText("Not checked: the disk it restores to has 1 GB free")).toBeVisible();
+    expect(screen.getByText("Checking it restores")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: "Check again" })).toHaveLength(4);
+    await expectAccessible(container);
+    await user.click(screen.getByRole("button", { name: "Check it restores" }));
+    await waitFor(() => expect(asked).toEqual([expect.objectContaining({ id: "bkp_never" })]));
+  });
+
+  it("says why a backup can't be checked now, where you are", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      copies([aBackup()], {
+        drillBackup: () => {
+          throw new ConnectError(
+            "a restore check is running on hz-1, which checks one at a time. Check this one once it ends",
+            Code.FailedPrecondition,
+          );
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Check it restores" }));
+    expect(await screen.findByText("This backup can't be checked now")).toBeVisible();
+    expect(screen.getByText(/checks one at a time/)).toBeVisible();
   });
 
   it("offers a restore while its server has it, and no fetch", async () => {

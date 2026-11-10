@@ -140,7 +140,7 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   }
   await backups.getByRole("row").nth(1).getByText("Done").waitFor({ timeout: 30_000 });
   await shoot(page, "database-backups");
-  await backups.getByRole("row").nth(1).getByRole("button", { name: "Restore" }).click();
+  await backups.getByRole("row").nth(1).getByRole("button", { name: "Restore", exact: true }).click();
   const plan = page.locator(".plan-sheet");
   await plan
     .locator(".plan-risk")

@@ -246,6 +246,8 @@ func Word(c resourcev1.AlertRule_Condition) string {
 		return "a failed change"
 	case resourcev1.AlertRule_CONDITION_CHECK_DOWN:
 		return "an address that doesn't answer"
+	case resourcev1.AlertRule_CONDITION_RESTORE_DRILL_FAILED:
+		return "a backup that doesn't restore"
 	default:
 		return "that condition"
 	}
@@ -274,6 +276,8 @@ func Title(r *resourcev1.AlertRule) string {
 		return "Change failed"
 	case resourcev1.AlertRule_CONDITION_CHECK_DOWN:
 		return "Address down"
+	case resourcev1.AlertRule_CONDITION_RESTORE_DRILL_FAILED:
+		return "Restore check failed"
 	default:
 		return "Unknown condition"
 	}
@@ -303,6 +307,8 @@ func Expression(r *resourcev1.AlertRule) string {
 		return "change.state == failed"
 	case resourcev1.AlertRule_CONDITION_CHECK_DOWN:
 		return "check.state == down"
+	case resourcev1.AlertRule_CONDITION_RESTORE_DRILL_FAILED:
+		return "backup.drill == failed"
 	default:
 		return ""
 	}
@@ -330,6 +336,7 @@ func Defaults() []Default {
 		{"backup-late", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_BACKUP_LATE, Duration: "1h", Severity: warning}},
 		{"change-failed", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_CHANGE_FAILED, Severity: warning}},
 		{"check-down", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_CHECK_DOWN, Duration: "2m", Severity: critical, Repeat: "4h"}},
+		{"restore-drill-failed", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_RESTORE_DRILL_FAILED, Severity: critical}},
 	}
 	return slices.Clip(rules)
 }

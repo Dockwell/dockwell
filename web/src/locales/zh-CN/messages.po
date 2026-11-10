@@ -609,6 +609,12 @@ msgstr "某人"
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "无法从 {destination} 取回 {volume} 的备份"
 
+msgid "A backup of {volume} didn't restore in its check"
+msgstr "{volume} 的一个备份在检查中未能恢复"
+
+msgid "A backup of {volume} wasn't checked"
+msgstr "{volume} 的一个备份未能检查"
+
 msgid "A change failed: {subject}"
 msgstr "变更失败：{subject}"
 
@@ -683,6 +689,9 @@ msgstr "请求运行 {task}"
 
 msgid "Backed up {volume}"
 msgstr "已备份 {volume}"
+
+msgid "Checked that a backup of {volume} restores"
+msgstr "已检查 {volume} 的一个备份可以恢复"
 
 msgid "Claimed this install"
 msgstr "认领了这个安装"
@@ -938,6 +947,9 @@ msgstr "{volume} 的备份失败了"
 
 msgid "The health of {name} changed on {server}"
 msgstr "{name} 在 {server} 上的健康状态发生了变化"
+
+msgid "The newest checked backup of {subject} doesn't restore"
+msgstr "{subject} 最新检查过的备份无法恢复"
 
 msgid "Took back the acknowledgement of the alert: {title}"
 msgstr "已撤回对告警的确认：{title}"
@@ -4678,6 +4690,12 @@ msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何
 msgid "Backups, newest first"
 msgstr "备份，最新的在前"
 
+msgid "Check it restores"
+msgstr "检查能否恢复"
+
+msgid "Checking it restores"
+msgstr "正在检查能否恢复"
+
 msgid "Delete from both"
 msgstr "从两处都删除"
 
@@ -4722,6 +4740,9 @@ msgstr "它所在的服务器现在无法恢复：服务器未连接，或已不
 msgid "No backups yet"
 msgstr "还没有备份"
 
+msgid "Not checked: {why}"
+msgstr "未检查：{why}"
+
 msgid "Nothing to back up yet"
 msgstr "还没有可备份的内容"
 
@@ -4747,6 +4768,12 @@ msgstr "仅从服务器移除"
 msgid "Restore"
 msgstr "恢复"
 
+msgid "Restore check failed {ago}: {why}"
+msgstr "恢复检查失败（{ago}）：{why}"
+
+msgid "Restored and checked {ago}"
+msgstr "已恢复并检查（{ago}）"
+
 msgid "Sealed with an earlier passphrase"
 msgstr "使用较早的密码短语加密"
 
@@ -4756,6 +4783,9 @@ msgstr "正在发送到 {0}"
 
 msgid "Started"
 msgstr "开始时间"
+
+msgid "This backup can't be checked now"
+msgstr "现在无法检查这个备份"
 
 msgid "This backup didn't come back"
 msgstr "未能取回此备份"
@@ -4778,6 +4808,9 @@ msgstr "这会将它从 {destination} 删除，那里是它最后所在的位置
 #. placeholder {0}: b.volume
 msgid "To fetch it, put {0} on a connected server first"
 msgstr "要取回它，请先将 {0} 部署到已连接的服务器上"
+
+msgid "Unpacked whole {ago}"
+msgstr "已完整解包（{ago}）"
 
 #. placeholder {0}: Number(b.filesChanged)
 msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"

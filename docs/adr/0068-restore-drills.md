@@ -94,7 +94,7 @@ The live passwords never reach the drill, as ADR 0038 keeps them from the agent,
 
 ## Consequences
 
-- The agent gains a call, `DrillBackup`, agent protocol 220 and 221 in `Call` and `CallResult`, and the agent build gains nothing to link: it runs the database's own image and its own volume tool. Its memory holds a dump's table names, at most 100,000.
+- The agent gains a call, `DrillBackup`, agent protocol 220 in `Call` and `CallResult` and `Hello.drills` 221, and the agent build gains nothing to link: it runs the database's own image and its own volume tool. Its memory holds a dump's table names, at most 100,000.
 - Backups keep the number of files their read-back counts, and the store gains `backup_drills`.
 - The policy sheet gets one line, "Check a restore: weekly · Change", Backups the callout for policies that never check, and each backup its state and "Check it restores".
 - It lands in two slices. First, drills on demand, with their record, their three results, their checks, everything above that keeps the live server safe and the leftovers sweep, and `restore-drill-failed`, since on-demand drills use the same disk and memory as scheduled ones. Then the policy's schedule, the weekly default for new policies, the callout, and `restore-drill-late`.

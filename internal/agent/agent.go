@@ -219,6 +219,9 @@ type BackupTaker interface {
 	Fetch(ctx context.Context, call *agentv1.FetchBackupCall, destination map[string]string) (*agentv1.BackupResult, error)
 	// Delete removes a backup from the disk, and from where it was sent.
 	Delete(ctx context.Context, call *agentv1.DeleteBackupCall, destination map[string]string) (*agentv1.DeleteBackupResult, error)
+	// Drill checks that a backup on the disk restores, in a container and a volume
+	// it throws away (ADR 0068).
+	Drill(ctx context.Context, call *agentv1.DrillBackupCall) (*agentv1.DrillBackupResult, error)
 }
 
 // DatabaseReader asks this server's databases how they are, each with its own tools
@@ -519,7 +522,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true, Drills: cfg.Backups != nil}
 	hello.Kinds, hello.Unavailable = offered.proto()
 	if cfg.Terminals != nil {
 		hello.Terminals, hello.OpenTerminals, hello.ContainerTerminals = true, cfg.Terminals.Known(), true

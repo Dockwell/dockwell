@@ -590,6 +590,7 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		if told, ok := backups.ReadTold(a.Detail); ok {
 			e.Backup.Id, e.Backup.Volume, e.Backup.SizeBytes, e.Backup.Error, e.Backup.Destination = told.ID, told.Volume, told.Size, told.Error, told.Destination
 			e.Backup.Method = resourcepb.BackupMethod(told.Method)
+			e.Backup.Drill = backups.DrillResult(told.Drill)
 		}
 		return e
 	}

@@ -5,6 +5,7 @@ syntax = "proto3";
 package dockwell.v1;
 
 import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/backup.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/health.proto";
 import "dockwell/v1/options.proto";
@@ -309,6 +310,9 @@ message EventBackup {
   string error = 6;
   // The destination it went to or didn't, by name.
   string destination = 7;
+  // How a restore drill of it went, for backup.drill (ADR 0068). error says what
+  // failed, or why it wasn't checked.
+  DrillResult drill = 8;
 }
 
 // EventPublicAddress is a server's public address as a person changed it.

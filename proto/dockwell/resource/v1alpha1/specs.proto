@@ -850,6 +850,9 @@ message AlertRule {
     // An address a check watches doesn't answer as it should, as many runs in a
     // row as the check says (ADR 0066).
     CONDITION_CHECK_DOWN = 10;
+    // The newest backup of a volume that has been drilled failed its drill: it
+    // didn't restore, or didn't hold what it should (ADR 0068).
+    CONDITION_RESTORE_DRILL_FAILED = 20;
   }
   // How much it matters, which a message says and a channel can choose by.
   enum Severity {

@@ -7,6 +7,7 @@ import {
   AlertRule_Severity,
   type Change,
   ChangeState,
+  DrillResult,
   type Event,
   EventKind,
   HealthState,
@@ -73,6 +74,15 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       }
       if (event.action === "backup.copy_kept") {
         return { title: t`${destination} kept a backup of ${volume} that was to go`, icon: "archive", tone: "warning" };
+      }
+      if (event.action === "backup.drill") {
+        switch (event.backup?.drill) {
+          case DrillResult.PASSED:
+            return { title: t`Checked that a backup of ${volume} restores`, icon: "archive" };
+          case DrillResult.FAILED:
+            return { title: t`A backup of ${volume} didn't restore in its check`, icon: "archive", tone: "critical" };
+        }
+        return { title: t`A backup of ${volume} wasn't checked`, icon: "archive", tone: "warning" };
       }
       const task = event.taskRun?.displayName || event.taskRun?.task || name;
       const server = name || event.subject?.id || t`a server`;
@@ -517,6 +527,8 @@ export function alertTitle(
       return i18n._(msg`The backup of ${subject} is late`);
     case AlertRule_Condition.CHANGE_FAILED:
       return i18n._(msg`A change failed: ${subject}`);
+    case AlertRule_Condition.RESTORE_DRILL_FAILED:
+      return i18n._(msg`The newest checked backup of ${subject} doesn't restore`);
   }
   return a.title;
 }

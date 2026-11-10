@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.agent.v1;
 
+import "dockwell/v1/backup.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/container.proto";
 import "dockwell/v1/database.proto";
@@ -353,6 +354,11 @@ message Hello {
   // plane plans a new one only through an agent that does. Catalog and
   // databases work takes 200 to 202 and 220 to 229 in agent messages.
   bool first_passwords = 200;
+  // True when the agent checks that a backup restores, in a container and a
+  // volume it throws away (ADR 0068). The control plane sends no DrillBackupCall
+  // to one that doesn't. Catalog and databases work takes 200 to 202 and 220 to
+  // 229 in agent messages.
+  bool drills = 221;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -532,6 +538,8 @@ message Call {
     FetchBackupCall fetch_backup = 23;
     // Send a backup that's on the server to its destination.
     SendBackupCall send_backup = 24;
+    // Check that a backup on the server restores (ADR 0068).
+    DrillBackupCall drill_backup = 220;
     // Say which package updates wait on the server. The terminal and updates take
     // 50 to 59 in agent messages: the terminal 50 to 52, and updates 53, so the
     // next of either takes 54.
@@ -897,6 +905,19 @@ message ReadOnePanelResult {
   // Why there's nothing, such as that 1Panel isn't installed here, when it isn't
   // there. A record that can't be read is the call's error.
   string not_here = 2;
+}
+
+// DrillBackupCall asks to check that a backup on the server restores: into a
+// container and a volume of its own, from the image the database runs now, with no
+// network and none of the service's command, variables or mounts, checked, and
+// thrown away whatever comes of it (ADR 0068).
+message DrillBackupCall {
+  // The drill's ID, which its container and volume are labelled with.
+  string id = 1;
+  // The backup's ID.
+  string backup = 2;
+  // Its volume.
+  dockwell.v1.ResourceRef volume = 3;
 }
 
 // SendBackupCall asks to send a backup that's on the server to its destination, as a
@@ -1580,6 +1601,7 @@ message CallResult {
     BackupResult fetch_backup = 23;
     // What send_backup sent.
     SendBackupResult send_backup = 24;
+    DrillBackupResult drill_backup = 220;
     ListUpdatesResult list_updates = 53;
     // What a database call read. Numbered apart, as open work adds to this
     // message.
@@ -1702,6 +1724,23 @@ message BackupResult {
   int64 files_changed = 5;
   // The backup's ID, where a step took it.
   string id = 6;
+}
+
+// DrillBackupResult says how a restore drill went. A drill that couldn't run, or
+// was cut short, is DRILL_RESULT_NOT_CHECKED with why, never a failure: that says
+// nothing about the backup.
+message DrillBackupResult {
+  dockwell.v1.DrillResult result = 1;
+  // What failed, or why it wasn't checked, in plain words.
+  string why = 2;
+  // What the database printed last, without what it quoted.
+  string detail = 3;
+  // How much came back, in bytes.
+  int64 restored_bytes = 4;
+  // How many tables it checked.
+  int32 tables = 5;
+  // True for a copy it could only unpack.
+  bool unpacked_only = 6;
 }
 
 // SendBackupResult says a backup reached its destination.

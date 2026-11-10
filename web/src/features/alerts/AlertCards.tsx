@@ -39,6 +39,7 @@ const MARK: Partial<Record<Condition, IconName>> = {
   [Condition.BACKUP_FAILED]: "archive",
   [Condition.BACKUP_LATE]: "archive",
   [Condition.CHANGE_FAILED]: "activity",
+  [Condition.RESTORE_DRILL_FAILED]: "archive",
 };
 
 const ms = (a: { seconds: bigint } | undefined) => (a ? Number(a.seconds) * 1000 : undefined);
@@ -299,6 +300,7 @@ function Inspect({ alert, title }: { alert: Alert; title: string }) {
       );
     case Condition.BACKUP_FAILED:
     case Condition.BACKUP_LATE:
+    case Condition.RESTORE_DRILL_FAILED:
       return (
         <RouterButtonLink to="/backups" {...small}>
           {words}

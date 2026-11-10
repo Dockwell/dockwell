@@ -453,6 +453,11 @@ func (r *Runner) loadDump(ctx context.Context, db *database, dump io.Reader) err
 		return fmt.Errorf("the dump doesn't open: %w", err)
 	}
 	defer gz.Close()
+	return r.loadPlain(ctx, db, gz)
+}
+
+// loadPlain feeds a dump that's out of its gzip to a database.
+func (r *Runner) loadPlain(ctx context.Context, db *database, plain io.Reader) error {
 	var failed []string
 	errs := &tail{}
 	sink := io.Writer(errs)
@@ -463,7 +468,7 @@ func (r *Runner) loadDump(ctx context.Context, db *database, dump io.Reader) err
 			}
 		}})
 	}
-	code, err := r.Client.Exec(ctx, db.id, db.tool(db.kind.load), docker.Streams{Stdin: gz, Stderr: sink})
+	code, err := r.Client.Exec(ctx, db.id, db.tool(db.kind.load), docker.Streams{Stdin: plain, Stderr: sink})
 	switch {
 	case err != nil:
 		return fmt.Errorf("can't load the dump: %w", err)

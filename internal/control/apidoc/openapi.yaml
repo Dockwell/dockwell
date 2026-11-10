@@ -614,6 +614,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/backups/{id}:drill:
+        post:
+            tags:
+                - BackupService
+            description: |-
+                DrillBackup checks that a backup on its server restores, in a container and a
+                 volume of its own that nothing reaches and that it throws away, whatever comes
+                 of it (ADR 0068). It replaces nothing, so it takes the roles a backup does. It
+                 returns the drill running; follow it with GetBackup, whose drill says how it
+                 ended. A server runs one at a time, and an API token starts at most one drill of
+                 a volume an hour.
+            operationId: BackupService_DrillBackup
+            parameters:
+                - name: id
+                  in: path
+                  description: The backup's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DrillBackupRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DrillBackupResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/backups/{id}:fetch:
         post:
             tags:
@@ -5028,6 +5066,7 @@ components:
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
                         - CONDITION_CHECK_DOWN
+                        - CONDITION_RESTORE_DRILL_FAILED
                     type: string
                     description: What the rule watches for, and how much it matters, as it did when it fired.
                     format: enum
@@ -5422,6 +5461,7 @@ components:
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
                         - CONDITION_CHECK_DOWN
+                        - CONDITION_RESTORE_DRILL_FAILED
                     type: string
                     description: What it watches for.
                     format: enum
@@ -5755,6 +5795,10 @@ components:
                     description: |-
                         The connected servers it can be fetched onto, by name: those its volume is on. Set
                          for a stored backup that isn't on a server that can restore it now.
+                drill:
+                    allOf:
+                        - $ref: '#/components/schemas/BackupDrill'
+                    description: Its newest restore drill, running or ended. Unset when it was never checked.
             description: Backup is one backup of one volume.
         BackupDestination:
             type: object
@@ -5833,6 +5877,56 @@ components:
                 lastFailureError:
                     type: string
             description: BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
+        BackupDrill:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The drill's ID.
+                result:
+                    enum:
+                        - DRILL_RESULT_UNSPECIFIED
+                        - DRILL_RESULT_RUNNING
+                        - DRILL_RESULT_PASSED
+                        - DRILL_RESULT_FAILED
+                        - DRILL_RESULT_NOT_CHECKED
+                    type: string
+                    description: How it went.
+                    format: enum
+                why:
+                    type: string
+                    description: |-
+                        What failed, or why it wasn't checked, in a line: "orders.items has no rows; the
+                         dump fills it", or "the disk had no room". Empty once it passed.
+                detail:
+                    type: string
+                    description: |-
+                        What the database printed last, for a drill that failed or wasn't checked,
+                         without what it quoted.
+                restoredBytes:
+                    type: string
+                    description: How much came back, in bytes.
+                tables:
+                    type: integer
+                    description: How many tables it checked, for a database's dump.
+                    format: int32
+                unpackedOnly:
+                    type: boolean
+                    description: |-
+                        True for a copy of files it could only unpack, which proves the archive restores
+                         whole, and not that the app makes sense of it: "Unpacked whole".
+                startedAt:
+                    type: string
+                    format: date-time
+                finishedAt:
+                    type: string
+                    description: Unset while it runs.
+                    format: date-time
+                actor:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: Who started it.
+            description: BackupDrill is a check that a backup restores (ADR 0068).
         BackupFirst:
             type: object
             properties:
@@ -7904,6 +7998,21 @@ components:
                         $ref: '#/components/schemas/FieldChange'
                     description: What differs, from the latest revision to what the server has.
             description: Drift is a resource on a server that doesn't match its latest revision.
+        DrillBackupRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The backup's ID.
+            description: DrillBackupRequest names a backup to check.
+        DrillBackupResponse:
+            type: object
+            properties:
+                drill:
+                    allOf:
+                        - $ref: '#/components/schemas/BackupDrill'
+                    description: The drill.
+            description: DrillBackupResponse is the drill, running.
         DroppedMount:
             type: object
             properties:
@@ -8353,6 +8462,7 @@ components:
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
                         - CONDITION_CHECK_DOWN
+                        - CONDITION_RESTORE_DRILL_FAILED
                     type: string
                     description: |-
                         What its title says, apart, for the panel to say in its own language: the
@@ -8410,6 +8520,18 @@ components:
                 destination:
                     type: string
                     description: The destination it went to or didn't, by name.
+                drill:
+                    enum:
+                        - DRILL_RESULT_UNSPECIFIED
+                        - DRILL_RESULT_RUNNING
+                        - DRILL_RESULT_PASSED
+                        - DRILL_RESULT_FAILED
+                        - DRILL_RESULT_NOT_CHECKED
+                    type: string
+                    description: |-
+                        How a restore drill of it went, for backup.drill (ADR 0068). error says what
+                         failed, or why it wasn't checked.
+                    format: enum
             description: EventBackup is what became of one backup.
         EventHealth:
             type: object
