@@ -31,6 +31,7 @@ import { ServerFrame } from "../servers/ServerFrame";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { FileViewer } from "./FileViewer";
+import { FolderTree } from "./FolderTree";
 import {
   ActionsSheet,
   DeletedSheet,
@@ -235,6 +236,7 @@ function Files({ server, folder, file, reading }: FilesProps) {
   const now = useControlPlaneNow();
   const words = useTimeWords();
   const places = usePlaces();
+  const treeHead = useId();
   const current = placeOf(folder, [...places.common, ...places.server]);
   const [filter, setFilter] = useState("");
   const [sheet, setSheet] = useState<Open>();
@@ -509,7 +511,18 @@ function Files({ server, folder, file, reading }: FilesProps) {
               {/* As Server-Files groups them: the places worth a click, then the server's own root. */}
               <PlaceGroup title={t`Common places`} places={places.common} current={current} serverId={serverId} />
               <div className="files-places-rule" aria-hidden="true" />
-              <PlaceGroup title={t`Server`} places={places.server} current={current} serverId={serverId} />
+              {phone ? (
+                <PlaceGroup title={t`Server`} places={places.server} current={current} serverId={serverId} />
+              ) : (
+                // As Server-Files has it: the server's folders as a tree, open down to where you are.
+                // biome-ignore lint/a11y/useSemanticElements: a fieldset is for a form's fields, and these are links
+                <div role="group" aria-labelledby={treeHead} className="files-places-group">
+                  <div id={treeHead} className="files-places-head">
+                    {t`Server`}
+                  </div>
+                  <FolderTree serverId={serverId} current={shown} retry={retryListing} />
+                </div>
+              )}
             </nav>
           </Panel>
         )}
