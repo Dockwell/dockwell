@@ -639,7 +639,7 @@ describe("adding a user", () => {
     plan: { fingerprint: "abc", resources: [] },
   });
 
-  it("asks only for a name, and plans a user with a database and a password of their own", async () => {
+  it("asks only for a name, checked as it's typed, and plans a user with a database and a password of their own", async () => {
     const user = userEvent.setup();
     const asked = vi.fn((req: CreateDatabaseUserRequest) => {
       void req;
@@ -658,10 +658,20 @@ describe("adding a user", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Add a user" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a user to db" });
+    // Nothing else is asked: its database and secret are defaults, under Advanced.
+    expect(within(sheet).queryByLabelText(/Secret for the password/)).not.toBeInTheDocument();
     await user.type(within(sheet).getByLabelText("User"), "Orders");
-    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     expect(await within(sheet).findByText(/Use up to 32 lowercase letters/)).toBeVisible();
+    await user.clear(within(sheet).getByLabelText("User"));
+    await user.type(within(sheet).getByLabelText("User"), "orders");
+    const advanced = within(sheet).getByRole("button", { name: "Advanced" });
+    expect(advanced).toHaveAccessibleDescription("Database orders · secret ORDERS_DATABASE_PASSWORD");
     expect(asked).not.toHaveBeenCalled();
+    // A user it has already says so, and so does the database of their name, under an Advanced that opens for it.
+    await user.clear(within(sheet).getByLabelText("User"));
+    await user.type(within(sheet).getByLabelText("User"), "shop");
+    expect(await within(sheet).findByText("shop signs in to db already.")).toBeVisible();
+    expect(within(sheet).getByText("db has a database called shop already.")).toBeVisible();
     await user.clear(within(sheet).getByLabelText("User"));
     await user.type(within(sheet).getByLabelText("User"), "orders");
     expect(within(sheet).getByLabelText(/Secret for the password/)).toHaveAttribute(
@@ -684,6 +694,47 @@ describe("adding a user", () => {
         /Inside its own container, PostgreSQL's official image lets anything sign in as any user/,
       ),
     ).toBeVisible();
+  });
+
+  it("says a default that's taken beside it, as it's typed, under an Advanced that opens for it", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/databases/svc_db/users",
+      api([aDatabase()], {
+        databases: { getDatabase: () => ({ database: aDatabase() }) },
+        variables: {
+          listVariables: () => ({
+            environmentId: ENV,
+            variables: [{ id: "sec_orders", name: "ORDERS_DATABASE_PASSWORD", secret: true, revision: 1n }],
+          }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a user" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a user to db" });
+    await user.type(within(sheet).getByLabelText("User"), "orders");
+    await waitFor(() =>
+      expect(within(sheet).getByLabelText(/Secret for the password/)).toHaveAccessibleDescription(
+        /ORDERS_DATABASE_PASSWORD is a secret already/,
+      ),
+    );
+    await user.type(within(sheet).getByLabelText(/Secret for the password/), "ORDERS_PASSWORD");
+    expect(within(sheet).getByLabelText(/Secret for the password/)).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("copies the same as a CLI command, under Advanced", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    renderAt(
+      "/databases/svc_db/users",
+      api([aDatabase()], { databases: { getDatabase: () => ({ database: aDatabase() }) } }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a user" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a user to db" });
+    await user.type(within(sheet).getByLabelText("User"), "orders");
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    await user.click(within(sheet).getByRole("button", { name: "Copy as CLI command" }));
+    expect(writeText).toHaveBeenCalledWith("dockwell databases add-user db --user orders");
   });
 
   it("says a refusal of one field beside it, and anything else above the buttons", async () => {
