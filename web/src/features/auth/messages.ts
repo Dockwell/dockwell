@@ -61,7 +61,7 @@ export function useAuthError({ claimCommand = "dockwell claim" }: { claimCommand
         case "needs_step_up":
           return t`That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks.`;
         case "no_passkey_here":
-          return t`Confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again.`;
+          return t`That takes a passkey, and there's none for this address yet. Add one under Profile and security.`;
         case "needs_fresh_sign_in":
           return t`Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes.`;
         case "passkey_rejected":

@@ -52,6 +52,12 @@ const (
 	// ServerServiceSetServerPublicAddressProcedure is the fully-qualified name of the ServerService's
 	// SetServerPublicAddress RPC.
 	ServerServiceSetServerPublicAddressProcedure = "/dockwell.v1.ServerService/SetServerPublicAddress"
+	// ServerServiceCreateJoinTicketProcedure is the fully-qualified name of the ServerService's
+	// CreateJoinTicket RPC.
+	ServerServiceCreateJoinTicketProcedure = "/dockwell.v1.ServerService/CreateJoinTicket"
+	// ServerServiceGetJoinTicketProcedure is the fully-qualified name of the ServerService's
+	// GetJoinTicket RPC.
+	ServerServiceGetJoinTicketProcedure = "/dockwell.v1.ServerService/GetJoinTicket"
 )
 
 // ServerServiceClient is a client for the dockwell.v1.ServerService service.
@@ -83,6 +89,18 @@ type ServerServiceClient interface {
 	// out for itself. It's on record in the activity log, with what it replaced.
 	// See docs/adr/0034-a-servers-public-address.md.
 	SetServerPublicAddress(context.Context, *connect.Request[v1.SetServerPublicAddressRequest]) (*connect.Response[v1.SetServerPublicAddressResponse], error)
+	// CreateJoinTicket makes a ticket that adds one server: dockwell join with it,
+	// on the new server, gives that server a name and a certificate, and its agent
+	// connects. The ticket works once, for an hour unless ttl_seconds says otherwise,
+	// and is shown only in this response. It gives a server a place in the fleet, so
+	// it takes a passkey just now: call it without a proof first, and it refuses with
+	// the reason needs_step_up, then again with the proof from FinishStepUp for
+	// STEP_UP_ACTION_ADD_SERVER. It's on the activity log. dockwell token create makes
+	// the same ticket on the control server.
+	CreateJoinTicket(context.Context, *connect.Request[v1.CreateJoinTicketRequest]) (*connect.Response[v1.CreateJoinTicketResponse], error)
+	// GetJoinTicket says whether a ticket is still waiting for a server, which server
+	// joined with it, or that it expired. It never returns the ticket itself.
+	GetJoinTicket(context.Context, *connect.Request[v1.GetJoinTicketRequest]) (*connect.Response[v1.GetJoinTicketResponse], error)
 }
 
 // NewServerServiceClient constructs a client for the dockwell.v1.ServerService service. By default,
@@ -136,6 +154,19 @@ func NewServerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(serverServiceMethods.ByName("SetServerPublicAddress")),
 			connect.WithClientOptions(opts...),
 		),
+		createJoinTicket: connect.NewClient[v1.CreateJoinTicketRequest, v1.CreateJoinTicketResponse](
+			httpClient,
+			baseURL+ServerServiceCreateJoinTicketProcedure,
+			connect.WithSchema(serverServiceMethods.ByName("CreateJoinTicket")),
+			connect.WithClientOptions(opts...),
+		),
+		getJoinTicket: connect.NewClient[v1.GetJoinTicketRequest, v1.GetJoinTicketResponse](
+			httpClient,
+			baseURL+ServerServiceGetJoinTicketProcedure,
+			connect.WithSchema(serverServiceMethods.ByName("GetJoinTicket")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -147,6 +178,8 @@ type serverServiceClient struct {
 	getServerDiskUse       *connect.Client[v1.GetServerDiskUseRequest, v1.GetServerDiskUseResponse]
 	checkServerPorts       *connect.Client[v1.CheckServerPortsRequest, v1.CheckServerPortsResponse]
 	setServerPublicAddress *connect.Client[v1.SetServerPublicAddressRequest, v1.SetServerPublicAddressResponse]
+	createJoinTicket       *connect.Client[v1.CreateJoinTicketRequest, v1.CreateJoinTicketResponse]
+	getJoinTicket          *connect.Client[v1.GetJoinTicketRequest, v1.GetJoinTicketResponse]
 }
 
 // ListServers calls dockwell.v1.ServerService.ListServers.
@@ -179,6 +212,16 @@ func (c *serverServiceClient) SetServerPublicAddress(ctx context.Context, req *c
 	return c.setServerPublicAddress.CallUnary(ctx, req)
 }
 
+// CreateJoinTicket calls dockwell.v1.ServerService.CreateJoinTicket.
+func (c *serverServiceClient) CreateJoinTicket(ctx context.Context, req *connect.Request[v1.CreateJoinTicketRequest]) (*connect.Response[v1.CreateJoinTicketResponse], error) {
+	return c.createJoinTicket.CallUnary(ctx, req)
+}
+
+// GetJoinTicket calls dockwell.v1.ServerService.GetJoinTicket.
+func (c *serverServiceClient) GetJoinTicket(ctx context.Context, req *connect.Request[v1.GetJoinTicketRequest]) (*connect.Response[v1.GetJoinTicketResponse], error) {
+	return c.getJoinTicket.CallUnary(ctx, req)
+}
+
 // ServerServiceHandler is an implementation of the dockwell.v1.ServerService service.
 type ServerServiceHandler interface {
 	// ListServers returns every server, connected or not, without history.
@@ -208,6 +251,18 @@ type ServerServiceHandler interface {
 	// out for itself. It's on record in the activity log, with what it replaced.
 	// See docs/adr/0034-a-servers-public-address.md.
 	SetServerPublicAddress(context.Context, *connect.Request[v1.SetServerPublicAddressRequest]) (*connect.Response[v1.SetServerPublicAddressResponse], error)
+	// CreateJoinTicket makes a ticket that adds one server: dockwell join with it,
+	// on the new server, gives that server a name and a certificate, and its agent
+	// connects. The ticket works once, for an hour unless ttl_seconds says otherwise,
+	// and is shown only in this response. It gives a server a place in the fleet, so
+	// it takes a passkey just now: call it without a proof first, and it refuses with
+	// the reason needs_step_up, then again with the proof from FinishStepUp for
+	// STEP_UP_ACTION_ADD_SERVER. It's on the activity log. dockwell token create makes
+	// the same ticket on the control server.
+	CreateJoinTicket(context.Context, *connect.Request[v1.CreateJoinTicketRequest]) (*connect.Response[v1.CreateJoinTicketResponse], error)
+	// GetJoinTicket says whether a ticket is still waiting for a server, which server
+	// joined with it, or that it expired. It never returns the ticket itself.
+	GetJoinTicket(context.Context, *connect.Request[v1.GetJoinTicketRequest]) (*connect.Response[v1.GetJoinTicketResponse], error)
 }
 
 // NewServerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -257,6 +312,19 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(serverServiceMethods.ByName("SetServerPublicAddress")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serverServiceCreateJoinTicketHandler := connect.NewUnaryHandler(
+		ServerServiceCreateJoinTicketProcedure,
+		svc.CreateJoinTicket,
+		connect.WithSchema(serverServiceMethods.ByName("CreateJoinTicket")),
+		connect.WithHandlerOptions(opts...),
+	)
+	serverServiceGetJoinTicketHandler := connect.NewUnaryHandler(
+		ServerServiceGetJoinTicketProcedure,
+		svc.GetJoinTicket,
+		connect.WithSchema(serverServiceMethods.ByName("GetJoinTicket")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ServerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServerServiceListServersProcedure:
@@ -271,6 +339,10 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 			serverServiceCheckServerPortsHandler.ServeHTTP(w, r)
 		case ServerServiceSetServerPublicAddressProcedure:
 			serverServiceSetServerPublicAddressHandler.ServeHTTP(w, r)
+		case ServerServiceCreateJoinTicketProcedure:
+			serverServiceCreateJoinTicketHandler.ServeHTTP(w, r)
+		case ServerServiceGetJoinTicketProcedure:
+			serverServiceGetJoinTicketHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -302,4 +374,12 @@ func (UnimplementedServerServiceHandler) CheckServerPorts(context.Context, *conn
 
 func (UnimplementedServerServiceHandler) SetServerPublicAddress(context.Context, *connect.Request[v1.SetServerPublicAddressRequest]) (*connect.Response[v1.SetServerPublicAddressResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.SetServerPublicAddress is not implemented"))
+}
+
+func (UnimplementedServerServiceHandler) CreateJoinTicket(context.Context, *connect.Request[v1.CreateJoinTicketRequest]) (*connect.Response[v1.CreateJoinTicketResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.CreateJoinTicket is not implemented"))
+}
+
+func (UnimplementedServerServiceHandler) GetJoinTicket(context.Context, *connect.Request[v1.GetJoinTicketRequest]) (*connect.Response[v1.GetJoinTicketResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.GetJoinTicket is not implemented"))
 }

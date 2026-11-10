@@ -143,12 +143,17 @@ function Folder({
 function Children({ path, depth, state }: { path: string; depth: number; state: TreeState }) {
   const { t } = useLingui();
   // For the folder the page shows, the page's own query, so the two share one answer.
-  // What failed isn't asked again each time the window takes focus.
+  // What failed isn't asked again each time the window takes focus, nor a folder larger than a page, which
+  // its agent reads every name of to answer.
   const query = useQuery(
     FileService.method.listFiles,
     path === state.current ? { serverId: state.serverId, path } : { serverId: state.serverId, path, lookup: true },
     // The page's listing is as new as the tree needs, so a folder opening here doesn't ask for it again.
-    { retry: state.retry, refetchOnMount: false, refetchOnWindowFocus: (q) => q.state.status !== "error" },
+    {
+      retry: state.retry,
+      refetchOnMount: false,
+      refetchOnWindowFocus: (q) => q.state.status !== "error" && !q.state.data?.nextPage,
+    },
   );
   const indent = { paddingInlineStart: `calc(${depth} * var(--space-3) + 22px)` };
   if (query.error) {

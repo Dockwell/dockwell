@@ -51,6 +51,7 @@ CatalogService.ListCatalogInstalls             read         viewer     viewer   
 CatalogService.UpgradeCatalogInstall           plan         developer  developer  project
 ChangeService.AdoptDrift                       plan         developer  developer  project
 ChangeService.ApplyChange                      apply        developer  admin      project
+ChangeService.ConfirmChange                    apply        admin      admin      install  session
 ChangeService.DiscardChange                    plan         developer  developer  project
 ChangeService.GetChange                        read         viewer     viewer     project
 ChangeService.ListChanges                      read         viewer     viewer     project
@@ -101,6 +102,8 @@ ProcessService.EndProcess                      destructive  admin      admin    
 ProcessService.WatchProcesses                  read         admin      admin      install  session
 ResourceService.ListResources                  read         viewer     viewer     project
 ServerService.CheckServerPorts                 read         admin      admin      install
+ServerService.CreateJoinTicket                 apply        admin      admin      install  session
+ServerService.GetJoinTicket                    read         admin      admin      install
 ServerService.GetServer                        read         viewer     viewer     named
 ServerService.GetServerDiskUse                 read         admin      admin      install
 ServerService.ListServers                      read         viewer     viewer     named

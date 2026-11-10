@@ -192,6 +192,9 @@ function Body({ alert }: { alert: Alert }) {
   const before = others.filter((e) => at(e) >= opened - BEFORE_MS && at(e) < opened);
   const during = others.filter((e) => at(e) >= opened && at(e) <= (resolved ?? Number.POSITIVE_INFINITY));
   const own = events.filter((e) => e.kind === EventKind.ALERT && e.alert?.id === alert.id);
+  // Where Activity has the rest of it: what the alert is about, as this page reads it.
+  const about = alert.condition === Condition.SERVICE_DOWN && alert.subjectId ? alert.subjectId : "";
+  const further = about ? { resource: about } : alert.serverId ? { server: alert.serverId } : {};
   const summaries = useMemo(() => {
     const out = new Map<string, string>();
     for (const e of around.data?.events ?? []) if (e.change) out.set(e.id, e.change.summary);
@@ -263,9 +266,12 @@ function Body({ alert }: { alert: Alert }) {
                   {around.data.reached ? (
                     <Trans>Nothing changed here in the hour before, and no check changed its answer.</Trans>
                   ) : (
-                    <Trans>
-                      More has happened here since than this page reads back through. Activity has all of it.
-                    </Trans>
+                    <>
+                      <Trans>It's further back than this page reads.</Trans>{" "}
+                      <Link to="/activity" search={further}>
+                        <Trans>See it on Activity</Trans>
+                      </Link>
+                    </>
                   )}
                 </p>
               )}
@@ -293,7 +299,12 @@ function Body({ alert }: { alert: Alert }) {
           ) : (
             <p className="alerts-muted alerts-note">
               {around.data && !around.data.reached ? (
-                <Trans>Its own events are further back than this page reads. Activity has them.</Trans>
+                <>
+                  <Trans>Its events are further back than this page reads.</Trans>{" "}
+                  <Link to="/activity" search={{ ...further, kind: "alerts" }}>
+                    <Trans>See them on Activity</Trans>
+                  </Link>
+                </>
               ) : (
                 <Trans>Nothing more has happened to it.</Trans>
               )}

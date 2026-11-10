@@ -15,9 +15,11 @@ import (
 // a person waiting on a click.
 const FileTimeout = 30 * time.Second
 
-// ListFiles asks the agent what a directory holds.
-func (s *Session) ListFiles(ctx context.Context, path string) (*agentv1.ListFilesResult, error) {
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ListFiles{ListFiles: &agentv1.ListFilesCall{Path: path}}}, FileTimeout, nil)
+// ListFiles asks the agent what a directory holds: the names that hold match, if
+// it isn't empty, from the page a token names, if it isn't empty.
+func (s *Session) ListFiles(ctx context.Context, path, match, page string) (*agentv1.ListFilesResult, error) {
+	call := &agentv1.ListFilesCall{Path: path, Match: match, Page: page}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ListFiles{ListFiles: call}}, FileTimeout, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +61,10 @@ func (s *Session) SaveFile(ctx context.Context, path, content, version, record, 
 	}
 	return nil, fmt.Errorf("%s's agent answered a save with neither the file nor a refusal", s.name)
 }
+
+// PagesListings reports an agent whose listing goes in name order a page at a time,
+// and takes a name to match.
+func (s *Session) PagesListings() bool { return s.pagesListings }
 
 // ManagesFiles reports an agent that makes, moves, deletes and puts back files, each
 // with the care ADR 0045 says, a passkey for a way in among it.

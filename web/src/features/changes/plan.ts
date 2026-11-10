@@ -410,6 +410,12 @@ export function isFleet(plan: Plan | undefined): boolean {
  * as an older agent's may have: "service web in env_01M…" reads "web".
  */
 export function withoutIds(message: string): string {
+  // A firewall change its server refused at planning says why after the
+  // machine's own words for where: only the why is for a person.
+  const refused = message.match(
+    /^can't plan on [^:]+: can't plan firewall\.(?:rule|policy) \S+ in srv_[0-9A-Za-z]+: (.+)$/is,
+  );
+  if (refused?.[1]) return refused[1].charAt(0).toUpperCase() + refused[1].slice(1);
   return message
     .replace(/^.*?\bisn't valid: /, "")
     .replace(/\bservice (\S+) in env_[0-9A-Za-z]+/g, "$1")

@@ -56,16 +56,20 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await fitsItsWidth(page, "the databases list");
   await shoot(page, "databases-list");
 
-  step("databases: a database's page masks its password, and says where it is");
+  step("databases: a database's page lists what to connect with, its password masked until a passkey reveals it");
   await row.click();
   await page.getByRole("heading", { level: 1, name: "db" }).waitFor();
-  const url = page.getByLabel("Internal URL", { exact: true });
-  const shown = await url.inputValue();
-  if (shown !== "postgres://postgres:••••@db:5432/app") fail(`the internal URL reads ${shown}`);
-  await page
-    .getByText(/The password is in the secret/)
-    .getByText("POSTGRES_PASSWORD")
-    .waitFor();
+  const connect = page.getByRole("region", { name: "Connect" });
+  await connect.getByText("postgres://postgres:••••••••••••@db:5432/app", { exact: true }).waitFor();
+  await connect.getByText("Kept in the secret POSTGRES_PASSWORD").waitFor();
+  // The virtual authenticator answers the passkey prompt, as Touch ID would.
+  await connect.getByRole("button", { name: "Reveal password" }).click();
+  await connect.getByRole("button", { name: "Copy password" }).waitFor({ timeout: 20_000 });
+  const revealed = (await connect.locator(".dw-conn-code.is-revealed").innerText()).trim();
+  if (!/^[A-Za-z0-9]{32}$/.test(revealed)) fail(`the revealed password reads ${revealed.length} characters`);
+  await connect.getByText(`postgres://postgres:${revealed}@db:5432/app`, { exact: true }).waitFor();
+  await connect.getByRole("button", { name: "Hide" }).click();
+  if ((await page.content()).includes(revealed)) fail("the page keeps the password after it's hidden");
   await page.getByText("99.2").waitFor();
   await page.getByText(/PostgreSQL's own dump, while it runs/).waitFor();
   const users = page.getByRole("table", { name: "Users of db" });
@@ -159,8 +163,13 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await phoneRow.waitFor({ timeout: 20_000 });
   await fitsItsWidth(page, "the databases list on a phone");
   await phoneRow.click();
-  await page.getByLabel("Internal URL", { exact: true }).waitFor();
+  const phoneConnect = page.getByRole("region", { name: "Connect" });
+  const masked = phoneConnect.locator(".dw-conn-code.is-masked");
+  await masked.waitFor({ timeout: 20_000 });
   await fitsItsWidth(page, "a database's page on a phone");
+  // The masked password keeps to one line beside its actions, rather than a dot to a line.
+  const tall = await masked.evaluate((el) => el.getBoundingClientRect().height);
+  if (tall > 28) fail(`the masked password on a phone is ${Math.round(tall)} px tall, more than one line`);
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 

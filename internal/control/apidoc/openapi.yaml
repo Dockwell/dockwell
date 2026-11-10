@@ -963,6 +963,46 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/changes/{id}:confirm:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                ConfirmChange keeps a change to a server's firewall that waits for its
+                 confirmation (Change.confirmation), once you have checked that you can
+                 still reach the server as the confirmation says. Only the person who
+                 applied it may confirm it, in the session they applied it from. Without a
+                 confirmation in time, the server puts back its firewall as it was, and the
+                 change rolls back (ADR 0052). A server's firewall is the whole server's,
+                 so confirming is an admin's, as applying such a change is, and no API
+                 token can call it.
+            operationId: ChangeService_ConfirmChange
+            parameters:
+                - name: id
+                  in: path
+                  description: The change's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ConfirmChangeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConfirmChangeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/changes/{id}:discard:
         post:
             tags:
@@ -1875,6 +1915,67 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/joinTickets:
+        post:
+            tags:
+                - ServerService
+            description: |-
+                CreateJoinTicket makes a ticket that adds one server: dockwell join with it,
+                 on the new server, gives that server a name and a certificate, and its agent
+                 connects. The ticket works once, for an hour unless ttl_seconds says otherwise,
+                 and is shown only in this response. It gives a server a place in the fleet, so
+                 it takes a passkey just now: call it without a proof first, and it refuses with
+                 the reason needs_step_up, then again with the proof from FinishStepUp for
+                 STEP_UP_ACTION_ADD_SERVER. It's on the activity log. dockwell token create makes
+                 the same ticket on the control server.
+            operationId: ServerService_CreateJoinTicket
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateJoinTicketRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateJoinTicketResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/joinTickets/{id}:
+        get:
+            tags:
+                - ServerService
+            description: |-
+                GetJoinTicket says whether a ticket is still waiting for a server, which server
+                 joined with it, or that it expired. It never returns the ticket itself.
+            operationId: ServerService_GetJoinTicket
+            parameters:
+                - name: id
+                  in: path
+                  description: The ticket's ID, from CreateJoinTicket.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetJoinTicketResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/members:
         get:
             tags:
@@ -2447,6 +2548,19 @@ paths:
                      work adds to this message.
                   schema:
                     type: boolean
+                - name: match
+                  in: query
+                  description: |-
+                    Lists only the entries whose names hold this, case aside, such as "error":
+                     a search through the whole directory, however large. Empty lists every entry.
+                     A server whose agent is older than the control plane can't: update it.
+                  schema:
+                    type: string
+                - name: page
+                  in: query
+                  description: Lists the page after the one whose next_page this is. Empty lists the first.
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -4560,6 +4674,52 @@ paths:
                                 $ref: '#/components/schemas/Status'
 components:
     schemas:
+        AccessStays:
+            type: object
+            properties:
+                sshPorts:
+                    type: array
+                    items:
+                        type: integer
+                        format: uint32
+                    description: SSH's ports the change narrows, such as 22.
+                pinned:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The addresses pinned to SSH: those signed in over SSH as it was planned,
+                         and those kept from earlier changes, such as "203.0.113.7/32".
+                allowed:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What rules allow SSH's ports from, such as "198.51.100.0/24". Empty when
+                         no rule allows them.
+                tunnels:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        WireGuard tunnels whose port no rule allows, each as "wg0 (51820/udp)", or
+                         "wg0" where Dockwell couldn't read its port, when the change turns deny
+                         everything else on: the tunnel's next handshake is dropped, and SSH over
+                         it with it, though it passes the test while the tunnel's flow is tracked.
+                panelPorts:
+                    type: array
+                    items:
+                        type: integer
+                        format: uint32
+                    description: |-
+                        The ports the panel and the control plane listen on, on the control
+                         server, when the change turns deny everything else on there: they stay
+                         open by their pin, and the test to run is the panel in a new tab too.
+            description: |-
+                AccessStays is who still reaches a server's SSH once a change that narrows
+                 it is kept (ADR 0052). An address here is all that keeps its person in: if
+                 it changes, SSH is closed to them until a rule allows its port from where
+                 they are.
         AcknowledgeAlertRequest:
             type: object
             properties:
@@ -5653,6 +5813,7 @@ components:
                         - STEP_UP_ACTION_DELETE_WAY_BACK_IN
                         - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                         - STEP_UP_ACTION_APPROVE_CHANGE
+                        - STEP_UP_ACTION_ADD_SERVER
                     type: string
                     description: The action.
                     format: enum
@@ -6084,9 +6245,38 @@ components:
                          protected environment, an admin or the owner applies this. Leave it
                          planned for them". Empty when they may apply it, and for a viewer, who
                          applies nothing.
+                confirmation:
+                    allOf:
+                        - $ref: '#/components/schemas/ChangeConfirmation'
+                    description: |-
+                        What the change waits for, while a change to a server's firewall waits
+                         for its confirmation (ConfirmChange). Unset otherwise. Numbered apart, as
+                         open work adds to this message.
             description: |-
                 Change is one action's worth of edits to managed resources: planned,
                  then applied, failed or discarded.
+        ChangeConfirmation:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server whose firewall changed.
+                deadline:
+                    type: string
+                    description: When the server puts back its firewall, unless confirmed first.
+                    format: date-time
+                sshPorts:
+                    type: array
+                    items:
+                        type: integer
+                        format: uint32
+                    description: |-
+                        The ports the server's SSH listens on now, for the test the person runs
+                         before confirming: a new SSH session, from where they are, with their key.
+            description: |-
+                ChangeConfirmation is what a change to a server's firewall waits for: that
+                 the person who applied it confirms they can still reach the server, before
+                 the server's timer runs out and it puts back its firewall as it was.
         CheckClaimRequest:
             type: object
             properties:
@@ -6277,6 +6467,38 @@ components:
                     type: boolean
                     description: True when it needs a value, as the file gives it no default.
             description: ComposeVariable is a variable a Compose file uses, such as ${TAG}.
+        ConfirmChangeRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The change's ID.
+                serverId:
+                    type: string
+                    description: |-
+                        The server the confirmation is for: the one you checked you can still
+                         reach. It's refused unless that server waits now.
+                deadline:
+                    type: string
+                    description: |-
+                        The deadline the confirmation answers, as the change said it. When it's
+                         set, it's refused unless the server still waits for that deadline, so a
+                         confirmation sent twice can't keep a wait it wasn't for.
+                    format: date-time
+            description: |-
+                ConfirmChangeRequest names a change that waits for its confirmation, and the
+                 server whose confirmation it is, as a change to several servers waits on each
+                 in turn.
+        ConfirmChangeResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change.
+            description: |-
+                ConfirmChangeResponse carries the change, which goes on applying, or ends
+                 applied, once the server has kept what it waited for.
         ConfirmTotpSetupRequest:
             type: object
             properties:
@@ -6643,6 +6865,28 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: CreateDatabaseUserResponse carries the planned change.
+        CreateJoinTicketRequest:
+            type: object
+            properties:
+                ttlSeconds:
+                    type: integer
+                    description: 'How long it works, in seconds: an hour when unset, and at most a day.'
+                    format: uint32
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp for STEP_UP_ACTION_ADD_SERVER.
+            description: CreateJoinTicketRequest says how long the ticket works.
+        CreateJoinTicketResponse:
+            type: object
+            properties:
+                ticket:
+                    allOf:
+                        - $ref: '#/components/schemas/JoinTicket'
+                    description: What the ticket is and where it leads, as GetJoinTicket reads it.
+                value:
+                    type: string
+                    description: The ticket itself, for dockwell join on the new server. Nothing shows it again.
+            description: CreateJoinTicketResponse carries the ticket, once.
         CreateTokenRequest:
             type: object
             properties:
@@ -7149,6 +7393,17 @@ components:
                     type: string
                     description: Total size, in bytes.
             description: DiskUsage is one filesystem's use.
+        DockwellFirewallRule:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, as the firewall.rule resource has it.
+                rule:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallRule'
+                    description: The rule.
+            description: DockwellFirewallRule is one of Dockwell's own rules for a server.
         DockwellRelease:
             type: object
             properties:
@@ -7175,6 +7430,44 @@ components:
             description: |-
                 DockwellRelease is Dockwell's version on a server and its control plane, and
                  the newest release.
+        DockwellTable:
+            type: object
+            properties:
+                unusable:
+                    type: string
+                    description: |-
+                        Why the server can't hold Dockwell's firewall, such as that it has no nft,
+                         so no rule or policy can be planned for it. Empty when it can.
+                rules:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockwellFirewallRule'
+                    description: |-
+                        Its rules as last confirmed, which the server keeps, by name. Each is a
+                         firewall.rule resource in the server's scope, which a change edits.
+                policy:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallPolicy'
+                    description: |-
+                        Its policy as last confirmed: what it does with what no rule lets in.
+                         Unset when it has none, which lets in what no rule drops.
+                waitingChange:
+                    type: string
+                    description: |-
+                        The change that waits for its confirmation now, if one does. Its rules and
+                         policy are loaded, and go back unless it's kept.
+                waitingRules:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockwellFirewallRule'
+                    description: The rules as that change leaves them, by name.
+                waitingPolicy:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallPolicy'
+                    description: The policy as that change leaves it. Unset when it leaves none.
+            description: |-
+                DockwellTable is Dockwell's own firewall on a server, as its agent holds it
+                 (ADR 0052).
         Domain:
             type: object
             properties:
@@ -8372,6 +8665,20 @@ components:
                     type: string
                     description: How many files and folders that made.
             description: FinishUploadResponse is what an upload put in place.
+        FirewallPolicy:
+            type: object
+            properties:
+                denyEverythingElse:
+                    type: boolean
+                    description: |-
+                        Drop inbound traffic no rule lets in. What keeps the server reachable is
+                         still let in: connections already open, SSH from where people come in now,
+                         and on the control server its own ports.
+            description: |-
+                FirewallPolicy is what a server's firewall does with inbound traffic no rule
+                 lets in, kind "firewall.policy", named "default", one for each server.
+                 Without one, or with deny_everything_else off, what no rule drops comes in,
+                 as it did before Dockwell (ADR 0052).
         FirewallRule:
             type: object
             properties:
@@ -8694,6 +9001,14 @@ components:
                          otherwise.
                     format: enum
             description: GetImageResponse says whether an image is there, and what it declares.
+        GetJoinTicketResponse:
+            type: object
+            properties:
+                ticket:
+                    allOf:
+                        - $ref: '#/components/schemas/JoinTicket'
+                    description: The ticket, without its secret.
+            description: GetJoinTicketResponse carries the ticket as it stands.
         GetServerDiskUseResponse:
             type: object
             properties:
@@ -8708,7 +9023,7 @@ components:
                 firewall:
                     allOf:
                         - $ref: '#/components/schemas/ServerFirewall'
-                    description: The firewall, as the agent read it.
+                    description: The firewall, as the agent read it, Dockwell's own with the rest.
             description: GetServerFirewallResponse is what filters the server's inbound traffic.
         GetServerResponse:
             type: object
@@ -9600,6 +9915,54 @@ components:
                  to resources, which for a deploy or a new port is that a container is made
                  again: this says what that comes to. It isn't in the fingerprint, as it says
                  nothing about what the plan does.
+        JoinAddress:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: The control plane's agent URL, such as https://203.0.113.7:7601.
+                reach:
+                    enum:
+                        - JOIN_REACH_UNSPECIFIED
+                        - JOIN_REACH_ANYWHERE
+                        - JOIN_REACH_WAY_OUT
+                        - JOIN_REACH_SAME_NETWORK
+                    type: string
+                    description: Who reaches it.
+                    format: enum
+            description: JoinAddress is one address a ticket names, and who can reach it.
+        JoinTicket:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, which starts jtk_.
+                state:
+                    enum:
+                        - JOIN_TICKET_STATE_UNSPECIFIED
+                        - JOIN_TICKET_STATE_WAITING
+                        - JOIN_TICKET_STATE_JOINED
+                        - JOIN_TICKET_STATE_EXPIRED
+                    type: string
+                    description: Whether a server has joined with it yet.
+                    format: enum
+                expireTime:
+                    type: string
+                    description: When it stops working, used or not.
+                    format: date-time
+                addresses:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/JoinAddress'
+                    description: |-
+                        Where a joining server reaches the control plane, in the order it tries them.
+                         Only CreateJoinTicket says it, as the ticket holds it and nothing else keeps it.
+                serverId:
+                    type: string
+                    description: The server that joined with it, by ID and by name, once one has.
+                serverName:
+                    type: string
+            description: JoinTicket is a ticket that adds one server, without its secret.
         ListAlertChannelsResponse:
             type: object
             properties:
@@ -9815,8 +10178,14 @@ components:
                 truncated:
                     type: boolean
                     description: |-
-                        True when the directory holds more than a listing can carry, so these
-                         are some of its entries, in no useful order but their names.
+                        True when the directory holds more than a listing can carry, so these are
+                         some of its entries. From an up-to-date agent they're the first in name
+                         order after the page asked for, and next_page lists the rest.
+                nextPage:
+                    type: string
+                    description: |-
+                        What to pass as page for the entries after these, in name order. Empty when
+                         there are no more, and from an agent older than the control plane.
             description: ListFilesResponse is what a directory holds.
         ListHealthResponse:
             type: object
@@ -11340,6 +11709,23 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/BackupFirst'
                     description: What a step that backs up a volume before the rest of a change does.
+                closes:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What a step that turns on deny everything else closes: each port that
+                         listens on the server, or that Docker publishes, that no rule lets in from
+                         anywhere, such as "8080/tcp (shop-web-1)". SSH's ports and the control
+                         plane's own stay let in by their pins, and aren't here (ADR 0052).
+                stays:
+                    allOf:
+                        - $ref: '#/components/schemas/AccessStays'
+                    description: |-
+                        How the server stays reachable once a step that narrows SSH is kept: who
+                         SSH stays open from, by name, so a person sees whether their own address
+                         is there, and a stranger's. Unset on a step that leaves SSH open to
+                         anywhere.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -12781,6 +13167,13 @@ components:
                          puts there, as ufw-docker or a person adds. They filter published ports,
                          and the agent doesn't weigh them one by one.
                     format: uint32
+                dockwell:
+                    allOf:
+                        - $ref: '#/components/schemas/DockwellTable'
+                    description: |-
+                        Dockwell's own firewall, as the agent holds it: what was confirmed, and a
+                         change that waits for its confirmation. Its table counts in how far what
+                         listens reaches, as the others' do. Unset from an agent too old to say.
             description: ServerFirewall is what filters a server's inbound traffic, as its agent read it.
         ServerHealth:
             type: object
@@ -13686,6 +14079,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/FirewallRule'
                     description: A firewall rule on a server, kind "firewall.rule".
+                firewallPolicy:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallPolicy'
+                    description: |-
+                        What a server's firewall does with what no rule lets in, kind
+                         "firewall.policy". Numbered apart, as open work adds to this message.
                 volume:
                     allOf:
                         - $ref: '#/components/schemas/Volume'
@@ -13872,6 +14271,13 @@ components:
                          it's done, for a step that failed, and for one a run that stopped partway had
                          done already.
                     format: enum
+                confirmation:
+                    allOf:
+                        - $ref: '#/components/schemas/ChangeConfirmation'
+                    description: |-
+                        What the step waits for, while a change to who reaches its server waits
+                         for the person who applied it to confirm they still can (ConfirmChange).
+                         Numbered apart, as open work adds to this message.
             description: StepProgress is one step of an applying change, and how it is going.
         Task:
             type: object

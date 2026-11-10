@@ -177,7 +177,7 @@ describe("TerminalPage", () => {
     await expectAccessible(document.body);
   });
 
-  it("points to SSH when there's no passkey for this address", async () => {
+  it("offers to add a passkey here when there's none for this address", async () => {
     renderTerminal(
       {
         listTerminals: () => ({}),
@@ -189,9 +189,8 @@ describe("TerminalPage", () => {
       },
     );
     await userEvent.click(await screen.findByRole("button", { name: "Open a terminal" }));
-    expect(await screen.findByText(/you have none for this address/)).toHaveTextContent(
-      "Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to hz-1 over SSH.",
-    );
+    expect(await screen.findByText("A terminal takes a passkey, and there's none for this address")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add a passkey here" })).toBeVisible();
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 

@@ -22,7 +22,188 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/server.proto.
  */
 export const file_dockwell_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9zZXJ2ZXIucHJvdG8SC2RvY2t3ZWxsLnYxIhQKEkxpc3RTZXJ2ZXJzUmVxdWVzdCI7ChNMaXN0U2VydmVyc1Jlc3BvbnNlEiQKB3NlcnZlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiHgoQR2V0U2VydmVyUmVxdWVzdBIKCgJpZBgBIAEoCSI4ChFHZXRTZXJ2ZXJSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiUAoXQ2hlY2tTZXJ2ZXJQb3J0c1JlcXVlc3QSCgoCaWQYASABKAkSKQoFcG9ydHMYAiADKAsyGi5kb2Nrd2VsbC52MS5TZXJ2ZXJQb3J0QXNrIioKDVNlcnZlclBvcnRBc2sSDAoEcG9ydBgBIAEoDRILCgN1ZHAYAiABKAgiRgoYQ2hlY2tTZXJ2ZXJQb3J0c1Jlc3BvbnNlEioKBXBvcnRzGAEgAygLMhsuZG9ja3dlbGwudjEuU2VydmVyUG9ydEhlbGQiRQoOU2VydmVyUG9ydEhlbGQSDAoEcG9ydBgBIAEoDRILCgN1ZHAYAiABKAgSDAoEaGVsZBgDIAEoCBIKCgJieRgEIAEoCSIlChdHZXRTZXJ2ZXJEaXNrVXNlUmVxdWVzdBIKCgJpZBgBIAEoCSJIChhHZXRTZXJ2ZXJEaXNrVXNlUmVzcG9uc2USLAoIZGlza191c2UYASABKAsyGi5kb2Nrd2VsbC52MS5TZXJ2ZXJEaXNrVXNlIvECCg1TZXJ2ZXJEaXNrVXNlEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC2RvY2tlcl9yb290GAIgASgJEhMKC21vdW50X3BvaW50GAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAQSEgoKdXNlZF9ieXRlcxgFIAEoBBIUCgxpbWFnZXNfYnl0ZXMYBiABKAQSGwoTaW1hZ2VzX3VudXNlZF9ieXRlcxgHIAEoBBIYChBjb250YWluZXJzX2J5dGVzGAggASgEEhUKDXZvbHVtZXNfYnl0ZXMYCSABKAQSHAoUdm9sdW1lc191bnVzZWRfYnl0ZXMYCiABKAQSGQoRYnVpbGRfY2FjaGVfYnl0ZXMYCyABKAQSEgoKbG9nc19ieXRlcxgMIAEoBBIOCgZpbWFnZXMYDSABKA0SEgoKY29udGFpbmVycxgOIAEoDRIPCgd2b2x1bWVzGA8gASgNIkoKHVNldFNlcnZlclB1YmxpY0FkZHJlc3NSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB2FkZHJlc3MYAiABKAkSDAoEaXB2NhgDIAEoCCJFCh5TZXRTZXJ2ZXJQdWJsaWNBZGRyZXNzUmVzcG9uc2USIwoGc2VydmVyGAEgASgLMhMuZG9ja3dlbGwudjEuU2VydmVyIhUKE1dhdGNoU2VydmVyc1JlcXVlc3QiegoUV2F0Y2hTZXJ2ZXJzUmVzcG9uc2USIwoGc2VydmVyGAEgASgLMhMuZG9ja3dlbGwudjEuU2VydmVyEg8KB3JlbW92ZWQYAiABKAgSGQoRc25hcHNob3RfY29tcGxldGUYAyABKAgSEQoJaGVhcnRiZWF0GAQgASgIIqYFCgZTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIvCgtjcmVhdGVfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKwoKY29ubmVjdGlvbhgEIAEoDjIXLmRvY2t3ZWxsLnYxLkNvbm5lY3Rpb24SMgoObGFzdF9zZWVuX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KCWludmVudG9yeRgGIAEoCzIcLmRvY2t3ZWxsLnYxLlNlcnZlckludmVudG9yeRInCgVzdGF0cxgHIAEoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzEikKB2hpc3RvcnkYCCADKAsyGC5kb2Nrd2VsbC52MS5TZXJ2ZXJTdGF0cxIrCgthZ2VudF9idWlsZBgJIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbxIWCg5jb250cm9sX3NlcnZlchgKIAEoCBIwCgxjb25uZWN0X3RpbWUYCyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEisKB2luZ3Jlc3MYDCABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzEjsKF2RvY2tlcl91bnJlYWRhYmxlX3NpbmNlGA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCgduZXR3b3JrGA4gASgLMhouZG9ja3dlbGwudjEuU2VydmVyTmV0d29yaxIyCg5zdHJhaW5lZF9zaW5jZRgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKQoGc3RyYWluGBAgASgOMhkuZG9ja3dlbGwudjEuU2VydmVyU3RyYWluIrQCCg1TZXJ2ZXJOZXR3b3JrEigKBGlwdjQYASABKAsyGi5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzEigKBGlwdjYYAiABKAsyGi5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzEikKCXJlYWNoYWJsZRgDIAEoDjIWLmRvY2t3ZWxsLnYxLlJlYWNoYWJsZRIYChByZWFjaGFibGVfZG9tYWluGAQgASgJEjIKDnJlYWNoYWJsZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIsCghwcm92aWRlchgGIAEoDjIaLmRvY2t3ZWxsLnYxLkNsb3VkUHJvdmlkZXISKAoFc2hhcGUYByABKA4yGS5kb2Nrd2VsbC52MS5OZXR3b3JrU2hhcGUiyAEKDVB1YmxpY0FkZHJlc3MSDwoHYWRkcmVzcxgBIAEoCRIwCgZzb3VyY2UYAiABKA4yIC5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzU291cmNlEi4KCmtub3duX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmRvbWFpbhgEIAEoCRIiCgZzZXRfYnkYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIQCgh1bnByb3ZlbhgGIAEoCCLXAgoPU2VydmVySW52ZW50b3J5EhAKCGhvc3RuYW1lGAEgASgJEg8KB29zX25hbWUYAiABKAkSDQoFb3NfaWQYAyABKAkSEgoKb3NfdmVyc2lvbhgEIAEoCRIOCgZrZXJuZWwYBSABKAkSFAoMYXJjaGl0ZWN0dXJlGAYgASgJEhEKCWNwdV9tb2RlbBgHIAEoCRIRCgljcHVfY291bnQYCCABKA0SFAoMbWVtb3J5X2J5dGVzGAkgASgEEiAKBWRpc2tzGAogAygLMhEuZG9ja3dlbGwudjEuRGlzaxIWCg5kb2NrZXJfdmVyc2lvbhgLIAEoCRIRCglhZGRyZXNzZXMYDCADKAkSGQoRZG9ja2VyX2xvZ19kcml2ZXIYDSABKAkSGAoQb3V0Ym91bmRfYWRkcmVzcxgOIAEoCRIaChJhZGRyZXNzZXNfcGh5c2ljYWwYDyABKAgiUwoERGlzaxITCgttb3VudF9wb2ludBgBIAEoCRIOCgZkZXZpY2UYAiABKAkSEgoKZmlsZXN5c3RlbRgDIAEoCRISCgpzaXplX2J5dGVzGAQgASgEIv0DCgtTZXJ2ZXJTdGF0cxIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtjcHVfcGVyY2VudBgCIAEoARIZChFtZW1vcnlfdXNlZF9ieXRlcxgDIAEoBBIaChJtZW1vcnlfdG90YWxfYnl0ZXMYBCABKAQSJQoFZGlza3MYBSADKAsyFi5kb2Nrd2VsbC52MS5EaXNrVXNhZ2USDQoFbG9hZDEYBiABKAESDQoFbG9hZDUYByABKAESDgoGbG9hZDE1GAggASgBEiMKG25ldHdvcmtfcnhfYnl0ZXNfcGVyX3NlY29uZBgJIAEoBBIjChtuZXR3b3JrX3R4X2J5dGVzX3Blcl9zZWNvbmQYCiABKAQSKQoGdXB0aW1lGAsgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uEhcKD3N3YXBfdXNlZF9ieXRlcxgMIAEoBBIYChBzd2FwX3RvdGFsX2J5dGVzGA0gASgEEhoKEmFnZW50X21lbW9yeV9ieXRlcxgOIAEoBBIYChBuZXR3b3JrX3J4X2J5dGVzGA8gASgEEhgKEG5ldHdvcmtfdHhfYnl0ZXMYECABKAQSKwoIaW50ZXJ2YWwYESABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24iSAoJRGlza1VzYWdlEhMKC21vdW50X3BvaW50GAEgASgJEhIKCnVzZWRfYnl0ZXMYAiABKAQSEgoKc2l6ZV9ieXRlcxgDIAEoBCp2CgpDb25uZWN0aW9uEhoKFkNPTk5FQ1RJT05fVU5TUEVDSUZJRUQQABIYChRDT05ORUNUSU9OX0NPTk5FQ1RFRBABEhoKFkNPTk5FQ1RJT05fVU5SRUFDSEFCTEUQAhIWChJDT05ORUNUSU9OX1BFTkRJTkcQAypeCgxTZXJ2ZXJTdHJhaW4SHQoZU0VSVkVSX1NUUkFJTl9VTlNQRUNJRklFRBAAEhgKFFNFUlZFUl9TVFJBSU5fTUVNT1JZEAESFQoRU0VSVkVSX1NUUkFJTl9DUFUQAiqiAQoMTmV0d29ya1NoYXBlEh0KGU5FVFdPUktfU0hBUEVfVU5TUEVDSUZJRUQQABIaChZORVRXT1JLX1NIQVBFX0lOVEVSTkVUEAESGwoXTkVUV09SS19TSEFQRV9DTE9VRF9OQVQQAhIbChdORVRXT1JLX1NIQVBFX0xPQ0FMX05BVBADEh0KGU5FVFdPUktfU0hBUEVfQ0FSUklFUl9OQVQQBCq5AgoTUHVibGljQWRkcmVzc1NvdXJjZRIlCiFQVUJMSUNfQUREUkVTU19TT1VSQ0VfVU5TUEVDSUZJRUQQABInCiNQVUJMSUNfQUREUkVTU19TT1VSQ0VfU0VUX0JZX1BFUlNPThABEiYKIlBVQkxJQ19BRERSRVNTX1NPVVJDRV9PTl9JTlRFUkZBQ0UQAhIqCiZQVUJMSUNfQUREUkVTU19TT1VSQ0VfUFJPVkVEX0JZX0RPTUFJThADEi8KK1BVQkxJQ19BRERSRVNTX1NPVVJDRV9TRUVOX0JZX0NPTlRST0xfUExBTkUQBBIoCiRQVUJMSUNfQUREUkVTU19TT1VSQ0VfQ0xPVURfTUVUQURBVEEQBRIjCh9QVUJMSUNfQUREUkVTU19TT1VSQ0VfTE9PS0VEX1VQEAYqZgoJUmVhY2hhYmxlEhkKFVJFQUNIQUJMRV9VTlNQRUNJRklFRBAAEhkKFVJFQUNIQUJMRV9OT1RfQ0hFQ0tFRBABEhEKDVJFQUNIQUJMRV9ZRVMQAhIQCgxSRUFDSEFCTEVfTk8QAyrRAQoNQ2xvdWRQcm92aWRlchIeChpDTE9VRF9QUk9WSURFUl9VTlNQRUNJRklFRBAAEhYKEkNMT1VEX1BST1ZJREVSX0FXUxABEhYKEkNMT1VEX1BST1ZJREVSX0dDUBACEhgKFENMT1VEX1BST1ZJREVSX0FaVVJFEAMSHwobQ0xPVURfUFJPVklERVJfRElHSVRBTE9DRUFOEAQSGgoWQ0xPVURfUFJPVklERVJfSEVUWk5FUhAFEhkKFUNMT1VEX1BST1ZJREVSX09SQUNMRRAGMokHCg1TZXJ2ZXJTZXJ2aWNlEngKC0xpc3RTZXJ2ZXJzEh8uZG9ja3dlbGwudjEuTGlzdFNlcnZlcnNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdFNlcnZlcnNSZXNwb25zZSImkAIBoLsYAcC7GALIuxgC0LsYBYLT5JMCDRILL3YxL3NlcnZlcnMSdwoJR2V0U2VydmVyEh0uZG9ja3dlbGwudjEuR2V0U2VydmVyUmVxdWVzdBoeLmRvY2t3ZWxsLnYxLkdldFNlcnZlclJlc3BvbnNlIiuQAgGguxgBwLsYAsi7GALQuxgFgtPkkwISEhAvdjEvc2VydmVycy97aWR9EmcKDFdhdGNoU2VydmVycxIgLmRvY2t3ZWxsLnYxLldhdGNoU2VydmVyc1JlcXVlc3QaIS5kb2Nrd2VsbC52MS5XYXRjaFNlcnZlcnNSZXNwb25zZSIQoLsYAcC7GALIuxgC0LsYBTABEqIBChBHZXRTZXJ2ZXJEaXNrVXNlEiQuZG9ja3dlbGwudjEuR2V0U2VydmVyRGlza1VzZVJlcXVlc3QaJS5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJEaXNrVXNlUmVzcG9uc2UiQZACAaC7GAGquxgKEghkaXNrLXVzZcC7GATIuxgE0LsYBoLT5JMCGhIYL3YxL3NlcnZlcnMve2lkfS9kaXNrVXNlEqwBChBDaGVja1NlcnZlclBvcnRzEiQuZG9ja3dlbGwudjEuQ2hlY2tTZXJ2ZXJQb3J0c1JlcXVlc3QaJS5kb2Nrd2VsbC52MS5DaGVja1NlcnZlclBvcnRzUmVzcG9uc2UiS5ACAaC7GAGquxgWCgdzZXJ2ZXJzEgtjaGVjay1wb3J0c8C7GATIuxgE0LsYBoLT5JMCGBIWL3YxL3NlcnZlcnMve2lkfS9wb3J0cxLHAQoWU2V0U2VydmVyUHVibGljQWRkcmVzcxIqLmRvY2t3ZWxsLnYxLlNldFNlcnZlclB1YmxpY0FkZHJlc3NSZXF1ZXN0GisuZG9ja3dlbGwudjEuU2V0U2VydmVyUHVibGljQWRkcmVzc1Jlc3BvbnNlIlSguxgDqrsYFBISc2V0LXB1YmxpYy1hZGRyZXNzwLsYBMi7GATQuxgGgtPkkwImOgEqIiEvdjEvc2VydmVycy97aWR9OnNldFB1YmxpY0FkZHJlc3NCpAEKD2NvbS5kb2Nrd2VsbC52MUILU2VydmVyUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_domain, file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9zZXJ2ZXIucHJvdG8SC2RvY2t3ZWxsLnYxIj0KF0NyZWF0ZUpvaW5UaWNrZXRSZXF1ZXN0EhMKC3R0bF9zZWNvbmRzGAEgASgNEg0KBXByb29mGAIgASgJIlIKGENyZWF0ZUpvaW5UaWNrZXRSZXNwb25zZRInCgZ0aWNrZXQYASABKAsyFy5kb2Nrd2VsbC52MS5Kb2luVGlja2V0Eg0KBXZhbHVlGAIgASgJIiIKFEdldEpvaW5UaWNrZXRSZXF1ZXN0EgoKAmlkGAEgASgJIkAKFUdldEpvaW5UaWNrZXRSZXNwb25zZRInCgZ0aWNrZXQYASABKAsyFy5kb2Nrd2VsbC52MS5Kb2luVGlja2V0IssBCgpKb2luVGlja2V0EgoKAmlkGAEgASgJEisKBXN0YXRlGAIgASgOMhwuZG9ja3dlbGwudjEuSm9pblRpY2tldFN0YXRlEi8KC2V4cGlyZV90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCglhZGRyZXNzZXMYBCADKAsyGC5kb2Nrd2VsbC52MS5Kb2luQWRkcmVzcxIRCglzZXJ2ZXJfaWQYBSABKAkSEwoLc2VydmVyX25hbWUYBiABKAkiQQoLSm9pbkFkZHJlc3MSCwoDdXJsGAEgASgJEiUKBXJlYWNoGAIgASgOMhYuZG9ja3dlbGwudjEuSm9pblJlYWNoIhQKEkxpc3RTZXJ2ZXJzUmVxdWVzdCI7ChNMaXN0U2VydmVyc1Jlc3BvbnNlEiQKB3NlcnZlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiHgoQR2V0U2VydmVyUmVxdWVzdBIKCgJpZBgBIAEoCSI4ChFHZXRTZXJ2ZXJSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiUAoXQ2hlY2tTZXJ2ZXJQb3J0c1JlcXVlc3QSCgoCaWQYASABKAkSKQoFcG9ydHMYAiADKAsyGi5kb2Nrd2VsbC52MS5TZXJ2ZXJQb3J0QXNrIioKDVNlcnZlclBvcnRBc2sSDAoEcG9ydBgBIAEoDRILCgN1ZHAYAiABKAgiRgoYQ2hlY2tTZXJ2ZXJQb3J0c1Jlc3BvbnNlEioKBXBvcnRzGAEgAygLMhsuZG9ja3dlbGwudjEuU2VydmVyUG9ydEhlbGQiRQoOU2VydmVyUG9ydEhlbGQSDAoEcG9ydBgBIAEoDRILCgN1ZHAYAiABKAgSDAoEaGVsZBgDIAEoCBIKCgJieRgEIAEoCSIlChdHZXRTZXJ2ZXJEaXNrVXNlUmVxdWVzdBIKCgJpZBgBIAEoCSJIChhHZXRTZXJ2ZXJEaXNrVXNlUmVzcG9uc2USLAoIZGlza191c2UYASABKAsyGi5kb2Nrd2VsbC52MS5TZXJ2ZXJEaXNrVXNlIvECCg1TZXJ2ZXJEaXNrVXNlEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC2RvY2tlcl9yb290GAIgASgJEhMKC21vdW50X3BvaW50GAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAQSEgoKdXNlZF9ieXRlcxgFIAEoBBIUCgxpbWFnZXNfYnl0ZXMYBiABKAQSGwoTaW1hZ2VzX3VudXNlZF9ieXRlcxgHIAEoBBIYChBjb250YWluZXJzX2J5dGVzGAggASgEEhUKDXZvbHVtZXNfYnl0ZXMYCSABKAQSHAoUdm9sdW1lc191bnVzZWRfYnl0ZXMYCiABKAQSGQoRYnVpbGRfY2FjaGVfYnl0ZXMYCyABKAQSEgoKbG9nc19ieXRlcxgMIAEoBBIOCgZpbWFnZXMYDSABKA0SEgoKY29udGFpbmVycxgOIAEoDRIPCgd2b2x1bWVzGA8gASgNIkoKHVNldFNlcnZlclB1YmxpY0FkZHJlc3NSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB2FkZHJlc3MYAiABKAkSDAoEaXB2NhgDIAEoCCJFCh5TZXRTZXJ2ZXJQdWJsaWNBZGRyZXNzUmVzcG9uc2USIwoGc2VydmVyGAEgASgLMhMuZG9ja3dlbGwudjEuU2VydmVyIhUKE1dhdGNoU2VydmVyc1JlcXVlc3QiegoUV2F0Y2hTZXJ2ZXJzUmVzcG9uc2USIwoGc2VydmVyGAEgASgLMhMuZG9ja3dlbGwudjEuU2VydmVyEg8KB3JlbW92ZWQYAiABKAgSGQoRc25hcHNob3RfY29tcGxldGUYAyABKAgSEQoJaGVhcnRiZWF0GAQgASgIIqYFCgZTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIvCgtjcmVhdGVfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKwoKY29ubmVjdGlvbhgEIAEoDjIXLmRvY2t3ZWxsLnYxLkNvbm5lY3Rpb24SMgoObGFzdF9zZWVuX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KCWludmVudG9yeRgGIAEoCzIcLmRvY2t3ZWxsLnYxLlNlcnZlckludmVudG9yeRInCgVzdGF0cxgHIAEoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzEikKB2hpc3RvcnkYCCADKAsyGC5kb2Nrd2VsbC52MS5TZXJ2ZXJTdGF0cxIrCgthZ2VudF9idWlsZBgJIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbxIWCg5jb250cm9sX3NlcnZlchgKIAEoCBIwCgxjb25uZWN0X3RpbWUYCyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEisKB2luZ3Jlc3MYDCABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzEjsKF2RvY2tlcl91bnJlYWRhYmxlX3NpbmNlGA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCgduZXR3b3JrGA4gASgLMhouZG9ja3dlbGwudjEuU2VydmVyTmV0d29yaxIyCg5zdHJhaW5lZF9zaW5jZRgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKQoGc3RyYWluGBAgASgOMhkuZG9ja3dlbGwudjEuU2VydmVyU3RyYWluIrQCCg1TZXJ2ZXJOZXR3b3JrEigKBGlwdjQYASABKAsyGi5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzEigKBGlwdjYYAiABKAsyGi5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzEikKCXJlYWNoYWJsZRgDIAEoDjIWLmRvY2t3ZWxsLnYxLlJlYWNoYWJsZRIYChByZWFjaGFibGVfZG9tYWluGAQgASgJEjIKDnJlYWNoYWJsZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIsCghwcm92aWRlchgGIAEoDjIaLmRvY2t3ZWxsLnYxLkNsb3VkUHJvdmlkZXISKAoFc2hhcGUYByABKA4yGS5kb2Nrd2VsbC52MS5OZXR3b3JrU2hhcGUiyAEKDVB1YmxpY0FkZHJlc3MSDwoHYWRkcmVzcxgBIAEoCRIwCgZzb3VyY2UYAiABKA4yIC5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzU291cmNlEi4KCmtub3duX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmRvbWFpbhgEIAEoCRIiCgZzZXRfYnkYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIQCgh1bnByb3ZlbhgGIAEoCCLXAgoPU2VydmVySW52ZW50b3J5EhAKCGhvc3RuYW1lGAEgASgJEg8KB29zX25hbWUYAiABKAkSDQoFb3NfaWQYAyABKAkSEgoKb3NfdmVyc2lvbhgEIAEoCRIOCgZrZXJuZWwYBSABKAkSFAoMYXJjaGl0ZWN0dXJlGAYgASgJEhEKCWNwdV9tb2RlbBgHIAEoCRIRCgljcHVfY291bnQYCCABKA0SFAoMbWVtb3J5X2J5dGVzGAkgASgEEiAKBWRpc2tzGAogAygLMhEuZG9ja3dlbGwudjEuRGlzaxIWCg5kb2NrZXJfdmVyc2lvbhgLIAEoCRIRCglhZGRyZXNzZXMYDCADKAkSGQoRZG9ja2VyX2xvZ19kcml2ZXIYDSABKAkSGAoQb3V0Ym91bmRfYWRkcmVzcxgOIAEoCRIaChJhZGRyZXNzZXNfcGh5c2ljYWwYDyABKAgiUwoERGlzaxITCgttb3VudF9wb2ludBgBIAEoCRIOCgZkZXZpY2UYAiABKAkSEgoKZmlsZXN5c3RlbRgDIAEoCRISCgpzaXplX2J5dGVzGAQgASgEIv0DCgtTZXJ2ZXJTdGF0cxIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtjcHVfcGVyY2VudBgCIAEoARIZChFtZW1vcnlfdXNlZF9ieXRlcxgDIAEoBBIaChJtZW1vcnlfdG90YWxfYnl0ZXMYBCABKAQSJQoFZGlza3MYBSADKAsyFi5kb2Nrd2VsbC52MS5EaXNrVXNhZ2USDQoFbG9hZDEYBiABKAESDQoFbG9hZDUYByABKAESDgoGbG9hZDE1GAggASgBEiMKG25ldHdvcmtfcnhfYnl0ZXNfcGVyX3NlY29uZBgJIAEoBBIjChtuZXR3b3JrX3R4X2J5dGVzX3Blcl9zZWNvbmQYCiABKAQSKQoGdXB0aW1lGAsgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uEhcKD3N3YXBfdXNlZF9ieXRlcxgMIAEoBBIYChBzd2FwX3RvdGFsX2J5dGVzGA0gASgEEhoKEmFnZW50X21lbW9yeV9ieXRlcxgOIAEoBBIYChBuZXR3b3JrX3J4X2J5dGVzGA8gASgEEhgKEG5ldHdvcmtfdHhfYnl0ZXMYECABKAQSKwoIaW50ZXJ2YWwYESABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24iSAoJRGlza1VzYWdlEhMKC21vdW50X3BvaW50GAEgASgJEhIKCnVzZWRfYnl0ZXMYAiABKAQSEgoKc2l6ZV9ieXRlcxgDIAEoBCq2AQoPSm9pblRpY2tldFN0YXRlEiEKHUpPSU5fVElDS0VUX1NUQVRFX1VOU1BFQ0lGSUVEEAASKgoZSk9JTl9USUNLRVRfU1RBVEVfV0FJVElORxABGguiuxgHV2FpdGluZxIoChhKT0lOX1RJQ0tFVF9TVEFURV9KT0lORUQQAhoKorsYBkpvaW5lZBIqChlKT0lOX1RJQ0tFVF9TVEFURV9FWFBJUkVEEAMaC6K7GAdFeHBpcmVkKqcBCglKb2luUmVhY2gSGgoWSk9JTl9SRUFDSF9VTlNQRUNJRklFRBAAEiUKE0pPSU5fUkVBQ0hfQU5ZV0hFUkUQARoMorsYCEFueXdoZXJlEigKEkpPSU5fUkVBQ0hfV0FZX09VVBACGhCiuxgMV2F5IG91dCBvbmx5Ei0KF0pPSU5fUkVBQ0hfU0FNRV9ORVRXT1JLEAMaEKK7GAxTYW1lIG5ldHdvcmsqdgoKQ29ubmVjdGlvbhIaChZDT05ORUNUSU9OX1VOU1BFQ0lGSUVEEAASGAoUQ09OTkVDVElPTl9DT05ORUNURUQQARIaChZDT05ORUNUSU9OX1VOUkVBQ0hBQkxFEAISFgoSQ09OTkVDVElPTl9QRU5ESU5HEAMqXgoMU2VydmVyU3RyYWluEh0KGVNFUlZFUl9TVFJBSU5fVU5TUEVDSUZJRUQQABIYChRTRVJWRVJfU1RSQUlOX01FTU9SWRABEhUKEVNFUlZFUl9TVFJBSU5fQ1BVEAIqogEKDE5ldHdvcmtTaGFwZRIdChlORVRXT1JLX1NIQVBFX1VOU1BFQ0lGSUVEEAASGgoWTkVUV09SS19TSEFQRV9JTlRFUk5FVBABEhsKF05FVFdPUktfU0hBUEVfQ0xPVURfTkFUEAISGwoXTkVUV09SS19TSEFQRV9MT0NBTF9OQVQQAxIdChlORVRXT1JLX1NIQVBFX0NBUlJJRVJfTkFUEAQquQIKE1B1YmxpY0FkZHJlc3NTb3VyY2USJQohUFVCTElDX0FERFJFU1NfU09VUkNFX1VOU1BFQ0lGSUVEEAASJwojUFVCTElDX0FERFJFU1NfU09VUkNFX1NFVF9CWV9QRVJTT04QARImCiJQVUJMSUNfQUREUkVTU19TT1VSQ0VfT05fSU5URVJGQUNFEAISKgomUFVCTElDX0FERFJFU1NfU09VUkNFX1BST1ZFRF9CWV9ET01BSU4QAxIvCitQVUJMSUNfQUREUkVTU19TT1VSQ0VfU0VFTl9CWV9DT05UUk9MX1BMQU5FEAQSKAokUFVCTElDX0FERFJFU1NfU09VUkNFX0NMT1VEX01FVEFEQVRBEAUSIwofUFVCTElDX0FERFJFU1NfU09VUkNFX0xPT0tFRF9VUBAGKmYKCVJlYWNoYWJsZRIZChVSRUFDSEFCTEVfVU5TUEVDSUZJRUQQABIZChVSRUFDSEFCTEVfTk9UX0NIRUNLRUQQARIRCg1SRUFDSEFCTEVfWUVTEAISEAoMUkVBQ0hBQkxFX05PEAMq0QEKDUNsb3VkUHJvdmlkZXISHgoaQ0xPVURfUFJPVklERVJfVU5TUEVDSUZJRUQQABIWChJDTE9VRF9QUk9WSURFUl9BV1MQARIWChJDTE9VRF9QUk9WSURFUl9HQ1AQAhIYChRDTE9VRF9QUk9WSURFUl9BWlVSRRADEh8KG0NMT1VEX1BST1ZJREVSX0RJR0lUQUxPQ0VBThAEEhoKFkNMT1VEX1BST1ZJREVSX0hFVFpORVIQBRIZChVDTE9VRF9QUk9WSURFUl9PUkFDTEUQBjKEDwoNU2VydmVyU2VydmljZRJ4CgtMaXN0U2VydmVycxIfLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2ZXJzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2ZXJzUmVzcG9uc2UiJpACAaC7GAHAuxgCyLsYAtC7GAWC0+STAg0SCy92MS9zZXJ2ZXJzEncKCUdldFNlcnZlchIdLmRvY2t3ZWxsLnYxLkdldFNlcnZlclJlcXVlc3QaHi5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJSZXNwb25zZSIrkAIBoLsYAcC7GALIuxgC0LsYBYLT5JMCEhIQL3YxL3NlcnZlcnMve2lkfRJnCgxXYXRjaFNlcnZlcnMSIC5kb2Nrd2VsbC52MS5XYXRjaFNlcnZlcnNSZXF1ZXN0GiEuZG9ja3dlbGwudjEuV2F0Y2hTZXJ2ZXJzUmVzcG9uc2UiEKC7GAHAuxgCyLsYAtC7GAUwARKiAQoQR2V0U2VydmVyRGlza1VzZRIkLmRvY2t3ZWxsLnYxLkdldFNlcnZlckRpc2tVc2VSZXF1ZXN0GiUuZG9ja3dlbGwudjEuR2V0U2VydmVyRGlza1VzZVJlc3BvbnNlIkGQAgGguxgBqrsYChIIZGlzay11c2XAuxgEyLsYBNC7GAaC0+STAhoSGC92MS9zZXJ2ZXJzL3tpZH0vZGlza1VzZRKsAQoQQ2hlY2tTZXJ2ZXJQb3J0cxIkLmRvY2t3ZWxsLnYxLkNoZWNrU2VydmVyUG9ydHNSZXF1ZXN0GiUuZG9ja3dlbGwudjEuQ2hlY2tTZXJ2ZXJQb3J0c1Jlc3BvbnNlIkuQAgGguxgBqrsYFgoHc2VydmVycxILY2hlY2stcG9ydHPAuxgEyLsYBNC7GAaC0+STAhgSFi92MS9zZXJ2ZXJzL3tpZH0vcG9ydHMSxwEKFlNldFNlcnZlclB1YmxpY0FkZHJlc3MSKi5kb2Nrd2VsbC52MS5TZXRTZXJ2ZXJQdWJsaWNBZGRyZXNzUmVxdWVzdBorLmRvY2t3ZWxsLnYxLlNldFNlcnZlclB1YmxpY0FkZHJlc3NSZXNwb25zZSJUoLsYA6q7GBQSEnNldC1wdWJsaWMtYWRkcmVzc8C7GATIuxgE0LsYBoLT5JMCJjoBKiIhL3YxL3NlcnZlcnMve2lkfTpzZXRQdWJsaWNBZGRyZXNzEqkBChBDcmVhdGVKb2luVGlja2V0EiQuZG9ja3dlbGwudjEuQ3JlYXRlSm9pblRpY2tldFJlcXVlc3QaJS5kb2Nrd2VsbC52MS5DcmVhdGVKb2luVGlja2V0UmVzcG9uc2UiSKC7GAOquxgWCgxqb2luLXRpY2tldHMSBmNyZWF0ZbC7GAHAuxgEyLsYBNC7GAaC0+STAhQ6ASoiDy92MS9qb2luVGlja2V0cxKeAQoNR2V0Sm9pblRpY2tldBIhLmRvY2t3ZWxsLnYxLkdldEpvaW5UaWNrZXRSZXF1ZXN0GiIuZG9ja3dlbGwudjEuR2V0Sm9pblRpY2tldFJlc3BvbnNlIkaQAgGguxgBqrsYEwoMam9pbi10aWNrZXRzEgNnZXTAuxgEyLsYBNC7GAaC0+STAhYSFC92MS9qb2luVGlja2V0cy97aWR9GqsForsY4QIKB3NlcnZlcnMS1QJUaGUgc2VydmVycyBEb2Nrd2VsbCBtYW5hZ2VzLCB3aXRoIHRoZWlyIGxpdmUgc3RhdGUgYXMgZWFjaCBzZXJ2ZXIncyBhZ2VudCByZXBvcnRzIGl0LiBXYXRjaFNlcnZlcnMgaGFzIG5vIFJFU1QgcGF0aDogUkVTVCBoYXMgbm8gd2F5IHRvIHN0cmVhbSBtZXNzYWdlcywgc28gYSBSRVNUIGNsaWVudCBwb2xscyBMaXN0U2VydmVycyBvciBHZXRTZXJ2ZXIgaW5zdGVhZCwgYW5kIGFueXRoaW5nIHRoYXQgd2FudHMgdGhlIHN0cmVhbSBvcGVucyBpdCB3aXRoIENvbm5lY3QsIGdSUEMgb3IgZ1JQQy1XZWIuIFNlZSBkb2NzL2Fkci8wMDE1LXJlc3QtYW5kLW9wZW5hcGktZnJvbS10aGUtc2NoZW1hLm1kLqK7GMACCgxqb2luLXRpY2tldHMSrwJBIGpvaW4gdGlja2V0IGFkZHMgb25lIHNlcnZlcjogZG9ja3dlbGwgam9pbiB3aXRoIGl0LCBvbiB0aGUgbmV3IHNlcnZlciwgZ2l2ZXMgdGhhdCBzZXJ2ZXIgYSBuYW1lIGFuZCBhIGNlcnRpZmljYXRlLCBhbmQgaXRzIGFnZW50IGNvbm5lY3RzLiBDcmVhdGVKb2luVGlja2V0IG1ha2VzIG9uZSB3aXRoIGEgcGFzc2tleSwgYW5kIEdldEpvaW5UaWNrZXQgc2F5cyB3aGV0aGVyIGEgc2VydmVyIGhhcyB1c2VkIGl0LiBkb2Nrd2VsbCB0b2tlbiBjcmVhdGUgbWFrZXMgdGhlIHNhbWUgdGlja2V0IG9uIHRoZSBjb250cm9sIHNlcnZlci5CpAEKD2NvbS5kb2Nrd2VsbC52MUILU2VydmVyUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_change, file_dockwell_v1_domain, file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+
+/**
+ * CreateJoinTicketRequest says how long the ticket works.
+ *
+ * @generated from message dockwell.v1.CreateJoinTicketRequest
+ */
+export type CreateJoinTicketRequest = Message<"dockwell.v1.CreateJoinTicketRequest"> & {
+  /**
+   * How long it works, in seconds: an hour when unset, and at most a day.
+   *
+   * @generated from field: uint32 ttl_seconds = 1;
+   */
+  ttlSeconds: number;
+
+  /**
+   * The proof from FinishStepUp for STEP_UP_ACTION_ADD_SERVER.
+   *
+   * @generated from field: string proof = 2;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CreateJoinTicketRequest.
+ * Use `create(CreateJoinTicketRequestSchema)` to create a new message.
+ */
+export const CreateJoinTicketRequestSchema: GenMessage<CreateJoinTicketRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 0);
+
+/**
+ * CreateJoinTicketResponse carries the ticket, once.
+ *
+ * @generated from message dockwell.v1.CreateJoinTicketResponse
+ */
+export type CreateJoinTicketResponse = Message<"dockwell.v1.CreateJoinTicketResponse"> & {
+  /**
+   * What the ticket is and where it leads, as GetJoinTicket reads it.
+   *
+   * @generated from field: dockwell.v1.JoinTicket ticket = 1;
+   */
+  ticket?: JoinTicket | undefined;
+
+  /**
+   * The ticket itself, for dockwell join on the new server. Nothing shows it again.
+   *
+   * @generated from field: string value = 2;
+   */
+  value: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CreateJoinTicketResponse.
+ * Use `create(CreateJoinTicketResponseSchema)` to create a new message.
+ */
+export const CreateJoinTicketResponseSchema: GenMessage<CreateJoinTicketResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 1);
+
+/**
+ * GetJoinTicketRequest names a ticket.
+ *
+ * @generated from message dockwell.v1.GetJoinTicketRequest
+ */
+export type GetJoinTicketRequest = Message<"dockwell.v1.GetJoinTicketRequest"> & {
+  /**
+   * The ticket's ID, from CreateJoinTicket.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message dockwell.v1.GetJoinTicketRequest.
+ * Use `create(GetJoinTicketRequestSchema)` to create a new message.
+ */
+export const GetJoinTicketRequestSchema: GenMessage<GetJoinTicketRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 2);
+
+/**
+ * GetJoinTicketResponse carries the ticket as it stands.
+ *
+ * @generated from message dockwell.v1.GetJoinTicketResponse
+ */
+export type GetJoinTicketResponse = Message<"dockwell.v1.GetJoinTicketResponse"> & {
+  /**
+   * The ticket, without its secret.
+   *
+   * @generated from field: dockwell.v1.JoinTicket ticket = 1;
+   */
+  ticket?: JoinTicket | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.GetJoinTicketResponse.
+ * Use `create(GetJoinTicketResponseSchema)` to create a new message.
+ */
+export const GetJoinTicketResponseSchema: GenMessage<GetJoinTicketResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 3);
+
+/**
+ * JoinTicket is a ticket that adds one server, without its secret.
+ *
+ * @generated from message dockwell.v1.JoinTicket
+ */
+export type JoinTicket = Message<"dockwell.v1.JoinTicket"> & {
+  /**
+   * Its ID, which starts jtk_.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Whether a server has joined with it yet.
+   *
+   * @generated from field: dockwell.v1.JoinTicketState state = 2;
+   */
+  state: JoinTicketState;
+
+  /**
+   * When it stops working, used or not.
+   *
+   * @generated from field: google.protobuf.Timestamp expire_time = 3;
+   */
+  expireTime?: Timestamp | undefined;
+
+  /**
+   * Where a joining server reaches the control plane, in the order it tries them.
+   * Only CreateJoinTicket says it, as the ticket holds it and nothing else keeps it.
+   *
+   * @generated from field: repeated dockwell.v1.JoinAddress addresses = 4;
+   */
+  addresses: JoinAddress[];
+
+  /**
+   * The server that joined with it, by ID and by name, once one has.
+   *
+   * @generated from field: string server_id = 5;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string server_name = 6;
+   */
+  serverName: string;
+};
+
+/**
+ * Describes the message dockwell.v1.JoinTicket.
+ * Use `create(JoinTicketSchema)` to create a new message.
+ */
+export const JoinTicketSchema: GenMessage<JoinTicket> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 4);
+
+/**
+ * JoinAddress is one address a ticket names, and who can reach it.
+ *
+ * @generated from message dockwell.v1.JoinAddress
+ */
+export type JoinAddress = Message<"dockwell.v1.JoinAddress"> & {
+  /**
+   * The control plane's agent URL, such as https://203.0.113.7:7601.
+   *
+   * @generated from field: string url = 1;
+   */
+  url: string;
+
+  /**
+   * Who reaches it.
+   *
+   * @generated from field: dockwell.v1.JoinReach reach = 2;
+   */
+  reach: JoinReach;
+};
+
+/**
+ * Describes the message dockwell.v1.JoinAddress.
+ * Use `create(JoinAddressSchema)` to create a new message.
+ */
+export const JoinAddressSchema: GenMessage<JoinAddress> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 5);
 
 /**
  * ListServersRequest takes no parameters yet.
@@ -37,7 +218,7 @@ export type ListServersRequest = Message<"dockwell.v1.ListServersRequest"> & {
  * Use `create(ListServersRequestSchema)` to create a new message.
  */
 export const ListServersRequestSchema: GenMessage<ListServersRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 0);
+  messageDesc(file_dockwell_v1_server, 6);
 
 /**
  * ListServersResponse lists servers, oldest first.
@@ -58,7 +239,7 @@ export type ListServersResponse = Message<"dockwell.v1.ListServersResponse"> & {
  * Use `create(ListServersResponseSchema)` to create a new message.
  */
 export const ListServersResponseSchema: GenMessage<ListServersResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 1);
+  messageDesc(file_dockwell_v1_server, 7);
 
 /**
  * GetServerRequest names a server.
@@ -79,7 +260,7 @@ export type GetServerRequest = Message<"dockwell.v1.GetServerRequest"> & {
  * Use `create(GetServerRequestSchema)` to create a new message.
  */
 export const GetServerRequestSchema: GenMessage<GetServerRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 2);
+  messageDesc(file_dockwell_v1_server, 8);
 
 /**
  * GetServerResponse carries one server.
@@ -100,7 +281,7 @@ export type GetServerResponse = Message<"dockwell.v1.GetServerResponse"> & {
  * Use `create(GetServerResponseSchema)` to create a new message.
  */
 export const GetServerResponseSchema: GenMessage<GetServerResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 3);
+  messageDesc(file_dockwell_v1_server, 9);
 
 /**
  * CheckServerPortsRequest names a server and the ports to check on it.
@@ -128,7 +309,7 @@ export type CheckServerPortsRequest = Message<"dockwell.v1.CheckServerPortsReque
  * Use `create(CheckServerPortsRequestSchema)` to create a new message.
  */
 export const CheckServerPortsRequestSchema: GenMessage<CheckServerPortsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 4);
+  messageDesc(file_dockwell_v1_server, 10);
 
 /**
  * ServerPortAsk is a port on a server.
@@ -154,7 +335,7 @@ export type ServerPortAsk = Message<"dockwell.v1.ServerPortAsk"> & {
  * Use `create(ServerPortAskSchema)` to create a new message.
  */
 export const ServerPortAskSchema: GenMessage<ServerPortAsk> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 5);
+  messageDesc(file_dockwell_v1_server, 11);
 
 /**
  * CheckServerPortsResponse says what holds each port asked, in the order asked.
@@ -173,7 +354,7 @@ export type CheckServerPortsResponse = Message<"dockwell.v1.CheckServerPortsResp
  * Use `create(CheckServerPortsResponseSchema)` to create a new message.
  */
 export const CheckServerPortsResponseSchema: GenMessage<CheckServerPortsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 6);
+  messageDesc(file_dockwell_v1_server, 12);
 
 /**
  * ServerPortHeld is what holds one port on a server.
@@ -212,7 +393,7 @@ export type ServerPortHeld = Message<"dockwell.v1.ServerPortHeld"> & {
  * Use `create(ServerPortHeldSchema)` to create a new message.
  */
 export const ServerPortHeldSchema: GenMessage<ServerPortHeld> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 7);
+  messageDesc(file_dockwell_v1_server, 13);
 
 /**
  * GetServerDiskUseRequest names a server.
@@ -233,7 +414,7 @@ export type GetServerDiskUseRequest = Message<"dockwell.v1.GetServerDiskUseReque
  * Use `create(GetServerDiskUseRequestSchema)` to create a new message.
  */
 export const GetServerDiskUseRequestSchema: GenMessage<GetServerDiskUseRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 8);
+  messageDesc(file_dockwell_v1_server, 14);
 
 /**
  * GetServerDiskUseResponse says what takes the room on a server's disk.
@@ -254,7 +435,7 @@ export type GetServerDiskUseResponse = Message<"dockwell.v1.GetServerDiskUseResp
  * Use `create(GetServerDiskUseResponseSchema)` to create a new message.
  */
 export const GetServerDiskUseResponseSchema: GenMessage<GetServerDiskUseResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 9);
+  messageDesc(file_dockwell_v1_server, 15);
 
 /**
  * ServerDiskUse is what takes the room on the disk that holds Docker's data,
@@ -377,7 +558,7 @@ export type ServerDiskUse = Message<"dockwell.v1.ServerDiskUse"> & {
  * Use `create(ServerDiskUseSchema)` to create a new message.
  */
 export const ServerDiskUseSchema: GenMessage<ServerDiskUse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 10);
+  messageDesc(file_dockwell_v1_server, 16);
 
 /**
  * SetServerPublicAddressRequest says what a server's public address is.
@@ -413,7 +594,7 @@ export type SetServerPublicAddressRequest = Message<"dockwell.v1.SetServerPublic
  * Use `create(SetServerPublicAddressRequestSchema)` to create a new message.
  */
 export const SetServerPublicAddressRequestSchema: GenMessage<SetServerPublicAddressRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 11);
+  messageDesc(file_dockwell_v1_server, 17);
 
 /**
  * SetServerPublicAddressResponse carries the server as it now reads.
@@ -434,7 +615,7 @@ export type SetServerPublicAddressResponse = Message<"dockwell.v1.SetServerPubli
  * Use `create(SetServerPublicAddressResponseSchema)` to create a new message.
  */
 export const SetServerPublicAddressResponseSchema: GenMessage<SetServerPublicAddressResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 12);
+  messageDesc(file_dockwell_v1_server, 18);
 
 /**
  * WatchServersRequest takes no parameters yet.
@@ -449,7 +630,7 @@ export type WatchServersRequest = Message<"dockwell.v1.WatchServersRequest"> & {
  * Use `create(WatchServersRequestSchema)` to create a new message.
  */
 export const WatchServersRequestSchema: GenMessage<WatchServersRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 13);
+  messageDesc(file_dockwell_v1_server, 19);
 
 /**
  * WatchServersResponse is one step of a watch: a server's latest state, or
@@ -500,7 +681,7 @@ export type WatchServersResponse = Message<"dockwell.v1.WatchServersResponse"> &
  * Use `create(WatchServersResponseSchema)` to create a new message.
  */
 export const WatchServersResponseSchema: GenMessage<WatchServersResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 14);
+  messageDesc(file_dockwell_v1_server, 20);
 
 /**
  * Server is one machine running the agent.
@@ -640,7 +821,7 @@ export type Server = Message<"dockwell.v1.Server"> & {
  * Use `create(ServerSchema)` to create a new message.
  */
 export const ServerSchema: GenMessage<Server> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 15);
+  messageDesc(file_dockwell_v1_server, 21);
 
 /**
  * ServerNetwork is what's known of a server beyond its own interfaces. Its
@@ -708,7 +889,7 @@ export type ServerNetwork = Message<"dockwell.v1.ServerNetwork"> & {
  * Use `create(ServerNetworkSchema)` to create a new message.
  */
 export const ServerNetworkSchema: GenMessage<ServerNetwork> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 16);
+  messageDesc(file_dockwell_v1_server, 22);
 
 /**
  * PublicAddress is what's known of one public address of a server.
@@ -767,7 +948,7 @@ export type PublicAddress = Message<"dockwell.v1.PublicAddress"> & {
  * Use `create(PublicAddressSchema)` to create a new message.
  */
 export const PublicAddressSchema: GenMessage<PublicAddress> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 17);
+  messageDesc(file_dockwell_v1_server, 23);
 
 /**
  * ServerInventory is what a server is: its system and hardware.
@@ -893,7 +1074,7 @@ export type ServerInventory = Message<"dockwell.v1.ServerInventory"> & {
  * Use `create(ServerInventorySchema)` to create a new message.
  */
 export const ServerInventorySchema: GenMessage<ServerInventory> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 18);
+  messageDesc(file_dockwell_v1_server, 24);
 
 /**
  * Disk is one mounted filesystem.
@@ -935,7 +1116,7 @@ export type Disk = Message<"dockwell.v1.Disk"> & {
  * Use `create(DiskSchema)` to create a new message.
  */
 export const DiskSchema: GenMessage<Disk> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 19);
+  messageDesc(file_dockwell_v1_server, 25);
 
 /**
  * ServerStats is one sample of a server's resource use.
@@ -1071,7 +1252,7 @@ export type ServerStats = Message<"dockwell.v1.ServerStats"> & {
  * Use `create(ServerStatsSchema)` to create a new message.
  */
 export const ServerStatsSchema: GenMessage<ServerStats> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 20);
+  messageDesc(file_dockwell_v1_server, 26);
 
 /**
  * DiskUsage is one filesystem's use.
@@ -1106,7 +1287,87 @@ export type DiskUsage = Message<"dockwell.v1.DiskUsage"> & {
  * Use `create(DiskUsageSchema)` to create a new message.
  */
 export const DiskUsageSchema: GenMessage<DiskUsage> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_server, 21);
+  messageDesc(file_dockwell_v1_server, 27);
+
+/**
+ * JoinTicketState is where a ticket is in its life.
+ *
+ * @generated from enum dockwell.v1.JoinTicketState
+ */
+export enum JoinTicketState {
+  /**
+   * @generated from enum value: JOIN_TICKET_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * It works, and no server has used it yet.
+   *
+   * @generated from enum value: JOIN_TICKET_STATE_WAITING = 1;
+   */
+  WAITING = 1,
+
+  /**
+   * A server joined with it.
+   *
+   * @generated from enum value: JOIN_TICKET_STATE_JOINED = 2;
+   */
+  JOINED = 2,
+
+  /**
+   * It ran out before any server used it.
+   *
+   * @generated from enum value: JOIN_TICKET_STATE_EXPIRED = 3;
+   */
+  EXPIRED = 3,
+}
+
+/**
+ * Describes the enum dockwell.v1.JoinTicketState.
+ */
+export const JoinTicketStateSchema: GenEnum<JoinTicketState> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_server, 0);
+
+/**
+ * JoinReach is who can reach an address a ticket names.
+ *
+ * @generated from enum dockwell.v1.JoinReach
+ */
+export enum JoinReach {
+  /**
+   * @generated from enum value: JOIN_REACH_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * A public address the control server is reached at, or a name a person gave:
+   * a server anywhere reaches it once its port is open.
+   *
+   * @generated from enum value: JOIN_REACH_ANYWHERE = 1;
+   */
+  ANYWHERE = 1,
+
+  /**
+   * The public address the control server reaches the internet from, which may
+   * not lead back in, as behind a router.
+   *
+   * @generated from enum value: JOIN_REACH_WAY_OUT = 2;
+   */
+  WAY_OUT = 2,
+
+  /**
+   * A private address: only a server on the same network reaches it.
+   *
+   * @generated from enum value: JOIN_REACH_SAME_NETWORK = 3;
+   */
+  SAME_NETWORK = 3,
+}
+
+/**
+ * Describes the enum dockwell.v1.JoinReach.
+ */
+export const JoinReachSchema: GenEnum<JoinReach> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_server, 1);
 
 /**
  * Connection says whether a server's agent is talking to the control plane.
@@ -1145,7 +1406,7 @@ export enum Connection {
  * Describes the enum dockwell.v1.Connection.
  */
 export const ConnectionSchema: GenEnum<Connection> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_server, 0);
+  enumDesc(file_dockwell_v1_server, 2);
 
 /**
  * ServerStrain is what a server is short of.
@@ -1177,7 +1438,7 @@ export enum ServerStrain {
  * Describes the enum dockwell.v1.ServerStrain.
  */
 export const ServerStrainSchema: GenEnum<ServerStrain> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_server, 1);
+  enumDesc(file_dockwell_v1_server, 3);
 
 /**
  * NetworkShape is how a server meets the internet. It's read from what's on its
@@ -1232,7 +1493,7 @@ export enum NetworkShape {
  * Describes the enum dockwell.v1.NetworkShape.
  */
 export const NetworkShapeSchema: GenEnum<NetworkShape> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_server, 2);
+  enumDesc(file_dockwell_v1_server, 4);
 
 /**
  * PublicAddressSource is how Dockwell knows a server's public address. In the
@@ -1299,7 +1560,7 @@ export enum PublicAddressSource {
  * Describes the enum dockwell.v1.PublicAddressSource.
  */
 export const PublicAddressSourceSchema: GenEnum<PublicAddressSource> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_server, 3);
+  enumDesc(file_dockwell_v1_server, 5);
 
 /**
  * Reachable is whether the internet can reach a server. It's never a guess:
@@ -1341,7 +1602,7 @@ export enum Reachable {
  * Describes the enum dockwell.v1.Reachable.
  */
 export const ReachableSchema: GenEnum<Reachable> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_server, 4);
+  enumDesc(file_dockwell_v1_server, 6);
 
 /**
  * CloudProvider is a cloud provider whose metadata service an agent can read.
@@ -1389,7 +1650,7 @@ export enum CloudProvider {
  * Describes the enum dockwell.v1.CloudProvider.
  */
 export const CloudProviderSchema: GenEnum<CloudProvider> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_server, 5);
+  enumDesc(file_dockwell_v1_server, 7);
 
 /**
  * ServerService lists the servers Dockwell manages and streams their live
@@ -1477,6 +1738,34 @@ export const ServerService: GenService<{
     methodKind: "unary";
     input: typeof SetServerPublicAddressRequestSchema;
     output: typeof SetServerPublicAddressResponseSchema;
+  },
+  /**
+   * CreateJoinTicket makes a ticket that adds one server: dockwell join with it,
+   * on the new server, gives that server a name and a certificate, and its agent
+   * connects. The ticket works once, for an hour unless ttl_seconds says otherwise,
+   * and is shown only in this response. It gives a server a place in the fleet, so
+   * it takes a passkey just now: call it without a proof first, and it refuses with
+   * the reason needs_step_up, then again with the proof from FinishStepUp for
+   * STEP_UP_ACTION_ADD_SERVER. It's on the activity log. dockwell token create makes
+   * the same ticket on the control server.
+   *
+   * @generated from rpc dockwell.v1.ServerService.CreateJoinTicket
+   */
+  createJoinTicket: {
+    methodKind: "unary";
+    input: typeof CreateJoinTicketRequestSchema;
+    output: typeof CreateJoinTicketResponseSchema;
+  },
+  /**
+   * GetJoinTicket says whether a ticket is still waiting for a server, which server
+   * joined with it, or that it expired. It never returns the ticket itself.
+   *
+   * @generated from rpc dockwell.v1.ServerService.GetJoinTicket
+   */
+  getJoinTicket: {
+    methodKind: "unary";
+    input: typeof GetJoinTicketRequestSchema;
+    output: typeof GetJoinTicketResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_server, 0);

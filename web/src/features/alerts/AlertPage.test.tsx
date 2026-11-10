@@ -202,11 +202,12 @@ describe("an alert's page", () => {
     // Five full pages, all newer than the hour before: there may be more behind them.
     const listEvents = vi.fn(() => ({ events: [deploy("chg_new", "Deploy web 1.6", 1)], nextPageToken: "more" }));
     renderAt("/alerts/alt_1", api([down()], { events: { listEvents } }));
-    expect(
-      await screen.findByText(
-        "More has happened here since than this page reads back through. Activity has all of it.",
-      ),
-    ).toBeVisible();
+    expect(await screen.findByText("It's further back than this page reads.")).toBeVisible();
+    // Activity has the rest, for what the alert is about.
+    expect(screen.getByRole("link", { name: "See it on Activity" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^\/activity\?(resource|server)=/),
+    );
     await waitFor(() => expect(listEvents).toHaveBeenCalledTimes(5));
   });
 

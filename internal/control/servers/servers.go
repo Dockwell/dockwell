@@ -21,6 +21,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -30,6 +31,9 @@ type Service struct {
 	fleet  *fleet.Hub
 	db     *store.DB
 	agents *agentapi.Agents
+	// ident makes join tickets, each confirmed with a passkey people checks.
+	ident  *identity.Authority
+	people *auth.Service
 }
 
 var _ dockwellv1connect.ServerServiceHandler = (*Service)(nil)

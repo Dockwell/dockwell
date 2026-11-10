@@ -93,6 +93,12 @@ describe("what the panel offers, by what you hold", () => {
     expect(screen.getAllByRole("link", { name: "Logs" })[0]).toBeVisible();
   });
 
+  it("leaves Add server where it is for someone below an admin, off, with why", async () => {
+    renderAt("/servers", api(as(["prj_1", Role.DEVELOPER])));
+    expectOff(await screen.findByRole("button", { name: "Add server" }), ADMINS);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("says why once on a phone, where nothing hovers", async () => {
     onPhone();
     const { container } = renderAt("/apps/svc_web", api(as(["prj_1", Role.VIEWER])));
