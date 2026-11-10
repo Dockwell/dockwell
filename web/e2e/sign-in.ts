@@ -112,9 +112,16 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
   // Docker's data, as /info says it, is on the disk this checkout is on, which is a
   // data disk here and in CI where a container's / isn't, so a server's Overview
   // adds up that disk part by part. Nothing is written there.
+  // A registry of a few images beside it, for the agent to read images from (ADR 0062),
+  // on a port of its own past the panel's range.
+  const registry = `127.0.0.1:${port + 1000}`;
   docker = spawn(resolve(path), [join(data, "docker")], {
     stdio: ["ignore", "pipe", "inherit"],
-    env: { ...process.env, FAKEDOCKER_ROOT: join(process.cwd(), "bin", "fakedocker-root") },
+    env: {
+      ...process.env,
+      FAKEDOCKER_ROOT: join(process.cwd(), "bin", "fakedocker-root"),
+      FAKEDOCKER_REGISTRY: registry,
+    },
   });
   // A fake that dies, or says nothing, would otherwise hang until the job's timeout.
   const socket = await new Promise<string>((done, refused) => {
@@ -133,7 +140,9 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
     });
   });
   fakeSocket = socket;
-  return { DOCKER_HOST: `unix://${socket}` };
+  // Flows see it too, as one that reads images runs only where there's a registry to read.
+  process.env["DOCKWELL_TEST_REGISTRY"] = `http://${registry}`;
+  return { DOCKER_HOST: `unix://${socket}`, DOCKWELL_TEST_REGISTRY: `http://${registry}` };
 }
 
 /** Starts dockwell run and waits for the claim link it prints. */

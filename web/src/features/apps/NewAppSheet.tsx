@@ -43,6 +43,7 @@ import {
   type FormEvent,
   Fragment,
   type Ref,
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -78,6 +79,7 @@ import {
   type EnvRow,
   type FormErrors,
   fieldOf,
+  fillFromImage,
   type ImageForm,
   isServerPath,
   type MoreSettings,
@@ -88,6 +90,7 @@ import {
   validEnvName,
   validPort,
 } from "./form";
+import { ImageField, type ImageRead } from "./ImageField";
 import { joinWords, splitWords, validCpus, validMemory } from "./specEdit";
 import { usePlaces, useServices } from "./useServices";
 import { useAppWords } from "./words";
@@ -204,6 +207,12 @@ export function NewAppSheet({
   // The form as it plans: each port that follows a free one has it.
   const shown = useMemo(() => withFreePorts(image, ports), [image, ports]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // What a found image declares fills in what nobody has changed.
+  const fillFrom = useCallback(
+    (read: ImageRead) =>
+      setImage((was) => fillFromImage(was, read.config, was.name.trim() || nameFromImage(was.image), nextKey)),
+    [],
+  );
   const address = servers?.find((s) => s.id === serverIds[0])?.address;
 
   const inEnvironment = useMemo(
@@ -587,6 +596,9 @@ export function NewAppSheet({
             advancedOpen={advancedOpen}
             onAdvanced={setAdvancedOpen}
             command={command}
+            environment={scope}
+            server={fleet ? chosenServers[0] : undefined}
+            onRead={fillFrom}
             place={
               choosesEnvironment ? (
                 <SelectField
@@ -737,6 +749,9 @@ function ImageFields({
   advancedOpen,
   onAdvanced,
   command,
+  environment,
+  server,
+  onRead,
   place,
 }: {
   fieldRef: Ref<HTMLInputElement & HTMLTextAreaElement>;
@@ -755,6 +770,10 @@ function ImageFields({
   command: string;
   /** Where it goes, where there's a choice. */
   place: React.ReactNode;
+  /** The environment it's for, and the server it runs on, which the image is read through. */
+  environment: string;
+  server: string | undefined;
+  onRead: (read: ImageRead) => void;
 }) {
   const { t } = useLingui();
   const clear = (key: string) => {
@@ -766,15 +785,14 @@ function ImageFields({
   const placeholderName = nameFromImage(form.image) || "web";
   return (
     <>
-      <TextField
-        ref={fieldRef}
-        label={t`Image`}
-        mono
+      <ImageField
+        fieldRef={fieldRef}
         value={form.image}
         error={errors["image"]}
-        placeholder="nginx:1.27"
-        hint={t`Any image your server can pull, such as nginx:1.27.`}
-        onChange={(event) => update({ image: event.target.value }, "image")}
+        environment={environment}
+        server={server}
+        onRead={onRead}
+        onChange={(image) => update({ image }, "image")}
       />
       <TextField
         label={t`Name`}
@@ -863,8 +881,9 @@ function PortsSection({
   const id = useId();
   const add = () =>
     update({ ports: [...form.ports, { key: nextKey(), host: "", container: "", protocol: "tcp", auto: true }] });
+  // A row someone changes is theirs: a new image doesn't fill it again.
   const change = (row: PortRow, next: Partial<PortRow>) =>
-    update({ ports: form.ports.map((p) => (p.key === row.key ? { ...p, ...next } : p)) });
+    update({ ports: form.ports.map((p) => (p.key === row.key ? { ...p, ...next, fromImage: false } : p)) });
   const holderName = (holder: PortHolder) => (holder.kind === "proxy" ? t`Dockwell's proxy` : holder.name);
   return (
     <fieldset className="app-section" aria-labelledby={id}>
@@ -971,7 +990,7 @@ function EnvSection({ form, errors, update, clear }: SectionProps) {
   const id = useId();
   const add = () => update({ env: [...form.env, { key: nextKey(), name: "", value: "" }] });
   const change = (row: EnvRow, next: Partial<EnvRow>) =>
-    update({ env: form.env.map((e) => (e.key === row.key ? { ...e, ...next } : e)) });
+    update({ env: form.env.map((e) => (e.key === row.key ? { ...e, ...next, fromImage: false } : e)) });
   const paste = (row: EnvRow, event: ClipboardEvent<HTMLInputElement>) => {
     const text = event.clipboardData.getData("text");
     if (!text.includes("=")) return;
@@ -1038,6 +1057,9 @@ function EnvSection({ form, errors, update, clear }: SectionProps) {
             <ValueField
               {...rowLabel(i, t`Value`)}
               value={row.value}
+              // What the image sets is no secret, so it shows.
+              reveal={row.imageDefault !== undefined}
+              placeholder={row.imageDefault === "" ? t`Empty in the image` : undefined}
               onChange={(event) => change(row, { value: event.target.value })}
             />
             <RemoveRow
@@ -1058,7 +1080,7 @@ function MountsSection({ form, errors, update, clear, volumes }: SectionProps & 
   const listId = `${id}-volumes`;
   const add = () => update({ mounts: [...form.mounts, { key: nextKey(), source: "", target: "", readOnly: false }] });
   const change = (row: MountRow, next: Partial<MountRow>) =>
-    update({ mounts: form.mounts.map((m) => (m.key === row.key ? { ...m, ...next } : m)) });
+    update({ mounts: form.mounts.map((m) => (m.key === row.key ? { ...m, ...next, fromImage: false } : m)) });
   return (
     <fieldset className="app-section" aria-labelledby={id}>
       <SectionHead title={t`Volumes`} id={id} add={t`Add volume`} onAdd={add}>
@@ -1074,6 +1096,8 @@ function MountsSection({ form, errors, update, clear, volumes }: SectionProps & 
         return (
           <div key={row.key} className="app-row-group">
             <div className={cx("app-row app-mount-row", i === 0 && "is-first")}>
+              {/* A server path is picked with the folder picker (#429) once it lands, which can also make
+                  the folder; a volume's name stays typed, with the environment's offered. */}
               <TextField
                 {...rowLabel(i, t`Volume or server path`)}
                 mono
@@ -1658,9 +1682,9 @@ function BesideTheFile({
  * A value that may be a secret, which the screen behind someone needn't read as
  * it is typed. It stays theirs to check, with the control beside it.
  */
-function ValueField(props: TextFieldProps & { "data-variable"?: string }) {
+function ValueField({ reveal = false, ...props }: TextFieldProps & { "data-variable"?: string; reveal?: boolean }) {
   const { t } = useLingui();
-  const [shown, setShown] = useState(false);
+  const [shown, setShown] = useState(reveal);
   return (
     <TextField
       {...props}

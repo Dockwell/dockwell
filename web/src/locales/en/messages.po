@@ -2996,6 +2996,29 @@ msgstr "{name} isn't running now."
 msgid "{name} runs now, and fails its health check."
 msgstr "{name} runs now, and fails its health check."
 
+msgid "Can't reach the registry"
+msgstr "Can't reach the registry"
+
+msgctxt "an image in its registry"
+msgid "Found"
+msgstr "Found"
+
+msgid "Images found"
+msgstr "Images found"
+
+msgid "Not found, or private"
+msgstr "Not found, or private"
+
+msgctxt "a Docker Hub image"
+msgid "Official"
+msgstr "Official"
+
+msgid "Versions"
+msgstr "Versions"
+
+msgid "latest"
+msgstr "latest"
+
 msgid ".env file"
 msgstr ".env file"
 
@@ -3031,9 +3054,6 @@ msgstr "An app named {name} already runs here. Choose another name, or deploy to
 
 msgid "An image has no spaces. Write it as nginx:1.27."
 msgstr "An image has no spaces. Write it as nginx:1.27."
-
-msgid "Any image your server can pull, such as nginx:1.27."
-msgstr "Any image your server can pull, such as nginx:1.27."
 
 msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
 msgstr "Anyone who can read {holder}'s {where} can see the value of {names}."
@@ -3073,6 +3093,9 @@ msgstr "Directory on the server"
 
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
+
+msgid "Empty in the image"
+msgstr "Empty in the image"
 
 msgid "Environment variables"
 msgstr "Environment variables"

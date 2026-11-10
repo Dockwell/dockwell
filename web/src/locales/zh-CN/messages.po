@@ -2996,6 +2996,29 @@ msgstr "{name} 现在没有运行。"
 msgid "{name} runs now, and fails its health check."
 msgstr "{name} 现在正在运行，但未通过健康检查。"
 
+msgid "Can't reach the registry"
+msgstr "无法连接镜像仓库"
+
+msgctxt "an image in its registry"
+msgid "Found"
+msgstr "已找到"
+
+msgid "Images found"
+msgstr "找到的镜像"
+
+msgid "Not found, or private"
+msgstr "未找到，或为私有镜像"
+
+msgctxt "a Docker Hub image"
+msgid "Official"
+msgstr "官方"
+
+msgid "Versions"
+msgstr "版本"
+
+msgid "latest"
+msgstr "latest"
+
 msgid ".env file"
 msgstr ".env 文件"
 
@@ -3031,9 +3054,6 @@ msgstr "名为 {name} 的应用已在此运行。请换一个名称，或在它�
 
 msgid "An image has no spaces. Write it as nginx:1.27."
 msgstr "镜像名称不能有空格，请写成 nginx:1.27。"
-
-msgid "Any image your server can pull, such as nginx:1.27."
-msgstr "服务器能够拉取的任意镜像，例如 nginx:1.27。"
 
 msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
 msgstr "能读取 {holder} 的{where}的任何人，都能看到 {names} 的值。"
@@ -3073,6 +3093,9 @@ msgstr "服务器上的目录"
 
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "如果卷 <0>{source}</0> 还不存在，Dockwell 会创建它。"
+
+msgid "Empty in the image"
+msgstr "镜像中为空"
 
 msgid "Environment variables"
 msgstr "环境变量"

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { type EditSchema, Protocol, RestartPolicy } from "@dockwell/api";
+import { type EditSchema, type ImageConfig, Protocol, RestartPolicy } from "@dockwell/api";
 
 import { splitWords } from "./specEdit";
 
@@ -13,6 +13,8 @@ export interface PortRow {
   protocol: "tcp" | "udp";
   /** The server's port follows a free one, until someone types their own. */
   auto?: boolean;
+  /** The image's EXPOSE filled it, and nobody has changed it since. */
+  fromImage?: boolean;
 }
 
 /** One environment variable someone is setting. */
@@ -20,6 +22,10 @@ export interface EnvRow {
   key: number;
   name: string;
   value: string;
+  /** The image's ENV filled it, and nobody has changed it since. */
+  fromImage?: boolean;
+  /** The value the image gives it: left as it is, the app takes it from the image, and the spec needn't say it. */
+  imageDefault?: string;
 }
 
 /** One volume or server path someone is mounting. */
@@ -28,6 +34,8 @@ export interface MountRow {
   source: string;
   target: string;
   readOnly: boolean;
+  /** The image's VOLUME filled it, and nobody has changed it since. */
+  fromImage?: boolean;
 }
 
 /** What New app starts at a default, under Advanced: each empty takes the image's own, or none. */
@@ -120,6 +128,8 @@ export function appEdits(
   }
   const env: Record<string, string> = {};
   for (const row of form.env) {
+    // A value the image gives it already needn't be written again.
+    if (row.imageDefault !== undefined && row.value === row.imageDefault) continue;
     if (row.name.trim() !== "") env[row.name.trim()] = row.value;
   }
   edits.push({
@@ -176,6 +186,69 @@ function moreFields(form: ImageForm) {
       : {}),
     ...(path && port ? { healthcheck: { http: { port, path } } } : {}),
   };
+}
+
+/** What an image's ENV sets for itself, which nobody running it sets: its search path, locale and versions. */
+const IMAGE_NOISE =
+  /^(PATH|HOME|HOSTNAME|LANG|LANGUAGE|LC_[A-Z]+|TERM|SHLVL|GPG_KEYS?|.*_(VERSION|MAJOR|SHA\d*|SHA256|CHECKSUM|DOWNLOAD_URL|DOWNLOAD_SHA\d*))$/;
+
+/** Whether an image's variable is one a person may want to change, rather than one it sets for itself. */
+export function settable(name: string): boolean {
+  return !IMAGE_NOISE.test(name);
+}
+
+/**
+ * The form filled from what an image declares, where nobody has changed it:
+ * the port its first EXPOSE names, a volume for each path its VOLUME keeps, and
+ * the variables it sets with their values. What the image filled before goes,
+ * and what someone added or changed stays.
+ */
+export function fillFromImage(
+  form: ImageForm,
+  config: ImageConfig | undefined,
+  app: string,
+  key: () => number,
+): ImageForm {
+  if (!config) return form;
+  const ownPorts = form.ports.filter((p) => !p.fromImage);
+  const tcp = config.ports.find((p) => !p.udp);
+  const ports: PortRow[] =
+    ownPorts.length > 0 || !tcp
+      ? ownPorts
+      : [{ key: key(), host: "", container: String(tcp.port), protocol: "tcp", auto: true, fromImage: true }];
+  const ownEnv = form.env.filter((e) => !e.fromImage);
+  const env: EnvRow[] = [
+    ...ownEnv,
+    ...config.env
+      .filter((v) => settable(v.name) && !ownEnv.some((e) => e.name.trim() === v.name))
+      .map((v) => ({ key: key(), name: v.name, value: v.value, fromImage: true, imageDefault: v.value })),
+  ];
+  const ownMounts = form.mounts.filter((m) => !m.fromImage);
+  const prefix = app || "app";
+  const mounts: MountRow[] = [
+    ...ownMounts,
+    ...config.volumes
+      .filter((path) => !ownMounts.some((m) => m.target.trim() === path))
+      .map((path) => ({
+        key: key(),
+        source: volumeName(prefix, path),
+        target: path,
+        readOnly: false,
+        fromImage: true,
+      })),
+  ];
+  return { ...form, ports, env, mounts };
+}
+
+/** A volume's name for a path an image keeps, such as postgres-data for /var/lib/postgresql/data. */
+export function volumeName(app: string, path: string): string {
+  const last = path.split("/").filter(Boolean).pop() ?? "data";
+  const slug =
+    last
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "data";
+  return `${app}-${slug}`.slice(0, 63);
 }
 
 /** A name a process's environment takes. */

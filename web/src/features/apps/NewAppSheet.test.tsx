@@ -9,6 +9,7 @@ import {
   ChangeState,
   CheckComposeResponseSchema,
   HostAccessKind,
+  ImageAnswer,
   type ImportComposeRequest,
   PlanAction,
   type ProposeChangeRequest,
@@ -1269,5 +1270,74 @@ describe("New app, what it picks and what waits under Advanced", () => {
         .getAllByLabelText<HTMLInputElement>("Value")
         .map((v) => v.value),
     ).toEqual(["one", "two"]);
+  });
+});
+
+describe("New app, its image picked and read", () => {
+  const images = {
+    searchImages: (req: { term: string }) =>
+      req.term.startsWith("ngi")
+        ? {
+            answer: ImageAnswer.FOUND,
+            matches: [{ name: "nginx", description: "Official build of Nginx.", official: true }],
+          }
+        : { answer: ImageAnswer.FOUND },
+    listImageTags: () => ({
+      answer: ImageAnswer.FOUND,
+      tags: [
+        { name: "1.28", digest: "sha256:28", latest: true },
+        { name: "latest", digest: "sha256:28", latest: true },
+        { name: "1.27", digest: "sha256:27" },
+      ],
+    }),
+    getImage: (req: { reference: string }) =>
+      req.reference.startsWith("nginx:1.2")
+        ? {
+            answer: ImageAnswer.FOUND,
+            digest: "sha256:28",
+            config: {
+              ports: [{ port: 80 }],
+              env: [
+                { name: "NGINX_VERSION", value: "1.28.0" },
+                { name: "NGINX_ENTRYPOINT_QUIET_LOGS", value: "" },
+              ],
+              volumes: ["/usr/share/nginx/html"],
+            },
+          }
+        : { answer: ImageAnswer.NOT_FOUND },
+  };
+
+  it("searches, lists a name's versions newest first, says it's there, and fills in what it declares", async () => {
+    const user = userEvent.setup();
+    const { sheet } = await openImage(api({ images }));
+    const field = within(sheet).getByRole("combobox", { name: "Image" });
+    await user.type(field, "ngi");
+    const found = await within(sheet).findByRole("option", { name: /nginx/ });
+    expect(found).toHaveTextContent("Official");
+    await user.click(found);
+    expect(field).toHaveValue("nginx:");
+    const versions = await within(sheet).findAllByRole("option");
+    expect(versions.map((o) => o.textContent)).toEqual(["1.28latest", "latest", "1.27"]);
+    await user.click(versions[0] as HTMLElement);
+    expect(field).toHaveValue("nginx:1.28");
+    await waitFor(() => expect(field).toHaveAccessibleDescription(/Found/));
+    await expectAccessible(document.body);
+
+    // Nobody typed a port: the image said 80, and a free one on the server takes it.
+    expect(within(sheet).getByLabelText<HTMLInputElement>("In the app").value).toBe("80");
+    expect(within(sheet).getByLabelText<HTMLInputElement>("On the server").value).toBe("8080");
+    expect(within(sheet).getByLabelText<HTMLInputElement>("Path in the app").value).toBe("/usr/share/nginx/html");
+    expect(within(sheet).getByLabelText<HTMLInputElement>("Volume or server path").value).toBe("nginx-html");
+    // What it sets for itself, such as its version, isn't offered; what it lets you set is, as it gives it.
+    expect(
+      within(sheet)
+        .getAllByLabelText<HTMLInputElement>(/^Name$/)
+        .map((n) => n.value),
+    ).toEqual(["NGINX_ENTRYPOINT_QUIET_LOGS"]);
+
+    // Typing stays possible, and says what the registry says.
+    await user.clear(field);
+    await user.type(field, "acme/missing:1");
+    await waitFor(() => expect(field).toHaveAccessibleDescription(/Not found, or private/));
   });
 });

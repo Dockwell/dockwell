@@ -18,6 +18,7 @@ import {
   FirewallService,
   GetVersionResponseSchema,
   HealthService,
+  ImageService,
   ImportService,
   LogService,
   MemberService,
@@ -78,6 +79,7 @@ export type Api = {
   tasks?: Partial<ServiceImpl<typeof TaskService>>;
   alerts?: Partial<ServiceImpl<typeof AlertService>>;
   terminals?: Partial<ServiceImpl<typeof TerminalService>>;
+  images?: Partial<ServiceImpl<typeof ImageService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -123,6 +125,13 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(LogService, api.logs ?? {});
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
+      // Images read nothing unless a test says what, as a test reaches no registry.
+      service(ImageService, {
+        searchImages: () => ({}),
+        listImageTags: () => ({}),
+        getImage: () => ({}),
+        ...api.images,
+      });
       service(FirewallService, { getServerFirewall: () => ({ firewall: {} }), ...api.firewall });
       service(FileService, api.files ?? {});
       service(ProcessService, { watchProcesses: quietWatch, ...api.processes });

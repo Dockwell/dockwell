@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Protocol } from "@dockwell/api";
+import { create } from "@bufbuild/protobuf";
+import { ImageConfigSchema, Protocol } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
-import { appEdits, fieldOf, type ImageForm, parseEnv, pathReach, validPort } from "./form";
+import { appEdits, fieldOf, fillFromImage, type ImageForm, parseEnv, pathReach, validPort, volumeName } from "./form";
 
 const empty: ImageForm = { image: "nginx:1.27", name: "", ports: [], env: [], mounts: [] };
 const scope = { environment: "", servers: [], volumes: [] };
@@ -107,5 +108,56 @@ describe("where a refusal belongs", () => {
 
   it("is none of them when it names none", () => {
     expect(fieldOf("hz-1 can't run it now: Docker isn't running", { ...form, mounts: [], ports: [] }, "web")).toBe("");
+  });
+});
+
+describe("filling New app from an image", () => {
+  let n = 0;
+  const key = () => ++n;
+  const empty: ImageForm = { image: "postgres:17", name: "", ports: [], env: [], mounts: [] };
+  const postgres = create(ImageConfigSchema, {
+    ports: [{ port: 5432 }],
+    env: [
+      { name: "PATH", value: "/usr/bin" },
+      { name: "PG_MAJOR", value: "17" },
+      { name: "PGDATA", value: "/var/lib/postgresql/data" },
+    ],
+    volumes: ["/var/lib/postgresql/data"],
+  });
+
+  it("takes the port it exposes, a volume for what it keeps, and the variables someone may set", () => {
+    const filled = fillFromImage(empty, postgres, "postgres", key);
+    expect(filled.ports).toMatchObject([{ container: "5432", auto: true, fromImage: true, protocol: "tcp" }]);
+    expect(filled.mounts).toMatchObject([
+      { source: "postgres-data", target: "/var/lib/postgresql/data", fromImage: true },
+    ]);
+    expect(filled.env.map((e) => e.name)).toEqual(["PGDATA"]);
+    // Left as the image gives it, the spec needn't say it.
+    const edits = appEdits(filled, "postgres", { environment: "", servers: [], volumes: [] });
+    const app = edits.at(-1)?.spec?.kind?.case === "service" ? edits.at(-1)?.spec?.kind?.value : undefined;
+    expect(app?.runs?.case === "app" ? app.runs.value?.env : undefined).toEqual({});
+  });
+
+  it("refills only what nobody changed when the image changes", () => {
+    const filled = fillFromImage(empty, postgres, "postgres", key);
+    const mine = {
+      ...filled,
+      env: filled.env.map((e) => ({ ...e, value: "/srv/pg", fromImage: false })),
+      mounts: [...filled.mounts, { key: key(), source: "/srv/backups", target: "/backups", readOnly: true }],
+    };
+    const redis = create(ImageConfigSchema, { ports: [{ port: 6379 }], volumes: ["/data"] });
+    const again = fillFromImage(mine, redis, "redis", key);
+    expect(again.ports).toMatchObject([{ container: "6379", fromImage: true }]);
+    expect(again.env).toMatchObject([{ name: "PGDATA", value: "/srv/pg" }]);
+    expect(again.mounts.map((m) => `${m.source}:${m.target}`)).toEqual(["/srv/backups:/backups", "redis-data:/data"]);
+    // A port someone added stays, and the image adds none beside it.
+    const withPort = { ...again, ports: [{ key: key(), host: "9000", container: "9000", protocol: "tcp" as const }] };
+    expect(fillFromImage(withPort, postgres, "postgres", key).ports).toMatchObject([{ host: "9000" }]);
+  });
+
+  it("names a volume for its path", () => {
+    expect(volumeName("ghost", "/var/lib/ghost/content")).toBe("ghost-content");
+    expect(volumeName("app", "/")).toBe("app-data");
+    expect(volumeName("web", "/Var/Cache_Dir/")).toBe("web-cache-dir");
   });
 });
