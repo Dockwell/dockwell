@@ -179,8 +179,10 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await sheet.getByRole("button", { name: /Review plan/ }).click();
   const plan = page.getByRole("dialog", { name: "Review plan" });
   await plan.waitFor({ timeout: 30_000 });
+  // The install form stays in the dialog, hidden under its plan, and lists what it
+  // installs too: what's visible is the plan's.
   for (const name of ["POSTGRES_PASSWORD", "adminer", "db"])
-    await plan.getByText(name, { exact: true }).first().waitFor();
+    await plan.getByText(name, { exact: true }).filter({ visible: true }).first().waitFor();
   await shoot(page, "catalog-plan");
   await plan.getByRole("button", { name: /Apply plan/ }).click();
 
