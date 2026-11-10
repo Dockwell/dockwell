@@ -1069,17 +1069,17 @@ msgstr "Fired"
 msgid "It resolved {0}, after {lasted}."
 msgstr "It resolved {0}, after {lasted}."
 
-msgid "Its own events are further back than this page reads. Activity has them."
-msgstr "Its own events are further back than this page reads. Activity has them."
+msgid "It's further back than this page reads."
+msgstr "It's further back than this page reads."
+
+msgid "Its events are further back than this page reads."
+msgstr "Its events are further back than this page reads."
 
 msgid "Lasted"
 msgstr "Lasted"
 
 msgid "Messages about it"
 msgstr "Messages about it"
-
-msgid "More has happened here since than this page reads back through. Activity has all of it."
-msgstr "More has happened here since than this page reads back through. Activity has all of it."
 
 msgid "Nobody did"
 msgstr "Nobody did"
@@ -1098,6 +1098,12 @@ msgstr "Nothing more has happened to it."
 
 msgid "Open for"
 msgstr "Open for"
+
+msgid "See it on Activity"
+msgstr "See it on Activity"
+
+msgid "See them on Activity"
+msgstr "See them on Activity"
 
 msgid "Sending"
 msgstr "Sending"
@@ -1322,9 +1328,6 @@ msgstr "Channel"
 msgid "Dockwell didn't send a test to {name}"
 msgstr "Dockwell didn't send a test to {name}"
 
-msgid "Dockwell watches your servers and apps from the first start, and puts what it finds on Activity. Add a channel, such as email, Slack or ntfy on your phone, and every rule sends to it."
-msgstr "Dockwell watches your servers and apps from the first start, and puts what it finds on Activity. Add a channel, such as email, Slack or ntfy on your phone, and every rule sends to it."
-
 #. placeholder {0}: list(r.failed)
 msgid "Failed to {0}"
 msgstr "Failed to {0}"
@@ -1416,20 +1419,14 @@ msgstr "{failed, plural, one {# failed} other {# failed}}"
 msgid "{failing, plural, one {# failing} other {# failing}}"
 msgstr "{failing, plural, one {# failing} other {# failing}}"
 
+msgid "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
+msgstr "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
+
 msgid "Alert rules"
 msgstr "Alert rules"
 
 msgid "Can't load the rules"
 msgstr "Can't load the rules"
-
-msgid "Change a rule with dockwell alert-rules update, as a plan that undo takes back."
-msgstr "Change a rule with dockwell alert-rules update, as a plan that undo takes back."
-
-msgid "Choose where alerts go"
-msgstr "Choose where alerts go"
-
-msgid "Dockwell watches every server and app, and says here when a rule holds: an app down, a server it can't reach, a disk nearly full, a certificate about to end, a backup that failed."
-msgstr "Dockwell watches every server and app, and says here when a rule holds: an app down, a server it can't reach, a disk nearly full, a certificate about to end, a backup that failed."
 
 msgid "Every channel"
 msgstr "Every channel"
@@ -1443,8 +1440,89 @@ msgstr "Nothing has fired"
 msgid "Off"
 msgstr "Off"
 
+msgid "See the rules"
+msgstr "See the rules"
+
 msgid "Severity"
 msgstr "Severity"
+
+msgid "{watching, plural, one {# rule watching · nowhere to send yet} other {# rules watching · nowhere to send yet}}"
+msgstr "{watching, plural, one {# rule watching · nowhere to send yet} other {# rules watching · nowhere to send yet}}"
+
+msgid "{watching, plural, one {# rule watching} other {# rules watching}}"
+msgstr "{watching, plural, one {# rule watching} other {# rules watching}}"
+
+msgid "At once"
+msgstr "At once"
+
+msgid "Change the alert rule {ruleName}"
+msgstr "Change the alert rule {ruleName}"
+
+msgid "Daily"
+msgstr "Daily"
+
+msgid "Every hour"
+msgstr "Every hour"
+
+msgid "Every {each}"
+msgstr "Every {each}"
+
+msgid "For"
+msgstr "For"
+
+msgid "How much it matters"
+msgstr "How much it matters"
+
+msgid "Never"
+msgstr "Never"
+
+msgid "No channel yet."
+msgstr "No channel yet."
+
+msgid "Nothing fires, and what's open now resolves."
+msgstr "Nothing fires, and what's open now resolves."
+
+msgid "Only some"
+msgstr "Only some"
+
+msgid "Pick at least one."
+msgstr "Pick at least one."
+
+msgid "Turn off the alert rule {ruleName}"
+msgstr "Turn off the alert rule {ruleName}"
+
+msgid "Watch for this"
+msgstr "Watch for this"
+
+msgid "Weekly"
+msgstr "Weekly"
+
+msgid "When a disk is fuller than"
+msgstr "When a disk is fuller than"
+
+msgid "When a run is late by"
+msgstr "When a run is late by"
+
+msgid "When it expires within"
+msgstr "When it expires within"
+
+msgid "When memory in use is over"
+msgstr "When memory in use is over"
+
+msgid "While it lasts, say it again"
+msgstr "While it lasts, say it again"
+
+msgid "{d} days"
+msgstr "{d} days"
+
+msgid "{h} h"
+msgstr "{h} h"
+
+msgid "{h} h {m} min"
+msgstr "{h} h {m} min"
+
+msgid "{m} min"
+msgstr "{m} min"
 
 msgid "Discord"
 msgstr "Discord"
@@ -3370,9 +3448,6 @@ msgstr "Always"
 msgid "Can't be read"
 msgstr "Can't be read"
 
-msgid "Never"
-msgstr "Never"
-
 msgid "Not placed"
 msgstr "Not placed"
 
@@ -4366,9 +4441,6 @@ msgstr "Back up {0} on a schedule"
 msgid "Backups to keep"
 msgstr "Backups to keep"
 
-msgid "Daily"
-msgstr "Daily"
-
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell can't say what this costs"
 
@@ -4409,9 +4481,6 @@ msgstr "Use 24-hour HH:MM, such as 03:00."
 
 msgid "Use a number from 1 to 1000."
 msgstr "Use a number from 1 to 1000."
-
-msgid "Weekly"
-msgstr "Weekly"
 
 msgid "What runs keeps running, so each copy can hold half a write, and the app may not start from it."
 msgstr "What runs keeps running, so each copy can hold half a write, and the app may not start from it."
@@ -10591,9 +10660,6 @@ msgstr "Didn't start"
 
 msgid "Every day at {at}"
 msgstr "Every day at {at}"
-
-msgid "Every hour"
-msgstr "Every hour"
 
 msgid "Every hour at {at}"
 msgstr "Every hour at {at}"
