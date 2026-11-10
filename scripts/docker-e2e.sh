@@ -218,6 +218,8 @@ fail() {
   echo "docker-e2e: $*" >&2
   [[ -z "$in_rollout" ]] || rollout_state
   [[ -z "$in_ingress" ]] || ingress_state
+  # A step can say more of what failed, such as what a database printed as it stopped.
+  [[ -z "${fail_also:-}" ]] || "$fail_also" || true
   echo "--- dockwell log" >&2
   cat "$log" >&2
   if [[ -s "$agent_log" ]]; then
@@ -4161,8 +4163,16 @@ planned=$(dw compose import --compose "$(mongo_file mongo:8.0)" --env-file "$dat
 jq -e '[.change.plan.notes[] | select(.reason == "raises_features" and .names == ["7.0", "8.0"])] | length == 1' <<<"$planned" >/dev/null ||
   fail "moving to 8.0 says nothing of its features: $planned"
 upgrade=$(jq -r .change.id <<<"$planned")
+# What MongoDB printed in the containers the move made, should the move fail: a
+# container that stops says why only in its own log.
+mongo_printed() {
+  echo "--- what docs printed in the containers $upgrade made" >&2
+  dw logs read docs --project "$mongo_project" --change-id "$upgrade" --page-size 120 2>&1 | sed "s/$mongo_password/<the password>/g" >&2
+}
+fail_also=mongo_printed
 person_apply "$upgrade"
 backup_healthy "$(mongo_db)"
+fail_also=
 said=$(mongo_reads)
 jq -e '.readings[0] | (.version | startswith("8.0.")) and .featureCompatibility == "7.0"' <<<"$said" >/dev/null || fail "MongoDB 8.0 reads as: $said"
 [[ "$(mongo_eval 'print(db.getSiblingDB("shop").orders.countDocuments())')" == 500 ]] || fail "the orders didn't move to 8.0"
