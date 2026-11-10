@@ -367,7 +367,9 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
         return asGoodAsRoot(access)
           ? {
               key,
-              title: t`${name} reaches ${path} on ${server}`,
+              title: leadsTo
+                ? t`${name} reaches ${path} on ${server}, which leads to ${leadsTo}`
+                : t`${name} reaches ${path} on ${server}`,
               more: andRelabel(
                 leadsTo ? (
                   <Trans>
@@ -382,7 +384,9 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
             }
           : {
               key,
-              title: t`${name} reaches ${path} on ${server}`,
+              title: leadsTo
+                ? t`${name} reaches ${path} on ${server}, which leads to ${leadsTo}`
+                : t`${name} reaches ${path} on ${server}`,
               more: andRelabel(
                 leadsTo ? (
                   access.readOnly ? (

@@ -5963,6 +5963,9 @@ msgstr "{name} 在 {server} 上可访问端口 {path}"
 msgid "{name} reaches {path} on {server}"
 msgstr "{name} 可访问 {server} 上的 {path}"
 
+msgid "{name} reaches {path} on {server}, which leads to {leadsTo}"
+msgstr "{name} 可访问 {server} 上的 {path}，它指向 {leadsTo}"
+
 msgid "{name} reaches {reach} on {server}"
 msgstr "{name} 可访问 {server} 上的 {reach}"
 

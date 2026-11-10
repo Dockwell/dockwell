@@ -5963,6 +5963,9 @@ msgstr "{name} reaches the port {path} on {server}"
 msgid "{name} reaches {path} on {server}"
 msgstr "{name} reaches {path} on {server}"
 
+msgid "{name} reaches {path} on {server}, which leads to {leadsTo}"
+msgstr "{name} reaches {path} on {server}, which leads to {leadsTo}"
+
 msgid "{name} reaches {reach} on {server}"
 msgstr "{name} reaches {reach} on {server}"
 
