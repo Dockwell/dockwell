@@ -94,7 +94,7 @@ The job's first step, `scripts/docker-stops-evidence.sh`, judges nothing. It sto
 - **How far back events reach.** Of about 450 events made in 6 s, the engine replayed 258: it keeps its last 256.
 - **A clean restart** brings `unless-stopped` back by itself.
 
-Still to be printed by a run: whether a `docker stop` of a container Docker couldn't start leaves the error in its state. The script asks; no run has answered yet.
+Still to be printed by a run, as the script asks and no run has answered yet: whether a `docker stop` of a container Docker couldn't start leaves the error in its state; and what the list says of a container between `docker rm -f`'s kill and its going (`removing`, `exited` or nothing), which the agent's rule for a forced removal took from Docker's source.
 
 ## What it has found
 

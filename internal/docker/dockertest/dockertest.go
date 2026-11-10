@@ -181,6 +181,9 @@ type container struct {
 	reports map[string]map[string]any
 	// started closes as a helper starts, and exited as it ends.
 	started, exited chan struct{}
+	// shutDown says the engine stopped it as the engine itself was stopped
+	// (ShuttingDown), so Reboot brings it back as one that ran.
+	shutDown bool
 	// mountinfo is what a kernel would list as its mounts, as they were when it
 	// started (Engine.Mountinfo).
 	mountinfo string
@@ -2088,9 +2091,14 @@ func (e *Engine) DaemonKilled() {
 func (e *Engine) Reboot() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for _, c := range e.containers {
+	// A new engine remembers nothing of the last one's events.
+	e.events = nil
+	for _, id := range slices.Sorted(maps.Keys(e.containers)) {
+		c := e.containers[id]
 		policy := c.HostConfig.RestartPolicy.Name
-		back := policy == "always" || c.State.Running && policy != "" && policy != "no" && policy != "on-failure"
+		ran := c.State.Running || c.shutDown
+		c.shutDown = false
+		back := policy == "always" || ran && policy != "" && policy != "no" && policy != "on-failure"
 		if !back {
 			if c.State.Running {
 				c.State = docker.State{Status: "exited", ExitCode: 255}
@@ -2102,6 +2110,38 @@ func (e *Engine) Reboot() {
 		health := c.State.Health
 		c.State = docker.State{Status: "running", Running: true, StartedAt: time.Now().Add(time.Duration(e.clock) * time.Nanosecond).UTC(), Health: health}
 		e.attach(c)
+		e.emit(c, "start")
+	}
+}
+
+// ShuttingDown is the engine asked to stop, as a server shutting down asks it: it
+// stops each container that runs, saying kill, stop and die of each while it
+// still answers, and doesn't count them stopped by anyone, so Reboot brings back
+// those whose policy has them run.
+func (e *Engine) ShuttingDown() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, id := range slices.Sorted(maps.Keys(e.containers)) {
+		c := e.containers[id]
+		if !c.State.Running {
+			continue
+		}
+		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+		c.shutDown = true
+		c.log.end()
+		e.detach(c)
+		e.emit(c, "kill", "stop", "die")
+	}
+}
+
+// NeverStarted leaves a container as docker create does: made, and not started.
+func (e *Engine) NeverStarted(name string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if c := e.byNameOrID(name); c != nil {
+		c.State = docker.State{Status: "created"}
+		c.log.end()
+		e.detach(c)
 	}
 }
 

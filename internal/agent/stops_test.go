@@ -398,3 +398,153 @@ func TestDockerNotAnsweringSettlesNothing(t *testing.T) {
 		t.Fatalf("it stands %+v once Docker answered; want lost", st)
 	}
 }
+
+// The other ways a container reads stopped with nobody having stopped it, and
+// what the rule makes of each (ADR 0054, "What it doesn't tell apart").
+
+// A server shutting down: Docker stops each container while it still answers,
+// saying of each what it says of a person's stop, after the container's start.
+// Two lists in that time take it for someone's stop. That's wrong, and it doesn't
+// last: the agent starts nothing for it, and once Docker has started it again at
+// boot it reads as running, with nothing on Activity.
+func TestAShutdownsStopIsForgottenAtBoot(t *testing.T) {
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	s.connected()
+	s.noted(t)
+	s.e.ShuttingDown()
+	s.noted(t)
+	if st := s.stands(t); !st.Stopped {
+		t.Fatalf("during the shutdown it stands %+v; the rule is known to read this as a stop", st)
+	}
+	s.r.startLost(t.Context())
+	if s.webRuns() {
+		t.Fatal("the agent started a container during a shutdown")
+	}
+	s.e.Reboot()
+	again := newReconciler(s.r.cfg, s.presence, s.held) // the agent, started at boot
+	s.r = again
+	s.noted(t)
+	if st := s.stands(t); st.Down() {
+		t.Fatalf("after the boot, running, it stands %+v", st)
+	}
+	if !s.webRuns() {
+		t.Fatal("Docker didn't bring it back at boot")
+	}
+	if entries, _, _ := s.journal.Pending(); len(entries) != 0 {
+		t.Errorf("Activity is told %+v of a shutdown and a boot", entries)
+	}
+}
+
+// docker restart by hand stops and starts in one. Lists that land between the two
+// take it for a stop, and the next one, with it running, forgets that.
+func TestARestartByHandLeavesNothingBehind(t *testing.T) {
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	s.connected()
+	s.noted(t)
+	if err := s.e.Client().StopContainer(t.Context(), "web", time.Second); err != nil {
+		t.Fatal(err)
+	}
+	s.noted(t) // two lists in the gap, which a slow stop can leave
+	if err := s.e.Client().StartContainer(t.Context(), "web"); err != nil {
+		t.Fatal(err)
+	}
+	s.noted(t)
+	if st := s.stands(t); st.Down() {
+		t.Fatalf("restarted and running, it stands %+v", st)
+	}
+	if entries, _, _ := s.journal.Pending(); len(entries) != 0 {
+		t.Errorf("Activity is told %+v of a restart by hand", entries)
+	}
+}
+
+// A container that's made and never started, outside any step, as docker create
+// by hand leaves one, hasn't stopped: the rule says nothing of it, and the agent
+// neither starts it nor writes anything down.
+func TestOneMadeAndNeverStartedIsntAStop(t *testing.T) {
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	s.connected()
+	s.e.NeverStarted("web")
+	for range 3 {
+		s.noted(t)
+	}
+	if st := s.stands(t); st.Down() {
+		t.Fatalf("made and never started, it stands %+v", st)
+	}
+	s.r.startLost(t.Context())
+	s.presence.set(false, time.Now().Add(-time.Hour))
+	s.pass(t)
+	if s.webRuns() {
+		t.Fatal("the agent started a container someone made and didn't start")
+	}
+	if entries, _, _ := s.journal.Pending(); len(entries) != 0 {
+		t.Errorf("Activity is told %+v", entries)
+	}
+}
+
+// Two containers answering to one service, as a twin made by hand: the service
+// runs if either does, whichever the list has last, so a stopped twin doesn't
+// have the one that runs taken for stopped.
+func TestAStoppedTwinDoesntHideOneThatRuns(t *testing.T) {
+	for _, twinLast := range []bool{true, false} {
+		s := newStand(t)
+		s.run(t, webRef, nginx, nil)
+		s.connected()
+		list, err := s.e.Client().ListContainers(t.Context(), map[string][]string{"label": {docker.LabelProject}})
+		if err != nil || len(list) != 1 {
+			t.Fatalf("listed %d containers, %v", len(list), err)
+		}
+		twin := list[0]
+		twin.ID, twin.State = "twin-made-by-hand", "exited"
+		both := []docker.ContainerSummary{twin, list[0]}
+		if twinLast {
+			both = []docker.ContainerSummary{list[0], twin}
+		}
+		asked := 0
+		s.e.Intercept(func(r *http.Request) error {
+			if strings.Contains(r.URL.Path, twin.ID) {
+				asked++
+			}
+			return nil
+		})
+		for range 3 {
+			s.r.noted(t.Context(), time.Now(), both)
+		}
+		if st := s.stands(t); st.Down() {
+			t.Fatalf("with the twin last=%t, the service stands %+v though one of its containers runs", twinLast, st)
+		}
+		// The twin isn't here to be read, so what shows the service was taken
+		// for one that runs is that nothing was asked of the twin.
+		if asked != 0 {
+			t.Errorf("with the twin last=%t, Docker was asked about the stopped twin %d times, as if the service had stopped", twinLast, asked)
+		}
+	}
+}
+
+// A mark outlasts a step that didn't start the container, and a fill, as how it
+// stands is a look's to say: lost stays lost, and is still started.
+func TestALostMarkOutlastsAFill(t *testing.T) {
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	s.connected()
+	s.noted(t)
+	s.e.DaemonKilled()
+	s.noted(t)
+	rec, _, _ := s.store.Read(webRef)
+	if !rec.Lost {
+		t.Fatalf("the record says %+v", rec)
+	}
+	rec.Lost = false // a fill says what should run, not how it stands
+	if err := s.store.Keep(rec); err != nil {
+		t.Fatal(err)
+	}
+	if st := s.stands(t); !st.Lost {
+		t.Fatalf("after a fill it stands %+v; want lost still", st)
+	}
+	s.r.startLost(t.Context())
+	if !s.webRuns() {
+		t.Fatal("not started after a fill")
+	}
+}

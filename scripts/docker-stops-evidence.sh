@@ -168,6 +168,38 @@ events "$tf" "$(date +%s)"
 # Free the ports, so what the daemon does with these as it returns isn't the port's doing.
 docker rm -f ev-port-holder ev-port-holder2 >/dev/null
 
+say "a forced removal: what docker ps -a and the list API say of a container between docker rm -f's kill and its going"
+# The agent takes "removing" and "dead" for no news, so a look in that moment
+# isn't read as a stop. That Docker lists "removing" then, and not "exited", was
+# read from its source, not seen. Five rounds, polling as fast as curl goes.
+sock=/var/run/docker.sock
+for round in 1 2 3 4 5; do
+  docker run -d --name "ev-forced-$round" --label "$label" --restart unless-stopped "$image" >/dev/null
+  sleep 1
+  fid=$(docker inspect --format '{{.Id}}' "ev-forced-$round")
+  : >"$work/forced-$round.log"
+  (
+    for _ in $(seq 1 400); do
+      sudo -n curl -s --unix-socket "$sock" "http://docker/containers/json?all=1&filters=%7B%22id%22%3A%5B%22$fid%22%5D%7D" |
+        jq -r 'if length == 0 then "gone" else .[0].State + " / " + .[0].Status end' >>"$work/forced-$round.log" 2>&1
+    done
+  ) &
+  poll=$!
+  sleep 0.2
+  docker rm -f "ev-forced-$round" >/dev/null
+  wait "$poll"
+  echo "evidence: round $round, the list API said, in order, with how many times in a row: $(uniq -c "$work/forced-$round.log" | sed 's/^ *//' | tr '\n' ';')"
+done
+docker run -d --name ev-forced-ps --label "$label" --restart unless-stopped "$image" >/dev/null
+sleep 1
+: >"$work/forced-ps.log"
+(for _ in $(seq 1 60); do docker ps -a --filter name=ev-forced-ps --format '{{.State}} / {{.Status}}' >>"$work/forced-ps.log" 2>&1; done) &
+poll=$!
+sleep 0.2
+docker rm -f ev-forced-ps >/dev/null
+wait "$poll"
+echo "evidence: docker ps -a said, in order: $(uniq -c "$work/forced-ps.log" | sed 's/^ *//' | tr '\n' ';')"
+
 say "kill the daemon: systemctl kill --signal=SIGKILL docker.service"
 t3=$(date +%s)
 sudo -n systemctl kill --signal=SIGKILL docker.service

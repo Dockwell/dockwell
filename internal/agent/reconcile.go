@@ -510,7 +510,7 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 			continue
 		}
 		c := of.c
-		st := resource.RunState{Exists: true, Running: c.State == "running" || c.State == "restarting" || c.State == "paused", Volumes: map[string]string{}}
+		st := resource.RunState{Exists: true, Running: c.Stand().Runs(), Volumes: map[string]string{}}
 		for _, m := range c.Mounts {
 			if m.Type == "volume" && docker.AnonymousVolume(m.Name) {
 				st.Volumes[m.Destination] = m.Name
