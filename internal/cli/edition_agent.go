@@ -167,6 +167,6 @@ func runCommand(cmd *cobra.Command, stdio IO, g *globalFlags) runRole {
 				"Join one with dockwell join <ticket>, with a ticket from dockwell token create on the control server. " +
 				"To make this server a control server instead, run the install script without --join, which installs the full build")
 		}
-		return runAgent(ctx, stdio, g, logger, dir, id, build, nil, nil)
+		return runAgentAlone(ctx, stdio, g, logger, dir, id, build)
 	}
 }
