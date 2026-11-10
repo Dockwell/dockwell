@@ -1254,6 +1254,10 @@ msgstr "告警分区"
 msgid "Channels"
 msgstr "渠道"
 
+msgctxt "checks of a URL"
+msgid "Checks"
+msgstr "地址监测"
+
 msgid "Nothing open"
 msgstr "没有未解决的告警"
 
@@ -1557,6 +1561,60 @@ msgstr "{failing, plural, other {# 个发送失败}}"
 msgid "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
 msgstr "{waiting, plural, other {添加后，# 条规则会发送到这里。}}"
 
+msgid "Address"
+msgstr "地址"
+
+msgid "Can't load the checks"
+msgstr "无法加载地址监测"
+
+msgid "Every 15 min"
+msgstr "每 15 分钟"
+
+msgid "Every 30 s"
+msgstr "每 30 秒"
+
+msgid "Every 5 min"
+msgstr "每 5 分钟"
+
+msgid "Every minute"
+msgstr "每分钟"
+
+msgid "Inside the network"
+msgstr "在内网中"
+
+msgid "Last answers"
+msgstr "最近的响应"
+
+#. placeholder {0}: runs.length
+msgid "Last {0} runs"
+msgstr "最近 {0} 次检查"
+
+msgid "No address is watched yet"
+msgstr "还没有监测任何地址"
+
+msgid "No answer yet"
+msgstr "尚无响应"
+
+msgctxt "how a check runs"
+msgid "Runs"
+msgstr "检查方式"
+
+msgid "Watch an address"
+msgstr "监测一个地址"
+
+msgid "Watch one from its app's or website's domain, and Dockwell alerts when it stops answering."
+msgstr "从应用或网站的域名处监测它，地址无响应时 Dockwell 会发出告警。"
+
+msgid "the control server"
+msgstr "控制服务器"
+
+#. placeholder {0}: run.status
+msgid "{0} in {ms} ms"
+msgstr "{0}，耗时 {ms} 毫秒"
+
+msgid "{often} from {from}"
+msgstr "{often}，从{from}检查"
+
 msgid "Alert rules"
 msgstr "告警规则"
 
@@ -1658,6 +1716,136 @@ msgstr "{h} 小时 {m} 分钟"
 
 msgid "{m} min"
 msgstr "{m} 分钟"
+
+msgid "Watch"
+msgstr "监测"
+
+msgid "Watch {where}"
+msgstr "监测 {where}"
+
+msgid "Watched · {word}"
+msgstr "监测中 · {word}"
+
+msgid "{where} is watched: {word}"
+msgstr "{where} 正在监测中：{word}"
+
+msgid "Asking {host} from the control server…"
+msgstr "正在从控制服务器访问 {host}…"
+
+msgid "Change the check of {host}"
+msgstr "更改对 {host} 的监测"
+
+msgid "Change the check of {host}, inside the network"
+msgstr "更改对 {host} 的内网监测"
+
+msgid "Dockwell asks it from the control server, and alerts when it stops answering."
+msgstr "Dockwell 从控制服务器访问它，无响应时发出告警。"
+
+msgid "Down after"
+msgstr "判定为宕机"
+
+msgid "Every 15 minutes"
+msgstr "每 15 分钟"
+
+msgid "Every 30 seconds"
+msgstr "每 30 秒"
+
+msgid "Every 5 minutes"
+msgstr "每 5 分钟"
+
+msgid "How often"
+msgstr "频率"
+
+msgid "It alerts once it has been down {hold}, and reads up again after 2 passing runs in a row."
+msgstr "宕机达 {hold} 后发出告警，连续 2 次正常后恢复为正常。"
+
+#. placeholder {0}: run.status
+msgid "It answered {0} in {ms} ms."
+msgstr "它在 {ms} 毫秒内响应了 {0}。"
+
+#. placeholder {0}: run.status
+msgid "It answered {0}."
+msgstr "它响应了 {0}。"
+
+#. placeholder {0}: run.said
+msgid "It didn't answer as it should: {0}."
+msgstr "它的响应不符合预期：{0}。"
+
+msgid "It shows in plans and on Activity, so leave tokens and passwords out of it."
+msgstr "它会显示在计划和动态中，请不要在其中包含令牌或密码。"
+
+msgid "Leave the user and password out: a check asks as a visitor does."
+msgstr "请去掉用户名和密码：监测像访客一样访问。"
+
+msgid "Reach an address on the control server's private networks too. Without it, a check reaches the internet alone."
+msgstr "也可访问控制服务器所在私有网络中的地址。不开启时，监测只访问互联网。"
+
+msgid "See every check"
+msgstr "查看所有监测"
+
+msgid "Stop watching"
+msgstr "停止监测"
+
+msgid "Stop watching {host}"
+msgstr "停止监测 {host}"
+
+msgid "Type the address to watch, such as https://shop.example.com/."
+msgstr "输入要监测的地址，例如 https://shop.example.com/。"
+
+msgid "Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
+msgstr "{timeout} 内响应 {from} 到 {to} 即为正常，因此重定向也算正常。告警发往哪里由“规则”下的 Address down 规则决定。"
+
+msgid "Use an http or https address, such as https://shop.example.com/."
+msgstr "请使用 http 或 https 地址，例如 https://shop.example.com/。"
+
+msgid "Watch this address"
+msgstr "监测这个地址"
+
+msgid "Watch {host}"
+msgstr "监测 {host}"
+
+msgid "Watch {host}, inside the network"
+msgstr "在内网中监测 {host}"
+
+msgid "Watching {host}"
+msgstr "正在监测 {host}"
+
+msgid "alerts every channel"
+msgstr "告警发往所有渠道"
+
+msgid "alerts {names}"
+msgstr "告警发往 {names}"
+
+msgid "inside the network"
+msgstr "在内网中"
+
+msgid "the Address down rule is off, so nothing is sent"
+msgstr "Address down 规则已关闭，因此不会发送任何告警"
+
+#. placeholder {0}: check.spec?.downAfter || CHECK_DEFAULTS.downAfter
+msgid "{0, plural, one {Dockwell asks again on its own, and the check reads down after # failed run.} other {Dockwell asks again on its own, and the check reads down after # failed runs in a row.}}"
+msgstr "{0, plural, other {Dockwell 会自动再次访问，连续 # 次失败后判定为宕机。}}"
+
+msgid "{n, plural, one {# failed run} other {# failed runs}}"
+msgstr "{n, plural, other {# 次失败}}"
+
+msgid "{n, plural, one {down after # failure} other {down after # failures}}"
+msgstr "{n, plural, other {连续 # 次失败判定为宕机}}"
+
+msgctxt "check state"
+msgid "Down"
+msgstr "宕机"
+
+msgctxt "check state"
+msgid "Failing"
+msgstr "失败中"
+
+msgctxt "check state"
+msgid "Up"
+msgstr "正常"
+
+msgid "Waiting for its first run"
+msgstr "等待首次检查"
 
 msgid "Discord"
 msgstr "Discord"
@@ -4693,9 +4881,6 @@ msgstr "Dockwell 暂时无法说明每次备份占用多少空间，因为这个
 
 msgid "Hourly"
 msgstr "每小时"
-
-msgid "How often"
-msgstr "频率"
 
 msgid "In UTC. Set the install's time zone in Settings to use another."
 msgstr "使用 UTC。要使用其他时区，请在设置中设置这个安装的时区。"
@@ -8888,9 +9073,6 @@ msgstr "{name} 已停止。"
 msgid "Action"
 msgstr "操作"
 
-msgid "Address"
-msgstr "地址"
-
 msgid "Allow"
 msgstr "允许"
 
@@ -11275,9 +11457,6 @@ msgstr "每天 {at}"
 
 msgid "Every hour at {at}"
 msgstr "每小时的 {at}"
-
-msgid "Every minute"
-msgstr "每分钟"
 
 msgid "Every weekday at {at}"
 msgstr "每个工作日 {at}"

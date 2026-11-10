@@ -174,7 +174,9 @@ type Evaluator struct {
 	Health  Health
 	// Standings say whether an app is down. Nil judges by Health's states alone.
 	Standings Standings
-	Sender    *Sender
+	// Checks say how each check of a URL stands (ADR 0066). Nil has none.
+	Checks Checks
+	Sender *Sender
 	// Panel is where the panel answers, for links in messages. Empty puts none.
 	Panel  string
 	Logger *slog.Logger
@@ -604,6 +606,9 @@ func (e *Evaluator) write(ctx context.Context, opens []store.Alert, resolves []r
 	return e.DB.Update(ctx, func(tx *store.Tx) error {
 		for i := range opens {
 			a := &opens[i]
+			// A signal's words can quote a far end, as a check's do; bytes that aren't UTF-8
+			// would fail the write and, with it, every alert this look opens.
+			a.Title, a.Detail, a.SubjectName = valid(a.Title), valid(a.Detail), valid(a.SubjectName)
 			if err := tx.OpenAlert(ctx, *a); err != nil {
 				if errors.Is(err, store.ErrConflict) {
 					continue // another look opened it already
@@ -1014,3 +1019,6 @@ func (e *Evaluator) prune(ctx context.Context, now time.Time) error {
 		return err
 	})
 }
+
+// valid is s with any bytes that aren't UTF-8 as U+FFFD, which a store's text takes.
+func valid(s string) string { return strings.ToValidUTF8(s, "\uFFFD") }

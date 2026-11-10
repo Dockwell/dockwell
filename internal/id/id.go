@@ -41,6 +41,7 @@ const (
 	TaskRun      = "run"
 	AlertRule    = "alr"
 	AlertChannel = "ach"
+	AlertCheck   = "chk"
 	Alert        = "alt"
 	Terminal     = "trm"
 
