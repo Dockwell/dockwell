@@ -8,6 +8,7 @@ import (
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 func TestValidateFillsInAndRefuses(t *testing.T) {
@@ -107,6 +108,69 @@ func TestADestinationsEndpointHoldsNoKey(t *testing.T) {
 		}
 		if err != nil && (strings.Contains(err.Error(), "the-secret") || strings.Contains(err.Error(), "AKIAEXAMPLE")) {
 			t.Errorf("the refusal says what signs in: %v", err)
+		}
+	}
+}
+
+// A drill falls due an hour after its policy's own time: on the policy's weekday, or
+// Sunday for a daily or hourly policy, weekly; an hour after the month's first run,
+// monthly. One that never drills never falls due (ADR 0068).
+func TestNextDrill(t *testing.T) {
+	at := func(month time.Month, day, hour, minute int) time.Time {
+		return time.Date(2026, month, day, hour, minute, 0, 0, time.UTC)
+	}
+	daily := func(drill resourcev1.BackupPolicy_Drill) *resourcev1.BackupPolicy {
+		return &resourcev1.BackupPolicy{Every: resourcev1.BackupPolicy_EVERY_DAY, At: "03:00", TimeZone: "UTC", Drill: drill}
+	}
+	weekly, monthly := resourcev1.BackupPolicy_DRILL_WEEKLY, resourcev1.BackupPolicy_DRILL_MONTHLY
+	for name, c := range map[string]struct {
+		p     *resourcev1.BackupPolicy
+		after time.Time
+		want  time.Time
+	}{
+		// 6 Nov 2026 is a Friday, and 8 Nov a Sunday.
+		"a daily policy, on Sunday": {daily(weekly), at(11, 6, 12, 0), at(11, 8, 4, 0)},
+		"later that Sunday":         {daily(weekly), at(11, 8, 3, 30), at(11, 8, 4, 0)},
+		"the Sunday after":          {daily(weekly), at(11, 8, 4, 0), at(11, 15, 4, 0)},
+		"a weekly policy, on its day": {
+			&resourcev1.BackupPolicy{Every: resourcev1.BackupPolicy_EVERY_WEEK, Weekday: 3, At: "22:30", TimeZone: "UTC", Drill: weekly},
+			at(11, 6, 12, 0), at(11, 11, 23, 30),
+		},
+		"an hourly policy, on Sunday": {
+			&resourcev1.BackupPolicy{Every: resourcev1.BackupPolicy_EVERY_HOUR, At: "00:15", TimeZone: "UTC", Drill: weekly},
+			at(11, 6, 12, 0), at(11, 8, 1, 15),
+		},
+		"the month's first run": {daily(monthly), at(11, 6, 12, 0), at(12, 1, 4, 0)},
+		"this month's, not yet": {daily(monthly), at(12, 1, 2, 0), at(12, 1, 4, 0)},
+		"a weekly policy's first of the month": {
+			&resourcev1.BackupPolicy{Every: resourcev1.BackupPolicy_EVERY_WEEK, Weekday: 1, At: "03:00", TimeZone: "UTC", Drill: monthly},
+			at(11, 6, 12, 0), at(12, 7, 4, 0),
+		},
+	} {
+		if got := NextDrill(c.p, c.after); !got.Equal(c.want) {
+			t.Errorf("%s: %v, want %v", name, got, c.want)
+		}
+	}
+	if got := NextDrill(daily(resourcev1.BackupPolicy_DRILL_NEVER), at(11, 6, 12, 0)); !got.IsZero() {
+		t.Errorf("a policy that never drills falls due %v", got)
+	}
+	if got := NextDrill(daily(resourcev1.BackupPolicy_DRILL_UNSPECIFIED), at(11, 6, 12, 0)); !got.IsZero() {
+		t.Errorf("a policy from before drills falls due %v", got)
+	}
+}
+
+// A policy that's new checks a restore weekly unless it says otherwise; one that says
+// never, or monthly, keeps that.
+func TestANewPolicyDrillsWeekly(t *testing.T) {
+	for given, want := range map[resourcev1.BackupPolicy_Drill]resourcev1.BackupPolicy_Drill{
+		resourcev1.BackupPolicy_DRILL_UNSPECIFIED: resourcev1.BackupPolicy_DRILL_WEEKLY,
+		resourcev1.BackupPolicy_DRILL_NEVER:       resourcev1.BackupPolicy_DRILL_NEVER,
+		resourcev1.BackupPolicy_DRILL_MONTHLY:     resourcev1.BackupPolicy_DRILL_MONTHLY,
+	} {
+		p := &resourcev1.BackupPolicy{Volume: "data", Drill: given}
+		Type{}.DefaultNew(resource.Ref{}, p)
+		if p.GetDrill() != want {
+			t.Errorf("a new policy given %v drills %v, want %v", given, p.GetDrill(), want)
 		}
 	}
 }

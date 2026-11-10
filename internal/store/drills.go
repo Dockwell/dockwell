@@ -37,15 +37,18 @@ type Drill struct {
 	Actor         string
 	StartedAt     time.Time
 	FinishedAt    *time.Time
+	// PolicyID is the backup policy it ran for, as its schedule. Empty for one someone
+	// started.
+	PolicyID string
 }
 
-const drillColumns = `id, backup_id, environment_id, volume_id, server_id, result, why, detail, restored_bytes, tables_checked, unpacked_only, actor, started_at, finished_at`
+const drillColumns = `id, backup_id, environment_id, volume_id, server_id, result, why, detail, restored_bytes, tables_checked, unpacked_only, actor, started_at, finished_at, policy_id`
 
 func scanDrill(row interface{ Scan(...any) error }) (Drill, error) {
 	var d Drill
 	var started int64
 	var finished sql.NullInt64
-	err := row.Scan(&d.ID, &d.BackupID, &d.EnvironmentID, &d.VolumeID, &d.ServerID, &d.Result, &d.Why, &d.Detail, &d.RestoredBytes, &d.Tables, &d.UnpackedOnly, &d.Actor, &started, &finished)
+	err := row.Scan(&d.ID, &d.BackupID, &d.EnvironmentID, &d.VolumeID, &d.ServerID, &d.Result, &d.Why, &d.Detail, &d.RestoredBytes, &d.Tables, &d.UnpackedOnly, &d.Actor, &started, &finished, &d.PolicyID)
 	if err != nil {
 		return Drill{}, err
 	}
@@ -55,8 +58,8 @@ func scanDrill(row interface{ Scan(...any) error }) (Drill, error) {
 
 // CreateDrill records a drill that's starting.
 func (t *Tx) CreateDrill(ctx context.Context, d Drill) error {
-	_, err := t.exec(ctx, `INSERT INTO backup_drills (id, backup_id, environment_id, volume_id, server_id, result, actor, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		d.ID, d.BackupID, d.EnvironmentID, d.VolumeID, d.ServerID, d.Result, d.Actor, millis(d.StartedAt))
+	_, err := t.exec(ctx, `INSERT INTO backup_drills (id, backup_id, environment_id, volume_id, server_id, result, actor, started_at, policy_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		d.ID, d.BackupID, d.EnvironmentID, d.VolumeID, d.ServerID, d.Result, d.Actor, millis(d.StartedAt), d.PolicyID)
 	if err != nil {
 		return fmt.Errorf("can't record drill %s: %w", d.ID, err)
 	}
@@ -90,6 +93,8 @@ type DrillFilter struct {
 	// BackupIDs are the backups whose drills to list, and VolumeID the volume's.
 	BackupIDs []string
 	VolumeID  string
+	// PolicyID and ServerID are a schedule's drills on one server.
+	PolicyID, ServerID string
 	// Result is one result alone, such as DrillRunning.
 	Result string
 	// Since is the earliest start.
@@ -111,6 +116,12 @@ func (t *Tx) ListDrills(ctx context.Context, f DrillFilter) ([]Drill, error) {
 	}
 	if f.VolumeID != "" {
 		where, args = append(where, "volume_id = ?"), append(args, f.VolumeID)
+	}
+	if f.PolicyID != "" {
+		where, args = append(where, "policy_id = ?"), append(args, f.PolicyID)
+	}
+	if f.ServerID != "" {
+		where, args = append(where, "server_id = ?"), append(args, f.ServerID)
 	}
 	if f.Result != "" {
 		where, args = append(where, "result = ?"), append(args, f.Result)

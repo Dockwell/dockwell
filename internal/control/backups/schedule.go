@@ -129,7 +129,8 @@ func (h *Handler) RunDue(ctx context.Context) error {
 	for i := range runs {
 		h.start(ctx, runs[i])
 	}
-	return nil
+	// Restore drills fall due by their own schedule, and take no turn (ADR 0068).
+	return h.runDrillsDue(ctx)
 }
 
 // isDue reports a policy that's due on a server, and has no run going there.

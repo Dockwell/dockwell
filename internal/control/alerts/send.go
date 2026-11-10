@@ -82,6 +82,8 @@ func many(r *resourcev1.AlertRule, alerts []store.Alert) string {
 		return fmt.Sprintf("%d changes failed", n)
 	case resourcev1.AlertRule_CONDITION_RESTORE_DRILL_FAILED:
 		return fmt.Sprintf("%d backups don't restore", n)
+	case resourcev1.AlertRule_CONDITION_RESTORE_DRILL_LATE:
+		return fmt.Sprintf("%d schedules haven't passed a restore check lately", n)
 	case resourcev1.AlertRule_CONDITION_UNSPECIFIED:
 	}
 	return fmt.Sprintf("%s holds for %d", cmp.Or(alert.Title(r), alerts[0].RuleName), n)

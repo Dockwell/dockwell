@@ -483,7 +483,16 @@ func testADumpThroughTheAPI(t *testing.T, backend store.Backend) {
 }
 
 // policyEdit is a daily policy on the volume data that keeps keep backups.
+// policyEdit is a nightly policy of the volume data that checks no restore, so a test
+// of its runs meets no drill (ADR 0068).
 func policyEdit(keep uint32) *dockwellv1.Edit {
+	e := drillingPolicyEdit(keep)
+	e.GetSpec().GetBackupPolicy().Drill = resourcev1.BackupPolicy_DRILL_NEVER
+	return e
+}
+
+// drillingPolicyEdit is a nightly policy that leaves its restore check to the default.
+func drillingPolicyEdit(keep uint32) *dockwellv1.Edit {
 	return &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: string(backuppolicy.Kind), Name: "data-daily"},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_BackupPolicy{BackupPolicy: &resourcev1.BackupPolicy{Volume: "data", Keep: keep, At: "03:00"}}},

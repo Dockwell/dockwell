@@ -2,7 +2,7 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { BackupCopy, type BackupPolicyInfo, BackupService, BackupState } from "@dockwell/api";
+import { BackupCopy, BackupPolicy_Drill, type BackupPolicyInfo, BackupService, BackupState } from "@dockwell/api";
 import { Button, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
@@ -70,6 +70,13 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
         <code>{volume}</code>
         <span className="backup-why">{policy.spec ? t`${words(policy.spec)}, ${zone}` : ""}</span>
         <span className="backup-why">{keeps}</span>
+        <span className="backup-why">
+          {policy.spec?.drill === BackupPolicy_Drill.WEEKLY
+            ? t`Checks a restore weekly`
+            : policy.spec?.drill === BackupPolicy_Drill.MONTHLY
+              ? t`Checks a restore monthly`
+              : t`Doesn't check a restore`}
+        </span>
       </div>
       <div className="backup-state">
         {policy.last ? (

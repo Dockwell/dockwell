@@ -2356,6 +2356,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "keep", Help: "How many of its backups to keep, on each server, newest first: 7 unless set."},
 				{Path: "stop", Help: "Stop what runs on the volume for an exact copy of its files, and start it again after. A database's dump stops nothing. Without it, a copy of a running app's files can hold half a write."},
 				{Path: "destination", Help: "The backup destination each backup also goes to, by name. Empty keeps them on the server alone, so they go if it does."},
+				{Path: "drill"},
 			},
 		},
 		{

@@ -600,6 +600,19 @@ message BackupPolicy {
   // The backup destination each backup also goes to, by name. Empty keeps them on
   // the server alone, so they go if it does.
   string destination = 8;
+  // How often a restore drill checks the newest of its backups that read back
+  // whole, on each server it runs on: an hour after its own time on its weekday,
+  // Sunday for a daily or hourly policy, or an hour after the month's first run
+  // (ADR 0068).
+  enum Drill {
+    // Never, for a policy made before drills. A policy that's new drills weekly
+    // unless it says otherwise.
+    DRILL_UNSPECIFIED = 0;
+    DRILL_NEVER = 1;
+    DRILL_WEEKLY = 2;
+    DRILL_MONTHLY = 3;
+  }
+  Drill drill = 9;
 }
 
 // BackupDestination is S3-compatible storage that backups go to as well as the
@@ -848,6 +861,9 @@ message AlertRule {
     // The newest backup of a volume that has been drilled failed its drill: it
     // didn't restore, or didn't hold what it should (ADR 0068).
     CONDITION_RESTORE_DRILL_FAILED = 20;
+    // A policy that drills has gone two of its periods without a drill that
+    // passed, whether its drills weren't checked or never ran (ADR 0068).
+    CONDITION_RESTORE_DRILL_LATE = 21;
   }
   // How much it matters, which a message says and a channel can choose by.
   enum Severity {

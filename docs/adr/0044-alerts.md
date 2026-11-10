@@ -51,6 +51,7 @@ On its first start with alerts, an install makes one rule per condition, as Dock
 | `backup-late` | a schedule's run hasn't started an hour after its time | warning | never |
 | `change-failed` | a change fails or rolls back, a deploy among them | warning | never |
 | `restore-drill-failed` | the newest backup of a volume that a restore drill checked didn't restore ([ADR 0068](0068-restore-drills.md)) | critical | never |
+| `restore-drill-late` | a policy that checks a restore has gone two of its periods, on a server, without a check that passed | warning | never |
 
 ### Evaluation, on the control plane
 

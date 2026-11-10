@@ -4732,6 +4732,7 @@ components:
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
                         - CONDITION_RESTORE_DRILL_FAILED
+                        - CONDITION_RESTORE_DRILL_LATE
                     type: string
                     description: What the rule watches for, and how much it matters, as it did when it fired.
                     format: enum
@@ -5005,6 +5006,7 @@ components:
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
                         - CONDITION_RESTORE_DRILL_FAILED
+                        - CONDITION_RESTORE_DRILL_LATE
                     type: string
                     description: What it watches for.
                     format: enum
@@ -5550,6 +5552,14 @@ components:
                     description: |-
                         The backup destination each backup also goes to, by name. Empty keeps them on
                          the server alone, so they go if it does.
+                drill:
+                    enum:
+                        - DRILL_UNSPECIFIED
+                        - DRILL_NEVER
+                        - DRILL_WEEKLY
+                        - DRILL_MONTHLY
+                    type: string
+                    format: enum
             description: |-
                 BackupPolicy backs up a volume in its environment on a schedule, on every server
                  that has it, and keeps the newest of those backups. A backup someone takes by
@@ -7944,6 +7954,7 @@ components:
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
                         - CONDITION_RESTORE_DRILL_FAILED
+                        - CONDITION_RESTORE_DRILL_LATE
                     type: string
                     description: |-
                         What its title says, apart, for the panel to say in its own language: the

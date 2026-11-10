@@ -524,6 +524,8 @@ export function alertTitle(
       return i18n._(msg`A change failed: ${subject}`);
     case AlertRule_Condition.RESTORE_DRILL_FAILED:
       return i18n._(msg`The newest checked backup of ${subject} doesn't restore`);
+    case AlertRule_Condition.RESTORE_DRILL_LATE:
+      return i18n._(msg`No restore check of ${subject} has passed lately`);
   }
   return a.title;
 }
