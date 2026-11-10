@@ -280,6 +280,29 @@ describe("scheduled tasks", () => {
     expect(label.style.left).toBe("");
   });
 
+  it("gives the start of the axis to Now, and hides an hour that would stand on it", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      // Five minutes to six: 06:00 is under one percent along the track.
+      vi.setSystemTime(new Date(2026, 10, 10, 5, 55));
+      const { container } = renderAt("/scheduled-tasks", api([aTask()]));
+      await screen.findByRole("region", { name: "Next 24 hours" });
+      const labels = [...container.querySelectorAll<HTMLElement>(".tasks-axis-label")];
+      // All four stay in the page, so the track's hours keep their places.
+      expect(labels).toHaveLength(4);
+      expect(labels.filter((l) => l.classList.contains("is-hidden")).map((l) => l.textContent)).toEqual(["06:00"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("draws no card around the card that says there are no tasks", async () => {
+    const { container } = renderAt("/scheduled-tasks", api([]));
+    const heading = await screen.findByRole("heading", { level: 2, name: "No scheduled tasks yet" });
+    expect(heading.closest(".empty-state")).not.toBeNull();
+    expect(container.querySelector(".dw-panel")).toBeNull();
+  });
+
   it("says a server that isn't connected runs its tasks all the same", async () => {
     const away = aTask();
     const first = away.servers[0];

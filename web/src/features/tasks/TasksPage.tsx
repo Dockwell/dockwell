@@ -4,6 +4,7 @@ import { type TaskInfo, TaskKind } from "@dockwell/api";
 import {
   Button,
   Callout,
+  cx,
   Icon,
   type IconName,
   Panel,
@@ -167,14 +168,13 @@ export function TasksPage() {
         </Callout>
       ) : null}
       {query.isPending ? null : count === 0 ? (
-        <Panel>
-          <EmptyState icon="calendar" title={t`No scheduled tasks yet`} action={action}>
-            <Trans>
-              A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it
-              printed, and one that fails is on Activity.
-            </Trans>
-          </EmptyState>
-        </Panel>
+        // It draws its own card, so it stands alone, as on every other page.
+        <EmptyState icon="calendar" title={t`No scheduled tasks yet`} action={action}>
+          <Trans>
+            A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it
+            printed, and one that fails is on Activity.
+          </Trans>
+        </EmptyState>
       ) : (
         <div className="tasks-columns">
           <div className="tasks-main">
@@ -235,9 +235,13 @@ export function TasksPage() {
   );
 }
 
+/** How far along the track, in percent, an axis label has to be to clear the word Now at its start. */
+const NOW_ROOM = 12;
+
 /** The next 24 hours, a lane for each task with a mark at each run. */
 function NextDay({ tasks, chosen, now }: { tasks: readonly TaskInfo[]; chosen: TaskInfo | undefined; now: number }) {
   const { t, i18n } = useLingui();
+  const phone = useMediaQuery(PHONE_QUERY);
   const day = 86_400_000;
   const at = (ms: number) => Math.min(100, Math.max(0, ((ms - now) / day) * 100));
   const hours = (h: number) => {
@@ -247,7 +251,12 @@ function NextDay({ tasks, chosen, now }: { tasks: readonly TaskInfo[]; chosen: T
     return d;
   };
   const time = new Intl.DateTimeFormat(i18n.locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-  const date = new Intl.DateTimeFormat(i18n.locale, { weekday: "short", day: "numeric", month: "short" });
+  // A phone's track has no room for the weekday, which the panel's head says anyway.
+  const date = new Intl.DateTimeFormat(i18n.locale, {
+    ...(phone ? {} : { weekday: "short" }),
+    day: "numeric",
+    month: "short",
+  });
   const long = new Intl.DateTimeFormat(i18n.locale, {
     weekday: "long",
     hour: "2-digit",
@@ -259,7 +268,9 @@ function NextDay({ tasks, chosen, now }: { tasks: readonly TaskInfo[]; chosen: T
   const span = t`${from} to ${to}`;
   const axis = [6, 12, 18, 0].map((h) => {
     const d = hours(h);
-    return { at: at(d.getTime()), label: h === 0 ? date.format(d) : time.format(d), strong: h === 0 };
+    const where = at(d.getTime());
+    // One that would stand on Now gives way to it: the hour is minutes off, and Now says so.
+    return { at: where, label: h === 0 ? date.format(d) : time.format(d), strong: h === 0, hidden: where < NOW_ROOM };
   });
   return (
     <Panel title={t`Next 24 hours`} actions={<span className="tasks-sub">{span}</span>}>
@@ -272,7 +283,7 @@ function NextDay({ tasks, chosen, now }: { tasks: readonly TaskInfo[]; chosen: T
           return (
             <div key={task.id} className={task === chosen ? "tasks-lane is-chosen" : "tasks-lane"}>
               <span className="tasks-lane-name">
-                {nameOf(task)}
+                <span className="tasks-lane-title">{nameOf(task)}</span>
                 {runs > 1 ? <span className="tasks-sub">{plural(runs, { one: "# run", other: "# runs" })}</span> : null}
               </span>
               <div className="tasks-lane-track">
@@ -301,7 +312,7 @@ function NextDay({ tasks, chosen, now }: { tasks: readonly TaskInfo[]; chosen: T
             {axis.map((a) => (
               <span
                 key={a.label}
-                className={a.strong ? "tasks-axis-label is-strong" : "tasks-axis-label"}
+                className={cx("tasks-axis-label", a.strong && "is-strong", a.hidden && "is-hidden")}
                 // A label anchors by its position, from left-aligned to right-aligned, to stay on the track.
                 style={{ left: `${a.at}%`, transform: `translateX(-${a.at}%)` }}
               >
