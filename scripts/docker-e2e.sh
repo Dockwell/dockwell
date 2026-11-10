@@ -4436,40 +4436,92 @@ if docker ps -a --filter label=dev.dockwell.builder --format '{{.Mounts}}' | gre
   fail "a container left on the server mounts dockwell-railpack"
 fi
 
-step "Builds: a build's secret reaches its steps, and never its log or its image"
-# On the control server, whose agent runs as root under systemd, with /run in memory.
+# build_evidence BUILD prints what explains a build that failed on real Docker: its
+# record and its log, as kept, with its secrets masked, then what Docker and the
+# kernel say of AppArmor, which confines each step where the agent is root.
+build_evidence() {
+  {
+    echo "--- the build's record and log"
+    if [[ "$1" == bld_* ]]; then
+      dw builds get "$1" --json || true
+      dw builds log "$1" || true
+    else
+      echo "no build was recorded before the change ended"
+    fi
+    echo "--- Docker's security options"
+    docker info --format '{{json .SecurityOptions}}' || true
+    echo "--- the AppArmor profiles Docker's containers use"
+    priv grep -E '^(docker|runc|buildkit)' /sys/kernel/security/apparmor/profiles || true
+    echo "--- what the kernel said of AppArmor last"
+    priv dmesg 2>/dev/null | grep -i apparmor | tail -n 40 || true
+    echo "--- builders left"
+    docker ps --all --filter label=dev.dockwell.builder || true
+  } >&2
+}
+# apply_build CHANGE NAME applies a change that builds the service NAME, and keeps
+# its build's ID in applied_build from when there is one: a creation that fails
+# rolls the service back out of the list, and the build's record is what says why.
+applied_build=""
+apply_build() {
+  local change=$1 name=$2 apply_pid
+  applied_build=""
+  dw changes apply "$change" --yes >"$git_dir/apply-$name" 2>&1 &
+  apply_pid=$!
+  for _ in $(seq 100); do
+    applied_build=$(dw builds list "$name" --environment "$build_env" --json 2>/dev/null |
+      jq -r --arg change "$change" '[.builds[] | select(.changeId == $change)][0].id // empty') || true
+    [[ "$applied_build" == bld_* ]] && break
+    kill -0 "$apply_pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  if ! wait "$apply_pid"; then
+    cat "$git_dir/apply-$name" >&2
+    build_evidence "$applied_build"
+    return 1
+  fi
+  cat "$git_dir/apply-$name"
+}
+
+step "Builds: an app builds on the control server, whose agent is root, with its steps under Docker's AppArmor profile"
+# Every build above ran on the agent build's server, whose agent isn't root, so it
+# can't read which profiles the server has, and its steps run under none. A server's
+# own agent is root, as this one is with E2E_ROOT, and confines each step.
 control_id=$(dw servers list --json | jq -r --arg agent "$agent_id" '[.servers[] | select(.id != $agent) | .id] | first // empty') || fail "servers list failed"
+[[ "$control_id" == srv_* ]] || fail "the control server isn't in the list of servers: $(dw servers list --json)"
+planned=$(dw services create e2e-confined --environment "$build_env" --on "$control_id" --build-git-url "$git_url/web.git" --build-git-ref confined --plan-only --json) ||
+  fail "planning an app that builds on the control server failed"
+apply_build "$(jq -r '.change.id' <<<"$planned")" e2e-confined || fail "an app didn't build on the control server"
+confined_id=$(service_id e2e-confined)
+[[ "$confined_id" == svc_* ]] || fail "e2e-confined isn't in $build_env: $(dw services list --json)"
+confined_build=$(dw builds list "$confined_id" --json | jq -r '.builds[0].id')
+confined_log=$(dw builds log "$confined_build") || fail "builds log failed"
+[[ "$confined_log" == *"this step runs under: "* ]] || fail "the build's step on the control server printed nothing: $confined_log"
+# Only root reads the list of profiles, and so only then does the agent confine a step.
+if [[ -n "${E2E_ROOT:-}" ]] && priv grep -q '^docker-default ' /sys/kernel/security/apparmor/profiles 2>/dev/null; then
+  if [[ "$confined_log" != *"this step runs under: docker-default"* ]]; then
+    build_evidence "$confined_build"
+    fail "the server has docker-default, the agent is root, and the build's step didn't run under it: $confined_log"
+  fi
+else
+  echo "A step under AppArmor wasn't checked, as that needs E2E_ROOT and a server with docker-default loaded. CI has both"
+fi
+dw services delete e2e-confined --environment "$build_env" --yes || fail "deleting e2e-confined failed"
+
+step "Builds: a build's secret reaches its steps, and never its log or its image"
+# On the control server too, whose agent is root, with /run in memory.
 printf 'e2e-npm-secret-value' >"$git_dir/npm"
 dw secrets create NPM --environment "$build_env" --value-file "$git_dir/npm" --yes || fail "secrets create NPM failed"
 planned=$(dw services create e2e-secret --environment "$build_env" --on "$control_id" --build-git-url "$git_url/web.git" --build-git-ref secret --build-secrets NPM_TOKEN=NPM --plan-only --json) ||
   fail "planning an app whose build uses a secret failed"
-secret_change=$(jq -r '.change.id' <<<"$planned")
-dw changes apply "$secret_change" --yes >"$git_dir/secret-deploy" 2>&1 &
-secret_pid=$!
-# A failed creation rolls the service back out of the list. Capture its build ID
-# while it still exists, so its retained, masked log can explain a Docker failure.
-secret_build=""
-for _ in $(seq 100); do
-  secret_build=$(dw builds list e2e-secret --environment "$build_env" --json 2>/dev/null |
-    jq -r --arg change "$secret_change" '[.builds[] | select(.changeId == $change)][0].id // empty') || true
-  [[ "$secret_build" == bld_* ]] && break
-  kill -0 "$secret_pid" 2>/dev/null || break
-  sleep 0.1
-done
-if ! wait "$secret_pid"; then
-  cat "$git_dir/secret-deploy" >&2
-  if [[ "$secret_build" == bld_* ]]; then
-    dw builds get "$secret_build" --json >&2 || true
-    dw builds log "$secret_build" >&2 || true
-  fi
-  fail "an app whose build uses a secret didn't deploy"
-fi
-cat "$git_dir/secret-deploy"
+apply_build "$(jq -r '.change.id' <<<"$planned")" e2e-secret || fail "an app whose build uses a secret didn't deploy"
 secret_id=$(service_id e2e-secret)
 [[ "$secret_id" == svc_* ]] || fail "e2e-secret isn't in $build_env: $(dw services list --json)"
 secret_build=$(dw builds list "$secret_id" --json | jq -r '.builds[0].id')
 secret_log=$(dw builds log "$secret_build") || fail "builds log failed"
-[[ "$secret_log" == *"the secret arrived"* ]] || fail "the build's step didn't get its secret: $secret_log"
+if [[ "$secret_log" != *"the secret arrived"* ]]; then
+  build_evidence "$secret_build"
+  fail "the build's step didn't get its secret: $secret_log"
+fi
 [[ "$secret_log" != *e2e-npm-secret-value* ]] || fail "the build's log holds its secret"
 secret_image=$(docker inspect --format '{{.Config.Image}}' "$(docker ps --quiet --filter label=com.docker.compose.service=e2e-secret | head -1)") || fail "e2e-secret doesn't run"
 if docker save "$secret_image" | grep -a -q e2e-npm-secret-value; then fail "the built image holds the build's secret"; fi

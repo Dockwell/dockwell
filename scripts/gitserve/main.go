@@ -9,6 +9,7 @@
 //   - broken fails at its fourth step, saying "npm ERR! missing script: build";
 //   - slow prints "installing packages" and takes a minute, for a build seen under way;
 //   - noisy builds a larger image and prints 20,000 lines, for an agent's memory;
+//   - confined runs one step that says which AppArmor profile it runs under;
 //   - secret reads the build secret NPM_TOKEN in two steps, and prints it in one;
 //   - secret-fails prints NPM_TOKEN in a step that then fails;
 //   - node is a Node app with no Dockerfile, which Railpack builds;
@@ -88,6 +89,16 @@ RUN for i in $(seq 1 20000); do echo "line $i of what a build prints, and then s
 EXPOSE 8080
 CMD ["node", "-e", "require('http').createServer((q, s) => s.end('noisy')).listen(8080)"]
 `, "index.html": "noisy\n"}},
+	// A step that runs, never from the cache of another branch's build, as its files
+	// differ, and says what confines it: a build on a server whose agent is root runs
+	// each step under Docker's AppArmor profile where the server has it (ADR 0046).
+	{"confined", "Tidy the checkout page", map[string]string{"Dockerfile": `FROM busybox:1.37
+WORKDIR /app
+COPY . .
+RUN echo "this step runs under: $(cat /proc/self/attr/current 2>/dev/null || echo no AppArmor)"
+EXPOSE 8080
+CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
+`, "index.html": "Tidy the checkout page\n"}},
 	// A build that uses a secret, which has to reach its step and nowhere else.
 	{"secret", "Install private packages", map[string]string{"Dockerfile": `FROM busybox:1.37
 WORKDIR /app
