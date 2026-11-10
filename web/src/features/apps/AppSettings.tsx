@@ -4,6 +4,7 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { useQuery } from "@connectrpc/connect-query";
 import {
   type Change,
+  ChangeService,
   ChangeState,
   type Container,
   type EditSchema,
@@ -31,7 +32,8 @@ import {
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
-
+import { MayEdit } from "../auth/MayEdit";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useApp } from "./AppContext";
 import { useDeleteApp } from "./AppOverview";
@@ -82,6 +84,7 @@ export function AppSettings() {
   const name = nameOf(service);
   const moving = isMoving(state);
   const active = useCurrentSection(SECTIONS);
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { environment: environmentOf(service) });
 
   // The rollback of this form's own failed apply lands as a newer revision of the same
   // spec. The form keeps what was typed and plans from that, or the retry is stale.
@@ -206,54 +209,57 @@ export function AppSettings() {
         </nav>
       )}
       <div className="app-settings-main">
-        {section(
-          "general",
-          (a) => (
-            <GeneralFacts app={a} />
-          ),
-          (props) => (
-            <GeneralForm {...props} />
-          ),
-        )}
-        {section(
-          "health",
-          (a) => (
-            <HealthFacts app={a} />
-          ),
-          (props) => (
-            <HealthForm {...props} />
-          ),
-        )}
-        {section(
-          "resources",
-          (a) => (
-            <ResourcesFacts app={a} />
-          ),
-          (props) => (
-            <ResourcesForm {...props} />
-          ),
-        )}
-        {section(
-          "ports",
-          (a) => (
-            <PortsFacts app={a} />
-          ),
-          (props) => (
-            <PortsForm {...props} />
-          ),
-        )}
-        {section(
-          "mounts",
-          (a) => (
-            <MountsFacts app={a} />
-          ),
-          (props) => (
-            <MountsForm {...props} />
-          ),
-        )}
-        <div id="danger" className="app-settings-anchor is-wide">
-          <DangerZone title={label.danger} />
-        </div>
+        {/* For someone who may not plan here, its settings are there to read, with why (ADR 0059). */}
+        <MayEdit offer={mayPlan}>
+          {section(
+            "general",
+            (a) => (
+              <GeneralFacts app={a} />
+            ),
+            (props) => (
+              <GeneralForm {...props} />
+            ),
+          )}
+          {section(
+            "health",
+            (a) => (
+              <HealthFacts app={a} />
+            ),
+            (props) => (
+              <HealthForm {...props} />
+            ),
+          )}
+          {section(
+            "resources",
+            (a) => (
+              <ResourcesFacts app={a} />
+            ),
+            (props) => (
+              <ResourcesForm {...props} />
+            ),
+          )}
+          {section(
+            "ports",
+            (a) => (
+              <PortsFacts app={a} />
+            ),
+            (props) => (
+              <PortsForm {...props} />
+            ),
+          )}
+          {section(
+            "mounts",
+            (a) => (
+              <MountsFacts app={a} />
+            ),
+            (props) => (
+              <MountsForm {...props} />
+            ),
+          )}
+          <div id="danger" className="app-settings-anchor is-wide">
+            <DangerZone title={label.danger} />
+          </div>
+        </MayEdit>
       </div>
     </div>
   );

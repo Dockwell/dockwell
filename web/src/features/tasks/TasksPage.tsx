@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type TaskInfo, TaskKind } from "@dockwell/api";
+import { ChangeService, type TaskInfo, TaskKind } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -27,6 +27,7 @@ import { TaskPanel } from "./TaskPanel";
 import { TaskSheet } from "./TaskSheet";
 import { lastRunOf, nameOf, nextRunOf, offline, runStatus, targetOf, tookOf, useTasks, useTaskWords } from "./useTasks";
 import "./Tasks.css";
+import { useMay } from "../auth/may";
 
 const ICONS: Readonly<Record<number, IconName>> = {
   [TaskKind.SHELL]: "server",
@@ -49,6 +50,8 @@ export function TasksPage() {
   const search = useSearch({ strict: false }) as { task?: string };
   const navigate = useNavigate();
   const [making, setMaking] = useState(false);
+  // A task is a plan, which is a developer's: off, with why, for a viewer (ADR 0059).
+  const mayPlan = useMay()(ChangeService.method.proposeChange);
   const tasks = query.data?.tasks ?? [];
   const chosen = tasks.find((task) => task.id === search.task) ?? tasks[0];
   const servers = [...new Set(tasks.flatMap((task) => task.servers.map((s) => s.serverName)))];
@@ -148,7 +151,7 @@ export function TasksPage() {
   const choose = (task: TaskInfo) =>
     void navigate({ to: "/scheduled-tasks", search: { task: task.id }, replace: true });
   const action = (
-    <Button variant="primary" icon="plus" onClick={() => setMaking(true)}>
+    <Button variant="primary" icon="plus" onClick={() => setMaking(true)} {...mayPlan.off}>
       <Trans>New task</Trans>
     </Button>
   );

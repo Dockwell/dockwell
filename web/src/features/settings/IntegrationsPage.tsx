@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import type { BackupDestinationInfo } from "@dockwell/api";
+import { type BackupDestinationInfo, ChangeService } from "@dockwell/api";
 import { Button, Icon, type IconName, Panel, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -14,6 +14,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import "../backups/Backups.css";
 import "./Settings.css";
+import { useMay } from "../auth/may";
 import { ReadFailed } from "../shell/ReadFailed";
 
 const CLOUDFLARE =
@@ -30,6 +31,8 @@ export function IntegrationsPage() {
   const phone = useMediaQuery(PHONE_QUERY);
   const destinations = useDestinations();
   const [adding, setAdding] = useState(false);
+  // A destination belongs to no project, so connecting one is an admin's: off, with why, otherwise (ADR 0059).
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
   const read = destinations.data !== undefined;
   const list = destinations.data?.destinations ?? [];
   const connected = list.length;
@@ -50,7 +53,7 @@ export function IntegrationsPage() {
     </p>
   );
   const connect = (
-    <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
+    <Button size="sm" icon="plus" onClick={() => setAdding(true)} {...mayPlan.off}>
       <Trans>Connect</Trans>
     </Button>
   );
@@ -70,7 +73,14 @@ export function IntegrationsPage() {
           ) : null}
           {/* Once storage is connected, more is connected from here rather than from a card of its own. */}
           {connected > 0 ? (
-            <Button size="sm" variant="ghost" icon="plus" className="integrations-more" onClick={() => setAdding(true)}>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="plus"
+              className="integrations-more"
+              onClick={() => setAdding(true)}
+              {...mayPlan.off}
+            >
               <Trans>Connect storage</Trans>
             </Button>
           ) : null}
