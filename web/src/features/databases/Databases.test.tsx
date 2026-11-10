@@ -20,6 +20,7 @@ import {
   EventKind,
   type ListBackupsRequest,
   type RestoreBackupRequest,
+  Role,
   type UpgradeCatalogInstallRequest,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -31,9 +32,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { ENV, places, running, SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
-import { engineOfImage, internalURL } from "./useDatabases";
+import { connectionURL, engineOfImage } from "./useDatabases";
 
 const now = Date.now();
 
@@ -276,27 +278,83 @@ describe("the databases list", () => {
 });
 
 describe("a database's page", () => {
-  it("shows its numbers, how it's backed up, and its connection string with the password masked", async () => {
+  it("shows its numbers, how it's backed up, and what to connect with, its password masked", async () => {
     const { container } = renderAt("/databases/svc_db", api([aDatabase()]));
     expect(await screen.findByRole("heading", { level: 1, name: "db" })).toBeVisible();
     expect(screen.getByText(/PostgreSQL 17\.2 · beside adminer · backed up 3 h ago/)).toBeVisible();
     expect(screen.getByText("24")).toBeVisible();
     expect(screen.getByText("of 100")).toBeVisible();
     expect(screen.getByText("99.2")).toBeVisible();
-    const url = screen.getByLabelText("Internal URL");
-    expect(url).toHaveValue("postgres://postgres:••••@db:5432/shop");
-    expect(screen.getByText(/The password is in the secret/)).toHaveTextContent("POSTGRES_PASSWORD");
+    const card = screen.getByRole("region", { name: "Connect" });
+    expect(within(card).getByText("postgres", { selector: "code" })).toBeVisible();
+    expect(within(card).getByText("5432")).toBeVisible();
+    expect(within(card).getByText("postgres://postgres:••••••••••••@db:5432/shop")).toBeVisible();
+    expect(within(card).getByText("Kept in the secret POSTGRES_PASSWORD")).toBeVisible();
     expect(await screen.findByText(/PostgreSQL's own dump, while it runs: nothing stops/)).toBeVisible();
-    expect(screen.getByRole("switch", { name: "External access" })).not.toBeChecked();
     await expectAccessible(container);
   });
 
-  it("copies its URL without the password", async () => {
+  it("copies its connection string without the password until it's revealed", async () => {
     const user = userEvent.setup();
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     renderAt("/databases/svc_db", api([aDatabase()]));
-    await user.click(await screen.findByRole("button", { name: "Copy the internal URL, without its password" }));
+    await user.click(await screen.findByRole("button", { name: "Copy connection string, without the password" }));
     expect(writeText).toHaveBeenCalledWith("postgres://postgres@db:5432/shop");
+  });
+
+  it("says where a password kept in its own environment is, with nothing to reveal", async () => {
+    renderAt("/databases/svc_db", api([aDatabase({ passwordSecret: "" })]));
+    const card = await screen.findByRole("region", { name: "Connect" });
+    expect(within(card).getByText(/Its password is in its own environment, sealed/)).toBeVisible();
+    expect(within(card).queryByRole("button", { name: "Reveal password" })).toBeNull();
+  });
+
+  it("reveals the password from its secret, and copies it in the connection string", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const revealed: string[] = [];
+    renderAt(
+      "/databases/svc_db",
+      api([aDatabase()], {
+        variables: {
+          listVariables: () => ({
+            environmentId: ENV,
+            variables: [{ id: "sec_pg", name: "POSTGRES_PASSWORD", secret: true, revision: 1n }],
+          }),
+          revealSecret: (req: { id: string }) => {
+            revealed.push(req.id);
+            return { value: "pa ss/word", revision: 1n };
+          },
+        },
+      }),
+    );
+    const card = await screen.findByRole("region", { name: "Connect" });
+    await user.click(await within(card).findByRole("button", { name: "Reveal password" }));
+    expect(await within(card).findByText("pa ss/word")).toBeVisible();
+    expect(revealed).toEqual(["sec_pg"]);
+    expect(within(card).getByText("postgres://postgres:pa%20ss%2Fword@db:5432/shop")).toBeVisible();
+    await user.click(within(card).getByRole("button", { name: "Copy connection string" }));
+    expect(writeText).toHaveBeenCalledWith("postgres://postgres:pa%20ss%2Fword@db:5432/shop");
+    await user.click(within(card).getByRole("button", { name: "Hide" }));
+    expect(within(card).queryByText("pa ss/word")).toBeNull();
+  });
+
+  it("leaves Reveal in place for a viewer, off, with why", async () => {
+    renderAt("/databases/svc_db", {
+      ...api([aDatabase()], {
+        variables: {
+          listVariables: () => ({
+            environmentId: ENV,
+            variables: [{ id: "sec_pg", name: "POSTGRES_PASSWORD", secret: true, revision: 1n }],
+          }),
+        },
+      }),
+      auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
+    });
+    const card = await screen.findByRole("region", { name: "Connect" });
+    const reveal = await within(card).findByRole("button", { name: "Reveal password" });
+    await waitFor(() => expect(reveal).toHaveAttribute("aria-disabled", "true"));
+    expect(reveal).toHaveAccessibleDescription(/developer or more/);
   });
 
   it("counts a group that can't sign in as a user, and says so", async () => {
@@ -335,7 +393,7 @@ describe("a database's page", () => {
     renderAt("/databases/svc_db", api([quiet]));
     expect(await screen.findByText("PostgreSQL didn't say how it is")).toBeVisible();
     expect(screen.getByText(/refused Dockwell's sign-in/)).toBeVisible();
-    expect(screen.getByLabelText("Internal URL")).toHaveValue("postgres://postgres:••••@db:5432/postgres");
+    expect(screen.getByText("postgres://postgres:••••••••••••@db:5432/postgres")).toBeVisible();
     expect(screen.queryByRole("table", { name: "Users of db" })).toBeNull();
   });
 
@@ -424,13 +482,17 @@ describe("what's a database", () => {
     expect(engineOfImage("registry.example.com:5000/redis")).toBeUndefined();
   });
 
-  it("masks the password in every URL", () => {
-    expect(internalURL(aDatabase({ engine: DatabaseEngine.MYSQL, port: 3306, readings: [] }))).toBe(
-      "mysql://root:••••@db:3306",
+  it("writes each connection string with the password given, and without it before", () => {
+    expect(connectionURL(aDatabase({ engine: DatabaseEngine.MYSQL, port: 3306, readings: [] }), undefined, "pw")).toBe(
+      "mysql://root:pw@db:3306",
     );
-    expect(internalURL(aDatabase({ readings: [] }), undefined, false)).toBe("postgres://postgres@db:5432/postgres");
-    expect(internalURL(cache())).toBe("redis://cache:6379");
-    expect(internalURL(aDatabase({ engine: DatabaseEngine.VALKEY, port: 6379 }))).toBe("redis://:••••@db:6379");
+    expect(connectionURL(aDatabase({ readings: [] }), undefined, undefined)).toBe(
+      "postgres://postgres@db:5432/postgres",
+    );
+    expect(connectionURL(cache(), undefined, undefined)).toBe("redis://cache:6379");
+    expect(connectionURL(aDatabase({ engine: DatabaseEngine.VALKEY, port: 6379 }), undefined, "a:b")).toBe(
+      "redis://:a%3Ab@db:6379",
+    );
   });
 });
 
@@ -639,7 +701,7 @@ describe("adding a user", () => {
     plan: { fingerprint: "abc", resources: [] },
   });
 
-  it("asks only for a name, and plans a user with a database and a password of their own", async () => {
+  it("asks only for a name, checked as it's typed, and plans a user with a database and a password of their own", async () => {
     const user = userEvent.setup();
     const asked = vi.fn((req: CreateDatabaseUserRequest) => {
       void req;
@@ -658,10 +720,20 @@ describe("adding a user", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Add a user" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a user to db" });
+    // Nothing else is asked: its database and secret are defaults, under Advanced.
+    expect(within(sheet).queryByLabelText(/Secret for the password/)).not.toBeInTheDocument();
     await user.type(within(sheet).getByLabelText("User"), "Orders");
-    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     expect(await within(sheet).findByText(/Use up to 32 lowercase letters/)).toBeVisible();
+    await user.clear(within(sheet).getByLabelText("User"));
+    await user.type(within(sheet).getByLabelText("User"), "orders");
+    const advanced = within(sheet).getByRole("button", { name: "Advanced" });
+    expect(advanced).toHaveAccessibleDescription("Database orders · secret ORDERS_DATABASE_PASSWORD");
     expect(asked).not.toHaveBeenCalled();
+    // A user it has already says so, and so does the database of their name, under an Advanced that opens for it.
+    await user.clear(within(sheet).getByLabelText("User"));
+    await user.type(within(sheet).getByLabelText("User"), "shop");
+    expect(await within(sheet).findByText("shop signs in to db already.")).toBeVisible();
+    expect(within(sheet).getByText("db has a database called shop already.")).toBeVisible();
     await user.clear(within(sheet).getByLabelText("User"));
     await user.type(within(sheet).getByLabelText("User"), "orders");
     expect(within(sheet).getByLabelText(/Secret for the password/)).toHaveAttribute(
@@ -684,6 +756,47 @@ describe("adding a user", () => {
         /Inside its own container, PostgreSQL's official image lets anything sign in as any user/,
       ),
     ).toBeVisible();
+  });
+
+  it("says a default that's taken beside it, as it's typed, under an Advanced that opens for it", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/databases/svc_db/users",
+      api([aDatabase()], {
+        databases: { getDatabase: () => ({ database: aDatabase() }) },
+        variables: {
+          listVariables: () => ({
+            environmentId: ENV,
+            variables: [{ id: "sec_orders", name: "ORDERS_DATABASE_PASSWORD", secret: true, revision: 1n }],
+          }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a user" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a user to db" });
+    await user.type(within(sheet).getByLabelText("User"), "orders");
+    await waitFor(() =>
+      expect(within(sheet).getByLabelText(/Secret for the password/)).toHaveAccessibleDescription(
+        /ORDERS_DATABASE_PASSWORD is a secret already/,
+      ),
+    );
+    await user.type(within(sheet).getByLabelText(/Secret for the password/), "ORDERS_PASSWORD");
+    expect(within(sheet).getByLabelText(/Secret for the password/)).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("copies the same as a CLI command, under Advanced", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    renderAt(
+      "/databases/svc_db/users",
+      api([aDatabase()], { databases: { getDatabase: () => ({ database: aDatabase() }) } }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a user" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a user to db" });
+    await user.type(within(sheet).getByLabelText("User"), "orders");
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    await user.click(within(sheet).getByRole("button", { name: "Copy as CLI command" }));
+    expect(writeText).toHaveBeenCalledWith("dockwell databases add-user db --user orders");
   });
 
   it("says a refusal of one field beside it, and anything else above the buttons", async () => {

@@ -69,6 +69,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "BackupService.listBackups": "read",
   "BackupService.previewBackup": "read",
   "BackupService.restoreBackup": "may",
+  "BackupService.testBackupDestination": "may",
 
   "CatalogService.getCatalogEntry": "read",
   "CatalogService.installCatalogEntry": "may",
@@ -78,6 +79,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   "ChangeService.adoptDrift": "unused",
   "ChangeService.applyChange": "plan",
+  "ChangeService.confirmChange": "may",
   "ChangeService.discardChange": "plan",
   "ChangeService.getChange": "read",
   "ChangeService.listChanges": "read",
@@ -140,6 +142,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   "ResourceService.listResources": "read",
 
+  "ServerService.createJoinTicket": "may",
+  "ServerService.getJoinTicket": { within: "ServerService.createJoinTicket" },
   "ServerService.getServer": "unused",
   "ServerService.getServerDiskUse": "may",
   "ServerService.listServers": "unused",

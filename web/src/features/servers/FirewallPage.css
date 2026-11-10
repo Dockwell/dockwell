@@ -81,3 +81,14 @@
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+
+.firewall-policy {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.firewall-add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}

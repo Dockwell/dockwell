@@ -137,6 +137,26 @@ service ChangeService {
     };
   }
 
+  // ConfirmChange keeps a change to a server's firewall that waits for its
+  // confirmation (Change.confirmation), once you have checked that you can
+  // still reach the server as the confirmation says. Only the person who
+  // applied it may confirm it, in the session they applied it from. Without a
+  // confirmation in time, the server puts back its firewall as it was, and the
+  // change rolls back (ADR 0052). A server's firewall is the whole server's,
+  // so confirming is an admin's, as applying such a change is, and no API
+  // token can call it.
+  rpc ConfirmChange(ConfirmChangeRequest) returns (ConfirmChangeResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/changes/{id}:confirm"
+      body: "*"
+    };
+  }
+
   // DiscardChange drops a planned change without applying it. The change
   // stays on record as discarded.
   rpc DiscardChange(DiscardChangeRequest) returns (DiscardChangeResponse) {
@@ -343,6 +363,41 @@ message ApplyChangeRequest {
   // can apply one. Call without it first: it checks everything else, then
   // refuses with the reason needs_step_up.
   string proof = 3;
+}
+
+// ConfirmChangeRequest names a change that waits for its confirmation, and the
+// server whose confirmation it is, as a change to several servers waits on each
+// in turn.
+message ConfirmChangeRequest {
+  // The change's ID.
+  string id = 1;
+  // The server the confirmation is for: the one you checked you can still
+  // reach. It's refused unless that server waits now.
+  string server_id = 2;
+  // The deadline the confirmation answers, as the change said it. When it's
+  // set, it's refused unless the server still waits for that deadline, so a
+  // confirmation sent twice can't keep a wait it wasn't for.
+  google.protobuf.Timestamp deadline = 3;
+}
+
+// ConfirmChangeResponse carries the change, which goes on applying, or ends
+// applied, once the server has kept what it waited for.
+message ConfirmChangeResponse {
+  // The change.
+  Change change = 1;
+}
+
+// ChangeConfirmation is what a change to a server's firewall waits for: that
+// the person who applied it confirms they can still reach the server, before
+// the server's timer runs out and it puts back its firewall as it was.
+message ChangeConfirmation {
+  // The server whose firewall changed.
+  string server_id = 1;
+  // When the server puts back its firewall, unless confirmed first.
+  google.protobuf.Timestamp deadline = 2;
+  // The ports the server's SSH listens on now, for the test the person runs
+  // before confirming: a new SSH session, from where they are, with their key.
+  repeated uint32 ssh_ports = 3;
 }
 
 // ApplyChangeResponse carries the change as it starts applying.
@@ -573,6 +628,10 @@ message Change {
   // planned for them". Empty when they may apply it, and for a viewer, who
   // applies nothing.
   string waits = 23;
+  // What the change waits for, while a change to a server's firewall waits
+  // for its confirmation (ConfirmChange). Unset otherwise. Numbered apart, as
+  // open work adds to this message.
+  ChangeConfirmation confirmation = 40;
 }
 
 // RollbackStatus is how the rollback of a failed change is going, for
@@ -1127,6 +1186,40 @@ message PlanStep {
   RestorePlan restore = 40;
   // What a step that backs up a volume before the rest of a change does.
   BackupFirst backup_first = 41;
+  // What a step that turns on deny everything else closes: each port that
+  // listens on the server, or that Docker publishes, that no rule lets in from
+  // anywhere, such as "8080/tcp (shop-web-1)". SSH's ports and the control
+  // plane's own stay let in by their pins, and aren't here (ADR 0052).
+  repeated string closes = 42;
+  // How the server stays reachable once a step that narrows SSH is kept: who
+  // SSH stays open from, by name, so a person sees whether their own address
+  // is there, and a stranger's. Unset on a step that leaves SSH open to
+  // anywhere.
+  AccessStays stays = 43;
+}
+
+// AccessStays is who still reaches a server's SSH once a change that narrows
+// it is kept (ADR 0052). An address here is all that keeps its person in: if
+// it changes, SSH is closed to them until a rule allows its port from where
+// they are.
+message AccessStays {
+  // SSH's ports the change narrows, such as 22.
+  repeated uint32 ssh_ports = 1;
+  // The addresses pinned to SSH: those signed in over SSH as it was planned,
+  // and those kept from earlier changes, such as "203.0.113.7/32".
+  repeated string pinned = 2;
+  // What rules allow SSH's ports from, such as "198.51.100.0/24". Empty when
+  // no rule allows them.
+  repeated string allowed = 3;
+  // WireGuard tunnels whose port no rule allows, each as "wg0 (51820/udp)", or
+  // "wg0" where Dockwell couldn't read its port, when the change turns deny
+  // everything else on: the tunnel's next handshake is dropped, and SSH over
+  // it with it, though it passes the test while the tunnel's flow is tracked.
+  repeated string tunnels = 4;
+  // The ports the panel and the control plane listen on, on the control
+  // server, when the change turns deny everything else on there: they stay
+  // open by their pin, and the test to run is the panel in a new tab too.
+  repeated uint32 panel_ports = 5;
 }
 
 // BackupFirst is a backup a change takes before anything else it does, as a catalog
@@ -1546,6 +1639,10 @@ message StepProgress {
   // it's done, for a step that failed, and for one a run that stopped partway had
   // done already.
   PlanAction did = 14;
+  // What the step waits for, while a change to who reaches its server waits
+  // for the person who applied it to confirm they still can (ConfirmChange).
+  // Numbered apart, as open work adds to this message.
+  ChangeConfirmation confirmation = 40;
 }
 
 // StepState is how a step is going.

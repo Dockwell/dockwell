@@ -112,6 +112,15 @@ func web(image string) Edit {
 	}
 }
 
+// onA runs a container, api, on srv_A, with no ports: a build, which runs
+// before any server's firewall steps, and server by server.
+func onA() Edit {
+	e := web("nginx:1.27")
+	e.Ref.Name = "api"
+	e.Spec.(*resourcev1.Container).Ports = nil
+	return e
+}
+
 func rule(server, name string, port uint32, sources ...string) Edit {
 	return Edit{
 		Ref:  resource.Ref{Kind: firewall.Kind, Scope: server, Name: name},
@@ -774,7 +783,7 @@ func testAServerThatDropsMidApplyIsRolledBackWhenItReturns(t *testing.T, backend
 	f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online.Store(false) }}
 	onB := web("nginx:1.27")
 	onB.Ref.Scope = "srv_B"
-	p := propose(t, e, "Open http and run web", rule("srv_A", "http", 80), onB)
+	p := propose(t, e, "Open http and run web", onA(), onB)
 
 	err := e.Apply(t.Context(), p.Change)
 	var failed *FailedError

@@ -6,11 +6,22 @@
 // foundations there, as pages put dw-panel on their own elements too.
 // Guidelines for every component live in design/system/components/<Name>/README.md.
 
+export { Advanced, type AdvancedProps } from "./components/Advanced/Advanced";
 export { Button, ButtonLink, type ButtonLinkProps, type ButtonProps } from "./components/Button/Button";
 export { Callout, type CalloutProps } from "./components/Callout/Callout";
 export { CodeField, type CodeFieldProps } from "./components/CodeField/CodeField";
 export { CommandBar, type CommandBarProps, type CommandItem } from "./components/CommandBar/CommandBar";
+export {
+  ConnectionCard,
+  type ConnectionCardProps,
+  type ConnectionItem,
+  type ConnectionSecret,
+  type ConnectionString,
+} from "./components/ConnectionCard/ConnectionCard";
+export { CopyButton, type CopyButtonProps } from "./components/CopyButton/CopyButton";
+export { DnsRecord, type DnsRecordProps } from "./components/DnsRecord/DnsRecord";
 export { FleetGrid, type FleetGridProps, type FleetGroup, type FleetServer } from "./components/FleetGrid/FleetGrid";
+export { type FolderListing, FolderPicker, type FolderPickerProps } from "./components/FolderPicker/FolderPicker";
 export { Glyph, type GlyphProps } from "./components/Glyph/Glyph";
 export { Icon, type IconProps } from "./components/Icon/Icon";
 export { type IconName, iconNames } from "./components/Icon/icons";
@@ -36,6 +47,7 @@ export {
   type PlanResource,
   type PlanValue,
 } from "./components/PlanDiff/PlanDiff";
+export { type PortCheck, PortField, type PortFieldProps, validPortNumber } from "./components/PortField/PortField";
 export { ScopeBar, type ScopeBarProps, type ScopeLevel } from "./components/ScopeBar/ScopeBar";
 export {
   SegmentedControl,
@@ -71,7 +83,7 @@ export { Toast, type ToastAction, type ToastProps } from "./components/Toast/Toa
 export { cx } from "./lib/cx";
 export { type Off, useOff, useOffReasons } from "./lib/off";
 export { type GlyphShape, STATUS, type Status, TONE, type Tone, type ToneClass } from "./lib/status";
-export { englishStrings, type UIStrings, UIStringsProvider, useUIStrings } from "./lib/strings";
+export { englishStrings, inSentence, type UIStrings, UIStringsProvider, useUIStrings } from "./lib/strings";
 export { PHONE_QUERY, useMediaQuery } from "./lib/useMediaQuery";
 export {
   applyThemePreference,

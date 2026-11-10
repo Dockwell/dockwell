@@ -116,7 +116,7 @@ export function OverviewBackups() {
     return (
       <Panel title={t`Backups`}>
         <p className="overview-quiet">
-          <Trans>A backup is of a volume. Add one to an app, or install a database from the catalog.</Trans>
+          <Trans>Nothing to back up yet: no app keeps data.</Trans>
         </p>
       </Panel>
     );

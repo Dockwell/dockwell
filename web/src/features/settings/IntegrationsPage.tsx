@@ -9,7 +9,8 @@ import { type ReactNode, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
-import { DestinationSheet, useDestinations } from "../backups/DestinationsPanel";
+import { DestinationSheet } from "../backups/DestinationSheet";
+import { useDestinations } from "../backups/DestinationsPanel";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import "../backups/Backups.css";
@@ -176,7 +177,7 @@ export function IntegrationsPage() {
 
       {/* A phone's header has no room for the aside, so it closes the page. */}
       {phone ? variables : null}
-      {adding ? <DestinationSheet onClose={() => setAdding(false)} /> : null}
+      {adding ? <DestinationSheet existing={list} onClose={() => setAdding(false)} /> : null}
     </Page>
   );
 }

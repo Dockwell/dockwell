@@ -150,7 +150,13 @@ type ListFilesRequest struct {
 	// website's: a listing it can't have goes on no Activity, as it's a guess at a
 	// path, not a person opening one. Files never sets it. Numbered apart, as open
 	// work adds to this message.
-	Lookup        bool `protobuf:"varint,60,opt,name=lookup,proto3" json:"lookup,omitempty"`
+	Lookup bool `protobuf:"varint,60,opt,name=lookup,proto3" json:"lookup,omitempty"`
+	// Lists only the entries whose names hold this, case aside, such as "error":
+	// a search through the whole directory, however large. Empty lists every entry.
+	// A server whose agent is older than the control plane can't: update it.
+	Match string `protobuf:"bytes,230,opt,name=match,proto3" json:"match,omitempty"`
+	// Lists the page after the one whose next_page this is. Empty lists the first.
+	Page          string `protobuf:"bytes,231,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -206,6 +212,20 @@ func (x *ListFilesRequest) GetLookup() bool {
 	return false
 }
 
+func (x *ListFilesRequest) GetMatch() string {
+	if x != nil {
+		return x.Match
+	}
+	return ""
+}
+
+func (x *ListFilesRequest) GetPage() string {
+	if x != nil {
+		return x.Page
+	}
+	return ""
+}
+
 // ListFilesResponse is what a directory holds.
 type ListFilesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -215,9 +235,13 @@ type ListFilesResponse struct {
 	Directory *FileEntry `protobuf:"bytes,2,opt,name=directory,proto3" json:"directory,omitempty"`
 	// What it holds, by name.
 	Entries []*FileEntry `protobuf:"bytes,3,rep,name=entries,proto3" json:"entries,omitempty"`
-	// True when the directory holds more than a listing can carry, so these
-	// are some of its entries, in no useful order but their names.
-	Truncated     bool `protobuf:"varint,4,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	// True when the directory holds more than a listing can carry, so these are
+	// some of its entries. From an up-to-date agent they're the first in name
+	// order after the page asked for, and next_page lists the rest.
+	Truncated bool `protobuf:"varint,4,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	// What to pass as page for the entries after these, in name order. Empty when
+	// there are no more, and from an agent older than the control plane.
+	NextPage      string `protobuf:"bytes,230,opt,name=next_page,json=nextPage,proto3" json:"next_page,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -278,6 +302,13 @@ func (x *ListFilesResponse) GetTruncated() bool {
 		return x.Truncated
 	}
 	return false
+}
+
+func (x *ListFilesResponse) GetNextPage() string {
+	if x != nil {
+		return x.NextPage
+	}
+	return ""
 }
 
 // ReadFileRequest names a file on a server.
@@ -2306,16 +2337,19 @@ var File_dockwell_v1_file_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\n" +
-	"\x16dockwell/v1/file.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x19google/api/httpbody.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"[\n" +
+	"\x16dockwell/v1/file.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x19google/api/httpbody.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x87\x01\n" +
 	"\x10ListFilesRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
-	"\x06lookup\x18< \x01(\bR\x06lookup\"\xad\x01\n" +
+	"\x06lookup\x18< \x01(\bR\x06lookup\x12\x15\n" +
+	"\x05match\x18\xe6\x01 \x01(\tR\x05match\x12\x13\n" +
+	"\x04page\x18\xe7\x01 \x01(\tR\x04page\"\xcb\x01\n" +
 	"\x11ListFilesResponse\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x124\n" +
 	"\tdirectory\x18\x02 \x01(\v2\x16.dockwell.v1.FileEntryR\tdirectory\x120\n" +
 	"\aentries\x18\x03 \x03(\v2\x16.dockwell.v1.FileEntryR\aentries\x12\x1c\n" +
-	"\ttruncated\x18\x04 \x01(\bR\ttruncated\"B\n" +
+	"\ttruncated\x18\x04 \x01(\bR\ttruncated\x12\x1c\n" +
+	"\tnext_page\x18\xe6\x01 \x01(\tR\bnextPage\"B\n" +
 	"\x0fReadFileRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\"\xdc\x01\n" +

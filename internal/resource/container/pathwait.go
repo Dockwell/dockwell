@@ -31,9 +31,16 @@ const maxStuckPaths = 16
 var (
 	// pathWait is how long a path has to answer. A plan has a minute for all it does.
 	pathWait = 10 * time.Second
-	// touching hears of each path about to be asked of the disk. A test blocks in it
-	// to stand in for a mount that stopped answering.
-	touching atomic.Pointer[func(string)]
+	// touching hears of each path a follow is about to ask of the disk. A test blocks
+	// in it to stand in for a mount that stopped answering.
+	touching atomic.Pointer[func(*follow, string)]
+	// waitOver says when a follow has had pathWait, and stop lets go of it. A test
+	// stands in for it, so that its waits end when a path is stuck and not when its
+	// machine is slow.
+	waitOver = func(*follow) (over <-chan time.Time, stop func()) {
+		limit := time.NewTimer(pathWait)
+		return limit.C, func() { limit.Stop() }
+	}
 	// readMounts is what's mounted here, which a test stands in for.
 	readMounts = mounts.Read
 
@@ -57,7 +64,7 @@ func (f *follow) touch(p string) error {
 	}
 	f.at.Store(&p)
 	if hear := touching.Load(); hear != nil {
-		(*hear)(p)
+		(*hear)(f, p)
 	}
 	return nil
 }
@@ -90,6 +97,8 @@ func followWithin(p string, walk func(string, func(string) error) (string, error
 	f := &follow{path: p}
 	f.at.Store(&p)
 	done := make(chan followed, 1)
+	over, stop := waitOver(f)
+	defer stop()
 	go func() {
 		to, err := walk(p, f.touch)
 		stuckMu.Lock()
@@ -102,12 +111,10 @@ func followWithin(p string, walk func(string, func(string) error) (string, error
 		}
 		done <- followed{to, err}
 	}()
-	limit := time.NewTimer(pathWait)
-	defer limit.Stop()
 	select {
 	case out := <-done:
 		return out.to, out.err
-	case <-limit.C:
+	case <-over:
 	}
 	place := mounts.PassOver(readMounts(), *f.at.Load())
 	stuckMu.Lock()
