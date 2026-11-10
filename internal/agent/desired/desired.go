@@ -692,7 +692,7 @@ func (s *Store) read(path string) (Record, sealed, error) {
 func writeTemp(dir, prefix string, b []byte) (string, error) {
 	f, err := os.CreateTemp(dir, prefix+"*")
 	if err != nil {
-		return "", err
+		return "", stableWriteError(dir, err)
 	}
 	tmp := f.Name()
 	// One err all the way down: a write that fails, as on a full disk, has to
@@ -709,9 +709,21 @@ func writeTemp(dir, prefix string, b []byte) (string, error) {
 	}
 	if err != nil {
 		_ = os.Remove(tmp)
-		return "", err
+		return "", stableWriteError(dir, err)
 	}
 	return tmp, nil
+}
+
+// stableWriteError is why a temporary file in dir couldn't be written, without
+// the file's name, which is new each time. The reason goes to Activity, where a
+// wait that goes on is said once, and a name that changed each try would make
+// each one a new thing to say.
+func stableWriteError(dir string, err error) error {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		err = pe.Err
+	}
+	return fmt.Errorf("can't write in %s: %w", dir, err)
 }
 
 // writeDurably writes b to path, so a power cut leaves what was there or b: a

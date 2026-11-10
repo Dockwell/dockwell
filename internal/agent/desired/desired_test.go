@@ -4,8 +4,10 @@ package desired
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -565,4 +567,21 @@ func TestTheIndexIsAllThatStaysInMemory(t *testing.T) {
 		t.Errorf("1,000 records hold %d KiB in memory, want under 1 MiB", grew>>10)
 	}
 	runtime.KeepAlive(reopened)
+}
+
+// A write that fails says why the same way each time: the temporary file it tried
+// has a new name each try, and that name stays out of it, so Activity is told of
+// a wait that goes on once and not once a look (the chaos tests' full disk).
+func TestAFailedWriteReadsTheSameEachTime(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "gone", "journal")
+	first, second := writeDurably(missing, []byte("x")), writeDurably(missing, []byte("x"))
+	if first == nil || second == nil {
+		t.Fatal("a write into a folder that isn't there passed")
+	}
+	if first.Error() != second.Error() {
+		t.Errorf("two tries read differently:\n%s\n%s", first, second)
+	}
+	if !errors.Is(first, fs.ErrNotExist) || !strings.Contains(first.Error(), filepath.Dir(missing)) {
+		t.Errorf("it reads %q; want the folder, and what went wrong", first)
+	}
 }

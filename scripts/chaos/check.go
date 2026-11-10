@@ -175,9 +175,9 @@ func (s *stand) checkReconciled(ctx context.Context, r *round) []string {
 		e := &r.journal[i]
 		key := e.What + " " + e.Ref.Name
 		if e.What == desired.Waiting {
-			// The control plane makes a reason one line with single spaces, so
-			// it's compared so.
-			if waits[key+": "+oneSpaced(e.Reason)] == 0 {
+			// The control plane makes a reason one line with single spaces, and
+			// cuts a long one short, so it's compared so.
+			if !saidOf(waits, key, e.Reason) {
 				bad = append(bad, fmt.Sprintf("4. the agent wrote down %q (%s), and Activity doesn't say it", key, e.Reason))
 			}
 		} else if got[key] == 0 {
@@ -275,3 +275,18 @@ func short(id string) string { return id[:min(len(id), 12)] }
 // oneSpaced is s with each run of white space as one space, as the control plane
 // keeps what an agent says.
 func oneSpaced(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+// saidOf says Activity has a wait for key with reason, as the control plane
+// keeps one: with single spaces, and cut short with "…" when it's long.
+func saidOf(waits map[string]int, key, reason string) bool {
+	want := key + ": " + oneSpaced(reason)
+	for said := range waits {
+		if said == want {
+			return true
+		}
+		if cut, ok := strings.CutSuffix(said, "…"); ok && len(cut) > len(key)+2 && strings.HasPrefix(want, strings.TrimRight(cut, " ")) {
+			return true
+		}
+	}
+	return false
+}

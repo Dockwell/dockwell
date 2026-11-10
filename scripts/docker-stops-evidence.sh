@@ -190,6 +190,25 @@ for round in 1 2 3 4 5; do
   wait "$poll"
   echo "evidence: round $round, the list API said, in order, with how many times in a row: $(uniq -c "$work/forced-$round.log" | sed 's/^ *//' | tr '\n' ';')"
 done
+# The reconciler's own look reads a container in full, which the list isn't: the
+# same five rounds, asking for the one container's state.
+for round in 1 2 3 4 5; do
+  docker run -d --name "ev-forced-full-$round" --label "$label" --restart unless-stopped "$image" >/dev/null
+  sleep 1
+  fid=$(docker inspect --format '{{.Id}}' "ev-forced-full-$round")
+  : >"$work/forced-full-$round.log"
+  (
+    for _ in $(seq 1 400); do
+      sudo -n curl -s --unix-socket "$sock" "http://docker/containers/$fid/json" |
+        jq -r 'if .State then .State.Status + " running=" + (.State.Running|tostring) + " dead=" + (.State.Dead|tostring) + " error=" + (.State.Error|tostring) else "gone" end' >>"$work/forced-full-$round.log" 2>&1
+    done
+  ) &
+  poll=$!
+  sleep 0.2
+  docker rm -f "ev-forced-full-$round" >/dev/null
+  wait "$poll"
+  echo "evidence: round $round, the container read in full said, in order: $(uniq -c "$work/forced-full-$round.log" | sed 's/^ *//' | tr '\n' ';')"
+done
 docker run -d --name ev-forced-ps --label "$label" --restart unless-stopped "$image" >/dev/null
 sleep 1
 : >"$work/forced-ps.log"

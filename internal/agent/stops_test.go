@@ -3,6 +3,7 @@
 package agent
 
 import (
+	"maps"
 	"net/http"
 	"strings"
 	"testing"
@@ -546,5 +547,32 @@ func TestALostMarkOutlastsAFill(t *testing.T) {
 	s.r.startLost(t.Context())
 	if !s.webRuns() {
 		t.Fatal("not started after a fill")
+	}
+}
+
+// A service deployed more than once has a container numbered past 1, and Docker
+// killed under it is started all the same. On a real engine the first try at the
+// rule left exactly such a service down: the list was read for number 1 only,
+// and the fake's stand never deploys twice (the chaos tests' away/kill-docker).
+func TestWhatDockerStoppedIsStartedWhateverItsNumber(t *testing.T) {
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	s.connected()
+	s.e.DaemonKilled()
+	list, err := s.e.Client().ListContainers(t.Context(), map[string][]string{"label": {docker.LabelProject}})
+	if err != nil || len(list) != 1 {
+		t.Fatalf("listed %d containers, %v", len(list), err)
+	}
+	// As the list has it after eight rollouts: the same container, numbered 9.
+	list[0].Labels = maps.Clone(list[0].Labels)
+	list[0].Labels[docker.LabelNumber] = "9"
+	s.r.noted(t.Context(), time.Now(), list)
+	s.r.noted(t.Context(), time.Now(), list)
+	if st := s.stands(t); !st.Lost {
+		t.Fatalf("numbered 9, it stands %+v; want lost", st)
+	}
+	s.r.startLost(t.Context())
+	if !s.webRuns() {
+		t.Fatalf("not started: the journal says %+v", s.said(webRef))
 	}
 }
