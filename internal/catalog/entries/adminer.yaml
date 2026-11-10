@@ -2,9 +2,25 @@
 id: adminer
 name: Adminer
 summary: Manage PostgreSQL, MySQL and MariaDB from one page
+description: |-
+  Adminer gives you a small browser-based workspace for your databases. Browse tables, run SQL, edit records and export data without installing a desktop client.
+
+  This entry installs Adminer on its own. Connect it to a database you already run using that database's address and credentials.
+icon: /catalog-media/adminer-icon.webp
+documentation: https://www.adminer.org/#usage
+appSource: https://github.com/vrana/adminer
+features:
+  - "Browse and edit database tables"
+  - "Run SQL queries in your browser"
+  - "Import and export database data"
+  - "Connect to PostgreSQL, MySQL and MariaDB"
+screenshots:
+  - path: /catalog-media/adminer-table.webp
+    caption: "Browse and edit database tables in Adminer"
+    source: https://www.adminer.org/static/screenshots/table.webp
 category: databases
 version: "6.2.0"
-release: 1
+release: 2
 homepage: https://www.adminer.org
 license: AGPL-3.0-only
 appLicense: Apache-2.0

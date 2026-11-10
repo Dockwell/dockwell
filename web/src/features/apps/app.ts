@@ -317,6 +317,7 @@ const HEALTH_CONCERN: Readonly<Record<HealthKind, number>> = {
   starting: 4,
   running: 6,
   healthy: 6,
+  finished: 6,
 };
 
 /** Whether a group needs you, by its record or by how it runs, as sortGroups puts it first. */

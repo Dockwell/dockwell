@@ -204,7 +204,7 @@ async function shoot(page: Page, name: string) {
   if (!shots) return;
   const viewport = page.viewportSize();
   const colorScheme = await page.evaluate(() =>
-    matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
   );
   try {
     for (const scheme of ["light", "dark"] as const) {
@@ -218,6 +218,7 @@ async function shoot(page: Page, name: string) {
       }
     }
   } finally {
+    // Recording a screen must not turn the phone assertions after it into desktop checks.
     await page.emulateMedia({ colorScheme });
     if (viewport) await page.setViewportSize(viewport);
   }

@@ -7,9 +7,28 @@
 id: coder
 name: Coder
 summary: Development environments on your servers, made from templates
+description: |-
+  Coder gives your team development workspaces on infrastructure you control. Templates describe the tools and resources a workspace needs, so developers can start from a consistent environment and connect with their preferred editor.
+
+  This install includes Coder and its PostgreSQL database. It can create container workspaces through your server's Docker socket, so review that access before installing.
+icon: /catalog-media/coder-icon.webp
+documentation: https://coder.com/docs
+appSource: https://github.com/coder/coder
+features:
+  - "Reusable workspace templates"
+  - "Development tools on your own infrastructure"
+  - "Browser and desktop editor connections"
+  - "Workspace lifecycle management"
+screenshots:
+  - path: /catalog-media/coder-workspaces.webp
+    caption: "Development workspaces and their status"
+    source: https://raw.githubusercontent.com/coder/coder/f776c020ff85ebe1df48c07f582dd74650f5cd54/docs/images/screenshots/workspaces-listing.png
+  - path: /catalog-media/coder-workspace.webp
+    caption: "A running workspace with development tools"
+    source: https://raw.githubusercontent.com/coder/coder/f776c020ff85ebe1df48c07f582dd74650f5cd54/docs/images/screenshots/workspace-running-with-topbar.png
 category: developer tools
 version: "2.38.6"
-release: 1
+release: 2
 homepage: https://coder.com
 license: AGPL-3.0-only
 appLicense: AGPL-3.0-only, with Enterprise code under Coder's own

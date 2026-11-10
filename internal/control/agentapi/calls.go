@@ -80,6 +80,7 @@ type Agents struct {
 	sessions  map[string]*Session      // the newest stream of each server
 	uploads   map[uint64]*upload       // logs calls under way, by their streams
 	links     map[uint64]*TerminalLink // terminals' attachments under way, by their streams
+	transfers map[uint64]*transfer     // uploads' writes and downloads under way, by their streams
 	onConnect []func(server string)
 	// opened is closed, and made again, whenever a session opens, for the
 	// calls waiting for a server's next stream.
@@ -113,7 +114,7 @@ type Agents struct {
 // send back.
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
-		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, links: map[uint64]*TerminalLink{}, opened: make(chan struct{}), moved: map[string]time.Time{},
+		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, links: map[uint64]*TerminalLink{}, transfers: map[uint64]*transfer{}, opened: make(chan struct{}), moved: map[string]time.Time{},
 		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{}, health: map[string]health.Report{},
 	}
 }
@@ -403,7 +404,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
 		followsPace: hello.GetFollowsPace(),
 		pending:     map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
@@ -484,6 +485,10 @@ type Session struct {
 	containerTerminals bool
 	openTerminals      []string
 	opened             time.Time
+	// managesFiles says the agent makes, moves, deletes and puts back files (ADR 0045).
+	managesFiles bool
+	// transfersFiles says the agent uploads and downloads them.
+	transfersFiles bool
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -901,6 +906,11 @@ func (s *Session) lost(c *agentv1.Call) error {
 	if c.GetSaveFile() != nil {
 		return fault.New(ErrLost, "%s's agent disconnected before it answered, so the file may or may not have saved. "+
 			"Open it again once the agent reconnects, to see what's there", s.name)
+	}
+	if c.GetMakeFile() != nil || c.GetMoveFile() != nil || c.GetDeleteFile() != nil || c.GetRestoreFile() != nil || c.GetPurgeDeleted() != nil ||
+		c.GetBeginUpload() != nil || c.GetFinishUpload() != nil {
+		return fault.New(ErrLost, "%s's agent disconnected before it answered, so this may or may not have happened. "+
+			"Look at the folder again once the agent reconnects", s.name)
 	}
 	return fault.New(ErrLost, "%s's agent disconnected before it answered. Try again once it reconnects", s.name)
 }

@@ -40,6 +40,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/alerts"
 	"github.com/dockwell/dockwell/internal/control/apidoc"
 	"github.com/dockwell/dockwell/internal/control/audit"
 	"github.com/dockwell/dockwell/internal/control/authapi"
@@ -100,6 +101,16 @@ type Config struct {
 	// Without both there is no agent listener and no ServerService.
 	Identity *identity.Authority
 	Fleet    *fleet.Hub
+	// Standings say whether an app is down, as the health recorder folds its
+	// states, for alerts. Nil judges by the states alone.
+	Standings alerts.Standings
+	// AlertClient sends to alert channels, and tests them, in place of netguard's,
+	// for a test whose channels' far ends listen on loopback. Nil is netguard's.
+	AlertClient *http.Client
+	// ManualAlerts leaves evaluating alert rules to whoever calls the evaluator,
+	// as a test does by its own clock. The install's first rules are made all the
+	// same.
+	ManualAlerts bool
 	// AgentHosts are the names and addresses agents dial; the agent
 	// listener's certificate is valid for them.
 	AgentHosts []string
@@ -169,6 +180,10 @@ type Server struct {
 	addAgentHost func(string)
 	// logs reads service logs, and tells servers what deletions put out of reach.
 	logs *logapi.Handler
+	// alerts evaluates the alert rules, and sends what's due (ADR 0044), unless
+	// manualAlerts leaves that to a test.
+	alerts       *alerts.Evaluator
+	manualAlerts bool
 	// backups takes backups, and those under way end with the control plane.
 	backups *backups.Handler
 	// tasks reads scheduled tasks' runs from the agents that run them.
@@ -202,11 +217,12 @@ func New(cfg Config) (*Server, error) {
 	var taskHandler *tasks.Handler
 	// Made first, so the settings can ask it who holds the public ports now.
 	ports := &PublicPorts{ready: make(chan struct{})}
-	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler)
+	var evaluator *alerts.Evaluator
+	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator)
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
 	ports.server = s
 	s.ports = ports
 	if s.stepGrace <= 0 {
@@ -239,12 +255,13 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
 	var rest []*vanguard.Service
 	guardREST := func(h http.Handler) http.Handler { return h }
+	var filesHandler http.Handler
 	// handle serves a service's procedures, and its REST paths through
 	// Vanguard, which calls the same handler, interceptors and all.
 	handle := func(path string, h http.Handler) {
@@ -321,7 +338,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		}
 		// A person's, so it needs sign-in; the agent decides what it reads.
 		if cfg.Fleet != nil && cfg.Auth != nil {
-			handle(dockwellv1connect.NewFileServiceHandler(files.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
+			path, h := dockwellv1connect.NewFileServiceHandler(files.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...)
+			handle(path, h)
+			filesHandler = h
 			// A person's too, as a command line can hold a password, and ending a process is root.
 			handle(dockwellv1connect.NewProcessServiceHandler(processes.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
 			handle(dockwellv1connect.NewTerminalServiceHandler(terminals.New(cfg.Fleet, cfg.Agents, cfg.Auth, cfg.Store, cfg.Logger), opts...))
@@ -338,7 +357,17 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		rest = append(rest, vanguard.NewService(path, h))
 		services = append(services, strings.Trim(path, "/"))
 		guardREST = logs.GuardREST
-		handle(dockwellv1connect.NewHealthServiceHandler(health.New(cfg.Store, cfg.Agents, cfg.Logger), opts...))
+		healthHandler := health.New(cfg.Store, cfg.Agents, cfg.Logger)
+		handle(dockwellv1connect.NewHealthServiceHandler(healthHandler, opts...))
+		*alertsOut = &alerts.Evaluator{
+			DB: cfg.Store, Keeper: cfg.Secrets, Engine: cfg.Changes, Domains: cfg.Agents, Health: healthHandler,
+			Standings: cfg.Standings, Panel: cfg.PanelURL, Logger: cfg.Logger,
+			Sender: &alerts.Sender{Client: cfg.AlertClient},
+		}
+		if cfg.Fleet != nil {
+			(*alertsOut).Fleet = cfg.Fleet
+		}
+		handle(dockwellv1connect.NewAlertServiceHandler(alerts.New(*alertsOut, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewContainerServiceHandler(own, opts...))
 		*backupsOut = backups.New(ch, cfg.Changes, cfg.Agents, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewBackupServiceHandler(*backupsOut, opts...))
@@ -351,6 +380,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		return nil, err
 	}
 	mux.Handle(authapi.RESTPrefix, guardREST(restPaths))
+	if filesHandler != nil {
+		streamTransfers(mux, filesHandler, guardREST)
+	}
 	mux.Handle("GET "+apidoc.Path, apidoc.Handler())
 
 	mux.Handle(grpchealth.NewHandler(grpchealth.NewStaticChecker(services...), opts...))
@@ -581,6 +613,13 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.backups != nil {
 		s.backups.Recover(ctx)
 	}
+	// An install's first alert rules are there before the API answers, so what
+	// lists rules or changes reads them from the first request (ADR 0044).
+	if s.alerts != nil {
+		if err := s.alerts.MakeDefaults(ctx); err != nil && ctx.Err() == nil {
+			s.logger.ErrorContext(ctx, "can't make the install's first alert rules; it tries again at the next start", slog.String("error", err.Error()))
+		}
+	}
 	apiCtx, stopAPI := context.WithCancel(ctx)
 	defer stopAPI()
 	agentCtx, stopAgents := context.WithCancel(context.WithoutCancel(ctx))
@@ -605,6 +644,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	run(func() error { return s.Serve(apiCtx, ls.API) })
 	if s.logs != nil {
 		api.Go(func() { s.logs.KeepTelling(apiCtx) })
+	}
+	if s.alerts != nil && !s.manualAlerts {
+		api.Go(func() { s.alerts.Run(apiCtx) })
 	}
 	if s.backups != nil {
 		api.Go(func() { s.backups.KeepRunning(apiCtx) })

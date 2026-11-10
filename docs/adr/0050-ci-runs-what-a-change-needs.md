@@ -35,7 +35,7 @@ The picker maps each path to the jobs that read it, and its rules are written fr
 | A Go test, `*_test.go` | Go, Go on Docker, Go on Caddy |
 | Other Go code, anywhere, `proto/`, `gen/`, most of `scripts/` | Every CI job, the Memory budgets, and three install legs |
 | `go.mod`, `go.sum`, `tools/`, which build the release | The same, with every install leg |
-| `scripts/install.sh` | Go, Hundreds of containers, Service end to end on Docker, the budgets, and every install leg |
+| `scripts/install.sh` | Go, Hundreds of containers, Transfer load, Service end to end on Docker, the budgets, and every install leg |
 | `scripts/connected.awk`, which runs inside the legs | As Go code, with every install leg |
 | `scripts/install-test/`, the trust root | Every install leg |
 | `.goreleaser.yaml` | The budgets and every install leg |

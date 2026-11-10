@@ -6,9 +6,25 @@
 id: uptime-kuma
 name: Uptime Kuma
 summary: Uptime checks and status pages
+description: |-
+  Uptime Kuma checks whether your services are reachable and records how they respond over time. Keep monitors together in one dashboard, publish a status page and send notifications when a check fails.
+
+  This entry installs the monitoring dashboard with persistent storage. Add the addresses and checks you want to watch after creating your first account.
+icon: /catalog-media/uptime-kuma-icon.webp
+documentation: https://github.com/louislam/uptime-kuma/wiki
+appSource: https://github.com/louislam/uptime-kuma
+features:
+  - "Uptime and response-time monitoring"
+  - "HTTP, TCP and other check types"
+  - "Public status pages"
+  - "Notification integrations"
+screenshots:
+  - path: /catalog-media/uptime-kuma-monitors.webp
+    caption: "Monitor uptime and response times in Uptime Kuma"
+    source: https://uptime.kuma.pet/img/light.jpg
 category: monitoring
 version: "2.5.9"
-release: 1
+release: 2
 homepage: https://uptime.kuma.pet
 license: AGPL-3.0-only
 appLicense: MIT

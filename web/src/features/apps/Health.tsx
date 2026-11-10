@@ -61,6 +61,8 @@ export function useHealthWords(): HealthWords {
           return t`Paused`;
         case "unknown":
           return t`Unknown`;
+        case "finished":
+          return t`Finished`;
       }
     };
     const noCheck = t`Nothing checks it, so this only means it started.`;
@@ -107,6 +109,8 @@ export function useHealthWords(): HealthWords {
             return said ? asSentence(said) : t`Its check keeps failing.`;
           case "not-running":
             return said ? asSentence(said) : t`It has no container on this server.`;
+          case "finished":
+            return t`It ran to its end and exited 0, as a one-shot job does, so nothing restarts it.`;
           case "paused": {
             const command = `docker unpause ${server.container}`;
             return t`Someone paused it, so it serves nothing and no check runs. Unpause it with ${command}.`;
@@ -154,6 +158,7 @@ export function useRunsNow(health: AppHealth | undefined, name: string): string 
     case "healthy":
     case "running":
     case "starting":
+    case "finished":
       return "";
   }
 }

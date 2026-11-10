@@ -68,7 +68,50 @@ export async function tasksFlow(page: Page, { origin, step, shoot }: TasksFlowOp
   const wide = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   if (wide > 0) fail(`the page scrolls ${wide}px sideways on a phone`);
   await shoot(page, "tasks-phone");
-  await page.setViewportSize({ width: 1280, height: 900 });
+
+  step("tasks: timeline labels stay on the track at the day's boundaries, on desktop and phones");
+  try {
+    for (const width of [1280, 390, 360]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const [hour, minute] of [
+        [0, 0],
+        [0, 3],
+        [5, 59],
+        [6, 0],
+        [11, 59],
+        [12, 0],
+        [17, 59],
+        [18, 0],
+        [23, 59],
+      ] as const) {
+        const fixed = await page.evaluate(([h, m]) => new Date(2026, 10, 10, h, m).getTime(), [hour, minute]);
+        await page.clock.setFixedTime(fixed);
+        await page.reload();
+        await page.getByRole("region", { name: "Next 24 hours" }).waitFor();
+        await page.evaluate(() => document.fonts.ready);
+        if ((await page.locator(".tasks-axis-label").count()) !== 4) fail("the timeline lost an axis label");
+        const outside = await page.locator(".tasks-axis-label").evaluateAll((labels) =>
+          labels
+            .filter((label) => {
+              const rect = label.getBoundingClientRect();
+              const track = label.parentElement?.getBoundingClientRect();
+              return !track || rect.left < track.left - 0.5 || rect.right > track.right + 0.5;
+            })
+            .map((label) => label.textContent),
+        );
+        if (outside.length)
+          fail(`timeline labels leave their track at ${hour}:${minute}, ${width}px: ${outside.join(", ")}`);
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        if (overflow > 0) fail(`the tasks page scrolls ${overflow}px sideways at ${hour}:${minute}, ${width}px`);
+      }
+    }
+  } finally {
+    await page.clock.setSystemTime(new Date());
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.reload();
+  }
 }
 
 /** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */

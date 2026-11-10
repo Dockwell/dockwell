@@ -134,7 +134,7 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   const builtIn = readFileSync("internal/catalog/entries/postgres.yaml", "utf8");
   const newer = builtIn
     .replace('version: "17.11"', 'version: "17.12"')
-    .replace("release: 1", "release: 2")
+    .replace(/^release: (\d+)$/m, (_, current: string) => `release: ${Number(current) + 1}`)
     .replace(/postgres:17\.11@sha256:[0-9a-f]{64}/, `postgres:17.12@sha256:${"3".repeat(64)}`);
   if (newer === builtIn || !newer.includes("postgres:17.12@"))
     fail("the newer release of PostgreSQL reads the same as the built-in one");

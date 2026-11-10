@@ -2,9 +2,25 @@
 id: plausible
 name: Plausible
 summary: Cookie-free web analytics
+description: |-
+  Plausible presents website traffic in a focused analytics dashboard. See which pages people visit, how they arrive, and which goals they complete without adding a cookie-based visitor profile.
+
+  This entry installs the self-hosted Community Edition and its supporting databases. Add a site after setup, then place its tracking script on the pages you want to measure.
+icon: /catalog-media/plausible-icon.webp
+documentation: https://plausible.io/docs
+appSource: https://github.com/plausible/analytics
+features:
+  - "Traffic sources and popular pages"
+  - "Goals and custom events"
+  - "Cookie-free website measurement"
+  - "A focused analytics dashboard"
+screenshots:
+  - path: /catalog-media/plausible-dashboard.webp
+    caption: "Visitor trends, sources and pages in Plausible"
+    source: https://raw.githubusercontent.com/plausible/analytics/021c4191593338197544b227f5d3973cb0deb913/.github/plausible-analytics-dashboard.webp
 category: analytics
 version: "3.2.1"
-release: 1
+release: 2
 homepage: https://plausible.io/self-hosted-web-analytics
 license: AGPL-3.0-only
 appLicense: AGPL-3.0-only

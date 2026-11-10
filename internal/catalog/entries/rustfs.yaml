@@ -2,9 +2,25 @@
 id: rustfs
 name: RustFS
 summary: S3-compatible object storage, in place of MinIO
+description: |-
+  RustFS provides S3-compatible object storage on infrastructure you control. Keep files as objects in buckets and connect applications through an S3 client or SDK.
+
+  This entry includes the RustFS service and its web console, with persistent storage for object data. Use the generated credentials to sign in and create your first bucket.
+icon: /catalog-media/rustfs-icon.webp
+documentation: https://docs.rustfs.com/
+appSource: https://github.com/rustfs/rustfs
+features:
+  - "S3-compatible object API"
+  - "Buckets and object management"
+  - "Included web console"
+  - "Storage on your own server"
+screenshots:
+  - path: /catalog-media/rustfs-console.webp
+    caption: "Manage object storage in the RustFS console"
+    source: https://github.com/user-attachments/assets/7ee40bb4-3e46-4eac-b0d0-5fbeb85ff8f3
 category: storage
 version: "1.0.3"
-release: 1
+release: 2
 homepage: https://rustfs.com
 license: AGPL-3.0-only
 appLicense: Apache-2.0
