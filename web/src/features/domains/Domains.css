@@ -202,6 +202,15 @@
   color: var(--ink-muted);
 }
 
+.domains-facts > .is-wide > * {
+  grid-column: 1 / -1;
+}
+
+.domains-facts > .is-wide > dd {
+  margin-top: calc(-1 * var(--space-1));
+  margin-bottom: var(--space-1);
+}
+
 .domains-facts dd {
   min-width: 0;
   margin: 0;

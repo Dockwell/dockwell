@@ -548,6 +548,34 @@ describe("DNS and certificates, as Domains-List has them", () => {
     expect(panel).not.toHaveTextContent("Failed");
   });
 
+  it("counts every domain once, whatever the filters show, so the panel stays put", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/domains",
+      api([
+        said("soon.example.com", certificate(CertificateState.ISSUED, "", 2)),
+        said("new.example.com", certificate(CertificateState.PENDING)),
+        aDomain({
+          name: "far.example.com",
+          certificate: certificate(CertificateState.ISSUED, "", 61),
+          servers: [{ serverId: "srv_2", serverName: "hz-2", stale: true }],
+        }),
+      ]),
+    );
+    const panel = await screen.findByRole("region", { name: "Certificates" });
+    const stands = () => {
+      expect(panel).toHaveTextContent("Valid1");
+      expect(panel).toHaveTextContent("Issuing1");
+      // Nobody can say how a domain stands whose server isn't connected, and it still counts.
+      expect(panel).toHaveTextContent("Not connected1");
+    };
+    stands();
+    await user.type(screen.getByRole("searchbox", { name: "Filter domains" }), "nothing-like-this");
+    expect(await screen.findByText("Nothing matches")).toBeVisible();
+    expect(screen.getByRole("region", { name: "Certificates" })).toBe(panel);
+    stands();
+  });
+
   it("takes the DNS a name has on each of its servers at its worst", async () => {
     const { dnsOf } = await import("./dns");
     const on = (state: DomainCheckState, proxied = false) => ({ status: { dns: { state, proxied, found: [] } } });
