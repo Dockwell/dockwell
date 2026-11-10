@@ -10,6 +10,14 @@ export { Button, ButtonLink, type ButtonLinkProps, type ButtonProps } from "./co
 export { Callout, type CalloutProps } from "./components/Callout/Callout";
 export { CodeField, type CodeFieldProps } from "./components/CodeField/CodeField";
 export { CommandBar, type CommandBarProps, type CommandItem } from "./components/CommandBar/CommandBar";
+export {
+  ConnectionCard,
+  type ConnectionCardProps,
+  type ConnectionItem,
+  type ConnectionSecret,
+  type ConnectionString,
+} from "./components/ConnectionCard/ConnectionCard";
+export { CopyButton, type CopyButtonProps } from "./components/CopyButton/CopyButton";
 export { FleetGrid, type FleetGridProps, type FleetGroup, type FleetServer } from "./components/FleetGrid/FleetGrid";
 export { Glyph, type GlyphProps } from "./components/Glyph/Glyph";
 export { Icon, type IconProps } from "./components/Icon/Icon";
@@ -70,7 +78,7 @@ export { Timeline, type TimelineEvent, type TimelineKind, type TimelineProps } f
 export { Toast, type ToastAction, type ToastProps } from "./components/Toast/Toast";
 export { cx } from "./lib/cx";
 export { type GlyphShape, STATUS, type Status, TONE, type Tone, type ToneClass } from "./lib/status";
-export { englishStrings, type UIStrings, UIStringsProvider, useUIStrings } from "./lib/strings";
+export { englishStrings, inSentence, type UIStrings, UIStringsProvider, useUIStrings } from "./lib/strings";
 export { PHONE_QUERY, useMediaQuery } from "./lib/useMediaQuery";
 export {
   applyThemePreference,

@@ -2,7 +2,7 @@
 
 import type { Transport } from "@connectrpc/connect";
 import { TransportProvider } from "@connectrpc/connect-query";
-import { type UIStrings, UIStringsProvider } from "@dockwell/ui";
+import { inSentence, type UIStrings, UIStringsProvider } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { I18nProvider } from "@lingui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -149,6 +149,32 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
         to: t`to`,
       },
       undo: t`Undo`,
+      connection: {
+        title: t({
+          message: "Connect",
+          comment: "The heading of a card that lists how to connect to a database or an app.",
+        }),
+        revealShort: t`Reveal`,
+        reveal: (label) => {
+          const what = inSentence(label);
+          return t`Reveal ${what}`;
+        },
+        hide: t`Hide`,
+        hidden: t`Hidden`,
+        copy: (label) => {
+          const what = inSentence(label);
+          return t`Copy ${what}`;
+        },
+        copied: (label) => t`${label} copied`,
+        copyWithout: (label, secret) => {
+          const [what, without] = [inSentence(label), inSentence(secret)];
+          return t`Copy ${what}, without the ${without}`;
+        },
+        copiedWithout: (label, secret) => {
+          const without = inSentence(secret);
+          return t`${label} copied, without the ${without}`;
+        },
+      },
     }),
     [t, active],
   );
