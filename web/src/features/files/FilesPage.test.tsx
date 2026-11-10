@@ -377,11 +377,95 @@ describe("FilesPage", () => {
     expect(screen.getByText("Nothing here matches your search.")).toBeVisible();
   });
 
-  it("says when a folder holds more than a listing shows", async () => {
+  it("says an older agent lists only part of a large folder, and how to see the rest", async () => {
     await renderFiles("/servers/srv_1/files?path=/var/www", {
       listFiles: () => create(ListFilesResponseSchema, { ...site, truncated: true }),
     });
     expect(await screen.findByText("This folder holds more than a listing shows")).toBeVisible();
+    expect(screen.getByText(/Update the agent on hz-1 to search and page through them all/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  });
+
+  it("keeps a large folder's pages when the window takes focus, and doesn't read it again", async () => {
+    const listFiles = vi.fn((req: { page: string }) =>
+      req.page === "after-index"
+        ? create(ListFilesResponseSchema, { ...site, entries: [entry("zz-last.txt")] })
+        : create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 5 items/);
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(rowNames()).toContain("zz-last.txt"));
+    const asked = listFiles.mock.calls.length;
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(listFiles.mock.calls.length).toBe(asked);
+    expect(rowNames()).toContain("zz-last.txt");
+  });
+
+  it("puts a later page below what's shown, by name, folders and all", async () => {
+    const listFiles = vi.fn((req: { page: string }) =>
+      req.page === "after-b"
+        ? create(ListFilesResponseSchema, { ...site, entries: [folderEntry("c-dir"), entry("d.txt")] })
+        : create(ListFilesResponseSchema, {
+            ...site,
+            entries: [entry("a.txt"), entry("b.txt")],
+            truncated: true,
+            nextPage: "after-b",
+          }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 2 items/);
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(rowNames()).toEqual(["a.txt", "b.txt", "c-dir", "d.txt"]));
+  });
+
+  it("stops asking for a page once the person has left", async () => {
+    let signal: AbortSignal | undefined;
+    const listFiles = vi.fn((req: { page: string }, ctx: HandlerContext) => {
+      if (req.page !== "after-index")
+        return create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" });
+      signal = ctx.signal;
+      return untilAborted(ctx.signal).then(() => create(ListFilesResponseSchema, { ...site }));
+    });
+    const { unmount } = await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 5 items/);
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(signal).toBeDefined());
+    unmount();
+    await waitFor(() => expect(signal?.aborted).toBe(true));
+  });
+
+  it("brings a large folder's next page, in name order, with Show more", async () => {
+    const listFiles = vi.fn((req: { page: string }) =>
+      req.page === "after-index"
+        ? create(ListFilesResponseSchema, { ...site, entries: [entry("zz-last.txt")] })
+        : create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    expect(await screen.findByText(/^More than 5 items/)).toBeVisible();
+    expect(screen.queryByText("This folder holds more than a listing shows")).toBeNull();
+    expect(screen.getByText("5 shown, by name")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(rowNames()).toContain("zz-last.txt"));
+    expect(listFiles.mock.lastCall?.[0]).toMatchObject({ path: "/var/www", page: "after-index", match: "" });
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  });
+
+  it("searches a large folder through every name, on its server", async () => {
+    const listFiles = vi.fn((req: { match: string }) =>
+      req.match === "err"
+        ? create(ListFilesResponseSchema, { ...site, entries: [entry("error.log"), entry("stderr.txt")] })
+        : create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 5 items/);
+    await userEvent.type(screen.getByRole("textbox", { name: "Search in www" }), "err");
+    await waitFor(() => expect(rowNames()).toEqual(["error.log", "stderr.txt"]));
+    expect(listFiles).toHaveBeenCalledWith(expect.objectContaining({ match: "err" }), expect.anything());
   });
 
   it("doesn't open a file whose name it can't send back", async () => {

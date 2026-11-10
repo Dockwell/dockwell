@@ -7194,6 +7194,9 @@ msgstr "It's in Recently deleted for 7 days, where you can put it back."
 msgid "Modified"
 msgstr "Modified"
 
+msgid "More than {countWords} items"
+msgstr "More than {countWords} items"
+
 msgid "New file"
 msgstr "New file"
 
@@ -7212,8 +7215,9 @@ msgstr "Nothing brings it back."
 msgid "Nothing here matches your search."
 msgstr "Nothing here matches your search."
 
-msgid "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
-msgstr "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
+#. placeholder {0}: server.name
+msgid "Only {count} of its items are here. Update the agent on {0} to search and page through them all."
+msgstr "Only {count} of its items are here. Update the agent on {0} to search and page through them all."
 
 msgid "Permissions"
 msgstr "Permissions"
@@ -7235,8 +7239,15 @@ msgstr "Recently deleted"
 msgid "Search in {0}"
 msgstr "Search in {0}"
 
+msgid "Searching every name in this folder"
+msgstr "Searching every name in this folder"
+
 msgid "Server root"
 msgstr "Server root"
+
+msgctxt "the next page of a long list"
+msgid "Show more"
+msgstr "Show more"
 
 msgid "This folder holds more than a listing shows"
 msgstr "This folder holds more than a listing shows"
@@ -7255,6 +7266,12 @@ msgstr "owned by <0>{owner}</0>"
 
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, one {# item} other {# items}}"
+
+msgid "{shownWords} found so far, by name"
+msgstr "{shownWords} found so far, by name"
+
+msgid "{shownWords} shown, by name"
+msgstr "{shownWords} shown, by name"
 
 msgid "Hide the folders in {name}"
 msgstr "Hide the folders in {name}"
