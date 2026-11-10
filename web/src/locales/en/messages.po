@@ -516,6 +516,9 @@ msgstr "A scheduled task succeeded after a failure"
 msgid "A service"
 msgstr "A service"
 
+msgid "Acknowledged the alert: {title}"
+msgstr "Acknowledged the alert: {title}"
+
 msgid "Added a passkey"
 msgstr "Added a passkey"
 
@@ -825,6 +828,12 @@ msgstr "The backup of {volume} failed"
 msgid "The health of {name} changed on {server}"
 msgstr "The health of {name} changed on {server}"
 
+msgid "Took back the acknowledgement of the alert: {title}"
+msgstr "Took back the acknowledgement of the alert: {title}"
+
+msgid "Took over the alert from {from}: {title}"
+msgstr "Took over the alert from {from}: {title}"
+
 msgid "Turned off codes from an authenticator app"
 msgstr "Turned off codes from an authenticator app"
 
@@ -953,6 +962,18 @@ msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps don
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 
+msgid "Acknowledge"
+msgstr "Acknowledge"
+
+msgid "Acknowledge: {title}"
+msgstr "Acknowledge: {title}"
+
+msgid "Acknowledged by you"
+msgstr "Acknowledged by you"
+
+msgid "Acknowledged by {name}"
+msgstr "Acknowledged by {name}"
+
 msgid "Critical"
 msgstr "Critical"
 
@@ -977,6 +998,9 @@ msgstr "Memory, now {percent}%"
 msgid "Most severe first"
 msgstr "Most severe first"
 
+msgid "Not acknowledged"
+msgstr "Not acknowledged"
+
 msgid "Nothing is open. What fires shows here until it resolves."
 msgstr "Nothing is open. What fires shows here until it resolves."
 
@@ -992,6 +1016,21 @@ msgstr "Resolved"
 
 msgid "Sent {sent}"
 msgstr "Sent {sent}"
+
+msgid "Take back"
+msgstr "Take back"
+
+msgid "Take back your acknowledgement of: {title}"
+msgstr "Take back your acknowledgement of: {title}"
+
+msgid "Take over"
+msgstr "Take over"
+
+msgid "Take over from {name}: {title}"
+msgstr "Take over from {name}: {title}"
+
+msgid "That didn't take"
+msgstr "That didn't take"
 
 msgid "since {since}"
 msgstr "since {since}"
@@ -8219,6 +8258,10 @@ msgstr "Deny"
 
 msgid "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them, but for what Docker's proxy takes, as marked."
 msgstr "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them, but for what Docker's proxy takes, as marked."
+
+#. placeholder {0}: server.name
+msgid "Dockwell can't read {0}'s firewall"
+msgstr "Dockwell can't read {0}'s firewall"
 
 msgid "Every IPv4 address"
 msgstr "Every IPv4 address"

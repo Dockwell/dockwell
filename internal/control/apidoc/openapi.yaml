@@ -215,6 +215,76 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/alerts/{id}:acknowledge:
+        post:
+            tags:
+                - AlertService
+            description: |-
+                AcknowledgeAlert says someone has seen an open alert and is on it: who and
+                 when, on the alert and on Activity. It holds nothing back and sends nothing;
+                 a mute does that. Acknowledging one that someone else has takes it over. It
+                 ends when the alert resolves. Only an open alert can be acknowledged.
+            operationId: AlertService_AcknowledgeAlert
+            parameters:
+                - name: id
+                  in: path
+                  description: The alert's ID, "alt_…".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AcknowledgeAlertRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AcknowledgeAlertResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/alerts/{id}:unacknowledge:
+        post:
+            tags:
+                - AlertService
+            description: |-
+                UnacknowledgeAlert takes an acknowledgement back, so the alert reads as
+                 nobody's again.
+            operationId: AlertService_UnacknowledgeAlert
+            parameters:
+                - name: id
+                  in: path
+                  description: The alert's ID, "alt_…".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UnacknowledgeAlertRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UnacknowledgeAlertResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/auditEvents:
         get:
             tags:
@@ -4325,6 +4395,19 @@ paths:
                                 $ref: '#/components/schemas/Status'
 components:
     schemas:
+        AcknowledgeAlertRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The alert's ID, "alt_…".
+            description: AcknowledgeAlertRequest names an open alert.
+        AcknowledgeAlertResponse:
+            type: object
+            properties:
+                alert:
+                    $ref: '#/components/schemas/Alert'
+            description: AcknowledgeAlertResponse is the alert as it now stands.
         Actor:
             type: object
             properties:
@@ -4589,6 +4672,15 @@ components:
                 value:
                     type: integer
                     format: int32
+                acknowledgeTime:
+                    type: string
+                    description: |-
+                        When someone said they're on it, and who, as Activity names them: a person
+                         or a token, by ID and name. Unset while nobody has. A resolved alert keeps
+                         what it had.
+                    format: date-time
+                acknowledgedBy:
+                    $ref: '#/components/schemas/Actor'
             description: |-
                 Alert is one rule holding for one thing, such as a server's disk, from when
                  it fired until it resolved.
@@ -7563,6 +7655,12 @@ components:
                 value:
                     type: integer
                     format: int32
+                takenFrom:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: |-
+                        Who had the alert before, on an acknowledgement that took it over from
+                         someone. Unset otherwise.
             description: |-
                 EventAlert is an alert that fired or resolved, or a mute of a rule or a
                  server that began or ended. Its subject is what the alert is about, and its
@@ -13877,6 +13975,19 @@ components:
                          Recovery codes still work while it is locked.
                     format: date-time
             description: Totp is the state of signing in with an authenticator app.
+        UnacknowledgeAlertRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The alert's ID, "alt_…".
+            description: UnacknowledgeAlertRequest names an acknowledged alert.
+        UnacknowledgeAlertResponse:
+            type: object
+            properties:
+                alert:
+                    $ref: '#/components/schemas/Alert'
+            description: UnacknowledgeAlertResponse is the alert as it now stands.
         UncheckedServer:
             type: object
             properties:

@@ -223,6 +223,61 @@ describe("LogStream", () => {
     expect(onFollowChange).toHaveBeenCalledWith(false);
   });
 
+  it("keeps a reader where the wheel took them when lines draw before the pause does", () => {
+    // The page that owns following hears of the wheel at once, and draws the pause when
+    // React gets to it. A batch of lines can draw first, with following still on.
+    const onFollowChange = vi.fn();
+    const more = (n: number): LogLine[] => [
+      ...lines,
+      ...Array.from({ length: n }, (_, i) => ({
+        id: 10 + i,
+        time: "14:16:04.000",
+        source: "api-7f9c-1",
+        text: "GET /",
+      })),
+    ];
+    const { rerender } = render(<LogStream lines={lines} live follow onFollowChange={onFollowChange} />);
+    const log = screen.getByRole("log");
+    const scroll = fakeScroll(log, { scrollHeight: 1000, clientHeight: 240 });
+    rerender(<LogStream lines={more(1)} live follow onFollowChange={onFollowChange} />);
+    expect(scroll.top).toBe(1000);
+
+    fireEvent.wheel(log, { deltaY: -600 });
+    expect(onFollowChange).toHaveBeenCalledWith(false);
+    scroll.scrollTo(160);
+    rerender(<LogStream lines={more(2)} live follow onFollowChange={onFollowChange} />);
+    expect(scroll.top).toBe(160);
+
+    // The pause draws, and the reader asks to follow again: back to the end.
+    rerender(<LogStream lines={more(2)} live follow={false} onFollowChange={onFollowChange} />);
+    expect(scroll.top).toBe(160);
+    rerender(<LogStream lines={more(3)} live follow onFollowChange={onFollowChange} />);
+    expect(scroll.top).toBe(1000);
+  });
+
+  it("keeps a reader where the wheel took them just after the lines were put in another order", () => {
+    // Lines of two sources merge by time, which gives every line a new position. For a
+    // moment after that, a scroll up is taken for the browser's own and put back.
+    const onFollowChange = vi.fn();
+    const at = (epoch: number): LogLines => ({
+      length: lines.length,
+      start: 0,
+      version: epoch,
+      epoch,
+      at: (p) => lines[p],
+      positionOf: (id) => lines.findIndex((l) => l.id === id),
+    });
+    const { rerender } = render(<LogStream lines={at(1)} live follow onFollowChange={onFollowChange} />);
+    const log = screen.getByRole("log");
+    const scroll = fakeScroll(log, { scrollHeight: 1000, clientHeight: 240 });
+    rerender(<LogStream lines={at(2)} live follow onFollowChange={onFollowChange} />);
+    expect(scroll.top).toBe(1000);
+
+    fireEvent.wheel(log, { deltaY: -600 });
+    scroll.scrollTo(400);
+    expect(scroll.top).toBe(400);
+  });
+
   it("shows what stands in for lines while there are none", () => {
     render(<LogStream lines={[]} empty="No logs yet." />);
     expect(screen.getByText("No logs yet.")).toBeVisible();

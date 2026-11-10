@@ -24,8 +24,8 @@ export function useServerUpdates(serverId: string, { ask = true }: { ask?: boole
     UpdateService.method.getServerUpdates,
     { id: serverId },
     {
-      // A card or a tab asks only for someone who may read them (ADR 0059). The page itself asks
-      // whoever opens it, so someone who may not hears the server's refusal there, not a wait.
+      // Asked only for someone who may read them (ADR 0059): the tab and the card are left out for
+      // anyone else, and the page says their role doesn't cover it, without asking.
       enabled: ask,
       staleTime: 30_000,
       retry: false,

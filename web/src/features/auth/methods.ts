@@ -21,6 +21,7 @@ export type PanelUse =
   | "unused";
 
 export const PANEL_METHODS: Record<string, PanelUse> = {
+  "AlertService.acknowledgeAlert": { within: "AlertService.listAlerts" },
   "AlertService.listAlertChannels": { within: "AlertService.listAlerts" },
   "AlertService.listAlertDeliveries": { within: "AlertService.listAlerts" },
   "AlertService.listAlertMutes": "unused",
@@ -29,6 +30,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "AlertService.muteAlerts": "unused",
   "AlertService.testAlertChannel": { within: "AlertService.listAlerts" },
   "AlertService.unmuteAlerts": "unused",
+  "AlertService.unacknowledgeAlert": { within: "AlertService.listAlerts" },
 
   "AuditService.listAuditEvents": "may",
 
