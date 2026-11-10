@@ -28,10 +28,12 @@ import { type ReactNode, useId, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
 import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { useControlPlaneNow } from "../servers/useFleet";
-import { ReadFailed } from "../shell/ReadFailed";
+import { ReadFailed, RoleRefused } from "../shell/ReadFailed";
+import { CopyButton as CopyAction } from "../system/CopyCommand";
 import {
   installCommand,
   managerName,
@@ -54,7 +56,10 @@ export function UpdatesPage({ serverId }: { serverId: string }) {
 
 function Updates({ server }: { server: Server }) {
   const { t } = useLingui();
-  const query = useServerUpdates(server.id);
+  // A server's updates are an admin's to read. Someone else who opens this address is told so in
+  // the words a refused read gets, and nothing is asked on their behalf (ADR 0059).
+  const allowed = useMay()(UpdateService.method.getServerUpdates).allowed;
+  const query = useServerUpdates(server.id, { ask: allowed });
   const transport = useTransport();
   const client = useMemo(() => createClient(UpdateService, transport), [transport]);
   const whyNot = useWhyNot();
@@ -75,6 +80,7 @@ function Updates({ server }: { server: Server }) {
       setPressed(false);
     }
   };
+  if (!allowed) return <RoleRefused />;
   if (query.isPending) {
     return (
       <div className="updates-layout">
@@ -150,24 +156,27 @@ function Updates({ server }: { server: Server }) {
 /** The one callout the tab leads with: what's most worth doing, or why what's here can't stand. */
 function Lead({ server, updates, summary }: { server: Server; updates: ServerUpdates; summary: UpdatesSummary }) {
   const { t } = useLingui();
-  const command = <code>{upgradeCommand(updates.manager)}</code>;
+  const command = upgradeCommand(updates.manager);
   const auto = updates.automatic;
   const tool = auto?.on ? auto.tool : "";
   if (updates.rebootRequired) {
     const what = updates.rebootPackages.join(", ");
     return (
-      <Callout tone="warning" title={t`${server.name} needs a reboot`}>
-        {what ? (
-          <Trans>
-            What {what} changed takes effect only once {server.name} restarts, so it still runs the old versions. Apps
-            and websites on it go offline while it does: reboot it when that suits you, with <code>sudo reboot</code>.
-          </Trans>
-        ) : (
-          <Trans>
-            What was installed takes effect only once {server.name} restarts, so it still runs the old versions. Apps
-            and websites on it go offline while it does: reboot it when that suits you, with <code>sudo reboot</code>.
-          </Trans>
-        )}
+      <Callout
+        tone="warning"
+        title={t`${server.name} needs a reboot`}
+        actions={
+          <CopyAction
+            text="sudo reboot"
+            label={t`Copy the reboot command`}
+            copiedLabel={t`Reboot command copied`}
+            variant="secondary"
+          />
+        }
+      >
+        {what
+          ? t`What ${what} changed takes effect once it restarts; apps and websites go offline meanwhile.`
+          : t`What was installed takes effect once it restarts; apps and websites go offline meanwhile.`}
       </Callout>
     );
   }
@@ -183,24 +192,28 @@ function Lead({ server, updates, summary }: { server: Server; updates: ServerUpd
       reboots === 0
         ? ""
         : n === 1
-          ? t`It needs a reboot to take effect, and apps and websites go offline while ${name} restarts.`
+          ? t`It needs a reboot, and apps and websites go offline while ${name} restarts.`
           : plural(reboots, {
-              one: `One of them needs a reboot to take effect, and apps and websites go offline while ${name} restarts.`,
-              other: `# of them need a reboot to take effect, and apps and websites go offline while ${name} restarts.`,
+              one: `One needs a reboot, and apps and websites go offline while ${name} restarts.`,
+              other: `# need a reboot, and apps and websites go offline while ${name} restarts.`,
             });
+    const copy = command ? (
+      <CopyAction
+        text={command}
+        label={t`Copy the upgrade command`}
+        copiedLabel={t`Upgrade command copied`}
+        variant="secondary"
+      />
+    ) : undefined;
     return (
-      <Callout tone="warning" title={title}>
+      <Callout tone="warning" title={title} actions={copy}>
         {rebooting ? `${rebooting} ` : null}
         {tool ? (
           <Trans>
-            <code>{tool}</code> on {name} installs updates by itself, so these go in within about a day. To install them
-            now, run {command} there, which installs every update waiting, not only these.
+            <code>{tool}</code> installs them within about a day; the command installs every update waiting now.
           </Trans>
         ) : (
-          <Trans>
-            Dockwell can't install updates yet, so run {command} on {name}, which installs every update waiting, not
-            only these.
-          </Trans>
+          t`Dockwell can't install them yet; the command installs every update waiting, not only these.`
         )}
       </Callout>
     );

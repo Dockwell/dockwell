@@ -109,7 +109,8 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
     ({ service }) => {
       service(SystemService, api.system ?? {});
       service(ServerService, { watchServers: quietWatch, ...api.servers });
-      service(AuthService, api.auth ?? {});
+      // Mira, signed in as the owner, unless a test says who is: what the panel offers follows what they hold.
+      service(AuthService, { getAuthState: () => authState(), ...api.auth });
       service(TokenService, api.tokens ?? {});
       service(ChangeService, api.changes ?? {});
       // The command bar lists projects and recent changes; with none, it lists none.

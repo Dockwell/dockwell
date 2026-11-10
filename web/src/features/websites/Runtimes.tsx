@@ -8,11 +8,12 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { RouterButtonLink } from "../../lib/links";
-import { nameOf } from "../apps/app";
+import { environmentOf, nameOf } from "../apps/app";
 import { useHealthWords } from "../apps/Health";
 import { type HealthView, worstHealth } from "../apps/health";
 import { APP_LANGUAGES, LANGUAGE_MARKS, newerBuild, runtimeOf, versionsOf } from "../apps/runtime";
 import { useServices } from "../apps/useServices";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import type { Row } from "./Standing";
 import { useRuntimes } from "./website";
@@ -95,6 +96,7 @@ function LanguageCard({
   const words = useHealthWords();
   const transport = useTransport();
   const sheet = useChangeSheet();
+  const may = useMay();
   const [newest] = versions;
   if (!newest) return null;
   const language = newest.language;
@@ -161,6 +163,7 @@ function LanguageCard({
                     </span>
                     <Button
                       size="sm"
+                      {...may(ServiceService.method.changeServiceRuntime, { environment: environmentOf(app) }).off}
                       onClick={() =>
                         sheet.open({
                           kind: "plan",
@@ -204,6 +207,7 @@ function LanguageCard({
 
 function RuntimeCard({ runtime, sites, health }: { runtime: WebsiteRuntime; sites: Row[]; health: HealthView }) {
   const { t } = useLingui();
+  const may = useMay();
   const words = useHealthWords();
   const transport = useTransport();
   const sheet = useChangeSheet();
@@ -267,6 +271,7 @@ function RuntimeCard({ runtime, sites, health }: { runtime: WebsiteRuntime; site
                     </span>
                     <Button
                       size="sm"
+                      {...may(WebsiteService.method.updateWebsite, { project: s.id }).off}
                       onClick={() =>
                         sheet.open({
                           kind: "plan",

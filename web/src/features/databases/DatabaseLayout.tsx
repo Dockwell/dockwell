@@ -22,6 +22,7 @@ import { Page } from "../shell/Page";
 import { engineAndVersion, firstReading, readOf, speaksSQL, useDatabase, useOwnInstall } from "./useDatabases";
 import "../apps/Apps.css";
 import "./Databases.css";
+import { useMay } from "../auth/may";
 
 const DatabaseContext = createContext<Database | undefined>(undefined);
 
@@ -134,6 +135,8 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
           make: () => createClient(CatalogService, transport).upgradeCatalogInstall({ id: install.projectId }),
         })
     : undefined;
+  // An action on what you can see stays where it is, off, with why (ADR 0059).
+  const mayUpgrade = useMay()(CatalogService.method.upgradeCatalogInstall, { project: install?.projectId ?? "" });
   const upgradeWords =
     next && next === install?.pin?.version ? (
       <Trans>Review the change to {next}</Trans>
@@ -173,7 +176,7 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
             <Trans>Open as an app</Trans>
           </RouterButtonLink>
           {upgrade ? (
-            <Button variant="primary" icon="deploy" onClick={upgrade}>
+            <Button variant="primary" icon="deploy" onClick={upgrade} {...mayUpgrade.off}>
               {upgradeWords}
             </Button>
           ) : null}
@@ -207,7 +210,7 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
             <Trans>Open as an app</Trans>
           </RouterButtonLink>
           {upgrade ? (
-            <Button variant="primary" icon="deploy" size="lg" onClick={upgrade}>
+            <Button variant="primary" icon="deploy" size="lg" onClick={upgrade} {...mayUpgrade.off}>
               {upgradeWords}
             </Button>
           ) : null}

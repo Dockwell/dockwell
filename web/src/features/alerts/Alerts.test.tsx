@@ -12,6 +12,7 @@ import {
   ChangeState,
   AlertRule_Condition as Condition,
   type ProposeChangeRequest,
+  Role,
   AlertEmail_Security as Security,
   AlertRule_Severity as Severity,
   type TestAlertChannelRequest,
@@ -25,7 +26,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { mira } from "../../test/auth";
+import { authState, mira } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 
@@ -670,11 +671,122 @@ describe("Alerts and rules", () => {
     });
   });
 
+  it("says a role doesn't cover alerts, rules or channels as every page does, not as a load that failed", async () => {
+    const { ConnectError, Code } = await import("@connectrpc/connect");
+    const refuse = () => {
+      throw new ConnectError(
+        "this needs the admin role on the install",
+        Code.PermissionDenied,
+        new Headers({ "Dockwell-Error": "needs_role" }),
+      );
+    };
+    const refused: Api = {
+      alerts: { listAlerts: refuse, listAlertRules: refuse, listAlertChannels: refuse, listAlertDeliveries: refuse },
+    };
+    for (const [path, old] of [
+      ["/alerts", "Can't load the alerts"],
+      ["/alerts/rules", "Can't load the rules"],
+      ["/alerts/channels", "Can't load the channels"],
+    ] as const) {
+      const page = renderAt(path, api([], refused));
+      const why = (await screen.findByText("Your role doesn't cover this")).closest(".dw-callout");
+      expect(why).toHaveClass("dw-tone-warning");
+      expect(why).toHaveTextContent("Your role doesn't let you do this here. Ask an admin to change your role.");
+      expect(screen.queryByText(old)).toBeNull();
+      page.unmount();
+    }
+  });
+
   it("lists the rules", async () => {
     renderAt("/alerts/rules", api([ops]));
     const table = await screen.findByRole("table", { name: "Alert rules" });
     expect(within(table).getByRole("row", { name: /App down/ })).toHaveTextContent("Every channel");
     expect(within(table).getByRole("row", { name: /Disk above 90%/ })).toHaveTextContent("ops-email");
+  });
+
+  it("changes a rule from its row, as a plan, with only the values its condition takes", async () => {
+    const user = userEvent.setup();
+    const proposeChange = planned();
+    renderAt("/alerts/rules", api([ops, phones], { changes: { proposeChange } }));
+    const table = await screen.findByRole("table", { name: "Alert rules" });
+    await user.click(within(table).getByRole("row", { name: /Disk above 90%/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Disk above 90%" });
+    expect(within(sheet).queryByText(/dockwell alert-rules/)).toBeNull();
+    await user.selectOptions(within(sheet).getByLabelText("When a disk is fuller than"), "80");
+    await user.selectOptions(within(sheet).getByLabelText("For"), "10m");
+    await user.click(within(sheet).getByRole("radio", { name: "Critical" }));
+    await user.selectOptions(within(sheet).getByLabelText("While it lasts, say it again"), "24h");
+    // It sends to ops-email alone; phones joins it.
+    await user.click(within(sheet).getByRole("switch", { name: "phones" }));
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposeChange).toHaveBeenCalled());
+    const edit = proposeChange.mock.calls[0]?.[0].edits[0];
+    expect(edit?.resource).toMatchObject({ kind: "alert.rule", name: "disk-full" });
+    const spec = edit?.spec?.kind.case === "alertRule" ? edit.spec.kind.value : undefined;
+    expect(spec).toMatchObject({
+      condition: Condition.DISK_FULL,
+      threshold: 80,
+      duration: "10m",
+      severity: Severity.CRITICAL,
+      repeat: "24h",
+      channels: ["ops-email", "phones"],
+      disabled: false,
+    });
+  });
+
+  it("leaves a rule's Review plan off, with why, for someone who can't change the install's rules", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/alerts/rules",
+      api([ops], {
+        auth: {
+          getAuthState: () =>
+            authState({
+              user: { ...mira, role: Role.UNSPECIFIED },
+              grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+            }),
+        },
+      }),
+    );
+    const table = await screen.findByRole("table", { name: "Alert rules" });
+    await user.click(within(table).getByRole("row", { name: /App down/ }));
+    const sheet = await screen.findByRole("dialog", { name: "App down" });
+    const review = within(sheet).getByRole("button", { name: "Review plan" });
+    expect(review).toHaveAttribute("aria-disabled", "true");
+    expect(review).not.toHaveAccessibleDescription("");
+  });
+
+  it("turns a rule off, and asks nothing else of one that's off", async () => {
+    const user = userEvent.setup();
+    const proposeChange = planned();
+    renderAt("/alerts/rules", api([ops], { changes: { proposeChange } }));
+    const table = await screen.findByRole("table", { name: "Alert rules" });
+    await user.click(within(table).getByRole("row", { name: /App down/ }));
+    const sheet = await screen.findByRole("dialog", { name: "App down" });
+    await user.click(within(sheet).getByRole("switch", { name: "Watch for this" }));
+    expect(within(sheet).queryByLabelText("For")).toBeNull();
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposeChange).toHaveBeenCalled());
+    const spec = proposeChange.mock.calls[0]?.[0].edits[0]?.spec?.kind;
+    expect(spec?.case === "alertRule" && spec.value.disabled).toBe(true);
+  });
+
+  it("asks a failed change's rule for no duration or repeat, as it fires once, as the change fails", async () => {
+    const user = userEvent.setup();
+    const failed = create(AlertRuleInfoSchema, {
+      id: "alr_change",
+      name: "change-failed",
+      title: "A change failed",
+      expression: "change.failed",
+      spec: { condition: Condition.CHANGE_FAILED, severity: Severity.WARNING },
+    });
+    renderAt("/alerts/rules", api([ops], { alerts: { listAlertRules: () => ({ rules: [failed] }) } }));
+    const table = await screen.findByRole("table", { name: "Alert rules" });
+    await user.click(within(table).getByRole("row", { name: /A change failed/ }));
+    const sheet = await screen.findByRole("dialog", { name: "A change failed" });
+    expect(within(sheet).queryByLabelText("For")).toBeNull();
+    expect(within(sheet).queryByLabelText("While it lasts, say it again")).toBeNull();
+    expect(within(sheet).getByRole("radio", { name: "Warning" })).toBeChecked();
   });
 
   it("lists the alerts and the rules on a phone as rows, with no table to cut off", async () => {

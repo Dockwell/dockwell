@@ -48,6 +48,7 @@ import {
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
+import { useMay } from "../auth/may";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { useRuntimes } from "../websites/website";
@@ -127,6 +128,7 @@ export function NewAppSheet({
   const navigate = useNavigate();
   const { fleet, servers, only } = useFleetView();
   const places = usePlaces();
+  const may = useMay();
   const services = useServices().data;
   const changes = useMemo(() => createClient(ChangeService, transport), [transport]);
   const composer = useMemo(() => createClient(ComposeService, transport), [transport]);
@@ -191,6 +193,12 @@ export function NewAppSheet({
     (source === "compose" ? fileEnvironments[0]?.id : defaultPlace?.id) ||
     "";
 
+  // Planning is a developer's, where it goes: off, with why, for anyone else (ADR 0059).
+  const where = scope ? { environment: scope } : undefined;
+  const mayPlan =
+    source === "compose"
+      ? may(ComposeService.method.importCompose, where)
+      : may(ChangeService.method.proposeChange, where);
   const volumes = useQuery(ResourceService.method.listResources, { kind: "volume", scope }, { enabled: scope !== "" })
     .data?.resources;
   const name = image.name.trim() || (source === "folder" ? nameFromFolder(folder.folder) : nameFromImage(image.image));
@@ -518,6 +526,7 @@ export function NewAppSheet({
               disabled={source === "compose" && !composeReady}
               kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
               onClick={() => void submit()}
+              {...mayPlan.off}
             >
               <Trans>Review plan</Trans>
             </Button>
@@ -1028,6 +1037,8 @@ function useComposeCheck(file: string, variables: Readonly<Record<string, string
     const timer = setTimeout(() => setSettled({ file, variables, env, directory }), CHECK_AFTER_MS);
     return () => clearTimeout(timer);
   }, [file, variables, env, directory]);
+  // Reading a file is the start of planning it, which is a developer's (ADR 0059).
+  const allowed = useMay()(ComposeService.method.checkCompose).allowed;
   const query = useQuery(
     ComposeService.method.checkCompose,
     {
@@ -1037,7 +1048,7 @@ function useComposeCheck(file: string, variables: Readonly<Record<string, string
       directory: settled.directory.trim(),
     },
     {
-      enabled: settled.file.trim() !== "",
+      enabled: settled.file.trim() !== "" && allowed,
       placeholderData: (previous) => previous,
       staleTime: 60_000,
       // A query's key is what it asked, and here that holds an .env's values, so nothing keeps it once it's done with.

@@ -25,7 +25,8 @@ An open-source control plane for servers, from one VPS to a fleet. One Go codeba
 
 ## Rules
 
-- UI text, CLI output, errors and docs follow the content fundamentals in `design/system/README.md`: sentence case, address the reader as "you", no emoji or exclamation marks, fact then consequence then fix.
+- Every screen follows the interaction principles in `design/system/README.md` before its words: the interface does the work (pickers, defaults, live checks, buttons that act), defaults first with power one step away, and guidance only as a short state with an action. A sentence that tells a person to do something by hand is a missing feature.
+- UI text, CLI output, errors and docs follow the content fundamentals there: sentence case, address the reader as "you", no emoji or exclamation marks, and the text budget (one line of help per field at most, a callout is a title and one short sentence, no paragraphs in forms, sheets or cards). Errors and alerts give the fact, then the consequence, then the fix.
 - Terminology: *server* and *control server* in the product; *agent* for the binary in docs and the CLI; never *master* or *slave*.
 - Every change to managed state is a revision with a plan (PRD principle 2). Don't add a mutating path that bypasses the revision store: only `internal/revision` calls `store.DB.Revise`, and a test fails on anything else that does.
 - The panel uses only the public API through the generated client. Nothing is UI-only.

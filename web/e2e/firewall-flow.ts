@@ -80,6 +80,31 @@ export async function firewallFlow(page: Page, { origin, step, shoot }: Firewall
     fail(`the Firewall tab says something went wrong: ${await page.getByRole("alert").first().innerText()}`);
   }
   await shoot(page, "server-firewall");
+
+  step(
+    "a rule of Dockwell's own applies with a passkey, waits for you to say you can still reach the server, and stays",
+  );
+  const rules = page.getByRole("region", { name: "Dockwell's rules" });
+  await rules.getByRole("button", { name: "Add a rule" }).click();
+  const add = page.getByRole("dialog", { name: /^Add a rule to / });
+  await add.getByLabel("Port").fill("8443");
+  await add.getByRole("button", { name: "Plan it" }).click();
+  const plan = page.getByRole("dialog", { name: "Review plan" });
+  await plan.getByRole("button", { name: /Apply plan/ }).click();
+  // The browser's virtual authenticator gives the passkey the change takes. Then the server waits.
+  const keep = page.getByRole("button", { name: "Keep the change" });
+  await keep.waitFor({ timeout: 30_000 });
+  // The test names SSH's port where the server has an SSH server, and none where it has none, as here.
+  const test = await page.getByText(/^Open a new SSH session /).innerText();
+  if (!test.includes("with your key")) fail(`the confirmation's test says ${test}`);
+  await shoot(page, "server-firewall-confirm");
+  await keep.click();
+  await page.getByRole("button", { name: "Keep the change" }).waitFor({ state: "detached", timeout: 15_000 });
+  await page
+    .getByRole("button", { name: /^(Done|Close)$/ })
+    .first()
+    .click();
+  await rules.getByRole("row", { name: /8443\/tcp/ }).waitFor({ timeout: 15_000 });
 }
 
 /** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */

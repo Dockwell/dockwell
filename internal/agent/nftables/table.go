@@ -53,17 +53,22 @@ type Table struct {
 	// DockerInterfaces are Docker's networks' interfaces, from Docker's network
 	// list. Traffic arriving on them, from containers, isn't filtered.
 	DockerInterfaces []string
+	// NoDocker is a server without Docker: nothing it forwards is a port Docker
+	// publishes, so the table leaves forwarding alone, as libvirt's or LXD's.
+	NoDocker bool
 }
 
 // keepsReachable is what every table lets in first, so the server stays
 // reachable whatever the rules say: connections already open, loopback,
 // ICMP's errors, IPv6's neighbour and router discovery, MLD from the link,
 // which keeps a snooping switch sending the host its neighbour discovery,
-// DHCP's replies, and ping, at most 5 a second, as RFC 4890 keeps echo; with
-// invalid packets dropped.
+// DHCP's replies, and ping, at most 5 a second, as RFC 4890 keeps echo. It
+// drops nothing of its own: a table that holds one allow leaves the server
+// working as it did (ADR 0052), so packets the connection tracker calls
+// invalid go on to the rules and the policy like any other, and to the
+// kernel's own handling where nothing drops them.
 var keepsReachable = []string{
 	"ct state established,related accept",
-	"ct state invalid drop",
 	`iifname "lo" accept`,
 	"icmp type { destination-unreachable, time-exceeded, parameter-problem } accept",
 	"icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept",
@@ -77,9 +82,10 @@ var keepsReachable = []string{
 
 // matchable says whether nft can match an interface by name: Linux's 15 bytes
 // at most, in quotes, which may hold anything but a quote or a control
-// character, and not end in *, which nft reads as a wildcard.
+// character, and not end in *, which nft reads as a wildcard, nor in a
+// backslash, which would stand before the closing quote.
 func matchable(name string) bool {
-	if name == "" || len(name) > 15 || strings.HasSuffix(name, "*") {
+	if name == "" || len(name) > 15 || strings.HasSuffix(name, "*") || strings.HasSuffix(name, `\`) {
 		return false
 	}
 	for _, r := range name {
@@ -93,7 +99,7 @@ func matchable(name string) bool {
 // SkippedWords says what it means that one of Docker's interfaces has a name
 // the table can't match, and how to fix it.
 func SkippedWords(name string) string {
-	return fmt.Sprintf("Docker's interface %q has a name nftables can't match: it holds a quote or a control character, or ends in *. "+
+	return fmt.Sprintf("Docker's interface %q has a name nftables can't match: it holds a quote or a control character, or ends in * or a backslash. "+
 		"Its containers' traffic to the server is treated as from outside, and the ports they publish aren't filtered. "+
 		"Rename its network's bridge, with com.docker.network.bridge.name", name)
 }
@@ -111,7 +117,16 @@ func (t Table) Skipped() []string {
 
 // ruleName is what a rule's comment may hold: printable, without what nft
 // would read as the comment's end, and shorter than nft's 128 bytes.
-var ruleName = regexp.MustCompile(`^[A-Za-z0-9 _.:/@-]{1,100}$`)
+// Its length is checked apart from its form, as a counted repetition compiles
+// to as many copies of what it repeats, which every agent pays for as it
+// starts (ADR 0060).
+var ruleName = regexp.MustCompile(`^[A-Za-z0-9 _.:/@-]+$`)
+
+// maxRuleName is how long a rule's name gets.
+const maxRuleName = 100
+
+// isRuleName reports a name a rule's comment can hold.
+func isRuleName(name string) bool { return len(name) <= maxRuleName && ruleName.MatchString(name) }
 
 // Validate refuses a table nft would misread: a rule with no ports, a port of
 // 0, a protocol other than TCP and UDP, or a name or interface that would need
@@ -119,7 +134,7 @@ var ruleName = regexp.MustCompile(`^[A-Za-z0-9 _.:/@-]{1,100}$`)
 func (t Table) Validate() error {
 	for _, list := range [][]Rule{t.Pins, t.Allows, t.Denies} {
 		for _, r := range list {
-			if !ruleName.MatchString(r.Name) {
+			if !isRuleName(r.Name) {
 				return fmt.Errorf("a rule's name %q has what the table can't keep in a comment: use letters, digits, spaces and - _ . : / @", r.Name)
 			}
 			if r.Protocol != "tcp" && r.Protocol != "udp" {
@@ -168,10 +183,13 @@ func (t Table) Script() (string, error) {
 	b.WriteString("\tchain forward {\n")
 	b.WriteString("\t\ttype filter hook forward priority filter; policy accept;\n")
 	// Docker's alone, so other port forwards on the server, such as libvirt's,
-	// LXD's or k3s's, aren't filtered as published ports.
-	if ifs := t.dockerSet(); ifs != "" {
+	// LXD's or k3s's, aren't filtered as published ports; with Docker's networks
+	// unknown, every one is; with no Docker, none is.
+	switch ifs := t.dockerSet(); {
+	case t.NoDocker:
+	case ifs != "":
 		fmt.Fprintf(&b, "\t\tct status dnat iifname != %s oifname %s jump published\n", ifs, ifs)
-	} else {
+	default:
 		b.WriteString("\t\tct status dnat jump published\n")
 	}
 	b.WriteString("\t}\n")
@@ -213,16 +231,30 @@ func writeRule(b *strings.Builder, r Rule, match func(Rule) string, verdict stri
 		fmt.Fprintf(b, "\t\t%s %s%s\n", match(r), verdict, comment)
 		return
 	}
-	var v4, v6 []string
+	var all []netip.Prefix
 	for _, p := range r.Sources {
 		if p.Addr().Is4In6() {
 			// ::ffff:203.0.113.0/120 is 203.0.113.0/24, as IPv4 traffic carries it.
 			p = netip.PrefixFrom(p.Addr().Unmap(), max(p.Bits()-96, 0))
 		}
-		p = p.Masked()
-		if p.Addr().Is4() {
+		all = append(all, p.Masked())
+	}
+	// A set never names a range twice, or one inside another: nft and the
+	// kernel differ by version on what they make of sets that overlap.
+	var v4, v6 []string
+	for i, p := range all {
+		inside := false
+		for j, q := range all {
+			if i != j && q.Addr().Is4() == p.Addr().Is4() && q.Bits() <= p.Bits() && q.Contains(p.Addr()) && (q != p || j < i) {
+				inside = true
+				break
+			}
+		}
+		switch {
+		case inside:
+		case p.Addr().Is4():
 			v4 = append(v4, p.String())
-		} else {
+		default:
 			v6 = append(v6, p.String())
 		}
 	}

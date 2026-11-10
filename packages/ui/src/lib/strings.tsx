@@ -119,8 +119,78 @@ export interface UIStrings {
   };
   /** Timeline: the default undo button. */
   undo: string;
+  dnsRecord: {
+    /** Accessible name of the button that copies a record's value, and what it says once it has. */
+    copy: (value: string) => string;
+    copied: (value: string) => string;
+    /** The button that reads DNS again. */
+    check: string;
+  };
+  folderPicker: {
+    /** The button that opens the picker, and its accessible name with the folder chosen. */
+    change: string;
+    changeNamed: (path: string) => string;
+    /** The same button once it's open. */
+    done: string;
+    /** Stands where the path would, while none is chosen. */
+    none: string;
+    /** Over the field that takes a typed path. */
+    path: string;
+    /** Accessible name of the breadcrumb of the folder being looked in. */
+    lookingIn: string;
+    /** Accessible name of the list of a folder's folders. */
+    foldersIn: (path: string) => string;
+    /** In the list: while it's read, when it holds no folder, and when it can't be read. */
+    reading: string;
+    empty: string;
+    cantRead: string;
+    /** Over the field that names a new folder, with where it would go. */
+    newIn: (path: string) => string;
+    /** That field's placeholder, and the button that takes the name. */
+    newName: string;
+    use: string;
+  };
+  connection: {
+    /** The card's heading when the page gives none. */
+    title: string;
+    /** The button that reveals a secret, as it reads. */
+    revealShort: string;
+    /** Its accessible name, given the secret's label, such as "Password". */
+    reveal: (label: string) => string;
+    /** The button that hides it again. */
+    hide: string;
+    /** Read in place of a hidden secret. */
+    hidden: string;
+    /** A copy button's name, given what it copies, such as "Host". */
+    copy: (label: string) => string;
+    /** The same, once it has copied. */
+    copied: (label: string) => string;
+    /** A copy button that leaves a hidden secret out, given what it copies and the secret's label. */
+    copyWithout: (label: string, secret: string) => string;
+    /** The same, once it has copied. */
+    copiedWithout: (label: string, secret: string) => string;
+  };
+  /** Advanced: what the disclosure is called when the form gives it no name of its own. */
+  advanced: string;
+  portField: {
+    /** Beside a port while the server is asked. */
+    checking: string;
+    /** Beside a port nothing holds. */
+    free: string;
+    /** Beside a port something holds, and under it when what holds it isn't known. */
+    taken: string;
+    /** Under a port something holds, naming what, such as "redis uses it". */
+    takenBy: (by: ReactNode) => ReactNode;
+    /** Takes the free port offered, such as "Use 8084". */
+    use: (port: number) => string;
+    /** Under a number that isn't a port. */
+    range: string;
+  };
 }
 
+/** A label as it reads inside a sentence: "Host" is "host", while "API key" and "MySQL" keep their capitals. */
+export const inSentence = (label: string) =>
+  /^[A-Z][a-z]*(\s|$)/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label;
 const count = (n: number) => n.toLocaleString("en");
 const one = (n: number, singular: string, plural: string) => `${count(n)} ${n === 1 ? singular : plural}`;
 
@@ -236,6 +306,46 @@ export const englishStrings: UIStrings = {
     to: "to",
   },
   undo: "Undo",
+  dnsRecord: {
+    copy: (value) => `Copy ${value}`,
+    copied: (value) => `Copied ${value}`,
+    check: "Check again",
+  },
+  folderPicker: {
+    change: "Change",
+    changeNamed: (path) => (path ? `Change the folder, ${path}` : "Choose a folder"),
+    done: "Done",
+    none: "No folder chosen",
+    path: "Path",
+    lookingIn: "Looking in",
+    foldersIn: (path) => `Folders in ${path}`,
+    reading: "Reading…",
+    empty: "No folders here",
+    cantRead: "Can't read the server's folders now",
+    newIn: (path) => `New folder in ${path}`,
+    newName: "name",
+    use: "Use",
+  },
+  connection: {
+    title: "Connect",
+    revealShort: "Reveal",
+    reveal: (label) => `Reveal ${inSentence(label)}`,
+    hide: "Hide",
+    hidden: "Hidden",
+    copy: (label) => `Copy ${inSentence(label)}`,
+    copied: (label) => `${label} copied`,
+    copyWithout: (label, secret) => `Copy ${inSentence(label)}, without the ${inSentence(secret)}`,
+    copiedWithout: (label, secret) => `${label} copied, without the ${inSentence(secret)}`,
+  },
+  advanced: "Advanced",
+  portField: {
+    checking: "Checking",
+    free: "Free",
+    taken: "Taken",
+    takenBy: (by) => <>{by} uses it</>,
+    use: (port) => `Use ${port}`,
+    range: "Use a port from 1 to 65535.",
+  },
 };
 
 const StringsContext = createContext<UIStrings>(englishStrings);

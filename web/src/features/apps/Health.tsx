@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Connection, HealthCheckKind } from "@dockwell/api";
+import { Connection, HealthCheckKind, TerminalService } from "@dockwell/api";
 import { StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
 import { MachineWords } from "../changes/FailureNotice";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import type { AppHealth, HealthKind, RunsOnServer, Unread } from "./health";
@@ -204,6 +205,7 @@ export function useHealthTitle(health: AppHealth): string {
  * said and when. With more than one server, each says for itself.
  */
 export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boolean }) {
+  const mayShell = useMay()(TerminalService.method.listTerminals).allowed;
   const { t } = useLingui();
   const words = useHealthWords();
   const time = useTimeWords();
@@ -243,7 +245,8 @@ export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boo
               </MachineWords>
               {checked && showTime ? <span className="app-muted"> {checked}</span> : null}
             </p>
-            {server.container && showTime ? (
+            {/* A shell is a way to a place only an admin reads, so it's left out for anyone else (ADR 0059). */}
+            {server.container && showTime && mayShell ? (
               <RouterButtonLink
                 to="/servers/$serverId/terminal"
                 params={{ serverId: server.serverId }}

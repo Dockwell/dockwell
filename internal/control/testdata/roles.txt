@@ -44,6 +44,7 @@ BackupService.ListBackupPolicies               read         viewer     viewer   
 BackupService.ListBackups                      read         viewer     viewer     project
 BackupService.PreviewBackup                    read         viewer     viewer     project
 BackupService.RestoreBackup                    plan         developer  developer  project
+BackupService.TestBackupDestination            apply        admin      admin      install
 CatalogService.GetCatalogEntry                 read         viewer     viewer     shared
 CatalogService.InstallCatalogEntry             plan         admin      admin      install
 CatalogService.ListCatalogEntries              read         viewer     viewer     shared
@@ -51,6 +52,7 @@ CatalogService.ListCatalogInstalls             read         viewer     viewer   
 CatalogService.UpgradeCatalogInstall           plan         developer  developer  project
 ChangeService.AdoptDrift                       plan         developer  developer  project
 ChangeService.ApplyChange                      apply        developer  admin      project
+ChangeService.ConfirmChange                    apply        admin      admin      install  session
 ChangeService.DiscardChange                    plan         developer  developer  project
 ChangeService.GetChange                        read         viewer     viewer     project
 ChangeService.ListChanges                      read         viewer     viewer     project
@@ -97,6 +99,8 @@ MemberService.ListMembers                      read         admin      admin    
 ProcessService.EndProcess                      destructive  admin      admin      install  session
 ProcessService.WatchProcesses                  read         admin      admin      install  session
 ResourceService.ListResources                  read         viewer     viewer     project
+ServerService.CreateJoinTicket                 apply        admin      admin      install  session
+ServerService.GetJoinTicket                    read         admin      admin      install
 ServerService.GetServer                        read         viewer     viewer     named
 ServerService.GetServerDiskUse                 read         admin      admin      install
 ServerService.ListServers                      read         viewer     viewer     named

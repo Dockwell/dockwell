@@ -25,6 +25,7 @@ import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState 
 import { formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { StartChoices } from "../overview/StartChoices";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -271,6 +272,13 @@ export function AppsPage({
   }, [groups, query, collapsed, filtering, domainNames]);
 
   const open = (id: string) => void navigate({ to: "/apps/$serviceId", params: { serviceId: id } });
+  // The filter's words, or what the list is narrowed to: each clears what kept everything out.
+  const clearFilters = (what: "q" | "rest") => {
+    if (what === "q") {
+      setTyped("");
+      onSearch?.({ ...search, q: undefined });
+    } else onSearch?.({ ...search, environment: undefined, server: undefined });
+  };
 
   const pending = services.isPending || places.isPending || sites.isPending || (!ordered && (all?.length ?? 0) > 0);
   const count = all?.length ?? 0;
@@ -328,35 +336,20 @@ export function AppsPage({
       </ReadFailed>
     );
   } else if ((all?.length ?? 0) === 0) {
+    // The ways in are the action: each opens its own create flow, as the start page has them.
     body = (
       <EmptyState
         icon="service"
         title={<Trans>No apps yet</Trans>}
-        action={
-          <RouterButtonLink to="/apps/new" variant="primary" icon="plus" size="lg">
-            <Trans>New app</Trans>
-          </RouterButtonLink>
-        }
+        action={<StartChoices ways={["catalog", "image", "compose"]} />}
       >
         <p>
-          <Trans>Run an image or a Compose file on your server. You review a plan before anything starts.</Trans>
+          <Trans>You review a plan before anything starts.</Trans>
         </p>
       </EmptyState>
     );
   } else if (rows.length === 0) {
-    body = (
-      <EmptyState icon="search" title={<Trans>Nothing matches</Trans>}>
-        <p>
-          {filtering ? (
-            <Trans>
-              No app here has <code>{query}</code> in its name or image. Try part of a name, or clear the filter.
-            </Trans>
-          ) : (
-            <Trans>There are no apps here yet. Choose another environment, or make one with New app.</Trans>
-          )}
-        </p>
-      </EmptyState>
-    );
+    body = <NothingHere query={filtering ? query.trim() : ""} search={search} onClear={clearFilters} />;
   } else if (phone) {
     body = <PhoneList rows={rows} collapsed={collapsed} onToggle={toggle} health={health} />;
   } else {
@@ -495,6 +488,65 @@ export function AppsPage({
         />
       ) : null}
     </Page>
+  );
+}
+
+/**
+ * The list is narrowed to nothing: what kept everything out, and a button that
+ * clears it. The filter's words first, then an environment or a server.
+ */
+function NothingHere({
+  query,
+  search,
+  onClear,
+}: {
+  query: string;
+  search: AppsSearch;
+  onClear: (what: "q" | "rest") => void;
+}) {
+  const { t } = useLingui();
+  const places = usePlaces();
+  const { servers } = useFleetView();
+  if (query !== "") {
+    return (
+      <EmptyState
+        icon="search"
+        title={<Trans>Nothing matches</Trans>}
+        action={
+          <Button size="lg" onClick={() => onClear("q")}>
+            <Trans>Clear the filter</Trans>
+          </Button>
+        }
+      >
+        <p>
+          <Trans>
+            No app here has <code>{query}</code> in its name, image or domain.
+          </Trans>
+        </p>
+      </EmptyState>
+    );
+  }
+  const environment = search.environment && places.showsEnvironment ? places.label(search.environment) : "";
+  const server = search.server ? (servers?.find((s) => s.id === search.server)?.name ?? "") : "";
+  let title = t`No apps here`;
+  let clear = t`Clear the filters`;
+  if (environment && !server) {
+    title = t`No apps in ${environment}`;
+    clear = t`Show all environments`;
+  } else if (server && !environment) {
+    title = t`No apps on ${server}`;
+    clear = t`Show all servers`;
+  }
+  return (
+    <EmptyState
+      icon="search"
+      title={title}
+      action={
+        <Button size="lg" onClick={() => onClear("rest")}>
+          {clear}
+        </Button>
+      }
+    />
   );
 }
 

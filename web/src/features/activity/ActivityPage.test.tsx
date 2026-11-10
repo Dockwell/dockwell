@@ -1018,7 +1018,9 @@ describe("Activity", () => {
       "/activity?resource=prj_shop",
     );
     expect(await screen.findByText("shop", { selector: ".dw-tag-value" })).toBeVisible();
-    expect(kinds).toEqual(["project"]);
+    // Its own read is the project's alone; the environments are the shell's, which reads where
+    // each is to know what its reader may do there (ADR 0059).
+    expect(kinds.filter((kind) => kind !== "environment")).toEqual(["project"]);
   });
 
   it("opens a change's own page, /changes/<id>, over Activity, to review and apply it", async () => {

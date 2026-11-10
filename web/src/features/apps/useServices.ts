@@ -187,6 +187,8 @@ export interface Place {
   project: string;
   /** In the hidden default project: the one named default, or the only one there is. */
   isDefault: boolean;
+  /** Protected, where a developer's change waits for an admin or the owner (ADR 0049). */
+  protected: boolean;
 }
 
 /** Where apps can live, and what to call each once there is a choice. */
@@ -242,6 +244,7 @@ export function usePlaces(): Places {
         label,
         project: projectName,
         isDefault: !several || projectName === DEFAULT_PROJECT,
+        protected: env.protected,
       };
     });
     const byId = new Map(list.map((e) => [e.id, e]));

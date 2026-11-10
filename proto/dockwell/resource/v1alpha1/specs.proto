@@ -310,6 +310,17 @@ message FirewallRule {
   string comment = 5;
 }
 
+// FirewallPolicy is what a server's firewall does with inbound traffic no rule
+// lets in, kind "firewall.policy", named "default", one for each server.
+// Without one, or with deny_everything_else off, what no rule drops comes in,
+// as it did before Dockwell (ADR 0052).
+message FirewallPolicy {
+  // Drop inbound traffic no rule lets in. What keeps the server reachable is
+  // still let in: connections already open, SSH from where people come in now,
+  // and on the control server its own ports.
+  bool deny_everything_else = 1;
+}
+
 // FirewallAction is what a rule does with matching traffic.
 enum FirewallAction {
   // Allow, the default.
@@ -751,6 +762,9 @@ message Spec {
     Container container = 4;
     // A firewall rule on a server, kind "firewall.rule".
     FirewallRule firewall_rule = 5;
+    // What a server's firewall does with what no rule lets in, kind
+    // "firewall.policy". Numbered apart, as open work adds to this message.
+    FirewallPolicy firewall_policy = 40;
     // A volume in an environment, kind "volume".
     Volume volume = 6;
     // A network in an environment, kind "network".

@@ -413,12 +413,6 @@
   min-width: 0;
 }
 
-.database-connection-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
 .database-line {
   margin: 0;
   font-size: 13px;
@@ -431,18 +425,9 @@
   color: var(--ink);
 }
 
-.database-line a {
-  color: var(--link);
-}
-
 /* What a database or Docker said, which may hold a path or a command no space breaks. */
 .database-said {
   overflow-wrap: anywhere;
-}
-
-.database-rule {
-  height: 1px;
-  background: var(--line);
 }
 
 .database-section {

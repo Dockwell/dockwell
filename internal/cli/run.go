@@ -9,17 +9,20 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/internal/agent"
+	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/agent/logs"
+	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
 	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
@@ -33,6 +36,7 @@ import (
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -97,7 +101,6 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
 	})
 	lookups(&cfg, stdio, g)
-	cfg.Tools = hostTools(stdio)
 	err := agent.Run(ctx, cfg)
 	if cfg.Tasks != nil && ctx.Err() != nil {
 		// Stopping stops the tasks' runs too; what each came to is kept before the
@@ -105,6 +108,37 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 		cfg.Tasks.Drain(task.DrainWait)
 	}
 	return err
+}
+
+// agentGC is the collector's target for an agent on its own, as GOGC says it: half
+// of Go's own. An idle agent keeps about 4 MB live, nearly all of it what the
+// protocol's messages register once, and Go lets the heap grow to twice what's
+// live before it collects, so at Go's own target half of an idle agent's heap was
+// garbage waiting. At 50 it idles about 2 MB lower, on every server, for a
+// collection every 15 s or so at idle in place of every 30 s, which takes about
+// 0.01% of a CPU. Transfers already run at this target (ADR 0045), and
+// make logs-load holds the agent's CPU under a flood to its limits with it
+// (docs/adr/0060-what-an-idle-agent-keeps-in-memory.md).
+const agentGC = 50
+
+// runAgentAlone runs the agent of a server that joined a control plane, which is
+// all its process runs, with the collector's target an agent on its own gets. A
+// GOGC in the environment stays as the operator set it. The control server's own
+// agent shares its process with the control plane, whose heap is another matter,
+// and runs with runAgent as it is.
+func runAgentAlone(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info) error {
+	defer collectAsAnAgent(stdio)()
+	return runAgent(ctx, stdio, g, logger, dir, id, build, nil, nil)
+}
+
+// collectAsAnAgent sets the collector's target to agentGC, unless the environment
+// sets GOGC, and returns what puts it back.
+func collectAsAnAgent(stdio IO) (restore func()) {
+	if stdio.Getenv("GOGC") != "" {
+		return func() {}
+	}
+	was := debug.SetGCPercent(agentGC)
+	return func() { debug.SetGCPercent(was) }
 }
 
 // hostTools runs the server's own tools, such as ufw and nft. A test runs none
@@ -248,13 +282,57 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	if panel != nil {
 		reserved = panel.Domain
 	}
+	tools := hostTools(stdio)
+	exposed := agent.ExposedPorts(client)
+	if err != nil {
+		exposed = agent.ExposedPorts(nil)
+	}
+	firewalls := firewallAccess(ctx, logger, dir, tools, dockerOrNot(client, socket, err), exposed, ownPorts, panel == nil && len(ownPorts) > 0)
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
-			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}, tasks),
+			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}, tasks,
+			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls}),
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
-		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Tasks: tasks,
+		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Tasks: tasks, Tools: tools, Access: firewalls,
 	}
+}
+
+// firewallAccess keeps who reaches the server (ADR 0052). Once the server can
+// hold Dockwell's table, as it can at start on most, it puts back at once a
+// change that waited for its confirmation when the agent stopped, and loads
+// what was confirmed, before the agent connects anywhere. Until it can, the
+// agent offers no firewall kinds.
+// dockerOrNot reads Docker's networks for the firewall, or nothing where the
+// agent can't reach any Docker, as a server without Docker has none.
+func dockerOrNot(client *docker.Client, socket string, unusable error) func(context.Context) (access.DockerNetworks, error) {
+	if unusable != nil {
+		return nil
+	}
+	return access.DockerReader(client, socket)
+}
+
+func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, tools *hosttool.Runner, networks func(context.Context) (access.DockerNetworks, error),
+	exposed func(context.Context) ([]access.Exposed, error), ownPorts []int, panelOverSSH bool,
+) *access.Manager {
+	own := make([]uint16, 0, len(ownPorts))
+	for _, p := range ownPorts {
+		if p > 0 && p < 65536 {
+			own = append(own, uint16(p))
+		}
+	}
+	pins := &access.PinReader{Proc: os.DirFS("/proc"), Tools: tools, Own: own}
+	m := &access.Manager{
+		Dir: filepath.Join(dir.Agent(), "access"), Table: &nftables.Firewall{Run: tools}, Logger: logger,
+		Pins: pins.Read, Docker: networks, Exposed: exposed,
+		PanelOverSSH: panelOverSSH,
+		Tunnels:      access.WireGuardTunnels(os.DirFS("/sys/class/net"), tools),
+	}
+	if err := m.Ready(ctx); err != nil {
+		logger.InfoContext(ctx, "the agent offers no firewall kinds until this server can hold Dockwell's firewall", slog.String("reason", err.Error()))
+	}
+	go m.KeepCurrent(ctx)
+	return m
 }
 
 func exists(path string) bool {

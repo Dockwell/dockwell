@@ -1,0 +1,74 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-advanced {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-top: 1px solid var(--line);
+}
+.dw-advanced-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-2);
+  row-gap: 2px;
+  min-width: 0;
+  min-height: var(--control-md);
+  padding: var(--space-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dw-advanced-toggle:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.dw-advanced-chevron {
+  flex: none;
+  color: var(--ink-muted);
+}
+.dw-advanced-label {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 550;
+}
+.dw-advanced-badge {
+  display: inline-flex;
+}
+/* One line, and it gives way first: it is a reminder, the label is the control. */
+.dw-advanced-summary {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.dw-advanced-toggle:hover .dw-advanced-label {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.dw-advanced-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-2) 0 var(--space-3);
+}
+
+/* On a phone the summary takes its own line, under the label, rather than a sliver beside it. */
+@media (max-width: 639.98px) {
+  .dw-advanced-summary {
+    flex-basis: 100%;
+    padding-left: 22px;
+  }
+}
+@media (pointer: coarse) {
+  .dw-advanced-toggle {
+    min-height: 44px;
+  }
+}

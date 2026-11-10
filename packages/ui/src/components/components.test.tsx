@@ -334,3 +334,39 @@ describe("Switch", () => {
     expect(changes).toEqual([]);
   });
 });
+
+describe("a Button that's off with a reason", () => {
+  it("keeps its place in the tab order, says why as its description, and does nothing when pressed", async () => {
+    const onClick = vi.fn();
+    const submit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault());
+    render(
+      <form onSubmit={submit}>
+        <Button type="submit" off="Only an admin or the owner can do this." disabled onClick={onClick}>
+          Deploy
+        </Button>
+      </form>,
+    );
+    const button = screen.getByRole("button", { name: "Deploy" });
+    expect(button).not.toBeDisabled();
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    const why = document.getElementById(button.getAttribute("aria-describedby") ?? "");
+    expect(why).toHaveTextContent("Only an admin or the owner can do this.");
+    expect(button).toHaveAccessibleDescription("Only an admin or the owner can do this.");
+    await userEvent.tab();
+    expect(button).toHaveFocus();
+    await userEvent.click(button);
+    await userEvent.keyboard("{Enter}");
+    expect(onClick).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("is an ordinary button with no reason", async () => {
+    const onClick = vi.fn();
+    render(<Button onClick={onClick}>Deploy</Button>);
+    const button = screen.getByRole("button", { name: "Deploy" });
+    expect(button).not.toHaveAttribute("aria-disabled");
+    expect(button).not.toHaveAttribute("aria-describedby");
+    await userEvent.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+});

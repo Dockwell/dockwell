@@ -433,8 +433,21 @@
 }
 
 .alerts-phone-delivery + .alerts-phone-delivery,
-.alerts-phone-item + .alerts-phone-item {
+.alerts-phone-item + .alerts-phone-item,
+.alerts-phone-row + .alerts-phone-row {
   border-top: 1px solid var(--line);
+}
+
+/* A rule on a phone opens it: the whole row is the button. */
+.alerts-phone-button {
+  width: 100%;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
 }
 
 /* An alert or a rule on a phone: what it says, then its state beside what names it. */
@@ -462,4 +475,103 @@
   font-size: 14px;
   line-height: 20px;
   overflow-wrap: anywhere;
+}
+
+/* A card's title, and a resolved alert's, lead to the alert's own page, and read as the title they are. */
+.alerts-card-title a,
+a.alerts-resolved-title {
+  color: inherit;
+  text-decoration: none;
+}
+
+.alerts-card-title a:hover,
+a.alerts-resolved-title:hover {
+  text-decoration: underline;
+}
+
+/* One alert's page: what the rule saw and what changed around it, with the alert's own story beside them. */
+.alerts-back {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  color: var(--ink-muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.alerts-back:hover {
+  color: var(--ink);
+}
+
+.alert-main {
+  gap: var(--space-4);
+}
+
+.alert-detail {
+  max-width: 72ch;
+  margin: 0 0 var(--space-4);
+  font-size: 14px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.alert-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.alert-facts > div {
+  display: contents;
+}
+
+.alert-facts dt {
+  color: var(--ink-muted);
+}
+
+.alert-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.alert-facts code {
+  font-size: 12px;
+}
+
+.alert-sent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.alert-sent li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The app and the server under the title are links as a breadcrumb's are: the line's own colour, darker under the pointer. */
+.alert-page .page-lead a {
+  border-radius: var(--radius-xs);
+  color: inherit;
+  text-decoration: none;
+}
+
+.alert-page .page-lead a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.alert-page .page-lead a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }

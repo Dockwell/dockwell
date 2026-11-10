@@ -6,14 +6,19 @@ import { Code } from "@connectrpc/connect";
 import type { GetServerFirewallResponseSchema } from "@dockwell/api";
 import {
   Connection,
+  FirewallAction,
   FirewallToolKind,
   FirewallVerdict,
   type GetServerFirewallResponse,
   ListenerReach,
   ListenerReachReason,
+  type ProposeChangeRequest,
+  Protocol,
+  type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
@@ -47,12 +52,17 @@ const published = [
 
 type Firewall = MessageInitShape<typeof GetServerFirewallResponseSchema>["firewall"];
 
-async function renderFirewall(firewall: Firewall | Error, server = hz1, api: Api = {}) {
+async function renderFirewall(
+  firewall: Firewall | Error,
+  server = hz1,
+  api: Api = {},
+  dockwell: Omit<MessageInitShape<typeof GetServerFirewallResponseSchema>, "firewall"> = {},
+) {
   const watch = feed<WatchServersResponse>();
   watch.push(changed(server), snapshotComplete);
   const getServerFirewall = vi.fn(() => {
     if (firewall instanceof Error) throw firewall;
-    return { firewall: { time: timestampFromDate(new Date()), ...firewall } } as GetServerFirewallResponse;
+    return { firewall: { time: timestampFromDate(new Date()), ...firewall }, ...dockwell } as GetServerFirewallResponse;
   });
   const rendered = renderAt("/servers/srv_1/firewall", {
     ...api,
@@ -393,5 +403,181 @@ describe("a server's Firewall tab", () => {
     });
     expect(await screen.findByRole("region", { name: "Docker 发布的端口" })).toBeVisible();
     expect(screen.getAllByRole("columnheader", { name: "地址" }).length).toBeGreaterThan(0);
+  });
+
+  it("lists Dockwell's own rules, and plans adding, removing and the policy as changes", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_req: ProposeChangeRequest) => ({}));
+    await renderFirewall(
+      {
+        tools: [ufw],
+        published,
+        listening: [{ address: "0.0.0.0", port: 443, protocol: "tcp", reach: ListenerReach.OPEN }],
+        dockwell: {
+          rules: [
+            {
+              name: "allow-443",
+              rule: { action: FirewallAction.ALLOW, protocol: Protocol.TCP, port: 443, sources: [], comment: "web" },
+            },
+            {
+              name: "allow-8080",
+              rule: { action: FirewallAction.ALLOW, protocol: Protocol.TCP, port: 8080, sources: [] },
+            },
+            {
+              name: "deny-5432",
+              rule: { action: FirewallAction.DENY, protocol: Protocol.TCP, port: 5432, sources: ["198.51.100.0/24"] },
+            },
+          ],
+        },
+      },
+      hz1,
+      { changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream } },
+    );
+    const panel = await screen.findByRole("region", { name: "Dockwell's rules" });
+    // Used by: what Docker publishes the port for, what listens there, or nothing.
+    expect(rowsOf(panel)).toEqual([
+      "Allow443/tcpAnywhereThe server itselfwebRemove",
+      "Allow8080/tcpAnywhereshop-web-1Remove",
+      "Deny5432/tcp198.51.100.0/24Nothing listensRemove",
+    ]);
+    expect(within(panel).getByRole("switch", { name: "Deny everything else" })).not.toBeChecked();
+    // Until the boot unit ships, a reboot leaves them off for a few seconds, and the tab says so (ADR 0052).
+    expect(panel).toHaveTextContent("As hz-1 starts, these are off until its agent is up, a few seconds in");
+
+    await user.click(within(panel).getByRole("button", { name: "Add a rule" }));
+    const add = await screen.findByRole("dialog", { name: "Add a rule to hz-1" });
+    await user.type(within(add).getByLabelText("Port"), "443");
+    await user.type(within(add).getByLabelText("From"), "203.0.113.0/24, 2001:db8::/32");
+    await user.click(within(add).getByRole("button", { name: "Plan it" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalledTimes(1));
+    const added = proposed.mock.calls[0]?.[0];
+    expect(added?.summary).toBe("Allow 443/tcp on hz-1");
+    // allow-443 is taken, so the new rule takes the next name.
+    expect(added?.edits[0]?.resource).toMatchObject({ kind: "firewall.rule", scope: "srv_1", name: "allow-443-2" });
+    expect(added?.edits[0]?.spec?.kind.value).toMatchObject({
+      port: 443,
+      sources: ["203.0.113.0/24", "2001:db8::/32"],
+    });
+
+    await user.click(within(panel).getByRole("button", { name: "Remove the rule deny-5432" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalledTimes(2));
+    expect(proposed.mock.calls[1]?.[0]).toMatchObject({
+      edits: [{ resource: { kind: "firewall.rule", scope: "srv_1", name: "deny-5432" }, delete: true }],
+    });
+
+    await user.click(within(panel).getByRole("switch", { name: "Deny everything else" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalledTimes(3));
+    expect(proposed.mock.calls[2]?.[0]).toMatchObject({
+      summary: "Deny everything else on hz-1",
+      edits: [{ resource: { kind: "firewall.policy", scope: "srv_1", name: "default" } }],
+    });
+  });
+
+  it("refuses a port that isn't one, before planning anything", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_req: ProposeChangeRequest) => ({}));
+    await renderFirewall({ tools: [ufw] }, hz1, {
+      changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+    });
+    await user.click(await screen.findByRole("button", { name: "Add a rule" }));
+    const add = await screen.findByRole("dialog", { name: "Add a rule to hz-1" });
+    await user.type(within(add).getByLabelText("Port"), "70000");
+    await user.click(within(add).getByRole("button", { name: "Plan it" }));
+    expect(await within(add).findByText("Name a port from 1 to 65535, such as 443.")).toBeVisible();
+    expect(proposed).not.toHaveBeenCalled();
+  });
+
+  it("lists what the server holds, with a change that waits for Keep beside it and nothing else to change meanwhile", async () => {
+    await renderFirewall({
+      tools: [ufw],
+      dockwell: {
+        rules: [
+          { name: "allow-443", rule: { action: FirewallAction.ALLOW, protocol: Protocol.TCP, port: 443 } },
+          { name: "deny-5432", rule: { action: FirewallAction.DENY, protocol: Protocol.TCP, port: 5432 } },
+          { name: "allow-8443", rule: { action: FirewallAction.ALLOW, protocol: Protocol.TCP, port: 8443 } },
+        ],
+        waitingChange: "chg_1",
+        waitingRules: [
+          { name: "allow-443", rule: { action: FirewallAction.ALLOW, protocol: Protocol.TCP, port: 443 } },
+          { name: "allow-80", rule: { action: FirewallAction.ALLOW, protocol: Protocol.TCP, port: 80 } },
+          {
+            name: "deny-5432",
+            rule: { action: FirewallAction.DENY, protocol: Protocol.TCP, port: 5432, sources: ["198.51.100.0/24"] },
+          },
+        ],
+        waitingPolicy: { denyEverythingElse: true },
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "Dockwell's rules" });
+    expect(rowsOf(panel)).toEqual([
+      "Allow443/tcpAnywhereNothing listens",
+      "Allow80/tcpAnywhereNothing listensWaiting for Keep",
+      "Allow8443/tcpAnywhereNothing listensRemoval waiting for Keep",
+      "Deny5432/tcp198.51.100.0/24Nothing listensChange waiting for Keep",
+    ]);
+    expect(within(panel).queryByRole("button", { name: /^Remove the rule/ })).toBeNull();
+    expect(within(panel).getByRole("button", { name: "Add a rule" })).toBeDisabled();
+    const policy = within(panel).getByRole("switch", { name: "Deny everything else, waiting for Keep" });
+    expect(policy).toBeChecked();
+    expect(policy).toBeDisabled();
+    expect(panel).toHaveTextContent("A change to this firewall waits for you to keep it");
+  });
+
+  it("names Dockwell as what filters, with deny everything else on, and says what gets in as the server starts", async () => {
+    await renderFirewall({
+      published,
+      dockwell: { policy: { denyEverythingElse: true } },
+      listening: [
+        { address: "0.0.0.0", port: 8080, protocol: "tcp", reach: ListenerReach.CLOSED, decidedBy: "Dockwell" },
+      ],
+    });
+    const panel = await screen.findByRole("region", { name: "Dockwell's rules" });
+    expect(panel).toHaveTextContent(
+      "Dockwell has no rules for hz-1, and denies everything else: only connections already open, SSH from the addresses it keeps, and on the control server its own ports, get in.",
+    );
+    expect(panel).toHaveTextContent("for those seconds, everything they'd drop gets in.");
+    expect(await screen.findByRole("region", { name: "Inbound traffic" })).toHaveTextContent(
+      "Only Dockwell's rules filter what comes in to hz-1",
+    );
+    expect(screen.queryByText(/Nothing filters what comes in/)).toBeNull();
+    expect(await screen.findByRole("region", { name: "Ports Docker publishes" })).toHaveTextContent(
+      "with deny everything else on, only a port a rule of Dockwell's allows reaches its container.",
+    );
+  });
+
+  it("says why a server that can't hold Dockwell's firewall offers no rule or policy", async () => {
+    await renderFirewall({
+      tools: [ufw],
+      dockwell: {
+        unusable: "this server has no nft, so Dockwell can't write its firewall. Install the nftables package",
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "Dockwell's rules" });
+    expect(panel).toHaveTextContent(
+      "hz-1 can't hold Dockwell's firewall, so no rule or policy can be planned for it: this server has no nft",
+    );
+    expect(within(panel).queryByRole("button", { name: "Add a rule" })).toBeNull();
+    expect(within(panel).queryByRole("switch")).toBeNull();
+  });
+
+  it("keeps Dockwell's rules on a phone's screen, a rule to a row", async () => {
+    onPhone();
+    await renderFirewall({
+      dockwell: {
+        rules: [
+          {
+            name: "allow-443",
+            rule: {
+              action: FirewallAction.ALLOW,
+              protocol: Protocol.TCP,
+              port: 443,
+              sources: ["203.0.113.0/24", "198.51.100.0/24", "2001:db8::/32"],
+            },
+          },
+        ],
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "Dockwell's rules" });
+    expect(rowsOf(panel)).toEqual(["Allow 443/tcp203.0.113.0/24, 198.51.100.0/24, 2001:db8::/32Remove"]);
   });
 });

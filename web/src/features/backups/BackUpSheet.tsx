@@ -14,6 +14,7 @@ import { formatBytes } from "../../lib/format";
 import { destinationOptions } from "./DestinationsPanel";
 import { useVolumeOptions, type VolumeChoice } from "./useBackups";
 import "./Backups.css";
+import { useMay } from "../auth/may";
 
 /**
  * Backs up one volume now. It asks the server what that would take first, and says
@@ -51,6 +52,10 @@ export function BackUpSheet({
   const running = said?.running ?? [];
   const list = new Intl.ListFormat(undefined, { style: "long", type: "conjunction" }).format(running);
   const name = volumes.find((v) => v.id === volumeId)?.name ?? "";
+  // Backing up is a developer's, and an admin's in a protected environment (ADR 0049): off, with why, otherwise.
+  const mayBackUp = useMay()(BackupService.method.createBackup, {
+    environment: volumes.find((v) => v.id === volumeId)?.environment ?? "",
+  });
   const options = useVolumeOptions(volumes);
   const risky = said?.method === BackupMethod.COPY_RUNNING;
 
@@ -86,6 +91,7 @@ export function BackUpSheet({
             loading={busy}
             disabled={!said || volumeId === ""}
             onClick={() => void submit()}
+            {...mayBackUp.off}
           >
             <Trans>Back up</Trans>
           </Button>

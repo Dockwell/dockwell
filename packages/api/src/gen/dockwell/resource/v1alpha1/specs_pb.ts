@@ -19,7 +19,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/resource/v1alpha1/specs.proto.
  */
 export const file_dockwell_resource_v1alpha1_specs: GenFile = /*@__PURE__*/
-  fileDesc("CiZkb2Nrd2VsbC9yZXNvdXJjZS92MWFscGhhMS9zcGVjcy5wcm90bxIaZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEi/gcKCUNvbnRhaW5lchINCgVpbWFnZRgBIAEoCRIPCgdjb21tYW5kGAIgAygJEkEKA2VudhgDIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5FbnZFbnRyeUIEyPMYARI2CgVwb3J0cxgEIAMoCzInLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlBvcnRNYXBwaW5nEjoKB3Jlc3RhcnQYBSABKA4yKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5SZXN0YXJ0UG9saWN5EkEKBmxhYmVscxgGIAMoCzIxLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5MYWJlbHNFbnRyeRISCgplbnRyeXBvaW50GAcgAygJEjEKBm1vdW50cxgIIAMoCzIhLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLk1vdW50EhAKCG5ldHdvcmtzGAkgAygJEgwKBHVzZXIYCiABKAkSEwoLd29ya2luZ19kaXIYCyABKAkSPAoLaGVhbHRoY2hlY2sYDCABKAsyJy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5IZWFsdGhjaGVjaxIVCg1ub19lbnRyeXBvaW50GA0gASgIEhkKEXN0b3BfZ3JhY2VfcGVyaW9kGA4gASgJEjQKB3JvbGxvdXQYDyABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Sb2xsb3V0EhkKEWV4dGVybmFsX25ldHdvcmtzGBQgAygJEhQKDGhvc3RfbmV0d29yaxgVIAEoCBIPCgdhbGlhc2VzGBYgAygJEjgKCXJlc291cmNlcxgXIAEoCzIlLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJlc291cmNlcxIPCgdjYXBfYWRkGBggAygJEhAKCGNhcF9kcm9wGBkgAygJEhEKCWdyb3VwX2FkZBgaIAMoCRISCgpwcml2aWxlZ2VkGBsgASgIEhcKD3Jlc3RhcnRfcmV0cmllcxgcIAEoDRISCgpyZWZlcmVuY2VzGB0gAygJEhAKCHNobV9zaXplGB4gASgJEjAKBXRtcGZzGB8gAygLMiEuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuVG1wZnMSDgoGZXhwb3NlGCAgAygJEhMKC2V4dHJhX2hvc3RzGFAgAygJGioKCEVudkVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaLQoLTGFiZWxzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASIlCgVUbXBmcxIOCgZ0YXJnZXQYASABKAkSDAoEc2l6ZRgCIAEoCSJFCglSZXNvdXJjZXMSDAoEY3B1cxgBIAEoCRIOCgZtZW1vcnkYAiABKAkSGgoSbWVtb3J5X3Jlc2VydmF0aW9uGAMgASgJIlEKB1JvbGxvdXQSNwoFb3JkZXIYASABKA4yKC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Sb2xsb3V0T3JkZXISDQoFZHJhaW4YAiABKAkitwEKBU1vdW50EhAKBnZvbHVtZRgBIAEoCUgAEhMKCWhvc3RfcGF0aBgCIAEoCUgAEg4KBnRhcmdldBgDIAEoCRIRCglyZWFkX29ubHkYBCABKAgSNAoHcmVsYWJlbBgFIAEoDjIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJlbGFiZWwSEAoIZXh0ZXJuYWwYBiABKAgSEgoKbWFrZV9vd25lchg8IAEoCUIICgZzb3VyY2UizQEKC0hlYWx0aGNoZWNrEgwKBHRlc3QYASADKAkSEAoIaW50ZXJ2YWwYAiABKAkSDwoHdGltZW91dBgDIAEoCRIUCgxzdGFydF9wZXJpb2QYBCABKAkSDwoHcmV0cmllcxgFIAEoDRIzCgRodHRwGAYgASgLMiUuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuSHR0cENoZWNrEjEKA3RjcBgHIAEoCzIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlRjcENoZWNrIjUKCUh0dHBDaGVjaxIMCgRwb3J0GAEgASgNEgwKBHBhdGgYAiABKAkSDAoEaG9zdBgDIAEoCSIYCghUY3BDaGVjaxIMCgRwb3J0GAEgASgNIoEBCgtQb3J0TWFwcGluZxIRCglob3N0X3BvcnQYASABKA0SFgoOY29udGFpbmVyX3BvcnQYAiABKA0SNgoIcHJvdG9jb2wYAyABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm90b2NvbBIPCgdob3N0X2lwGAQgASgJIrIBCgxGaXJld2FsbFJ1bGUSOgoGYWN0aW9uGAEgASgOMiouZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxBY3Rpb24SNgoIcHJvdG9jb2wYAiABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm90b2NvbBIMCgRwb3J0GAMgASgNEg8KB3NvdXJjZXMYBCADKAkSDwoHY29tbWVudBgFIAEoCSKOAQoHUHJvamVjdBIUCgxkaXNwbGF5X25hbWUYASABKAkSNwoHY2F0YWxvZxgCIAEoCzImLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dQaW4SNAoHd2Vic2l0ZRgDIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUiwgEKB1dlYnNpdGUSOQoFcHJveHkYASABKAsyKC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlUHJveHlIABI7CgZmb2xkZXIYAiABKAsyKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlRm9sZGVySAASNQoDcGhwGAMgASgLMiYuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuV2Vic2l0ZVBocEgAQggKBnNlcnZlcyJ1CgpXZWJzaXRlUGhwEgwKBHJvb3QYASABKAkSDwoHdmVyc2lvbhgCIAEoCRINCgVpbmRleBgDIAMoCRISCgpmaWxlc19vbmx5GAQgASgIEhcKD3VwbG9hZF9saW1pdF9tYhgFIAEoDRIMCgR1c2VyGAYgASgJIlQKDVdlYnNpdGVGb2xkZXISDAoEcm9vdBgBIAEoCRINCgVpbmRleBgCIAMoCRIXCg9zaW5nbGVfcGFnZV9hcHAYAyABKAgSDQoFb3duZXIYBCABKAkiQwoMV2Vic2l0ZVByb3h5EgsKA3VybBgBIAEoCRIMCgRwb3J0GAIgASgNEhgKEHNlbmRfdGFyZ2V0X2hvc3QYAyABKAgi4gEKCkNhdGFsb2dQaW4SDQoFZW50cnkYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIPCgdyZWxlYXNlGAMgASgNEhIKCnJlcG9zaXRvcnkYBCABKAkSDgoGY29tbWl0GAUgASgJEkIKBnZhbHVlcxgGIAMoCzIyLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dQaW4uVmFsdWVzRW50cnkSDAoEZmlsZRgHIAEoDBotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIl8KC0Vudmlyb25tZW50EhQKDGRpc3BsYXlfbmFtZRgBIAEoCRI6Cgpwcm90ZWN0aW9uGAIgASgOMiYuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUHJvdGVjdGlvbiLpAwoHU2VydmljZRI0CgNhcHAYASABKAsyJS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db250YWluZXJIABJFCgl2YXJpYWJsZXMYAiADKAsyMi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5TZXJ2aWNlLlZhcmlhYmxlc0VudHJ5EkEKB3NlY3JldHMYAyADKAsyMC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5TZXJ2aWNlLlNlY3JldHNFbnRyeRJLCglyZXZpc2lvbnMYBCADKAsyMi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5TZXJ2aWNlLlJldmlzaW9uc0VudHJ5QgTiQQEDEjUKB3J1bnRpbWUYlgEgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUnVudGltZRowCg5WYXJpYWJsZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi4KDFNlY3JldHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGjAKDlJldmlzaW9uc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoAzoCOAFCBgoEcnVucyLrAQoHUnVudGltZRIQCghsYW5ndWFnZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEg4KBmZvbGRlchgDIAEoCRIPCgdpbnN0YWxsGAQgASgJEg0KBXN0YXJ0GAUgASgJEgwKBHBvcnQYBiABKA0SDAoEdXNlchgHIAEoCRJDCgV3cm90ZRgIIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJ1bnRpbWUuV3JvdGVFbnRyeUIE4kEBAxosCgpXcm90ZUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiGQoIVmFyaWFibGUSDQoFdmFsdWUYASABKAkiHQoGU2VjcmV0EhMKBXZhbHVlGAEgASgJQgTI8xgBIv8BCgZWb2x1bWUSDgoGZHJpdmVyGAEgASgJEkYKB29wdGlvbnMYAiADKAsyLy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Wb2x1bWUuT3B0aW9uc0VudHJ5QgTI8xgBEj4KBmxhYmVscxgDIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlZvbHVtZS5MYWJlbHNFbnRyeRouCgxPcHRpb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIswBCgxEYXRhYmFzZVVzZXISDwoHc2VydmljZRgBIAEoCRIVCg1kYXRhYmFzZV9uYW1lGAIgASgJEhAKCHBhc3N3b3JkGAMgASgJElAKCXJldmlzaW9ucxgEIAMoCzI3LmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkRhdGFiYXNlVXNlci5SZXZpc2lvbnNFbnRyeUIE4kEBAxowCg5SZXZpc2lvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAM6AjgBIo0CCgxCYWNrdXBQb2xpY3kSDgoGdm9sdW1lGAEgASgJEj0KBWV2ZXJ5GAIgASgOMi4uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQmFja3VwUG9saWN5LkV2ZXJ5EgoKAmF0GAMgASgJEg8KB3dlZWtkYXkYBCABKAUSEQoJdGltZV96b25lGAUgASgJEgwKBGtlZXAYBiABKA0SDAoEc3RvcBgHIAEoCBITCgtkZXN0aW5hdGlvbhgIIAEoCSJNCgVFdmVyeRIVChFFVkVSWV9VTlNQRUNJRklFRBAAEg4KCkVWRVJZX0hPVVIQARINCglFVkVSWV9EQVkQAhIOCgpFVkVSWV9XRUVLEAMiowEKEUJhY2t1cERlc3RpbmF0aW9uEhAKCGVuZHBvaW50GAEgASgJEg4KBnJlZ2lvbhgCIAEoCRIOCgZidWNrZXQYAyABKAkSDgoGcHJlZml4GAQgASgJEhgKCmFjY2Vzc19rZXkYBSABKAlCBMjzGAESGAoKc2VjcmV0X2tleRgGIAEoCUIEyPMYARIYCgpwYXNzcGhyYXNlGAcgASgJQgTI8xgBIo4CCgdOZXR3b3JrEg4KBmRyaXZlchgBIAEoCRJBCgdvcHRpb25zGAIgAygLMjAuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTmV0d29yay5PcHRpb25zRW50cnkSEAoIaW50ZXJuYWwYAyABKAgSPwoGbGFiZWxzGAQgAygLMi8uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTmV0d29yay5MYWJlbHNFbnRyeRouCgxPcHRpb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIpcBCgVSb3V0ZRIOCgZkb21haW4YASABKAkSDAoEcGF0aBgCIAEoCRIPCgdzZXJ2aWNlGAMgASgJEgwKBHBvcnQYBCABKA0SCwoDdGxzGAUgASgJEhcKD3RydXN0ZWRfcHJveGllcxgGIAMoCRIRCglob3N0X3BvcnQYByABKA0SGAoQcGxhaW5fZm9yX2FueW9uZRgIIAEoCCLVBwoEU3BlYxI2Cgdwcm9qZWN0GAEgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUHJvamVjdEgAEj4KC2Vudmlyb25tZW50GAIgASgLMicuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRW52aXJvbm1lbnRIABI2CgdzZXJ2aWNlGAMgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuU2VydmljZUgAEjoKCWNvbnRhaW5lchgEIAEoCzIlLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lckgAEkEKDWZpcmV3YWxsX3J1bGUYBSABKAsyKC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFJ1bGVIABI0CgZ2b2x1bWUYBiABKAsyIi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Wb2x1bWVIABI2CgduZXR3b3JrGAcgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTmV0d29ya0gAEjgKCHZhcmlhYmxlGAggASgLMiQuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuVmFyaWFibGVIABI0CgZzZWNyZXQYCSABKAsyIi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5TZWNyZXRIABIyCgVyb3V0ZRgKIAEoCzIhLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJvdXRlSAASQQoNYmFja3VwX3BvbGljeRgUIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkJhY2t1cFBvbGljeUgAEksKEmJhY2t1cF9kZXN0aW5hdGlvbhgVIAEoCzItLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkJhY2t1cERlc3RpbmF0aW9uSAASQQoNZGF0YWJhc2VfdXNlchgeIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkRhdGFiYXNlVXNlckgAEjsKCmFsZXJ0X3J1bGUYbiABKAsyJS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5BbGVydFJ1bGVIABJBCg1hbGVydF9jaGFubmVsGG8gASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQWxlcnRDaGFubmVsSAASMQoEdGFzaxiWASABKAsyIC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5UYXNrSABCBgoEa2luZCLAAgoEVGFzaxI2CgVzaGVsbBgBIAEoCzIlLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlRhc2tTaGVsbEgAEjIKA2FwcBgCIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlRhc2tBcHBIABI6CgdyZXF1ZXN0GAMgASgLMicuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuVGFza1JlcXVlc3RIABIQCghzY2hlZHVsZRgEIAEoCRIRCgl0aW1lX3pvbmUYBSABKAkSFwoPdGltZW91dF9zZWNvbmRzGAYgASgNEg8KB3JldHJpZXMYByABKA0SDgoGcGF1c2VkGAggASgIEhMKC3NraXBfbWlzc2VkGAkgASgIEhQKDGRpc3BsYXlfbmFtZRgKIAEoCUIGCgRydW5zIjEKCVRhc2tTaGVsbBIPCgdjb21tYW5kGAEgASgJEhMKC3dvcmtpbmdfZGlyGAIgASgJIisKB1Rhc2tBcHASDwoHc2VydmljZRgBIAEoCRIPCgdjb21tYW5kGAIgASgJIkEKC1Rhc2tSZXF1ZXN0EgsKA3VybBgBIAEoCRIOCgZtZXRob2QYAiABKAkSFQoNZXhwZWN0X3N0YXR1cxgDIAEoDSLzBAoJQWxlcnRSdWxlEkIKCWNvbmRpdGlvbhgBIAEoDjIvLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkFsZXJ0UnVsZS5Db25kaXRpb24SEQoJdGhyZXNob2xkGAIgASgNEhAKCGR1cmF0aW9uGAMgASgJEkAKCHNldmVyaXR5GAQgASgOMi4uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQWxlcnRSdWxlLlNldmVyaXR5EhAKCGNoYW5uZWxzGAUgAygJEg4KBnJlcGVhdBgGIAEoCRIQCghkaXNhYmxlZBgHIAEoCCKzAgoJQ29uZGl0aW9uEhkKFUNPTkRJVElPTl9VTlNQRUNJRklFRBAAEhoKFkNPTkRJVElPTl9TRVJWSUNFX0RPV04QARIgChxDT05ESVRJT05fU0VSVkVSX1VOUkVBQ0hBQkxFEAISFwoTQ09ORElUSU9OX0RJU0tfRlVMTBADEhkKFUNPTkRJVElPTl9NRU1PUllfSElHSBAEEiIKHkNPTkRJVElPTl9DRVJUSUZJQ0FURV9FWFBJUklORxAFEiAKHENPTkRJVElPTl9DRVJUSUZJQ0FURV9GQUlMRUQQBhIbChdDT05ESVRJT05fQkFDS1VQX0ZBSUxFRBAHEhkKFUNPTkRJVElPTl9CQUNLVVBfTEFURRAIEhsKF0NPTkRJVElPTl9DSEFOR0VfRkFJTEVEEAkiUQoIU2V2ZXJpdHkSGAoUU0VWRVJJVFlfVU5TUEVDSUZJRUQQABIUChBTRVZFUklUWV9XQVJOSU5HEAESFQoRU0VWRVJJVFlfQ1JJVElDQUwQAiL2AgoMQWxlcnRDaGFubmVsEjsKB3dlYmhvb2sYASABKAsyKC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5BbGVydFdlYmhvb2tIABI3CgVlbWFpbBgCIAEoCzImLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkFsZXJ0RW1haWxIABI1CgRudGZ5GAMgASgLMiUuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQWxlcnROdGZ5SAASNwoFc2xhY2sYBCABKAsyJi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5BbGVydFNsYWNrSAASOwoHZGlzY29yZBgFIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkFsZXJ0RGlzY29yZEgAEj0KCHRlbGVncmFtGAYgASgLMikuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQWxlcnRUZWxlZ3JhbUgAQgQKAnRvIjcKDEFsZXJ0V2ViaG9vaxIRCgN1cmwYASABKAlCBMjzGAESFAoGc2VjcmV0GAIgASgJQgTI8xgBIpECCgpBbGVydEVtYWlsEgwKBGhvc3QYASABKAkSDAoEcG9ydBgCIAEoDRJBCghzZWN1cml0eRgDIAEoDjIvLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkFsZXJ0RW1haWwuU2VjdXJpdHkSEAoIdXNlcm5hbWUYBCABKAkSFgoIcGFzc3dvcmQYBSABKAlCBMjzGAESDAoEZnJvbRgGIAEoCRIKCgJ0bxgHIAMoCSJgCghTZWN1cml0eRIYChRTRUNVUklUWV9VTlNQRUNJRklFRBAAEhUKEVNFQ1VSSVRZX1NUQVJUVExTEAESEAoMU0VDVVJJVFlfVExTEAISEQoNU0VDVVJJVFlfTk9ORRADIkUKCUFsZXJ0TnRmeRIOCgZzZXJ2ZXIYASABKAkSEwoFdG9waWMYAiABKAlCBMjzGAESEwoFdG9rZW4YAyABKAlCBMjzGAEiHwoKQWxlcnRTbGFjaxIRCgN1cmwYASABKAlCBMjzGAEiIQoMQWxlcnREaXNjb3JkEhEKA3VybBgBIAEoCUIEyPMYASI5Cg1BbGVydFRlbGVncmFtEhcKCWJvdF90b2tlbhgBIAEoCUIEyPMYARIPCgdjaGF0X2lkGAIgASgJKmoKDFJvbGxvdXRPcmRlchIdChlST0xMT1VUX09SREVSX1VOU1BFQ0lGSUVEEAASHQoZUk9MTE9VVF9PUkRFUl9TVEFSVF9GSVJTVBABEhwKGFJPTExPVVRfT1JERVJfU1RPUF9GSVJTVBACKksKB1JlbGFiZWwSFwoTUkVMQUJFTF9VTlNQRUNJRklFRBAAEhIKDlJFTEFCRUxfU0hBUkVEEAESEwoPUkVMQUJFTF9QUklWQVRFEAIqowEKDVJlc3RhcnRQb2xpY3kSHgoaUkVTVEFSVF9QT0xJQ1lfVU5TUEVDSUZJRUQQABIVChFSRVNUQVJUX1BPTElDWV9OTxABEh0KGVJFU1RBUlRfUE9MSUNZX09OX0ZBSUxVUkUQAhIhCh1SRVNUQVJUX1BPTElDWV9VTkxFU1NfU1RPUFBFRBADEhkKFVJFU1RBUlRfUE9MSUNZX0FMV0FZUxAEKkgKCFByb3RvY29sEhgKFFBST1RPQ09MX1VOU1BFQ0lGSUVEEAASEAoMUFJPVE9DT0xfVENQEAESEAoMUFJPVE9DT0xfVURQEAIqZgoORmlyZXdhbGxBY3Rpb24SHwobRklSRVdBTExfQUNUSU9OX1VOU1BFQ0lGSUVEEAASGQoVRklSRVdBTExfQUNUSU9OX0FMTE9XEAESGAoURklSRVdBTExfQUNUSU9OX0RFTlkQAipXCgpQcm90ZWN0aW9uEhoKFlBST1RFQ1RJT05fVU5TUEVDSUZJRUQQABIYChRQUk9URUNUSU9OX1BST1RFQ1RFRBABEhMKD1BST1RFQ1RJT05fT1BFThACOj0KCXNlbnNpdGl2ZRIdLmdvb2dsZS5wcm90b2J1Zi5GaWVsZE9wdGlvbnMYuY4DIAEoCFIJc2Vuc2l0aXZlQoQCCh5jb20uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTFCClNwZWNzUHJvdG9QAVpMZ2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvcmVzb3VyY2UvdjFhbHBoYTE7cmVzb3VyY2V2MWFscGhhMaICA0RSWKoCGkRvY2t3ZWxsLlJlc291cmNlLlYxYWxwaGExygIaRG9ja3dlbGxcUmVzb3VyY2VcVjFhbHBoYTHiAiZEb2Nrd2VsbFxSZXNvdXJjZVxWMWFscGhhMVxHUEJNZXRhZGF0YeoCHERvY2t3ZWxsOjpSZXNvdXJjZTo6VjFhbHBoYTFiBnByb3RvMw", [file_google_api_field_behavior, file_google_protobuf_descriptor]);
+  fileDesc("CiZkb2Nrd2VsbC9yZXNvdXJjZS92MWFscGhhMS9zcGVjcy5wcm90bxIaZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEi/gcKCUNvbnRhaW5lchINCgVpbWFnZRgBIAEoCRIPCgdjb21tYW5kGAIgAygJEkEKA2VudhgDIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5FbnZFbnRyeUIEyPMYARI2CgVwb3J0cxgEIAMoCzInLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlBvcnRNYXBwaW5nEjoKB3Jlc3RhcnQYBSABKA4yKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5SZXN0YXJ0UG9saWN5EkEKBmxhYmVscxgGIAMoCzIxLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lci5MYWJlbHNFbnRyeRISCgplbnRyeXBvaW50GAcgAygJEjEKBm1vdW50cxgIIAMoCzIhLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLk1vdW50EhAKCG5ldHdvcmtzGAkgAygJEgwKBHVzZXIYCiABKAkSEwoLd29ya2luZ19kaXIYCyABKAkSPAoLaGVhbHRoY2hlY2sYDCABKAsyJy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5IZWFsdGhjaGVjaxIVCg1ub19lbnRyeXBvaW50GA0gASgIEhkKEXN0b3BfZ3JhY2VfcGVyaW9kGA4gASgJEjQKB3JvbGxvdXQYDyABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Sb2xsb3V0EhkKEWV4dGVybmFsX25ldHdvcmtzGBQgAygJEhQKDGhvc3RfbmV0d29yaxgVIAEoCBIPCgdhbGlhc2VzGBYgAygJEjgKCXJlc291cmNlcxgXIAEoCzIlLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJlc291cmNlcxIPCgdjYXBfYWRkGBggAygJEhAKCGNhcF9kcm9wGBkgAygJEhEKCWdyb3VwX2FkZBgaIAMoCRISCgpwcml2aWxlZ2VkGBsgASgIEhcKD3Jlc3RhcnRfcmV0cmllcxgcIAEoDRISCgpyZWZlcmVuY2VzGB0gAygJEhAKCHNobV9zaXplGB4gASgJEjAKBXRtcGZzGB8gAygLMiEuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuVG1wZnMSDgoGZXhwb3NlGCAgAygJEhMKC2V4dHJhX2hvc3RzGFAgAygJGioKCEVudkVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaLQoLTGFiZWxzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASIlCgVUbXBmcxIOCgZ0YXJnZXQYASABKAkSDAoEc2l6ZRgCIAEoCSJFCglSZXNvdXJjZXMSDAoEY3B1cxgBIAEoCRIOCgZtZW1vcnkYAiABKAkSGgoSbWVtb3J5X3Jlc2VydmF0aW9uGAMgASgJIlEKB1JvbGxvdXQSNwoFb3JkZXIYASABKA4yKC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Sb2xsb3V0T3JkZXISDQoFZHJhaW4YAiABKAkitwEKBU1vdW50EhAKBnZvbHVtZRgBIAEoCUgAEhMKCWhvc3RfcGF0aBgCIAEoCUgAEg4KBnRhcmdldBgDIAEoCRIRCglyZWFkX29ubHkYBCABKAgSNAoHcmVsYWJlbBgFIAEoDjIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJlbGFiZWwSEAoIZXh0ZXJuYWwYBiABKAgSEgoKbWFrZV9vd25lchg8IAEoCUIICgZzb3VyY2UizQEKC0hlYWx0aGNoZWNrEgwKBHRlc3QYASADKAkSEAoIaW50ZXJ2YWwYAiABKAkSDwoHdGltZW91dBgDIAEoCRIUCgxzdGFydF9wZXJpb2QYBCABKAkSDwoHcmV0cmllcxgFIAEoDRIzCgRodHRwGAYgASgLMiUuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuSHR0cENoZWNrEjEKA3RjcBgHIAEoCzIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlRjcENoZWNrIjUKCUh0dHBDaGVjaxIMCgRwb3J0GAEgASgNEgwKBHBhdGgYAiABKAkSDAoEaG9zdBgDIAEoCSIYCghUY3BDaGVjaxIMCgRwb3J0GAEgASgNIoEBCgtQb3J0TWFwcGluZxIRCglob3N0X3BvcnQYASABKA0SFgoOY29udGFpbmVyX3BvcnQYAiABKA0SNgoIcHJvdG9jb2wYAyABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm90b2NvbBIPCgdob3N0X2lwGAQgASgJIrIBCgxGaXJld2FsbFJ1bGUSOgoGYWN0aW9uGAEgASgOMiouZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxBY3Rpb24SNgoIcHJvdG9jb2wYAiABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm90b2NvbBIMCgRwb3J0GAMgASgNEg8KB3NvdXJjZXMYBCADKAkSDwoHY29tbWVudBgFIAEoCSIuCg5GaXJld2FsbFBvbGljeRIcChRkZW55X2V2ZXJ5dGhpbmdfZWxzZRgBIAEoCCKOAQoHUHJvamVjdBIUCgxkaXNwbGF5X25hbWUYASABKAkSNwoHY2F0YWxvZxgCIAEoCzImLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dQaW4SNAoHd2Vic2l0ZRgDIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUiwgEKB1dlYnNpdGUSOQoFcHJveHkYASABKAsyKC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlUHJveHlIABI7CgZmb2xkZXIYAiABKAsyKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlRm9sZGVySAASNQoDcGhwGAMgASgLMiYuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuV2Vic2l0ZVBocEgAQggKBnNlcnZlcyJ1CgpXZWJzaXRlUGhwEgwKBHJvb3QYASABKAkSDwoHdmVyc2lvbhgCIAEoCRINCgVpbmRleBgDIAMoCRISCgpmaWxlc19vbmx5GAQgASgIEhcKD3VwbG9hZF9saW1pdF9tYhgFIAEoDRIMCgR1c2VyGAYgASgJIlQKDVdlYnNpdGVGb2xkZXISDAoEcm9vdBgBIAEoCRINCgVpbmRleBgCIAMoCRIXCg9zaW5nbGVfcGFnZV9hcHAYAyABKAgSDQoFb3duZXIYBCABKAkiQwoMV2Vic2l0ZVByb3h5EgsKA3VybBgBIAEoCRIMCgRwb3J0GAIgASgNEhgKEHNlbmRfdGFyZ2V0X2hvc3QYAyABKAgi4gEKCkNhdGFsb2dQaW4SDQoFZW50cnkYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIPCgdyZWxlYXNlGAMgASgNEhIKCnJlcG9zaXRvcnkYBCABKAkSDgoGY29tbWl0GAUgASgJEkIKBnZhbHVlcxgGIAMoCzIyLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dQaW4uVmFsdWVzRW50cnkSDAoEZmlsZRgHIAEoDBotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIl8KC0Vudmlyb25tZW50EhQKDGRpc3BsYXlfbmFtZRgBIAEoCRI6Cgpwcm90ZWN0aW9uGAIgASgOMiYuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUHJvdGVjdGlvbiLpAwoHU2VydmljZRI0CgNhcHAYASABKAsyJS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db250YWluZXJIABJFCgl2YXJpYWJsZXMYAiADKAsyMi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5TZXJ2aWNlLlZhcmlhYmxlc0VudHJ5EkEKB3NlY3JldHMYAyADKAsyMC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5TZXJ2aWNlLlNlY3JldHNFbnRyeRJLCglyZXZpc2lvbnMYBCADKAsyMi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5TZXJ2aWNlLlJldmlzaW9uc0VudHJ5QgTiQQEDEjUKB3J1bnRpbWUYlgEgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUnVudGltZRowCg5WYXJpYWJsZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi4KDFNlY3JldHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGjAKDlJldmlzaW9uc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoAzoCOAFCBgoEcnVucyLrAQoHUnVudGltZRIQCghsYW5ndWFnZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEg4KBmZvbGRlchgDIAEoCRIPCgdpbnN0YWxsGAQgASgJEg0KBXN0YXJ0GAUgASgJEgwKBHBvcnQYBiABKA0SDAoEdXNlchgHIAEoCRJDCgV3cm90ZRgIIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJ1bnRpbWUuV3JvdGVFbnRyeUIE4kEBAxosCgpXcm90ZUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiGQoIVmFyaWFibGUSDQoFdmFsdWUYASABKAkiHQoGU2VjcmV0EhMKBXZhbHVlGAEgASgJQgTI8xgBIv8BCgZWb2x1bWUSDgoGZHJpdmVyGAEgASgJEkYKB29wdGlvbnMYAiADKAsyLy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Wb2x1bWUuT3B0aW9uc0VudHJ5QgTI8xgBEj4KBmxhYmVscxgDIAMoCzIuLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlZvbHVtZS5MYWJlbHNFbnRyeRouCgxPcHRpb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIswBCgxEYXRhYmFzZVVzZXISDwoHc2VydmljZRgBIAEoCRIVCg1kYXRhYmFzZV9uYW1lGAIgASgJEhAKCHBhc3N3b3JkGAMgASgJElAKCXJldmlzaW9ucxgEIAMoCzI3LmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkRhdGFiYXNlVXNlci5SZXZpc2lvbnNFbnRyeUIE4kEBAxowCg5SZXZpc2lvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAM6AjgBIo0CCgxCYWNrdXBQb2xpY3kSDgoGdm9sdW1lGAEgASgJEj0KBWV2ZXJ5GAIgASgOMi4uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQmFja3VwUG9saWN5LkV2ZXJ5EgoKAmF0GAMgASgJEg8KB3dlZWtkYXkYBCABKAUSEQoJdGltZV96b25lGAUgASgJEgwKBGtlZXAYBiABKA0SDAoEc3RvcBgHIAEoCBITCgtkZXN0aW5hdGlvbhgIIAEoCSJNCgVFdmVyeRIVChFFVkVSWV9VTlNQRUNJRklFRBAAEg4KCkVWRVJZX0hPVVIQARINCglFVkVSWV9EQVkQAhIOCgpFVkVSWV9XRUVLEAMiowEKEUJhY2t1cERlc3RpbmF0aW9uEhAKCGVuZHBvaW50GAEgASgJEg4KBnJlZ2lvbhgCIAEoCRIOCgZidWNrZXQYAyABKAkSDgoGcHJlZml4GAQgASgJEhgKCmFjY2Vzc19rZXkYBSABKAlCBMjzGAESGAoKc2VjcmV0X2tleRgGIAEoCUIEyPMYARIYCgpwYXNzcGhyYXNlGAcgASgJQgTI8xgBIo4CCgdOZXR3b3JrEg4KBmRyaXZlchgBIAEoCRJBCgdvcHRpb25zGAIgAygLMjAuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTmV0d29yay5PcHRpb25zRW50cnkSEAoIaW50ZXJuYWwYAyABKAgSPwoGbGFiZWxzGAQgAygLMi8uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTmV0d29yay5MYWJlbHNFbnRyeRouCgxPcHRpb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIpcBCgVSb3V0ZRIOCgZkb21haW4YASABKAkSDAoEcGF0aBgCIAEoCRIPCgdzZXJ2aWNlGAMgASgJEgwKBHBvcnQYBCABKA0SCwoDdGxzGAUgASgJEhcKD3RydXN0ZWRfcHJveGllcxgGIAMoCRIRCglob3N0X3BvcnQYByABKA0SGAoQcGxhaW5fZm9yX2FueW9uZRgIIAEoCCKcCAoEU3BlYxI2Cgdwcm9qZWN0GAEgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUHJvamVjdEgAEj4KC2Vudmlyb25tZW50GAIgASgLMicuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRW52aXJvbm1lbnRIABI2CgdzZXJ2aWNlGAMgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuU2VydmljZUgAEjoKCWNvbnRhaW5lchgEIAEoCzIlLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbnRhaW5lckgAEkEKDWZpcmV3YWxsX3J1bGUYBSABKAsyKC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFJ1bGVIABJFCg9maXJld2FsbF9wb2xpY3kYKCABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFBvbGljeUgAEjQKBnZvbHVtZRgGIAEoCzIiLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlZvbHVtZUgAEjYKB25ldHdvcmsYByABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5OZXR3b3JrSAASOAoIdmFyaWFibGUYCCABKAsyJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5WYXJpYWJsZUgAEjQKBnNlY3JldBgJIAEoCzIiLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlNlY3JldEgAEjIKBXJvdXRlGAogASgLMiEuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUm91dGVIABJBCg1iYWNrdXBfcG9saWN5GBQgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQmFja3VwUG9saWN5SAASSwoSYmFja3VwX2Rlc3RpbmF0aW9uGBUgASgLMi0uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQmFja3VwRGVzdGluYXRpb25IABJBCg1kYXRhYmFzZV91c2VyGB4gASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRGF0YWJhc2VVc2VySAASOwoKYWxlcnRfcnVsZRhuIAEoCzIlLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkFsZXJ0UnVsZUgAEkEKDWFsZXJ0X2NoYW5uZWwYbyABKAsyKC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5BbGVydENoYW5uZWxIABIxCgR0YXNrGJYBIAEoCzIgLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlRhc2tIAEIGCgRraW5kIsACCgRUYXNrEjYKBXNoZWxsGAEgASgLMiUuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuVGFza1NoZWxsSAASMgoDYXBwGAIgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuVGFza0FwcEgAEjoKB3JlcXVlc3QYAyABKAsyJy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5UYXNrUmVxdWVzdEgAEhAKCHNjaGVkdWxlGAQgASgJEhEKCXRpbWVfem9uZRgFIAEoCRIXCg90aW1lb3V0X3NlY29uZHMYBiABKA0SDwoHcmV0cmllcxgHIAEoDRIOCgZwYXVzZWQYCCABKAgSEwoLc2tpcF9taXNzZWQYCSABKAgSFAoMZGlzcGxheV9uYW1lGAogASgJQgYKBHJ1bnMiMQoJVGFza1NoZWxsEg8KB2NvbW1hbmQYASABKAkSEwoLd29ya2luZ19kaXIYAiABKAkiKwoHVGFza0FwcBIPCgdzZXJ2aWNlGAEgASgJEg8KB2NvbW1hbmQYAiABKAkiQQoLVGFza1JlcXVlc3QSCwoDdXJsGAEgASgJEg4KBm1ldGhvZBgCIAEoCRIVCg1leHBlY3Rfc3RhdHVzGAMgASgNIvMECglBbGVydFJ1bGUSQgoJY29uZGl0aW9uGAEgASgOMi8uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQWxlcnRSdWxlLkNvbmRpdGlvbhIRCgl0aHJlc2hvbGQYAiABKA0SEAoIZHVyYXRpb24YAyABKAkSQAoIc2V2ZXJpdHkYBCABKA4yLi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5BbGVydFJ1bGUuU2V2ZXJpdHkSEAoIY2hhbm5lbHMYBSADKAkSDgoGcmVwZWF0GAYgASgJEhAKCGRpc2FibGVkGAcgASgIIrMCCglDb25kaXRpb24SGQoVQ09ORElUSU9OX1VOU1BFQ0lGSUVEEAASGgoWQ09ORElUSU9OX1NFUlZJQ0VfRE9XThABEiAKHENPTkRJVElPTl9TRVJWRVJfVU5SRUFDSEFCTEUQAhIXChNDT05ESVRJT05fRElTS19GVUxMEAMSGQoVQ09ORElUSU9OX01FTU9SWV9ISUdIEAQSIgoeQ09ORElUSU9OX0NFUlRJRklDQVRFX0VYUElSSU5HEAUSIAocQ09ORElUSU9OX0NFUlRJRklDQVRFX0ZBSUxFRBAGEhsKF0NPTkRJVElPTl9CQUNLVVBfRkFJTEVEEAcSGQoVQ09ORElUSU9OX0JBQ0tVUF9MQVRFEAgSGwoXQ09ORElUSU9OX0NIQU5HRV9GQUlMRUQQCSJRCghTZXZlcml0eRIYChRTRVZFUklUWV9VTlNQRUNJRklFRBAAEhQKEFNFVkVSSVRZX1dBUk5JTkcQARIVChFTRVZFUklUWV9DUklUSUNBTBACIvYCCgxBbGVydENoYW5uZWwSOwoHd2ViaG9vaxgBIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkFsZXJ0V2ViaG9va0gAEjcKBWVtYWlsGAIgASgLMiYuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQWxlcnRFbWFpbEgAEjUKBG50ZnkYAyABKAsyJS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5BbGVydE50ZnlIABI3CgVzbGFjaxgEIAEoCzImLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkFsZXJ0U2xhY2tIABI7CgdkaXNjb3JkGAUgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQWxlcnREaXNjb3JkSAASPQoIdGVsZWdyYW0YBiABKAsyKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5BbGVydFRlbGVncmFtSABCBAoCdG8iNwoMQWxlcnRXZWJob29rEhEKA3VybBgBIAEoCUIEyPMYARIUCgZzZWNyZXQYAiABKAlCBMjzGAEikQIKCkFsZXJ0RW1haWwSDAoEaG9zdBgBIAEoCRIMCgRwb3J0GAIgASgNEkEKCHNlY3VyaXR5GAMgASgOMi8uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQWxlcnRFbWFpbC5TZWN1cml0eRIQCgh1c2VybmFtZRgEIAEoCRIWCghwYXNzd29yZBgFIAEoCUIEyPMYARIMCgRmcm9tGAYgASgJEgoKAnRvGAcgAygJImAKCFNlY3VyaXR5EhgKFFNFQ1VSSVRZX1VOU1BFQ0lGSUVEEAASFQoRU0VDVVJJVFlfU1RBUlRUTFMQARIQCgxTRUNVUklUWV9UTFMQAhIRCg1TRUNVUklUWV9OT05FEAMiRQoJQWxlcnROdGZ5Eg4KBnNlcnZlchgBIAEoCRITCgV0b3BpYxgCIAEoCUIEyPMYARITCgV0b2tlbhgDIAEoCUIEyPMYASIfCgpBbGVydFNsYWNrEhEKA3VybBgBIAEoCUIEyPMYASIhCgxBbGVydERpc2NvcmQSEQoDdXJsGAEgASgJQgTI8xgBIjkKDUFsZXJ0VGVsZWdyYW0SFwoJYm90X3Rva2VuGAEgASgJQgTI8xgBEg8KB2NoYXRfaWQYAiABKAkqagoMUm9sbG91dE9yZGVyEh0KGVJPTExPVVRfT1JERVJfVU5TUEVDSUZJRUQQABIdChlST0xMT1VUX09SREVSX1NUQVJUX0ZJUlNUEAESHAoYUk9MTE9VVF9PUkRFUl9TVE9QX0ZJUlNUEAIqSwoHUmVsYWJlbBIXChNSRUxBQkVMX1VOU1BFQ0lGSUVEEAASEgoOUkVMQUJFTF9TSEFSRUQQARITCg9SRUxBQkVMX1BSSVZBVEUQAiqjAQoNUmVzdGFydFBvbGljeRIeChpSRVNUQVJUX1BPTElDWV9VTlNQRUNJRklFRBAAEhUKEVJFU1RBUlRfUE9MSUNZX05PEAESHQoZUkVTVEFSVF9QT0xJQ1lfT05fRkFJTFVSRRACEiEKHVJFU1RBUlRfUE9MSUNZX1VOTEVTU19TVE9QUEVEEAMSGQoVUkVTVEFSVF9QT0xJQ1lfQUxXQVlTEAQqSAoIUHJvdG9jb2wSGAoUUFJPVE9DT0xfVU5TUEVDSUZJRUQQABIQCgxQUk9UT0NPTF9UQ1AQARIQCgxQUk9UT0NPTF9VRFAQAipmCg5GaXJld2FsbEFjdGlvbhIfChtGSVJFV0FMTF9BQ1RJT05fVU5TUEVDSUZJRUQQABIZChVGSVJFV0FMTF9BQ1RJT05fQUxMT1cQARIYChRGSVJFV0FMTF9BQ1RJT05fREVOWRACKlcKClByb3RlY3Rpb24SGgoWUFJPVEVDVElPTl9VTlNQRUNJRklFRBAAEhgKFFBST1RFQ1RJT05fUFJPVEVDVEVEEAESEwoPUFJPVEVDVElPTl9PUEVOEAI6PQoJc2Vuc2l0aXZlEh0uZ29vZ2xlLnByb3RvYnVmLkZpZWxkT3B0aW9ucxi5jgMgASgIUglzZW5zaXRpdmVChAIKHmNvbS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMUIKU3BlY3NQcm90b1ABWkxnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9yZXNvdXJjZS92MWFscGhhMTtyZXNvdXJjZXYxYWxwaGExogIDRFJYqgIaRG9ja3dlbGwuUmVzb3VyY2UuVjFhbHBoYTHKAhpEb2Nrd2VsbFxSZXNvdXJjZVxWMWFscGhhMeICJkRvY2t3ZWxsXFJlc291cmNlXFYxYWxwaGExXEdQQk1ldGFkYXRh6gIcRG9ja3dlbGw6OlJlc291cmNlOjpWMWFscGhhMWIGcHJvdG8z", [file_google_api_field_behavior, file_google_protobuf_descriptor]);
 
 /**
  * Container is one Docker container: run by hand on a server, or a
@@ -688,6 +688,32 @@ export const FirewallRuleSchema: GenMessage<FirewallRule> = /*@__PURE__*/
   messageDesc(file_dockwell_resource_v1alpha1_specs, 9);
 
 /**
+ * FirewallPolicy is what a server's firewall does with inbound traffic no rule
+ * lets in, kind "firewall.policy", named "default", one for each server.
+ * Without one, or with deny_everything_else off, what no rule drops comes in,
+ * as it did before Dockwell (ADR 0052).
+ *
+ * @generated from message dockwell.resource.v1alpha1.FirewallPolicy
+ */
+export type FirewallPolicy = Message<"dockwell.resource.v1alpha1.FirewallPolicy"> & {
+  /**
+   * Drop inbound traffic no rule lets in. What keeps the server reachable is
+   * still let in: connections already open, SSH from where people come in now,
+   * and on the control server its own ports.
+   *
+   * @generated from field: bool deny_everything_else = 1;
+   */
+  denyEverythingElse: boolean;
+};
+
+/**
+ * Describes the message dockwell.resource.v1alpha1.FirewallPolicy.
+ * Use `create(FirewallPolicySchema)` to create a new message.
+ */
+export const FirewallPolicySchema: GenMessage<FirewallPolicy> = /*@__PURE__*/
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 10);
+
+/**
  * Project is a product or client in the organization. It holds
  * environments, and scopes members, secrets and domains. An install starts
  * with one, named "default", which stays out of sight until there is a
@@ -728,7 +754,7 @@ export type Project = Message<"dockwell.resource.v1alpha1.Project"> & {
  * Use `create(ProjectSchema)` to create a new message.
  */
 export const ProjectSchema: GenMessage<Project> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 10);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 11);
 
 /**
  * Website is what a website serves at its domain, as a person chose it.
@@ -773,7 +799,7 @@ export type Website = Message<"dockwell.resource.v1alpha1.Website"> & {
  * Use `create(WebsiteSchema)` to create a new message.
  */
 export const WebsiteSchema: GenMessage<Website> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 11);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 12);
 
 /**
  * WebsitePhp runs the PHP in a folder on the server with PHP-FPM, of the version
@@ -839,7 +865,7 @@ export type WebsitePhp = Message<"dockwell.resource.v1alpha1.WebsitePhp"> & {
  * Use `create(WebsitePhpSchema)` to create a new message.
  */
 export const WebsitePhpSchema: GenMessage<WebsitePhp> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 12);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 13);
 
 /**
  * WebsiteFolder serves the files in a folder on the server, as they are. Its web
@@ -889,7 +915,7 @@ export type WebsiteFolder = Message<"dockwell.resource.v1alpha1.WebsiteFolder"> 
  * Use `create(WebsiteFolderSchema)` to create a new message.
  */
 export const WebsiteFolderSchema: GenMessage<WebsiteFolder> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 13);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 14);
 
 /**
  * WebsiteProxy sends a website's requests on, to a URL or to a port on the
@@ -932,7 +958,7 @@ export type WebsiteProxy = Message<"dockwell.resource.v1alpha1.WebsiteProxy"> & 
  * Use `create(WebsiteProxySchema)` to create a new message.
  */
 export const WebsiteProxySchema: GenMessage<WebsiteProxy> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 14);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 15);
 
 /**
  * CatalogPin is what an install is pinned to: updates come from there, and each
@@ -1000,7 +1026,7 @@ export type CatalogPin = Message<"dockwell.resource.v1alpha1.CatalogPin"> & {
  * Use `create(CatalogPinSchema)` to create a new message.
  */
 export const CatalogPinSchema: GenMessage<CatalogPin> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 15);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 16);
 
 /**
  * Environment is a stage of a project, such as production or staging, with
@@ -1035,7 +1061,7 @@ export type Environment = Message<"dockwell.resource.v1alpha1.Environment"> & {
  * Use `create(EnvironmentSchema)` to create a new message.
  */
 export const EnvironmentSchema: GenMessage<Environment> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 16);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 17);
 
 /**
  * Service is anything that runs in an environment, placed on servers: for
@@ -1117,7 +1143,7 @@ export type Service = Message<"dockwell.resource.v1alpha1.Service"> & {
  * Use `create(ServiceSchema)` to create a new message.
  */
 export const ServiceSchema: GenMessage<Service> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 17);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 18);
 
 /**
  * Runtime is an app from a folder on the server, run in a language's official
@@ -1201,7 +1227,7 @@ export type Runtime = Message<"dockwell.resource.v1alpha1.Runtime"> & {
  * Use `create(RuntimeSchema)` to create a new message.
  */
 export const RuntimeSchema: GenMessage<Runtime> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 18);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 19);
 
 /**
  * Variable is a value of an environment that its services use, such as
@@ -1224,7 +1250,7 @@ export type Variable = Message<"dockwell.resource.v1alpha1.Variable"> & {
  * Use `create(VariableSchema)` to create a new message.
  */
 export const VariableSchema: GenMessage<Variable> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 19);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 20);
 
 /**
  * Secret is a value of an environment that its services use without anyone
@@ -1249,7 +1275,7 @@ export type Secret = Message<"dockwell.resource.v1alpha1.Secret"> & {
  * Use `create(SecretSchema)` to create a new message.
  */
 export const SecretSchema: GenMessage<Secret> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 20);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 21);
 
 /**
  * Volume is a Docker volume in an environment, which its services mount
@@ -1289,7 +1315,7 @@ export type Volume = Message<"dockwell.resource.v1alpha1.Volume"> & {
  * Use `create(VolumeSchema)` to create a new message.
  */
 export const VolumeSchema: GenMessage<Volume> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 21);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 22);
 
 /**
  * DatabaseUser is a database inside a database server that a service of its
@@ -1341,7 +1367,7 @@ export type DatabaseUser = Message<"dockwell.resource.v1alpha1.DatabaseUser"> & 
  * Use `create(DatabaseUserSchema)` to create a new message.
  */
 export const DatabaseUserSchema: GenMessage<DatabaseUser> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 22);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 23);
 
 /**
  * BackupPolicy backs up a volume in its environment on a schedule, on every server
@@ -1419,7 +1445,7 @@ export type BackupPolicy = Message<"dockwell.resource.v1alpha1.BackupPolicy"> & 
  * Use `create(BackupPolicySchema)` to create a new message.
  */
 export const BackupPolicySchema: GenMessage<BackupPolicy> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 23);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 24);
 
 /**
  * How often it runs.
@@ -1458,7 +1484,7 @@ export enum BackupPolicy_Every {
  * Describes the enum dockwell.resource.v1alpha1.BackupPolicy.Every.
  */
 export const BackupPolicy_EverySchema: GenEnum<BackupPolicy_Every> = /*@__PURE__*/
-  enumDesc(file_dockwell_resource_v1alpha1_specs, 23, 0);
+  enumDesc(file_dockwell_resource_v1alpha1_specs, 24, 0);
 
 /**
  * BackupDestination is S3-compatible storage that backups go to as well as the
@@ -1531,7 +1557,7 @@ export type BackupDestination = Message<"dockwell.resource.v1alpha1.BackupDestin
  * Use `create(BackupDestinationSchema)` to create a new message.
  */
 export const BackupDestinationSchema: GenMessage<BackupDestination> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 24);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 25);
 
 /**
  * Network is a Docker network in an environment, which its services join
@@ -1577,7 +1603,7 @@ export type Network = Message<"dockwell.resource.v1alpha1.Network"> & {
  * Use `create(NetworkSchema)` to create a new message.
  */
 export const NetworkSchema: GenMessage<Network> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 25);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 26);
 
 /**
  * Route sends a domain's traffic, or a path under it, to a port of a service
@@ -1684,7 +1710,7 @@ export type Route = Message<"dockwell.resource.v1alpha1.Route"> & {
  * Use `create(RouteSchema)` to create a new message.
  */
 export const RouteSchema: GenMessage<Route> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 26);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 27);
 
 /**
  * Spec is the desired state of one resource, of any kind: the field that is
@@ -1739,6 +1765,15 @@ export type Spec = Message<"dockwell.resource.v1alpha1.Spec"> & {
      */
     value: FirewallRule;
     case: "firewallRule";
+  } | {
+    /**
+     * What a server's firewall does with what no rule lets in, kind
+     * "firewall.policy". Numbered apart, as open work adds to this message.
+     *
+     * @generated from field: dockwell.resource.v1alpha1.FirewallPolicy firewall_policy = 40;
+     */
+    value: FirewallPolicy;
+    case: "firewallPolicy";
   } | {
     /**
      * A volume in an environment, kind "volume".
@@ -1839,7 +1874,7 @@ export type Spec = Message<"dockwell.resource.v1alpha1.Spec"> & {
  * Use `create(SpecSchema)` to create a new message.
  */
 export const SpecSchema: GenMessage<Spec> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 27);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 28);
 
 /**
  * Task is work that runs on a schedule, on each server it's placed on, kind "task"
@@ -1945,7 +1980,7 @@ export type Task = Message<"dockwell.resource.v1alpha1.Task"> & {
  * Use `create(TaskSchema)` to create a new message.
  */
 export const TaskSchema: GenMessage<Task> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 28);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 29);
 
 /**
  * TaskShell is a shell command on the server.
@@ -1973,7 +2008,7 @@ export type TaskShell = Message<"dockwell.resource.v1alpha1.TaskShell"> & {
  * Use `create(TaskShellSchema)` to create a new message.
  */
 export const TaskShellSchema: GenMessage<TaskShell> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 29);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 30);
 
 /**
  * TaskApp is a command in an app's image.
@@ -2003,7 +2038,7 @@ export type TaskApp = Message<"dockwell.resource.v1alpha1.TaskApp"> & {
  * Use `create(TaskAppSchema)` to create a new message.
  */
 export const TaskAppSchema: GenMessage<TaskApp> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 30);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 31);
 
 /**
  * TaskRequest is an HTTP request to a URL. A run keeps the status, the time it
@@ -2039,7 +2074,7 @@ export type TaskRequest = Message<"dockwell.resource.v1alpha1.TaskRequest"> & {
  * Use `create(TaskRequestSchema)` to create a new message.
  */
 export const TaskRequestSchema: GenMessage<TaskRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 31);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 32);
 
 /**
  * AlertRule is something Dockwell watches for, on every server or app it
@@ -2109,7 +2144,7 @@ export type AlertRule = Message<"dockwell.resource.v1alpha1.AlertRule"> & {
  * Use `create(AlertRuleSchema)` to create a new message.
  */
 export const AlertRuleSchema: GenMessage<AlertRule> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 32);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 33);
 
 /**
  * What it watches for.
@@ -2190,7 +2225,7 @@ export enum AlertRule_Condition {
  * Describes the enum dockwell.resource.v1alpha1.AlertRule.Condition.
  */
 export const AlertRule_ConditionSchema: GenEnum<AlertRule_Condition> = /*@__PURE__*/
-  enumDesc(file_dockwell_resource_v1alpha1_specs, 32, 0);
+  enumDesc(file_dockwell_resource_v1alpha1_specs, 33, 0);
 
 /**
  * How much it matters, which a message says and a channel can choose by.
@@ -2222,7 +2257,7 @@ export enum AlertRule_Severity {
  * Describes the enum dockwell.resource.v1alpha1.AlertRule.Severity.
  */
 export const AlertRule_SeveritySchema: GenEnum<AlertRule_Severity> = /*@__PURE__*/
-  enumDesc(file_dockwell_resource_v1alpha1_specs, 32, 1);
+  enumDesc(file_dockwell_resource_v1alpha1_specs, 33, 1);
 
 /**
  * AlertChannel is somewhere alerts are sent. It lives in the organization. What
@@ -2292,7 +2327,7 @@ export type AlertChannel = Message<"dockwell.resource.v1alpha1.AlertChannel"> & 
  * Use `create(AlertChannelSchema)` to create a new message.
  */
 export const AlertChannelSchema: GenMessage<AlertChannel> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 33);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 34);
 
 /**
  * AlertWebhook sends each alert, and each that resolves, as JSON in a POST.
@@ -2322,7 +2357,7 @@ export type AlertWebhook = Message<"dockwell.resource.v1alpha1.AlertWebhook"> & 
  * Use `create(AlertWebhookSchema)` to create a new message.
  */
 export const AlertWebhookSchema: GenMessage<AlertWebhook> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 34);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 35);
 
 /**
  * AlertEmail sends each alert as an email, through an SMTP server such as your
@@ -2389,7 +2424,7 @@ export type AlertEmail = Message<"dockwell.resource.v1alpha1.AlertEmail"> & {
  * Use `create(AlertEmailSchema)` to create a new message.
  */
 export const AlertEmailSchema: GenMessage<AlertEmail> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 35);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 36);
 
 /**
  * How Dockwell secures its connection to the SMTP server.
@@ -2430,7 +2465,7 @@ export enum AlertEmail_Security {
  * Describes the enum dockwell.resource.v1alpha1.AlertEmail.Security.
  */
 export const AlertEmail_SecuritySchema: GenEnum<AlertEmail_Security> = /*@__PURE__*/
-  enumDesc(file_dockwell_resource_v1alpha1_specs, 35, 0);
+  enumDesc(file_dockwell_resource_v1alpha1_specs, 36, 0);
 
 /**
  * AlertNtfy publishes each alert to a topic on an ntfy server, such as ntfy.sh
@@ -2469,7 +2504,7 @@ export type AlertNtfy = Message<"dockwell.resource.v1alpha1.AlertNtfy"> & {
  * Use `create(AlertNtfySchema)` to create a new message.
  */
 export const AlertNtfySchema: GenMessage<AlertNtfy> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 36);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 37);
 
 /**
  * AlertSlack posts each alert to a Slack channel, through an incoming webhook
@@ -2493,7 +2528,7 @@ export type AlertSlack = Message<"dockwell.resource.v1alpha1.AlertSlack"> & {
  * Use `create(AlertSlackSchema)` to create a new message.
  */
 export const AlertSlackSchema: GenMessage<AlertSlack> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 37);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 38);
 
 /**
  * AlertDiscord posts each alert to a Discord channel, through a webhook the
@@ -2517,7 +2552,7 @@ export type AlertDiscord = Message<"dockwell.resource.v1alpha1.AlertDiscord"> & 
  * Use `create(AlertDiscordSchema)` to create a new message.
  */
 export const AlertDiscordSchema: GenMessage<AlertDiscord> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 38);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 39);
 
 /**
  * AlertTelegram sends each alert to a Telegram chat, as a bot you made with
@@ -2547,7 +2582,7 @@ export type AlertTelegram = Message<"dockwell.resource.v1alpha1.AlertTelegram"> 
  * Use `create(AlertTelegramSchema)` to create a new message.
  */
 export const AlertTelegramSchema: GenMessage<AlertTelegram> = /*@__PURE__*/
-  messageDesc(file_dockwell_resource_v1alpha1_specs, 39);
+  messageDesc(file_dockwell_resource_v1alpha1_specs, 40);
 
 /**
  * RolloutOrder is which comes first in a deploy.
