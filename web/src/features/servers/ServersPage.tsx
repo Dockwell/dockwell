@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Connection, type Server } from "@dockwell/api";
+import type { Server } from "@dockwell/api";
 import {
   Button,
   cx,
@@ -38,9 +38,12 @@ export interface ServersSearch {
 /** How many rows the table shows before "Show all", as Servers-List pages them. */
 export const TABLE_PAGE = 20;
 
-/** Whether a server needs a look: it isn't reporting, can't read Docker, or hasn't connected. */
+/**
+ * Whether a server needs a look: it isn't reporting, hasn't connected, can't read Docker, or is strained,
+ * which is whatever its badge doesn't call healthy, so the two can't disagree.
+ */
 function needsLook(server: Server): boolean {
-  return server.connection !== Connection.CONNECTED || server.dockerUnreadableSince !== undefined;
+  return serverStatus(server) !== "healthy";
 }
 
 /**

@@ -38,6 +38,7 @@ import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { EmptyState } from "../shell/EmptyState";
 import { RevealsProvider, useReveals } from "../variables/useReveal";
 import { SecretValue, useAllVariables } from "../variables/VariablesPage";
 import { useApp } from "./AppContext";
@@ -218,23 +219,25 @@ export function AppEnvironment() {
             onDone={() => setChanging(undefined)}
           />
 
-          <Panel flush>
-            <Table
-              columns={columns}
-              rows={rows.map((row) => ({ ...row, id: row.name }))}
-              rowClassName={(row) => (row.pending?.op === "remove" ? "app-env-removed" : undefined)}
-              density="compact"
-              caption={t`Environment variables of ${name}`}
-              empty={
-                <p className="app-env-empty">
-                  <Trans>
-                    This app runs with only what its image sets. Add a variable above, and it gets it once you apply the
-                    plan.
-                  </Trans>
-                </p>
-              }
-            />
-          </Panel>
+          {rows.length === 0 ? (
+            // With nothing set, a table would be four column heads over one sentence, and a lone one on a phone.
+            <EmptyState icon="key" title={t`No variables yet`}>
+              <Trans>
+                This app runs with only what its image sets. Add a variable above, and it gets it once you apply the
+                plan.
+              </Trans>
+            </EmptyState>
+          ) : (
+            <Panel flush>
+              <Table
+                columns={columns}
+                rows={rows.map((row) => ({ ...row, id: row.name }))}
+                rowClassName={(row) => (row.pending?.op === "remove" ? "app-env-removed" : undefined)}
+                density="compact"
+                caption={t`Environment variables of ${name}`}
+              />
+            </Panel>
+          )}
 
           <p className="app-note">
             <Trans>

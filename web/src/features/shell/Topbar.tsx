@@ -72,7 +72,7 @@ function Scope({ view }: { view: FleetView }) {
     );
   }
   if (!fleet || !servers) return null;
-  const { down, waiting, unknown, docker } = counts;
+  const { down, waiting, unknown, docker, strained } = counts;
   return (
     <div className="topbar-scope">
       <Icon name="server" size={16} className="topbar-scope-icon" />
@@ -83,7 +83,10 @@ function Scope({ view }: { view: FleetView }) {
           {waiting > 0 ? <StatusBadge status="stopped" label={t`${waiting} waiting for an agent`} /> : null}
           {unknown > 0 ? <StatusBadge status="stopped" label={t`${unknown} in an unknown state`} /> : null}
           {docker > 0 ? <StatusBadge status="degraded" label={t`${docker} can't read Docker`} /> : null}
-          {counts.connected === servers.length && docker === 0 ? (
+          {strained > 0 ? (
+            <StatusBadge status="degraded" label={strings.fleetGrid.count(strained, "degraded")} />
+          ) : null}
+          {counts.connected === servers.length && docker === 0 && strained === 0 ? (
             <StatusBadge status="healthy" label={t`All healthy`} />
           ) : null}
         </>

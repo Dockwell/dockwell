@@ -141,7 +141,7 @@ export type DomainAdvice =
   | { lead: "ask"; provider: CloudProvider | undefined };
 
 /** Whether an IPv4 address is in carrier-grade NAT's range, 100.64.0.0/10. */
-function isSharedAddress(ip: string): boolean {
+export function isSharedAddress(ip: string): boolean {
   const [a, b] = ip.split(".").map(Number);
   return a === 100 && b !== undefined && b >= 64 && b < 128;
 }

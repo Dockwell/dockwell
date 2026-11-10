@@ -119,6 +119,121 @@
   background: var(--line);
 }
 
+/* The server's folders as a tree: a row a folder, indented by how deep it is, with the one you're in marked. */
+.files-tree,
+.files-tree ul {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * The panel is as tall as the list beside it, as Server-Files draws them, and the tree scrolls in what's left
+ * of it. So a deep tree never makes the page taller than its panes: it has a floor, and no height of its own.
+ */
+.files-places:has(.files-tree) {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+.files-places:has(.files-tree) > .dw-panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.files-places:has(.files-tree) nav,
+.files-places-group:has(.files-tree) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.files-tree {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 200px;
+  overflow-y: auto;
+}
+
+.files-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  height: var(--control-sm);
+  border-radius: var(--radius-sm);
+}
+
+.files-tree-row:hover {
+  background: var(--surface-sunken);
+}
+
+.files-tree-row.is-current {
+  background: var(--selection);
+}
+
+.files-tree-toggle {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+button.files-tree-toggle:hover {
+  color: var(--ink);
+}
+
+.files-tree-link {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  align-self: stretch;
+  min-width: 0;
+  padding-inline-end: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.files-tree-link .dw-icon {
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.files-tree-toggle:focus-visible,
+.files-tree-link:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: -2px;
+}
+
+.files-tree-name {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-tree-note {
+  margin: 0;
+  padding-block: var(--space-1);
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
 .files-list {
   flex: 1 1 520px;
   display: flex;

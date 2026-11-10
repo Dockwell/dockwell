@@ -10,6 +10,7 @@ import {
   EventKind,
   type Server,
   ServerInventorySchema,
+  ServerStrain,
   type WatchServersResponse,
 } from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
@@ -211,6 +212,20 @@ describe("Servers", () => {
   it("draws the map from two servers on", async () => {
     renderServers([web1, web2()]);
     expect(await screen.findByRole("region", { name: "Servers at a glance" })).toBeVisible();
+  });
+
+  it("counts a strained server as needing a look, and says why in its row and its inspector", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 10, 8, 14, 1));
+    const strainedSince = timestampFromDate(new Date(2026, 10, 8, 13, 58));
+    const { router } = renderServers([web1, web2({ strainedSince, strain: ServerStrain.MEMORY })]);
+
+    // Its badge says Degraded, so it's the one the page opens, as for any server that isn't well.
+    const inspector = await screen.findByRole("complementary", { name: "web-2" });
+    await waitFor(() => expect(router.state.location.search).toEqual({ server: "srv_2" }));
+    expect(inspector).toHaveTextContent("Degradedfor 3 min");
+    expect(inspector).toHaveTextContent("Memory above 90% since 13:58");
+    expect(await rowOf(/^web-2/)).toHaveTextContent("DegradedMemory above 90%");
   });
 
   it("says why a server isn't well in its row, and which is the control server", async () => {

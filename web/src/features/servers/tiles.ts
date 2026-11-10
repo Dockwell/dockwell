@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { Connection, type Server } from "@dockwell/api";
+import { Connection, type Server, ServerStrain } from "@dockwell/api";
 import type { FleetServer } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 
 import { useTimeWords } from "../../lib/time";
 import { publicAddressOf } from "./network";
-import { primaryAddress, serverStatus } from "./server";
+import { HIGH_USE, primaryAddress, serverStatus } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 
 /**
@@ -39,7 +39,12 @@ export function useServerTiles(servers: readonly Server[], unknown: boolean): Fl
           ? t`Waiting for its agent`
           : s.dockerUnreadableSince
             ? t`Can't read Docker`
-            : undefined;
+            : s.strainedSince
+              ? // Why it reads Degraded, in the server list's words.
+                s.strain === ServerStrain.CPU
+                ? t`CPU above ${HIGH_USE}%`
+                : t`Memory above ${HIGH_USE}%`
+              : undefined;
     if (unknown) return { id: s.id, name: s.name, status: "unknown", ip: addressOf(s) };
     return {
       id: s.id,
