@@ -146,7 +146,8 @@ async function main() {
   await page.getByLabel("Your name").fill("Mira Chen");
   await page.getByLabel("Email").fill("mira@example.com");
   await page.getByRole("button", { name: "Create passkey" }).click();
-  await page.getByRole("heading", { level: 1, name: "Overview" }).waitFor({ timeout: 20_000 });
+  // A new owner starts where the first app comes from.
+  await page.getByRole("heading", { level: 1, name: "What do you want to run?" }).waitFor({ timeout: 20_000 });
 
   step("Members: with one person, the invite form waits behind a button, and says nothing of roles yet");
   await page.goto(`${origin}/settings/members`);
