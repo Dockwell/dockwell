@@ -894,6 +894,7 @@ message AlertCheck {
   // less than every.
   string timeout = 3;
   // How many runs in a row have to fail for it to read down: 2 unless set, 1 to 10.
+  // Down, it reads up again after 2 runs in a row pass.
   uint32 down_after = 4;
   // The lowest status that counts as up: 200 unless set.
   uint32 expect_from = 5;

@@ -348,11 +348,12 @@ enum AlertCheckState {
   ALERT_CHECK_STATE_UNSPECIFIED = 0;
   // It hasn't run yet.
   ALERT_CHECK_STATE_WAITING = 1 [(dockwell.v1.word) = "Waiting"];
-  // Its last run passed.
+  // Its last run passed, and if it was down, the one before passed too.
   ALERT_CHECK_STATE_UP = 2 [(dockwell.v1.word) = "Up"];
   // Its last run failed, and not yet as many in a row as make it down.
   ALERT_CHECK_STATE_FAILING = 3 [(dockwell.v1.word) = "Failing"];
-  // As many runs in a row as it says have failed.
+  // As many runs in a row as it says have failed, and not yet 2 in a row passed
+  // since.
   ALERT_CHECK_STATE_DOWN = 4 [(dockwell.v1.word) = "Down"];
 }
 

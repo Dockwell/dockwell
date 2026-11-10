@@ -1083,7 +1083,7 @@ export enum AlertCheckState {
   WAITING = 1,
 
   /**
-   * Its last run passed.
+   * Its last run passed, and if it was down, the one before passed too.
    *
    * @generated from enum value: ALERT_CHECK_STATE_UP = 2;
    */
@@ -1097,7 +1097,8 @@ export enum AlertCheckState {
   FAILING = 3,
 
   /**
-   * As many runs in a row as it says have failed.
+   * As many runs in a row as it says have failed, and not yet 2 in a row passed
+   * since.
    *
    * @generated from enum value: ALERT_CHECK_STATE_DOWN = 4;
    */

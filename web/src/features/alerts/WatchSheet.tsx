@@ -7,6 +7,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
+import { durationWords } from "../apps/specEdit";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import {
@@ -15,6 +16,7 @@ import {
   checkStatus,
   DOWN_AFTER,
   EVERIES,
+  holdOf,
   hostOf,
   nameFor,
   tookMs,
@@ -176,7 +178,11 @@ export function WatchSheet({
     });
   };
 
-  if (made) return <FirstAnswer id={made} host={host} onClose={onClose} />;
+  if (made) return <FirstAnswer id={made} host={host} hold={durationWords(holdOf(rules))} onClose={onClose} />;
+  // What counts as up, as this check has it: the CLI can set what the sheet doesn't.
+  const from = was.expectFrom;
+  const to = was.expectTo;
+  const timeout = durationWords(was.timeout);
 
   return (
     <Sheet
@@ -246,7 +252,7 @@ export function WatchSheet({
           />
           <p className="alerts-muted">
             <Trans>
-              Up is an answer from 200 to 399 within 10 seconds, so a redirect counts. Where the alert goes is the
+              Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the
               Address down rule's, under Rules.
             </Trans>
           </p>
@@ -257,7 +263,7 @@ export function WatchSheet({
 }
 
 /** A new check's first answer, as the control plane gets it, a moment after it applies. */
-function FirstAnswer({ id, host, onClose }: { id: string; host: string; onClose: () => void }) {
+function FirstAnswer({ id, host, hold, onClose }: { id: string; host: string; hold: string; onClose: () => void }) {
   const { t, i18n } = useLingui();
   const check = useChecks({ poll: 1000 }).data?.checks.find((c) => c.id === id);
   const run = check?.runs[0];
@@ -295,9 +301,11 @@ function FirstAnswer({ id, host, onClose }: { id: string; host: string; onClose:
             </p>
             <p className="alerts-muted">
               {plural(check.spec?.downAfter || CHECK_DEFAULTS.downAfter, {
-                one: "Dockwell asks again on its own, and alerts after # failed run.",
-                other: "Dockwell asks again on its own, and alerts after # failed runs in a row.",
-              })}
+                one: "Dockwell asks again on its own, and the check reads down after # failed run.",
+                other: "Dockwell asks again on its own, and the check reads down after # failed runs in a row.",
+              })}{" "}
+              {/* Up after 2 passes in a row: internal/control/checks, UpAfter. */}
+              {t`It alerts once it has been down ${hold}, and reads up again after 2 passing runs in a row.`}
             </p>
           </>
         )}

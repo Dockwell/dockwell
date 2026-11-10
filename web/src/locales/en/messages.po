@@ -1679,6 +1679,9 @@ msgstr "Every 5 minutes"
 msgid "How often"
 msgstr "How often"
 
+msgid "It alerts once it has been down {hold}, and reads up again after 2 passing runs in a row."
+msgstr "It alerts once it has been down {hold}, and reads up again after 2 passing runs in a row."
+
 #. placeholder {0}: run.status
 msgid "It answered {0} in {ms} ms."
 msgstr "It answered {0} in {ms} ms."
@@ -1712,8 +1715,8 @@ msgstr "Stop watching {host}"
 msgid "Type the address to watch, such as https://shop.example.com/."
 msgstr "Type the address to watch, such as https://shop.example.com/."
 
-msgid "Up is an answer from 200 to 399 within 10 seconds, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
-msgstr "Up is an answer from 200 to 399 within 10 seconds, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
+msgid "Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
+msgstr "Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
 
 msgid "Use an http or https address, such as https://shop.example.com/."
 msgstr "Use an http or https address, such as https://shop.example.com/."
@@ -1743,8 +1746,8 @@ msgid "the Address down rule is off, so nothing is sent"
 msgstr "the Address down rule is off, so nothing is sent"
 
 #. placeholder {0}: check.spec?.downAfter || CHECK_DEFAULTS.downAfter
-msgid "{0, plural, one {Dockwell asks again on its own, and alerts after # failed run.} other {Dockwell asks again on its own, and alerts after # failed runs in a row.}}"
-msgstr "{0, plural, one {Dockwell asks again on its own, and alerts after # failed run.} other {Dockwell asks again on its own, and alerts after # failed runs in a row.}}"
+msgid "{0, plural, one {Dockwell asks again on its own, and the check reads down after # failed run.} other {Dockwell asks again on its own, and the check reads down after # failed runs in a row.}}"
+msgstr "{0, plural, one {Dockwell asks again on its own, and the check reads down after # failed run.} other {Dockwell asks again on its own, and the check reads down after # failed runs in a row.}}"
 
 msgid "{n, plural, one {# failed run} other {# failed runs}}"
 msgstr "{n, plural, one {# failed run} other {# failed runs}}"

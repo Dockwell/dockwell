@@ -92,6 +92,13 @@ func TestACheckOfAnAddressItCantReachIsRefused(t *testing.T) {
 		{&resourcev1.AlertCheck{Address: "http://127.0.0.1:8080/", InsideNetwork: true}, "never reaches. Check the address people reach it at"},
 		{&resourcev1.AlertCheck{Address: "http://localhost:8080/"}, "never reaches"},
 		{&resourcev1.AlertCheck{Address: "http://169.254.169.254/latest/", InsideNetwork: true}, "never reaches"},
+		// What only a resolver reads as an address, which a check never asks.
+		{&resourcev1.AlertCheck{Address: "http://2130706433/", InsideNetwork: true}, "isn't an address a check can ask"},
+		{&resourcev1.AlertCheck{Address: "http://0x7f000001/"}, "isn't an address a check can ask"},
+		{&resourcev1.AlertCheck{Address: "http://127.1:8080/"}, "isn't an address a check can ask"},
+		{&resourcev1.AlertCheck{Address: "http://0177.0.0.1/"}, "isn't an address a check can ask"},
+		{&resourcev1.AlertCheck{Address: "https://shop.example.com:99999/"}, "a port from 1 to 65535, not 99999"},
+		{&resourcev1.AlertCheck{Address: "https://shop.example.com:0/"}, "a port from 1 to 65535, not 0"},
 	} {
 		err := (Check{}).Validate(tc.check)
 		if err == nil || !strings.Contains(err.Error(), tc.says) {
@@ -101,6 +108,11 @@ func TestACheckOfAnAddressItCantReachIsRefused(t *testing.T) {
 	inside := &resourcev1.AlertCheck{Address: "http://192.168.1.10/", InsideNetwork: true}
 	if err := (Check{}).Validate(inside); err != nil {
 		t.Errorf("a check of a private address from inside the network = %v", err)
+	}
+	for _, a := range []string{"https://203.0.113.10:8443/", "https://[2001:db8::10]/", "https://123.example.com/", "https://0xcafe.example.com/"} {
+		if err := (Check{}).Validate(&resourcev1.AlertCheck{Address: a}); err != nil {
+			t.Errorf("a check of %s = %v", a, err)
+		}
 	}
 	if (Check{}).Cap() != 200 || !strings.Contains((Check{}).CapWords(200), "Remove a check") {
 		t.Errorf("an install keeps %d checks: %q", (Check{}).Cap(), (Check{}).CapWords(200))

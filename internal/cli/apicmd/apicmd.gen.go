@@ -2462,7 +2462,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "address", Help: "The address it asks, an http or https URL, such as \"https://shop.example.com/\"."},
 				{Path: "every", Help: "How often it's checked: \"30s\", \"1m\", \"5m\" or \"15m\". \"1m\" unless set."},
 				{Path: "timeout", Help: "How long a run waits for an answer: \"10s\" unless set, at most \"30s\", and less than every."},
-				{Path: "down_after", Help: "How many runs in a row have to fail for it to read down: 2 unless set, 1 to 10."},
+				{Path: "down_after", Help: "How many runs in a row have to fail for it to read down: 2 unless set, 1 to 10. Down, it reads up again after 2 runs in a row pass."},
 				{Path: "expect_from", Help: "The lowest status that counts as up: 200 unless set."},
 				{Path: "expect_to", Help: "The highest status that counts as up: 399 unless set, so a redirect is up."},
 				{Path: "keyword", Help: "Text the answer's first 64 KiB has to hold, when set, such as \"Welcome\"."},

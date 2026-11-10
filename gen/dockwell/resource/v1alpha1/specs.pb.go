@@ -3963,6 +3963,7 @@ type AlertCheck struct {
 	// less than every.
 	Timeout string `protobuf:"bytes,3,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	// How many runs in a row have to fail for it to read down: 2 unless set, 1 to 10.
+	// Down, it reads up again after 2 runs in a row pass.
 	DownAfter uint32 `protobuf:"varint,4,opt,name=down_after,json=downAfter,proto3" json:"down_after,omitempty"`
 	// The lowest status that counts as up: 200 unless set.
 	ExpectFrom uint32 `protobuf:"varint,5,opt,name=expect_from,json=expectFrom,proto3" json:"expect_from,omitempty"`

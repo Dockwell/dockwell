@@ -69,8 +69,9 @@ type Checks interface {
 }
 
 // checksDown says, of each check that has run, whether it's down: as many runs in
-// a row as it says have failed. A check that's failing fewer is fine as yet, and
-// one that hasn't run says nothing.
+// a row as it says have failed, and not yet checks.UpAfter in a row passed since.
+// A check that's failing fewer isn't down as yet, and one that hasn't run says
+// nothing.
 func (s *signals) checksDown() []finding {
 	if s.e.Checks == nil {
 		return nil
@@ -97,9 +98,14 @@ func (s *signals) checksDown() []finding {
 		case dockwellv1.AlertCheckState_ALERT_CHECK_STATE_DOWN:
 			f.verdict, f.since = holds, c.Since
 			f.title = host + " is down"
+			// What the newest failed run said: not a run that couldn't start,
+			// and not a pass on the way back up.
 			said := "it didn't answer as it should"
-			if len(c.Runs) > 0 && c.Runs[0].GetSaid() != "" {
-				said = c.Runs[0].GetSaid()
+			for _, r := range c.Runs {
+				if !r.GetSkipped() && !r.GetOk() && r.GetSaid() != "" {
+					said = r.GetSaid()
+					break
+				}
 			}
 			f.detail = fmt.Sprintf("Checked from %s: %s, %d runs in a row since %s. People reaching %s may get the same. Check what serves it, then its logs.",
 				checks.From, said, max(c.Spec.GetDownAfter(), 1), c.Since.UTC().Format("15:04 UTC, 2 Jan"), host)

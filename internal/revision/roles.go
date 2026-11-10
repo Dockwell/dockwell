@@ -239,12 +239,9 @@ func (e *Engine) reachFirst(ctx context.Context, tx *store.Tx, actor string, edi
 	return err
 }
 
-// portsOutOfReach refuses, below an admin, a port on a server that something
-// out of the person's reach publishes there, in words that name neither it nor
-// its project, before the server's own check, which names what holds a port
-// (ADR 0048). What's in reach the server's check words as it always has.
 // capsHeld refuses a change that would take the install past the most it keeps
-// of a kind (resource.Capped), counting what the change makes and deletes.
+// of a kind (resource.Capped), counting what the change makes and deletes. A
+// plan checks it, and the change's commit checks it again.
 func (e *Engine) capsHeld(ctx context.Context, tx *store.Tx, items []item) error {
 	more := map[resource.Kind]int{}
 	for i := range items {
@@ -278,6 +275,10 @@ func (e *Engine) capsHeld(ctx context.Context, tx *store.Tx, items []item) error
 	return nil
 }
 
+// portsOutOfReach refuses, below an admin, a port on a server that something
+// out of the person's reach publishes there, in words that name neither it nor
+// its project, before the server's own check, which names what holds a port
+// (ADR 0048). What's in reach the server's check words as it always has.
 func (e *Engine) portsOutOfReach(ctx context.Context, tx *store.Tx, items []item) error {
 	caller, ok := place.CallerFrom(ctx)
 	if !ok || store.RoleRank(place.Holds(caller.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin) {

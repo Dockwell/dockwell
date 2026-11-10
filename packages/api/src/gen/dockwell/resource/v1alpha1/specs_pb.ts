@@ -2212,6 +2212,7 @@ export type AlertCheck = Message<"dockwell.resource.v1alpha1.AlertCheck"> & {
 
   /**
    * How many runs in a row have to fail for it to read down: 2 unless set, 1 to 10.
+   * Down, it reads up again after 2 runs in a row pass.
    *
    * @generated from field: uint32 down_after = 4;
    */

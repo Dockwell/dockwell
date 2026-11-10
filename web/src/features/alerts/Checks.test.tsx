@@ -188,6 +188,12 @@ describe("Checks of a URL", () => {
     expect(within(first).getByText("Asking shop.example.com from the control server…")).toBeVisible();
     checks = [aCheck("shop-example-com", "https://shop.example.com/", { id: "chk_new", runs: [run(true, 200)] })];
     expect(await within(first).findByText("It answered 200 in 142 ms.", undefined, { timeout: 5000 })).toBeVisible();
+    // Down after 2 failures, up after 2 passes, and the rule's hold on top.
+    expect(
+      within(first).getByText(
+        "Dockwell asks again on its own, and the check reads down after 2 failed runs in a row. It alerts once it has been down 2 min, and reads up again after 2 passing runs in a row.",
+      ),
+    ).toBeVisible();
     expect(within(first).getByRole("link", { name: "See every check" })).toHaveAttribute("href", "/alerts/checks");
   });
 
@@ -195,6 +201,8 @@ describe("Checks of a URL", () => {
     const user = userEvent.setup();
     const proposed: ProposeChangeRequest[] = [];
     const shop = aCheck("shop-example-com", "https://shop.example.com/", { runs: [run(true, 200)] });
+    // What counts as up, set through the CLI, as the sheet doesn't.
+    shop.spec = { ...shop.spec, timeout: "5s", expectTo: 299 } as typeof shop.spec;
     renderAt(
       "/alerts/checks",
       api(() => [shop], {
@@ -226,6 +234,9 @@ describe("Checks of a URL", () => {
     await user.click(within(sheet).getByRole("button", { name: /Change/ }));
     await user.selectOptions(within(sheet).getByLabelText("How often"), "5m");
     await user.selectOptions(within(sheet).getByLabelText("Down after"), "3");
+    expect(
+      within(sheet).getByText(/^Up is an answer from 200 to 299 within 5 s, so a redirect counts\./),
+    ).toBeVisible();
     await user.click(within(sheet).getByRole("button", { name: /Change/ }));
     expect(within(sheet).getByText("Every 5 minutes · down after 3 failures · alerts ops-email")).toBeVisible();
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
@@ -233,7 +244,7 @@ describe("Checks of a URL", () => {
     expect(proposed[0]?.edits[0]?.spec?.kind).toMatchObject({
       case: "alertCheck",
       // What the sheet doesn't show stays as the check has it.
-      value: { address: "https://shop.example.com/", every: "5m", downAfter: 3, timeout: "10s", expectTo: 399 },
+      value: { address: "https://shop.example.com/", every: "5m", downAfter: 3, timeout: "5s", expectTo: 299 },
     });
   });
 

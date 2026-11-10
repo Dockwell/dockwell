@@ -5,7 +5,10 @@ package alert
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -85,6 +88,18 @@ func (Check) Validate(spec proto.Message) error {
 		return errors.New("a check's address can't hold a user and password: a check sends nothing that signs in")
 	}
 	c.Address = u.String()
+	if p := u.Port(); p != "" {
+		if n, err := strconv.Atoi(p); err != nil || n < 1 || n > 65535 {
+			return fmt.Errorf("a check's address has a port from 1 to 65535, not %s", p)
+		}
+	}
+	if h := u.Hostname(); numeric.MatchString(h) {
+		if _, err := netip.ParseAddr(h); err != nil {
+			// A resolver may read 2130706433 or 0x7f.1 as an address; a check
+			// never asks one that way, so it would never run.
+			return fmt.Errorf("%s isn't an address a check can ask: write an address as four numbers, such as 203.0.113.10, or a domain", h)
+		}
+	}
 	if err := reachable(u.Host, c.GetInsideNetwork()); err != nil {
 		return err
 	}
@@ -151,6 +166,9 @@ func (Check) CapWords(have int) string {
 // from the control plane, written out as one: this server's loopback, a metadata
 // service, a link-local address; and a private one, unless the check says it's
 // inside the network. A name is judged as it's dialed, each run.
+// numeric is a host of numbers only, in any base a resolver may read.
+var numeric = regexp.MustCompile(`(?i)^(0x[0-9a-f]*|\d+)(\.(0x[0-9a-f]*|\d+))*\.?$`)
+
 func reachable(host string, inside bool) error {
 	why := netguard.Forbidden(host, netguard.Options{Private: inside})
 	switch {

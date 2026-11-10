@@ -696,10 +696,8 @@ func (h *Handler) ListAlertChecks(ctx context.Context, _ *connect.Request[dockwe
 				State: dockwellv1.AlertCheckState_ALERT_CHECK_STATE_WAITING,
 			}
 			if err != nil || !ok {
-				// Listed all the same, with why, rather than failing the list.
-				if h.logger != nil {
-					h.logger.WarnContext(ctx, "can't read a check", slog.String("check", s.Name), slog.Any("error", err))
-				}
+				// Listed all the same, with why, rather than failing the list. The
+				// runner's load says so in the log, once.
 				info.Spec, info.Problem = nil, checks.Unreadable
 				if st, ok := standing[s.ID]; ok {
 					info.State, info.Runs = st.State, st.Runs

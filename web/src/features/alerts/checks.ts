@@ -102,16 +102,23 @@ export function nameFor(url: string, taken: readonly string[]): string {
 /** A check's spec with the control plane's defaults filled in where it has none. */
 export function withDefaults(spec: Partial<AlertCheck> | undefined): {
   every: string;
+  timeout: string;
   downAfter: number;
   expectFrom: number;
   expectTo: number;
 } {
   return {
     every: spec?.every || CHECK_DEFAULTS.every,
+    timeout: spec?.timeout || CHECK_DEFAULTS.timeout,
     downAfter: spec?.downAfter || CHECK_DEFAULTS.downAfter,
     expectFrom: spec?.expectFrom || CHECK_DEFAULTS.expectFrom,
     expectTo: spec?.expectTo || CHECK_DEFAULTS.expectTo,
   };
+}
+
+/** How long a check is down before it alerts, and up before that clears: the check-down rule's hold. */
+export function holdOf(rules: readonly AlertRuleInfo[] | undefined): string {
+  return rules?.find((r) => r.name === CHECK_DOWN_RULE)?.spec?.duration || "2m";
 }
 
 /** Where a check's alert goes, as the check-down rule sends it. */

@@ -86,11 +86,12 @@ const (
 	AlertCheckState_ALERT_CHECK_STATE_UNSPECIFIED AlertCheckState = 0
 	// It hasn't run yet.
 	AlertCheckState_ALERT_CHECK_STATE_WAITING AlertCheckState = 1
-	// Its last run passed.
+	// Its last run passed, and if it was down, the one before passed too.
 	AlertCheckState_ALERT_CHECK_STATE_UP AlertCheckState = 2
 	// Its last run failed, and not yet as many in a row as make it down.
 	AlertCheckState_ALERT_CHECK_STATE_FAILING AlertCheckState = 3
-	// As many runs in a row as it says have failed.
+	// As many runs in a row as it says have failed, and not yet 2 in a row passed
+	// since.
 	AlertCheckState_ALERT_CHECK_STATE_DOWN AlertCheckState = 4
 )
 

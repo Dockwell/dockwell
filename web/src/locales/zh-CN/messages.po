@@ -1679,6 +1679,9 @@ msgstr "每 5 分钟"
 msgid "How often"
 msgstr "频率"
 
+msgid "It alerts once it has been down {hold}, and reads up again after 2 passing runs in a row."
+msgstr "宕机达 {hold} 后发出告警，连续 2 次正常后恢复为正常。"
+
 #. placeholder {0}: run.status
 msgid "It answered {0} in {ms} ms."
 msgstr "它在 {ms} 毫秒内响应了 {0}。"
@@ -1712,8 +1715,8 @@ msgstr "停止监测 {host}"
 msgid "Type the address to watch, such as https://shop.example.com/."
 msgstr "输入要监测的地址，例如 https://shop.example.com/。"
 
-msgid "Up is an answer from 200 to 399 within 10 seconds, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
-msgstr "10 秒内响应 200 到 399 即为正常，因此重定向也算正常。告警发往哪里由“规则”下的 Address down 规则决定。"
+msgid "Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
+msgstr "{timeout} 内响应 {from} 到 {to} 即为正常，因此重定向也算正常。告警发往哪里由“规则”下的 Address down 规则决定。"
 
 msgid "Use an http or https address, such as https://shop.example.com/."
 msgstr "请使用 http 或 https 地址，例如 https://shop.example.com/。"
@@ -1743,8 +1746,8 @@ msgid "the Address down rule is off, so nothing is sent"
 msgstr "Address down 规则已关闭，因此不会发送任何告警"
 
 #. placeholder {0}: check.spec?.downAfter || CHECK_DEFAULTS.downAfter
-msgid "{0, plural, one {Dockwell asks again on its own, and alerts after # failed run.} other {Dockwell asks again on its own, and alerts after # failed runs in a row.}}"
-msgstr "{0, plural, other {Dockwell 会自动再次访问，连续 # 次失败后发出告警。}}"
+msgid "{0, plural, one {Dockwell asks again on its own, and the check reads down after # failed run.} other {Dockwell asks again on its own, and the check reads down after # failed runs in a row.}}"
+msgstr "{0, plural, other {Dockwell 会自动再次访问，连续 # 次失败后判定为宕机。}}"
 
 msgid "{n, plural, one {# failed run} other {# failed runs}}"
 msgstr "{n, plural, other {# 次失败}}"
