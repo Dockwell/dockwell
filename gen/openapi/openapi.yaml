@@ -8151,6 +8151,16 @@ components:
                     description: |-
                         What the install is called, as its settings have it, for the sign-in screen
                          to say. Empty when nobody has named it.
+                grants:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RoleGrant'
+                    description: |-
+                        What the signed-in person holds: a role on the whole install, on projects,
+                         or both. The panel reads from these, and from each method's
+                         (dockwell.v1.min_role) and (dockwell.v1.reach), what to offer
+                         (docs/adr/0059-what-the-panel-knows-of-what-you-may-do.md). Empty when
+                         not signed in, and for someone with no role left.
             description: GetAuthStateResponse describes the install and this request's session.
         GetBackupResponse:
             type: object
@@ -11074,6 +11084,12 @@ components:
                     description: |-
                         The name to show, such as "Storefront", from its spec, for kinds whose
                          spec has one. Empty when it isn't set.
+                protected:
+                    type: boolean
+                    description: |-
+                        True for an environment that's protected, where a developer's change
+                         waits for an admin or the owner (ADR 0049): as its spec says, or by its
+                         name for one from before protection was written. False for anything else.
             description: Resource is one managed resource, as its latest revision has it.
         ResourceRef:
             type: object
@@ -11320,6 +11336,25 @@ components:
             type: object
             properties: {}
             description: RevokeTokenResponse is empty.
+        RoleGrant:
+            type: object
+            properties:
+                projectId:
+                    type: string
+                    description: |-
+                        The project it's on, by ID. Empty for the whole install, which covers
+                         every project.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    description: The role.
+                    format: enum
+            description: RoleGrant is a role someone holds, and where.
         RollBackServiceRequest:
             type: object
             properties:
