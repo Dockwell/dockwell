@@ -191,8 +191,67 @@ func testAnAlert(t *testing.T, backend store.Backend) {
 		t.Fatalf("UnmuteAlerts: %v", err)
 	}
 
+	// Someone says they're on it: who and when are on the alert, nothing is sent
+	// for it, and saying it twice tells nobody twice.
+	ack := func(c dockwellv1connect.AlertServiceClient, alertID string) (*dockwellv1.Alert, error) {
+		res, err := c.AcknowledgeAlert(t.Context(), connect.NewRequest(&dockwellv1.AcknowledgeAlertRequest{Id: alertID}))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg.GetAlert(), nil
+	}
+	mine, err := ack(sites, down.GetId())
+	if err != nil || mine.GetAcknowledgeTime() == nil || !strings.HasPrefix(mine.GetAcknowledgedBy().GetId(), "usr_") || mine.GetAcknowledgedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_USER || mine.GetAcknowledgedBy().GetName() == "" || mine.GetAcknowledgedBy().GetName() == mine.GetAcknowledgedBy().GetId() {
+		t.Fatalf("AcknowledgeAlert = %v, %v; want who has it, by name and by ID, and since when", mine, err)
+	}
+	if again, err := ack(sites, down.GetId()); err != nil || !again.GetAcknowledgeTime().AsTime().Equal(mine.GetAcknowledgeTime().AsTime()) {
+		t.Errorf("acknowledging what you have = %v, %v; want it as it stood", again, err)
+	}
+	// A token that can make changes takes it over, as a script that pages someone would.
+	theirs, err := ack(script, down.GetId())
+	if err != nil || !strings.HasPrefix(theirs.GetAcknowledgedBy().GetId(), "tok_") {
+		t.Fatalf("a token's AcknowledgeAlert = %v, %v; want it taken over", theirs, err)
+	}
+	if listed, err := sites.ListAlerts(t.Context(), connect.NewRequest(&dockwellv1.ListAlertsRequest{FiringOnly: true})); err != nil || !slices.ContainsFunc(listed.Msg.GetAlerts(), func(a *dockwellv1.Alert) bool {
+		return a.GetId() == down.GetId() && a.GetAcknowledgedBy().GetId() == theirs.GetAcknowledgedBy().GetId()
+	}) {
+		t.Errorf("ListAlerts doesn't say who has %s: %v, %v", down.GetId(), listed, err)
+	}
+	if _, err := ack(sites, "alt_nothing"); reasonOf(err) != "not_found" {
+		t.Errorf("acknowledging an alert that isn't there = %v", err)
+	}
+	unackAs := func(c dockwellv1connect.AlertServiceClient, alertID string) error {
+		_, err := c.UnacknowledgeAlert(t.Context(), connect.NewRequest(&dockwellv1.UnacknowledgeAlertRequest{Id: alertID}))
+		return err
+	}
+	unack := func(alertID string) error { return unackAs(sites, alertID) }
+	// Taking back is your own: the person it was taken over from can't take back the
+	// token's, as a card that's out of date would, and it stays the token's.
+	if err := unack(down.GetId()); reasonOf(err) != "not_yours" {
+		t.Errorf("taking back someone else's acknowledgement = %v; want it refused as not yours", err)
+	}
+	if listed, err := sites.ListAlerts(t.Context(), connect.NewRequest(&dockwellv1.ListAlertsRequest{FiringOnly: true})); err != nil || !slices.ContainsFunc(listed.Msg.GetAlerts(), func(a *dockwellv1.Alert) bool {
+		return a.GetId() == down.GetId() && a.GetAcknowledgedBy().GetId() == theirs.GetAcknowledgedBy().GetId()
+	}) {
+		t.Errorf("after a refused take-back, %s isn't the token's any more: %v, %v", down.GetId(), listed, err)
+	}
+	if err := unackAs(script, down.GetId()); err != nil {
+		t.Fatalf("UnacknowledgeAlert, by who has it: %v", err)
+	}
+	if err := unack(down.GetId()); reasonOf(err) != "not_acknowledged" {
+		t.Errorf("taking back what nobody has = %v", err)
+	}
+	if _, err := ack(sites, down.GetId()); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(time.Minute)
+	tick()
+	if got := h.of("server-unreachable"); len(got) != 1 {
+		t.Errorf("acknowledging sent something, or held something back: the webhook got %v", got)
+	}
+
 	// It comes back: once it has stayed back for the rule's 2 minutes, the alert
-	// resolves, and says so where it was sent.
+	// resolves, and says so where it was sent, acknowledged or not.
 	hz1.connect(t, f)
 	tick()
 	now = now.Add(time.Minute)
@@ -204,6 +263,35 @@ func testAnAlert(t *testing.T, backend store.Backend) {
 	tick()
 	if got := h.of("server-unreachable"); len(got) != 2 || got[1] != "resolved: Resolved: hz-1 can't be reached" {
 		t.Errorf("the webhook got %v", got)
+	}
+
+	// Resolved, there's nothing left to be on, and it keeps who had it.
+	if _, err := ack(sites, down.GetId()); reasonOf(err) != "alert_resolved" {
+		t.Errorf("acknowledging an alert that resolved = %v", err)
+	}
+	if err := unack(down.GetId()); reasonOf(err) != "alert_resolved" {
+		t.Errorf("taking back the acknowledgement of an alert that resolved = %v", err)
+	}
+	if all, err := sites.ListAlerts(t.Context(), connect.NewRequest(&dockwellv1.ListAlertsRequest{})); err != nil || !slices.ContainsFunc(all.Msg.GetAlerts(), func(a *dockwellv1.Alert) bool {
+		return a.GetId() == down.GetId() && a.GetState() == dockwellv1.AlertState_ALERT_STATE_RESOLVED && strings.HasPrefix(a.GetAcknowledgedBy().GetId(), "usr_")
+	}) {
+		t.Errorf("the resolved alert doesn't keep who had it: %v, %v", all, err)
+	}
+
+	// It goes again: that's another alert, and it starts as nobody's, whoever had the last.
+	hz1.stop()
+	waitConnected(t, f, hz1.id.ServerID, false)
+	tick()
+	now = now.Add(3 * time.Minute)
+	tick()
+	again, err := sites.ListAlerts(t.Context(), connect.NewRequest(&dockwellv1.ListAlertsRequest{FiringOnly: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(again.Msg.GetAlerts(), func(a *dockwellv1.Alert) bool {
+		return a.GetRuleName() == "server-unreachable" && a.GetId() != down.GetId() && a.GetAcknowledgeTime() == nil && a.GetAcknowledgedBy() == nil
+	}) {
+		t.Errorf("the rule firing again isn't a new alert that nobody has: %v", again.Msg.GetAlerts())
 	}
 
 	// A failed change is told once, and is over.
@@ -228,15 +316,34 @@ func testAnAlert(t *testing.T, backend store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var said []string
+	var said, seen []string
 	for _, ev := range events.Msg.GetEvents() {
 		said = append(said, ev.GetAction()+" "+ev.GetAlert().GetRule()+" "+ev.GetAlert().GetTitle())
+		if a := ev.GetAction(); a == "alert.acknowledge" || a == "alert.unacknowledge" {
+			// Who did it, by what, and from whom when it was taken over, newest first.
+			by, _, _ := strings.Cut(ev.GetActor().GetId(), "_")
+			from, _, _ := strings.Cut(ev.GetAlert().GetTakenFrom().GetId(), "_")
+			seen = append(seen, strings.TrimPrefix(a, "alert.")+" by "+by+" from "+from+" on "+ev.GetSurface().String())
+			if ev.GetAlert().GetId() != down.GetId() {
+				t.Errorf("%s names the alert %q, want %s", a, ev.GetAlert().GetId(), down.GetId())
+			}
+		}
 		switch a := ev.GetAlert(); {
 		case ev.GetAction() == "alert.mute" && a.GetReason() != "moving it to a new rack":
 			t.Errorf("a mute's event says why as %q", a.GetReason())
 		case ev.GetAction() == "alert.firing" && a.GetRule() == "server-unreachable" && !strings.Contains(a.GetDetail(), "hasn't heard from its agent"):
 			t.Errorf("a firing alert's event says what it means as %q", a.GetDetail())
 		}
+	}
+	// One event each time something changed, and none for saying what already was:
+	// Mira, the token taking it over from her, the token giving it back, Mira again.
+	if want := []string{
+		"acknowledge by usr from  on SURFACE_PANEL",
+		"unacknowledge by tok from  on SURFACE_API",
+		"acknowledge by tok from usr on SURFACE_API",
+		"acknowledge by usr from  on SURFACE_PANEL",
+	}; !slices.Equal(seen, want) {
+		t.Errorf("Activity's acknowledgements are\n%q, want\n%q", seen, want)
 	}
 	if slices.Contains(said, "alert.resolved change-failed A change failed: Deploy shop") {
 		t.Errorf("a failed change's alert says it resolved, on Activity: %q", said)
@@ -246,6 +353,8 @@ func testAnAlert(t *testing.T, backend store.Backend) {
 		"alert.resolved server-unreachable hz-1 can't be reached",
 		"alert.mute server-unreachable ",
 		"alert.unmute server-unreachable ",
+		"alert.acknowledge server-unreachable hz-1 can't be reached",
+		"alert.unacknowledge server-unreachable hz-1 can't be reached",
 		"alert.firing change-failed A change failed: Deploy shop",
 		"alert.test  ",
 	} {

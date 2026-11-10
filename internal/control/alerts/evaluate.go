@@ -66,12 +66,16 @@ const (
 	ActionResolved = "alert.resolved"
 	ActionMute     = "alert.mute"
 	ActionUnmute   = "alert.unmute"
+	// ActionAcknowledge and ActionUnacknowledge are someone saying they're on an
+	// alert, and taking that back.
+	ActionAcknowledge   = "alert.acknowledge"
+	ActionUnacknowledge = "alert.unacknowledge"
 	// ActionTest is a test sent to a channel, kept or as a form held it.
 	ActionTest = "alert.test"
 )
 
 // Actions are every action an alert event has.
-var Actions = []string{ActionFiring, ActionResolved, ActionMute, ActionUnmute, ActionTest}
+var Actions = []string{ActionFiring, ActionResolved, ActionMute, ActionUnmute, ActionAcknowledge, ActionUnacknowledge, ActionTest}
 
 // settingChangesTold is where the last failed change told is kept, as Unix
 // milliseconds.
@@ -93,6 +97,9 @@ type Told struct {
 	Until       *time.Time `json:"until,omitempty"`
 	Reason      string     `json:"reason,omitempty"`
 	Detail      string     `json:"detail,omitempty"`
+	// TakenFrom is who had the alert before, as an actor, on an acknowledgement
+	// that took it over, so the event says both without the one before it.
+	TakenFrom string `json:"taken_from,omitempty"`
 }
 
 // Facts are what an alert's title says, apart, so the panel can say it in its own
