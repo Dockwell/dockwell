@@ -87,7 +87,7 @@ describe("the containers Dockwell didn't make", () => {
       "href",
       "/servers/srv_1/containers/legacy-api",
     );
-    expect(within(panel).getByText(/looking here changes nothing/)).toBeVisible();
+    expect(within(panel).getByText("Dockwell only reads these. Open one to take it on as an app.")).toBeVisible();
     expect(within(panel).getByText(/Dockwell runs 3 more containers here, which aren't listed/)).toBeVisible();
     expect(within(panel).getByRole("link", { name: "Apps" })).toHaveAttribute("href", "/apps");
     expect(within(panel).getByText("2 containers, 1 running")).toBeVisible();
