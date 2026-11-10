@@ -7856,14 +7856,14 @@ msgstr "{0, plural, other {代理有 # 个版本}}"
 msgid "{used} of {total}"
 msgstr "{used} / {total}"
 
+msgid "Add server"
+msgstr "添加服务器"
+
 msgid "Files"
 msgstr "文件"
 
 msgid "No servers yet"
 msgstr "还没有服务器"
-
-msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
-msgstr "在控制服务器上运行 <0>dockwell token create</0>，然后在要添加的服务器上，用它输出的凭据运行 <1>dockwell join</1>。"
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} 个 vCPU"
@@ -7918,44 +7918,93 @@ msgstr "最近的变更"
 msgid "Add a server"
 msgstr "添加服务器"
 
-msgid "Connect a new server with a ticket from the control server."
-msgstr "使用控制服务器提供的票据连接新服务器。"
+msgid "Any Linux server you have root on: another provider, a home lab or a VM."
+msgstr "任何你有 root 权限的 Linux 服务器：其他云服务商、家庭实验室或虚拟机。"
 
-msgid "It shows on Servers as soon as its agent connects. Your apps stay where they are: an app moves only when you apply a plan for it."
-msgstr "它的代理一连接，它就会出现在“服务器”页面。你的应用保持原位：只有在你为某个应用应用计划时，它才会迁移。"
+msgid "Confirm with your passkey. The command works once, for an hour."
+msgstr "用通行密钥确认。命令只能使用一次，一小时内有效。"
 
-msgid "Join and start the agent"
-msgstr "加入并启动代理"
+msgid "Install an agent of the control server's version as <0>dockwell</0> first."
+msgstr "先安装与控制服务器同版本的代理，命名为 <0>dockwell</0>。"
 
-msgid "Make a ticket on the control server"
-msgstr "在控制服务器上生成票据"
+msgid "Install the agent of <0>{version}</0> as <1>dockwell</1> first, as this build has no installer."
+msgstr "此构建没有安装程序，请先安装 <0>{version}</0> 的代理，命名为 <1>dockwell</1>。"
 
-msgid "Make a ticket on {name}"
-msgstr "在 {name} 上生成票据"
+msgid "It joins in seconds."
+msgstr "几秒内即可加入。"
 
-msgid "On any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the control plane's version of the agent, joins, and starts."
-msgstr "在任意 Linux 服务器上运行：其他云服务商、家庭实验室或虚拟机都可以。把 <0><ticket></0> 换成票据。它会安装与控制平面相同版本的代理、加入并启动。"
+msgid "It joins in seconds. Nothing on {name} changes."
+msgstr "几秒内即可加入，{name} 上的一切不变。"
 
-msgid "On the new server, put the ticket in place of <0><ticket></0>. Run both commands as the same user, with <1>sudo</1> for both when using the system service. Keep <2>dockwell run</2> running, or configure it as a service."
-msgstr "在新服务器上，把 <0><ticket></0> 换成票据。以同一用户身份运行这两条命令；使用系统服务时，两条命令都要加上 <1>sudo</1>。保持 <2>dockwell run</2> 运行，或将它配置为服务。"
+msgid "It joins through {host}, a private address."
+msgstr "它通过私有地址 {host} 加入。"
 
-msgid "Over SSH, as the user that runs Dockwell, with <0>sudo</0> in front when it runs as the system service. The ticket works once, for an hour."
-msgstr "通过 SSH，以运行 Dockwell 的用户身份执行；Dockwell 作为系统服务运行时，在前面加上 <0>sudo</0>。票据只能使用一次，有效期一小时。"
+msgid "It reaches {controlName} at {host}."
+msgstr "它通过 {host} 连接 {controlName}。"
 
-msgid "Reading the control server's installation details."
-msgstr "正在读取控制服务器的安装信息。"
+msgid "It's the address {controlName} goes out from."
+msgstr "这是 {controlName} 访问外网所用的地址。"
+
+msgid "Make a new command"
+msgstr "生成新命令"
+
+msgid "Make the command"
+msgstr "生成命令"
+
+msgid "Making the command"
+msgstr "正在生成命令"
+
+msgid "No command yet"
+msgstr "尚未生成命令"
+
+msgid "Only servers on {controlName}'s network can join"
+msgstr "只有与 {controlName} 同一网络的服务器才能加入"
+
+msgid "Open {joinedName}"
+msgstr "打开 {joinedName}"
 
 msgid "Run one command on the new server"
 msgstr "在新服务器上运行一条命令"
 
-msgid "The control server's installation details are unavailable. Install an agent that matches its version as <0>dockwell</0> before joining."
-msgstr "无法获取控制服务器的安装信息。加入前，请先安装与其版本一致的代理，并将其命名为 <0>dockwell</0>。"
+msgid "Run these on the new server, as root"
+msgstr "以 root 身份在新服务器上运行以下命令"
 
-msgid "This control server runs a development build with no release installer. Build the agent from the same source revision for the new server's architecture and install it as <0>dockwell</0>."
-msgstr "这台控制服务器运行的是开发构建，没有对应的发行版安装程序。请使用相同修订版本的源代码，为新服务器的架构构建代理，并将其安装为 <0>dockwell</0>。"
+msgid "Run this on the new server"
+msgstr "在新服务器上运行此命令"
 
-msgid "Watch it appear"
-msgstr "等待它出现"
+msgid "Set public address"
+msgstr "设置公网地址"
+
+msgid "This command expired"
+msgstr "此命令已过期"
+
+msgid "Waiting for the server to join"
+msgstr "正在等待服务器加入"
+
+#. placeholder {0}: left(expires - now)
+msgid "Works once · expires in {0}"
+msgstr "仅可使用一次 · {0}后过期"
+
+msgid "Your apps stay where they are. New ones ask where to run."
+msgstr "你的应用保持原位，新应用会询问在哪里运行。"
+
+msgid "Your passkey didn't confirm it, so there's no command yet. Try again."
+msgstr "通行密钥未确认，因此尚未生成命令。请重试。"
+
+msgid "{host} may not lead back to {controlName}"
+msgstr "从外部可能无法通过 {host} 连回 {controlName}"
+
+msgid "{hours} h"
+msgstr "{hours} 小时"
+
+msgid "{joinedName} joined"
+msgstr "{joinedName} 已加入"
+
+msgid "{joinedName} joined, starting its agent"
+msgstr "{joinedName} 已加入，正在启动代理"
+
+msgid "{minutes} min"
+msgstr "{minutes} 分钟"
 
 msgid "Back to the server"
 msgstr "返回服务器"
@@ -8920,12 +8969,6 @@ msgstr "{size} · 未使用"
 
 msgid "{size} · {inUse} in use"
 msgstr "{size} · 已用 {inUse}"
-
-msgid "Add one with a ticket from the control server."
-msgstr "用控制服务器生成的票据添加一台。"
-
-msgid "Add server"
-msgstr "添加服务器"
 
 msgid "CPU {cpu}%"
 msgstr "CPU {cpu}%"
@@ -11814,9 +11857,6 @@ msgstr "{count} 秒"
 
 msgid "{count} s ago"
 msgstr "{count} 秒前"
-
-msgid "{minutes} min"
-msgstr "{minutes} 分钟"
 
 msgid "{minutes} min {seconds} s"
 msgstr "{minutes} 分 {seconds} 秒"

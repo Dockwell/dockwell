@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Connection, type Server } from "@dockwell/api";
-import { PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
+import { Button, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
+import { AddServerSheet } from "../servers/AddServerSheet";
 import { Connecting, FleetUnreadNote, usePageReconnecting } from "../servers/FleetNotes";
 import { ServerCallout } from "../servers/ServerCallout";
 import { ServerMetrics } from "../servers/ServerMetrics";
@@ -44,14 +45,7 @@ export function Overview() {
   if (servers.length === 0) {
     return (
       <OverviewPage servers={0} title={t`Overview`} status={status}>
-        <EmptyState icon="server" title={<Trans>No servers yet</Trans>}>
-          <p>
-            <Trans>
-              Run <code>dockwell token create</code> on the control server, then <code>dockwell join</code> with the
-              ticket it prints on the server you want to add.
-            </Trans>
-          </p>
-        </EmptyState>
+        <NoServers />
       </OverviewPage>
     );
   }
@@ -118,5 +112,24 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
         </div>
       </div>
     </OverviewPage>
+  );
+}
+
+/** No server has joined: adding one is the way on. */
+function NoServers() {
+  const [adding, setAdding] = useState(false);
+  return (
+    <>
+      <EmptyState
+        icon="server"
+        title={<Trans>No servers yet</Trans>}
+        action={
+          <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>
+            <Trans>Add server</Trans>
+          </Button>
+        }
+      />
+      {adding ? <AddServerSheet control={undefined} onClose={() => setAdding(false)} /> : null}
+    </>
   );
 }

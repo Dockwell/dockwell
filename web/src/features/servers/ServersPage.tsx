@@ -6,6 +6,7 @@ import {
   cx,
   FleetGrid,
   type FleetServer,
+  Icon,
   PHONE_QUERY,
   STATUS,
   StatusBadge,
@@ -108,14 +109,28 @@ export function ServersPage({
           <Trans>Add server</Trans>
         </Button>
       }
+      phoneAction={
+        <button
+          type="button"
+          className="mobile-header-button"
+          aria-label={t`Add server`}
+          onClick={() => setAdding(true)}
+        >
+          <Icon name="plus" size={20} />
+        </button>
+      }
     >
       {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : null}
       {servers.length === 0 ? (
-        <EmptyState icon="server" title={<Trans>No servers yet</Trans>}>
-          <p>
-            <Trans>Add one with a ticket from the control server.</Trans>
-          </p>
-        </EmptyState>
+        <EmptyState
+          icon="server"
+          title={<Trans>No servers yet</Trans>}
+          action={
+            <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>
+              <Trans>Add server</Trans>
+            </Button>
+          }
+        />
       ) : phone ? (
         <PhoneServers servers={servers} chosen={chosen} select={select} unknown={unread !== undefined} />
       ) : (

@@ -724,6 +724,9 @@ enum StepUpAction {
   // "chg_…:fingerprint", so the proof is good for that plan alone. It also
   // stands for applying a change that gives something as much as root.
   STEP_UP_ACTION_APPROVE_CHANGE = 114;
+  // Making a ticket that adds a server, with ServerService.CreateJoinTicket. It
+  // has no target of its own: the person's ID, which BeginStepUp fills in.
+  STEP_UP_ACTION_ADD_SERVER = 130;
 }
 
 // StepUpNeeded is the detail of an error whose reason is "needs_step_up",
