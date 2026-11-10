@@ -8205,6 +8205,10 @@ msgstr "拒绝"
 msgid "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them, but for what Docker's proxy takes, as marked."
 msgstr "Docker 会在 ufw 或 firewalld 的规则看到之前把这些流量转发给容器，因此这些规则不覆盖它们，标注为经 Docker 代理的除外。"
 
+#. placeholder {0}: server.name
+msgid "Dockwell can't read {0}'s firewall"
+msgstr "Dockwell 无法读取 {0} 的防火墙"
+
 msgid "Every IPv4 address"
 msgstr "所有 IPv4 地址"
 

@@ -21,6 +21,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { authError } from "../../test/auth";
 import { feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { releaseStanding, splitVersion, summarize } from "./updates";
@@ -253,6 +254,15 @@ describe("UpdatesPage", () => {
     expect(within(why).getByRole("button", { name: "Check now" })).toBeVisible();
     expect(screen.queryByText(/up to date/i)).toBeNull();
     expect(screen.queryByRole("region", { name: "Automatic updates" })).toBeNull();
+  });
+
+  it("says a role doesn't cover a server's updates as every page does", async () => {
+    await renderUpdates(() => {
+      throw authError(Code.PermissionDenied, "needs_role", "this needs the admin role on the install");
+    });
+    const why = await callout("Your role doesn't cover this");
+    expect(why).toHaveTextContent("Your role doesn't let you do this here. Ask an admin to change your role.");
+    expect(screen.queryByText(/couldn't ask hz-1 for its updates/)).toBeNull();
   });
 
   it("says a server's agent is away, before it was ever read", async () => {
