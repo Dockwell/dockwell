@@ -31,6 +31,39 @@ describe("RecoverPage", () => {
     expect(await screen.findByText("You signed in with a one-time link")).toBeVisible();
   });
 
+  it("reads the sign-in state again when the first read answers after the link signed in", async () => {
+    // The page's first read of the sign-in state left before the link signed in, and
+    // answers after it: it says nobody is signed in, which is no longer so.
+    let signedIn = false;
+    let reads = 0;
+    let answerFirst = () => {};
+    const firstRead = new Promise<void>((resolve) => {
+      answerFirst = resolve;
+    });
+    // With the panel's 30 s of freshness: at 0 the gate would read again as it appears, and hide this.
+    const api = {
+      auth: {
+        getAuthState: async () => {
+          reads += 1;
+          if (reads > 1) return authState(signedIn ? { signInMethod: 5 } : { user: undefined });
+          await firstRead;
+          return authState({ user: undefined });
+        },
+        signInWithLink: () => {
+          signedIn = true;
+          setTimeout(answerFirst, 20);
+          return {};
+        },
+        listPasskeys: () => ({ passkeys: [] }),
+        listSessions: () => ({ sessions: [] }),
+        getTotp: () => ({ totp: { enabled: false } }),
+      },
+    };
+    renderAt(`/recover#${TOKEN}`, api, { staleTime: 30_000 });
+    expect(await screen.findByText("You signed in with a one-time link")).toBeVisible();
+    expect(screen.queryByRole("heading", { level: 1, name: "Sign in to Dockwell" })).toBeNull();
+  });
+
   it("explains a link that doesn't work", async () => {
     renderAt(`/recover#${TOKEN}`, {
       auth: {
