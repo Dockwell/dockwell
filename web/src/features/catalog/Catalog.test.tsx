@@ -569,12 +569,18 @@ describe("Installing from the catalog", () => {
     await user.type(memory, "2X");
     expect(within(limits).getByText("Use an amount from 6M, such as 512M or 2G.")).toBeVisible();
     expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    // Advanced may be closed over it, so the footer says why.
+    expect(screen.getByText("Fix the limits of db to review the plan")).toBeVisible();
     await user.clear(memory);
     await user.type(memory, "1G");
     await user.type(within(limits).getByRole("textbox", { name: "CPU limit" }), "0.5");
     await user.selectOptions(within(limits).getByRole("combobox", { name: "Restarts" }), "Always");
     // The other part keeps the entry's.
     expect(within(limits).getByRole("group", { name: "adminer" })).toHaveTextContent("No limits");
+    // Closed, Advanced still says what was set.
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    expect(within(sheet).getByText(/db 0\.5 vCPU, 1G, Always/)).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
     await user.click(within(sheet).getByRole("button", { name: "Copy as CLI command" }));
     expect(writeText).toHaveBeenCalledWith(
       "dockwell catalog install postgres --memory db=1G --cpus db=0.5 --restart db=always",
@@ -584,6 +590,32 @@ describe("Installing from the catalog", () => {
     expect(asked?.memory).toEqual({ db: "1G" });
     expect(asked?.cpus).toEqual({ db: "0.5" });
     expect(asked?.restart).toEqual({ db: RestartPolicy.ALWAYS });
+  });
+
+  it("keeps an entry's own limit when its field is left empty, and says so in the field", async () => {
+    const user = userEvent.setup();
+    renderAt("/catalog/postgres/install", {
+      ...api({
+        getCatalogEntry: () => ({
+          entry: postgres,
+          project: "postgres",
+          values: { ADMIN_PORT: "8085" },
+          parts: [{ service: "db", image: "postgres:17.11", database: true, memory: "1G" }],
+        }),
+      }),
+      containers: { listContainers: () => ({ containers: [] }) },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
+    await user.click(await within(sheet).findByRole("button", { name: "Advanced" }));
+    const limits = within(sheet).getByRole("region", { name: "Limits and restarts" });
+    expect(within(limits).getByRole("group", { name: "db" })).toHaveTextContent(
+      "1G · Restarts unless someone stops it",
+    );
+    await user.click(within(limits).getByRole("button", { name: "Change db" }));
+    const memory = within(limits).getByRole("textbox", { name: "Memory limit" });
+    await user.clear(memory);
+    expect(memory).toHaveAttribute("placeholder", "Entry's: 1G");
+    expect(within(limits).getByRole("textbox", { name: "CPU limit" })).toHaveAttribute("placeholder", "No limit");
   });
 
   it("needs what only a person has as a field, keeps it out of sight, and says what the app reaches as a line", async () => {

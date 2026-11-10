@@ -255,10 +255,12 @@ type CatalogPart struct {
 	// here, which is the input's default, so a form shows what a person typed in its
 	// place, such as "MEDIA_DIR" for "/srv/media".
 	PathInputs map[string]string `protobuf:"bytes,7,rep,name=path_inputs,json=pathInputs,proto3" json:"path_inputs,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// The most memory and CPUs it may use, as the entry gives them, such as "1G" and
-	// "0.5". Empty has no limit.
+	// The most memory it may use, as the entry gives it, such as "1G". Empty has no
+	// limit.
 	Memory string `protobuf:"bytes,8,opt,name=memory,proto3" json:"memory,omitempty"`
-	Cpus   string `protobuf:"bytes,9,opt,name=cpus,proto3" json:"cpus,omitempty"`
+	// The most CPUs it may use, as the entry gives them, such as "0.5". Empty has no
+	// limit.
+	Cpus string `protobuf:"bytes,9,opt,name=cpus,proto3" json:"cpus,omitempty"`
 	// When Docker restarts it, as the entry gives it. Unspecified is the driver's
 	// default, unless-stopped.
 	Restart       v1alpha11.RestartPolicy `protobuf:"varint,10,opt,name=restart,proto3,enum=dockwell.resource.v1alpha1.RestartPolicy" json:"restart,omitempty"`

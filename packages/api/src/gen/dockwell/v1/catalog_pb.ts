@@ -187,14 +187,17 @@ export type CatalogPart = Message<"dockwell.v1.CatalogPart"> & {
   pathInputs: { [key: string]: string };
 
   /**
-   * The most memory and CPUs it may use, as the entry gives them, such as "1G" and
-   * "0.5". Empty has no limit.
+   * The most memory it may use, as the entry gives it, such as "1G". Empty has no
+   * limit.
    *
    * @generated from field: string memory = 8;
    */
   memory: string;
 
   /**
+   * The most CPUs it may use, as the entry gives them, such as "0.5". Empty has no
+   * limit.
+   *
    * @generated from field: string cpus = 9;
    */
   cpus: string;

@@ -89,6 +89,7 @@ const entryRestart = (part: CatalogPart) =>
  */
 export function InstallSheet({ id, onClose }: { id: string; onClose: () => void }) {
   const { t } = useLingui();
+  const words = useAppWords();
   // Installing makes a project of its own, which is an admin's (ADR 0049): off, with why, for anyone else.
   const mayInstall = useMay()(CatalogService.method.installCatalogEntry);
   const phone = useMediaQuery(PHONE_QUERY);
@@ -178,10 +179,13 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
       memory: memory === "" || validMemory(memory) ? undefined : t`Use an amount from 6M, such as 512M or 2G.`,
     };
   };
-  const limitsInvalid = parts.some((part) => {
+  // The first limit that's wrong, which the footer names, as Advanced may be closed over it.
+  const badPart = parts.find((part) => {
     const errors = limitErrors(part);
     return errors.cpus !== undefined || errors.memory !== undefined;
   });
+  const limitsInvalid = badPart !== undefined;
+  const badService = badPart?.service ?? "";
   const setLimit = (part: CatalogPart, next: Limit) =>
     setLimits((was) => ({ ...was, [part.service]: { ...was[part.service], ...next } }));
   // Only what differs from the entry goes in the request, so the plan and the command say no more.
@@ -241,6 +245,15 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
     ...(generated.length > 0
       ? [plural(generated.length, { one: "# secret generated", other: "# secrets generated" })]
       : []),
+    // The parts someone set a limit or a restart for, as what they set.
+    ...parts.flatMap((part) => {
+      const set = [
+        cpus[part.service] ? t`${cpus[part.service]} vCPU` : "",
+        memory[part.service] ?? "",
+        restart[part.service] !== undefined ? words.restart(restart[part.service] as RestartPolicy) : "",
+      ].filter(Boolean);
+      return set.length > 0 ? [`${part.service} ${set.join(", ")}`] : [];
+    }),
     ...parts.map((part) => part.image),
   ].join(" · ");
 
@@ -339,6 +352,8 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
             <Icon name={entry?.hostAccess ? "shield" : "commit"} size={14} />
             {missing ? (
               <Trans>Give {missingLabel} a value to review the plan</Trans>
+            ) : limitsInvalid ? (
+              <Trans>Fix the limits of {badService} to review the plan</Trans>
             ) : entry?.hostAccess ? (
               <Trans>You approve what it reaches in the plan</Trans>
             ) : (
@@ -555,9 +570,10 @@ function Limits({
   const words = useAppWords();
   const titleId = useId();
   if (parts.length === 0) return null;
+  // A field left empty keeps what the entry gives.
   const line = (part: CatalogPart) => {
-    const cpus = cpusOf(part).trim();
-    const memory = memoryOf(part).trim();
+    const cpus = cpusOf(part).trim() || part.cpus;
+    const memory = memoryOf(part).trim() || part.memory;
     const uses = [cpus ? t`${cpus} vCPU` : "", memory].filter(Boolean).join(", ");
     return `${uses || t`No limits`} · ${t`Restarts ${inSentence(words.restart(restartOf(part)))}`}`;
   };
@@ -590,7 +606,7 @@ function Limits({
                   inputMode="decimal"
                   autoFocus
                   value={cpusOf(part)}
-                  placeholder={t`No limit`}
+                  placeholder={part.cpus ? t`Entry's: ${part.cpus}` : t`No limit`}
                   suffix="vCPU"
                   error={errors.cpus}
                   onChange={(event) => onChange(part, { cpus: event.target.value })}
@@ -599,7 +615,7 @@ function Limits({
                   label={t`Memory limit`}
                   mono
                   value={memoryOf(part)}
-                  placeholder={t`No limit`}
+                  placeholder={part.memory ? t`Entry's: ${part.memory}` : t`No limit`}
                   hint={t`Such as 512M or 2G.`}
                   error={errors.memory}
                   onChange={(event) => onChange(part, { memory: event.target.value })}

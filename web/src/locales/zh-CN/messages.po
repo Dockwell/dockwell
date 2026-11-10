@@ -2725,6 +2725,7 @@ msgstr "次失败"
 msgid "on the server, to the app"
 msgstr "服务器端口到应用端口"
 
+#. placeholder {0}: cpus[part.service]
 #. placeholder {0}: inv.cpuCount
 #. placeholder {0}: r.cpus
 msgid "{0} vCPU"
@@ -4900,6 +4901,14 @@ msgstr "数据库"
 
 msgid "Each image pinned by digest"
 msgstr "每个镜像都按摘要固定"
+
+#. placeholder {0}: part.cpus
+#. placeholder {0}: part.memory
+msgid "Entry's: {0}"
+msgstr "条目默认：{0}"
+
+msgid "Fix the limits of {badService} to review the plan"
+msgstr "修正 {badService} 的限制后即可查看计划"
 
 msgid "Generated and sealed"
 msgstr "已生成，加密保存"

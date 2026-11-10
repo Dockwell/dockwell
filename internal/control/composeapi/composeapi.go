@@ -153,6 +153,10 @@ func limit(stack *compose.Stack, limits map[string]Limits) error {
 		}
 		if l.Restart != resourcev1.RestartPolicy_RESTART_POLICY_UNSPECIFIED {
 			app.Restart = l.Restart
+			// Only on-failure restarts a set number of times, as the entry's may have.
+			if l.Restart != resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE {
+				app.RestartRetries = 0
+			}
 		}
 	}
 	return nil

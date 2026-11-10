@@ -144,9 +144,11 @@ message CatalogPart {
   // here, which is the input's default, so a form shows what a person typed in its
   // place, such as "MEDIA_DIR" for "/srv/media".
   map<string, string> path_inputs = 7;
-  // The most memory and CPUs it may use, as the entry gives them, such as "1G" and
-  // "0.5". Empty has no limit.
+  // The most memory it may use, as the entry gives it, such as "1G". Empty has no
+  // limit.
   string memory = 8;
+  // The most CPUs it may use, as the entry gives them, such as "0.5". Empty has no
+  // limit.
   string cpus = 9;
   // When Docker restarts it, as the entry gives it. Unspecified is the driver's
   // default, unless-stopped.
