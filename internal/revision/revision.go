@@ -2554,10 +2554,11 @@ func (e *Engine) keptWhileRunningElse(it *item, server string, reaches []resourc
 }
 
 // startsSomethingElse reports a spec that starts another program than before:
-// another repository, command (including an exec health check) or entrypoint.
+// another repository, an image built from another one (buildsSomethingElse),
+// command (including an exec health check) or entrypoint.
 // A kind whose spec isn't a container's counts any change to what it runs.
 func startsSomethingElse(imageBefore, imageAfter string, before, after proto.Message) bool {
-	if docker.Repository(imageBefore) != docker.Repository(imageAfter) {
+	if docker.Repository(imageBefore) != docker.Repository(imageAfter) || buildsSomethingElse(before, after) {
 		return true
 	}
 	was, now := runs(before), runs(after)
@@ -2567,6 +2568,24 @@ func startsSomethingElse(imageBefore, imageAfter string, before, after proto.Mes
 	return !slices.Equal(was.GetCommand(), now.GetCommand()) || !slices.Equal(was.GetEntrypoint(), now.GetEntrypoint()) ||
 		was.GetNoEntrypoint() != now.GetNoEntrypoint() ||
 		!slices.Equal(was.GetHealthcheck().GetTest(), now.GetHealthcheck().GetTest())
+}
+
+// buildsSomethingElse reports a service whose image is built from another
+// program than before (ADR 0046): another Git repository, or another build or
+// start command, as a built image keeps its service's own name whatever it is
+// built from. Another commit, branch or Dockerfile of the same repository is
+// the ordinary deploy, as another tag is.
+func buildsSomethingElse(before, after proto.Message) bool {
+	was, ok := before.(*resourcev1.Service)
+	now, also := after.(*resourcev1.Service)
+	if !ok || !also {
+		return false
+	}
+	b, a := was.GetBuild(), now.GetBuild()
+	if b == nil || a == nil {
+		return (b == nil) != (a == nil)
+	}
+	return b.GetGit().GetUrl() != a.GetGit().GetUrl() || b.GetBuildCommand() != a.GetBuildCommand() || b.GetStartCommand() != a.GetStartCommand()
 }
 
 // runs is the container a spec runs: a container's own, or a service's app.

@@ -26,6 +26,7 @@ import {
   NetworkShape,
   Protocol,
   PublicAddressSource,
+  Role,
   type RollBackServiceRequest,
   RollbackState,
   StepProgressSchema,
@@ -44,6 +45,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { aHealth, anApp, aProject, aRevision, ENV, places, projectPlaces, running, SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { applied, moved, watched, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -3579,6 +3581,43 @@ describe("an app's deployments, for an app that builds from Git", () => {
     expect(screen.getByText(/Step 4\/6/)).toBeVisible();
     await userEvent.setup().click(screen.getByRole("button", { name: "Cancel build" }));
     await waitFor(() => expect(cancelled).toEqual(["bld_2"]));
+  });
+
+  it("doesn't offer a viewer of the install the way to cancel a build, which the control plane would refuse", async () => {
+    const app = builtApp();
+    const lines = feed<WatchBuildResponse>();
+    const building = aBuild({ state: BuildState.BUILDING, step: 4, stepName: "RUN npm ci", endTime: undefined });
+    lines.push(
+      create(WatchBuildResponseSchema, {
+        build: building,
+        lines: [{ number: 1n, step: 4, text: "npm warn deprecated inflight@1.0.6" }],
+      }),
+    );
+    renderAt(
+      "/apps/svc_web/deployments",
+      api([app], {
+        auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({
+            revisions: [
+              aRevision(2n, image, {
+                build: building,
+                change: { id: "chg_2", summary: "Deploy 8be41d2 to web", state: ChangeState.APPLYING },
+                deployments: [{ serverId: SERVER, serverName: "hz-1", state: DeploymentState.PENDING }],
+              }),
+              aRevision(1n, "nginx:1.0"),
+            ],
+          }),
+        },
+        builds: { watchBuild: lines.stream },
+      }),
+    );
+    // A viewer follows the build and reads its log, as the API lets them.
+    const log = await screen.findByRole("log", { name: "Build log" });
+    await waitFor(() => expect(log).toHaveTextContent("npm warn deprecated inflight@1.0.6"));
+    expect(screen.getByText(/Step 4\/6/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Cancel build" })).not.toBeInTheDocument();
   });
 });
 

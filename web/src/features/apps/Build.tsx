@@ -3,7 +3,7 @@
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type Build, type BuildLine, BuildService, BuildState, ImageBuild_Builder } from "@dockwell/api";
+import { type Build, type BuildLine, BuildService, BuildState, ImageBuild_Builder, Role } from "@dockwell/api";
 import { Button, Callout, cx, type Status, StatusBadge } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -12,6 +12,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { shownRef } from "../../lib/built";
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
+import { useSignedInUser } from "../auth/useAuthState";
 import { useDetectionWords } from "./detection";
 import "./Apps.css";
 
@@ -135,6 +136,11 @@ export function BuildPart({ build: given, onEnded }: { build: Build; onEnded?: (
   const [refusal, setRefusal] = useState<string>();
   const [now, setNow] = useState(() => Date.now());
   const live = buildUnderWay(build);
+  // Stopping a build takes a developer (ADR 0049), so a viewer of the whole
+  // install isn't offered it. What someone holds on one project, and whether
+  // the environment is protected, aren't in the sign-in state: they see the
+  // button, and the control plane's answer says what they need.
+  const mayCancel = useSignedInUser()?.role !== Role.VIEWER;
   useEffect(() => {
     if (!live) return;
     const tick = setInterval(() => setNow(Date.now()), 1000);
@@ -170,7 +176,7 @@ export function BuildPart({ build: given, onEnded }: { build: Build; onEnded?: (
           </span>
         ) : null}
         <span className="build-spacer" />
-        {live ? (
+        {live && mayCancel ? (
           <Button size="sm" variant="ghost" icon="x" loading={cancelling} onClick={() => void cancel()}>
             <Trans>Cancel build</Trans>
           </Button>
