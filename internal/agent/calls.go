@@ -635,6 +635,12 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Containers{Containers: found}}
+	case call.GetFirewall() != nil:
+		read, err := c.cfg.firewall.read(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Firewall{Firewall: read}}
 	case call.GetDiskUse() != nil:
 		found, err := c.cfg.disks.read(ctx)
 		if err != nil {

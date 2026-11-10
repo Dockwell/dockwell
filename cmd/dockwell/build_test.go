@@ -37,7 +37,9 @@ var agentPackages = []string{
 	"internal/agent/collect",
 	"internal/agent/enroll",
 	"internal/agent/files",      // a server's files, for a person (ADR 0032)
+	"internal/agent/hosttool",   // running the server's own tools, such as ufw and nft (ADR 0043, ADR 0052)
 	"internal/agent/logs",       // reading logs, and keeping those of removed containers (ADR 0025)
+	"internal/agent/nftables",   // Dockwell's own nftables table, written with nft (ADR 0052)
 	"internal/agent/onepanel",   // reading what 1Panel keeps, for an import (ADR 0056)
 	"internal/agent/sqlitefile", // reading 1Panel's SQLite records, read-only, without SQLite (ADR 0056)
 	"internal/agent/terminal",   // a server's terminals, for a person (ADR 0037)

@@ -1140,6 +1140,20 @@ func Methods() []*apicli.Method {
 			// Client streams have no command yet.
 		},
 		{
+			Name:      "dockwell.v1.FirewallService.GetServerFirewall",
+			Procedure: dockwellv1connect.FirewallServiceGetServerFirewallProcedure,
+			HTTP:      "GET /v1/servers/{server_id}/firewall",
+			Noun:      "firewall",
+			Verb:      "get",
+			Short:     "Reads",
+			Long:      "Reads, through the server's agent, the firewalls already there, each with its\nown tool: ufw, firewalld's zones, nftables's tables other than ufw's, Docker's\nand firewalld's, and iptables-legacy, or iptables on a server without nft. It\nsays what each allows and drops; what listens on the server, and how far each\nreaches past them, never open where it can't tell; and the ports Docker\npublishes, which reach their containers past ufw's and firewalld's input rules.\nA server's firewall is the whole server's, not a project's, so reading it is an\nadmin's (ADR 0049), as reading its updates is.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "server_id", Help: "The server's ID."},
+			},
+			Call: apicli.Unary[v1.GetServerFirewallRequest, v1.GetServerFirewallResponse](dockwellv1connect.FirewallServiceGetServerFirewallProcedure),
+		},
+		{
 			Name:      "dockwell.v1.HealthService.ListHealth",
 			Procedure: dockwellv1connect.HealthServiceListHealthProcedure,
 			HTTP:      "GET /v1/health",
@@ -2119,6 +2133,7 @@ func Nouns() []apicli.Noun {
 		{Name: "drift", Short: "List, revert or adopt drift", Long: "Drift is a difference between what a server has and the latest revision of a\nresource it should have, as when someone changed it by hand. dockwell drift list\nasks each connected server's agent, and changes nothing. dockwell drift revert\nplans putting the revision back, and dockwell drift adopt plans keeping what the\nserver has as a new revision: each is a change, with a plan to apply."},
 		{Name: "events", Short: "List or watch events", Long: "EventService is the timeline: every change to managed state, with who made it\nand from where, beside what servers and people did that belongs with it, such as\na server joining or someone signing in. See docs/adr/0020-the-event-timeline.md.\n\nA change is one event, which moves on as the change does: planned, then\napplying, then applied or failed. Rollbacks and undos are changes of their own,\neach naming the change it reverts. A discarded change isn't on the timeline, and\nnor is the change that set up an install's default project and environment.\nEvery other event comes from the audit log, as it was recorded.\n\nEvents carry no secret, no spec and no address.\n\ndockwell events watch streams, so it has no REST path. A REST client polls GET\n/v1/events, or opens the stream with Connect, gRPC or gRPC-Web, with the same\ncredentials."},
 		{Name: "files", Short: "List, read, save, make, move, delete, restore, purge, upload or download files, and 4 more", Long: "FileService browses, reads, saves, makes, moves and deletes the files on a\nserver, through its agent. Files on a server aren't managed state, so nothing\nhere is a revision or has a plan. A save can't be undone, and a delete can for 7\ndays where it's on the same filesystem as Dockwell's data. See\ndocs/adr/0032-files-on-a-server.md and\ndocs/adr/0045-a-file-manager-on-a-server.md.\n\nEvery method needs a signed-in session: no API token can call them, whatever its\nscope. The agent refuses what holds Dockwell's keys, secrets' values and the\nserver's own credentials for everyone, with the reason \"file_refused\":\ndocs/security/files.md lists them."},
+		{Name: "firewall", Short: "Reads", Long: "FirewallService says what filters a server's inbound traffic. Reading it changes\nnothing. See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md."},
 		{Name: "health", Short: "Return how each service that exists now is", Long: "HealthService says how services are, as far as anything checked, from what each\nserver's agent last said. It never claims health nobody checked: a service with\nno check is HEALTH_STATE_NO_CHECK, and a server whose agent isn't connected is\nHEALTH_STATE_UNKNOWN, with what it last said marked stale. See\ndocs/adr/0027-health-checks-rollouts-and-rollback.md.\n\nReading it needs the read scope alone, as what a check printed is cut short and\nhas what the container's environment holds masked. It isn't a log."},
 		{Name: "import", Short: "Read what 1Panel keeps on a server", Long: "ImportService moves what another panel runs on a server into Dockwell: what can\nrun as it is is taken on with no restart, what can't is made again, and the rest\nis left with why. Each import is a plan a person applies. See\ndocs/adr/0056-importing-a-1panel-server.md."},
 		{Name: "logs", Short: "Sources, read or follow logs", Long: "LogService reads what a service's containers print: live, or from what each\nserver still has. See docs/adr/0025-logs-per-deploy.md.\n\nEach server's agent reads Docker's logs as they are asked for, and log lines\nnever sit in the control plane's store. A server keeps what Docker keeps for a\nrunning or stopped container, and the logs of the last failed and the last\nreplaced container of each service, within a disk budget.\n\nLogs often hold secrets and personal data that apps print, and Dockwell doesn't\nredact them. So an API token reads them only with the grant TOKEN_GRANT_LOGS,\nand reading them is on record in the audit log.\n\ndockwell logs follow streams, so it has no REST path. A REST client pages\nthrough dockwell logs read, or opens the stream with Connect, gRPC or gRPC-Web,\nwith the same credentials."},

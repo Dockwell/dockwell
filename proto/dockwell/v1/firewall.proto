@@ -1,0 +1,246 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// FirewallService says what filters a server's inbound traffic. Reading it
+// changes nothing. See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
+service FirewallService {
+  // GetServerFirewall reads, through the server's agent, the firewalls already
+  // there, each with its own tool: ufw, firewalld's zones, nftables's tables
+  // other than ufw's, Docker's and firewalld's, and iptables-legacy, or
+  // iptables on a server without nft. It says what each allows and drops; what
+  // listens on the server, and how far each reaches past them, never open
+  // where it can't tell; and the ports Docker publishes, which reach their
+  // containers past ufw's and firewalld's input rules. A server's firewall is
+  // the whole server's, not a project's, so reading it is an admin's (ADR
+  // 0049), as reading its updates is.
+  rpc GetServerFirewall(GetServerFirewallRequest) returns (GetServerFirewallResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "firewall"
+      verb: "get"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/firewall"};
+  }
+}
+
+// GetServerFirewallRequest names a server.
+message GetServerFirewallRequest {
+  // The server's ID.
+  string server_id = 1;
+}
+
+// GetServerFirewallResponse is what filters the server's inbound traffic.
+message GetServerFirewallResponse {
+  // The firewall, as the agent read it.
+  ServerFirewall firewall = 1;
+}
+
+// ServerFirewall is what filters a server's inbound traffic, as its agent read it.
+message ServerFirewall {
+  // When the agent read it.
+  google.protobuf.Timestamp time = 1;
+  // Each firewall the agent found there, active or not.
+  repeated FirewallTool tools = 2;
+  // The ports Docker publishes. Docker forwards them to their containers before
+  // a firewall's input rules see them, so ufw's and firewalld's rules don't
+  // cover them.
+  repeated PublishedPort published = 3;
+  // What listens on the server itself, beyond loopback, and how far each
+  // reaches past the firewalls here, which do cover it. A port Docker publishes
+  // is in published, not here, though Docker's proxy listens on it too.
+  repeated HostListener listening = 4;
+  // Why the agent couldn't read the ports Docker publishes, such as that Docker
+  // isn't answering. Empty when it could.
+  string published_unreadable = 5;
+  // How many rules Docker's DOCKER-USER chains hold, beyond the return Docker
+  // puts there, as ufw-docker or a person adds. They filter published ports,
+  // and the agent doesn't weigh them one by one.
+  uint32 docker_user_rules = 6;
+}
+
+// HostListener is a port something on the server listens on, beyond loopback.
+message HostListener {
+  // The address it listens on, such as "0.0.0.0", "::" or "10.0.0.5".
+  string address = 1;
+  // The port.
+  uint32 port = 2;
+  // "tcp" or "udp".
+  string protocol = 3;
+  // How far it reaches, past the firewalls here.
+  ListenerReach reach = 4;
+  // The firewall that decides that, such as "ufw", when one does.
+  string decided_by = 5;
+  // The sources a rule lets in from, when only some may reach it.
+  repeated string sources = 6;
+  // The interfaces a rule lets it in on, when only those may reach it.
+  repeated string interfaces = 7;
+  // Why the reach is what it is, when that needs saying: why the agent can't
+  // tell, or that a firewall lets it in by a rule of its own.
+  ListenerReachReason reason = 8;
+  // True for a socket on "::" that takes IPv6 alone, as something else on
+  // "0.0.0.0" holds the port's IPv4, here or as a port Docker publishes. A
+  // socket on "::" alone takes IPv4 too, as Linux has it by default.
+  bool ipv6_only = 9;
+}
+
+// ListenerReachReason is why a listener reaches as far as it does.
+enum ListenerReachReason {
+  LISTENER_REACH_REASON_UNSPECIFIED = 0;
+  // A ufw rule names an app profile whose ports ufw doesn't say.
+  LISTENER_REACH_REASON_APP_PROFILE = 1;
+  // A firewalld service the agent doesn't know the ports of.
+  LISTENER_REACH_REASON_SERVICE = 2;
+  // firewalld's rich rules, which run before the zone's ports and services,
+  // and which the agent doesn't weigh.
+  LISTENER_REACH_REASON_RICH_RULE = 3;
+  // A rule on an interface, as which one traffic arrives on isn't known.
+  LISTENER_REACH_REASON_INTERFACE = 4;
+  // A rule to one of the server's addresses alone.
+  LISTENER_REACH_REASON_DESTINATION = 5;
+  // firewalld zones that treat it differently, by which interface traffic
+  // arrives on.
+  LISTENER_REACH_REASON_ZONES = 6;
+  // A firewall here couldn't be read: decided_by names it.
+  LISTENER_REACH_REASON_UNREADABLE = 7;
+  // Rules the agent doesn't weigh one by one, in the nftables table or
+  // iptables chain decided_by names, may drop it.
+  LISTENER_REACH_REASON_OTHER_RULES = 8;
+  // Docker couldn't be read, and this may be a port it publishes, which ufw's
+  // and firewalld's input rules don't cover.
+  LISTENER_REACH_REASON_DOCKER_UNKNOWN = 9;
+  // ufw always lets it in, by its own before.rules: DHCP replies, mDNS and
+  // UPnP discovery.
+  LISTENER_REACH_REASON_BUILT_IN = 10;
+}
+
+// ListenerReach is how far something listening on the server reaches.
+enum ListenerReach {
+  LISTENER_REACH_UNSPECIFIED = 0;
+  // Nothing here closes it: anyone who reaches the server reaches it.
+  LISTENER_REACH_OPEN = 1;
+  // Only from some sources, or on some interfaces, as a rule says.
+  LISTENER_REACH_SOME = 2;
+  // A firewall here closes it.
+  LISTENER_REACH_CLOSED = 3;
+  // The agent can't tell, and reason says why. Never read as open.
+  LISTENER_REACH_UNKNOWN = 4;
+}
+
+// FirewallToolKind is a firewall a server can have.
+enum FirewallToolKind {
+  FIREWALL_TOOL_KIND_UNSPECIFIED = 0;
+  // Ubuntu's Uncomplicated Firewall.
+  FIREWALL_TOOL_KIND_UFW = 1;
+  // firewalld, as AlmaLinux and Fedora have it.
+  FIREWALL_TOOL_KIND_FIREWALLD = 2;
+  // An nftables table something else made, or a person.
+  FIREWALL_TOOL_KIND_NFTABLES = 3;
+  // iptables-legacy's rules, which run beside nftables's, and whose drops win
+  // as any table's do.
+  FIREWALL_TOOL_KIND_IPTABLES_LEGACY = 4;
+  // iptables's rules, as iptables-save lists them, read on a server without
+  // nft.
+  FIREWALL_TOOL_KIND_IPTABLES = 5;
+}
+
+// FirewallTool is one firewall on a server, and what it does.
+message FirewallTool {
+  // What it is.
+  FirewallToolKind kind = 1;
+  // Which: an nftables table, such as "inet filter", firewalld's zone, such as
+  // "public", or iptables's family, "IPv4" or "IPv6". Empty for ufw.
+  string name = 2;
+  // True when it filters traffic now.
+  bool active = 3;
+  // What it does with inbound traffic no rule matches. Unspecified when it says
+  // nothing, as an nftables table of rules alone doesn't.
+  FirewallVerdict default_inbound = 4;
+  // Its rules, by port and source, in its order.
+  repeated FirewallSeenRule rules = 5;
+  // Rules it holds that aren't a port and a source, as it says them, such as
+  // firewalld's rich rules.
+  repeated string other = 6;
+  // How many rules an nftables table, or iptables, holds, which the agent
+  // doesn't read one by one. Zero for ufw and firewalld, whose rules are in rules.
+  uint32 rule_count = 7;
+  // Why the agent couldn't read it, such as that the agent doesn't run as root.
+  // Empty when it could.
+  string unreadable = 8;
+  // The interfaces a firewalld zone takes traffic from.
+  repeated string interfaces = 9;
+  // The sources a firewalld zone takes traffic from, which come before its
+  // interfaces.
+  repeated string sources = 10;
+  // True for firewalld's default zone, which takes what no other zone does.
+  bool default_zone = 11;
+  // What an nftables table's or iptables's input chain does with what no rule
+  // matches. Unspecified when it has no input chain.
+  FirewallVerdict input_policy = 12;
+  // How many rules its input chain holds. With a policy that drops, or any
+  // rule, it may close what listens on the server.
+  uint32 input_rules = 13;
+}
+
+// FirewallVerdict is what a rule, or a firewall's default, does with traffic.
+enum FirewallVerdict {
+  FIREWALL_VERDICT_UNSPECIFIED = 0;
+  // Let it through.
+  FIREWALL_VERDICT_ALLOW = 1;
+  // Drop it, saying nothing.
+  FIREWALL_VERDICT_DENY = 2;
+  // Turn it away, saying so.
+  FIREWALL_VERDICT_REJECT = 3;
+  // Let it through, but not too often from one address: ufw's limit.
+  FIREWALL_VERDICT_LIMIT = 4;
+}
+
+// FirewallSeenRule is one rule of a firewall Dockwell didn't make.
+message FirewallSeenRule {
+  // What it does.
+  FirewallVerdict verdict = 1;
+  // What it covers, as the firewall says it: a port and protocol such as
+  // "22/tcp" or "80,443/tcp", or a service by name, such as "ssh".
+  string port = 2;
+  // Where from: a CIDR range, such as "203.0.113.0/24". Empty for anywhere.
+  string source = 3;
+  // True when it covers IPv6 alone.
+  bool ipv6 = 4;
+  // The comment it has, if any.
+  string comment = 5;
+  // The app profile ufw names it by, such as "OpenSSH", when it has one.
+  string app = 6;
+  // The interface it covers alone, such as "eth0", when it has one.
+  string interface = 7;
+  // The server's address it covers alone, such as "203.0.113.5", when it has
+  // one. Empty for every address.
+  string destination = 8;
+}
+
+// PublishedPort is a port Docker publishes on the server for a container.
+message PublishedPort {
+  // The container, by name.
+  string container = 1;
+  // The address it's published on, such as "0.0.0.0", "::" or "127.0.0.1".
+  string host_ip = 2;
+  // The port on the server.
+  uint32 host_port = 3;
+  // "tcp", "udp" or "sctp".
+  string protocol = 4;
+  // The port in the container.
+  uint32 container_port = 5;
+  // True when Docker's proxy on the server takes this port's traffic, as for
+  // IPv6 to a container on networks without IPv6. That traffic arrives on the
+  // input chain, so the server's input rules cover it, as for what listens.
+  bool proxied = 6;
+}
