@@ -21,6 +21,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { authError } from "../../test/auth";
 import { feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { releaseStanding, splitVersion, summarize } from "./updates";
@@ -160,10 +161,13 @@ describe("UpdatesPage", () => {
     const { container } = await renderUpdates(() => answer());
     const lead = await callout("3 security updates are ready to install");
     expect(lead).toHaveAttribute("role", "status");
-    expect(lead).toHaveTextContent("One of them needs a reboot to take effect");
+    expect(lead).toHaveTextContent("One needs a reboot, and apps and websites go offline while hz-1 restarts.");
     expect(lead).toHaveTextContent(
-      "unattended-upgrades on hz-1 installs updates by itself, so these go in within about a day. To install them now, run sudo apt-get upgrade --with-new-pkgs there, which installs every update waiting, not only these.",
+      "unattended-upgrades installs them within about a day; the command installs every update waiting now.",
     );
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(within(lead).getByRole("button", { name: "Copy the upgrade command" }));
+    expect(await navigator.clipboard.readText()).toBe("sudo apt-get upgrade --with-new-pkgs");
     expect(screen.getByText("3 from noble-security · checked 20 min ago")).toBeVisible();
     const table = screen.getByRole("table", { name: "Security updates for hz-1" });
     const rows = within(table).getAllByRole("row").slice(1);
@@ -255,6 +259,15 @@ describe("UpdatesPage", () => {
     expect(screen.queryByRole("region", { name: "Automatic updates" })).toBeNull();
   });
 
+  it("says a role doesn't cover a server's updates as every page does", async () => {
+    await renderUpdates(() => {
+      throw authError(Code.PermissionDenied, "needs_role", "this needs the admin role on the install");
+    });
+    const why = await callout("Your role doesn't cover this");
+    expect(why).toHaveTextContent("Your role doesn't let you do this here. Ask an admin to change your role.");
+    expect(screen.queryByText(/couldn't ask hz-1 for its updates/)).toBeNull();
+  });
+
   it("says a server's agent is away, before it was ever read", async () => {
     await renderUpdates(() =>
       answer({
@@ -315,10 +328,9 @@ describe("UpdatesPage", () => {
     );
     expect(await screen.findByRole("link", { name: "Updates 5" })).toBeVisible();
     const lead = await callout("5 security updates are ready to install");
-    expect(lead).toHaveTextContent("2 of them need a reboot to take effect");
-    expect(lead).toHaveTextContent(
-      "Dockwell can't install updates yet, so run sudo apt-get upgrade --with-new-pkgs on hz-1",
-    );
+    expect(lead).toHaveTextContent("2 need a reboot, and apps and websites go offline while hz-1 restarts.");
+    expect(lead).toHaveTextContent("Dockwell can't install them yet; the command installs every update waiting");
+    expect(within(lead).getByRole("button", { name: "Copy the upgrade command" })).toBeVisible();
   });
 
   it("refreshes the lists when asked, and asks again while it checks", async () => {
@@ -376,9 +388,9 @@ describe("UpdatesPage", () => {
 
   it("asks for a reboot the server needs", async () => {
     await renderUpdates(() => answer({ rebootRequired: true, rebootPackages: ["linux-base"], packages: [] }));
-    expect(await callout("hz-1 needs a reboot")).toHaveTextContent(
-      "What linux-base changed takes effect only once hz-1 restarts",
-    );
+    const reboot = await callout("hz-1 needs a reboot");
+    expect(reboot).toHaveTextContent("What linux-base changed takes effect once it restarts");
+    expect(within(reboot).getByRole("button", { name: "Copy the reboot command" })).toBeVisible();
     expect(screen.getByText("hz-1 is up to date, as far as its lists say.")).toBeVisible();
   });
 

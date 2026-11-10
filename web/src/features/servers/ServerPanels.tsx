@@ -2,7 +2,7 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { Connection, type PublicAddress, type Server, SystemService } from "@dockwell/api";
+import { Connection, type PublicAddress, type Server, ServerService, SystemService } from "@dockwell/api";
 import { Button, Panel, Sparkline, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
@@ -10,12 +10,14 @@ import { type ReactNode, useState } from "react";
 import { formatBitRate, formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { CopyButton } from "./CopyButton";
+import { serviceCommands } from "./commands";
 import { trend } from "./history";
 import { publicAddressesOf, useNetworkWords } from "./network";
 import { SetPublicAddressSheet } from "./SetPublicAddressSheet";
 import { isPrivateAddress, serverStatus } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 import "./ServerPanels.css";
+import { useMay } from "../auth/may";
 
 /** What the server is: its system and hardware. */
 export function SystemPanel({ server }: { server: Server }) {
@@ -63,11 +65,13 @@ export function SystemPanel({ server }: { server: Server }) {
  * have, what the internet knows it by and how that's known, and whether anything has
  * shown the internet can reach it. Then how much it is sending and receiving.
  */
-export function NetworkPanel({ server }: { server: Server }) {
+export function NetworkPanel({ server, stale = false }: { server: Server; stale?: boolean }) {
   const { t, i18n } = useLingui();
   const locale = i18n.locale;
   const words = useNetworkWords();
   const clock = useControlPlaneNow();
+  // A server's public address is an admin's to set: off, with why, for anyone else (ADR 0059).
+  const maySet = useMay()(ServerService.method.setServerPublicAddress);
   // Which address the sheet is changing, or null for a first one.
   const [setting, setSetting] = useState<PublicAddress | null>();
   const network = server.network;
@@ -82,7 +86,11 @@ export function NetworkPanel({ server }: { server: Server }) {
     ? formatBitRate(stats.networkRxBytesPerSecond + stats.networkTxBytesPerSecond, locale).join(" ")
     : undefined;
   return (
-    <Panel title={t`Network`} actions={now ? <span className="panel-meta">{t`${now} now`}</span> : null}>
+    <Panel
+      title={t`Network`}
+      // What it last sent and received isn't "now" once nothing can say how it is.
+      actions={now && !stale ? <span className="panel-meta">{t`${now} now`}</span> : null}
+    >
       <dl className="facts">
         {shape ? <Fact term={t`Connection`}>{shape}</Fact> : null}
         {known.map((address) => {
@@ -92,7 +100,7 @@ export function NetworkPanel({ server }: { server: Server }) {
               <span className="fact-copy">
                 <code>{ip}</code>
                 <CopyButton text={ip} label={t`Copy ${ip}`} />
-                <Button variant="ghost" size="sm" onClick={() => setSetting(address)}>
+                <Button variant="ghost" size="sm" onClick={() => setSetting(address)} {...maySet.off}>
                   <Trans>Change</Trans>
                 </Button>
               </span>
@@ -104,7 +112,7 @@ export function NetworkPanel({ server }: { server: Server }) {
           <Fact term={t`Public address`}>
             <span className="fact-copy">
               <Muted>{t`Not known`}</Muted>
-              <Button variant="ghost" size="sm" onClick={() => setSetting(null)}>
+              <Button variant="ghost" size="sm" onClick={() => setSetting(null)} {...maySet.off}>
                 <Trans>Set</Trans>
               </Button>
             </span>
@@ -209,7 +217,11 @@ export function AgentPanel({ server, unknown = false }: { server: Server; unknow
         unknown ? (
           <StatusBadge status="unknown" label={t`Unknown`} labelIsState />
         ) : (
-          <StatusBadge status={serverStatus(server)} label={badge} />
+          // The connection alone: a server short of memory says so in its numbers, not here.
+          <StatusBadge
+            status={serverStatus({ connection: server.connection, dockerUnreadableSince: blind })}
+            label={badge}
+          />
         )
       }
     >
@@ -234,9 +246,14 @@ export function AgentPanel({ server, unknown = false }: { server: Server; unknow
           </Fact>
         ) : null}
         {connected ? <Fact term={t`Connected`}>{t`For ${connected}`}</Fact> : null}
-        {blind ? <DockerFact since={timestampDate(blind)} now={now} /> : null}
+        {blind ? <DockerFact since={timestampDate(blind)} now={now} server={server} /> : null}
         <Fact term={t`Last heartbeat`}>
-          {server.lastSeenTime ? words.ago(timestampDate(server.lastSeenTime), now) : <Muted>{t`Never`}</Muted>}
+          {/* A server that joined has a time from its join, not from its agent, which hasn't spoken yet. */}
+          {server.lastSeenTime && server.connection !== Connection.PENDING ? (
+            words.ago(timestampDate(server.lastSeenTime), now)
+          ) : (
+            <Muted>{t`Never`}</Muted>
+          )}
         </Fact>
         {joined ? (
           <Fact term={t`Joined`}>
@@ -248,16 +265,17 @@ export function AgentPanel({ server, unknown = false }: { server: Server; unknow
   );
 }
 
-/** An agent that can't read Docker: since when, what that means, and how to check it. */
-function DockerFact({ since, now }: { since: Date; now: number }) {
+/** An agent that can't read Docker: since when, and the command that restarts it, to copy. */
+function DockerFact({ since, now, server }: { since: Date; now: number; server: Server }) {
   const { t } = useLingui();
   const ago = useTimeWords().ago(since, now);
+  const command = serviceCommands(server).restartDocker;
   return (
     <Fact term={t`Docker`}>
-      <Trans>
-        Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with{" "}
-        <code>systemctl status docker</code>.
-      </Trans>
+      <span className="fact-copy">
+        {t`Not answering since ${ago}`}
+        <CopyButton text={command} label={t`Copy the command that restarts Docker`} />
+      </span>
     </Fact>
   );
 }

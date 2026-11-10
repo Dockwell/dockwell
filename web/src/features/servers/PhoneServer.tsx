@@ -1,28 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { ActorKind, Connection, DeploymentState, EventKind, type Server } from "@dockwell/api";
+import { ActorKind, Connection, DeploymentState, EventKind, type Server, ServerStrain } from "@dockwell/api";
 import { Icon, Metric, type Status, StatusBadge, Timeline, type TimelineEvent } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
 
-import { formatFixed, formatLiveBytesOf } from "../../lib/format";
+import { formatClock, formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { useDescribe } from "../activity/describe";
 import { useEvents } from "../activity/useEvents";
 import { nameOf, revisionName } from "../apps/app";
 import { useHealth } from "../apps/health";
 import { useServices } from "../apps/useServices";
+import { CopyButton } from "../system/CopyCommand";
 import { useCopy } from "./CopyButton";
-import { forwardToOf, publicAddressOf } from "./network";
-import { serverStatus, useServerWords } from "./server";
+import { serviceCommands } from "./commands";
+import { forwardToOf, isSharedAddress, publicAddressOf } from "./network";
+import { HIGH_USE as HIGH, isPrivateAddress, serverStatus, useServerWords } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 import "./PhoneServer.css";
-
-/** Past this share, CPU or memory reads as a warning: the state the mock gives it. */
-const HIGH = 90;
 
 /** How many recent events the page shows. */
 const RECENT = 3;
@@ -32,10 +31,11 @@ const RECENT = 3;
  * line, its CPU and memory, its addresses to copy, what runs on it, and what
  * happened lately. The rest of its Overview follows, for whoever scrolls.
  */
-export function PhoneServer({ server, unread = false }: { server: Server; unread?: boolean }) {
+export function PhoneServer({ server, heard }: { server: Server; heard?: Date | undefined }) {
+  const unread = heard !== undefined;
   return (
     <>
-      <PhoneStatus server={server} unread={unread} />
+      <PhoneStatus server={server} unread={unread} heard={heard} />
       <PhoneRunsHere server={server} />
       <PhoneRecent server={server} />
     </>
@@ -51,7 +51,7 @@ function share(part: bigint, whole: bigint): number {
  * when that's something, its CPU and memory, and its addresses. While the panel
  * can't hear the control plane, it says it can't say, as the rest of the page does.
  */
-function PhoneStatus({ server, unread }: { server: Server; unread: boolean }) {
+function PhoneStatus({ server, unread, heard }: { server: Server; unread: boolean; heard: Date | undefined }) {
   const { t, i18n } = useLingui();
   const words = useTimeWords();
   const now = useControlPlaneNow();
@@ -63,7 +63,8 @@ function PhoneStatus({ server, unread }: { server: Server; unread: boolean }) {
   const lasted = (since: Parameters<typeof timestampDate>[0]) =>
     words.span(Math.max(0, now - timestampDate(since).getTime()));
 
-  // The line is a phrase, as the mock's is; what to do, when there's something, a sentence.
+  // The line is a phrase, as the mock's is; what to do, when there's something, the command to copy.
+  const commands = serviceCommands(server);
   let status: Status = serverStatus(server);
   let line: string;
   let fix: ReactNode = null;
@@ -73,65 +74,91 @@ function PhoneStatus({ server, unread }: { server: Server; unread: boolean }) {
   } else if (server.connection === Connection.UNREACHABLE) {
     line = server.lastSeenTime ? t`Not reporting for ${lasted(server.lastSeenTime)}` : t`Not reporting`;
     fix = (
-      <Trans>
-        Check that <code>dockwell run</code> is still running on the server.
-      </Trans>
+      <CopyButton
+        text={commands.restartAgent}
+        label={t`Copy the restart command`}
+        copiedLabel={t`Restart command copied`}
+        variant="secondary"
+      />
     );
   } else if (server.connection === Connection.PENDING) {
     line = t`Waiting for its agent`;
     fix = (
-      <Trans>
-        Start it with <code>dockwell run</code> on the server.
-      </Trans>
+      <CopyButton
+        text={commands.startAgent}
+        label={t`Copy the start command`}
+        copiedLabel={t`Start command copied`}
+        variant="secondary"
+      />
     );
   } else if (server.dockerUnreadableSince) {
     line = t`Docker hasn't answered for ${lasted(server.dockerUnreadableSince)}`;
-  } else if (memory >= HIGH) {
-    line = t`Memory above ${HIGH}%`;
-    if (status === "healthy") status = "degraded";
-  } else if (cpu >= HIGH) {
-    line = t`CPU above ${HIGH}%`;
-    if (status === "healthy") status = "degraded";
+    fix = (
+      <CopyButton
+        text={commands.restartDocker}
+        label={t`Copy the command that restarts Docker`}
+        copiedLabel={t`Command copied`}
+        variant="secondary"
+      />
+    );
+  } else if (server.strainedSince) {
+    // The control plane's, once it has lasted a minute, as the mock says it.
+    const since = formatClock(timestampDate(server.strainedSince), locale);
+    line =
+      server.strain === ServerStrain.CPU
+        ? t`CPU above ${HIGH}% since ${since}`
+        : t`Memory above ${HIGH}% since ${since}`;
   } else {
     line = uptime ? t`Up ${uptime}` : t`Reporting`;
   }
 
   const [used, total] = stats ? formatLiveBytesOf(stats.memoryUsedBytes, stats.memoryTotalBytes, locale) : ["–", ""];
-  const cpuValue = stats ? formatFixed(cpu, 0, locale) : "–";
+  // Down, never up, so 89.6 doesn't read as 90 beside Healthy.
+  const cpuValue = stats ? formatFixed(Math.floor(cpu), 0, locale) : "–";
+  // What a meter last heard says how long ago, once it can't be taken as now.
+  const stale = (text: string) => (heard ? t`${text}, as last heard ${words.ago(heard, now)}` : text);
   const publicIp = publicAddressOf(server);
-  // The address its route out leaves from, when that's private: never a bridge of
-  // Docker's, which a server's interfaces list too.
-  const privateIp = forwardToOf(server);
+  const privateIp = privateAddressOf(server);
 
   return (
     <section className="dw-panel phone-status" aria-label={t`Status`}>
       <div className="phone-status-head">
         <div>
-          <StatusBadge status={status} variant="pill" />
+          <StatusBadge
+            status={status}
+            variant="pill"
+            label={server.connection === Connection.PENDING ? t`Waiting` : undefined}
+            labelIsState={server.connection === Connection.PENDING}
+          />
         </div>
         <span className="phone-status-line">{line}</span>
-        {fix ? <p className="phone-status-fix">{fix}</p> : null}
+        {fix ? <div className="phone-status-fix">{fix}</div> : null}
       </div>
-      <div className="phone-status-grid">
+      {/* While nothing can say how it is, what it last said is greyed, not shown as now. */}
+      <div className={unread ? "phone-status-grid is-stale" : "phone-status-grid"} aria-disabled={unread || undefined}>
         <div className="phone-status-cell">
           <Metric label={t`CPU`} value={cpuValue} unit="%" />
-          <Meter label={t`CPU`} share={cpu} text={`${cpuValue}%`} />
+          <Meter label={t`CPU`} share={cpu} text={stale(`${cpuValue}%`)} />
         </div>
         <div className="phone-status-cell">
           <Metric label={t`Memory`} value={used} unit={total ? t`of ${total}` : undefined} />
-          <Meter label={t`Memory`} share={memory} text={total ? t`${used} of ${total}` : "–"} />
+          <Meter label={t`Memory`} share={memory} text={stale(total ? t`${used} of ${total}` : "–")} />
         </div>
       </div>
       <div className="phone-status-grid">
         <CopyCell label={t`Public IP`} address={publicIp} none={t`Not known`} />
-        <CopyCell label={t`Private IP`} address={privateIp} none={t`None`} />
+        <CopyCell
+          label={t`Private IP`}
+          address={privateIp === "unknown" ? undefined : privateIp}
+          none={privateIp === "unknown" ? t`Not known` : t`None`}
+        />
       </div>
     </section>
   );
 }
 
 function Meter({ label, share: value, text }: { label: string; share: number; text: string }) {
-  const high = value >= HIGH;
+  const high = value > HIGH;
   return (
     // biome-ignore lint/a11y/useSemanticElements: a <meter> takes no styling that reads the same in both themes
     <div
@@ -307,4 +334,20 @@ function PhoneRecent({ server }: { server: Server }) {
       )}
     </section>
   );
+}
+
+/**
+ * A server's private address: the one its route out leaves from, when that's
+ * private, as a home server's is; or the first private one on its physical
+ * interfaces, as a cloud's private network gives one. An agent from before it
+ * listed only those lists Docker's bridges too, so its list says nothing here.
+ * "unknown" for one whose agent hasn't said how it goes out: one still waiting,
+ * or one from before it said.
+ */
+export function privateAddressOf(server: Server): string | "unknown" | undefined {
+  const inv = server.inventory;
+  if (!inv || (inv.outboundAddress === "" && !inv.addressesPhysical)) return "unknown";
+  const forward = forwardToOf(server);
+  if (forward || !inv.addressesPhysical) return forward;
+  return inv.addresses.find((ip) => !ip.includes(":") && isPrivateAddress(ip) && !isSharedAddress(ip));
 }

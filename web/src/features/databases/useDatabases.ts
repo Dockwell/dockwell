@@ -16,6 +16,7 @@ import {
 import { useQueries } from "@tanstack/react-query";
 
 import { READ_EVERY_MS } from "../../lib/standing";
+import { useMay } from "../auth/may";
 import { installIn, useCatalog, useInstalls } from "../catalog/useCatalog";
 import { useFleetView } from "../servers/useFleet";
 
@@ -101,23 +102,32 @@ export function engineAndVersion(db: Database, reading = readOf(firstReading(db)
 }
 
 /**
- * The URL other services in its environment reach it by, with the password masked:
- * "postgres://postgres:••••@db:5432/postgres". It holds no secret. Unmasked, it has no
- * password at all, for a person to copy and add theirs to.
+ * The URL a service beside it connects with: with the password where it's given, and
+ * with none where it isn't, as a person copies it before revealing the secret.
  */
-export function internalURL(db: Database, reading = readOf(firstReading(db)), masked = true): string {
+export function connectionURL(
+  db: Database,
+  reading: DatabaseReading | undefined,
+  password: string | undefined,
+): string {
   const scheme = SCHEMES[db.engine];
-  const user = reading?.user || FIRST_USER[db.engine];
   const where = `${db.host}:${db.port}`;
-  const password = masked ? ":••••" : "";
-  if (!speaksSQL(db.engine)) return `${scheme}://${db.passwordSecret && masked ? ":••••@" : ""}${where}`;
+  const secret = password === undefined ? "" : `:${encodeURIComponent(password)}`;
   if (db.engine === DatabaseEngine.MONGODB) {
-    // Its root user is in admin, which an app names as where it signs in.
-    if (!user || reading?.checksNoOne) return `${scheme}://${where}`;
-    return `${scheme}://${user}${password}@${where}/?authSource=admin`;
+    // Its root user is in admin, which an app names as where it signs in; one that checks no one takes none.
+    const root = firstUser(db, reading);
+    if (!root || reading?.checksNoOne) return `${scheme}://${where}`;
+    return `${scheme}://${encodeURIComponent(root)}${secret}@${where}/?authSource=admin`;
   }
+  if (!speaksSQL(db.engine)) return `${scheme}://${secret ? `${secret}@` : ""}${where}`;
+  const user = encodeURIComponent(firstUser(db, reading));
   const name = db.engine === DatabaseEngine.POSTGRESQL ? `/${firstDatabase(reading) || "postgres"}` : "";
-  return `${scheme}://${user}${password}@${where}${name}`;
+  return `${scheme}://${user}${secret}@${where}${name}`;
+}
+
+/** The user a database's password is for: the one Dockwell signs in as, or the image's first. */
+export function firstUser(db: Database, reading: DatabaseReading | undefined): string {
+  return reading?.user || FIRST_USER[db.engine];
 }
 
 /** The first database that isn't the server's own, which is the one an app is made to use. */
@@ -172,7 +182,9 @@ const STRANGERS_EVERY_MS = 30_000;
 export function useStrangers(): Stranger[] {
   const transport = useTransport();
   const { servers } = useFleetView();
-  const connected = (servers ?? []).filter((s) => s.connection === Connection.CONNECTED);
+  // A server's containers are an admin's to read: nobody else is shown one to take on (ADR 0059).
+  const allowed = useMay()(ContainerService.method.listContainers).allowed;
+  const connected = allowed ? (servers ?? []).filter((s) => s.connection === Connection.CONNECTED) : [];
   const reads = useQueries({
     queries: connected.map((server) => ({
       ...createQueryOptions(ContainerService.method.listContainers, { server: server.id }, { transport }),

@@ -2,26 +2,26 @@
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
-import { useTransport } from "@connectrpc/connect-query";
-import { BackupService, type Database, DatabaseEngine, type DatabaseReading } from "@dockwell/api";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
+import { BackupService, type Database, DatabaseEngine, type DatabaseReading, VariableService } from "@dockwell/api";
 import {
   Button,
   Callout,
+  ConnectionCard,
+  type ConnectionItem,
   cx,
   Metric,
   type MetricProps,
   Panel,
   PHONE_QUERY,
   StatusBadge,
-  Switch,
-  TextField,
   useMediaQuery,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime, formatFixed } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
@@ -32,14 +32,16 @@ import { usePolicies } from "../backups/PoliciesPanel";
 import { useMethodWord, useScheduleWords } from "../backups/words";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
-import { CopyButton } from "../system/CopyCommand";
+import { useReveals } from "../variables/useReveal";
 import { useThisDatabase } from "./DatabaseLayout";
 import "../servers/ServerMetrics.css";
+import { useMay } from "../auth/may";
 import { SchemasSection, UsersSection } from "./DatabaseUsers";
 import {
+  connectionURL,
   engineName,
   firstReading,
-  internalURL,
+  firstUser,
   policiesOf,
   readOf,
   speaksSQL,
@@ -86,56 +88,46 @@ function ChecksNoOne({ db, read }: { db: Database; read: DatabaseReading }) {
   const engine = engineName(db.engine);
   const set = read.replicaSet;
   return (
-    <Callout tone="warning" title={t`${engine} checks no one`}>
-      <Trans>
-        It runs without <code>--auth</code>, so anything that reaches its port signs in as anyone, with no password. To
-        check who signs in, make a user with the root role in it, then set <code>MONGO_INITDB_ROOT_USERNAME</code> and{" "}
-        <code>MONGO_INITDB_ROOT_PASSWORD</code> on its app to that user's, which turns <code>--auth</code> on.
-      </Trans>
+    <Callout
+      tone="warning"
+      title={t`${engine} lets anyone in`}
+      actions={
+        <RouterButtonLink to="/apps/$serviceId/environment" params={{ serviceId: db.id }} size="sm">
+          <Trans>Its environment</Trans>
+        </RouterButtonLink>
+      }
+    >
       {set ? (
-        <>
-          {" "}
-          <Trans>
-            It's a member of the replica set {set}, and a member that checks sign-ins needs a key file every member
-            shares: mount one and add <code>--keyFile</code> to its command first, or it won't start.
-          </Trans>
-        </>
-      ) : null}
+        <Trans>
+          Give it a <code>--keyFile</code> every member of {set} shares, make a root user, then set{" "}
+          <code>MONGO_INITDB_ROOT_USERNAME</code> and <code>MONGO_INITDB_ROOT_PASSWORD</code>.
+        </Trans>
+      ) : (
+        <Trans>
+          Make a root user in it, then set <code>MONGO_INITDB_ROOT_USERNAME</code> and{" "}
+          <code>MONGO_INITDB_ROOT_PASSWORD</code>.
+        </Trans>
+      )}
     </Callout>
   );
 }
 
 /**
- * What MongoDB says of its upgrades and its backups: the features its data may use,
- * which the release before can still run, and whether a backup is one moment.
+ * What MongoDB says of its upgrades and its backups, as facts on a line: the features
+ * its data may use, and whether a backup is one moment and can come back into it.
  */
 function MongoLine({ read }: { read: DatabaseReading }) {
-  const version = read.version;
+  const { t } = useLingui();
   const features = read.featureCompatibility;
-  const release = version.split(".").slice(0, 2).join(".");
+  const release = read.version.split(".").slice(0, 2).join(".");
   const set = read.replicaSet;
-  return (
-    <p className="database-line">
-      {features && features !== release ? (
-        <>
-          <Trans>
-            It runs {version} with {features}'s features, so {features} can still run its data. Its next upgrade raises
-            them first.
-          </Trans>{" "}
-        </>
-      ) : null}
-      {set ? (
-        <Trans>
-          It's a member of the replica set {set}, so each backup is one moment. Dockwell can't restore a backup into a
-          member yet: to restore one, take <code>--replSet</code> out of its command first, and put it back after.
-        </Trans>
-      ) : (
-        <Trans>
-          It runs alone, without a replica set, so a backup isn't one moment if something writes while it runs.
-        </Trans>
-      )}
-    </p>
-  );
+  const facts = [
+    features && features !== release ? t`Data at ${features}'s features, which its next upgrade raises` : "",
+    set
+      ? t`Replica set ${set}: each backup is one moment, and can't be restored into a member yet`
+      : t`Runs alone: a backup isn't one moment while something writes`,
+  ].filter(Boolean);
+  return <p className="database-line">{facts.join(" · ")}</p>;
 }
 
 /** On a database that runs on several servers, which one its numbers are from. */
@@ -310,6 +302,7 @@ function BackupsPanel({ db }: { db: Database }) {
   const [taking, setTaking] = useState(false);
   const sheet = useChangeSheet();
   const transport = useTransport();
+  const may = useMay();
   const restore = (id: string) =>
     sheet.open({ kind: "plan", make: () => createClient(BackupService, transport).restoreBackup({ id }) });
   const engine = engineName(db.engine);
@@ -392,7 +385,13 @@ function BackupsPanel({ db }: { db: Database }) {
           <Trans>Back up now</Trans>
         </Button>
         {newest?.onServer ? (
-          <Button size="sm" variant="ghost" icon="undo" onClick={() => restore(newest.id)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="undo"
+            onClick={() => restore(newest.id)}
+            {...may(BackupService.method.restoreBackup, { environment: newest.environmentId }).off}
+          >
             <Trans>Restore the newest</Trans>
           </Button>
         ) : null}
@@ -411,89 +410,79 @@ function BackupsPanel({ db }: { db: Database }) {
   );
 }
 
-/** How the other services in its environment reach it, with the password masked. */
+/**
+ * Everything an app needs to connect, to copy rather than read: where it answers, as
+ * whom, and the password, masked until it's revealed with a passkey (ADR 0022), with a
+ * connection string that holds them all.
+ */
 function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | undefined }) {
   const { t } = useLingui();
   const places = usePlaces();
   const service = useServices().data?.find((s) => s.id === db.id);
-  const place = places.label(db.resource?.scope ?? "");
+  const environment = db.resource?.scope ?? "";
+  const place = places.label(environment);
   const published = (service ? appOf(service) : undefined)?.ports.find((p) => p.containerPort === db.port);
-  const url = internalURL(db, read);
-  const bare = internalURL(db, read, false);
-  const port = String(db.port);
-  const host = db.host;
-  const where = published ? (published.hostIp ? published.hostIp : t`every address`) : "";
-  const serverPort = published ? String(published.hostPort) : "";
   const secret = db.passwordSecret;
+  const variables = useQuery(
+    VariableService.method.listVariables,
+    { environment },
+    { enabled: secret !== "" && environment !== "" },
+  );
+  const secretId = variables.data?.variables.find((v) => v.secret && v.name === secret)?.id ?? "";
+  const reveals = useReveals();
+  const shown = secretId ? reveals.get(secretId) : {};
+  const may = useMay();
+  const revealOff = may(VariableService.method.revealSecret, { environment }).off.off;
+  const sql = speaksSQL(db.engine);
+  const items: ConnectionItem[] = [
+    {
+      label: t`Host`,
+      value: db.host,
+      hint: place ? t`From apps in ${place}` : t`From apps beside it`,
+    },
+    { label: t`Port`, value: String(db.port) },
+    ...(sql ? [{ label: t`User`, value: firstUser(db, read) }] : []),
+    ...(published
+      ? [
+          {
+            label: t`On the server`,
+            value: `${published.hostIp && published.hostIp !== "0.0.0.0" ? published.hostIp : "127.0.0.1"}:${published.hostPort}`,
+            hint:
+              published.hostIp === "127.0.0.1" ? t`From this server alone` : t`From anywhere that reaches this server`,
+          },
+        ]
+      : []),
+  ];
   return (
-    <Panel
-      title={t`Connection`}
-      actions={
-        <span className="databases-muted">
-          <Trans>
-            Port <code>{port}</code>
-          </Trans>
-        </span>
-      }
+    <ConnectionCard
       className="database-connection"
-    >
-      <div className="database-connection-body">
-        <TextField
-          label={t`Internal URL`}
-          value={url}
-          readOnly
-          mono
-          action={
-            <CopyButton
-              text={bare}
-              label={t`Copy the internal URL, without its password`}
-              copiedLabel={t`Copied, without its password`}
-              iconOnly
-              variant="ghost"
-            />
-          }
-          hint={
-            place ? (
-              <Trans>
-                Services in {place} reach it as <code>{host}</code>
-              </Trans>
-            ) : (
-              <Trans>
-                Services beside it reach it as <code>{host}</code>
-              </Trans>
-            )
-          }
-        />
-        <p className="database-line">
-          {read?.checksNoOne ? (
-            <Trans>It takes no password, as it checks no one.</Trans>
-          ) : db.passwordSecret ? (
-            <Trans>
-              The password is in the secret <code>{secret}</code>, which you reveal with your passkey on{" "}
-              <Link to="/variables">Variables and secrets</Link>.
-            </Trans>
-          ) : db.engine === DatabaseEngine.REDIS || db.engine === DatabaseEngine.VALKEY ? (
-            <Trans>It takes no password Dockwell keeps.</Trans>
-          ) : (
-            <Trans>The password is in its own environment, which Dockwell keeps sealed and never shows.</Trans>
-          )}
-        </p>
-        <div className="database-rule" />
-        <Switch
-          label={t`External access`}
-          checked={published !== undefined}
-          disabled
-          description={
-            published ? (
-              <Trans>
-                On. Port {serverPort} of its server reaches it, on {where}. Change it on its app's page.
-              </Trans>
-            ) : (
-              <Trans>Off. Only services on its server's networks can connect. Add a port on its app's page.</Trans>
-            )
-          }
-        />
-      </div>
-    </Panel>
+      items={items}
+      secret={
+        secret && !read?.checksNoOne
+          ? {
+              label: t`Password`,
+              value: shown.value,
+              busy: shown.busy ?? false,
+              problem: shown.problem ?? (variables.error ? sentence(variables.error) : undefined),
+              hint: t`Kept in the secret ${secret}`,
+              revealOff,
+              onReveal: () => {
+                if (secretId) reveals.reveal(secretId);
+              },
+              onHide: () => {
+                if (secretId) reveals.hide(secretId);
+              },
+            }
+          : undefined
+      }
+      note={
+        read?.checksNoOne
+          ? t`It takes no password, as it checks no one.`
+          : !secret && sql
+            ? t`Its password is in its own environment, sealed, so it has no secret to reveal.`
+            : undefined
+      }
+      connectionString={{ label: t`Connection string`, build: (password) => connectionURL(db, read, password) }}
+    />
   );
 }

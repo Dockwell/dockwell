@@ -1,0 +1,6 @@
+docker
+  interfaces: docker0 br-1a2b3c4d5e6f
+public
+  interfaces: eth0
+trusted
+  sources: 10.0.0.0/8 2001:db8:10::/48

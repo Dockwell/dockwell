@@ -19,6 +19,7 @@ import {
   type WatchEventsResponse,
   WatchEventsResponseSchema,
 } from "@dockwell/api";
+import { act } from "@testing-library/react";
 
 export const mira = create(ActorSchema, { kind: ActorKind.USER, id: "usr_1", name: "Mira Chen" });
 
@@ -162,5 +163,15 @@ export function applied(change: Change, at = new Date()): Change {
     appliedVia: Surface.PANEL,
     applyTime: timestampFromDate(at),
     undoDeadline: timestampFromDate(new Date(at.getTime() + 7 * 86_400_000)),
+  });
+}
+
+/** Opens every "How this works" in a plan, as a person reading why would. */
+export function openHowItWorks(root: ParentNode): void {
+  act(() => {
+    for (const details of root.querySelectorAll("details.plan-how")) {
+      details.setAttribute("open", "");
+      details.dispatchEvent(new Event("toggle"));
+    }
   });
 }

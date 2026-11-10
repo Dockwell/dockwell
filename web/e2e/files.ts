@@ -2,9 +2,10 @@
 
 // Walks a server's files in headless Chromium, against a real `dockwell run` and
 // its own agent, on this machine's disk, in a temporary directory: browsing, a
-// file, what isn't text, what's too large, what's refused, a path that leads
-// nowhere, and a phone. It edits and saves a file, on a desktop and a phone, finds
-// a file changed under it, keeps what it typed, stops at a link swapped in, keeps a
+// folder past a listing's page and a search through it, a file, what isn't text,
+// what's too large, what's refused, a path that leads nowhere, and a phone. It
+// edits and saves a file, on a desktop and a phone, finds a file changed under
+// it, keeps what it typed, stops at a link swapped in, keeps a
 // byte order mark, which this build's binary format loses on the way in, and finds
 // what it did on Activity. It makes, renames, deletes and puts back a folder, and
 // uploads a file and an archive it unpacks, then downloads a file and a folder.
@@ -124,6 +125,10 @@ function makeSite() {
   // A folder longer than its pane, as /etc is.
   mkdirSync(join(site, "many"));
   for (let i = 0; i < 120; i++) writeFileSync(join(site, "many", `part-${String(i).padStart(3, "0")}.conf`), "");
+  // A folder past a listing's page, made backwards so the disk's order isn't the names'.
+  mkdirSync(join(site, "big"));
+  for (let i = 5049; i >= 0; i--) writeFileSync(join(site, "big", `item-${String(i).padStart(5, "0")}.txt`), "");
+  writeFileSync(join(site, "big", "zz-needle.log"), "");
 }
 
 async function shoot(page: Page, name: string) {
@@ -220,6 +225,21 @@ async function main() {
   await page.goto(at({ path: site }));
   await page.getByText("nginx.conf").waitFor();
 
+  step("a folder past a page lists by name, Show more brings the rest, and a search finds a name on any page");
+  await page.goto(at({ path: join(site, "big") }));
+  await page.getByText(/^More than 5,000 items/).waitFor();
+  await page.getByText("item-00000.txt").waitFor({ state: "attached" });
+  if ((await page.getByText("zz-needle.log").count()) > 0) fail("the first page went past the first 5,000 names");
+  await page.getByRole("button", { name: "Show more" }).click();
+  await page.getByText("zz-needle.log").waitFor({ state: "attached" });
+  await page.goto(at({ path: join(site, "big") }));
+  await page.getByText(/^More than 5,000 items/).waitFor();
+  await page.getByRole("textbox", { name: "Search in big" }).fill("needle");
+  await page.getByText("zz-needle.log").waitFor({ state: "attached" });
+  await shoot(page, "big-folder-search");
+  await page.goto(at({ path: site }));
+  await page.getByText("nginx.conf").waitFor();
+
   step("open a file");
   await page.getByText("nginx.conf").click();
   const code = page.getByRole("textbox", { name: "Contents of nginx.conf" });
@@ -274,9 +294,17 @@ async function main() {
     fail(`a save changed bytes nobody touched: ${readFileSync(join(site, "app.ini")).toString("hex")}`);
   }
 
-  step("a file with more than one kind of line ending reads, and doesn't edit");
+  step("a file with more than one kind of line ending edits, and a save keeps each line's");
   await page.getByText("mixed.sh").click();
-  await page.getByText("This file can't be edited here").waitFor();
+  const mixed = page.getByRole("textbox", { name: "Contents of mixed.sh" });
+  await mixed.waitFor();
+  await page.getByText("Mixed line endings").waitFor();
+  await mixed.fill("#!/bin/sh\necho a\necho c\n");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByText("Saved mixed.sh").first().waitFor();
+  const kept = readFileSync(join(site, "mixed.sh"), "utf8");
+  if (kept !== "#!/bin/sh\necho a\r\necho c\n")
+    fail(`a save changed line endings nobody touched: ${JSON.stringify(kept)}`);
   await page.getByRole("button", { name: "Close mixed.sh" }).click();
 
   step("a link swapped in under what you typed isn't saved through, whatever its text");
@@ -346,20 +374,22 @@ async function main() {
   step("make a folder, rename it, delete it, and put it back");
   await page.goto(at({ path: site }));
   await page.getByRole("button", { name: "New folder" }).click();
+  // In the list: the tree beside it names the same folders.
+  const listed = page.getByRole("table", { name: `Files in ${site}` });
   const naming = page.getByRole("dialog", { name: /^New folder in/ });
   await naming.getByRole("textbox", { name: "Name" }).fill("uploads");
   await naming.getByRole("button", { name: "Make folder" }).click();
   await naming.waitFor({ state: "detached" });
-  await page.getByText("uploads", { exact: true }).waitFor();
+  await listed.getByText("uploads", { exact: true }).waitFor();
   if (!statSync(join(site, "uploads")).isDirectory()) fail("the new folder isn't on the disk");
-  await page.getByText("uploads", { exact: true }).hover();
+  await listed.getByText("uploads", { exact: true }).hover();
   await page.getByRole("button", { name: "Rename uploads" }).click();
   const renaming = page.getByRole("dialog", { name: "Rename uploads" });
   await renaming.getByRole("textbox", { name: "Name" }).fill("media");
   await renaming.getByRole("button", { name: "Rename" }).click();
-  await page.getByText("media", { exact: true }).waitFor();
+  await listed.getByText("media", { exact: true }).waitFor();
   if (existsSync(join(site, "uploads")) || !existsSync(join(site, "media"))) fail("the rename isn't on the disk");
-  await page.getByText("media", { exact: true }).hover();
+  await listed.getByText("media", { exact: true }).hover();
   await page.getByRole("button", { name: "Delete media" }).click();
   const deleting = page.getByRole("dialog", { name: "Delete media" });
   await deleting.getByText("and everything in it go to Recently deleted", { exact: false }).waitFor();
@@ -368,7 +398,7 @@ async function main() {
   if (existsSync(join(site, "media"))) fail("the deleted folder is still on the disk");
   await shoot(page, "deleted");
   await page.getByRole("button", { name: "Put back" }).click();
-  await page.getByText("media", { exact: true }).waitFor();
+  await listed.getByText("media", { exact: true }).waitFor();
   if (!existsSync(join(site, "media"))) fail("what was put back isn't on the disk");
 
   step("upload a file and an archive to unpack, then download a file and a folder");

@@ -36,11 +36,19 @@ export function useSignedInUser() {
   return useSignedIn()?.user;
 }
 
-/** Makes the gate read the sign-in state again, after signing in or out. */
+/**
+ * Makes the gate read the sign-in state again, after signing in or out. A
+ * read still under way left before that, and may answer after it with what
+ * was true then, so it is dropped first. Left alone, a first read would
+ * stand in for the new one, as the cache starts no second read while it has
+ * nothing yet: a one-time link opened on a slow connection would sign in and
+ * then show the sign-in screen.
+ */
 export function useRefreshAuth() {
   const client = useQueryClient();
   return useCallback(async () => {
     forgetSession(client);
+    await client.cancelQueries({ queryKey: authStateKey });
     await client.invalidateQueries({ queryKey: authStateKey });
   }, [client]);
 }

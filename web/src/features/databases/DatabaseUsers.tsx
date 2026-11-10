@@ -203,8 +203,7 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
       {mongo ? (
         <p className="database-line">
           <Trans>
-            Dockwell lists MongoDB's users, and can't add one yet. To add one, run <code>db.createUser</code> in{" "}
-            <code>mongosh</code>, in the database they sign in to. They show here once they're there.
+            Dockwell can't add a MongoDB user yet. Add one with <code>db.createUser</code> in <code>mongosh</code>.
           </Trans>
         </p>
       ) : null}

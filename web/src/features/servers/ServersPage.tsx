@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Connection, type Server } from "@dockwell/api";
+import { type Server, ServerService } from "@dockwell/api";
 import {
   Button,
   cx,
   FleetGrid,
   type FleetServer,
+  Icon,
   PHONE_QUERY,
   STATUS,
   StatusBadge,
@@ -18,6 +19,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
 import { useServices } from "../apps/useServices";
+import { useMay } from "../auth/may";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AddServerSheet } from "./AddServerSheet";
@@ -38,9 +40,12 @@ export interface ServersSearch {
 /** How many rows the table shows before "Show all", as Servers-List pages them. */
 export const TABLE_PAGE = 20;
 
-/** Whether a server needs a look: it isn't reporting, can't read Docker, or hasn't connected. */
+/**
+ * Whether a server needs a look: it isn't reporting, hasn't connected, can't read Docker, or is strained,
+ * which is whatever its badge doesn't call healthy, so the two can't disagree.
+ */
 function needsLook(server: Server): boolean {
-  return server.connection !== Connection.CONNECTED || server.dockerUnreadableSince !== undefined;
+  return serverStatus(server) !== "healthy";
 }
 
 /**
@@ -63,6 +68,7 @@ export function ServersPage({
   const status = usePageReconnecting(fleet.status);
   const phone = useMediaQuery(PHONE_QUERY);
   const [adding, setAdding] = useState(false);
+  const mayAdd = useMay()(ServerService.method.createJoinTicket);
   const servers = useMemo(
     () => (fleet.status === "connecting" ? [] : [...fleet.servers].sort((a, b) => a.name.localeCompare(b.name))),
     [fleet],
@@ -101,18 +107,35 @@ export function ServersPage({
       phoneSub={lead}
       status={status}
       actions={
-        <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>
+        <Button variant="primary" icon="plus" onClick={() => setAdding(true)} {...mayAdd.off}>
           <Trans>Add server</Trans>
         </Button>
+      }
+      phoneAction={
+        // A header icon has no room for a reason: it's there only for whoever may use it.
+        mayAdd.allowed ? (
+          <button
+            type="button"
+            className="mobile-header-button"
+            aria-label={t`Add server`}
+            onClick={() => setAdding(true)}
+          >
+            <Icon name="plus" size={20} />
+          </button>
+        ) : undefined
       }
     >
       {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : null}
       {servers.length === 0 ? (
-        <EmptyState icon="server" title={<Trans>No servers yet</Trans>}>
-          <p>
-            <Trans>Add one with a ticket from the control server.</Trans>
-          </p>
-        </EmptyState>
+        <EmptyState
+          icon="server"
+          title={<Trans>No servers yet</Trans>}
+          action={
+            <Button variant="primary" icon="plus" onClick={() => setAdding(true)} {...mayAdd.off}>
+              <Trans>Add server</Trans>
+            </Button>
+          }
+        />
       ) : phone ? (
         <PhoneServers servers={servers} chosen={chosen} select={select} unknown={unread !== undefined} />
       ) : (
@@ -166,9 +189,12 @@ function WideServers({ servers, chosen, select, unknown }: ListProps) {
   return (
     <div ref={layout} className={cx("servers-layout", chosen && "is-inspecting")}>
       <div className="servers-main">
-        <section className="dw-panel servers-map" aria-label={t`Servers at a glance`}>
-          <FleetGrid servers={tiles} selectedId={chosen?.id} onSelect={(s) => choose(s.id)} />
-        </section>
+        {/* A map is for telling many apart at a glance. One server is its row, which says the same and more. */}
+        {servers.length > 1 ? (
+          <section className="dw-panel servers-map" aria-label={t`Servers at a glance`}>
+            <FleetGrid servers={tiles} selectedId={chosen?.id} onSelect={(s) => choose(s.id)} />
+          </section>
+        ) : null}
         <ServersTable
           servers={servers}
           tiles={tiles}
@@ -335,9 +361,11 @@ function PhoneServers({ servers, chosen, select, unknown }: ListProps) {
   const cpuWords = (cpu: number) => t`CPU ${cpu}%`;
   return (
     <>
-      <section className="dw-panel servers-map" aria-label={t`Servers at a glance`}>
-        <FleetGrid servers={tiles} size="sm" readout={false} selectedId={chosen?.id} onSelect={(s) => select(s.id)} />
-      </section>
+      {servers.length > 1 ? (
+        <section className="dw-panel servers-map" aria-label={t`Servers at a glance`}>
+          <FleetGrid servers={tiles} size="sm" readout={false} selectedId={chosen?.id} onSelect={(s) => select(s.id)} />
+        </section>
+      ) : null}
       <section className="servers-phone-section" aria-labelledby="servers-phone-heading">
         <div className="servers-phone-head">
           <h2 className="dw-text-heading" id="servers-phone-heading">

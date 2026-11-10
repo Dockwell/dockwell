@@ -565,6 +565,55 @@ func TestAnAgentThatDoesntGuardWaysInIsntSavedThrough(t *testing.T) {
 	}
 }
 
+func TestAFolderIsSearchedThroughItsAgent(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	server := f.addServer(t, false)
+	id := server.id.ServerID
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"access.log", "Error.log", "nginx.conf"} {
+		writeFile(t, filepath.Join(dir, name), "")
+	}
+	c := fileClient(b, b.origin)
+	list, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: dir, Match: "LOG"}))
+	if err != nil {
+		t.Fatalf("searching: %v", err)
+	}
+	var names []string
+	for _, e := range list.Msg.GetEntries() {
+		names = append(names, e.GetName())
+	}
+	if !slices.Equal(names, []string{"Error.log", "access.log"}) || list.Msg.GetNextPage() != "" {
+		t.Fatalf("searching for LOG listed %v, next %q", names, list.Msg.GetNextPage())
+	}
+	for _, bad := range []*dockwellv1.ListFilesRequest{
+		{ServerId: id, Path: dir, Match: "a/b"},
+		{ServerId: id, Path: dir, Match: strings.Repeat("x", 256)},
+		{ServerId: id, Path: dir, Page: "not a token!"},
+	} {
+		if _, err := c.ListFiles(t.Context(), connect.NewRequest(bad)); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("listing %q, page %q = %v, want it refused as invalid", bad.GetMatch(), bad.GetPage(), err)
+		}
+	}
+
+	t.Run("an older agent says to update it, and still lists", func(t *testing.T) {
+		server.stop()
+		waitConnected(t, f, id, false)
+		server.hello = func(h *agentv1.Hello) { h.PagesListings = false }
+		server.connect(t, f)
+		_, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: dir, Match: "log"}))
+		if reasonOf(err) != "agent_outdated" || !strings.Contains(err.Error(), "Update the agent on") {
+			t.Fatalf("searching through it = %v", err)
+		}
+		if _, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: dir})); err != nil {
+			t.Fatalf("listing through it: %v", err)
+		}
+	})
+}
+
 // heldWrite adds a server whose agent reads and saves as any does, and hold, which
 // gives it an agent whose saves stop as they're about to write, until release, and
 // which gives up waiting on a path after answerWithin. Hold comes after the test has

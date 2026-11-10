@@ -10,6 +10,7 @@ import {
   BackupService,
   CatalogService,
   type Change,
+  type ChangeConfirmation,
   ChangeService,
   ChangeState,
   Connection,
@@ -76,6 +77,7 @@ import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { ConfirmAccess } from "./ConfirmAccess";
 import { BecauseNotice, FailureNotice, MachineWords } from "./FailureNotice";
 import { useFieldRows } from "./fields";
 import { followChange } from "./follow";
@@ -113,6 +115,7 @@ import {
 import { RollbackLine, rollbackSubject } from "./RollbackLine";
 import { useAlsoWords, useChangeWords } from "./words";
 import "./ChangeSheet.css";
+import { placesOfChange, useMay } from "../auth/may";
 
 /** What every opening may say about what comes next. */
 interface Then {
@@ -523,6 +526,8 @@ function ChangeSheet({
   // someone else's in a protected environment, an admin approves with a
   // passkey, however it was planned: the API says which (ADR 0049).
   const user = useSignedInUser();
+  // Undoing plans a change, which a viewer can't (ADR 0059). Applying and discarding are the plan's to say, below.
+  const mayUndo = useMay()(ChangeService.method.undoChange, placesOfChange(change));
   const waits = phase === "review" && (change?.waits ?? "") !== "";
   const approves = phase === "review" && change?.approves === true;
   // Theirs to discard, as the sheet's own plan is: one they planned in the panel.
@@ -773,7 +778,11 @@ function ChangeSheet({
     footer = (
       <>
         <span className="dw-sheet-note">
-          <Trans>It keeps applying if you close this.</Trans>
+          {confirmationOf(change) ? (
+            <Trans>If you close this without keeping it, the change goes back on its own.</Trans>
+          ) : (
+            <Trans>It keeps applying if you close this.</Trans>
+          )}
         </span>
         <Button variant="ghost" size={size} onClick={close}>
           <Trans>Close</Trans>
@@ -795,6 +804,7 @@ function ChangeSheet({
             icon="undo"
             onClick={() => open({ kind: "undo", id: change.id })}
             className="plan-undo"
+            {...mayUndo.off}
           >
             <Trans>Undo until {deadline}</Trans>
           </Button>
@@ -980,6 +990,14 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   if (plan?.servers.some((server) => server.steps.some((step) => step.releases))) {
     return t`Dockwell let go of ${subject}`;
   }
+  // A server's firewall policy has one name, "default", which says nothing: its
+  // title says what it does.
+  if (only?.resource?.kind === "firewall.policy") {
+    const where = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? only.resource.scope;
+    return only.action === PlanAction.DELETE
+      ? t`${where} lets in what no rule drops`
+      : t`${where} denies everything else`;
+  }
   switch (only?.action) {
     case PlanAction.CREATE:
       return t`${subject} is created`;
@@ -1023,7 +1041,7 @@ function PlanBody({
   const { t } = useLingui();
   const words = useChangeWords();
   const alsoWords = useAlsoWords();
-  const risks = useRisks(plan);
+  const risks = useRisks(plan, phase !== "review");
   // Worked out from the review on, so an arrival has what it says as it lands, and room for it.
   const reach = useReach(plan, change, phase === "arrived");
   const serving = reach.domains.flatMap(({ read }) =>
@@ -1091,6 +1109,7 @@ function PlanBody({
   const setOut = phase === "failed" ? t`What it set out to do` : t`What it would have done`;
   const stepsDone = steps.filter((s) => s.state === StepState.DONE).length;
   const nothingNewer = foundNothingNewer(change);
+  const confirmation = phase === "applying" ? confirmationOf(change) : undefined;
 
   return (
     <div className="plan-body">
@@ -1099,6 +1118,17 @@ function PlanBody({
           {/* What the form that opened this says of it, as a stale plan, which only the form can put right. */}
           {opening.fix?.(reasonOf(failure)) ?? <MachineWords>{refusal(failure, plan)}</MachineWords>}
         </Callout>
+      ) : null}
+      {/* A change to who reaches a server waits for you to say you still can: that comes first. */}
+      {confirmation && change ? (
+        <ConfirmAccess
+          changeId={change.id}
+          wait={confirmation}
+          stays={
+            plan?.servers.find((s) => s.serverId === confirmation.serverId)?.steps.find((step) => step.stays)?.stays
+          }
+          appliedBy={change.appliedBy?.id}
+        />
       ) : null}
       {/* A change Dockwell made on its own says why first, as nobody asked for it. */}
       {change?.because ? <BecauseNotice because={change.because} /> : null}
@@ -1124,6 +1154,7 @@ function PlanBody({
           {dataLeft ? (
             <Callout tone="warning" title={dataLeft.title}>
               {dataLeft.detail}
+              <HowItWorks notices={[{ key: "data-left", ...dataLeft }]} />
             </Callout>
           ) : null}
           {wentOffline(change) ? null : (
@@ -1255,14 +1286,16 @@ function TopNotice({
       <>
         <Callout tone="critical" title={<MachineWords>{first.title}</MachineWords>} className="plan-risk">
           {first.detail}
-          {rest.map((risk) => (
-            <p key={risk.key} className="plan-risk-more">
-              <b>
-                <MachineWords>{risk.title}</MachineWords>.
-              </b>{" "}
-              {risk.detail}
-            </p>
-          ))}
+          {inSight([first, ...rest])
+            .slice(1)
+            .map((risk) => (
+              <p key={risk.key} className="plan-risk-more">
+                <b>
+                  <MachineWords>{risk.title}</MachineWords>.
+                </b>{" "}
+                {risk.detail}
+              </p>
+            ))}
           {risks.some((risk) => risk.trust) ? (
             <p className="plan-risk-more">
               {phase === "review" ? (
@@ -1272,6 +1305,7 @@ function TopNotice({
               )}
             </p>
           ) : null}
+          <HowItWorks notices={[first, ...rest]} />
         </Callout>
         {risks
           .filter((risk) => risk.amber)
@@ -1283,6 +1317,7 @@ function TopNotice({
               className="plan-risk"
             >
               {risk.detail}
+              <HowItWorks notices={[risk]} />
             </Callout>
           ))}
       </>
@@ -1300,7 +1335,7 @@ function TopNotice({
       ),
     });
   }
-  const [lead, ...others] = notices;
+  const [lead, ...others] = inSight(notices);
   if (!lead) return null;
   return (
     <Callout tone="warning" title={<MachineWords>{lead.title}</MachineWords>} className="plan-risk">
@@ -1313,8 +1348,67 @@ function TopNotice({
           <MachineWords>{notice.detail}</MachineWords>
         </p>
       ))}
+      <HowItWorks notices={notices} />
     </Callout>
   );
+}
+
+/**
+ * Why a notice says what it says, and how it comes about, closed: the notice
+ * itself is its fact and what to do about it. Several in one callout each say
+ * whose it is.
+ */
+function HowItWorks({ notices }: { notices: readonly Notice[] }) {
+  // Whose each reason is shows once it's open, so a closed one repeats no title in the page.
+  const [open, setOpen] = useState(false);
+  // Notices of one title, such as each way an app gets root, give their reasons together.
+  const groups: { title: ReactNode; reasons: { key: string; more: ReactNode }[] }[] = [];
+  for (const { key, title, more } of notices) {
+    if (more === undefined || more === "") continue;
+    const same = groups.find((g) => typeof title === "string" && g.title === title);
+    if (same) same.reasons.push({ key, more });
+    else groups.push({ title, reasons: [{ key, more }] });
+  }
+  if (groups.length === 0) return null;
+  const several = inSight(notices).length > 1;
+  return (
+    <details className="plan-details plan-how" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>
+        <Trans>How this works</Trans>
+      </summary>
+      {groups.flatMap((group) =>
+        group.reasons.map(({ key, more }, i) => (
+          <p key={key} className="plan-risk-more">
+            {several && open && i === 0 ? (
+              <>
+                <b>
+                  <MachineWords>{group.title}</MachineWords>.
+                </b>{" "}
+              </>
+            ) : null}
+            <MachineWords>{more}</MachineWords>
+          </p>
+        )),
+      )}
+    </details>
+  );
+}
+
+/**
+ * The notices a callout shows, each once: one with the title and the words of
+ * one before it says nothing new in sight, as what differs, such as how an app
+ * gets root, is under How this works.
+ */
+function inSight(notices: readonly Notice[]): Notice[] {
+  const seen = new Set<string>();
+  return notices.filter((notice) => {
+    const { title, detail } = notice;
+    if (typeof title !== "string" || (detail !== undefined && typeof detail !== "string")) return true;
+    const key = `${title}\n${detail ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /** Which project and environment a plan lands in, once there is a choice of either, so it can't read as another's. */
@@ -2061,7 +2155,14 @@ function Effects({
   fleet: boolean;
 }) {
   const { t } = useLingui();
-  const rows: { icon?: IconName; warn?: boolean; title: ReactNode; detail?: ReactNode; key: string }[] = [];
+  const rows: {
+    icon?: IconName;
+    warn?: boolean;
+    title: ReactNode;
+    detail?: ReactNode;
+    more?: ReactNode;
+    key: string;
+  }[] = [];
   if (phone) rows.push({ key: "reach", icon: "activity", title: <Impact plan={plan} /> });
   // What is there today: a step that fails puts back what ran, as ADR 0017 has it. Waves and their checks are #28.
   // A restart changes no spec, so it has nothing to roll back to.
@@ -2139,6 +2240,7 @@ function Effects({
               <div className="plan-effect-text">
                 <span className="plan-effect-title">{row.title}</span>
                 {row.detail ? <span className="plan-effect-detail">{row.detail}</span> : null}
+                <HowItWorks notices={[row]} />
               </div>
             </div>
           ))}
@@ -2146,4 +2248,15 @@ function Effects({
       ) : null}
     </>
   );
+}
+
+/**
+ * What a change waits for, while a change to who reaches a server waits for you
+ * to confirm you still can: on its steps, as the watch moves them on, and on the
+ * change itself only when it has no steps to say. The change's own is as of
+ * when it was read, so a step that has moved on since outranks it.
+ */
+function confirmationOf(change: Change | undefined): ChangeConfirmation | undefined {
+  if (change && change.steps.length > 0) return change.steps.find((s) => s.confirmation)?.confirmation;
+  return change?.confirmation;
 }

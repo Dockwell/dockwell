@@ -109,8 +109,8 @@ jobs:
   docker-go:
     name: Go on Docker
     runs-on: ubuntu-24.04
-    # 4 minutes at most.
-    timeout-minutes: 8
+    # 4 minutes at most, and half a minute for nftables.
+    timeout-minutes: 9
     # The drivers' tests against the runner's Docker Engine, beside docker compose
     # (ADR 0021).
     env:
@@ -156,6 +156,18 @@ jobs:
         env:
           DOCKWELL_TEST_SMALL_DISK: /mnt/dockwell-small
         run: go test -race -run 'OnRealDocker' -v ./internal/...
+      # Dockwell's nftables table against the runner's kernel, as root, in a
+      # network namespace of its own, so the runner's own firewall is never
+      # touched (ADR 0052). It has to pass, not skip.
+      - name: The table against real nftables
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          set -o pipefail
+          command -v nft >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends nftables; }
+          go test -c -o "$RUNNER_TEMP/nftables.test" ./internal/agent/nftables
+          sudo unshare -n env DOCKWELL_TEST=1 DOCKWELL_TEST_NFT="$(command -v nft)" \
+            "$RUNNER_TEMP/nftables.test" -test.run 'TestTheTableLoadsInRealNftables' -test.v | tee "$RUNNER_TEMP/nftables.out"
+          grep -q -- '--- PASS: TestTheTableLoadsInRealNftables' "$RUNNER_TEMP/nftables.out"
 
   caddy-go:
     name: Go on Caddy
@@ -198,6 +210,9 @@ jobs:
     # Pebble, which the script fetches (ADR 0024), with Dockwell as root, as on a
     # server.
     env:
+      # Ubuntu's packages from the mirror beside the runners: the public one took 11 minutes
+      # for one read on 2026-11-10, and the step with it its whole deadline (#391).
+      E2E_UBUNTU_MIRROR: http://azure.archive.ubuntu.com/ubuntu/
       E2E_PANEL: "1"
       E2E_ROOT: "1"
     steps:

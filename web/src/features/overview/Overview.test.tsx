@@ -17,6 +17,7 @@ import {
   PackageManager,
   type Server,
   ServerInventorySchema,
+  ServerStrain,
   type WatchEventsResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -107,7 +108,7 @@ describe("Overview with one server", () => {
     expect(metric("CPU").querySelector(".dw-spark-line")?.getAttribute("d")?.match(/[ML]/g)).toHaveLength(after.length);
   });
 
-  it("says when the server stops reporting, and how to fix it", async () => {
+  it("says when the server stops reporting, with the command that restarts its agent to copy", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date(2026, 10, 4, 12, 0) });
     const { watch } = renderOverview();
     const seen = timestampFromDate(new Date(2026, 10, 4, 11, 57));
@@ -115,10 +116,13 @@ describe("Overview with one server", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("hz-1 isn't reporting");
-    expect(alert).toHaveTextContent(
-      "Its agent last reported 3 min ago, and the numbers here are from then. Check that dockwell run is still running on the server.",
-    );
-    expect(within(alert).getByText("dockwell run").tagName).toBe("CODE");
+    expect(alert).toHaveTextContent("Last heard 3 min ago; the numbers here are from then.");
+    const copy = within(alert).getByRole("button", { name: "Copy the restart command" });
+    const write = vi.fn(() => Promise.resolve());
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText: write } });
+    await act(async () => copy.click());
+    // Ubuntu runs Dockwell under systemd, as install.sh sets it up.
+    expect(write).toHaveBeenCalledWith("sudo systemctl restart dockwell");
     expect(metric("CPU")).toHaveTextContent("23.4");
     // Uptime was true at the last report, not now.
     expect(screen.getByText("4 vCPU · 8 GB · Ubuntu 24.04.1 LTS")).toBeVisible();
@@ -131,14 +135,14 @@ describe("Overview with one server", () => {
     watch.push(changed(aServer({ ...hz1, connection: Connection.UNREACHABLE, lastSeenTime: seen })), snapshotComplete);
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("last reported 10 s ago");
+    expect(alert).toHaveTextContent("Last heard 10 s ago");
     await act(() => vi.advanceTimersByTimeAsync(1_000));
-    expect(alert).toHaveTextContent("last reported 11 s ago");
+    expect(alert).toHaveTextContent("Last heard 11 s ago");
     await act(() => vi.advanceTimersByTimeAsync(1_000));
-    expect(alert).toHaveTextContent("last reported 12 s ago");
+    expect(alert).toHaveTextContent("Last heard 12 s ago");
   });
 
-  it("explains a server whose agent hasn't connected yet", async () => {
+  it("says a server's agent hasn't connected yet, with the command that starts it to copy", async () => {
     const { watch } = renderOverview();
     watch.push(
       changed(aServer({ id: "srv_1", name: "hz-1", connection: Connection.PENDING, inventory: undefined })),
@@ -146,7 +150,8 @@ describe("Overview with one server", () => {
     );
 
     expect(await screen.findByText("hz-1 is waiting for its agent")).toBeVisible();
-    expect(screen.getByRole("status")).toHaveTextContent("Start it with dockwell run on the server.");
+    expect(screen.getByRole("status")).toHaveTextContent("It joined, and its agent hasn't connected yet.");
+    expect(screen.getByRole("button", { name: "Copy the start command" })).toBeVisible();
     expect(screen.queryByText("CPU")).toBeNull();
   });
 
@@ -211,17 +216,17 @@ describe("Overview with one server", () => {
 });
 
 describe("Overview with no servers", () => {
-  it("says how to add one", async () => {
+  it("offers to add one, rather than saying what to run", async () => {
+    const user = userEvent.setup();
     const { watch, container } = renderOverview();
     watch.push(snapshotComplete);
 
     expect(await screen.findByRole("heading", { level: 2, name: "No servers yet" })).toBeVisible();
-    const text = screen.getByText(/on the control server/);
-    expect(text).toHaveTextContent(
-      "Run dockwell token create on the control server, then dockwell join with the ticket it prints on the server you want to add.",
-    );
-    expect(within(text).getByText("dockwell token create").tagName).toBe("CODE");
+    expect(container).not.toHaveTextContent("dockwell token create");
     await expectAccessible(container);
+    await user.click(screen.getByRole("button", { name: "Add server" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+    expect(within(sheet).getByRole("button", { name: "Make the command" })).toBeEnabled();
   });
 });
 
@@ -301,9 +306,8 @@ describe("Overview with a fleet", () => {
 
     const callout = await screen.findByRole("alert");
     expect(callout).toHaveTextContent("hz-2 isn't reporting");
-    expect(callout).toHaveTextContent(
-      "Its agent last reported 3 min ago, so its numbers are left out of the fleet's. Check that dockwell run is still running on the server.",
-    );
+    expect(callout).toHaveTextContent("Last heard 3 min ago; its numbers are left out of the fleet's.");
+    expect(within(callout).getByRole("button", { name: "Copy the restart command" })).toBeVisible();
     expect(within(callout).getByRole("link", { name: "Inspect" })).toHaveAttribute("href", "/servers/srv_2");
     expectMetric("Servers serving", "1", "of 2", "1 down");
     expectMetric("CPU", "23.4", "%", "Across 4 vCPU");
@@ -328,6 +332,15 @@ describe("Overview with a fleet", () => {
 
     expect(await screen.findByText("hz-2 can't read Docker")).toBeVisible();
     expectMetric("Servers serving", "2", "of 2", "1 can't read Docker");
+  });
+
+  it("says why a strained server reads Degraded, in the server list's words", async () => {
+    const user = userEvent.setup();
+    renderFleet([hz1, hz2({ strainedSince: timestampFromDate(new Date()), strain: ServerStrain.MEMORY })]);
+
+    const map = await screen.findByRole("region", { name: "Servers" });
+    await user.hover(within(map).getByRole("button", { name: /^hz-2, Degraded/ }));
+    expect(within(map).getByText("Memory above 90%")).toBeVisible();
   });
 
   it("lists the apps with where each runs, and what changed, apps' health included", async () => {
@@ -541,11 +554,7 @@ describe("what the overview shows below the numbers", () => {
     expect(await within(changes).findByText("Update web")).toBeVisible();
     expect(within(changes).getByRole("link", { name: "Activity" })).toHaveAttribute("href", "/activity");
     const backups = screen.getByRole("region", { name: "Backups" });
-    expect(
-      await within(backups).findByText(
-        "A backup is of a volume. Add one to an app, or install a database from the catalog.",
-      ),
-    ).toBeVisible();
+    expect(await within(backups).findByText("Nothing to back up yet: no app keeps data.")).toBeVisible();
     await expectAccessible(container);
   });
 
@@ -658,7 +667,7 @@ describe("the overview's backups", () => {
     renderAt("/", backupsApi({ listBackups: () => new Promise(() => {}) }));
     const backups = await panel();
     expect(within(backups).getByText("Loading backups")).toBeInTheDocument();
-    expect(backups).not.toHaveTextContent("A backup is of a volume");
+    expect(backups).not.toHaveTextContent("Nothing to back up yet");
     expect(backups).not.toHaveTextContent("None yet");
   });
 
@@ -676,7 +685,7 @@ describe("the overview's backups", () => {
     );
     const backups = await panel();
     expect(await within(backups).findByText("Dockwell can't read its backups")).toBeVisible();
-    expect(backups).not.toHaveTextContent("A backup is of a volume");
+    expect(backups).not.toHaveTextContent("Nothing to back up yet");
     await userEvent.click(within(backups).getByRole("button", { name: "Try again" }));
     expect(await within(backups).findByText(/orders · 71 B/)).toBeVisible();
   });

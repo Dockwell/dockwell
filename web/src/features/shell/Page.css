@@ -112,6 +112,14 @@
   color: var(--cobalt);
 }
 
+/* On a phone, why the page's controls are off, once, as nothing hovers there. */
+.page-off-note {
+  margin: 0 0 var(--space-3);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
 /* The phone header: 56px tall, 44px touch targets, the title in heading weight. */
 .mobile-header {
   position: sticky;

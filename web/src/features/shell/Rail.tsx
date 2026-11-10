@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { Role, SystemService } from "@dockwell/api";
+import { AlertService, Role, SettingsService, SystemService } from "@dockwell/api";
 import { cx, Icon, type IconName, Logo } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useServices } from "../apps/useServices";
+import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { initials, useRoleName } from "../auth/user";
 import { useUpgrades } from "../catalog/useCatalog";
@@ -38,7 +39,10 @@ export function Rail({ view }: { view: FleetView }) {
   // How many apps there are, beside Apps, as the rail has it in the mocks.
   const apps = useServices().data?.length;
 
+  const may = useMay();
   const section = (id: UpcomingSection) => {
+    // A way to a place you can't read is left out (ADR 0059).
+    if (id === "alerts" && !may(AlertService.method.listAlerts).allowed) return null;
     const { label, icon } = UPCOMING[id];
     return (
       <Link
@@ -60,7 +64,9 @@ export function Rail({ view }: { view: FleetView }) {
       <div className="rail-brand">
         <Logo variant="logotype" height={14} className="rail-logo" />
         <Logo variant="mark" height={14} className="rail-mark" />
-        {!view.fleet && short ? (
+        {!view.fleet && short && !may(SettingsService.method.getControlPlane).allowed ? (
+          <span className="rail-version">{short}</span>
+        ) : !view.fleet && short ? (
           <Link
             to="/settings/control-plane"
             className="rail-version"

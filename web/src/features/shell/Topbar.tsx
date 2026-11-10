@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { ChangeService } from "@dockwell/api";
 import { Button, Icon, StatusBadge, useUIStrings } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { RouterButtonLink } from "../../lib/links";
+import { useMay } from "../auth/may";
 import { FleetUnknown, Reconnecting } from "../servers/FleetNotes";
 import { ServerAddress } from "../servers/ServerAddress";
 import { type FleetView, serverStatus } from "../servers/server";
@@ -19,6 +21,7 @@ export function Topbar({ view }: { view: FleetView }) {
   const { t } = useLingui();
   const openCommandBar = useOpenCommandBar();
   const shortcut = useCommandShortcut();
+  const mayPlan = useMay()(ChangeService.method.proposeChange);
   return (
     <header className="topbar">
       <Scope view={view} />
@@ -26,9 +29,16 @@ export function Topbar({ view }: { view: FleetView }) {
       <Button className="topbar-search" icon="search" kbd={shortcut} onClick={openCommandBar}>
         {t`Search or run a command`}
       </Button>
-      <RouterButtonLink to="/apps/new" variant="primary" icon="plus" className="topbar-new">
-        <Trans>New</Trans>
-      </RouterButtonLink>
+      {mayPlan.allowed ? (
+        <RouterButtonLink to="/apps/new" variant="primary" icon="plus" className="topbar-new">
+          <Trans>New</Trans>
+        </RouterButtonLink>
+      ) : (
+        // An action stays where it is, off, with why (ADR 0059).
+        <Button variant="primary" icon="plus" className="topbar-new" {...mayPlan.off}>
+          <Trans>New</Trans>
+        </Button>
+      )}
     </header>
   );
 }
@@ -62,7 +72,7 @@ function Scope({ view }: { view: FleetView }) {
     );
   }
   if (!fleet || !servers) return null;
-  const { down, waiting, unknown, docker } = counts;
+  const { down, waiting, unknown, docker, strained } = counts;
   return (
     <div className="topbar-scope">
       <Icon name="server" size={16} className="topbar-scope-icon" />
@@ -73,7 +83,10 @@ function Scope({ view }: { view: FleetView }) {
           {waiting > 0 ? <StatusBadge status="stopped" label={t`${waiting} waiting for an agent`} /> : null}
           {unknown > 0 ? <StatusBadge status="stopped" label={t`${unknown} in an unknown state`} /> : null}
           {docker > 0 ? <StatusBadge status="degraded" label={t`${docker} can't read Docker`} /> : null}
-          {counts.connected === servers.length && docker === 0 ? (
+          {strained > 0 ? (
+            <StatusBadge status="degraded" label={strings.fleetGrid.count(strained, "degraded")} />
+          ) : null}
+          {counts.connected === servers.length && docker === 0 && strained === 0 ? (
             <StatusBadge status="healthy" label={t`All healthy`} />
           ) : null}
         </>

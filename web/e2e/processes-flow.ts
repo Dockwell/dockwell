@@ -51,9 +51,21 @@ export async function processesFlow(page: Page, { origin, step, shoot }: Process
     await shoot(page, "server-processes");
 
     await page.getByRole("textbox", { name: "Filter processes" }).fill(String(pid));
+    // The summary uses the deferred filter, so it waits for the results to settle.
+    await page.getByText(/^\d+ (?:process matches|processes match)\./).waitFor();
     const row = table.getByRole("row", { name: new RegExp(`\\bsleep\\b.*\\b${pid}\\b`) });
     await row.waitFor();
-    if ((await table.getByRole("row").count()) !== 2) fail(`filtering by PID ${pid} left more than its row`);
+    // Search matches substrings: another PID, command or owner can contain these digits too.
+    const unrelated = await table.locator("tbody tr").evaluateAll(
+      (rows, query) =>
+        rows.flatMap((row) => {
+          const fields = [...row.querySelectorAll("td")].slice(0, 3).map((cell) => cell.textContent ?? "");
+          fields.push(row.querySelector(".procs-sub")?.getAttribute("title") ?? "");
+          return fields.some((field) => field.includes(query)) ? [] : [row.textContent];
+        }),
+      String(pid),
+    );
+    if (unrelated.length) fail(`filtering by PID ${pid} left unrelated rows: ${unrelated.join("; ")}`);
 
     step("stopping it says what that does, asks for the passkey, and it gets SIGTERM");
     await row.getByRole("button", { name: `Stop sleep (PID ${pid})` }).click();

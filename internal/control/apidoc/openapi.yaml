@@ -215,6 +215,76 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/alerts/{id}:acknowledge:
+        post:
+            tags:
+                - AlertService
+            description: |-
+                AcknowledgeAlert says someone has seen an open alert and is on it: who and
+                 when, on the alert and on Activity. It holds nothing back and sends nothing;
+                 a mute does that. Acknowledging one that someone else has takes it over. It
+                 ends when the alert resolves. Only an open alert can be acknowledged.
+            operationId: AlertService_AcknowledgeAlert
+            parameters:
+                - name: id
+                  in: path
+                  description: The alert's ID, "alt_…".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AcknowledgeAlertRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AcknowledgeAlertResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/alerts/{id}:unacknowledge:
+        post:
+            tags:
+                - AlertService
+            description: |-
+                UnacknowledgeAlert takes an acknowledgement back, so the alert reads as
+                 nobody's again.
+            operationId: AlertService_UnacknowledgeAlert
+            parameters:
+                - name: id
+                  in: path
+                  description: The alert's ID, "alt_…".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UnacknowledgeAlertRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UnacknowledgeAlertResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/auditEvents:
         get:
             tags:
@@ -329,6 +399,39 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListBackupDestinationsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/backup-destinations:test:
+        post:
+            tags:
+                - BackupService
+            description: |-
+                TestBackupDestination signs in to storage with what a destination form holds,
+                 before anything is planned, and says what it found: the buckets the keys may
+                 list, and, given a bucket, whether a file can be written there, which it writes
+                 under the destination's prefix and deletes. It reaches the storage from the
+                 control server, which may reach what some servers can't, or not what they can:
+                 the internet and private networks, never the control server's own loopback, and
+                 it follows no redirect. It keeps nothing, and it's on the activity log without
+                 what signs in.
+            operationId: BackupService_TestBackupDestination
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/TestBackupDestinationRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TestBackupDestinationResponse'
                 default:
                     description: Default error response
                     content:
@@ -887,6 +990,46 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ApplyChangeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/changes/{id}:confirm:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                ConfirmChange keeps a change to a server's firewall that waits for its
+                 confirmation (Change.confirmation), once you have checked that you can
+                 still reach the server as the confirmation says. Only the person who
+                 applied it may confirm it, in the session they applied it from. Without a
+                 confirmation in time, the server puts back its firewall as it was, and the
+                 change rolls back (ADR 0052). A server's firewall is the whole server's,
+                 so confirming is an admin's, as applying such a change is, and no API
+                 token can call it.
+            operationId: ChangeService_ConfirmChange
+            parameters:
+                - name: id
+                  in: path
+                  description: The change's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ConfirmChangeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConfirmChangeResponse'
                 default:
                     description: Default error response
                     content:
@@ -1671,6 +1814,67 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/joinTickets:
+        post:
+            tags:
+                - ServerService
+            description: |-
+                CreateJoinTicket makes a ticket that adds one server: dockwell join with it,
+                 on the new server, gives that server a name and a certificate, and its agent
+                 connects. The ticket works once, for an hour unless ttl_seconds says otherwise,
+                 and is shown only in this response. It gives a server a place in the fleet, so
+                 it takes a passkey just now: call it without a proof first, and it refuses with
+                 the reason needs_step_up, then again with the proof from FinishStepUp for
+                 STEP_UP_ACTION_ADD_SERVER. It's on the activity log. dockwell token create makes
+                 the same ticket on the control server.
+            operationId: ServerService_CreateJoinTicket
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateJoinTicketRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateJoinTicketResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/joinTickets/{id}:
+        get:
+            tags:
+                - ServerService
+            description: |-
+                GetJoinTicket says whether a ticket is still waiting for a server, which server
+                 joined with it, or that it expired. It never returns the ticket itself.
+            operationId: ServerService_GetJoinTicket
+            parameters:
+                - name: id
+                  in: path
+                  description: The ticket's ID, from CreateJoinTicket.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetJoinTicketResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/members:
         get:
             tags:
@@ -2212,6 +2416,19 @@ paths:
                      work adds to this message.
                   schema:
                     type: boolean
+                - name: match
+                  in: query
+                  description: |-
+                    Lists only the entries whose names hold this, case aside, such as "error":
+                     a search through the whole directory, however large. Empty lists every entry.
+                     A server whose agent is older than the control plane can't: update it.
+                  schema:
+                    type: string
+                - name: page
+                  in: query
+                  description: Lists the page after the one whose next_page this is. Empty lists the first.
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -2451,6 +2668,41 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/SaveFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/firewall:
+        get:
+            tags:
+                - FirewallService
+            description: |-
+                GetServerFirewall reads, through the server's agent, the firewalls already
+                 there, each with its own tool: ufw, firewalld's zones, nftables's tables
+                 other than ufw's, Docker's and firewalld's, and iptables-legacy, or
+                 iptables on a server without nft. It says what each allows and drops; what
+                 listens on the server, and how far each reaches past them, never open
+                 where it can't tell; and the ports Docker publishes, which reach their
+                 containers past ufw's and firewalld's input rules. A server's firewall is
+                 the whole server's, not a project's, so reading it is an admin's (ADR
+                 0049), as reading its updates is.
+            operationId: FirewallService_GetServerFirewall
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetServerFirewallResponse'
                 default:
                     description: Default error response
                     content:
@@ -4290,6 +4542,65 @@ paths:
                                 $ref: '#/components/schemas/Status'
 components:
     schemas:
+        AccessStays:
+            type: object
+            properties:
+                sshPorts:
+                    type: array
+                    items:
+                        type: integer
+                        format: uint32
+                    description: SSH's ports the change narrows, such as 22.
+                pinned:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The addresses pinned to SSH: those signed in over SSH as it was planned,
+                         and those kept from earlier changes, such as "203.0.113.7/32".
+                allowed:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What rules allow SSH's ports from, such as "198.51.100.0/24". Empty when
+                         no rule allows them.
+                tunnels:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        WireGuard tunnels whose port no rule allows, each as "wg0 (51820/udp)", or
+                         "wg0" where Dockwell couldn't read its port, when the change turns deny
+                         everything else on: the tunnel's next handshake is dropped, and SSH over
+                         it with it, though it passes the test while the tunnel's flow is tracked.
+                panelPorts:
+                    type: array
+                    items:
+                        type: integer
+                        format: uint32
+                    description: |-
+                        The ports the panel and the control plane listen on, on the control
+                         server, when the change turns deny everything else on there: they stay
+                         open by their pin, and the test to run is the panel in a new tab too.
+            description: |-
+                AccessStays is who still reaches a server's SSH once a change that narrows
+                 it is kept (ADR 0052). An address here is all that keeps its person in: if
+                 it changes, SSH is closed to them until a rule allows its port from where
+                 they are.
+        AcknowledgeAlertRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The alert's ID, "alt_…".
+            description: AcknowledgeAlertRequest names an open alert.
+        AcknowledgeAlertResponse:
+            type: object
+            properties:
+                alert:
+                    $ref: '#/components/schemas/Alert'
+            description: AcknowledgeAlertResponse is the alert as it now stands.
         Actor:
             type: object
             properties:
@@ -4554,6 +4865,15 @@ components:
                 value:
                     type: integer
                     format: int32
+                acknowledgeTime:
+                    type: string
+                    description: |-
+                        When someone said they're on it, and who, as Activity names them: a person
+                         or a token, by ID and name. Unset while nobody has. A resolved alert keeps
+                         what it had.
+                    format: date-time
+                acknowledgedBy:
+                    $ref: '#/components/schemas/Actor'
             description: |-
                 Alert is one rule holding for one thing, such as a server's disk, from when
                  it fired until it resolved.
@@ -5361,6 +5681,7 @@ components:
                         - STEP_UP_ACTION_DELETE_WAY_BACK_IN
                         - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                         - STEP_UP_ACTION_APPROVE_CHANGE
+                        - STEP_UP_ACTION_ADD_SERVER
                     type: string
                     description: The action.
                     format: enum
@@ -5792,9 +6113,38 @@ components:
                          protected environment, an admin or the owner applies this. Leave it
                          planned for them". Empty when they may apply it, and for a viewer, who
                          applies nothing.
+                confirmation:
+                    allOf:
+                        - $ref: '#/components/schemas/ChangeConfirmation'
+                    description: |-
+                        What the change waits for, while a change to a server's firewall waits
+                         for its confirmation (ConfirmChange). Unset otherwise. Numbered apart, as
+                         open work adds to this message.
             description: |-
                 Change is one action's worth of edits to managed resources: planned,
                  then applied, failed or discarded.
+        ChangeConfirmation:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server whose firewall changed.
+                deadline:
+                    type: string
+                    description: When the server puts back its firewall, unless confirmed first.
+                    format: date-time
+                sshPorts:
+                    type: array
+                    items:
+                        type: integer
+                        format: uint32
+                    description: |-
+                        The ports the server's SSH listens on now, for the test the person runs
+                         before confirming: a new SSH session, from where they are, with their key.
+            description: |-
+                ChangeConfirmation is what a change to a server's firewall waits for: that
+                 the person who applied it confirms they can still reach the server, before
+                 the server's timer runs out and it puts back its firewall as it was.
         CheckClaimRequest:
             type: object
             properties:
@@ -5977,6 +6327,38 @@ components:
                     type: boolean
                     description: True when it needs a value, as the file gives it no default.
             description: ComposeVariable is a variable a Compose file uses, such as ${TAG}.
+        ConfirmChangeRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The change's ID.
+                serverId:
+                    type: string
+                    description: |-
+                        The server the confirmation is for: the one you checked you can still
+                         reach. It's refused unless that server waits now.
+                deadline:
+                    type: string
+                    description: |-
+                        The deadline the confirmation answers, as the change said it. When it's
+                         set, it's refused unless the server still waits for that deadline, so a
+                         confirmation sent twice can't keep a wait it wasn't for.
+                    format: date-time
+            description: |-
+                ConfirmChangeRequest names a change that waits for its confirmation, and the
+                 server whose confirmation it is, as a change to several servers waits on each
+                 in turn.
+        ConfirmChangeResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change.
+            description: |-
+                ConfirmChangeResponse carries the change, which goes on applying, or ends
+                 applied, once the server has kept what it waited for.
         ConfirmTotpSetupRequest:
             type: object
             properties:
@@ -6343,6 +6725,28 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: CreateDatabaseUserResponse carries the planned change.
+        CreateJoinTicketRequest:
+            type: object
+            properties:
+                ttlSeconds:
+                    type: integer
+                    description: 'How long it works, in seconds: an hour when unset, and at most a day.'
+                    format: uint32
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp for STEP_UP_ACTION_ADD_SERVER.
+            description: CreateJoinTicketRequest says how long the ticket works.
+        CreateJoinTicketResponse:
+            type: object
+            properties:
+                ticket:
+                    allOf:
+                        - $ref: '#/components/schemas/JoinTicket'
+                    description: What the ticket is and where it leads, as GetJoinTicket reads it.
+                value:
+                    type: string
+                    description: The ticket itself, for dockwell join on the new server. Nothing shows it again.
+            description: CreateJoinTicketResponse carries the ticket, once.
         CreateTokenRequest:
             type: object
             properties:
@@ -6873,6 +7277,17 @@ components:
                     type: string
                     description: Total size, in bytes.
             description: DiskUsage is one filesystem's use.
+        DockwellFirewallRule:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, as the firewall.rule resource has it.
+                rule:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallRule'
+                    description: The rule.
+            description: DockwellFirewallRule is one of Dockwell's own rules for a server.
         DockwellRelease:
             type: object
             properties:
@@ -6899,6 +7314,44 @@ components:
             description: |-
                 DockwellRelease is Dockwell's version on a server and its control plane, and
                  the newest release.
+        DockwellTable:
+            type: object
+            properties:
+                unusable:
+                    type: string
+                    description: |-
+                        Why the server can't hold Dockwell's firewall, such as that it has no nft,
+                         so no rule or policy can be planned for it. Empty when it can.
+                rules:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockwellFirewallRule'
+                    description: |-
+                        Its rules as last confirmed, which the server keeps, by name. Each is a
+                         firewall.rule resource in the server's scope, which a change edits.
+                policy:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallPolicy'
+                    description: |-
+                        Its policy as last confirmed: what it does with what no rule lets in.
+                         Unset when it has none, which lets in what no rule drops.
+                waitingChange:
+                    type: string
+                    description: |-
+                        The change that waits for its confirmation now, if one does. Its rules and
+                         policy are loaded, and go back unless it's kept.
+                waitingRules:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockwellFirewallRule'
+                    description: The rules as that change leaves them, by name.
+                waitingPolicy:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallPolicy'
+                    description: The policy as that change leaves it. Unset when it leaves none.
+            description: |-
+                DockwellTable is Dockwell's own firewall on a server, as its agent holds it
+                 (ADR 0052).
         Domain:
             type: object
             properties:
@@ -7552,6 +8005,12 @@ components:
                 value:
                     type: integer
                     format: int32
+                takenFrom:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: |-
+                        Who had the alert before, on an acknowledgement that took it over from
+                         someone. Unset otherwise.
             description: |-
                 EventAlert is an alert that fired or resolved, or a mute of a rule or a
                  server that began or ended. Its subject is what the alert is about, and its
@@ -8090,6 +8549,20 @@ components:
                     type: string
                     description: How many files and folders that made.
             description: FinishUploadResponse is what an upload put in place.
+        FirewallPolicy:
+            type: object
+            properties:
+                denyEverythingElse:
+                    type: boolean
+                    description: |-
+                        Drop inbound traffic no rule lets in. What keeps the server reachable is
+                         still let in: connections already open, SSH from where people come in now,
+                         and on the control server its own ports.
+            description: |-
+                FirewallPolicy is what a server's firewall does with inbound traffic no rule
+                 lets in, kind "firewall.policy", named "default", one for each server.
+                 Without one, or with deny_everything_else off, what no rule drops comes in,
+                 as it did before Dockwell (ADR 0052).
         FirewallRule:
             type: object
             properties:
@@ -8124,6 +8597,136 @@ components:
                     type: string
                     description: Why the rule exists, shown next to it.
             description: FirewallRule allows or blocks inbound traffic to a port on a server.
+        FirewallSeenRule:
+            type: object
+            properties:
+                verdict:
+                    enum:
+                        - FIREWALL_VERDICT_UNSPECIFIED
+                        - FIREWALL_VERDICT_ALLOW
+                        - FIREWALL_VERDICT_DENY
+                        - FIREWALL_VERDICT_REJECT
+                        - FIREWALL_VERDICT_LIMIT
+                    type: string
+                    description: What it does.
+                    format: enum
+                port:
+                    type: string
+                    description: |-
+                        What it covers, as the firewall says it: a port and protocol such as
+                         "22/tcp" or "80,443/tcp", or a service by name, such as "ssh".
+                source:
+                    type: string
+                    description: 'Where from: a CIDR range, such as "203.0.113.0/24". Empty for anywhere.'
+                ipv6:
+                    type: boolean
+                    description: True when it covers IPv6 alone.
+                comment:
+                    type: string
+                    description: The comment it has, if any.
+                app:
+                    type: string
+                    description: The app profile ufw names it by, such as "OpenSSH", when it has one.
+                interface:
+                    type: string
+                    description: The interface it covers alone, such as "eth0", when it has one.
+                destination:
+                    type: string
+                    description: |-
+                        The server's address it covers alone, such as "203.0.113.5", when it has
+                         one. Empty for every address.
+            description: FirewallSeenRule is one rule of a firewall Dockwell didn't make.
+        FirewallTool:
+            type: object
+            properties:
+                kind:
+                    enum:
+                        - FIREWALL_TOOL_KIND_UNSPECIFIED
+                        - FIREWALL_TOOL_KIND_UFW
+                        - FIREWALL_TOOL_KIND_FIREWALLD
+                        - FIREWALL_TOOL_KIND_NFTABLES
+                        - FIREWALL_TOOL_KIND_IPTABLES_LEGACY
+                        - FIREWALL_TOOL_KIND_IPTABLES
+                    type: string
+                    description: What it is.
+                    format: enum
+                name:
+                    type: string
+                    description: |-
+                        Which: an nftables table, such as "inet filter", firewalld's zone, such as
+                         "public", or iptables's family, "IPv4" or "IPv6". Empty for ufw.
+                active:
+                    type: boolean
+                    description: True when it filters traffic now.
+                defaultInbound:
+                    enum:
+                        - FIREWALL_VERDICT_UNSPECIFIED
+                        - FIREWALL_VERDICT_ALLOW
+                        - FIREWALL_VERDICT_DENY
+                        - FIREWALL_VERDICT_REJECT
+                        - FIREWALL_VERDICT_LIMIT
+                    type: string
+                    description: |-
+                        What it does with inbound traffic no rule matches. Unspecified when it says
+                         nothing, as an nftables table of rules alone doesn't.
+                    format: enum
+                rules:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FirewallSeenRule'
+                    description: Its rules, by port and source, in its order.
+                other:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Rules it holds that aren't a port and a source, as it says them, such as
+                         firewalld's rich rules.
+                ruleCount:
+                    type: integer
+                    description: |-
+                        How many rules an nftables table, or iptables, holds, which the agent
+                         doesn't read one by one. Zero for ufw and firewalld, whose rules are in rules.
+                    format: uint32
+                unreadable:
+                    type: string
+                    description: |-
+                        Why the agent couldn't read it, such as that the agent doesn't run as root.
+                         Empty when it could.
+                interfaces:
+                    type: array
+                    items:
+                        type: string
+                    description: The interfaces a firewalld zone takes traffic from.
+                sources:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The sources a firewalld zone takes traffic from, which come before its
+                         interfaces.
+                defaultZone:
+                    type: boolean
+                    description: True for firewalld's default zone, which takes what no other zone does.
+                inputPolicy:
+                    enum:
+                        - FIREWALL_VERDICT_UNSPECIFIED
+                        - FIREWALL_VERDICT_ALLOW
+                        - FIREWALL_VERDICT_DENY
+                        - FIREWALL_VERDICT_REJECT
+                        - FIREWALL_VERDICT_LIMIT
+                    type: string
+                    description: |-
+                        What an nftables table's or iptables's input chain does with what no rule
+                         matches. Unspecified when it has no input chain.
+                    format: enum
+                inputRules:
+                    type: integer
+                    description: |-
+                        How many rules its input chain holds. With a policy that drops, or any
+                         rule, it may close what listens on the server.
+                    format: uint32
+            description: FirewallTool is one firewall on a server, and what it does.
         GetAuthStateResponse:
             type: object
             properties:
@@ -8175,6 +8778,16 @@ components:
                     description: |-
                         What the install is called, as its settings have it, for the sign-in screen
                          to say. Empty when nobody has named it.
+                grants:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RoleGrant'
+                    description: |-
+                        What the signed-in person holds: a role on the whole install, on projects,
+                         or both. The panel reads from these, and from each method's
+                         (dockwell.v1.min_role) and (dockwell.v1.reach), what to offer
+                         (docs/adr/0059-what-the-panel-knows-of-what-you-may-do.md). Empty when
+                         not signed in, and for someone with no role left.
             description: GetAuthStateResponse describes the install and this request's session.
         GetBackupResponse:
             type: object
@@ -8236,6 +8849,14 @@ components:
                         - $ref: '#/components/schemas/Database'
                     description: The database.
             description: GetDatabaseResponse is one database.
+        GetJoinTicketResponse:
+            type: object
+            properties:
+                ticket:
+                    allOf:
+                        - $ref: '#/components/schemas/JoinTicket'
+                    description: The ticket, without its secret.
+            description: GetJoinTicketResponse carries the ticket as it stands.
         GetServerDiskUseResponse:
             type: object
             properties:
@@ -8244,6 +8865,14 @@ components:
                         - $ref: '#/components/schemas/ServerDiskUse'
                     description: What takes the room on the disk that holds Docker's data.
             description: GetServerDiskUseResponse says what takes the room on a server's disk.
+        GetServerFirewallResponse:
+            type: object
+            properties:
+                firewall:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerFirewall'
+                    description: The firewall, as the agent read it, Dockwell's own with the rest.
+            description: GetServerFirewallResponse is what filters the server's inbound traffic.
         GetServerResponse:
             type: object
             properties:
@@ -8489,6 +9118,67 @@ components:
             description: |-
                 HostAccess is something on a server that a resource reaches beyond what
                  Docker keeps for it, such as a server path a container mounts.
+        HostListener:
+            type: object
+            properties:
+                address:
+                    type: string
+                    description: The address it listens on, such as "0.0.0.0", "::" or "10.0.0.5".
+                port:
+                    type: integer
+                    description: The port.
+                    format: uint32
+                protocol:
+                    type: string
+                    description: '"tcp" or "udp".'
+                reach:
+                    enum:
+                        - LISTENER_REACH_UNSPECIFIED
+                        - LISTENER_REACH_OPEN
+                        - LISTENER_REACH_SOME
+                        - LISTENER_REACH_CLOSED
+                        - LISTENER_REACH_UNKNOWN
+                    type: string
+                    description: How far it reaches, past the firewalls here.
+                    format: enum
+                decidedBy:
+                    type: string
+                    description: The firewall that decides that, such as "ufw", when one does.
+                sources:
+                    type: array
+                    items:
+                        type: string
+                    description: The sources a rule lets in from, when only some may reach it.
+                interfaces:
+                    type: array
+                    items:
+                        type: string
+                    description: The interfaces a rule lets it in on, when only those may reach it.
+                reason:
+                    enum:
+                        - LISTENER_REACH_REASON_UNSPECIFIED
+                        - LISTENER_REACH_REASON_APP_PROFILE
+                        - LISTENER_REACH_REASON_SERVICE
+                        - LISTENER_REACH_REASON_RICH_RULE
+                        - LISTENER_REACH_REASON_INTERFACE
+                        - LISTENER_REACH_REASON_DESTINATION
+                        - LISTENER_REACH_REASON_ZONES
+                        - LISTENER_REACH_REASON_UNREADABLE
+                        - LISTENER_REACH_REASON_OTHER_RULES
+                        - LISTENER_REACH_REASON_DOCKER_UNKNOWN
+                        - LISTENER_REACH_REASON_BUILT_IN
+                    type: string
+                    description: |-
+                        Why the reach is what it is, when that needs saying: why the agent can't
+                         tell, or that a firewall lets it in by a rule of its own.
+                    format: enum
+                ipv6Only:
+                    type: boolean
+                    description: |-
+                        True for a socket on "::" that takes IPv6 alone, as something else on
+                         "0.0.0.0" holds the port's IPv4, here or as a port Docker publishes. A
+                         socket on "::" alone takes IPv4 too, as Linux has it by default.
+            description: HostListener is a port something on the server listens on, beyond loopback.
         HttpCheck:
             type: object
             properties:
@@ -8983,6 +9673,54 @@ components:
                  to resources, which for a deploy or a new port is that a container is made
                  again: this says what that comes to. It isn't in the fingerprint, as it says
                  nothing about what the plan does.
+        JoinAddress:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: The control plane's agent URL, such as https://203.0.113.7:7601.
+                reach:
+                    enum:
+                        - JOIN_REACH_UNSPECIFIED
+                        - JOIN_REACH_ANYWHERE
+                        - JOIN_REACH_WAY_OUT
+                        - JOIN_REACH_SAME_NETWORK
+                    type: string
+                    description: Who reaches it.
+                    format: enum
+            description: JoinAddress is one address a ticket names, and who can reach it.
+        JoinTicket:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, which starts jtk_.
+                state:
+                    enum:
+                        - JOIN_TICKET_STATE_UNSPECIFIED
+                        - JOIN_TICKET_STATE_WAITING
+                        - JOIN_TICKET_STATE_JOINED
+                        - JOIN_TICKET_STATE_EXPIRED
+                    type: string
+                    description: Whether a server has joined with it yet.
+                    format: enum
+                expireTime:
+                    type: string
+                    description: When it stops working, used or not.
+                    format: date-time
+                addresses:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/JoinAddress'
+                    description: |-
+                        Where a joining server reaches the control plane, in the order it tries them.
+                         Only CreateJoinTicket says it, as the ticket holds it and nothing else keeps it.
+                serverId:
+                    type: string
+                    description: The server that joined with it, by ID and by name, once one has.
+                serverName:
+                    type: string
+            description: JoinTicket is a ticket that adds one server, without its secret.
         ListAlertChannelsResponse:
             type: object
             properties:
@@ -9198,8 +9936,14 @@ components:
                 truncated:
                     type: boolean
                     description: |-
-                        True when the directory holds more than a listing can carry, so these
-                         are some of its entries, in no useful order but their names.
+                        True when the directory holds more than a listing can carry, so these are
+                         some of its entries. From an up-to-date agent they're the first in name
+                         order after the page asked for, and next_page lists the rest.
+                nextPage:
+                    type: string
+                    description: |-
+                        What to pass as page for the entries after these, in name order. Empty when
+                         there are no more, and from an agent older than the control plane.
             description: ListFilesResponse is what a directory holds.
         ListHealthResponse:
             type: object
@@ -10711,6 +11455,23 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/BackupFirst'
                     description: What a step that backs up a volume before the rest of a change does.
+                closes:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What a step that turns on deny everything else closes: each port that
+                         listens on the server, or that Docker publishes, that no rule lets in from
+                         anywhere, such as "8080/tcp (shop-web-1)". SSH's ports and the control
+                         plane's own stay let in by their pins, and aren't here (ADR 0052).
+                stays:
+                    allOf:
+                        - $ref: '#/components/schemas/AccessStays'
+                    description: |-
+                        How the server stays reachable once a step that narrows SSH is kept: who
+                         SSH stays open from, by name, so a person sees whether their own address
+                         is there, and a stranger's. Unset on a step that leaves SSH open to
+                         anywhere.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -10967,6 +11728,33 @@ components:
                         True when nothing shows the address is a way in, so it's named only with a
                          caveat: a way out, or a metadata service the machine doesn't confirm.
             description: PublicAddress is what's known of one public address of a server.
+        PublishedPort:
+            type: object
+            properties:
+                container:
+                    type: string
+                    description: The container, by name.
+                hostIp:
+                    type: string
+                    description: The address it's published on, such as "0.0.0.0", "::" or "127.0.0.1".
+                hostPort:
+                    type: integer
+                    description: The port on the server.
+                    format: uint32
+                protocol:
+                    type: string
+                    description: '"tcp", "udp" or "sctp".'
+                containerPort:
+                    type: integer
+                    description: The port in the container.
+                    format: uint32
+                proxied:
+                    type: boolean
+                    description: |-
+                        True when Docker's proxy on the server takes this port's traffic, as for
+                         IPv6 to a container on networks without IPv6. That traffic arrives on the
+                         input chain, so the server's input rules cover it, as for what listens.
+            description: PublishedPort is a port Docker publishes on the server for a container.
         PurgeDeletedFileResponse:
             type: object
             properties:
@@ -11117,6 +11905,12 @@ components:
                     description: |-
                         The name to show, such as "Storefront", from its spec, for kinds whose
                          spec has one. Empty when it isn't set.
+                protected:
+                    type: boolean
+                    description: |-
+                        True for an environment that's protected, where a developer's change
+                         waits for an admin or the owner (ADR 0049): as its spec says, or by its
+                         name for one from before protection was written. False for anything else.
             description: Resource is one managed resource, as its latest revision has it.
         ResourceRef:
             type: object
@@ -11363,6 +12157,25 @@ components:
             type: object
             properties: {}
             description: RevokeTokenResponse is empty.
+        RoleGrant:
+            type: object
+            properties:
+                projectId:
+                    type: string
+                    description: |-
+                        The project it's on, by ID. Empty for the whole install, which covers
+                         every project.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    description: The role.
+                    format: enum
+            description: RoleGrant is a role someone holds, and where.
         RollBackServiceRequest:
             type: object
             properties:
@@ -11900,6 +12713,23 @@ components:
                     description: |-
                         How the server meets the internet, as far as that's known. The addresses
                          on its own interfaces are in its inventory.
+                strainedSince:
+                    type: string
+                    description: |-
+                        Since when its memory or CPU has been above 90%, on the server's clock, once
+                         that has lasted a minute. It ends once both are below 85%, so a server
+                         near the line doesn't flip back and forth. The control plane decides it,
+                         from the samples it keeps, so every page, the CLI and alerts read one
+                         state. Unset while it isn't, and for a server that isn't connected.
+                    format: date-time
+                strain:
+                    enum:
+                        - SERVER_STRAIN_UNSPECIFIED
+                        - SERVER_STRAIN_MEMORY
+                        - SERVER_STRAIN_CPU
+                    type: string
+                    description: 'What''s above 90%: memory, or else CPU.'
+                    format: enum
             description: Server is one machine running the agent.
         ServerContainer:
             type: object
@@ -12030,6 +12860,54 @@ components:
                 ServerDiskUse is what takes the room on the disk that holds Docker's data,
                  as Docker and the agent added it up. Docker's parts can come to more than
                  the disk holds, when Docker's data spans disks of its own.
+        ServerFirewall:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When the agent read it.
+                    format: date-time
+                tools:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FirewallTool'
+                    description: Each firewall the agent found there, active or not.
+                published:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PublishedPort'
+                    description: |-
+                        The ports Docker publishes. Docker forwards them to their containers before
+                         a firewall's input rules see them, so ufw's and firewalld's rules don't
+                         cover them.
+                listening:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HostListener'
+                    description: |-
+                        What listens on the server itself, beyond loopback, and how far each
+                         reaches past the firewalls here, which do cover it. A port Docker publishes
+                         is in published, not here, though Docker's proxy listens on it too.
+                publishedUnreadable:
+                    type: string
+                    description: |-
+                        Why the agent couldn't read the ports Docker publishes, such as that Docker
+                         isn't answering. Empty when it could.
+                dockerUserRules:
+                    type: integer
+                    description: |-
+                        How many rules Docker's DOCKER-USER chains hold, beyond the return Docker
+                         puts there, as ufw-docker or a person adds. They filter published ports,
+                         and the agent doesn't weigh them one by one.
+                    format: uint32
+                dockwell:
+                    allOf:
+                        - $ref: '#/components/schemas/DockwellTable'
+                    description: |-
+                        Dockwell's own firewall, as the agent holds it: what was confirmed, and a
+                         change that waits for its confirmation. Its table counts in how far what
+                         listens reaches, as the others' do. Unset from an agent too old to say.
+            description: ServerFirewall is what filters a server's inbound traffic, as its agent read it.
         ServerHealth:
             type: object
             properties:
@@ -12128,7 +13006,10 @@ components:
                     type: array
                     items:
                         type: string
-                    description: The server's non-loopback IP addresses.
+                    description: |-
+                        The server's non-loopback IP addresses: its physical interfaces' alone
+                         when addresses_physical says so, and every interface's, Docker's bridges
+                         included, from an agent from before that.
                 dockerLogDriver:
                     type: string
                     description: |-
@@ -12139,6 +13020,12 @@ components:
                     description: |-
                         The address its route to the internet leaves from. Empty when it has no
                          such route, or from an agent from before this.
+                addressesPhysical:
+                    type: boolean
+                    description: |-
+                        True when addresses lists only physical interfaces' addresses, so a
+                         private one there is a private network the server is on, as a cloud's is,
+                         and never a Docker bridge's.
             description: 'ServerInventory is what a server is: its system and hardware.'
         ServerLogStatus:
             type: object
@@ -12908,6 +13795,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/FirewallRule'
                     description: A firewall rule on a server, kind "firewall.rule".
+                firewallPolicy:
+                    allOf:
+                        - $ref: '#/components/schemas/FirewallPolicy'
+                    description: |-
+                        What a server's firewall does with what no rule lets in, kind
+                         "firewall.policy". Numbered apart, as open work adds to this message.
                 volume:
                     allOf:
                         - $ref: '#/components/schemas/Volume'
@@ -13094,6 +13987,13 @@ components:
                          it's done, for a step that failed, and for one a run that stopped partway had
                          done already.
                     format: enum
+                confirmation:
+                    allOf:
+                        - $ref: '#/components/schemas/ChangeConfirmation'
+                    description: |-
+                        What the step waits for, while a change to who reaches its server waits
+                         for the person who applied it to confirm they still can (ConfirmChange).
+                         Numbered apart, as open work adds to this message.
             description: StepProgress is one step of an applying change, and how it is going.
         Task:
             type: object
@@ -13472,6 +14372,60 @@ components:
                 delivery:
                     $ref: '#/components/schemas/AlertDelivery'
             description: TestAlertChannelResponse says how the test went.
+        TestBackupDestinationRequest:
+            type: object
+            properties:
+                destination:
+                    allOf:
+                        - $ref: '#/components/schemas/BackupDestination'
+                    description: The storage's endpoint, region, bucket (empty to list them alone), prefix and keys.
+            description: |-
+                TestBackupDestinationRequest is what a destination form holds. The passphrase is
+                 left out: nothing is sealed in a test.
+        TestBackupDestinationResponse:
+            type: object
+            properties:
+                signedIn:
+                    type: boolean
+                    description: Whether the storage answered at the endpoint, and took the keys.
+                buckets:
+                    type: array
+                    items:
+                        type: string
+                    description: The buckets the keys may list, by name. A key scoped to one bucket may list none.
+                listed:
+                    type: boolean
+                    description: Whether the keys may list buckets at all.
+                wrote:
+                    type: boolean
+                    description: |-
+                        Whether a test file was written to the bucket. With no problem it was deleted
+                         again; with CANT_DELETE it's still there, as test_file.
+                problem:
+                    enum:
+                        - BACKUP_DESTINATION_PROBLEM_UNSPECIFIED
+                        - BACKUP_DESTINATION_PROBLEM_UNREACHABLE
+                        - BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED
+                        - BACKUP_DESTINATION_PROBLEM_NO_BUCKET
+                        - BACKUP_DESTINATION_PROBLEM_CANT_WRITE
+                        - BACKUP_DESTINATION_PROBLEM_WRONG_REGION
+                        - BACKUP_DESTINATION_PROBLEM_CANT_DELETE
+                        - BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR
+                    type: string
+                    description: What went wrong, when something did.
+                    format: enum
+                said:
+                    type: string
+                    description: |-
+                        What the storage said of it, as its own code, such as AccessDenied, with nothing
+                         that signs in.
+                region:
+                    type: string
+                    description: The region the storage says the bucket is in, with WRONG_REGION.
+                testFile:
+                    type: string
+                    description: The test file that was written and couldn't be deleted, with CANT_DELETE.
+            description: TestBackupDestinationResponse says what the storage answered.
         Tmpfs:
             type: object
             properties:
@@ -13557,6 +14511,19 @@ components:
                          Recovery codes still work while it is locked.
                     format: date-time
             description: Totp is the state of signing in with an authenticator app.
+        UnacknowledgeAlertRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The alert's ID, "alt_…".
+            description: UnacknowledgeAlertRequest names an acknowledged alert.
+        UnacknowledgeAlertResponse:
+            type: object
+            properties:
+                alert:
+                    $ref: '#/components/schemas/Alert'
+            description: UnacknowledgeAlertResponse is the alert as it now stands.
         UncheckedServer:
             type: object
             properties:
@@ -14189,6 +15156,10 @@ tags:
          its scope. The agent refuses what holds Dockwell's keys, secrets' values and
          the server's own credentials for everyone, with the reason "file_refused":
          docs/security/files.md lists them.
+    - name: FirewallService
+      description: |-
+        FirewallService says what filters a server's inbound traffic. Reading it
+         changes nothing. See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
     - name: HealthService
       description: |-
         HealthService says how services are, as far as anything checked, from what

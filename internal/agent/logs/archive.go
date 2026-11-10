@@ -116,6 +116,9 @@ type Archive struct {
 	Free func(dir string) (uint64, error)
 	// Now is the time; nil means time.Now.
 	Now func() time.Time
+	// CopyWait bounds copying a log while its container still runs; zero means
+	// the copyWait constant.
+	CopyWait time.Duration
 
 	mu sync.Mutex // held while what is kept is pruned, or told what is out of reach
 	// forgotten is what the control plane last said a deletion put out of reach,
@@ -186,6 +189,10 @@ type keep struct {
 	// for catching up from there.
 	last      time.Time
 	lastCount int
+	// outOfTime says the first copy's time was up before it reached the end of
+	// the log. Nothing is missing for that alone: the last copy carries on from
+	// where it stopped, and says whether it got there.
+	outOfTime bool
 }
 
 // Begin copies what the container's log holds, while it still runs, so the
@@ -216,18 +223,24 @@ func (a *Archive) Begin(ctx context.Context, c *docker.Container, failed bool) c
 		_ = os.RemoveAll(k.dir)
 		return nil
 	}
-	copyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), copyWait)
+	wait := a.CopyWait
+	if wait == 0 {
+		wait = copyWait
+	}
+	copyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), wait)
 	defer cancel()
 	// One more than it keeps, to know whether there are more.
 	got, _, err := k.copy(copyCtx, c, docker.LogOptions{Tail: copyTail + 1})
 	if got > copyTail {
 		k.meta.CutShort = true
 	}
-	if err != nil {
+	switch {
+	case err == nil:
+	case errors.Is(err, context.DeadlineExceeded):
+		k.outOfTime = true
+	default:
 		k.meta.CutShort = true
-		if !errors.Is(err, context.DeadlineExceeded) {
-			a.logger().Warn("can't read all of a container's log to keep it", slog.String("container", c.Name), slog.String("error", err.Error()))
-		}
+		a.logger().Warn("can't read all of a container's log to keep it", slog.String("container", c.Name), slog.String("error", err.Error()))
 	}
 	return k
 }
@@ -396,6 +409,13 @@ func (k *keep) Finish(ctx context.Context, c *docker.Container) {
 		if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 			a.logger().Warn("can't read a stopped container's last lines to keep them", slog.String("container", c.Name), slog.String("error", err.Error()))
 		}
+	}
+	// A first copy that ran out of time never learned whether the log held more
+	// than it copies. With more lines kept than that, older ones may be missing,
+	// and with no more, this copy has just read all there were from where the
+	// first one stopped.
+	if k.outOfTime && k.meta.Lines > copyTail {
+		k.meta.CutShort = true
 	}
 	_ = k.closeSegment()
 	k.meta.Finished = c.State.FinishedAt

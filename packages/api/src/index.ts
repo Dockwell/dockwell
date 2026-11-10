@@ -22,6 +22,7 @@ export * from "./gen/dockwell/v1/database_pb";
 export * from "./gen/dockwell/v1/domain_pb";
 export * from "./gen/dockwell/v1/event_pb";
 export * from "./gen/dockwell/v1/file_pb";
+export * from "./gen/dockwell/v1/firewall_pb";
 export * from "./gen/dockwell/v1/health_pb";
 export * from "./gen/dockwell/v1/import_pb";
 export * from "./gen/dockwell/v1/log_pb";
@@ -39,5 +40,9 @@ export * from "./gen/dockwell/v1/token_pb";
 export * from "./gen/dockwell/v1/update_pb";
 export * from "./gen/dockwell/v1/variable_pb";
 export * from "./gen/dockwell/v1/website_pb";
+// The REST paths and field behaviours the schema declares, which name the CLI's
+// commands and flags, as a panel that writes a CLI command reads them.
+export { http } from "./gen/google/api/annotations_pb";
+export { FieldBehavior, field_behavior } from "./gen/google/api/field_behavior_pb";
 export * from "./gen/streams";
 export * from "./streams";

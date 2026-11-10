@@ -85,6 +85,10 @@ type live struct {
 	// dockerUnreadableSince is since when its agent hasn't been able to read
 	// Docker, as it last said, on the server's clock. Each stream says it anew.
 	dockerUnreadableSince *timestamppb.Timestamp
+	// strainedSince is since when its memory or CPU has been above StrainAbove
+	// for StrainFor, on the server's clock, and strain which; nil while it isn't.
+	strainedSince *timestamppb.Timestamp
+	strain        dockwellv1.ServerStrain
 	// person is what a person set of its public addresses, with who and when: only
 	// that, of what's known of its network, is kept in the store.
 	person *dockwellv1.ServerNetwork
@@ -253,6 +257,7 @@ func (h *Hub) Attach(ctx context.Context, srv store.Server, inventory *dockwellv
 	if l.streams == 0 {
 		l.connectedAt = now
 		l.dockerUnreadableSince = nil
+		l.strainedSince, l.strain = nil, dockwellv1.ServerStrain_SERVER_STRAIN_UNSPECIFIED
 	}
 	l.streams++
 	if l.held != nil {
@@ -375,6 +380,7 @@ func (h *Hub) Record(id string, stats *dockwellv1.ServerStats) {
 	if over := len(l.history) - HistoryLength; over > 0 {
 		l.history = slices.Delete(l.history, 0, over)
 	}
+	l.strainedSince, l.strain = strainOf(l.history, l.strainedSince, l.strain)
 	h.notifyLocked(id, false)
 }
 
@@ -596,6 +602,7 @@ func (h *Hub) toProtoLocked(id string, l *live, withHistory bool) *dockwellv1.Se
 		s.Connection = dockwellv1.Connection_CONNECTION_CONNECTED
 		s.ConnectTime = timestamppb.New(l.connectedAt)
 		s.DockerUnreadableSince = l.dockerUnreadableSince
+		s.StrainedSince, s.Strain = l.strainedSince, l.strain
 	case l.inventory != nil:
 		s.Connection = dockwellv1.Connection_CONNECTION_UNREACHABLE
 	default:
@@ -623,4 +630,67 @@ func decodeReport(r store.ServerReport, logger *slog.Logger, id string) (*dockwe
 		build = nil
 	}
 	return inv, build
+}
+
+// How strain is decided (ADR 0040): above StrainAbove for StrainFor to start,
+// and until both are below StrainBelow to end, so a server near the line doesn't
+// flip back and forth.
+const (
+	StrainAbove = 90.0
+	StrainBelow = 85.0
+	StrainFor   = time.Minute
+)
+
+// strainOf decides from a server's samples, oldest first, whether it's strained
+// now, and since when: it starts once memory or CPU has been above StrainAbove
+// in every sample for StrainFor, from the first of them, and ends once both are
+// below StrainBelow. since and strain are what it was.
+func strainOf(history []*dockwellv1.ServerStats, since *timestamppb.Timestamp, strain dockwellv1.ServerStrain) (*timestamppb.Timestamp, dockwellv1.ServerStrain) {
+	if len(history) == 0 {
+		return since, strain
+	}
+	newest := history[len(history)-1]
+	memory, cpu := shares(newest)
+	if since != nil {
+		if memory < StrainBelow && cpu < StrainBelow {
+			return nil, dockwellv1.ServerStrain_SERVER_STRAIN_UNSPECIFIED
+		}
+		switch {
+		case memory > StrainAbove:
+			strain = dockwellv1.ServerStrain_SERVER_STRAIN_MEMORY
+		case cpu > StrainAbove:
+			strain = dockwellv1.ServerStrain_SERVER_STRAIN_CPU
+		}
+		return since, strain
+	}
+	for _, kind := range []dockwellv1.ServerStrain{dockwellv1.ServerStrain_SERVER_STRAIN_MEMORY, dockwellv1.ServerStrain_SERVER_STRAIN_CPU} {
+		first := -1
+		for i := len(history) - 1; i >= 0; i-- {
+			m, c := shares(history[i])
+			share := m
+			if kind == dockwellv1.ServerStrain_SERVER_STRAIN_CPU {
+				share = c
+			}
+			if share <= StrainAbove || history[i].GetTime() == nil {
+				break
+			}
+			first = i
+		}
+		if first < 0 || newest.GetTime() == nil {
+			continue
+		}
+		start := history[first].GetTime()
+		if newest.GetTime().AsTime().Sub(start.AsTime()) >= StrainFor {
+			return start, kind
+		}
+	}
+	return nil, dockwellv1.ServerStrain_SERVER_STRAIN_UNSPECIFIED
+}
+
+// shares is a sample's memory in use and its CPU, as percentages.
+func shares(s *dockwellv1.ServerStats) (memory, cpu float64) {
+	if total := s.GetMemoryTotalBytes(); total > 0 {
+		memory = float64(s.GetMemoryUsedBytes()) / float64(total) * 100
+	}
+	return memory, s.GetCpuPercent()
 }

@@ -173,17 +173,21 @@ function PasskeySignIn({ name, finish, onDomain, onUseCode }: PasskeySignInProps
   return (
     <section className="dw-panel signin-panel" aria-labelledby="signin-title">
       <SignInHead name={name} />
-      {problem ? (
+      {problem && cancelled && onDomain ? (
+        <Callout
+          tone="info"
+          title={t`No passkey for this address?`}
+          actions={
+            <Button size="sm" onClick={onUseCode}>
+              <Trans>Use a code</Trans>
+            </Button>
+          }
+        >
+          {t`One made through the SSH tunnel works only there. Add one here once you're in.`}
+        </Callout>
+      ) : problem ? (
         <Callout tone={cancelled ? "info" : "critical"} title={cancelled ? undefined : t`You're not signed in`}>
-          {cancelled && onDomain ? (
-            <Trans>
-              No passkey for this address? Passkeys belong to the address they were made on, so one made through the SSH
-              tunnel doesn't work here. Sign in with a code, or run <code>dockwell recover</code> on the server for a
-              one-time link, then add a passkey here.
-            </Trans>
-          ) : (
-            explain(problem)
-          )}
+          {explain(problem)}
         </Callout>
       ) : null}
       {canUsePasskeys ? null : (

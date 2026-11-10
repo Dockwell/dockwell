@@ -14,6 +14,7 @@ import { sentence } from "../../lib/errors";
 import { formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useNow, useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
 import { TaskSheet } from "./TaskSheet";
 import { commandOf, nameOf, offline, runStatus, tookOf, useTaskRuns, useTaskWords } from "./useTasks";
 
@@ -68,6 +69,7 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
     return last.exitCode === -1 ? t`stopped` : t`exit ${last.exitCode}`;
   };
 
+  const mayRun = useMay()(TaskService.method.runTask);
   const runNow = async () => {
     setRunning(true);
     setRunFailure(undefined);
@@ -136,7 +138,10 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
         ) : null}
         <div className="tasks-block">
           <div className="tasks-row">
-            <span className="tasks-label">{plural(runs.length, { one: "Last run", other: "Last # runs" })}</span>
+            <span className="tasks-label">
+              {/* Before a first run there are none to count: "Last 0 runs" says less than the table's own head. */}
+              {runs.length === 0 ? t`Last run` : plural(runs.length, { one: "Last run", other: "Last # runs" })}
+            </span>
             <span className="tasks-label">
               {runs.length === 0
                 ? t`None yet`
@@ -226,7 +231,8 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
           />
         ) : null}
         <div className="tasks-actions">
-          <Button icon="play" loading={running} onClick={() => void runNow()}>
+          {/* Running one by hand can run a command as root, so it's an admin's (ADR 0049); off, with why, for anyone else. */}
+          <Button icon="play" loading={running} onClick={() => void runNow()} {...mayRun.off}>
             <Trans>Run now</Trans>
           </Button>
           <Button icon="edit" onClick={() => setEditing(true)}>

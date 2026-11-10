@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { Code, ConnectError } from "@connectrpc/connect";
-import { useQuery } from "@connectrpc/connect-query";
-import { type DeletedFile, downloadFileURL, type FileEntry, FileService, FileType, type Server } from "@dockwell/api";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
+import { skipToken, useQuery, useTransport } from "@connectrpc/connect-query";
+import {
+  type DeletedFile,
+  downloadFileURL,
+  type FileEntry,
+  FileService,
+  FileType,
+  type ListFilesResponse,
+  type Server,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -19,7 +27,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { isTransient } from "../../app/api";
 import { isRoleRefusal, reasonOf, sentence } from "../../lib/errors";
@@ -31,6 +39,7 @@ import { ServerFrame } from "../servers/ServerFrame";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { FileViewer } from "./FileViewer";
+import { FolderTree } from "./FolderTree";
 import {
   ActionsSheet,
   DeletedSheet,
@@ -55,6 +64,16 @@ export interface FilesSearch {
 }
 
 /** A path that isn't answering won't by the next try, and each try costs someone the wait. */
+/** value once it has stayed the same for ms: what a search asks the server for, not each key typed. */
+function useSettled<T>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  return settled;
+}
+
 function retryListing(failures: number, error: unknown): boolean {
   return failures < 2 && isTransient(error) && reasonOf(error) !== "path_not_answering";
 }
@@ -184,10 +203,14 @@ function opensAsFolder(entry: FileEntry): boolean {
 }
 
 /** Folders first, then by name, as the mock has them. */
-function rowsOf(entries: readonly FileEntry[]): Row[] {
+/** The rows of a listing: folders first, then by name; or by name alone, for a folder read a page at a time. */
+function rowsOf(entries: readonly FileEntry[], byNameAlone = false): Row[] {
   return entries
     .map((entry) => ({ name: entry.name, entry, folder: opensAsFolder(entry) }))
-    .sort((a, b) => Number(b.folder) - Number(a.folder) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    .sort(
+      (a, b) =>
+        (byNameAlone ? 0 : Number(b.folder) - Number(a.folder)) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+    );
 }
 
 /** What's open over the listing, if anything. */
@@ -235,6 +258,7 @@ function Files({ server, folder, file, reading }: FilesProps) {
   const now = useControlPlaneNow();
   const words = useTimeWords();
   const places = usePlaces();
+  const treeHead = useId();
   const current = placeOf(folder, [...places.common, ...places.server]);
   const [filter, setFilter] = useState("");
   const [sheet, setSheet] = useState<Open>();
@@ -246,20 +270,71 @@ function Files({ server, folder, file, reading }: FilesProps) {
   const serverId = server.id;
   const putBack = useRestore(serverId);
   const restoreProblem = useRestoreProblem(serverId);
-  // A refused listing is on record, so it isn't asked again each time the window takes focus.
+  // A refused listing is on record, so it isn't asked again each time the window takes focus; nor is a
+  // folder larger than a page, as its agent reads every name of it for each page.
   const query = useQuery(
     FileService.method.listFiles,
     { serverId, path: folder },
-    { retry: retryListing, refetchOnWindowFocus: (q) => q.state.status !== "error" },
+    {
+      retry: retryListing,
+      refetchOnWindowFocus: (q) => q.state.status !== "error" && !q.state.data?.nextPage,
+    },
   );
   const listing = query.data;
   const shown = listing?.path ?? folder;
+  // A folder that holds more than a listing carries is searched by its agent, through every name; a smaller
+  // one, here, as you type.
+  const big = Boolean(listing?.nextPage);
+  const wanted = useSettled(filter.trim(), 300);
+  const searching = big && wanted !== "";
+  const search = useQuery(
+    FileService.method.listFiles,
+    searching ? { serverId, path: folder, match: wanted } : skipToken,
+    { retry: retryListing, refetchOnWindowFocus: false },
+  );
+  const first = searching ? search.data : listing;
+  // The pages after the first, in name order, as Show more brings them. They belong to the folder, the search
+  // and where the first page ended, so a first page read again that ends where it did keeps them, and another
+  // folder or search starts over.
+  const pagesOf = `${folder}\0${searching ? wanted : ""}\0${first?.nextPage ?? ""}`;
+  const [after, setAfter] = useState<{ of?: string; pages: ListFilesResponse[]; problem?: string }>({ pages: [] });
+  const more = after.of === pagesOf ? after.pages : [];
+  const moreProblem = after.of === pagesOf ? after.problem : undefined;
+  const [loadingMore, setLoadingMore] = useState(false);
+  const nextPage = (more.at(-1) ?? first)?.nextPage ?? "";
+  const transport = useTransport();
+  // A page asked for as the person leaves isn't read to its end for nobody.
+  const asking = useRef<AbortController | undefined>(undefined);
+  useEffect(() => () => asking.current?.abort(), []);
+  const showMore = async () => {
+    const of = pagesOf;
+    asking.current?.abort();
+    const ask = new AbortController();
+    asking.current = ask;
+    setLoadingMore(true);
+    try {
+      const page = await createClient(FileService, transport).listFiles(
+        { serverId, path: folder, match: searching ? wanted : "", page: nextPage },
+        { signal: ask.signal },
+      );
+      setAfter((was) => ({ of, pages: [...(was.of === of ? was.pages : []), page] }));
+    } catch (err) {
+      if (ask.signal.aborted) return;
+      setAfter((was) => ({ of, pages: was.of === of ? was.pages : [], problem: sentence(err) }));
+    } finally {
+      if (asking.current === ask) setLoadingMore(false);
+    }
+  };
 
   const rows = useMemo(() => {
-    const wanted = filter.trim().toLowerCase();
-    const all = rowsOf(listing?.entries ?? []);
-    return wanted ? all.filter((row) => row.name.toLowerCase().includes(wanted)) : all;
-  }, [listing, filter]);
+    const typed = filter.trim().toLowerCase();
+    // A folder read a page at a time lists by name alone, so a page brought later goes below what's shown.
+    const all = rowsOf(
+      [first, ...more].flatMap((page) => page?.entries ?? []),
+      big,
+    );
+    return typed ? all.filter((row) => row.name.toLowerCase().includes(typed)) : all;
+  }, [first, more, filter, big]);
 
   const open = (row: Row) => {
     if (row.entry.unreadableName) return;
@@ -391,6 +466,9 @@ function Files({ server, folder, file, reading }: FilesProps) {
   };
 
   const count = listing?.entries.length ?? 0;
+  const many = (n: number) => n.toLocaleString(i18n.locale);
+  const countWords = many(count);
+  const shownWords = many(rows.length);
   const owner = listing?.directory?.owner;
   return (
     <div className="files">
@@ -422,7 +500,7 @@ function Files({ server, folder, file, reading }: FilesProps) {
             <CopyButton text={shown} label={t`Copy path ${shown}`} />
             {listing ? (
               <span className="files-count">
-                {plural(count, { one: "# item", other: "# items" })}
+                {big ? t`More than ${countWords} items` : plural(count, { one: "# item", other: "# items" })}
                 {owner ? (
                   <>
                     {" · "}
@@ -509,7 +587,18 @@ function Files({ server, folder, file, reading }: FilesProps) {
               {/* As Server-Files groups them: the places worth a click, then the server's own root. */}
               <PlaceGroup title={t`Common places`} places={places.common} current={current} serverId={serverId} />
               <div className="files-places-rule" aria-hidden="true" />
-              <PlaceGroup title={t`Server`} places={places.server} current={current} serverId={serverId} />
+              {phone ? (
+                <PlaceGroup title={t`Server`} places={places.server} current={current} serverId={serverId} />
+              ) : (
+                // As Server-Files has it: the server's folders as a tree, open down to where you are.
+                // biome-ignore lint/a11y/useSemanticElements: a fieldset is for a form's fields, and these are links
+                <div role="group" aria-labelledby={treeHead} className="files-places-group">
+                  <div id={treeHead} className="files-places-head">
+                    {t`Server`}
+                  </div>
+                  <FolderTree serverId={serverId} current={shown} retry={retryListing} />
+                </div>
+              )}
             </nav>
           </Panel>
         )}
@@ -537,11 +626,11 @@ function Files({ server, folder, file, reading }: FilesProps) {
               <FolderProblem error={query.error} folder={folder} serverId={serverId} />
             ) : (
               <>
-                {listing?.truncated ? (
+                {listing?.truncated && !big ? (
                   <Callout tone="warning" title={t`This folder holds more than a listing shows`}>
                     <Trans>
-                      Only {count} of its items are here, so one you're after may be missing. Connect to the server over
-                      SSH to see them all.
+                      Only {count} of its items are here. Update the agent on {server.name} to search and page through
+                      them all.
                     </Trans>
                   </Callout>
                 ) : null}
@@ -557,6 +646,10 @@ function Files({ server, folder, file, reading }: FilesProps) {
                   empty={
                     query.isPending ? (
                       <Trans>Reading this folder</Trans>
+                    ) : searching && search.isPending ? (
+                      <Trans>Searching every name in this folder</Trans>
+                    ) : searching && search.error ? (
+                      sentence(search.error)
                     ) : filter ? (
                       <Trans>Nothing here matches your search.</Trans>
                     ) : (
@@ -564,6 +657,23 @@ function Files({ server, folder, file, reading }: FilesProps) {
                     )
                   }
                 />
+                {nextPage || moreProblem ? (
+                  <div className="files-more">
+                    <span className="files-more-count">
+                      {searching ? t`${shownWords} found so far, by name` : t`${shownWords} shown, by name`}
+                    </span>
+                    {moreProblem ? (
+                      <span className="files-more-problem" role="alert">
+                        {moreProblem}
+                      </span>
+                    ) : null}
+                    {nextPage ? (
+                      <Button size="sm" variant="secondary" loading={loadingMore} onClick={() => void showMore()}>
+                        {t({ message: "Show more", context: "the next page of a long list" })}
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
               </>
             )}
           </div>

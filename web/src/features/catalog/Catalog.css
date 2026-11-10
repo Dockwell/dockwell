@@ -370,29 +370,39 @@
   font: var(--text-caption);
 }
 
+/*
+ * Each screenshot's frame takes the picture's own shape, at most its own size: they come 480 to 1120 px
+ * wide and from tall to very wide, so one fixed frame left bars beside most of them on a wide screen,
+ * and filling it would blur the small ones.
+ */
 .catalog-screenshots {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 90%;
+  display: flex;
+  align-items: flex-start;
   gap: var(--space-4);
   padding-bottom: var(--space-3);
   overflow-x: auto;
   scroll-snap-type: x proximity;
 }
 
-.catalog-screenshots:has(figure:only-child) {
-  grid-auto-columns: 100%;
-}
-
 .catalog-screenshots figure {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-start;
   min-width: 0;
+  max-width: 90%;
   margin: 0;
   scroll-snap-align: start;
+}
+
+.catalog-screenshots figure:only-child {
+  max-width: 100%;
 }
 
 .catalog-screenshots figure > a {
   position: relative;
   display: block;
+  max-width: 100%;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -401,9 +411,10 @@
 
 .catalog-screenshots img {
   display: block;
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  object-fit: contain;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 560px;
 }
 
 .catalog-preview-open {
@@ -435,6 +446,8 @@
 
 .catalog-preview-missing {
   display: flex;
+  width: 480px;
+  max-width: 100%;
   flex-direction: column;
   align-items: center;
   justify-content: center;

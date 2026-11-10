@@ -66,3 +66,21 @@ func TestATestAsksNobody(t *testing.T) {
 		}
 	}
 }
+
+// A test runs none of the machine's own tools, such as nft or ufw: only
+// stand-ins from the folder DOCKWELL_TEST_TOOLS names, or none at all.
+func TestATestRunsNoneOfTheMachinesTools(t *testing.T) {
+	getenv := func(env map[string]string) IO { return IO{Getenv: func(k string) string { return env[k] }} }
+	if r := hostTools(getenv(nil)); r.Off || r.Root != "" {
+		t.Errorf("a server runs %+v, want its own tools", r)
+	}
+	if r := hostTools(getenv(map[string]string{envTest: "1"})); !r.Off {
+		t.Errorf("a test runs %+v, want none", r)
+	}
+	if r := hostTools(getenv(map[string]string{envTest: "1", envTestTools: "/tmp/tools"})); r.Off || r.Root != "/tmp/tools" {
+		t.Errorf("a test with stand-ins runs %+v", r)
+	}
+	if r := hostTools(getenv(map[string]string{envTestTools: "/tmp/tools"})); r.Root != "" {
+		t.Errorf("a server outside a test takes stand-ins: %+v", r)
+	}
+}

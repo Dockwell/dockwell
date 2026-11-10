@@ -19,8 +19,10 @@ export interface MetricProps {
   delta?: ReactNode;
   /** Only when the change is a problem or a recovery. A neutral change stays muted. */
   deltaTone?: "healthy" | "warning" | "critical";
-  /** The recent series, drawn as a sparkline. */
-  data?: readonly number[];
+  /** The recent series, drawn as a sparkline; null is a gap, where nothing was heard. */
+  data?: readonly (number | null)[];
+  /** Each point's highest beside data's averages, drawn as a light band above the line. */
+  peaks?: readonly (number | null)[];
   tone?: SparklineTone;
   threshold?: number;
   min?: number;
@@ -39,6 +41,7 @@ export function Metric({
   delta,
   deltaTone,
   data,
+  peaks,
   tone,
   threshold,
   min,
@@ -70,6 +73,7 @@ export function Metric({
           </span>
           <Sparkline
             data={data}
+            peaks={peaks}
             tone={tone}
             threshold={threshold}
             width="100%"

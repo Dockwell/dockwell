@@ -2,14 +2,20 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { Code } from "@connectrpc/connect";
 import {
   BuildInfoSchema,
   CloudProvider,
   Connection,
+  type CreateJoinTicketRequest,
   DeploymentState,
   EventKind,
+  JoinReach,
+  JoinTicketState,
   type Server,
   ServerInventorySchema,
+  ServerStrain,
+  StepUpAction,
   type WatchServersResponse,
 } from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
@@ -18,6 +24,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, places, running } from "../../test/apps";
+import { authError, stubPasskeys } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, history, sample, snapshotComplete } from "../../test/servers";
 
@@ -63,11 +70,11 @@ const shop = anApp(
 const blog = anApp("blog", "ghost:5.96");
 
 /** Servers, with these servers, the two apps, and an empty timeline. */
-function renderServers(servers: Server[], url = "/servers", extra: Partial<Api> = {}) {
+function renderServers(servers: Server[], url = "/servers", { servers: more, ...extra }: Partial<Api> = {}) {
   const watch = feed<WatchServersResponse>();
   watch.push(...servers.map(changed), snapshotComplete);
   return renderAt(url, {
-    servers: { watchServers: watch.stream },
+    servers: { watchServers: watch.stream, ...more },
     services: { listServices: () => ({ services: [shop, blog] }) },
     resources: places(),
     health: running(shop, blog),
@@ -113,9 +120,8 @@ describe("Servers", () => {
     // Chosen once, into the URL, so it stays put as others change.
     await waitFor(() => expect(router.state.location.search).toEqual({ server: "srv_2" }));
     expect(inspector).toHaveTextContent("Downfor 3 min");
-    expect(inspector).toHaveTextContent(
-      "Its agent last reported 3 min ago. Check that dockwell run is still running on the server.",
-    );
+    expect(inspector).toHaveTextContent("Last heard 3 min ago.");
+    expect(within(inspector).getByRole("button", { name: "Copy the restart command" })).toBeVisible();
     expect(inspector).toHaveTextContent("Public IP198.51.100.20");
     // Its numbers are from before it stopped, so none are shown.
     expect(within(inspector).queryByText("CPU")).toBeNull();
@@ -194,6 +200,37 @@ describe("Servers", () => {
     await vi.advanceTimersByTimeAsync(35_000);
     await waitFor(() => expect(inspector.querySelector(".dw-tone-unknown")).not.toBeNull());
     expect(within(inspector).queryByText("CPU")).toBeNull();
+  });
+
+  it("draws no map for one server, wide or on a phone: its row says it all", async () => {
+    const wide = renderServers([web1]);
+    expect(await rowOf(/^web-1/)).toHaveTextContent("Healthy");
+    expect(screen.queryByRole("region", { name: "Servers at a glance" })).toBeNull();
+    wide.unmount();
+
+    onPhone();
+    renderServers([web1]);
+    expect(await screen.findByRole("button", { name: /web-1/ })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Servers at a glance" })).toBeNull();
+  });
+
+  it("draws the map from two servers on", async () => {
+    renderServers([web1, web2()]);
+    expect(await screen.findByRole("region", { name: "Servers at a glance" })).toBeVisible();
+  });
+
+  it("counts a strained server as needing a look, and says why in its row and its inspector", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 10, 8, 14, 1));
+    const strainedSince = timestampFromDate(new Date(2026, 10, 8, 13, 58));
+    const { router } = renderServers([web1, web2({ strainedSince, strain: ServerStrain.MEMORY })]);
+
+    // Its badge says Degraded, so it's the one the page opens, as for any server that isn't well.
+    const inspector = await screen.findByRole("complementary", { name: "web-2" });
+    await waitFor(() => expect(router.state.location.search).toEqual({ server: "srv_2" }));
+    expect(inspector).toHaveTextContent("Degradedfor 3 min");
+    expect(inspector).toHaveTextContent("Memory above 90% since 13:58");
+    expect(await rowOf(/^web-2/)).toHaveTextContent("DegradedMemory above 90%");
   });
 
   it("says why a server isn't well in its row, and which is the control server", async () => {
@@ -305,72 +342,160 @@ describe("Servers", () => {
     expect(await screen.findByRole("complementary", { name: "web-2" })).toBeVisible();
   });
 
-  it("says how to add a server, with the install script of the control plane's own release", async () => {
-    const user = userEvent.setup();
-    const asked: string[] = [];
-    renderServers([web1, web2()], "/servers", {
+  describe("adding a server", () => {
+    const release = {
       updates: {
-        getServerUpdates: (req: { id: string }) => {
-          asked.push(req.id);
-          return { dockwell: { controlPlane: "0.2.1", releases: "https://github.com/Dockwell/dockwell/releases" } };
+        getServerUpdates: () => ({
+          dockwell: { controlPlane: "0.2.1", releases: "https://github.com/Dockwell/dockwell/releases" },
+        }),
+      },
+    };
+    const inAnHour = () => timestampFromDate(new Date(Date.now() + 3_600_000));
+    /** The servers API with a ticket maker that wants a passkey, and a ticket that reads as these states in turn. */
+    function tickets(
+      reach: JoinReach,
+      states: { state?: JoinTicketState; serverId?: string; serverName?: string }[],
+      expireTime = inAnHour(),
+    ) {
+      const made: CreateJoinTicketRequest[] = [];
+      const ticket = {
+        id: "jtk_1",
+        state: JoinTicketState.WAITING,
+        expireTime,
+        addresses: [{ url: "https://203.0.113.7:7443", reach }],
+      };
+      let read = 0;
+      return {
+        made,
+        servers: {
+          createJoinTicket: (req: CreateJoinTicketRequest) => {
+            made.push(req);
+            if (!req.proof) throw authError(Code.PermissionDenied, "needs_step_up", "this needs your passkey just now");
+            return { ticket, value: "TICKET" };
+          },
+          getJoinTicket: () => ({ ticket: { ...ticket, ...states[Math.min(read++, states.length - 1)] } }),
         },
+      };
+    }
+    const passkey = (steps: StepUpAction[]) => ({
+      auth: {
+        beginStepUp: (req: { action: StepUpAction }) => {
+          steps.push(req.action);
+          return { ceremonyId: "cer_1", optionsJson: JSON.stringify({ challenge: "AAAA", allowCredentials: [] }) };
+        },
+        finishStepUp: () => ({ proof: "proof-1" }),
       },
     });
 
-    await user.click(await screen.findByRole("button", { name: "Add server" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a server" });
-    expect(sheet).toHaveTextContent("Make a ticket on web-1");
-    expect(within(sheet).getByText("dockwell token create")).toBeVisible();
-    expect(
-      await within(sheet).findByText(
-        "curl -fsSL https://github.com/Dockwell/dockwell/releases/download/v0.2.1/install.sh | sudo sh -s -- --version 0.2.1 --join <ticket>",
-      ),
-    ).toBeVisible();
-    expect(asked).toEqual(["srv_1"]);
-    expect(sheet).not.toHaveTextContent("get.dockwell.dev");
-    await user.click(within(sheet).getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  });
-
-  it.each(["0.2.1-dev", "v0.2.1-0.20261108120000-abcdef123456", "v0.2.1-next+abcdef1", "devel"])(
-    "explains how to join manually on development build %s",
-    async (version) => {
+    it("makes the command with a passkey, then says when the server joins, with the way to it", async () => {
+      stubPasskeys();
       const user = userEvent.setup();
+      const steps: StepUpAction[] = [];
+      const api = tickets(JoinReach.ANYWHERE, [
+        {},
+        { state: JoinTicketState.JOINED, serverId: "srv_3", serverName: "web-3" },
+      ]);
+      renderServers([web1, web2()], "/servers", { ...release, ...passkey(steps), servers: api.servers });
+
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      expect(sheet).toHaveTextContent("Nothing on web-1 changes.");
+      expect(sheet).not.toHaveTextContent("dockwell token create");
+      await user.click(within(sheet).getByRole("button", { name: "Make the command" }));
+
+      expect(
+        await within(sheet).findByText(
+          "curl -fsSL https://github.com/Dockwell/dockwell/releases/download/v0.2.1/install.sh | sudo sh -s -- --version 0.2.1 --join TICKET",
+        ),
+      ).toBeVisible();
+      expect(steps).toEqual([StepUpAction.ADD_SERVER]);
+      expect(api.made.map((r) => r.proof)).toEqual(["", "proof-1"]);
+      expect(sheet).toHaveTextContent("Waiting for the server to join");
+      expect(sheet).toHaveTextContent("Works once · expires in 59 min");
+      expect(sheet).toHaveTextContent("It reaches web-1 at 203.0.113.7:7443.");
+      expect(within(sheet).queryByRole("button", { name: "Set public address" })).toBeNull();
+
+      expect(await within(sheet).findByText("web-3 joined, starting its agent", {}, { timeout: 5000 })).toBeVisible();
+      expect(within(sheet).getByRole("link", { name: "Open web-3" })).toHaveAttribute("href", "/servers/srv_3");
+      expect(sheet).not.toHaveTextContent("TICKET");
+      await expectAccessible(sheet);
+    });
+
+    it("says only the control server's network can join through a private address, with the fix beside it", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.SAME_NETWORK, [{}]);
+      renderServers([web1, web2()], "/servers", { ...release, ...passkey([]), servers: api.servers });
+
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      await user.click(within(sheet).getByRole("button", { name: "Make the command" }));
+      expect(await within(sheet).findByText("Only servers on web-1's network can join")).toBeVisible();
+      expect(sheet).toHaveTextContent("It joins through 203.0.113.7:7443, a private address.");
+      await user.click(within(sheet).getByRole("button", { name: "Set public address" }));
+      expect(await screen.findByRole("dialog", { name: "Set the public address of web-1" })).toBeVisible();
+    });
+
+    it("gives the join and run commands, with the ticket in place, where the build has no installer", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [{}]);
       renderServers([web1, web2()], "/servers", {
+        ...passkey([]),
+        servers: api.servers,
         updates: {
           getServerUpdates: () => ({
-            dockwell: { controlPlane: version, releases: "https://github.com/Dockwell/dockwell/releases" },
+            dockwell: { controlPlane: "0.2.1-dev", releases: "https://github.com/Dockwell/dockwell/releases" },
           }),
         },
       });
       await user.click(await screen.findByRole("button", { name: "Add server" }));
       const sheet = await screen.findByRole("dialog", { name: "Add a server" });
-      await waitFor(() => expect(sheet).toHaveTextContent("development build with no release installer"));
-      expect(sheet).toHaveTextContent("same source revision for the new server's architecture");
-      expect(within(sheet).getByText("dockwell join <ticket>")).toBeVisible();
+      await user.click(within(sheet).getByRole("button", { name: "Make the command" }));
+      expect(await within(sheet).findByText("dockwell join TICKET")).toBeVisible();
       expect(within(sheet).getByText("dockwell run", { selector: ".copy-command code" })).toBeVisible();
-      expect(sheet).toHaveTextContent("same user, with sudo for both");
+      expect(sheet).toHaveTextContent("Install the agent of 0.2.1-dev as dockwell first");
       expect(sheet).not.toHaveTextContent("curl");
-      expect(sheet).not.toHaveTextContent("install script of the release");
-    },
-  );
-
-  it("gives manual joining steps when installation metadata is unavailable", async () => {
-    const user = userEvent.setup();
-    renderServers([web1, web2()], "/servers", {
-      updates: {
-        getServerUpdates: () => ({
-          dockwell: { controlPlane: "0.2.1", releases: "" },
-        }),
-      },
     });
-    await user.click(await screen.findByRole("button", { name: "Add server" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a server" });
-    await waitFor(() => expect(sheet).toHaveTextContent("The control server's installation details are unavailable"));
-    expect(sheet).toHaveTextContent("Install an agent that matches its version");
-    expect(within(sheet).getByText("dockwell join <ticket>")).toBeVisible();
-    expect(sheet).not.toHaveTextContent("development build");
-    expect(sheet).not.toHaveTextContent("curl");
+
+    it("offers a new command once the ticket runs out", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [{}], timestampFromDate(new Date(Date.now() - 1000)));
+      renderServers([web1, web2()], "/servers", { ...release, ...passkey([]), servers: api.servers });
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      await user.click(within(sheet).getByRole("button", { name: "Make the command" }));
+      expect(await within(sheet).findByText("This command expired")).toBeVisible();
+      expect(within(sheet).getByRole("button", { name: "Make a new command" })).toBeEnabled();
+    });
+
+    it("adds a server from a phone too, from the header", async () => {
+      onPhone();
+      const user = userEvent.setup();
+      renderServers([web1, web2()], "/servers", {
+        ...release,
+        ...passkey([]),
+        servers: tickets(JoinReach.ANYWHERE, [{}]).servers,
+      });
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      expect(within(sheet).getByRole("button", { name: "Make the command" })).toBeEnabled();
+    });
+
+    it("says nothing was made when the passkey doesn't confirm it", async () => {
+      stubPasskeys({ get: "NotAllowedError" });
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [{}]);
+      renderServers([web1, web2()], "/servers", { ...release, ...passkey([]), servers: api.servers });
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      await user.click(within(sheet).getByRole("button", { name: "Make the command" }));
+      expect(
+        await within(sheet).findByText("Your passkey didn't confirm it, so there's no command yet. Try again."),
+      ).toBeVisible();
+      expect(within(sheet).getByRole("button", { name: "Make the command" })).toBeEnabled();
+    });
   });
 
   it("lists what needs attention on a phone, and holds the server chosen with the way to its page", async () => {

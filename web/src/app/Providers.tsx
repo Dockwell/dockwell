@@ -2,7 +2,7 @@
 
 import type { Transport } from "@connectrpc/connect";
 import { TransportProvider } from "@connectrpc/connect-query";
-import { type UIStrings, UIStringsProvider } from "@dockwell/ui";
+import { inSentence, type UIStrings, UIStringsProvider } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { I18nProvider } from "@lingui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -149,6 +149,61 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
         to: t`to`,
       },
       undo: t`Undo`,
+      dnsRecord: {
+        copy: (value) => t`Copy ${value}`,
+        copied: (value) => t`Copied ${value}`,
+        check: t`Check again`,
+      },
+      folderPicker: {
+        change: t`Change`,
+        changeNamed: (path) => (path ? t`Change the folder, ${path}` : t`Choose a folder`),
+        done: t`Done`,
+        none: t`No folder chosen`,
+        path: t`Path`,
+        lookingIn: t`Looking in`,
+        foldersIn: (path) => t`Folders in ${path}`,
+        reading: t`Reading…`,
+        empty: t`No folders here`,
+        cantRead: t`Can't read the server's folders now`,
+        newIn: (path) => t`New folder in ${path}`,
+        newName: t({ message: "name", comment: "Placeholder of the field that names a new folder." }),
+        use: t({ message: "Use", comment: "The button that takes the new folder's name as the folder to use." }),
+      },
+      connection: {
+        title: t({
+          message: "Connect",
+          comment: "The heading of a card that lists how to connect to a database or an app.",
+        }),
+        revealShort: t`Reveal`,
+        reveal: (label) => {
+          const what = inSentence(label);
+          return t`Reveal ${what}`;
+        },
+        hide: t`Hide`,
+        hidden: t`Hidden`,
+        copy: (label) => {
+          const what = inSentence(label);
+          return t`Copy ${what}`;
+        },
+        copied: (label) => t`${label} copied`,
+        copyWithout: (label, secret) => {
+          const [what, without] = [inSentence(label), inSentence(secret)];
+          return t`Copy ${what}, without the ${without}`;
+        },
+        copiedWithout: (label, secret) => {
+          const without = inSentence(secret);
+          return t`${label} copied, without the ${without}`;
+        },
+      },
+      advanced: t`Advanced`,
+      portField: {
+        checking: t({ message: "Checking", context: "a port on the server" }),
+        free: t({ message: "Free", context: "a port on the server" }),
+        taken: t({ message: "Taken", context: "a port on the server" }),
+        takenBy: (by) => <Trans>{by} uses it</Trans>,
+        use: (port) => t`Use ${port}`,
+        range: t`Use a port from 1 to 65535.`,
+      },
     }),
     [t, active],
   );

@@ -119,6 +119,8 @@ var (
 		"token.create", "token.revoke",
 		"sign_in_link.create", "claim_link.create", "join_token.create",
 		"secret.reveal", "secrets.rotate_key",
+		// A test of a destination's keys, before any plan: who tried which storage.
+		backups.ActionTestDestination,
 		fileRead, fileRefuse, fileDownload, changeApplyUnconfirmed,
 	}
 )
@@ -613,6 +615,9 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 			}
 			if told.Until != nil {
 				e.Alert.Until = timestamppb.New(*told.Until)
+			}
+			if told.TakenFrom != "" {
+				e.Alert.TakenFrom = look.Actor(told.TakenFrom)
 			}
 		}
 		return e

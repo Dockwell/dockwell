@@ -15,6 +15,7 @@ import {
   DomainService,
   EventService,
   FileService,
+  FirewallService,
   GetVersionResponseSchema,
   HealthService,
   ImportService,
@@ -63,6 +64,7 @@ export type Api = {
   logs?: Partial<ServiceImpl<typeof LogService>>;
   health?: Partial<ServiceImpl<typeof HealthService>>;
   containers?: Partial<ServiceImpl<typeof ContainerService>>;
+  firewall?: Partial<ServiceImpl<typeof FirewallService>>;
   files?: Partial<ServiceImpl<typeof FileService>>;
   backups?: Partial<ServiceImpl<typeof BackupService>>;
   processes?: Partial<ServiceImpl<typeof ProcessService>>;
@@ -107,7 +109,8 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
     ({ service }) => {
       service(SystemService, api.system ?? {});
       service(ServerService, { watchServers: quietWatch, ...api.servers });
-      service(AuthService, api.auth ?? {});
+      // Mira, signed in as the owner, unless a test says who is: what the panel offers follows what they hold.
+      service(AuthService, { getAuthState: () => authState(), ...api.auth });
       service(TokenService, api.tokens ?? {});
       service(ChangeService, api.changes ?? {});
       // The command bar lists projects and recent changes; with none, it lists none.
@@ -121,6 +124,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(LogService, api.logs ?? {});
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
+      service(FirewallService, { getServerFirewall: () => ({ firewall: {} }), ...api.firewall });
       service(FileService, api.files ?? {});
       service(ProcessService, { watchProcesses: quietWatch, ...api.processes });
       service(AuditService, { listAuditEvents: () => ({}), ...api.audit });

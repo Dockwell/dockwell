@@ -37,6 +37,7 @@ import { parseArgs } from "node:util";
 import { type Browser, type BrowserContext, chromium, type Locator, type Page } from "playwright-core";
 
 import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.ts";
+import { hostTools } from "./firewall-flow.ts";
 import { runFlows } from "./flows.ts";
 import { describePages, watchBrowser } from "./report.ts";
 
@@ -53,6 +54,8 @@ const port = 7650 + Math.floor(Math.random() * 300);
 const origin = `http://localhost:${port}`;
 const data = mkdtempSync(join(tmpdir(), "dockwell-e2e-"));
 const catalogDir = mkdtempSync(join(tmpdir(), "dockwell-e2e-catalog-"));
+// The agent's stand-ins for the server's own tools, such as ufw, as a test runs none of the machine's.
+const tools = hostTools(mkdtempSync(join(tmpdir(), "dockwell-e2e-tools-")));
 
 let server: ChildProcess | undefined;
 let docker: ChildProcess | undefined;
@@ -156,6 +159,7 @@ async function start(): Promise<string> {
         ...engine,
         USER: "mira",
         DOCKWELL_CATALOG_DIR: catalogDir,
+        DOCKWELL_TEST_TOOLS: tools,
       },
     },
   );
@@ -276,9 +280,17 @@ async function main() {
   await page.getByLabel("Email").fill("mira@acme.dev");
   const claimSaid = await watchFor(page, ["The owner account wasn't created", "This install already has an owner"]);
   await page.getByRole("button", { name: "Create passkey" }).click();
-  await expectPage(page, "Overview", 15_000);
+  // A new owner starts where the first app comes from, with the overview a click away.
+  await expectPage(page, "What do you want to run?", 15_000);
+  await page
+    .getByRole("list", { name: "Ways to run your first app" })
+    .getByRole("link", { name: "A Docker image" })
+    .waitFor();
   const claimFlashed = await claimSaid();
-  if (claimFlashed.length > 0) fail(`the claim showed ${JSON.stringify(claimFlashed)} on its way to the overview`);
+  if (claimFlashed.length > 0) fail(`the claim showed ${JSON.stringify(claimFlashed)} on its way to the start`);
+  await shoot(page, "start");
+  await page.getByRole("link", { name: "Skip to the overview" }).click();
+  await expectPage(page, "Overview", 15_000);
   // The control plane's own agent reports within a few seconds, and its live stats follow.
   await page.locator(".dw-metric", { hasText: "CPU" }).waitFor({ timeout: 15_000 });
   await nav(page).getByRole("link", { name: "Mira Chen Owner" }).waitFor();
@@ -912,4 +924,5 @@ try {
   server?.kill("SIGTERM");
   docker?.kill("SIGTERM");
   rmSync(data, { recursive: true, force: true });
+  rmSync(tools, { recursive: true, force: true });
 }

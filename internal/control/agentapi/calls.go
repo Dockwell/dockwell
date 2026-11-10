@@ -403,7 +403,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
 		followsPace: hello.GetFollowsPace(),
 		pending:     map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
@@ -484,6 +484,8 @@ type Session struct {
 	opened             time.Time
 	// managesFiles says the agent makes, moves, deletes and puts back files (ADR 0045).
 	managesFiles bool
+	// pagesListings says a listing goes in name order a page at a time, and takes a name to match.
+	pagesListings bool
 	// transfersFiles says the agent uploads and downloads them.
 	transfersFiles bool
 
@@ -541,7 +543,7 @@ func (s *Session) progressed(p *agentv1.CallProgress) {
 	s.mu.Unlock()
 	if o := p.GetOutcome(); o != nil {
 		if told != nil {
-			told(resource.Outcome{Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote(), Untouched: o.GetUntouched(), Did: resourcepb.DidFrom(o.GetDid()), Backup: backupTaken(o.GetBackup())})
+			told(resource.Outcome{Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote(), Untouched: o.GetUntouched(), Did: resourcepb.DidFrom(o.GetDid()), Backup: backupTaken(o.GetBackup()), Waits: accessWait(o.GetWaits())})
 		}
 		return
 	}
@@ -1049,7 +1051,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	defer clear(values)
 	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled, PlannedLeads: step.PlannedLeads, Finishing: step.Finishing}
 	if d := resource.DeployOf(ctx); d != (resource.Deploy{}) {
-		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback}
+		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback, LastAccessStep: d.LastAccess}
 	}
 	var seal func(*Session) error
 	if uses {
@@ -1378,6 +1380,31 @@ func (s *Session) Containers(ctx context.Context, container string) (*agentv1.Co
 	return r.GetContainers(), nil
 }
 
+// ErrAgentOutdated is an agent older than the control plane, which doesn't
+// know a call it was sent.
+var ErrAgentOutdated = errors.New("its agent is older than the control plane, and doesn't know how. Update it by running the install script on the server again")
+
+// unknownCall says whether an agent answered that it doesn't know a call, as
+// every agent says it.
+func unknownCall(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "doesn't know that call")
+}
+
+// Firewall asks the agent what filters the server's inbound traffic.
+func (s *Session) Firewall(ctx context.Context) (*dockwellv1.ServerFirewall, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Firewall{Firewall: &agentv1.FirewallCall{}}}, ObserveTimeout, nil)
+	if unknownCall(err) {
+		return nil, ErrAgentOutdated
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.GetFirewall() == nil {
+		return nil, ErrAgentOutdated
+	}
+	return r.GetFirewall(), nil
+}
+
 // TaskRuns reads the runs a server's scheduled tasks have had past after, and lets
 // the agent go of those at or before it (ADR 0053).
 func (s *Session) TaskRuns(ctx context.Context, after string) (*agentv1.TaskRunsResult, error) {
@@ -1401,6 +1428,43 @@ func (s *Session) RunTask(ctx context.Context, ref resource.Ref) (*dockwellv1.Ta
 		return nil, err
 	}
 	return r.GetRunTask().GetRun(), nil
+}
+
+// accessWait reads what a step waits for, if anything, with its deadline by
+// the control plane's clock where the agent said how long was left.
+func accessWait(w *agentv1.AccessWait) *resource.AccessWait {
+	if w == nil {
+		return nil
+	}
+	out := &resource.AccessWait{Deadline: w.GetDeadline().AsTime(), SSHPorts: w.GetSshPorts()}
+	if left := w.GetLeft(); left != nil {
+		out.Left = left.AsDuration()
+		out.Deadline = time.Now().Add(out.Left)
+	}
+	return out
+}
+
+// ConfirmAccess confirms a change to the server's firewall that waits for its
+// confirmation, and says what the agent did: kept it, or had put back the
+// firewall already.
+func (s *Session) ConfirmAccess(ctx context.Context, changeID string) (resource.AccessVerdict, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ConfirmAccess{ConfirmAccess: &agentv1.ConfirmAccessCall{ChangeId: changeID}}}, ObserveTimeout, nil)
+	if unknownCall(err) {
+		return 0, ErrAgentOutdated
+	}
+	if err != nil {
+		return 0, err
+	}
+	switch r.GetConfirmAccess().GetVerdict() {
+	case agentv1.AccessVerdict_ACCESS_VERDICT_KEPT:
+		return resource.AccessKept, nil
+	case agentv1.AccessVerdict_ACCESS_VERDICT_ROLLED_BACK:
+		return resource.AccessRolledBack, nil
+	case agentv1.AccessVerdict_ACCESS_VERDICT_NOT_WAITING:
+		return resource.AccessNotWaiting, nil
+	case agentv1.AccessVerdict_ACCESS_VERDICT_UNSPECIFIED:
+	}
+	return 0, errors.New("the agent said nothing of the change")
 }
 
 // backupTaken reads what a step took.

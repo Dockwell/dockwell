@@ -26,6 +26,120 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// JoinTicketState is where a ticket is in its life.
+type JoinTicketState int32
+
+const (
+	JoinTicketState_JOIN_TICKET_STATE_UNSPECIFIED JoinTicketState = 0
+	// It works, and no server has used it yet.
+	JoinTicketState_JOIN_TICKET_STATE_WAITING JoinTicketState = 1
+	// A server joined with it.
+	JoinTicketState_JOIN_TICKET_STATE_JOINED JoinTicketState = 2
+	// It ran out before any server used it.
+	JoinTicketState_JOIN_TICKET_STATE_EXPIRED JoinTicketState = 3
+)
+
+// Enum value maps for JoinTicketState.
+var (
+	JoinTicketState_name = map[int32]string{
+		0: "JOIN_TICKET_STATE_UNSPECIFIED",
+		1: "JOIN_TICKET_STATE_WAITING",
+		2: "JOIN_TICKET_STATE_JOINED",
+		3: "JOIN_TICKET_STATE_EXPIRED",
+	}
+	JoinTicketState_value = map[string]int32{
+		"JOIN_TICKET_STATE_UNSPECIFIED": 0,
+		"JOIN_TICKET_STATE_WAITING":     1,
+		"JOIN_TICKET_STATE_JOINED":      2,
+		"JOIN_TICKET_STATE_EXPIRED":     3,
+	}
+)
+
+func (x JoinTicketState) Enum() *JoinTicketState {
+	p := new(JoinTicketState)
+	*p = x
+	return p
+}
+
+func (x JoinTicketState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (JoinTicketState) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_server_proto_enumTypes[0].Descriptor()
+}
+
+func (JoinTicketState) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_server_proto_enumTypes[0]
+}
+
+func (x JoinTicketState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use JoinTicketState.Descriptor instead.
+func (JoinTicketState) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{0}
+}
+
+// JoinReach is who can reach an address a ticket names.
+type JoinReach int32
+
+const (
+	JoinReach_JOIN_REACH_UNSPECIFIED JoinReach = 0
+	// A public address the control server is reached at, or a name a person gave:
+	// a server anywhere reaches it once its port is open.
+	JoinReach_JOIN_REACH_ANYWHERE JoinReach = 1
+	// The public address the control server reaches the internet from, which may
+	// not lead back in, as behind a router.
+	JoinReach_JOIN_REACH_WAY_OUT JoinReach = 2
+	// A private address: only a server on the same network reaches it.
+	JoinReach_JOIN_REACH_SAME_NETWORK JoinReach = 3
+)
+
+// Enum value maps for JoinReach.
+var (
+	JoinReach_name = map[int32]string{
+		0: "JOIN_REACH_UNSPECIFIED",
+		1: "JOIN_REACH_ANYWHERE",
+		2: "JOIN_REACH_WAY_OUT",
+		3: "JOIN_REACH_SAME_NETWORK",
+	}
+	JoinReach_value = map[string]int32{
+		"JOIN_REACH_UNSPECIFIED":  0,
+		"JOIN_REACH_ANYWHERE":     1,
+		"JOIN_REACH_WAY_OUT":      2,
+		"JOIN_REACH_SAME_NETWORK": 3,
+	}
+)
+
+func (x JoinReach) Enum() *JoinReach {
+	p := new(JoinReach)
+	*p = x
+	return p
+}
+
+func (x JoinReach) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (JoinReach) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_server_proto_enumTypes[1].Descriptor()
+}
+
+func (JoinReach) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_server_proto_enumTypes[1]
+}
+
+func (x JoinReach) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use JoinReach.Descriptor instead.
+func (JoinReach) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{1}
+}
+
 // Connection says whether a server's agent is talking to the control plane.
 type Connection int32
 
@@ -66,11 +180,11 @@ func (x Connection) String() string {
 }
 
 func (Connection) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_server_proto_enumTypes[0].Descriptor()
+	return file_dockwell_v1_server_proto_enumTypes[2].Descriptor()
 }
 
 func (Connection) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_server_proto_enumTypes[0]
+	return &file_dockwell_v1_server_proto_enumTypes[2]
 }
 
 func (x Connection) Number() protoreflect.EnumNumber {
@@ -79,7 +193,59 @@ func (x Connection) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Connection.Descriptor instead.
 func (Connection) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{2}
+}
+
+// ServerStrain is what a server is short of.
+type ServerStrain int32
+
+const (
+	ServerStrain_SERVER_STRAIN_UNSPECIFIED ServerStrain = 0
+	// Its memory.
+	ServerStrain_SERVER_STRAIN_MEMORY ServerStrain = 1
+	// Its CPU.
+	ServerStrain_SERVER_STRAIN_CPU ServerStrain = 2
+)
+
+// Enum value maps for ServerStrain.
+var (
+	ServerStrain_name = map[int32]string{
+		0: "SERVER_STRAIN_UNSPECIFIED",
+		1: "SERVER_STRAIN_MEMORY",
+		2: "SERVER_STRAIN_CPU",
+	}
+	ServerStrain_value = map[string]int32{
+		"SERVER_STRAIN_UNSPECIFIED": 0,
+		"SERVER_STRAIN_MEMORY":      1,
+		"SERVER_STRAIN_CPU":         2,
+	}
+)
+
+func (x ServerStrain) Enum() *ServerStrain {
+	p := new(ServerStrain)
+	*p = x
+	return p
+}
+
+func (x ServerStrain) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ServerStrain) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_server_proto_enumTypes[3].Descriptor()
+}
+
+func (ServerStrain) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_server_proto_enumTypes[3]
+}
+
+func (x ServerStrain) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ServerStrain.Descriptor instead.
+func (ServerStrain) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{3}
 }
 
 // NetworkShape is how a server meets the internet. It's read from what's on its
@@ -134,11 +300,11 @@ func (x NetworkShape) String() string {
 }
 
 func (NetworkShape) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_server_proto_enumTypes[1].Descriptor()
+	return file_dockwell_v1_server_proto_enumTypes[4].Descriptor()
 }
 
 func (NetworkShape) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_server_proto_enumTypes[1]
+	return &file_dockwell_v1_server_proto_enumTypes[4]
 }
 
 func (x NetworkShape) Number() protoreflect.EnumNumber {
@@ -147,7 +313,7 @@ func (x NetworkShape) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use NetworkShape.Descriptor instead.
 func (NetworkShape) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{4}
 }
 
 // PublicAddressSource is how Dockwell knows a server's public address. In the
@@ -209,11 +375,11 @@ func (x PublicAddressSource) String() string {
 }
 
 func (PublicAddressSource) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_server_proto_enumTypes[2].Descriptor()
+	return file_dockwell_v1_server_proto_enumTypes[5].Descriptor()
 }
 
 func (PublicAddressSource) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_server_proto_enumTypes[2]
+	return &file_dockwell_v1_server_proto_enumTypes[5]
 }
 
 func (x PublicAddressSource) Number() protoreflect.EnumNumber {
@@ -222,7 +388,7 @@ func (x PublicAddressSource) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PublicAddressSource.Descriptor instead.
 func (PublicAddressSource) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{5}
 }
 
 // Reachable is whether the internet can reach a server. It's never a guess:
@@ -268,11 +434,11 @@ func (x Reachable) String() string {
 }
 
 func (Reachable) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_server_proto_enumTypes[3].Descriptor()
+	return file_dockwell_v1_server_proto_enumTypes[6].Descriptor()
 }
 
 func (Reachable) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_server_proto_enumTypes[3]
+	return &file_dockwell_v1_server_proto_enumTypes[6]
 }
 
 func (x Reachable) Number() protoreflect.EnumNumber {
@@ -281,7 +447,7 @@ func (x Reachable) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Reachable.Descriptor instead.
 func (Reachable) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{6}
 }
 
 // CloudProvider is a cloud provider whose metadata service an agent can read.
@@ -330,11 +496,11 @@ func (x CloudProvider) String() string {
 }
 
 func (CloudProvider) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_server_proto_enumTypes[4].Descriptor()
+	return file_dockwell_v1_server_proto_enumTypes[7].Descriptor()
 }
 
 func (CloudProvider) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_server_proto_enumTypes[4]
+	return &file_dockwell_v1_server_proto_enumTypes[7]
 }
 
 func (x CloudProvider) Number() protoreflect.EnumNumber {
@@ -343,7 +509,355 @@ func (x CloudProvider) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CloudProvider.Descriptor instead.
 func (CloudProvider) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{7}
+}
+
+// CreateJoinTicketRequest says how long the ticket works.
+type CreateJoinTicketRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// How long it works, in seconds: an hour when unset, and at most a day.
+	TtlSeconds uint32 `protobuf:"varint,1,opt,name=ttl_seconds,json=ttlSeconds,proto3" json:"ttl_seconds,omitempty"`
+	// The proof from FinishStepUp for STEP_UP_ACTION_ADD_SERVER.
+	Proof         string `protobuf:"bytes,2,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateJoinTicketRequest) Reset() {
+	*x = CreateJoinTicketRequest{}
+	mi := &file_dockwell_v1_server_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateJoinTicketRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateJoinTicketRequest) ProtoMessage() {}
+
+func (x *CreateJoinTicketRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_server_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateJoinTicketRequest.ProtoReflect.Descriptor instead.
+func (*CreateJoinTicketRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *CreateJoinTicketRequest) GetTtlSeconds() uint32 {
+	if x != nil {
+		return x.TtlSeconds
+	}
+	return 0
+}
+
+func (x *CreateJoinTicketRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// CreateJoinTicketResponse carries the ticket, once.
+type CreateJoinTicketResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What the ticket is and where it leads, as GetJoinTicket reads it.
+	Ticket *JoinTicket `protobuf:"bytes,1,opt,name=ticket,proto3" json:"ticket,omitempty"`
+	// The ticket itself, for dockwell join on the new server. Nothing shows it again.
+	Value         string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateJoinTicketResponse) Reset() {
+	*x = CreateJoinTicketResponse{}
+	mi := &file_dockwell_v1_server_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateJoinTicketResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateJoinTicketResponse) ProtoMessage() {}
+
+func (x *CreateJoinTicketResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_server_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateJoinTicketResponse.ProtoReflect.Descriptor instead.
+func (*CreateJoinTicketResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *CreateJoinTicketResponse) GetTicket() *JoinTicket {
+	if x != nil {
+		return x.Ticket
+	}
+	return nil
+}
+
+func (x *CreateJoinTicketResponse) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+// GetJoinTicketRequest names a ticket.
+type GetJoinTicketRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The ticket's ID, from CreateJoinTicket.
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetJoinTicketRequest) Reset() {
+	*x = GetJoinTicketRequest{}
+	mi := &file_dockwell_v1_server_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetJoinTicketRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetJoinTicketRequest) ProtoMessage() {}
+
+func (x *GetJoinTicketRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_server_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetJoinTicketRequest.ProtoReflect.Descriptor instead.
+func (*GetJoinTicketRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *GetJoinTicketRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+// GetJoinTicketResponse carries the ticket as it stands.
+type GetJoinTicketResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The ticket, without its secret.
+	Ticket        *JoinTicket `protobuf:"bytes,1,opt,name=ticket,proto3" json:"ticket,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetJoinTicketResponse) Reset() {
+	*x = GetJoinTicketResponse{}
+	mi := &file_dockwell_v1_server_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetJoinTicketResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetJoinTicketResponse) ProtoMessage() {}
+
+func (x *GetJoinTicketResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_server_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetJoinTicketResponse.ProtoReflect.Descriptor instead.
+func (*GetJoinTicketResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GetJoinTicketResponse) GetTicket() *JoinTicket {
+	if x != nil {
+		return x.Ticket
+	}
+	return nil
+}
+
+// JoinTicket is a ticket that adds one server, without its secret.
+type JoinTicket struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its ID, which starts jtk_.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Whether a server has joined with it yet.
+	State JoinTicketState `protobuf:"varint,2,opt,name=state,proto3,enum=dockwell.v1.JoinTicketState" json:"state,omitempty"`
+	// When it stops working, used or not.
+	ExpireTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	// Where a joining server reaches the control plane, in the order it tries them.
+	// Only CreateJoinTicket says it, as the ticket holds it and nothing else keeps it.
+	Addresses []*JoinAddress `protobuf:"bytes,4,rep,name=addresses,proto3" json:"addresses,omitempty"`
+	// The server that joined with it, by ID and by name, once one has.
+	ServerId      string `protobuf:"bytes,5,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	ServerName    string `protobuf:"bytes,6,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JoinTicket) Reset() {
+	*x = JoinTicket{}
+	mi := &file_dockwell_v1_server_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinTicket) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinTicket) ProtoMessage() {}
+
+func (x *JoinTicket) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_server_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JoinTicket.ProtoReflect.Descriptor instead.
+func (*JoinTicket) Descriptor() ([]byte, []int) {
 	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *JoinTicket) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *JoinTicket) GetState() JoinTicketState {
+	if x != nil {
+		return x.State
+	}
+	return JoinTicketState_JOIN_TICKET_STATE_UNSPECIFIED
+}
+
+func (x *JoinTicket) GetExpireTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpireTime
+	}
+	return nil
+}
+
+func (x *JoinTicket) GetAddresses() []*JoinAddress {
+	if x != nil {
+		return x.Addresses
+	}
+	return nil
+}
+
+func (x *JoinTicket) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *JoinTicket) GetServerName() string {
+	if x != nil {
+		return x.ServerName
+	}
+	return ""
+}
+
+// JoinAddress is one address a ticket names, and who can reach it.
+type JoinAddress struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The control plane's agent URL, such as https://203.0.113.7:7601.
+	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	// Who reaches it.
+	Reach         JoinReach `protobuf:"varint,2,opt,name=reach,proto3,enum=dockwell.v1.JoinReach" json:"reach,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JoinAddress) Reset() {
+	*x = JoinAddress{}
+	mi := &file_dockwell_v1_server_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinAddress) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinAddress) ProtoMessage() {}
+
+func (x *JoinAddress) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_server_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JoinAddress.ProtoReflect.Descriptor instead.
+func (*JoinAddress) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *JoinAddress) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *JoinAddress) GetReach() JoinReach {
+	if x != nil {
+		return x.Reach
+	}
+	return JoinReach_JOIN_REACH_UNSPECIFIED
 }
 
 // ListServersRequest takes no parameters yet.
@@ -355,7 +869,7 @@ type ListServersRequest struct {
 
 func (x *ListServersRequest) Reset() {
 	*x = ListServersRequest{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[0]
+	mi := &file_dockwell_v1_server_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -367,7 +881,7 @@ func (x *ListServersRequest) String() string {
 func (*ListServersRequest) ProtoMessage() {}
 
 func (x *ListServersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[0]
+	mi := &file_dockwell_v1_server_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -380,7 +894,7 @@ func (x *ListServersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServersRequest.ProtoReflect.Descriptor instead.
 func (*ListServersRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{6}
 }
 
 // ListServersResponse lists servers, oldest first.
@@ -394,7 +908,7 @@ type ListServersResponse struct {
 
 func (x *ListServersResponse) Reset() {
 	*x = ListServersResponse{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[1]
+	mi := &file_dockwell_v1_server_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -406,7 +920,7 @@ func (x *ListServersResponse) String() string {
 func (*ListServersResponse) ProtoMessage() {}
 
 func (x *ListServersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[1]
+	mi := &file_dockwell_v1_server_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -419,7 +933,7 @@ func (x *ListServersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServersResponse.ProtoReflect.Descriptor instead.
 func (*ListServersResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListServersResponse) GetServers() []*Server {
@@ -440,7 +954,7 @@ type GetServerRequest struct {
 
 func (x *GetServerRequest) Reset() {
 	*x = GetServerRequest{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[2]
+	mi := &file_dockwell_v1_server_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -452,7 +966,7 @@ func (x *GetServerRequest) String() string {
 func (*GetServerRequest) ProtoMessage() {}
 
 func (x *GetServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[2]
+	mi := &file_dockwell_v1_server_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -465,7 +979,7 @@ func (x *GetServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetServerRequest.ProtoReflect.Descriptor instead.
 func (*GetServerRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetServerRequest) GetId() string {
@@ -486,7 +1000,7 @@ type GetServerResponse struct {
 
 func (x *GetServerResponse) Reset() {
 	*x = GetServerResponse{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[3]
+	mi := &file_dockwell_v1_server_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -498,7 +1012,7 @@ func (x *GetServerResponse) String() string {
 func (*GetServerResponse) ProtoMessage() {}
 
 func (x *GetServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[3]
+	mi := &file_dockwell_v1_server_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -511,7 +1025,7 @@ func (x *GetServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetServerResponse.ProtoReflect.Descriptor instead.
 func (*GetServerResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetServerResponse) GetServer() *Server {
@@ -532,7 +1046,7 @@ type GetServerDiskUseRequest struct {
 
 func (x *GetServerDiskUseRequest) Reset() {
 	*x = GetServerDiskUseRequest{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[4]
+	mi := &file_dockwell_v1_server_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -544,7 +1058,7 @@ func (x *GetServerDiskUseRequest) String() string {
 func (*GetServerDiskUseRequest) ProtoMessage() {}
 
 func (x *GetServerDiskUseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[4]
+	mi := &file_dockwell_v1_server_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -557,7 +1071,7 @@ func (x *GetServerDiskUseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetServerDiskUseRequest.ProtoReflect.Descriptor instead.
 func (*GetServerDiskUseRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetServerDiskUseRequest) GetId() string {
@@ -578,7 +1092,7 @@ type GetServerDiskUseResponse struct {
 
 func (x *GetServerDiskUseResponse) Reset() {
 	*x = GetServerDiskUseResponse{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[5]
+	mi := &file_dockwell_v1_server_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -590,7 +1104,7 @@ func (x *GetServerDiskUseResponse) String() string {
 func (*GetServerDiskUseResponse) ProtoMessage() {}
 
 func (x *GetServerDiskUseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[5]
+	mi := &file_dockwell_v1_server_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -603,7 +1117,7 @@ func (x *GetServerDiskUseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetServerDiskUseResponse.ProtoReflect.Descriptor instead.
 func (*GetServerDiskUseResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetServerDiskUseResponse) GetDiskUse() *ServerDiskUse {
@@ -656,7 +1170,7 @@ type ServerDiskUse struct {
 
 func (x *ServerDiskUse) Reset() {
 	*x = ServerDiskUse{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[6]
+	mi := &file_dockwell_v1_server_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -668,7 +1182,7 @@ func (x *ServerDiskUse) String() string {
 func (*ServerDiskUse) ProtoMessage() {}
 
 func (x *ServerDiskUse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[6]
+	mi := &file_dockwell_v1_server_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -681,7 +1195,7 @@ func (x *ServerDiskUse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerDiskUse.ProtoReflect.Descriptor instead.
 func (*ServerDiskUse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ServerDiskUse) GetTime() *timestamppb.Timestamp {
@@ -805,7 +1319,7 @@ type SetServerPublicAddressRequest struct {
 
 func (x *SetServerPublicAddressRequest) Reset() {
 	*x = SetServerPublicAddressRequest{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[7]
+	mi := &file_dockwell_v1_server_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -817,7 +1331,7 @@ func (x *SetServerPublicAddressRequest) String() string {
 func (*SetServerPublicAddressRequest) ProtoMessage() {}
 
 func (x *SetServerPublicAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[7]
+	mi := &file_dockwell_v1_server_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -830,7 +1344,7 @@ func (x *SetServerPublicAddressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetServerPublicAddressRequest.ProtoReflect.Descriptor instead.
 func (*SetServerPublicAddressRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SetServerPublicAddressRequest) GetId() string {
@@ -865,7 +1379,7 @@ type SetServerPublicAddressResponse struct {
 
 func (x *SetServerPublicAddressResponse) Reset() {
 	*x = SetServerPublicAddressResponse{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[8]
+	mi := &file_dockwell_v1_server_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -877,7 +1391,7 @@ func (x *SetServerPublicAddressResponse) String() string {
 func (*SetServerPublicAddressResponse) ProtoMessage() {}
 
 func (x *SetServerPublicAddressResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[8]
+	mi := &file_dockwell_v1_server_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -890,7 +1404,7 @@ func (x *SetServerPublicAddressResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetServerPublicAddressResponse.ProtoReflect.Descriptor instead.
 func (*SetServerPublicAddressResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SetServerPublicAddressResponse) GetServer() *Server {
@@ -909,7 +1423,7 @@ type WatchServersRequest struct {
 
 func (x *WatchServersRequest) Reset() {
 	*x = WatchServersRequest{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[9]
+	mi := &file_dockwell_v1_server_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -921,7 +1435,7 @@ func (x *WatchServersRequest) String() string {
 func (*WatchServersRequest) ProtoMessage() {}
 
 func (x *WatchServersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[9]
+	mi := &file_dockwell_v1_server_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -934,7 +1448,7 @@ func (x *WatchServersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchServersRequest.ProtoReflect.Descriptor instead.
 func (*WatchServersRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{15}
 }
 
 // WatchServersResponse is one step of a watch: a server's latest state, or
@@ -963,7 +1477,7 @@ type WatchServersResponse struct {
 
 func (x *WatchServersResponse) Reset() {
 	*x = WatchServersResponse{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[10]
+	mi := &file_dockwell_v1_server_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -975,7 +1489,7 @@ func (x *WatchServersResponse) String() string {
 func (*WatchServersResponse) ProtoMessage() {}
 
 func (x *WatchServersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[10]
+	mi := &file_dockwell_v1_server_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -988,7 +1502,7 @@ func (x *WatchServersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchServersResponse.ProtoReflect.Descriptor instead.
 func (*WatchServersResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *WatchServersResponse) GetServer() *Server {
@@ -1059,14 +1573,22 @@ type Server struct {
 	DockerUnreadableSince *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=docker_unreadable_since,json=dockerUnreadableSince,proto3" json:"docker_unreadable_since,omitempty"`
 	// How the server meets the internet, as far as that's known. The addresses
 	// on its own interfaces are in its inventory.
-	Network       *ServerNetwork `protobuf:"bytes,14,opt,name=network,proto3" json:"network,omitempty"`
+	Network *ServerNetwork `protobuf:"bytes,14,opt,name=network,proto3" json:"network,omitempty"`
+	// Since when its memory or CPU has been above 90%, on the server's clock, once
+	// that has lasted a minute. It ends once both are below 85%, so a server
+	// near the line doesn't flip back and forth. The control plane decides it,
+	// from the samples it keeps, so every page, the CLI and alerts read one
+	// state. Unset while it isn't, and for a server that isn't connected.
+	StrainedSince *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=strained_since,json=strainedSince,proto3" json:"strained_since,omitempty"`
+	// What's above 90%: memory, or else CPU.
+	Strain        ServerStrain `protobuf:"varint,16,opt,name=strain,proto3,enum=dockwell.v1.ServerStrain" json:"strain,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Server) Reset() {
 	*x = Server{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[11]
+	mi := &file_dockwell_v1_server_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1078,7 +1600,7 @@ func (x *Server) String() string {
 func (*Server) ProtoMessage() {}
 
 func (x *Server) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[11]
+	mi := &file_dockwell_v1_server_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1091,7 +1613,7 @@ func (x *Server) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Server.ProtoReflect.Descriptor instead.
 func (*Server) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{11}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Server) GetId() string {
@@ -1192,6 +1714,20 @@ func (x *Server) GetNetwork() *ServerNetwork {
 	return nil
 }
 
+func (x *Server) GetStrainedSince() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StrainedSince
+	}
+	return nil
+}
+
+func (x *Server) GetStrain() ServerStrain {
+	if x != nil {
+		return x.Strain
+	}
+	return ServerStrain_SERVER_STRAIN_UNSPECIFIED
+}
+
 // ServerNetwork is what's known of a server beyond its own interfaces. Its
 // public address and whether the internet can reach it are separate facts: an
 // address can be known and nothing proved of it. IPv4 and IPv6 are picked apart,
@@ -1220,7 +1756,7 @@ type ServerNetwork struct {
 
 func (x *ServerNetwork) Reset() {
 	*x = ServerNetwork{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[12]
+	mi := &file_dockwell_v1_server_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1232,7 +1768,7 @@ func (x *ServerNetwork) String() string {
 func (*ServerNetwork) ProtoMessage() {}
 
 func (x *ServerNetwork) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[12]
+	mi := &file_dockwell_v1_server_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1245,7 +1781,7 @@ func (x *ServerNetwork) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerNetwork.ProtoReflect.Descriptor instead.
 func (*ServerNetwork) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{12}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ServerNetwork) GetIpv4() *PublicAddress {
@@ -1321,7 +1857,7 @@ type PublicAddress struct {
 
 func (x *PublicAddress) Reset() {
 	*x = PublicAddress{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[13]
+	mi := &file_dockwell_v1_server_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1333,7 +1869,7 @@ func (x *PublicAddress) String() string {
 func (*PublicAddress) ProtoMessage() {}
 
 func (x *PublicAddress) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[13]
+	mi := &file_dockwell_v1_server_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1346,7 +1882,7 @@ func (x *PublicAddress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PublicAddress.ProtoReflect.Descriptor instead.
 func (*PublicAddress) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{13}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *PublicAddress) GetAddress() string {
@@ -1417,7 +1953,9 @@ type ServerInventory struct {
 	// The Docker Engine version, such as "28.5.1". Empty when Docker isn't
 	// installed or isn't running.
 	DockerVersion string `protobuf:"bytes,11,opt,name=docker_version,json=dockerVersion,proto3" json:"docker_version,omitempty"`
-	// The server's non-loopback IP addresses.
+	// The server's non-loopback IP addresses: its physical interfaces' alone
+	// when addresses_physical says so, and every interface's, Docker's bridges
+	// included, from an agent from before that.
 	Addresses []string `protobuf:"bytes,12,rep,name=addresses,proto3" json:"addresses,omitempty"`
 	// The logging driver Docker uses by default, such as "json-file". Empty
 	// when Docker isn't running.
@@ -1425,13 +1963,17 @@ type ServerInventory struct {
 	// The address its route to the internet leaves from. Empty when it has no
 	// such route, or from an agent from before this.
 	OutboundAddress string `protobuf:"bytes,14,opt,name=outbound_address,json=outboundAddress,proto3" json:"outbound_address,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// True when addresses lists only physical interfaces' addresses, so a
+	// private one there is a private network the server is on, as a cloud's is,
+	// and never a Docker bridge's.
+	AddressesPhysical bool `protobuf:"varint,15,opt,name=addresses_physical,json=addressesPhysical,proto3" json:"addresses_physical,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ServerInventory) Reset() {
 	*x = ServerInventory{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[14]
+	mi := &file_dockwell_v1_server_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1443,7 +1985,7 @@ func (x *ServerInventory) String() string {
 func (*ServerInventory) ProtoMessage() {}
 
 func (x *ServerInventory) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[14]
+	mi := &file_dockwell_v1_server_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1456,7 +1998,7 @@ func (x *ServerInventory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInventory.ProtoReflect.Descriptor instead.
 func (*ServerInventory) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{14}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ServerInventory) GetHostname() string {
@@ -1557,6 +2099,13 @@ func (x *ServerInventory) GetOutboundAddress() string {
 	return ""
 }
 
+func (x *ServerInventory) GetAddressesPhysical() bool {
+	if x != nil {
+		return x.AddressesPhysical
+	}
+	return false
+}
+
 // Disk is one mounted filesystem.
 type Disk struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1574,7 +2123,7 @@ type Disk struct {
 
 func (x *Disk) Reset() {
 	*x = Disk{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[15]
+	mi := &file_dockwell_v1_server_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1586,7 +2135,7 @@ func (x *Disk) String() string {
 func (*Disk) ProtoMessage() {}
 
 func (x *Disk) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[15]
+	mi := &file_dockwell_v1_server_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1599,7 +2148,7 @@ func (x *Disk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Disk.ProtoReflect.Descriptor instead.
 func (*Disk) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{15}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Disk) GetMountPoint() string {
@@ -1676,7 +2225,7 @@ type ServerStats struct {
 
 func (x *ServerStats) Reset() {
 	*x = ServerStats{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[16]
+	mi := &file_dockwell_v1_server_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1688,7 +2237,7 @@ func (x *ServerStats) String() string {
 func (*ServerStats) ProtoMessage() {}
 
 func (x *ServerStats) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[16]
+	mi := &file_dockwell_v1_server_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1701,7 +2250,7 @@ func (x *ServerStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerStats.ProtoReflect.Descriptor instead.
 func (*ServerStats) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{16}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ServerStats) GetTime() *timestamppb.Timestamp {
@@ -1838,7 +2387,7 @@ type DiskUsage struct {
 
 func (x *DiskUsage) Reset() {
 	*x = DiskUsage{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[17]
+	mi := &file_dockwell_v1_server_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1850,7 +2399,7 @@ func (x *DiskUsage) String() string {
 func (*DiskUsage) ProtoMessage() {}
 
 func (x *DiskUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[17]
+	mi := &file_dockwell_v1_server_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1863,7 +2412,7 @@ func (x *DiskUsage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiskUsage.ProtoReflect.Descriptor instead.
 func (*DiskUsage) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{17}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *DiskUsage) GetMountPoint() string {
@@ -1891,7 +2440,31 @@ var File_dockwell_v1_server_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/server.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x18dockwell/v1/domain.proto\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/system.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
+	"\x18dockwell/v1/server.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x18dockwell/v1/domain.proto\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/system.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"P\n" +
+	"\x17CreateJoinTicketRequest\x12\x1f\n" +
+	"\vttl_seconds\x18\x01 \x01(\rR\n" +
+	"ttlSeconds\x12\x14\n" +
+	"\x05proof\x18\x02 \x01(\tR\x05proof\"a\n" +
+	"\x18CreateJoinTicketResponse\x12/\n" +
+	"\x06ticket\x18\x01 \x01(\v2\x17.dockwell.v1.JoinTicketR\x06ticket\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"&\n" +
+	"\x14GetJoinTicketRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"H\n" +
+	"\x15GetJoinTicketResponse\x12/\n" +
+	"\x06ticket\x18\x01 \x01(\v2\x17.dockwell.v1.JoinTicketR\x06ticket\"\x83\x02\n" +
+	"\n" +
+	"JoinTicket\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x122\n" +
+	"\x05state\x18\x02 \x01(\x0e2\x1c.dockwell.v1.JoinTicketStateR\x05state\x12;\n" +
+	"\vexpire_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"expireTime\x126\n" +
+	"\taddresses\x18\x04 \x03(\v2\x18.dockwell.v1.JoinAddressR\taddresses\x12\x1b\n" +
+	"\tserver_id\x18\x05 \x01(\tR\bserverId\x12\x1f\n" +
+	"\vserver_name\x18\x06 \x01(\tR\n" +
+	"serverName\"M\n" +
+	"\vJoinAddress\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x12,\n" +
+	"\x05reach\x18\x02 \x01(\x0e2\x16.dockwell.v1.JoinReachR\x05reach\"\x14\n" +
 	"\x12ListServersRequest\"D\n" +
 	"\x13ListServersResponse\x12-\n" +
 	"\aservers\x18\x01 \x03(\v2\x13.dockwell.v1.ServerR\aservers\"\"\n" +
@@ -1938,7 +2511,7 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x06server\x18\x01 \x01(\v2\x13.dockwell.v1.ServerR\x06server\x12\x18\n" +
 	"\aremoved\x18\x02 \x01(\bR\aremoved\x12+\n" +
 	"\x11snapshot_complete\x18\x03 \x01(\bR\x10snapshotComplete\x12\x1c\n" +
-	"\theartbeat\x18\x04 \x01(\bR\theartbeat\"\xe3\x05\n" +
+	"\theartbeat\x18\x04 \x01(\bR\theartbeat\"\xd9\x06\n" +
 	"\x06Server\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12;\n" +
@@ -1958,7 +2531,9 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\fconnect_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\vconnectTime\x124\n" +
 	"\aingress\x18\f \x01(\v2\x1a.dockwell.v1.IngressStatusR\aingress\x12R\n" +
 	"\x17docker_unreadable_since\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\x15dockerUnreadableSince\x124\n" +
-	"\anetwork\x18\x0e \x01(\v2\x1a.dockwell.v1.ServerNetworkR\anetwork\"\xfc\x02\n" +
+	"\anetwork\x18\x0e \x01(\v2\x1a.dockwell.v1.ServerNetworkR\anetwork\x12A\n" +
+	"\x0estrained_since\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\rstrainedSince\x121\n" +
+	"\x06strain\x18\x10 \x01(\x0e2\x19.dockwell.v1.ServerStrainR\x06strain\"\xfc\x02\n" +
 	"\rServerNetwork\x12.\n" +
 	"\x04ipv4\x18\x01 \x01(\v2\x1a.dockwell.v1.PublicAddressR\x04ipv4\x12.\n" +
 	"\x04ipv6\x18\x02 \x01(\v2\x1a.dockwell.v1.PublicAddressR\x04ipv6\x124\n" +
@@ -1974,7 +2549,7 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"known_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tknownTime\x12\x16\n" +
 	"\x06domain\x18\x04 \x01(\tR\x06domain\x12)\n" +
 	"\x06set_by\x18\x05 \x01(\v2\x12.dockwell.v1.ActorR\x05setBy\x12\x1a\n" +
-	"\bunproven\x18\x06 \x01(\bR\bunproven\"\xd8\x03\n" +
+	"\bunproven\x18\x06 \x01(\bR\bunproven\"\x87\x04\n" +
 	"\x0fServerInventory\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x17\n" +
 	"\aos_name\x18\x02 \x01(\tR\x06osName\x12\x13\n" +
@@ -1991,7 +2566,8 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x0edocker_version\x18\v \x01(\tR\rdockerVersion\x12\x1c\n" +
 	"\taddresses\x18\f \x03(\tR\taddresses\x12*\n" +
 	"\x11docker_log_driver\x18\r \x01(\tR\x0fdockerLogDriver\x12)\n" +
-	"\x10outbound_address\x18\x0e \x01(\tR\x0foutboundAddress\"~\n" +
+	"\x10outbound_address\x18\x0e \x01(\tR\x0foutboundAddress\x12-\n" +
+	"\x12addresses_physical\x18\x0f \x01(\bR\x11addressesPhysical\"~\n" +
 	"\x04Disk\x12\x1f\n" +
 	"\vmount_point\x18\x01 \x01(\tR\n" +
 	"mountPoint\x12\x16\n" +
@@ -2027,13 +2603,28 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\n" +
 	"used_bytes\x18\x02 \x01(\x04R\tusedBytes\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18\x03 \x01(\x04R\tsizeBytes*v\n" +
+	"size_bytes\x18\x03 \x01(\x04R\tsizeBytes*\xb6\x01\n" +
+	"\x0fJoinTicketState\x12!\n" +
+	"\x1dJOIN_TICKET_STATE_UNSPECIFIED\x10\x00\x12*\n" +
+	"\x19JOIN_TICKET_STATE_WAITING\x10\x01\x1a\v\xa2\xbb\x18\aWaiting\x12(\n" +
+	"\x18JOIN_TICKET_STATE_JOINED\x10\x02\x1a\n" +
+	"\xa2\xbb\x18\x06Joined\x12*\n" +
+	"\x19JOIN_TICKET_STATE_EXPIRED\x10\x03\x1a\v\xa2\xbb\x18\aExpired*\xa7\x01\n" +
+	"\tJoinReach\x12\x1a\n" +
+	"\x16JOIN_REACH_UNSPECIFIED\x10\x00\x12%\n" +
+	"\x13JOIN_REACH_ANYWHERE\x10\x01\x1a\f\xa2\xbb\x18\bAnywhere\x12(\n" +
+	"\x12JOIN_REACH_WAY_OUT\x10\x02\x1a\x10\xa2\xbb\x18\fWay out only\x12-\n" +
+	"\x17JOIN_REACH_SAME_NETWORK\x10\x03\x1a\x10\xa2\xbb\x18\fSame network*v\n" +
 	"\n" +
 	"Connection\x12\x1a\n" +
 	"\x16CONNECTION_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14CONNECTION_CONNECTED\x10\x01\x12\x1a\n" +
 	"\x16CONNECTION_UNREACHABLE\x10\x02\x12\x16\n" +
-	"\x12CONNECTION_PENDING\x10\x03*\xa2\x01\n" +
+	"\x12CONNECTION_PENDING\x10\x03*^\n" +
+	"\fServerStrain\x12\x1d\n" +
+	"\x19SERVER_STRAIN_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14SERVER_STRAIN_MEMORY\x10\x01\x12\x15\n" +
+	"\x11SERVER_STRAIN_CPU\x10\x02*\xa2\x01\n" +
 	"\fNetworkShape\x12\x1d\n" +
 	"\x19NETWORK_SHAPE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16NETWORK_SHAPE_INTERNET\x10\x01\x12\x1b\n" +
@@ -2060,14 +2651,20 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x14CLOUD_PROVIDER_AZURE\x10\x03\x12\x1f\n" +
 	"\x1bCLOUD_PROVIDER_DIGITALOCEAN\x10\x04\x12\x1a\n" +
 	"\x16CLOUD_PROVIDER_HETZNER\x10\x05\x12\x19\n" +
-	"\x15CLOUD_PROVIDER_ORACLE\x10\x062\xda\x05\n" +
+	"\x15CLOUD_PROVIDER_ORACLE\x10\x062\xd5\r\n" +
 	"\rServerService\x12x\n" +
 	"\vListServers\x12\x1f.dockwell.v1.ListServersRequest\x1a .dockwell.v1.ListServersResponse\"&\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\r\x12\v/v1/servers\x90\x02\x01\x12w\n" +
 	"\tGetServer\x12\x1d.dockwell.v1.GetServerRequest\x1a\x1e.dockwell.v1.GetServerResponse\"+\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/servers/{id}\x90\x02\x01\x12g\n" +
 	"\fWatchServers\x12 .dockwell.v1.WatchServersRequest\x1a!.dockwell.v1.WatchServersResponse\"\x10\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x050\x01\x12\xa2\x01\n" +
 	"\x10GetServerDiskUse\x12$.dockwell.v1.GetServerDiskUseRequest\x1a%.dockwell.v1.GetServerDiskUseResponse\"A\xa0\xbb\x18\x01\xaa\xbb\x18\n" +
 	"\x12\bdisk-use\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/servers/{id}/diskUse\x90\x02\x01\x12\xc7\x01\n" +
-	"\x16SetServerPublicAddress\x12*.dockwell.v1.SetServerPublicAddressRequest\x1a+.dockwell.v1.SetServerPublicAddressResponse\"T\xa0\xbb\x18\x03\xaa\xbb\x18\x14\x12\x12set-public-address\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/servers/{id}:setPublicAddressB\xa4\x01\n" +
+	"\x16SetServerPublicAddress\x12*.dockwell.v1.SetServerPublicAddressRequest\x1a+.dockwell.v1.SetServerPublicAddressResponse\"T\xa0\xbb\x18\x03\xaa\xbb\x18\x14\x12\x12set-public-address\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/servers/{id}:setPublicAddress\x12\xa9\x01\n" +
+	"\x10CreateJoinTicket\x12$.dockwell.v1.CreateJoinTicketRequest\x1a%.dockwell.v1.CreateJoinTicketResponse\"H\xa0\xbb\x18\x03\xaa\xbb\x18\x16\n" +
+	"\fjoin-tickets\x12\x06create\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/joinTickets\x12\x9e\x01\n" +
+	"\rGetJoinTicket\x12!.dockwell.v1.GetJoinTicketRequest\x1a\".dockwell.v1.GetJoinTicketResponse\"F\xa0\xbb\x18\x01\xaa\xbb\x18\x13\n" +
+	"\fjoin-tickets\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/joinTickets/{id}\x90\x02\x01\x1a\xab\x05\xa2\xbb\x18\xe1\x02\n" +
+	"\aservers\x12\xd5\x02The servers Dockwell manages, with their live state as each server's agent reports it. WatchServers has no REST path: REST has no way to stream messages, so a REST client polls ListServers or GetServer instead, and anything that wants the stream opens it with Connect, gRPC or gRPC-Web. See docs/adr/0015-rest-and-openapi-from-the-schema.md.\xa2\xbb\x18\xc0\x02\n" +
+	"\fjoin-tickets\x12\xaf\x02A join ticket adds one server: dockwell join with it, on the new server, gives that server a name and a certificate, and its agent connects. CreateJoinTicket makes one with a passkey, and GetJoinTicket says whether a server has used it. dockwell token create makes the same ticket on the control server.B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vServerProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -2082,85 +2679,106 @@ func file_dockwell_v1_server_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_server_proto_rawDescData
 }
 
-var file_dockwell_v1_server_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_dockwell_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_dockwell_v1_server_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
+var file_dockwell_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_dockwell_v1_server_proto_goTypes = []any{
-	(Connection)(0),                        // 0: dockwell.v1.Connection
-	(NetworkShape)(0),                      // 1: dockwell.v1.NetworkShape
-	(PublicAddressSource)(0),               // 2: dockwell.v1.PublicAddressSource
-	(Reachable)(0),                         // 3: dockwell.v1.Reachable
-	(CloudProvider)(0),                     // 4: dockwell.v1.CloudProvider
-	(*ListServersRequest)(nil),             // 5: dockwell.v1.ListServersRequest
-	(*ListServersResponse)(nil),            // 6: dockwell.v1.ListServersResponse
-	(*GetServerRequest)(nil),               // 7: dockwell.v1.GetServerRequest
-	(*GetServerResponse)(nil),              // 8: dockwell.v1.GetServerResponse
-	(*GetServerDiskUseRequest)(nil),        // 9: dockwell.v1.GetServerDiskUseRequest
-	(*GetServerDiskUseResponse)(nil),       // 10: dockwell.v1.GetServerDiskUseResponse
-	(*ServerDiskUse)(nil),                  // 11: dockwell.v1.ServerDiskUse
-	(*SetServerPublicAddressRequest)(nil),  // 12: dockwell.v1.SetServerPublicAddressRequest
-	(*SetServerPublicAddressResponse)(nil), // 13: dockwell.v1.SetServerPublicAddressResponse
-	(*WatchServersRequest)(nil),            // 14: dockwell.v1.WatchServersRequest
-	(*WatchServersResponse)(nil),           // 15: dockwell.v1.WatchServersResponse
-	(*Server)(nil),                         // 16: dockwell.v1.Server
-	(*ServerNetwork)(nil),                  // 17: dockwell.v1.ServerNetwork
-	(*PublicAddress)(nil),                  // 18: dockwell.v1.PublicAddress
-	(*ServerInventory)(nil),                // 19: dockwell.v1.ServerInventory
-	(*Disk)(nil),                           // 20: dockwell.v1.Disk
-	(*ServerStats)(nil),                    // 21: dockwell.v1.ServerStats
-	(*DiskUsage)(nil),                      // 22: dockwell.v1.DiskUsage
-	(*timestamppb.Timestamp)(nil),          // 23: google.protobuf.Timestamp
-	(*BuildInfo)(nil),                      // 24: dockwell.v1.BuildInfo
-	(*IngressStatus)(nil),                  // 25: dockwell.v1.IngressStatus
-	(*Actor)(nil),                          // 26: dockwell.v1.Actor
-	(*durationpb.Duration)(nil),            // 27: google.protobuf.Duration
+	(JoinTicketState)(0),                   // 0: dockwell.v1.JoinTicketState
+	(JoinReach)(0),                         // 1: dockwell.v1.JoinReach
+	(Connection)(0),                        // 2: dockwell.v1.Connection
+	(ServerStrain)(0),                      // 3: dockwell.v1.ServerStrain
+	(NetworkShape)(0),                      // 4: dockwell.v1.NetworkShape
+	(PublicAddressSource)(0),               // 5: dockwell.v1.PublicAddressSource
+	(Reachable)(0),                         // 6: dockwell.v1.Reachable
+	(CloudProvider)(0),                     // 7: dockwell.v1.CloudProvider
+	(*CreateJoinTicketRequest)(nil),        // 8: dockwell.v1.CreateJoinTicketRequest
+	(*CreateJoinTicketResponse)(nil),       // 9: dockwell.v1.CreateJoinTicketResponse
+	(*GetJoinTicketRequest)(nil),           // 10: dockwell.v1.GetJoinTicketRequest
+	(*GetJoinTicketResponse)(nil),          // 11: dockwell.v1.GetJoinTicketResponse
+	(*JoinTicket)(nil),                     // 12: dockwell.v1.JoinTicket
+	(*JoinAddress)(nil),                    // 13: dockwell.v1.JoinAddress
+	(*ListServersRequest)(nil),             // 14: dockwell.v1.ListServersRequest
+	(*ListServersResponse)(nil),            // 15: dockwell.v1.ListServersResponse
+	(*GetServerRequest)(nil),               // 16: dockwell.v1.GetServerRequest
+	(*GetServerResponse)(nil),              // 17: dockwell.v1.GetServerResponse
+	(*GetServerDiskUseRequest)(nil),        // 18: dockwell.v1.GetServerDiskUseRequest
+	(*GetServerDiskUseResponse)(nil),       // 19: dockwell.v1.GetServerDiskUseResponse
+	(*ServerDiskUse)(nil),                  // 20: dockwell.v1.ServerDiskUse
+	(*SetServerPublicAddressRequest)(nil),  // 21: dockwell.v1.SetServerPublicAddressRequest
+	(*SetServerPublicAddressResponse)(nil), // 22: dockwell.v1.SetServerPublicAddressResponse
+	(*WatchServersRequest)(nil),            // 23: dockwell.v1.WatchServersRequest
+	(*WatchServersResponse)(nil),           // 24: dockwell.v1.WatchServersResponse
+	(*Server)(nil),                         // 25: dockwell.v1.Server
+	(*ServerNetwork)(nil),                  // 26: dockwell.v1.ServerNetwork
+	(*PublicAddress)(nil),                  // 27: dockwell.v1.PublicAddress
+	(*ServerInventory)(nil),                // 28: dockwell.v1.ServerInventory
+	(*Disk)(nil),                           // 29: dockwell.v1.Disk
+	(*ServerStats)(nil),                    // 30: dockwell.v1.ServerStats
+	(*DiskUsage)(nil),                      // 31: dockwell.v1.DiskUsage
+	(*timestamppb.Timestamp)(nil),          // 32: google.protobuf.Timestamp
+	(*BuildInfo)(nil),                      // 33: dockwell.v1.BuildInfo
+	(*IngressStatus)(nil),                  // 34: dockwell.v1.IngressStatus
+	(*Actor)(nil),                          // 35: dockwell.v1.Actor
+	(*durationpb.Duration)(nil),            // 36: google.protobuf.Duration
 }
 var file_dockwell_v1_server_proto_depIdxs = []int32{
-	16, // 0: dockwell.v1.ListServersResponse.servers:type_name -> dockwell.v1.Server
-	16, // 1: dockwell.v1.GetServerResponse.server:type_name -> dockwell.v1.Server
-	11, // 2: dockwell.v1.GetServerDiskUseResponse.disk_use:type_name -> dockwell.v1.ServerDiskUse
-	23, // 3: dockwell.v1.ServerDiskUse.time:type_name -> google.protobuf.Timestamp
-	16, // 4: dockwell.v1.SetServerPublicAddressResponse.server:type_name -> dockwell.v1.Server
-	16, // 5: dockwell.v1.WatchServersResponse.server:type_name -> dockwell.v1.Server
-	23, // 6: dockwell.v1.Server.create_time:type_name -> google.protobuf.Timestamp
-	0,  // 7: dockwell.v1.Server.connection:type_name -> dockwell.v1.Connection
-	23, // 8: dockwell.v1.Server.last_seen_time:type_name -> google.protobuf.Timestamp
-	19, // 9: dockwell.v1.Server.inventory:type_name -> dockwell.v1.ServerInventory
-	21, // 10: dockwell.v1.Server.stats:type_name -> dockwell.v1.ServerStats
-	21, // 11: dockwell.v1.Server.history:type_name -> dockwell.v1.ServerStats
-	24, // 12: dockwell.v1.Server.agent_build:type_name -> dockwell.v1.BuildInfo
-	23, // 13: dockwell.v1.Server.connect_time:type_name -> google.protobuf.Timestamp
-	25, // 14: dockwell.v1.Server.ingress:type_name -> dockwell.v1.IngressStatus
-	23, // 15: dockwell.v1.Server.docker_unreadable_since:type_name -> google.protobuf.Timestamp
-	17, // 16: dockwell.v1.Server.network:type_name -> dockwell.v1.ServerNetwork
-	18, // 17: dockwell.v1.ServerNetwork.ipv4:type_name -> dockwell.v1.PublicAddress
-	18, // 18: dockwell.v1.ServerNetwork.ipv6:type_name -> dockwell.v1.PublicAddress
-	3,  // 19: dockwell.v1.ServerNetwork.reachable:type_name -> dockwell.v1.Reachable
-	23, // 20: dockwell.v1.ServerNetwork.reachable_time:type_name -> google.protobuf.Timestamp
-	4,  // 21: dockwell.v1.ServerNetwork.provider:type_name -> dockwell.v1.CloudProvider
-	1,  // 22: dockwell.v1.ServerNetwork.shape:type_name -> dockwell.v1.NetworkShape
-	2,  // 23: dockwell.v1.PublicAddress.source:type_name -> dockwell.v1.PublicAddressSource
-	23, // 24: dockwell.v1.PublicAddress.known_time:type_name -> google.protobuf.Timestamp
-	26, // 25: dockwell.v1.PublicAddress.set_by:type_name -> dockwell.v1.Actor
-	20, // 26: dockwell.v1.ServerInventory.disks:type_name -> dockwell.v1.Disk
-	23, // 27: dockwell.v1.ServerStats.time:type_name -> google.protobuf.Timestamp
-	22, // 28: dockwell.v1.ServerStats.disks:type_name -> dockwell.v1.DiskUsage
-	27, // 29: dockwell.v1.ServerStats.uptime:type_name -> google.protobuf.Duration
-	27, // 30: dockwell.v1.ServerStats.interval:type_name -> google.protobuf.Duration
-	5,  // 31: dockwell.v1.ServerService.ListServers:input_type -> dockwell.v1.ListServersRequest
-	7,  // 32: dockwell.v1.ServerService.GetServer:input_type -> dockwell.v1.GetServerRequest
-	14, // 33: dockwell.v1.ServerService.WatchServers:input_type -> dockwell.v1.WatchServersRequest
-	9,  // 34: dockwell.v1.ServerService.GetServerDiskUse:input_type -> dockwell.v1.GetServerDiskUseRequest
-	12, // 35: dockwell.v1.ServerService.SetServerPublicAddress:input_type -> dockwell.v1.SetServerPublicAddressRequest
-	6,  // 36: dockwell.v1.ServerService.ListServers:output_type -> dockwell.v1.ListServersResponse
-	8,  // 37: dockwell.v1.ServerService.GetServer:output_type -> dockwell.v1.GetServerResponse
-	15, // 38: dockwell.v1.ServerService.WatchServers:output_type -> dockwell.v1.WatchServersResponse
-	10, // 39: dockwell.v1.ServerService.GetServerDiskUse:output_type -> dockwell.v1.GetServerDiskUseResponse
-	13, // 40: dockwell.v1.ServerService.SetServerPublicAddress:output_type -> dockwell.v1.SetServerPublicAddressResponse
-	36, // [36:41] is the sub-list for method output_type
-	31, // [31:36] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	12, // 0: dockwell.v1.CreateJoinTicketResponse.ticket:type_name -> dockwell.v1.JoinTicket
+	12, // 1: dockwell.v1.GetJoinTicketResponse.ticket:type_name -> dockwell.v1.JoinTicket
+	0,  // 2: dockwell.v1.JoinTicket.state:type_name -> dockwell.v1.JoinTicketState
+	32, // 3: dockwell.v1.JoinTicket.expire_time:type_name -> google.protobuf.Timestamp
+	13, // 4: dockwell.v1.JoinTicket.addresses:type_name -> dockwell.v1.JoinAddress
+	1,  // 5: dockwell.v1.JoinAddress.reach:type_name -> dockwell.v1.JoinReach
+	25, // 6: dockwell.v1.ListServersResponse.servers:type_name -> dockwell.v1.Server
+	25, // 7: dockwell.v1.GetServerResponse.server:type_name -> dockwell.v1.Server
+	20, // 8: dockwell.v1.GetServerDiskUseResponse.disk_use:type_name -> dockwell.v1.ServerDiskUse
+	32, // 9: dockwell.v1.ServerDiskUse.time:type_name -> google.protobuf.Timestamp
+	25, // 10: dockwell.v1.SetServerPublicAddressResponse.server:type_name -> dockwell.v1.Server
+	25, // 11: dockwell.v1.WatchServersResponse.server:type_name -> dockwell.v1.Server
+	32, // 12: dockwell.v1.Server.create_time:type_name -> google.protobuf.Timestamp
+	2,  // 13: dockwell.v1.Server.connection:type_name -> dockwell.v1.Connection
+	32, // 14: dockwell.v1.Server.last_seen_time:type_name -> google.protobuf.Timestamp
+	28, // 15: dockwell.v1.Server.inventory:type_name -> dockwell.v1.ServerInventory
+	30, // 16: dockwell.v1.Server.stats:type_name -> dockwell.v1.ServerStats
+	30, // 17: dockwell.v1.Server.history:type_name -> dockwell.v1.ServerStats
+	33, // 18: dockwell.v1.Server.agent_build:type_name -> dockwell.v1.BuildInfo
+	32, // 19: dockwell.v1.Server.connect_time:type_name -> google.protobuf.Timestamp
+	34, // 20: dockwell.v1.Server.ingress:type_name -> dockwell.v1.IngressStatus
+	32, // 21: dockwell.v1.Server.docker_unreadable_since:type_name -> google.protobuf.Timestamp
+	26, // 22: dockwell.v1.Server.network:type_name -> dockwell.v1.ServerNetwork
+	32, // 23: dockwell.v1.Server.strained_since:type_name -> google.protobuf.Timestamp
+	3,  // 24: dockwell.v1.Server.strain:type_name -> dockwell.v1.ServerStrain
+	27, // 25: dockwell.v1.ServerNetwork.ipv4:type_name -> dockwell.v1.PublicAddress
+	27, // 26: dockwell.v1.ServerNetwork.ipv6:type_name -> dockwell.v1.PublicAddress
+	6,  // 27: dockwell.v1.ServerNetwork.reachable:type_name -> dockwell.v1.Reachable
+	32, // 28: dockwell.v1.ServerNetwork.reachable_time:type_name -> google.protobuf.Timestamp
+	7,  // 29: dockwell.v1.ServerNetwork.provider:type_name -> dockwell.v1.CloudProvider
+	4,  // 30: dockwell.v1.ServerNetwork.shape:type_name -> dockwell.v1.NetworkShape
+	5,  // 31: dockwell.v1.PublicAddress.source:type_name -> dockwell.v1.PublicAddressSource
+	32, // 32: dockwell.v1.PublicAddress.known_time:type_name -> google.protobuf.Timestamp
+	35, // 33: dockwell.v1.PublicAddress.set_by:type_name -> dockwell.v1.Actor
+	29, // 34: dockwell.v1.ServerInventory.disks:type_name -> dockwell.v1.Disk
+	32, // 35: dockwell.v1.ServerStats.time:type_name -> google.protobuf.Timestamp
+	31, // 36: dockwell.v1.ServerStats.disks:type_name -> dockwell.v1.DiskUsage
+	36, // 37: dockwell.v1.ServerStats.uptime:type_name -> google.protobuf.Duration
+	36, // 38: dockwell.v1.ServerStats.interval:type_name -> google.protobuf.Duration
+	14, // 39: dockwell.v1.ServerService.ListServers:input_type -> dockwell.v1.ListServersRequest
+	16, // 40: dockwell.v1.ServerService.GetServer:input_type -> dockwell.v1.GetServerRequest
+	23, // 41: dockwell.v1.ServerService.WatchServers:input_type -> dockwell.v1.WatchServersRequest
+	18, // 42: dockwell.v1.ServerService.GetServerDiskUse:input_type -> dockwell.v1.GetServerDiskUseRequest
+	21, // 43: dockwell.v1.ServerService.SetServerPublicAddress:input_type -> dockwell.v1.SetServerPublicAddressRequest
+	8,  // 44: dockwell.v1.ServerService.CreateJoinTicket:input_type -> dockwell.v1.CreateJoinTicketRequest
+	10, // 45: dockwell.v1.ServerService.GetJoinTicket:input_type -> dockwell.v1.GetJoinTicketRequest
+	15, // 46: dockwell.v1.ServerService.ListServers:output_type -> dockwell.v1.ListServersResponse
+	17, // 47: dockwell.v1.ServerService.GetServer:output_type -> dockwell.v1.GetServerResponse
+	24, // 48: dockwell.v1.ServerService.WatchServers:output_type -> dockwell.v1.WatchServersResponse
+	19, // 49: dockwell.v1.ServerService.GetServerDiskUse:output_type -> dockwell.v1.GetServerDiskUseResponse
+	22, // 50: dockwell.v1.ServerService.SetServerPublicAddress:output_type -> dockwell.v1.SetServerPublicAddressResponse
+	9,  // 51: dockwell.v1.ServerService.CreateJoinTicket:output_type -> dockwell.v1.CreateJoinTicketResponse
+	11, // 52: dockwell.v1.ServerService.GetJoinTicket:output_type -> dockwell.v1.GetJoinTicketResponse
+	46, // [46:53] is the sub-list for method output_type
+	39, // [39:46] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_server_proto_init() }
@@ -2177,8 +2795,8 @@ func file_dockwell_v1_server_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_server_proto_rawDesc), len(file_dockwell_v1_server_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   18,
+			NumEnums:      8,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

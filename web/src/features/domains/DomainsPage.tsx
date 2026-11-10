@@ -588,7 +588,8 @@ function DnsCell({ domain, read }: { domain: Domain; read: DomainRead }) {
   if (read !== "read") return <span aria-hidden="true">–</span>;
   return (
     <span className="dw-cell">
-      <StatusBadge status={word.status} label={word.word} labelIsState className="apps-status" title={word.word} />
+      {/* Its longest word fits the column by a pixel or two, so it wraps where a font or a language runs wider. */}
+      <StatusBadge status={word.status} label={word.word} labelIsState className="domains-dns-word" />
       {word.found ? (
         <code className="dw-cell-sub domains-dns-found" title={word.found}>
           {word.found}
@@ -757,6 +758,9 @@ function PhoneRow({
 }) {
   const [status, word] = useDomainState(row.domain, row.look, row.silent, read);
   const target = useRouteTarget()(row.route);
+  // Where its DNS leads, as the wide list's column says it, once a server has read it and the list can be believed.
+  const check = dnsOf(row.domain);
+  const dns = useDnsWord()(check);
   const { tone, shape } = STATUS[status];
   const says = fleet || environment?.(row.domain.environmentId);
   const body = (
@@ -769,6 +773,17 @@ function PhoneRow({
         <span className={`${phoneWordClass(tone)} domains-phone-word`}>{word}</span>
         {/* Lines of their own, as what it reaches is half of what a row is for, and a clipped name says neither. */}
         <span className="domains-phone-target">{target}</span>
+        {check && read === "read" && row.first ? (
+          <span className="domains-phone-dns">
+            {dns.word}
+            {dns.found ? (
+              <>
+                {" · "}
+                <code>{dns.found}</code>
+              </>
+            ) : null}
+          </span>
+        ) : null}
         {says ? (
           <span className="domains-where">
             <Where row={row} fleet={fleet} environment={environment} />

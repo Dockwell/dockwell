@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
-import { ActorKind, Connection, EventKind, type Server } from "@dockwell/api";
+import { ActorKind, Connection, EventKind, type Server, ServerStrain } from "@dockwell/api";
 import { Button, Icon, Metric, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
 
-import { formatBytes, formatFixed, formatLiveBytesOf } from "../../lib/format";
+import { formatBytes, formatClock, formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { EventTimeline } from "../activity/ActivityPage";
@@ -16,9 +16,11 @@ import { HealthBadge } from "../apps/Health";
 import { useHealth } from "../apps/health";
 import { useServices } from "../apps/useServices";
 import { shortVersion } from "../shell/version";
+import { CopyButton } from "../system/CopyCommand";
+import { serviceCommands } from "./commands";
 import { trend } from "./history";
 import { providerName, publicAddressOf } from "./network";
-import { isPrivateAddress, serverStatus } from "./server";
+import { HIGH_USE as HIGH, isPrivateAddress, serverStatus } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 
 /** How many of a server's events the inspector shows; its page and Activity have the rest. */
@@ -86,6 +88,7 @@ function unwellSince(server: Server): number | undefined {
   if (server.connection === Connection.CONNECTED && server.dockerUnreadableSince) {
     return timestampMs(server.dockerUnreadableSince);
   }
+  if (server.connection === Connection.CONNECTED && server.strainedSince) return timestampMs(server.strainedSince);
   return undefined;
 }
 
@@ -96,23 +99,37 @@ function Facts({ server, unknown }: { server: Server; unknown: boolean }) {
   const now = useControlPlaneNow(15_000);
   const inv = server.inventory;
   const seen = server.lastSeenTime ? words.ago(timestampDate(server.lastSeenTime), now) : undefined;
-  const why: ReactNode = unknown ? undefined : server.connection === Connection.UNREACHABLE ? (
-    seen ? (
-      <Trans>
-        Its agent last reported {seen}. Check that <code>dockwell run</code> is still running on the server.
-      </Trans>
-    ) : (
-      <Trans>
-        Its agent has disconnected. Check that <code>dockwell run</code> is still running on the server.
-      </Trans>
-    )
-  ) : server.connection === Connection.PENDING ? (
-    <Trans>
-      It joined, but its agent hasn't connected yet. Start it with <code>dockwell run</code> on the server.
-    </Trans>
-  ) : server.dockerUnreadableSince ? (
-    <Trans>Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is.</Trans>
-  ) : undefined;
+  const since = server.strainedSince ? formatClock(timestampDate(server.strainedSince), i18n.locale) : "";
+  const strained =
+    server.connection === Connection.CONNECTED && server.strainedSince
+      ? server.strain === ServerStrain.CPU
+        ? t`CPU above ${HIGH}% since ${since}`
+        : t`Memory above ${HIGH}% since ${since}`
+      : undefined;
+  // Why it isn't well in a line, and the command that sets it right on the server to copy.
+  const commands = serviceCommands(server);
+  const command = (text: string, label: string, copied: string) => (
+    <CopyButton text={text} label={label} copiedLabel={copied} variant="secondary" />
+  );
+  const [why, fix]: [ReactNode, ReactNode] = unknown
+    ? [undefined, undefined]
+    : server.connection === Connection.UNREACHABLE
+      ? [
+          seen ? t`Last heard ${seen}.` : t`Its agent disconnected.`,
+          command(commands.restartAgent, t`Copy the restart command`, t`Restart command copied`),
+        ]
+      : server.connection === Connection.PENDING
+        ? [
+            t`It joined, and its agent hasn't connected yet.`,
+            command(commands.startAgent, t`Copy the start command`, t`Start command copied`),
+          ]
+        : server.dockerUnreadableSince
+          ? [
+              t`Its agent is connected; Docker doesn't answer.`,
+              command(commands.restartDocker, t`Copy the command that restarts Docker`, t`Command copied`),
+            ]
+          : // Why it reads Degraded, as the control plane says once it has lasted, in its own page's words.
+            [strained, undefined];
   const addresses = inv?.addresses ?? [];
   const publicIp = publicAddressOf(server) ?? addresses.find((ip) => !isPrivateAddress(ip));
   const privateIp = addresses.find((ip) => isPrivateAddress(ip) && !ip.includes(":"));
@@ -143,6 +160,7 @@ function Facts({ server, unknown }: { server: Server; unknown: boolean }) {
   return (
     <div className="servers-inspector-section">
       {why ? <p className="servers-inspector-why">{why}</p> : null}
+      {fix ? <div className="servers-inspector-fix">{fix}</div> : null}
       {facts.length > 0 ? (
         <dl className="servers-inspector-facts">
           {facts.map(([term, value]) => (

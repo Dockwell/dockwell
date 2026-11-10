@@ -39,6 +39,7 @@ import { asGoodAsRoot } from "../changes/plan";
 import { useFleetView } from "../servers/useFleet";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
+import { useMay } from "../auth/may";
 
 /** Whether a person gives an input: Dockwell makes one that generates. */
 const asked = (input: Input) => input.generate === 0;
@@ -51,6 +52,8 @@ const asked = (input: Input) => input.generate === 0;
  */
 export function InstallSheet({ id, onClose }: { id: string; onClose: () => void }) {
   const { t, i18n } = useLingui();
+  // Installing makes a project of its own, which is an admin's (ADR 0049): off, with why, for anyone else.
+  const mayInstall = useMay()(CatalogService.method.installCatalogEntry);
   const phone = useMediaQuery(PHONE_QUERY);
   const transport = useTransport();
   const navigate = useNavigate();
@@ -176,6 +179,7 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
             disabled={!ready}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void submit()}
+            {...mayInstall.off}
           >
             <Trans>Review plan</Trans>
           </Button>

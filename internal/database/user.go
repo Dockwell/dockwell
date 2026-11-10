@@ -66,15 +66,20 @@ func (*UserDriver) IDPrefix() string { return "dbu" }
 // New returns an empty DatabaseUser.
 func (*UserDriver) New() proto.Message { return &resourcev1.DatabaseUser{} }
 
-// sqlName is a user's or a database's name: what every engine takes without quoting.
-var sqlName = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
+// sqlName is a user's or a database's name: what every engine takes without
+// quoting, and maxSQLName how long one gets. The length is checked apart from the
+// form: a counted repetition, such as {0,31}, compiles to that many copies of what
+// it repeats, which every agent pays for as it starts (ADR 0060).
+var sqlName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+const maxSQLName = 32
 
 // CheckName takes a name PostgreSQL, MySQL and MariaDB all take as it is.
 func (*UserDriver) CheckName(name string) error { return CheckSQLName("user", name) }
 
 // CheckSQLName says whether name is one a user or a database can take.
 func CheckSQLName(what, name string) error {
-	if !sqlName.MatchString(name) {
+	if len(name) > maxSQLName || !sqlName.MatchString(name) {
 		return fmt.Errorf("%q isn't a valid %s name: use up to 32 lowercase letters, digits and underscores, starting with a letter, such as shop", name, what)
 	}
 	return nil
