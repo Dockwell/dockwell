@@ -6523,8 +6523,14 @@ msgstr "无法加载域名"
 msgid "Can't read your apps"
 msgstr "无法读取你的应用"
 
+msgid "Certificates"
+msgstr "证书"
+
 msgid "Clear the filters"
 msgstr "清除筛选"
+
+msgid "DNS"
+msgstr "DNS"
 
 msgid "Domains"
 msgstr "域名"
@@ -6541,8 +6547,14 @@ msgstr "这里没有符合所选条件的域名。请试试名称的一部分，
 msgid "No domains yet"
 msgstr "还没有域名"
 
+msgid "Renewed automatically"
+msgstr "自动续期"
+
 msgid "Routes to"
 msgstr "路由到"
+
+msgid "Runs out first"
+msgstr "最先到期"
 
 msgid "Send a domain to one of your apps. You review a plan before anything changes."
 msgstr "把域名指向你的某个应用。任何改动生效前，你都会先审阅计划。"
@@ -6570,6 +6582,27 @@ msgstr "你的域名所提供的服务不受影响。"
 
 msgid "{count, plural, one {# domain} other {# domains}}"
 msgstr "{count, plural, other {# 个域名}}"
+
+msgid "{days, plural, one {in # day} other {in # days}}"
+msgstr "{days, plural, other {# 天后}}"
+
+msgid "Can't tell where it points"
+msgstr "无法判断指向哪里"
+
+msgid "No record yet"
+msgstr "还没有记录"
+
+msgid "Not read yet"
+msgstr "尚未读取"
+
+msgid "Points elsewhere"
+msgstr "指向别处"
+
+msgid "Points here"
+msgstr "指向此服务器"
+
+msgid "Proxied by Cloudflare"
+msgstr "由 Cloudflare 代理"
 
 msgid "Bring them back"
 msgstr "恢复这些更改"

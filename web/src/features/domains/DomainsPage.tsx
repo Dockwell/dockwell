@@ -56,6 +56,7 @@ import "../apps/Apps.css";
 import "./Domains.css";
 import { phoneWordClass } from "../apps/Health";
 import { useServicesWatch } from "../apps/ServicesLive";
+import { dnsOf, useDnsWord } from "./dns";
 
 /** The list's place, in its URL: its filters. */
 export interface DomainsSearch {
@@ -415,7 +416,15 @@ export function DomainsPage({
             <Trans>Until then, a domain doesn't lead to its app, and you can't add one here.</Trans>
           </Callout>
         ) : null}
-        {body}
+        {/* Every domain's, whatever the filters show, so it stays put while someone types. */}
+        {phone || count === 0 || read !== "read" ? (
+          body
+        ) : (
+          <div className="domains-layout">
+            <div className="domains-main">{body}</div>
+            <Certificates standings={standings} />
+          </div>
+        )}
       </section>
       {adding ? <AddDomainSheet apps={apps} onClose={() => setAdding(false)} /> : null}
       {moving?.service ? (
@@ -569,6 +578,80 @@ function RowBadge({ row, read }: { row: Row; read: DomainRead }) {
   return <StatusBadge status={status} label={word} labelIsState className="apps-status" title={word} />;
 }
 
+/** What DNS says of a domain, as Domains-List's column has it: whether it leads here, and the addresses it found. */
+function DnsCell({ domain, read }: { domain: Domain; read: DomainRead }) {
+  const word = useDnsWord()(dnsOf(domain));
+  // What it last said may no longer be so, and the status says once that nobody can tell.
+  if (read !== "read") return <span aria-hidden="true">–</span>;
+  return (
+    <span className="dw-cell">
+      <StatusBadge status={word.status} label={word.word} labelIsState className="apps-status" title={word.word} />
+      {word.found ? (
+        <code className="dw-cell-sub domains-dns-found" title={word.found}>
+          {word.found}
+        </code>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * Where the certificates stand, beside the list, as Domains-List has it: how many
+ * serve, how many are on their way or going wrong, and which runs out first. Each
+ * domain counts once, so the numbers add up to the page's count.
+ */
+function Certificates({ standings }: { standings: readonly Standing[] }) {
+  const { t } = useLingui();
+  const looks = standings.map((one) => one.look);
+  const count = (pick: (look: DomainLook) => boolean) => looks.filter(pick).length;
+  const valid = count((l) => l.state === "serving" && !l.noCertificate && !l.warning);
+  const renewing = count((l) => l.state === "serving" && Boolean(l.warning));
+  // A domain no server runs any more waits for nothing: it's among what fails, as the list sorts it.
+  const issuing = count((l) => l.state === "pending" && !l.orphaned);
+  const failed = count((l) => l.state === "failed" || (l.state === "pending" && Boolean(l.orphaned)));
+  const inFront = count((l) => l.state === "serving" && Boolean(l.noCertificate));
+  const away = count((l) => l.state === "stale");
+  const soonest = looks.reduce<number>((first, look, i) => {
+    if (look.state !== "serving" || look.days === undefined) return first;
+    return first >= 0 && (looks[first]?.days ?? 0) <= look.days ? first : i;
+  }, -1);
+  if (looks.length === 0) return null;
+  const facts: [string, ReactNode][] = [];
+  if (soonest >= 0) {
+    const name = standings[soonest]?.domain.name ?? "";
+    const days = looks[soonest]?.days ?? 0;
+    facts.push([
+      t`Runs out first`,
+      <span key="soonest">
+        <code>{name}</code> {plural(days, { one: "in # day", other: "in # days" })}
+      </span>,
+    ]);
+  }
+  facts.push([t`Valid`, String(valid)]);
+  if (renewing > 0) facts.push([t`Renewal failing`, String(renewing)]);
+  if (issuing > 0) facts.push([t`Issuing`, String(issuing)]);
+  if (failed > 0) facts.push([t`Failed`, String(failed)]);
+  if (inFront > 0) facts.push([t`TLS ends in front`, String(inFront)]);
+  if (away > 0) facts.push([t`Not connected`, String(away)]);
+  return (
+    <Panel
+      className="domains-certificates"
+      title={t`Certificates`}
+      actions={<span className="domains-certificates-meta">{t`Renewed automatically`}</span>}
+    >
+      <dl className="domains-facts">
+        {facts.map(([term, value], i) => (
+          // The name that runs out first can be long, so it has the panel's whole width under its term.
+          <div key={term} className={soonest >= 0 && i === 0 ? "is-wide" : undefined}>
+            <dt>{term}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </Panel>
+  );
+}
+
 function DomainsTable({
   rows,
   read,
@@ -603,10 +686,12 @@ function DomainsTable({
       {
         key: "reaches",
         header: t`Routes to`,
-        width: "28%",
+        // Narrower than it was alone, as the DNS column and the panel beside the list take room the name needs.
+        width: "22%",
         render: (row) => <Reaches row={row} fleet={fleet} environment={environment} />,
       },
-      { key: "status", header: t`Status`, width: 176, render: (row) => <RowBadge row={row} read={read} /> },
+      { key: "dns", header: t`DNS`, width: 184, render: (row) => <DnsCell domain={row.domain} read={read} /> },
+      { key: "status", header: t`Status`, width: 168, render: (row) => <RowBadge row={row} read={read} /> },
     ],
     [t, read, fleet, environment, onMoveBehind],
   );
