@@ -376,6 +376,10 @@ describe("Overview with a fleet", () => {
     expect(screen.queryByText("Servers serving")).toBeNull();
     expect(screen.getByRole("button", { name: "hz-2, Healthy, CPU 70%" })).toBeVisible();
     expect(screen.queryByText("Hover or focus a server to inspect it.")).toBeNull();
+    // What changed sits under its own heading, with no panel round it.
+    const changes = screen.getByRole("region", { name: "Recent changes" });
+    expect(changes).not.toHaveClass("dw-panel");
+    expect(within(changes).getByRole("heading", { level: 2, name: "Recent changes" })).toBeVisible();
   });
 
   it("reads every server as Unknown once what the fleet last said can't stand", async () => {
@@ -429,7 +433,7 @@ describe("the server list page", () => {
     const watch = feed<WatchServersResponse>();
     watch.push(changed(hz1), changed(aServer({ id: "srv_2", name: "hz-2", stats: sample(8) })), snapshotComplete);
     renderAt("/servers", { servers: { watchServers: watch.stream } });
-    await screen.findByRole("link", { name: "hz-2" });
+    await screen.findByRole("button", { name: "hz-2, Healthy, CPU 8%" });
     expect(screen.getByText("2 servers", { selector: ".page-lead" })).toBeVisible();
   });
 
@@ -441,7 +445,7 @@ describe("the server list page", () => {
     const watch = feed<WatchServersResponse>();
     watch.push(changed(hz1), changed(aServer({ id: "srv_2", name: "hz-2", stats: sample(8) })), snapshotComplete);
     renderAt("/servers", { servers: { watchServers: watch.stream } });
-    await screen.findByRole("link", { name: "hz-2" });
+    await screen.findByRole("button", { name: /^hz-2, / });
 
     act(() => watch.fail(new ConnectError("the watch fell behind", Code.Unavailable)));
 

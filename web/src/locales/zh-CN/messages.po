@@ -7666,17 +7666,11 @@ msgstr "{name} 没有上报数据"
 msgid "Across {cpus} vCPU"
 msgstr "{cpus} 个 vCPU 合计"
 
-msgid "Can't read Docker"
-msgstr "无法读取 Docker"
-
 msgid "Every server is reporting"
 msgstr "每台服务器都在上报数据"
 
 msgid "Fleet"
 msgstr "集群"
-
-msgid "Last reported {seen}"
-msgstr "最后上报于 {seen}"
 
 msgid "No server is reporting"
 msgstr "没有服务器在上报数据"
@@ -7686,9 +7680,6 @@ msgstr "在线服务器"
 
 msgid "View all"
 msgstr "查看全部"
-
-msgid "Waiting for its agent"
-msgstr "等待代理连接"
 
 msgid "agent {version} everywhere"
 msgstr "代理均为 {version}"
@@ -7776,6 +7767,48 @@ msgstr "还没有任何变更。你做的每项变更都会显示在这里。"
 
 msgid "Recent changes"
 msgstr "最近的变更"
+
+msgid "Add a server"
+msgstr "添加服务器"
+
+msgid "Connect a new server with a ticket from the control server."
+msgstr "使用控制服务器提供的票据连接新服务器。"
+
+msgid "It shows on Servers as soon as its agent connects. Your apps stay where they are: an app moves only when you apply a plan for it."
+msgstr "它的代理一连接，它就会出现在“服务器”页面。你的应用保持原位：只有在你为某个应用应用计划时，它才会迁移。"
+
+msgid "Join and start the agent"
+msgstr "加入并启动代理"
+
+msgid "Make a ticket on the control server"
+msgstr "在控制服务器上生成票据"
+
+msgid "Make a ticket on {name}"
+msgstr "在 {name} 上生成票据"
+
+msgid "On any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the control plane's version of the agent, joins, and starts."
+msgstr "在任意 Linux 服务器上运行：其他云服务商、家庭实验室或虚拟机都可以。把 <0><ticket></0> 换成票据。它会安装与控制平面相同版本的代理、加入并启动。"
+
+msgid "On the new server, put the ticket in place of <0><ticket></0>. Run both commands as the same user, with <1>sudo</1> for both when using the system service. Keep <2>dockwell run</2> running, or configure it as a service."
+msgstr "在新服务器上，把 <0><ticket></0> 换成票据。以同一用户身份运行这两条命令；使用系统服务时，两条命令都要加上 <1>sudo</1>。保持 <2>dockwell run</2> 运行，或将它配置为服务。"
+
+msgid "Over SSH, as the user that runs Dockwell, with <0>sudo</0> in front when it runs as the system service. The ticket works once, for an hour."
+msgstr "通过 SSH，以运行 Dockwell 的用户身份执行；Dockwell 作为系统服务运行时，在前面加上 <0>sudo</0>。票据只能使用一次，有效期一小时。"
+
+msgid "Reading the control server's installation details."
+msgstr "正在读取控制服务器的安装信息。"
+
+msgid "Run one command on the new server"
+msgstr "在新服务器上运行一条命令"
+
+msgid "The control server's installation details are unavailable. Install an agent that matches its version as <0>dockwell</0> before joining."
+msgstr "无法获取控制服务器的安装信息。加入前，请先安装与其版本一致的代理，并将其命名为 <0>dockwell</0>。"
+
+msgid "This control server runs a development build with no release installer. Build the agent from the same source revision for the new server's architecture and install it as <0>dockwell</0>."
+msgstr "这台控制服务器运行的是开发构建，没有对应的发行版安装程序。请使用相同修订版本的源代码，为新服务器的架构构建代理，并将其安装为 <0>dockwell</0>。"
+
+msgid "Watch it appear"
+msgstr "等待它出现"
 
 msgid "Back to the server"
 msgstr "返回服务器"
@@ -8075,6 +8108,9 @@ msgstr "请在服务器上用 <0>dockwell run</0> 启动它。"
 msgid "Up {uptime}"
 msgstr "已运行 {uptime}"
 
+msgid "Waiting for its agent"
+msgstr "等待代理连接"
+
 #. placeholder {0}: here.length
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, other {# 个应用}}"
@@ -8328,6 +8364,27 @@ msgstr "服务器 {0}"
 msgid "Updates"
 msgstr "更新"
 
+msgid "Control server"
+msgstr "控制服务器"
+
+msgid "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is."
+msgstr "它的代理已连接，但 Docker 没有响应，所以无法得知上面运行的内容状况如何。"
+
+msgid "Its agent last reported {seen}. Check that <0>dockwell run</0> is still running on the server."
+msgstr "它的代理最后一次上报于 {seen}。请检查该服务器上的 <0>dockwell run</0> 是否仍在运行。"
+
+msgid "Last {span}"
+msgstr "最近 {span}"
+
+msgid "No apps run here."
+msgstr "这里没有运行任何应用。"
+
+msgid "Open {name}"
+msgstr "打开 {name}"
+
+msgid "Provider"
+msgstr "云服务商"
+
 msgid "1, 5 and 15 min"
 msgstr "1、5 和 15 分钟"
 
@@ -8360,6 +8417,9 @@ msgstr "接收 {rx} · 发送 {tx}"
 
 msgid "Addresses"
 msgstr "地址"
+
+msgid "Can't read Docker"
+msgstr "无法读取 Docker"
 
 msgid "Connected"
 msgstr "已连接"
@@ -8461,8 +8521,47 @@ msgstr "{size} · 未使用"
 msgid "{size} · {inUse} in use"
 msgstr "{size} · 已用 {inUse}"
 
-msgid "Control server"
-msgstr "控制服务器"
+msgid "Add one with a ticket from the control server."
+msgstr "用控制服务器生成的票据添加一台。"
+
+msgid "Add server"
+msgstr "添加服务器"
+
+msgid "CPU {cpu}%"
+msgstr "CPU {cpu}%"
+
+msgid "Chosen server"
+msgstr "选中的服务器"
+
+msgid "Every server"
+msgstr "所有服务器"
+
+msgid "Needs attention"
+msgstr "需要关注"
+
+msgid "Open"
+msgstr "打开"
+
+msgid "Runs"
+msgstr "运行"
+
+msgid "Server list"
+msgstr "服务器列表"
+
+msgid "Servers at a glance"
+msgstr "服务器一览"
+
+msgid "Servers, sorted by name"
+msgstr "服务器，按名称排序"
+
+msgid "Show all {count}"
+msgstr "显示全部 {count} 台"
+
+msgid "Showing {shown} of {count} · sorted by name"
+msgstr "显示 {count} 台中的 {shown} 台 · 按名称排序"
+
+msgid "sorted by name"
+msgstr "按名称排序"
 
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "还没有服务器。在这台服务器上运行 <0>dockwell token create</0> 来添加一台。"
@@ -8589,6 +8688,9 @@ msgstr "{provider} 的元数据服务给出此地址，{when}"
 
 msgid "up {uptime}"
 msgstr "已运行 {uptime}"
+
+msgid "Last reported {seen}"
+msgstr "最后上报于 {seen}"
 
 msgid "1 event in the last 24 hours."
 msgstr "最近 24 小时内有 1 个事件。"
@@ -9567,9 +9669,6 @@ msgstr "打开网站"
 
 msgid "Open your profile and security settings"
 msgstr "打开你的个人资料和安全设置"
-
-msgid "Open {name}"
-msgstr "打开 {name}"
 
 msgid "Opens a plan"
 msgstr "会打开计划"
