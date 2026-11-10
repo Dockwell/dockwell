@@ -433,8 +433,21 @@
 }
 
 .alerts-phone-delivery + .alerts-phone-delivery,
-.alerts-phone-item + .alerts-phone-item {
+.alerts-phone-item + .alerts-phone-item,
+.alerts-phone-row + .alerts-phone-row {
   border-top: 1px solid var(--line);
+}
+
+/* A rule on a phone opens it: the whole row is the button. */
+.alerts-phone-button {
+  width: 100%;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
 }
 
 /* An alert or a rule on a phone: what it says, then its state beside what names it. */

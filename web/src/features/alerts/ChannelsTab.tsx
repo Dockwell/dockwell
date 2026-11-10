@@ -101,6 +101,8 @@ export function ChannelsTab() {
   const test = useSendTest();
   const [editing, setEditing] = useState<AlertChannelInfo | "new">();
   const list = channels.data?.channels ?? [];
+  // The rules on, which send to every channel once there is one.
+  const waiting = (useRules().data?.rules ?? []).filter((r) => !r.spec?.disabled).length;
 
   const add = (
     <Button variant="primary" icon="plus" onClick={() => setEditing("new")}>
@@ -183,10 +185,12 @@ export function ChannelsTab() {
   } else if (list.length === 0) {
     body = (
       <EmptyState icon="bell" title={t`Nowhere to send alerts yet`} action={add}>
-        <Trans>
-          Dockwell watches your servers and apps from the first start, and puts what it finds on Activity. Add a
-          channel, such as email, Slack or ntfy on your phone, and every rule sends to it.
-        </Trans>
+        {waiting > 0
+          ? plural(waiting, {
+              one: "# rule sends to it once there's one.",
+              other: "# rules send to it once there's one.",
+            })
+          : null}
       </EmptyState>
     );
   } else {
