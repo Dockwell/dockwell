@@ -73,16 +73,13 @@ export function TotpPanel() {
         {on && state ? (
           <p>
             <Trans>
-              Sign in with a 6-digit code when your passkey isn't at hand. {state.recoveryCodesLeft} of 10 recovery
-              codes are left.
+              A 6-digit code signs you in when your passkey isn't at hand. {state.recoveryCodesLeft} of 10 recovery
+              codes left.
             </Trans>
           </p>
         ) : (
           <p>
-            <Trans>
-              Sign in with a 6-digit code when your passkey isn't at hand. Codes work at every address, so they also get
-              you in after the panel moves to a new domain.
-            </Trans>
+            <Trans>A 6-digit code signs you in when your passkey isn't at hand, at any of the panel's addresses.</Trans>
           </p>
         )}
         {problem ? (
@@ -329,10 +326,7 @@ function RegenerateSheet({ open, left, onClose }: { open: boolean; left: number;
         <RecoveryCodes codes={codes} />
       ) : (
         <p className="totp-text">
-          <Trans>
-            Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones
-            only once.
-          </Trans>
+          <Trans>Ten new codes replace your {left}, which stop working at once.</Trans>
         </p>
       )}
       {problem ? (
@@ -351,8 +345,7 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
     <div className="totp-codes">
       <p className="totp-text">
         <Trans>
-          Each code signs you in once, with your email, if you lose your authenticator app. They're shown only now. Keep
-          them somewhere safe, apart from your phone.
+          Each signs you in once if you lose your authenticator app. Shown only now: keep them apart from your phone.
         </Trans>
       </p>
       <ul className="totp-code-list" aria-label={t`Recovery codes`}>

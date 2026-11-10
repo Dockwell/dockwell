@@ -175,10 +175,7 @@ function TakeItOn({
     <Panel title={t`Take it on`}>
       <div className="container-take-on">
         <p>
-          <Trans>
-            Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its
-            volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it.
-          </Trans>
+          <Trans>Taking it on doesn't restart it or touch its volumes; its environment comes in sealed.</Trans>
         </p>
         {joins ? (
           <p>

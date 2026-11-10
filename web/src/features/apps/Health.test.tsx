@@ -383,14 +383,14 @@ describe("what the fleet last said stands by its age too", () => {
     expect(top.querySelector(".dw-status")).toHaveAttribute(
       "title",
       expect.stringMatching(
-        /^The panel can't reach the control plane, so it can't say how your servers are\. It last heard .* ago, and keeps trying\.$/,
+        /^The panel can't reach the control plane, so your servers are shown as of .* ago\. It keeps trying\.$/,
       ),
     );
     const agent = screen.getByRole("region", { name: "Agent" });
     expect(agent).toHaveTextContent("Unknown");
     expect(agent.querySelector(".dw-tone-healthy")).toBeNull();
     expect(page.container.querySelector(".fleet-unread")).toHaveTextContent(
-      /The panel can't reach the control plane, so it can't say how this server is\. It last heard .* ago, and keeps trying\./,
+      /The panel can't reach the control plane, so this server is shown as of .* ago\. It keeps trying\./,
     );
     // The watch that heard nothing made way for others, which wait as it did, and it says so all the while.
     await vi.advanceTimersByTimeAsync(5_000);
@@ -416,11 +416,13 @@ describe("what the fleet last said stands by its age too", () => {
     await waitFor(() => expect(top).toHaveTextContent("Unknown"));
     expect(top.querySelector(".dw-status")).toHaveAttribute(
       "title",
-      expect.stringMatching(/^This browser is offline, so the panel can't say how your servers are\./),
+      expect.stringMatching(
+        /^This browser is offline, so your servers are shown as of .* ago\. Check your connection\.$/,
+      ),
     );
     // The overview of the one server says so, in place of what it last said of it.
     expect(page.container.querySelector(".fleet-unread")).toHaveTextContent(
-      /This browser is offline, so the panel can't say how this server is\./,
+      /This browser is offline, so this server is shown as of .* ago\. Check your connection\./,
     );
   });
 

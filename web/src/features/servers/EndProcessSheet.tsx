@@ -119,8 +119,7 @@ export function EndProcessSheet({
           <>
             <p>
               <Trans>
-                It gets SIGTERM, to end as it would on shutdown, and SIGKILL if it's still running 10 s later. What it
-                hasn't saved is lost, and this can't be undone.
+                It gets SIGTERM, then SIGKILL 10 s later if it's still running. Unsaved work is lost for good.
               </Trans>
             </p>
             {process.stops === "containers" ? (
@@ -177,15 +176,14 @@ function AgainInContainer({ process, where, children }: { process: Process; wher
     case "on-failure":
       return (
         <Trans>
-          It's the main process of {where}, which stops with it. Docker starts it again only if it ends with an error,
-          and a process that takes SIGTERM can end without one.
+          It's the main process of {where}, which stops with it and may stay stopped: Docker restarts it only after an
+          error.
         </Trans>
       );
     case "no":
       return (
         <Trans>
-          It's the main process of {where}, which stops with it, and Docker doesn't start it again, as its restart
-          policy is no.
+          It's the main process of {where}, which stops with it and stays stopped: its restart policy is no.
         </Trans>
       );
     default:

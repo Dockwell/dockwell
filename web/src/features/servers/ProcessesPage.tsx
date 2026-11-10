@@ -87,7 +87,7 @@ function Processes({ server }: { server: Server }) {
   if (!connected) {
     body = (
       <p className="procs-note" role="status">
-        {t`The agent on ${server.name} isn't connected, so what runs there can't be read now. This page reads again when it reconnects.`}
+        {t`The agent on ${server.name} isn't connected; this reads again once it reconnects.`}
       </p>
     );
   } else if (!list) {

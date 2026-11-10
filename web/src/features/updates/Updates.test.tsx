@@ -295,7 +295,7 @@ describe("UpdatesPage", () => {
       }),
     );
     const why = await callout("hz-1's agent doesn't read updates yet");
-    expect(why).toHaveTextContent("Update it by running the install script on hz-1 again, which keeps what runs:");
+    expect(why).toHaveTextContent("Run the install script on hz-1 again; what runs keeps running:");
     expect(why).toHaveTextContent(
       "curl -fsSL https://github.com/Dockwell/dockwell/releases/download/v0.9.4/install.sh | sudo sh -s -- --version 0.9.4",
     );
