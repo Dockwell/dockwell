@@ -100,21 +100,31 @@ func TestALongInstallSaysItStillRunsAndWhereItGoesOn(t *testing.T) {
 	}
 	write(t, s.root, "hold", "", 0o644)
 	var said []string
-	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
-	defer cancel()
-	err := in.Install(ctx, "chg_1", planned, func(l string) {
+	saidStill := func() bool {
 		mu.Lock()
-		said = append(said, l)
-		mu.Unlock()
-	})
-	if err == nil || !strings.Contains(err.Error(), "goes on in its own unit") {
-		t.Fatalf("an install past its call's deadline = %v", err)
+		defer mu.Unlock()
+		return slices.ContainsFunc(said, func(l string) bool { return strings.HasPrefix(l, "Still installing after 30 min") })
 	}
-	mu.Lock()
-	still := slices.ContainsFunc(said, func(l string) bool { return strings.HasPrefix(l, "Still installing after 30 min") })
-	mu.Unlock()
-	if !still {
-		t.Errorf("said %v, want that it still runs", said)
+	// Its call ends once it has said it still runs, as its deadline would.
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- in.Install(ctx, "chg_1", planned, func(l string) {
+			mu.Lock()
+			said = append(said, l)
+			mu.Unlock()
+		})
+	}()
+	for deadline := time.Now().Add(30 * time.Second); !saidStill(); time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			mu.Lock()
+			t.Fatalf("said %v, want that it still runs", said)
+		}
+	}
+	cancel()
+	if err := <-done; err == nil || !strings.Contains(err.Error(), "goes on in its own unit") {
+		t.Fatalf("an install whose call ended = %v", err)
 	}
 	if active, _ := u.Active(t.Context(), "dockwell-install-chg_1"); !active {
 		t.Error("the install stopped with its call")
