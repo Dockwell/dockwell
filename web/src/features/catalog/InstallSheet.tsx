@@ -37,7 +37,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { type FormEvent, type ReactNode, useId, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useMemo, useRef, useState } from "react";
 
 import { methodCommand } from "../../lib/cli";
 import { reasonOf, sentence } from "../../lib/errors";
@@ -106,6 +106,9 @@ export function InstallSheet({
   const [changing, setChanging] = useState<ReadonlySet<string>>(new Set());
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The entry picked now, so a plan asked for another one, before the pick changed, is dropped.
+  const picked = useRef(id);
+  picked.current = id;
   const [failure, setFailure] = useState<string>();
   const [nameError, setNameError] = useState<string>();
   const [serversError, setServersError] = useState<string>();
@@ -251,10 +254,13 @@ export function InstallSheet({
       return;
     }
     setBusy(true);
+    const asked = id;
     try {
       const res = await client.installCatalogEntry({ id, project: name, values, servers: [...chosenServers] });
+      if (picked.current !== asked) return;
       review(res.change);
     } catch (err) {
+      if (picked.current !== asked) return;
       if (reasonOf(err) === "project_exists") {
         setNameError(sentence(err));
         change("name");
@@ -340,7 +346,7 @@ export function InstallSheet({
           <>
             <div className="catalog-chosen-list">
               {engines ? (
-                <EnginePicker entries={engines.entries} value={id} onPick={engines.onPick} />
+                <EnginePicker entries={engines.entries} value={id} onPick={engines.onPick} disabled={busy} />
               ) : (
                 <Chosen label={t`Version`} value={entry.version} />
               )}
@@ -481,15 +487,18 @@ function EnginePicker({
   entries,
   value,
   onPick,
+  disabled,
 }: {
   entries: readonly Entry[];
   value: string;
   onPick: (id: string) => void;
+  // While its plan is asked for, the pick stays as it is.
+  disabled?: boolean;
 }) {
   const { t } = useLingui();
   const id = useId();
   return (
-    <fieldset className="catalog-engines" aria-labelledby={id}>
+    <fieldset className="catalog-engines" aria-labelledby={id} disabled={disabled}>
       <span id={id} className="catalog-chosen-label">
         {t`Engine`}
       </span>

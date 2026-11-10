@@ -257,6 +257,33 @@ describe("the databases list", () => {
     await waitFor(() => expect(asked).toEqual([{ id: "mysql", project: "mysql" }]));
   });
 
+  it("keeps the engine as it is while its plan is asked for", async () => {
+    const user = userEvent.setup();
+    let answer: () => void = () => {};
+    renderAt(
+      "/databases",
+      api([aDatabase()], {
+        catalog: {
+          listCatalogEntries: () => ({ entries: [adminer, postgres, mysql] }),
+          getCatalogEntry: catalogEntry,
+          installCatalogEntry: () =>
+            new Promise((_, reject) => {
+              answer = () => reject(new ConnectError("stop here", Code.FailedPrecondition));
+            }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("link", { name: "New database" }));
+    const sheet = await screen.findByRole("dialog", { name: "New database" });
+    const engine = within(sheet).getByRole("group", { name: "Engine" });
+    await within(sheet).findByRole("group", { name: "Name" });
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(within(engine).getByRole("radio", { name: /MySQL/ })).toBeDisabled());
+    answer();
+    await waitFor(() => expect(within(engine).getByRole("radio", { name: /MySQL/ })).toBeEnabled());
+    expect(within(engine).getByRole("radio", { name: /PostgreSQL/ })).toBeChecked();
+  });
+
   it("says what a database is when there's none, and where to get one", async () => {
     const { container } = renderAt("/databases", api([]));
     expect(await screen.findByRole("heading", { level: 2, name: "No databases yet" })).toBeVisible();
