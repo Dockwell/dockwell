@@ -274,6 +274,9 @@ function Files({ server, folder, file, reading }: FilesProps) {
   // Beside an open file, as on a phone, a row's actions are behind one button, so
   // its name keeps its room.
   const oneButton = phone || file !== undefined;
+  // Beside an open file the list is about 530 px wide at 1440, so the columns of facts close up to what they
+  // hold, as Server-Files draws them, and a name keeps twice the room.
+  const tight = file !== undefined;
   const columns = useMemo<TableColumn<Row>[]>(() => {
     const name: TableColumn<Row> = {
       key: "name",
@@ -301,7 +304,7 @@ function Files({ server, folder, file, reading }: FilesProps) {
     const size: TableColumn<Row> = {
       key: "size",
       header: t`Size`,
-      width: 84,
+      width: tight ? 68 : 84,
       align: "right",
       muted: true,
       // What a link's own size says is how long its target is, which no one asks.
@@ -343,22 +346,29 @@ function Files({ server, folder, file, reading }: FilesProps) {
       {
         key: "modified",
         header: t`Modified`,
-        width: 92,
+        width: tight ? 78 : 92,
         muted: true,
         render: (row) => (row.entry.modifyTime ? words.ago(timestampDate(row.entry.modifyTime), now) : "—"),
       },
       {
         key: "mode",
         header: t`Permissions`,
-        width: 116,
+        width: tight ? 100 : 116,
         mono: true,
         muted: true,
         render: (row) => row.entry.mode,
       },
-      { key: "owner", header: t`Owner`, width: 96, mono: true, muted: true, render: (row) => row.entry.owner },
+      {
+        key: "owner",
+        header: t`Owner`,
+        width: tight ? 80 : 96,
+        mono: true,
+        muted: true,
+        render: (row) => row.entry.owner,
+      },
       actions,
     ];
-  }, [phone, oneButton, t, i18n.locale, words, now, serverId, shown]);
+  }, [phone, oneButton, tight, t, i18n.locale, words, now, serverId, shown]);
 
   const go = (search: FilesSearch) => void navigate({ to: "/servers/$serverId/files", params: { serverId }, search });
   /** Where an open file went, as a move or a delete took it. */
