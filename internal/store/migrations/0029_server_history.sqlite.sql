@@ -26,3 +26,6 @@ CREATE TABLE server_history (
   written_peak   BIGINT NOT NULL,
   PRIMARY KEY (server_id, tier, start_at)
 ) WITHOUT ROWID;
+-- By time, for the hourly roll-up and the prune, which read every server's rows
+-- of a tier between two times: one entry a row, kept as the row is written.
+CREATE INDEX server_history_by_time ON server_history (tier, start_at);

@@ -66,9 +66,14 @@ func (r *HistoryRow) values() []any {
 	}
 }
 
+// minutesAStatement is how many rows one statement writes: a minute of a
+// hundred servers in one round trip.
+const minutesAStatement = 100
+
 // AddMinutes writes minute rows, adding to a row of the same server and minute
 // that's there already, as a second control plane that heard the server in that
-// minute writes one too, and keeps each server to HistoryMinutes rows.
+// minute writes one too. Each server is kept to HistoryMinutes rows as its hours
+// are rolled, which leaves at most an hour's more between rolls.
 func (t *Tx) AddMinutes(ctx context.Context, rows []HistoryRow) error {
 	set := make([]string, 0, len(historySums)+len(historyHighs))
 	for _, c := range historySums {
@@ -77,22 +82,18 @@ func (t *Tx) AddMinutes(ctx context.Context, rows []HistoryRow) error {
 	for _, c := range historyHighs {
 		set = append(set, fmt.Sprintf("%s = %s(server_history.%s, excluded.%s)", c, t.dialect.greatest, c, c))
 	}
-	query := `INSERT INTO server_history (` + historyColumns + `) VALUES (` + strings.TrimSuffix(strings.Repeat("?, ", 23), ", ") + `)
-		ON CONFLICT (server_id, tier, start_at) DO UPDATE SET ` + strings.Join(set, ", ")
-	var servers []string
-	for i := range rows {
-		r := rows[i]
-		r.Tier = HistoryMinute
-		if _, err := t.exec(ctx, query, r.values()...); err != nil {
-			return fmt.Errorf("can't write %s's history for %s: %w", r.ServerID, r.Start.Format(time.RFC3339), err)
+	one := "(" + strings.TrimSuffix(strings.Repeat("?, ", 23), ", ") + ")"
+	for batch := range slices.Chunk(rows, minutesAStatement) {
+		values := make([]any, 0, len(batch)*23)
+		for i := range batch {
+			r := batch[i]
+			r.Tier = HistoryMinute
+			values = append(values, r.values()...)
 		}
-		if !slices.Contains(servers, r.ServerID) {
-			servers = append(servers, r.ServerID)
-		}
-	}
-	for _, id := range servers {
-		if err := t.capHistory(ctx, id, HistoryMinute, HistoryMinutes); err != nil {
-			return err
+		query := `INSERT INTO server_history (` + historyColumns + `) VALUES ` + strings.TrimSuffix(strings.Repeat(one+", ", len(batch)), ", ") + `
+			ON CONFLICT (server_id, tier, start_at) DO UPDATE SET ` + strings.Join(set, ", ")
+		if _, err := t.exec(ctx, query, values...); err != nil {
+			return fmt.Errorf("can't write the servers' history for %s: %w", batch[0].Start.Format(time.RFC3339), err)
 		}
 	}
 	return nil
@@ -148,8 +149,13 @@ func (t *Tx) RollHour(ctx context.Context, hour time.Time) error {
 	if err := rows.Close(); err != nil {
 		return fmt.Errorf("can't read whose hours were added up: %w", err)
 	}
+	// Each server's minutes are kept to their cap here too, once an hour, rather
+	// than at every minute's write.
 	for _, id := range servers {
 		if err := t.capHistory(ctx, id, HistoryHour, HistoryHours); err != nil {
+			return err
+		}
+		if err := t.capHistory(ctx, id, HistoryMinute, HistoryMinutes); err != nil {
 			return err
 		}
 	}

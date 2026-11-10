@@ -128,8 +128,15 @@ func TestAServersHistoryIsCappedAndAged(t *testing.T) {
 			rows = append(rows, minuteOf("srv_a", t0.Add(time.Duration(m)*time.Minute), 1000, 1))
 		}
 		write(rows)
-		// A clock that jumped a year ahead writes there too, and the cap keeps the newest.
+		// A clock that jumped a year ahead writes there too, and the cap, kept as its
+		// hour is rolled, keeps the newest; a minute's write alone keeps them all.
 		write([]store.HistoryRow{minuteOf("srv_a", t0.AddDate(1, 0, 0), 1000, 1)})
+		if n := len(historyOf(t, db, "srv_a", store.HistoryMinute, t0.AddDate(-1, 0, 0), t0.AddDate(2, 0, 0))); n != store.HistoryMinutes+11 {
+			t.Fatalf("%d minute rows before the roll-up, want %d", n, store.HistoryMinutes+11)
+		}
+		if err := db.Update(ctx, func(tx *store.Tx) error { return tx.RollHour(ctx, t0.AddDate(1, 0, 0)) }); err != nil {
+			t.Fatal(err)
+		}
 		all := historyOf(t, db, "srv_a", store.HistoryMinute, t0.AddDate(-1, 0, 0), t0.AddDate(2, 0, 0))
 		if len(all) != store.HistoryMinutes {
 			t.Fatalf("%d minute rows, want %d", len(all), store.HistoryMinutes)

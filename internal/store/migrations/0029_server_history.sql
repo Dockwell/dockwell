@@ -9,4 +9,6 @@
 -- At most 1,440 minute rows and 744 hour rows a server. See
 -- docs/adr/0065-a-servers-history-kept-by-the-control-plane.md.
 -- The table is in the dialect files, 0029_server_history.sqlite.sql (WITHOUT
--- ROWID, as its key is all it is read by) and 0029_server_history.postgres.sql.
+-- ROWID, as a server's rows are read by its key) and
+-- 0029_server_history.postgres.sql, each with an index by tier and time for the
+-- roll-up and the prune, which read every server's rows between two times.

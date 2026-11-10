@@ -10,6 +10,7 @@ import (
 	"context"
 	"log/slog"
 	"math"
+	"slices"
 	"sync"
 	"time"
 
@@ -25,6 +26,11 @@ const (
 	gapAfter = 2.5
 	// defaultInterval is a sample's interval from an agent that doesn't say it.
 	defaultInterval = 5 * time.Second
+	// keepEnded is how many ended minutes wait to be written at most, while the
+	// store doesn't answer: an hour's, past which the oldest go.
+	keepEnded = 60
+	// writeWait bounds writing a minute, so a store that hangs holds up no other.
+	writeWait = 45 * time.Second
 )
 
 // Recorder adds up the samples of each server a minute at a time.
@@ -38,12 +44,20 @@ type Recorder struct {
 	Logger *slog.Logger
 
 	mu sync.Mutex
+	// started is when the recorder began to listen: a minute that began before
+	// it wasn't heard whole, so it isn't written (no row, not a quiet one).
+	started time.Time
 	// minute is the start of the minute being added up, and sums what it has.
 	minute time.Time
 	sums   map[string]*store.HistoryRow
 	// ended are minutes that ended with their sums, for Flush to write.
 	ended []ended
 	last  map[string]last
+	// fresh are servers whose agent has just connected: their next sample is the
+	// first of a new collector, which reports no CPU, so it counts for no time.
+	fresh map[string]bool
+	// toRoll are hours whose roll-up failed, tried again with the next.
+	toRoll []time.Time
 }
 
 type ended struct {
@@ -53,9 +67,25 @@ type ended struct {
 
 // last is what the recorder kept of a server's previous sample.
 type last struct {
-	at                       time.Time
+	// at is when it arrived, on the control plane's clock; taken when the agent
+	// read it, on the server's, and how long the server had been up then.
+	at, taken                time.Time
+	uptime                   time.Duration
 	rx, tx, read, written    uint64
 	haveBytes, haveDiskBytes bool
+}
+
+// Connected says a server's agent has just connected, on a new stream: its next
+// sample is the first of a collector that may have just started, which reports
+// no CPU, so it counts for no time, though its counters still give the bytes
+// moved since the last one (ADR 0065).
+func (r *Recorder) Connected(serverID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.fresh == nil {
+		r.fresh = map[string]bool{}
+	}
+	r.fresh[serverID] = true
 }
 
 func (r *Recorder) now() time.Time {
@@ -96,9 +126,10 @@ func (r *Recorder) Sample(serverID string, st *dockwellv1.ServerStats) {
 		since = at.Sub(prev.at)
 	}
 	weight := int64(0)
-	if since > 0 && float64(since) <= gapAfter*float64(interval) {
+	if since > 0 && float64(since) <= gapAfter*float64(interval) && !r.fresh[serverID] {
 		weight = since.Milliseconds()
 	}
+	delete(r.fresh, serverID)
 	add := func(sum, high *int64, v int64) {
 		*sum += v * weight
 		*high = max(*high, v)
@@ -113,18 +144,38 @@ func (r *Recorder) Sample(serverID string, st *dockwellv1.ServerStats) {
 	}
 	row.MemoryTotal = max(row.MemoryTotal, int64(st.GetMemoryTotalBytes()>>10))
 
-	// Bytes moved come from the counters since boot, whatever the gap: a counter
-	// lower than the last one means the server booted, and counts from zero.
+	// Bytes moved come from the counters since boot, whatever the gap. A counter
+	// lower than the last one counts from zero only if the server booted since,
+	// as its uptime says; one that dropped while it stayed up, as an interface
+	// made again does (tailscale0 at each tailscaled restart), counts nothing for
+	// that step rather than its whole life's bytes.
 	cur := last{at: at, rx: st.GetNetworkRxBytes(), tx: st.GetNetworkTxBytes(), read: st.GetDiskReadBytes(), written: st.GetDiskWrittenBytes()}
+	if t := st.GetTime(); t != nil {
+		cur.taken = t.AsTime()
+	}
+	if u := st.GetUptime(); u != nil {
+		cur.uptime = u.AsDuration()
+	}
 	cur.haveBytes = cur.rx > 0 || cur.tx > 0
 	cur.haveDiskBytes = cur.read > 0 || cur.written > 0
+	booted := cur.uptime > 0 && prev.uptime > 0 && cur.uptime < prev.uptime
+	// A rate is over the time between the agent's own readings of its counters:
+	// samples a stalled stream delivers at once still each cover their interval.
+	// The arrival gap stands in only when the agent didn't say when.
+	over := since
+	if !cur.taken.IsZero() && !prev.taken.IsZero() {
+		over = cur.taken.Sub(prev.taken)
+	}
 	moved := func(now, before uint64, bytes, peak *int64) {
-		d := now
-		if now >= before {
+		var d uint64
+		switch {
+		case now >= before:
 			d = now - before
+		case booted:
+			d = now
 		}
 		*bytes += int64(min(d, math.MaxInt64/2))
-		if secs := since.Seconds(); secs > 0 {
+		if secs := over.Seconds(); secs > 0 {
 			*peak = max(*peak, int64(float64(d)/secs))
 		}
 	}
@@ -156,9 +207,21 @@ func (r *Recorder) turn(at time.Time) {
 	m := at.Truncate(time.Minute)
 	switch {
 	case r.minute.IsZero():
+		if r.started.IsZero() {
+			r.started = at
+		}
 		r.minute, r.sums = m, map[string]*store.HistoryRow{}
 	case m.After(r.minute):
-		r.ended = append(r.ended, ended{minute: r.minute, sums: r.sums})
+		// A minute that began before the recorder listened wasn't heard whole:
+		// it has no row, as a minute the control plane wasn't there for.
+		if !r.minute.Before(r.started) {
+			r.ended = append(r.ended, ended{minute: r.minute, sums: r.sums})
+		}
+		if len(r.ended) > keepEnded {
+			r.logger().Warn("the store hasn't taken the servers' history for an hour, so the oldest minute waiting is left out",
+				slog.Time("minute", r.ended[0].minute))
+			r.ended = r.ended[1:]
+		}
 		r.minute, r.sums = m, map[string]*store.HistoryRow{}
 	}
 }
@@ -178,6 +241,15 @@ func (r *Recorder) Flush(ctx context.Context) []time.Time {
 	var servers []string
 	if r.Servers != nil && len(todo) > 0 {
 		servers = r.Servers()
+		// What it kept of a server the fleet no longer lists goes.
+		r.mu.Lock()
+		for id := range r.last {
+			if !slices.Contains(servers, id) {
+				delete(r.last, id)
+				delete(r.fresh, id)
+			}
+		}
+		r.mu.Unlock()
 	}
 	var wrote []time.Time
 	for _, e := range todo {
@@ -194,7 +266,10 @@ func (r *Recorder) Flush(ctx context.Context) []time.Time {
 		if len(rows) == 0 {
 			continue
 		}
-		if err := r.DB.Update(ctx, func(tx *store.Tx) error { return tx.AddMinutes(ctx, rows) }); err != nil {
+		write, cancel := context.WithTimeout(ctx, writeWait)
+		err := r.DB.Update(write, func(tx *store.Tx) error { return tx.AddMinutes(write, rows) })
+		cancel()
+		if err != nil {
 			r.logger().WarnContext(ctx, "can't write a minute of the servers' history, so it's left out", slog.Time("minute", e.minute), slog.Any("error", err))
 			continue
 		}
@@ -203,28 +278,35 @@ func (r *Recorder) Flush(ctx context.Context) []time.Time {
 	return wrote
 }
 
-// Roll makes the hour that ended before now from its minutes, and every hour of
-// the last day that has minutes and no row yet, as after the control plane was
-// away; then it deletes what's past its age.
-func (r *Recorder) Roll(ctx context.Context) error {
+// Roll makes the hour that ended before now from its minutes, with any hour
+// whose roll failed before; then it deletes what's past its age. To catch up, as
+// the control plane starts, it also rolls every hour of the last day that has
+// minutes and no row yet, as after the control plane was away.
+func (r *Recorder) Roll(ctx context.Context, catchUp bool) error {
 	now := r.now()
 	thisHour := now.Truncate(time.Hour)
 	// Only hours whose minutes are all still kept: an hour that began more than a
 	// day ago has lost some, and rolling it again would make it smaller.
 	since := now.Add(-store.MinutesKeptFor).Truncate(time.Hour).Add(time.Hour)
-	var hours []time.Time
-	if err := r.DB.View(ctx, func(tx *store.Tx) error {
-		var err error
-		hours, err = tx.HoursToRoll(ctx, since, thisHour)
-		return err
-	}); err != nil {
-		return err
+	r.mu.Lock()
+	hours := slices.DeleteFunc(r.toRoll, func(h time.Time) bool { return h.Before(since) })
+	r.toRoll = nil
+	r.mu.Unlock()
+	if catchUp {
+		var missed []time.Time
+		if err := r.DB.View(ctx, func(tx *store.Tx) error {
+			var err error
+			missed, err = tx.HoursToRoll(ctx, since, thisHour)
+			return err
+		}); err != nil {
+			return err
+		}
+		hours = append(hours, missed...)
 	}
-	last := thisHour.Add(-time.Hour)
-	if len(hours) == 0 || !hours[len(hours)-1].Equal(last) {
-		hours = append(hours, last)
-	}
-	return r.DB.Update(ctx, func(tx *store.Tx) error {
+	hours = append(hours, thisHour.Add(-time.Hour))
+	slices.SortFunc(hours, func(a, b time.Time) int { return a.Compare(b) })
+	hours = slices.CompactFunc(hours, time.Time.Equal)
+	err := r.DB.Update(ctx, func(tx *store.Tx) error {
 		for _, h := range hours {
 			if err := tx.RollHour(ctx, h); err != nil {
 				return err
@@ -232,13 +314,27 @@ func (r *Recorder) Roll(ctx context.Context) error {
 		}
 		return tx.PruneHistory(ctx, now)
 	})
+	if err != nil {
+		r.mu.Lock()
+		r.toRoll = append(r.toRoll, hours...)
+		r.mu.Unlock()
+	}
+	return err
 }
+
+// rollFailed is what the log says when an hour can't be added up.
+const rollFailed = "can't add up the servers' history by the hour, so the last hour reads empty on the longer ranges until the next hour tries again"
 
 // Run writes each minute as it ends, and each hour once its last minute is
 // written, until ctx ends. As it starts it rolls the hours it missed.
 func (r *Recorder) Run(ctx context.Context) {
-	if err := r.Roll(ctx); err != nil && ctx.Err() == nil {
-		r.logger().WarnContext(ctx, "can't add up the servers' history by the hour", slog.Any("error", err))
+	r.mu.Lock()
+	if r.started.IsZero() {
+		r.started = r.now()
+	}
+	r.mu.Unlock()
+	if err := r.Roll(ctx, true); err != nil && ctx.Err() == nil {
+		r.logger().WarnContext(ctx, rollFailed, slog.Any("error", err))
 	}
 	for {
 		now := r.now()
@@ -250,8 +346,8 @@ func (r *Recorder) Run(ctx context.Context) {
 		}
 		for _, m := range r.Flush(ctx) {
 			if m.Add(time.Minute).Truncate(time.Hour).Equal(m.Add(time.Minute)) {
-				if err := r.Roll(ctx); err != nil && ctx.Err() == nil {
-					r.logger().WarnContext(ctx, "can't add up the servers' history by the hour", slog.Any("error", err))
+				if err := r.Roll(ctx, false); err != nil && ctx.Err() == nil {
+					r.logger().WarnContext(ctx, rollFailed, slog.Any("error", err))
 				}
 			}
 		}

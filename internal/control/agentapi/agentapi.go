@@ -94,6 +94,9 @@ func WithAgents(agents *Agents) Option {
 // Sampler keeps a server's history from its samples.
 type Sampler interface {
 	Sample(serverID string, stats *dockwellv1.ServerStats)
+	// Connected says the server's agent has just connected: its next sample may
+	// be a new collector's first, which reports no CPU.
+	Connected(serverID string)
 }
 
 // WithHistory hands each stats sample to history as well as to the fleet.
@@ -269,6 +272,9 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 		StatsInterval: durationpb.New(told),
 	}}}); err != nil {
 		return err
+	}
+	if h.history != nil {
+		h.history.Connected(peer.ServerID)
 	}
 	log := h.logger.With(slog.String("server", peer.ServerID), slog.String("name", srv.Name))
 	log.InfoContext(ctx, "server connected", slog.String("agent", hello.GetBuild().GetVersion()),

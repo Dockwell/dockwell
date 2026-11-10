@@ -125,6 +125,8 @@ type samples struct {
 	last map[string]*dockwellv1.ServerStats
 }
 
+func (*samples) Connected(string) {}
+
 func (s *samples) Sample(server string, stats *dockwellv1.ServerStats) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
