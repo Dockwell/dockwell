@@ -211,7 +211,8 @@ export function fillFromImage(
 ): ImageForm {
   if (!config) return form;
   const ownPorts = form.ports.filter((p) => !p.fromImage);
-  const tcp = config.ports.find((p) => !p.udp);
+  // A database's or a broker's port isn't published by default: other apps reach it by name.
+  const tcp = config.ports.find((p) => !p.udp && !KEPT_IN.has(p.port));
   const ports: PortRow[] =
     ownPorts.length > 0 || !tcp
       ? ownPorts
@@ -239,6 +240,15 @@ export function fillFromImage(
   ];
   return { ...form, ports, env, mounts };
 }
+
+/**
+ * The ports of databases, caches and brokers, which New app doesn't publish on
+ * the server for an image that exposes one, as what uses them is another app on
+ * its network: PostgreSQL, MySQL and MariaDB, Redis, MongoDB, SQL Server,
+ * Elasticsearch, Memcached, RabbitMQ and NATS. A port also used for a web UI,
+ * such as 9000 or 8086, isn't one of them.
+ */
+const KEPT_IN = new Set([5432, 3306, 6379, 27017, 1433, 9200, 11211, 5672, 4222]);
 
 /** A volume's name for a path an image keeps, such as postgres-data for /var/lib/postgresql/data. */
 export function volumeName(app: string, path: string): string {

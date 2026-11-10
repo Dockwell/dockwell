@@ -126,8 +126,13 @@ describe("filling New app from an image", () => {
   });
 
   it("takes the port it exposes, a volume for what it keeps, and the variables someone may set", () => {
+    const web = create(ImageConfigSchema, { ports: [{ port: 8080 }, { port: 8443 }] });
+    expect(fillFromImage(empty, web, "web", key).ports).toMatchObject([
+      { container: "8080", auto: true, fromImage: true, protocol: "tcp" },
+    ]);
     const filled = fillFromImage(empty, postgres, "postgres", key);
-    expect(filled.ports).toMatchObject([{ container: "5432", auto: true, fromImage: true, protocol: "tcp" }]);
+    // A database's port isn't published: other apps reach it by name.
+    expect(filled.ports).toEqual([]);
     expect(filled.mounts).toMatchObject([
       { source: "postgres-data", target: "/var/lib/postgresql/data", fromImage: true },
     ]);
@@ -146,8 +151,10 @@ describe("filling New app from an image", () => {
       mounts: [...filled.mounts, { key: key(), source: "/srv/backups", target: "/backups", readOnly: true }],
     };
     const redis = create(ImageConfigSchema, { ports: [{ port: 6379 }], volumes: ["/data"] });
+    // A port the image filled goes when the next image has none to publish.
+    mine.ports = [{ key: key(), host: "", container: "80", protocol: "tcp", auto: true, fromImage: true }];
     const again = fillFromImage(mine, redis, "redis", key);
-    expect(again.ports).toMatchObject([{ container: "6379", fromImage: true }]);
+    expect(again.ports).toEqual([]);
     expect(again.env).toMatchObject([{ name: "PGDATA", value: "/srv/pg" }]);
     expect(again.mounts.map((m) => `${m.source}:${m.target}`)).toEqual(["/srv/backups:/backups", "redis-data:/data"]);
     // A port someone added stays, and the image adds none beside it.
