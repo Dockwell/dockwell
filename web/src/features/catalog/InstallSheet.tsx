@@ -25,7 +25,6 @@ import {
   TextField,
   useMediaQuery,
 } from "@dockwell/ui";
-import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useMemo, useState } from "react";
@@ -34,9 +33,11 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { portRefusal, SERVICE_NAME, tidyMessage } from "../apps/app";
 import { RunsOnField } from "../apps/NewAppSheet";
+import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { asGoodAsRoot } from "../changes/plan";
 import { useFleetView } from "../servers/useFleet";
+import { Facts, useEntryFacts } from "./access";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
 import { useMay } from "../auth/may";
@@ -61,6 +62,9 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
   const client = useMemo(() => createClient(CatalogService, transport), [transport]);
   const got = useQuery(CatalogService.method.getCatalogEntry, { id });
   const entry = got.data?.entry;
+  // What it says of itself, as state; how it signs in is the notes above already.
+  const facts = useEntryFacts(entry).filter((f) => f.key !== "sign-in");
+  const email = useSignedInUser()?.email ?? "";
   const inputs = (entry?.inputs ?? []).filter(asked);
   const generated = (entry?.inputs ?? []).filter((input) => !asked(input));
 
@@ -76,7 +80,9 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
   const [plan, setPlan] = useState<Opening>();
 
   const name = (typedName ?? got.data?.project ?? "").trim();
-  const value = (input: Input) => typed[input.name] ?? got.data?.values[input.name] ?? "";
+  // An email it asks for, such as for an owner's account, starts as yours.
+  const value = (input: Input) =>
+    typed[input.name] ?? (got.data?.values[input.name] || (input.type === InputType.EMAIL ? email : ""));
   const missing = inputs.find((input) => !input.optional && value(input).trim() === "");
   const nameInvalid = name === "" || !SERVICE_NAME.test(name);
   const ready = entry !== undefined && !nameInvalid && !missing;
@@ -101,13 +107,18 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
   const license = entry?.appLicense ?? "";
 
   const review = (change: Change | undefined) => {
-    const opens = change?.plan?.resources.find((r) => r.resource?.kind === "service" && r.resource.name === webService);
+    const service = (name: string) =>
+      change?.plan?.resources.find((r) => r.resource?.kind === "service" && r.resource.name === name);
+    // A database lands on its own page, with how to connect, rather than on the tool beside it.
+    const database = entry?.category === "databases" ? got.data?.parts.find((p) => p.database)?.service : undefined;
+    const lands = database ? service(database) : undefined;
+    const opens = service(webService);
     setPlan({
       kind: "plan",
       make: () => Promise.resolve({ change }),
       retryLabel: t`Edit and try again`,
       onDone: onClose,
-      ...(opens ? { doneLabel: t`Open ${app}` } : { doneLabel: t`Show the apps` }),
+      ...(lands || opens ? { doneLabel: t`Open ${app}` } : { doneLabel: t`Show the apps` }),
       onClose: (after) => {
         // Cancelled, or it failed and came back as it was: back to the form, as you left it.
         if (
@@ -121,7 +132,9 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
           return;
         }
         // Undone in the same sheet, it has no page to open.
-        if (opens && after.reverts === "") void navigate({ to: "/apps/$serviceId", params: { serviceId: opens.id } });
+        if (after.reverts !== "") void navigate({ to: "/apps" });
+        else if (lands) void navigate({ to: "/databases/$serviceId", params: { serviceId: lands.id } });
+        else if (opens) void navigate({ to: "/apps/$serviceId", params: { serviceId: opens.id } });
         else void navigate({ to: "/apps" });
       },
     });
@@ -212,11 +225,6 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
                 {entry.hostAccess}
               </Callout>
             ) : null}
-            {entry.firstSteps ? (
-              <Callout tone="warning" title={t`What to do first`}>
-                {entry.firstSteps}
-              </Callout>
-            ) : null}
             <TextField
               label={t`Name`}
               mono
@@ -244,25 +252,16 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
             {sealed.length > 0 ? (
               <p className="catalog-sheet-note">
                 <Icon name="key" size={14} />
-                <span>
-                  {plural(sealed.length, {
-                    one: `Dockwell generates this and keeps it sealed, for you to reveal with your passkey: ${made}`,
-                    other: `Dockwell generates these and keeps them sealed, for you to reveal with your passkey: ${made}`,
-                  })}
-                </span>
+                <span>{t`Generated and sealed, for your passkey to reveal: ${made}`}</span>
               </p>
             ) : null}
             {logged.length > 0 ? (
               <p className="catalog-sheet-note">
                 <Icon name="key" size={14} />
-                <span>
-                  {plural(logged.length, {
-                    one: `Dockwell generates this, but ${app} writes it in its log, which takes no passkey to read, so change it after you first sign in: ${inLog}`,
-                    other: `Dockwell generates these, but ${app} writes them in its log, which takes no passkey to read, so change them after you first sign in: ${inLog}`,
-                  })}
-                </span>
+                <span>{t`Generated, and written in ${app}'s log: ${inLog}`}</span>
               </p>
             ) : null}
+            <Facts facts={facts} className="catalog-sheet-facts" />
             {fleet ? (
               <RunsOnField
                 value={chosenServers}

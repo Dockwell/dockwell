@@ -4607,8 +4607,8 @@ msgstr "Documentation"
 msgid "Explore the app"
 msgstr "Explore the app"
 
-msgid "Getting started"
-msgstr "Getting started"
+msgid "Good to know"
+msgstr "Good to know"
 
 msgid "Included in this install"
 msgstr "Included in this install"
@@ -4724,6 +4724,12 @@ msgstr "Database"
 msgid "Each image pinned by digest"
 msgstr "Each image pinned by digest"
 
+msgid "Generated and sealed, for your passkey to reveal: {made}"
+msgstr "Generated and sealed, for your passkey to reveal: {made}"
+
+msgid "Generated, and written in {app}'s log: {inLog}"
+msgstr "Generated, and written in {app}'s log: {inLog}"
+
 msgid "Give {missingLabel} a value to review the plan"
 msgstr "Give {missingLabel} a value to review the plan"
 
@@ -4745,9 +4751,6 @@ msgstr "Version {version}"
 msgid "What it installs"
 msgstr "What it installs"
 
-msgid "What to do first"
-msgstr "What to do first"
-
 msgid "capability"
 msgstr "capability"
 
@@ -4766,14 +4769,6 @@ msgstr "server's network"
 msgid "the server's own"
 msgstr "the server's own"
 
-#. placeholder {0}: sealed.length
-msgid "{0, plural, one {Dockwell generates this and keeps it sealed, for you to reveal with your passkey: {made}} other {Dockwell generates these and keeps them sealed, for you to reveal with your passkey: {made}}}"
-msgstr "{0, plural, one {Dockwell generates this and keeps it sealed, for you to reveal with your passkey: {made}} other {Dockwell generates these and keeps them sealed, for you to reveal with your passkey: {made}}}"
-
-#. placeholder {0}: logged.length
-msgid "{0, plural, one {Dockwell generates this, but {app} writes it in its log, which takes no passkey to read, so change it after you first sign in: {inLog}} other {Dockwell generates these, but {app} writes them in its log, which takes no passkey to read, so change them after you first sign in: {inLog}}}"
-msgstr "{0, plural, one {Dockwell generates this, but {app} writes it in its log, which takes no passkey to read, so change it after you first sign in: {inLog}} other {Dockwell generates these, but {app} writes them in its log, which takes no passkey to read, so change them after you first sign in: {inLog}}}"
-
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
 
@@ -4783,11 +4778,11 @@ msgstr "A change to how {version} runs is out."
 msgid "From the catalog"
 msgstr "From the catalog"
 
+msgid "Its secrets"
+msgstr "Its secrets"
+
 msgid "Review the change"
 msgstr "Review the change"
-
-msgid "Show its secrets"
-msgstr "Show its secrets"
 
 msgid "Upgrade to {next}"
 msgstr "Upgrade to {next}"
@@ -4797,6 +4792,60 @@ msgstr "Version {next} is out."
 
 msgid "{name} {version}"
 msgstr "{name} {version}"
+
+msgid "Answers on this server alone, on port {port}, until it has a domain"
+msgstr "Answers on this server alone, on port {port}, until it has a domain"
+
+msgid "Anyone who reaches it can make an account until sign-ups close"
+msgstr "Anyone who reaches it can make an account until sign-ups close"
+
+msgid "Anyone who reaches it can make an account, until you close sign-ups"
+msgstr "Anyone who reaches it can make an account, until you close sign-ups"
+
+msgid "Close sign-ups"
+msgstr "Close sign-ups"
+
+msgid "Close sign-ups to {app}"
+msgstr "Close sign-ups to {app}"
+
+msgid "Copy the SSH tunnel command"
+msgstr "Copy the SSH tunnel command"
+
+msgid "Its first account is its owner"
+msgstr "Its first account is its owner"
+
+msgid "Its first account is its owner: make yours before it has a domain"
+msgstr "Its first account is its owner: make yours before it has a domain"
+
+msgid "Point {app} at {domain}"
+msgstr "Point {app} at {domain}"
+
+msgid "SSH tunnel command copied"
+msgstr "SSH tunnel command copied"
+
+msgid "Set as it first started: change it in {app}, in {where}"
+msgstr "Set as it first started: change it in {app}, in {where}"
+
+msgid "Set to {domain}"
+msgstr "Set to {domain}"
+
+msgid "Signs in as {user}"
+msgstr "Signs in as {user}"
+
+msgid "Signs in as {user}, with a password Dockwell generates and seals"
+msgstr "Signs in as {user}, with a password Dockwell generates and seals"
+
+msgid "Signs in with a key Dockwell generates and seals"
+msgstr "Signs in with a key Dockwell generates and seals"
+
+msgid "Signs in with a key you give"
+msgstr "Signs in with a key you give"
+
+msgid "{names} follow its domain, {domain}"
+msgstr "{names} follow its domain, {domain}"
+
+msgid "{names} follow the domain you add"
+msgstr "{names} follow the domain you add"
 
 msgid "Open full size"
 msgstr "Open full size"
@@ -5813,6 +5862,9 @@ msgstr "What ran before this failed may have changed the data, such as with a mi
 
 msgid "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
 msgstr "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
+
+msgid "What to do first"
+msgstr "What to do first"
 
 msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
 msgstr "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."

@@ -407,9 +407,7 @@ describe("Installing from the catalog", () => {
     renderAt("/catalog/jellyfin/install", reaching);
     const sheet = await screen.findByRole("dialog", { name: "Install Jellyfin" });
     expect(
-      await within(sheet).findByText(
-        "Dockwell generates these and keeps them sealed, for you to reveal with your passkey: API key and Database password",
-      ),
+      await within(sheet).findByText("Generated and sealed, for your passkey to reveal: API key and Database password"),
     ).toBeVisible();
   });
 
@@ -461,9 +459,7 @@ describe("Installing from the catalog", () => {
     // A password no one types has no field: it's made and sealed where it runs.
     expect(within(sheet).queryByLabelText("Database password")).not.toBeInTheDocument();
     expect(
-      within(sheet).getByText(
-        "Dockwell generates this and keeps it sealed, for you to reveal with your passkey: Database password",
-      ),
+      within(sheet).getByText("Generated and sealed, for your passkey to reveal: Database password"),
     ).toBeVisible();
     // What to do first is here, before anyone reviews a plan, let alone applies it.
     expect(within(sheet).getByText(/Add a domain first, then sign in/)).toBeVisible();
@@ -493,13 +489,11 @@ describe("Installing from the catalog", () => {
     expect(review).toBeEnabled();
   });
 
-  it("doesn't call a password sealed when the app writes it in its log, and says to change it", async () => {
+  it("doesn't call a password sealed when the app writes it in its log", async () => {
     renderAt("/catalog/nginx-proxy-manager/install", api());
     const sheet = await screen.findByRole("dialog", { name: "Install Nginx Proxy Manager" });
     expect(
-      await within(sheet).findByText(
-        "Dockwell generates this, but Nginx Proxy Manager writes it in its log, which takes no passkey to read, so change it after you first sign in: Console password",
-      ),
+      await within(sheet).findByText("Generated, and written in Nginx Proxy Manager's log: Console password"),
     ).toBeVisible();
     expect(within(sheet).queryByText(/sealed/)).not.toBeInTheDocument();
   });

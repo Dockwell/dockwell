@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/catalog/v1alpha1/entry.proto.
  */
 export const file_dockwell_catalog_v1alpha1_entry: GenFile = /*@__PURE__*/
-  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIpoECgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCRITCgtkZXNjcmlwdGlvbhgRIAEoCRIMCgRpY29uGBIgASgJEjoKC3NjcmVlbnNob3RzGBMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TY3JlZW5zaG90EhUKDWRvY3VtZW50YXRpb24YFCABKAkSEgoKYXBwX3NvdXJjZRgVIAEoCRIQCghmZWF0dXJlcxgWIAMoCSI7CgpTY3JlZW5zaG90EgwKBHBhdGgYASABKAkSDwoHY2FwdGlvbhgCIAEoCRIOCgZzb3VyY2UYAyABKAkiOgoGU291cmNlEhIKCnJlcG9zaXRvcnkYASABKAkSDAoEcGF0aBgCIAEoCRIOCgZjb21taXQYAyABKAki7QEKBUlucHV0EgwKBG5hbWUYASABKAkSDQoFbGFiZWwYAiABKAkSDAoEaGludBgDIAEoCRIyCgR0eXBlGAQgASgOMiQuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5JbnB1dFR5cGUSFQoNZGVmYXVsdF92YWx1ZRgFIAEoCRIQCghvcHRpb25hbBgGIAEoCBIQCghnZW5lcmF0ZRgHIAEoDRIOCgZsb2dnZWQYCCABKAgSOgoLZ2VuZXJhdGVfYXMYUCABKA4yJS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkdlbmVyYXRlQXMiFgoDV2ViEg8KB3NlcnZpY2UYASABKAkqVgoKR2VuZXJhdGVBcxIbChdHRU5FUkFURV9BU19VTlNQRUNJRklFRBAAEhMKD0dFTkVSQVRFX0FTX0hFWBABEhYKEkdFTkVSQVRFX0FTX0JBU0U2NBACKn4KCUlucHV0VHlwZRIaChZJTlBVVF9UWVBFX1VOU1BFQ0lGSUVEEAASEwoPSU5QVVRfVFlQRV9URVhUEAESFAoQSU5QVVRfVFlQRV9FTUFJTBACEhMKD0lOUFVUX1RZUEVfUE9SVBADEhUKEUlOUFVUX1RZUEVfU0VDUkVUEARC/QEKHWNvbS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExQgpFbnRyeVByb3RvUAFaSmdpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL2NhdGFsb2cvdjFhbHBoYTE7Y2F0YWxvZ3YxYWxwaGExogIDRENYqgIZRG9ja3dlbGwuQ2F0YWxvZy5WMWFscGhhMcoCGURvY2t3ZWxsXENhdGFsb2dcVjFhbHBoYTHiAiVEb2Nrd2VsbFxDYXRhbG9nXFYxYWxwaGExXEdQQk1ldGFkYXRh6gIbRG9ja3dlbGw6OkNhdGFsb2c6OlYxYWxwaGExYgZwcm90bzM");
+  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIvUFCgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCRITCgtkZXNjcmlwdGlvbhgRIAEoCRIMCgRpY29uGBIgASgJEjoKC3NjcmVlbnNob3RzGBMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TY3JlZW5zaG90EhUKDWRvY3VtZW50YXRpb24YFCABKAkSEgoKYXBwX3NvdXJjZRgVIAEoCRIQCghmZWF0dXJlcxgWIAMoCRIyCgdzaWduX2luGBcgASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TaWduSW4SGgoSZmlyc3RfdmlzaXRvcl9vd25zGBggASgIEjMKB3NpZ251cHMYGSABKAsyIi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLlNpZ251cHMSRQoRYWRkcmVzc192YXJpYWJsZXMYGiADKAsyKi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkFkZHJlc3NWYXJpYWJsZRINCgVub3RlcxgbIAMoCSJmCgZTaWduSW4SDAoEdXNlchgBIAEoCRISCgp1c2VyX2lucHV0GAIgASgJEhYKDnBhc3N3b3JkX2lucHV0GAMgASgJEg4KBnNlcnZlchgEIAEoCRISCgpjaGFuZ2VkX2luGAUgASgJIjwKB1NpZ251cHMSDwoHc2VydmljZRgBIAEoCRIQCgh2YXJpYWJsZRgCIAEoCRIOCgZjbG9zZWQYAyABKAkiQwoPQWRkcmVzc1ZhcmlhYmxlEg8KB3NlcnZpY2UYASABKAkSEAoIdmFyaWFibGUYAiABKAkSDQoFdmFsdWUYAyABKAkiOwoKU2NyZWVuc2hvdBIMCgRwYXRoGAEgASgJEg8KB2NhcHRpb24YAiABKAkSDgoGc291cmNlGAMgASgJIjoKBlNvdXJjZRISCgpyZXBvc2l0b3J5GAEgASgJEgwKBHBhdGgYAiABKAkSDgoGY29tbWl0GAMgASgJIv8BCgVJbnB1dBIMCgRuYW1lGAEgASgJEg0KBWxhYmVsGAIgASgJEgwKBGhpbnQYAyABKAkSMgoEdHlwZRgEIAEoDjIkLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuSW5wdXRUeXBlEhUKDWRlZmF1bHRfdmFsdWUYBSABKAkSEAoIb3B0aW9uYWwYBiABKAgSEAoIZ2VuZXJhdGUYByABKA0SDgoGbG9nZ2VkGAggASgIEjoKC2dlbmVyYXRlX2FzGFAgASgOMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5HZW5lcmF0ZUFzEhAKCHNldF9vbmNlGAkgASgIIhYKA1dlYhIPCgdzZXJ2aWNlGAEgASgJKlYKCkdlbmVyYXRlQXMSGwoXR0VORVJBVEVfQVNfVU5TUEVDSUZJRUQQABITCg9HRU5FUkFURV9BU19IRVgQARIWChJHRU5FUkFURV9BU19CQVNFNjQQAip+CglJbnB1dFR5cGUSGgoWSU5QVVRfVFlQRV9VTlNQRUNJRklFRBAAEhMKD0lOUFVUX1RZUEVfVEVYVBABEhQKEElOUFVUX1RZUEVfRU1BSUwQAhITCg9JTlBVVF9UWVBFX1BPUlQQAxIVChFJTlBVVF9UWVBFX1NFQ1JFVBAEQv0BCh1jb20uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMUIKRW50cnlQcm90b1ABWkpnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExO2NhdGFsb2d2MWFscGhhMaICA0RDWKoCGURvY2t3ZWxsLkNhdGFsb2cuVjFhbHBoYTHKAhlEb2Nrd2VsbFxDYXRhbG9nXFYxYWxwaGEx4gIlRG9ja3dlbGxcQ2F0YWxvZ1xWMWFscGhhMVxHUEJNZXRhZGF0YeoCG0RvY2t3ZWxsOjpDYXRhbG9nOjpWMWFscGhhMWIGcHJvdG8z");
 
 /**
  * Entry is one app a catalog offers, at one version. It installs through the
@@ -127,8 +127,10 @@ export type Entry = Message<"dockwell.catalog.v1alpha1.Entry"> & {
   web?: Web | undefined;
 
   /**
-   * What to do first once it runs, in a sentence or two, such as how to sign
-   * in. Empty when there's nothing to say.
+   * What to do first once it runs, in one short sentence, where no field below
+   * says it: the panel shows sign_in, first_visitor_owns, signups and
+   * address_variables as state and actions, and never as words here. Empty when
+   * there's nothing more to say, as for most entries.
    *
    * @generated from field: string first_steps = 14;
    */
@@ -196,6 +198,47 @@ export type Entry = Message<"dockwell.catalog.v1alpha1.Entry"> & {
    * @generated from field: repeated string features = 22;
    */
   features: string[];
+
+  /**
+   * How a person signs in to what web opens, which the panel shows with the
+   * password to reveal and copy, rather than says. Unset for an app with no
+   * sign-in of its own, or whose first visitor makes the account.
+   *
+   * @generated from field: dockwell.catalog.v1alpha1.SignIn sign_in = 23;
+   */
+  signIn?: SignIn | undefined;
+
+  /**
+   * The first person to open what web opens makes its owner account. The
+   * panel says so on its page, and before a domain makes it public.
+   *
+   * @generated from field: bool first_visitor_owns = 24;
+   */
+  firstVisitorOwns: boolean;
+
+  /**
+   * What closes sign-ups once the owner's account is made, for an app that lets
+   * anyone who reaches it make one. The panel offers to close them.
+   *
+   * @generated from field: dockwell.catalog.v1alpha1.Signups signups = 25;
+   */
+  signups?: Signups | undefined;
+
+  /**
+   * Variables a service builds its links or checks requests from, which follow
+   * the domain added to what web opens, such as Ghost's url.
+   *
+   * @generated from field: repeated dockwell.catalog.v1alpha1.AddressVariable address_variables = 26;
+   */
+  addressVariables: AddressVariable[];
+
+  /**
+   * What a person may want to know of the app as it runs here, a line each,
+   * such as "Transcodes on the server's CPU". Never steps to follow.
+   *
+   * @generated from field: repeated string notes = 27;
+   */
+  notes: string[];
 };
 
 /**
@@ -204,6 +247,130 @@ export type Entry = Message<"dockwell.catalog.v1alpha1.Entry"> & {
  */
 export const EntrySchema: GenMessage<Entry> = /*@__PURE__*/
   messageDesc(file_dockwell_catalog_v1alpha1_entry, 0);
+
+/**
+ * SignIn is how a person signs in to an app once it's installed.
+ *
+ * @generated from message dockwell.catalog.v1alpha1.SignIn
+ */
+export type SignIn = Message<"dockwell.catalog.v1alpha1.SignIn"> & {
+  /**
+   * The user, as the app's sign-in asks for it, such as "root". Empty when
+   * user_input holds it.
+   *
+   * @generated from field: string user = 1;
+   */
+  user: string;
+
+  /**
+   * The input that holds the user, such as "ADMIN_EMAIL".
+   *
+   * @generated from field: string user_input = 2;
+   */
+  userInput: string;
+
+  /**
+   * The secret input that holds the password, such as
+   * "MARIADB_ROOT_PASSWORD".
+   *
+   * @generated from field: string password_input = 3;
+   */
+  passwordInput: string;
+
+  /**
+   * The server the sign-in asks for, where it asks, such as "db" for Adminer.
+   *
+   * @generated from field: string server = 4;
+   */
+  server: string;
+
+  /**
+   * Where in the app a person changes the password, for an app that reads it
+   * on its first start alone (the input's set_once), such as "Profile".
+   *
+   * @generated from field: string changed_in = 5;
+   */
+  changedIn: string;
+};
+
+/**
+ * Describes the message dockwell.catalog.v1alpha1.SignIn.
+ * Use `create(SignInSchema)` to create a new message.
+ */
+export const SignInSchema: GenMessage<SignIn> = /*@__PURE__*/
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 1);
+
+/**
+ * Signups is the variable that closes an app's sign-ups.
+ *
+ * @generated from message dockwell.catalog.v1alpha1.Signups
+ */
+export type Signups = Message<"dockwell.catalog.v1alpha1.Signups"> & {
+  /**
+   * The service, by its name in the Compose file, such as "gitea".
+   *
+   * @generated from field: string service = 1;
+   */
+  service: string;
+
+  /**
+   * The variable, such as "SIGNUPS_ALLOWED".
+   *
+   * @generated from field: string variable = 2;
+   */
+  variable: string;
+
+  /**
+   * What closes them, such as "false".
+   *
+   * @generated from field: string closed = 3;
+   */
+  closed: string;
+};
+
+/**
+ * Describes the message dockwell.catalog.v1alpha1.Signups.
+ * Use `create(SignupsSchema)` to create a new message.
+ */
+export const SignupsSchema: GenMessage<Signups> = /*@__PURE__*/
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 2);
+
+/**
+ * AddressVariable is a variable that follows the domain an app is reached at.
+ *
+ * @generated from message dockwell.catalog.v1alpha1.AddressVariable
+ */
+export type AddressVariable = Message<"dockwell.catalog.v1alpha1.AddressVariable"> & {
+  /**
+   * The service, by its name in the Compose file, such as "ghost".
+   *
+   * @generated from field: string service = 1;
+   */
+  service: string;
+
+  /**
+   * The variable, such as "url".
+   *
+   * @generated from field: string variable = 2;
+   */
+  variable: string;
+
+  /**
+   * What it's set to, with {domain} where the domain goes, such as
+   * "https://{domain}", or a value of its own that goes with a domain, such
+   * as "https" for Nextcloud's OVERWRITEPROTOCOL.
+   *
+   * @generated from field: string value = 3;
+   */
+  value: string;
+};
+
+/**
+ * Describes the message dockwell.catalog.v1alpha1.AddressVariable.
+ * Use `create(AddressVariableSchema)` to create a new message.
+ */
+export const AddressVariableSchema: GenMessage<AddressVariable> = /*@__PURE__*/
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 3);
 
 /**
  * Screenshot is a preview a person can read before starting an installation.
@@ -239,7 +406,7 @@ export type Screenshot = Message<"dockwell.catalog.v1alpha1.Screenshot"> & {
  * Use `create(ScreenshotSchema)` to create a new message.
  */
 export const ScreenshotSchema: GenMessage<Screenshot> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 1);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 4);
 
 /**
  * Source is where an entry came from.
@@ -274,7 +441,7 @@ export type Source = Message<"dockwell.catalog.v1alpha1.Source"> & {
  * Use `create(SourceSchema)` to create a new message.
  */
 export const SourceSchema: GenMessage<Source> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 2);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 5);
 
 /**
  * Input is one thing an entry needs to know to install, named by the ${NAME}
@@ -351,6 +518,15 @@ export type Input = Message<"dockwell.catalog.v1alpha1.Input"> & {
    * @generated from field: dockwell.catalog.v1alpha1.GenerateAs generate_as = 80;
    */
   generateAs: GenerateAs;
+
+  /**
+   * The app reads this secret on its first start alone, or encrypts what it
+   * keeps with it, so setting the secret anew changes nothing or loses what it
+   * encrypted. The panel marks it, and says where to change it, if anywhere.
+   *
+   * @generated from field: bool set_once = 9;
+   */
+  setOnce: boolean;
 };
 
 /**
@@ -358,7 +534,7 @@ export type Input = Message<"dockwell.catalog.v1alpha1.Input"> & {
  * Use `create(InputSchema)` to create a new message.
  */
 export const InputSchema: GenMessage<Input> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 3);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 6);
 
 /**
  * Web says what a person opens once an entry is installed.
@@ -379,7 +555,7 @@ export type Web = Message<"dockwell.catalog.v1alpha1.Web"> & {
  * Use `create(WebSchema)` to create a new message.
  */
 export const WebSchema: GenMessage<Web> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 4);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 7);
 
 /**
  * GenerateAs is how a generated secret is written.
@@ -456,8 +632,8 @@ export enum InputType {
    * A value kept as one of the project's secrets, encrypted and used by
    * reference. Its ${NAME} must be a whole environment value, or a word of a
    * command or a health check, so that a rotation reaches the service. An app
-   * that reads it on first start alone keeps what it read, which the entry's
-   * first steps must say.
+   * that reads it on first start alone keeps what it read, which the input's
+   * set_once says.
    *
    * @generated from enum value: INPUT_TYPE_SECRET = 4;
    */

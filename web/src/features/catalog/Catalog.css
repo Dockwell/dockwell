@@ -206,12 +206,6 @@
   font: 400 13px / 18px var(--font-mono);
 }
 
-.catalog-installed-steps {
-  margin: var(--space-2) 0 0;
-  font-size: 13px;
-  line-height: 20px;
-}
-
 .catalog-upgrade {
   display: flex;
   flex-wrap: wrap;
@@ -640,4 +634,37 @@
   .catalog-chip {
     flex: none;
   }
+}
+
+/* What an entry or an install says of itself, as state: a line each, with its icon, and
+   the action that resolves it at the end of its line (#426). */
+.catalog-facts-list,
+.catalog-sheet-facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.catalog-facts-list li,
+.catalog-sheet-facts li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: var(--space-2);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+.catalog-facts-list li > svg,
+.catalog-sheet-facts li > svg {
+  margin-top: 3px;
+}
+.catalog-facts-list {
+  margin-top: var(--space-3);
+}
+.catalog-fact-action {
+  display: inline-flex;
+  margin-top: -6px;
 }

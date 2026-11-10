@@ -23,7 +23,7 @@ screenshots:
     source: https://raw.githubusercontent.com/nextcloud/screenshots/44fe757d7799e9820c1f2ce079d1450978810a38/nextcloud-hub-25-files.png
 category: storage
 version: "35.0.2"
-release: 3
+release: 4
 homepage: https://nextcloud.com
 license: AGPL-3.0-only
 appLicense: AGPL-3.0-or-later
@@ -32,40 +32,36 @@ source:
   path: internal/catalog/entries/nextcloud.yaml
 web:
   service: nextcloud
-firstSteps: >-
-  Nextcloud answers only on this server until you add a domain, as it signs in over
-  plain HTTP. Add a domain on its page, the one you gave, over HTTPS or behind your tunnel,
-  and open it there. To open it before that, use an SSH tunnel from your computer:
-  ssh -N -L 8084:127.0.0.1:8084 you@your-server, using the port you gave it, then
-  open http://localhost:8084. Behind a domain, set OVERWRITEPROTOCOL to https on the
-  nextcloud service, and TRUSTED_PROXIES to the range Dockwell's proxy reaches it
-  from, such as 172.16.0.0/12. Sign in as your admin user, with the password in the
-  NEXTCLOUD_ADMIN_PASSWORD secret. That secret sets the password on first start only,
-  so changing it doesn't change what signs in. To change the password, use
-  Nextcloud's personal settings, under Security, then set the secret to match.
-  Nextcloud reads the domain you gave on its first install only. To answer at
-  another, run php occ config:system:set trusted_domains 2 --value=cloud.example.com
-  as www-data in the nextcloud container. The first start takes a minute
-  or two.
+signIn:
+  userInput: "ADMIN_USER"
+  passwordInput: "NEXTCLOUD_ADMIN_PASSWORD"
+  changedIn: "Personal settings, Security"
+addressVariables:
+  - service: nextcloud
+    variable: OVERWRITEPROTOCOL
+    value: "https"
+  - service: nextcloud
+    variable: TRUSTED_PROXIES
+    value: "172.16.0.0/12"
+notes:
+  - "Answers at the domain you gave on its first install; another needs adding to its trusted_domains."
+  - "Its first start takes a minute or two."
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "8084"
   - name: DOMAIN
     label: Domain you'll add
-    hint: >-
-      Nextcloud answers at this as well as on this server, such as cloud.example.com. It
-      reads this on its first install only.
+    hint: "Such as cloud.example.com. Nextcloud reads it on its first install only."
     type: INPUT_TYPE_TEXT
     optional: true
   - name: ADMIN_USER
     label: Admin user
-    hint: You sign in to Nextcloud with this.
     type: INPUT_TYPE_TEXT
     defaultValue: admin
   - name: NEXTCLOUD_ADMIN_PASSWORD
+    setOnce: true
     label: Admin password
     type: INPUT_TYPE_SECRET
     generate: 32

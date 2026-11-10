@@ -20,7 +20,7 @@ screenshots:
     source: https://raw.githubusercontent.com/usememos/.github/13198225b2ef8e961c615f86b2a04278ffd706cf/assets/previews/timeline-light.png
 category: notes
 version: "0.31.0"
-release: 2
+release: 3
 homepage: https://usememos.com
 license: AGPL-3.0-only
 appLicense: MIT
@@ -29,18 +29,11 @@ source:
   path: internal/catalog/entries/memos.yaml
 web:
   service: memos
-firstSteps: >-
-  Memos answers only on this server until you add a domain, as the first person to
-  open it makes its admin account. So make yours first, through an SSH tunnel from
-  your computer: ssh -N -L 5230:127.0.0.1:5230 you@your-server, using the port you
-  gave it, then open http://localhost:5230, and turn off registration in its
-  settings, so no one else can make one. Add a domain on its page only after that,
-  over HTTPS or behind your tunnel, as a new domain's certificate shows in public
-  logs within minutes.
+firstSteps: "Turn off registration in its settings once your account is made."
+firstVisitorOwns: true
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "5230"
 compose: |

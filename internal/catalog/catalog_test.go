@@ -167,23 +167,18 @@ func TestEveryAppsLicenceHasHadALook(t *testing.T) {
 // waits for a migration of its own (#244).
 var publishedBefore = []string{"postgres", "mysql", "nginx-proxy-manager"}
 
-// An admin tool on a published port answers over plain HTTP, so a password typed into
-// it crosses the network in clear. A person hears that before they apply, with what to
-// do about it, and first, as the rest of the steps are signing in.
-func TestAnAdminToolSaysItsPlainHTTP(t *testing.T) {
+// An admin tool on a published port answers over plain HTTP on every address. It says
+// how to sign in, so the panel shows the sign-in beside where it answers, and says from
+// that port that it's plain HTTP: no entry says it in words.
+func TestAnAdminToolOnEveryAddressSaysHowToSignIn(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, id := range publishedBefore {
 		e, _ := c.Entry(id)
-		steps := e.GetFirstSteps()
-		at := strings.Index(steps, "plain HTTP")
-		if at < 0 || !strings.Contains(steps, "in clear") || !strings.Contains(steps, "Add a domain") {
-			t.Errorf("%s doesn't say its admin tool is plain HTTP, and what to do: %q", id, steps)
-		}
-		if signIn := strings.Index(steps, "sign in"); signIn >= 0 && signIn < at && !strings.HasPrefix(steps[signIn:], "signing") {
-			t.Errorf("%s tells a person to sign in before it says that: %q", id, steps)
+		if e.GetSignIn().GetPasswordInput() == "" {
+			t.Errorf("%s doesn't say how to sign in to its admin tool", id)
 		}
 	}
 }
@@ -191,9 +186,7 @@ func TestAnAdminToolSaysItsPlainHTTP(t *testing.T) {
 // Every other app answers only on this server until a person adds a domain: an admin
 // tool signs in over plain HTTP, an app with a setup page makes its owner of whoever
 // opens it first, and Docker's published ports pass a firewall such as ufw by. So every
-// port of every service it runs is on loopback alone. An app a person opens says so
-// first in its first steps, then how to reach it: a domain on its page, or an SSH
-// tunnel, with the command.
+// port of every service it runs is on loopback alone.
 func TestAnAppAnswersOnlyOnThisServerUntilItHasADomain(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
@@ -212,66 +205,55 @@ func TestAnAppAnswersOnlyOnThisServerUntilItHasADomain(t *testing.T) {
 					}
 				}
 			}
-			if e.GetWeb().GetService() == "" {
-				return
-			}
-			steps := e.GetFirstSteps()
-			if !strings.Contains(steps, "answers only on this server until you add a domain") || strings.Index(steps, "only on this server") > 80 {
-				t.Errorf("its first steps don't start by saying it answers only on this server: %q", steps)
-			}
-			// T3 Code is the first set's, and says to reach it through a domain alone.
-			if e.GetId() != "t3code" && (!strings.Contains(steps, "Add a domain on its page") || !strings.Contains(steps, "ssh -N -L ")) {
-				t.Errorf("its first steps don't say how to reach it, by a domain or an SSH tunnel with the command: %q", steps)
+			// The panel says it answers only on this server, from the port, and offers
+			// the ways in: no entry explains a tunnel.
+			if steps := e.GetFirstSteps(); strings.Contains(steps, "ssh ") || strings.Contains(steps, "only on this server") {
+				t.Errorf("its first steps explain what the panel shows: %q", steps)
 			}
 		})
 	}
 }
 
 // firstVisitor are the apps whose first visitor makes its owner or admin. A domain's
-// certificate shows in public logs within minutes, where scanners look for new ones,
-// so each one's first steps make the account through the SSH tunnel first, and add the
-// domain only after that.
+// certificate shows in public logs within minutes, where scanners look for new ones, so
+// each says so (first_visitor_owns), and the panel says to make the account before a
+// domain makes it public.
 var firstVisitor = []string{
-	"coder", "uptime-kuma", "n8n", "gitea", "vaultwarden", "umami",
+	"coder", "uptime-kuma", "n8n", "gitea", "vaultwarden",
 	"plausible", "ghost", "wordpress", "memos", "jellyfin", "home-assistant",
 }
 
-func TestAFirstVisitorAppMakesItsAccountBeforeItsDomain(t *testing.T) {
+func TestAFirstVisitorAppSaysItsFirstAccountOwnsIt(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range firstVisitor {
-		e, ok := c.Entry(id)
-		if !ok {
-			t.Fatalf("the catalog has no %s", id)
+	for _, e := range c.All() {
+		if want := slices.Contains(firstVisitor, e.GetId()); e.GetFirstVisitorOwns() != want {
+			t.Errorf("%s says its first visitor owns it: %t, want %t", e.GetId(), e.GetFirstVisitorOwns(), want)
 		}
-		steps := e.GetFirstSteps()
-		tunnel, domain := strings.Index(steps, "ssh -N -L "), strings.Index(steps, "Add a domain on its page")
-		if tunnel < 0 || domain < 0 || tunnel > domain {
-			t.Errorf("%s's first steps add a domain before its account is made through the tunnel: %q", id, steps)
-		}
+	}
+	// Umami starts with an account everyone knows, which is a step of its own.
+	if e, _ := c.Entry("umami"); !strings.Contains(e.GetFirstSteps(), "the password umami") {
+		t.Errorf("umami doesn't say it starts with the password umami: %q", e.GetFirstSteps())
 	}
 }
 
 // These apps read their password from the environment on first start alone, so a
-// rotation leaves the old one signing in, and the panel revealing a new one that
-// doesn't. Each entry says so, and how to change the password instead. A database's
-// own users aren't among them: the agent changes theirs as the secret changes (ADR 0038).
-func TestAPasswordReadOnFirstStartSaysSo(t *testing.T) {
+// rotation leaves the old one signing in. Each marks the secret set once, and says
+// where in the app to change it, which the panel shows beside the password. A
+// database's own users aren't among them: the agent changes theirs (ADR 0038).
+func TestAPasswordReadOnFirstStartIsSetOnce(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for id, how := range map[string]string{
-		"nginx-proxy-manager": "change the password in the console",
-		"pgadmin":             "choose Change password",
-		"nextcloud":           "under Security",
-		"grafana":             "choose Change password",
-	} {
+	for _, id := range []string{"nginx-proxy-manager", "pgadmin", "nextcloud", "grafana"} {
 		e, _ := c.Entry(id)
-		if steps := e.GetFirstSteps(); !strings.Contains(steps, "on first start only") || !strings.Contains(steps, how) {
-			t.Errorf("%s doesn't say its password is set once, and %q: %q", id, how, steps)
+		s := e.GetSignIn()
+		i := slices.IndexFunc(e.GetInputs(), func(in *catalogv1.Input) bool { return in.GetName() == s.GetPasswordInput() })
+		if i < 0 || !e.GetInputs()[i].GetSetOnce() || s.GetChangedIn() == "" {
+			t.Errorf("%s doesn't mark its password set once, and say where it changes: %v", id, s)
 		}
 	}
 }
@@ -303,7 +285,7 @@ func TestADatabasesSharedPasswordFollowsItsSecret(t *testing.T) {
 
 // An app that encrypts what it keeps with a key of its own can't read it with another,
 // and Gitea and Grafana fall back to one everyone knows when they're given none. Each
-// gets a key generated from its first release, and its first steps say to leave it.
+// gets a key generated from its first release, marked set once.
 func TestAnEncryptionKeyIsGeneratedAndLeftAlone(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
@@ -325,8 +307,8 @@ func TestAnEncryptionKeyIsGeneratedAndLeftAlone(t *testing.T) {
 		if got := stack.Services[0].Spec.GetApp().GetEnv()[key.env]; got == "" || got != filled.Secrets[key.input] {
 			t.Errorf("%s's %s isn't its generated key", id, key.env)
 		}
-		if !strings.Contains(e.GetFirstSteps(), "Leave the "+key.input+" secret as it is") {
-			t.Errorf("%s's first steps don't say to leave %s as it is", id, key.input)
+		if !e.GetInputs()[i].GetSetOnce() {
+			t.Errorf("%s doesn't mark %s set once", id, key.input)
 		}
 	}
 }
@@ -534,10 +516,11 @@ func TestCoderStaysOnThisServer(t *testing.T) {
 	if app.GetUser() != "root" {
 		t.Errorf("Coder runs as %q, which can't reach a socket whose group differs on each server", app.GetUser())
 	}
-	for _, words := range []string{"whoever owns Coder controls this server", "leaves the workspace containers it started"} {
-		if !strings.Contains(e.GetFirstSteps(), words) {
-			t.Errorf("its first steps don't say %q: %q", words, e.GetFirstSteps())
-		}
+	if !strings.Contains(e.GetHostAccess(), "Whoever owns Coder controls this server") {
+		t.Errorf("it doesn't say whoever owns it controls the server: %q", e.GetHostAccess())
+	}
+	if !slices.ContainsFunc(e.GetNotes(), func(n string) bool { return strings.Contains(n, "leaves the workspace containers it started") }) {
+		t.Errorf("it doesn't say removing it leaves its workspaces: %q", e.GetNotes())
 	}
 	if url := app.GetEnv()["CODER_PG_CONNECTION_URL"]; strings.Contains(url, ":@") || strings.Count(url, ":") > 2 {
 		t.Errorf("its database's URL holds a password: %q", url)
@@ -548,8 +531,7 @@ func TestCoderStaysOnThisServer(t *testing.T) {
 }
 
 // pgAdmin reaches this server as host.docker.internal, for a database it runs outside
-// any project, and publishes nothing past loopback. Its first steps never tell a person
-// to publish a database's port.
+// any project, and publishes nothing past loopback, and its notes say so.
 func TestPgAdminReachesThisServerByName(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
@@ -563,14 +545,14 @@ func TestPgAdminReachesThisServerByName(t *testing.T) {
 	if got := stack.Services[0].Spec.GetApp().GetExtraHosts(); !slices.Equal(got, []string{"host.docker.internal:host-gateway"}) {
 		t.Errorf("pgAdmin adds the hosts %v", got)
 	}
-	if steps := e.GetFirstSteps(); !strings.Contains(steps, "host.docker.internal") || strings.Contains(steps, "add a port to its db") {
-		t.Errorf("its first steps say %q", steps)
+	if !slices.ContainsFunc(e.GetNotes(), func(n string) bool { return strings.Contains(n, "host.docker.internal") }) {
+		t.Errorf("it doesn't say it reaches this server as host.docker.internal: %q", e.GetNotes())
 	}
 }
 
 // Redis is published on loopback alone, as it has no admin tool of its own to stand in
 // front of it, and takes its password on its command line by reference, which it reads
-// each time it starts and keeps nowhere. Its first steps say what reaches it, as a
+// each time it starts and keeps nowhere. Its database page says what reaches it, as a
 // container can't reach this server's loopback.
 func TestRedisStaysOnThisServer(t *testing.T) {
 	c, err := catalog.Load("")
@@ -589,8 +571,29 @@ func TestRedisStaysOnThisServer(t *testing.T) {
 	if !slices.Contains(app.GetReferences(), "command") || !slices.Contains(app.GetCommand(), "${REDIS_PASSWORD}") {
 		t.Errorf("its command %v doesn't use the password by reference", app.GetCommand())
 	}
-	if steps := e.GetFirstSteps(); !strings.Contains(steps, "redis:6379") || !strings.Contains(steps, "add a port on its page") {
-		t.Errorf("its first steps don't say what reaches it: %q", steps)
+	if steps := e.GetFirstSteps(); steps != "" {
+		t.Errorf("its first steps say %q, which its database page shows as its connection", steps)
+	}
+}
+
+// What an entry says in words keeps to the design system's text budget (#426): its
+// first steps are one short sentence at most, and the rest is a field the panel shows
+// as state, or a note of one line, which Check holds to.
+func TestFirstStepsKeepToTheTextBudget(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range c.All() {
+		steps := e.GetFirstSteps()
+		if len(steps) > 140 || strings.Count(strings.TrimSuffix(steps, "."), ". ") > 0 {
+			t.Errorf("%s's first steps are more than one short sentence: %q", e.GetId(), steps)
+		}
+		for _, in := range e.GetInputs() {
+			if len(in.GetHint()) > 80 {
+				t.Errorf("%s's %s has a hint of %d characters, past one line: %q", e.GetId(), in.GetName(), len(in.GetHint()), in.GetHint())
+			}
+		}
 	}
 }
 
@@ -720,6 +723,23 @@ func TestCheckRefuses(t *testing.T) {
 		}, "inside a longer value"},
 		"short secret":              {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
 		"a database it doesn't run": {func(e *catalogv1.Entry) { e.Databases = []string{"cache"} }, "marks cache as a database"},
+		"a sign-in with a password that isn't a secret": {func(e *catalogv1.Entry) {
+			e.SignIn.PasswordInput = "ADMIN_PORT"
+		}, "isn't one of its secret inputs"},
+		"a sign-in with a user and an input for one": {func(e *catalogv1.Entry) {
+			e.SignIn.UserInput = "ADMIN_PORT"
+		}, "names a user and an input"},
+		"where a password changes, for one that isn't set once": {func(e *catalogv1.Entry) {
+			e.SignIn.ChangedIn = "Profile"
+		}, "isn't set once"},
+		"a set-once input that isn't a secret": {func(e *catalogv1.Entry) { e.Inputs[0].SetOnce = true }, "only a secret is"},
+		"sign-ups on a service it doesn't run": {func(e *catalogv1.Entry) {
+			e.Signups = &catalogv1.Signups{Service: "web", Variable: "SIGNUPS", Closed: "false"}
+		}, "needs a service it runs"},
+		"an address that names more than its domain": {func(e *catalogv1.Entry) {
+			e.AddressVariables = []*catalogv1.AddressVariable{{Service: "adminer", Variable: "URL", Value: "https://{domain}:{port}"}}
+		}, "names something other than {domain}"},
+		"a note of two lines": {func(e *catalogv1.Entry) { e.Notes = []string{"One.\nTwo."} }, "isn't one line"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := proto.CloneOf(base)

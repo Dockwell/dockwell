@@ -202,7 +202,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Variables:  filled.Variables,
 		Secrets:    filled.Secrets,
 		Servers:    m.GetServers(),
-		FirstSteps: entry.GetFirstSteps(),
+		FirstSteps: catalog.FirstWords(entry),
 		Pin:        pinTo(entry, filled),
 	})
 	if err != nil {
@@ -247,7 +247,7 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, c *catalog.Catalog
 		install := &dockwellv1.CatalogInstall{ProjectId: p.ID, Project: p.Name, Pin: pin}
 		entry, known := c.Entry(pin.GetEntry())
 		if known {
-			install.Name, install.FirstSteps = entry.GetName(), entry.GetFirstSteps()
+			install.Name, install.FirstSteps = entry.GetName(), catalog.FirstWords(entry)
 			if catalog.Upgrades(entry, pin) && len(pin.GetFile()) > 0 {
 				install.Upgrade = &dockwellv1.CatalogUpgrade{Version: entry.GetVersion(), Release: entry.GetRelease()}
 			}
