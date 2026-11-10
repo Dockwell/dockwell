@@ -157,9 +157,12 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServiceService.listServices": "read",
   "ServiceService.rollBackService": "may",
 
+  "SettingsService.checkPanelDomain": "may",
+  "SettingsService.createPanelSignInLink": "may",
   "SettingsService.getControlPlane": "may",
   "SettingsService.getSettings": "read",
   "SettingsService.setInstallName": "may",
+  "SettingsService.setPanelDomain": "may",
   "SettingsService.setTimeZone": "may",
 
   "SystemService.getVersion": "open",

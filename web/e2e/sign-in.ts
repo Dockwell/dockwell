@@ -160,6 +160,8 @@ async function start(): Promise<string> {
         USER: "mira",
         DOCKWELL_CATALOG_DIR: catalogDir,
         DOCKWELL_TEST_TOOLS: tools,
+        // What the panel's domain resolves to, as a test asks no DNS server (ADR 0063).
+        DOCKWELL_TEST_DNS: "panel.example.com=192.0.2.10",
       },
     },
   );

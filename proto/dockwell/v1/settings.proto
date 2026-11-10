@@ -81,6 +81,80 @@ service SettingsService {
     };
   }
 
+  // CheckPanelDomain checks a domain for the panel as it's typed, before it's
+  // set (ADR 0063): whether the panel can take it, by the rules --domain has
+  // and as no route serves it or a name under it; what its A and AAAA records
+  // hold, as the control plane resolves them, and whether they lead to this
+  // server's public addresses; and whether something other than Dockwell or its
+  // Caddy holds port 80 or 443 on the control server, which would stop a
+  // certificate. DNS that doesn't lead here yet is a warning, not a refusal: a
+  // person may set DNS and the domain in either order.
+  rpc CheckPanelDomain(CheckPanelDomainRequest) returns (CheckPanelDomainResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "settings"
+      verb: "check-panel-domain"
+    };
+    option (google.api.http) = {get: "/v1/settings/panelDomain:check"};
+  }
+
+  // SetPanelDomain sets the domain the panel is served on over HTTPS, or clears
+  // it (an empty domain), and restarts the control plane to serve it: the
+  // response goes out first, then it re-executes itself, so apps and websites
+  // keep running and the panel answers again within seconds, on loopback and
+  // the domain (ADR 0063). It takes the owner, signed in, and a passkey just
+  // now: call it without a proof first, and it refuses with the reason
+  // needs_step_up, then again with the proof from FinishStepUp for
+  // STEP_UP_ACTION_SET_PANEL_DOMAIN, whose target is the domain, or the one it
+  // clears. Refused while a
+  // change is applying, when dockwell run was given a domain with --domain or
+  // DOCKWELL_DOMAIN, for a name the panel can't take, and for a move from one
+  // domain to another, which comes later. It's on the activity log with the
+  // domain it replaced.
+  rpc SetPanelDomain(SetPanelDomainRequest) returns (SetPanelDomainResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "settings"
+      verb: "set-panel-domain"
+    };
+    option (google.api.http) = {
+      post: "/v1/settings:setPanelDomain"
+      body: "*"
+    };
+  }
+
+  // CreatePanelSignInLink makes the owner a one-time sign-in link to the panel
+  // on its domain, once it answers there over HTTPS: passkeys belong to the
+  // address they were made on, so the owner signs in there with the link and
+  // adds one (ADR 0063). It works once, for 15 minutes, and carries its token
+  // after the "#", which no server log or Referer keeps. It takes a passkey just
+  // now: call it without a proof first, then again with the proof from
+  // FinishStepUp for STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN, whose target is the
+  // domain. It's on the activity log as sign_in_link.create.
+  rpc CreatePanelSignInLink(CreatePanelSignInLinkRequest) returns (CreatePanelSignInLinkResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "settings"
+      verb: "create-panel-sign-in-link"
+    };
+    option (google.api.http) = {
+      post: "/v1/settings:createPanelSignInLink"
+      body: "*"
+    };
+  }
+
   // GetControlPlane returns what serves the panel and API: its build, where it
   // keeps its state, the addresses it answers on, and how it's doing. Most of
   // it comes from how dockwell run was started, and changes there.
@@ -147,6 +221,92 @@ message PanelServing {
   // Encrypt", or the host of the ACME directory dockwell run was given, such
   // as "acme.example.com". Empty without a domain.
   string certificate_authority = 6;
+  // Where the domain comes from: dockwell run's --domain or DOCKWELL_DOMAIN,
+  // which the panel can't change, or the setting (ADR 0063).
+  PanelDomainFrom domain_from = 7;
+  // The domain the setting holds. It differs from domain when dockwell run
+  // couldn't serve it, which problem says.
+  string set_domain = 8;
+  // Why the domain the setting holds isn't served, as when a route took it
+  // first, or its ports were held. Empty when it is, or none is set.
+  string problem = 9;
+  // True once Dockwell holds a certificate for the domain, so the panel answers
+  // there over HTTPS.
+  bool certified = 10;
+}
+
+// PanelDomainFrom is where the panel's domain comes from.
+enum PanelDomainFrom {
+  PANEL_DOMAIN_FROM_UNSPECIFIED = 0;
+  // It has none.
+  PANEL_DOMAIN_FROM_NONE = 1;
+  // dockwell run's --domain or DOCKWELL_DOMAIN, which wins over the setting.
+  PANEL_DOMAIN_FROM_RUN = 2;
+  // The setting, from Settings, General.
+  PANEL_DOMAIN_FROM_SETTING = 3;
+}
+
+// CheckPanelDomainRequest names a domain to check.
+message CheckPanelDomainRequest {
+  // The domain, such as "panel.example.com".
+  string domain = 1;
+}
+
+// CheckPanelDomainResponse says whether the panel can take a domain, and what
+// stands in the way of a certificate for it.
+message CheckPanelDomainResponse {
+  // Why the panel can't take it: the rules a domain has, or a route that
+  // serves it or a name under it. Empty when it can.
+  string refusal = 1;
+  // What its A and AAAA records hold, as the control plane resolved them.
+  repeated string addresses = 2;
+  // Why it couldn't be resolved, such as "no such domain". Empty when it was.
+  string dns_problem = 3;
+  // This server's public addresses, where the records should lead.
+  repeated string public_addresses = 4;
+  // True when an address the domain resolves to is one of them.
+  bool points_here = 5;
+  // What holds port 80 or 443 on the control server other than Dockwell or its
+  // Caddy, which would stop a certificate.
+  repeated PanelPortHolder ports_held = 6;
+}
+
+// PanelPortHolder is a program that holds a port the panel's certificate needs.
+message PanelPortHolder {
+  // The port: 80 or 443.
+  uint32 port = 1;
+  // The program, as the kernel names its process, such as "nginx".
+  string program = 2;
+}
+
+// SetPanelDomainRequest sets the panel's domain, or clears it.
+message SetPanelDomainRequest {
+  // The domain, such as "panel.example.com". Empty clears it.
+  string domain = 1;
+  // The proof from FinishStepUp for STEP_UP_ACTION_SET_PANEL_DOMAIN.
+  string proof = 2;
+}
+
+// SetPanelDomainResponse is the settings as saved, before the restart.
+message SetPanelDomainResponse {
+  // The settings.
+  Settings settings = 1;
+  // True when the control plane restarts to serve it, once this is sent.
+  bool restarting = 2;
+}
+
+// CreatePanelSignInLinkRequest asks for a link to the panel on its domain.
+message CreatePanelSignInLinkRequest {
+  // The proof from FinishStepUp for STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN.
+  string proof = 1;
+}
+
+// CreatePanelSignInLinkResponse is the link, which signs in once.
+message CreatePanelSignInLinkResponse {
+  // The link, such as "https://panel.example.com/recover#…".
+  string url = 1;
+  // When it stops working.
+  google.protobuf.Timestamp expire_time = 2;
 }
 
 // PanelServedBy is what serves the panel over HTTPS on its domain.

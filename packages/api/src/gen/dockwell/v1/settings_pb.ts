@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/settings.proto.
  */
 export const file_dockwell_v1_settings: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9zZXR0aW5ncy5wcm90bxILZG9ja3dlbGwudjEiFAoSR2V0U2V0dGluZ3NSZXF1ZXN0Ij4KE0dldFNldHRpbmdzUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyKGAQoIU2V0dGluZ3MSDAoEbmFtZRgBIAEoCRIRCgl0aW1lX3pvbmUYAiABKAkSKAoFcGFuZWwYAyABKAsyGS5kb2Nrd2VsbC52MS5QYW5lbFNlcnZpbmcSLwoLY3JlYXRlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIp8BCgxQYW5lbFNlcnZpbmcSDgoGbGlzdGVuGAEgASgJEg4KBmRvbWFpbhgCIAEoCRItCglzZXJ2ZWRfYnkYAyABKA4yGi5kb2Nrd2VsbC52MS5QYW5lbFNlcnZlZEJ5EhQKDGh0dHBzX2xpc3RlbhgEIAEoCRILCgN1cmwYBSABKAkSHQoVY2VydGlmaWNhdGVfYXV0aG9yaXR5GAYgASgJIiUKFVNldEluc3RhbGxOYW1lUmVxdWVzdBIMCgRuYW1lGAEgASgJIkEKFlNldEluc3RhbGxOYW1lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyInChJTZXRUaW1lWm9uZVJlcXVlc3QSEQoJdGltZV96b25lGAEgASgJIj4KE1NldFRpbWVab25lUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyIYChZHZXRDb250cm9sUGxhbmVSZXF1ZXN0IksKF0dldENvbnRyb2xQbGFuZVJlc3BvbnNlEjAKDWNvbnRyb2xfcGxhbmUYASABKAsyGS5kb2Nrd2VsbC52MS5Db250cm9sUGxhbmUi0wIKDENvbnRyb2xQbGFuZRIlCgVidWlsZBgBIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbxIuCgpzdGFydF90aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghkYXRhX2RpchgDIAEoCRIQCghrZXlfZmlsZRgEIAEoCRImCgVzdG9yZRgFIAEoCzIXLmRvY2t3ZWxsLnYxLlN0YXRlU3RvcmUSKAoFcGFuZWwYBiABKAsyGS5kb2Nrd2VsbC52MS5QYW5lbFNlcnZpbmcSKgoGYWdlbnRzGAcgASgLMhouZG9ja3dlbGwudjEuQWdlbnRMaXN0ZW5lchIUCgxtZW1vcnlfYnl0ZXMYCCABKAMSNAoPc2VydmljZV9tYW5hZ2VyGAkgASgOMhsuZG9ja3dlbGwudjEuU2VydmljZU1hbmFnZXIioQEKClN0YXRlU3RvcmUSLQoGZW5naW5lGAEgASgOMh0uZG9ja3dlbGwudjEuU3RhdGVTdG9yZUVuZ2luZRIQCghsb2NhdGlvbhgCIAEoCRIPCgd2ZXJzaW9uGAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAMSLQoKcm91bmRfdHJpcBgFIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbiJBCg1BZ2VudExpc3RlbmVyEg4KBmxpc3RlbhgBIAEoCRILCgN1cmwYAiABKAkSEwoLcHVibGljX3VybHMYAyADKAkqhQEKDVBhbmVsU2VydmVkQnkSHwobUEFORUxfU0VSVkVEX0JZX1VOU1BFQ0lGSUVEEAASGAoUUEFORUxfU0VSVkVEX0JZX05PTkUQARIcChhQQU5FTF9TRVJWRURfQllfRE9DS1dFTEwQAhIbChdQQU5FTF9TRVJWRURfQllfSU5HUkVTUxADKoQBCg5TZXJ2aWNlTWFuYWdlchIfChtTRVJWSUNFX01BTkFHRVJfVU5TUEVDSUZJRUQQABIYChRTRVJWSUNFX01BTkFHRVJfTk9ORRABEhsKF1NFUlZJQ0VfTUFOQUdFUl9TWVNURU1EEAISGgoWU0VSVklDRV9NQU5BR0VSX09QRU5SQxADKnYKEFN0YXRlU3RvcmVFbmdpbmUSIgoeU1RBVEVfU1RPUkVfRU5HSU5FX1VOU1BFQ0lGSUVEEAASHQoZU1RBVEVfU1RPUkVfRU5HSU5FX1NRTElURRABEh8KG1NUQVRFX1NUT1JFX0VOR0lORV9QT1NUR1JFUxACMscJCg9TZXR0aW5nc1NlcnZpY2USjAEKC0dldFNldHRpbmdzEh8uZG9ja3dlbGwudjEuR2V0U2V0dGluZ3NSZXF1ZXN0GiAuZG9ja3dlbGwudjEuR2V0U2V0dGluZ3NSZXNwb25zZSI6kAIBoLsYAaq7GA8KCHNldHRpbmdzEgNnZXTAuxgCyLsYAtC7GAOC0+STAg4SDC92MS9zZXR0aW5ncxKmAQoOU2V0SW5zdGFsbE5hbWUSIi5kb2Nrd2VsbC52MS5TZXRJbnN0YWxsTmFtZVJlcXVlc3QaIy5kb2Nrd2VsbC52MS5TZXRJbnN0YWxsTmFtZVJlc3BvbnNlIkuguxgDqrsYFAoIc2V0dGluZ3MSCHNldC1uYW1lsLsYAcC7GATIuxgE0LsYBoLT5JMCGToBKiIUL3YxL3NldHRpbmdzOnNldE5hbWUSogEKC1NldFRpbWVab25lEh8uZG9ja3dlbGwudjEuU2V0VGltZVpvbmVSZXF1ZXN0GiAuZG9ja3dlbGwudjEuU2V0VGltZVpvbmVSZXNwb25zZSJQoLsYA6q7GBkKCHNldHRpbmdzEg1zZXQtdGltZS16b25lwLsYBMi7GATQuxgGgtPkkwIdOgEqIhgvdjEvc2V0dGluZ3M6c2V0VGltZVpvbmUSoQEKD0dldENvbnRyb2xQbGFuZRIjLmRvY2t3ZWxsLnYxLkdldENvbnRyb2xQbGFuZVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5HZXRDb250cm9sUGxhbmVSZXNwb25zZSJDkAIBoLsYAaq7GBQKDWNvbnRyb2wtcGxhbmUSA2dldMC7GATIuxgE0LsYBoLT5JMCEhIQL3YxL2NvbnRyb2xQbGFuZRqyBKK7GIoCCghzZXR0aW5ncxL9AVRoZSBpbnN0YWxsJ3Mgc2V0dGluZ3MgYXJlIHdoYXQgaXQncyBjYWxsZWQsIHRoZSB0aW1lIHpvbmUgbmV3IHNjaGVkdWxlcyBzdGFydCBpbiwgYW5kIGhvdyBpdHMgcGFuZWwgaXMgc2VydmVkLiBUaGV5IGNoYW5nZSB3aGF0IERvY2t3ZWxsIHNheXMgYW5kIHN1Z2dlc3RzLCBub3Qgd2hhdCBydW5zLCBzbyBhIGNoYW5nZSBuZWVkcyBubyBwbGFuLCBhbmQgZWFjaCBpcyBvbiB0aGUgYWN0aXZpdHkgbG9nIHdpdGggd2hhdCBpdCByZXBsYWNlZC6iuxieAgoNY29udHJvbC1wbGFuZRKMAlRoZSBjb250cm9sIHBsYW5lIHNlcnZlcyB0aGUgcGFuZWwgYW5kIEFQSSwgYmVzaWRlIGFuIGFnZW50IG9mIGl0cyBvd24uIEl0IHNheXMgdGhlIGJ1aWxkIGl0IHJ1bnMsIHdoZXJlIGl0IGtlZXBzIGl0cyBzdGF0ZSBhbmQgdGhlIGluc3RhbGwncyBrZXksIHRoZSBhZGRyZXNzZXMgaXQgYW5zd2VycyBvbiwgYW5kIGhvdyBpdCdzIGRvaW5nLiBNb3N0IG9mIHRoYXQgY29tZXMgZnJvbSBob3cgZG9ja3dlbGwgcnVuIHdhcyBzdGFydGVkLCBhbmQgY2hhbmdlcyB0aGVyZS5CpgEKD2NvbS5kb2Nrd2VsbC52MUINU2V0dGluZ3NQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9zZXR0aW5ncy5wcm90bxILZG9ja3dlbGwudjEiFAoSR2V0U2V0dGluZ3NSZXF1ZXN0Ij4KE0dldFNldHRpbmdzUmVzcG9uc2USJwoIc2V0dGluZ3MYASABKAsyFS5kb2Nrd2VsbC52MS5TZXR0aW5ncyKGAQoIU2V0dGluZ3MSDAoEbmFtZRgBIAEoCRIRCgl0aW1lX3pvbmUYAiABKAkSKAoFcGFuZWwYAyABKAsyGS5kb2Nrd2VsbC52MS5QYW5lbFNlcnZpbmcSLwoLY3JlYXRlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIooCCgxQYW5lbFNlcnZpbmcSDgoGbGlzdGVuGAEgASgJEg4KBmRvbWFpbhgCIAEoCRItCglzZXJ2ZWRfYnkYAyABKA4yGi5kb2Nrd2VsbC52MS5QYW5lbFNlcnZlZEJ5EhQKDGh0dHBzX2xpc3RlbhgEIAEoCRILCgN1cmwYBSABKAkSHQoVY2VydGlmaWNhdGVfYXV0aG9yaXR5GAYgASgJEjEKC2RvbWFpbl9mcm9tGAcgASgOMhwuZG9ja3dlbGwudjEuUGFuZWxEb21haW5Gcm9tEhIKCnNldF9kb21haW4YCCABKAkSDwoHcHJvYmxlbRgJIAEoCRIRCgljZXJ0aWZpZWQYCiABKAgiKQoXQ2hlY2tQYW5lbERvbWFpblJlcXVlc3QSDgoGZG9tYWluGAEgASgJIrQBChhDaGVja1BhbmVsRG9tYWluUmVzcG9uc2USDwoHcmVmdXNhbBgBIAEoCRIRCglhZGRyZXNzZXMYAiADKAkSEwoLZG5zX3Byb2JsZW0YAyABKAkSGAoQcHVibGljX2FkZHJlc3NlcxgEIAMoCRITCgtwb2ludHNfaGVyZRgFIAEoCBIwCgpwb3J0c19oZWxkGAYgAygLMhwuZG9ja3dlbGwudjEuUGFuZWxQb3J0SG9sZGVyIjAKD1BhbmVsUG9ydEhvbGRlchIMCgRwb3J0GAEgASgNEg8KB3Byb2dyYW0YAiABKAkiNgoVU2V0UGFuZWxEb21haW5SZXF1ZXN0Eg4KBmRvbWFpbhgBIAEoCRINCgVwcm9vZhgCIAEoCSJVChZTZXRQYW5lbERvbWFpblJlc3BvbnNlEicKCHNldHRpbmdzGAEgASgLMhUuZG9ja3dlbGwudjEuU2V0dGluZ3MSEgoKcmVzdGFydGluZxgCIAEoCCItChxDcmVhdGVQYW5lbFNpZ25JbkxpbmtSZXF1ZXN0Eg0KBXByb29mGAEgASgJIl0KHUNyZWF0ZVBhbmVsU2lnbkluTGlua1Jlc3BvbnNlEgsKA3VybBgBIAEoCRIvCgtleHBpcmVfdGltZRgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiJQoVU2V0SW5zdGFsbE5hbWVSZXF1ZXN0EgwKBG5hbWUYASABKAkiQQoWU2V0SW5zdGFsbE5hbWVSZXNwb25zZRInCghzZXR0aW5ncxgBIAEoCzIVLmRvY2t3ZWxsLnYxLlNldHRpbmdzIicKElNldFRpbWVab25lUmVxdWVzdBIRCgl0aW1lX3pvbmUYASABKAkiPgoTU2V0VGltZVpvbmVSZXNwb25zZRInCghzZXR0aW5ncxgBIAEoCzIVLmRvY2t3ZWxsLnYxLlNldHRpbmdzIhgKFkdldENvbnRyb2xQbGFuZVJlcXVlc3QiSwoXR2V0Q29udHJvbFBsYW5lUmVzcG9uc2USMAoNY29udHJvbF9wbGFuZRgBIAEoCzIZLmRvY2t3ZWxsLnYxLkNvbnRyb2xQbGFuZSLTAgoMQ29udHJvbFBsYW5lEiUKBWJ1aWxkGAEgASgLMhYuZG9ja3dlbGwudjEuQnVpbGRJbmZvEi4KCnN0YXJ0X3RpbWUYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhAKCGRhdGFfZGlyGAMgASgJEhAKCGtleV9maWxlGAQgASgJEiYKBXN0b3JlGAUgASgLMhcuZG9ja3dlbGwudjEuU3RhdGVTdG9yZRIoCgVwYW5lbBgGIAEoCzIZLmRvY2t3ZWxsLnYxLlBhbmVsU2VydmluZxIqCgZhZ2VudHMYByABKAsyGi5kb2Nrd2VsbC52MS5BZ2VudExpc3RlbmVyEhQKDG1lbW9yeV9ieXRlcxgIIAEoAxI0Cg9zZXJ2aWNlX21hbmFnZXIYCSABKA4yGy5kb2Nrd2VsbC52MS5TZXJ2aWNlTWFuYWdlciKhAQoKU3RhdGVTdG9yZRItCgZlbmdpbmUYASABKA4yHS5kb2Nrd2VsbC52MS5TdGF0ZVN0b3JlRW5naW5lEhAKCGxvY2F0aW9uGAIgASgJEg8KB3ZlcnNpb24YAyABKAkSEgoKc2l6ZV9ieXRlcxgEIAEoAxItCgpyb3VuZF90cmlwGAUgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uIkEKDUFnZW50TGlzdGVuZXISDgoGbGlzdGVuGAEgASgJEgsKA3VybBgCIAEoCRITCgtwdWJsaWNfdXJscxgDIAMoCSqKAQoPUGFuZWxEb21haW5Gcm9tEiEKHVBBTkVMX0RPTUFJTl9GUk9NX1VOU1BFQ0lGSUVEEAASGgoWUEFORUxfRE9NQUlOX0ZST01fTk9ORRABEhkKFVBBTkVMX0RPTUFJTl9GUk9NX1JVThACEh0KGVBBTkVMX0RPTUFJTl9GUk9NX1NFVFRJTkcQAyqFAQoNUGFuZWxTZXJ2ZWRCeRIfChtQQU5FTF9TRVJWRURfQllfVU5TUEVDSUZJRUQQABIYChRQQU5FTF9TRVJWRURfQllfTk9ORRABEhwKGFBBTkVMX1NFUlZFRF9CWV9ET0NLV0VMTBACEhsKF1BBTkVMX1NFUlZFRF9CWV9JTkdSRVNTEAMqhAEKDlNlcnZpY2VNYW5hZ2VyEh8KG1NFUlZJQ0VfTUFOQUdFUl9VTlNQRUNJRklFRBAAEhgKFFNFUlZJQ0VfTUFOQUdFUl9OT05FEAESGwoXU0VSVklDRV9NQU5BR0VSX1NZU1RFTUQQAhIaChZTRVJWSUNFX01BTkFHRVJfT1BFTlJDEAMqdgoQU3RhdGVTdG9yZUVuZ2luZRIiCh5TVEFURV9TVE9SRV9FTkdJTkVfVU5TUEVDSUZJRUQQABIdChlTVEFURV9TVE9SRV9FTkdJTkVfU1FMSVRFEAESHwobU1RBVEVfU1RPUkVfRU5HSU5FX1BPU1RHUkVTEAIymw4KD1NldHRpbmdzU2VydmljZRKMAQoLR2V0U2V0dGluZ3MSHy5kb2Nrd2VsbC52MS5HZXRTZXR0aW5nc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5HZXRTZXR0aW5nc1Jlc3BvbnNlIjqQAgGguxgBqrsYDwoIc2V0dGluZ3MSA2dldMC7GALIuxgC0LsYA4LT5JMCDhIML3YxL3NldHRpbmdzEqYBCg5TZXRJbnN0YWxsTmFtZRIiLmRvY2t3ZWxsLnYxLlNldEluc3RhbGxOYW1lUmVxdWVzdBojLmRvY2t3ZWxsLnYxLlNldEluc3RhbGxOYW1lUmVzcG9uc2UiS6C7GAOquxgUCghzZXR0aW5ncxIIc2V0LW5hbWWwuxgBwLsYBMi7GATQuxgGgtPkkwIZOgEqIhQvdjEvc2V0dGluZ3M6c2V0TmFtZRKiAQoLU2V0VGltZVpvbmUSHy5kb2Nrd2VsbC52MS5TZXRUaW1lWm9uZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5TZXRUaW1lWm9uZVJlc3BvbnNlIlCguxgDqrsYGQoIc2V0dGluZ3MSDXNldC10aW1lLXpvbmXAuxgEyLsYBNC7GAaC0+STAh06ASoiGC92MS9zZXR0aW5nczpzZXRUaW1lWm9uZRK8AQoQQ2hlY2tQYW5lbERvbWFpbhIkLmRvY2t3ZWxsLnYxLkNoZWNrUGFuZWxEb21haW5SZXF1ZXN0GiUuZG9ja3dlbGwudjEuQ2hlY2tQYW5lbERvbWFpblJlc3BvbnNlIluQAgGguxgBqrsYHgoIc2V0dGluZ3MSEmNoZWNrLXBhbmVsLWRvbWFpbsC7GATIuxgE0LsYBoLT5JMCIBIeL3YxL3NldHRpbmdzL3BhbmVsRG9tYWluOmNoZWNrErUBCg5TZXRQYW5lbERvbWFpbhIiLmRvY2t3ZWxsLnYxLlNldFBhbmVsRG9tYWluUmVxdWVzdBojLmRvY2t3ZWxsLnYxLlNldFBhbmVsRG9tYWluUmVzcG9uc2UiWqC7GAOquxgcCghzZXR0aW5ncxIQc2V0LXBhbmVsLWRvbWFpbrC7GAHAuxgEyLsYBNC7GAaC0+STAiA6ASoiGy92MS9zZXR0aW5nczpzZXRQYW5lbERvbWFpbhLaAQoVQ3JlYXRlUGFuZWxTaWduSW5MaW5rEikuZG9ja3dlbGwudjEuQ3JlYXRlUGFuZWxTaWduSW5MaW5rUmVxdWVzdBoqLmRvY2t3ZWxsLnYxLkNyZWF0ZVBhbmVsU2lnbkluTGlua1Jlc3BvbnNlImqguxgDqrsYJQoIc2V0dGluZ3MSGWNyZWF0ZS1wYW5lbC1zaWduLWluLWxpbmuwuxgBwLsYBMi7GATQuxgGgtPkkwInOgEqIiIvdjEvc2V0dGluZ3M6Y3JlYXRlUGFuZWxTaWduSW5MaW5rEqEBCg9HZXRDb250cm9sUGxhbmUSIy5kb2Nrd2VsbC52MS5HZXRDb250cm9sUGxhbmVSZXF1ZXN0GiQuZG9ja3dlbGwudjEuR2V0Q29udHJvbFBsYW5lUmVzcG9uc2UiQ5ACAaC7GAGquxgUCg1jb250cm9sLXBsYW5lEgNnZXTAuxgEyLsYBNC7GAaC0+STAhISEC92MS9jb250cm9sUGxhbmUasgSiuxiKAgoIc2V0dGluZ3MS/QFUaGUgaW5zdGFsbCdzIHNldHRpbmdzIGFyZSB3aGF0IGl0J3MgY2FsbGVkLCB0aGUgdGltZSB6b25lIG5ldyBzY2hlZHVsZXMgc3RhcnQgaW4sIGFuZCBob3cgaXRzIHBhbmVsIGlzIHNlcnZlZC4gVGhleSBjaGFuZ2Ugd2hhdCBEb2Nrd2VsbCBzYXlzIGFuZCBzdWdnZXN0cywgbm90IHdoYXQgcnVucywgc28gYSBjaGFuZ2UgbmVlZHMgbm8gcGxhbiwgYW5kIGVhY2ggaXMgb24gdGhlIGFjdGl2aXR5IGxvZyB3aXRoIHdoYXQgaXQgcmVwbGFjZWQuorsYngIKDWNvbnRyb2wtcGxhbmUSjAJUaGUgY29udHJvbCBwbGFuZSBzZXJ2ZXMgdGhlIHBhbmVsIGFuZCBBUEksIGJlc2lkZSBhbiBhZ2VudCBvZiBpdHMgb3duLiBJdCBzYXlzIHRoZSBidWlsZCBpdCBydW5zLCB3aGVyZSBpdCBrZWVwcyBpdHMgc3RhdGUgYW5kIHRoZSBpbnN0YWxsJ3Mga2V5LCB0aGUgYWRkcmVzc2VzIGl0IGFuc3dlcnMgb24sIGFuZCBob3cgaXQncyBkb2luZy4gTW9zdCBvZiB0aGF0IGNvbWVzIGZyb20gaG93IGRvY2t3ZWxsIHJ1biB3YXMgc3RhcnRlZCwgYW5kIGNoYW5nZXMgdGhlcmUuQqYBCg9jb20uZG9ja3dlbGwudjFCDVNldHRpbmdzUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * GetSettingsRequest takes no parameters.
@@ -155,6 +155,38 @@ export type PanelServing = Message<"dockwell.v1.PanelServing"> & {
    * @generated from field: string certificate_authority = 6;
    */
   certificateAuthority: string;
+
+  /**
+   * Where the domain comes from: dockwell run's --domain or DOCKWELL_DOMAIN,
+   * which the panel can't change, or the setting (ADR 0063).
+   *
+   * @generated from field: dockwell.v1.PanelDomainFrom domain_from = 7;
+   */
+  domainFrom: PanelDomainFrom;
+
+  /**
+   * The domain the setting holds. It differs from domain when dockwell run
+   * couldn't serve it, which problem says.
+   *
+   * @generated from field: string set_domain = 8;
+   */
+  setDomain: string;
+
+  /**
+   * Why the domain the setting holds isn't served, as when a route took it
+   * first, or its ports were held. Empty when it is, or none is set.
+   *
+   * @generated from field: string problem = 9;
+   */
+  problem: string;
+
+  /**
+   * True once Dockwell holds a certificate for the domain, so the panel answers
+   * there over HTTPS.
+   *
+   * @generated from field: bool certified = 10;
+   */
+  certified: boolean;
 };
 
 /**
@@ -163,6 +195,219 @@ export type PanelServing = Message<"dockwell.v1.PanelServing"> & {
  */
 export const PanelServingSchema: GenMessage<PanelServing> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_settings, 3);
+
+/**
+ * CheckPanelDomainRequest names a domain to check.
+ *
+ * @generated from message dockwell.v1.CheckPanelDomainRequest
+ */
+export type CheckPanelDomainRequest = Message<"dockwell.v1.CheckPanelDomainRequest"> & {
+  /**
+   * The domain, such as "panel.example.com".
+   *
+   * @generated from field: string domain = 1;
+   */
+  domain: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckPanelDomainRequest.
+ * Use `create(CheckPanelDomainRequestSchema)` to create a new message.
+ */
+export const CheckPanelDomainRequestSchema: GenMessage<CheckPanelDomainRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_settings, 4);
+
+/**
+ * CheckPanelDomainResponse says whether the panel can take a domain, and what
+ * stands in the way of a certificate for it.
+ *
+ * @generated from message dockwell.v1.CheckPanelDomainResponse
+ */
+export type CheckPanelDomainResponse = Message<"dockwell.v1.CheckPanelDomainResponse"> & {
+  /**
+   * Why the panel can't take it: the rules a domain has, or a route that
+   * serves it or a name under it. Empty when it can.
+   *
+   * @generated from field: string refusal = 1;
+   */
+  refusal: string;
+
+  /**
+   * What its A and AAAA records hold, as the control plane resolved them.
+   *
+   * @generated from field: repeated string addresses = 2;
+   */
+  addresses: string[];
+
+  /**
+   * Why it couldn't be resolved, such as "no such domain". Empty when it was.
+   *
+   * @generated from field: string dns_problem = 3;
+   */
+  dnsProblem: string;
+
+  /**
+   * This server's public addresses, where the records should lead.
+   *
+   * @generated from field: repeated string public_addresses = 4;
+   */
+  publicAddresses: string[];
+
+  /**
+   * True when an address the domain resolves to is one of them.
+   *
+   * @generated from field: bool points_here = 5;
+   */
+  pointsHere: boolean;
+
+  /**
+   * What holds port 80 or 443 on the control server other than Dockwell or its
+   * Caddy, which would stop a certificate.
+   *
+   * @generated from field: repeated dockwell.v1.PanelPortHolder ports_held = 6;
+   */
+  portsHeld: PanelPortHolder[];
+};
+
+/**
+ * Describes the message dockwell.v1.CheckPanelDomainResponse.
+ * Use `create(CheckPanelDomainResponseSchema)` to create a new message.
+ */
+export const CheckPanelDomainResponseSchema: GenMessage<CheckPanelDomainResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_settings, 5);
+
+/**
+ * PanelPortHolder is a program that holds a port the panel's certificate needs.
+ *
+ * @generated from message dockwell.v1.PanelPortHolder
+ */
+export type PanelPortHolder = Message<"dockwell.v1.PanelPortHolder"> & {
+  /**
+   * The port: 80 or 443.
+   *
+   * @generated from field: uint32 port = 1;
+   */
+  port: number;
+
+  /**
+   * The program, as the kernel names its process, such as "nginx".
+   *
+   * @generated from field: string program = 2;
+   */
+  program: string;
+};
+
+/**
+ * Describes the message dockwell.v1.PanelPortHolder.
+ * Use `create(PanelPortHolderSchema)` to create a new message.
+ */
+export const PanelPortHolderSchema: GenMessage<PanelPortHolder> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_settings, 6);
+
+/**
+ * SetPanelDomainRequest sets the panel's domain, or clears it.
+ *
+ * @generated from message dockwell.v1.SetPanelDomainRequest
+ */
+export type SetPanelDomainRequest = Message<"dockwell.v1.SetPanelDomainRequest"> & {
+  /**
+   * The domain, such as "panel.example.com". Empty clears it.
+   *
+   * @generated from field: string domain = 1;
+   */
+  domain: string;
+
+  /**
+   * The proof from FinishStepUp for STEP_UP_ACTION_SET_PANEL_DOMAIN.
+   *
+   * @generated from field: string proof = 2;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.SetPanelDomainRequest.
+ * Use `create(SetPanelDomainRequestSchema)` to create a new message.
+ */
+export const SetPanelDomainRequestSchema: GenMessage<SetPanelDomainRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_settings, 7);
+
+/**
+ * SetPanelDomainResponse is the settings as saved, before the restart.
+ *
+ * @generated from message dockwell.v1.SetPanelDomainResponse
+ */
+export type SetPanelDomainResponse = Message<"dockwell.v1.SetPanelDomainResponse"> & {
+  /**
+   * The settings.
+   *
+   * @generated from field: dockwell.v1.Settings settings = 1;
+   */
+  settings?: Settings | undefined;
+
+  /**
+   * True when the control plane restarts to serve it, once this is sent.
+   *
+   * @generated from field: bool restarting = 2;
+   */
+  restarting: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.SetPanelDomainResponse.
+ * Use `create(SetPanelDomainResponseSchema)` to create a new message.
+ */
+export const SetPanelDomainResponseSchema: GenMessage<SetPanelDomainResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_settings, 8);
+
+/**
+ * CreatePanelSignInLinkRequest asks for a link to the panel on its domain.
+ *
+ * @generated from message dockwell.v1.CreatePanelSignInLinkRequest
+ */
+export type CreatePanelSignInLinkRequest = Message<"dockwell.v1.CreatePanelSignInLinkRequest"> & {
+  /**
+   * The proof from FinishStepUp for STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN.
+   *
+   * @generated from field: string proof = 1;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CreatePanelSignInLinkRequest.
+ * Use `create(CreatePanelSignInLinkRequestSchema)` to create a new message.
+ */
+export const CreatePanelSignInLinkRequestSchema: GenMessage<CreatePanelSignInLinkRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_settings, 9);
+
+/**
+ * CreatePanelSignInLinkResponse is the link, which signs in once.
+ *
+ * @generated from message dockwell.v1.CreatePanelSignInLinkResponse
+ */
+export type CreatePanelSignInLinkResponse = Message<"dockwell.v1.CreatePanelSignInLinkResponse"> & {
+  /**
+   * The link, such as "https://panel.example.com/recover#…".
+   *
+   * @generated from field: string url = 1;
+   */
+  url: string;
+
+  /**
+   * When it stops working.
+   *
+   * @generated from field: google.protobuf.Timestamp expire_time = 2;
+   */
+  expireTime?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.CreatePanelSignInLinkResponse.
+ * Use `create(CreatePanelSignInLinkResponseSchema)` to create a new message.
+ */
+export const CreatePanelSignInLinkResponseSchema: GenMessage<CreatePanelSignInLinkResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_settings, 10);
 
 /**
  * SetInstallNameRequest names the install.
@@ -183,7 +428,7 @@ export type SetInstallNameRequest = Message<"dockwell.v1.SetInstallNameRequest">
  * Use `create(SetInstallNameRequestSchema)` to create a new message.
  */
 export const SetInstallNameRequestSchema: GenMessage<SetInstallNameRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_settings, 4);
+  messageDesc(file_dockwell_v1_settings, 11);
 
 /**
  * SetInstallNameResponse carries the settings as they now are.
@@ -204,7 +449,7 @@ export type SetInstallNameResponse = Message<"dockwell.v1.SetInstallNameResponse
  * Use `create(SetInstallNameResponseSchema)` to create a new message.
  */
 export const SetInstallNameResponseSchema: GenMessage<SetInstallNameResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_settings, 5);
+  messageDesc(file_dockwell_v1_settings, 12);
 
 /**
  * SetTimeZoneRequest sets the time zone new schedules start in.
@@ -226,7 +471,7 @@ export type SetTimeZoneRequest = Message<"dockwell.v1.SetTimeZoneRequest"> & {
  * Use `create(SetTimeZoneRequestSchema)` to create a new message.
  */
 export const SetTimeZoneRequestSchema: GenMessage<SetTimeZoneRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_settings, 6);
+  messageDesc(file_dockwell_v1_settings, 13);
 
 /**
  * SetTimeZoneResponse carries the settings as they now are.
@@ -247,7 +492,7 @@ export type SetTimeZoneResponse = Message<"dockwell.v1.SetTimeZoneResponse"> & {
  * Use `create(SetTimeZoneResponseSchema)` to create a new message.
  */
 export const SetTimeZoneResponseSchema: GenMessage<SetTimeZoneResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_settings, 7);
+  messageDesc(file_dockwell_v1_settings, 14);
 
 /**
  * GetControlPlaneRequest takes no parameters.
@@ -262,7 +507,7 @@ export type GetControlPlaneRequest = Message<"dockwell.v1.GetControlPlaneRequest
  * Use `create(GetControlPlaneRequestSchema)` to create a new message.
  */
 export const GetControlPlaneRequestSchema: GenMessage<GetControlPlaneRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_settings, 8);
+  messageDesc(file_dockwell_v1_settings, 15);
 
 /**
  * GetControlPlaneResponse describes the control plane that answers.
@@ -283,7 +528,7 @@ export type GetControlPlaneResponse = Message<"dockwell.v1.GetControlPlaneRespon
  * Use `create(GetControlPlaneResponseSchema)` to create a new message.
  */
 export const GetControlPlaneResponseSchema: GenMessage<GetControlPlaneResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_settings, 9);
+  messageDesc(file_dockwell_v1_settings, 16);
 
 /**
  * ControlPlane is the dockwell run that serves the panel and API, with the
@@ -365,7 +610,7 @@ export type ControlPlane = Message<"dockwell.v1.ControlPlane"> & {
  * Use `create(ControlPlaneSchema)` to create a new message.
  */
 export const ControlPlaneSchema: GenMessage<ControlPlane> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_settings, 10);
+  messageDesc(file_dockwell_v1_settings, 17);
 
 /**
  * StateStore is the database the control plane keeps its state in.
@@ -415,7 +660,7 @@ export type StateStore = Message<"dockwell.v1.StateStore"> & {
  * Use `create(StateStoreSchema)` to create a new message.
  */
 export const StateStoreSchema: GenMessage<StateStore> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_settings, 11);
+  messageDesc(file_dockwell_v1_settings, 18);
 
 /**
  * AgentListener is where servers' agents reach the control plane.
@@ -453,7 +698,46 @@ export type AgentListener = Message<"dockwell.v1.AgentListener"> & {
  * Use `create(AgentListenerSchema)` to create a new message.
  */
 export const AgentListenerSchema: GenMessage<AgentListener> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_settings, 12);
+  messageDesc(file_dockwell_v1_settings, 19);
+
+/**
+ * PanelDomainFrom is where the panel's domain comes from.
+ *
+ * @generated from enum dockwell.v1.PanelDomainFrom
+ */
+export enum PanelDomainFrom {
+  /**
+   * @generated from enum value: PANEL_DOMAIN_FROM_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * It has none.
+   *
+   * @generated from enum value: PANEL_DOMAIN_FROM_NONE = 1;
+   */
+  NONE = 1,
+
+  /**
+   * dockwell run's --domain or DOCKWELL_DOMAIN, which wins over the setting.
+   *
+   * @generated from enum value: PANEL_DOMAIN_FROM_RUN = 2;
+   */
+  RUN = 2,
+
+  /**
+   * The setting, from Settings, General.
+   *
+   * @generated from enum value: PANEL_DOMAIN_FROM_SETTING = 3;
+   */
+  SETTING = 3,
+}
+
+/**
+ * Describes the enum dockwell.v1.PanelDomainFrom.
+ */
+export const PanelDomainFromSchema: GenEnum<PanelDomainFrom> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_settings, 0);
 
 /**
  * PanelServedBy is what serves the panel over HTTPS on its domain.
@@ -495,7 +779,7 @@ export enum PanelServedBy {
  * Describes the enum dockwell.v1.PanelServedBy.
  */
 export const PanelServedBySchema: GenEnum<PanelServedBy> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_settings, 0);
+  enumDesc(file_dockwell_v1_settings, 1);
 
 /**
  * ServiceManager is what runs dockwell run as a service on the control server.
@@ -535,7 +819,7 @@ export enum ServiceManager {
  * Describes the enum dockwell.v1.ServiceManager.
  */
 export const ServiceManagerSchema: GenEnum<ServiceManager> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_settings, 1);
+  enumDesc(file_dockwell_v1_settings, 2);
 
 /**
  * StateStoreEngine is a kind of database the control plane can keep its state in.
@@ -567,7 +851,7 @@ export enum StateStoreEngine {
  * Describes the enum dockwell.v1.StateStoreEngine.
  */
 export const StateStoreEngineSchema: GenEnum<StateStoreEngine> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_settings, 2);
+  enumDesc(file_dockwell_v1_settings, 3);
 
 /**
  * SettingsService reads and changes the install's own settings: what it's
@@ -617,6 +901,62 @@ export const SettingsService: GenService<{
     methodKind: "unary";
     input: typeof SetTimeZoneRequestSchema;
     output: typeof SetTimeZoneResponseSchema;
+  },
+  /**
+   * CheckPanelDomain checks a domain for the panel as it's typed, before it's
+   * set (ADR 0063): whether the panel can take it, by the rules --domain has
+   * and as no route serves it or a name under it; what its A and AAAA records
+   * hold, as the control plane resolves them, and whether they lead to this
+   * server's public addresses; and whether something other than Dockwell or its
+   * Caddy holds port 80 or 443 on the control server, which would stop a
+   * certificate. DNS that doesn't lead here yet is a warning, not a refusal: a
+   * person may set DNS and the domain in either order.
+   *
+   * @generated from rpc dockwell.v1.SettingsService.CheckPanelDomain
+   */
+  checkPanelDomain: {
+    methodKind: "unary";
+    input: typeof CheckPanelDomainRequestSchema;
+    output: typeof CheckPanelDomainResponseSchema;
+  },
+  /**
+   * SetPanelDomain sets the domain the panel is served on over HTTPS, or clears
+   * it (an empty domain), and restarts the control plane to serve it: the
+   * response goes out first, then it re-executes itself, so apps and websites
+   * keep running and the panel answers again within seconds, on loopback and
+   * the domain (ADR 0063). It takes the owner, signed in, and a passkey just
+   * now: call it without a proof first, and it refuses with the reason
+   * needs_step_up, then again with the proof from FinishStepUp for
+   * STEP_UP_ACTION_SET_PANEL_DOMAIN, whose target is the domain, or the one it
+   * clears. Refused while a
+   * change is applying, when dockwell run was given a domain with --domain or
+   * DOCKWELL_DOMAIN, for a name the panel can't take, and for a move from one
+   * domain to another, which comes later. It's on the activity log with the
+   * domain it replaced.
+   *
+   * @generated from rpc dockwell.v1.SettingsService.SetPanelDomain
+   */
+  setPanelDomain: {
+    methodKind: "unary";
+    input: typeof SetPanelDomainRequestSchema;
+    output: typeof SetPanelDomainResponseSchema;
+  },
+  /**
+   * CreatePanelSignInLink makes the owner a one-time sign-in link to the panel
+   * on its domain, once it answers there over HTTPS: passkeys belong to the
+   * address they were made on, so the owner signs in there with the link and
+   * adds one (ADR 0063). It works once, for 15 minutes, and carries its token
+   * after the "#", which no server log or Referer keeps. It takes a passkey just
+   * now: call it without a proof first, then again with the proof from
+   * FinishStepUp for STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN, whose target is the
+   * domain. It's on the activity log as sign_in_link.create.
+   *
+   * @generated from rpc dockwell.v1.SettingsService.CreatePanelSignInLink
+   */
+  createPanelSignInLink: {
+    methodKind: "unary";
+    input: typeof CreatePanelSignInLinkRequestSchema;
+    output: typeof CreatePanelSignInLinkResponseSchema;
   },
   /**
    * GetControlPlane returns what serves the panel and API: its build, where it

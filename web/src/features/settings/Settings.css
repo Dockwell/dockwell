@@ -1211,3 +1211,22 @@
     text-align: left;
   }
 }
+
+/* The panel's domain, set here (ADR 0063). */
+.panel-domain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.panel-domain-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.panel-domain-warn {
+  color: var(--warning);
+}

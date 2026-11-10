@@ -2,7 +2,7 @@
 
 // Settings, as Settings-General.dc.html has it for an install: reached from the rail,
 // the install named and given a time zone, each on Activity, how the panel is served
-// and how to change it, a language for this browser, and the sections on a phone.
+// and the field to give it a domain, a language for this browser, and the sections on a phone.
 // Then Control plane, as Settings-ControlPlane.dc.html has it for one control plane.
 
 import { readFile } from "node:fs/promises";
@@ -33,7 +33,8 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   }
   const panel = page.getByRole("region", { name: "Panel address" });
   await panel.getByText("Loopback only", { exact: true }).waitFor();
-  await panel.getByText("DOCKWELL_DOMAIN=panel.example.com", { exact: true }).waitFor();
+  // A domain is set here now (panel-domain-flow.ts sets one), not from steps to follow.
+  await panel.getByRole("textbox", { name: "Domain" }).waitFor();
   await shoot(page, "settings-general");
 
   step("settings: naming the install and setting its time zone are on Activity, and the tab says the name");

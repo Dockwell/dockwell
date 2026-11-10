@@ -10250,12 +10250,6 @@ msgstr "暂无：面板还没有域名"
 msgid "Only this browser changes. Your other browsers, and the command line, keep their own."
 msgstr "只更改此浏览器。你的其他浏览器和命令行保持各自的设置。"
 
-msgid "Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of this server's routes already serves. Passkeys belong to the address they were made on, so those for an old domain won't work on the new one: over SSH, run <0>dockwell recover</0> on the server, open its link on the new domain, and add a passkey there."
-msgstr "要获取证书，80 和 443 端口必须能访问到这台服务器；如果这台服务器的某条路由已在使用该域名，Dockwell 将无法启动。通行密钥属于创建它的地址，旧域名的通行密钥在新域名上不可用：请通过 SSH 在服务器上运行 <0>dockwell recover</0>，在新域名上打开它给出的链接，然后在那里添加通行密钥。"
-
-msgid "Run by hand, <0>dockwell run --domain …</0>."
-msgstr "手动运行时，使用 <0>dockwell run --domain …</0>。"
-
 msgid "Same as this browser ({browser})"
 msgstr "与此浏览器相同（{browser}）"
 
@@ -10268,9 +10262,6 @@ msgstr "提供方"
 msgid "Show the panel in"
 msgstr "面板显示语言"
 
-msgid "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>, and read as it starts. Change it there and restart Dockwell:"
-msgstr "域名在 Dockwell 运行的地方以 <0>DOCKWELL_DOMAIN</0> 设置，并在启动时读取。请在那里修改并重启 Dockwell："
-
 msgid "The sign-in screen and your browser's tabs say it. Empty, they say Dockwell."
 msgstr "登录页和浏览器标签页会显示它。留空时显示 Dockwell。"
 
@@ -10280,20 +10271,11 @@ msgstr "此安装"
 msgid "Time zone"
 msgstr "时区"
 
-msgid "To reach the panel over HTTPS on a domain of yours, point the domain's DNS at this server, set <0>DOCKWELL_DOMAIN=panel.example.com</0> where Dockwell runs, and restart it:"
-msgstr "要通过你自己的域名以 HTTPS 访问面板，请将该域名的 DNS 指向这台服务器，在 Dockwell 运行的地方设置 <0>DOCKWELL_DOMAIN=panel.example.com</0>，然后重启："
-
 msgid "What this install is called, its time zone and how its panel is served"
 msgstr "此安装的名称、时区以及面板的访问方式"
 
 msgid "What this install is called, its time zone and how its panel is served · set up {since}"
 msgstr "此安装的名称、时区以及面板的访问方式 · 设置于 {since}"
-
-msgid "With OpenRC, <0>export DOCKWELL_DOMAIN=…</0> in <1>/etc/conf.d/dockwell</1>, then <2>sudo rc-service dockwell restart</2>."
-msgstr "使用 OpenRC 时，在 <1>/etc/conf.d/dockwell</1> 中写入 <0>export DOCKWELL_DOMAIN=…</0>，然后运行 <2>sudo rc-service dockwell restart</2>。"
-
-msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
-msgstr "使用 systemd 时，用 <0>sudo systemctl edit dockwell</0> 添加 <1>Environment=DOCKWELL_DOMAIN=…</1> 这一行，然后运行 <2>sudo systemctl restart dockwell</2>。"
 
 #. placeholder {0}: formatBytes(d.usedBytes, i18n.locale)
 msgid "1 backup, {0}"
@@ -10522,6 +10504,76 @@ msgstr "{keys}，验证码登录已锁定"
 
 msgid "{withPasskeys} of {count} sign in with a passkey"
 msgstr "{count} 人中有 {withPasskeys} 人使用通行密钥登录"
+
+msgid "Apps and websites keep running. It asks for your passkey."
+msgstr "应用和网站会继续运行。此操作需要验证你的通行密钥。"
+
+msgid "DNS doesn't point here yet"
+msgstr "DNS 尚未指向这里"
+
+msgid "Dockwell can't tell whether {domain} leads here"
+msgstr "Dockwell 无法判断 {domain} 是否指向这里"
+
+msgid "Dockwell restarts to answer on loopback alone. Apps and websites keep running…"
+msgstr "Dockwell 正在重启，之后只在本机回环上响应。应用和网站会继续运行…"
+
+#. placeholder {0}: restarting.to
+msgid "Dockwell restarts to serve {0}. Apps and websites keep running…"
+msgstr "Dockwell 正在重启以提供 {0}。应用和网站会继续运行…"
+
+msgid "Dockwell restarts to serve {domain}"
+msgstr "Dockwell 将重启以提供 {domain}"
+
+msgid "Getting a certificate for {domain}…"
+msgstr "正在为 {domain} 获取证书…"
+
+#. placeholder {0}: found.addresses.join(", ")
+msgid "It leads to {0}"
+msgstr "它指向 {0}"
+
+msgid "Once DNS leads here and ports 80 and 443 reach this server, it comes on its own."
+msgstr "只要 DNS 指向这里，并且端口 80 和 443 能到达这台服务器，证书会自动获取。"
+
+msgid "Only the owner sets it."
+msgstr "只有所有者可以设置。"
+
+msgid "Open {domain}"
+msgstr "打开 {domain}"
+
+msgid "Passkeys belong to the address they were made on: open it, and add one there."
+msgstr "通行密钥属于创建它的地址：请打开该地址，并在那里添加一个。"
+
+msgid "Restart and serve it"
+msgstr "重启并提供它"
+
+msgid "Serve the panel there"
+msgstr "在此域名上提供面板"
+
+msgid "Stop using it"
+msgstr "停止使用"
+
+msgid "The panel answers on {domain}"
+msgstr "面板已在 {domain} 上响应"
+
+msgid "The panel answers there over HTTPS too. The SSH tunnel keeps working."
+msgstr "面板也会通过 HTTPS 在那里响应。SSH 隧道仍可继续使用。"
+
+msgid "This server's public address isn't known: set it, and Dockwell compares the two."
+msgstr "尚不知道此服务器的公网地址：设置后，Dockwell 会比较两者。"
+
+msgid "dockwell run was started with this domain, as <0>DOCKWELL_DOMAIN</0> or <1>--domain</1>, which wins over Settings. Change it there."
+msgstr "dockwell run 启动时已指定此域名（<0>DOCKWELL_DOMAIN</0> 或 <1>--domain</1>），它优先于设置。请在那里更改。"
+
+#. placeholder {0}: p.program
+#. placeholder {1}: p.port
+msgid "{0} holds port {1} on this server, so no certificate can come until it's freed."
+msgstr "{0} 占用了这台服务器的端口 {1}，在释放之前无法获取证书。"
+
+msgid "{domain} isn't served"
+msgstr "{domain} 未在提供"
+
+msgid "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
+msgstr "{leads}。尚不知道此服务器的公网地址：设置后，Dockwell 会比较两者。"
 
 msgid "Account"
 msgstr "账户"

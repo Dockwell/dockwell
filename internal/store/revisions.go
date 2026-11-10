@@ -272,6 +272,17 @@ type ChangePage struct {
 	ID        string
 }
 
+// AnyApplying reports whether a change is applying, as one a restart would stop
+// partway.
+func (t *Tx) AnyApplying(ctx context.Context) (bool, error) {
+	rows, err := t.query(ctx, `SELECT id FROM changes WHERE state = ? LIMIT 1`, ChangeApplying)
+	if err != nil {
+		return false, fmt.Errorf("can't read whether a change is applying: %w", err)
+	}
+	defer rows.Close()
+	return rows.Next(), rows.Err()
+}
+
 // ListChanges returns at most limit changes, newest first, without their
 // items, from where page says.
 func (t *Tx) ListChanges(ctx context.Context, page ChangePage, limit int) ([]Change, error) {

@@ -42,7 +42,7 @@ const (
 )
 
 // Actions are every action this package puts on the activity log.
-var Actions = []string{ActionName, ActionTimeZone}
+var Actions = []string{ActionName, ActionTimeZone, ActionPanelDomain}
 
 // MaxName is the most characters a name holds.
 const MaxName = 64
@@ -62,6 +62,14 @@ type Serving struct {
 	// server's first route until its last goes (ADR 0024). Each request asks,
 	// as that changes without a restart. Nil means Dockwell always does.
 	HTTPS func() (listen string, ok bool)
+	// From says where the domain comes from: dockwell run's --domain or
+	// DOCKWELL_DOMAIN, or the setting (ADR 0063).
+	From dockwellv1.PanelDomainFrom
+	// Problem is why the domain the setting holds isn't served, when it isn't.
+	Problem string
+	// Certified reports whether Dockwell holds the domain's certificate. Nil
+	// means it does whenever it has a domain.
+	Certified func() bool
 }
 
 // Handler implements SettingsService.
@@ -70,6 +78,8 @@ type Handler struct {
 	serving Serving
 	plane   Plane
 	now     func() time.Time
+	// domain sets the panel's domain (ADR 0063).
+	domain Domain
 }
 
 var _ dockwellv1connect.SettingsServiceHandler = (*Handler)(nil)
@@ -94,6 +104,8 @@ func ReadEvent(action, detail string) (*dockwellv1.EventSetting, bool) {
 		setting = "name"
 	case ActionTimeZone:
 		setting = "time_zone"
+	case ActionPanelDomain:
+		setting = "panel_domain"
 	default:
 		return nil, false
 	}
@@ -220,7 +232,12 @@ func (h *Handler) read(ctx context.Context, tx *store.Tx) (*dockwellv1.Settings,
 	if err != nil {
 		return nil, err
 	}
+	set, err := getString(ctx, tx, KeyPanelDomain)
+	if err != nil {
+		return nil, err
+	}
 	out := &dockwellv1.Settings{Name: name, TimeZone: zone, Panel: h.panel()}
+	out.Panel.SetDomain = set
 	switch org, err := tx.Organization(ctx); {
 	case err == nil:
 		out.CreateTime = timestamppb.New(org.CreatedAt)
@@ -234,11 +251,18 @@ func (h *Handler) read(ctx context.Context, tx *store.Tx) (*dockwellv1.Settings,
 // ingress holds the public ports changes as routes come and go.
 func (h *Handler) panel() *dockwellv1.PanelServing {
 	s := h.serving
-	out := &dockwellv1.PanelServing{Listen: s.Listen, Domain: s.Domain, ServedBy: dockwellv1.PanelServedBy_PANEL_SERVED_BY_NONE}
+	out := &dockwellv1.PanelServing{Listen: s.Listen, Domain: s.Domain, ServedBy: dockwellv1.PanelServedBy_PANEL_SERVED_BY_NONE, DomainFrom: s.From, Problem: s.Problem}
+	if out.DomainFrom == dockwellv1.PanelDomainFrom_PANEL_DOMAIN_FROM_UNSPECIFIED {
+		out.DomainFrom = dockwellv1.PanelDomainFrom_PANEL_DOMAIN_FROM_NONE
+		if s.Domain != "" {
+			out.DomainFrom = dockwellv1.PanelDomainFrom_PANEL_DOMAIN_FROM_RUN
+		}
+	}
 	if s.Domain == "" {
 		return out
 	}
 	out.CertificateAuthority = s.CA
+	out.Certified = s.Certified == nil || s.Certified()
 	listen, ok := "", true
 	if s.HTTPS != nil {
 		listen, ok = s.HTTPS()

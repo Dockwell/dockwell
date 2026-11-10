@@ -522,7 +522,7 @@ export const EventProcessSchema: GenMessage<EventProcess> = /*@__PURE__*/
  */
 export type EventSetting = Message<"dockwell.v1.EventSetting"> & {
   /**
-   * Which: "name" or "time_zone".
+   * Which: "name", "time_zone" or "panel_domain".
    *
    * @generated from field: string setting = 1;
    */

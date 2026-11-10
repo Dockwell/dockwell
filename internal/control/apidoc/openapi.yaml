@@ -3794,6 +3794,72 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/settings/panelDomain:check:
+        get:
+            tags:
+                - SettingsService
+            description: |-
+                CheckPanelDomain checks a domain for the panel as it's typed, before it's
+                 set (ADR 0063): whether the panel can take it, by the rules --domain has
+                 and as no route serves it or a name under it; what its A and AAAA records
+                 hold, as the control plane resolves them, and whether they lead to this
+                 server's public addresses; and whether something other than Dockwell or its
+                 Caddy holds port 80 or 443 on the control server, which would stop a
+                 certificate. DNS that doesn't lead here yet is a warning, not a refusal: a
+                 person may set DNS and the domain in either order.
+            operationId: SettingsService_CheckPanelDomain
+            parameters:
+                - name: domain
+                  in: query
+                  description: The domain, such as "panel.example.com".
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckPanelDomainResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/settings:createPanelSignInLink:
+        post:
+            tags:
+                - SettingsService
+            description: |-
+                CreatePanelSignInLink makes the owner a one-time sign-in link to the panel
+                 on its domain, once it answers there over HTTPS: passkeys belong to the
+                 address they were made on, so the owner signs in there with the link and
+                 adds one (ADR 0063). It works once, for 15 minutes, and carries its token
+                 after the "#", which no server log or Referer keeps. It takes a passkey just
+                 now: call it without a proof first, then again with the proof from
+                 FinishStepUp for STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN, whose target is the
+                 domain. It's on the activity log as sign_in_link.create.
+            operationId: SettingsService_CreatePanelSignInLink
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreatePanelSignInLinkRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreatePanelSignInLinkResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/settings:setName:
         post:
             tags:
@@ -3817,6 +3883,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/SetInstallNameResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/settings:setPanelDomain:
+        post:
+            tags:
+                - SettingsService
+            description: |-
+                SetPanelDomain sets the domain the panel is served on over HTTPS, or clears
+                 it (an empty domain), and restarts the control plane to serve it: the
+                 response goes out first, then it re-executes itself, so apps and websites
+                 keep running and the panel answers again within seconds, on loopback and
+                 the domain (ADR 0063). It takes the owner, signed in, and a passkey just
+                 now: call it without a proof first, and it refuses with the reason
+                 needs_step_up, then again with the proof from FinishStepUp for
+                 STEP_UP_ACTION_SET_PANEL_DOMAIN, whose target is the domain, or the one it
+                 clears. Refused while a
+                 change is applying, when dockwell run was given a domain with --domain or
+                 DOCKWELL_DOMAIN, for a name the panel can't take, and for a move from one
+                 domain to another, which comes later. It's on the activity log with the
+                 domain it replaced.
+            operationId: SettingsService_SetPanelDomain
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetPanelDomainRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetPanelDomainResponse'
                 default:
                     description: Default error response
                     content:
@@ -5723,6 +5827,8 @@ components:
                         - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                         - STEP_UP_ACTION_APPROVE_CHANGE
                         - STEP_UP_ACTION_ADD_SERVER
+                        - STEP_UP_ACTION_SET_PANEL_DOMAIN
+                        - STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN
                     type: string
                     description: The action.
                     format: enum
@@ -6341,6 +6447,40 @@ components:
                         - $ref: '#/components/schemas/DomainCheck'
                     description: What DNS says, as the control plane reads it.
             description: CheckDomainResponse says what DNS says of it.
+        CheckPanelDomainResponse:
+            type: object
+            properties:
+                refusal:
+                    type: string
+                    description: |-
+                        Why the panel can't take it: the rules a domain has, or a route that
+                         serves it or a name under it. Empty when it can.
+                addresses:
+                    type: array
+                    items:
+                        type: string
+                    description: What its A and AAAA records hold, as the control plane resolved them.
+                dnsProblem:
+                    type: string
+                    description: Why it couldn't be resolved, such as "no such domain". Empty when it was.
+                publicAddresses:
+                    type: array
+                    items:
+                        type: string
+                    description: This server's public addresses, where the records should lead.
+                pointsHere:
+                    type: boolean
+                    description: True when an address the domain resolves to is one of them.
+                portsHeld:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PanelPortHolder'
+                    description: |-
+                        What holds port 80 or 443 on the control server other than Dockwell or its
+                         Caddy, which would stop a certificate.
+            description: |-
+                CheckPanelDomainResponse says whether the panel can take a domain, and what
+                 stands in the way of a certificate for it.
         CheckServerUpdatesRequest:
             type: object
             properties:
@@ -6818,6 +6958,24 @@ components:
                     type: string
                     description: The ticket itself, for dockwell join on the new server. Nothing shows it again.
             description: CreateJoinTicketResponse carries the ticket, once.
+        CreatePanelSignInLinkRequest:
+            type: object
+            properties:
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp for STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN.
+            description: CreatePanelSignInLinkRequest asks for a link to the panel on its domain.
+        CreatePanelSignInLinkResponse:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: The link, such as "https://panel.example.com/recover#…".
+                expireTime:
+                    type: string
+                    description: When it stops working.
+                    format: date-time
+            description: CreatePanelSignInLinkResponse is the link, which signs in once.
         CreateTokenRequest:
             type: object
             properties:
@@ -8194,7 +8352,7 @@ components:
             properties:
                 setting:
                     type: string
-                    description: 'Which: "name" or "time_zone".'
+                    description: 'Which: "name", "time_zone" or "panel_domain".'
                 value:
                     type: string
                     description: What it is now. Empty when they cleared it.
@@ -11059,6 +11217,17 @@ components:
                     description: What installing it does beyond replacing its files.
                     format: enum
             description: PackageUpdate is one package with a newer version waiting.
+        PanelPortHolder:
+            type: object
+            properties:
+                port:
+                    type: integer
+                    description: 'The port: 80 or 443.'
+                    format: uint32
+                program:
+                    type: string
+                    description: The program, as the kernel names its process, such as "nginx".
+            description: PanelPortHolder is a program that holds a port the panel's certificate needs.
         PanelServing:
             type: object
             properties:
@@ -11098,6 +11267,32 @@ components:
                         Who issues the certificate Dockwell serves the domain with: "Let's
                          Encrypt", or the host of the ACME directory dockwell run was given, such
                          as "acme.example.com". Empty without a domain.
+                domainFrom:
+                    enum:
+                        - PANEL_DOMAIN_FROM_UNSPECIFIED
+                        - PANEL_DOMAIN_FROM_NONE
+                        - PANEL_DOMAIN_FROM_RUN
+                        - PANEL_DOMAIN_FROM_SETTING
+                    type: string
+                    description: |-
+                        Where the domain comes from: dockwell run's --domain or DOCKWELL_DOMAIN,
+                         which the panel can't change, or the setting (ADR 0063).
+                    format: enum
+                setDomain:
+                    type: string
+                    description: |-
+                        The domain the setting holds. It differs from domain when dockwell run
+                         couldn't serve it, which problem says.
+                problem:
+                    type: string
+                    description: |-
+                        Why the domain the setting holds isn't served, as when a route took it
+                         first, or its ports were held. Empty when it is, or none is set.
+                certified:
+                    type: boolean
+                    description: |-
+                        True once Dockwell holds a certificate for the domain, so the panel answers
+                         there over HTTPS.
             description: PanelServing is how the panel is served, as dockwell run was started.
         Passkey:
             type: object
@@ -13655,6 +13850,27 @@ components:
                         - $ref: '#/components/schemas/Settings'
                     description: The settings.
             description: SetInstallNameResponse carries the settings as they now are.
+        SetPanelDomainRequest:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain, such as "panel.example.com". Empty clears it.
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp for STEP_UP_ACTION_SET_PANEL_DOMAIN.
+            description: SetPanelDomainRequest sets the panel's domain, or clears it.
+        SetPanelDomainResponse:
+            type: object
+            properties:
+                settings:
+                    allOf:
+                        - $ref: '#/components/schemas/Settings'
+                    description: The settings.
+                restarting:
+                    type: boolean
+                    description: True when the control plane restarts to serve it, once this is sent.
+            description: SetPanelDomainResponse is the settings as saved, before the restart.
         SetServerPublicAddressRequest:
             type: object
             properties:

@@ -18,13 +18,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
-	"google.golang.org/protobuf/proto"
 
-	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
@@ -36,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	controlhealth "github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/datadir"
@@ -119,7 +119,12 @@ func runCommand(cmd *cobra.Command, stdio IO, g *globalFlags) runRole {
 		if f.database, err = g.databaseOf(stdio, dir); err != nil {
 			return err
 		}
-		return runControl(ctx, stdio, g, logger, dir, build, f)
+		err = runControl(ctx, stdio, g, logger, dir, build, f)
+		if errors.Is(err, errRestart) {
+			// Everything has stopped and closed: start again as started.
+			return reexec()
+		}
+		return err
 	}
 }
 
@@ -151,6 +156,12 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 			return err
 		}
 	}
+	// Without a domain from its flags or environment, the panel takes the one its
+	// settings hold, and never stops for it (ADR 0063).
+	var domainFrom dockwellv1.PanelDomainFrom
+	var domainProblem string
+	f.domain, domainFrom, domainProblem = panelDomainAtStart(ctx, logger, db, f.domain)
+	fromSetting := domainFrom == dockwellv1.PanelDomainFrom_PANEL_DOMAIN_FROM_SETTING
 
 	var ls control.Listeners
 	closeAll := func() {
@@ -177,13 +188,26 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	handsOver := f.domain != "" && onPublicPorts(f)
 	proxied := handsOver && ingress.Active(dir.Ingress())
 	if f.domain != "" && !proxied {
-		if ls.HTTPS, err = serve.Listen(ctx, f.httpsListen); err != nil {
-			closeAll()
-			return withListenHint(err, "--https-listen")
+		flag := "--https-listen"
+		var listenErr error
+		if ls.HTTPS, listenErr = serve.Listen(ctx, f.httpsListen); listenErr == nil {
+			flag = "--http-listen"
+			if ls.HTTP, listenErr = serve.Listen(ctx, f.httpListen); listenErr != nil {
+				_ = ls.HTTPS.Close()
+				ls.HTTPS = nil
+			}
 		}
-		if ls.HTTP, err = serve.Listen(ctx, f.httpListen); err != nil {
+		switch {
+		case listenErr == nil:
+		case fromSetting:
+			// A domain from the settings never stops dockwell run: it answers on
+			// loopback, and Settings says why.
+			domainProblem = fmt.Sprintf("Dockwell couldn't hold the ports %s needs: %v. Free ports 80 and 443 on this server, then save the domain again, or stop using it", f.domain, listenErr)
+			logger.Warn("the panel can't serve the domain its settings hold, so it answers on loopback alone", slog.String("domain", f.domain), slog.String("error", listenErr.Error()))
+			f.domain, handsOver = "", false
+		default:
 			closeAll()
-			return withListenHint(err, "--http-listen")
+			return withListenHint(listenErr, flag)
 		}
 	}
 	if handsOver {
@@ -242,10 +266,17 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		return err
 	}
 	var public https.Source
+	certified := func() bool { return true }
 	if f.domain != "" {
 		if public, err = acmeSource(f, dir, httpsAddrOf(ls.HTTPS, f.httpsListen)); err != nil {
 			closeAll()
 			return err
+		}
+		if acme, ok := public.(*https.ACME); ok && !proxied {
+			certified = func() bool {
+				chain, _, err := acme.Current(context.Background())
+				return err == nil && chain != nil
+			}
 		}
 	}
 
@@ -272,7 +303,14 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	// its agent (ADR 0009, ADR 0021). The engine's runs outlive the request that started them;
 	// stopping lets them finish their steps or leaves them for the next
 	// start, and the store closes only after (srv.Run).
-	kinds := controlKinds(f.domain)
+	// A domain saved for the panel and not served, as one whose ports were held,
+	// or one saved since, is no route's either.
+	var saved atomic.Value
+	if set, err := settings.PanelDomain(ctx, db); err == nil && set != f.domain {
+		saved.Store(set)
+	}
+	savedDomain := func() string { s, _ := saved.Load().(string); return s }
+	kinds := controlKinds(f.domain, savedDomain)
 	keeper := secrets.New(db, key, kinds.With(scope.Types()...))
 	// control.New has the agents' streams send the keeper's values, and ask it what
 	// names them.
@@ -289,6 +327,21 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	// long as the control plane runs, and it stops with it.
 	recorder := &controlhealth.Recorder{DB: db, Logger: logger}
 	agents.OnHealth(recorder.Heard)
+
+	// A restart a person asked for, as when they save the panel's domain: the
+	// control plane stops as on a signal, then starts again as it was started.
+	restarted := make(chan struct{})
+	var stopForRestart context.CancelFunc
+	var restartOnce sync.Once
+	restart := func() {
+		restartOnce.Do(func() {
+			logger.Info("restarting to serve the panel's domain, as asked from Settings; apps and websites keep running")
+			close(restarted)
+			if stopForRestart != nil {
+				stopForRestart()
+			}
+		})
+	}
 
 	srv, err := control.New(control.Config{
 		Logger:      logger,
@@ -308,14 +361,19 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		DataDir:        dir.Root,
 		KeyFile:        dir.SealKey(),
 		ServiceManager: serviceManager(os.Getenv, os.ReadFile),
-		AgentListen:    ls.Agents.Addr().String(),
-		PublicAddress:  addr.dnsAddress(),
-		ClaimCommand:   claim,
-		Changes:        engine,
-		Agents:         agents,
-		Store:          db,
-		Secrets:        keeper,
-		Releases:       releasesURL(stdio),
+		PanelDomain: control.PanelDomain{
+			From: domainFrom, Problem: domainProblem, Certified: certified,
+			Resolve: resolverFor(stdio.Getenv), PortsHeld: portsHeld(stdio.Getenv), Restart: restart,
+			Saved: func(d string) { saved.Store(d) },
+		},
+		AgentListen:   ls.Agents.Addr().String(),
+		PublicAddress: addr.dnsAddress(),
+		ClaimCommand:  claim,
+		Changes:       engine,
+		Agents:        agents,
+		Store:         db,
+		Secrets:       keeper,
+		Releases:      releasesURL(stdio),
 	})
 	if err != nil {
 		closeAll()
@@ -324,6 +382,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	stopForRestart = cancel
 	// This server's own agent stops after the control plane, which stops
 	// the revision engine before its agent listener: a step under way on
 	// this server then finishes, or is left for the next start, rather
@@ -363,7 +422,16 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		agentErr = runAgent(agentCtx, stdio, g, logger, dir, own, build, panel, ownPorts(ls, f))
 		cancel()
 	})
+	// A test asks no CA beyond the machine: only one it was given.
+	if acme, ok := public.(*https.ACME); ok && !proxied && fromSetting && (!isSet(stdio.Getenv(envTest)) || f.acmeDirector != "") {
+		wg.Go(func() { keepObtaining(ctx, logger, acme) })
+	}
 	wg.Wait()
+	select {
+	case <-restarted:
+		return errRestart
+	default:
+	}
 	return errors.Join(controlErr, agentErr)
 }
 
@@ -446,18 +514,12 @@ func listenForIngress(ctx context.Context, dir datadir.Dir) (net.Listener, error
 // already should find itself under the panel's passkeys (ADR 0024).
 func refuseClaimedDomain(ctx context.Context, db *store.DB, domain string) error {
 	return db.View(ctx, func(tx *store.Tx) error {
-		routes, err := tx.ListKind(ctx, string(route.Kind))
+		refusal, err := settings.Takeable(ctx, tx, domain)
 		if err != nil {
 			return err
 		}
-		for _, r := range routes {
-			spec := &resourcev1.Route{}
-			if err := proto.Unmarshal(r.Spec, spec); err != nil {
-				return fmt.Errorf("can't read the route %s: %w", r.Name, err)
-			}
-			if route.UnderOrIs(spec.GetDomain(), domain) {
-				return usageError{fmt.Errorf("the route %s serves %s, so the panel can't take %s: a passkey for that name works under it too. Delete the route first, or give the panel another domain", r.Name, spec.GetDomain(), domain)}
-			}
+		if refusal != "" {
+			return usageError{errors.New(refusal)}
 		}
 		return nil
 	})
@@ -469,8 +531,8 @@ func refuseClaimedDomain(ctx context.Context, db *store.DB, domain string) error
 // kinds while Docker answers. Variables and secrets run on no server. domain
 // is the panel's domain, which no route may claim. The firewall's driver comes
 // later.
-func controlKinds(domain string) *resource.Registry {
-	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{})
+func controlKinds(domain string, saved func() string) *resource.Registry {
+	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain, Saved: saved}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{})
 }
 
 // openState opens the control plane's key, its state and its identity,
