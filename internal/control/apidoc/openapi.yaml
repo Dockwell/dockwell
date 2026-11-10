@@ -1484,6 +1484,47 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/databases/{id}:changePassword:
+        post:
+            tags:
+                - DatabaseService
+            description: |-
+                ChangeDatabasePassword plans a new password for one of a database's users: its
+                 first user, such as MariaDB's root or PostgreSQL's postgres, whose password is in
+                 the secret the service starts with (Database.password_secret), or a user Dockwell
+                 made (CreateDatabaseUser). The control plane generates it, as it does a new
+                 user's, and sets the secret to it, so the plan restarts the database and every
+                 app that uses the secret, and nobody sees the password unless they reveal it. The
+                 agent changes it in the database as it restarts, so what signs in with the secret
+                 keeps signing in (ADR 0038). A database whose password isn't in a secret has
+                 none to change here.
+            operationId: DatabaseService_ChangeDatabasePassword
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs it, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ChangeDatabasePasswordRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ChangeDatabasePasswordResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/domains:
         get:
             tags:
@@ -6037,6 +6078,36 @@ components:
                 ChangeConfirmation is what a change to a server's firewall waits for: that
                  the person who applied it confirms they can still reach the server, before
                  the server's timer runs out and it puts back its firewall as it was.
+        ChangeDatabasePasswordRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service that runs it, by ID or by name.
+                user:
+                    type: string
+                    description: |-
+                        The user, by name: one Dockwell made, such as "shop". Empty is its first user,
+                         whose password is in Database.password_secret.
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one has a
+                         service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its project has
+                         more than one.
+            description: ChangeDatabasePasswordRequest names a database, and the user whose password changes.
+        ChangeDatabasePasswordResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: ChangeDatabasePasswordResponse is the change that gives the user a new password.
         CheckClaimRequest:
             type: object
             properties:

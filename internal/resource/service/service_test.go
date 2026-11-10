@@ -3,6 +3,8 @@
 package service_test
 
 import (
+	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -12,6 +14,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/container/containertest"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -125,5 +128,68 @@ func TestWhatRunsIsAllButALimit(t *testing.T) {
 				t.Error("another command reads as what ran before")
 			}
 		})
+	}
+}
+
+// passwordsSeen stands in for database.FirstPasswords, and counts what it's asked.
+type passwordsSeen struct {
+	changed []string
+	undone  int
+	refuse  error
+}
+
+func (p *passwordsSeen) Change(_ context.Context, project, service string, app *resourcev1.Container) (func(context.Context) error, error) {
+	p.changed = append(p.changed, project+"/"+service+" "+app.GetEnv()["MARIADB_ROOT_PASSWORD"])
+	if p.refuse != nil {
+		return nil, p.refuse
+	}
+	return func(context.Context) error { p.undone++; return nil }, nil
+}
+
+// failingRuns is a runtime whose rollouts fail for one image, as one that can't start.
+type failingRuns struct {
+	*containertest.Fake
+	image string
+}
+
+func (f failingRuns) Run(ctx context.Context, t container.Target, spec *resourcev1.Container, dec resource.Decision) error {
+	if spec.GetImage() == f.image {
+		return errors.New("docker can't start it")
+	}
+	return f.Fake.Run(ctx, t, spec, dec)
+}
+
+// A replace gives a database its new first password before its container is replaced,
+// puts it back when the rollout fails, and runs nothing when it can't be given.
+func TestAReplaceChangesTheFirstPasswordFirst(t *testing.T) {
+	fake := containertest.NewFake()
+	seen := &passwordsSeen{}
+	d := &service.Driver{Containers: container.Driver{Runtime: failingRuns{Fake: fake, image: "mariadb:broken"}}, Passwords: seen}
+	ref := resource.Ref{Kind: service.Kind, Scope: "env_1", Name: "db"}
+	db := func(image, password string) *resourcev1.Service {
+		return &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: image, Env: map[string]string{"MARIADB_ROOT_PASSWORD": password}}}}
+	}
+	replace := resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionReplace}}
+	if err := d.Apply(t.Context(), replace, db("mariadb:12", "new")); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"env_1/db new"}; !slices.Equal(seen.changed, want) || seen.undone != 0 {
+		t.Fatalf("asked %q, undone %d; want %q and none", seen.changed, seen.undone, want)
+	}
+	if err := d.Apply(t.Context(), replace, db("mariadb:broken", "newer")); err == nil {
+		t.Fatal("a rollout to an image that can't start succeeded")
+	}
+	if seen.undone != 1 {
+		t.Fatalf("a failed rollout put the password back %d times, want 1", seen.undone)
+	}
+	seen.refuse = errors.New("MariaDB refused it")
+	runs := fake.Runs
+	if err := d.Apply(t.Context(), replace, db("mariadb:12", "newest")); err == nil || fake.Runs != runs {
+		t.Fatalf("Apply = %v, with %d runs; want the refusal and nothing run", err, fake.Runs-runs)
+	}
+	create := resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionCreate}}
+	seen.refuse, seen.changed = nil, nil
+	if err := d.Apply(t.Context(), create, db("mariadb:12", "first")); err != nil || len(seen.changed) != 0 {
+		t.Fatalf("a create asked %q, %v; a new container sets its own", seen.changed, err)
 	}
 }

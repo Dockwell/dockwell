@@ -1415,6 +1415,11 @@ type Hello struct {
 	// True when the agent uploads and downloads files, in bounded chunks over
 	// ReceiveFile and SendFile, as ADR 0045 says.
 	TransfersFiles bool `protobuf:"varint,121,opt,name=transfers_files,json=transfersFiles,proto3" json:"transfers_files,omitempty"`
+	// True when the agent changes a database's first user's password in the
+	// database as its service restarts with a new one (ADR 0038), so the control
+	// plane plans a new one only through an agent that does. Catalog and
+	// databases work takes 200 to 209 in agent messages.
+	FirstPasswords bool `protobuf:"varint,200,opt,name=first_passwords,json=firstPasswords,proto3" json:"first_passwords,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1550,6 +1555,13 @@ func (x *Hello) GetManagesFiles() bool {
 func (x *Hello) GetTransfersFiles() bool {
 	if x != nil {
 		return x.TransfersFiles
+	}
+	return false
+}
+
+func (x *Hello) GetFirstPasswords() bool {
+	if x != nil {
+		return x.FirstPasswords
 	}
 	return false
 }
@@ -10063,7 +10075,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\"\n" +
 	"\n" +
-	"\bDraining\"\xec\x04\n" +
+	"\bDraining\"\x96\x05\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -10079,7 +10091,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x13container_terminals\x184 \x01(\bR\x12containerTerminals\x12&\n" +
 	"\x0ereads_onepanel\x18\xb4\x01 \x01(\bR\rreadsOnepanel\x12#\n" +
 	"\rmanages_files\x18x \x01(\bR\fmanagesFiles\x12'\n" +
-	"\x0ftransfers_files\x18y \x01(\bR\x0etransfersFiles\"\xee\x02\n" +
+	"\x0ftransfers_files\x18y \x01(\bR\x0etransfersFiles\x12(\n" +
+	"\x0ffirst_passwords\x18\xc8\x01 \x01(\bR\x0efirstPasswords\"\xee\x02\n" +
 	"\x0fConnectResponse\x126\n" +
 	"\awelcome\x18\x01 \x01(\v2\x1a.dockwell.agent.v1.WelcomeH\x00R\awelcome\x12-\n" +
 	"\x04call\x18\x02 \x01(\v2\x17.dockwell.agent.v1.CallH\x00R\x04call\x127\n" +

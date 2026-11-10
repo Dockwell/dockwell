@@ -343,6 +343,11 @@ message Hello {
   // True when the agent uploads and downloads files, in bounded chunks over
   // ReceiveFile and SendFile, as ADR 0045 says.
   bool transfers_files = 121;
+  // True when the agent changes a database's first user's password in the
+  // database as its service restarts with a new one (ADR 0038), so the control
+  // plane plans a new one only through an agent that does. Catalog and
+  // databases work takes 200 to 209 in agent messages.
+  bool first_passwords = 200;
 }
 
 // ConnectResponse is one message from the control plane.
