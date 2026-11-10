@@ -5,9 +5,25 @@
 id: nextcloud
 name: Nextcloud
 summary: Files, calendars and contacts
+description: |-
+  Nextcloud gives you a shared home for files on your own server. Upload and organize documents, share folders with other people, and connect desktop and mobile clients.
+
+  This entry includes Nextcloud and its database. Calendars, contacts and other capabilities can be added through Nextcloud's app system after setup.
+icon: /catalog-media/nextcloud-icon.webp
+documentation: https://docs.nextcloud.com/server/latest/user_manual/en/
+appSource: https://github.com/nextcloud/server
+features:
+  - "File browsing and sharing"
+  - "Desktop and mobile sync clients"
+  - "User and group access controls"
+  - "An app system for calendars and more"
+screenshots:
+  - path: /catalog-media/nextcloud-files.webp
+    caption: "Files and sharing in Nextcloud"
+    source: https://raw.githubusercontent.com/nextcloud/screenshots/44fe757d7799e9820c1f2ce079d1450978810a38/nextcloud-hub-25-files.png
 category: storage
 version: "35.0.2"
-release: 1
+release: 2
 homepage: https://nextcloud.com
 license: AGPL-3.0-only
 appLicense: AGPL-3.0-or-later

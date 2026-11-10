@@ -114,6 +114,13 @@ const STATES: readonly {
     notice: /web is paused/,
   },
   {
+    // A one-shot job that ran to its end isn't down, as Alerts has it.
+    on: { state: HealthState.NOT_RUNNING, finished: true, said: "the container exited with code 0" },
+    word: "Finished",
+    tone: "dw-tone-idle",
+    says: /It ran to its end and exited 0, as a one-shot job does/,
+  },
+  {
     on: { state: HealthState.UNKNOWN, lastSaid: HealthState.HEALTHY },
     word: "Unknown",
     tone: "dw-tone-unknown",

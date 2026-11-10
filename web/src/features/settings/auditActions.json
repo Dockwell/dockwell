@@ -1,4 +1,9 @@
 [
+  "alert.firing",
+  "alert.mute",
+  "alert.resolved",
+  "alert.test",
+  "alert.unmute",
   "auth.sign_in",
   "auth.sign_in_failed",
   "auth.sign_out",

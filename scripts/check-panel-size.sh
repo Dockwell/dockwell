@@ -18,9 +18,13 @@
 # bytes in 236 files. Allow another 0.5 MB for that feature. The separate idle
 # RSS budgets still apply. Raise this limit when a change is worth what it adds,
 # and say why in the pull request.
+# Catalog app pages add 49 local project logos and previews, with their source
+# notices. The complete build on 2026-11-09 is 4.13 MB; allow 4.5 MB so browsing
+# works offline and makes no third-party image requests. Idle RSS budgets stay
+# unchanged and are measured alongside this increase.
 set -euo pipefail
 
-limit=3000000
+limit=4500000
 dir=${1:-internal/panel/dist/app}
 
 if [[ ! -f $dir/index.html ]]; then

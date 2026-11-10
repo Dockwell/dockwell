@@ -39,6 +39,9 @@ const (
 	Route        = "rte"
 	Backup       = "bkp"
 	TaskRun      = "run"
+	AlertRule    = "alr"
+	AlertChannel = "ach"
+	Alert        = "alt"
 	Terminal     = "trm"
 
 	// Keys that seal what may be secret at rest (ADR 0022).

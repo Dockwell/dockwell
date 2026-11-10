@@ -390,7 +390,7 @@ func (b *boundField) apply(msg protoreflect.Message) error {
 
 // valueError says which flag's value is wrong, and how to give it.
 func (b *boundField) valueError(err error) error {
-	if errors.Is(err, errInlineSecret) || errors.Is(err, errInlinePassword) {
+	if errors.Is(err, errInlineSecret) || errors.Is(err, errInlinePassword) || errors.Is(err, errInlineSealed) {
 		return fmt.Errorf("--%s: %w. Put the JSON in a file and pass --%s @file, or pipe it in with --%s -", b.flag, err, b.flag, b.flag)
 	}
 	return fmt.Errorf("--%s: %w", b.flag, err)
@@ -461,14 +461,22 @@ func scalarOrMessage(fd protoreflect.FieldDescriptor, s string, env *Env, blank 
 	if inline(s) && givesVolumePassword(v.Message()) {
 		return protoreflect.Value{}, errInlinePassword
 	}
+	if inline(s) && fd.Message().FullName() == alertChannelName && resource.SetsSensitive(v.Message().Interface()) {
+		return protoreflect.Value{}, errInlineSealed
+	}
 	return v, nil
 }
 
-// errInlineSecret refuses JSON on the command line that sets a secret, and
-// errInlinePassword JSON that gives a volume a password.
+// alertChannelName is an alert channel's message, whose JSON may hold what signs in.
+var alertChannelName = (&resourcev1.AlertChannel{}).ProtoReflect().Descriptor().FullName()
+
+// errInlineSecret refuses JSON on the command line that sets a secret,
+// errInlinePassword JSON that gives a volume a password, and errInlineSealed
+// JSON that gives an alert channel what signs in to it.
 var (
 	errInlineSecret   = errors.New("the JSON sets a secret's value, so it would stay in your shell history and the process list")
 	errInlinePassword = errors.New("the JSON gives a volume a password in its options, so it would stay in your shell history and the process list")
+	errInlineSealed   = errors.New("the JSON holds what signs in to an alert channel, so it would stay in your shell history and the process list")
 )
 
 // volumeOptions is the field that holds a volume's options.

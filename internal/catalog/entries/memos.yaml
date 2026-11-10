@@ -2,9 +2,25 @@
 id: memos
 name: Memos
 summary: Quick notes you write like posts, and find again
+description: |-
+  Memos is a place for short notes, ideas and the things you want to find again. Write entries in a timeline, organize them with tags, and attach files without turning every thought into a document.
+
+  This entry stores your notes and uploaded files on a persistent volume. Create the first account after installation and choose which notes to keep private or share.
+icon: /catalog-media/memos-icon.webp
+documentation: https://www.usememos.com/docs
+appSource: https://github.com/usememos/memos
+features:
+  - "A timeline for quick notes"
+  - "Markdown and tags"
+  - "File and image attachments"
+  - "Private and shared notes"
+screenshots:
+  - path: /catalog-media/memos-timeline.webp
+    caption: "Notes and tags in the Memos timeline"
+    source: https://raw.githubusercontent.com/usememos/.github/13198225b2ef8e961c615f86b2a04278ffd706cf/assets/previews/timeline-light.png
 category: notes
 version: "0.31.0"
-release: 1
+release: 2
 homepage: https://usememos.com
 license: AGPL-3.0-only
 appLicense: MIT

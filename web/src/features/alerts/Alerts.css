@@ -1,0 +1,218 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.alerts-tabs {
+  margin-bottom: var(--space-6);
+}
+
+/* The channels and what was sent on the left, routing beside them, as the mock lays them out. */
+.alerts-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: flex-start;
+}
+
+.alerts-main {
+  display: flex;
+  flex: 2 1 640px;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.alerts-side {
+  display: flex;
+  flex: 1 1 300px;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.alerts-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.alerts-heading h2 {
+  margin: 0;
+}
+
+.alerts-heading-gap {
+  margin-top: var(--space-3);
+}
+
+.alerts-muted {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.alerts-note {
+  margin: 0;
+}
+
+.alerts-channel {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  min-width: 0;
+}
+
+.alerts-channel-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+}
+
+.alerts-channel-sub {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+.alerts-channel-sub code {
+  font-size: 12px;
+}
+
+.alerts-routes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.alerts-route {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.alerts-route-head {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.alerts-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0 0 0 var(--space-4);
+  list-style: none;
+}
+
+.alerts-chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  height: 26px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.alerts-chip .dw-icon {
+  color: var(--ink-muted);
+}
+
+.alerts-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.alerts-sheet-kind {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+/* Security and port share a line: the port follows from the security. */
+.alerts-sheet-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.alerts-sheet-remove {
+  margin-right: auto;
+}
+
+.alerts-result-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+}
+
+.alerts-main .dw-callout {
+  position: relative;
+}
+
+/* On a phone, rows take the width: the channel and its state, its test below. */
+.alerts-phone-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  list-style: none;
+}
+
+.alerts-phone-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+}
+
+.alerts-phone-row + .alerts-phone-row {
+  border-top: 1px solid var(--line);
+}
+
+.alerts-phone-open {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.alerts-phone-delivery {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3);
+}
+
+.alerts-phone-delivery + .alerts-phone-delivery {
+  border-top: 1px solid var(--line);
+}
+
+.alerts-delivery-about {
+  font-size: 14px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
