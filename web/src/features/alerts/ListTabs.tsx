@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type Alert, type AlertRuleInfo, AlertState, AlertRule_Severity as Severity } from "@dockwell/api";
+import { type AlertRuleInfo, AlertState, AlertRule_Severity as Severity } from "@dockwell/api";
 import { Callout, PHONE_QUERY, StatusBadge, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { sentence } from "../../lib/errors";
-import { formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
-import { alertTitle } from "../activity/describe";
 import { EmptyState } from "../shell/EmptyState";
+import { OpenAlerts, ResolvedAlerts } from "./AlertCards";
 import { AlertsPage } from "./AlertsPage";
 import { useAlerts, useChannels, useRules } from "./useAlerts";
 
@@ -22,39 +20,13 @@ function SeverityBadge({ severity }: { severity: Severity | undefined }) {
   );
 }
 
-/** The Alerts tab: what's firing now, then what fired and resolved, newest first. */
+/** The Alerts tab: what's open now, each as a card, and what resolved beside them. */
 export function AlertsTab() {
-  const { t, i18n } = useLingui();
-  const phone = useMediaQuery(PHONE_QUERY);
+  const { t } = useLingui();
   const alerts = useAlerts();
   const list = alerts.data?.alerts ?? [];
-  const state = (a: Alert) =>
-    a.state === AlertState.FIRING ? (
-      <SeverityBadge severity={a.severity} />
-    ) : (
-      <StatusBadge status="healthy" label={t`Resolved`} labelIsState />
-    );
-  const at = (a: Alert) => (a.openTime ? formatDateTime(timestampDate(a.openTime), i18n.locale) : "");
-  const columns: TableColumn<Alert>[] = [
-    {
-      key: "title",
-      header: t`Alert`,
-      render: (a) => (
-        <div className="dw-cell">
-          <span className="dw-cell-title">{alertTitle(a, i18n)}</span>
-          <span className="alerts-channel-sub">{a.detail}</span>
-        </div>
-      ),
-    },
-    {
-      key: "state",
-      header: t`State`,
-      width: 132,
-      render: state,
-    },
-    { key: "rule", header: t`Rule`, width: 180, mono: true, render: (a) => a.ruleName },
-    { key: "at", header: t`Opened`, width: 172, muted: true, render: at },
-  ];
+  const open = list.filter((a) => a.state === AlertState.FIRING);
+  const resolved = list.filter((a) => a.state !== AlertState.FIRING);
   return (
     <AlertsPage>
       {alerts.error ? (
@@ -76,24 +48,12 @@ export function AlertsTab() {
             reach, a disk nearly full, a certificate about to end, a backup that failed.
           </Trans>
         </EmptyState>
-      ) : phone ? (
-        // A table's columns don't fit a phone: each alert takes the width, its state and when under what it says.
-        <ul className="alerts-phone-list" aria-label={t`Alerts, firing first`}>
-          {list.map((a) => (
-            <li key={a.id} className="alerts-phone-item">
-              <span className="alerts-phone-title">{alertTitle(a, i18n)}</span>
-              {a.detail ? <span className="alerts-muted">{a.detail}</span> : null}
-              <span className="alerts-phone-meta">
-                {state(a)}
-                <span className="alerts-muted">
-                  <code>{a.ruleName}</code> · {at(a)}
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
       ) : (
-        <Table columns={columns} rows={list} caption={t`Alerts, firing first`} />
+        // As Alerts lays them out: what's open on the left, what resolved beside it.
+        <div className="alerts-columns">
+          <OpenAlerts alerts={open} />
+          <ResolvedAlerts alerts={resolved} />
+        </div>
       )}
     </AlertsPage>
   );

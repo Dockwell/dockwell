@@ -953,6 +953,49 @@ msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps don
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 
+msgid "Critical"
+msgstr "Critical"
+
+msgid "Held by a mute"
+msgstr "Held by a mute"
+
+msgid "History"
+msgstr "History"
+
+msgid "Inspect"
+msgstr "Inspect"
+
+msgid "Inspect: {title}"
+msgstr "Inspect: {title}"
+
+msgid "Memory on {name}, now {percent}%"
+msgstr "Memory on {name}, now {percent}%"
+
+msgid "Memory, now {percent}%"
+msgstr "Memory, now {percent}%"
+
+msgid "Most severe first"
+msgstr "Most severe first"
+
+msgid "Nothing is open. What fires shows here until it resolves."
+msgstr "Nothing is open. What fires shows here until it resolves."
+
+msgid "Nothing sent"
+msgstr "Nothing sent"
+
+msgctxt "alerts that haven't resolved"
+msgid "Open"
+msgstr "Open"
+
+msgid "Resolved"
+msgstr "Resolved"
+
+msgid "Sent {sent}"
+msgstr "Sent {sent}"
+
+msgid "since {since}"
+msgstr "since {since}"
+
 msgid "Alerts sections"
 msgstr "Alerts sections"
 
@@ -1144,9 +1187,6 @@ msgstr "Can't load the channels"
 msgid "Channel"
 msgstr "Channel"
 
-msgid "Critical"
-msgstr "Critical"
-
 msgid "Delivered"
 msgstr "Delivered"
 
@@ -1250,9 +1290,6 @@ msgstr "{failing, plural, one {# failing} other {# failing}}"
 msgid "Alert rules"
 msgstr "Alert rules"
 
-msgid "Alerts, firing first"
-msgstr "Alerts, firing first"
-
 msgid "Can't load the alerts"
 msgstr "Can't load the alerts"
 
@@ -1279,12 +1316,6 @@ msgstr "Nothing has fired"
 
 msgid "Off"
 msgstr "Off"
-
-msgid "Opened"
-msgstr "Opened"
-
-msgid "Resolved"
-msgstr "Resolved"
 
 msgid "Severity"
 msgstr "Severity"
@@ -7700,9 +7731,6 @@ msgstr "{0, plural, one {{lines} line from {source} not shown: this server share
 #. placeholder {0}: Number(gap.lines)
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
-
-msgid "Inspect"
-msgstr "Inspect"
 
 msgid "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
 msgstr "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
