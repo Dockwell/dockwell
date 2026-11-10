@@ -3353,7 +3353,10 @@ describe("an app's overview", () => {
     await waitFor(() => expect(file).toHaveTextContent("web: {}"));
     expect(sheet).toHaveTextContent("Left out as they may hold secrets");
     expect(sheet).toHaveTextContent("web.API_KEY");
-    expect(within(sheet).getByRole("button", { name: "Save an .env to fill in" })).toBeVisible();
+    // An .env's lines, copied: a browser saves a download called .env as env.txt.
+    await user.click(within(sheet).getByRole("button", { name: "Copy as .env" }));
+    expect(await within(sheet).findByRole("button", { name: "Copied as .env" })).toBeVisible();
+    expect(await navigator.clipboard.readText()).toBe("API_KEY=\n");
     expect(asked[0]).toEqual(expect.objectContaining({ service: "web", environment: "env_prod" }));
     await expectAccessible(document.body);
     await user.click(within(sheet).getByRole("radio", { name: "Its whole project" }));

@@ -3253,11 +3253,17 @@ msgstr "Compose file"
 msgid "Copied"
 msgstr "Copied"
 
+msgid "Copied as .env"
+msgstr "Copied as .env"
+
 msgid "Copied the Compose file"
 msgstr "Copied the Compose file"
 
 msgid "Copy"
 msgstr "Copy"
+
+msgid "Copy as .env"
+msgstr "Copy as .env"
 
 msgid "Its whole project"
 msgstr "Its whole project"
@@ -3267,9 +3273,6 @@ msgstr "Left out as they may hold secrets"
 
 msgid "Save"
 msgstr "Save"
-
-msgid "Save an <0>.env</0> to fill in"
-msgstr "Save an <0>.env</0> to fill in"
 
 msgid "This app"
 msgstr "This app"
