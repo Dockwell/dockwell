@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -24,10 +25,13 @@ type fakeMariaDB struct {
 	mu    sync.Mutex
 	users map[string]map[string]string // a user's password hash, by host
 	said  []string
+	// starting refuses this many connections more, as a server does before its socket
+	// is there.
+	starting int
 }
 
 var (
-	fakeAlterUser = regexp.MustCompile(`ALTER USER '([^']+)'@'([^']+)' IDENTIFIED BY PASSWORD '(\*[0-9A-F]{40})'`)
+	fakeAlterUser = regexp.MustCompile(`SET PASSWORD FOR '([^']+)'@'([^']+)' = '(\*[0-9A-F]{40})'`)
 	fakeAskUsers  = regexp.MustCompile(`SELECT User, Host FROM mysql.user WHERE User IN \(([^)]*)\)`)
 )
 
@@ -48,6 +52,11 @@ func (f *fakeMariaDB) exec(x dockertest.Exec) int {
 	sql := string(rest)
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.starting > 0 {
+		f.starting--
+		_, _ = io.WriteString(x.Stderr, "ERROR 2002 (HY000): Can't connect to local server through socket '/run/mysqld/mysqld.sock' (2)\n")
+		return 1
+	}
 	f.said = append(f.said, sql)
 	if mysqlNative(password) != f.users["root"]["localhost"] {
 		_, _ = io.WriteString(x.Stderr, "ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)\n")
@@ -64,7 +73,7 @@ func (f *fakeMariaDB) exec(x dockertest.Exec) int {
 	}
 	for _, m := range fakeAlterUser.FindAllStringSubmatch(sql, -1) {
 		if f.users[m[1]] == nil {
-			_, _ = io.WriteString(x.Stderr, "ERROR 1396 (HY000): Operation ALTER USER failed\n")
+			_, _ = io.WriteString(x.Stderr, "ERROR 1133 (28000): Can't find any matching row in the user table\n")
 			return 1
 		}
 		f.users[m[1]][m[2]] = m[3]
@@ -144,7 +153,12 @@ func TestANewRootPasswordReachesMariaDBBeforeItRestarts(t *testing.T) {
 			t.Fatalf("SQL holds a password as it is: %q", sql)
 		}
 	}
-	// What runs is still the old container, as when its rollout failed: it goes back.
+	// What runs is still the old container, as when its rollout failed: it goes back,
+	// once its database takes connections, as it starts again.
+	f.Every = 5 * time.Millisecond
+	db.mu.Lock()
+	db.starting = 3
+	db.mu.Unlock()
 	if err := undo(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -184,8 +198,28 @@ func TestAPasswordNeitherSideHoldsStopsTheStep(t *testing.T) {
 	f, db, _, _ := mariadbStand(t, "old-password")
 	db.users["root"] = everywhere("someone-elses", "%", "localhost")
 	_, err := f.Change(t.Context(), "env_1", "db", startsWith("mariadb:12", "new-password"))
-	if err == nil || !strings.Contains(err.Error(), "so nothing was restarted") || !strings.Contains(err.Error(), "refused") {
+	if err == nil || !strings.Contains(err.Error(), "so nothing was restarted") || !strings.Contains(err.Error(), "refused") ||
+		!strings.HasSuffix(err.Error(), "Set the secret to the password root has now, then change it here") {
 		t.Fatalf("Change = %v", err)
+	}
+}
+
+// A database that never takes connections again leaves the password where it is once
+// its time is up, and says so.
+func TestPuttingAPasswordBackGivesUpWithItsTime(t *testing.T) {
+	f, db, _, _ := mariadbStand(t, "old-password")
+	undo, err := f.Change(t.Context(), "env_1", "db", startsWith("mariadb:12", "new-password"))
+	if err != nil || undo == nil {
+		t.Fatalf("Change = %v, %v", undo != nil, err)
+	}
+	f.Every = 5 * time.Millisecond
+	db.mu.Lock()
+	db.starting = 1 << 30
+	db.mu.Unlock()
+	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer cancel()
+	if err := undo(ctx); err == nil || !strings.Contains(err.Error(), "MariaDB isn't taking connections yet") {
+		t.Fatalf("undo of a database that never starts = %v", err)
 	}
 }
 
@@ -197,6 +231,8 @@ func TestFirstPasswordsLeavesAloneWhatItNeedNotChange(t *testing.T) {
 		startsWith("mariadb:12", "same-password"),
 		startsWith("redis:8", "new-password"),
 		startsWith("example/mariadb-fork:1", "new-password"),
+		// Its image, as a client of another server: there's no database here to change.
+		{Image: "mariadb:12", Command: []string{"mariadb-dump", "-h", "other", "--all-databases"}, Env: map[string]string{"MARIADB_ROOT_PASSWORD": "new-password"}},
 	} {
 		undo, err := f.Change(t.Context(), "env_1", "db", app)
 		if err != nil || undo != nil {

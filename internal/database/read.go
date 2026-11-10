@@ -111,6 +111,8 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 		return nil, fmt.Errorf("%s didn't answer within %s", e.Name, clientWait)
 	case code == 126 || code == 127 || notFound(said):
 		return nil, fmt.Errorf("its image has no %s, so Dockwell can't ask it", e.tool())
+	case code != 0 && e.SQL() && startingUp(said):
+		return nil, fmt.Errorf("%s %w", e.Name, ErrStarting)
 	case refusedSignIn(said) || !e.SQL() && redisRefused(out.String()):
 		return nil, fmt.Errorf("%s refused Dockwell's sign-in with what its environment holds. Dockwell signs in as its image does, with %s", e.Name, strings.Join(e.Password, " or "))
 	case code != 0 && e.SQL() && sqlRefused.MatchString(said):
@@ -139,6 +141,23 @@ func (e *Engine) tool() string {
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS:
 	}
 	return "redis-cli"
+}
+
+// ErrStarting is a database that doesn't take connections yet, as one does while it
+// starts: its socket isn't there yet, or it says it's starting up.
+var ErrStarting = errors.New("isn't taking connections yet")
+
+// startingUp says what a database's client printed is the server not taking
+// connections yet.
+func startingUp(said string) bool {
+	lower := strings.ToLower(said)
+	for _, words := range []string{"error 2002", "error 2013", "the database system is starting up", "not yet accepting connections", "connection refused", "can't connect to local"} {
+		if strings.Contains(lower, words) {
+			return true
+		}
+	}
+	// psql's socket, before the server makes it.
+	return strings.Contains(lower, "failed: no such file or directory")
 }
 
 // notFound says a shell or Docker couldn't find the tool.

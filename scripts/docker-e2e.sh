@@ -3942,6 +3942,29 @@ person_apply "$(jq -r '.change.id' <<<"$planned")"
 [[ -z "$(pg postgres "SELECT 1 FROM pg_roles WHERE rolname = 'buyer'")" ]] || fail "buyer is still there"
 [[ -z "$(pg postgres "SELECT 1 FROM pg_database WHERE datname = 'buyer'")" ]] || fail "the database buyer is still there"
 
+step "Databases: Change password gives PostgreSQL's first user a new one, which signs in over the network, where the old one is refused"
+old_password=$password
+planned=$(dw databases change-password "$db_id" --plan-only --json) || fail "planning a new password failed: $planned"
+jq -e '.change.summary | startswith("Change the password of postgres in db")' <<<"$planned" >/dev/null ||
+  fail "the plan for a new password reads: $(jq -c '.change.summary' <<<"$planned")"
+dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes >/dev/null ||
+  fail "changing the password failed: $(dw changes get "$(jq -r '.change.id' <<<"$planned")" --json)"
+postgres_db=$(catalog_container db)
+backup_healthy "$postgres_db"
+password=$(catalog_generated "$postgres_db" POSTGRES_PASSWORD)
+[[ "$password" != "$old_password" ]] || fail "the database runs with the password it had"
+# first_says signs in as postgres over the project's network, where the image checks a
+# password, as buyer_says does: it answers 42 only from there.
+first_says() {
+  docker exec -e PGPASSWORD="$1" "$postgres_db" psql -X -h db -U postgres -d postgres -tAc \
+    "SELECT CASE WHEN inet_client_addr() IS NULL OR inet_client_addr() <<= '127.0.0.0/8' THEN 'from inside' ELSE (40 + 2)::text END" 2>&1
+}
+[[ "$(first_says "$password")" == 42 ]] || fail "postgres can't sign in over the network with its new password: $(first_says "$password")"
+[[ "$(first_says "$old_password")" != 42 ]] || fail "postgres still signs in over the network with its old password"
+page=$(adminer_sign_in "$password")
+[[ "$page" == *"id='logout'"* ]] || fail "Adminer can't sign in with the new password: $(sign_in_says "$page" "$password")"
+nothing_shows "$password"
+
 step "Scheduled tasks: a shell command, a command in an app and a request each run on their server, keep what they printed, and a failure is on Activity"
 pg_env=$(dw services list --json | jq -r --arg p "$catalog_project" '.services[] | select((.resource.scope | ascii_downcase) == $p and .resource.name == "db") | .resource.scope' | head -1)
 [[ "$pg_env" == env_* ]] || fail "can't find the environment PostgreSQL runs in"

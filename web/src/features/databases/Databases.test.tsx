@@ -367,6 +367,8 @@ describe("a database's page", () => {
     expect(within(table).getByText("readers", { selector: ".databases-name" }).closest("tr")).toHaveTextContent(
       "Can't sign in",
     );
+    // None of them is a user Dockwell made, so there's no column of actions to leave empty.
+    expect(within(table).queryByRole("columnheader", { name: "Actions" })).toBeNull();
   });
 
   it("lists who can sign in and the databases in it, leaving out what the server made for itself", async () => {
@@ -919,6 +921,7 @@ describe("changing a password", () => {
       }),
     );
     const table = await screen.findByRole("table", { name: "Users of db" });
+    expect(within(table).getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
     expect(within(table).queryByRole("button", { name: "Change shop's password" })).toBeNull();
     await user.click(within(table).getByRole("button", { name: "Change orders's password" }));
     await waitFor(() =>
