@@ -205,6 +205,7 @@ func (c *Collector) Stats(now time.Time) *dockwellv1.ServerStats {
 		}
 		st.Disks = append(st.Disks, &dockwellv1.DiskUsage{MountPoint: m.point, UsedBytes: used, SizeBytes: size})
 	}
+	st.DiskReadBytes, st.DiskWrittenBytes = c.diskTotals()
 
 	c.prev = cur
 	return st
@@ -415,6 +416,41 @@ func netTotals(dev []byte) (rx, tx uint64, ok bool) {
 		rx, tx, ok = rx+r, tx+t, true
 	}
 	return rx, tx, ok
+}
+
+// diskTotals is what the server's whole disks have read and written since it
+// booted, from /proc/diskstats: a disk is a device in /sys/block with a device
+// link, so its partitions, which have none, and the device-mapper, md, loop,
+// ram and zram devices on top of disks, which would count the same bytes again,
+// are left out. Sectors there are 512 bytes, whatever the disk's own are.
+func (c *Collector) diskTotals() (read, written uint64) {
+	sc := bufio.NewScanner(bytes.NewReader(c.read("proc/diskstats")))
+	for sc.Scan() {
+		f := strings.Fields(sc.Text())
+		if len(f) < 10 || !c.wholeDisk(f[2]) {
+			continue
+		}
+		r, err1 := strconv.ParseUint(f[5], 10, 64)
+		w, err2 := strconv.ParseUint(f[9], 10, 64)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		read, written = read+r*512, written+w*512
+	}
+	return read, written
+}
+
+// wholeDisk reports whether a block device is a disk of its own, not a part or
+// a layer of one.
+func (c *Collector) wholeDisk(name string) bool {
+	for _, p := range []string{"loop", "ram", "zram", "dm-", "md"} {
+		if strings.HasPrefix(name, p) {
+			return false
+		}
+	}
+	// /sys/block spells a slash in a device's name as "!", as for cciss/c0d0.
+	_, err := fs.Stat(c.Root, "sys/block/"+strings.ReplaceAll(name, "/", "!")+"/device")
+	return err == nil
 }
 
 // cpuInfo returns the first CPU model and the count of logical CPUs.

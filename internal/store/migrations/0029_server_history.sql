@@ -1,0 +1,12 @@
+-- SPDX-License-Identifier: AGPL-3.0-only
+-- A server's history, from the samples its agent already sends: a row for each
+-- minute of the last day and each hour of the last month (tier 1 and 2), keyed
+-- by the control plane's own clock. Every figure is kept as a sum weighted by
+-- the milliseconds the samples covered, so an average is the sum over
+-- covered_ms and rows add up, and as its highest value. Bytes moved are counted
+-- from the agent's counters. A row with covered_ms 0 is a minute the control
+-- plane listened and heard nothing; no row is a minute it wasn't there.
+-- At most 1,440 minute rows and 744 hour rows a server. See
+-- docs/adr/0065-a-servers-history-kept-by-the-control-plane.md.
+-- The table is in the dialect files, 0029_server_history.sqlite.sql (WITHOUT
+-- ROWID, as its key is all it is read by) and 0029_server_history.postgres.sql.

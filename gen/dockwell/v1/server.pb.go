@@ -1553,7 +1553,7 @@ type Server struct {
 	// Recent stats, oldest first, for sparklines: at most 60 samples, from
 	// the 5 minutes before the newest by the samples' own times, so a server
 	// that reports again after a longer outage starts over. Samples come every
-	// 5 s while anyone watches the fleet, and every 15 s while nobody does, so
+	// 5 s while anyone watches the fleet, and every 10 s while nobody does, so
 	// each says its own interval. Empty in lists.
 	History []*ServerStats `protobuf:"bytes,8,rep,name=history,proto3" json:"history,omitempty"`
 	// The agent's build.
@@ -2216,11 +2216,19 @@ type ServerStats struct {
 	// Bytes sent across physical interfaces since the server booted.
 	NetworkTxBytes uint64 `protobuf:"varint,16,opt,name=network_tx_bytes,json=networkTxBytes,proto3" json:"network_tx_bytes,omitempty"`
 	// How long until the agent's next sample, at the pace it was sampling when
-	// it took this one: 5 s while anyone watches the fleet, 15 s while nobody
+	// it took this one: 5 s while anyone watches the fleet, 10 s while nobody
 	// does. Unset from an agent from before this, which samples every 5 s.
-	Interval      *durationpb.Duration `protobuf:"bytes,17,opt,name=interval,proto3" json:"interval,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Interval *durationpb.Duration `protobuf:"bytes,17,opt,name=interval,proto3" json:"interval,omitempty"`
+	// Bytes read from the server's whole disks since it booted: each disk once,
+	// never its partitions, nor the device-mapper, md, loop, ram or zram
+	// devices on top of it, which would count its bytes again. Unset from an
+	// agent from before this (ADR 0065).
+	DiskReadBytes uint64 `protobuf:"varint,18,opt,name=disk_read_bytes,json=diskReadBytes,proto3" json:"disk_read_bytes,omitempty"`
+	// Bytes written to the server's whole disks since it booted, counted as
+	// disk_read_bytes is.
+	DiskWrittenBytes uint64 `protobuf:"varint,19,opt,name=disk_written_bytes,json=diskWrittenBytes,proto3" json:"disk_written_bytes,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ServerStats) Reset() {
@@ -2370,6 +2378,20 @@ func (x *ServerStats) GetInterval() *durationpb.Duration {
 		return x.Interval
 	}
 	return nil
+}
+
+func (x *ServerStats) GetDiskReadBytes() uint64 {
+	if x != nil {
+		return x.DiskReadBytes
+	}
+	return 0
+}
+
+func (x *ServerStats) GetDiskWrittenBytes() uint64 {
+	if x != nil {
+		return x.DiskWrittenBytes
+	}
+	return 0
 }
 
 // DiskUsage is one filesystem's use.
@@ -2576,7 +2598,7 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"filesystem\x18\x03 \x01(\tR\n" +
 	"filesystem\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18\x04 \x01(\x04R\tsizeBytes\"\xe4\x05\n" +
+	"size_bytes\x18\x04 \x01(\x04R\tsizeBytes\"\xba\x06\n" +
 	"\vServerStats\x12.\n" +
 	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x1f\n" +
 	"\vcpu_percent\x18\x02 \x01(\x01R\n" +
@@ -2596,7 +2618,9 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x12agent_memory_bytes\x18\x0e \x01(\x04R\x10agentMemoryBytes\x12(\n" +
 	"\x10network_rx_bytes\x18\x0f \x01(\x04R\x0enetworkRxBytes\x12(\n" +
 	"\x10network_tx_bytes\x18\x10 \x01(\x04R\x0enetworkTxBytes\x125\n" +
-	"\binterval\x18\x11 \x01(\v2\x19.google.protobuf.DurationR\binterval\"j\n" +
+	"\binterval\x18\x11 \x01(\v2\x19.google.protobuf.DurationR\binterval\x12&\n" +
+	"\x0fdisk_read_bytes\x18\x12 \x01(\x04R\rdiskReadBytes\x12,\n" +
+	"\x12disk_written_bytes\x18\x13 \x01(\x04R\x10diskWrittenBytes\"j\n" +
 	"\tDiskUsage\x12\x1f\n" +
 	"\vmount_point\x18\x01 \x01(\tR\n" +
 	"mountPoint\x12\x1d\n" +

@@ -26,6 +26,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/agent/v1/agentv1connect"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
@@ -54,7 +55,9 @@ type Handler struct {
 	auth   *identity.Authority
 	fleet  *fleet.Hub
 	agents *Agents
-	logger *slog.Logger
+	// history keeps each server's samples a minute at a time (ADR 0065); nil keeps none.
+	history Sampler
+	logger  *slog.Logger
 	// silence is how long a stream may say nothing before it is closed, and
 	// recheck how often a connected server's revocation is checked.
 	silence time.Duration
@@ -86,6 +89,16 @@ func WithStreamTiming(silence, recheck time.Duration) Option {
 // engine's calls. Without it, streams only report.
 func WithAgents(agents *Agents) Option {
 	return func(h *Handler) { h.agents = agents }
+}
+
+// Sampler keeps a server's history from its samples.
+type Sampler interface {
+	Sample(serverID string, stats *dockwellv1.ServerStats)
+}
+
+// WithHistory hands each stats sample to history as well as to the fleet.
+func WithHistory(history Sampler) Option {
+	return func(h *Handler) { h.history = history }
 }
 
 // NewHandler returns the agent listener's root handler.
@@ -293,6 +306,9 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 					stats.Interval = durationpb.New(told)
 				}
 				h.fleet.Record(peer.ServerID, stats)
+				if h.history != nil {
+					h.history.Sample(peer.ServerID, stats)
+				}
 			case msg.GetNetwork() != nil:
 				h.fleet.RecordNetwork(peer.ServerID, msg.GetNetwork())
 			case msg.GetResult() != nil && session != nil:
