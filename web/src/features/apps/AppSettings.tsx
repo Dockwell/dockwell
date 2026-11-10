@@ -1126,6 +1126,8 @@ interface PortRow {
   hostIp: string;
   /** A port added here follows a free one on the server, until someone types their own. */
   auto?: boolean;
+  /** What a following port showed when someone went into its field: it holds still there while it has focus. */
+  held?: string;
 }
 
 function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
@@ -1152,17 +1154,22 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
   const strings = useUIStrings();
   const id = useId();
   // A port added here takes a free one, in order, so no two rows take one.
+  // A row someone is in holds what it showed, as a free port landing under the cursor would
+  // run into what they type, and counts as taken.
   const rows = useMemo(() => {
-    if (!ports.ready) return typed;
-    const taken = typed.filter((r) => !r.auto && validPort(r.host)).map((r) => Number(r.host));
-    return typed.map((r) => {
-      if (!r.auto) return r;
+    const fixed = typed.map((r) => (r.auto && r.held !== undefined ? { ...r, host: r.held } : r));
+    if (!ports.ready) return fixed;
+    const taken = fixed
+      .filter((r) => (!r.auto || r.held !== undefined) && validPort(r.host))
+      .map((r) => Number(r.host));
+    return fixed.map((r) => {
+      if (!r.auto || r.held !== undefined) return r;
       const free = ports.free(validPort(r.inApp) ? Number(r.inApp) : undefined, r.udp, taken);
       taken.push(free);
       return { ...r, host: String(free) };
     });
   }, [typed, ports]);
-  const unchanged = JSON.stringify(rows.map(({ auto: _, ...r }) => r)) === JSON.stringify(first);
+  const unchanged = JSON.stringify(rows.map(({ auto: _, held: __, ...r }) => r)) === JSON.stringify(first);
   const change = (key: number, part: Partial<PortRow>) =>
     setRows((was) => was.map((r) => (r.key === key ? { ...r, ...part } : r)));
   const submit = (event: FormEvent) => {
@@ -1253,7 +1260,9 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
                   check={check}
                   invalid={Boolean(errors[`${row.key}.host`])}
                   aria-describedby={said ? `${id}-${row.key}` : undefined}
-                  onChange={(host) => change(row.key, { host, auto: false })}
+                  onFocus={() => row.auto && change(row.key, { held: row.host })}
+                  onBlur={() => row.auto && change(row.key, { held: undefined })}
+                  onChange={(host) => change(row.key, { host, auto: false, held: undefined })}
                 />
                 <Switch label="UDP" checked={row.udp} onChange={(udp) => change(row.key, { udp })} />
                 <Button

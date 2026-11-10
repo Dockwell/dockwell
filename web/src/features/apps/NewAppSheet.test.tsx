@@ -1190,6 +1190,42 @@ describe("New app, what it picks and what waits under Advanced", () => {
     expect(second?.value).toBe("8082");
   });
 
+  it("leaves a port someone types alone when the free one lands as they type", async () => {
+    const user = userEvent.setup();
+    // What runs on the server comes back only when told to, as on a slow server.
+    let answer = () => {};
+    const read = new Promise<void>((resolve) => (answer = resolve));
+    const { sheet } = await openImage(
+      withHolder({
+        services: {
+          listServices: async () => {
+            await read;
+            return {
+              services: [anApp("cache", "redis:7.4", { ports: [{ hostPort: 8080, containerPort: 6379 }] })],
+            };
+          },
+          listServiceRevisions: () => ({}),
+        },
+      }),
+    );
+    await user.type(within(sheet).getByLabelText("Image"), "nginx:1.27");
+    await user.click(within(sheet).getByRole("button", { name: "Add port" }));
+    await user.type(within(sheet).getAllByLabelText("In the app")[0] as HTMLElement, "80");
+    await user.click(within(sheet).getByRole("button", { name: "Add port" }));
+    await user.type(within(sheet).getAllByLabelText("In the app")[1] as HTMLElement, "3000");
+    const [first, second] = within(sheet).getAllByLabelText<HTMLInputElement>("On the server");
+    if (!first || !second) throw new Error("two port rows");
+    // Into the first while it's still empty; the free ports land before the first key.
+    await user.click(first);
+    answer();
+    await waitFor(() => expect(second.value).toBe("3000"));
+    expect(first.value).toBe("");
+    await user.type(first, "94");
+    await user.type(first, "11");
+    expect(first.value).toBe("9411");
+    expect(first).not.toHaveAttribute("aria-invalid", "true");
+  });
+
   it("starts the rest at defaults it names, and plans what's changed, with the command that does the same", async () => {
     const user = userEvent.setup();
     const proposals: ProposeChangeRequest[] = [];

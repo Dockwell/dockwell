@@ -741,12 +741,15 @@ function Orphans({
  * so no two take one, and what's shown is what's planned.
  */
 function withFreePorts(form: ImageForm, ports: ServerPorts): ImageForm {
-  if (!ports.ready || !form.ports.some((p) => p.auto)) return form;
-  const taken = form.ports.filter((p) => !p.auto && validPort(p.host)).map((p) => Number(p.host));
+  if (!form.ports.some((p) => p.auto)) return form;
+  // A row someone is in holds what it showed, and counts as taken.
+  const fixed = form.ports.map((p) => (p.auto && p.held !== undefined ? { ...p, host: p.held } : p));
+  if (!ports.ready) return { ...form, ports: fixed };
+  const taken = fixed.filter((p) => (!p.auto || p.held !== undefined) && validPort(p.host)).map((p) => Number(p.host));
   return {
     ...form,
-    ports: form.ports.map((p) => {
-      if (!p.auto) return p;
+    ports: fixed.map((p) => {
+      if (!p.auto || p.held !== undefined) return p;
       const listens = validPort(p.container) ? Number(p.container) : undefined;
       const free = ports.free(listens, p.protocol === "udp", taken);
       taken.push(free);
@@ -903,6 +906,10 @@ function PortsSection({
   // A row someone changes is theirs: a new image doesn't fill it again.
   const change = (row: PortRow, next: Partial<PortRow>) =>
     update({ ports: form.ports.map((p) => (p.key === row.key ? { ...p, ...next, fromImage: false } : p)) });
+  // Going into a following port's field holds it still; leaving lets it follow again.
+  const hold = (row: PortRow, held: string | undefined) => {
+    if (row.auto) update({ ports: form.ports.map((p) => (p.key === row.key ? { ...p, held } : p)) });
+  };
   const holderName = (holder: PortHolder) => (holder.kind === "proxy" ? t`Dockwell's proxy` : holder.name);
   return (
     <fieldset className="app-section" aria-labelledby={id}>
@@ -946,8 +953,10 @@ function PortsSection({
                 check={check}
                 invalid={Boolean(errors[`ports.${row.key}.host`])}
                 aria-describedby={`${id}-${row.key}`}
+                onFocus={() => hold(row, row.host)}
+                onBlur={() => hold(row, undefined)}
                 onChange={(next) => {
-                  change(row, { host: next, auto: false });
+                  change(row, { host: next, auto: false, held: undefined });
                   clear(`ports.${row.key}.host`);
                 }}
               />

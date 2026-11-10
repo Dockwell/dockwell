@@ -13,6 +13,12 @@ export interface PortRow {
   protocol: "tcp" | "udp";
   /** The server's port follows a free one, until someone types their own. */
   auto?: boolean;
+  /**
+   * What a following port showed when someone went into its field: it holds still
+   * there while the field has focus, as a free port landing under the cursor would
+   * run into what they type.
+   */
+  held?: string;
   /** The image's EXPOSE filled it, and nobody has changed it since. */
   fromImage?: boolean;
 }

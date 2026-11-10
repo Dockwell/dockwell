@@ -53,6 +53,9 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
   const [inApp, setInApp] = useState("");
   // The server's port follows what's free until someone types one.
   const [typedHost, setTypedHost] = useState<string>();
+  // In the field, what it shows holds still: a free port landing between the click and
+  // the first key would run into what's typed, so it's offered beside it instead.
+  const [heldHost, setHeldHost] = useState<string>();
   // The server is asked about what's typed, and from the port the app listens on.
   const watch = useMemo(() => [Number(inApp), Number(typedHost ?? "")].filter((n) => n > 0), [inApp, typedHost]);
   const [udp, setUdp] = useState(false);
@@ -74,7 +77,7 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
 
   const listensOn = validPortNumber(inApp) ? Number(inApp) : undefined;
   const offered = ports.ready ? ports.free(listensOn, udp) : undefined;
-  const host = typedHost ?? (offered === undefined ? "" : String(offered));
+  const host = typedHost ?? heldHost ?? (offered === undefined ? "" : String(offered));
   const holderName = (holder: PortHolder) => (holder.kind === "proxy" ? t`Dockwell's proxy` : holder.name);
   const check = ports.check(host, udp, holderName);
 
@@ -229,6 +232,8 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
           check={check}
           suggestion={offered}
           error={hostError}
+          onFocus={() => setHeldHost(host)}
+          onBlur={() => setHeldHost(undefined)}
           onChange={(next) => {
             setTypedHost(next);
             setHostError(undefined);
