@@ -382,4 +382,43 @@ describe("Alerts and rules", () => {
     expect(within(table).getByRole("row", { name: /App down/ })).toHaveTextContent("Every channel");
     expect(within(table).getByRole("row", { name: /Disk above 90%/ })).toHaveTextContent("ops-email");
   });
+
+  it("lists the alerts and the rules on a phone as rows, with no table to cut off", async () => {
+    onPhone();
+    const first = renderAt(
+      "/alerts",
+      api([ops], {
+        alerts: {
+          listAlerts: () => ({
+            firing: 1,
+            alerts: [
+              {
+                id: "alt_1",
+                title: "web isn't running on hz-1",
+                detail: "Its visitors get an error there.",
+                ruleName: "app-down",
+                severity: Severity.CRITICAL,
+                state: AlertState.FIRING,
+                openTime: timestampFromDate(NOW),
+              },
+            ],
+          }),
+        },
+      }),
+    );
+    const alerts = await screen.findByRole("list", { name: "Alerts, firing first" });
+    expect(screen.queryByRole("table")).toBeNull();
+    const [alert] = within(alerts).getAllByRole("listitem");
+    expect(alert).toHaveTextContent("Its visitors get an error there.");
+    expect(alert).toHaveTextContent("Critical");
+    expect(alert).toHaveTextContent("app-down");
+    first.unmount();
+
+    renderAt("/alerts/rules", api([ops]));
+    const rules = await screen.findByRole("list", { name: "Alert rules" });
+    expect(screen.queryByRole("table")).toBeNull();
+    const down = within(rules).getByText("App down").closest("li") as HTMLElement;
+    expect(down).toHaveTextContent("Critical");
+    expect(down).toHaveTextContent("Every channel");
+  });
 });
