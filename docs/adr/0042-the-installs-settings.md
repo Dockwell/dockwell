@@ -1,6 +1,6 @@
 # 0042. The install's settings
 
-- Status: Accepted
+- Status: Accepted. Amended by [ADR 0063](0063-the-panels-domain-set-from-the-panel.md): the panel's domain is set from the panel.
 - Date: 2026-11-07
 
 ## Context
