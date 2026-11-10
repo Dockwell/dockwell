@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
@@ -226,6 +227,11 @@ func (m *Manager) Ready(ctx context.Context) error {
 	defer m.mu.Unlock()
 	if !m.probed {
 		if m.unusable = m.Table.Probe(ctx); m.unusable != nil {
+			// No nft, a kernel that takes no table, or a test that runs no tools:
+			// the server as it is, not something gone wrong.
+			if errors.Is(m.unusable, nftables.ErrNoNft) || errors.Is(m.unusable, nftables.ErrRefused) || errors.Is(m.unusable, hosttool.ErrOff) {
+				m.unusable = resource.NotHere(m.unusable)
+			}
 			return m.unusable
 		}
 		if err := m.startLocked(ctx); err != nil {
@@ -390,7 +396,7 @@ func (m *Manager) KeepCurrent(ctx context.Context) {
 		// A revert that failed, or a start that couldn't load what was confirmed,
 		// is tried again here, on the agent's own clock: the stream to the
 		// control plane may be the very thing the table cut.
-		if err := m.Ready(ctx); err != nil && ctx.Err() == nil && !errors.Is(err, nftables.ErrNoNft) && !errors.Is(err, nftables.ErrRefused) {
+		if err := m.Ready(ctx); err != nil && ctx.Err() == nil && !resource.IsNotHere(err) {
 			m.logger().WarnContext(ctx, "the firewall isn't as it was confirmed yet; the agent tries again", slog.String("error", err.Error()))
 		}
 		if err := m.refresh(ctx); err != nil && ctx.Err() == nil {

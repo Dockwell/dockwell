@@ -7,6 +7,7 @@ import { useLingui } from "@lingui/react/macro";
 import { formatBitRate, formatBytes, formatFixed, formatLiveBytesOf, formatPercent } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { trend } from "./history";
+import { HIGH_USE } from "./server";
 import "./ServerMetrics.css";
 
 export interface ServerMetricsProps {
@@ -15,6 +16,8 @@ export interface ServerMetricsProps {
   fourth: "network" | "load";
   /** Phones: the numbers alone, two by two, without trends or captions. */
   compact?: boolean;
+  /** Nothing can say how the server is now: what it last said is greyed, not shown as now. */
+  stale?: boolean;
 }
 
 /**
@@ -22,7 +25,7 @@ export interface ServerMetricsProps {
  * trend over the history the control plane keeps, since the last gap. Values keep their number
  * of decimals, so they update in place without shifting.
  */
-export function ServerMetrics({ server, fourth, compact = false }: ServerMetricsProps) {
+export function ServerMetrics({ server, fourth, compact = false, stale = false }: ServerMetricsProps) {
   const { t, i18n } = useLingui();
   const words = useTimeWords();
   const of = (total: string) => t`of ${total}`;
@@ -57,6 +60,8 @@ export function ServerMetrics({ server, fourth, compact = false }: ServerMetrics
       data: history.map((s) => s.cpuPercent),
       min: 0,
       max: 100,
+      threshold: HIGH_USE,
+      ...(stats.cpuPercent > HIGH_USE ? { tone: "warning" as const } : {}),
       caption:
         spanMs > 0 ? t`${cpuAverage} on average over the last ${span}` : cpus > 0 ? t`Across ${cpus} vCPU` : undefined,
     },
@@ -68,6 +73,8 @@ export function ServerMetrics({ server, fourth, compact = false }: ServerMetrics
       data: history.map((s) => share(s.memoryUsedBytes, s.memoryTotalBytes)),
       min: 0,
       max: 100,
+      threshold: HIGH_USE,
+      ...(share(stats.memoryUsedBytes, stats.memoryTotalBytes) > HIGH_USE ? { tone: "warning" as const } : {}),
       caption: t`${memShare} in use`,
     },
     disk.size > 0
@@ -109,7 +116,7 @@ export function ServerMetrics({ server, fourth, compact = false }: ServerMetrics
   ];
 
   return (
-    <div className={cx("metrics", compact && "is-compact")}>
+    <div className={cx("metrics", compact && "is-compact", stale && "is-stale")} aria-disabled={stale || undefined}>
       {metrics.map(({ id, data, caption, ...metric }) => (
         <div key={id} className="dw-panel metrics-panel">
           <Metric {...metric} data={compact ? undefined : data} caption={compact ? undefined : caption} />

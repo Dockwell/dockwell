@@ -1351,6 +1351,29 @@ func (r *Registry) HostAccess(kind Kind, spec proto.Message) []Access {
 	return nil
 }
 
+// notHere is why a driver can't run on a server that doesn't have what its
+// kind needs, and may never: nftables, fail2ban. That's the server as it is,
+// not a fault, so it isn't said as a warning.
+type notHere struct{ error }
+
+func (e notHere) Unwrap() error { return e.error }
+
+// NotHere marks why a driver can't run as the server not having what its kind
+// needs, such as a tool nobody installed, rather than something gone wrong.
+// The kind is offered once the server has it.
+func NotHere(err error) error {
+	if err == nil {
+		return nil
+	}
+	return notHere{err}
+}
+
+// IsNotHere reports a reason NotHere marked.
+func IsNotHere(err error) bool {
+	var n notHere
+	return errors.As(err, &n)
+}
+
 // Readier is a driver that can't always run, such as one that needs
 // Docker. An agent offers its kind only while Ready says it can.
 type Readier interface {
@@ -1579,6 +1602,19 @@ type SharedReadier interface {
 // other kind with a driver can't. Drivers that share an answer are asked
 // once.
 func (r *Registry) Ready(ctx context.Context) (ready []Kind, unavailable map[Kind]string) {
+	ready, why := r.ReadyWhy(ctx)
+	for k, err := range why {
+		if unavailable == nil {
+			unavailable = map[Kind]string{}
+		}
+		unavailable[k] = err.Error()
+	}
+	return ready, unavailable
+}
+
+// ReadyWhy is Ready with each reason as the driver gave it, so a caller can
+// tell a server that doesn't have what a kind needs (IsNotHere) from a fault.
+func (r *Registry) ReadyWhy(ctx context.Context) (ready []Kind, unavailable map[Kind]error) {
 	answers := map[any]error{}
 	ask := func(d Readier) error {
 		s, ok := d.(SharedReadier)
@@ -1601,9 +1637,9 @@ func (r *Registry) Ready(ctx context.Context) (ready []Kind, unavailable map[Kin
 		}
 		if err := ask(d); err != nil {
 			if unavailable == nil {
-				unavailable = map[Kind]string{}
+				unavailable = map[Kind]error{}
 			}
-			unavailable[k] = err.Error()
+			unavailable[k] = err
 			continue
 		}
 		ready = append(ready, k)
