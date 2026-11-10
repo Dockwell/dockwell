@@ -24,7 +24,10 @@ import (
 type fakeMariaDB struct {
 	mu    sync.Mutex
 	users map[string]map[string]string // a user's password hash, by host
-	said  []string
+	// socket names the accounts, user@host, that sign in over the socket too, as
+	// root@localhost may. SET PASSWORD takes that away, as a real MariaDB did in CI.
+	socket map[string]bool
+	said   []string
 	// starting refuses this many connections more, as a server does before its socket
 	// is there.
 	starting int
@@ -32,6 +35,8 @@ type fakeMariaDB struct {
 
 var (
 	fakeAlterUser = regexp.MustCompile(`SET PASSWORD FOR '([^']+)'@'([^']+)' = '(\*[0-9A-F]{40})'`)
+	fakeViaSocket = regexp.MustCompile(`ALTER USER '([^']+)'@'([^']+)' IDENTIFIED VIA unix_socket OR mysql_native_password USING '(\*[0-9A-F]{40})'`)
+	fakeShowUser  = regexp.MustCompile(`SHOW CREATE USER '([^']+)'@'([^']+)'`)
 	fakeAskUsers  = regexp.MustCompile(`SELECT User, Host FROM mysql.user WHERE User IN \(([^)]*)\)`)
 )
 
@@ -71,12 +76,24 @@ func (f *fakeMariaDB) exec(x dockertest.Exec) int {
 			}
 		}
 	}
+	for _, m := range fakeShowUser.FindAllStringSubmatch(sql, -1) {
+		via := "IDENTIFIED BY PASSWORD '" + f.users[m[1]][m[2]] + "'"
+		if f.socket[m[1]+"@"+m[2]] {
+			via = "IDENTIFIED VIA mysql_native_password USING '" + f.users[m[1]][m[2]] + "' OR unix_socket"
+		}
+		_, _ = io.WriteString(x.Stdout, "CREATE USER `"+m[1]+"`@`"+m[2]+"` "+via+"\n")
+	}
 	for _, m := range fakeAlterUser.FindAllStringSubmatch(sql, -1) {
 		if f.users[m[1]] == nil {
 			_, _ = io.WriteString(x.Stderr, "ERROR 1133 (28000): Can't find any matching row in the user table\n")
 			return 1
 		}
 		f.users[m[1]][m[2]] = m[3]
+		delete(f.socket, m[1]+"@"+m[2])
+	}
+	for _, m := range fakeViaSocket.FindAllStringSubmatch(sql, -1) {
+		f.users[m[1]][m[2]] = m[3]
+		f.socket[m[1]+"@"+m[2]] = true
 	}
 	return 0
 }
@@ -109,7 +126,7 @@ func mariadbStand(t *testing.T, password string) (*FirstPasswords, *fakeMariaDB,
 	db := &fakeMariaDB{users: map[string]map[string]string{
 		"root": everywhere(password, "%", "localhost"),
 		"wp":   everywhere("app-password", "%"),
-	}}
+	}, socket: map[string]bool{"root@localhost": true}}
 	e := dockertest.New(t)
 	e.AddLocalImage("mariadb:12", dockertest.Image{Config: docker.Config{Cmd: []string{"mariadbd"}}, Exec: db.exec})
 	client := e.Client()
@@ -148,6 +165,10 @@ func TestANewRootPasswordReachesMariaDBBeforeItRestarts(t *testing.T) {
 	if undo == nil || !db.signsIn("root", "new-password") {
 		t.Fatalf("root doesn't sign in with the new password: %v", db.users)
 	}
+	// root@localhost still signs in over the socket, and root@'%' never did.
+	if !db.socket["root@localhost"] || db.socket["root@%"] {
+		t.Fatalf("over the socket, after a new password: %v", db.socket)
+	}
 	for _, sql := range db.said {
 		if strings.Contains(sql, "new-password") || strings.Contains(sql, "old-password") {
 			t.Fatalf("SQL holds a password as it is: %q", sql)
@@ -162,8 +183,8 @@ func TestANewRootPasswordReachesMariaDBBeforeItRestarts(t *testing.T) {
 	if err := undo(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if !db.signsIn("root", "old-password") {
-		t.Fatalf("root's old password isn't back: %v", db.users)
+	if !db.signsIn("root", "old-password") || !db.socket["root@localhost"] {
+		t.Fatalf("root's old password isn't back, or its socket sign-in went: %v %v", db.users, db.socket)
 	}
 	// What runs is the new container: the new password is its, and stays.
 	if _, err := f.Change(t.Context(), "env_1", "db", startsWith("mariadb:12", "new-password")); err != nil {
@@ -291,15 +312,23 @@ func TestTheImagesSecondUserFollowsItsSecret(t *testing.T) {
 func TestAlterUsersNamesEachHost(t *testing.T) {
 	mysql := Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL)
 	moves := []passwordMove{{user: "root", variable: "MYSQL_ROOT_PASSWORD", to: "p'w"}}
-	sql, err := mysql.alterUsers(map[string][]string{"root": {"%", "localhost"}}, moves)
+	sql, err := mysql.alterUsers(map[string][]string{"root": {"%", "localhost"}}, moves, nil)
 	if err != nil || !strings.Contains(sql, "SET SESSION sql_mode = '';") ||
 		!strings.Contains(sql, `ALTER USER 'root'@'%' IDENTIFIED BY 'p\'w';`) || !strings.Contains(sql, "'root'@'localhost'") {
 		t.Fatalf("alterUsers = %q, %v", sql, err)
 	}
-	if _, err := mysql.alterUsers(map[string][]string{"root": {"evil' OR 1"}}, moves); err == nil {
+	if _, err := mysql.alterUsers(map[string][]string{"root": {"evil' OR 1"}}, moves, nil); err == nil {
 		t.Fatal("alterUsers took a host it can't quote")
 	}
-	if _, err := mysql.alterUsers(nil, moves); err == nil {
+	if _, err := mysql.alterUsers(nil, moves, nil); err == nil {
 		t.Fatal("alterUsers took a user with no hosts")
+	}
+	// MariaDB keeps an account's socket sign-in, and sets the rest by its hash.
+	maria := Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB)
+	sql, err = maria.alterUsers(map[string][]string{"root": {"%", "localhost"}}, moves, map[string]bool{"root@localhost": true})
+	hash := mysqlNative("p'w")
+	if err != nil || !strings.Contains(sql, "ALTER USER 'root'@'localhost' IDENTIFIED VIA unix_socket OR mysql_native_password USING '"+hash+"';") ||
+		!strings.Contains(sql, "SET PASSWORD FOR 'root'@'%' = '"+hash+"';") || strings.Contains(sql, "p'w") {
+		t.Fatalf("MariaDB's alterUsers = %q, %v", sql, err)
 	}
 }

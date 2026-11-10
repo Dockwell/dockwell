@@ -330,9 +330,10 @@ check_mariadb() {
   if [[ "$1" == first ]]; then
     maria 'CREATE DATABASE e2e_kept' || fail "MariaDB can't make a database"
     # Change password gives root a new one, which phpMyAdmin signs in with over the
-    # network, where the old one is refused, and root@localhost keeps its sign-in over
-    # the socket, with no password, as the image made it.
-    local planned old=$password
+    # network, where the old one is refused, and root@localhost signs in over the
+    # socket, with no password, after it as it did before.
+    local planned old=$password socket_before
+    socket_before=$(docker exec "$db" mariadb -uroot -N -e 'SELECT 41 + 1' 2>&1) || socket_before="refused: $socket_before"
     planned=$(dw databases change-password db --project "$id" --plan-only --json) || fail "planning a new password for MariaDB failed: $planned"
     plans+=("$(jq -r .change.id <<<"$planned")")
     apply "${plans[-1]}"
@@ -345,7 +346,12 @@ check_mariadb() {
     said=$(phpmyadmin_sign_in "$port" "$old") || fail "signing in to phpMyAdmin failed"
     [[ "$said" == refused ]] || fail "phpMyAdmin still signs in to MariaDB with its old password"
     answer=$(docker exec "$db" mariadb -uroot -N -e 'SELECT 41 + 1' 2>&1) || answer="refused: $answer"
-    [[ "$answer" == 42 ]] || fail "root@localhost lost its sign-in over the socket with a new password: $answer"
+    if [[ "$socket_before" == 42 ]]; then
+      [[ "$answer" == 42 ]] || fail "root@localhost lost its sign-in over the socket with a new password: $answer"
+    else
+      [[ "$answer" != 42 ]] || fail "root@localhost signs in over the socket with a new password, where before it said: $socket_before"
+      echo "  root@localhost had no sign-in over the socket before a new password, and has none after: $socket_before"
+    fi
   else
     [[ -n "$(maria "SHOW DATABASES LIKE 'e2e\\_kept'")" ]] || fail "the database made before the upgrade is gone"
   fi

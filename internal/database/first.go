@@ -225,12 +225,49 @@ func (f *FirstPasswords) set(ctx context.Context, c *docker.Container, e *Engine
 		}
 		signIn = rootTo
 	}
-	sql, err := e.alterUsers(accounts(said), moves)
+	hosts := accounts(said)
+	var socket map[string]bool
+	if e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL {
+		socket = socketAccounts(ctx, &r, c.ID, e, signIn, hosts, moves)
+	}
+	sql, err := e.alterUsers(hosts, moves, socket)
 	if err != nil {
 		return err
 	}
 	_, err = r.ask(ctx, c.ID, e, withPassword(), signIn+"\n"+sql)
 	return err
+}
+
+// socketAccounts reads which of MariaDB's accounts also sign in over its socket
+// (unix_socket), as root@localhost may, by user@host, so a new password keeps that way
+// in. A server too old to show its users has none.
+func socketAccounts(ctx context.Context, r *Reader, id string, e *Engine, signIn string, hosts map[string][]string, moves []passwordMove) map[string]bool {
+	var ask strings.Builder
+	for _, m := range moves {
+		for _, h := range hosts[m.user] {
+			if aUser(m.user) && aHost(h) {
+				ask.WriteString("SHOW CREATE USER '" + m.user + "'@'" + h + "';\n")
+			}
+		}
+	}
+	out := map[string]bool{}
+	if ask.Len() == 0 {
+		return out
+	}
+	said, err := r.ask(ctx, id, e, withPassword(), signIn+"\n"+ask.String())
+	if err != nil {
+		return out
+	}
+	for line := range strings.Lines(string(said)) {
+		// CREATE USER `root`@`localhost` IDENTIFIED VIA mysql_native_password USING '*…' OR unix_socket
+		rest, ok := strings.CutPrefix(line, "CREATE USER `")
+		user, rest, ok2 := strings.Cut(rest, "`@`")
+		host, rest, ok3 := strings.Cut(rest, "`")
+		if ok && ok2 && ok3 && strings.Contains(rest, "unix_socket") {
+			out[user+"@"+host] = true
+		}
+	}
+	return out
 }
 
 // aUser and aHost are a user's name and a host it signs in from, which need nothing
@@ -262,8 +299,8 @@ func accounts(said []byte) map[string][]string {
 
 // alterUsers is the SQL that gives each user, from every host it has, its new
 // password: as MariaDB's own hash, or for MySQL over stdin, which it leaves out of its
-// logs.
-func (e *Engine) alterUsers(hosts map[string][]string, moves []passwordMove) (string, error) {
+// logs. socket names MariaDB's accounts that sign in over its socket too.
+func (e *Engine) alterUsers(hosts map[string][]string, moves []passwordMove, socket map[string]bool) (string, error) {
 	var b strings.Builder
 	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL {
 		// With no sql_mode, a backslash escapes, as quoted below.
@@ -281,9 +318,13 @@ func (e *Engine) alterUsers(hosts map[string][]string, moves []passwordMove) (st
 				b.WriteString("ALTER USER '" + m.user + "'@'" + h + "' IDENTIFIED BY '" + mysqlQuoted(m.to) + "';\n")
 				continue
 			}
-			// MariaDB's own hash, as SET PASSWORD takes it: that changes the plugins that
-			// take a password, and keeps root@localhost's unix_socket, where ALTER USER
-			// would replace the whole chain.
+			if socket[m.user+"@"+h] {
+				// It signs in over the socket too, as the image's root@localhost may, which
+				// SET PASSWORD would take away: both ways are said again, the socket first.
+				b.WriteString("ALTER USER '" + m.user + "'@'" + h + "' IDENTIFIED VIA unix_socket OR mysql_native_password USING '" + mysqlNative(m.to) + "';\n")
+				continue
+			}
+			// MariaDB's own hash, so the clear password is never in what it runs.
 			b.WriteString("SET PASSWORD FOR '" + m.user + "'@'" + h + "' = '" + mysqlNative(m.to) + "';\n")
 		}
 	}
