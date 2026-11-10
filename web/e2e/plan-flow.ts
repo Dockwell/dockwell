@@ -530,6 +530,11 @@ export async function planFlow(
   await page.getByRole("heading", { name: /^fixme is (deployed|running|healthy|starting)$/ }).waitFor();
   await page.getByRole("button", { name: /Open fixme/ }).click();
   await page.getByRole("heading", { level: 1, name: "fixme", exact: true }).waitFor();
+  // A new app opens at its log; what follows is on its overview.
+  await page
+    .getByRole("navigation", { name: "App sections" })
+    .getByRole("link", { name: "Overview", exact: true })
+    .click();
 
   step("plan: a failed deploy that rolled says what ran never stopped, and it didn't");
   const deployFixme = async (image: string) => {
