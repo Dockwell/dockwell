@@ -53,6 +53,7 @@ var (
 	_ resource.Rebinder = (*Driver)(nil)
 	_ resource.Adopter  = (*Driver)(nil)
 	_ resource.Imaged   = (*Driver)(nil)
+	_ resource.Reviver  = (*Driver)(nil)
 )
 
 // Kind returns "service".
@@ -310,6 +311,21 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 // RunsImage is the image the service's container runs.
 func (d *Driver) RunsImage(ctx context.Context, ref resource.Ref) (resource.Image, error) {
 	return d.Containers.ImageAt(ctx, TargetIn(ctx, ref))
+}
+
+// RunState is how the service's container stands.
+func (d *Driver) RunState(ctx context.Context, ref resource.Ref) (resource.RunState, error) {
+	return d.Containers.RunStateAt(ctx, TargetIn(ctx, ref))
+}
+
+// Start starts the service's container, as it is.
+func (d *Driver) Start(ctx context.Context, ref resource.Ref) error {
+	return d.Containers.StartAt(ctx, TargetIn(ctx, ref))
+}
+
+// Hold says why the service's container can't be made again now, if it can't.
+func (d *Driver) Hold(ctx context.Context, ref resource.Ref, spec proto.Message, volumes map[string]string) (string, error) {
+	return d.Containers.HoldAt(ctx, TargetIn(ctx, ref), spec.(*resourcev1.Service).GetApp(), volumes)
 }
 
 // NotRunning says how the service's container isn't running, in a word.

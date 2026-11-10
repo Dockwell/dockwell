@@ -493,10 +493,10 @@ func TestAnAgentKeepsWhatItsServerRuns(t *testing.T) {
 		t.Fatalf("after a restart its hello says it keeps %v, %t; want web at 2", held, keeps)
 	}
 	s.agents.SendValues(fixedValues{"TOKEN": "rotated"})
-	if kept, err := session.Remember(t.Context(), web, svc, 3, "chg_3"); err != nil || !kept {
+	if kept, err := session.Remember(t.Context(), web, svc, 3, "chg_3", ""); err != nil || !kept {
 		t.Fatalf("remembering revision 3 = %t, %v; want it kept", kept, err)
 	}
-	if kept, err := session.Remember(t.Context(), web, svc, 1, "chg_1"); err != nil || kept {
+	if kept, err := session.Remember(t.Context(), web, svc, 1, "chg_1", ""); err != nil || kept {
 		t.Fatalf("remembering revision 1 over 3 = %t, %v; want it answered, and not kept", kept, err)
 	}
 	if got, _, err := store.Read(web); err != nil || got.Revision != 3 || got.Change != "chg_3" || got.Values["TOKEN"] != "rotated" {

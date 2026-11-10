@@ -405,6 +405,36 @@ func TestAFailedStepKeepsNothing(t *testing.T) {
 	}
 }
 
+// A delete step that fails drops what the agent kept of the resource: what's left of
+// it is the control plane's to finish, not the agent's to put back while the control
+// plane is away (#357's first review, a low).
+func TestAFailedDeleteDropsItsRecord(t *testing.T) {
+	k := newKeeping(t)
+	apply := func(id uint64, action resource.Action, spec []byte, revision int64) *agentv1.CallResult {
+		calls := newCalls(context.Background(), k.calls.cfg, k.out.send, k.key)
+		step := resource.Step{Ref: keptWeb, Decision: resource.Decision{Action: action}}
+		call := &agentv1.ApplyCall{
+			Step: resourcepb.Step(step, ""), Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(keptWeb), Spec: spec}, Deploy: &agentv1.Deploy{Revision: revision},
+		}
+		if spec != nil {
+			call.Values = k.sealed(t, "s3cret")
+		}
+		calls.start(&agentv1.Call{Id: id, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Apply{Apply: call}})
+		defer calls.stop()
+		return k.out.await(t, id)
+	}
+	if r := apply(1, resource.ActionCreate, k.spec, 1); r.GetApply() == nil {
+		t.Fatalf("the create: %v", r)
+	}
+	k.docker.Stuck[service.ContainerName(keptWeb)] = true
+	if r := apply(2, resource.ActionDelete, nil, 2); r.GetError() == nil {
+		t.Fatalf("the delete ended with %v, want it failed", r)
+	}
+	if _, ok, err := k.store.Read(keptWeb); ok || err != nil {
+		t.Errorf("after a failed delete it still keeps a record to put back: %v, %v", ok, err)
+	}
+}
+
 // What the control plane has the agent remember is kept as what runs now, with its
 // values, unless the agent keeps a later revision.
 func TestRememberKeepsWhatRunsNow(t *testing.T) {
@@ -784,5 +814,25 @@ func TestAStepThatCantBeKeptSaysSo(t *testing.T) {
 	}
 	if _, ok, err := k.store.Read(keptWeb); ok || err != nil || len(k.store.Holds().GetHeld()) != 0 {
 		t.Errorf("still keeps the older record: %v, %v, %v", ok, err, k.store.Holds().GetHeld())
+	}
+}
+
+// A fill for a resource whose container is gone carries the image it ran, by
+// digest, which the record keeps for a pull.
+func TestRememberKeepsTheDigestOfWhatsGone(t *testing.T) {
+	k := newKeeping(t)
+	calls := newCalls(context.Background(), k.calls.cfg, k.out.send, k.key)
+	calls.start(&agentv1.Call{Id: 1, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Remember{Remember: &agentv1.RememberCall{
+		Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(keptWeb), Spec: k.spec}, Values: k.sealed(t, "v"),
+		Deploy: &agentv1.Deploy{Revision: 2}, ImageDigest: "acme/web@sha256:abc",
+	}}})
+	r := k.out.await(t, 1)
+	calls.stop()
+	if !r.GetRemember().GetKept() {
+		t.Fatalf("remembering it: %v", r)
+	}
+	got, _, err := k.store.Read(keptWeb)
+	if err != nil || got.Image.Digest != "acme/web@sha256:abc" || got.Image.ID != "" {
+		t.Errorf("keeps the image %+v, %v", got.Image, err)
 	}
 }

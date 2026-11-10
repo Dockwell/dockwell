@@ -908,6 +908,9 @@ msgstr "{count, plural, other {已向 {server} 的 agent 发送它运行的 # �
 msgid "{count, plural, one {Sent {server}'s agent, which kept none before, the variables and secrets of # resource it runs} other {Sent {server}'s agent, which kept none before, the variables and secrets of # resources it runs}}"
 msgstr "{count, plural, other {已向此前未保留任何内容的 {server} 的 agent 发送它运行的 # 个资源的变量和密钥}}"
 
+msgid "{count, plural, one {{server} dropped # entry of what it did while the control plane was away, as it keeps 500} other {{server} dropped # entries of what it did while the control plane was away, as it keeps 500}}"
+msgstr "{count, plural, other {{server} 丢弃了控制平面离线期间它所做之事的 # 条记录，因为它最多保留 500 条}}"
+
 msgid "{count, plural, one {{server}'s agent has a new cache, and was sent the variables and secrets of # resource it runs} other {{server}'s agent has a new cache, and was sent the variables and secrets of # resources it runs}}"
 msgstr "{count, plural, other {{server} 的 agent 有了新的缓存，并收到了它运行的 # 个资源的变量和密钥}}"
 
@@ -938,14 +941,26 @@ msgstr "{name} 在 {server} 上被暂停"
 msgid "{server} can't be reached"
 msgstr "无法连接到 {server}"
 
+msgid "{server} couldn't put anything back while the control plane was away"
+msgstr "控制平面离线期间，{server} 什么也无法恢复"
+
+msgid "{server} couldn't put {resourceName} back while the control plane was away"
+msgstr "控制平面离线期间，{server} 无法恢复 {resourceName}"
+
 msgid "{server} joined as the control server"
 msgstr "{server} 作为控制服务器加入"
 
 msgid "{server} joined the fleet"
 msgstr "{server} 加入了集群"
 
+msgid "{server} made {resourceName} again while the control plane was away"
+msgstr "控制平面离线期间，{server} 重新创建了 {resourceName}"
+
 msgid "{server} renewed its certificate"
 msgstr "{server} 更新了证书"
+
+msgid "{server} started {resourceName} again while the control plane was away"
+msgstr "控制平面离线期间，{server} 重新启动了 {resourceName}"
 
 msgid "{server} uses {value}% of its memory"
 msgstr "{server} 的内存已用 {value}%"

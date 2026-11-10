@@ -38,6 +38,9 @@ type Deploy struct {
 	// Run says, as a plan judges it, that someone asked for this resource to run, as
 	// a deploy or a rollback does, and it isn't only part of a file (Desired.Run).
 	Run bool
+	// Reconcile identifies a local action durably recorded before creation. It
+	// stays on the container so an agent restart can account for its outcome.
+	Reconcile string
 }
 
 type deployKey struct{}

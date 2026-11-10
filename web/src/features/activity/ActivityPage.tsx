@@ -840,6 +840,12 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
             {event.alert ? <AlertFacts alert={event.alert} /> : null}
             {event.terminal ? <TerminalFacts terminal={event.terminal} /> : null}
             {event.desiredSent ? <DesiredSentFacts sent={event.desiredSent} /> : null}
+            {event.reconciled?.reason ? (
+              <>
+                <dt>{t`Why`}</dt>
+                <dd>{event.reconciled.reason}</dd>
+              </>
+            ) : null}
           </dl>
           {change?.because ? <BecauseNotice because={change.because} /> : null}
           {change?.state === ChangeState.FAILED ? (

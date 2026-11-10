@@ -589,6 +589,13 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			applyCtx = resource.WithValues(ctx, values)
 		}
 		if err := c.local.Apply(applyCtx, step, spec); err != nil {
+			if step.Action == resource.ActionDelete && c.cfg.Desired != nil {
+				// What's left of it is the control plane's to finish, not the agent's to
+				// put back while it's away.
+				said := c.cfg.Desired.Drop(ref, fmt.Errorf("deleting %s failed", ref))
+				c.logger.Info("a delete step failed, so the agent doesn't put what's left of it back while the control plane is away",
+					slog.String("resource", ref.String()), slog.String("how", said.Error()))
+			}
 			return fail(err)
 		}
 		if c.cfg.Desired != nil {
@@ -596,6 +603,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			r := desired.Record{
 				Ref: ref, ScopeName: call.GetApply().GetDesired().GetScopeName(), Revision: deploy.GetRevision(), Change: deploy.GetChangeId(),
 				Values: resource.ValuesFrom(applyCtx),
+				// A step that made it, made it again or restarted it started it, so
+				// what was seen of it stopped is gone.
+				Started: step.Action == resource.ActionCreate || step.Action == resource.ActionReplace || step.Effect != resource.EffectNone,
 			}
 			if err := c.keep(ctx, r, spec); err != nil {
 				c.logger.Warn("applied a step, but can't keep it as what this server runs, so the server can't put it back while the control plane is away. "+
@@ -1042,6 +1052,11 @@ func (c *calls) remember(ctx context.Context, call *agentv1.RememberCall) (bool,
 	}
 	if r, err = c.record(ctx, r, spec); err != nil {
 		return false, err
+	}
+	// A container that's gone runs no image to read, so the record takes what
+	// the control plane kept, for a pull by digest.
+	if r.Image == (resource.Image{}) {
+		r.Image.Digest = call.GetImageDigest()
 	}
 	return c.cfg.Desired.Remember(r)
 }

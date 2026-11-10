@@ -451,6 +451,29 @@ func (e *Engine) ncpu() int {
 	return 8
 }
 
+// failStart fails a start as the engine does, which leaves why in the container's
+// state, until it next starts.
+func failStart(w http.ResponseWriter, c *container, code int, format string, args ...any) {
+	c.State.Error = fmt.Sprintf(format, args...)
+	fail(w, code, "%s", c.State.Error)
+}
+
+// FailedToStart leaves the container named name as the engine leaves one it tried
+// to start, as after a reboot, and couldn't: stopped, with why in its state.
+func (e *Engine) FailedToStart(name, why string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, c := range e.containers {
+		if strings.TrimPrefix(c.Name, "/") == name {
+			if c.State.Running {
+				c.log.end()
+				e.detach(c)
+			}
+			c.State = docker.State{Status: "exited", ExitCode: 128, Error: why, StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+		}
+	}
+}
+
 // AddLocalImage puts an image on the fake server that no registry has, as one
 // built there is.
 func (e *Engine) AddLocalImage(ref string, img Image) {
@@ -557,6 +580,15 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 		e.images[ref], e.images[img.id], e.images[img.repo+"@"+digest] = img, img, img
 		e.published[digest] = src
 		_ = enc.Encode(map[string]string{"status": "Status: Downloaded newer image for " + ref})
+	case r.Method == http.MethodPost && strings.HasSuffix(path, "/tag"):
+		source := strings.TrimSuffix(strings.TrimPrefix(path, "/images/"), "/tag")
+		img := e.image(source)
+		if img == nil {
+			fail(w, http.StatusNotFound, "No such image: %s", source)
+			return
+		}
+		e.images[r.URL.Query().Get("repo")+":"+r.URL.Query().Get("tag")] = img
+		w.WriteHeader(http.StatusCreated)
 	case r.Method == http.MethodGet && strings.HasSuffix(path, "/json"):
 		ref := strings.TrimSuffix(strings.TrimPrefix(path, "/images/"), "/json")
 		img := e.image(ref)
@@ -738,28 +770,28 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		}
 		for name, ep := range c.NetworkSettings.Networks {
 			if e.networks[name] == nil && name != "host" {
-				fail(w, http.StatusNotFound, "network %s not found", name)
+				failStart(w, c, http.StatusNotFound, "network %s not found", name)
 				return
 			}
 			// A stopped container keeps the ID of its network, by which the
 			// engine looks it up, and that is gone if the network was made again.
 			if ep != nil && ep.NetworkID != "" && ep.NetworkID != e.networks[name].ID {
-				fail(w, http.StatusNotFound, "network %s not found", ep.NetworkID)
+				failStart(w, c, http.StatusNotFound, "network %s not found", ep.NetworkID)
 				return
 			}
 		}
 		if err := e.portsFree(c); err != nil {
-			fail(w, http.StatusInternalServerError, "%v", err)
+			failStart(w, c, http.StatusInternalServerError, "%v", err)
 			return
 		}
 		if err := e.addressesFree(c); err != nil {
-			fail(w, http.StatusInternalServerError, "%v", err)
+			failStart(w, c, http.StatusInternalServerError, "%v", err)
 			return
 		}
 		if e.BindError != nil {
 			for _, m := range c.Mounts {
 				if said := e.BindError(m.Source); m.Type == "bind" && said != "" {
-					fail(w, http.StatusBadRequest, "error while creating mount source path '%s': %s", m.Source, said)
+					failStart(w, c, http.StatusBadRequest, "error while creating mount source path '%s': %s", m.Source, said)
 					return
 				}
 			}

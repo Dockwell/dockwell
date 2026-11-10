@@ -184,6 +184,25 @@ message Event {
   // runs, for an event with the action "server.desired_sent", or found it keeps
   // and doesn't know, for "server.desired_unknown" (ADR 0054).
   EventDesiredSent desired_sent = 140;
+  // What a server's agent did, or couldn't do, on its own while the control
+  // plane was away, for an event with an action that starts "server.reconciled"
+  // (ADR 0054).
+  EventReconciled reconciled = 141;
+}
+
+// EventReconciled is what a server's agent did, or couldn't do, on its own while
+// the control plane was away. The event's action says which: made it again,
+// started it, couldn't put it back, or dropped entries it couldn't keep.
+message EventReconciled {
+  // The server's name.
+  string server_name = 1;
+  // The resource, by its kind and name.
+  string kind = 2;
+  string name = 3;
+  // Why it couldn't put the resource back, for people.
+  string reason = 4;
+  // For dropped entries, how many.
+  uint32 dropped = 5;
 }
 
 // EventTaskRun is a scheduled task's run that failed, or the one that succeeded

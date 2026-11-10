@@ -118,6 +118,18 @@ func WithTag(ref string) string {
 	return ref + ":latest"
 }
 
+// TagImage has ref name the image source names, by its ID or a reference, on this
+// server, as docker tag does. A ref with a digest names one image already, so it
+// can't be a tag.
+func (c *Client) TagImage(ctx context.Context, source, ref string) error {
+	if strings.Contains(ref, "@") {
+		return fmt.Errorf("%s names its image by digest, so it can't be given to another", ref)
+	}
+	full := WithTag(ref)
+	at := strings.LastIndex(full, ":")
+	return c.do(ctx, http.MethodPost, "/images/"+escRef(source)+"/tag", url.Values{"repo": {full[:at]}, "tag": {full[at+1:]}}, nil, nil)
+}
+
 // pullEvent is one line of a pull's progress.
 type pullEvent struct {
 	Status         string `json:"status"`
