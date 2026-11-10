@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { type AlertRuleInfo, AlertState, AlertRule_Severity as Severity } from "@dockwell/api";
-import { Callout, PHONE_QUERY, StatusBadge, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
+import { PHONE_QUERY, StatusBadge, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
-import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { EmptyState } from "../shell/EmptyState";
+import { ReadFailed } from "../shell/ReadFailed";
 import { OpenAlerts, ResolvedAlerts } from "./AlertCards";
 import { AlertsPage } from "./AlertsPage";
 import { useAlerts, useChannels, useRules } from "./useAlerts";
@@ -30,9 +30,7 @@ export function AlertsTab() {
   return (
     <AlertsPage>
       {alerts.error ? (
-        <Callout tone="critical" title={t`Can't load the alerts`}>
-          {sentence(alerts.error)}
-        </Callout>
+        <ReadFailed error={alerts.error} title={t`Can't load the alerts`} />
       ) : !alerts.data ? null : list.length === 0 ? (
         <EmptyState
           icon="check"
@@ -101,9 +99,7 @@ export function RulesTab() {
   return (
     <AlertsPage>
       {rules.error ? (
-        <Callout tone="critical" title={t`Can't load the rules`}>
-          {sentence(rules.error)}
-        </Callout>
+        <ReadFailed error={rules.error} title={t`Can't load the rules`} />
       ) : !rules.data ? null : (
         <>
           {phone ? (

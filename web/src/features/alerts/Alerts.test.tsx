@@ -670,6 +670,32 @@ describe("Alerts and rules", () => {
     });
   });
 
+  it("says a role doesn't cover alerts, rules or channels as every page does, not as a load that failed", async () => {
+    const { ConnectError, Code } = await import("@connectrpc/connect");
+    const refuse = () => {
+      throw new ConnectError(
+        "this needs the admin role on the install",
+        Code.PermissionDenied,
+        new Headers({ "Dockwell-Error": "needs_role" }),
+      );
+    };
+    const refused: Api = {
+      alerts: { listAlerts: refuse, listAlertRules: refuse, listAlertChannels: refuse, listAlertDeliveries: refuse },
+    };
+    for (const [path, old] of [
+      ["/alerts", "Can't load the alerts"],
+      ["/alerts/rules", "Can't load the rules"],
+      ["/alerts/channels", "Can't load the channels"],
+    ] as const) {
+      const page = renderAt(path, api([], refused));
+      const why = (await screen.findByText("Your role doesn't cover this")).closest(".dw-callout");
+      expect(why).toHaveClass("dw-tone-warning");
+      expect(why).toHaveTextContent("Your role doesn't let you do this here. Ask an admin to change your role.");
+      expect(screen.queryByText(old)).toBeNull();
+      page.unmount();
+    }
+  });
+
   it("lists the rules", async () => {
     renderAt("/alerts/rules", api([ops]));
     const table = await screen.findByRole("table", { name: "Alert rules" });

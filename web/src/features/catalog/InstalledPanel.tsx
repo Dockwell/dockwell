@@ -11,6 +11,7 @@ import { environmentOf } from "../apps/app";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { installIn, useInstalls } from "./useCatalog";
 import "./Catalog.css";
+import { useMay } from "../auth/may";
 
 /**
  * What the catalog says of an app it installed, on each of its services' pages: which
@@ -22,11 +23,14 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
   const transport = useTransport();
   const sheet = useChangeSheet();
   const environment = environmentOf(service);
+  const may = useMay();
   const install = installIn(useInstalls().data?.installs ?? [], environment);
   if (!install) return null;
   const name = install.name || install.pin?.entry || "";
   const version = install.pin?.version ?? "";
   const next = install.upgrade?.version ?? "";
+  // An action on what you can see stays where it is, off, with why (ADR 0059).
+  const mayUpgrade = may(CatalogService.method.upgradeCatalogInstall, { project: install.projectId });
   const upgrade = () =>
     sheet.open({
       kind: "plan",
@@ -56,7 +60,7 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
               <Trans>Version {next} is out.</Trans>
             )}
           </p>
-          <Button variant="primary" size="sm" onClick={upgrade}>
+          <Button variant="primary" size="sm" onClick={upgrade} {...mayUpgrade.off}>
             {next === version ? <Trans>Review the change</Trans> : <Trans>Upgrade to {next}</Trans>}
           </Button>
         </div>

@@ -106,6 +106,14 @@ func (h *Handler) GetAuthState(ctx context.Context, _ *connect.Request[dockwellv
 		msg.User = userProto(p.User)
 		msg.SessionId = p.Session.ID
 		msg.SignInMethod = methodProto(p.Session.Method)
+		// What they hold, for the panel to offer only what they may do (ADR 0059).
+		grants, err := h.auth.Grants(ctx, p)
+		if err != nil {
+			return nil, h.rpcError(ctx, err)
+		}
+		for _, g := range grants {
+			msg.Grants = append(msg.Grants, &dockwellv1.RoleGrant{ProjectId: g.ProjectID, Role: RoleProto(g.Role)})
+		}
 	} else if req, ok := ctx.Value(requestKey{}).(request); ok && req.token != "" && !sessionUnchecked(ctx) {
 		// A cookie for a session that ended: clear it. One that couldn't be
 		// checked stays, as its session may still work.

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -105,6 +106,37 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 		cfg.Tasks.Drain(task.DrainWait)
 	}
 	return err
+}
+
+// agentGC is the collector's target for an agent on its own, as GOGC says it: half
+// of Go's own. An idle agent keeps about 4 MB live, nearly all of it what the
+// protocol's messages register once, and Go lets the heap grow to twice what's
+// live before it collects, so at Go's own target half of an idle agent's heap was
+// garbage waiting. At 50 it idles about 2 MB lower, on every server, for a
+// collection every 15 s or so at idle in place of every 30 s, which takes about
+// 0.01% of a CPU. Transfers already run at this target (ADR 0045), and
+// make logs-load holds the agent's CPU under a flood to its limits with it
+// (docs/adr/0060-what-an-idle-agent-keeps-in-memory.md).
+const agentGC = 50
+
+// runAgentAlone runs the agent of a server that joined a control plane, which is
+// all its process runs, with the collector's target an agent on its own gets. A
+// GOGC in the environment stays as the operator set it. The control server's own
+// agent shares its process with the control plane, whose heap is another matter,
+// and runs with runAgent as it is.
+func runAgentAlone(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info) error {
+	defer collectAsAnAgent(stdio)()
+	return runAgent(ctx, stdio, g, logger, dir, id, build, nil, nil)
+}
+
+// collectAsAnAgent sets the collector's target to agentGC, unless the environment
+// sets GOGC, and returns what puts it back.
+func collectAsAnAgent(stdio IO) (restore func()) {
+	if stdio.Getenv("GOGC") != "" {
+		return func() {}
+	}
+	was := debug.SetGCPercent(agentGC)
+	return func() { debug.SetGCPercent(was) }
 }
 
 // hostTools runs the server's own tools, such as ufw and nft. A test runs none

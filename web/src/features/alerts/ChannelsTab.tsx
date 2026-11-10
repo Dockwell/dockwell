@@ -23,6 +23,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { formatClock, formatDateTime } from "../../lib/format";
 import { EmptyState } from "../shell/EmptyState";
+import { ReadFailed } from "../shell/ReadFailed";
 import { AlertsPage } from "./AlertsPage";
 import { ChannelSheet } from "./ChannelSheet";
 import { CHANNEL_KIND, channelStatus, isChannelType, routing, useChannels, useDeliveries, useRules } from "./useAlerts";
@@ -176,11 +177,7 @@ export function ChannelsTab() {
 
   let body: ReactNode;
   if (channels.error) {
-    body = (
-      <Callout tone="critical" title={t`Can't load the channels`}>
-        {sentence(channels.error)}
-      </Callout>
-    );
+    body = <ReadFailed error={channels.error} title={t`Can't load the channels`} />;
   } else if (!channels.data) {
     body = null;
   } else if (list.length === 0) {

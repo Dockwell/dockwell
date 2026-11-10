@@ -3,7 +3,14 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { type GetAuthStateResponse, GetAuthStateResponseSchema, Role, SignInMethod, UserSchema } from "@dockwell/api";
+import {
+  type GetAuthStateResponse,
+  GetAuthStateResponseSchema,
+  Role,
+  RoleGrantSchema,
+  SignInMethod,
+  UserSchema,
+} from "@dockwell/api";
 import { vi } from "vitest";
 
 import { toBase64url } from "../lib/webauthn";
@@ -18,7 +25,7 @@ export const mira = create(UserSchema, {
 
 /** The sign-in state: claimed and signed in as Mira, unless init says otherwise. */
 export function authState(init: MessageInitShape<typeof GetAuthStateResponseSchema> = {}): GetAuthStateResponse {
-  return create(GetAuthStateResponseSchema, {
+  const state = create(GetAuthStateResponseSchema, {
     claimed: true,
     user: mira,
     sessionId: "ses_01JD6Z3R8M9QF2K7T4XW5BNC0V",
@@ -27,6 +34,12 @@ export function authState(init: MessageInitShape<typeof GetAuthStateResponseSche
     signInMethod: SignInMethod.PASSKEY,
     ...init,
   });
+  // Unless a test says what they hold, it's their role on the install, as the
+  // control plane says it for someone with no project of their own.
+  if (!init.grants && state.user && state.user.role !== Role.UNSPECIFIED) {
+    state.grants = [create(RoleGrantSchema, { role: state.user.role })];
+  }
+  return state;
 }
 
 /** An AuthService error as the control plane sends it, with its reason. */

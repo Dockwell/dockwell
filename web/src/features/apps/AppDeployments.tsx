@@ -34,6 +34,7 @@ import { isValidElement, type ReactNode, useCallback, useMemo, useRef } from "re
 
 import { formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { FailureNotice } from "../changes/FailureNotice";
 import { useFieldRows } from "../changes/fields";
@@ -48,6 +49,7 @@ import { ListSkeleton } from "./AppsPage";
 import {
   bareImage,
   canRollBackTo,
+  environmentOf,
   fieldOfChange,
   imageChange,
   nameOf,
@@ -444,6 +446,9 @@ function RollBackFoot({
 }) {
   const target = rollBackTarget(rev, latest, revisions);
   const shown = revisionName(rev.number);
+  // An action on what you can see stays where it is, off, with why (ADR 0059).
+  const { service } = useApp();
+  const mayRollBack = useMay()(ServiceService.method.rollBackService, { environment: environmentOf(service) });
   if (!target) {
     if (rev.number === latest || !rev.matchesLatest) return null;
     // The record matches, which says nothing of a container removed by hand. The
@@ -462,6 +467,7 @@ function RollBackFoot({
             size={wide ? "lg" : "md"}
             onClick={() => onRollBack(rev)}
             className={cx(wide && "deploy-wide")}
+            {...mayRollBack.off}
           >
             <Trans>Roll back to {shown}</Trans>
           </Button>
@@ -482,6 +488,7 @@ function RollBackFoot({
         size={wide ? "lg" : "md"}
         onClick={() => onRollBack(target)}
         className={cx(wide && "deploy-wide")}
+        {...mayRollBack.off}
       >
         <Trans>Roll back to {name}</Trans>
       </Button>
