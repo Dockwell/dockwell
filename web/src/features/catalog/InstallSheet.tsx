@@ -150,7 +150,9 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
 
   const name = (typedName ?? got.data?.project ?? "").trim();
   // What it says of itself, as state, beside its defaults; how it signs in is under Advanced.
-  const facts = useEntryFacts(entry).filter((f) => f.key !== "sign-in");
+  // Before it's installed, the sheet says what it is, not what to do next: the sign-in is
+  // its generated lines below, and its first steps wait for its page.
+  const facts = useEntryFacts(entry).filter((f) => f.key !== "sign-in" && f.key !== "first");
   const nameOpen = changing.has("name") || nameError !== undefined;
   // A default shows as its field once someone changes it, and from the start when there's no default to show.
   const open = (input: Input) => changing.has(input.name) || suggested(input) === "";

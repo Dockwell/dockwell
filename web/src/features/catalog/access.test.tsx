@@ -90,11 +90,11 @@ describe("What an entry says of itself", () => {
     await expectAccessible(container);
   });
 
-  it("asks for an email starting from yours, and says how it signs in in a line", async () => {
+  it("asks for an email starting from yours, with nothing to do first", async () => {
     renderAt("/catalog/grafana/install", api(grafana));
     const sheet = await screen.findByRole("dialog", { name: "Install Grafana" });
-    expect(await within(sheet).findByLabelText("Your email")).toHaveValue("mira@example.com");
-    expect(within(sheet).getByText("Generated and sealed, for your passkey to reveal: Admin password")).toBeVisible();
+    expect(await within(sheet).findByRole("group", { name: "Your email" })).toHaveTextContent("mira@example.com");
+    expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveAccessibleDescription(/1 secret generated/);
     expect(within(sheet).queryByText("What to do first")).not.toBeInTheDocument();
   });
 });
