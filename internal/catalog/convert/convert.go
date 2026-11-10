@@ -298,8 +298,11 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	if err := applyOverlay(e, overlay); err != nil {
 		return fail(err, ClassOverlay)
 	}
-	if overlay.Entry.GetFirstSteps() == "" {
-		e.FirstSteps = firstSteps(e, app.Name)
+	// How it's reached is the panel's to show, as state and actions (ADR 0029): on this
+	// server alone until a domain, with Open, or a port to add. What's left is a note
+	// for an app on the server's own network, unless its overlay says its own.
+	if len(overlay.Entry.GetNotes()) == 0 {
+		e.Notes = reachNotes(e)
 	}
 	// What only a person writes is checked last, so an app waiting for it is one
 	// that converts once they have.
@@ -446,26 +449,6 @@ func serviceOf(file []byte, port string) string {
 	for _, name := range serviceNames(doc) {
 		if ports := mapGet(service(doc, name), "ports"); ports != nil && strings.Contains(nodeText(ports), "${"+port+"}") {
 			return name
-		}
-	}
-	return ""
-}
-
-// webPort is the default of the port a person opens a service on: the first port
-// input the service publishes.
-func webPort(e *catalogv1.Entry) string {
-	doc, err := parseFile([]byte(e.GetCompose()))
-	if err != nil || e.GetWeb().GetService() == "" {
-		return ""
-	}
-	ports := mapGet(service(doc, e.GetWeb().GetService()), "ports")
-	if ports == nil {
-		return ""
-	}
-	text := nodeText(ports)
-	for _, in := range e.GetInputs() {
-		if in.GetType() == catalogv1.InputType_INPUT_TYPE_PORT && strings.Contains(text, "${"+in.GetName()+"}") {
-			return in.GetDefaultValue()
 		}
 	}
 	return ""
@@ -657,34 +640,15 @@ func hostNetwork(e *catalogv1.Entry) bool {
 	return false
 }
 
-// firstSteps says how to reach an app, as every entry does: on loopback until it has
-// a domain, and, for one a person opens in a browser, through an SSH tunnel for
-// whoever makes its first account.
-func firstSteps(e *catalogv1.Entry, name string) string {
-	others := 0
-	for _, in := range e.GetInputs() {
-		if in.GetType() == catalogv1.InputType_INPUT_TYPE_PORT {
-			others++
-		}
+// reachNotes is what an entry says of how it's reached that the panel can't show
+// by itself: an app on the server's own network answers on every address the server
+// has, which no published port says. Anything else, on loopback until a domain or
+// with no port to open, the app's page shows as state, with Open or Add a port.
+func reachNotes(e *catalogv1.Entry) []string {
+	if hostNetwork(e) {
+		return []string{"Uses the server's own network, so it answers on every port it listens on, on every address"}
 	}
-	port := webPort(e)
-	switch {
-	case hostNetwork(e):
-		return name + " uses the server's own network, so it answers on every address the server has, on each port it " +
-			"listens on, to anything that reaches the server. Keep those ports closed in the server's firewall unless " +
-			"something elsewhere must reach them."
-	case port == "":
-		return name + " answers only on this server. Add a port on its page for anything elsewhere that must reach it."
-	}
-	steps := fmt.Sprintf("%[1]s answers only on this server until you add a domain. If it makes an account for "+
-		"whoever opens it first, make yours first, through an SSH tunnel from your computer: "+
-		"ssh -N -L %[2]s:127.0.0.1:%[2]s you@your-server, using the port you gave it, then open "+
-		"http://localhost:%[2]s. Add a domain on its page only after that, over HTTPS or behind your tunnel, "+
-		"as a new domain's certificate shows in public logs within minutes.", name, port)
-	if others > 1 {
-		steps += " Its other ports answer only on this server too. Add a port on its page for one that something elsewhere must reach."
-	}
-	return steps
+	return nil
 }
 
 // Kept says which of the earlier run's entries stay, and which go: an entry left out

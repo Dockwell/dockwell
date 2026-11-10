@@ -107,6 +107,25 @@ func applyOverlay(e *catalogv1.Entry, o Overlay) error {
 	if w.GetWeb() != nil {
 		e.Web = proto.CloneOf(w.GetWeb())
 	}
+	// What the panel shows as state and actions, which only a person who knows the
+	// app can say: how to sign in, whether its first visitor owns it, how sign-ups
+	// close, what follows its domain, and a line or two of what to know.
+	if w.GetSignIn() != nil {
+		e.SignIn = proto.CloneOf(w.GetSignIn())
+	}
+	e.FirstVisitorOwns = e.GetFirstVisitorOwns() || w.GetFirstVisitorOwns()
+	if w.GetSignups() != nil {
+		e.Signups = proto.CloneOf(w.GetSignups())
+	}
+	if len(w.GetAddressVariables()) > 0 {
+		e.AddressVariables = make([]*catalogv1.AddressVariable, len(w.GetAddressVariables()))
+		for i, a := range w.GetAddressVariables() {
+			e.AddressVariables[i] = proto.CloneOf(a)
+		}
+	}
+	if len(w.GetNotes()) > 0 {
+		e.Notes = slices.Clone(w.GetNotes())
+	}
 	if len(w.GetFeatures()) > 0 {
 		e.Features = slices.Clone(w.GetFeatures())
 	}
@@ -132,6 +151,8 @@ func applyOverlay(e *catalogv1.Entry, o Overlay) error {
 		have.Hint = cmp.Or(in.GetHint(), have.GetHint())
 		have.DefaultValue = cmp.Or(in.GetDefaultValue(), have.GetDefaultValue())
 		have.Optional = have.GetOptional() || in.GetOptional()
+		// A secret the app keeps from its first start, which the panel then doesn't offer to change by itself.
+		have.SetOnce = have.GetSetOnce() || in.GetSetOnce()
 	}
 	return nil
 }

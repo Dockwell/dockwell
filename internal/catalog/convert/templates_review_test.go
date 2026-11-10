@@ -254,8 +254,8 @@ func TestAHostNetworkServicePublishesNoPort(t *testing.T) {
 		if strings.Contains(file, "ports") || len(r.Entry.GetInputs()) != 0 || !strings.Contains(file, "BASE=http://localhost:3000") && !strings.Contains(file, "BASE: http://localhost:3000") {
 			t.Errorf("%s: %v\n%s", tc.src.Name, r.Entry.GetInputs(), file)
 		}
-		if !strings.Contains(r.Entry.GetFirstSteps(), "answers on every address the server has") {
-			t.Errorf("%s: its first steps say %q", tc.src.Name, r.Entry.GetFirstSteps())
+		if r.Entry.GetFirstSteps() != "" || len(r.Entry.GetNotes()) != 1 || !strings.Contains(r.Entry.GetNotes()[0], "answers on every port it listens on, on every address") {
+			t.Errorf("%s: its first steps say %q, its notes %q", tc.src.Name, r.Entry.GetFirstSteps(), r.Entry.GetNotes())
 		}
 	}
 }
