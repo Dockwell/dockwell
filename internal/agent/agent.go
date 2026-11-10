@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"google.golang.org/protobuf/proto"
 
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -28,6 +27,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/collect"
+	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
@@ -206,24 +206,27 @@ type DatabaseReader interface {
 	Read(ctx context.Context, call *agentv1.DatabaseCall) (*agentv1.DatabaseResult, error)
 }
 
-// Desired keeps what the control plane told this agent to apply, so the
-// server can reconcile toward it while the control plane is away (PRD
-// principle 5). The agent tells it after each step it applies and
-// verifies. The cache itself, and reconciling from it, come with #32; this
-// is where it plugs in.
-//
-// What it gets is the step's whole spec. That spec names the variables and
-// secrets a service uses and pins each to a revision, and their values reach
-// the agent only sealed to one stream, for one step, and are dropped once the
-// step ends (ADR 0022), so it hears of none of those. A cache that wants to
-// start a service again on its own needs them from the control plane again.
-//
-// A spec also holds what is written in it: a container's own env, and a
-// volume's options, which can give a CIFS password. So a cache must seal what
-// it keeps on disk.
+// Desired keeps what this agent's server should run, so the server can be put
+// back while the control plane is away (ADR 0054). The agent has it keep what
+// each step it applies and verifies leaves a resource as, with the values the
+// spec uses, which it seals on disk, and what the control plane has it remember
+// or forget of what runs. Its hello says what it keeps.
 type Desired interface {
-	// Applied records a resource's desired spec; nil means it was deleted.
-	Applied(ctx context.Context, ref resource.Ref, spec proto.Message) error
+	// Keep keeps what a step that passed left a resource as, whatever revision
+	// it held, or a tombstone when the spec is nil. What it can't keep it
+	// forgets, and says so.
+	Keep(r desired.Record) error
+	// Remember keeps what the control plane says a resource runs, unless it
+	// keeps a later revision or a deletion at or above it, and says whether it did.
+	Remember(r desired.Record) (bool, error)
+	// Forget forgets a resource its server no longer runs, if it keeps it at
+	// revision, and says whether it did.
+	Forget(ref resource.Ref, revision int64) (bool, error)
+	// Drop forgets what it keeps of a resource, as a step passed and what it
+	// left can't be kept, for why, which the error it returns says.
+	Drop(ref resource.Ref, why error) error
+	// Holds says what it keeps.
+	Holds() *agentv1.DesiredHeld
 }
 
 // outlook is what this server last found out of how the internet sees it. It belongs
@@ -485,6 +488,9 @@ func session(ctx context.Context, cfg Config) (err error) {
 	hello.Kinds, hello.Unavailable = offered.proto()
 	if cfg.Terminals != nil {
 		hello.Terminals, hello.OpenTerminals, hello.ContainerTerminals = true, cfg.Terminals.Known(), true
+	}
+	if cfg.Desired != nil {
+		hello.Desired = cfg.Desired.Holds()
 	}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)

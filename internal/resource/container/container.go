@@ -147,7 +147,10 @@ type Driver struct {
 	RecreateDowntime time.Duration
 }
 
-var _ resource.Driver = (*Driver)(nil)
+var (
+	_ resource.Driver = (*Driver)(nil)
+	_ resource.Imaged = (*Driver)(nil)
+)
 
 // Kind returns "container".
 func (*Driver) Kind() resource.Kind { return Kind }
@@ -765,6 +768,24 @@ func validateHTTPCheck(h *resourcev1.HttpCheck) error {
 const maxCheckPath = 1024
 
 var checkHostRE = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?(:[0-9]{1,5})?$`)
+
+// imageRuntime is a Runtime that can say which image a container runs.
+type imageRuntime interface {
+	ImageAt(ctx context.Context, t Target) (resource.Image, error)
+}
+
+// RunsImage is the image the container runs.
+func (d *Driver) RunsImage(ctx context.Context, ref resource.Ref) (resource.Image, error) {
+	return d.ImageAt(ctx, HostTarget(ref))
+}
+
+// ImageAt is the image the container at t runs, where its runtime can say.
+func (d *Driver) ImageAt(ctx context.Context, t Target) (resource.Image, error) {
+	if r, ok := d.Runtime.(imageRuntime); ok {
+		return r.ImageAt(ctx, t)
+	}
+	return resource.Image{}, nil
+}
 
 // Observe asks Docker.
 func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {

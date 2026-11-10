@@ -27,7 +27,7 @@ The agent reads and installs updates with the package manager the distribution h
 - **Bounded in time.** Each run has a deadline: 5 minutes to refresh the lists, 2 minutes to read what waits, and 30 minutes to install. It runs in a process group of its own, which gets SIGTERM at the deadline and SIGKILL 10 seconds later, so a hung mirror or a maintainer's script that waits for nothing can't hold the agent. apt waits at most 2 minutes for a lock the server's own updates hold, and says so.
 - **One at a time.** A server runs one package manager run at a time for Dockwell. Two people looking share one read.
 - **Reading changes nothing.** apt reads with `--simulate` and `Debug::NoLocking`, dnf with `--cacheonly`, and apk with `apk version`, so reading installs nothing, and apt's and apk's take no lock. dnf 4 takes its lock even reading from its cache, so a read waits while the server's own dnf runs. Only refreshing and installing write, and both are said as they happen.
-- **Nothing it starts outlives it.** A tool that exits leaving a child holding its output is waited for the grace, and its process group is then killed, as it is at a deadline.
+- **Nothing it starts outlives it.** A tool that exits leaving a child holding its output is waited for the grace, and its process group is then killed, as it is at a deadline. A child that calls `setsid()` leaves that process group, so killing the group can't reach it: only a cgroup catches that, and the agent doesn't make one yet.
 
 ### What it reads
 
