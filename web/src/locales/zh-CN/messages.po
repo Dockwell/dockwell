@@ -10207,9 +10207,6 @@ msgstr "{name} 等 {more} 项"
 msgid "A file beside the control plane, for one control plane"
 msgstr "控制平面旁的一个文件，适用于单个控制平面"
 
-msgid "A server that joined upgrades the same way: run the install script again on it."
-msgstr "已加入的服务器以同样方式升级：在它上面再次运行安装脚本。"
-
 msgid "Agents"
 msgstr "代理"
 
@@ -10333,6 +10330,10 @@ msgstr "然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1
 
 msgid "This control plane"
 msgstr "当前控制平面"
+
+#. placeholder {0}: s.name
+msgid "Update the agent on {0}"
+msgstr "更新 {0} 上的代理"
 
 msgid "agent"
 msgstr "个代理"

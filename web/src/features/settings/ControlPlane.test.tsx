@@ -186,6 +186,12 @@ describe("Control plane", () => {
     expect(within(agents).getByText("not connected, last heard 12 min ago")).toBeVisible();
     expect(within(agents).getByText("pi-1")).toBeVisible();
     expect(within(agents).getByText("runs 0.3.2")).toBeVisible();
+    // Its Updates tab has the command that updates it, so the way there is a link, not a sentence.
+    expect(within(agents).getByRole("link", { name: "Update the agent on pi-1" })).toHaveAttribute(
+      "href",
+      "/servers/srv_3/updates",
+    );
+    expect(agents).not.toHaveTextContent("run the install script again");
     expect(within(agents).getByRole("link", { name: "Servers" })).toHaveAttribute("href", "/servers");
   });
 
