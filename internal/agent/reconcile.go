@@ -309,6 +309,13 @@ func (r *reconciler) runs(ctx context.Context, rv resource.Reviver, rec desired.
 		if r.finishAction(look, rv, ref, st, act) {
 			return
 		}
+		// Docker's error is news of the service only as docker.CouldntStart says,
+		// here as in the monitor's list: beside another container, or of a
+		// revision the record doesn't cover, it's as if there were none, so
+		// nothing is started and the service is noted as stopped.
+		if !docker.CouldntStart(st.Sole, st.Revision, rec.Revision) {
+			st.Failed = ""
+		}
 		r.seen(ref, st, at)
 		if act && !st.Running && st.Failed != "" && st.Wants {
 			r.start(look, rv, ref, st.Failed, st.ID)
@@ -366,34 +373,42 @@ func (r *reconciler) seen(ref resource.Ref, st resource.RunState, at time.Time) 
 // is there isn't made again while it's away (ADR 0054). A resource with a step
 // under way is the step's to say.
 func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.ContainerSummary) {
-	byLabels := make(map[[2]string]*docker.ContainerSummary, len(list))
+	// Which of each service's containers stands for it is docker.Pick's to say,
+	// as it is for the driver's own look, so the two can't disagree: never one
+	// that's leaving, which beside a live one would hide it and a stop of it.
+	type standing struct {
+		pick docker.Pick
+		c    *docker.ContainerSummary
+	}
+	byLabels := make(map[[2]string]*standing, len(list))
 	for i := range list {
 		c := &list[i]
+		if c.Labels[docker.LabelOneoff] == "True" {
+			continue
+		}
 		key := [2]string{c.Labels[docker.LabelProject], c.Labels[docker.LabelService]}
-		// One that's leaving never stands for its service: beside a live one, as a
-		// rollout that failed and couldn't remove what it made leaves it, it would
-		// hide that one, and a stop of it. Of the rest, the driver's own look
-		// chooses the same way (docker.Stand), so the two can't disagree.
-		if c.Labels[docker.LabelOneoff] == "True" || c.Stand().Leaving() {
-			continue
+		s := byLabels[key]
+		if s == nil {
+			s = &standing{}
+			byLabels[key] = s
 		}
-		if had := byLabels[key]; had != nil && had.Stand().Over(c.Stand()) {
-			continue
+		if s.pick.Add(c.Stand()) {
+			s.c = c
 		}
-		byLabels[key] = c
 	}
 	for _, ref := range r.cfg.Desired.Refs() {
 		if ref.Kind != "service" && ref.Kind != "container" || r.held.busy(ref) {
 			continue
 		}
-		c := byLabels[[2]string{docker.Project(ref.Scope), ref.Name}]
+		of := byLabels[[2]string{docker.Project(ref.Scope), ref.Name}]
 		was, ok := r.cfg.Desired.Stands(ref)
-		if c == nil || !ok {
+		if of == nil || of.c == nil || !ok {
 			// Gone, or with nothing but a container on its way out, as a forced
 			// removal leaves it for a moment after its kill: it stays as it
 			// was last seen.
 			continue
 		}
+		c := of.c
 		st := resource.RunState{Exists: true, Running: c.State == "running" || c.State == "restarting" || c.State == "paused", Volumes: map[string]string{}}
 		for _, m := range c.Mounts {
 			if m.Type == "volume" && docker.AnonymousVolume(m.Name) {
@@ -409,7 +424,12 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 			if err != nil {
 				continue
 			}
-			st.Failed = full.State.Error
+			// Docker's error is news of the service only as docker.CouldntStart
+			// says: of a container that stands alone, of a revision the record
+			// covers. Otherwise the service is noted as with no error: stopped.
+			if docker.CouldntStart(of.pick.Sole(), c.Stand().Revision, was.Revision) {
+				st.Failed = full.State.Error
+			}
 		}
 		r.seen(ref, st, at)
 	}

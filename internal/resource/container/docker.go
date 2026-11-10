@@ -117,7 +117,7 @@ type Ingress interface {
 // by. They are Dockwell's own, so they aren't drift, and a container without
 // them, as one docker compose made, isn't recreated for them.
 const (
-	LabelRevision = docker.OwnPrefix + "revision"
+	LabelRevision = docker.LabelRevision
 	LabelChange   = docker.OwnPrefix + "change"
 	// LabelReconcile identifies the durable local action that created it.
 	LabelReconcile = docker.OwnPrefix + "reconcile"
@@ -1199,13 +1199,14 @@ func (d *Docker) ImageAt(ctx context.Context, t Target) (resource.Image, error) 
 // RunStateAt is how the container at t stands: whether it runs, why Docker
 // couldn't start it, if it couldn't, and whether its policy has it run.
 func (d *Docker) RunStateAt(ctx context.Context, t Target) (resource.RunState, error) {
-	c, err := d.stands(ctx, t)
+	c, sole, err := d.stands(ctx, t)
 	if err != nil || c == nil {
 		return resource.RunState{}, err
 	}
 	policy := c.HostConfig.RestartPolicy.Name
 	return resource.RunState{
 		Exists: true, Running: c.State.Running || c.State.Restarting, Failed: c.State.Error,
+		Sole: sole, Revision: c.Stand(0).Revision,
 		ID: c.ID, Reconcile: c.Config.Labels[LabelReconcile], Created: c.State.Status == "created" && c.State.StartedAt.IsZero(),
 		Leaving: c.State.Status == "removing" || c.State.Status == "dead",
 		Wants:   policy == "unless-stopped" || policy == "always" || policy == "on-failure",
@@ -1215,7 +1216,7 @@ func (d *Docker) RunStateAt(ctx context.Context, t Target) (resource.RunState, e
 
 // StartAt starts the container at t, as it is.
 func (d *Docker) StartAt(ctx context.Context, t Target) error {
-	c, err := d.stands(ctx, t)
+	c, _, err := d.stands(ctx, t)
 	if err != nil {
 		return err
 	}
@@ -1227,32 +1228,34 @@ func (d *Docker) StartAt(ctx context.Context, t Target) error {
 
 // stands is the container that says how t stands, for the agent's own look while
 // the control plane is away: chosen as the health monitor's list is read, so the
-// two looks can't disagree (docker.Stand). One that's leaving stands only when
-// nothing else answers to t, and then says so (RunState.Leaving). A step reads
-// current instead, whose order finishes a rollout that was cut short.
-func (d *Docker) stands(ctx context.Context, t Target) (*docker.Container, error) {
+// two looks can't disagree (docker.Pick), with whether it's the only one that
+// isn't leaving. One that's leaving is returned only when nothing else answers
+// to t, and then says so (RunState.Leaving). A step reads current instead, whose
+// order finishes a rollout that was cut short.
+func (d *Docker) stands(ctx context.Context, t Target) (c *docker.Container, sole bool, err error) {
 	all, err := d.instances(ctx, t)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	var best, leaving *instance
+	var pick docker.Pick
+	var best *instance
 	for _, i := range all {
-		switch s := i.Stand(i.number); {
-		case s.Leaving():
-			if leaving == nil {
-				leaving = i
-			}
-		case best == nil || s.Over(best.Stand(best.number)):
+		if pick.Add(i.Stand(i.number)) {
 			best = i
 		}
 	}
-	switch {
-	case best != nil:
-		return best.Container, nil
-	case leaving != nil:
-		return leaving.Container, nil
+	if best != nil {
+		return best.Container, pick.Sole(), nil
 	}
-	return d.find(ctx, t.Name)
+	if left, ok := pick.Leaving(); ok {
+		for _, i := range all {
+			if i.ID == left.ID {
+				return i.Container, false, nil
+			}
+		}
+	}
+	c, err = d.find(ctx, t.Name)
+	return c, c != nil, err
 }
 
 // HoldAt says why the container at t can't be made again from spec now, with

@@ -142,6 +142,13 @@ func (s *stand) another(t *testing.T, number, state string) string {
 	cfg := web.Config
 	cfg.Labels = maps.Clone(cfg.Labels)
 	cfg.Labels[docker.LabelNumber] = number
+	if s.revision != "" {
+		// As a deploy of another revision made it, or, with "none", a hand did.
+		cfg.Labels[docker.LabelRevision] = s.revision
+		if s.revision == "none" {
+			delete(cfg.Labels, docker.LabelRevision)
+		}
+	}
 	name := "web-another-" + number + "-" + state
 	id, err := s.e.Client().CreateContainer(t.Context(), name, &docker.CreateRequest{Config: cfg, HostConfig: web.HostConfig})
 	if err != nil {
@@ -149,6 +156,10 @@ func (s *stand) another(t *testing.T, number, state string) string {
 	}
 	switch state {
 	case "created":
+	case "failed":
+		// Made, and Docker couldn't start it: a start-first rollout's new
+		// container whose start was refused, left for a rollback that didn't come.
+		s.e.FailedToStart(name, "driver failed programming external connectivity: port is already allocated")
 	case "running", "exited", "dead", "removing":
 		if err := s.e.Client().StartContainer(t.Context(), id); err != nil {
 			t.Fatal(err)
@@ -355,5 +366,208 @@ func TestAServiceDeployedTwiceIsStillNoted(t *testing.T) {
 	}
 	if got := s.said(api); got.What != desired.Waiting || !strings.Contains(got.Reason, "It was stopped") {
 		t.Errorf("the journal says %+v", got)
+	}
+}
+
+// The final check of #357: Docker's error on a container is news of its service,
+// which the agent may act on by starting it, only for one that stands alone and
+// is of a revision the record covers (docker.CouldntStart). Each of these had the
+// agent start, or could have had it start, what a person stopped.
+
+// started says whether anything was started, or written down as started.
+func (s *stand) nothingStarted(t *testing.T, ids ...string) {
+	t.Helper()
+	for _, id := range ids {
+		if c, err := s.e.Client().InspectContainer(t.Context(), id); err == nil && c.State.Running {
+			t.Errorf("%s runs: the agent started it", id[:12])
+		}
+	}
+	entries, _, _ := s.journal.Pending()
+	for i := range entries {
+		if e := &entries[i]; e.What == desired.Started || e.What == desired.Made {
+			t.Errorf("the journal says %+v", *e)
+		}
+	}
+}
+
+// A start-first deploy that failed leaves its new container, numbered one on,
+// with Docker's error, beside the one that runs; the rollback that would remove
+// it hasn't come. A person stops the one that runs. Neither runs now, and the
+// higher number stands, with an error that reads as "Docker couldn't start it":
+// the agent must not start it, as that starts a service a person stopped, at a
+// revision that never passed. The stop is what's noted.
+func TestAFailedRolloutsLeftoverIsntStartedForAServiceSomeoneStopped(t *testing.T) {
+	for _, connected := range []bool{true, false} {
+		for _, revision := range []string{"2", "1", "none"} {
+			name := "away"
+			if connected {
+				name = "connected"
+			}
+			t.Run(name+", the leftover of revision "+revision, func(t *testing.T) {
+				s := newStand(t)
+				s.run(t, webRef, nginx, nil)
+				live := s.e.Container("web").ID
+				s.revision = revision
+				left := s.another(t, "2", "failed")
+				s.presence.set(connected, time.Now().Add(-time.Hour))
+				s.noted(t)
+				if err := s.e.Client().StopContainer(t.Context(), live, time.Second); err != nil {
+					t.Fatal(err)
+				}
+				s.noted(t)
+				s.presence.set(false, time.Now().Add(-time.Hour))
+				s.pass(t)
+				s.r.tries = map[resource.Ref]*tries{}
+				s.pass(t)
+				s.nothingStarted(t, live, left)
+				if rec, _, _ := s.store.Read(webRef); !rec.Stopped {
+					t.Error("the stop of the one that ran wasn't noted")
+				}
+			})
+		}
+	}
+}
+
+// The mirror image: the lower number is the one Docker couldn't start, and a
+// newer one was stopped by someone. And both with an error. With more than one
+// container answering to a service the agent starts none of them: which is the
+// service is the control plane's to say.
+func TestWithMoreThanOneContainerNothingIsStarted(t *testing.T) {
+	for _, tc := range []struct {
+		name, first, second string
+	}{
+		{"the older couldn't start, the newer was stopped", "failed", "exited"},
+		{"neither could start", "failed", "failed"},
+		{"the older was stopped, the newer couldn't start", "exited", "failed"},
+		{"the older couldn't start, the newer was only made", "failed", "created"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newStand(t)
+			s.run(t, webRef, nginx, nil)
+			first := s.e.Container("web").ID
+			switch tc.first {
+			case "failed":
+				s.e.FailedToStart("web", "port is already allocated")
+			case "exited":
+				s.e.Stop("web")
+			}
+			second := s.another(t, "2", tc.second)
+			s.presence.set(true, time.Now())
+			s.noted(t)
+			s.presence.set(false, time.Now().Add(-time.Hour))
+			s.pass(t)
+			s.r.tries = map[resource.Ref]*tries{}
+			s.pass(t)
+			s.nothingStarted(t, first, second)
+		})
+	}
+}
+
+// Alone, a container Docker couldn't start is started, as before. Alone, but of
+// a revision the record doesn't cover, it isn't: a later one is a deploy that
+// never passed, and one that says none wasn't made by Dockwell.
+func TestOneThatCouldntStartIsStartedOnlyWhenTheRecordCoversIt(t *testing.T) {
+	for _, tc := range []struct {
+		revision string
+		started  bool
+	}{
+		{"1", true}, // the record's own
+		{"2", false},
+		{"none", false},
+		{"0", false},
+		{"-1", false},
+		{"not a number", false},
+	} {
+		t.Run("revision "+tc.revision, func(t *testing.T) {
+			s := newStand(t)
+			s.run(t, webRef, nginx, nil)
+			own := s.e.Container("web").ID
+			s.revision = tc.revision
+			only := s.another(t, "2", "failed")
+			s.e.Remove(own) // what the record described is gone, and this is all there is
+			s.presence.set(false, time.Now().Add(-time.Hour))
+			s.noted(t)
+			s.pass(t)
+			c, err := s.e.Client().InspectContainer(t.Context(), only)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.State.Running != tc.started {
+				t.Fatalf("of revision %s, alone, it runs=%t; want %t (the journal says %+v)", tc.revision, c.State.Running, tc.started, s.said(webRef))
+			}
+		})
+	}
+
+	// A record moved on by a fill, with the container left as it was: still its own.
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	rec, _, _ := s.store.Read(webRef)
+	rec.Revision = 5
+	if err := s.store.Keep(rec); err != nil {
+		t.Fatal(err)
+	}
+	s.e.FailedToStart("web", "port is already allocated")
+	s.pass(t)
+	if c := s.e.Container("web"); c == nil || !c.State.Running {
+		t.Fatalf("a container of an earlier revision than its record's, which a fill leaves, wasn't started: %+v", s.said(webRef))
+	}
+}
+
+// A twin made by hand that Docker couldn't start, beside the real one, stopped
+// by someone: not started, and the stop is noted.
+func TestAHandMadeTwinThatCouldntStartIsntStarted(t *testing.T) {
+	for _, number := range []string{"1", "2", "none"} {
+		s := newStand(t)
+		s.run(t, webRef, nginx, nil)
+		live := s.e.Container("web").ID
+		s.revision = "none"
+		twin := s.another(t, number, "failed")
+		s.presence.set(true, time.Now())
+		if err := s.e.Client().StopContainer(t.Context(), live, time.Second); err != nil {
+			t.Fatal(err)
+		}
+		s.noted(t)
+		s.presence.set(false, time.Now().Add(-time.Hour))
+		s.pass(t)
+		s.nothingStarted(t, live, twin)
+		if rec, _, _ := s.store.Read(webRef); !rec.Stopped {
+			t.Errorf("with a twin numbered %s, the stop of the real one wasn't noted", number)
+		}
+	}
+}
+
+// A dead container numbered above one Docker couldn't start: the one that
+// couldn't start stands alone, as the dead one is leaving, and it's the one the
+// agent starts, not the dead one the driver's own order has first.
+func TestAStartIsOfTheOneThatStandsNotADeadOneAboveIt(t *testing.T) {
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	own := s.e.Container("web").ID
+	dead := s.another(t, "2", "dead")
+	s.e.FailedToStart("web", "port is already allocated")
+	st, err := s.local.Reviver(webRef).RunState(t.Context(), webRef)
+	if err != nil || st.ID != own || !st.Sole || st.Leaving || st.Failed == "" {
+		t.Fatalf("the driver's look reads %+v, %v; want the one that couldn't start, alone", st, err)
+	}
+	s.pass(t)
+	if c, _ := s.e.Client().InspectContainer(t.Context(), own); c == nil || !c.State.Running {
+		t.Fatalf("the one that couldn't start wasn't started: %+v", s.said(webRef))
+	}
+	if c, _ := s.e.Client().InspectContainer(t.Context(), dead); c != nil && c.State.Running {
+		t.Fatal("the dead one was started")
+	}
+}
+
+// The agent's own read with a dead number 2 beside a stopped number 1 reads the
+// stopped one, not leaving: a leaving container doesn't compete for the service.
+func TestTheDriversLookReadsAStoppedOneNotADeadOneAboveIt(t *testing.T) {
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	own := s.e.Container("web").ID
+	s.another(t, "2", "dead")
+	s.e.Stop("web")
+	st, err := s.local.Reviver(webRef).RunState(t.Context(), webRef)
+	if err != nil || st.ID != own || st.Leaving || st.Running || !st.Sole {
+		t.Fatalf("the driver's look reads %+v, %v; want the stopped one, alone and not leaving", st, err)
 	}
 }

@@ -56,3 +56,117 @@ func TestWhichStands(t *testing.T) {
 		}
 	}
 }
+
+// Pick is the whole choice, as containers are added in any order: every order of
+// a set gives the same one, with the same word on whether it stands alone.
+func TestPickDoesntDependOnOrder(t *testing.T) {
+	sets := [][]Stand{
+		{{State: "exited", Number: 1, ID: "a"}, {State: "created", Number: 2, ID: "b"}},
+		{{State: "running", Number: 1, ID: "a"}, {State: "dead", Number: 2, ID: "b"}},
+		{{State: "exited", Number: 1, ID: "a"}, {State: "dead", Number: 2, ID: "b"}, {State: "removing", Number: 3, ID: "c"}},
+		{{State: "exited", Number: 1, ID: "a"}, {State: "exited", Number: 1, ID: "b"}, {State: "running", Number: 0, ID: "c"}},
+		{{State: "dead", Number: 1, ID: "a"}, {State: "removing", Number: 2, ID: "b"}},
+		{{State: "created", Number: 0, ID: "a"}},
+	}
+	for _, set := range sets {
+		var want Pick
+		for _, s := range set {
+			want.Add(s)
+		}
+		wantStand, wantOK := want.Stands()
+		permute(set, func(order []Stand) {
+			var p Pick
+			var told Stand
+			for _, s := range order {
+				if p.Add(s) {
+					told = s
+				}
+			}
+			got, ok := p.Stands()
+			if got != wantStand || ok != wantOK || p.Sole() != want.Sole() {
+				t.Errorf("%+v in the order %+v stands %+v (alone %t); another order gave %+v (alone %t)", set, order, got, p.Sole(), wantStand, want.Sole())
+			}
+			if ok && told != got {
+				t.Errorf("%+v: Add last said %+v stands, and Stands says %+v", order, told, got)
+			}
+		})
+	}
+}
+
+func permute(s []Stand, visit func([]Stand)) {
+	var rec func(int)
+	rec = func(k int) {
+		if k == len(s) {
+			visit(append([]Stand(nil), s...))
+			return
+		}
+		for i := k; i < len(s); i++ {
+			s[k], s[i] = s[i], s[k]
+			rec(k + 1)
+			s[k], s[i] = s[i], s[k]
+		}
+	}
+	rec(0)
+}
+
+func TestPick(t *testing.T) {
+	var none Pick
+	if _, ok := none.Stands(); ok || none.Sole() {
+		t.Error("with nothing added, something stands")
+	}
+	// A leaving one never stands, and doesn't count against one standing alone.
+	var p Pick
+	if p.Add(Stand{State: "dead", Number: 9, ID: "dead"}) {
+		t.Error("a dead one was said to stand")
+	}
+	if _, ok := p.Stands(); ok {
+		t.Error("with only a dead one, something stands")
+	}
+	if l, ok := p.Leaving(); !ok || l.ID != "dead" {
+		t.Errorf("leaving is %+v, %t", l, ok)
+	}
+	if !p.Add(Stand{State: "exited", Number: 1, ID: "one"}) || !p.Sole() {
+		t.Error("one that stopped, beside a dead one, doesn't stand alone")
+	}
+	// Another that isn't leaving ends that, whether or not it stands.
+	if p.Add(Stand{State: "created", Number: 0, ID: "made"}) || p.Sole() {
+		t.Error("a second one that isn't leaving left the first standing alone, or took its place")
+	}
+	// The same container twice, as all else being equal is: the first stays.
+	var twice Pick
+	twice.Add(Stand{State: "exited", Number: 1, ID: "same"})
+	if twice.Add(Stand{State: "exited", Number: 1, ID: "same"}) {
+		t.Error("of two the rule can't tell apart, the second took the first's place")
+	}
+}
+
+// Docker's error is news of a service only for a container that stands alone and
+// is of a revision its record covers.
+func TestCouldntStart(t *testing.T) {
+	for _, tc := range []struct {
+		sole               bool
+		revision, recorded int64
+		want               bool
+	}{
+		{true, 3, 3, true},
+		{true, 1, 3, true}, // a fill moved the record on
+		{true, 4, 3, false},
+		{true, 0, 3, false},
+		{true, -1, 3, false},
+		{true, 0, 0, false},
+		{false, 3, 3, false},
+		{false, 4, 3, false},
+	} {
+		if got := CouldntStart(tc.sole, tc.revision, tc.recorded); got != tc.want {
+			t.Errorf("alone=%t, of revision %d, for a record at %d: %t, want %t", tc.sole, tc.revision, tc.recorded, got, tc.want)
+		}
+	}
+	for _, tc := range []struct {
+		label string
+		want  int64
+	}{{"7", 7}, {"", 0}, {"x", 0}, {"-2", 0}, {"007", 7}, {"7 ", 0}, {"99999999999999999999", 0}} {
+		if got := revisionOf(map[string]string{LabelRevision: tc.label}); got != tc.want {
+			t.Errorf("a revision label %q reads %d, want %d", tc.label, got, tc.want)
+		}
+	}
+}

@@ -98,6 +98,9 @@ type Standing struct {
 	Stopped bool
 	// Volumes are the volumes Docker made for its image's paths, by path.
 	Volumes map[string]string
+	// Revision is the record's revision, which Stands says and Seen doesn't
+	// read: a look says how a resource stands, not what it should be.
+	Revision int64
 }
 
 // sealed is what a record keeps inside its sealing.
@@ -535,7 +538,9 @@ func (s *Store) Stands(ref resource.Ref) (Standing, bool) {
 	if !ok || e.gone || e.unusable {
 		return Standing{}, false
 	}
-	return e.standing, true
+	st := e.standing
+	st.Revision = e.revision
+	return st, true
 }
 
 func (a Standing) equal(b Standing) bool {

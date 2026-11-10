@@ -42,6 +42,9 @@ type stand struct {
 	presence *presence
 	held     *unfinished
 	r        *reconciler
+	// revision is the revision label another gives what it makes: a number,
+	// "none" for no label, or empty for the one web has.
+	revision string
 }
 
 const standEnv = "env_01KAT4ZR6E3V0Y5XBKZB5D9Q6M"
@@ -80,7 +83,9 @@ func (s *stand) run(t *testing.T, ref resource.Ref, spec proto.Message, values m
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.local.Apply(resource.WithValues(t.Context(), values), steps[0], spec); err != nil {
+	// As a step applies it: for the revision and change its record then says.
+	ctx := resource.WithDeploy(resource.WithValues(t.Context(), values), resource.Deploy{Revision: 1, Change: "chg_1"})
+	if err := s.local.Apply(ctx, steps[0], spec); err != nil {
 		t.Fatal(err)
 	}
 	b, err := resource.Encode(spec)
