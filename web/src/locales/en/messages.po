@@ -3512,6 +3512,9 @@ msgstr "Already claimed"
 msgid "Claim code"
 msgstr "Claim code"
 
+msgid "Claim link works"
+msgstr "Claim link works"
+
 msgid "Claim this server"
 msgstr "Claim this server"
 
@@ -3563,12 +3566,6 @@ msgstr "Link expires"
 msgid "Lost your passkey? Run this on the server over SSH. It prints a sign-in link that works once."
 msgstr "Lost your passkey? Run this on the server over SSH. It prints a sign-in link that works once."
 
-msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A or AAAA record to this server's public address, then restart dockwell with <0>--domain</0>."
-msgstr "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A or AAAA record to this server's public address, then restart dockwell with <0>--domain</0>."
-
-msgid "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
-msgstr "Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its {record} record to <0>{publicAddress}</0>, then restart dockwell with <1>--domain</1>."
-
 msgid "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
 msgstr "Open the claim link through your SSH tunnel at <0>http://localhost</0>, or on the panel's domain over HTTPS."
 
@@ -3609,6 +3606,9 @@ msgstr "This panel controls {name}. Create the owner account with a passkey."
 msgid "This server"
 msgstr "This server"
 
+msgid "Use another code"
+msgstr "Use another code"
+
 msgid "What happens next"
 msgstr "What happens next"
 
@@ -3623,6 +3623,9 @@ msgstr "Your domain gets a certificate automatically."
 
 msgid "Your name"
 msgstr "Your name"
+
+msgid "Your passkey works at this address only. A domain with HTTPS can come later, under Settings."
+msgstr "Your passkey works at this address only. A domain with HTTPS can come later, under Settings."
 
 msgid "in under a minute"
 msgstr "in under a minute"
@@ -8015,9 +8018,6 @@ msgstr "Apps on this server"
 msgid "Apps on your servers"
 msgstr "Apps on your servers"
 
-msgid "No apps yet. Run an image, a Compose file or an app from the catalog."
-msgstr "No apps yet. Run an image, a Compose file or an app from the catalog."
-
 msgid "Kept"
 msgstr "Kept"
 
@@ -8035,6 +8035,9 @@ msgstr "No schedule"
 
 msgid "None scheduled"
 msgstr "None scheduled"
+
+msgid "Nothing to back up yet: no app keeps data."
+msgstr "Nothing to back up yet: no app keeps data."
 
 msgid "On the server's own disk only"
 msgstr "On the server's own disk only"
@@ -8055,6 +8058,39 @@ msgstr "Nothing has changed yet. Each change you make shows here."
 
 msgid "Recent changes"
 msgstr "Recent changes"
+
+msgid "A Compose file"
+msgstr "A Compose file"
+
+msgid "A Docker image"
+msgstr "A Docker image"
+
+msgid "A website"
+msgstr "A website"
+
+msgid "Any image from a registry"
+msgstr "Any image from a registry"
+
+msgid "Databases, CMSs and tools, set up for you"
+msgstr "Databases, CMSs and tools, set up for you"
+
+msgid "Several containers as one stack"
+msgstr "Several containers as one stack"
+
+msgid "Static files or PHP, with HTTPS"
+msgstr "Static files or PHP, with HTTPS"
+
+msgid "Ways to run your first app"
+msgstr "Ways to run your first app"
+
+msgid "{server} is ready. Pick what your first app comes from."
+msgstr "{server} is ready. Pick what your first app comes from."
+
+msgid "Skip to the overview"
+msgstr "Skip to the overview"
+
+msgid "What do you want to run?"
+msgstr "What do you want to run?"
 
 msgid "Add a server"
 msgstr "Add a server"
