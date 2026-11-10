@@ -10225,9 +10225,6 @@ msgstr "响应时间"
 msgid "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
 msgstr "应用的卷和数据库有各自的备份，见<0>备份</0>。"
 
-msgid "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
-msgstr "像备份任何 Postgres 数据库一样用 <0>pg_dump</0> 备份它，并按下面的方法复制控制平面的文件夹和密钥。"
-
 msgid "Built from {commit}"
 msgstr "由 {commit} 构建"
 
@@ -10240,17 +10237,11 @@ msgstr "目前需手动"
 msgid "Dockwell can't say how its control plane is"
 msgstr "Dockwell 无法获知其控制平面的状态"
 
-msgid "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
-msgstr "Dockwell 还不会备份自己的状态。请把它复制到这台服务器之外，并把密钥分开存放：密钥能打开状态存储中的所有机密，没有密钥，存储的副本一个也打不开。"
-
-msgid "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
-msgstr "Dockwell 还不会检查新版本或自行升级。要安装特定版本，请将命令结尾改为 <0>sudo sh -s -- --version 0.4.0</0>。"
-
-msgid "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
-msgstr "Dockwell 在这里没有作为服务运行，所以请先停止 <0>dockwell run</0>：只有在没有任何写入时，存储才是完整的。然后以 root 身份运行以下命令，完成后再启动 Dockwell。"
-
 msgid "Engine"
 msgstr "引擎"
+
+msgid "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
+msgstr "要安装特定版本，请将结尾改为 <0>sudo sh -s -- --version 0.4.0</0>。"
 
 msgid "From elsewhere"
 msgstr "从其他网络"
@@ -10270,6 +10261,12 @@ msgstr "密钥"
 
 msgid "Location"
 msgstr "位置"
+
+msgid "Not a service here: stop <0>dockwell run</0>, run this as root, then start it again."
+msgstr "这里没有作为服务运行：先停止 <0>dockwell run</0>，以 root 身份运行以下命令，然后再启动它。"
+
+msgid "On this server, this installs the newest release and restarts Dockwell; apps keep serving."
+msgstr "在这台服务器上运行，它会安装最新版本并重启 Dockwell；应用照常提供服务。"
 
 msgid "One · if it stops, the panel and API stop with it, and servers keep running what they run"
 msgstr "一个 · 它停止时，面板和 API 随之停止，服务器上运行的内容照常运行"
@@ -10306,14 +10303,17 @@ msgstr "版本发布"
 msgid "Replicas"
 msgstr "副本"
 
-msgid "Run this as root, in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "请以 root 身份，在控制服务器上的 SSH 会话中运行，不要在 Dockwell 打开的终端里运行：停止 Dockwell 会结束那个终端，之后的步骤都不会运行，Dockwell 也会一直处于停止状态。它会在复制前停止 Dockwell，以保证存储完整；如果停止失败，则不会复制任何内容。停止期间你的应用会继续提供服务，Dockwell 恢复后服务器会重新连接。"
+msgid "Run it as root over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
+msgstr "请以 root 身份通过 SSH 运行，不要在 Dockwell 的终端里运行：复制期间 Dockwell 会停止；应用照常提供服务。"
 
-msgid "Run this in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "请在控制服务器上的 SSH 会话中运行，不要在 Dockwell 打开的终端里运行：停止 Dockwell 会结束那个终端，之后的步骤都不会运行，Dockwell 也会一直处于停止状态。它会在复制前停止 Dockwell，以保证存储完整；如果停止失败，则不会复制任何内容。停止期间你的应用会继续提供服务，Dockwell 恢复后服务器会重新连接。"
+msgid "Run it over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
+msgstr "请通过 SSH 运行，不要在 Dockwell 的终端里运行：复制期间 Dockwell 会停止；应用照常提供服务。"
 
 msgid "SQLite, on this server"
 msgstr "SQLite，在这台服务器上"
+
+msgid "Set where Dockwell starts; the panel's domain is under <0>General</0>."
+msgstr "在 Dockwell 启动的地方设置；面板的域名在<0>常规</0>中。"
 
 msgctxt "on disk"
 msgid "Size"
@@ -10322,20 +10322,17 @@ msgstr "磁盘占用"
 msgid "State store"
 msgstr "状态存储"
 
+msgid "The database isn't in it: back it up with <0>pg_dump</0>."
+msgstr "其中不含数据库：请用 <0>pg_dump</0> 备份它。"
+
 msgid "The version that runs here is unknown"
 msgstr "无法得知这里运行的版本"
 
-msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
-msgstr "然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1> 移出服务器，分别存放在两个不同的地方。"
-
-msgid "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
-msgstr "这些取决于 Dockwell 的启动方式。面板的域名在<0>常规</0>中；其余的也以同样方式设置。"
+msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off this server, to two places: the key opens every secret in the copy."
+msgstr "然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1> 移出这台服务器，分开存放：密钥能打开副本中的所有机密。"
 
 msgid "This control plane"
 msgstr "当前控制平面"
-
-msgid "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
-msgstr "要升级，请以 root 身份在这台服务器上再次运行安装脚本。如果有新版本，它会验证并安装，然后重启 Dockwell。你的应用照常提供服务。"
 
 msgid "agent"
 msgstr "个代理"
@@ -10399,9 +10396,6 @@ msgstr "{0}，自 {1} 起"
 msgid "A change goes on Activity, with what it replaced."
 msgstr "每次更改都会连同被替换的值记入动态。"
 
-msgid "A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with."
-msgstr "新的计划（例如备份计划）除非指定了自己的时区，否则都使用这个时区，无论来自面板、CLI 还是 API。每个计划保留创建时的时区。"
-
 msgid "Always on, through an SSH tunnel to the server"
 msgstr "始终可用，通过到服务器的 SSH 隧道访问"
 
@@ -10422,6 +10416,9 @@ msgstr "本机回环"
 
 msgid "Loopback only"
 msgstr "仅本机回环"
+
+msgid "New schedules start in it; each keeps the zone it was made with."
+msgstr "新的计划使用这个时区；每个计划保留创建时的时区。"
 
 msgid "Not set: UTC"
 msgstr "未设置：UTC"
@@ -10450,11 +10447,11 @@ msgstr "提供方"
 msgid "Show the panel in"
 msgstr "面板显示语言"
 
+msgid "Shown on the sign-in screen and in browser tabs."
+msgstr "显示在登录页和浏览器标签页上。"
+
 msgid "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>, and read as it starts. Change it there and restart Dockwell:"
 msgstr "域名在 Dockwell 运行的地方以 <0>DOCKWELL_DOMAIN</0> 设置，并在启动时读取。请在那里修改并重启 Dockwell："
-
-msgid "The sign-in screen and your browser's tabs say it. Empty, they say Dockwell."
-msgstr "登录页和浏览器标签页会显示它。留空时显示 Dockwell。"
 
 msgid "This install"
 msgstr "此安装"
@@ -10490,11 +10487,8 @@ msgstr "已连接 1 个 · Dockwell 发送备份的服务，以及路由所在�
 msgid "A backup didn't get here {when}"
 msgstr "{when}有一份备份未能送达"
 
-msgid "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
-msgstr "路由可以位于 Cloudflare 代理之后并信任其地址，或位于 Cloudflare Tunnel 之后，由它终止 TLS。从 Dockwell 管理其 DNS 记录将在之后推出。"
-
-msgid "Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave."
-msgstr "Amazon S3、Cloudflare R2、Backblaze B2、MinIO 或任何 S3 API。备份在离开服务器之前就已加密封存。"
+msgid "A route can sit behind its proxy or a Tunnel."
+msgstr "路由可以位于它的代理或 Tunnel 之后。"
 
 msgid "Any DNS provider"
 msgstr "任何 DNS 服务商"
@@ -10503,17 +10497,8 @@ msgstr "任何 DNS 服务商"
 msgid "Bucket <0>{0}</0> at <1>{host}</1>"
 msgstr "存储桶 <0>{0}</0>，位于 <1>{host}</1>"
 
-msgid "Cloud providers"
-msgstr "云服务商"
-
-msgid "Coming later"
-msgstr "之后推出"
-
 msgid "Connect storage"
 msgstr "连接存储"
-
-msgid "Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand."
-msgstr "私有镜像的凭据。目前服务器只拉取公开镜像，不使用它的 docker login，因此私有镜像只有在有人手动在该服务器上拉取后才能运行。"
 
 msgid "DNS and proxies"
 msgstr "DNS 和代理"
@@ -10521,14 +10506,11 @@ msgstr "DNS 和代理"
 msgid "Dockwell can't list where backups go"
 msgstr "Dockwell 无法列出备份的去向"
 
-msgid "Git"
-msgstr "Git"
+msgid "Dockwell says which record to make, then gets the certificate."
+msgstr "Dockwell 会说明要创建哪条记录，然后获取证书。"
 
-msgid "GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file."
-msgstr "GitHub、GitLab 和 Gitea，在仓库变更时部署应用。目前应用运行的是镜像或 Compose 文件。"
-
-msgid "Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket."
-msgstr "Hetzner、DigitalOcean、Vultr 和 AWS，用于创建和替换服务器。目前服务器通过安装脚本和加入凭证加入。"
+msgid "Git providers, private registries and cloud providers come later."
+msgstr "Git 服务商、私有镜像仓库和云服务商将在之后推出。"
 
 msgid "How to route behind it"
 msgstr "如何在其后设置路由"
@@ -10551,15 +10533,12 @@ msgstr "对象存储"
 msgid "Open Domains"
 msgstr "打开域名"
 
-msgid "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
-msgstr "将域名记录指向服务器，Dockwell 就会为它获取证书。域名表单会说明要创建哪条记录，并持续跟踪 DNS 直到生效。"
-
 #. placeholder {0}: words.ago(uploaded, now)
 msgid "Received a backup {0}"
 msgstr "{0}收到一份备份"
 
-msgid "Registries"
-msgstr "镜像仓库"
+msgid "S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave."
+msgstr "S3、R2、B2、MinIO 或任何 S3 API。备份在离开服务器之前就已加密封存。"
 
 msgid "S3-compatible storage"
 msgstr "S3 兼容存储"
