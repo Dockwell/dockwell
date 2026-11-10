@@ -184,7 +184,7 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
 		t.Fatal(err)
 	}
-	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{})
+	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{})
 	keeper := secretstest.Keeper(db, kinds)
 	agents := agentapi.NewAgents(kinds, logger)
 	engine := revision.New(db, kinds, agents, keeper, logger)

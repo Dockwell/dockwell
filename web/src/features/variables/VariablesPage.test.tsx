@@ -269,7 +269,7 @@ describe("the variables and secrets page", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Reveal DB_PASSWORD" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Confirming this needs a passkey for this address, and you have none here.",
+      "That takes a passkey, and there's none for this address yet.",
     );
   });
 

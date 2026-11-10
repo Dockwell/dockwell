@@ -228,7 +228,7 @@ func TestAnUploadIsItsBeginnersAlone(t *testing.T) {
 	up := d.begin(t, to, 3, 0, "").GetUpload()
 	id := up.GetUploadId()
 
-	listed, err := d.server.List(t.Context(), site)
+	listed, err := d.server.List(t.Context(), site, "", "")
 	if err != nil || listed.GetRefusal() != nil {
 		t.Fatalf("List = %v, %v", listed, err)
 	}

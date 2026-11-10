@@ -13,6 +13,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { PasskeyError } from "../../lib/webauthn";
+import { AddPasskeyHere } from "../auth/AddPasskeyHere";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useControlPlaneNow } from "../servers/useFleet";
@@ -46,17 +47,41 @@ export function useFiles(serverId: string) {
         }),
       }),
     ]);
+  // What a change that took a passkey says where there's none for this address: Refused shows it as the state
+  // beside Add a passkey here.
+  const noPasskey = t`That takes a passkey, and there's none for this address yet.`;
   /** What a write that didn't happen says, in words that say what to do. */
-  const problem = (err: unknown, where: string): string => {
-    if (reasonOf(err) === "no_passkey_here") {
-      return t`Changing ${where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it.`;
-    }
+  const problem = (err: unknown, _where: string): string => {
+    if (reasonOf(err) === "no_passkey_here") return noPasskey;
     if (err instanceof PasskeyError && err.problem === "cancelled") {
       return t`The passkey prompt closed, so nothing changed. Try again when you're ready.`;
     }
     return err instanceof PasskeyError ? explain(err) : sentence(err);
   };
-  return { transport, client, changed, problem };
+  return { transport, client, changed, problem, noPasskey };
+}
+
+/**
+ * Why a change to the server's files didn't happen. Where it took a passkey and there's
+ * none for this address, the way to add one here, after which the person tries again.
+ */
+function Refused({
+  failure,
+  noPasskey,
+  title,
+  onAdded,
+}: {
+  failure: string;
+  noPasskey: string;
+  title?: string;
+  onAdded: () => void;
+}) {
+  if (failure === noPasskey) return <AddPasskeyHere title={noPasskey} onAdded={onAdded} />;
+  return (
+    <Callout tone="critical" title={title}>
+      {failure}
+    </Callout>
+  );
 }
 
 /** Why a name can't be one, or nothing. */
@@ -92,7 +117,7 @@ export function NameSheet({
   onDone: (path: string, kind: FileType) => void;
 }) {
   const { t } = useLingui();
-  const { transport, client, changed, problem } = useFiles(serverId);
+  const { transport, client, changed, problem, noPasskey } = useFiles(serverId);
   const nameProblem = useNameProblem();
   const field = useRef<HTMLInputElement>(null);
   const was = naming.kind === "rename" ? naming.entry.name : "";
@@ -185,9 +210,12 @@ export function NameSheet({
     >
       <form className="files-sheet" onSubmit={(event) => void submit(event)}>
         {failure ? (
-          <Callout tone="critical" title={t`Nothing changed`}>
-            {failure}
-          </Callout>
+          <Refused
+            failure={failure}
+            noPasskey={noPasskey}
+            title={t`Nothing changed`}
+            onAdded={() => setFailure(undefined)}
+          />
         ) : null}
         <TextField
           ref={field}
@@ -230,7 +258,7 @@ export function MoveSheet({
   onDone: (path: string) => void;
 }) {
   const { t } = useLingui();
-  const { transport, client, changed, problem } = useFiles(serverId);
+  const { transport, client, changed, problem, noPasskey } = useFiles(serverId);
   const field = useRef<HTMLInputElement>(null);
   const [dest, setDest] = useState(folder);
   const [error, setError] = useState<string>();
@@ -308,9 +336,12 @@ export function MoveSheet({
     >
       <form className="files-sheet" onSubmit={(event) => void submit(event)}>
         {failure ? (
-          <Callout tone="critical" title={t`Nothing moved`}>
-            {failure}
-          </Callout>
+          <Refused
+            failure={failure}
+            noPasskey={noPasskey}
+            title={t`Nothing moved`}
+            onAdded={() => setFailure(undefined)}
+          />
         ) : null}
         <TextField
           ref={field}
@@ -348,7 +379,7 @@ export function DeleteSheet({
   onDone: (path: string, kept: DeletedFile | undefined) => void;
 }) {
   const { t } = useLingui();
-  const { transport, client, changed, problem } = useFiles(serverId);
+  const { transport, client, changed, problem, noPasskey } = useFiles(serverId);
   const [forGood, setForGood] = useState(false);
   // The server said it can't be put back, so the only delete there is is for good.
   const [onlyForGood, setOnlyForGood] = useState<string>();
@@ -416,9 +447,12 @@ export function DeleteSheet({
     >
       <div className="files-sheet">
         {failure ? (
-          <Callout tone="critical" title={t`Nothing was deleted`}>
-            {failure}
-          </Callout>
+          <Refused
+            failure={failure}
+            noPasskey={noPasskey}
+            title={t`Nothing was deleted`}
+            onAdded={() => setFailure(undefined)}
+          />
         ) : null}
         {onlyForGood !== undefined ? (
           <Callout tone="warning" title={t`This can't be put back`}>
@@ -508,7 +542,7 @@ export function DeletedSheet({
   onRestored: (path: string) => void;
 }) {
   const { t, i18n } = useLingui();
-  const { client, changed, problem } = useFiles(serverId);
+  const { client, changed, problem, noPasskey } = useFiles(serverId);
   const putBack = useRestore(serverId);
   const restoreProblem = useRestoreProblem(serverId);
   const words = useTimeWords();
@@ -558,7 +592,7 @@ export function DeletedSheet({
       }
     >
       <div className="files-sheet">
-        {failure ? <Callout tone="critical">{failure}</Callout> : null}
+        {failure ? <Refused failure={failure} noPasskey={noPasskey} onAdded={() => setFailure(undefined)} /> : null}
         {query.error ? <Callout tone="critical">{sentence(query.error)}</Callout> : null}
         {query.isPending ? (
           <p className="files-sheet-line">

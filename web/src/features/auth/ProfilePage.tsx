@@ -13,6 +13,7 @@ import { passkeysAvailable } from "../../lib/webauthn";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { TokensPointer } from "../settings/TokensPointer";
 import { Page } from "../shell/Page";
+import { AddPasskeyHere } from "./AddPasskeyHere";
 import { useAuthError } from "./messages";
 import { PasskeysPanel, useAddPasskey } from "./PasskeysPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
@@ -169,24 +170,14 @@ function ProfileCallout({ via, rpId }: { via?: ProfileVia; rpId: string }) {
     );
   }
   if (rpId && here.length === 0) {
-    return (
-      <Callout tone="info" title={t`No passkey works at ${rpId} yet`} actions={addButton}>
-        <Trans>
-          Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code.
-          If you came here after adding a domain, run <code>dockwell recover</code> on the server: its link signs you in
-          here, so you can add a passkey with no code.
-        </Trans>
-        {add.problem ? <span className="profile-callout-error"> {add.problem}</span> : null}
-      </Callout>
-    );
+    // Passkeys belong to the address they were made on: one for this one, or the way to a fresh sign-in that allows it.
+    return <AddPasskeyHere title={t`No passkey works at ${rpId} yet`} />;
   }
   if (usable.length + (state?.enabled ? 1 : 0) < 2) {
     return (
-      <Callout tone="info" title={t`Add a second way to sign in`}>
-        <Trans>
-          If you lose the device with your only passkey, you'd need <code>dockwell recover</code> on the server. Add
-          another passkey, or an authenticator app.
-        </Trans>
+      <Callout tone="info" title={t`Add a second way to sign in`} actions={addButton}>
+        {t`Losing the device with your only passkey would lock you out.`}
+        {add.problem ? <span className="profile-callout-error"> {add.problem}</span> : null}
       </Callout>
     );
   }

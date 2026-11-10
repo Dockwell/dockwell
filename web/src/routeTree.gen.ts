@@ -22,6 +22,7 @@ import { Route as ShellBackupsRouteImport } from './routes/_shell/backups'
 import { Route as ShellDomainsRouteImport } from './routes/_shell/domains'
 import { Route as ShellMoreRouteImport } from './routes/_shell/more'
 import { Route as ShellScheduledTasksRouteImport } from './routes/_shell/scheduled-tasks'
+import { Route as ShellStartRouteImport } from './routes/_shell/start'
 import { Route as ShellVariablesRouteImport } from './routes/_shell/variables'
 import { Route as ShellSettingsProfileRouteImport } from './routes/_shell/_settings/profile'
 import { Route as ShellAlertsIndexRouteImport } from './routes/_shell/alerts.index'
@@ -131,6 +132,11 @@ const ShellMoreRoute = ShellMoreRouteImport.update({
 const ShellScheduledTasksRoute = ShellScheduledTasksRouteImport.update({
   id: '/scheduled-tasks',
   path: '/scheduled-tasks',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellStartRoute = ShellStartRouteImport.update({
+  id: '/start',
+  path: '/start',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellVariablesRoute = ShellVariablesRouteImport.update({
@@ -408,6 +414,7 @@ export interface FileRoutesByFullPath {
   '/domains': typeof ShellDomainsRoute
   '/more': typeof ShellMoreRoute
   '/scheduled-tasks': typeof ShellScheduledTasksRoute
+  '/start': typeof ShellStartRoute
   '/variables': typeof ShellVariablesRoute
   '/profile': typeof ShellSettingsProfileRoute
   '/alerts/$alertId': typeof ShellAlertsAlertIdRoute
@@ -468,6 +475,7 @@ export interface FileRoutesByTo {
   '/domains': typeof ShellDomainsRoute
   '/more': typeof ShellMoreRoute
   '/scheduled-tasks': typeof ShellScheduledTasksRoute
+  '/start': typeof ShellStartRoute
   '/variables': typeof ShellVariablesRoute
   '/profile': typeof ShellSettingsProfileRoute
   '/alerts/$alertId': typeof ShellAlertsAlertIdRoute
@@ -527,6 +535,7 @@ export interface FileRoutesById {
   '/_shell/domains': typeof ShellDomainsRoute
   '/_shell/more': typeof ShellMoreRoute
   '/_shell/scheduled-tasks': typeof ShellScheduledTasksRoute
+  '/_shell/start': typeof ShellStartRoute
   '/_shell/variables': typeof ShellVariablesRoute
   '/_shell/': typeof ShellIndexRoute
   '/_shell/_settings/profile': typeof ShellSettingsProfileRoute
@@ -590,6 +599,7 @@ export interface FileRouteTypes {
     | '/domains'
     | '/more'
     | '/scheduled-tasks'
+    | '/start'
     | '/variables'
     | '/profile'
     | '/alerts/$alertId'
@@ -650,6 +660,7 @@ export interface FileRouteTypes {
     | '/domains'
     | '/more'
     | '/scheduled-tasks'
+    | '/start'
     | '/variables'
     | '/profile'
     | '/alerts/$alertId'
@@ -708,6 +719,7 @@ export interface FileRouteTypes {
     | '/_shell/domains'
     | '/_shell/more'
     | '/_shell/scheduled-tasks'
+    | '/_shell/start'
     | '/_shell/variables'
     | '/_shell/'
     | '/_shell/_settings/profile'
@@ -857,6 +869,13 @@ declare module '@tanstack/react-router' {
       path: '/scheduled-tasks'
       fullPath: '/scheduled-tasks'
       preLoaderRoute: typeof ShellScheduledTasksRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/start': {
+      id: '/_shell/start'
+      path: '/start'
+      fullPath: '/start'
+      preLoaderRoute: typeof ShellStartRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/variables': {
@@ -1299,6 +1318,7 @@ interface ShellRouteChildren {
   ShellDomainsRoute: typeof ShellDomainsRoute
   ShellMoreRoute: typeof ShellMoreRoute
   ShellScheduledTasksRoute: typeof ShellScheduledTasksRoute
+  ShellStartRoute: typeof ShellStartRoute
   ShellVariablesRoute: typeof ShellVariablesRoute
   ShellIndexRoute: typeof ShellIndexRoute
   ShellAlertsAlertIdRoute: typeof ShellAlertsAlertIdRoute
@@ -1335,6 +1355,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellDomainsRoute: ShellDomainsRoute,
   ShellMoreRoute: ShellMoreRoute,
   ShellScheduledTasksRoute: ShellScheduledTasksRoute,
+  ShellStartRoute: ShellStartRoute,
   ShellVariablesRoute: ShellVariablesRoute,
   ShellIndexRoute: ShellIndexRoute,
   ShellAlertsAlertIdRoute: ShellAlertsAlertIdRoute,

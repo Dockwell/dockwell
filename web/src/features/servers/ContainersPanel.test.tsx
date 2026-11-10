@@ -97,6 +97,26 @@ describe("the containers Dockwell didn't make", () => {
     await expectAccessible(panel);
   });
 
+  it("takes one on from its row, by the name it works out, and stays on the list", async () => {
+    const asked: unknown[] = [];
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete);
+    const { router } = renderAt("/servers/srv_1", {
+      servers: { watchServers: watch.stream },
+      containers: {
+        listContainers: () => answer({ containers: [container("legacy_api", { composeService: "" })] }),
+        adoptContainer: (req) => {
+          asked.push({ id: req.id, server: req.server, service: req.service });
+          return { change: webPlanned() };
+        },
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "Containers Dockwell didn't make" });
+    await userEvent.setup().click(await within(panel).findByRole("button", { name: "Take legacy_api on as an app" }));
+    await vi.waitFor(() => expect(asked).toEqual([{ id: "legacy_api", server: "srv_1", service: "legacy-api" }]));
+    expect(router.state.location.pathname).toBe("/servers/srv_1");
+  });
+
   it("says so when there are none, and keeps its place", async () => {
     await renderList(() => answer({ ownContainers: 1 }));
     const panel = await screen.findByRole("region", { name: "Containers Dockwell didn't make" });
