@@ -15,7 +15,9 @@ import { useEvents } from "../activity/useEvents";
 import { nameOf, revisionName } from "../apps/app";
 import { useHealth } from "../apps/health";
 import { useServices } from "../apps/useServices";
+import { CopyButton } from "../system/CopyCommand";
 import { useCopy } from "./CopyButton";
+import { serviceCommands } from "./commands";
 import { forwardToOf, isSharedAddress, publicAddressOf } from "./network";
 import { HIGH_USE as HIGH, isPrivateAddress, serverStatus, useServerWords } from "./server";
 import { useControlPlaneNow } from "./useFleet";
@@ -61,7 +63,8 @@ function PhoneStatus({ server, unread, heard }: { server: Server; unread: boolea
   const lasted = (since: Parameters<typeof timestampDate>[0]) =>
     words.span(Math.max(0, now - timestampDate(since).getTime()));
 
-  // The line is a phrase, as the mock's is; what to do, when there's something, a sentence.
+  // The line is a phrase, as the mock's is; what to do, when there's something, the command to copy.
+  const commands = serviceCommands(server);
   let status: Status = serverStatus(server);
   let line: string;
   let fix: ReactNode = null;
@@ -71,19 +74,33 @@ function PhoneStatus({ server, unread, heard }: { server: Server; unread: boolea
   } else if (server.connection === Connection.UNREACHABLE) {
     line = server.lastSeenTime ? t`Not reporting for ${lasted(server.lastSeenTime)}` : t`Not reporting`;
     fix = (
-      <Trans>
-        Check that <code>dockwell run</code> is still running on the server.
-      </Trans>
+      <CopyButton
+        text={commands.restartAgent}
+        label={t`Copy the restart command`}
+        copiedLabel={t`Restart command copied`}
+        variant="secondary"
+      />
     );
   } else if (server.connection === Connection.PENDING) {
     line = t`Waiting for its agent`;
     fix = (
-      <Trans>
-        Start it with <code>dockwell run</code> on the server.
-      </Trans>
+      <CopyButton
+        text={commands.startAgent}
+        label={t`Copy the start command`}
+        copiedLabel={t`Start command copied`}
+        variant="secondary"
+      />
     );
   } else if (server.dockerUnreadableSince) {
     line = t`Docker hasn't answered for ${lasted(server.dockerUnreadableSince)}`;
+    fix = (
+      <CopyButton
+        text={commands.restartDocker}
+        label={t`Copy the command that restarts Docker`}
+        copiedLabel={t`Command copied`}
+        variant="secondary"
+      />
+    );
   } else if (server.strainedSince) {
     // The control plane's, once it has lasted a minute, as the mock says it.
     const since = formatClock(timestampDate(server.strainedSince), locale);
@@ -107,10 +124,15 @@ function PhoneStatus({ server, unread, heard }: { server: Server; unread: boolea
     <section className="dw-panel phone-status" aria-label={t`Status`}>
       <div className="phone-status-head">
         <div>
-          <StatusBadge status={status} variant="pill" />
+          <StatusBadge
+            status={status}
+            variant="pill"
+            label={server.connection === Connection.PENDING ? t`Waiting` : undefined}
+            labelIsState={server.connection === Connection.PENDING}
+          />
         </div>
         <span className="phone-status-line">{line}</span>
-        {fix ? <p className="phone-status-fix">{fix}</p> : null}
+        {fix ? <div className="phone-status-fix">{fix}</div> : null}
       </div>
       {/* While nothing can say how it is, what it last said is greyed, not shown as now. */}
       <div className={unread ? "phone-status-grid is-stale" : "phone-status-grid"} aria-disabled={unread || undefined}>

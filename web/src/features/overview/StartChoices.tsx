@@ -11,8 +11,11 @@ import "./Start.css";
 /** Entries a newcomer is most likely to know, shown on the catalog's choice when the catalog has them. */
 const KNOWN = ["wordpress", "postgres", "nextcloud", "gitea", "n8n", "uptime-kuma", "ghost", "plausible"];
 
+/** What a first app can come from. */
+export type Way = "catalog" | "image" | "compose" | "website";
+
 interface Choice {
-  key: string;
+  key: Way;
   icon: IconName;
   title: string;
   line: string;
@@ -25,15 +28,16 @@ interface Choice {
  * The ways a first app comes in, each opening its own create flow: the catalog, a
  * Docker image, a Compose file, a website. Large on the start page, a row of
  * choices where the overview has no apps yet: one way in, wherever a newcomer is.
+ * A list of one kind offers only the ways to that kind.
  */
-export function StartChoices({ compact = false }: { compact?: boolean }) {
+export function StartChoices({ compact = false, ways }: { compact?: boolean; ways?: Way[] }) {
   const { t } = useLingui();
   const catalog = useCatalog().data?.entries ?? [];
   const known = KNOWN.map((id) => catalog.find((e) => e.id === id)).filter((e) => e !== undefined);
   const shown = (known.length > 0 ? known : catalog).slice(0, 4);
   const more = catalog.length - shown.length;
 
-  const choices: Choice[] = [
+  const all: Choice[] = [
     {
       key: "catalog",
       icon: "grid",
@@ -43,9 +47,22 @@ export function StartChoices({ compact = false }: { compact?: boolean }) {
       extra:
         shown.length > 0 && !compact ? (
           <span className="start-apps">
-            {shown.map((e) => (
-              <AppIcon key={e.id} name={e.name} path={e.icon} />
-            ))}
+            {/* Each straight into its install sheet, which starts from its defaults. */}
+            {shown.map((e) => {
+              const app = e.name;
+              return (
+                <Link
+                  key={e.id}
+                  to="/catalog/$entryId/install"
+                  params={{ entryId: e.id }}
+                  className="start-app"
+                  aria-label={t`Install ${app}`}
+                  title={app}
+                >
+                  <AppIcon name={e.name} path={e.icon} />
+                </Link>
+              );
+            })}
             {more > 0 ? <span className="start-more">{t`and ${more} more`}</span> : null}
           </span>
         ) : null,
@@ -73,6 +90,7 @@ export function StartChoices({ compact = false }: { compact?: boolean }) {
       to: "/websites/new",
     },
   ];
+  const choices = ways ? all.filter((c) => ways.includes(c.key)) : all;
 
   return (
     <ul className={cx("start-choices", compact && "is-compact")} aria-label={t`Ways to run your first app`}>

@@ -37,8 +37,9 @@ type Bucket struct {
 	Name string
 	// AccessKey and SecretKey sign each request.
 	AccessKey, SecretKey string
-	// Client makes the requests; http.DefaultClient unless set.
-	Client *http.Client
+	// Client makes the requests; http.DefaultClient unless set. A test of a form
+	// sets a guarded one (netguard), which follows no redirect.
+	Client Doer
 	// Now is the clock; nil means time.Now.
 	Now func() time.Time
 	// Stall is how long a request can go with no byte moving before it's given up on.
@@ -110,11 +111,19 @@ const unsignedPayload = "UNSIGNED-PAYLOAD"
 // emptyHash is the SHA-256 of nothing, for a request with no body.
 const emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
-// Error is what the service said.
+// Doer sends a request: an *http.Client, or a guarded client such as netguard's.
+type Doer interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
+// Error is what the service said. Any answer but a 2xx is one: a 3xx too, such as
+// the 301 S3 answers for a bucket in another region, which carries no Location.
 type Error struct {
 	Status  int
 	Code    string
 	Message string
+	// Region is where the bucket is, when the service says so (x-amz-bucket-region).
+	Region string
 }
 
 func (e *Error) Error() string {
@@ -133,11 +142,12 @@ func IsNotFound(err error) bool {
 	return errors.As(err, &e) && e.Status == http.StatusNotFound
 }
 
-func (b *Bucket) client() *http.Client {
-	if b.Client != nil {
-		return b.Client
+func (b *Bucket) client() Doer {
+	// A nil *http.Client, as a caller with none passes, is unset too, though as a Doer it isn't nil.
+	if c, isClient := b.Client.(*http.Client); b.Client == nil || isClient && c == nil {
+		return http.DefaultClient
 	}
-	return http.DefaultClient
+	return b.Client
 }
 
 func (b *Bucket) region() string {
@@ -236,7 +246,12 @@ func (b *Bucket) do(ctx context.Context, method, key string, q url.Values, body 
 	if err != nil {
 		return nil, fmt.Errorf("the storage's address doesn't read as a URL: %w", err)
 	}
-	u.RawPath = u.EscapedPath() + "/" + escape(b.Name) + "/" + escapePath(key)
+	// No bucket is the service itself, as listing the buckets asks it.
+	if b.Name == "" {
+		u.RawPath = u.EscapedPath() + "/"
+	} else {
+		u.RawPath = u.EscapedPath() + "/" + escape(b.Name) + "/" + escapePath(key)
+	}
 	if u.Path, err = url.PathUnescape(u.RawPath); err != nil {
 		return nil, err
 	}
@@ -276,11 +291,14 @@ func (b *Bucket) do(ctx context.Context, method, key string, q url.Values, body 
 		return nil, err
 	}
 	timer.Reset(wait)
-	if res.StatusCode >= http.StatusBadRequest {
+	if res.StatusCode >= http.StatusMultipleChoices {
 		defer ended()
 		defer res.Body.Close()
 		raw, _ := io.ReadAll(io.LimitReader(res.Body, 16<<10))
-		return nil, &Error{Status: res.StatusCode, Code: tag(raw, "Code"), Message: tag(raw, "Message")}
+		return nil, &Error{
+			Status: res.StatusCode, Code: tag(raw, "Code"), Message: tag(raw, "Message"),
+			Region: res.Header.Get("x-amz-bucket-region"),
+		}
 	}
 	res.Body = &watchedBody{watched: watched{r: res.Body, timer: timer, wait: wait}, Closer: res.Body, ctx: ctx, host: u.Host, done: ended}
 	return res, nil
@@ -294,6 +312,30 @@ func (b *Bucket) Put(ctx context.Context, key string, body []byte) error {
 		return err
 	}
 	return res.Body.Close()
+}
+
+// ListBuckets names the buckets the keys may see, as the service lists them. A key
+// scoped to one bucket, as R2's and B2's often are, may see none and be refused:
+// that says nothing of the bucket it's for.
+func (b *Bucket) ListBuckets(ctx context.Context) ([]string, error) {
+	service := *b
+	service.Name = ""
+	res, err := service.do(ctx, http.MethodGet, "", nil, nil, 0, emptyHash)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, bucket := range tags(raw, "Bucket") {
+		if name := tag([]byte(bucket), "Name"); name != "" {
+			names = append(names, name)
+		}
+	}
+	return names, nil
 }
 
 // Size is how large an object is.
@@ -374,6 +416,23 @@ func tag(raw []byte, name string) string {
 		return ""
 	}
 	return unescapeXML.Replace(string(value))
+}
+
+// tags finds every element of a name, each as it's written, for tag to read inside.
+func tags(raw []byte, name string) []string {
+	var out []string
+	for {
+		_, rest, ok := bytes.Cut(raw, []byte("<"+name+">"))
+		if !ok {
+			return out
+		}
+		value, after, ok := bytes.Cut(rest, []byte("</"+name+">"))
+		if !ok {
+			return out
+		}
+		out = append(out, string(value))
+		raw = after
+	}
 }
 
 var (

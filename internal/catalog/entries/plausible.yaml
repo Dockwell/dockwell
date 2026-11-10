@@ -20,7 +20,7 @@ screenshots:
     source: https://raw.githubusercontent.com/plausible/analytics/021c4191593338197544b227f5d3973cb0deb913/.github/plausible-analytics-dashboard.webp
 category: analytics
 version: "3.2.1"
-release: 2
+release: 3
 homepage: https://plausible.io/self-hosted-web-analytics
 license: AGPL-3.0-only
 appLicense: AGPL-3.0-only
@@ -36,9 +36,7 @@ firstSteps: >-
   it, then open http://localhost:8000. Add a domain on its page only after that, over
   HTTPS or behind your tunnel, as a new domain's certificate shows in public logs
   within minutes, then set BASE_URL on the plausible service to that address, as
-  Plausible builds its links and your sites' tracker from it. Leave the
-  POSTGRES_PASSWORD secret as it is: its database keeps the password it started with,
-  and Plausible would then use one it doesn't take. Leave the SECRET_KEY_BASE secret
+  Plausible builds its links and your sites' tracker from it. Leave the SECRET_KEY_BASE secret
   as it is too: changing it signs everyone out and turns off two-factor sign-in.
 inputs:
   - name: PORT

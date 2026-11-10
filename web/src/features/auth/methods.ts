@@ -70,6 +70,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "BackupService.listBackups": "read",
   "BackupService.previewBackup": "read",
   "BackupService.restoreBackup": "may",
+  "BackupService.testBackupDestination": "may",
 
   "CatalogService.getCatalogEntry": "read",
   "CatalogService.installCatalogEntry": "may",
@@ -98,6 +99,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ContainerService.adoptContainer": { within: "ContainerService.listContainers" },
   "ContainerService.listContainers": "may",
 
+  "DatabaseService.changeDatabasePassword": "may",
   "DatabaseService.createDatabaseUser": "may",
   "DatabaseService.getDatabase": "read",
   "DatabaseService.listDatabases": "read",

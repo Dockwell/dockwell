@@ -37,8 +37,10 @@ describe("where a newcomer starts", () => {
     expect(link("A Docker image")).toHaveAttribute("href", "/apps/new");
     expect(link("A Compose file")).toHaveAttribute("href", "/apps/new?source=compose");
     expect(link("A website")).toHaveAttribute("href", "/websites/new");
-    // The catalog's choice names what's in it: those a newcomer may know first.
+    // The catalog's choice names what's in it: those a newcomer may know first, each straight into its install sheet.
     expect(await within(choices).findByText("and 1 more")).toBeVisible();
+    expect(link("Install Postgres")).toHaveAttribute("href", "/catalog/postgres/install");
+    expect(link("Install Wordpress")).toHaveAttribute("href", "/catalog/wordpress/install");
     expect(screen.getByRole("link", { name: "Skip to the overview" })).toHaveAttribute("href", "/");
     await expectAccessible(container);
   });
