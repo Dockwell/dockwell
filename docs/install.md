@@ -26,7 +26,7 @@ To serve the panel over HTTPS on your own domain instead, point the domain's DNS
 
 ## Add a server
 
-On the control server, make a join ticket:
+In the panel, open **Servers**, choose **Add server** and confirm with your passkey. The sheet shows the one command to run on the new server, with a join ticket in it, and says when the server joins. Or, on the control server, make a ticket yourself:
 
 ```sh
 dockwell token create

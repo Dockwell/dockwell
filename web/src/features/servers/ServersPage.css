@@ -207,36 +207,45 @@
 
 /* ---------- Adding a server ---------- */
 
-.servers-add-steps {
+.servers-add-step {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
-  margin: 0;
-  padding: 0;
-  counter-reset: step;
-  list-style: none;
+  gap: var(--space-3);
 }
 
-.servers-add-steps li {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.servers-add-steps h3 {
+.servers-add-step h3 {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
 }
 
-.servers-add-steps h3::before {
-  content: counter(step) ". ";
-  counter-increment: step;
+.servers-add-step p {
+  margin: 0;
   color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
 }
 
-.servers-add-steps p {
-  margin: 0;
+/* The ticket is long: it wraps in the well rather than running off it. */
+.servers-add-command code {
+  word-break: break-all;
+}
+
+/* A flag or a command word reads whole, as one would type it. */
+.servers-add-step p code {
+  white-space: nowrap;
+}
+
+.servers-add-make,
+.servers-add-wait,
+.servers-add-done {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.servers-add-meta {
   color: var(--ink-muted);
   font-size: 13px;
   line-height: 20px;
@@ -371,9 +380,4 @@
     scroll-margin-top: calc(56px + var(--space-2));
     scroll-margin-bottom: calc(var(--tabbar-height) + 64px + var(--space-6));
   }
-}
-
-/* A flag or a command word in the steps reads whole, as one would type it. */
-.servers-add-steps p code {
-  white-space: nowrap;
 }

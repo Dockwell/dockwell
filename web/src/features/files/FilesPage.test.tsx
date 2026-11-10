@@ -15,7 +15,7 @@ import {
 } from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
 import { focusManager } from "@tanstack/react-query";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -377,11 +377,95 @@ describe("FilesPage", () => {
     expect(screen.getByText("Nothing here matches your search.")).toBeVisible();
   });
 
-  it("says when a folder holds more than a listing shows", async () => {
+  it("says an older agent lists only part of a large folder, and how to see the rest", async () => {
     await renderFiles("/servers/srv_1/files?path=/var/www", {
       listFiles: () => create(ListFilesResponseSchema, { ...site, truncated: true }),
     });
     expect(await screen.findByText("This folder holds more than a listing shows")).toBeVisible();
+    expect(screen.getByText(/Update the agent on hz-1 to search and page through them all/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  });
+
+  it("keeps a large folder's pages when the window takes focus, and doesn't read it again", async () => {
+    const listFiles = vi.fn((req: { page: string }) =>
+      req.page === "after-index"
+        ? create(ListFilesResponseSchema, { ...site, entries: [entry("zz-last.txt")] })
+        : create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 5 items/);
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(rowNames()).toContain("zz-last.txt"));
+    const asked = listFiles.mock.calls.length;
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(listFiles.mock.calls.length).toBe(asked);
+    expect(rowNames()).toContain("zz-last.txt");
+  });
+
+  it("puts a later page below what's shown, by name, folders and all", async () => {
+    const listFiles = vi.fn((req: { page: string }) =>
+      req.page === "after-b"
+        ? create(ListFilesResponseSchema, { ...site, entries: [folderEntry("c-dir"), entry("d.txt")] })
+        : create(ListFilesResponseSchema, {
+            ...site,
+            entries: [entry("a.txt"), entry("b.txt")],
+            truncated: true,
+            nextPage: "after-b",
+          }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 2 items/);
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(rowNames()).toEqual(["a.txt", "b.txt", "c-dir", "d.txt"]));
+  });
+
+  it("stops asking for a page once the person has left", async () => {
+    let signal: AbortSignal | undefined;
+    const listFiles = vi.fn((req: { page: string }, ctx: HandlerContext) => {
+      if (req.page !== "after-index")
+        return create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" });
+      signal = ctx.signal;
+      return untilAborted(ctx.signal).then(() => create(ListFilesResponseSchema, { ...site }));
+    });
+    const { unmount } = await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 5 items/);
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(signal).toBeDefined());
+    unmount();
+    await waitFor(() => expect(signal?.aborted).toBe(true));
+  });
+
+  it("brings a large folder's next page, in name order, with Show more", async () => {
+    const listFiles = vi.fn((req: { page: string }) =>
+      req.page === "after-index"
+        ? create(ListFilesResponseSchema, { ...site, entries: [entry("zz-last.txt")] })
+        : create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    expect(await screen.findByText(/^More than 5 items/)).toBeVisible();
+    expect(screen.queryByText("This folder holds more than a listing shows")).toBeNull();
+    expect(screen.getByText("5 shown, by name")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(rowNames()).toContain("zz-last.txt"));
+    expect(listFiles.mock.lastCall?.[0]).toMatchObject({ path: "/var/www", page: "after-index", match: "" });
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  });
+
+  it("searches a large folder through every name, on its server", async () => {
+    const listFiles = vi.fn((req: { match: string }) =>
+      req.match === "err"
+        ? create(ListFilesResponseSchema, { ...site, entries: [entry("error.log"), entry("stderr.txt")] })
+        : create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 5 items/);
+    await userEvent.type(screen.getByRole("textbox", { name: "Search in www" }), "err");
+    await waitFor(() => expect(rowNames()).toEqual(["error.log", "stderr.txt"]));
+    expect(listFiles).toHaveBeenCalledWith(expect.objectContaining({ match: "err" }), expect.anything());
   });
 
   it("doesn't open a file whose name it can't send back", async () => {
@@ -473,34 +557,118 @@ describe("editing a file", () => {
     expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: "a\r\nb\r\nc" }), expect.anything()]);
   });
 
+  it("saves a second time from what the first save wrote, so no untouched line's ending moves", async () => {
+    let version = 1;
+    const saveFile = vi.fn(() => saved(`v${++version}`));
+    await open({ readFile: () => text("\rx\r\nx\n\n\n"), saveFile });
+    const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    // A line inserted at the top, saved; then the third line retyped, saved again.
+    fireEvent.change(field, { target: { value: "x\n\nx\nx\n\n\n" } });
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
+    expect(saveFile.mock.lastCall).toEqual([
+      expect.objectContaining({ content: "x\n\rx\r\nx\n\n\n" }),
+      expect.anything(),
+    ]);
+    await waitFor(() => expect(screen.getAllByText("Saved .user.ini").length).toBeGreaterThan(0));
+    fireEvent.change(field, { target: { value: "x\n\nEDITED\nx\n\n\n" } });
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
+    expect(saveFile.mock.lastCall).toEqual([
+      expect.objectContaining({ content: "x\n\rEDITED\r\nx\n\n\n", version: "v2" }),
+      expect.anything(),
+    ]);
+  });
+
+  it("asks for one ending when an edit moves too much to keep each line's, and saves with it", async () => {
+    const alternating = Array.from({ length: 1200 }, (_, i) => `line ${i}${i % 2 ? "\r\n" : "\n"}`).join("");
+    const saveFile = vi.fn(() => saved());
+    await open({ readFile: () => text(alternating), saveFile });
+    const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    const lines = alternating.replace(/\r\n/g, "\n").split("\n");
+    lines.splice(3, 0, ...Array.from({ length: 501 }, (_, i) => `pasted ${i}`));
+    lines[lines.length - 2] = "the last line, edited";
+    fireEvent.change(field, { target: { value: lines.join("\n") } });
+    await userEvent.click(saveButton());
+    expect(await screen.findByText("This edit moves too much to keep each line's ending")).toBeVisible();
+    expect(saveFile).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Save with CRLF" }));
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
+    expect(saveFile.mock.lastCall).toEqual([
+      expect.objectContaining({ content: lines.join("\r\n") }),
+      expect.anything(),
+    ]);
+  });
+
+  // The re-check's medium: Save over it rereads the file, then asks for an ending again, and the pick
+  // saved over the version first read, which the server refused again, round after round.
+  it("saves a large edit over the server's version once you pick an ending after Save over it", async () => {
+    const alternating = Array.from({ length: 1200 }, (_, i) => `line ${i}${i % 2 ? "\r\n" : "\n"}`).join("");
+    let server = "v1";
+    const readFile = vi.fn(() => text(alternating, { version: server }));
+    const saveFile = vi.fn((req: { version: string }) => {
+      if (req.version !== server) throw refused("file_changed", "it changed", Code.FailedPrecondition);
+      server = "v9";
+      return saved("v9");
+    });
+    await open({ readFile, saveFile });
+    const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    const lines = alternating.replace(/\r\n/g, "\n").split("\n");
+    lines.splice(3, 0, ...Array.from({ length: 501 }, (_, i) => `pasted ${i}`));
+    lines[lines.length - 2] = "the last line, edited";
+    fireEvent.change(field, { target: { value: lines.join("\n") } });
+    // Someone else saves the file meanwhile.
+    server = "v3";
+    await userEvent.click(saveButton());
+    await userEvent.click(await screen.findByRole("button", { name: "Save with CRLF" }));
+    await screen.findByText("This file changed on the server");
+    await userEvent.click(screen.getByRole("button", { name: "Save over it" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Save with CRLF" }));
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
+    expect(saveFile.mock.calls.map(([req]) => req.version)).toEqual(["v1", "v3"]);
+    expect(saveFile.mock.lastCall).toEqual([
+      expect.objectContaining({ content: lines.join("\r\n"), version: "v3" }),
+      expect.anything(),
+    ]);
+    expect(server).toBe("v9");
+    await waitFor(() => expect(screen.getAllByText("Saved .user.ini").length).toBeGreaterThan(0));
+  });
+
   it.each([
-    ["one stray CRLF", "#!/bin/sh\necho a\r\necho b\n"],
-    ["a lone CR", "a\rb\n"],
-  ])("won't edit a file with %s, as saving it would change lines nobody touched", async (_, content) => {
+    ["one stray CRLF", "#!/bin/sh\necho a\r\necho b\n", "#!/bin/sh\necho a\r\necho b\nx"],
+    ["a lone CR", "a\rb\n", "a\rb\nx"],
+  ])("edits a file with %s, and saves each line with the ending it had", async (_, content, sent) => {
     const saveFile = vi.fn(() => saved());
     await open({ readFile: () => text(content), saveFile });
     const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
-    expect(field).toHaveAttribute("readonly");
-    expect(screen.getByText("This file can't be edited here")).toBeVisible();
-    expect(screen.getByText("would change lines you didn't touch", { exact: false })).toBeVisible();
+    expect(field).not.toHaveAttribute("readonly");
+    expect(screen.getByText("Mixed line endings")).toBeVisible();
     await userEvent.type(field, "x");
-    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    expect(saveFile).not.toHaveBeenCalled();
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(saveFile).toHaveBeenCalled());
+    expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: sent }), expect.anything()]);
   });
 
-  it("won't take a file with mixed line endings in place of yours", async () => {
+  it("takes the server's version with mixed line endings in place of yours, and keeps them on the next save", async () => {
     const readFile = vi
       .fn()
       .mockReturnValueOnce(text("old\n"))
       .mockReturnValue(text("a\r\nb\n", { version: "v3" }));
+    let calls = 0;
     const saveFile = vi.fn(() => {
-      throw refused("file_changed", "it changed", Code.FailedPrecondition);
+      calls++;
+      if (calls === 1) throw refused("file_changed", "it changed", Code.FailedPrecondition);
+      return saved();
     });
     const { field } = await edited({ readFile, saveFile });
     await userEvent.click(saveButton());
     await userEvent.click(await screen.findByRole("button", { name: "Load the server's version" }));
-    expect(await screen.findByText("has more than one kind of line ending now", { exact: false })).toBeVisible();
-    expect(field).toHaveValue("memory_limit = 512M");
+    await waitFor(() => expect(field).toHaveValue("a\nb\n"));
+    expect(screen.getByText("Mixed line endings")).toBeVisible();
+    await userEvent.type(field, "c");
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
+    expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: "a\r\nb\nc" }), expect.anything()]);
   });
 
   it("reads a file from an agent too old to save, and says what to do", async () => {

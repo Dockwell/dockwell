@@ -99,6 +99,8 @@ MemberService.ListMembers                      read         admin      admin    
 ProcessService.EndProcess                      destructive  admin      admin      install  session
 ProcessService.WatchProcesses                  read         admin      admin      install  session
 ResourceService.ListResources                  read         viewer     viewer     project
+ServerService.CreateJoinTicket                 apply        admin      admin      install  session
+ServerService.GetJoinTicket                    read         admin      admin      install
 ServerService.GetServer                        read         viewer     viewer     named
 ServerService.GetServerDiskUse                 read         admin      admin      install
 ServerService.ListServers                      read         viewer     viewer     named

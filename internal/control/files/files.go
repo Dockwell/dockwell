@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -108,6 +109,9 @@ func (h *Handler) session(ctx context.Context, srv *dockwellv1.Server) (*agentap
 	return session, nil
 }
 
+// maxMatch is the longest name part a listing searches for: a name is at most 255 bytes.
+const maxMatch = 255
+
 // ListFiles returns what a directory on a server holds. A listing that works isn't
 // on record: it returns names, and it runs on every click. A refused one is, as
 // someone looking for what isn't theirs mostly finds nothing. One that can't reach
@@ -132,11 +136,23 @@ func (h *Handler) ListFiles(ctx context.Context, req *connect.Request[dockwellv1
 		}
 		return nil, authapi.Invalid(err)
 	}
+	match, page := req.Msg.GetMatch(), req.Msg.GetPage()
+	if len(match) > maxMatch || strings.ContainsAny(match, "/\x00") {
+		return nil, authapi.Invalid(fmt.Errorf("search for part of one name, without a slash, in at most %d bytes", maxMatch))
+	}
+	if _, err := files.PageAfter(page); err != nil {
+		return nil, authapi.Invalid(err)
+	}
 	session, err := h.session(ctx, srv)
 	if err != nil {
 		return nil, err
 	}
-	out, err := session.ListFiles(ctx, path)
+	if (match != "" || page != "") && !session.PagesListings() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
+			"%s's agent is older than the control plane, and can't search a folder or list past its first %d entries. Update the agent on %s, then try again",
+			srv.GetName(), files.MaxEntries, srv.GetName()), "agent_outdated")
+	}
+	out, err := session.ListFiles(ctx, path, match, page)
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}

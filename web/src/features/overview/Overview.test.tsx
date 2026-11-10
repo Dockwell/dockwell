@@ -212,17 +212,17 @@ describe("Overview with one server", () => {
 });
 
 describe("Overview with no servers", () => {
-  it("says how to add one", async () => {
+  it("offers to add one, rather than saying what to run", async () => {
+    const user = userEvent.setup();
     const { watch, container } = renderOverview();
     watch.push(snapshotComplete);
 
     expect(await screen.findByRole("heading", { level: 2, name: "No servers yet" })).toBeVisible();
-    const text = screen.getByText(/on the control server/);
-    expect(text).toHaveTextContent(
-      "Run dockwell token create on the control server, then dockwell join with the ticket it prints on the server you want to add.",
-    );
-    expect(within(text).getByText("dockwell token create").tagName).toBe("CODE");
+    expect(container).not.toHaveTextContent("dockwell token create");
     await expectAccessible(container);
+    await user.click(screen.getByRole("button", { name: "Add server" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+    expect(within(sheet).getByRole("button", { name: "Make the command" })).toBeEnabled();
   });
 });
 

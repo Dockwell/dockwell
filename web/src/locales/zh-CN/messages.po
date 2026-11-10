@@ -7051,11 +7051,20 @@ msgstr "不保存就离开 {name} 吗？你输入的内容会丢失。"
 msgid "Load the server's version"
 msgstr "加载服务器上的版本"
 
+msgid "Mixed line endings"
+msgstr "混合换行符"
+
 msgid "Reading {name}"
 msgstr "正在读取 {name}"
 
 msgid "Save over it"
 msgstr "覆盖保存"
+
+msgid "Save with CRLF"
+msgstr "以 CRLF 保存"
+
+msgid "Save with LF"
+msgstr "以 LF 保存"
 
 msgid "Saved {name}"
 msgstr "已保存 {name}"
@@ -7075,8 +7084,8 @@ msgstr "只显示前 1 MB"
 msgid "The passkey prompt closed, so nothing was saved. Save again when you're ready."
 msgstr "通行密钥提示已关闭，所以没有保存任何内容。准备好后请再次保存。"
 
-msgid "This file can't be edited here"
-msgstr "这个文件无法在这里编辑"
+msgid "This edit moves too much to keep each line's ending"
+msgstr "这次编辑改动太大，无法保留每行的换行符"
 
 msgid "This file changed on the server"
 msgstr "这个文件在服务器上发生了变化"
@@ -7127,11 +7136,8 @@ msgstr "{changes, plural, other {已改动 # 行}}"
 msgid "{name} changed after you opened it, so nothing was saved. What you typed is still here. Save over the server's version, or load it in place of yours."
 msgstr "{name} 在你打开之后发生了变化，所以没有保存。你输入的内容还在这里。你可以覆盖服务器上的版本，也可以加载服务器上的版本替换你的内容。"
 
-msgid "{name} has more than one kind of line ending now, so it can't be loaded here."
-msgstr "{name} 现在混用了多种换行符，所以无法在这里载入。"
-
-msgid "{name} has more than one kind of line ending, so saving it here would change lines you didn't touch. Connect to the server over SSH to edit it."
-msgstr "{name} 混用了多种换行符，在这里保存会改动你没碰过的行。请通过 SSH 连接到服务器来编辑。"
+msgid "{name} has more than one kind of line ending; pick one for every line."
+msgstr "{name} 含有多种换行符；请为所有行选择一种。"
 
 msgid "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
 msgstr "{name} 已不再是 1 MB 以内的文本文件，所以无法在这里加载。"
@@ -7194,6 +7200,9 @@ msgstr "它会在“最近删除”中保留 7 天，期间可以放回原处。
 msgid "Modified"
 msgstr "修改时间"
 
+msgid "More than {countWords} items"
+msgstr "超过 {countWords} 项"
+
 msgid "New file"
 msgstr "新建文件"
 
@@ -7212,8 +7221,9 @@ msgstr "无法恢复。"
 msgid "Nothing here matches your search."
 msgstr "这里没有符合搜索条件的内容。"
 
-msgid "Only {count} of its items are here, so one you're after may be missing. Connect to the server over SSH to see them all."
-msgstr "这里只显示了其中 {count} 项，你要找的可能不在其中。请通过 SSH 连接服务器查看全部内容。"
+#. placeholder {0}: server.name
+msgid "Only {count} of its items are here. Update the agent on {0} to search and page through them all."
+msgstr "这里只列出了其中 {count} 项。更新 {0} 上的代理后，即可搜索并分页查看全部。"
 
 msgid "Permissions"
 msgstr "权限"
@@ -7235,8 +7245,15 @@ msgstr "最近删除"
 msgid "Search in {0}"
 msgstr "在 {0} 中搜索"
 
+msgid "Searching every name in this folder"
+msgstr "正在搜索此文件夹中的所有名称"
+
 msgid "Server root"
 msgstr "服务器根目录"
+
+msgctxt "the next page of a long list"
+msgid "Show more"
+msgstr "加载更多"
 
 msgid "This folder holds more than a listing shows"
 msgstr "这个文件夹的内容超出了列表能显示的数量"
@@ -7255,6 +7272,12 @@ msgstr "所有者 <0>{owner}</0>"
 
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, other {# 项}}"
+
+msgid "{shownWords} found so far, by name"
+msgstr "已按名称找到 {shownWords} 项"
+
+msgid "{shownWords} shown, by name"
+msgstr "已按名称显示 {shownWords} 项"
 
 msgid "Hide the folders in {name}"
 msgstr "收起 {name} 中的文件夹"
@@ -8155,14 +8178,14 @@ msgstr "{0, plural, other {代理有 # 个版本}}"
 msgid "{used} of {total}"
 msgstr "{used} / {total}"
 
+msgid "Add server"
+msgstr "添加服务器"
+
 msgid "Files"
 msgstr "文件"
 
 msgid "No servers yet"
 msgstr "还没有服务器"
-
-msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
-msgstr "在控制服务器上运行 <0>dockwell token create</0>，然后在要添加的服务器上，用它输出的凭据运行 <1>dockwell join</1>。"
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} 个 vCPU"
@@ -8250,44 +8273,93 @@ msgstr "你想运行什么？"
 msgid "Add a server"
 msgstr "添加服务器"
 
-msgid "Connect a new server with a ticket from the control server."
-msgstr "使用控制服务器提供的票据连接新服务器。"
+msgid "Any Linux server you have root on: another provider, a home lab or a VM."
+msgstr "任何你有 root 权限的 Linux 服务器：其他云服务商、家庭实验室或虚拟机。"
 
-msgid "It shows on Servers as soon as its agent connects. Your apps stay where they are: an app moves only when you apply a plan for it."
-msgstr "它的代理一连接，它就会出现在“服务器”页面。你的应用保持原位：只有在你为某个应用应用计划时，它才会迁移。"
+msgid "Confirm with your passkey. The command works once, for an hour."
+msgstr "用通行密钥确认。命令只能使用一次，一小时内有效。"
 
-msgid "Join and start the agent"
-msgstr "加入并启动代理"
+msgid "Install an agent of the control server's version as <0>dockwell</0> first."
+msgstr "先安装与控制服务器同版本的代理，命名为 <0>dockwell</0>。"
 
-msgid "Make a ticket on the control server"
-msgstr "在控制服务器上生成票据"
+msgid "Install the agent of <0>{version}</0> as <1>dockwell</1> first, as this build has no installer."
+msgstr "此构建没有安装程序，请先安装 <0>{version}</0> 的代理，命名为 <1>dockwell</1>。"
 
-msgid "Make a ticket on {name}"
-msgstr "在 {name} 上生成票据"
+msgid "It joins in seconds."
+msgstr "几秒内即可加入。"
 
-msgid "On any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the control plane's version of the agent, joins, and starts."
-msgstr "在任意 Linux 服务器上运行：其他云服务商、家庭实验室或虚拟机都可以。把 <0><ticket></0> 换成票据。它会安装与控制平面相同版本的代理、加入并启动。"
+msgid "It joins in seconds. Nothing on {name} changes."
+msgstr "几秒内即可加入，{name} 上的一切不变。"
 
-msgid "On the new server, put the ticket in place of <0><ticket></0>. Run both commands as the same user, with <1>sudo</1> for both when using the system service. Keep <2>dockwell run</2> running, or configure it as a service."
-msgstr "在新服务器上，把 <0><ticket></0> 换成票据。以同一用户身份运行这两条命令；使用系统服务时，两条命令都要加上 <1>sudo</1>。保持 <2>dockwell run</2> 运行，或将它配置为服务。"
+msgid "It joins through {host}, a private address."
+msgstr "它通过私有地址 {host} 加入。"
 
-msgid "Over SSH, as the user that runs Dockwell, with <0>sudo</0> in front when it runs as the system service. The ticket works once, for an hour."
-msgstr "通过 SSH，以运行 Dockwell 的用户身份执行；Dockwell 作为系统服务运行时，在前面加上 <0>sudo</0>。票据只能使用一次，有效期一小时。"
+msgid "It reaches {controlName} at {host}."
+msgstr "它通过 {host} 连接 {controlName}。"
 
-msgid "Reading the control server's installation details."
-msgstr "正在读取控制服务器的安装信息。"
+msgid "It's the address {controlName} goes out from."
+msgstr "这是 {controlName} 访问外网所用的地址。"
+
+msgid "Make a new command"
+msgstr "生成新命令"
+
+msgid "Make the command"
+msgstr "生成命令"
+
+msgid "Making the command"
+msgstr "正在生成命令"
+
+msgid "No command yet"
+msgstr "尚未生成命令"
+
+msgid "Only servers on {controlName}'s network can join"
+msgstr "只有与 {controlName} 同一网络的服务器才能加入"
+
+msgid "Open {joinedName}"
+msgstr "打开 {joinedName}"
 
 msgid "Run one command on the new server"
 msgstr "在新服务器上运行一条命令"
 
-msgid "The control server's installation details are unavailable. Install an agent that matches its version as <0>dockwell</0> before joining."
-msgstr "无法获取控制服务器的安装信息。加入前，请先安装与其版本一致的代理，并将其命名为 <0>dockwell</0>。"
+msgid "Run these on the new server, as root"
+msgstr "以 root 身份在新服务器上运行以下命令"
 
-msgid "This control server runs a development build with no release installer. Build the agent from the same source revision for the new server's architecture and install it as <0>dockwell</0>."
-msgstr "这台控制服务器运行的是开发构建，没有对应的发行版安装程序。请使用相同修订版本的源代码，为新服务器的架构构建代理，并将其安装为 <0>dockwell</0>。"
+msgid "Run this on the new server"
+msgstr "在新服务器上运行此命令"
 
-msgid "Watch it appear"
-msgstr "等待它出现"
+msgid "Set public address"
+msgstr "设置公网地址"
+
+msgid "This command expired"
+msgstr "此命令已过期"
+
+msgid "Waiting for the server to join"
+msgstr "正在等待服务器加入"
+
+#. placeholder {0}: left(expires - now)
+msgid "Works once · expires in {0}"
+msgstr "仅可使用一次 · {0}后过期"
+
+msgid "Your apps stay where they are. New ones ask where to run."
+msgstr "你的应用保持原位，新应用会询问在哪里运行。"
+
+msgid "Your passkey didn't confirm it, so there's no command yet. Try again."
+msgstr "通行密钥未确认，因此尚未生成命令。请重试。"
+
+msgid "{host} may not lead back to {controlName}"
+msgstr "从外部可能无法通过 {host} 连回 {controlName}"
+
+msgid "{hours} h"
+msgstr "{hours} 小时"
+
+msgid "{joinedName} joined"
+msgstr "{joinedName} 已加入"
+
+msgid "{joinedName} joined, starting its agent"
+msgstr "{joinedName} 已加入，正在启动代理"
+
+msgid "{minutes} min"
+msgstr "{minutes} 分钟"
 
 msgid "Back to the server"
 msgstr "返回服务器"
@@ -9346,12 +9418,6 @@ msgstr "{size} · 未使用"
 
 msgid "{size} · {inUse} in use"
 msgstr "{size} · 已用 {inUse}"
-
-msgid "Add one with a ticket from the control server."
-msgstr "用控制服务器生成的票据添加一台。"
-
-msgid "Add server"
-msgstr "添加服务器"
 
 msgid "CPU {cpu}%"
 msgstr "CPU {cpu}%"
@@ -12243,9 +12309,6 @@ msgstr "{count} 秒"
 
 msgid "{count} s ago"
 msgstr "{count} 秒前"
-
-msgid "{minutes} min"
-msgstr "{minutes} 分钟"
 
 msgid "{minutes} min {seconds} s"
 msgstr "{minutes} 分 {seconds} 秒"

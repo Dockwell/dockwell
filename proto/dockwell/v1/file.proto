@@ -309,6 +309,12 @@ message ListFilesRequest {
   // path, not a person opening one. Files never sets it. Numbered apart, as open
   // work adds to this message.
   bool lookup = 60;
+  // Lists only the entries whose names hold this, case aside, such as "error":
+  // a search through the whole directory, however large. Empty lists every entry.
+  // A server whose agent is older than the control plane can't: update it.
+  string match = 230;
+  // Lists the page after the one whose next_page this is. Empty lists the first.
+  string page = 231;
 }
 
 // ListFilesResponse is what a directory holds.
@@ -319,9 +325,13 @@ message ListFilesResponse {
   FileEntry directory = 2;
   // What it holds, by name.
   repeated FileEntry entries = 3;
-  // True when the directory holds more than a listing can carry, so these
-  // are some of its entries, in no useful order but their names.
+  // True when the directory holds more than a listing can carry, so these are
+  // some of its entries. From an up-to-date agent they're the first in name
+  // order after the page asked for, and next_page lists the rest.
   bool truncated = 4;
+  // What to pass as page for the entries after these, in name order. Empty when
+  // there are no more, and from an agent older than the control plane.
+  string next_page = 230;
 }
 
 // ReadFileRequest names a file on a server.
