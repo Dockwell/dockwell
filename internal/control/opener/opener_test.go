@@ -37,7 +37,28 @@ type stand struct {
 	follows []context.CancelFunc
 	// sets are the Set-Cookie lines the app answers with.
 	sets []string
+	// open is how many connections to the app are open, wait what the app does
+	// before it answers, and full has the server refuse a connection as one that
+	// carries as many as it does.
+	open int
+	wait func()
+	full bool
 }
+
+// counted is a connection to the app, which the stand counts while it's open.
+type counted struct {
+	net.Conn
+	s       *stand
+	closing sync.Once
+}
+
+func (c *counted) Close() error {
+	c.closing.Do(func() { c.s.mu.Lock(); c.s.open--; c.s.mu.Unlock() })
+	return c.Conn.Close()
+}
+
+// opened is how many connections to the app are open.
+func (s *stand) opened() int { s.mu.Lock(); defer s.mu.Unlock(); return s.open }
 
 func newStand(t *testing.T) *stand {
 	t.Helper()
@@ -53,8 +74,11 @@ func newStand(t *testing.T) *stand {
 		}
 		s.mu.Lock()
 		s.seen = append(s.seen, r.Clone(context.Background()))
-		sets := s.sets
+		sets, wait := s.sets, s.wait
 		s.mu.Unlock()
+		if wait != nil {
+			wait()
+		}
 		for _, line := range sets {
 			w.Header().Add("Set-Cookie", line)
 		}
@@ -65,8 +89,19 @@ func newStand(t *testing.T) *stand {
 		Dial: func(ctx context.Context, target opener.Target) (net.Conn, error) {
 			s.mu.Lock()
 			s.dialed = append(s.dialed, target)
+			full := s.full
 			s.mu.Unlock()
-			return (&net.Dialer{}).DialContext(ctx, "tcp", strings.TrimPrefix(app.URL, "http://"))
+			if full {
+				return nil, fmt.Errorf("%w: srv_1: this server carries 16 connections to apps opened through the panel already", opener.ErrFull)
+			}
+			conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", strings.TrimPrefix(app.URL, "http://"))
+			if err != nil {
+				return nil, err
+			}
+			s.mu.Lock()
+			s.open++
+			s.mu.Unlock()
+			return &counted{Conn: conn, s: s}, nil
 		},
 		Live:   func(context.Context, auth.Client, string) bool { s.mu.Lock(); defer s.mu.Unlock(); return s.live },
 		Key:    []byte("a key for the test, of no meaning"),
@@ -319,8 +354,16 @@ func TestAnUpgradedConnectionEndsWithItsSession(t *testing.T) {
 		t.Fatalf("the open connection answered %q, %v", got, err)
 	}
 	s.endFollows()
-	if got, err := say("two"); err == nil {
-		t.Errorf("the upgraded connection outlived its session: it answered %q", got)
+	// Ending closes it from a goroutine of its own, within moments.
+	for i := range 50 {
+		got, err := say("two")
+		if err != nil {
+			break
+		}
+		if i == 49 {
+			t.Errorf("the upgraded connection outlived its session: it answered %q", got)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 
@@ -365,5 +408,129 @@ func TestCookiesPassAsTheyAre(t *testing.T) {
 	want := []string{`json={"a":1}; Path=/`, `spaced=a b; Path=/`, "own=1; Domain=" + label + "; Path=/", "dotted=1; Path=/; Domain=." + label, "ok=1; Path=/; HttpOnly"}
 	if got := w.Header().Values("Set-Cookie"); strings.Join(got, " | ") != strings.Join(want, " | ") {
 		t.Errorf("the browser was sent Set-Cookie %q, want %q", got, want)
+	}
+}
+
+// openAs opens target for a user's panel session, and gives its origin and cookie.
+func (s *stand) openAs(t *testing.T, user, panel string, target opener.Target) (origin string, cookie *http.Cookie) {
+	t.Helper()
+	link, origin, _, err := s.o.Ticket(user, panel, localhost, target, s.follow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return origin, s.get(t, link).Result().Cookies()[0]
+}
+
+// eventually waits up to 2 s for ok.
+func eventually(t *testing.T, ok func() bool) bool {
+	t.Helper()
+	for range 200 {
+		if ok() {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
+}
+
+// Opening an app again from the same panel session ends the session before, whose
+// cookie the new one takes the place of, with the connections it holds; another
+// panel session's stays. Each slot of the server's agent goes back that way, rather
+// than wait on a cookie the browser no longer has.
+func TestOpeningAnAppAgainEndsTheSessionBefore(t *testing.T) {
+	s := newStand(t)
+	origin, first := s.openAs(t, "usr_1", "ses_1", target)
+	if w := s.get(t, origin+"/", first); w.Code != http.StatusOK {
+		t.Fatalf("it didn't open: %d", w.Code)
+	}
+	_, elsewhere := s.openAs(t, "usr_1", "ses_2", target)
+	if w := s.get(t, origin+"/", elsewhere); w.Code != http.StatusOK {
+		t.Fatalf("it didn't open from another panel session: %d", w.Code)
+	}
+	if !eventually(t, func() bool { return s.opened() == 2 }) {
+		t.Fatalf("%d connections to the app are open, want one for each session", s.opened())
+	}
+	_, again := s.openAs(t, "usr_1", "ses_1", target)
+	if w := s.get(t, origin+"/", first); w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "session has ended") {
+		t.Errorf("the session before stayed open: %d %s", w.Code, w.Body)
+	}
+	if !eventually(t, func() bool { return s.opened() == 1 }) {
+		t.Errorf("%d connections to the app are open once it opened again, want the other panel session's alone", s.opened())
+	}
+	for _, c := range []*http.Cookie{again, elsewhere} {
+		if w := s.get(t, origin+"/", c); w.Code != http.StatusOK {
+			t.Errorf("an open session closed: %d", w.Code)
+		}
+	}
+}
+
+// Once a page's requests are done, an open session keeps one connection to the app
+// for the next, and that for Idle: the server's agent counts an idle connection
+// against its cap as a busy one, so a closed tab gives its slots back at once, and
+// the last in moments.
+func TestAnOpenSessionKeepsOneIdleConnection(t *testing.T) {
+	s := newStand(t)
+	s.o.Idle = 300 * time.Millisecond
+	page := make(chan struct{})
+	var arrived sync.WaitGroup
+	arrived.Add(6)
+	s.wait = func() { arrived.Done(); <-page }
+	origin, cookie := s.openAs(t, "usr_1", "ses_1", target)
+	var done sync.WaitGroup
+	for i := range 6 {
+		done.Go(func() {
+			if w := s.get(t, fmt.Sprintf("%s/asset/%d", origin, i), cookie); w.Code != http.StatusOK {
+				t.Errorf("asset %d: %d", i, w.Code)
+			}
+		})
+	}
+	arrived.Wait()
+	if n := s.opened(); n != 6 {
+		t.Errorf("a page of six requests at once holds %d connections, want six", n)
+	}
+	close(page)
+	done.Wait()
+	if !eventually(t, func() bool { return s.opened() == 1 }) {
+		t.Errorf("%d connections stay open once the page is done, want one", s.opened())
+	}
+	if !eventually(t, func() bool { return s.opened() == 0 }) {
+		t.Errorf("%d connections stay open past Idle", s.opened())
+	}
+}
+
+// A server that carries as many connections to opened apps as it does at once
+// says so, and whose they are: other people's or their own other tabs it says to
+// wait for, the person's own tabs of other apps on it to close.
+func TestAFullServerSaysWhoseAppsFillIt(t *testing.T) {
+	s := newStand(t)
+	other := opener.Target{ServiceID: "svc_01grafana", Service: "grafana", Project: "env_1", ProjectID: "prj_1", Server: "srv_1", Port: 3000}
+	otherOrigin, theirs := s.openAs(t, "usr_2", "ses_9", other)
+	if w := s.get(t, otherOrigin+"/", theirs); w.Code != http.StatusOK {
+		t.Fatalf("their app didn't open: %d", w.Code)
+	}
+	origin, cookie := s.openAs(t, "usr_1", "ses_1", target)
+	s.mu.Lock()
+	s.full = true
+	s.mu.Unlock()
+	w := s.get(t, origin+"/", cookie)
+	if w.Code != http.StatusServiceUnavailable || w.Header().Get("Retry-After") == "" ||
+		w.Body.String() != "The server phpmyadmin runs on is busy with other open apps, as many connections as it carries at once, so Dockwell can't reach phpmyadmin now. Try again in a moment.\n" {
+		t.Errorf("a server full of other people's apps answered %d (Retry-After %q): %s", w.Code, w.Header().Get("Retry-After"), w.Body)
+	}
+
+	s.mu.Lock()
+	s.full = false
+	s.mu.Unlock()
+	mineOrigin, mine := s.openAs(t, "usr_1", "ses_1", other)
+	if w := s.get(t, mineOrigin+"/", mine); w.Code != http.StatusOK {
+		t.Fatalf("their own other app didn't open: %d", w.Code)
+	}
+	s.mu.Lock()
+	s.full = true
+	s.mu.Unlock()
+	w = s.get(t, origin+"/", cookie)
+	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "to other tabs of apps you opened through the panel too") ||
+		!strings.HasSuffix(w.Body.String(), "Close the tabs you're done with, then try again.\n") {
+		t.Errorf("a server full of their own apps answered %d: %s", w.Code, w.Body)
 	}
 }

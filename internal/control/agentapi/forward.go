@@ -16,6 +16,7 @@ import (
 	"connectrpc.com/connect"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -101,6 +102,9 @@ func (s *Session) Forward(ctx context.Context, project, service string, port uin
 		if err == nil && r.GetError() != nil {
 			err = &resource.ServerError{Server: s.name, Err: errors.New(r.GetError().GetMessage())}
 		}
+		if resource.ReasonOf(err) == enroll.ForwardsFull {
+			err = forwardsFull{err}
+		}
 		ended <- err
 	}()
 	wait := time.NewTimer(ForwardOpen)
@@ -124,6 +128,15 @@ func (s *Session) Forward(ctx context.Context, project, service string, port uin
 		return nil, ctx.Err()
 	}
 }
+
+// ErrForwardsFull is a forward the agent refused as its server carries as many
+// connections to apps opened through the panel as it does at once.
+var ErrForwardsFull = errors.New("the server carries as many forwards as it does at once")
+
+// forwardsFull is the agent's refusal, in its words, as ErrForwardsFull.
+type forwardsFull struct{ error }
+
+func (forwardsFull) Is(target error) bool { return target == ErrForwardsFull }
 
 // forwardConn is a forwarded connection: closing it ends the agent's call too.
 type forwardConn struct {

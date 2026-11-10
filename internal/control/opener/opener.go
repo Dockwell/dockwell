@@ -52,7 +52,18 @@ const (
 	// once, the six a browser holds to a host. A request past them waits for one to
 	// be free. Each is a forward its server's agent carries, which it caps.
 	maxConnsPerApp = 6
+	// idleConns is how many of them an open session keeps once their requests are
+	// done, for the next page. The agent counts an idle one against its cap as a
+	// busy one, so a session keeps one, for Idle, and a closed tab gives the rest
+	// back at once.
+	idleConns = 1
+	// idleFor is Idle's default.
+	idleFor = 10 * time.Second
 )
+
+// ErrFull is what Dial returns for a connection the server refused as it carries
+// as many to apps opened through the panel as it does at once.
+var ErrFull = errors.New("the server carries as many connections to apps opened through the panel as it does at once")
 
 // Follow starts following the panel session that asked for a ticket, and the role
 // that let it, once the ticket is opened: its context ends when either does, at
@@ -83,6 +94,9 @@ type Opener struct {
 	Logger *slog.Logger
 	// Now is the time. Nil means time.Now.
 	Now func() time.Time
+	// Idle is how long an open session keeps a connection its requests are done
+	// with. Zero means 10 s.
+	Idle time.Duration
 
 	mu       sync.Mutex
 	tickets  map[string]*ticket
@@ -111,6 +125,8 @@ type session struct {
 	stop      func()
 	transport *http.Transport
 	closing   sync.Once
+	// conns is how many connections it holds to its app, by Opener.mu.
+	conns int
 }
 
 // close ends the session's following, and with it every connection it carries.
@@ -278,8 +294,20 @@ func (o *Opener) open(w http.ResponseWriter, r *http.Request, label string) {
 	if o.sessions == nil {
 		o.sessions = map[string]*session{}
 	}
+	// Opening the app again from the same panel session ends the session before,
+	// whose cookie this one takes the place of, and the connections it holds.
+	var earlier []*session
+	for k, old := range o.sessions {
+		if old.session == t.session && old.label == t.label {
+			delete(o.sessions, k)
+			earlier = append(earlier, old)
+		}
+	}
 	o.sessions[cookie] = s
 	o.mu.Unlock()
+	for _, old := range earlier {
+		old.close()
+	}
 	// Signing out, a revoked session or a lost role ends it at once, connections and all.
 	context.AfterFunc(ctx, func() { o.end(cookie) })
 	o.Logger.InfoContext(r.Context(), "opened an app through the panel",
@@ -356,11 +384,18 @@ func (o *Opener) proxyFor(s *session) (*httputil.ReverseProxy, *http.Transport) 
 			if err != nil {
 				return nil, err
 			}
-			return closeWith(s.ctx, conn), nil
+			o.mu.Lock()
+			s.conns++
+			o.mu.Unlock()
+			return closeWith(s.ctx, conn, func() {
+				o.mu.Lock()
+				s.conns--
+				o.mu.Unlock()
+			}), nil
 		},
 		MaxConnsPerHost:       maxConnsPerApp,
-		MaxIdleConnsPerHost:   4,
-		IdleConnTimeout:       90 * time.Second,
+		MaxIdleConnsPerHost:   idleConns,
+		IdleConnTimeout:       o.idle(),
 		ResponseHeaderTimeout: 2 * time.Minute,
 	}
 	return &httputil.ReverseProxy{
@@ -380,26 +415,63 @@ func (o *Opener) proxyFor(s *session) (*httputil.ReverseProxy, *http.Transport) 
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			o.Logger.WarnContext(r.Context(), "can't reach an opened app", slog.String("service", target.ServiceID), slog.String("error", err.Error()))
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.WriteHeader(http.StatusBadGateway)
-			_, _ = fmt.Fprintf(w, "Dockwell can't reach %s: %v\n", target.Service, err)
+			if !errors.Is(err, ErrFull) {
+				w.WriteHeader(http.StatusBadGateway)
+				_, _ = fmt.Fprintf(w, "Dockwell can't reach %s: %v\n", target.Service, err)
+				return
+			}
+			w.Header().Set("Retry-After", "10")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			if o.heldBesides(s) > 0 {
+				_, _ = fmt.Fprintf(w, "The server %s runs on carries as many connections as it does at once, to other tabs of apps you opened through the panel too, so Dockwell can't reach %s now. Close the tabs you're done with, then try again.\n", target.Service, target.Service)
+				return
+			}
+			_, _ = fmt.Fprintf(w, "The server %s runs on is busy with other open apps, as many connections as it carries at once, so Dockwell can't reach %s now. Try again in a moment.\n", target.Service, target.Service)
 		},
 	}, transport
 }
 
-// tiedConn is a connection that closes when its session ends.
+func (o *Opener) idle() time.Duration {
+	if o.Idle > 0 {
+		return o.Idle
+	}
+	return idleFor
+}
+
+// heldBesides is how many connections the user of s holds to apps on its server
+// through open sessions other than s, which closing their tabs gives back.
+func (o *Opener) heldBesides(s *session) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	n := 0
+	for _, other := range o.sessions {
+		if other != s && other.user == s.user && other.target.Server == s.target.Server {
+			n += other.conns
+		}
+	}
+	return n
+}
+
+// tiedConn is a connection that closes when its session ends, and says when it's
+// closed.
 type tiedConn struct {
 	net.Conn
-	stop func() bool
+	stop    func() bool
+	closed  func()
+	closing sync.Once
 }
 
 func (c *tiedConn) Close() error {
-	c.stop()
+	c.closing.Do(func() {
+		c.stop()
+		c.closed()
+	})
 	return c.Conn.Close()
 }
 
-// closeWith has conn close when ctx ends.
-func closeWith(ctx context.Context, conn net.Conn) net.Conn {
-	return &tiedConn{Conn: conn, stop: context.AfterFunc(ctx, func() { _ = conn.Close() })}
+// closeWith has conn close when ctx ends, and calls closed once it's closed.
+func closeWith(ctx context.Context, conn net.Conn, closed func()) net.Conn {
+	return &tiedConn{Conn: conn, stop: context.AfterFunc(ctx, func() { _ = conn.Close() }), closed: closed}
 }
 
 // ours reports a cookie of Dockwell's, which no app gets or sets.

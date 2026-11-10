@@ -376,7 +376,11 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 					if !ok {
 						return nil, fmt.Errorf("the server %s isn't connected, so its apps don't open", t.Server)
 					}
-					return s.Forward(ctx, t.Project, t.Service, t.Port)
+					conn, err := s.Forward(ctx, t.Project, t.Service, t.Port)
+					if errors.Is(err, agentapi.ErrForwardsFull) {
+						return nil, fmt.Errorf("%w: %w", opener.ErrFull, err)
+					}
+					return conn, err
 				},
 				Live: cfg.Auth.SessionLive, Key: key, Logger: cfg.Logger,
 			}

@@ -40,8 +40,12 @@ const (
 	maxForwards = 16
 )
 
-// errTooManyForwards is a forward past maxForwards.
-var errTooManyForwards = fmt.Errorf("this server carries %d connections to apps opened through the panel already, the most it carries at once. Close tabs of apps you opened through the panel, then try again", maxForwards)
+// errTooManyForwards is a forward past maxForwards. Its call says so as
+// enroll.ForwardsFull, for the control plane to say whose they are.
+var errTooManyForwards = fmt.Errorf("this server carries %d connections to apps opened through the panel already, the most it carries at once", maxForwards)
+
+// tooManyForwards is errTooManyForwards in plain words.
+var tooManyForwards = fmt.Sprintf("This server carries %d connections to apps opened through the panel already, the most it carries at once, so it opens the next once one closes. Try again in a moment.", maxForwards)
 
 // forwardPool is the connections forwards go over, a few forwards to each, and
 // how many forwards there are.
@@ -110,6 +114,11 @@ func (c *calls) forward(ctx context.Context, call *agentv1.ForwardCall) *agentv1
 		return fail(errors.New("this agent can't reach Docker, so it opens no app"))
 	}
 	client, release, err := c.cfg.forwards.take(c.cfg.Identity)
+	if errors.Is(err, errTooManyForwards) {
+		full := fail(err)
+		full.GetError().Reason, full.GetError().Plain = enroll.ForwardsFull, tooManyForwards
+		return full
+	}
 	if err != nil {
 		return fail(err)
 	}

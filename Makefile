@@ -197,7 +197,7 @@ transfers-load: build-go build-agent ## Measure an agent's memory while four fil
 	scripts/transfers-load.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: forwards-load
-forwards-load: build-go build-agent ## Measure an agent's memory while four apps opened through the panel carry 32 connections, on a fake Docker
+forwards-load: build-go build-agent ## Measure an agent's memory while four apps opened through the panel carry 16 connections, on a fake Docker
 	scripts/forwards-load.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: docker-e2e

@@ -450,7 +450,7 @@ const (
 // which an agent carries dozens of at once where it carries a few transfers: its
 // connection takes in at most ForwardWindow of each stream, and ForwardsPerConn
 // of them in all, before the agent writes it to the app. An upload to an app that
-// reads slowly waits there, so 32 forwards hold 2 MiB at most, where a
+// reads slowly waits there, so 16 forwards hold 1 MiB at most, where a
 // transfer's window took an agent past its 40 MB (ADR 0061).
 func (i *Identity) ForwardClient() (client agentv1connect.AgentServiceClient, release func(), err error) {
 	cfg, err := i.ClientTLS()
@@ -472,6 +472,9 @@ const (
 	// ForwardsPerConn is how many forwards share a connection, whose window is
 	// theirs together, so none waits on another's.
 	ForwardsPerConn = 4
+	// ForwardsFull is the reason of a forward the agent refuses as it carries as
+	// many as it does at once (CallError.reason).
+	ForwardsFull = "forwards_full"
 )
 
 // httpClient speaks HTTP/2 over TLS, through a proxy if the environment
