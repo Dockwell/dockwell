@@ -140,26 +140,37 @@ func TestPick(t *testing.T) {
 	}
 }
 
-// Docker's error is news of a service only for a container that stands alone and
-// is of a revision its record covers.
-func TestCouldntStart(t *testing.T) {
+// A record covers a container that was taken on, one made for a revision no later
+// than its own, and one that says no revision when its image is the record's;
+// never one of another image. Docker's error is news only of one that stands
+// alone and is covered.
+func TestCovered(t *testing.T) {
 	for _, tc := range []struct {
-		sole               bool
-		revision, recorded int64
-		want               bool
+		name     string
+		s        Stand
+		recorded int64
+		tie      ImageTie
+		want     bool
 	}{
-		{true, 3, 3, true},
-		{true, 1, 3, true}, // a fill moved the record on
-		{true, 4, 3, false},
-		{true, 0, 3, false},
-		{true, -1, 3, false},
-		{true, 0, 0, false},
-		{false, 3, 3, false},
-		{false, 4, 3, false},
+		{"the record's own revision", Stand{Revision: 3}, 3, ImageUnknown, true},
+		{"an earlier one, as a fill leaves it", Stand{Revision: 1}, 3, ImageSame, true},
+		{"a later one, which never passed", Stand{Revision: 4}, 3, ImageSame, false},
+		{"taken on, with no revision", Stand{Adopted: true}, 3, ImageUnknown, true},
+		{"taken on, of the record's image", Stand{Adopted: true}, 3, ImageSame, true},
+		{"taken on, of another image", Stand{Adopted: true}, 3, ImageOther, false},
+		{"no revision, of the record's image, as an older release made it", Stand{}, 3, ImageSame, true},
+		{"no revision, and nothing known of its image", Stand{}, 3, ImageUnknown, false},
+		{"no revision, of another image", Stand{}, 3, ImageOther, false},
+		{"the record's revision, of another image, as a pull that never passed", Stand{Revision: 3}, 3, ImageOther, false},
+		{"the record's revision, of its image", Stand{Revision: 3}, 3, ImageSame, true},
 	} {
-		if got := CouldntStart(tc.sole, tc.revision, tc.recorded); got != tc.want {
-			t.Errorf("alone=%t, of revision %d, for a record at %d: %t, want %t", tc.sole, tc.revision, tc.recorded, got, tc.want)
+		got, why := tc.s.Covered(tc.recorded, tc.tie)
+		if got != tc.want || got == (why != "") {
+			t.Errorf("%s: covered=%t, why=%q; want %t, with why only when it isn't", tc.name, got, why, tc.want)
 		}
+	}
+	if CouldntStart(false, true) || CouldntStart(true, false) || !CouldntStart(true, true) {
+		t.Error("Docker's error is news only of one that stands alone and is covered")
 	}
 	for _, tc := range []struct {
 		label string

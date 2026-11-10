@@ -11,6 +11,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/service"
 )
@@ -148,6 +149,17 @@ func (s *stand) another(t *testing.T, number, state string) string {
 		if s.revision == "none" {
 			delete(cfg.Labels, docker.LabelRevision)
 		}
+	}
+	if s.adopted {
+		cfg.Labels[docker.LabelAdopted] = "web"
+	}
+	if s.otherImage {
+		// As a pull that found a newer image made it: the same tag, another image.
+		s.e.Registry["nginx:1.28"] = dockertest.Image{Config: docker.Config{Cmd: []string{"nginx", "-g", "daemon off;"}}}
+		if err := s.e.Client().PullImage(t.Context(), "nginx:1.28", nil); err != nil {
+			t.Fatal(err)
+		}
+		cfg.Image = "nginx:1.28"
 	}
 	name := "web-another-" + number + "-" + state
 	id, err := s.e.Client().CreateContainer(t.Context(), name, &docker.CreateRequest{Config: cfg, HostConfig: web.HostConfig})
@@ -463,37 +475,86 @@ func TestWithMoreThanOneContainerNothingIsStarted(t *testing.T) {
 	}
 }
 
-// Alone, a container Docker couldn't start is started, as before. Alone, but of
-// a revision the record doesn't cover, it isn't: a later one is a deploy that
-// never passed, and one that says none wasn't made by Dockwell.
+// Alone, a container Docker couldn't start is started when its record covers it:
+// made for a revision no later than the record's, or taken on, or, saying no
+// revision, as one a release from before that label made, of the record's own
+// image. One the record doesn't cover is left down: not started, not noted as
+// stopped, as nobody stopped it, and Activity is told once why. Of another image
+// than the record's it's never covered, whatever it says: a pull that found a
+// newer image labels its container with the revision the record already has.
 func TestOneThatCouldntStartIsStartedOnlyWhenTheRecordCoversIt(t *testing.T) {
 	for _, tc := range []struct {
-		revision string
-		started  bool
+		name                string
+		revision            string
+		adopted, otherImage bool
+		record              string // what the record says of its image: "id", "digest" or "nothing"
+		started             bool
+		why                 string
 	}{
-		{"1", true}, // the record's own
-		{"2", false},
-		{"none", false},
-		{"0", false},
-		{"-1", false},
-		{"not a number", false},
+		{"the record's own revision", "1", false, false, "id", true, ""},
+		{"a later revision, which never passed", "2", false, false, "id", false, "later revision"},
+		{"taken on, with no revision", "none", true, false, "id", true, ""},
+		{"taken on, and a record with only a digest", "none", true, false, "digest", true, ""},
+		{"taken on, and a record that names no image", "none", true, false, "nothing", true, ""},
+		{"no revision, of the record's image, as an older release made it", "none", false, false, "id", true, ""},
+		{"no revision, of the record's image by its digest, as after a fill", "none", false, false, "digest", true, ""},
+		{"no revision, and a record that names no image", "none", false, false, "nothing", false, "nothing on it says"},
+		{"a revision that isn't one, of the record's image", "not a number", false, false, "id", true, ""},
+		{"no revision, of another image", "none", false, true, "id", false, "another image"},
+		{"the record's revision, of another image, as a pull that never passed", "1", false, true, "id", false, "another image"},
+		{"the record's revision, of another image by its digest", "1", false, true, "digest", false, "another image"},
+		{"taken on, of another image", "none", true, true, "id", false, "another image"},
 	} {
-		t.Run("revision "+tc.revision, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			s := newStand(t)
 			s.run(t, webRef, nginx, nil)
 			own := s.e.Container("web").ID
-			s.revision = tc.revision
+			rec, _, _ := s.store.Read(webRef)
+			switch tc.record {
+			case "digest":
+				rec.Image = resource.Image{Digest: rec.Image.Digest}
+			case "nothing":
+				rec.Image = resource.Image{}
+			}
+			if err := s.store.Keep(rec); err != nil {
+				t.Fatal(err)
+			}
+			s.revision, s.adopted, s.otherImage = tc.revision, tc.adopted, tc.otherImage
 			only := s.another(t, "2", "failed")
-			s.e.Remove(own) // what the record described is gone, and this is all there is
+			s.e.Remove(own) // what ran is gone, and this is all there is of the service
 			s.presence.set(false, time.Now().Add(-time.Hour))
 			s.noted(t)
+			if rec, _, _ := s.store.Read(webRef); rec.Stopped {
+				t.Fatal("right after the monitor's list, one Docker couldn't start is noted as stopped")
+			}
+			s.pass(t)
 			s.pass(t)
 			c, err := s.e.Client().InspectContainer(t.Context(), only)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if c.State.Running != tc.started {
-				t.Fatalf("of revision %s, alone, it runs=%t; want %t (the journal says %+v)", tc.revision, c.State.Running, tc.started, s.said(webRef))
+				t.Fatalf("it runs=%t; want %t (the journal says %+v)", c.State.Running, tc.started, s.said(webRef))
+			}
+			if tc.started {
+				return
+			}
+			if rec, _, _ := s.store.Read(webRef); rec.Stopped {
+				t.Error("left down, it was noted as stopped, which nobody did")
+			}
+			entries, _, _ := s.journal.Pending()
+			if len(entries) != 1 || entries[0].What != desired.Waiting || !strings.Contains(entries[0].Reason, "the agent leaves it down") ||
+				!strings.Contains(entries[0].Reason, tc.why) || !strings.Contains(entries[0].Reason, "Start it from the control plane") {
+				t.Errorf("after two looks the journal says %+v; want one entry that it was left down, with %q, and what to do", entries, tc.why)
+			}
+			if tc.record == "nothing" {
+				return // with no image in its record, it couldn't be made again either
+			}
+			// Gone later, it's made again from its record, as nobody stopped it.
+			s.e.Remove(only)
+			s.pass(t)
+			if c := s.e.Container("web"); c == nil || !c.State.Running {
+				t.Errorf("gone later, it wasn't made again: %+v", s.said(webRef))
 			}
 		})
 	}
@@ -511,6 +572,70 @@ func TestOneThatCouldntStartIsStartedOnlyWhenTheRecordCoversIt(t *testing.T) {
 	if c := s.e.Container("web"); c == nil || !c.State.Running {
 		t.Fatalf("a container of an earlier revision than its record's, which a fill leaves, wasn't started: %+v", s.said(webRef))
 	}
+}
+
+// What the monitor's list notes, read right after it and before any look of the
+// reconciler's, which would correct it. A stop someone made while a failed
+// rollout's leftover sits beside the one that ran is noted as a stop at once: if
+// it weren't, and both were pruned before the control plane went away, the
+// service would be made again. One Docker couldn't start, alone, isn't a stop.
+func TestWhatTheMonitorsListNotesOfAnError(t *testing.T) {
+	stopped := func(t *testing.T, s *stand) bool {
+		t.Helper()
+		rec, ok, err := s.store.Read(webRef)
+		if err != nil || !ok {
+			t.Fatalf("the record reads %t, %v", ok, err)
+		}
+		return rec.Stopped
+	}
+	for _, revision := range []string{"2", "1", "none"} {
+		t.Run("a leftover of revision "+revision+" beside one a person stops", func(t *testing.T) {
+			s := newStand(t)
+			s.run(t, webRef, nginx, nil)
+			live := s.e.Container("web").ID
+			s.revision = revision
+			left := s.another(t, "2", "failed")
+			s.presence.set(true, time.Now())
+			s.noted(t)
+			if stopped(t, s) {
+				t.Fatal("with the service running, its leftover had it noted as stopped")
+			}
+			if err := s.e.Client().StopContainer(t.Context(), live, time.Second); err != nil {
+				t.Fatal(err)
+			}
+			s.noted(t)
+			if !stopped(t, s) {
+				t.Fatal("right after the list, a stop someone made isn't noted: the leftover's error was taken for news")
+			}
+			// Both pruned, and only then the control plane goes away: it waits.
+			s.e.Remove(left)
+			s.e.Remove(live)
+			s.presence.set(false, time.Now().Add(-time.Hour))
+			s.pass(t)
+			if c := s.e.Container("web"); c != nil {
+				t.Fatal("made again what someone stopped")
+			}
+		})
+	}
+	t.Run("one Docker couldn't start, alone", func(t *testing.T) {
+		for _, revision := range []string{"", "2", "none"} {
+			s := newStand(t)
+			s.run(t, webRef, nginx, nil)
+			own := s.e.Container("web").ID
+			s.revision = revision
+			if revision == "" {
+				s.e.FailedToStart("web", "port is already allocated")
+			} else {
+				s.another(t, "2", "failed")
+				s.e.Remove(own)
+			}
+			s.presence.set(true, time.Now())
+			s.noted(t)
+			if stopped(t, s) {
+				t.Fatalf("of revision %q, alone, one Docker couldn't start is noted as stopped", revision)
+			}
+		}
+	})
 }
 
 // A twin made by hand that Docker couldn't start, beside the real one, stopped

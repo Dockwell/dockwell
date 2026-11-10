@@ -43,8 +43,10 @@ type stand struct {
 	held     *unfinished
 	r        *reconciler
 	// revision is the revision label another gives what it makes: a number,
-	// "none" for no label, or empty for the one web has.
-	revision string
+	// "none" for no label, or empty for the one web has. adopted has it marked
+	// as taken on, and otherImage made from another image than web's.
+	revision            string
+	adopted, otherImage bool
 }
 
 const standEnv = "env_01KAT4ZR6E3V0Y5XBKZB5D9Q6M"

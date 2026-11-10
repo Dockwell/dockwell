@@ -23,9 +23,16 @@ type Stand struct {
 	// Dockwell didn't make is: it stands only where nothing numbered does.
 	Number int
 	ID     string
-	// Revision is the revision it was made for, or 0 for one that doesn't say,
-	// as one made by hand doesn't.
+	// Revision is the revision it was made for, or 0 for one that doesn't say:
+	// one a release from before the label made, one that was taken on, or one
+	// made by hand.
 	Revision int64
+	// Adopted says it was taken on, as the 1Panel importer and Adopt do: it
+	// wasn't made by Dockwell, and its record describes it all the same.
+	Adopted bool
+	// Image is the ID of the image it was made from, where its own state was
+	// read; a list doesn't fill it.
+	Image string
 }
 
 // Leaving says Docker is removing it, or gave up on removing it. One that's
@@ -57,12 +64,15 @@ func (s Stand) Over(b Stand) bool {
 
 // Stand is what the list says of c, for choosing among a service's containers.
 func (c *ContainerSummary) Stand() Stand {
-	return Stand{State: c.State, Number: c.Number(), ID: c.ID, Revision: revisionOf(c.Labels)}
+	return Stand{State: c.State, Number: c.Number(), ID: c.ID, Revision: revisionOf(c.Labels), Adopted: c.Labels[LabelAdopted] != ""}
 }
 
 // Stand is what c's own state says of it, with its number among its service's.
 func (c *Container) Stand(number int) Stand {
-	return Stand{State: c.State.Status, Number: number, ID: c.ID, Revision: revisionOf(c.Config.Labels)}
+	return Stand{
+		State: c.State.Status, Number: number, ID: c.ID, Revision: revisionOf(c.Config.Labels),
+		Adopted: c.Config.Labels[LabelAdopted] != "", Image: c.Image,
+	}
 }
 
 func revisionOf(labels map[string]string) int64 {
@@ -118,23 +128,64 @@ func (p *Pick) Leaving() (Stand, bool) { return p.leaving, p.hasLeaving }
 // leaving.
 func (p *Pick) Sole() bool { return p.has && p.others == 0 }
 
+// ImageTie is how the image a container was made from stands to the one its
+// record says ran.
+type ImageTie int
+
+const (
+	// ImageUnknown is when nothing says: the record names no image, or Docker
+	// couldn't be asked.
+	ImageUnknown ImageTie = iota
+	// ImageSame is the record's own image.
+	ImageSame
+	// ImageOther is another image than the record's.
+	ImageOther
+)
+
+// Covered reports whether a record at revision recorded, whose image stands to
+// the container's as tie says, describes the container: whether it's what the
+// record says the server should run, and so the agent's to start when Docker
+// couldn't. It says why not, as the end of a sentence, for Activity.
+//
+//   - Of another image than the record's, it isn't, whatever its labels say: a
+//     restart, or a pull that found a newer image, makes its container for the
+//     revision the record already has, and that image never passed here.
+//   - One that was taken on is, as its record was made of it as it stood.
+//   - One made for a revision is when that's no later than the record's. A
+//     record is only ever of a revision that was applied and passed, so a later
+//     one is of a deploy that never did. An earlier one is the record's own: a
+//     fill, or a step that left the container as it was, moves the record on
+//     without making it again.
+//   - One that says no revision, as a release from before the label made it, or
+//     a hand did, is only when its image is known to be the record's: nothing
+//     else on it ties it to what last applied.
+func (s Stand) Covered(recorded int64, tie ImageTie) (covered bool, why string) {
+	switch {
+	case tie == ImageOther:
+		return false, "it was made from another image than the one this server last ran, which never passed here"
+	case s.Adopted:
+		return true, ""
+	case s.Revision > recorded:
+		return false, "it was made for a later revision than the last that applied here, by a deploy that never passed"
+	case s.Revision >= 1:
+		return true, ""
+	case tie == ImageSame:
+		return true, ""
+	}
+	return false, "nothing on it says which revision it was made for, and its image can't be told to be the one this server last ran"
+}
+
 // CouldntStart reports whether an error Docker left in the state of the
 // container that stands, as it does of one it tried to start and couldn't, is
-// news of the service that the agent may act on by starting it, for a record at
-// revision recorded (ADR 0054). It is only when both hold:
+// news of the service that the agent may act on by starting it (ADR 0054). It is
+// only when both hold:
 //
 //   - The container stands alone. Beside another that isn't leaving, what a
 //     rollout that failed left behind, or a twin made by hand, is the one with
 //     the error as likely as not, and a stop of the other is what happened to
 //     the service. Then the error is no news: nothing is started, and the
 //     service is noted as it would be with no error.
-//   - It is of a revision the record covers: one it says, from 1 up to the
-//     record's. A record is only ever of a revision that was applied and
-//     passed, so a container of a later one is of a deploy that never did, and
-//     one that says none wasn't made by Dockwell. Neither is what the record
-//     describes, and the agent never starts what it has no record of. An
-//     earlier one is the record's own: a fill, or a step that left the
-//     container as it was, moves the record on without making it again.
-func CouldntStart(sole bool, revision, recorded int64) bool {
-	return sole && revision >= 1 && revision <= recorded
-}
+//   - Its record covers it (Covered). One that stands alone and isn't covered is
+//     left down, and isn't noted as stopped either: nobody stopped it. The agent
+//     says on Activity that it left it down, and why.
+func CouldntStart(sole, covered bool) bool { return sole && covered }

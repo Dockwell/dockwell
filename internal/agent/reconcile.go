@@ -310,11 +310,25 @@ func (r *reconciler) runs(ctx context.Context, rv resource.Reviver, rec desired.
 			return
 		}
 		// Docker's error is news of the service only as docker.CouldntStart says,
-		// here as in the monitor's list: beside another container, or of a
-		// revision the record doesn't cover, it's as if there were none, so
-		// nothing is started and the service is noted as stopped.
-		if !docker.CouldntStart(st.Sole, st.Revision, rec.Revision) {
-			st.Failed = ""
+		// here as in the monitor's list. Beside another container it's as if
+		// there were none: nothing is started, and the service is noted as
+		// stopped. Alone, on a container its record doesn't cover, it isn't a
+		// stop and isn't the agent's to start either: it's left down, as it
+		// stands in the record, and Activity is told why.
+		if st.Failed != "" && !st.Running {
+			of := docker.Stand{Revision: st.Revision, Adopted: st.Adopted, Image: st.Image}
+			covered, why := of.Covered(rec.Revision, r.imageTie(look, rec, st.Image))
+			switch {
+			case docker.CouldntStart(st.Sole, covered):
+			case !st.Sole:
+				st.Failed = ""
+			default:
+				if act && st.Wants {
+					r.journal(ref, desired.Waiting, fmt.Sprintf("Docker couldn't start it (%s), and the agent leaves it down: %s. "+
+						"Start it from the control plane, or apply it again", st.Failed, why))
+				}
+				return
+			}
 		}
 		r.seen(ref, st, at)
 		if act && !st.Running && st.Failed != "" && st.Wants {
@@ -354,6 +368,37 @@ func (r *reconciler) runs(ctx context.Context, rv resource.Reviver, rec desired.
 	making, cancelMaking := context.WithTimeout(resource.WithImageVolumes(resource.WithValues(ctx, rec.Values), rec.Volumes), makeTimeout)
 	defer cancelMaking()
 	r.make(making, rec, spec, note)
+}
+
+// imageTie says how the image a container was made from stands to the one its
+// record says ran: by its ID where the record has one, and otherwise by the
+// digest a fill gave it, which Docker is asked for.
+func (r *reconciler) imageTie(ctx context.Context, rec desired.Record, image string) docker.ImageTie {
+	switch {
+	case image == "":
+		return docker.ImageUnknown
+	case rec.Image.ID != "":
+		if rec.Image.ID == image {
+			return docker.ImageSame
+		}
+		return docker.ImageOther
+	case rec.Image.Digest == "" || r.cfg.Docker == nil:
+		return docker.ImageUnknown
+	}
+	img, err := r.cfg.Docker.InspectImage(ctx, image)
+	if err != nil {
+		return docker.ImageUnknown
+	}
+	want := digestOf(rec.Image.Digest)
+	for _, known := range img.RepoDigests {
+		if digestOf(known) == want {
+			return docker.ImageSame
+		}
+	}
+	if len(img.RepoDigests) == 0 {
+		return docker.ImageUnknown // built or loaded here: it has no digest to compare
+	}
+	return docker.ImageOther
 }
 
 // seen notes how a resource stands, as of a look at at: stopped when it isn't
@@ -424,10 +469,12 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 			if err != nil {
 				continue
 			}
-			// Docker's error is news of the service only as docker.CouldntStart
-			// says: of a container that stands alone, of a revision the record
-			// covers. Otherwise the service is noted as with no error: stopped.
-			if docker.CouldntStart(of.pick.Sole(), c.Stand().Revision, was.Revision) {
+			// Docker's error is news of the service only from a container that
+			// stands alone (docker.CouldntStart). Beside another, it's as none:
+			// the service is noted as stopped. Alone, it isn't a stop, whether
+			// or not its record covers it, which the reconciler's own look
+			// goes into before it starts anything.
+			if of.pick.Sole() {
 				st.Failed = full.State.Error
 			}
 		}

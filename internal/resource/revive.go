@@ -23,11 +23,14 @@ type RunState struct {
 	// empty for one someone stopped, or that exited by itself.
 	Failed string
 	// Sole says it's the only container answering to the resource that isn't
-	// leaving, and Revision the revision it was made for, or 0 if it says none.
-	// Failed is news the agent may act on only as docker.CouldntStart says of
-	// the two.
+	// leaving. Revision, Adopted and Image are what says whether its record
+	// covers it: the revision it was made for, or 0 if it says none, whether it
+	// was taken on, and the ID of its image. Failed is news the agent may act
+	// on only as docker.CouldntStart says.
 	Sole     bool
 	Revision int64
+	Adopted  bool
+	Image    string
 	// Leaving says Docker is removing it, or gave up on removing it: "removing"
 	// or "dead". It isn't running, and that isn't a stop: a forced removal kills
 	// a container on its way out, so how it stands then is no news.

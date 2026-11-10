@@ -1206,7 +1206,7 @@ func (d *Docker) RunStateAt(ctx context.Context, t Target) (resource.RunState, e
 	policy := c.HostConfig.RestartPolicy.Name
 	return resource.RunState{
 		Exists: true, Running: c.State.Running || c.State.Restarting, Failed: c.State.Error,
-		Sole: sole, Revision: c.Stand(0).Revision,
+		Sole: sole, Revision: c.Stand(0).Revision, Adopted: c.Stand(0).Adopted, Image: c.Image,
 		ID: c.ID, Reconcile: c.Config.Labels[LabelReconcile], Created: c.State.Status == "created" && c.State.StartedAt.IsZero(),
 		Leaving: c.State.Status == "removing" || c.State.Status == "dead",
 		Wants:   policy == "unless-stopped" || policy == "always" || policy == "on-failure",
