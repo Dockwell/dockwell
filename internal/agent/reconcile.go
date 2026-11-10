@@ -377,7 +377,12 @@ func (r *reconciler) runs(ctx context.Context, rv resource.Reviver, rec desired.
 			// it stands alone, as it did when the stop was settled: with another
 			// container beside it now, which is the service isn't the agent's
 			// to say.
-			r.start(look, rv, ref, "", st.ID, lostNote)
+			if r.start(look, rv, ref, "", st.ID, lostNote) {
+				// It runs now, so what was settled is over: noted running at once,
+				// a stop that comes before the monitor's next list sees it run is
+				// settled afresh from Docker's events, as a person's.
+				r.stands(ref, desired.Standing{Volumes: st.Volumes}, r.now())
+			}
 		}
 		return
 	}
@@ -563,7 +568,7 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 			r.sight[ref] = c.ID + "!"
 			continue
 		}
-		standing, err := whyDown(look, r.cfg.Docker, append([]string{c.ID}, of.others...), at)
+		standing, err := whyDown(look, r.cfg.Docker, append([]string{c.ID}, of.others...), at, full.State)
 		cancel()
 		if err != nil {
 			continue // Docker didn't answer: the next list asks again
@@ -639,22 +644,23 @@ func (r *reconciler) madeNothing(ctx context.Context, ref resource.Ref) bool {
 }
 
 // start starts a container Docker couldn't, at most startTries times each boot,
-// waiting longer between each.
-func (r *reconciler) start(ctx context.Context, rv resource.Reviver, ref resource.Ref, failed, target, note string) {
+// waiting longer between each, and says whether it did.
+func (r *reconciler) start(ctx context.Context, rv resource.Reviver, ref resource.Ref, failed, target, note string) (started bool) {
 	if !r.canStart(ref, failed) {
-		return
+		return false
 	}
 	e, ok := r.beginAction(ref, desired.Started, note, target)
 	if !ok {
-		return
+		return false
 	}
 	if why := r.tryStart(ctx, rv, ref); why != "" {
 		// The receipt ends here, with why: left pending, the next look would
 		// take it for a start the agent was stopped in, which it wasn't.
 		r.endAction(e, desired.Waiting, why)
-		return
+		return false
 	}
 	r.endAction(e, desired.Started, note)
+	return true
 }
 
 // canStart and tryStart share the retry limit with the first start of a creation

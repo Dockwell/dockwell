@@ -641,3 +641,79 @@ func TestALostOneIsntStartedBesideAnotherThatCameSince(t *testing.T) {
 	s.pass(t)
 	s.nothingStarted(t, lost, since)
 }
+
+// The server's clock was ahead as Docker started web, and has stepped back since:
+// Docker's events up to now leave out web's start, stamped later than now. A
+// person's stop of it then has no start before it in what Docker says, which is
+// how Docker's own stop reads as it comes back from being killed. The agent takes
+// it for unsure, never for lost, and starts nothing (the check of 81a8549a2, H1).
+func TestAStopAfterTheClockWentBackIsntTakenForDockers(t *testing.T) {
+	s := newStand(t)
+	s.e.SetClockAhead(10 * time.Minute)
+	s.run(t, webRef, nginx, nil)
+	s.connected()
+	s.noted(t)
+	s.e.SetClockAhead(0) // the clock steps back
+	if err := s.e.Client().StopContainer(t.Context(), "web", time.Second); err != nil {
+		t.Fatal(err)
+	}
+	s.noted(t)
+	st := s.stands(t)
+	if st.Lost || st.Stopped || !strings.Contains(st.Unsure, "clock went back") {
+		t.Fatalf("a person's stop after the clock went back stands %+v; want unsure, for the clock", st)
+	}
+	s.r.startLost(t.Context())
+	s.presence.set(false, time.Now().Add(-time.Hour))
+	s.pass(t)
+	if s.webRuns() {
+		t.Fatal("started what a person stopped after the clock went back")
+	}
+
+	// The same stop with the clock right all along is a person's.
+	right := newStand(t)
+	right.run(t, webRef, nginx, nil)
+	right.connected()
+	right.noted(t)
+	if err := right.e.Client().StopContainer(t.Context(), "web", time.Second); err != nil {
+		t.Fatal(err)
+	}
+	right.noted(t)
+	if st := right.stands(t); !st.Stopped {
+		t.Fatalf("with the clock right, a person's stop stands %+v; want stopped", st)
+	}
+}
+
+// Docker was killed, the agent settled web as lost and started it, and a person
+// stopped it at once, before the monitor's next list saw it run. That stop is a
+// person's, settled from Docker's events as one: web isn't started again (the
+// check of 81a8549a2, H2).
+func TestAStopRightAfterTheAgentsStartIsAPersons(t *testing.T) {
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	s.connected()
+	s.noted(t)
+	s.e.DaemonKilled()
+	s.noted(t)
+	if st := s.stands(t); !st.Lost {
+		t.Fatalf("after Docker was killed it stands %+v; want lost", st)
+	}
+	s.r.startLost(t.Context())
+	if !s.webRuns() {
+		t.Fatalf("the agent didn't start what Docker stopped: %+v", s.said(webRef))
+	}
+	if err := s.e.Client().StopContainer(t.Context(), "web", time.Second); err != nil {
+		t.Fatal(err)
+	}
+	s.noted(t)
+	if st := s.stands(t); !st.Stopped || st.Lost {
+		t.Fatalf("a person's stop right after the agent's start stands %+v; want stopped", st)
+	}
+	later := time.Now().Add(time.Minute)
+	s.r.now = func() time.Time { return later } // past the wait between tries
+	s.r.startLost(t.Context())
+	s.presence.set(false, time.Now().Add(-time.Hour))
+	s.pass(t)
+	if s.webRuns() {
+		t.Fatalf("started again what a person stopped right after the agent's start: %+v", s.said(webRef))
+	}
+}

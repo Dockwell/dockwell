@@ -867,3 +867,32 @@ func TestRememberKeepsTheDigestOfWhatsGone(t *testing.T) {
 		t.Errorf("keeps the image %+v, %v", got.Image, err)
 	}
 }
+
+// A fill of a firewall rule isn't kept either: under the firewall's timer the
+// access manager keeps what was confirmed (ADR 0052), so the cache holds none.
+func TestAFillOfAFirewallRuleIsntKept(t *testing.T) {
+	store, err := desired.Open(t.TempDir(), "srv_1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := &sent{results: map[uint64]*agentv1.CallResult{}}
+	c := newCalls(context.Background(), Config{
+		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: firewall.NewFake()}),
+		Desired: store,
+	}, out.send, nil)
+	ref := resource.Ref{Kind: firewall.Kind, Scope: "srv_1", Name: "http"}
+	spec, err := resource.Encode(&resourcev1.FirewallRule{Port: 80, Action: resourcev1.FirewallAction_FIREWALL_ACTION_ALLOW, Protocol: resourcev1.Protocol_PROTOCOL_TCP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.start(&agentv1.Call{Id: 1, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Remember{Remember: &agentv1.RememberCall{
+		Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(ref), Spec: spec}, Deploy: &agentv1.Deploy{Revision: 1},
+	}}})
+	c.stop()
+	if r := out.result(1); r.GetRemember() == nil || r.GetRemember().GetKept() {
+		t.Fatalf("the fill ended with %v, want it answered and not kept", r)
+	}
+	if held := store.Holds().GetHeld(); len(held) != 0 {
+		t.Errorf("the cache keeps %v of a firewall rule, want nothing", held)
+	}
+}

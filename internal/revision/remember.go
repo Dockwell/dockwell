@@ -117,6 +117,11 @@ func (e *Engine) Remember(ctx context.Context, server string) (Filled, error) {
 		}
 		for _, res := range live {
 			ref := resource.Ref{Kind: resource.Kind(res.Kind), Scope: res.Scope, Name: res.Name}
+			// A kind under the firewall's timer isn't desired state: the access
+			// manager keeps what was confirmed (ADR 0052), so it isn't sent.
+			if e.guardsAccess(ref.Kind) {
+				continue
+			}
 			if held[ref] < int64(res.Revision) {
 				send = append(send, lacking{ref: ref, res: res})
 			}
@@ -131,7 +136,8 @@ func (e *Engine) Remember(ctx context.Context, server string) (Filled, error) {
 			placed[resource.Ref{Kind: resource.Kind(res.Kind), Scope: res.Scope, Name: res.Name}] = true
 		}
 		for ref, revision := range held {
-			if placed[ref] {
+			// One the agent shouldn't hold at all, as an earlier fill sent, goes.
+			if placed[ref] && !e.guardsAccess(ref.Kind) {
 				continue
 			}
 			known, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)

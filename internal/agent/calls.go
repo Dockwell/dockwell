@@ -1063,6 +1063,11 @@ func (c *calls) remember(ctx context.Context, call *agentv1.RememberCall) (bool,
 	if spec == nil {
 		return c.cfg.Desired.Forget(ref, revision)
 	}
+	if c.guardsAccess(ref.Kind) {
+		// Under the firewall's timer: the access manager keeps what was
+		// confirmed (ADR 0052), so it isn't desired state here.
+		return false, nil
+	}
 	scopeName := call.GetDesired().GetScopeName()
 	if scopeName != "" {
 		ctx = resource.WithScopeNames(ctx, map[string]string{ref.Scope: scopeName})

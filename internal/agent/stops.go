@@ -50,7 +50,13 @@ const lostNote = "Docker stopped it as Docker came back from being killed, which
 // service: it's the one that ran that a person stops, whichever stands now.
 // Otherwise the agent can't say which of them is the service, so it starts
 // none, and says so.
-func whyDown(ctx context.Context, c *docker.Client, ids []string, now time.Time) (desired.Standing, error) {
+//
+// ran is the state of ids[0], as Docker read it. Docker's events up to now leave
+// out every event stamped after now, so on a server whose clock went back since
+// the container started, its start is left out, and a person's stop of it would
+// read as a stop with no start before it, which is Docker's own. A container
+// whose own start time is after now is that: unsure, never lost.
+func whyDown(ctx context.Context, c *docker.Client, ids []string, now time.Time, ran docker.State) (desired.Standing, error) {
 	events, err := c.PastEvents(ctx, now)
 	if err != nil {
 		return desired.Standing{}, err
@@ -86,6 +92,8 @@ func whyDown(ctx context.Context, c *docker.Client, ids []string, now time.Time)
 	switch {
 	case stopped && started:
 		return desired.Standing{Stopped: true}, nil
+	case stopped && ran.StartedAt.After(now):
+		return desired.Standing{Unsure: unsure("the server's clock went back since it last started, so Docker's events up to now leave its start out, and its stop can't be told from Docker's own")}, nil
 	case stopped:
 		// Stopped, with no start before it in what Docker holds.
 		info, err := c.Info(ctx)

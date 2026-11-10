@@ -24,6 +24,8 @@ fi
 image=${EVIDENCE_IMAGE:-nginx:1.27-alpine}
 label=dockwell.evidence=1
 work=$(mktemp -d)
+# A Compose project of this run's own, so its clean-up can't take down a real one.
+evidence_project=dockwell-evidence-$$
 compose="$work/compose.yaml"
 events_pid=
 
@@ -31,7 +33,7 @@ say() { printf '\nevidence: === %s\n' "$*"; }
 
 cleanup() {
   [[ -n $events_pid ]] && kill "$events_pid" 2>/dev/null
-  docker compose -p evidence -f "$compose" down --timeout 1 >/dev/null 2>&1
+  docker compose -p "$evidence_project" -f "$compose" down --timeout 1 >/dev/null 2>&1
   # shellcheck disable=SC2046 # one ID a word
   docker rm -f $(docker ps -aq --filter "label=$label") >/dev/null 2>&1
   rm -rf "$work"
@@ -115,7 +117,7 @@ done
 run unless-stopped-exit0 unless-stopped sh -c 'sleep 3'
 run on-failure-exit0 on-failure sh -c 'sleep 3'
 run no-exit1 no sh -c 'sleep 3; exit 1'
-docker compose -p evidence -f "$compose" up -d >/dev/null 2>&1
+docker compose -p "$evidence_project" -f "$compose" up -d >/dev/null 2>&1
 sleep 5
 
 # The events as a client that stays connected hears them, to compare with what
@@ -132,7 +134,7 @@ for policy in unless-stopped always on-failure no; do
   docker stop -t 2 "ev-$policy-stopped" >/dev/null
   docker kill "ev-$policy-killed" >/dev/null
 done
-docker compose -p evidence -f "$compose" stop --timeout 2 compose-stopped >/dev/null 2>&1
+docker compose -p "$evidence_project" -f "$compose" stop --timeout 2 compose-stopped >/dev/null 2>&1
 sleep 4
 t2=$(date +%s)
 

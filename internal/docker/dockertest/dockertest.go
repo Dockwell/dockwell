@@ -76,6 +76,9 @@ type Image struct {
 // Engine is a fake Docker Engine.
 type Engine struct {
 	memoryKills []memoryKill
+	// ahead is how far the engine's clock is ahead of this machine's, for what it
+	// stamps its events and its containers' states with (SetClockAhead).
+	ahead time.Duration
 	// events are what the engine says happened to its containers, the newest
 	// docker.EventsHeld of them, as Docker keeps them: in memory, and gone when
 	// the engine is (DaemonKilled).
@@ -322,6 +325,18 @@ type memoryKill struct {
 	at time.Time
 }
 
+// SetClockAhead has the engine's clock run ahead of this machine's by d from now
+// on, as a server whose clock was set wrong at boot runs Docker; 0 puts it back,
+// as the clock stepping back does. What it stamped before keeps its time.
+func (e *Engine) SetClockAhead(d time.Duration) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.ahead = d
+}
+
+// wall is the engine's clock now. The caller holds the lock.
+func (e *Engine) wall() time.Time { return time.Now().Add(e.ahead) }
+
 // event is one thing the engine says happened to a container.
 type event struct {
 	action, id string
@@ -333,7 +348,7 @@ type event struct {
 func (e *Engine) emit(c *container, actions ...string) {
 	for _, a := range actions {
 		e.clock++
-		e.events = append(e.events, event{action: a, id: c.ID, at: time.Now().Add(time.Duration(e.clock) * time.Nanosecond)})
+		e.events = append(e.events, event{action: a, id: c.ID, at: e.wall().Add(time.Duration(e.clock) * time.Nanosecond)})
 	}
 	if over := len(e.events) - docker.EventsHeld; over > 0 {
 		e.events = append([]event(nil), e.events[over:]...)
@@ -522,7 +537,7 @@ func (e *Engine) FailedToStart(name, why string) {
 				c.log.end()
 				e.detach(c)
 			}
-			c.State = docker.State{Status: "exited", ExitCode: 128, Error: why, StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+			c.State = docker.State{Status: "exited", ExitCode: 128, Error: why, StartedAt: c.State.StartedAt, FinishedAt: e.wall().UTC()}
 		}
 	}
 }
@@ -816,7 +831,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		}
 		e.starts[strings.TrimPrefix(c.Name, "/")]++
 		if c.img.imported {
-			c.State = docker.State{Status: "running", Running: true, StartedAt: time.Now().UTC()}
+			c.State = docker.State{Status: "running", Running: true, StartedAt: e.wall().UTC()}
 			e.emit(c, "start")
 			close(c.started)
 			w.WriteHeader(http.StatusNoContent)
@@ -857,7 +872,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			}
 		}
 		e.clock++
-		now := time.Now().Add(time.Duration(e.clock) * time.Nanosecond).UTC()
+		now := e.wall().Add(time.Duration(e.clock) * time.Nanosecond).UTC()
 		c.State = docker.State{Status: "running", Running: true, StartedAt: now}
 		c.log.start()
 		c.log.write(docker.Stdout, c.img.Prints...)
@@ -886,7 +901,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
-		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: e.wall().UTC()}
 		c.log.end()
 		e.detach(c)
 		e.emit(c, "kill", "stop", "die")
@@ -913,7 +928,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			fail(w, http.StatusConflict, "Container %s is not running", c.ID)
 			return
 		}
-		c.State = docker.State{Status: "exited", ExitCode: 137, StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+		c.State = docker.State{Status: "exited", ExitCode: 137, StartedAt: c.State.StartedAt, FinishedAt: e.wall().UTC()}
 		c.log.end()
 		e.emit(c, "kill", "die")
 		e.detach(c)
@@ -2018,7 +2033,7 @@ func (e *Engine) Stop(name string) {
 		if c.State.Running {
 			e.emit(c, "kill", "stop", "die")
 		}
-		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: e.wall().UTC()}
 		c.log.end()
 		e.detach(c)
 	}
@@ -2029,7 +2044,7 @@ func (e *Engine) Kill(name string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if c := e.byNameOrID(name); c != nil && c.State.Running {
-		c.State = docker.State{Status: "exited", ExitCode: 137, StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+		c.State = docker.State{Status: "exited", ExitCode: 137, StartedAt: c.State.StartedAt, FinishedAt: e.wall().UTC()}
 		c.log.end()
 		e.detach(c)
 		e.emit(c, "kill", "die")
@@ -2043,7 +2058,7 @@ func (e *Engine) Exit(name string, code int) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if c := e.byNameOrID(name); c != nil && c.State.Running {
-		c.State = docker.State{Status: "exited", ExitCode: code, StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+		c.State = docker.State{Status: "exited", ExitCode: code, StartedAt: c.State.StartedAt, FinishedAt: e.wall().UTC()}
 		c.log.end()
 		e.detach(c)
 		e.emit(c, "die")
@@ -2067,7 +2082,7 @@ func (e *Engine) DaemonKilled() {
 	for _, id := range slices.Sorted(maps.Keys(e.containers)) {
 		c := e.containers[id]
 		if c.State.Running {
-			c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+			c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: e.wall().UTC()}
 			c.log.end()
 			e.detach(c)
 			e.emit(c, "kill", "stop", "die")
@@ -2077,7 +2092,7 @@ func (e *Engine) DaemonKilled() {
 		c := e.containers[id]
 		if c.HostConfig.RestartPolicy.Name == "always" && c.State.Status == "exited" {
 			e.clock++
-			c.State = docker.State{Status: "running", Running: true, StartedAt: time.Now().Add(time.Duration(e.clock) * time.Nanosecond).UTC()}
+			c.State = docker.State{Status: "running", Running: true, StartedAt: e.wall().Add(time.Duration(e.clock) * time.Nanosecond).UTC()}
 			c.log.start()
 			e.attach(c)
 			e.emit(c, "start")
@@ -2108,7 +2123,7 @@ func (e *Engine) Reboot() {
 		}
 		e.clock++
 		health := c.State.Health
-		c.State = docker.State{Status: "running", Running: true, StartedAt: time.Now().Add(time.Duration(e.clock) * time.Nanosecond).UTC(), Health: health}
+		c.State = docker.State{Status: "running", Running: true, StartedAt: e.wall().Add(time.Duration(e.clock) * time.Nanosecond).UTC(), Health: health}
 		e.attach(c)
 		e.emit(c, "start")
 	}
@@ -2126,7 +2141,7 @@ func (e *Engine) ShuttingDown() {
 		if !c.State.Running {
 			continue
 		}
-		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC()}
+		c.State = docker.State{Status: "exited", StartedAt: c.State.StartedAt, FinishedAt: e.wall().UTC()}
 		c.shutDown = true
 		c.log.end()
 		e.detach(c)
