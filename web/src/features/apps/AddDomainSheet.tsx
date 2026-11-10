@@ -3,6 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  CatalogService,
   type Change,
   ChangeService,
   ChangeState,
@@ -18,6 +19,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
+import { addressEdits } from "../catalog/access";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { type FleetState, useFleet } from "../servers/useFleet";
 import { appOf, environmentOf, nameOf } from "./app";
@@ -26,6 +28,7 @@ import { DomainRecord } from "./DomainRecord";
 import { formRefusal, proxyList, refusedField, routeName } from "./domains";
 import { FrontFields, frontOf, type InFront } from "./FrontFields";
 import { validPort } from "./form";
+import { useServices } from "./useServices";
 
 /** A domain that's refused a certificate, moved behind what's in front by editing the routes it has. */
 export interface MoveBehind {
@@ -131,6 +134,22 @@ export function AddDomainSheet({
   const leaves = !start && held && held.service !== name ? held : undefined;
   const target = useRouteTarget();
   const leavesApp = leaves ? target(leaves) : "";
+  // A catalog app builds its links from variables that follow its domain (Entry.address_variables):
+  // its first domain sets them in the same plan, rather than leaving that for after.
+  const services = useServices().data ?? [];
+  const installs = useQuery(
+    CatalogService.method.listCatalogInstalls,
+    {},
+    { enabled: service !== undefined && !start },
+  );
+  const entryId = (service && installs.data?.installs.find((i) => i.webServiceId === service.id)?.pin?.entry) || "";
+  const entry = useQuery(CatalogService.method.getCatalogEntry, { id: entryId }, { enabled: entryId !== "" }).data
+    ?.entry;
+  const firstDomain =
+    known.data !== undefined && !known.data.domains.some((d) => d.routes.some((r) => r.service === name));
+  const follows = !start && firstDomain && entry && entry.addressVariables.length > 0 ? entry : undefined;
+  const followsApp = follows?.name ?? "";
+  const followsNames = follows?.addressVariables.map((a) => a.variable).join(", ") ?? "";
 
   /** Takes you to the first field that was refused, ready to change, as New app does. */
   const revealError = () =>
@@ -199,7 +218,11 @@ export function AddDomainSheet({
     try {
       change = (
         await client.proposeChange({
-          summary: start ? t`Move ${typed} behind what's in front` : t`Send ${wanted} to ${name}`,
+          summary: start
+            ? t`Move ${typed} behind what's in front`
+            : follows
+              ? t`Send ${wanted} to ${name}, and point ${followsApp} at it`
+              : t`Send ${wanted} to ${name}`,
           edits: start
             ? start.routes.map((route) => ({
                 resource: { kind: "route", scope: environment, name: route.name },
@@ -239,6 +262,11 @@ export function AddDomainSheet({
                   },
                   ...(server ? { servers: [server] } : {}),
                 },
+                ...(follows
+                  ? addressEdits(follows, wanted, (n) =>
+                      services.find((s) => environmentOf(s) === environment && nameOf(s) === n),
+                    )
+                  : []),
               ],
         })
       ).change;
@@ -350,6 +378,12 @@ export function AddDomainSheet({
             ]}
             onChange={(event) => choose(event.target.value)}
           />
+        ) : null}
+        {follows ? (
+          <p className="app-domain-follows">
+            <Icon name="globe" size={14} />
+            <span>{t`Points ${followsApp} at it too: ${followsNames}`}</span>
+          </p>
         ) : null}
         <DomainRecord
           server={serverOf(fleet, server)}
