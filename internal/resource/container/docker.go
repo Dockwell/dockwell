@@ -1207,6 +1207,7 @@ func (d *Docker) RunStateAt(ctx context.Context, t Target) (resource.RunState, e
 	return resource.RunState{
 		Exists: true, Running: c.State.Running || c.State.Restarting, Failed: c.State.Error,
 		ID: c.ID, Reconcile: c.Config.Labels[LabelReconcile], Created: c.State.Status == "created" && c.State.StartedAt.IsZero(),
+		Leaving: c.State.Status == "removing" || c.State.Status == "dead",
 		Wants:   policy == "unless-stopped" || policy == "always" || policy == "on-failure",
 		Volumes: imageVolumes(c),
 	}, nil

@@ -22,6 +22,10 @@ type RunState struct {
 	// Failed is why Docker couldn't start it, as Docker leaves in its state. It's
 	// empty for one someone stopped, or that exited by itself.
 	Failed string
+	// Leaving says Docker is removing it, or gave up on removing it: "removing"
+	// or "dead". It isn't running, and that isn't a stop: a forced removal kills
+	// a container on its way out, so how it stands then is no news.
+	Leaving bool
 	// Wants says its restart policy has it run: unless-stopped, always or
 	// on-failure.
 	Wants bool
