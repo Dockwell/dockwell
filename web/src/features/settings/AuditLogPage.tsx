@@ -18,7 +18,6 @@ import {
 } from "@dockwell/api";
 import {
   Button,
-  Callout,
   cx,
   Icon,
   type IconName,
@@ -43,6 +42,7 @@ import { useControlPlaneClock, useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { useAuditWords } from "./auditWords";
 import "./Settings.css";
+import { ReadFailed } from "../shell/ReadFailed";
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -181,17 +181,15 @@ export function AuditLogPage() {
         {/* A phone has no room for the page's actions in its header, so export sits under the filters. */}
         {phone ? <Export asked={asked} /> : null}
         {log.error && !log.data ? (
-          <Callout
-            tone="critical"
+          <ReadFailed
+            error={log.error}
             title={t`Dockwell can't read the audit log`}
             actions={
               <Button size="sm" icon="refresh" loading={log.isFetching} onClick={() => void log.refetch()}>
                 <Trans>Try again</Trans>
               </Button>
             }
-          >
-            {sentence(log.error)}
-          </Callout>
+          />
         ) : !log.data ? (
           <div className="audit-skeleton" aria-busy="true">
             <span className="dw-sr">{t`Loading the audit log`}</span>

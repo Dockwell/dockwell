@@ -48,13 +48,14 @@ func TestUpgradeFromTaskRunsKeepsTokensTasksAndAlerts(t *testing.T) {
 			ID: run.Id, TaskID: run.TaskId, ServerID: run.ServerId, State: int32(run.State),
 			StartedAt: at, EndedAt: at.Add(time.Second), Run: encoded,
 		}
+		// The old schema keeps the owner's role on users; CreateUser now writes
+		// grants, which this schema hasn't got, so the row is written as it was then.
+		handle := `x'01'`
+		if b == store.Postgres {
+			handle = `'\x01'`
+		}
+		storetest.Exec(t, location, `INSERT INTO users (id, email, name, role, webauthn_handle, created_at) VALUES ('usr_owner', 'mira@example.com', 'Mira Chen', 'owner', `+handle+`, 5)`)
 		if err := old.Update(ctx, func(tx *store.Tx) error {
-			if err := tx.CreateUser(ctx, store.User{
-				ID: token.UserID, Email: "mira@example.com", Name: "Mira Chen",
-				Role: store.RoleOwner, WebAuthnHandle: []byte("owner handle"), CreatedAt: at,
-			}); err != nil {
-				return err
-			}
 			if err := tx.CreateAPIToken(ctx, token); err != nil {
 				return err
 			}

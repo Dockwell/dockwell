@@ -22,7 +22,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useId, useMemo, useState } from "react";
 
 import { isTransient } from "../../app/api";
-import { reasonOf, sentence } from "../../lib/errors";
+import { isRoleRefusal, reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
@@ -658,8 +658,9 @@ function Files({ server, folder, file, reading }: FilesProps) {
 function FolderProblem({ error, folder, serverId }: { error: ConnectError; folder: string; serverId: string }) {
   const { t } = useLingui();
   const reason = reasonOf(error);
-  const title =
-    reason === "file_refused"
+  const title = isRoleRefusal(error)
+    ? t`Your role doesn't cover this`
+    : reason === "file_refused"
       ? t`Dockwell doesn't open this folder`
       : reason === "not_found"
         ? t`Nothing at this path`
@@ -669,7 +670,10 @@ function FolderProblem({ error, folder, serverId }: { error: ConnectError; folde
             ? t`Can't reach this server`
             : t`Can't read this folder`;
   return (
-    <Callout tone={reason === "file_refused" || reason === "not_found" ? "warning" : "critical"} title={title}>
+    <Callout
+      tone={reason === "file_refused" || reason === "not_found" || isRoleRefusal(error) ? "warning" : "critical"}
+      title={title}
+    >
       <p>{sentence(error)}</p>
       {folder === "/" ? null : (
         <p>

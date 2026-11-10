@@ -49,18 +49,18 @@ Each of these is its own decision, and together they are the record that replace
 One interceptor can't enforce a project's scope: it sees which method is called, not what it touches. A call can name an object by its ID; a change can touch several projects; applying, discarding and undoing act on a change someone else proposed; and lists and streams return everything. So there are two checks, and one resolver every other call goes through:
 
 1. **The interceptor checks the lowest role a method needs anywhere.** Reading needs a viewer's grant somewhere, proposing a developer's somewhere, and what's install-wide, below, an admin's. Each method's rule sits beside its effect and its token scope (ADR 0016). A method with no rule is the owner's, so a new service is closed until it says.
-2. **`internal/revision` checks every item's project, for everything done to a change,** against the person doing it:
+2. **`internal/revision` checks every item, for everything done to a change,** against the person doing it: its project, whether its environment is protected ([ADR 0049](0049-roles-and-invites-by-project.md)), what it reaches beyond its project (`host_access`, below), and the names it takes, domains and server ports, which another environment may hold (below):
    - proposing it, against the proposer;
    - applying, discarding or undoing it, and rolling a service back, against whoever does that, who may be someone else, or may have lost the role since;
    - an undo or a rollback item by item, as the change it plans, as a new change is.
 
-   A change with one item outside the person's grants is refused whole. Only `internal/revision` calls `Revise` already, so every change passes here.
-3. **One resolver says which project any object belongs to,** from its ID: a service and its revisions, a change, a backup and its volume, a variable or a secret, a route, a domain, a Compose project, a deployment's logs, an event. Every call that isn't a change goes through it:
+   For an item that moves an environment's protection, or moves something between environments, the stricter of before and after holds. A change with one item outside the person's grants is refused whole, and a change with one item in a protected environment waits whole. Only `internal/revision` calls `Revise` already, so every change passes here.
+3. **One resolver says where any object belongs,** from its ID: its project, its environment, and whether that environment is protected. It covers a service and its revisions, a change, a backup and its volume, a variable or a secret, a route, a domain, a Compose project, a deployment's logs, an event. Every call that isn't a change goes through it:
    - every read by ID;
    - every list and stream, which keep only rows in the person's projects;
    - every write that isn't a revision, such as revealing a secret, or making, previewing, fetching or deleting a backup.
 
-   An object in no project, such as a server, or a container on its own, resolves to the install, which only an admin or the owner holds.
+   An object in no project resolves to the install, which only an admin or the owner holds, with one exception: what a project needs to name, such as the servers it places on, is seen by name and state (ADR 0049).
 
    **Out of scope reads as not found.** A call that names an object outside the person's grants, by ID or in a list it passes, gets the same code and words as an ID that never existed, from the resolver, so neither the object nor its project's name leaks. A refusal from check 2 says the same of the item.
 
@@ -87,7 +87,8 @@ What a plan reaches beyond its project, as `host_access` names it:
 - a volume mounted from a driver, such as an NFS or CIFS share, or a volume plugin;
 - a network Dockwell didn't make, or one that reaches past the server's bridge, such as macvlan;
 - a proxy a route trusts for where a request came from;
-- the panel's domain.
+- the panel's domain, and any name under it;
+- a route to a port on the server itself (`host_port`): it dials the server's own loopback, where anything listening, such as a database without a password or another panel, would go on the internet as if it were local, and it reaches other environments' published ports.
 
 Anything else that isn't one project's:
 
@@ -101,7 +102,15 @@ Anything else that isn't one project's:
 - variables and secrets set for the whole install;
 - settings, members and invites, the audit log, and anyone else's API tokens.
 
-**What a developer may use,** of what `host_access` also marks, are their own project's ordinary needs: a domain for a route, a port on the server a route sends to, and a route over plain HTTP. Each still needs a person to approve it, as host access always has. A domain or a server port another project holds is refused when the change is planned, as taken, with words that don't name the project that holds it: "shop.example.com is in use by a project you can't see. Ask an admin". A domain another environment of the same project held within the undo window stays theirs to take back, as today.
+**What a developer may use,** of what `host_access` also marks, are their own project's ordinary needs: a domain for a route, and a route over plain HTTP. A developer's route names a service in its own environment and a port of its container. Each still needs a person to approve it, as host access always has.
+
+**A domain another project holds is refused when the change is planned,** as taken, with words that don't name the project that holds it: "shop.example.com is in use by a project you can't see. Ask an admin". So is any name under it, as with wildcard DNS a name such as `login.blog.example.com` would receive cookies `blog` sets for its whole domain. A domain another environment of the same project held within the undo window stays theirs to take back, as today.
+
+**A server's ports are names too, held as domains are.** Placement is any server, so without this a developer in `blog`, or in `shop/staging`, could publish a port production publishes, or the one an admin's `host_port` route dials, and whichever container binds first after a deploy, a crash or a reboot would take production's traffic, and leave production's container unable to start.
+
+- **A port on a server is held by an environment** when one of its services publishes it in its latest revision, on any address, `127.0.0.1` included, or when one of its `host_port` routes dials it.
+- **An admin's `host_port` route to a port no service publishes** holds it for the route's environment.
+- **Check 2 refuses, when the change is planned, a port another environment holds on that server,** as taken: "Port 5432 on web-1 is in use by another environment. Choose another port, or ask an admin". For another project, the words don't name it, as for domains.
 
 A developer can read their project's secrets through a container they deploy, as the container is given them (ADR 0022). A role that deploys can read what it deploys. A viewer can't, as a viewer runs nothing.
 
@@ -111,8 +120,10 @@ A container starts from an image already on its server, whoever pulled it (`ensu
 
 #### A change of role takes effect at once
 
-- **The role is read on each request,** from the store, not from the session, and a stream checks again every 30 seconds, as a token's does, and ends once the person may no longer read it.
-- **Removing someone, or lowering their role, also ends** their step-up proofs, the 10-minute window a file step-up opens, a half-finished authenticator setup, and the invites they made that are still open.
+- **The role is read on each request,** from the store, not from the session.
+- **Any change to a person's grants closes all their streams and terminals at once,** through the registry that closes a revoked session's streams, and their tokens' streams too. The panel reconnects, and is checked again.
+- **Every 30 seconds, an open stream or terminal is checked again,** as a token's is: the method's role, the resolver for what it names, and for a token, its maker's grants.
+- **Removing someone, or lowering their role, also ends** their step-up proofs, the 10-minute window a file step-up opens, a half-finished authenticator setup, their terminals, and the invites they made that are still open.
 - **A change they proposed is checked again** against whoever applies it, as above.
 
 #### Invites

@@ -289,11 +289,11 @@ const file_dockwell_v1_system_proto_rawDesc = "" +
 	"\fBuildEdition\x12\x1d\n" +
 	"\x19BUILD_EDITION_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12BUILD_EDITION_FULL\x10\x01\x12\x17\n" +
-	"\x13BUILD_EDITION_AGENT\x10\x022\x8f\x01\n" +
-	"\rSystemService\x12~\n" +
+	"\x13BUILD_EDITION_AGENT\x10\x022\x9c\x01\n" +
+	"\rSystemService\x12\x8a\x01\n" +
 	"\n" +
-	"GetVersion\x12\x1e.dockwell.v1.GetVersionRequest\x1a\x1f.dockwell.v1.GetVersionResponse\"/\xa0\xbb\x18\x01\xaa\xbb\x18\x11\n" +
-	"\x06system\x12\aversion\x82\xd3\xe4\x93\x02\r\x12\v/v1/version\x90\x02\x01B\xa4\x01\n" +
+	"GetVersion\x12\x1e.dockwell.v1.GetVersionRequest\x1a\x1f.dockwell.v1.GetVersionResponse\";\xa0\xbb\x18\x01\xaa\xbb\x18\x11\n" +
+	"\x06system\x12\aversion\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/version\x90\x02\x01B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vSystemProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

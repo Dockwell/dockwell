@@ -67,7 +67,7 @@ func testAnOpenStreamKeepsItsSession(t *testing.T, backend store.Backend) {
 	f := newFixture(t, backend, "")
 	f.svc.recheck = 2 * time.Millisecond
 	owner := f.claim(t, localhost, &authtest.Authenticator{})
-	ctx, stop := f.svc.Track(t.Context(), localhost, ownerPrincipal(owner))
+	ctx, stop := f.svc.Track(t.Context(), localhost, ownerPrincipal(owner), nil)
 	defer stop()
 	seen := func() time.Time {
 		var s store.Session
@@ -220,7 +220,7 @@ func testARevocationBeforeTrackStillEndsTheStream(t *testing.T, backend store.Ba
 		if err := end(p); err != nil { // commits and ends the streams registered so far: none
 			t.Fatal(err)
 		}
-		ctx, stop := f.svc.Track(t.Context(), localhost, p)
+		ctx, stop := f.svc.Track(t.Context(), localhost, p, nil)
 		select {
 		case <-ctx.Done():
 		case <-time.After(5 * time.Second):

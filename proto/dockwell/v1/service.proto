@@ -27,6 +27,9 @@ service ServiceService {
   rpc ListServices(ListServicesRequest) returns (ListServicesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/services"};
   }
 
@@ -37,6 +40,9 @@ service ServiceService {
   rpc ListServiceRevisions(ListServiceRevisionsRequest) returns (ListServiceRevisionsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.command) = {verb: "revisions"};
     option (google.api.http) = {get: "/v1/services/{id}/revisions"};
   }
@@ -46,6 +52,9 @@ service ServiceService {
   // back, so anyone may deploy without being able to see a secret.
   rpc DeployService(DeployServiceRequest) returns (DeployServiceResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/services/{id}:deploy"
       body: "*"
@@ -64,6 +73,9 @@ service ServiceService {
   // failed or a container was removed by hand.
   rpc RollBackService(RollBackServiceRequest) returns (RollBackServiceResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/services/{id}:rollback"
       body: "*"
@@ -75,6 +87,9 @@ service ServiceService {
   // environment back.
   rpc AddServicePort(AddServicePortRequest) returns (AddServicePortResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.command) = {verb: "add-port"};
     option (google.api.http) = {
       post: "/v1/services/{id}/ports"

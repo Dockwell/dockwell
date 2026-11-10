@@ -630,12 +630,12 @@ const file_dockwell_v1_process_proto_rawDesc = "" +
 	"startTicks\x12\x14\n" +
 	"\x05proof\x18\x04 \x01(\tR\x05proof\",\n" +
 	"\x12EndProcessResponse\x12\x16\n" +
-	"\x06killed\x18\x01 \x01(\bR\x06killed2\x9b\x02\n" +
-	"\x0eProcessService\x12e\n" +
-	"\x0eWatchProcesses\x12\".dockwell.v1.WatchProcessesRequest\x1a#.dockwell.v1.WatchProcessesResponse\"\b\xa0\xbb\x18\x01\xb0\xbb\x18\x010\x01\x12\xa1\x01\n" +
+	"\x06killed\x18\x01 \x01(\bR\x06killed2\xb3\x02\n" +
+	"\x0eProcessService\x12q\n" +
+	"\x0eWatchProcesses\x12\".dockwell.v1.WatchProcessesRequest\x1a#.dockwell.v1.WatchProcessesResponse\"\x14\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x060\x01\x12\xad\x01\n" +
 	"\n" +
-	"EndProcess\x12\x1e.dockwell.v1.EndProcessRequest\x1a\x1f.dockwell.v1.EndProcessResponse\"R\xa0\xbb\x18\x04\xaa\xbb\x18\x10\n" +
-	"\tprocesses\x12\x03end\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x020:\x01*\"+/v1/servers/{server_id}/processes/{pid}:endB\xa5\x01\n" +
+	"EndProcess\x12\x1e.dockwell.v1.EndProcessRequest\x1a\x1f.dockwell.v1.EndProcessResponse\"^\xa0\xbb\x18\x04\xaa\xbb\x18\x10\n" +
+	"\tprocesses\x12\x03end\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x020:\x01*\"+/v1/servers/{server_id}/processes/{pid}:endB\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fProcessProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

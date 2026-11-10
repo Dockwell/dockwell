@@ -31,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/actors"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
@@ -274,7 +275,29 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, h.rpcError(ctx, err)
 	}
 	fp := req.Msg.GetFingerprint()
+	// What the caller's role refuses is said first, before anything is asked of
+	// them; applying checks it again (ADR 0048, check 2).
+	var approve revision.Approval
+	if r.State == store.ChangePlanned {
+		if err := h.engine.CheckApply(ctx, r.ID); err != nil {
+			return nil, h.rpcError(ctx, err)
+		}
+		// Someone else's change in a protected environment is approved: by an
+		// admin or the owner, in a session, with the fingerprint of the plan they
+		// reviewed and a passkey bound to it (ADR 0049).
+		if approve, err = h.engine.ApprovalOf(ctx, r.ID); err != nil {
+			return nil, h.rpcError(ctx, err)
+		}
+	}
 	switch {
+	case approve.Protected && approve.Theirs && p.Token != nil:
+		return nil, authapi.ReasonError(connect.CodePermissionDenied,
+			fmt.Errorf("%s is someone else's change in a protected environment, which an admin or the owner approves with a passkey, so no API token may apply it. %s", r.ID, signIn),
+			authapi.ReasonNeedsSession)
+	case approve.Protected && approve.Theirs && fp == "":
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s is someone else's change in a protected environment. Review the plan, then apply it with its fingerprint, %s, to approve it", r.ID, r.Fingerprint),
+			"needs_confirmation")
 	case fp != "" && fp != r.Fingerprint:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s's plan has fingerprint %s, not %s, so it isn't the plan you reviewed. Review it again, then apply it", r.ID, r.Fingerprint, fp),
@@ -299,11 +322,21 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	// The proof is asked for once nothing else here refuses, and held until the
 	// engine takes the change, as it can still refuse: busy, offline or out of date.
 	giveBack := func() {}
-	if r.State == store.ChangePlanned && r.Plan.AsGoodAsRoot() {
+	switch {
+	case approve.Protected && approve.Theirs:
+		// One passkey approves the plan, root's included: it's bound to its fingerprint.
+		target := r.ID + ":" + r.Fingerprint
+		back, err := h.auth.HoldStepUp(p, req.Msg.GetProof(), auth.StepUpApproveChange, target)
+		if err != nil {
+			h.auth.AskedForStepUp(p, auth.StepUpApproveChange, target, func() { h.noteUnconfirmed(r.ID, who) })
+			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, target)
+		}
+		giveBack = back
+	case r.State == store.ChangePlanned && r.Plan.AsGoodAsRoot():
 		back, err := h.auth.HoldStepUp(p, req.Msg.GetProof(), auth.StepUpApplyRootChange, r.ID)
 		if err != nil {
 			h.auth.AskedForStepUp(p, auth.StepUpApplyRootChange, r.ID, func() { h.noteUnconfirmed(r.ID, who) })
-			return nil, authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, r.ID)
 		}
 		giveBack = back
 	}
@@ -316,6 +349,16 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.ApplyChangeResponse{Change: c}), nil
+}
+
+// stepUpNeeded refuses for want of a step-up, saying which, so a client asks
+// for that one: approving a change, or applying one as good as root.
+func stepUpNeeded(err error, action dockwellv1.StepUpAction, target string) error {
+	cerr := authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+	if d, derr := connect.NewErrorDetail(&dockwellv1.StepUpNeeded{Action: action, Target: target}); derr == nil {
+		cerr.AddDetail(d)
+	}
+	return cerr
 }
 
 // noteUnconfirmed puts on record a plan as good as root that someone tried to apply,
@@ -717,6 +760,7 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				if err != nil {
 					return err
 				}
+				loaded.Projects = inReach(ctx, loaded.Projects)
 				tree = &loaded
 			}
 			if ref.Scope, err = resolve(ctx, tx, tree, t.Level(), e.GetProject(), ref.Scope); err != nil {
@@ -793,6 +837,21 @@ func withInstallZone(ctx context.Context, tx *store.Tx, spec proto.Message) (pro
 	return p, nil
 }
 
+// inReach are the projects the caller in ctx holds a role in, below an admin,
+// so an edit names a project or an environment by name among those alone: one
+// out of reach reads as one that isn't there, and no answer lists another
+// project or its environments (ADR 0049). An admin, the owner, and Dockwell's
+// own changes find every project.
+func inReach(ctx context.Context, projects []scope.Project) []scope.Project {
+	caller, ok := place.CallerFrom(ctx)
+	if !ok || store.RoleRank(place.Holds(caller.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin) {
+		return projects
+	}
+	return slices.DeleteFunc(projects, func(p scope.Project) bool {
+		return place.Holds(caller.Grants, place.Place{Project: p.ID}) == ""
+	})
+}
+
 // choiceAt is a choice a request left out, with the field of the request
 // that takes it.
 type choiceAt struct {
@@ -856,12 +915,36 @@ func (h *Handler) protos(ctx context.Context, records ...*revision.Record) ([]*d
 	out := make([]*dockwellv1.Change, len(records))
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		names := actors.New().In(ctx, tx)
+		placer := place.NewPlacer(tx)
 		for i, r := range records {
 			out[i] = Proto(r, names.Actor)
+			if r.State != store.ChangePlanned {
+				continue
+			}
+			places, err := placer.Of(ctx, r.ID)
+			if err != nil && !errors.Is(err, store.ErrNotFound) && !errors.Is(err, place.ErrUnknown) {
+				return err
+			}
+			out[i].Protected = slices.ContainsFunc(places, func(p place.Place) bool { return p.Protected })
+			if err := ForCaller(ctx, tx, h.engine, r.ID, out[i]); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
 	return out, err
+}
+
+// ForCaller says on a planned change what applying it asks of whoever reads
+// it: whether it approves someone else's, and why it waits if their role
+// doesn't cover it, as ApplyChange would answer them.
+func ForCaller(ctx context.Context, tx *store.Tx, engine *revision.Engine, changeID string, out *dockwellv1.Change) error {
+	applying, err := engine.ApplyingOf(ctx, tx, changeID)
+	if err != nil {
+		return err
+	}
+	out.Approves, out.Waits = applying.Approves, applying.Waits
+	return nil
 }
 
 // Surfaces maps where a change or an audit event came from, as the store
@@ -1022,6 +1105,8 @@ var codes = []struct {
 	reason string
 }{
 	{revision.ErrNotFound, connect.CodeNotFound, "not_found"},
+	{revision.ErrOutOfReach, connect.CodeNotFound, "not_found"},
+	{revision.ErrNeedsRole, connect.CodePermissionDenied, "needs_role"},
 	{scope.ErrNotFound, connect.CodeNotFound, "not_found"},
 	{revision.ErrInvalid, connect.CodeInvalidArgument, "invalid"},
 	{revision.ErrStale, connect.CodeFailedPrecondition, "plan_stale"},

@@ -444,6 +444,12 @@ msgstr "Undone by"
 msgid "Volume"
 msgstr "Volume"
 
+msgid "Waits for an admin"
+msgstr "Waits for an admin"
+
+msgid "Waits for your approval"
+msgstr "Waits for your approval"
+
 msgid "What changed"
 msgstr "What changed"
 
@@ -3859,8 +3865,17 @@ msgstr "You're not signed in. Sign in, then try again."
 msgid "Your session ended, so this didn't happen. Sign in again, then try again."
 msgstr "Your session ended, so this didn't happen. Sign in again, then try again."
 
+msgid "Admin"
+msgstr "Admin"
+
+msgid "Developer"
+msgstr "Developer"
+
 msgid "Owner"
 msgstr "Owner"
+
+msgid "Viewer"
+msgstr "Viewer"
 
 msgid "All backups"
 msgstr "All backups"
@@ -4535,6 +4550,9 @@ msgstr "A restart has no undo, as it changes nothing to go back to."
 msgid "A step failed, so the change stopped there."
 msgstr "A step failed, so the change stopped there."
 
+msgid "An admin or the owner applies this"
+msgstr "An admin or the owner applies this"
+
 msgid "Applied {when} by {by}, and undone since."
 msgstr "Applied {when} by {by}, and undone since."
 
@@ -4549,6 +4567,14 @@ msgstr "Apply this only if you trust what it runs."
 
 msgid "Applying"
 msgstr "Applying"
+
+#. placeholder {0}: change.proposedBy.name
+msgid "Applying this approves a change planned with the API token {0}, with your passkey"
+msgstr "Applying this approves a change planned with the API token {0}, with your passkey"
+
+#. placeholder {0}: change?.proposedBy?.name
+msgid "Applying this approves {0}'s change, with your passkey"
+msgstr "Applying this approves {0}'s change, with your passkey"
 
 msgid "Applying this asks for your passkey"
 msgstr "Applying this asks for your passkey"
@@ -4597,6 +4623,9 @@ msgstr "It keeps applying if you close this."
 
 msgid "Keep this only if you trust what it runs."
 msgstr "Keep this only if you trust what it runs."
+
+msgid "Leave it for an admin"
+msgstr "Leave it for an admin"
 
 msgid "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
 msgstr "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
@@ -4684,6 +4713,9 @@ msgstr "Undo for {undoDays} days if this replaces anything"
 
 msgid "Undo until {deadline}"
 msgstr "Undo until {deadline}"
+
+msgid "Waits for an admin or the owner"
+msgstr "Waits for an admin or the owner"
 
 msgid "What applying means"
 msgstr "What applying means"
@@ -6709,6 +6741,9 @@ msgstr "You typed them before your session ended, and the file has changed on th
 
 msgid "You typed them before your session ended."
 msgstr "You typed them before your session ended."
+
+msgid "Your role doesn't cover this"
+msgstr "Your role doesn't cover this"
 
 #. placeholder {0}: lineCount(draft)
 msgid "{0, plural, one {# line} other {# lines}}"
@@ -9574,6 +9609,12 @@ msgstr "Discarded a change"
 msgid "Discarded {summary}"
 msgstr "Discarded {summary}"
 
+msgid "Made {name} the owner"
+msgstr "Made {name} the owner"
+
+msgid "Moved ownership of this install"
+msgstr "Moved ownership of this install"
+
 msgid "Planned a change"
 msgstr "Planned a change"
 
@@ -9591,6 +9632,9 @@ msgstr "Read logs"
 
 msgid "Read the logs of {name}"
 msgstr "Read the logs of {name}"
+
+msgid "Refused a call their role doesn't cover"
+msgstr "Refused a call their role doesn't cover"
 
 msgid "Refused a call this token can't make"
 msgstr "Refused a call this token can't make"
@@ -11414,6 +11458,9 @@ msgstr "{count, plural, one {# site on {0}} other {# sites on {1}}}"
 
 msgid "{count, plural, one {# site} other {# sites}}"
 msgstr "{count, plural, one {# site} other {# sites}}"
+
+msgid "Your role doesn't let you do this here. Ask an admin to change your role."
+msgstr "Your role doesn't let you do this here. Ask an admin to change your role."
 
 msgid "{count, plural, one {# day} other {# days}}"
 msgstr "{count, plural, one {# day} other {# days}}"

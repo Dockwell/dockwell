@@ -403,6 +403,13 @@ function useMeta() {
       const brief = steps || counts(change);
       if (brief) parts.push(brief);
       if (change.undoneBy) parts.push(t`Undone`);
+      // A planned change the reader's role doesn't cover waits for an admin or the
+      // owner, and someone else's in a protected environment, an admin's
+      // approval, however it was planned: the API says which (ADR 0049).
+      if (change.state === ChangeState.PLANNED) {
+        if (change.waits) parts.push(t`Waits for an admin`);
+        else if (change.approves) parts.push(t`Waits for your approval`);
+      }
       const rollback = rollbackWord(change);
       if (rollback) parts.push(rollback);
       return { look: words.state(change.state), parts };

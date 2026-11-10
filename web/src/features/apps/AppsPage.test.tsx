@@ -33,9 +33,10 @@ function api(services: ReturnType<typeof anApp>[], ...servers: ReturnType<typeof
   };
 }
 
-afterEach(() => {
+afterEach(async () => {
   vi.unstubAllGlobals();
   localStorage.clear();
+  await activateLocale("en");
 });
 
 /** A watch that opens with its snapshot and stays open. */
@@ -487,6 +488,37 @@ describe("the apps list", () => {
     });
     expect(await screen.findByRole("alert")).toHaveTextContent("Your role can't read services. Ask an owner.");
   });
+
+  it.each(["services", "websites"] as const)(
+    "says a role refusal from %s in your language, with nothing to try again",
+    async (source) => {
+      const refused = () => {
+        throw new ConnectError(
+          "your role doesn't cover this read",
+          Code.PermissionDenied,
+          new Headers({ "Dockwell-Error": "needs_role" }),
+        );
+      };
+      const endpoints = {
+        ...api([]),
+        ...(source === "services" ? { services: { listServices: refused } } : { websites: { listWebsites: refused } }),
+      };
+      const en = renderAt("/apps", endpoints);
+      expect(await screen.findByText("Your role doesn't cover this")).toBeVisible();
+      expect(
+        screen.getByText("Your role doesn't let you do this here. Ask an admin to change your role."),
+      ).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+      en.unmount();
+
+      await activateLocale("zh-CN");
+      const zh = renderAt("/apps", endpoints);
+      const callout = (await screen.findByText("你的角色无权访问这里")).closest(".dw-callout");
+      expect(callout?.textContent).not.toMatch(/[A-Za-z]/);
+      expect(within(callout as HTMLElement).queryByRole("button")).not.toBeInTheDocument();
+      zh.unmount();
+    },
+  );
 
   it("keeps each row where it is as a deploy starts, until the page is next opened", async () => {
     const hourAgo = timestampFromDate(new Date(Date.now() - 3_600_000));

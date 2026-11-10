@@ -165,6 +165,7 @@ type Service struct {
 	streams        *streams
 	unflagged      unflagged // passkeys seen to be copied, until the flag is stored
 	refusals       *refusals // refused calls with each API token, since the last audit event
+	roleRefusals   *refusals // calls refused for want of a role, by person or token and method
 	stepUps        *stepUps  // proofs of a passkey confirming one action
 	// recheck is how often an open stream checks its session again.
 	recheck time.Duration
@@ -187,20 +188,21 @@ func New(cfg Config) (*Service, error) {
 		cfg.ServerName = func() string { return "" }
 	}
 	return &Service{
-		db:         cfg.DB,
-		key:        cfg.Key,
-		logger:     cfg.Logger,
-		sites:      cfg.Sites,
-		serverName: cfg.ServerName,
-		now:        cfg.Now,
-		askWait:    cmp.Or(cfg.AskWait, StepUpTTL),
-		ceremonies: newCeremonies(1024),
-		sources:    newFailures(freeSourceFailures, 10_000),
-		begins:     newBuckets(30, 2*time.Second, 10_000),
-		streams:    newStreams(),
-		refusals:   newRefusals(maxRefusalIDs),
-		stepUps:    newStepUps(1024),
-		recheck:    cmp.Or(cfg.Recheck, streamRecheck),
+		db:           cfg.DB,
+		key:          cfg.Key,
+		logger:       cfg.Logger,
+		sites:        cfg.Sites,
+		serverName:   cfg.ServerName,
+		now:          cfg.Now,
+		askWait:      cmp.Or(cfg.AskWait, StepUpTTL),
+		ceremonies:   newCeremonies(1024),
+		sources:      newFailures(freeSourceFailures, 10_000),
+		begins:       newBuckets(30, 2*time.Second, 10_000),
+		streams:      newStreams(),
+		refusals:     newRefusals(maxRefusalIDs),
+		roleRefusals: newRefusals(maxRefusalIDs),
+		stepUps:      newStepUps(1024),
+		recheck:      cmp.Or(cfg.Recheck, streamRecheck),
 	}, nil
 }
 
