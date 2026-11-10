@@ -181,9 +181,10 @@ func TestFailuresSayWhatTheyComeDownTo(t *testing.T) {
 		"pull access denied for acme/web, repository does not exist or may require 'docker login'": resource.ReasonImage,
 		"manifest for acme/web:1.0 not found: manifest unknown: manifest unknown":                  resource.ReasonImage,
 		"no matching manifest for linux/arm64/v8 in the manifest list entries":                     resource.ReasonImage,
-		// The name is fine when the network or the registry is what failed.
+		// The name is fine when the network or the registry is what failed, and the
+		// registry's own trouble says so, as the same pull may work in a while.
 		`Get "https://registry-1.docker.io/v2/": dial tcp: lookup registry-1.docker.io: no such host`: "",
-		"received unexpected HTTP status: 503 Service Unavailable":                                    "",
+		"received unexpected HTTP status: 503 Service Unavailable":                                    resource.ReasonRegistry,
 		"toomanyrequests: You have reached your pull rate limit.":                                     "",
 		"the moon is in the way": "",
 	} {
