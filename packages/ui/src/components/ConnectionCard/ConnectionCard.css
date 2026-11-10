@@ -30,16 +30,19 @@
   min-width: 0;
   margin: 0;
 }
+/* The line wraps its actions under the value rather than squeezing it: a value keeps
+   room for a dozen characters, and a mask never breaks. */
 .dw-conn-line {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
+  gap: 2px var(--space-1);
   min-width: 0;
   min-height: var(--control-md);
 }
 .dw-conn-code {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 12ch;
+  min-width: min(100%, 12ch);
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 20px;
@@ -51,6 +54,7 @@
 .dw-conn-code.is-masked {
   color: var(--ink-muted);
   letter-spacing: 0.08em;
+  white-space: nowrap;
   user-select: none;
 }
 .dw-conn-action {

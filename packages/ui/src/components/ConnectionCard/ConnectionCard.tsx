@@ -31,6 +31,8 @@ export interface ConnectionSecret {
   problem?: ReactNode;
   /** Asks for the value: the card never holds a secret it wasn't given. */
   onReveal: () => void;
+  /** Why the reader can't reveal it, which keeps Reveal in place, off, with this as its reason. */
+  revealOff?: string | undefined;
   /** Hides it again. */
   onHide: () => void;
   /** Beside the reveal, such as a button that changes the secret. */
@@ -158,6 +160,7 @@ export function ConnectionCard({
                     icon="eye"
                     loading={secret.busy}
                     aria-label={strings.reveal(secret.label)}
+                    off={secret.revealOff}
                     onClick={secret.onReveal}
                   >
                     {strings.revealShort}

@@ -378,6 +378,8 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
   const secretId = variables.data?.variables.find((v) => v.secret && v.name === secret)?.id ?? "";
   const reveals = useReveals();
   const shown = secretId ? reveals.get(secretId) : {};
+  const may = useMay();
+  const revealOff = may(VariableService.method.revealSecret, { environment }).off.off;
   const sql = speaksSQL(db.engine);
   const items: ConnectionItem[] = [
     {
@@ -410,6 +412,7 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
               busy: shown.busy ?? false,
               problem: shown.problem ?? (variables.error ? sentence(variables.error) : undefined),
               hint: t`Kept in the secret ${secret}`,
+              revealOff,
               onReveal: () => {
                 if (secretId) reveals.reveal(secretId);
               },

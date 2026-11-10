@@ -20,6 +20,7 @@ import {
   EventKind,
   type ListBackupsRequest,
   type RestoreBackupRequest,
+  Role,
   type UpgradeCatalogInstallRequest,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -31,6 +32,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { ENV, places, running, SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { connectionURL, engineOfImage } from "./useDatabases";
@@ -335,6 +337,24 @@ describe("a database's page", () => {
     expect(writeText).toHaveBeenCalledWith("postgres://postgres:pa%20ss%2Fword@db:5432/shop");
     await user.click(within(card).getByRole("button", { name: "Hide" }));
     expect(within(card).queryByText("pa ss/word")).toBeNull();
+  });
+
+  it("leaves Reveal in place for a viewer, off, with why", async () => {
+    renderAt("/databases/svc_db", {
+      ...api([aDatabase()], {
+        variables: {
+          listVariables: () => ({
+            environmentId: ENV,
+            variables: [{ id: "sec_pg", name: "POSTGRES_PASSWORD", secret: true, revision: 1n }],
+          }),
+        },
+      }),
+      auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
+    });
+    const card = await screen.findByRole("region", { name: "Connect" });
+    const reveal = await within(card).findByRole("button", { name: "Reveal password" });
+    await waitFor(() => expect(reveal).toHaveAttribute("aria-disabled", "true"));
+    expect(reveal).toHaveAccessibleDescription(/developer or more/);
   });
 
   it("counts a group that can't sign in as a user, and says so", async () => {

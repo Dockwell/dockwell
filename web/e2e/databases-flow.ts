@@ -163,8 +163,13 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await phoneRow.waitFor({ timeout: 20_000 });
   await fitsItsWidth(page, "the databases list on a phone");
   await phoneRow.click();
-  await page.getByLabel("Internal URL", { exact: true }).waitFor();
+  const phoneConnect = page.getByRole("region", { name: "Connect" });
+  const masked = phoneConnect.locator(".dw-conn-code.is-masked");
+  await masked.waitFor({ timeout: 20_000 });
   await fitsItsWidth(page, "a database's page on a phone");
+  // The masked password keeps to one line beside its actions, rather than a dot to a line.
+  const tall = await masked.evaluate((el) => el.getBoundingClientRect().height);
+  if (tall > 28) fail(`the masked password on a phone is ${Math.round(tall)} px tall, more than one line`);
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 
