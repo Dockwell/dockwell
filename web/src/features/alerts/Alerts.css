@@ -463,3 +463,89 @@
   line-height: 20px;
   overflow-wrap: anywhere;
 }
+
+/* A card's title, and a resolved alert's, lead to the alert's own page, and read as the title they are. */
+.alerts-card-title a,
+a.alerts-resolved-title {
+  color: inherit;
+  text-decoration: none;
+}
+
+.alerts-card-title a:hover,
+a.alerts-resolved-title:hover {
+  text-decoration: underline;
+}
+
+/* One alert's page: what the rule saw and what changed around it, with the alert's own story beside them. */
+.alerts-back {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  color: var(--ink-muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.alerts-back:hover {
+  color: var(--ink);
+}
+
+.alert-main {
+  gap: var(--space-4);
+}
+
+.alert-detail {
+  max-width: 72ch;
+  margin: 0 0 var(--space-4);
+  font-size: 14px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.alert-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.alert-facts > div {
+  display: contents;
+}
+
+.alert-facts dt {
+  color: var(--ink-muted);
+}
+
+.alert-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.alert-facts code {
+  font-size: 12px;
+}
+
+.alert-sent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.alert-sent li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.alert-page .page-lead a {
+  color: var(--link);
+}

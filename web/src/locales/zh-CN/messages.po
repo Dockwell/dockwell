@@ -1035,6 +1035,102 @@ msgstr "未能完成"
 msgid "since {since}"
 msgstr "自 {since} 起"
 
+msgid "A mute holds what it would send."
+msgstr "静默暂时拦住了它要发送的消息。"
+
+msgid "Acknowledged"
+msgstr "确认人"
+
+msgid "Alert"
+msgstr "告警"
+
+msgid "Alerts lists what's open and the newest that resolved. This one resolved before those, or was never there. Activity keeps what fired and resolved."
+msgstr "告警页列出未恢复的告警和最近恢复的告警。这一条在那之前已经恢复，或者从未存在。动态里保留了触发和恢复的记录。"
+
+msgid "Back to alerts"
+msgstr "返回告警"
+
+msgid "Can't load the alerts"
+msgstr "无法加载告警"
+
+msgid "Can't load what happened around it"
+msgstr "无法加载它前后发生的事情"
+
+msgid "Delivered"
+msgstr "已送达"
+
+msgid "Failed"
+msgstr "失败"
+
+msgid "Fired"
+msgstr "触发时间"
+
+#. placeholder {0}: when(alert.resolveTime)
+msgid "It resolved {0}, after {lasted}."
+msgstr "它已于 {0} 恢复，持续了 {lasted}。"
+
+msgid "Its own events are further back than this page reads. Activity has them."
+msgstr "它自己的事件比本页读取的范围更早。动态里有这些记录。"
+
+msgid "Lasted"
+msgstr "持续时间"
+
+msgid "Messages about it"
+msgstr "与它有关的消息"
+
+msgid "More has happened here since than this page reads back through. Activity has all of it."
+msgstr "此后这里发生的事情超出了本页回看的范围。动态里有全部记录。"
+
+msgid "Nobody did"
+msgstr "无人确认"
+
+msgid "Nobody yet"
+msgstr "尚无人确认"
+
+msgid "None among the newest messages. Channels has what was sent lately."
+msgstr "最近的消息里没有与它有关的。渠道页有近期发送的消息。"
+
+msgid "Nothing changed here in the hour before, and no check changed its answer."
+msgstr "此前一小时内这里没有变更，也没有检查改变结果。"
+
+msgid "Nothing more has happened to it."
+msgstr "它没有再发生别的事情。"
+
+msgid "Open for"
+msgstr "已持续"
+
+msgid "Sending"
+msgstr "发送"
+
+#. placeholder {0}: when(alert.sentTime)
+msgid "Sent {0}"
+msgstr "已于 {0} 发送"
+
+msgid "The hour before {firedAt}"
+msgstr "{firedAt} 之前的一小时"
+
+msgid "This alert"
+msgstr "这条告警"
+
+msgid "This alert isn't among the newest"
+msgstr "这条告警不在最近的告警里"
+
+msgid "What changed before it fired"
+msgstr "触发之前有什么变更"
+
+msgid "What changed while it was open"
+msgstr "未恢复期间有什么变更"
+
+msgid "What has changed since"
+msgstr "此后有什么变更"
+
+msgid "What the rule saw"
+msgstr "规则看到了什么"
+
+#. placeholder {0}: sent.length
+msgid "{0, plural, one {# sent} other {# sent}}"
+msgstr "{0, plural, other {已发送 # 条}}"
+
 msgid "Alerts sections"
 msgstr "告警分区"
 
@@ -1214,9 +1310,6 @@ msgstr "操作"
 msgid "Add channel"
 msgstr "添加渠道"
 
-msgid "Alert"
-msgstr "告警"
-
 msgid "Alert channels"
 msgstr "告警渠道"
 
@@ -1225,9 +1318,6 @@ msgstr "无法加载渠道"
 
 msgid "Channel"
 msgstr "渠道"
-
-msgid "Delivered"
-msgstr "已送达"
 
 msgid "Dockwell didn't send a test to {name}"
 msgstr "Dockwell 没有向 {name} 发送测试"
@@ -1328,9 +1418,6 @@ msgstr "{failing, plural, other {# 个发送失败}}"
 
 msgid "Alert rules"
 msgstr "告警规则"
-
-msgid "Can't load the alerts"
-msgstr "无法加载告警"
 
 msgid "Can't load the rules"
 msgstr "无法加载规则"
@@ -2561,9 +2648,6 @@ msgstr "前面的隧道或代理负责 HTTPS"
 
 msgid "Expired"
 msgstr "已过期"
-
-msgid "Failed"
-msgstr "失败"
 
 msgid "Issuing"
 msgstr "签发中"
