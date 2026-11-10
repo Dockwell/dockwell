@@ -293,14 +293,25 @@ services:
       },
     });
   cli("login", "--local");
+  // The second server's ticket comes from the panel, as a person adds one: Add server,
+  // a passkey, and the command with the ticket in place.
+  await page.goto(`${origin}/servers`);
+  await page.getByRole("button", { name: "Add server" }).first().click();
+  const adding = page.getByRole("dialog", { name: "Add a server" });
+  await adding.getByRole("button", { name: "Make the command" }).click();
+  const command =
+    (await adding.locator(".servers-add-command code").first().textContent({ timeout: SEEN_WITHIN })) ?? "";
   const ticket =
-    /dockwell join (\S+)/.exec(cli("token", "create"))?.[1] ?? fail("dockwell token create printed no ticket");
+    /(?:--join|dockwell join) (\S+)/.exec(command)?.[1] ?? fail(`the sheet's command has no ticket: ${command}`);
   const agentData = join(data, "second-agent");
   const clean = { ...process.env, ...env, DOCKWELL_DATA_DIR: "", DOCKWELL_URL: "", DOCKWELL_TOKEN: "" };
   execFileSync(bin, ["join", "--data-dir", agentData, "--name", "second", ticket], { encoding: "utf8", env: clean });
   const startAgent = (): ChildProcess =>
     spawn(bin, ["run", "--data-dir", agentData, "--log-format", "json"], { stdio: "ignore", env: clean });
   let agent = startAgent();
+  await adding.getByText("second joined", { exact: true }).waitFor({ timeout: SEEN_WITHIN });
+  await shoot(page, "add-server-joined");
+  await adding.getByRole("button", { name: "Done" }).click();
   try {
     await page.goto(`${origin}/apps`);
     const servers = JSON.parse(cli("servers", "list", "--json")) as {

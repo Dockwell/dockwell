@@ -713,7 +713,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if c.cfg.Files == nil {
 			return fail(errNoFiles)
 		}
-		listing, err := c.cfg.Files.List(ctx, list.GetPath())
+		listing, err := c.cfg.Files.List(ctx, list.GetPath(), list.GetMatch(), list.GetPage())
 		if err != nil {
 			return fail(err)
 		}

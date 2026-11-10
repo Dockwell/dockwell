@@ -141,6 +141,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   "ResourceService.listResources": "read",
 
+  "ServerService.createJoinTicket": "may",
+  "ServerService.getJoinTicket": { within: "ServerService.createJoinTicket" },
   "ServerService.getServer": "unused",
   "ServerService.getServerDiskUse": "may",
   "ServerService.listServers": "unused",
