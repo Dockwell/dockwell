@@ -3,6 +3,7 @@
 package agent
 
 import (
+	"errors"
 	"maps"
 	"net/http"
 	"strings"
@@ -715,5 +716,96 @@ func TestAStopRightAfterTheAgentsStartIsAPersons(t *testing.T) {
 	s.pass(t)
 	if s.webRuns() {
 		t.Fatalf("started again what a person stopped right after the agent's start: %+v", s.said(webRef))
+	}
+}
+
+// lostWeb has web settled as what Docker stopped as it came back from being killed,
+// with the agent's start not yet made.
+func lostWeb(t *testing.T) *stand {
+	t.Helper()
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	s.connected()
+	s.noted(t)
+	s.e.DaemonKilled()
+	s.noted(t)
+	if st := s.stands(t); !st.Lost {
+		t.Fatalf("after Docker was killed it stands %+v; want lost", st)
+	}
+	select {
+	case <-s.r.lost: // the wake the settling sent
+	default:
+	}
+	return s
+}
+
+// startAndStopByHand is a person's docker start and docker stop of web, with no
+// list of the monitor's between to see it run.
+func (s *stand) startAndStopByHand(t *testing.T) {
+	t.Helper()
+	if err := s.e.Client().StartContainer(t.Context(), "web"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.e.Client().StopContainer(t.Context(), "web", time.Second); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The agent's start of what Docker stopped failed and waits before the next try. A
+// person starts web and stops it again meanwhile, between two of the monitor's
+// lists. Once the wait is over, the agent asks Docker again, finds a person's stop,
+// and starts nothing (the re-check of 3a5641e33, H3, V2).
+func TestAStopWhileTheAgentsStartWaitsIsAPersons(t *testing.T) {
+	s := lostWeb(t)
+	refused := true
+	s.e.Intercept(func(r *http.Request) error {
+		if refused && r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start") {
+			return errors.New("a port it needs isn't free yet")
+		}
+		return nil
+	})
+	s.r.startLost(t.Context())
+	if s.webRuns() {
+		t.Fatal("the agent's first start was to fail")
+	}
+	refused = false
+	s.startAndStopByHand(t)
+	s.noted(t)
+	later := time.Now().Add(time.Minute)
+	s.r.now = func() time.Time { return later } // the wait is over
+	s.r.startLost(t.Context())
+	if s.webRuns() {
+		t.Fatalf("started what a person stopped while the agent's start waited: %+v", s.said(webRef))
+	}
+	if st := s.stands(t); !st.Stopped || st.Lost {
+		t.Errorf("it stands %+v; want stopped, by the person", st)
+	}
+}
+
+// The agent stops with web settled as lost and not yet started, and a person
+// starts web and stops it while the agent is down. The agent that starts again
+// asks Docker before it starts anything, finds a person's stop, and starts nothing
+// (the re-check of 3a5641e33, H3, V1).
+func TestAStopWhileTheAgentWasDownIsAPersons(t *testing.T) {
+	s := lostWeb(t)
+	s.startAndStopByHand(t)
+	s.r = newReconciler(s.r.cfg, s.presence, s.held) // the agent, started again
+	s.noted(t)
+	s.r.startLost(t.Context())
+	s.presence.set(false, time.Now().Add(-time.Hour))
+	s.pass(t)
+	if s.webRuns() {
+		t.Fatalf("started what a person stopped while the agent was down: %+v", s.said(webRef))
+	}
+	if st := s.stands(t); !st.Stopped || st.Lost {
+		t.Errorf("it stands %+v; want stopped, by the person", st)
+	}
+
+	// Asked again with nothing new, it's still lost, and started.
+	again := lostWeb(t)
+	again.r = newReconciler(again.r.cfg, again.presence, again.held)
+	again.r.startLost(t.Context())
+	if !again.webRuns() {
+		t.Fatalf("what Docker stopped, asked again with nothing new, wasn't started: %+v", again.said(webRef))
 	}
 }

@@ -376,7 +376,12 @@ func (r *reconciler) runs(ctx context.Context, rv resource.Reviver, rec desired.
 			// asked for this stop, and nothing else starts it again. Only while
 			// it stands alone, as it did when the stop was settled: with another
 			// container beside it now, which is the service isn't the agent's
-			// to say.
+			// to say. And only while it's still what Docker stopped: a person may
+			// have started and stopped it since, with no list seeing it run, as
+			// while the agent's start waits between tries, or the agent is down.
+			if r.startDue(ref) && !r.stillLost(look, ref, st.ID, st.Volumes, at) {
+				return
+			}
 			if r.start(look, rv, ref, "", st.ID, lostNote) {
 				// It runs now, so what was settled is over: noted running at once,
 				// a stop that comes before the monitor's next list sees it run is
@@ -661,6 +666,42 @@ func (r *reconciler) start(ctx context.Context, rv resource.Reviver, ref resourc
 	}
 	r.endAction(e, desired.Started, note)
 	return true
+}
+
+// startDue says whether a start of ref may be tried now, as canStart would let it,
+// with nothing written down.
+func (r *reconciler) startDue(ref resource.Ref) bool {
+	t := r.tries[ref]
+	return t == nil || t.n < startTries && !r.now().Before(t.next)
+}
+
+// stillLost asks Docker's events again whether the container with id is still what
+// Docker stopped as it came back, before the agent starts it. Settled since as
+// anything else, as a person's start and stop of it would, it's noted so, said on
+// Activity if the agent can't tell, and isn't started. Docker not answering starts
+// nothing either: the next look asks again. It's asked only when a start is due,
+// as Docker can hold the question for up to a second.
+func (r *reconciler) stillLost(ctx context.Context, ref resource.Ref, id string, volumes map[string]string, at time.Time) bool {
+	if r.cfg.Docker == nil {
+		return false
+	}
+	full, err := r.cfg.Docker.InspectContainer(ctx, id)
+	if err != nil {
+		return false
+	}
+	standing, err := whyDown(ctx, r.cfg.Docker, []string{id}, at, full.State)
+	switch {
+	case err != nil:
+		return false
+	case standing.Lost:
+		return true
+	}
+	standing.Volumes = volumes
+	r.stands(ref, standing, at)
+	if standing.Unsure != "" {
+		r.journal(ref, desired.Waiting, standing.Unsure)
+	}
+	return false
 }
 
 // canStart and tryStart share the retry limit with the first start of a creation
