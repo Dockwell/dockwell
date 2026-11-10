@@ -68,6 +68,7 @@ picks "$go" scripts/transfers-load.sh
 picks "$go" scripts/fakedocker/main.go
 picks "go chaos" scripts/chaos/main.go scripts/chaos.sh
 picks "go chaos" scripts/chaos/recovery_test.go
+picks "chaos" scripts/docker-stops-evidence.sh
 picks "$go" scripts/check-panel-size.sh
 picks "$go" internal/catalog/catalog.go
 # go vet ./... compiles a Go file anywhere.

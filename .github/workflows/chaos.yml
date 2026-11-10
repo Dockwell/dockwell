@@ -50,6 +50,15 @@ jobs:
           docker version
           sudo -n true
           mkdir -p "$RUNNER_TEMP/dockwell-chaos"
+      # Evidence for ADR 0054, printed and not judged: what Docker leaves in a
+      # container's state and events when a person stops it, against when the
+      # daemon dies under it. It runs first, so the stand starts on a daemon
+      # that has settled.
+      - name: What a stop and a daemon kill leave behind
+        if: steps.pick.outputs.run == 'true'
+        env:
+          CHAOS_HOST_FAULTS: "1"
+        run: scripts/docker-stops-evidence.sh
       - name: Faults during changes and local reconciliation
         if: steps.pick.outputs.run == 'true'
         env:

@@ -107,6 +107,7 @@ jobs_for() {
     echo "$every_job"
     ;;
   scripts/chaos/* | scripts/chaos.sh) echo "go chaos" ;;
+  scripts/docker-stops-evidence.sh) echo "chaos" ;;
   *_test.go) echo "$gotest" ;;
   # go vet ./... compiles a Go file wherever it is, under docs/ too.
   *.go) echo "$go" ;;
