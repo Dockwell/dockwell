@@ -11101,11 +11101,11 @@ msgstr "{n, plural, one {# security update} other {# security updates}}"
 msgid "<0>{0}</0> · agent and control plane"
 msgstr "<0>{0}</0> · agent and control plane"
 
+msgid "<0>{tool}</0> installs them within about a day; the command installs every update waiting now."
+msgstr "<0>{tool}</0> installs them within about a day; the command installs every update waiting now."
+
 msgid "<0>{tool}</0> installs updates"
 msgstr "<0>{tool}</0> installs updates"
-
-msgid "<0>{tool}</0> on {name} installs updates by itself, so these go in within about a day. To install them now, run {command} there, which installs every update waiting, not only these."
-msgstr "<0>{tool}</0> on {name} installs updates by itself, so these go in within about a day. To install them now, run {command} there, which installs every update waiting, not only these."
 
 msgid "Agent <0>{agent}</0>, control plane <1>{control}</1>"
 msgstr "Agent <0>{agent}</0>, control plane <1>{control}</1>"
@@ -11144,14 +11144,20 @@ msgstr "Containers stop; those set to restart start again"
 msgid "Copy the command"
 msgstr "Copy the command"
 
+msgid "Copy the reboot command"
+msgstr "Copy the reboot command"
+
+msgid "Copy the upgrade command"
+msgstr "Copy the upgrade command"
+
 msgid "Docker Engine"
 msgstr "Docker Engine"
 
 msgid "Docker and Dockwell"
 msgstr "Docker and Dockwell"
 
-msgid "Dockwell can't install updates yet, so run {command} on {name}, which installs every update waiting, not only these."
-msgstr "Dockwell can't install updates yet, so run {command} on {name}, which installs every update waiting, not only these."
+msgid "Dockwell can't install them yet; the command installs every update waiting, not only these."
+msgstr "Dockwell can't install them yet; the command installs every update waiting, not only these."
 
 #. placeholder {0}: server.name
 msgid "Dockwell couldn't ask {0} for its updates"
@@ -11172,8 +11178,8 @@ msgctxt "a package's version"
 msgid "Installed"
 msgstr "Installed"
 
-msgid "It needs a reboot to take effect, and apps and websites go offline while {name} restarts."
-msgstr "It needs a reboot to take effect, and apps and websites go offline while {name} restarts."
+msgid "It needs a reboot, and apps and websites go offline while {name} restarts."
+msgstr "It needs a reboot, and apps and websites go offline while {name} restarts."
 
 msgid "Its newest release isn't known"
 msgstr "Its newest release isn't known"
@@ -11229,6 +11235,9 @@ msgstr "Package manager"
 msgid "Reboot"
 msgstr "Reboot"
 
+msgid "Reboot command copied"
+msgstr "Reboot command copied"
+
 #. placeholder {0}: words.ago(timestampDate(updates.listsTime), now)
 msgid "Refreshed {0}"
 msgstr "Refreshed {0}"
@@ -11264,13 +11273,14 @@ msgstr "Update it on the control server, as root, which keeps what runs:"
 msgid "Updates for {0}"
 msgstr "Updates for {0}"
 
-#. placeholder {0}: server.name
-msgid "What was installed takes effect only once {0} restarts, so it still runs the old versions. Apps and websites on it go offline while it does: reboot it when that suits you, with <0>sudo reboot</0>."
-msgstr "What was installed takes effect only once {0} restarts, so it still runs the old versions. Apps and websites on it go offline while it does: reboot it when that suits you, with <0>sudo reboot</0>."
+msgid "Upgrade command copied"
+msgstr "Upgrade command copied"
 
-#. placeholder {0}: server.name
-msgid "What {what} changed takes effect only once {0} restarts, so it still runs the old versions. Apps and websites on it go offline while it does: reboot it when that suits you, with <0>sudo reboot</0>."
-msgstr "What {what} changed takes effect only once {0} restarts, so it still runs the old versions. Apps and websites on it go offline while it does: reboot it when that suits you, with <0>sudo reboot</0>."
+msgid "What was installed takes effect once it restarts; apps and websites go offline meanwhile."
+msgstr "What was installed takes effect once it restarts; apps and websites go offline meanwhile."
+
+msgid "What {what} changed takes effect once it restarts; apps and websites go offline meanwhile."
+msgstr "What {what} changed takes effect once it restarts; apps and websites go offline meanwhile."
 
 msgid "When installed"
 msgstr "When installed"
@@ -11318,8 +11328,8 @@ msgstr "{n} from {source}"
 msgid "{reboots, plural, one {# needs a reboot} other {# need a reboot}}"
 msgstr "{reboots, plural, one {# needs a reboot} other {# need a reboot}}"
 
-msgid "{reboots, plural, one {One of them needs a reboot to take effect, and apps and websites go offline while {name} restarts.} other {# of them need a reboot to take effect, and apps and websites go offline while {name} restarts.}}"
-msgstr "{reboots, plural, one {One of them needs a reboot to take effect, and apps and websites go offline while {name} restarts.} other {# of them need a reboot to take effect, and apps and websites go offline while {name} restarts.}}"
+msgid "{reboots, plural, one {One needs a reboot, and apps and websites go offline while {name} restarts.} other {# need a reboot, and apps and websites go offline while {name} restarts.}}"
+msgstr "{reboots, plural, one {One needs a reboot, and apps and websites go offline while {name} restarts.} other {# need a reboot, and apps and websites go offline while {name} restarts.}}"
 
 msgid "Dockwell can't read its updates until it's back."
 msgstr "Dockwell can't read its updates until it's back."
