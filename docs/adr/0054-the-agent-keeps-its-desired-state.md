@@ -83,6 +83,26 @@ Holding the key in a TPM or the kernel's keyring can come later without changing
 - **A record that can't go is cut short.** One that no longer says what runs, in a folder that won't let it be removed, is cut to nothing, which needs only the file's own write permission, so it doesn't open after a restart either.
 - **A fill names the image too.** A fill for a container that's gone, as after a reinstall, finds no image on the server, so `RememberCall` carries the deployment's digest, which the control plane keeps, for the record to pull.
 
+### Where the agent can still be wrong
+
+How a container stands is read from its being down, with no error, in one of the agent's looks. Each way that reading can be wrong is here, with what you'd see. #378 replaces the reading with what Docker says happened, and closes those marked so. "Run" names a Chaos on Docker run whose log shows what Docker did.
+
+**It starts, or makes again, what a person stopped.** This is the direction it must never go, and these remain. [#417](https://github.com/Dockwell/dockwell/issues/417) asks whether the first two can be closed.
+
+- **Stopped, and gone before a list saw it stopped.** Someone stops a container, and it's removed, as `docker system prune` does, before the health monitor's next list: a few seconds. Its record still says it runs, so once the control plane is away the agent makes it again and starts it. You'd see the app you stopped running again, and on Activity that the server made it again while the control plane was away.
+- **`docker stop` of a container Docker couldn't start.** Docker records nothing of that stop: the error stays in the container's state, no event is said, and it isn't counted stopped by hand (run 42770589216). The agent takes it for one Docker couldn't start, and starts it while the control plane is away. You'd see it running, and on Activity that the server started it. To keep one down, remove it, or change it from the control plane.
+- **A container made by hand with a service's labels, that runs.** It stands for the service, so a stop of the real one isn't noted while it does. Nothing is made while either is there. If both are later removed while the control plane is away, the service is made again and started. Activity says nothing of the twin: the agent can't tell it from one of its own.
+
+**It leaves down, or doesn't make again, what nobody stopped.** The safe direction: something is down that needn't be, and the control plane's drift says so when it's back.
+
+- **Docker killed, with no `live-restore`.** The engine that returns stops every container that outlived it, and leaves those whose policy isn't `always` down, reading exactly as a person's stop does (run 42762502373). The agent takes them for stopped, and leaves them; one that then goes isn't made again, and Activity says "It was stopped, and is gone". #378 closes this: it starts what Docker stopped as it came back.
+- **A server shutting down, and `docker restart` by hand.** Read as a stop for a moment, and forgotten at the first look that sees the container run. Nothing is said. It sticks only for a container gone by then, which waits with "It was stopped, and is gone".
+- **A kill on its way to a removal,** as `docker rm -f` makes. A look that caught the container killed and not yet gone would take it for stopped. A container Docker shows as `removing` or `dead` is no news, but a real engine's list showed running and then nothing (run 42770589216), so a look that reads it exited in that moment isn't ruled out. #378 closes this by settling a stop only after two lists.
+- **A container made and never started, alone,** as `docker create` by hand leaves one. It reads as stopped, so if it goes it isn't made again. #378 closes this.
+
+**Closed by which container stands for a service:** a service deployed more than once, whose container isn't number 1, which before was never looked at, so a stop of it by a person wasn't noted (found by run 42770589216); a dead or half-removed leftover numbered above the live one; a leftover that's only made, or stopped, beside one that runs; and two with one number.
+
+
 ### Handing back
 
 - **It writes down what it did,** in `<data>/agent/desired/journal`: each entry the resource, what it did (made it again, started it, or waits, and why), and when, never a value or a spec. A wait that goes on is written down once, until it changes, and not again each time the control plane goes away and comes back, as the journal remembers the last wait the control plane heard of each resource. A Docker that doesn't answer is one wait for the whole server, not one for each resource. Each entry has an ID, the boot's ID and a sequence, so it means one thing however often it's sent. It keeps at most 500 entries, the oldest going first, and counts what it dropped.
