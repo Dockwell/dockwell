@@ -227,6 +227,7 @@ func pullWords(ref, message string) (plain, reason string) {
 	case pullNetwork(message):
 		plain = fmt.Sprintf("This server can't reach the registry %s is on, so it can't be pulled. Check the server's network and DNS, then try again.", ref)
 	case pullRegistryTrouble(message), endsWith(message, "eof"):
+		reason = resource.ReasonRegistry
 		plain = fmt.Sprintf("The registry %s is on didn't answer properly, so it can't be pulled. That is usually the registry's own trouble. Try again in a while.", ref)
 	default:
 		plain = fmt.Sprintf("%s can't be pulled, and Dockwell doesn't recognize why. Docker says: %s. Look at what it says, then try again.", ref, dockerSays(message))

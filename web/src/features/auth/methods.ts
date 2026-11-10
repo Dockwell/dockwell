@@ -28,7 +28,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "AlertService.listAlertRules": { within: "AlertService.listAlerts" },
   "AlertService.listAlerts": "may",
   "AlertService.muteAlerts": "unused",
-  "AlertService.testAlertChannel": { within: "AlertService.listAlerts" },
+  "AlertService.testAlertChannel": "may",
   "AlertService.unmuteAlerts": "unused",
   "AlertService.unacknowledgeAlert": { within: "AlertService.listAlerts" },
 
@@ -98,6 +98,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ContainerService.adoptContainer": { within: "ContainerService.listContainers" },
   "ContainerService.listContainers": "may",
 
+  "DatabaseService.changeDatabasePassword": "may",
   "DatabaseService.createDatabaseUser": "may",
   "DatabaseService.getDatabase": "read",
   "DatabaseService.listDatabases": "read",

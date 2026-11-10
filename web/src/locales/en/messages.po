@@ -1276,8 +1276,11 @@ msgstr "{0, plural, one {sent to # channel} other {sent to # channels}}"
 msgid "{firing} open"
 msgstr "{firing} open"
 
-msgid "A group's ID, or a channel's name, such as @example_alerts. Add the bot to it first."
-msgstr "A group's ID, or a channel's name, such as @example_alerts. Add the bot to it first."
+msgid "A channel needs a name: lowercase letters, digits and dashes."
+msgstr "A channel needs a name: lowercase letters, digits and dashes."
+
+msgid "A group's ID or a channel's @name, with the bot added to it."
+msgstr "A group's ID or a channel's @name, with the bot added to it."
 
 msgid "Access token"
 msgstr "Access token"
@@ -1285,19 +1288,23 @@ msgstr "Access token"
 msgid "Add a channel"
 msgstr "Add a channel"
 
-#. placeholder {0}: form.name
-msgid "Add the alert channel {0}"
-msgstr "Add the alert channel {0}"
+msgid "Add the alert channel {name}"
+msgstr "Add the alert channel {name}"
 
-msgid "An address your SMTP server sends as."
-msgstr "An address your SMTP server sends as."
+msgid "An address the mail service sends as."
+msgstr "An address the mail service sends as."
+
+msgid "Another SMTP server"
+msgstr "Another SMTP server"
+
+msgid "Another channel has this name. Rules name a channel by it, so give this one another."
+msgstr "Another channel has this name. Rules name a channel by it, so give this one another."
 
 msgid "Bot token"
 msgstr "Bot token"
 
-#. placeholder {0}: form.name
-msgid "Change the alert channel {0}"
-msgstr "Change the alert channel {0}"
+msgid "Change the alert channel {name}"
+msgstr "Change the alert channel {name}"
 
 #. placeholder {0}: channel.name
 msgid "Change {0}"
@@ -1312,8 +1319,8 @@ msgstr "Dockwell didn't send it"
 msgid "Dockwell keeps it sealed. Leave it empty to keep it."
 msgstr "Dockwell keeps it sealed. Leave it empty to keep it."
 
-msgid "Dockwell posts each alert to it as JSON. It may hold a token, so it's kept sealed, and lists show only its host."
-msgstr "Dockwell posts each alert to it as JSON. It may hold a token, so it's kept sealed, and lists show only its host."
+msgid "Each alert is posted to it as JSON. Kept sealed; lists show its host."
+msgstr "Each alert is posted to it as JSON. Kept sealed; lists show its host."
 
 msgid "For a server or topic that asks for one."
 msgstr "For a server or topic that asks for one."
@@ -1321,29 +1328,38 @@ msgstr "For a server or topic that asks for one."
 msgid "From @BotFather, when you make the bot. It's kept sealed."
 msgstr "From @BotFather, when you make the bot. It's kept sealed."
 
-msgid "From the channel's settings, under Integrations, then Webhooks. Anyone with it can post there, so it's kept sealed."
-msgstr "From the channel's settings, under Integrations, then Webhooks. Anyone with it can post there, so it's kept sealed."
+msgid "From the channel's Integrations, then Webhooks. Kept sealed."
+msgstr "From the channel's Integrations, then Webhooks. Kept sealed."
 
-msgid "From your Slack app's Incoming Webhooks page. Anyone with it can post there, so it's kept sealed."
-msgstr "From your Slack app's Incoming Webhooks page. Anyone with it can post there, so it's kept sealed."
+msgid "From your Slack app's Incoming Webhooks. Kept sealed."
+msgstr "From your Slack app's Incoming Webhooks. Kept sealed."
 
-msgid "It said: {said}. Check what the form holds, then send another."
-msgstr "It said: {said}. Check what the form holds, then send another."
+msgid "It said: {said}."
+msgstr "It said: {said}."
+
+msgid "Its server changed, so give the password again."
+msgstr "Its server changed, so give the password again."
 
 msgid "Kept, sealed"
 msgstr "Kept, sealed"
 
-msgid "Lowercase letters, digits and dashes. Rules name a channel by it."
-msgstr "Lowercase letters, digits and dashes. Rules name a channel by it."
+msgid "Lowercase letters, digits and dashes, starting and ending with a letter or digit."
+msgstr "Lowercase letters, digits and dashes, starting and ending with a letter or digit."
+
+msgid "Made hard to guess, and kept sealed. Subscribe to it in the ntfy app."
+msgstr "Made hard to guess, and kept sealed. Subscribe to it in the ntfy app."
+
+msgid "Mail service"
+msgstr "Mail service"
 
 msgid "Name"
 msgstr "Name"
 
+msgid "Named {name}"
+msgstr "Named {name}"
+
 msgid "None, on this network"
 msgstr "None, on this network"
-
-msgid "On ntfy.sh anyone who knows a topic can read it, so this one is hard to guess, and kept sealed. Subscribe to it in the ntfy app."
-msgstr "On ntfy.sh anyone who knows a topic can read it, so this one is hard to guess, and kept sealed. Subscribe to it in the ntfy app."
 
 msgid "Password"
 msgstr "Password"
@@ -1351,12 +1367,17 @@ msgstr "Password"
 msgid "Port"
 msgstr "Port"
 
+msgid "Region"
+msgstr "Region"
+
 msgid "Remove"
 msgstr "Remove"
 
-#. placeholder {0}: form.name
-msgid "Remove the alert channel {0}"
-msgstr "Remove the alert channel {0}"
+msgid "Remove the alert channel {name}"
+msgstr "Remove the alert channel {name}"
+
+msgid "Rules name a channel by it."
+msgstr "Rules name a channel by it."
 
 msgid "SMTP server"
 msgstr "SMTP server"
@@ -1376,14 +1397,14 @@ msgstr "Sending a test…"
 msgid "Sends to"
 msgstr "Sends to"
 
-msgid "Sent only over TLS, and kept sealed. Changing the server, port, security or user asks for it again."
-msgstr "Sent only over TLS, and kept sealed. Changing the server, port, security or user asks for it again."
+msgid "Sent only over TLS, and kept sealed."
+msgstr "Sent only over TLS, and kept sealed."
 
 msgid "Signing secret"
 msgstr "Signing secret"
 
-msgid "Signs each request in a Dockwell-Signature header, so your endpoint can tell it came from this install."
-msgstr "Signs each request in a Dockwell-Signature header, so your endpoint can tell it came from this install."
+msgid "Signs each request, in a Dockwell-Signature header."
+msgstr "Signs each request, in a Dockwell-Signature header."
 
 msgid "TLS"
 msgstr "TLS"
@@ -1403,8 +1424,8 @@ msgstr "Topic"
 msgid "URL"
 msgstr "URL"
 
-msgid "Up to 10 addresses, separated by commas."
-msgstr "Up to 10 addresses, separated by commas."
+msgid "Up to 10, separated by commas."
+msgstr "Up to 10, separated by commas."
 
 msgid "User"
 msgstr "User"
@@ -1412,11 +1433,14 @@ msgstr "User"
 msgid "Webhook URL"
 msgstr "Webhook URL"
 
+msgid "no TLS"
+msgstr "no TLS"
+
 msgid "ntfy.sh unless you give a server of your own."
 msgstr "ntfy.sh unless you give a server of your own."
 
-msgid "{kindName} answered {said}. Look for a message titled Dockwell test message."
-msgstr "{kindName} answered {said}. Look for a message titled Dockwell test message."
+msgid "{kindName} answered {said}."
+msgstr "{kindName} answered {said}."
 
 msgid "A rule that names no channel sends to every one."
 msgstr "A rule that names no channel sends to every one."
@@ -4502,9 +4526,6 @@ msgstr "Keep this passphrase somewhere else"
 msgid "MinIO or other S3 storage"
 msgstr "MinIO or other S3 storage"
 
-msgid "Named {name}"
-msgstr "Named {name}"
-
 msgid "No test"
 msgstr "No test"
 
@@ -4522,9 +4543,6 @@ msgstr "Passphrase"
 
 msgid "Passphrase copied"
 msgstr "Passphrase copied"
-
-msgid "Region"
-msgstr "Region"
 
 msgid "Secret key"
 msgstr "Secret key"
@@ -4875,20 +4893,23 @@ msgstr "<0>{path}</0>, read-only"
 msgid "App you open"
 msgstr "App you open"
 
+msgid "Change {what}"
+msgstr "Change {what}"
+
 msgid "Database"
 msgstr "Database"
 
 msgid "Each image pinned by digest"
 msgstr "Each image pinned by digest"
 
+msgid "Generated and sealed"
+msgstr "Generated and sealed"
+
+msgid "Generated, in {app}'s log"
+msgstr "Generated, in {app}'s log"
+
 msgid "Give {missingLabel} a value to review the plan"
 msgstr "Give {missingLabel} a value to review the plan"
-
-msgid "It reaches past its containers"
-msgstr "It reaches past its containers"
-
-msgid "Its project, which keeps it apart from your other apps."
-msgstr "Its project, which keeps it apart from your other apps."
 
 msgid "Its site"
 msgstr "Its site"
@@ -4896,14 +4917,11 @@ msgstr "Its site"
 msgid "Open {app}"
 msgstr "Open {app}"
 
-msgid "Version {version}"
-msgstr "Version {version}"
+msgid "Reaches"
+msgstr "Reaches"
 
 msgid "What it installs"
 msgstr "What it installs"
-
-msgid "What to do first"
-msgstr "What to do first"
 
 msgid "capability"
 msgstr "capability"
@@ -4923,13 +4941,9 @@ msgstr "server's network"
 msgid "the server's own"
 msgstr "the server's own"
 
-#. placeholder {0}: sealed.length
-msgid "{0, plural, one {Dockwell generates this and keeps it sealed, for you to reveal with your passkey: {made}} other {Dockwell generates these and keeps them sealed, for you to reveal with your passkey: {made}}}"
-msgstr "{0, plural, one {Dockwell generates this and keeps it sealed, for you to reveal with your passkey: {made}} other {Dockwell generates these and keeps them sealed, for you to reveal with your passkey: {made}}}"
-
-#. placeholder {0}: logged.length
-msgid "{0, plural, one {Dockwell generates this, but {app} writes it in its log, which takes no passkey to read, so change it after you first sign in: {inLog}} other {Dockwell generates these, but {app} writes them in its log, which takes no passkey to read, so change them after you first sign in: {inLog}}}"
-msgstr "{0, plural, one {Dockwell generates this, but {app} writes it in its log, which takes no passkey to read, so change it after you first sign in: {inLog}} other {Dockwell generates these, but {app} writes them in its log, which takes no passkey to read, so change them after you first sign in: {inLog}}}"
+#. placeholder {0}: generated.length
+msgid "{0, plural, one {# secret generated} other {# secrets generated}}"
+msgstr "{0, plural, one {# secret generated} other {# secrets generated}}"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
@@ -6055,6 +6069,9 @@ msgstr "What ran before this failed may have changed the data, such as with a mi
 msgid "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
 msgstr "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
 
+msgid "What to do first"
+msgstr "What to do first"
+
 msgid "What's in the volume now goes to a copy the server keeps for 7 days."
 msgstr "What's in the volume now goes to a copy the server keeps for 7 days."
 
@@ -6882,6 +6899,9 @@ msgstr "Asking its server"
 msgid "Cache hit"
 msgstr "Cache hit"
 
+msgid "Change password"
+msgstr "Change password"
+
 msgid "Connection string"
 msgstr "Connection string"
 
@@ -7017,6 +7037,9 @@ msgstr "Can do anything"
 
 msgid "Can't sign in"
 msgstr "Can't sign in"
+
+msgid "Change {who}'s password"
+msgstr "Change {who}'s password"
 
 msgid "Databases in {name}"
 msgstr "Databases in {name}"
@@ -8346,20 +8369,38 @@ msgstr "{0, plural, one {{lines} line from {source} not shown: this server share
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 
-msgid "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
-msgstr "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
+msgid "Command copied"
+msgstr "Command copied"
 
-msgid "Its agent has disconnected, so its numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on the server."
-msgstr "Its agent has disconnected, so its numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on the server."
+msgid "Copy the command that restarts Docker"
+msgstr "Copy the command that restarts Docker"
 
-msgid "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker is running on the server."
-msgstr "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker is running on the server."
+msgid "Copy the restart command"
+msgstr "Copy the restart command"
 
-msgid "Its agent last reported {seen}, so its numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on the server."
-msgstr "Its agent last reported {seen}, so its numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on the server."
+msgid "Copy the start command"
+msgstr "Copy the start command"
 
-msgid "On {list}, the agent is connected but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker is running on each."
-msgstr "On {list}, the agent is connected but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker is running on each."
+msgid "It joined, and its agent hasn't connected yet."
+msgstr "It joined, and its agent hasn't connected yet."
+
+msgid "Its agent disconnected."
+msgstr "Its agent disconnected."
+
+msgid "Its agent is connected; Docker doesn't answer."
+msgstr "Its agent is connected; Docker doesn't answer."
+
+msgid "Last heard {seen}; its numbers are left out of the fleet's."
+msgstr "Last heard {seen}; its numbers are left out of the fleet's."
+
+msgid "On {list}, the agent is connected and Docker doesn't answer."
+msgstr "On {list}, the agent is connected and Docker doesn't answer."
+
+msgid "Restart command copied"
+msgstr "Restart command copied"
+
+msgid "Start command copied"
+msgstr "Start command copied"
 
 #. placeholder {0}: blind.length
 msgid "{0, plural, one {# server can't read Docker} other {# servers can't read Docker}}"
@@ -8373,11 +8414,11 @@ msgstr "{0, plural, one {# server is waiting for its agent} other {# servers are
 msgid "{0, plural, one {# server isn't reporting} other {# servers aren't reporting}}"
 msgstr "{0, plural, one {# server isn't reporting} other {# servers aren't reporting}}"
 
-msgid "{list} joined, but their agents haven't connected yet. Start each with <0>dockwell run</0> on the server."
-msgstr "{list} joined, but their agents haven't connected yet. Start each with <0>dockwell run</0> on the server."
+msgid "{list} joined, and their agents haven't connected yet."
+msgstr "{list} joined, and their agents haven't connected yet."
 
-msgid "{list} stopped reporting, so their numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on each."
-msgstr "{list} stopped reporting, so their numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on each."
+msgid "{list} stopped reporting; their numbers are left out of the fleet's."
+msgstr "{list} stopped reporting; their numbers are left out of the fleet's."
 
 msgid "{name} can't read Docker"
 msgstr "{name} can't read Docker"
@@ -8672,6 +8713,9 @@ msgstr "Docker isn't answering on {0}, so what runs there can't be read now."
 msgid "Docker runs nothing here that Dockwell didn't make."
 msgstr "Docker runs nothing here that Dockwell didn't make."
 
+msgid "Dockwell only reads these. Open one to take it on as an app."
+msgstr "Dockwell only reads these. Open one to take it on as an app."
+
 msgid "Filter by name, image or project"
 msgstr "Filter by name, image or project"
 
@@ -8690,9 +8734,6 @@ msgstr "See them all with <0>docker ps -a</0> on the server."
 #. placeholder {0}: c.name
 msgid "Take {0} on as an app"
 msgstr "Take {0} on as an app"
-
-msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
-msgstr "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 
 #. placeholder {0}: server.name
 msgid "{0} is waiting for its agent, so what Docker runs there can't be read yet."
@@ -9203,9 +9244,6 @@ msgstr "CPU above {HIGH}% since {since}"
 msgid "Can't say how it is now"
 msgstr "Can't say how it is now"
 
-msgid "Check that <0>dockwell run</0> is still running on the server."
-msgstr "Check that <0>dockwell run</0> is still running on the server."
-
 msgid "Copied {address}"
 msgstr "Copied {address}"
 
@@ -9249,9 +9287,6 @@ msgstr "Reporting"
 
 msgid "Runs here"
 msgstr "Runs here"
-
-msgid "Start it with <0>dockwell run</0> on the server."
-msgstr "Start it with <0>dockwell run</0> on the server."
 
 msgid "Up {uptime}"
 msgstr "Up {uptime}"
@@ -9485,14 +9520,8 @@ msgstr "{unknown, plural, one {# unknown} other {# unknown}}"
 msgid "Private"
 msgstr "Private"
 
-msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
-msgstr "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
-
-msgid "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
-msgstr "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
-
-msgid "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
-msgstr "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
+msgid "Last heard {seen}; the numbers here are from then."
+msgstr "Last heard {seen}; the numbers here are from then."
 
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> may have been removed, or the link may be wrong."
@@ -9522,11 +9551,8 @@ msgstr "Updates"
 msgid "Control server"
 msgstr "Control server"
 
-msgid "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is."
-msgstr "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is."
-
-msgid "Its agent last reported {seen}. Check that <0>dockwell run</0> is still running on the server."
-msgstr "Its agent last reported {seen}. Check that <0>dockwell run</0> is still running on the server."
+msgid "Last heard {seen}."
+msgstr "Last heard {seen}."
 
 msgid "Last {span}"
 msgstr "Last {span}"
@@ -9609,8 +9635,8 @@ msgstr "Last heartbeat"
 msgid "None reported"
 msgstr "None reported"
 
-msgid "Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with <0>systemctl status docker</0>."
-msgstr "Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with <0>systemctl status docker</0>."
+msgid "Not answering since {ago}"
+msgstr "Not answering since {ago}"
 
 msgid "Not installed or not running"
 msgstr "Not installed or not running"
@@ -9823,6 +9849,9 @@ msgstr "Restarting"
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "A certificate came for {domain} on port 80 or 443, as of {when}"
 
+msgid "A domain's certificate here would show it"
+msgstr "A domain's certificate here would show it"
+
 msgid "A metadata service says so, {when}, and this machine doesn't name that cloud, so it may not be a way in"
 msgstr "A metadata service says so, {when}, and this machine doesn't name that cloud, so it may not be a way in"
 
@@ -9855,9 +9884,6 @@ msgstr "On one of this server's interfaces"
 
 msgid "On the internet"
 msgstr "On the internet"
-
-msgid "Only something outside connecting proves a way in, such as a certificate for a domain here"
-msgstr "Only something outside connecting proves a way in, such as a certificate for a domain here"
 
 msgid "Open ports 80 and 443 in DigitalOcean's Cloud Firewall, if the Droplet has one, and in the machine's own firewall."
 msgstr "Open ports 80 and 443 in DigitalOcean's Cloud Firewall, if the Droplet has one, and in the machine's own firewall."
@@ -10999,9 +11025,6 @@ msgstr "Fleet actions"
 
 msgid "Scheduled tasks"
 msgstr "Scheduled tasks"
-
-msgid "Command copied"
-msgstr "Command copied"
 
 msgid "Copied the command"
 msgstr "Copied the command"

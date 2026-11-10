@@ -241,6 +241,109 @@ func (h *Handler) CreateDatabaseUser(ctx context.Context, req *connect.Request[d
 	return connect.NewResponse(&dockwellv1.CreateDatabaseUserResponse{Change: change}), nil
 }
 
+// ChangeDatabasePassword plans a new generated password for a database's first user,
+// in the secret its service starts with, or for a user Dockwell made, in theirs.
+// Setting the secret takes in the database and every app that uses it, and the agent
+// changes the first user's in the database as it restarts (ADR 0038), as a user's
+// own step does for theirs.
+func (h *Handler) ChangeDatabasePassword(ctx context.Context, req *connect.Request[dockwellv1.ChangeDatabasePasswordRequest]) (*connect.Response[dockwellv1.ChangeDatabasePasswordResponse], error) {
+	m := req.Msg
+	if m.GetId() == "" {
+		return nil, authapi.Invalid(errors.New("the request names no database. Pass its service's ID, or its name"))
+	}
+	list, err := h.list(ctx)
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	server, err := h.pick(ctx, list, m.GetId(), m.GetProject(), m.GetEnvironment())
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	engine := database.Of(server.db.GetEngine())
+	name, env := server.ref.Name, server.ref.Scope
+	whose, secret := m.GetUser(), server.db.GetPasswordSecret()
+	if whose == "" {
+		if secret == "" {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("%s's password isn't in a secret of its environment, so Dockwell has none to change. Keep it in a secret on its app's page first", name), "no_secret")
+		}
+		if engine.SQL() {
+			for i := range server.servers {
+				on := &server.servers[i]
+				if s, ok := h.agents.Session(on.ID); ok && !s.FirstPasswords() {
+					return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+						fmt.Errorf("%s's agent is too old to change a password in %s as it restarts. Update the agent on %s, then try again", on.Name, engine.Name, on.Name), "agent_outdated")
+				}
+			}
+		}
+		whose = firstUserOf(engine)
+	} else {
+		if err := database.CheckSQLName("user", whose); err != nil {
+			return nil, invalidField("user", err)
+		}
+		if secret, err = h.userSecret(ctx, env, name, whose); err != nil {
+			return nil, h.fail(ctx, err)
+		}
+	}
+	password, err := generate(passwordLength)
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	edits := []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: env, Name: secret},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: password}}},
+	}}
+	summary := fmt.Sprintf("Change the password of %s in %s", whose, name)
+	if whose == "" {
+		summary = "Change the password of " + name
+	}
+	change, err := h.changes.Propose(ctx, summary, edits, nil, changes.Also{})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.ChangeDatabasePasswordResponse{Change: change}), nil
+}
+
+// firstUserOf is who an engine's image makes first, as its password secret is theirs:
+// empty for Redis and Valkey, which have no users of their own.
+func firstUserOf(e *database.Engine) string {
+	switch e.Kind {
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL:
+		return "postgres"
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
+		return "root"
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
+		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
+	}
+	return ""
+}
+
+// userSecret is the secret a user Dockwell made in a database server, by its service's
+// name, keeps their password in.
+func (h *Handler) userSecret(ctx context.Context, env, server, user string) (string, error) {
+	var secret string
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		r, err := tx.GetResource(ctx, string(database.UserKind), env, user)
+		switch {
+		case errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil:
+			return invalidField("user", fmt.Errorf("%s has no user %s that Dockwell made. Choose one from its Users tab", server, user))
+		case err != nil:
+			return err
+		}
+		// A user's spec holds nothing secret, so it's stored as it is.
+		spec := &resourcev1.DatabaseUser{}
+		if err := proto.Unmarshal(r.Spec, spec); err != nil {
+			return fmt.Errorf("can't read the database user %s: %w", user, err)
+		}
+		if spec.GetService() != server {
+			return invalidField("user", fmt.Errorf("the user %s is %s's, not %s's", user, spec.GetService(), server))
+		}
+		secret = spec.GetPassword()
+		return nil
+	})
+	return secret, err
+}
+
 // invalidField is an invalid argument in one field of a request, which its reason
 // names, as "invalid_user", so a form can say it beside that field.
 func invalidField(field string, err error) *connect.Error {
