@@ -119,6 +119,37 @@ export interface UIStrings {
   };
   /** Timeline: the default undo button. */
   undo: string;
+  dnsRecord: {
+    /** Accessible name of the button that copies a record's value, and what it says once it has. */
+    copy: (value: string) => string;
+    copied: (value: string) => string;
+    /** The button that reads DNS again. */
+    check: string;
+  };
+  folderPicker: {
+    /** The button that opens the picker, and its accessible name with the folder chosen. */
+    change: string;
+    changeNamed: (path: string) => string;
+    /** The same button once it's open. */
+    done: string;
+    /** Stands where the path would, while none is chosen. */
+    none: string;
+    /** Over the field that takes a typed path. */
+    path: string;
+    /** Accessible name of the breadcrumb of the folder being looked in. */
+    lookingIn: string;
+    /** Accessible name of the list of a folder's folders. */
+    foldersIn: (path: string) => string;
+    /** In the list: while it's read, when it holds no folder, and when it can't be read. */
+    reading: string;
+    empty: string;
+    cantRead: string;
+    /** Over the field that names a new folder, with where it would go. */
+    newIn: (path: string) => string;
+    /** That field's placeholder, and the button that takes the name. */
+    newName: string;
+    use: string;
+  };
   /** Advanced: what the disclosure is called when the form gives it no name of its own. */
   advanced: string;
   portField: {
@@ -252,6 +283,26 @@ export const englishStrings: UIStrings = {
     to: "to",
   },
   undo: "Undo",
+  dnsRecord: {
+    copy: (value) => `Copy ${value}`,
+    copied: (value) => `Copied ${value}`,
+    check: "Check again",
+  },
+  folderPicker: {
+    change: "Change",
+    changeNamed: (path) => (path ? `Change the folder, ${path}` : "Choose a folder"),
+    done: "Done",
+    none: "No folder chosen",
+    path: "Path",
+    lookingIn: "Looking in",
+    foldersIn: (path) => `Folders in ${path}`,
+    reading: "Reading…",
+    empty: "No folders here",
+    cantRead: "Can't read the server's folders now",
+    newIn: (path) => `New folder in ${path}`,
+    newName: "name",
+    use: "Use",
+  },
   advanced: "Advanced",
   portField: {
     checking: "Checking",
