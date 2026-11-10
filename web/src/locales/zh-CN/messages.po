@@ -5329,8 +5329,8 @@ msgstr "应用前，请确认你还有其他登录途径，例如服务商的控
 msgid "Deny everything else closes what no rule lets in on {0}"
 msgstr "拒绝其他一切流量会关闭 {0} 上没有规则放行的端口"
 
-msgid "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up. Add a rule that allows the tunnel's UDP port first."
-msgstr "“拒绝其他所有流量”会丢弃隧道的下一次握手，经隧道的 SSH 也随之中断，尽管隧道连通时测试仍会通过。请先添加一条允许隧道 UDP 端口的规则。"
+msgid "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up. Keep a rule that allows the tunnel's UDP port."
+msgstr "“拒绝其他所有流量”会丢弃隧道的下一次握手，经隧道的 SSH 也随之中断，尽管隧道连通时测试仍会通过。请保留一条允许隧道 UDP 端口的规则。"
 
 msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "该网络不是 Dockwell 创建的，并且可以绕过服务器的防火墙。网络上的其他内容（包括其他项目的服务）都能访问 {name}，它也能访问它们。"

@@ -1494,7 +1494,7 @@ func staysWords(a *dockwellv1.AccessStays, server string) []string {
 		out = append(out, fmt.Sprintf("SSH on %s stays open %s. If your address isn't one of these, or stops being one, SSH closes to you. To keep it open from more, add a rule that allows port %s first.", server, from, strings.Join(ports, ", ")))
 	}
 	if len(a.GetTunnels()) > 0 {
-		out = append(out, fmt.Sprintf("No rule allows the WireGuard tunnel %s, so deny everything else drops its next handshake, and SSH over it. Add a rule that allows the tunnel's UDP port first.", strings.Join(a.GetTunnels(), ", ")))
+		out = append(out, fmt.Sprintf("No rule allows the WireGuard tunnel %s, so deny everything else drops its next handshake, and SSH over it. Keep a rule that allows the tunnel's UDP port.", strings.Join(a.GetTunnels(), ", ")))
 	}
 	return out
 }

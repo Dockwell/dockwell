@@ -1500,6 +1500,24 @@ func TestThePlanNamesWhoSSHStaysOpenFrom(t *testing.T) {
 		t.Errorf("with a rule for SSH and one for the tunnel: %+v", got)
 	}
 
+	// Under the policy, taking away the rule that allows the tunnel's port names the tunnel;
+	// an edit that leaves it alone doesn't.
+	if err := m.PutPolicy(step("chg_p", false), policy); err != nil {
+		t.Fatal(err)
+	}
+	confirm(m, "chg_p")
+	wgRule := &resourcev1.FirewallRule{Port: 51820, Protocol: resourcev1.Protocol_PROTOCOL_UDP}
+	if got := m.StaysAfterRule(wgRule, nil); got == nil || fmt.Sprint(got.Tunnels) != "[wg0 (51820/udp)]" {
+		t.Errorf("deleting the tunnel's allow under the policy: %+v", got)
+	}
+	if got := m.StaysAfterRule(nil, http); got != nil && len(got.Tunnels) != 0 {
+		t.Errorf("allowing 80 under the policy names tunnels %v", got.Tunnels)
+	}
+	if err := m.DeletePolicy(step("chg_q", false)); err != nil {
+		t.Fatal(err)
+	}
+	confirm(m, "chg_q")
+
 	// A rule that allows SSH from anywhere leaves nothing to name but the panel and the tunnel.
 	if err := m.Put(step("chg_2", false), "ssh", &resourcev1.FirewallRule{Port: 22}); err != nil {
 		t.Fatal(err)

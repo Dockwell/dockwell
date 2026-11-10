@@ -1065,6 +1065,7 @@ func (m *Manager) stays(fn func(*state), turnsOn bool) *resource.AccessStays {
 		return nil
 	}
 	m.mu.Lock()
+	before := m.confirmed.clone()
 	next := m.confirmed.clone()
 	fn(&next)
 	nets, _ := m.networksLocked(ctx, h)
@@ -1092,18 +1093,22 @@ func (m *Manager) stays(fn func(*state), turnsOn bool) *resource.AccessStays {
 		for _, p := range pins.Own {
 			out.PanelPorts = append(out.PanelPorts, uint32(p))
 		}
-		if m.Tunnels != nil {
-			for _, t := range m.Tunnels(ctx) {
-				allowed := slices.ContainsFunc(slices.Collect(maps.Values(next.Rules)), func(r *resourcev1.FirewallRule) bool {
-					return !isDeny(r) && protocolOf(r) == "udp" && t.Port != 0 && portOf(r) == t.Port
-				})
-				switch {
-				case allowed:
-				case t.Port == 0:
-					out.Tunnels = append(out.Tunnels, t.Name)
-				default:
-					out.Tunnels = append(out.Tunnels, fmt.Sprintf("%s (%d/udp)", t.Name, t.Port))
-				}
+	}
+	// A tunnel the policy drops: as it's turned on, each whose port no rule
+	// allows; under it already, one whose allow this edit takes away.
+	if m.Tunnels != nil && next.Policy.GetDenyEverythingElse() {
+		allowedIn := func(s state, port uint16) bool {
+			return port != 0 && slices.ContainsFunc(slices.Collect(maps.Values(s.Rules)), func(r *resourcev1.FirewallRule) bool {
+				return !isDeny(r) && protocolOf(r) == "udp" && portOf(r) == port
+			})
+		}
+		for _, t := range m.Tunnels(ctx) {
+			switch {
+			case allowedIn(next, t.Port) || (!turnsOn && !allowedIn(before, t.Port)):
+			case t.Port == 0:
+				out.Tunnels = append(out.Tunnels, t.Name)
+			default:
+				out.Tunnels = append(out.Tunnels, fmt.Sprintf("%s (%d/udp)", t.Name, t.Port))
 			}
 		}
 	}

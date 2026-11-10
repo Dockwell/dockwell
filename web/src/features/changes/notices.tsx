@@ -596,7 +596,7 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
           key: `tunnels-${key}`,
           amber: true,
           title: t`No rule allows the WireGuard tunnel ${tunnels} on ${server.serverName}`,
-          detail: t`Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up. Add a rule that allows the tunnel's UDP port first.`,
+          detail: t`Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up. Keep a rule that allows the tunnel's UDP port.`,
         });
       }
     }
