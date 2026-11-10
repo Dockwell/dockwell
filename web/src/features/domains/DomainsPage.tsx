@@ -20,7 +20,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { isRoleRefusal, sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
@@ -449,20 +449,38 @@ function UnreadWords({ why, heard }: { why: Unread; heard: Date | undefined }) {
   const ago = heard ? time.ago(heard, now) : "";
   if (why === "offline") {
     return ago
-      ? t`This browser is offline, so the panel can't say where your domains stand, and they read Unknown. It last heard ${ago}. Check your connection.`
-      : t`This browser is offline, so the panel can't say where your domains stand, and they read Unknown. Check your connection.`;
+      ? t`This browser is offline, so your domains read Unknown. Last heard ${ago}.`
+      : t`This browser is offline, so your domains read Unknown.`;
   }
   return ago
-    ? t`The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It last heard ${ago}, and keeps trying.`
-    : t`The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It keeps trying.`;
+    ? t`Can't reach the control plane, so your domains read Unknown. Last heard ${ago}; it keeps trying.`
+    : t`Can't reach the control plane, so your domains read Unknown. It keeps trying.`;
 }
 
-/** What's wrong with a domain, with the fix, as an app's page says it. Nothing while what was said can't be believed. */
+/**
+ * What's wrong with a domain, as an app's page says it, in one line under the row, with
+ * More for the rest when it runs longer, and the way to fix it beside it. Nothing while
+ * what was said can't be believed.
+ */
 function RowNote({ row, read, onMoveBehind }: { row: Row; read: DomainRead; onMoveBehind: (row: Row) => void }) {
   const { domain, look, service, first, silent } = row;
-  if (read !== "read" || !first) return null;
+  const text = useRef<HTMLSpanElement>(null);
+  const [long, setLong] = useState(false);
+  const [open, setOpen] = useState(false);
+  const shown = read === "read" && first;
+  // Whether the line holds it all, measured as it's laid out, and again as the row's width changes.
+  useLayoutEffect(() => {
+    const el = text.current;
+    if (!shown || !el || typeof ResizeObserver === "undefined") return;
+    const measure = () => setLong(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const seen = new ResizeObserver(measure);
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, [shown]);
+  if (!shown) return null;
   return (
-    <p
+    <div
       className={cx(
         "app-domain-note",
         "domains-note",
@@ -470,17 +488,21 @@ function RowNote({ row, read, onMoveBehind }: { row: Row; read: DomainRead; onMo
         look.warning && "is-warning",
       )}
     >
-      <DomainNote domain={domain} look={look} silent={silent} />
+      <span ref={text} className={cx("domains-note-text", !open && "is-one-line")}>
+        <DomainNote domain={domain} look={look} silent={silent} />
+      </span>
+      {long || open ? (
+        <button type="button" className="app-panel-link" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? <Trans>Less</Trans> : <Trans>More</Trans>}
+        </button>
+      ) : null}
       {/* The server's words name a switch on the form, so the way to it is here too. */}
       {service && mayBeBehind(look) ? (
-        <>
-          {" "}
-          <button type="button" className="app-panel-link" onClick={() => onMoveBehind(row)}>
-            <Trans>It's behind a tunnel or a proxy</Trans>
-          </button>
-        </>
+        <button type="button" className="app-panel-link" onClick={() => onMoveBehind(row)}>
+          <Trans>It's behind a tunnel or a proxy</Trans>
+        </button>
       ) : null}
-    </p>
+    </div>
   );
 }
 

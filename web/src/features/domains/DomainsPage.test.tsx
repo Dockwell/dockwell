@@ -421,6 +421,34 @@ describe("the list of domains", () => {
     expect(within(row).queryByRole("link", { name: "Open app.example.com" })).toBeNull();
   });
 
+  it("keeps what's wrong to a line, with More for the rest and the fix beside it", async () => {
+    const user = userEvent.setup();
+    // jsdom lays nothing out, so the line is said to hold more than it shows.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const tall = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(40);
+    try {
+      renderAt(
+        "/domains",
+        api([aDomain({ name: "app.example.com", certificate: certificate(CertificateState.FAILED, noRecord) })]),
+      );
+      const row = await rowOf(/app\.example\.com/);
+      const text = row.querySelector(".domains-note-text");
+      expect(text).toHaveClass("is-one-line");
+      await user.click(await within(row).findByRole("button", { name: "More" }));
+      expect(text).not.toHaveClass("is-one-line");
+      expect(within(row).getByRole("button", { name: "Less" })).toHaveAttribute("aria-expanded", "true");
+    } finally {
+      tall.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("says what an ingress that's down does to a domain with a good certificate", async () => {
     const held = "1Panel-openresty holds port 80, so Caddy can't start. Stop it, or move it to another port.";
     renderAt(
@@ -757,7 +785,7 @@ describe("how long what the list says stands", () => {
     await act(() => router.navigate({ to: "/domains" }));
     await vi.advanceTimersByTimeAsync(300);
     expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Checking");
-    expect(screen.queryByText(/can't reach the control plane/)).toBeNull();
+    expect(screen.queryByText(/can't reach the control plane/i)).toBeNull();
     for (const done of read.state.held) done();
     await waitFor(async () => expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Valid for 47 days"));
   });
@@ -794,7 +822,7 @@ describe("how long what the list says stands", () => {
     await act(() => router.navigate({ to: "/domains" }));
     await vi.advanceTimersByTimeAsync(300);
     expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Checking");
-    expect(screen.queryByText(/can't reach the control plane/)).toBeNull();
+    expect(screen.queryByText(/can't reach the control plane/i)).toBeNull();
     for (const done of read.state.held) done();
   });
 
@@ -809,7 +837,7 @@ describe("how long what the list says stands", () => {
     await act(() => router.navigate({ to: "/domains" }));
     await vi.advanceTimersByTimeAsync(9_000);
     await waitFor(async () => expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Unknown"));
-    expect(screen.getByText(/can't reach the control plane/)).toBeVisible();
+    expect(screen.getByText(/can't reach the control plane/i)).toBeVisible();
   });
 
   it("says it's checking once, not each time, coming back to the same read", async () => {
@@ -886,16 +914,14 @@ describe("how long what the list says stands", () => {
 
     expect(container.querySelector(".page-lead")).toHaveTextContent("2 domains");
     expect(container.querySelector(".page-lead")).not.toHaveTextContent("look");
-    expect(
-      screen.getAllByText(/The panel can't reach the control plane, so it can't say where your domains stand/),
-    ).toHaveLength(1);
+    expect(screen.getAllByText(/Can't reach the control plane, so your domains read Unknown/)).toHaveLength(1);
     expect(screen.getByRole("combobox", { name: "State" })).toBeDisabled();
 
     // Back again, it says where they stand with no help.
     read.state.answering = true;
     await vi.advanceTimersByTimeAsync(11_000);
     await waitFor(async () => expect(await rowOf(/good\.example\.com/)).toHaveTextContent("Valid for 47 days"));
-    expect(screen.queryByText(/can't say where your domains stand/)).toBeNull();
+    expect(screen.queryByText(/your domains read Unknown/)).toBeNull();
     expect(container.querySelector(".page-lead")).toHaveTextContent("2 domains · 1 needs a look");
   });
 
@@ -946,9 +972,7 @@ describe("how long what the list says stands", () => {
     read.state.answering = false;
     onlineManager.setOnline(false);
     await vi.advanceTimersByTimeAsync(35_000);
-    expect(
-      await screen.findByText(/This browser is offline, so the panel can't say where your domains stand/),
-    ).toBeVisible();
+    expect(await screen.findByText(/This browser is offline, so your domains read Unknown/)).toBeVisible();
   });
 
   it("holds the list's place while the first read is on its way, and never calls it failed", async () => {

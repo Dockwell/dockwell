@@ -7187,6 +7187,12 @@ msgstr "Behind a tunnel or a proxy"
 msgid "Can't load the domains"
 msgstr "Can't load the domains"
 
+msgid "Can't reach the control plane, so your domains read Unknown. It keeps trying."
+msgstr "Can't reach the control plane, so your domains read Unknown. It keeps trying."
+
+msgid "Can't reach the control plane, so your domains read Unknown. Last heard {ago}; it keeps trying."
+msgstr "Can't reach the control plane, so your domains read Unknown. Last heard {ago}; it keeps trying."
+
 msgid "Can't read your apps"
 msgstr "Can't read your apps"
 
@@ -7202,8 +7208,14 @@ msgstr "Domains"
 msgid "Filter domains"
 msgstr "Filter domains"
 
+msgid "Less"
+msgstr "Less"
+
 msgid "Loading domains"
 msgstr "Loading domains"
+
+msgid "More"
+msgstr "More"
 
 msgid "No domain here matches what you've chosen. Try part of a name, or another state."
 msgstr "No domain here matches what you've chosen. Try part of a name, or another state."
@@ -7226,17 +7238,11 @@ msgstr "Send a domain to one of your apps. You review a plan before anything cha
 msgid "Serving"
 msgstr "Serving"
 
-msgid "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It keeps trying."
-msgstr "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It keeps trying."
+msgid "This browser is offline, so your domains read Unknown."
+msgstr "This browser is offline, so your domains read Unknown."
 
-msgid "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It last heard {ago}, and keeps trying."
-msgstr "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It last heard {ago}, and keeps trying."
-
-msgid "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. Check your connection."
-msgstr "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. Check your connection."
-
-msgid "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. It last heard {ago}. Check your connection."
-msgstr "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. It last heard {ago}. Check your connection."
+msgid "This browser is offline, so your domains read Unknown. Last heard {ago}."
+msgstr "This browser is offline, so your domains read Unknown. Last heard {ago}."
 
 msgid "Until then, a domain doesn't lead to its app, and you can't add one here."
 msgstr "Until then, a domain doesn't lead to its app, and you can't add one here."
@@ -10864,9 +10870,6 @@ msgstr "{address}, private"
 
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
-
-msgid "More"
-msgstr "More"
 
 msgid "Operate"
 msgstr "Operate"
