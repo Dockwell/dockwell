@@ -191,7 +191,10 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await open.click();
   await page.getByRole("heading", { level: 1, name: "db", exact: true }).waitFor();
   // Where its password is, as the page that says how to connect puts it.
-  await page.getByText(/POSTGRES_PASSWORD/).first().waitFor();
+  await page
+    .getByText(/POSTGRES_PASSWORD/)
+    .first()
+    .waitFor();
 
   step("catalog: its admin tool has a page of its own, with a way to reach it");
   await page.goto(`${origin}/catalog/postgres`);
