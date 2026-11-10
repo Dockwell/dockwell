@@ -72,6 +72,8 @@ type Handler struct {
 	reading  map[string]*reading
 	// readers counts each caller's readings under way, by the audit log's name.
 	readers map[string]int
+	// listing holds a place for each listing of a repository's branches under way.
+	listing chan struct{}
 }
 
 var _ dockwellv1connect.BuildServiceHandler = (*Handler)(nil)
@@ -82,6 +84,7 @@ func New(db *store.DB, agents *agentapi.Agents, services Finder, logger *slog.Lo
 	h := &Handler{
 		db: db, agents: agents, services: services, logger: logger, now: time.Now,
 		watchers: map[string]map[chan []store.BuildLine]struct{}{}, detected: map[string]detected{}, reading: map[string]*reading{}, readers: map[string]int{},
+		listing: make(chan struct{}, listingsAtOnce),
 	}
 	agents.OnBuild(h.record)
 	return h

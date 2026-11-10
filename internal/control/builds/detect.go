@@ -67,8 +67,17 @@ func (h *Handler) SetSources(s revision.Sources) { h.sources = s }
 
 var _ revision.Detector = (*Handler)(nil)
 
-// maxBranches is how many of a repository's branches one answer lists.
-const maxBranches = 500
+// maxBranches is how many of a repository's branches one answer lists, and
+// listingsAtOnce how many listings the control server makes at once, for everyone:
+// each may read up to gitref's bound of a repository's refs into memory.
+const (
+	maxBranches    = 500
+	listingsAtOnce = 2
+)
+
+// errTooManyListings refuses a listing beyond listingsAtOnce under way.
+var errTooManyListings = authapi.ReasonError(connect.CodeResourceExhausted,
+	fmt.Errorf("the control server is reading %d repositories' branches already. Check again in a moment", listingsAtOnce), "too_many_readings")
 
 // branchLister is a Sources that lists a repository's branches, as gitref's does.
 type branchLister interface {
@@ -78,14 +87,22 @@ type branchLister interface {
 // ListRepositoryBranches asks a repository for its branches, from the control
 // server, under the guard a plan's own question has (gitref.Guard).
 func (h *Handler) ListRepositoryBranches(ctx context.Context, req *connect.Request[dockwellv1.ListRepositoryBranchesRequest]) (*connect.Response[dockwellv1.ListRepositoryBranchesResponse], error) {
-	url := strings.TrimSpace(req.Msg.GetUrl())
-	// The URL is held to what a build's own may be, before anything asks it.
-	if err := service.CheckBuild(&resourcev1.ImageBuild{Source: &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: url}}}); err != nil {
+	// The URL is held to what a build's own may be, before anything asks it, and
+	// asked as a build would fetch it: github.com/acme/web, as people paste it,
+	// is https://github.com/acme/web (ADR 0046).
+	url, err := service.CheckRepository(req.Msg.GetUrl())
+	if err != nil {
 		return nil, authapi.Invalid(err)
 	}
 	lister, ok := h.sources.(branchLister)
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("this control plane can't read a repository's branches"))
+	}
+	select {
+	case h.listing <- struct{}{}:
+		defer func() { <-h.listing }()
+	default:
+		return nil, errTooManyListings
 	}
 	head, branches, err := lister.Branches(ctx, url)
 	if err != nil {

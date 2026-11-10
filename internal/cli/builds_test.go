@@ -23,11 +23,43 @@ import (
 type stubBuildDetection struct {
 	dockwellv1connect.UnimplementedBuildServiceHandler
 	requests chan *dockwellv1.DetectBuildRequest
+	branches chan *dockwellv1.ListRepositoryBranchesRequest
 }
 
 func (s *stubBuildDetection) DetectBuild(_ context.Context, req *connect.Request[dockwellv1.DetectBuildRequest]) (*connect.Response[dockwellv1.DetectBuildResponse], error) {
 	s.requests <- req.Msg
 	return connect.NewResponse(&dockwellv1.DetectBuildResponse{Commit: strings.Repeat("a", 40)}), nil
+}
+
+func (s *stubBuildDetection) ListRepositoryBranches(_ context.Context, req *connect.Request[dockwellv1.ListRepositoryBranchesRequest]) (*connect.Response[dockwellv1.ListRepositoryBranchesResponse], error) {
+	s.branches <- req.Msg
+	return connect.NewResponse(&dockwellv1.ListRepositoryBranchesResponse{Branches: []string{"main", "next"}, DefaultBranch: "main"}), nil
+}
+
+// A repository's URL goes to the API as --repository, as --url is the control
+// plane's own address, which the same command still takes.
+func TestBranchesTakeTheRepositoryAsItsOwnFlag(t *testing.T) {
+	stub := &stubBuildDetection{branches: make(chan *dockwellv1.ListRepositoryBranchesRequest, 1)}
+	mux := http.NewServeMux()
+	mux.Handle(dockwellv1connect.NewBuildServiceHandler(stub))
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	env := map[string]string{apicli.EnvToken: wellFormedToken(), "XDG_CONFIG_HOME": t.TempDir()}
+	r := run(t, env, "builds", "branches", "--url", server.URL, "--repository", "github.com/acme/web", "--json")
+	if r.code != exitOK {
+		t.Fatalf("builds branches = %d:\n%s%s", r.code, r.out, r.err)
+	}
+	select {
+	case got := <-stub.branches:
+		if got.GetUrl() != "github.com/acme/web" {
+			t.Errorf("builds branches asked for %q, want github.com/acme/web", got.GetUrl())
+		}
+	default:
+		t.Fatal("builds branches never reached the API")
+	}
+	if !strings.Contains(r.out, `"next"`) {
+		t.Errorf("builds branches printed %s", r.out)
+	}
 }
 
 func TestBuildDetectionTakesAnOptionalServiceArgument(t *testing.T) {
