@@ -12,7 +12,7 @@ import {
 import { Advanced, Button, Callout, SelectField, Sheet, StatusBadge, Switch, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useMay } from "../auth/may";
@@ -159,19 +159,26 @@ export function DestinationSheet({
   const ready = name !== "" && signsIn && bucket !== "" && (own ? typed.length >= 16 : saved);
   const listed = answer?.said.listed ? answer.said.buckets : undefined;
 
-  const forget = () => setAnswer(undefined);
+  // Each ask, and each change to the form, moves this on, so an answer to a form that changed since is dropped.
+  const asked = useRef(0);
+  const forget = () => {
+    asked.current++;
+    setAnswer(undefined);
+  };
   const ask = async (what: "list" | "test") => {
+    const mine = ++asked.current;
     setBusy(what);
     setFailure(undefined);
     try {
       const said = await client.testBackupDestination({
         destination: { endpoint, region: signs, bucket: what === "test" ? bucket : "", prefix, accessKey, secretKey },
       });
+      if (mine !== asked.current) return;
       setAnswer({ said, bucket: what === "test" ? bucket : "" });
       // The first bucket the keys see, when none was picked yet.
       if (what === "list" && !bucket && said.buckets[0]) setBucket(said.buckets[0]);
     } catch (err) {
-      setFailure(sentence(err));
+      if (mine === asked.current) setFailure(sentence(err));
     } finally {
       setBusy(undefined);
     }
@@ -198,11 +205,18 @@ export function DestinationSheet({
     });
 
   const problem = answer?.said.problem ?? BackupDestinationProblem.UNSPECIFIED;
+  const movedTo = answer?.said.region ?? "";
+  const leftFile = answer?.said.testFile ?? "";
+  // Where the storage says the bucket is, when the form can pick it.
+  const pickable = problem === BackupDestinationProblem.WRONG_REGION && shape.regions.includes(movedTo);
   const problemWords: Partial<Record<BackupDestinationProblem, string>> = {
     [BackupDestinationProblem.UNREACHABLE]: t`Nothing answered at ${endpoint}`,
     [BackupDestinationProblem.KEYS_REFUSED]: t`The storage refused these keys`,
     [BackupDestinationProblem.NO_BUCKET]: t`There's no bucket ${bucket} there`,
     [BackupDestinationProblem.CANT_WRITE]: t`These keys can't write to ${bucket}`,
+    [BackupDestinationProblem.WRONG_REGION]: t`${bucket} is in ${movedTo}`,
+    [BackupDestinationProblem.CANT_DELETE]: t`Wrote it, but couldn't delete the test file: ${leftFile}`,
+    [BackupDestinationProblem.STORAGE_ERROR]: t`The storage answered with an error`,
   };
   const folder = prefix.trim().replace(/^\/+|\/+$/g, "");
   const summary = [
@@ -369,10 +383,15 @@ export function DestinationSheet({
           >
             <Trans>Test</Trans>
           </Button>
-          {answer?.said.wrote && answer.bucket === bucket ? (
+          {answer?.said.wrote && answer.bucket === bucket && problem === BackupDestinationProblem.UNSPECIFIED ? (
             <StatusBadge status="healthy" label={t`Wrote and deleted a test file in ${bucket}`} labelIsState />
           ) : answer && problem !== BackupDestinationProblem.UNSPECIFIED ? (
             <StatusBadge status="down" label={problemWords[problem] ?? ""} labelIsState />
+          ) : answer?.said.signedIn && !answer.said.listed && answer.bucket === "" ? (
+            <StatusBadge
+              status="unknown"
+              label={t`Signed in · these keys can't list buckets, so type the bucket's name`}
+            />
           ) : answer?.said.listed && answer.bucket === "" ? (
             <StatusBadge
               status="healthy"
@@ -387,6 +406,18 @@ export function DestinationSheet({
         </div>
         {answer?.said.said && problem !== BackupDestinationProblem.UNSPECIFIED ? (
           <p className="backup-sheet-said">{answer.said.said}</p>
+        ) : null}
+        {pickable ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              setPlace(movedTo);
+              forget();
+            }}
+          >
+            {t`Use ${movedTo}`}
+          </Button>
         ) : null}
         {failure ? (
           <Callout tone="critical" title={t`No test`}>

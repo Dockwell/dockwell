@@ -4354,6 +4354,9 @@ msgstr "Secret key"
 msgid "Send backups to {name}"
 msgstr "Send backups to {name}"
 
+msgid "Signed in · these keys can't list buckets, so type the bucket's name"
+msgstr "Signed in · these keys can't list buckets, so type the bucket's name"
+
 msgid "Signed in · these keys list no bucket"
 msgstr "Signed in · these keys list no bucket"
 
@@ -4362,6 +4365,9 @@ msgstr "Storage"
 
 msgid "Test"
 msgstr "Test"
+
+msgid "The storage answered with an error"
+msgstr "The storage answered with an error"
 
 msgid "The storage refused these keys"
 msgstr "The storage refused these keys"
@@ -4378,11 +4384,17 @@ msgstr "Type a name"
 msgid "Use a passphrase I already have"
 msgstr "Use a passphrase I already have"
 
+msgid "Use {movedTo}"
+msgstr "Use {movedTo}"
+
 msgid "What schedules and the CLI call it."
 msgstr "What schedules and the CLI call it."
 
 msgid "Wrote and deleted a test file in {bucket}"
 msgstr "Wrote and deleted a test file in {bucket}"
+
+msgid "Wrote it, but couldn't delete the test file: {leftFile}"
+msgstr "Wrote it, but couldn't delete the test file: {leftFile}"
 
 msgid "a passphrase made for you"
 msgstr "a passphrase made for you"
@@ -4399,6 +4411,9 @@ msgstr "your passphrase"
 #. placeholder {0}: answer.said.buckets.length
 msgid "{0, plural, one {Signed in · # bucket} other {Signed in · # buckets}}"
 msgstr "{0, plural, one {Signed in · # bucket} other {Signed in · # buckets}}"
+
+msgid "{bucket} is in {movedTo}"
+msgstr "{bucket} is in {movedTo}"
 
 msgid "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
 msgstr "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."

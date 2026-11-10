@@ -98,8 +98,10 @@ type BackupServiceClient interface {
 	// before anything is planned, and says what it found: the buckets the keys may
 	// list, and, given a bucket, whether a file can be written there, which it writes
 	// under the destination's prefix and deletes. It reaches the storage from the
-	// control server, as servers would. It keeps nothing, and it's on the activity log
-	// without what signs in.
+	// control server, which may reach what some servers can't, or not what they can:
+	// the internet and private networks, never the control server's own loopback, and
+	// it follows no redirect. It keeps nothing, and it's on the activity log without
+	// what signs in.
 	TestBackupDestination(context.Context, *connect.Request[v1.TestBackupDestinationRequest]) (*connect.Response[v1.TestBackupDestinationResponse], error)
 	// FetchBackup brings a backup back from its destination onto a server that has the
 	// volume, to restore there: the one it came from, or another once that's gone. It
@@ -289,8 +291,10 @@ type BackupServiceHandler interface {
 	// before anything is planned, and says what it found: the buckets the keys may
 	// list, and, given a bucket, whether a file can be written there, which it writes
 	// under the destination's prefix and deletes. It reaches the storage from the
-	// control server, as servers would. It keeps nothing, and it's on the activity log
-	// without what signs in.
+	// control server, which may reach what some servers can't, or not what they can:
+	// the internet and private networks, never the control server's own loopback, and
+	// it follows no redirect. It keeps nothing, and it's on the activity log without
+	// what signs in.
 	TestBackupDestination(context.Context, *connect.Request[v1.TestBackupDestinationRequest]) (*connect.Response[v1.TestBackupDestinationResponse], error)
 	// FetchBackup brings a backup back from its destination onto a server that has the
 	// volume, to restore there: the one it came from, or another once that's gone. It

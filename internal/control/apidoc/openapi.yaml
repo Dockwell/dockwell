@@ -414,8 +414,10 @@ paths:
                  before anything is planned, and says what it found: the buckets the keys may
                  list, and, given a bucket, whether a file can be written there, which it writes
                  under the destination's prefix and deletes. It reaches the storage from the
-                 control server, as servers would. It keeps nothing, and it's on the activity log
-                 without what signs in.
+                 control server, which may reach what some servers can't, or not what they can:
+                 the internet and private networks, never the control server's own loopback, and
+                 it follows no redirect. It keeps nothing, and it's on the activity log without
+                 what signs in.
             operationId: BackupService_TestBackupDestination
             requestBody:
                 content:
@@ -13947,7 +13949,9 @@ components:
                     description: Whether the keys may list buckets at all.
                 wrote:
                     type: boolean
-                    description: Whether a test file was written to the bucket and deleted again.
+                    description: |-
+                        Whether a test file was written to the bucket. With no problem it was deleted
+                         again; with CANT_DELETE it's still there, as test_file.
                 problem:
                     enum:
                         - BACKUP_DESTINATION_PROBLEM_UNSPECIFIED
@@ -13955,12 +13959,23 @@ components:
                         - BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED
                         - BACKUP_DESTINATION_PROBLEM_NO_BUCKET
                         - BACKUP_DESTINATION_PROBLEM_CANT_WRITE
+                        - BACKUP_DESTINATION_PROBLEM_WRONG_REGION
+                        - BACKUP_DESTINATION_PROBLEM_CANT_DELETE
+                        - BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR
                     type: string
                     description: What went wrong, when something did.
                     format: enum
                 said:
                     type: string
-                    description: What the storage said of it, in its own words, with nothing that signs in.
+                    description: |-
+                        What the storage said of it, as its own code, such as AccessDenied, with nothing
+                         that signs in.
+                region:
+                    type: string
+                    description: The region the storage says the bucket is in, with WRONG_REGION.
+                testFile:
+                    type: string
+                    description: The test file that was written and couldn't be deleted, with CANT_DELETE.
             description: TestBackupDestinationResponse says what the storage answered.
         Tmpfs:
             type: object

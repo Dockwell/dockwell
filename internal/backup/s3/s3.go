@@ -37,8 +37,9 @@ type Bucket struct {
 	Name string
 	// AccessKey and SecretKey sign each request.
 	AccessKey, SecretKey string
-	// Client makes the requests; http.DefaultClient unless set.
-	Client *http.Client
+	// Client makes the requests; http.DefaultClient unless set. A test of a form
+	// sets a guarded one (netguard), which follows no redirect.
+	Client Doer
 	// Now is the clock; nil means time.Now.
 	Now func() time.Time
 	// Stall is how long a request can go with no byte moving before it's given up on.
@@ -110,11 +111,19 @@ const unsignedPayload = "UNSIGNED-PAYLOAD"
 // emptyHash is the SHA-256 of nothing, for a request with no body.
 const emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
-// Error is what the service said.
+// Doer sends a request: an *http.Client, or a guarded client such as netguard's.
+type Doer interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
+// Error is what the service said. Any answer but a 2xx is one: a 3xx too, such as
+// the 301 S3 answers for a bucket in another region, which carries no Location.
 type Error struct {
 	Status  int
 	Code    string
 	Message string
+	// Region is where the bucket is, when the service says so (x-amz-bucket-region).
+	Region string
 }
 
 func (e *Error) Error() string {
@@ -133,11 +142,12 @@ func IsNotFound(err error) bool {
 	return errors.As(err, &e) && e.Status == http.StatusNotFound
 }
 
-func (b *Bucket) client() *http.Client {
-	if b.Client != nil {
-		return b.Client
+func (b *Bucket) client() Doer {
+	// A nil *http.Client, as a caller with none passes, is unset too, though as a Doer it isn't nil.
+	if c, isClient := b.Client.(*http.Client); b.Client == nil || isClient && c == nil {
+		return http.DefaultClient
 	}
-	return http.DefaultClient
+	return b.Client
 }
 
 func (b *Bucket) region() string {
@@ -281,11 +291,14 @@ func (b *Bucket) do(ctx context.Context, method, key string, q url.Values, body 
 		return nil, err
 	}
 	timer.Reset(wait)
-	if res.StatusCode >= http.StatusBadRequest {
+	if res.StatusCode >= http.StatusMultipleChoices {
 		defer ended()
 		defer res.Body.Close()
 		raw, _ := io.ReadAll(io.LimitReader(res.Body, 16<<10))
-		return nil, &Error{Status: res.StatusCode, Code: tag(raw, "Code"), Message: tag(raw, "Message")}
+		return nil, &Error{
+			Status: res.StatusCode, Code: tag(raw, "Code"), Message: tag(raw, "Message"),
+			Region: res.Header.Get("x-amz-bucket-region"),
+		}
 	}
 	res.Body = &watchedBody{watched: watched{r: res.Body, timer: timer, wait: wait}, Closer: res.Body, ctx: ctx, host: u.Host, done: ended}
 	return res, nil

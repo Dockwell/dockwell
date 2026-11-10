@@ -5,6 +5,7 @@ package s3
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -97,6 +98,21 @@ func TestAnObjectGoesAndComesBack(t *testing.T) {
 }
 
 // A part that fails on the way goes again, made from its start.
+// A bucket in another region gets a 301 with no Location, which Go hands back as the
+// answer: that's no write, and it says where the bucket is.
+func TestAnAnswerThatIsntA2xxIsntDone(t *testing.T) {
+	b, f := bench(t)
+	f.MovedTo = "eu-west-2"
+	err := b.Put(t.Context(), "probe", []byte("x"))
+	var e *Error
+	if !errors.As(err, &e) || e.Status != http.StatusMovedPermanently || e.Code != "PermanentRedirect" || e.Region != "eu-west-2" {
+		t.Fatalf("a put to a bucket in another region = %v", err)
+	}
+	if left := f.Objects(); len(left) != 0 {
+		t.Errorf("it stored %v", left)
+	}
+}
+
 func TestAFailedPartGoesAgain(t *testing.T) {
 	b, f := bench(t)
 	f.FailParts = 1

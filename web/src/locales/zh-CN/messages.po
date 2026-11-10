@@ -4354,6 +4354,9 @@ msgstr "私密密钥"
 msgid "Send backups to {name}"
 msgstr "将备份发送到 {name}"
 
+msgid "Signed in · these keys can't list buckets, so type the bucket's name"
+msgstr "已登录 · 这些密钥无法列出存储桶，请输入存储桶名称"
+
 msgid "Signed in · these keys list no bucket"
 msgstr "已登录 · 这些密钥列不出存储桶"
 
@@ -4362,6 +4365,9 @@ msgstr "存储"
 
 msgid "Test"
 msgstr "测试"
+
+msgid "The storage answered with an error"
+msgstr "存储返回了错误"
 
 msgid "The storage refused these keys"
 msgstr "存储拒绝了这些密钥"
@@ -4378,11 +4384,17 @@ msgstr "输入名称"
 msgid "Use a passphrase I already have"
 msgstr "使用我已有的密码短语"
 
+msgid "Use {movedTo}"
+msgstr "使用 {movedTo}"
+
 msgid "What schedules and the CLI call it."
 msgstr "计划和 CLI 用它来指代。"
 
 msgid "Wrote and deleted a test file in {bucket}"
 msgstr "已在 {bucket} 中写入并删除了一个测试文件"
+
+msgid "Wrote it, but couldn't delete the test file: {leftFile}"
+msgstr "已写入，但无法删除测试文件：{leftFile}"
 
 msgid "a passphrase made for you"
 msgstr "为你生成的密码短语"
@@ -4399,6 +4411,9 @@ msgstr "你的密码短语"
 #. placeholder {0}: answer.said.buckets.length
 msgid "{0, plural, one {Signed in · # bucket} other {Signed in · # buckets}}"
 msgstr "{0, plural, other {已登录 · # 个存储桶}}"
+
+msgid "{bucket} is in {movedTo}"
+msgstr "{bucket} 在 {movedTo}"
 
 msgid "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
 msgstr "在添加其他存放位置之前，备份只保存在各服务器的磁盘上。任何兼容 S3 的存储都可以，例如 Cloudflare R2、Backblaze B2 或 Amazon S3。"

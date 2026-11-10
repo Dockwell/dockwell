@@ -151,6 +151,12 @@ const (
 	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_NO_BUCKET BackupDestinationProblem = 3
 	// The keys may not write to the bucket.
 	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_CANT_WRITE BackupDestinationProblem = 4
+	// The bucket is in another region than the form's, as region says.
+	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_WRONG_REGION BackupDestinationProblem = 5
+	// The test file was written and couldn't be deleted, so a backup's pruning would fail.
+	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_CANT_DELETE BackupDestinationProblem = 6
+	// The storage answered with an error of its own.
+	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR BackupDestinationProblem = 7
 )
 
 // Enum value maps for BackupDestinationProblem.
@@ -161,13 +167,19 @@ var (
 		2: "BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED",
 		3: "BACKUP_DESTINATION_PROBLEM_NO_BUCKET",
 		4: "BACKUP_DESTINATION_PROBLEM_CANT_WRITE",
+		5: "BACKUP_DESTINATION_PROBLEM_WRONG_REGION",
+		6: "BACKUP_DESTINATION_PROBLEM_CANT_DELETE",
+		7: "BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR",
 	}
 	BackupDestinationProblem_value = map[string]int32{
-		"BACKUP_DESTINATION_PROBLEM_UNSPECIFIED":  0,
-		"BACKUP_DESTINATION_PROBLEM_UNREACHABLE":  1,
-		"BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED": 2,
-		"BACKUP_DESTINATION_PROBLEM_NO_BUCKET":    3,
-		"BACKUP_DESTINATION_PROBLEM_CANT_WRITE":   4,
+		"BACKUP_DESTINATION_PROBLEM_UNSPECIFIED":   0,
+		"BACKUP_DESTINATION_PROBLEM_UNREACHABLE":   1,
+		"BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED":  2,
+		"BACKUP_DESTINATION_PROBLEM_NO_BUCKET":     3,
+		"BACKUP_DESTINATION_PROBLEM_CANT_WRITE":    4,
+		"BACKUP_DESTINATION_PROBLEM_WRONG_REGION":  5,
+		"BACKUP_DESTINATION_PROBLEM_CANT_DELETE":   6,
+		"BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR": 7,
 	}
 )
 
@@ -1710,12 +1722,18 @@ type TestBackupDestinationResponse struct {
 	Buckets []string `protobuf:"bytes,2,rep,name=buckets,proto3" json:"buckets,omitempty"`
 	// Whether the keys may list buckets at all.
 	Listed bool `protobuf:"varint,3,opt,name=listed,proto3" json:"listed,omitempty"`
-	// Whether a test file was written to the bucket and deleted again.
+	// Whether a test file was written to the bucket. With no problem it was deleted
+	// again; with CANT_DELETE it's still there, as test_file.
 	Wrote bool `protobuf:"varint,4,opt,name=wrote,proto3" json:"wrote,omitempty"`
 	// What went wrong, when something did.
 	Problem BackupDestinationProblem `protobuf:"varint,5,opt,name=problem,proto3,enum=dockwell.v1.BackupDestinationProblem" json:"problem,omitempty"`
-	// What the storage said of it, in its own words, with nothing that signs in.
-	Said          string `protobuf:"bytes,6,opt,name=said,proto3" json:"said,omitempty"`
+	// What the storage said of it, as its own code, such as AccessDenied, with nothing
+	// that signs in.
+	Said string `protobuf:"bytes,6,opt,name=said,proto3" json:"said,omitempty"`
+	// The region the storage says the bucket is in, with WRONG_REGION.
+	Region string `protobuf:"bytes,7,opt,name=region,proto3" json:"region,omitempty"`
+	// The test file that was written and couldn't be deleted, with CANT_DELETE.
+	TestFile      string `protobuf:"bytes,8,opt,name=test_file,json=testFile,proto3" json:"test_file,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1788,6 +1806,20 @@ func (x *TestBackupDestinationResponse) GetProblem() BackupDestinationProblem {
 func (x *TestBackupDestinationResponse) GetSaid() string {
 	if x != nil {
 		return x.Said
+	}
+	return ""
+}
+
+func (x *TestBackupDestinationResponse) GetRegion() string {
+	if x != nil {
+		return x.Region
+	}
+	return ""
+}
+
+func (x *TestBackupDestinationResponse) GetTestFile() string {
+	if x != nil {
+		return x.TestFile
 	}
 	return ""
 }
@@ -1908,14 +1940,16 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x15RestoreBackupResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"o\n" +
 	"\x1cTestBackupDestinationRequest\x12O\n" +
-	"\vdestination\x18\x01 \x01(\v2-.dockwell.resource.v1alpha1.BackupDestinationR\vdestination\"\xd9\x01\n" +
+	"\vdestination\x18\x01 \x01(\v2-.dockwell.resource.v1alpha1.BackupDestinationR\vdestination\"\x8e\x02\n" +
 	"\x1dTestBackupDestinationResponse\x12\x1b\n" +
 	"\tsigned_in\x18\x01 \x01(\bR\bsignedIn\x12\x18\n" +
 	"\abuckets\x18\x02 \x03(\tR\abuckets\x12\x16\n" +
 	"\x06listed\x18\x03 \x01(\bR\x06listed\x12\x14\n" +
 	"\x05wrote\x18\x04 \x01(\bR\x05wrote\x12?\n" +
 	"\aproblem\x18\x05 \x01(\x0e2%.dockwell.v1.BackupDestinationProblemR\aproblem\x12\x12\n" +
-	"\x04said\x18\x06 \x01(\tR\x04said*\x98\x01\n" +
+	"\x04said\x18\x06 \x01(\tR\x04said\x12\x16\n" +
+	"\x06region\x18\a \x01(\tR\x06region\x12\x1b\n" +
+	"\ttest_file\x18\b \x01(\tR\btestFile*\x98\x01\n" +
 	"\vBackupState\x12\x1c\n" +
 	"\x18BACKUP_STATE_UNSPECIFIED\x10\x00\x12%\n" +
 	"\x14BACKUP_STATE_RUNNING\x10\x01\x1a\v\xa2\xbb\x18\aRunning\x12\x1f\n" +
@@ -1929,13 +1963,16 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x12BACKUP_COPY_STORED\x10\x02\x1a\n" +
 	"\xa2\xbb\x18\x06Stored\x12\"\n" +
 	"\x12BACKUP_COPY_FAILED\x10\x03\x1a\n" +
-	"\xa2\xbb\x18\x06Failed*\xbc\x02\n" +
+	"\xa2\xbb\x18\x06Failed*\xfa\x03\n" +
 	"\x18BackupDestinationProblem\x12*\n" +
 	"&BACKUP_DESTINATION_PROBLEM_UNSPECIFIED\x10\x00\x12;\n" +
 	"&BACKUP_DESTINATION_PROBLEM_UNREACHABLE\x10\x01\x1a\x0f\xa2\xbb\x18\vUnreachable\x12=\n" +
 	"'BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED\x10\x02\x1a\x10\xa2\xbb\x18\fKeys refused\x12<\n" +
 	"$BACKUP_DESTINATION_PROBLEM_NO_BUCKET\x10\x03\x1a\x12\xa2\xbb\x18\x0eNo such bucket\x12:\n" +
-	"%BACKUP_DESTINATION_PROBLEM_CANT_WRITE\x10\x04\x1a\x0f\xa2\xbb\x18\vCan't write2\xdb\v\n" +
+	"%BACKUP_DESTINATION_PROBLEM_CANT_WRITE\x10\x04\x1a\x0f\xa2\xbb\x18\vCan't write\x12=\n" +
+	"'BACKUP_DESTINATION_PROBLEM_WRONG_REGION\x10\x05\x1a\x10\xa2\xbb\x18\fWrong region\x12<\n" +
+	"&BACKUP_DESTINATION_PROBLEM_CANT_DELETE\x10\x06\x1a\x10\xa2\xbb\x18\fCan't delete\x12?\n" +
+	"(BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR\x10\a\x1a\x11\xa2\xbb\x18\rStorage error2\xdb\v\n" +
 	"\rBackupService\x12x\n" +
 	"\vListBackups\x12\x1f.dockwell.v1.ListBackupsRequest\x1a .dockwell.v1.ListBackupsResponse\"&\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\r\x12\v/v1/backups\x90\x02\x01\x12w\n" +
 	"\tGetBackup\x12\x1d.dockwell.v1.GetBackupRequest\x1a\x1e.dockwell.v1.GetBackupResponse\"+\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/backups/{id}\x90\x02\x01\x12\x86\x01\n" +

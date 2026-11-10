@@ -30,15 +30,16 @@ import (
 // ActionTestDestination is a test of a destination form on the activity log.
 const ActionTestDestination = "backup_destination.test"
 
-// testWait bounds a whole test, so a form never waits on storage that doesn't answer.
-const testWait = 20 * time.Second
+// TestWait bounds a whole test, so a form never waits on storage that doesn't
+// answer. A test of this sets its own.
+var TestWait = 20 * time.Second
 
-// StorageClient reaches storage for a test: the internet, and the private networks
-// and this server's own addresses an admin may keep storage on, as MinIO often is.
-// A test sets its own.
-var StorageClient = &http.Client{
-	Transport: &http.Transport{DialContext: netguard.Dialer(netguard.Options{Private: true, Loopback: true})},
-}
+// StorageClient reaches storage for a test as an alert channel's test reaches its
+// far end (alert.TestGuard): the internet, and the private networks an admin may
+// keep storage on, as MinIO often is, but never this server's own loopback, which
+// a test that says what answered would read; and it follows no redirect, which
+// could lead it there. A test sets its own.
+var StorageClient s3.Doer = netguard.Client(netguard.Options{Private: true, MaxBody: 1 << 20, Timeout: TestWait})
 
 // testedDestination is what the activity log keeps of a test: where, never what signs in.
 type testedDestination struct {
@@ -71,8 +72,11 @@ func (h *Handler) TestBackupDestination(ctx context.Context, req *connect.Reques
 	if listing {
 		d.Bucket = ""
 	}
-	ctx, cancel := context.WithTimeout(ctx, testWait)
+	// The record of the test is written whatever the storage did, past its time too.
+	record := context.WithoutCancel(ctx)
+	ctx, cancel := context.WithTimeout(ctx, TestWait)
 	defer cancel()
+	words := func(err error) string { return wordsOf(ctx, err) }
 	bucket := &s3.Bucket{
 		Endpoint: d.GetEndpoint(), Region: d.GetRegion(), Name: d.GetBucket(),
 		AccessKey: d.GetAccessKey(), SecretKey: d.GetSecretKey(), Client: StorageClient,
@@ -82,31 +86,41 @@ func (h *Handler) TestBackupDestination(ctx context.Context, req *connect.Reques
 	switch {
 	case err == nil:
 		out.SignedIn, out.Listed, out.Buckets = true, true, names
+	case scopedRefusal(err):
+		// Keys scoped to one bucket may not list, which says nothing against them: the
+		// form asks for the bucket's name, and the write below says whether they work.
+		out.SignedIn = true
 	case refusedKeys(err):
-		// A key scoped to one bucket may not list: the write below says whether it works.
-		if listing || !scopedRefusal(err) {
-			out.Problem, out.Said = dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED, words(err)
-		}
+		out.Problem, out.Said = dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED, words(err)
 	default:
 		var storage *s3.Error
-		if !errors.As(err, &storage) {
+		switch {
+		case !errors.As(err, &storage):
 			out.Problem, out.Said = dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_UNREACHABLE, words(err)
+		case listing:
+			// The storage answered with an error of its own; with a bucket, the write says more.
+			out.Problem, out.Said = dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR, words(err)
 		}
 	}
 	if !listing && out.Problem == dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_UNSPECIFIED {
 		key := testKey(d.GetPrefix())
 		if err := bucket.Put(ctx, key, []byte("Dockwell checks it can write here, and deletes this at once.\n")); err != nil {
 			out.Problem, out.Said = problemOf(err), words(err)
+			var storage *s3.Error
+			if errors.As(err, &storage) {
+				out.Region = storage.Region
+			}
 		} else {
 			out.SignedIn, out.Wrote = true, true
 			if err := bucket.Delete(ctx, key); err != nil {
-				out.Said = "wrote " + key + ", which it couldn't delete: " + words(err)
+				// Written and left there: a backup's pruning, which deletes, would fail too.
+				out.Problem, out.Said, out.TestFile = dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_CANT_DELETE, words(err), key
 			}
 		}
 	}
 	detail, _ := json.Marshal(testedDestination{Endpoint: hostOf(d.GetEndpoint()), Bucket: d.GetBucket(), Wrote: out.GetWrote(), Problem: problemWord(out.GetProblem())})
-	if err := h.db.Update(context.WithoutCancel(ctx), func(tx *store.Tx) error {
-		return tx.RecordEvent(ctx, store.Event{
+	if err := h.db.Update(record, func(tx *store.Tx) error {
+		return tx.RecordEvent(record, store.Event{
 			ID: id.New(id.Event), At: h.now(), Actor: p.Actor(), Action: ActionTestDestination,
 			Subject: hostOf(d.GetEndpoint()), Detail: string(detail), Surface: client.Surface(p),
 		})
@@ -140,12 +154,20 @@ func scopedRefusal(err error) bool {
 	return errors.As(err, &e) && e.Code == "AccessDenied"
 }
 
+// movedBucket reports a bucket the storage says is in another region than the form's:
+// S3 answers 301 PermanentRedirect, with no Location, and the region in a header.
+func movedBucket(e *s3.Error) bool {
+	return e.Code == "PermanentRedirect" || e.Status == http.StatusMovedPermanently || e.Code == "AuthorizationHeaderMalformed" && e.Region != ""
+}
+
 // problemOf says why a write didn't happen.
 func problemOf(err error) dockwellv1.BackupDestinationProblem {
 	var e *s3.Error
 	switch {
 	case !errors.As(err, &e):
 		return dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_UNREACHABLE
+	case movedBucket(e):
+		return dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_WRONG_REGION
 	case e.Code == "NoSuchBucket" || e.Status == http.StatusNotFound:
 		return dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_NO_BUCKET
 	case e.Code == "AccessDenied":
@@ -164,8 +186,19 @@ func problemWord(p dockwellv1.BackupDestinationProblem) string {
 	return strings.ToLower(strings.TrimPrefix(p.String(), "BACKUP_DESTINATION_PROBLEM_"))
 }
 
-// words says an error without a URL's path or query, which may hold a key.
-func words(err error) string {
+// wordsOf says an error without a URL's path or query, which may hold a key: the
+// storage's own code for what it refused, such as InvalidAccessKeyId, which holds
+// nothing that signs in, and plainly when the test ran out of time.
+func wordsOf(ctx context.Context, err error) string {
+	var e *s3.Error
+	switch {
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		return "no answer in time: nothing came back within " + TestWait.String()
+	case errors.As(err, &e) && e.Code != "":
+		return e.Code
+	case errors.As(err, &e):
+		return "the storage answered " + http.StatusText(e.Status)
+	}
 	return netguard.Words(err)
 }
 

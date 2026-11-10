@@ -34,6 +34,11 @@ type Server struct {
 	// method: POST is how every upload starts.
 	Refuse     string
 	RefuseOnly string
+	// RefuseStatus is the status a refusal answers with: 403 unless set, such as 500.
+	RefuseStatus int
+	// MovedTo answers every request for a bucket as S3 does when it's in another
+	// region: 301 PermanentRedirect, with no Location, and that region in its header.
+	MovedTo string
 	// FinishFails has an upload's last step answer 200 and say it failed, as S3 can.
 	FinishFails bool
 	// Authorizations are the Authorization headers it was sent.
@@ -89,8 +94,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(auth, "AWS4-HMAC-SHA256 Credential=") {
 		s.t.Errorf("%s %s isn't signed: %q", r.Method, r.URL, auth)
 	}
+	if s.MovedTo != "" && r.URL.Path != "/" {
+		w.Header().Set("x-amz-bucket-region", s.MovedTo)
+		w.WriteHeader(http.StatusMovedPermanently)
+		fmt.Fprint(w, "<Error><Code>PermanentRedirect</Code><Message>The bucket you are attempting to access must be addressed using the specified endpoint.</Message></Error>")
+		return
+	}
 	if s.Refuse != "" && (s.RefuseOnly == "" || s.RefuseOnly == r.Method) {
-		w.WriteHeader(http.StatusForbidden)
+		status := http.StatusForbidden
+		if s.RefuseStatus != 0 {
+			status = s.RefuseStatus
+		}
+		w.WriteHeader(status)
 		fmt.Fprintf(w, "<Error><Code>%s</Code><Message>no</Message></Error>", s.Refuse)
 		return
 	}

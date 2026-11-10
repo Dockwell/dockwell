@@ -645,6 +645,92 @@ describe("the backups page", () => {
     expect(within(sheet).getByText("InvalidAccessKeyId: no")).toBeVisible();
   });
 
+  /** Opens Add a destination on Amazon S3 with keys typed, answering tests with answer. */
+  async function s3Sheet(answer: (req: TestBackupDestinationRequest) => unknown) {
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({}),
+          testBackupDestination: answer as never,
+        },
+      }),
+    );
+    await user.click(
+      within(await screen.findByRole("region", { name: "Destinations" })).getByRole("button", { name: "Add" }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a destination" });
+    await user.selectOptions(within(sheet).getByLabelText("Storage"), "s3");
+    await user.type(within(sheet).getByLabelText("Access key"), "AKIA");
+    await user.type(within(sheet).getByLabelText("Secret key"), "secret");
+    return { user, sheet };
+  }
+
+  it("says a bucket is in another region, and picks that region in one click", async () => {
+    const { user, sheet } = await s3Sheet((req) =>
+      req.destination?.bucket
+        ? {
+            signedIn: true,
+            problem: BackupDestinationProblem.WRONG_REGION,
+            region: "eu-west-2",
+            said: "PermanentRedirect",
+          }
+        : { signedIn: true, listed: true, buckets: ["acme"] },
+    );
+    await user.click(within(sheet).getByRole("button", { name: "Find buckets" }));
+    await user.click(await within(sheet).findByRole("button", { name: "Test" }));
+    expect(await within(sheet).findByText("acme is in eu-west-2")).toBeVisible();
+    expect(within(sheet).queryByText(/Wrote and deleted/)).toBeNull();
+    await user.click(within(sheet).getByRole("button", { name: "Use eu-west-2" }));
+    expect(within(sheet).getByLabelText("Region")).toHaveValue("eu-west-2");
+  });
+
+  it("says a test file it couldn't delete is still there, and never that it was deleted", async () => {
+    const { user, sheet } = await s3Sheet((req) =>
+      req.destination?.bucket
+        ? {
+            signedIn: true,
+            wrote: true,
+            problem: BackupDestinationProblem.CANT_DELETE,
+            testFile: "dw/.dockwell-test-0a1b2c",
+            said: "AccessDenied",
+          }
+        : { signedIn: true, listed: true, buckets: ["acme"] },
+    );
+    await user.click(within(sheet).getByRole("button", { name: "Find buckets" }));
+    await user.click(await within(sheet).findByRole("button", { name: "Test" }));
+    expect(
+      await within(sheet).findByText("Wrote it, but couldn't delete the test file: dw/.dockwell-test-0a1b2c"),
+    ).toBeVisible();
+    expect(within(sheet).queryByText(/Wrote and deleted/)).toBeNull();
+  });
+
+  it("asks for the bucket's name when the keys sign in and may not list", async () => {
+    const { user, sheet } = await s3Sheet(() => ({ signedIn: true, listed: false }));
+    await user.click(within(sheet).getByRole("button", { name: "Find buckets" }));
+    expect(
+      await within(sheet).findByText("Signed in · these keys can't list buckets, so type the bucket's name"),
+    ).toBeVisible();
+  });
+
+  it("drops an answer to keys that were changed while it was asked", async () => {
+    let answer: (value: unknown) => void = () => {};
+    const { user, sheet } = await s3Sheet(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    await user.click(within(sheet).getByRole("button", { name: "Find buckets" }));
+    await user.type(within(sheet).getByLabelText("Secret key"), "-changed");
+    answer({ signedIn: true, listed: true, buckets: ["acme"] });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(within(sheet).queryByText(/Signed in/)).toBeNull();
+  });
+
   it("fetches a backup its server lost, and offers no restore until then", async () => {
     const user = userEvent.setup();
     const fetched = vi.fn((_: FetchBackupRequest) => ({ backup: aBackup() }));

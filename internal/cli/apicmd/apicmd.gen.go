@@ -366,7 +366,7 @@ func Methods() []*apicli.Method {
 			Noun:      "backups",
 			Verb:      "test-destination",
 			Short:     "Sign in to storage with what a destination form holds",
-			Long:      "Sign in to storage with what a destination form holds, before anything is\nplanned, and says what it found: the buckets the keys may list, and, given a\nbucket, whether a file can be written there, which it writes under the\ndestination's prefix and deletes. It reaches the storage from the control\nserver, as servers would. It keeps nothing, and it's on the activity log without\nwhat signs in.",
+			Long:      "Sign in to storage with what a destination form holds, before anything is\nplanned, and says what it found: the buckets the keys may list, and, given a\nbucket, whether a file can be written there, which it writes under the\ndestination's prefix and deletes. It reaches the storage from the control\nserver, which may reach what some servers can't, or not what they can: the\ninternet and private networks, never the control server's own loopback, and it\nfollows no redirect. It keeps nothing, and it's on the activity log without what\nsigns in.",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "destination", Help: "The storage's endpoint, region, bucket (empty to list them alone), prefix and keys."},
