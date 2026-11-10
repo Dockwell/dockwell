@@ -78,6 +78,55 @@
   font-weight: 400;
 }
 
+/* Whom a jail never bans: each address on a line, with why it's there and a way to take it out. */
+.firewall-never-bans {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.firewall-never-bans legend {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.firewall-never-bans ul {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.firewall-never-bans li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.firewall-never-bans-address {
+  overflow-wrap: anywhere;
+}
+
+.firewall-never-bans-out {
+  margin-left: auto;
+}
+
+.firewall-never-bans-add {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.firewall-never-bans-add > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
 /* A value from a file sshd hasn't read yet: it isn't what runs. */
 .firewall-set-in.is-waiting {
   color: var(--ink);
@@ -301,4 +350,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.firewall-jail-actions {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
 }

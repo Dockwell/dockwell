@@ -6,6 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -15,8 +18,10 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
+	"github.com/dockwell/dockwell/internal/agent/jails"
 )
 
 // fail2banWait bounds each fail2ban-client the agent runs, which starts Python
@@ -38,6 +43,11 @@ type fail2banReader struct {
 	// loc is the time zone fail2ban says its times in: the server's own.
 	loc *time.Location
 
+	// specs are the jails Dockwell holds, and sessions the addresses signed in
+	// over SSH now, when the agent can say.
+	specs    func() map[string]*resourcev1.Jail
+	sessions func(ctx context.Context) []string
+
 	reads shared[*dockwellv1.ServerFail2Ban]
 }
 
@@ -48,7 +58,7 @@ func newFail2banReader(cfg Config) *fail2banReader {
 	if tools == nil {
 		tools = &hosttool.Runner{Off: true}
 	}
-	return &fail2banReader{tools: tools, loc: time.Local}
+	return &fail2banReader{tools: tools, loc: time.Local, specs: cfg.Jails, sessions: cfg.SSHSessions}
 }
 
 // read reads fail2ban as it is now. Two tabs asking at once share one read.
@@ -101,6 +111,14 @@ func (f *fail2banReader) readNow(ctx context.Context) *dockwellv1.ServerFail2Ban
 		return out
 	}
 	out.State = dockwellv1.Fail2BanState_FAIL2BAN_STATE_RUNNING
+	if f.sessions != nil {
+		out.SignedInFrom = f.sessions(ctx)
+	}
+	ours := f.dockwellJails()
+	var specs map[string]*resourcev1.Jail
+	if f.specs != nil {
+		specs = f.specs()
+	}
 	for _, name := range jailList(status) {
 		if !isJailArg(name) {
 			// Never an argument: a name that starts with a dash would read as one of
@@ -108,7 +126,11 @@ func (f *fail2banReader) readNow(ctx context.Context) *dockwellv1.ServerFail2Ban
 			out.Jails = append(out.Jails, &dockwellv1.Fail2BanJail{Name: name, Unreadable: "Dockwell reads only jails named with letters, digits, . _ and -."})
 			continue
 		}
-		out.Jails = append(out.Jails, f.jail(ctx, name))
+		j := f.jail(ctx, name)
+		if j.Dockwell = ours[name]; j.Dockwell {
+			j.Spec = specs[name]
+		}
+		out.Jails = append(out.Jails, j)
 	}
 	return out
 }
@@ -145,6 +167,11 @@ func (f *fail2banReader) jail(ctx context.Context, name string) *dockwellv1.Fail
 			}
 		}
 	}
+	// What it never bans, as it runs: a section's own ignoreip replaces what
+	// [DEFAULT] sets, so only fail2ban can say what holds.
+	if v, err := f.client(ctx, "get", name, "ignoreip"); err == nil {
+		j.Ignore = ignored(v)
+	}
 	// --with-time, from fail2ban 0.11, says when each ban began and ends;
 	// before it, the status's list is all there is.
 	if v, err := f.client(ctx, "get", name, "banip", "--with-time"); err == nil {
@@ -160,6 +187,28 @@ func (f *fail2banReader) jail(ctx context.Context, name string) *dockwellv1.Fail
 	}
 	j.Unreadable = strings.Join(why, " ")
 	return j
+}
+
+// ignoredName is a host name in what a jail ignores: no spaces, and a dot, so
+// the line that heads the list isn't one.
+var ignoredName = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]*\.)+[A-Za-z0-9-]*[A-Za-z]$`)
+
+// ignored reads fail2ban-client get <jail> ignoreip, a tree of addresses and
+// ranges under a line that says so, or one line that says none is ignored.
+func ignored(text string) []string {
+	var out []string
+	for line := range strings.SplitSeq(text, "\n") {
+		entry := strings.TrimSpace(strings.TrimLeft(line, "|`- \t"))
+		if _, err := netip.ParsePrefix(entry); err == nil {
+			out = append(out, entry)
+		} else if _, err := netip.ParseAddr(entry); err == nil {
+			out = append(out, entry)
+		} else if ignoredName.MatchString(entry) && len(entry) <= 253 && !strings.HasSuffix(line, ":") {
+			// A host name, which fail2ban looks up itself: an admin's own list may hold one.
+			out = append(out, entry)
+		}
+	}
+	return out
 }
 
 // jailArg is a jail's name the agent passes to fail2ban-client.
@@ -248,4 +297,25 @@ func lastWord(s string) string {
 		return ""
 	}
 	return f[len(f)-1]
+}
+
+// dockwellJails are the jails Dockwell writes, by the sections of its own file.
+func (f *fail2banReader) dockwellJails() map[string]bool {
+	root := f.tools.Root
+	if root == "" {
+		root = "/"
+	}
+	out := map[string]bool{}
+	b, err := os.ReadFile(filepath.Join(root, jails.File)) //nolint:gosec // fail2ban's own folder
+	// A file there that Dockwell didn't write is someone else's jails, not its own.
+	if err != nil || !jails.IsDockwells(string(b)) {
+		return out
+	}
+	for line := range strings.SplitSeq(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			out[strings.Trim(line, "[]")] = true
+		}
+	}
+	return out
 }

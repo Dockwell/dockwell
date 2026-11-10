@@ -6,7 +6,7 @@
 // after ufw allow OpenSSH and ufw allow "Nginx Full", and an nft with nothing in
 // its ruleset. Nothing is changed by looking (ADR 0052).
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Page } from "playwright-core";
@@ -51,6 +51,8 @@ status) printf 'Status\\n|- Number of jail:\\t1\\n\`- Jail list:\\tsshd\\n' ;;
 "get sshd maxretry") echo 5 ;;
 "get sshd findtime") echo 600 ;;
 "get sshd bantime") echo 3600 ;;
+-t) echo "OK: configuration test is successful" ;;
+reload) echo OK ;;
 "get sshd banip --with-time") printf '198.51.100.77 \\t2026-11-08 03:10:00 + 3600 = 2026-11-08 04:10:00\\n192.0.2.211 \\t2026-11-08 02:40:00 + 3600 = 2026-11-08 03:40:00\\n' ;;
 *) echo "Invalid command ($*)" >&2; exit 255 ;;
 esac
@@ -65,7 +67,9 @@ export function hostTools(dir: string): string {
   const sbin = join(dir, "usr", "sbin");
   const bin = join(dir, "usr", "bin");
   const ssh = join(dir, "etc", "ssh");
-  for (const d of [sbin, bin, join(ssh, "sshd_config.d")]) mkdirSync(d, { recursive: true });
+  for (const d of [sbin, bin, join(ssh, "sshd_config.d"), join(dir, "etc", "fail2ban", "jail.d")]) {
+    mkdirSync(d, { recursive: true });
+  }
   writeFileSync(join(sbin, "ufw"), `#!/bin/sh\ncat <<'EOF'\n${ufwStatus}EOF\n`, { mode: 0o755 });
   writeFileSync(join(sbin, "nft"), `#!/bin/sh\necho '{"nftables": []}'\n`, { mode: 0o755 });
   writeFileSync(
@@ -83,6 +87,8 @@ export function hostTools(dir: string): string {
 }
 
 interface FirewallFlowOptions {
+  /** The environment the binary runs with, which names the stand-ins' folder. */
+  env?: NodeJS.ProcessEnv;
   origin: string;
   step: (message: string) => void;
   shoot: (page: Page, name: string) => Promise<void>;
@@ -92,7 +98,7 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
-export async function firewallFlow(page: Page, { origin, step, shoot }: FirewallFlowOptions) {
+export async function firewallFlow(page: Page, { origin, step, shoot, env }: FirewallFlowOptions) {
   step("a server's Firewall tab says what filters its traffic, read-only, and what Docker publishes past it");
   // The run has a second server by now, with no agent connected: read the control server's.
   const link = await ownServerPath(page, origin);
@@ -143,6 +149,26 @@ export async function firewallFlow(page: Page, { origin, step, shoot }: Firewall
     if (!f2bText.includes(want)) fail(`the fail2ban card doesn't say ${want}: ${f2bText}`);
   }
   await shoot(page, "server-firewall-access");
+
+  step("the SSH jail is set from the Fail2ban card, with a passkey, and written to Dockwell's own file");
+  await f2b.getByRole("button", { name: "Edit the sshd jail" }).click();
+  const jail = page.getByRole("dialog", { name: /^(The sshd jail on|Protect SSH on) / });
+  const tries = jail.getByLabel("Failed sign-ins that ban an address");
+  await tries.fill("3");
+  await jail.getByRole("button", { name: "Plan it" }).click();
+  const jailPlan = page.getByRole("dialog", { name: "Review plan" });
+  await jailPlan.getByRole("button", { name: /Apply plan/ }).click();
+  // The browser's virtual authenticator gives the passkey a jail takes; no timer follows.
+  await page
+    .getByRole("button", { name: /^(Done|Close)$/ })
+    .first()
+    .click({ timeout: 30_000 });
+  const tools = env?.["DOCKWELL_TEST_TOOLS"];
+  if (tools) {
+    const written = readFileSync(join(tools, "etc", "fail2ban", "jail.d", "dockwell.conf"), "utf8");
+    if (!written.includes("[sshd]") || !written.includes("maxretry = 3")) fail(`Dockwell's jail file reads ${written}`);
+  }
+  await f2b.getByText("Dockwell writes this jail.").waitFor({ timeout: 15_000 });
   await page.setViewportSize({ width: 390, height: 844 });
   await f2b.scrollIntoViewIfNeeded();
   const wide = await page.evaluate(() => document.documentElement.scrollWidth);

@@ -21,6 +21,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
+	"github.com/dockwell/dockwell/internal/agent/jails"
 	"github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
@@ -36,6 +37,7 @@ import (
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/fail2ban"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/route"
@@ -93,7 +95,7 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 // plane beside it listens on, which no route may send to; a server that joined
 // has none, as its agent opens no ports.
 func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
-	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
+	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts, id.ControlURL)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
 	cfg.OnePanel = serverOnePanel(stdio)
@@ -244,7 +246,7 @@ const ingressEvery = time.Minute
 // ctx is done. The collector reads the same Docker's version, and the log reader
 // the same Docker's logs, with what the server kept of the containers a change
 // removed.
-func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int) agent.Config {
+func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int, controlURL string) agent.Config {
 	collector := collect.New()
 	socket, err := docker.SocketFrom(stdio.Getenv)
 	client := docker.Unusable(err)
@@ -288,13 +290,38 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		exposed = agent.ExposedPorts(nil)
 	}
 	firewalls := firewallAccess(ctx, logger, dir, tools, dockerOrNot(client, socket, err), exposed, ownPorts, panel == nil && len(ownPorts) > 0)
+	// Who is signed in over SSH from outside now, as the firewall's pins read it:
+	// a jail's plan says which of them it could ban.
+	sessions := sshSessions(&access.PinReader{Proc: os.DirFS("/proc"), Tools: tools})
+	jailed := &jails.Manager{
+		Dir: filepath.Join(dir.Agent(), "fail2ban"), Root: tools.Root, Tools: tools,
+		Control: jails.ControlAddresses(controlURL, nil), Sessions: sessions, Logger: logger,
+	}
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers, Passwords: &database.FirstPasswords{Client: client}},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
 			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}, tasks,
-			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls}),
+			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls},
+			&fail2ban.Driver{Backend: jailed}),
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Tasks: tasks, Tools: tools, Access: firewalls,
+		Jails: jailed.Stored, SSHSessions: sessions,
+	}
+}
+
+// sshSessions says the addresses signed in to the server over SSH from outside
+// it now, or none where the server's processes can't be read.
+func sshSessions(r *access.PinReader) func(context.Context) []string {
+	return func(ctx context.Context) []string {
+		pins, err := r.Read(ctx)
+		if err != nil {
+			return nil
+		}
+		out := make([]string, 0, len(pins.SSHFrom))
+		for _, p := range pins.SSHFrom {
+			out = append(out, p.Addr().String())
+		}
+		return out
 	}
 }
 

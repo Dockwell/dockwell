@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/collect"
@@ -90,6 +91,12 @@ type Config struct {
 	// Access keeps a change to the firewall that waits for its confirmation,
 	// when the control plane confirms it. Nil keeps none.
 	Access AccessConfirmer
+	// Jails says the fail2ban jails Dockwell holds, by name, for the read to
+	// carry each beside the jail as it runs. Nil says none.
+	Jails func() map[string]*resourcev1.Jail
+	// SSHSessions says the addresses signed in over SSH from outside now, for a
+	// jail's form to put in what it never bans. Nil says none.
+	SSHSessions func(ctx context.Context) []string
 	// Docker lists this server's containers. Nil lists none.
 	Docker *docker.Client
 	// Backups takes and removes backups of this server's volumes. Nil takes none.

@@ -1323,7 +1323,8 @@ function TopNotice({
       </>
     );
   }
-  const notices: Notice[] = [...warnings];
+  // With nothing worse to say first, what a plan warns of in amber leads.
+  const notices: Notice[] = [...risks.filter((risk) => risk.amber), ...warnings];
   if (offline.length > 0) {
     notices.push({
       key: "offline",
@@ -2204,10 +2205,11 @@ function Effects({
     });
   }
   // What the Callout has no room for, as something worse has it.
-  if (risks.length > 0) {
+  const worse = risks.some((risk) => !risk.amber);
+  if (worse) {
     for (const warning of warnings) rows.push({ ...warning, warn: true });
   }
-  if (risks.length > 0 && offline.length > 0) {
+  if (worse && offline.length > 0) {
     rows.push({
       key: "offline",
       warn: true,

@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { MessageInitShape } from "@bufbuild/protobuf";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { durationFromMs, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code } from "@connectrpc/connect";
 import {
   Fail2banState,
   type GetServerFail2banResponseSchema,
   type GetServerSshResponseSchema,
+  JailSchema,
   ListenerReach,
+  type ProposeChangeRequest,
   SshAnswer,
   SshLoaded,
   SshRootLogin,
+  type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -80,11 +83,16 @@ async function renderAccess({
   ssh = ubuntu,
   fail2ban = running,
   firewall = true,
+  proposeChange,
+  yourAddress = "",
 }: {
   ssh?: Ssh | Error;
   fail2ban?: Fail2ban | Error;
   /** False makes the firewall's own read fail, which leaves SSH and fail2ban to say what they read. */
   firewall?: boolean;
+  proposeChange?: (req: ProposeChangeRequest) => object;
+  /** The address the control plane sees this browser at. */
+  yourAddress?: string;
 }) {
   const watch = feed<WatchServersResponse>();
   watch.push(changed(hz1), snapshotComplete);
@@ -94,10 +102,11 @@ async function renderAccess({
   });
   const getServerFail2ban = vi.fn(() => {
     if (fail2ban instanceof Error) throw fail2ban;
-    return { fail2ban: { time: timestampFromDate(new Date()), ...fail2ban } };
+    return { fail2ban: { time: timestampFromDate(new Date()), ...fail2ban }, yourAddress };
   });
   const rendered = renderAt("/servers/srv_1/firewall", {
     servers: { watchServers: watch.stream },
+    ...(proposeChange ? { changes: { proposeChange, watchChange: feed<WatchChangeResponse>().stream } } : {}),
     firewall: {
       getServerFirewall: () => {
         if (!firewall) throw authError(Code.Unavailable, "unavailable", "hz-1 can't say what filters its traffic now");
@@ -330,7 +339,7 @@ describe("fail2ban on a server's Firewall tab", () => {
     const jails = within(within(card).getByRole("region", { name: "Jails" })).getAllByRole("listitem");
     expect(jails.map((j) => j.textContent)).toEqual([
       "nginx-http-auth3 failed sign-ins in 1 min · bans for good1",
-      "sshd5 failed sign-ins in 10 min · bans for 1 hour2",
+      "sshd5 failed sign-ins in 10 min · bans for 1 hourEdit2",
     ]);
     const bans = within(within(card).getByRole("region", { name: "Recent bans" })).getAllByRole("listitem");
     expect(bans.map((b) => b.textContent)).toEqual([
@@ -370,5 +379,178 @@ describe("fail2ban on a server's Firewall tab", () => {
     await renderAccess({});
     expect(await screen.findByText("密码登录")).toBeVisible();
     expect(await screen.findByText("正在运行")).toBeVisible();
+  });
+
+  it("plans protecting SSH where no jail does, with the jail's rule as you set it, closing SSH's ports", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_req: ProposeChangeRequest) => ({}));
+    await renderAccess({
+      fail2ban: {
+        ...running,
+        jails: running?.jails?.filter((j) => j.name !== "sshd"),
+        signedInFrom: ["198.51.100.7", "203.0.113.7"],
+      },
+      proposeChange: proposed,
+      yourAddress: "203.0.113.7",
+    });
+    const card = await screen.findByRole("region", { name: "Fail2ban" });
+    await user.click(await within(card).findByRole("button", { name: "Protect SSH" }));
+    const sheet = await screen.findByRole("dialog", { name: "Protect SSH on hz-1" });
+    expect(sheet).toHaveTextContent("hz-1 itself and the control server are never banned either.");
+    // Nothing is said of a ban landing on you until you take yourself out.
+    expect(within(sheet).queryByText(/as it applies$/)).toBeNull();
+    // Who is signed in over SSH, and where this browser is, are never banned unless taken out.
+    const never = within(sheet).getByRole("group", { name: "Never banned" });
+    expect(
+      within(never)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["198.51.100.7signed in over SSH nowTake out", "203.0.113.7signed in over SSH nowTake out"]);
+    await user.click(within(never).getByRole("button", { name: "Take 198.51.100.7 out" }));
+    expect(within(sheet).getByText("This can ban 198.51.100.7 as it applies")).toBeVisible();
+    expect(sheet).toHaveTextContent("fail2ban counts the failures from just before.");
+    await user.type(within(never).getByLabelText("An address or a range to never ban"), "192.0.2.0/24");
+    await user.click(within(never).getByRole("button", { name: "Add" }));
+    const tries = within(sheet).getByLabelText("Failed sign-ins that ban an address");
+    await user.clear(tries);
+    await user.type(tries, "3");
+    await user.selectOptions(within(sheet).getByLabelText("Counted within"), "1h");
+    await user.selectOptions(within(sheet).getByLabelText("Banned for"), "forever");
+    await user.click(within(sheet).getByRole("button", { name: "Plan it" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalledTimes(1));
+    const req = proposed.mock.calls[0]?.[0];
+    expect(req?.summary).toBe("Protect SSH on hz-1 with fail2ban");
+    expect(req?.edits[0]?.resource).toMatchObject({ kind: "fail2ban.jail", scope: "srv_1", name: "sshd" });
+    expect(req?.edits[0]?.spec?.kind.value).toMatchObject({
+      filter: "sshd",
+      backend: "systemd",
+      ports: [2222],
+      maxRetry: 3,
+      findTime: "1h",
+      banTime: "",
+      banForGood: true,
+      ignore: ["203.0.113.7", "192.0.2.0/24"],
+    });
+  });
+
+  it("edits Dockwell's jail from the spec it holds, changing only what the form shows", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_req: ProposeChangeRequest) => ({}));
+    await renderAccess({
+      // SSH can't be read: its ports must not empty the jail's.
+      ssh: authError(Code.Unavailable, "unavailable", "the agent on hz-1 isn't connected"),
+      fail2ban: {
+        ...running,
+        jails: running?.jails?.map((j) =>
+          j.name === "sshd"
+            ? {
+                ...j,
+                dockwell: true,
+                ignore: ["127.0.0.0/8", "::1", "192.0.2.10", "203.0.113.5"],
+                spec: create(JailSchema, {
+                  filter: "sshd",
+                  backend: "",
+                  logPaths: ["/var/log/auth.log"],
+                  ports: [22, 2222],
+                  maxRetry: 4,
+                  findTime: "45m",
+                  banTime: "3h",
+                  ignore: ["203.0.113.5/32", "198.51.100.0/24"],
+                }),
+              }
+            : j,
+        ),
+      },
+      proposeChange: proposed,
+    });
+    const card = await screen.findByRole("region", { name: "Fail2ban" });
+    await user.click(await within(card).findByRole("button", { name: "Edit the sshd jail" }));
+    const sheet = await screen.findByRole("dialog", { name: "The sshd jail on hz-1" });
+    expect(within(sheet).getByLabelText("Failed sign-ins that ban an address")).toHaveValue("4");
+    // A time outside the choices stays, under an option of its own.
+    expect(within(sheet).getByLabelText("Counted within")).toHaveValue("45m");
+    expect(within(sheet).getByRole("option", { name: "As it is: 45m" })).toBeInTheDocument();
+    expect(within(sheet).getByLabelText("Banned for")).toHaveValue("3h");
+    const tries = within(sheet).getByLabelText("Failed sign-ins that ban an address");
+    await user.clear(tries);
+    await user.type(tries, "6");
+    await user.click(within(sheet).getByRole("button", { name: "Plan it" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalledTimes(1));
+    expect(proposed.mock.calls[0]?.[0]?.edits[0]?.spec?.kind.value).toMatchObject({
+      filter: "sshd",
+      backend: "",
+      logPaths: ["/var/log/auth.log"],
+      ports: [22, 2222],
+      maxRetry: 6,
+      findTime: "45m",
+      banTime: "3h",
+      banForGood: false,
+      ignore: ["203.0.113.5", "198.51.100.0/24"],
+    });
+  });
+
+  it("carries what fail2ban's own jail ignores into the one it takes over, and says when SSH's ports can't be read", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_req: ProposeChangeRequest) => ({}));
+    await renderAccess({
+      ssh: authError(Code.Unavailable, "unavailable", "the agent on hz-1 isn't connected"),
+      fail2ban: {
+        ...running,
+        jails: running?.jails?.map((j) =>
+          j.name === "sshd" ? { ...j, ignore: ["127.0.0.0/8", "::1", "203.0.113.5"] } : j,
+        ),
+      },
+      proposeChange: proposed,
+    });
+    const card = await screen.findByRole("region", { name: "Fail2ban" });
+    await user.click(await within(card).findByRole("button", { name: "Edit the sshd jail" }));
+    const sheet = await screen.findByRole("dialog", { name: /sshd jail on hz-1|Protect SSH on hz-1/ });
+    expect(sheet).toHaveTextContent(
+      "SSH's ports couldn't be read: this closes fail2ban's own sshd port, 22 unless set otherwise.",
+    );
+    await user.click(within(sheet).getByRole("button", { name: "Plan it" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalledTimes(1));
+    expect(proposed.mock.calls[0]?.[0]?.edits[0]?.spec?.kind.value).toMatchObject({
+      ports: [],
+      ignore: ["203.0.113.5"],
+    });
+  });
+
+  it("edits the SSH jail as it runs, and removes a jail Dockwell writes", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_req: ProposeChangeRequest) => ({}));
+    await renderAccess({
+      fail2ban: {
+        ...running,
+        jails: running?.jails?.map((j) => (j.name === "sshd" ? { ...j, dockwell: true } : j)),
+      },
+      proposeChange: proposed,
+    });
+    const card = await screen.findByRole("region", { name: "Fail2ban" });
+    expect(within(card).queryByRole("button", { name: "Protect SSH" })).toBeNull();
+    expect(within(card).queryByRole("button", { name: "Edit the nginx-http-auth jail" })).toBeNull();
+    expect(card).toHaveTextContent("Dockwell writes this jail.");
+    await user.click(within(card).getByRole("button", { name: "Edit the sshd jail" }));
+    const sheet = await screen.findByRole("dialog", { name: "The sshd jail on hz-1" });
+    expect(within(sheet).getByLabelText("Failed sign-ins that ban an address")).toHaveValue("5");
+    expect(within(sheet).getByLabelText("Counted within")).toHaveValue("10m");
+    expect(within(sheet).getByLabelText("Banned for")).toHaveValue("1h");
+    await user.click(within(sheet).getByRole("button", { name: "Plan it" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalledTimes(1));
+    expect(proposed.mock.calls[0]?.[0]?.summary).toBe("Change the sshd jail on hz-1");
+
+    await user.click(within(card).getByRole("button", { name: "Stop writing the sshd jail" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalledTimes(2));
+    expect(proposed.mock.calls[1]?.[0]).toMatchObject({
+      summary: "Stop writing the sshd jail on hz-1",
+      edits: [{ resource: { kind: "fail2ban.jail", scope: "srv_1", name: "sshd" }, delete: true }],
+    });
+  });
+
+  it("offers nothing to change where fail2ban isn't running", async () => {
+    await renderAccess({ fail2ban: { state: Fail2banState.STOPPED, why: "Failed to access socket path." } });
+    const card = await screen.findByRole("region", { name: "Fail2ban" });
+    await within(card).findByText("Stopped");
+    expect(within(card).queryByRole("button")).toBeNull();
   });
 });

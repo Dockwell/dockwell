@@ -38,6 +38,7 @@ func Commands() []string {
 		"environments",
 		"events",
 		"fail2ban",
+		"fail2ban-jails",
 		"files",
 		"firewall",
 		"firewall-policies",

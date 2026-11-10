@@ -3,6 +3,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/jails"
 )
 
 // fail2banClientScript answers as fail2ban-client 1.0.2 does, from testdata:
@@ -60,6 +63,8 @@ func readFail2ban(t *testing.T, s standIns) *dockwellv1.ServerFail2Ban {
 func TestFail2banIsReadAsItRuns(t *testing.T) {
 	s := newStandIns(t)
 	s.tool(t, "/usr/bin/fail2ban-client", fail2banClientScript(t))
+	// Dockwell writes the sshd jail, and Debian's own file nginx-http-auth.
+	s.file(t, "/etc/fail2ban/jail.d/dockwell.conf", jails.Render(map[string]*resourcev1.Jail{"sshd": {Filter: "sshd", Backend: "systemd"}}, nil), 0o644)
 	got := readFail2ban(t, s)
 	if got.GetState() != dockwellv1.Fail2BanState_FAIL2BAN_STATE_RUNNING || got.GetVersion() != "1.0.2" || len(got.GetJails()) != 2 {
 		t.Fatalf("state %v, version %q, jails %d: %s", got.GetState(), got.GetVersion(), len(got.GetJails()), got.GetWhy())
@@ -79,6 +84,9 @@ func TestFail2banIsReadAsItRuns(t *testing.T) {
 	}
 	if strings.Join(bans, ", ") != "198.51.100.77 03:10-04:10, 192.0.2.211 02:40-03:40" {
 		t.Errorf("sshd's bans: %v", bans)
+	}
+	if !sshd.GetDockwell() || nginx.GetDockwell() {
+		t.Errorf("Dockwell writes sshd %t, nginx-http-auth %t, want sshd alone", sshd.GetDockwell(), nginx.GetDockwell())
 	}
 	if nginx.GetName() != "nginx-http-auth" || !nginx.GetBansForGood() || nginx.GetBanTime() != nil || fmt.Sprint(nginx.GetFiles()) != "[/var/log/nginx/error.log]" {
 		t.Errorf("nginx-http-auth: %v", nginx)
@@ -139,6 +147,61 @@ esac
 	}
 	if busy := got.GetJails()[1]; len(busy.GetBans()) != maxBans || busy.GetBannedNow() != 540 {
 		t.Errorf("busy sends %d bans and counts %d", len(busy.GetBans()), busy.GetBannedNow())
+	}
+}
+
+// What a jail never bans is read from fail2ban as it runs, as a section's own
+// ignoreip replaces what [DEFAULT] sets; a jail Dockwell writes comes with the
+// spec Dockwell holds, for an edit to start from; and the read says who is
+// signed in over SSH now. A dockwell.conf Dockwell didn't write marks nothing
+// as Dockwell's.
+func TestTheReadCarriesWhatAJailIgnoresItsSpecAndWhoIsSignedIn(t *testing.T) {
+	for text, want := range map[string]string{
+		"These IP addresses/networks are ignored:\n|- 127.0.0.0/8\n|- ::1\n`- 203.0.113.5\n":                  "[127.0.0.0/8 ::1 203.0.113.5]",
+		"No IP address/network is ignored\n":                                                                  "[]",
+		"These IP addresses/networks are ignored:\n|- 127.0.0.0/8\n|- office.example.com\n`- 2001:db8::/32\n": "[127.0.0.0/8 office.example.com 2001:db8::/32]",
+		"": "[]",
+	} {
+		if got := fmt.Sprint(ignored(text)); got != want {
+			t.Errorf("%q reads %s, want %s", text, got, want)
+		}
+	}
+	s := newStandIns(t)
+	s.tool(t, "/usr/bin/fail2ban-client", `case "$*" in
+version) echo 1.0.2 ;;
+ping) echo pong ;;
+status) printf 'Status\n|- Number of jail:\t1\n`+"`"+`- Jail list:\tsshd\n' ;;
+"status sshd") printf 'Status for the jail: sshd\n`+"`"+`- Actions\n   |- Currently banned:\t0\n' ;;
+"get sshd ignoreip") printf 'These IP addresses/networks are ignored:\n|- 127.0.0.0/8\n`+"`"+`- 203.0.113.5\n' ;;
+*) exit 255 ;;
+esac
+`)
+	spec := &resourcev1.Jail{Filter: "sshd", Backend: "systemd", MaxRetry: 3, FindTime: "45m", Ignore: []string{"203.0.113.5/32"}}
+	read := func() *dockwellv1.ServerFail2Ban {
+		r := newFail2banReader(Config{
+			Tools:       s.runner(),
+			Jails:       func() map[string]*resourcev1.Jail { return map[string]*resourcev1.Jail{"sshd": spec} },
+			SSHSessions: func(context.Context) []string { return []string{"198.51.100.7"} },
+		})
+		got, err := r.read(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	s.file(t, jails.File, "[sshd]\nenabled = true\n", 0o644)
+	theirs := read()
+	if j := theirs.GetJails()[0]; j.GetDockwell() || j.GetSpec() != nil {
+		t.Errorf("a file Dockwell didn't write marks %s as Dockwell's: %v", j.GetName(), j)
+	}
+	s.file(t, jails.File, jails.Render(map[string]*resourcev1.Jail{"sshd": spec}, nil), 0o644)
+	got := read()
+	j := got.GetJails()[0]
+	if fmt.Sprint(j.GetIgnore()) != "[127.0.0.0/8 203.0.113.5]" || !j.GetDockwell() || j.GetSpec().GetFindTime() != "45m" {
+		t.Errorf("the jail reads %v", j)
+	}
+	if fmt.Sprint(got.GetSignedInFrom()) != "[198.51.100.7]" {
+		t.Errorf("signed in from %v", got.GetSignedInFrom())
 	}
 }
 

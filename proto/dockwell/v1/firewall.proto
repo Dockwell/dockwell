@@ -504,6 +504,10 @@ message GetServerFail2banRequest {
 message GetServerFail2banResponse {
   // fail2ban, as the agent read it.
   ServerFail2ban fail2ban = 1;
+  // The address this request came from, as the control plane sees it, such
+  // as "203.0.113.7": the caller's own, for a jail's form to put in what it
+  // never bans. Empty when it's the server itself, as over ssh -L.
+  string your_address = 2;
 }
 
 // ServerFail2ban is what fail2ban does on a server, as its agent read it
@@ -521,6 +525,10 @@ message ServerFail2ban {
   string version = 4;
   // Its jails, by name.
   repeated Fail2banJail jails = 5;
+  // The addresses signed in to the server over SSH from outside it now, as
+  // the firewall's pins read them, such as "203.0.113.7". A jail's form puts
+  // them in what it never bans, unless the person takes them out.
+  repeated string signed_in_from = 6;
 }
 
 // Fail2banState is whether fail2ban is there and running.
@@ -565,6 +573,18 @@ message Fail2banJail {
   repeated Fail2banBan bans = 12;
   // Why some of the jail couldn't be read. Empty when all of it could.
   string unreadable = 13;
+  // True when Dockwell writes this jail, in its own file, so a change edits it
+  // as a fail2ban.jail resource of the server's. fail2ban reads that file
+  // after its own and before jail.local, so a jail.local can still set it
+  // otherwise, and the values above are as fail2ban runs it.
+  bool dockwell = 14;
+  // What the jail never bans, as fail2ban runs it (fail2ban-client get <jail>
+  // ignoreip), such as "127.0.0.0/8". A section's own ignoreip replaces what
+  // [DEFAULT] sets, so this is what holds, whoever wrote it.
+  repeated string ignore = 15;
+  // The jail as Dockwell holds it, when Dockwell writes it: what an edit
+  // starts from, so it changes only what it means to.
+  dockwell.resource.v1alpha1.Jail spec = 16;
 }
 
 // Fail2banBan is an address a jail has banned.

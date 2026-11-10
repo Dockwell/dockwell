@@ -4314,11 +4314,15 @@ func accessBetween[Q any](e *Engine, plan *Plan, builds, deletes []Q, of func(Q)
 	return append(out, after...)
 }
 
-// TouchesAccess says whether a plan changes who reaches a server: it has a step
-// of a kind under the firewall's timer, so it waits for a confirmation, and
-// takes a person and a passkey to apply.
+// TouchesAccess says whether a plan changes who reaches a server, or who gets
+// onto it: it has a step of a kind under the firewall's timer, or of one that
+// decides who gets in, as a fail2ban jail does, so it takes a person and a
+// passkey to apply (ADR 0052).
 func (e *Engine) TouchesAccess(p *Plan) bool {
-	return p != nil && slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return e.guardsAccess(r.Ref.Kind) })
+	return p != nil && slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
+		t, err := e.kinds.Type(r.Ref.Kind)
+		return err == nil && resource.TakesAPerson(t)
+	})
 }
 
 // AccessConfirmer is an agent that can keep a change to its server's firewall

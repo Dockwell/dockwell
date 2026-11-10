@@ -146,6 +146,9 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 		p.Answers = &dockwellv1.RouteAnswers{Reach: routeReaches[a.Reach], Proxies: a.Proxies, Plain: a.Plain}
 	}
 	p.Closes = s.Closes
+	if j := s.Jail; j != nil {
+		p.Jail = &dockwellv1.JailPlan{NeverBans: j.NeverBans, SignedInNotIgnored: j.SignedInNotIgnored, IgnoresEverything: j.IgnoresEverything}
+	}
 	if a := s.Stays; a != nil {
 		p.Stays = &dockwellv1.AccessStays{SshPorts: a.SSHPorts, Pinned: a.Pinned, Allowed: a.Allowed, Tunnels: a.Tunnels, PanelPorts: a.PanelPorts}
 	}
@@ -413,6 +416,9 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		s.Answers = &resource.RouteAnswers{Reach: reach, Proxies: a.GetProxies(), Plain: a.GetPlain()}
 	}
 	s.Closes = p.GetCloses()
+	if j := p.GetJail(); j != nil {
+		s.Jail = &resource.JailPlan{NeverBans: j.GetNeverBans(), SignedInNotIgnored: j.GetSignedInNotIgnored(), IgnoresEverything: j.GetIgnoresEverything()}
+	}
 	if a := p.GetStays(); a != nil {
 		s.Stays = &resource.AccessStays{SSHPorts: a.GetSshPorts(), Pinned: a.GetPinned(), Allowed: a.GetAllowed(), Tunnels: a.GetTunnels(), PanelPorts: a.GetPanelPorts()}
 	}

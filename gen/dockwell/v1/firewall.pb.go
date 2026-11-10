@@ -1916,7 +1916,11 @@ func (x *GetServerFail2BanRequest) GetServerId() string {
 type GetServerFail2BanResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// fail2ban, as the agent read it.
-	Fail2Ban      *ServerFail2Ban `protobuf:"bytes,1,opt,name=fail2ban,proto3" json:"fail2ban,omitempty"`
+	Fail2Ban *ServerFail2Ban `protobuf:"bytes,1,opt,name=fail2ban,proto3" json:"fail2ban,omitempty"`
+	// The address this request came from, as the control plane sees it, such
+	// as "203.0.113.7": the caller's own, for a jail's form to put in what it
+	// never bans. Empty when it's the server itself, as over ssh -L.
+	YourAddress   string `protobuf:"bytes,2,opt,name=your_address,json=yourAddress,proto3" json:"your_address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1958,6 +1962,13 @@ func (x *GetServerFail2BanResponse) GetFail2Ban() *ServerFail2Ban {
 	return nil
 }
 
+func (x *GetServerFail2BanResponse) GetYourAddress() string {
+	if x != nil {
+		return x.YourAddress
+	}
+	return ""
+}
+
 // ServerFail2ban is what fail2ban does on a server, as its agent read it
 // through fail2ban-client. A jail is as fail2ban says it runs, which may not
 // be what any one file writes, as fail2ban keeps the last value it reads.
@@ -1973,7 +1984,11 @@ type ServerFail2Ban struct {
 	// fail2ban's version, such as "1.0.2".
 	Version string `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
 	// Its jails, by name.
-	Jails         []*Fail2BanJail `protobuf:"bytes,5,rep,name=jails,proto3" json:"jails,omitempty"`
+	Jails []*Fail2BanJail `protobuf:"bytes,5,rep,name=jails,proto3" json:"jails,omitempty"`
+	// The addresses signed in to the server over SSH from outside it now, as
+	// the firewall's pins read them, such as "203.0.113.7". A jail's form puts
+	// them in what it never bans, unless the person takes them out.
+	SignedInFrom  []string `protobuf:"bytes,6,rep,name=signed_in_from,json=signedInFrom,proto3" json:"signed_in_from,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2043,6 +2058,13 @@ func (x *ServerFail2Ban) GetJails() []*Fail2BanJail {
 	return nil
 }
 
+func (x *ServerFail2Ban) GetSignedInFrom() []string {
+	if x != nil {
+		return x.SignedInFrom
+	}
+	return nil
+}
+
 // Fail2banJail is one of fail2ban's jails, as it runs.
 type Fail2BanJail struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2072,7 +2094,19 @@ type Fail2BanJail struct {
 	// The addresses banned now, the latest first.
 	Bans []*Fail2BanBan `protobuf:"bytes,12,rep,name=bans,proto3" json:"bans,omitempty"`
 	// Why some of the jail couldn't be read. Empty when all of it could.
-	Unreadable    string `protobuf:"bytes,13,opt,name=unreadable,proto3" json:"unreadable,omitempty"`
+	Unreadable string `protobuf:"bytes,13,opt,name=unreadable,proto3" json:"unreadable,omitempty"`
+	// True when Dockwell writes this jail, in its own file, so a change edits it
+	// as a fail2ban.jail resource of the server's. fail2ban reads that file
+	// after its own and before jail.local, so a jail.local can still set it
+	// otherwise, and the values above are as fail2ban runs it.
+	Dockwell bool `protobuf:"varint,14,opt,name=dockwell,proto3" json:"dockwell,omitempty"`
+	// What the jail never bans, as fail2ban runs it (fail2ban-client get <jail>
+	// ignoreip), such as "127.0.0.0/8". A section's own ignoreip replaces what
+	// [DEFAULT] sets, so this is what holds, whoever wrote it.
+	Ignore []string `protobuf:"bytes,15,rep,name=ignore,proto3" json:"ignore,omitempty"`
+	// The jail as Dockwell holds it, when Dockwell writes it: what an edit
+	// starts from, so it changes only what it means to.
+	Spec          *v1alpha1.Jail `protobuf:"bytes,16,opt,name=spec,proto3" json:"spec,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2196,6 +2230,27 @@ func (x *Fail2BanJail) GetUnreadable() string {
 		return x.Unreadable
 	}
 	return ""
+}
+
+func (x *Fail2BanJail) GetDockwell() bool {
+	if x != nil {
+		return x.Dockwell
+	}
+	return false
+}
+
+func (x *Fail2BanJail) GetIgnore() []string {
+	if x != nil {
+		return x.Ignore
+	}
+	return nil
+}
+
+func (x *Fail2BanJail) GetSpec() *v1alpha1.Jail {
+	if x != nil {
+		return x.Spec
+	}
+	return nil
 }
 
 // Fail2banBan is an address a jail has banned.
@@ -2382,15 +2437,17 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\bcriteria\x18\x03 \x01(\tR\bcriteria\x12\x12\n" +
 	"\x04sets\x18\x04 \x03(\tR\x04sets\"7\n" +
 	"\x18GetServerFail2banRequest\x12\x1b\n" +
-	"\tserver_id\x18\x01 \x01(\tR\bserverId\"T\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\"w\n" +
 	"\x19GetServerFail2banResponse\x127\n" +
-	"\bfail2ban\x18\x01 \x01(\v2\x1b.dockwell.v1.ServerFail2banR\bfail2ban\"\xcf\x01\n" +
+	"\bfail2ban\x18\x01 \x01(\v2\x1b.dockwell.v1.ServerFail2banR\bfail2ban\x12!\n" +
+	"\fyour_address\x18\x02 \x01(\tR\vyourAddress\"\xf5\x01\n" +
 	"\x0eServerFail2ban\x12.\n" +
 	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x120\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x1a.dockwell.v1.Fail2banStateR\x05state\x12\x10\n" +
 	"\x03why\x18\x03 \x01(\tR\x03why\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\tR\aversion\x12/\n" +
-	"\x05jails\x18\x05 \x03(\v2\x19.dockwell.v1.Fail2banJailR\x05jails\"\xe2\x03\n" +
+	"\x05jails\x18\x05 \x03(\v2\x19.dockwell.v1.Fail2banJailR\x05jails\x12$\n" +
+	"\x0esigned_in_from\x18\x06 \x03(\tR\fsignedInFrom\"\xcc\x04\n" +
 	"\fFail2banJail\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
 	"\tmax_retry\x18\x02 \x01(\rR\bmaxRetry\x126\n" +
@@ -2409,7 +2466,10 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\x04bans\x18\f \x03(\v2\x18.dockwell.v1.Fail2banBanR\x04bans\x12\x1e\n" +
 	"\n" +
 	"unreadable\x18\r \x01(\tR\n" +
-	"unreadable\"\x8b\x01\n" +
+	"unreadable\x12\x1a\n" +
+	"\bdockwell\x18\x0e \x01(\bR\bdockwell\x12\x16\n" +
+	"\x06ignore\x18\x0f \x03(\tR\x06ignore\x124\n" +
+	"\x04spec\x18\x10 \x01(\v2 .dockwell.resource.v1alpha1.JailR\x04spec\"\x8b\x01\n" +
 	"\vFail2banBan\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x120\n" +
 	"\x05since\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x05since\x120\n" +
@@ -2525,6 +2585,7 @@ var file_dockwell_v1_firewall_proto_goTypes = []any{
 	(*timestamppb.Timestamp)(nil),     // 28: google.protobuf.Timestamp
 	(*v1alpha1.FirewallPolicy)(nil),   // 29: dockwell.resource.v1alpha1.FirewallPolicy
 	(*durationpb.Duration)(nil),       // 30: google.protobuf.Duration
+	(*v1alpha1.Jail)(nil),             // 31: dockwell.resource.v1alpha1.Jail
 }
 var file_dockwell_v1_firewall_proto_depIdxs = []int32{
 	11, // 0: dockwell.v1.GetServerFirewallResponse.firewall:type_name -> dockwell.v1.ServerFirewall
@@ -2561,19 +2622,20 @@ var file_dockwell_v1_firewall_proto_depIdxs = []int32{
 	30, // 31: dockwell.v1.Fail2banJail.find_time:type_name -> google.protobuf.Duration
 	30, // 32: dockwell.v1.Fail2banJail.ban_time:type_name -> google.protobuf.Duration
 	26, // 33: dockwell.v1.Fail2banJail.bans:type_name -> dockwell.v1.Fail2banBan
-	28, // 34: dockwell.v1.Fail2banBan.since:type_name -> google.protobuf.Timestamp
-	28, // 35: dockwell.v1.Fail2banBan.until:type_name -> google.protobuf.Timestamp
-	8,  // 36: dockwell.v1.FirewallService.GetServerFirewall:input_type -> dockwell.v1.GetServerFirewallRequest
-	17, // 37: dockwell.v1.FirewallService.GetServerSsh:input_type -> dockwell.v1.GetServerSshRequest
-	22, // 38: dockwell.v1.FirewallService.GetServerFail2ban:input_type -> dockwell.v1.GetServerFail2banRequest
-	9,  // 39: dockwell.v1.FirewallService.GetServerFirewall:output_type -> dockwell.v1.GetServerFirewallResponse
-	18, // 40: dockwell.v1.FirewallService.GetServerSsh:output_type -> dockwell.v1.GetServerSshResponse
-	23, // 41: dockwell.v1.FirewallService.GetServerFail2ban:output_type -> dockwell.v1.GetServerFail2banResponse
-	39, // [39:42] is the sub-list for method output_type
-	36, // [36:39] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	36, // [36:36] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	31, // 34: dockwell.v1.Fail2banJail.spec:type_name -> dockwell.resource.v1alpha1.Jail
+	28, // 35: dockwell.v1.Fail2banBan.since:type_name -> google.protobuf.Timestamp
+	28, // 36: dockwell.v1.Fail2banBan.until:type_name -> google.protobuf.Timestamp
+	8,  // 37: dockwell.v1.FirewallService.GetServerFirewall:input_type -> dockwell.v1.GetServerFirewallRequest
+	17, // 38: dockwell.v1.FirewallService.GetServerSsh:input_type -> dockwell.v1.GetServerSshRequest
+	22, // 39: dockwell.v1.FirewallService.GetServerFail2ban:input_type -> dockwell.v1.GetServerFail2banRequest
+	9,  // 40: dockwell.v1.FirewallService.GetServerFirewall:output_type -> dockwell.v1.GetServerFirewallResponse
+	18, // 41: dockwell.v1.FirewallService.GetServerSsh:output_type -> dockwell.v1.GetServerSshResponse
+	23, // 42: dockwell.v1.FirewallService.GetServerFail2ban:output_type -> dockwell.v1.GetServerFail2banResponse
+	40, // [40:43] is the sub-list for method output_type
+	37, // [37:40] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_firewall_proto_init() }

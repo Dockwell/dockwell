@@ -3,6 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import {
+  ChangeService,
   type Fail2banBan,
   type Fail2banJail,
   Fail2banState,
@@ -17,13 +18,15 @@ import {
   SshRootLogin,
   type SshSource,
 } from "@dockwell/api";
-import { Callout, Metric, Panel, StatusBadge } from "@dockwell/ui";
+import { Button, Callout, Metric, Panel, SelectField, Sheet, StatusBadge, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import { type FormEvent, type ReactNode, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
+import { type Offer, useMay } from "../auth/may";
+import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { CopyButton } from "./CopyButton";
 import { useControlPlaneNow } from "./useFleet";
 
@@ -360,12 +363,22 @@ function useJailWords(): (jail: Fail2banJail) => string {
  */
 export function Fail2banPanel({ server, connected }: { server: Server; connected: boolean }) {
   const { t } = useLingui();
+  // A jail is the whole server's, so planning one is an admin's (ADR 0049).
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
   const read = useQuery(
     FirewallService.method.getServerFail2ban,
     { serverId: server.id },
     { enabled: connected, refetchInterval: FAIL2BAN_EVERY_MS, retry: false },
   );
   const f2b = read.data?.fail2ban;
+  // SSH's ports, for the jail that closes them; the SSH card reads the same.
+  const ssh = useQuery(
+    FirewallService.method.getServerSsh,
+    { serverId: server.id },
+    { enabled: connected, refetchInterval: SSH_EVERY_MS, retry: false },
+  );
+  const changes = useChangeSheet();
+  const [editing, setEditing] = useState<Editing>();
   const name = server.name;
   const badge = (() => {
     switch (f2b?.state) {
@@ -418,17 +431,327 @@ export function Fail2banPanel({ server, connected }: { server: Server; connected
   } else if (f2b.state === Fail2banState.UNREADABLE) {
     body = <Callout tone="warning">{f2b.why}</Callout>;
   } else {
-    body = <Jails jails={f2b.jails} />;
+    body = <Jails server={server} jails={f2b.jails} onEdit={setEditing} mayPlan={mayPlan} />;
   }
+  const running = f2b?.state === Fail2banState.RUNNING;
+  const sshJail = f2b?.jails.find((j) => j.name === "sshd");
   return (
-    <Panel title={t`Fail2ban`} actions={badge} className="firewall-fail2ban">
+    <Panel
+      title={t`Fail2ban`}
+      actions={
+        <>
+          {running && !sshJail ? (
+            <Button variant="secondary" size="sm" onClick={() => setEditing({ name: "sshd" })} {...mayPlan.off}>
+              <Trans>Protect SSH</Trans>
+            </Button>
+          ) : null}
+          {badge}
+        </>
+      }
+      className="firewall-fail2ban"
+    >
       {body}
+      {editing ? (
+        <JailSheet
+          server={server}
+          jail={editing.jail}
+          sshPorts={ssh.data?.ssh?.ports ?? []}
+          signedInFrom={f2b?.signedInFrom ?? []}
+          yourAddress={read.data?.yourAddress ?? ""}
+          onClose={() => setEditing(undefined)}
+          open={(opening) => changes.open({ ...opening, onClose: () => void read.refetch() })}
+        />
+      ) : null}
     </Panel>
   );
 }
 
-function Jails({ jails }: { jails: readonly Fail2banJail[] }) {
+/** A jail the sheet edits: the one running, or a new one of that name. */
+interface Editing {
+  name: string;
+  jail?: Fail2banJail;
+}
+
+/** Lengths of time a jail offers, as fail2ban takes them. */
+const SPANS = ["10m", "1h", "1d", "1w"] as const;
+
+/** An address or range as a jail's list has it: one address alone, without its /32 or /128. */
+function bare(address: string): string {
+  return address.replace(/\/(32|128)$/, "");
+}
+
+/** What every jail ignores without being told: the server's own loopback. */
+const LOOPBACK = ["127.0.0.0/8", "127.0.0.1/8", "127.0.0.1", "::1"];
+
+/** Why an address is in a jail's list as the form opens. */
+type Why = "kept" | "session" | "you";
+
+/**
+ * The SSH jail, planned as a change: how many failed sign-ins within how long
+ * ban an address, for how long, and whom it never bans. An edit starts from
+ * the jail as Dockwell holds it and changes only what the form shows, so its
+ * ports, its filter and what it reads stay as they are. A new one reads the
+ * journal, or the files the jail running now reads, and closes SSH's ports to
+ * the address it bans. What it never bans starts with what the jail ignores
+ * now, the addresses signed in over SSH, and your own, each of which you can
+ * take out (ADR 0052).
+ */
+function JailSheet({
+  server,
+  jail,
+  sshPorts,
+  signedInFrom,
+  yourAddress,
+  onClose,
+  open,
+}: {
+  server: Server;
+  jail: Fail2banJail | undefined;
+  sshPorts: readonly number[];
+  /** The addresses signed in to the server over SSH now. */
+  signedInFrom: readonly string[];
+  /** The address this browser comes from, as the control plane sees it. */
+  yourAddress: string;
+  onClose: () => void;
+  open: (opening: Opening) => void;
+}) {
   const { t } = useLingui();
+  const words = useTimeWords();
+  const field = useRef<HTMLInputElement>(null);
+  // The jail as Dockwell holds it, when it writes it: what the edit starts from.
+  const spec = jail?.dockwell ? jail.spec : undefined;
+  const span = (d: { seconds: bigint } | undefined, fallback: (typeof SPANS)[number]) => {
+    const secs = d ? Number(d.seconds) : 0;
+    return SPANS.find((s) => SPAN_SECONDS[s] === secs) ?? fallback;
+  };
+  const [tries, setTries] = useState(String(spec?.maxRetry || jail?.maxRetry || 5));
+  // A time the spec holds that isn't one of the choices stays as it is, under its own option.
+  const [within, setWithin] = useState<string>(spec?.findTime || span(jail?.findTime, "10m"));
+  const [banFor, setBanFor] = useState<string>(
+    spec
+      ? spec.banForGood
+        ? "forever"
+        : spec.banTime || "1h"
+      : jail?.bansForGood
+        ? "forever"
+        : span(jail?.banTime, "1h"),
+  );
+  const [ignore, setIgnore] = useState<{ address: string; why: Why }[]>(() => {
+    const list: { address: string; why: Why }[] = [];
+    const add = (address: string, why: Why) => {
+      const a = bare(address.trim());
+      if (a && !LOOPBACK.includes(a) && !list.some((entry) => entry.address === a)) list.push({ address: a, why });
+    };
+    // What the jail ignores now holds, whoever set it: a section's own list replaces fail2ban's default one.
+    for (const a of spec ? spec.ignore : (jail?.ignore ?? [])) add(a, "kept");
+    for (const a of signedInFrom) add(a, "session");
+    if (yourAddress) add(yourAddress, "you");
+    return list;
+  });
+  const [adding, setAdding] = useState("");
+  // Addresses signed in, or where you are, that were taken out of what's never banned.
+  const [takenOut, setTakenOut] = useState<string[]>([]);
+  const takenOutList = takenOut.join(", ");
+  const [error, setError] = useState<string>();
+  const name = server.name;
+  const spanLabel = (s: string) =>
+    (SPANS as readonly string[]).includes(s)
+      ? words.span(SPAN_SECONDS[s as (typeof SPANS)[number]] * 1000)
+      : t`As it is: ${s}`;
+  const spans = (current: string) => [
+    ...SPANS.map((s) => ({ value: s as string, label: spanLabel(s) })),
+    ...(current !== "forever" && !(SPANS as readonly string[]).includes(current)
+      ? [{ value: current, label: spanLabel(current) }]
+      : []),
+  ];
+  const addIgnored = () => {
+    const a = bare(adding.trim());
+    if (!a) return;
+    // An address, a range, or a host name, which fail2ban looks up itself.
+    if (!/^[0-9a-fA-F:.]+(\/\d{1,3})?$/.test(a) && !/^[A-Za-z0-9]([A-Za-z0-9-]*\.)+[A-Za-z0-9-]*[A-Za-z]$/.test(a)) {
+      setError(t`Name an address or a range to never ban, such as 203.0.113.7 or 198.51.100.0/24.`);
+      return;
+    }
+    setIgnore((list) => (list.some((entry) => entry.address === a) ? list : [...list, { address: a, why: "kept" }]));
+    setAdding("");
+    setError(undefined);
+  };
+  const submit = (event?: FormEvent) => {
+    event?.preventDefault();
+    const n = Number(tries.trim());
+    if (!Number.isInteger(n) || n < 1 || n > 100) {
+      setError(t`Name how many failed sign-ins ban an address, from 1 to 100, such as 5.`);
+      field.current?.focus();
+      return;
+    }
+    // A jail that reads files keeps reading them; one that reads the journal,
+    // or a new one, reads the journal, as Debian 12 has no auth.log.
+    const files = jail && jail.journalMatches.length === 0 ? [...jail.files] : [];
+    // Dockwell's own jail keeps everything the form doesn't show: its filter, what
+    // it reads, and its ports, which a failed read of SSH's must never empty.
+    const base = spec
+      ? { filter: spec.filter, backend: spec.backend, logPaths: [...spec.logPaths], ports: [...spec.ports] }
+      : { filter: "sshd", backend: files.length > 0 ? "" : "systemd", logPaths: files, ports: [...sshPorts] };
+    onClose();
+    open({
+      kind: "propose",
+      summary: jail?.dockwell ? t`Change the sshd jail on ${name}` : t`Protect SSH on ${name} with fail2ban`,
+      edits: [
+        {
+          resource: { kind: "fail2ban.jail", scope: server.id, name: "sshd" },
+          spec: {
+            kind: {
+              case: "fail2banJail",
+              value: {
+                ...base,
+                maxRetry: n,
+                findTime: within,
+                banTime: banFor === "forever" ? "" : banFor,
+                banForGood: banFor === "forever",
+                ignore: ignore.map((entry) => entry.address),
+              },
+            },
+          },
+        },
+      ],
+    });
+  };
+  const whyWords: Record<Why, string> = {
+    kept: t`ignored now`,
+    session: t`signed in over SSH now`,
+    you: t`where you are now`,
+  };
+  return (
+    <Sheet
+      open
+      initialFocusRef={field}
+      title={jail?.dockwell ? t`The sshd jail on ${name}` : t`Protect SSH on ${name}`}
+      subtitle={t`Bans an address that keeps failing to sign in over SSH.`}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            <Trans>Cancel</Trans>
+          </Button>
+          <Button variant="primary" onClick={() => submit()}>
+            <Trans>Plan it</Trans>
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="firewall-add">
+        {error ? <Callout tone="critical">{error}</Callout> : null}
+        <TextField
+          ref={field}
+          label={t`Failed sign-ins that ban an address`}
+          mono
+          inputMode="numeric"
+          value={tries}
+          onChange={(e) => {
+            setTries(e.target.value);
+            setError(undefined);
+          }}
+        />
+        <SelectField
+          label={t`Counted within`}
+          value={within}
+          onChange={(e) => setWithin(e.target.value)}
+          options={spans(within)}
+        />
+        <SelectField
+          label={t`Banned for`}
+          value={banFor}
+          onChange={(e) => setBanFor(e.target.value)}
+          options={[...spans(banFor), { value: "forever", label: t`For good` }]}
+        />
+        <fieldset className="firewall-never-bans">
+          <legend>
+            <Trans>Never banned</Trans>
+          </legend>
+          <ul>
+            {ignore.map((entry) => {
+              const address = entry.address;
+              return (
+                <li key={address}>
+                  <code className="firewall-never-bans-address">{address}</code>
+                  <span className="firewall-set-in">{whyWords[entry.why]}</span>
+                  <Button
+                    className="firewall-never-bans-out"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={t`Take ${address} out`}
+                    onClick={() => {
+                      setIgnore((list) => list.filter((e) => e.address !== address));
+                      if (entry.why !== "kept") setTakenOut((out) => [...out, address]);
+                    }}
+                  >
+                    <Trans>Take out</Trans>
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="firewall-never-bans-add">
+            <TextField
+              label={t`An address or a range to never ban`}
+              mono
+              value={adding}
+              onChange={(e) => setAdding(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addIgnored();
+                }
+              }}
+            />
+            <Button variant="secondary" onClick={addIgnored}>
+              <Trans>Add</Trans>
+            </Button>
+          </div>
+        </fieldset>
+        <p className="firewall-note">
+          <Trans>{name} itself and the control server are never banned either.</Trans>
+        </p>
+        {/* Said only once it applies: a ban can land on what was taken out as this applies. */}
+        {takenOut.length > 0 ? (
+          <Callout tone="warning" title={t`This can ban ${takenOutList} as it applies`}>
+            <Trans>fail2ban counts the failures from just before.</Trans>
+          </Callout>
+        ) : null}
+        {!spec && sshPorts.length === 0 ? (
+          <p className="firewall-note">
+            <Trans>SSH's ports couldn't be read: this closes fail2ban's own sshd port, 22 unless set otherwise.</Trans>
+          </p>
+        ) : null}
+      </form>
+    </Sheet>
+  );
+}
+
+/** Seconds in each of SPANS. */
+const SPAN_SECONDS: Record<(typeof SPANS)[number], number> = { "10m": 600, "1h": 3600, "1d": 86_400, "1w": 604_800 };
+
+function Jails({
+  server,
+  jails,
+  onEdit,
+  mayPlan,
+}: {
+  server: Server;
+  jails: readonly Fail2banJail[];
+  onEdit: (editing: Editing) => void;
+  /** Whether this reader may plan a change to a jail, and why not. */
+  mayPlan: Offer;
+}) {
+  const { t } = useLingui();
+  const changes = useChangeSheet();
+  const name = server.name;
+  const remove = (jail: string) =>
+    changes.open({
+      kind: "propose",
+      summary: t`Stop writing the ${jail} jail on ${name}`,
+      edits: [{ resource: { kind: "fail2ban.jail", scope: server.id, name: jail }, delete: true }],
+    });
   const words = useJailWords();
   const time = useTimeWords();
   const now = useControlPlaneNow(SSH_EVERY_MS);
@@ -472,6 +795,33 @@ function Jails({ jails }: { jails: readonly Fail2banJail[] }) {
                 <code>{j.name}</code>
                 <span>{words(j)}</span>
                 {j.unreadable ? <span>{j.unreadable}</span> : null}
+                {j.dockwell ? <span>{t`Dockwell writes this jail.`}</span> : null}
+                {j.name === "sshd" || j.dockwell ? (
+                  <span className="firewall-jail-actions">
+                    {j.name === "sshd" ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onEdit({ name: j.name, jail: j })}
+                        aria-label={t`Edit the ${j.name} jail`}
+                        {...mayPlan.off}
+                      >
+                        <Trans>Edit</Trans>
+                      </Button>
+                    ) : null}
+                    {j.dockwell ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => remove(j.name)}
+                        aria-label={t`Stop writing the ${j.name} jail`}
+                        {...mayPlan.off}
+                      >
+                        <Trans>Remove</Trans>
+                      </Button>
+                    ) : null}
+                  </span>
+                ) : null}
               </div>
               <span className={j.bannedNow === 0 ? "firewall-count is-zero" : "firewall-count"}>{j.bannedNow}</span>
             </li>

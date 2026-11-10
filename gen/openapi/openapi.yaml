@@ -8501,6 +8501,27 @@ components:
                 unreadable:
                     type: string
                     description: Why some of the jail couldn't be read. Empty when all of it could.
+                dockwell:
+                    type: boolean
+                    description: |-
+                        True when Dockwell writes this jail, in its own file, so a change edits it
+                         as a fail2ban.jail resource of the server's. fail2ban reads that file
+                         after its own and before jail.local, so a jail.local can still set it
+                         otherwise, and the values above are as fail2ban runs it.
+                ignore:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What the jail never bans, as fail2ban runs it (fail2ban-client get <jail>
+                         ignoreip), such as "127.0.0.0/8". A section's own ignoreip replaces what
+                         [DEFAULT] sets, so this is what holds, whoever wrote it.
+                spec:
+                    allOf:
+                        - $ref: '#/components/schemas/Jail'
+                    description: |-
+                        The jail as Dockwell holds it, when Dockwell writes it: what an edit
+                         starts from, so it changes only what it means to.
             description: Fail2banJail is one of fail2ban's jails, as it runs.
         FetchBackupRequest:
             type: object
@@ -9056,6 +9077,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/ServerFail2ban'
                     description: fail2ban, as the agent read it.
+                yourAddress:
+                    type: string
+                    description: |-
+                        The address this request came from, as the control plane sees it, such
+                         as "203.0.113.7": the caller's own, for a jail's form to put in what it
+                         never bans. Empty when it's the server itself, as over ssh -L.
             description: GetServerFail2banResponse is what fail2ban does on a server.
         GetServerFirewallResponse:
             type: object
@@ -9867,6 +9894,91 @@ components:
                  to resources, which for a deploy or a new port is that a container is made
                  again: this says what that comes to. It isn't in the fingerprint, as it says
                  nothing about what the plan does.
+        Jail:
+            type: object
+            properties:
+                filter:
+                    type: string
+                    description: |-
+                        The filter that says what counts as a failure, as fail2ban names it, such
+                         as "sshd".
+                ports:
+                    type: array
+                    items:
+                        type: integer
+                        format: uint32
+                    description: |-
+                        The ports a ban closes to the address, such as 22. Empty closes every
+                         port.
+                maxRetry:
+                    type: integer
+                    description: |-
+                        How many failures within find_time ban an address. 0 takes fail2ban's
+                         default, 5.
+                    format: uint32
+                findTime:
+                    type: string
+                    description: |-
+                        How far back failures count, such as "10m". Empty takes fail2ban's
+                         default, 10 min.
+                banTime:
+                    type: string
+                    description: |-
+                        How long a ban lasts, such as "1h". Empty takes fail2ban's default,
+                         10 min.
+                banForGood:
+                    type: boolean
+                    description: True bans for good, in place of ban_time.
+                backend:
+                    type: string
+                    description: |-
+                        Where it reads failures: "systemd" for the journal, as an SSH jail does on
+                         a server with no /var/log/auth.log, or empty for log_paths.
+                logPaths:
+                    type: array
+                    items:
+                        type: string
+                    description: The log files it reads failures from, when it doesn't read the journal.
+                ignore:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Addresses or ranges it never bans, such as 203.0.113.0/24, beside the
+                         server's own loopback and the control server's addresses, which it never
+                         bans either.
+            description: |-
+                Jail is one of fail2ban's jails on a server, as Dockwell writes it in
+                 its own file, /etc/fail2ban/jail.d/dockwell.conf, named as the jail is, such
+                 as sshd (ADR 0052). fail2ban keeps the last value it reads, so a person's
+                 jail.local can set it otherwise, and the server's Firewall tab says each jail
+                 as fail2ban runs it.
+        JailPlan:
+            type: object
+            properties:
+                neverBans:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What it never bans: the server's loopback, the control server's
+                         addresses, and what the jail ignores itself.
+                signedInNotIgnored:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The addresses signed in to the server over SSH as it was planned that it
+                         doesn't ignore: a ban can land on each as the change applies, as a jail
+                         that starts counts the failures of just before.
+                ignoresEverything:
+                    type: boolean
+                    description: |-
+                        True when what it ignores covers every address, such as 0.0.0.0/0: the
+                         jail then bans nobody.
+            description: |-
+                JailPlan is whom a fail2ban jail, as planned, never bans, and who is signed
+                 in now that it could.
         JoinAddress:
             type: object
             properties:
@@ -11659,6 +11771,10 @@ components:
                          SSH stays open from, by name, so a person sees whether their own address
                          is there, and a stranger's. Unset on a step that leaves SSH open to
                          anywhere.
+                jail:
+                    allOf:
+                        - $ref: '#/components/schemas/JailPlan'
+                    description: What a step that sets a fail2ban jail says of whom it can ban (ADR 0052).
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -13071,6 +13187,14 @@ components:
                     items:
                         $ref: '#/components/schemas/Fail2banJail'
                     description: Its jails, by name.
+                signedInFrom:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The addresses signed in to the server over SSH from outside it now, as
+                         the firewall's pins read them, such as "203.0.113.7". A jail's form puts
+                         them in what it never bans, unless the person takes them out.
             description: |-
                 ServerFail2ban is what fail2ban does on a server, as its agent read it
                  through fail2ban-client. A jail is as fail2ban says it runs, which may not
@@ -14158,6 +14282,12 @@ components:
                     description: |-
                         What a server's firewall does with what no rule lets in, kind
                          "firewall.policy". Numbered apart, as open work adds to this message.
+                fail2banJail:
+                    allOf:
+                        - $ref: '#/components/schemas/Jail'
+                    description: |-
+                        One of fail2ban's jails on a server, kind "fail2ban.jail". Numbered
+                         apart, as open work adds to this message.
                 volume:
                     allOf:
                         - $ref: '#/components/schemas/Volume'

@@ -2365,6 +2365,23 @@ func Kinds() []*apicli.Kind {
 			},
 		},
 		{
+			Field: "fail2ban_jail",
+			Noun:  "fail2ban-jails",
+			Short: "One of fail2ban's jails on a server, kind \"fail2ban.jail\"",
+			Long:  "Jail is one of fail2ban's jails on a server, as Dockwell writes it in its own\nfile, /etc/fail2ban/jail.d/dockwell.conf, named as the jail is, such as sshd\n(ADR 0052). fail2ban keeps the last value it reads, so a person's jail.local can\nset it otherwise, and the server's Firewall tab says each jail as fail2ban runs\nit.",
+			Fields: []apicli.Field{
+				{Path: "filter", Help: "The filter that says what counts as a failure, as fail2ban names it, such as \"sshd\"."},
+				{Path: "ports", Help: "The ports a ban closes to the address, such as 22. Empty closes every port."},
+				{Path: "max_retry", Help: "How many failures within find_time ban an address. 0 takes fail2ban's default, 5."},
+				{Path: "find_time", Help: "How far back failures count, such as \"10m\". Empty takes fail2ban's default, 10 min."},
+				{Path: "ban_time", Help: "How long a ban lasts, such as \"1h\". Empty takes fail2ban's default, 10 min."},
+				{Path: "ban_for_good", Help: "True bans for good, in place of ban_time."},
+				{Path: "backend", Help: "Where it reads failures: \"systemd\" for the journal, as an SSH jail does on a server with no /var/log/auth.log, or empty for log_paths."},
+				{Path: "log_paths", Help: "The log files it reads failures from, when it doesn't read the journal."},
+				{Path: "ignore", Help: "Addresses or ranges it never bans, such as 203.0.113.0/24, beside the server's own loopback and the control server's addresses, which it never bans either."},
+			},
+		},
+		{
 			Field: "volume",
 			Noun:  "volumes",
 			Short: "A volume in an environment, kind \"volume\"",

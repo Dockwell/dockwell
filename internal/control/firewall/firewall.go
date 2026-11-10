@@ -9,6 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/netip"
 
 	"connectrpc.com/connect"
 
@@ -71,7 +73,7 @@ func (h *Handler) GetServerFail2Ban(ctx context.Context, req *connect.Request[do
 	if err != nil {
 		return nil, readError(srv, "fail2ban", "what fail2ban does", err)
 	}
-	return connect.NewResponse(&dockwellv1.GetServerFail2BanResponse{Fail2Ban: read}), nil
+	return connect.NewResponse(&dockwellv1.GetServerFail2BanResponse{Fail2Ban: read, YourAddress: callersAddress(ctx)}), nil
 }
 
 // session is a server and its agent's session, which a read goes through, or
@@ -106,4 +108,28 @@ func readError(srv *dockwellv1.Server, thing, what string, err error) error {
 		err = se.Err
 	}
 	return authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't say %s now: %w", srv.GetName(), what, err), authapi.ReasonUnavailable)
+}
+
+// callersAddress is the address a request came from, as the control plane sees
+// it, or "" when that's the server itself, as over ssh -L, or can't be read.
+func callersAddress(ctx context.Context) string {
+	client, ok := authapi.ClientFrom(ctx)
+	if !ok {
+		return ""
+	}
+	return CallersAddress(client.Addr)
+}
+
+// CallersAddress reads a connection's remote address, "address:port", as the
+// address alone, or "" for the server's own loopback and what isn't one.
+func CallersAddress(remote string) string {
+	host := remote
+	if h, _, err := net.SplitHostPort(remote); err == nil {
+		host = h
+	}
+	addr, err := netip.ParseAddr(host)
+	if err != nil || addr.IsLoopback() || addr.Zone() != "" {
+		return ""
+	}
+	return addr.Unmap().String()
 }

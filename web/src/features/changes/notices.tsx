@@ -7,6 +7,7 @@ import {
   HostAccessKind,
   IntentKind,
   type Plan,
+  PlanAction,
   type PlanNote,
   PlanWarning,
   type RestorePlan,
@@ -610,6 +611,49 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
           detail: t`Keep a rule that allows the tunnel's UDP port.`,
           more: t`Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up.`,
         });
+      }
+      // A jail bans whoever keeps failing to sign in, whoever they are: the
+      // person applying it too, and for what they failed before it applied.
+      if (step.resource?.kind === "fail2ban.jail" && step.action !== PlanAction.DELETE && !applied) {
+        const jail = step.jail;
+        const never = (jail?.neverBans ?? []).join(", ");
+        const exposed = (jail?.signedInNotIgnored ?? []).join(", ");
+        // Undo puts the jail back as it was, and a ban stays where fail2ban made it.
+        const lifting = t`Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address.`;
+        const counts = t`fail2ban counts the failures from just before this applies, so a ban can land as it does.`;
+        if (jail?.ignoresEverything) {
+          out.push({
+            key: `bans-${key}`,
+            amber: true,
+            title: t`This jail ignores every address on ${server.serverName}, so it bans nobody`,
+            detail: t`Take out the range that covers everything for it to ban anyone.`,
+            more: t`It never bans ${never}.`,
+          });
+        } else if (exposed) {
+          out.push({
+            key: `bans-${key}`,
+            amber: true,
+            title: t`This jail can ban ${exposed}, signed in to ${server.serverName} over SSH now`,
+            detail: t`Add it to what the jail never bans first, or apply this knowing it.`,
+            more: t`It never bans ${never}. ${counts} ${lifting}`,
+          });
+        } else if (jail) {
+          out.push({
+            key: `bans-${key}`,
+            amber: true,
+            title: t`This jail never bans ${never} on ${server.serverName}`,
+            detail: t`It bans any other address that keeps failing to sign in, yours included.`,
+            more: t`${counts} ${lifting}`,
+          });
+        } else {
+          out.push({
+            key: `bans-${key}`,
+            amber: true,
+            title: t`This jail can ban your own address on ${server.serverName}`,
+            detail: t`It never bans the server itself or the control server.`,
+            more: t`${counts} ${lifting}`,
+          });
+        }
       }
     }
   }

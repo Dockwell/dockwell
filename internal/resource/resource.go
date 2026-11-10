@@ -146,6 +146,30 @@ type AccessStays struct {
 	PanelPorts []uint32 `json:",omitempty"`
 }
 
+// DecidesWhoGetsIn is a kind that decides who gets onto a server without
+// being able to lock anyone out of a new session on its own, as a fail2ban
+// jail does: a change to one takes a person and a passkey, as an AccessGuard's
+// does, and applies with no timer (ADR 0052).
+type DecidesWhoGetsIn interface {
+	DecidesWhoGetsIn()
+}
+
+// TakesAPerson says whether a change to a kind takes a signed-in person and a
+// passkey, as what decides who gets onto a server does.
+func TakesAPerson(t Type) bool {
+	_, decides := t.(DecidesWhoGetsIn)
+	return decides || GuardsAccess(t)
+}
+
+// JailPlan is whom a fail2ban jail, as planned, never bans; the addresses
+// signed in over SSH as it was planned that it doesn't ignore; and whether
+// what it ignores covers every address.
+type JailPlan struct {
+	NeverBans          []string `json:",omitempty"`
+	SignedInNotIgnored []string `json:",omitempty"`
+	IgnoresEverything  bool     `json:",omitempty"`
+}
+
 // Decision is a driver's judgement of one step.
 type Decision struct {
 	// PlannedLeads says where the server paths the resource mounts led when this
@@ -279,6 +303,9 @@ type Decision struct {
 	// Stays is who still reaches the server's SSH once a step that narrows it is
 	// kept (ADR 0052). It never stops a plan.
 	Stays *AccessStays `json:",omitempty"`
+	// Jail is whom a step that sets a fail2ban jail never bans, and who is
+	// signed in now that it could (ADR 0052). It never stops a plan.
+	Jail *JailPlan `json:",omitempty"`
 	// Goes says what someone visiting a route finds once the step takes it away, as
 	// a route stops nothing the plan counts as downtime and yet stops people reaching
 	// what it served. It never stops a plan, and a fingerprint leaves it out, as it

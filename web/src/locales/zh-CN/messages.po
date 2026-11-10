@@ -5700,6 +5700,9 @@ msgstr "文件中的同名服务会替换它，文件未提到的服务会被删
 msgid "A service of the same name in the file replaces it."
 msgstr "文件中的同名服务会替换它。"
 
+msgid "Add it to what the jail never bans first, or apply this knowing it."
+msgstr "请先把它加入这个 jail 永不封禁的地址，或在知情的情况下应用。"
+
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
 msgstr "任何能访问此服务器的人都能访问它，并绕过它前面的任何内容。"
 
@@ -5806,6 +5809,9 @@ msgstr "如果你的地址不在其中，或以后不再是其中之一，SSH �
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "如果回滚 {name}，{names} 会保持原样：新版本写入的内容不会被撤销。"
 
+msgid "It bans any other address that keeps failing to sign in, yours included."
+msgstr "其他任何多次登录失败的地址都会被它封禁，包括你的地址。"
+
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "它来自 Compose 项目 {project}。在 Dockwell 更换它的镜像之前，运行该项目的工具会作用于这个容器。更换之后，再次启动该项目会启动第二个副本，使用相同的目录和相同的名称。如果是面板或脚本在运行它，使用其移除功能之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。如果是你自己运行的 docker compose，请不要再运行那个文件。"
 
@@ -5844,6 +5850,15 @@ msgstr "它加入用户组 <0>{path}</0>，相当于 root。"
 
 msgid "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
 msgstr "它通过符号链接指向 <0>{leadsTo}</0>，而服务器的安全取决于那里的内容，所以能访问它就相当于拥有 root。"
+
+msgid "It never bans the server itself or the control server."
+msgstr "它不会封禁服务器自身和控制服务器。"
+
+msgid "It never bans {never}."
+msgstr "它永不封禁 {never}。"
+
+msgid "It never bans {never}. {counts} {lifting}"
+msgstr "它永不封禁 {never}。{counts}{lifting}"
 
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "它能访问服务器能访问的一切，绕过 Docker 网络和防火墙。"
@@ -5932,6 +5947,9 @@ msgstr "{0} 上的 SSH 只对 {from} 开放"
 msgid "Something may still manage {container}"
 msgstr "可能还有其他工具在管理 {container}"
 
+msgid "Take out the range that covers everything for it to ban anyone."
+msgstr "去掉覆盖所有地址的范围，它才能封禁任何人。"
+
 msgid "That copy is {size}, and what was made since goes."
 msgstr "该副本大小为 {size}，之后产生的内容将丢失。"
 
@@ -5999,6 +6017,22 @@ msgid "This copy was taken with the app running"
 msgstr "此副本是在应用运行时复制的"
 
 #. placeholder {0}: server.serverName
+msgid "This jail can ban your own address on {0}"
+msgstr "在 {0} 上，这个 jail 可能封禁你自己的地址"
+
+#. placeholder {0}: server.serverName
+msgid "This jail can ban {exposed}, signed in to {0} over SSH now"
+msgstr "这个 jail 可能封禁 {exposed}，它现在正通过 SSH 登录 {0}"
+
+#. placeholder {0}: server.serverName
+msgid "This jail ignores every address on {0}, so it bans nobody"
+msgstr "{0} 上的这个 jail 忽略所有地址，所以不会封禁任何人"
+
+#. placeholder {0}: server.serverName
+msgid "This jail never bans {never} on {0}"
+msgstr "{0} 上的这个 jail 永不封禁 {never}"
+
+#. placeholder {0}: server.serverName
 msgid "This may cut off access to {0}"
 msgstr "这可能切断对 {0} 的访问"
 
@@ -6041,6 +6075,9 @@ msgstr "两个容器可能同时写入 {shared}，这可能损坏数据库"
 msgid "Undo may not bring everything back."
 msgstr "撤销可能无法恢复所有内容。"
 
+msgid "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
+msgstr "撤销此变更或移除这个 jail，都不会解除已经生效的封禁：请从其他地址或服务商的控制台登录，然后运行 fail2ban-client unban 加上该地址。"
+
 msgid "What asks for {shared} there can reach either."
 msgstr "在那里请求 {shared} 可能会到达其中任何一个。"
 
@@ -6064,6 +6101,9 @@ msgstr "在启用 SELinux 的服务器上，Docker 会重新标记那里的所�
 
 msgid "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated."
 msgstr "你选择了不备份。撤销会恢复旧版本，但不会恢复新版本对数据的改动，例如已迁移的数据库。"
+
+msgid "fail2ban counts the failures from just before this applies, so a ban can land as it does."
+msgstr "fail2ban 会计入本次变更应用前不久的失败，所以变更一应用就可能封禁。"
 
 msgid "https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out."
 msgstr "https:// 地址将报错，已看到其 HSTS 的浏览器在 HSTS 过期前会拒绝明文 HTTP。"
@@ -6090,6 +6130,9 @@ msgstr "{by} 以 root 在那里写入，所以无论文件属于谁都能修改�
 
 msgid "{by} writes there. Code from another image asks again, as a program in any image can run as root."
 msgstr "{by} 在那里写入。换成其他镜像的代码时需要重新确认，因为任何镜像中的程序都可能以 root 运行。"
+
+msgid "{counts} {lifting}"
+msgstr "{counts}{lifting}"
 
 msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
 msgstr "{database} 会在空卷上重新开始并加载转储（{size}），因此之后产生的内容将丢失。"
@@ -8873,17 +8916,48 @@ msgstr "<0>Match {criteria}</0> · {file}，第 {line} 行"
 msgid "<0>Match {criteria}</0> · {file}, line {line} · sets {sets}"
 msgstr "<0>Match {criteria}</0> · {file}，第 {line} 行 · 设置 {sets}"
 
+msgid "An address or a range to never ban"
+msgstr "永不封禁的地址或范围"
+
+msgid "As it is: {s}"
+msgstr "保持现值：{s}"
+
+msgid "Banned for"
+msgstr "封禁时长"
+
 msgid "Banned now"
 msgstr "当前封禁"
+
+msgid "Bans an address that keeps failing to sign in over SSH."
+msgstr "封禁多次通过 SSH 登录失败的地址。"
 
 msgid "Can't tell"
 msgstr "无法判断"
 
+msgid "Change the sshd jail on {name}"
+msgstr "更改 {name} 上的 sshd jail"
+
 msgid "Copy {command}"
 msgstr "复制 {command}"
 
+msgid "Counted within"
+msgstr "统计时间范围"
+
+msgid "Dockwell writes this jail."
+msgstr "此 jail 由 Dockwell 写入。"
+
+#. placeholder {0}: j.name
+msgid "Edit the {0} jail"
+msgstr "编辑 {0} jail"
+
 msgid "Fail2ban"
 msgstr "Fail2ban"
+
+msgid "Failed sign-ins that ban an address"
+msgstr "封禁一个地址的登录失败次数"
+
+msgid "For good"
+msgstr "永久"
 
 msgid "Forced commands only"
 msgstr "仅限强制命令"
@@ -8893,6 +8967,15 @@ msgstr "Jail"
 
 msgid "Keys only"
 msgstr "仅限密钥"
+
+msgid "Name an address or a range to never ban, such as 203.0.113.7 or 198.51.100.0/24."
+msgstr "请填写永不封禁的地址或范围，例如 203.0.113.7 或 198.51.100.0/24。"
+
+msgid "Name how many failed sign-ins ban an address, from 1 to 100, such as 5."
+msgstr "请填写封禁一个地址所需的登录失败次数，从 1 到 100，例如 5。"
+
+msgid "Never banned"
+msgstr "永不封禁"
 
 msgid "No"
 msgstr "否"
@@ -8905,6 +8988,18 @@ msgstr "无来源"
 
 msgid "Password login"
 msgstr "密码登录"
+
+msgid "Plan it"
+msgstr "生成计划"
+
+msgid "Protect SSH"
+msgstr "保护 SSH"
+
+msgid "Protect SSH on {name}"
+msgstr "保护 {name} 上的 SSH"
+
+msgid "Protect SSH on {name} with fail2ban"
+msgstr "用 fail2ban 保护 {name} 上的 SSH"
 
 msgid "Reading fail2ban on {name}"
 msgstr "正在读取 {name} 上的 fail2ban"
@@ -8921,11 +9016,30 @@ msgstr "root 登录"
 msgid "SSH"
 msgstr "SSH"
 
+msgid "SSH's ports couldn't be read: this closes fail2ban's own sshd port, 22 unless set otherwise."
+msgstr "无法读取 SSH 的端口：这会关闭 fail2ban 自带 sshd jail 的端口，除非另有设置，否则是 22。"
+
+#. placeholder {0}: j.name
+msgid "Stop writing the {0} jail"
+msgstr "停止写入 {0} jail"
+
+msgid "Stop writing the {jail} jail on {name}"
+msgstr "停止写入 {name} 上的 {jail} jail"
+
+msgid "Take out"
+msgstr "去掉"
+
+msgid "Take {address} out"
+msgstr "去掉 {address}"
+
 msgid "The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name} again to update it."
 msgstr "{name} 上的代理比控制平面旧，因此无法读取 SSH。请在 {name} 上再次运行安装脚本来更新它。"
 
 msgid "The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on {name} again to update it."
 msgstr "{name} 上的代理比控制平面旧，因此无法读取 fail2ban。请在 {name} 上再次运行安装脚本来更新它。"
+
+msgid "The sshd jail on {name}"
+msgstr "{name} 上的 sshd jail"
 
 msgid "The sshd that listens may not use these files"
 msgstr "正在监听的 sshd 可能并不使用这些文件"
@@ -8933,11 +9047,17 @@ msgstr "正在监听的 sshd 可能并不使用这些文件"
 msgid "These are what sshd's files say; sshd uses what it read when it last started or reloaded."
 msgstr "以上是 sshd 配置文件的内容；sshd 使用的是它上次启动或重新加载时读取的配置。"
 
+msgid "This can ban {takenOutList} as it applies"
+msgstr "应用时可能封禁 {takenOutList}"
+
 msgid "Until it reloads, it may still accept what this says is off."
 msgstr "重新加载之前，它可能仍接受此处显示为关闭的登录方式。"
 
 msgid "Yes"
 msgstr "是"
+
+msgid "fail2ban counts the failures from just before."
+msgstr "fail2ban 会计入此前不久的失败。"
 
 msgid "fail2ban isn't installed on {name}, so nothing bans an address that keeps failing to sign in."
 msgstr "{name} 上没有安装 fail2ban，因此反复登录失败的地址不会被封禁。"
@@ -8948,8 +9068,14 @@ msgstr "{name} 上的 fail2ban 没有运行，所以不会封禁任何人：{why
 msgid "fail2ban runs with no jails, so it bans nobody."
 msgstr "fail2ban 正在运行，但没有任何 jail，因此不会封禁任何人。"
 
+msgid "ignored now"
+msgstr "目前已忽略"
+
 msgid "on {iface}"
 msgstr "经 {iface}"
+
+msgid "signed in over SSH now"
+msgstr "现在通过 SSH 登录"
 
 msgid "sshd hasn't read {files} since it changed"
 msgstr "{files} 更改后，sshd 还没有读取过"
@@ -8965,6 +9091,9 @@ msgstr "sshd_config 没有引入配置片段目录，所以 Dockwell 不会在�
 
 msgid "systemd holds SSH's port, through {unit}."
 msgstr "systemd 通过 {unit} 占用 SSH 的端口。"
+
+msgid "where you are now"
+msgstr "你现在所在的地址"
 
 #. placeholder {0}: ssh.ports.length
 msgid "{0, plural, one {Port} other {Ports}}"
@@ -8997,6 +9126,9 @@ msgstr "{jail} · {0}"
 
 msgid "{more, plural, one {and # more} other {and # more}}"
 msgstr "{more, plural, other {以及另外 # 个}}"
+
+msgid "{name} itself and the control server are never banned either."
+msgstr "{name} 自身和控制服务器也永远不会被封禁。"
 
 msgid "{tries, plural, one {# failed sign-in in {within}} other {# failed sign-ins in {within}}}"
 msgstr "{tries, plural, other {{within}内登录失败 # 次}}"
@@ -9299,9 +9431,6 @@ msgstr "请填写 1 到 65535 之间的端口，例如 443。"
 
 msgid "Nothing listens"
 msgstr "没有监听"
-
-msgid "Plan it"
-msgstr "生成计划"
 
 msgid "Removal waiting for Keep"
 msgstr "移除等待保留"
