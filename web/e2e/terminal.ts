@@ -232,6 +232,9 @@ async function main() {
   await page.getByLabel("Your name").fill("Mira Chen");
   await page.getByLabel("Email").fill("mira@example.com");
   await page.getByRole("button", { name: "Create passkey" }).click();
+  // A new owner starts where the first app comes from, with the overview a click away.
+  await page.getByRole("heading", { name: "What do you want to run?", level: 1 }).waitFor({ timeout: 15_000 });
+  await page.getByRole("link", { name: "Skip to the overview" }).click();
   await page.getByRole("heading", { name: "Overview", level: 1 }).waitFor({ timeout: 15_000 });
 
   step("Terminal is a tab of the server's page, with nothing open yet");

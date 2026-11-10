@@ -62,7 +62,9 @@ describe("ClaimPage", () => {
     const calls = api();
     const { router } = renderAt(`/claim#${TOKEN}`, calls);
     expect(await screen.findByRole("heading", { level: 1, name: "Claim hz-1" })).toBeVisible();
-    expect(screen.getByLabelText("Claim code")).toHaveValue(TOKEN);
+    // The code came in the link and works: nothing to type, and another is a click away.
+    expect(await screen.findByText("Claim link works")).toBeVisible();
+    expect(screen.queryByLabelText("Claim code")).toBeNull();
     // The token leaves the address bar once read.
     await waitFor(() => expect(router.state.location.hash).toBe(""));
 
@@ -77,9 +79,11 @@ describe("ClaimPage", () => {
     expect(calls.auth.checkClaim).toHaveBeenCalledWith(expect.objectContaining({ token: TOKEN }), expect.anything());
     expect(screen.getByLabelText("Panel address")).toHaveValue(window.location.host);
     expect(screen.getByRole("region", { name: "What happens next" })).toHaveTextContent("Claim this server");
+    await userEvent.click(screen.getByRole("button", { name: "Use another code" }));
+    expect(screen.getByLabelText("Claim code")).toHaveValue(TOKEN);
   });
 
-  it("creates the owner with a passkey and goes to the overview", async () => {
+  it("creates the owner with a passkey and goes to where the first app comes from", async () => {
     const passkeys = stubPasskeys();
     let claimed = false;
     const calls = api({
@@ -101,8 +105,8 @@ describe("ClaimPage", () => {
     watch.observe(document.body, { childList: true, subtree: true, characterData: true });
     await userEvent.click(screen.getByRole("button", { name: "Create passkey" }));
 
-    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
-    expect(await screen.findByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/start"));
+    expect(await screen.findByRole("heading", { level: 1, name: "What do you want to run?" })).toBeVisible();
     watch.disconnect();
     expect(seen).toEqual(new Set());
     // Back doesn't return to the spent claim page.
@@ -123,7 +127,7 @@ describe("ClaimPage", () => {
     expect(JSON.parse(finish.credentialJson).response.attestationObject).toBe("Bgc");
   });
 
-  it("doesn't check the spent link again on its way to the overview", async () => {
+  it("doesn't check the spent link again on its way to the start", async () => {
     stubPasskeys();
     let spent = false;
     const calls = api({
@@ -149,8 +153,8 @@ describe("ClaimPage", () => {
     watch.observe(document.body, { childList: true, subtree: true, characterData: true });
     await userEvent.click(screen.getByRole("button", { name: "Create passkey" }));
 
-    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
-    await screen.findByRole("heading", { level: 1, name: "Overview" });
+    await waitFor(() => expect(router.state.location.pathname).toBe("/start"));
+    await screen.findByRole("heading", { level: 1, name: "What do you want to run?" });
     watch.disconnect();
     expect(seen).toEqual(new Set());
     expect(calls.auth.checkClaim).toHaveBeenCalledOnce();
@@ -176,21 +180,12 @@ describe("ClaimPage", () => {
     }
   });
 
-  it("names the DNS record that fits the server's public address", async () => {
-    const cases: Array<[string, string]> = [
-      ["49.12.33.7", "point its A record to 49.12.33.7"],
-      ["2a01:4f8:c17:1::1", "point its AAAA record to 2a01:4f8:c17:1::1"],
-      // The control plane names an address only when it knows a public one.
-      ["", "point its A or AAAA record to this server's public address"],
-    ];
-    for (const [address, hint] of cases) {
-      const response = checked();
-      response.publicAddress = address;
-      const view = renderAt(`/claim#${TOKEN}`, api({ checkClaim: vi.fn(() => response) }));
-      await screen.findByRole("heading", { level: 1, name: "Claim hz-1" });
-      expect(screen.getByLabelText("Panel address")).toHaveAccessibleDescription(expect.stringContaining(hint));
-      view.unmount();
-    }
+  it("says in a line where the passkey works, with a domain for later", async () => {
+    renderAt(`/claim#${TOKEN}`, api());
+    await screen.findByRole("heading", { level: 1, name: "Claim hz-1" });
+    expect(screen.getByLabelText("Panel address")).toHaveAccessibleDescription(
+      "Your passkey works at this address only. A domain with HTTPS can come later, under Settings.",
+    );
   });
 
   it("checks the form before asking for a passkey", async () => {

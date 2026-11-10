@@ -551,11 +551,7 @@ describe("what the overview shows below the numbers", () => {
     expect(await within(changes).findByText("Update web")).toBeVisible();
     expect(within(changes).getByRole("link", { name: "Activity" })).toHaveAttribute("href", "/activity");
     const backups = screen.getByRole("region", { name: "Backups" });
-    expect(
-      await within(backups).findByText(
-        "A backup is of a volume. Add one to an app, or install a database from the catalog.",
-      ),
-    ).toBeVisible();
+    expect(await within(backups).findByText("Nothing to back up yet: no app keeps data.")).toBeVisible();
     await expectAccessible(container);
   });
 
@@ -668,7 +664,7 @@ describe("the overview's backups", () => {
     renderAt("/", backupsApi({ listBackups: () => new Promise(() => {}) }));
     const backups = await panel();
     expect(within(backups).getByText("Loading backups")).toBeInTheDocument();
-    expect(backups).not.toHaveTextContent("A backup is of a volume");
+    expect(backups).not.toHaveTextContent("Nothing to back up yet");
     expect(backups).not.toHaveTextContent("None yet");
   });
 
@@ -686,7 +682,7 @@ describe("the overview's backups", () => {
     );
     const backups = await panel();
     expect(await within(backups).findByText("Dockwell can't read its backups")).toBeVisible();
-    expect(backups).not.toHaveTextContent("A backup is of a volume");
+    expect(backups).not.toHaveTextContent("Nothing to back up yet");
     await userEvent.click(within(backups).getByRole("button", { name: "Try again" }));
     expect(await within(backups).findByText(/orders · 71 B/)).toBeVisible();
   });
