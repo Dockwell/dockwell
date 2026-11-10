@@ -370,13 +370,14 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 	for i := range list {
 		c := &list[i]
 		key := [2]string{c.Labels[docker.LabelProject], c.Labels[docker.LabelService]}
-		if c.Labels[docker.LabelOneoff] == "True" {
+		// One that's leaving never stands for its service: beside a live one, as a
+		// rollout that failed and couldn't remove what it made leaves it, it would
+		// hide that one, and a stop of it. Of the rest, the driver's own look
+		// chooses the same way (docker.Stand), so the two can't disagree.
+		if c.Labels[docker.LabelOneoff] == "True" || c.Stand().Leaving() {
 			continue
 		}
-		// The service's container is the one with the highest number, as its
-		// driver has it: each rollout that starts the new one first numbers it
-		// one on, so a service deployed more than once has no number 1.
-		if had := byLabels[key]; had != nil && had.Number() > c.Number() {
+		if had := byLabels[key]; had != nil && had.Stand().Over(c.Stand()) {
 			continue
 		}
 		byLabels[key] = c
@@ -387,9 +388,10 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 		}
 		c := byLabels[[2]string{docker.Project(ref.Scope), ref.Name}]
 		was, ok := r.cfg.Desired.Stands(ref)
-		if c == nil || !ok || c.State == "removing" || c.State == "dead" {
-			// Gone, or on its way out, as a forced removal leaves it for a
-			// moment after its kill: it stays as it was last seen.
+		if c == nil || !ok {
+			// Gone, or with nothing but a container on its way out, as a forced
+			// removal leaves it for a moment after its kill: it stays as it
+			// was last seen.
 			continue
 		}
 		st := resource.RunState{Exists: true, Running: c.State == "running" || c.State == "restarting" || c.State == "paused", Volumes: map[string]string{}}
