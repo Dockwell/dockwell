@@ -3560,6 +3560,18 @@ msgstr "working directory"
 msgid "{servers} offline"
 msgstr "{servers} offline"
 
+msgid "Add a passkey here"
+msgstr "Add a passkey here"
+
+msgid "Adding one here needs a sign-in just now, with a code or a link."
+msgstr "Adding one here needs a sign-in just now, with a code or a link."
+
+msgid "No passkey for this address yet"
+msgstr "No passkey for this address yet"
+
+msgid "Sign in again"
+msgstr "Sign in again"
+
 msgid "Can't check your session"
 msgstr "Can't check your session"
 
@@ -3811,17 +3823,14 @@ msgstr "Add a second way to sign in"
 msgid "Code sign-in is locked"
 msgstr "Code sign-in is locked"
 
-msgid "If you lose the device with your only passkey, you'd need <0>dockwell recover</0> on the server. Add another passkey, or an authenticator app."
-msgstr "If you lose the device with your only passkey, you'd need <0>dockwell recover</0> on the server. Add another passkey, or an authenticator app."
-
 msgid "If you lost a passkey, add a new one now, then remove the lost one below."
 msgstr "If you lost a passkey, add a new one now, then remove the lost one below."
 
+msgid "Losing the device with your only passkey would lock you out."
+msgstr "Losing the device with your only passkey would lock you out."
+
 msgid "No passkey works at {rpId} yet"
 msgstr "No passkey works at {rpId} yet"
-
-msgid "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code. If you came here after adding a domain, run <0>dockwell recover</0> on the server: its link signs you in here, so you can add a passkey with no code."
-msgstr "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code. If you came here after adding a domain, run <0>dockwell recover</0> on the server: its link signs you in here, so you can add a passkey with no code."
 
 msgid "Profile and security"
 msgstr "Profile and security"
@@ -3926,8 +3935,11 @@ msgstr "Enter the email of your account."
 msgid "Lost your passkey?"
 msgstr "Lost your passkey?"
 
-msgid "No passkey for this address? Passkeys belong to the address they were made on, so one made through the SSH tunnel doesn't work here. Sign in with a code, or run <0>dockwell recover</0> on the server for a one-time link, then add a passkey here."
-msgstr "No passkey for this address? Passkeys belong to the address they were made on, so one made through the SSH tunnel doesn't work here. Sign in with a code, or run <0>dockwell recover</0> on the server for a one-time link, then add a passkey here."
+msgid "No passkey for this address?"
+msgstr "No passkey for this address?"
+
+msgid "One made through the SSH tunnel works only there. Add one here once you're in."
+msgstr "One made through the SSH tunnel works only there. Add one here once you're in."
 
 msgid "Open the panel through your SSH tunnel at <0>http://localhost</0>, or on its domain over HTTPS. You can still sign in with a code."
 msgstr "Open the panel through your SSH tunnel at <0>http://localhost</0>, or on its domain over HTTPS. You can still sign in with a code."
@@ -3943,6 +3955,9 @@ msgstr "Sign in to Dockwell"
 
 msgid "Sign in with a passkey"
 msgstr "Sign in with a passkey"
+
+msgid "Use a code"
+msgstr "Use a code"
 
 msgid "Use a code from your authenticator app"
 msgstr "Use a code from your authenticator app"
@@ -4085,9 +4100,6 @@ msgstr "Adding a passkey needs one you have for this address, and you have none 
 msgid "Code sign-in is locked after 10 wrong codes in a row. Sign in with a passkey or a recovery code, or run dockwell recover on the server, then unlock it under Profile and security."
 msgstr "Code sign-in is locked after 10 wrong codes in a row. Sign in with a passkey or a recovery code, or run dockwell recover on the server, then unlock it under Profile and security."
 
-msgid "Confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again."
-msgstr "Confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again."
-
 msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 msgstr "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 
@@ -4120,6 +4132,9 @@ msgstr "That passkey isn't registered for this address, or it couldn't be verifi
 
 msgid "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
 msgstr "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
+
+msgid "That takes a passkey, and there's none for this address yet. Add one under Profile and security."
+msgstr "That takes a passkey, and there's none for this address yet. Add one under Profile and security."
 
 msgid "That was the last try. 5 wrong codes ended this setup, and its key no longer works. Close this and set it up again, which asks for your passkey."
 msgstr "That was the last try. 5 wrong codes ended this setup, and its key no longer works. Close this and set it up again, which asks for your passkey."
@@ -7069,8 +7084,8 @@ msgstr "Saving"
 msgid "Saving replaces the file at once, and can't be undone."
 msgstr "Saving replaces the file at once, and can't be undone."
 
-msgid "Saving {where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it."
-msgstr "Saving {where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it."
+msgid "Saving this takes a passkey, and there's none for this address yet"
+msgstr "Saving this takes a passkey, and there's none for this address yet"
 
 msgid "Showing the first 1 MB"
 msgstr "Showing the first 1 MB"
@@ -7285,9 +7300,6 @@ msgstr "{more, plural, one {and # more, in its list} other {and # more, in its l
 msgid "A name can't have a / in it. Make the folder first, then this in it."
 msgstr "A name can't have a / in it. Make the folder first, then this in it."
 
-msgid "Changing {where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it."
-msgstr "Changing {where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it."
-
 msgid "Delete for good"
 msgstr "Delete for good"
 
@@ -7387,6 +7399,9 @@ msgstr "That name is too long for a server. Keep it under 255 bytes."
 
 msgid "That name stands for a folder already. Choose another."
 msgstr "That name stands for a folder already. Choose another."
+
+msgid "That takes a passkey, and there's none for this address yet."
+msgstr "That takes a passkey, and there's none for this address yet."
 
 msgid "The folder {folder} is gone, so {name} wasn't put back, and it's still in Recently deleted. Make the folder again first, then put it back."
 msgstr "The folder {folder} is gone, so {name} wasn't put back, and it's still in Recently deleted. Make the folder again first, then put it back."
@@ -11139,9 +11154,15 @@ msgstr "<0>{0}</0> reaches as far as root on <1>{1}</1>: it's privileged, holds 
 msgid "A shell in <0>{wanted}</0> runs in the container, as its own user, with the first of bash, ash and sh its image has. One in a container that reaches as far as root on <1>{0}</1> asks for your passkey."
 msgstr "A shell in <0>{wanted}</0> runs in the container, as its own user, with the first of bash, ash and sh its image has. One in a container that reaches as far as root on <1>{0}</1> asks for your passkey."
 
+msgid "A shell in {shellIn} takes a passkey, and there's none for this address"
+msgstr "A shell in {shellIn} takes a passkey, and there's none for this address"
+
 #. placeholder {0}: server.name
 msgid "A terminal here is a root shell on <0>{0}</0>, through its agent, so it needs no SSH port. Opening one asks for your passkey."
 msgstr "A terminal here is a root shell on <0>{0}</0>, through its agent, so it needs no SSH port. Opening one asks for your passkey."
+
+msgid "A terminal takes a passkey, and there's none for this address"
+msgstr "A terminal takes a passkey, and there's none for this address"
 
 msgid "Another tab or window attached to it, so what you type there goes to it. It goes on running."
 msgstr "Another tab or window attached to it, so what you type there goes to it. It goes on running."
@@ -11209,9 +11230,6 @@ msgstr "Open a terminal"
 msgid "Open somewhere else"
 msgstr "Open somewhere else"
 
-msgid "Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
-msgstr "Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
-
 msgid "Select text in the terminal to copy it"
 msgstr "Select text in the terminal to copy it"
 
@@ -11245,9 +11263,6 @@ msgstr "what you type waits"
 #. placeholder {0}: names.get(tab.id) ?? tab.title
 msgid "{0} output"
 msgstr "{0} output"
-
-msgid "{inContainer} reaches as far as root on {name}, so a shell in it takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
-msgstr "{inContainer} reaches as far as root on {name}, so a shell in it takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
 
 msgid "{title} · through the agent"
 msgstr "{title} · through the agent"

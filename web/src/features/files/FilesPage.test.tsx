@@ -867,7 +867,7 @@ describe("editing a file", () => {
       expect(await screen.findByText("Saved .user.ini", { selector: "p" })).toBeVisible();
     });
 
-    it("points to SSH with no passkey for this address, and keeps what you typed", async () => {
+    it("offers to add a passkey here when there's none for this address, and keeps what you typed", async () => {
       stubPasskeys();
       const { field } = await edited(
         { readFile: wayIn, saveFile: asks },
@@ -879,8 +879,11 @@ describe("editing a file", () => {
         },
       );
       await userEvent.click(saveButton());
-      expect(await screen.findByText("Connect to the server over SSH to change it", { exact: false })).toBeVisible();
-      expect(screen.getByText(`Saving ${keys} takes a passkey`, { exact: false })).toBeVisible();
+      expect(
+        await screen.findByText("Saving this takes a passkey, and there's none for this address yet"),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "Add a passkey here" })).toBeEnabled();
+      expect(screen.queryByText(/over SSH/)).toBeNull();
       expect(field).toHaveValue("memory_limit = 512M");
     });
 

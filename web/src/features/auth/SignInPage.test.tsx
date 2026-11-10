@@ -80,9 +80,9 @@ describe("SignInPage", () => {
       api({ getAuthState: () => authState({ user: undefined, rpId: "panel.acme.dev", domain: "panel.acme.dev" }) }),
     );
     await userEvent.click(await screen.findByRole("button", { name: "Sign in with a passkey" }));
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "No passkey for this address? Passkeys belong to the address they were made on",
-    );
+    expect(await screen.findByRole("status")).toHaveTextContent("No passkey for this address?");
+    await userEvent.click(screen.getByRole("button", { name: "Use a code" }));
+    expect(screen.queryByRole("button", { name: "Sign in with a passkey" })).toBeNull();
   });
 
   it("explains a refused passkey", async () => {

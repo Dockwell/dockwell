@@ -8,6 +8,7 @@ import { Button, Icon, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
+import { reasonOf } from "../../lib/errors";
 import { formatDay } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { createPasskey, passkeysAvailable } from "../../lib/webauthn";
@@ -28,9 +29,12 @@ export function useAddPasskey() {
   const passkeys = useQuery(AuthService.method.listPasskeys, {});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
-  const run = async () => {
+  // Why it was refused, such as needs_fresh_sign_in, for a caller that offers what fixes it.
+  const [reason, setReason] = useState<string>();
+  const run = async (onAdded?: () => void) => {
     setBusy(true);
     setProblem(undefined);
+    setReason(undefined);
     try {
       const client = createClient(AuthService, transport);
       const begin = await withStepUpIfAsked(transport, StepUpAction.ADD_PASSKEY, "", (proof) =>
@@ -39,13 +43,15 @@ export function useAddPasskey() {
       const credentialJson = await createPasskey(begin.optionsJson);
       await client.finishAddPasskey({ ceremonyId: begin.ceremonyId, credentialJson, name: device });
       await passkeys.refetch();
+      onAdded?.();
     } catch (err) {
       setProblem(explain(err));
+      setReason(reasonOf(err));
     } finally {
       setBusy(false);
     }
   };
-  return { busy, problem, run };
+  return { busy, problem, reason, run };
 }
 
 /** Your passkeys, which address each works on, and how to add or remove one. */
