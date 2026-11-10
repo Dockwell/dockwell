@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Server } from "@dockwell/api";
+import { Connection, type Server } from "@dockwell/api";
 import { PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
@@ -99,7 +99,12 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
       }
     >
       {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <ServerCallout server={server} />}
-      <ServerMetrics server={server} fourth="network" compact={phone} />
+      <ServerMetrics
+        server={server}
+        fourth="network"
+        compact={phone}
+        stale={unread !== undefined || server.connection !== Connection.CONNECTED}
+      />
       <div className="overview-columns">
         <div className="overview-main">
           <OverviewApps />

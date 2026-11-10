@@ -1473,3 +1473,34 @@ func TestAServicesContainerIsNamedAfterItsEnvironment(t *testing.T) {
 		t.Errorf("planning api beside someone else's default.production.api-1 = %v", err)
 	}
 }
+
+// An agent older than the control plane, which doesn't know the call for a
+// server's firewall, says so as every agent does, and that reads as an agent to
+// update, not as the firewall failing.
+func TestAnOlderAgentIsToUpdate(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	stream := openStream(t, id)
+	waitForAgent(t, s.agents, id.ServerID, true)
+	session, ok := s.agents.Session(id.ServerID)
+	if !ok {
+		t.Fatal("no session")
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := session.Firewall(t.Context())
+		done <- err
+	}()
+	msg, err := nextCall(stream)
+	if err != nil || msg.GetCall().GetFirewall() == nil {
+		t.Fatalf("the control plane sent %v, %v, want a firewall read", msg, err)
+	}
+	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: &agentv1.CallResult{
+		Id: msg.GetCall().GetId(), Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: "this agent doesn't know that call; update it to the control plane's version"}},
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; !errors.Is(err, agentapi.ErrAgentOutdated) {
+		t.Errorf("an older agent's answer reads as %v", err)
+	}
+}

@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/buildinfo"
@@ -74,6 +75,9 @@ type Config struct {
 	NoLookup bool
 	// Logs reads what this server's containers print. Nil reads none.
 	Logs LogReader
+	// Tools runs the server's own tools, such as ufw and nft, as ADR 0043 has
+	// it. Nil runs none, as in a test.
+	Tools *hosttool.Runner
 	// Docker lists this server's containers. Nil lists none.
 	Docker *docker.Client
 	// Backups takes and removes backups of this server's volumes. Nil takes none.
@@ -103,6 +107,8 @@ type Config struct {
 	CallGrace time.Duration
 	// unfinished is what outlives its call, across this agent's streams.
 	unfinished *unfinished
+	// firewall reads what filters the server's inbound traffic, when asked.
+	firewall *firewallReader
 	// outlook keeps what the server found out from one stream to the next.
 	outlook *outlook
 	// disks adds up what takes the disk Docker's data is on, when asked.
@@ -354,6 +360,7 @@ func Run(ctx context.Context, cfg Config) error {
 		cfg.Collector = collect.New()
 	}
 	cfg.outlook = &outlook{}
+	cfg.firewall = newFirewallReader(cfg)
 	cfg.disks = &diskUse{docker: cfg.Docker, collector: cfg.Collector, now: time.Now}
 	cfg.procs = newProcesses(cfg.Collector, cfg.Docker)
 	if cfg.Drivers == nil {

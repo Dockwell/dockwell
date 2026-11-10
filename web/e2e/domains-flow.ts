@@ -50,7 +50,8 @@ function aDomain(environment: string, server: { id: string; name: string }, answ
     number(5, 80),
     tls ? bytes(7, tls) : Buffer.alloc(0),
   ]);
-  const seconds = days === undefined ? undefined : Math.floor(Date.now() / 1000) + days * 86_400;
+  // Leave a minute inside the intended day for the panel's clock estimate.
+  const seconds = days === undefined ? undefined : Math.floor(Date.now() / 1000) + days * 86_400 - 60;
   const certificate = Buffer.concat([
     number(1, state),
     message ? bytes(3, message) : Buffer.alloc(0),

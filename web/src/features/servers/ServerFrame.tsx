@@ -139,6 +139,9 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
             <Trans>Terminal</Trans>
           </RouterTabLink>
           <UpdatesTab server={server} />
+          <RouterTabLink to="/servers/$serverId/firewall" params={{ serverId: server.id }}>
+            <Trans>Firewall</Trans>
+          </RouterTabLink>
           <RouterTabLink to="/servers/$serverId/processes" params={{ serverId: server.id }}>
             <Trans>Processes</Trans>
           </RouterTabLink>
@@ -155,7 +158,7 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
  * a way in that doesn't rest on the Overview's callout, which someone can put away.
  */
 function MoveInTab({ server }: { server: Server }) {
-  const here = useOnePanelHere(server.id);
+  const here = useOnePanelHere(server);
   const on = useRouterState({ select: (s) => s.location.pathname.endsWith("/import") });
   if (!here && !on) return null;
   return (

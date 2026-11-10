@@ -516,6 +516,9 @@ msgstr "某个计划任务在失败后成功了"
 msgid "A service"
 msgstr "某个服务"
 
+msgid "Acknowledged the alert: {title}"
+msgstr "已确认告警：{title}"
+
 msgid "Added a passkey"
 msgstr "添加了通行密钥"
 
@@ -825,6 +828,12 @@ msgstr "{volume} 的备份失败了"
 msgid "The health of {name} changed on {server}"
 msgstr "{name} 在 {server} 上的健康状态发生了变化"
 
+msgid "Took back the acknowledgement of the alert: {title}"
+msgstr "已撤回对告警的确认：{title}"
+
+msgid "Took over the alert from {from}: {title}"
+msgstr "已从 {from} 接手告警：{title}"
+
 msgid "Turned off codes from an authenticator app"
 msgstr "关闭了身份验证器应用验证码"
 
@@ -952,6 +961,79 @@ msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
 
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, other {{subject} 的证书将在 # 天内过期}}"
+
+msgid "Acknowledge"
+msgstr "确认"
+
+msgid "Acknowledge: {title}"
+msgstr "确认：{title}"
+
+msgid "Acknowledged by you"
+msgstr "你已确认"
+
+msgid "Acknowledged by {name}"
+msgstr "{name} 已确认"
+
+msgid "Critical"
+msgstr "严重"
+
+msgid "Held by a mute"
+msgstr "已被静默"
+
+msgid "History"
+msgstr "历史"
+
+msgid "Inspect"
+msgstr "查看"
+
+msgid "Inspect: {title}"
+msgstr "查看：{title}"
+
+msgid "Memory on {name}, now {percent}%"
+msgstr "{name} 的内存，当前 {percent}%"
+
+msgid "Memory, now {percent}%"
+msgstr "内存，当前 {percent}%"
+
+msgid "Most severe first"
+msgstr "最严重的在前"
+
+msgid "Not acknowledged"
+msgstr "尚未确认"
+
+msgid "Nothing is open. What fires shows here until it resolves."
+msgstr "没有未恢复的告警。触发的告警会显示在这里，直到恢复。"
+
+msgid "Nothing sent"
+msgstr "未发送"
+
+msgctxt "alerts that haven't resolved"
+msgid "Open"
+msgstr "未恢复"
+
+msgid "Resolved"
+msgstr "已恢复"
+
+msgid "Sent {sent}"
+msgstr "已于 {sent} 发送"
+
+msgid "Take back"
+msgstr "撤回"
+
+msgid "Take back your acknowledgement of: {title}"
+msgstr "撤回你的确认：{title}"
+
+msgid "Take over"
+msgstr "接手"
+
+msgid "Take over from {name}: {title}"
+msgstr "从 {name} 接手：{title}"
+
+msgid "That didn't take"
+msgstr "未能完成"
+
+msgid "since {since}"
+msgstr "自 {since} 起"
 
 msgid "Alerts sections"
 msgstr "告警分区"
@@ -1144,9 +1226,6 @@ msgstr "无法加载渠道"
 msgid "Channel"
 msgstr "渠道"
 
-msgid "Critical"
-msgstr "严重"
-
 msgid "Delivered"
 msgstr "已送达"
 
@@ -1250,9 +1329,6 @@ msgstr "{failing, plural, other {# 个发送失败}}"
 msgid "Alert rules"
 msgstr "告警规则"
 
-msgid "Alerts, firing first"
-msgstr "告警，触发中的在前"
-
 msgid "Can't load the alerts"
 msgstr "无法加载告警"
 
@@ -1279,12 +1355,6 @@ msgstr "尚未触发任何告警"
 
 msgid "Off"
 msgstr "关闭"
-
-msgid "Opened"
-msgstr "触发时间"
-
-msgid "Resolved"
-msgstr "已恢复"
 
 msgid "Severity"
 msgstr "严重程度"
@@ -1556,6 +1626,9 @@ msgstr "{target} 的新值"
 
 msgid "New variable"
 msgstr "新变量"
+
+msgid "No variables yet"
+msgstr "还没有变量"
 
 msgid "Not applied"
 msgstr "未应用"
@@ -7047,6 +7120,15 @@ msgstr "所有者 <0>{owner}</0>"
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, other {# 项}}"
 
+msgid "Hide the folders in {name}"
+msgstr "收起 {name} 中的文件夹"
+
+msgid "Show the folders in {name}"
+msgstr "展开 {name} 中的文件夹"
+
+msgid "{more, plural, one {and # more, in its list} other {and # more, in its list}}"
+msgstr "{more, plural, other {还有 # 个，见其列表}}"
+
 msgid "A name can't have a / in it. Make the folder first, then this in it."
 msgstr "名称中不能有 /。请先创建文件夹，再在其中创建它。"
 
@@ -7846,9 +7928,6 @@ msgstr "{0, plural, other {{source} 有 {lines} 行未显示：这台服务器�
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, other {{source} 有 {lines} 条较早的匹配未显示：读到末尾时，每个容器只保留最新的 2 MB。}}"
 
-msgid "Inspect"
-msgstr "查看"
-
 msgid "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
 msgstr "它已加入，但它的代理还没有连接。请在服务器上运行 <0>dockwell run</0> 启动它。"
 
@@ -8086,6 +8165,10 @@ msgstr "你用 Dockwell 运行的应用在<0>应用</0>中。"
 msgid "Containers Dockwell didn't make"
 msgstr "非 Dockwell 创建的容器"
 
+#. placeholder {0}: server.name
+msgid "Docker isn't answering on {0}, so what runs there can't be read now."
+msgstr "{0} 上的 Docker 没有响应，因此现在无法读取那里运行的内容。"
+
 msgid "Docker runs nothing here that Dockwell didn't make."
 msgstr "这里没有非 Dockwell 创建的 Docker 容器。"
 
@@ -8106,6 +8189,14 @@ msgstr "请在服务器上用 <0>docker ps -a</0> 查看全部。"
 
 msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 msgstr "这些容器在 Dockwell 之前就已存在，或以其他方式运行。Dockwell 只读取它们，因此在这里查看不会改变任何内容，它们会照常运行。"
+
+#. placeholder {0}: server.name
+msgid "{0} is waiting for its agent, so what Docker runs there can't be read yet."
+msgstr "{0} 正在等待代理连接，因此还无法读取那里 Docker 运行的内容。"
+
+#. placeholder {0}: server.name
+msgid "{0} isn't reporting, so what Docker runs there can't be read now."
+msgstr "{0} 没有上报数据，因此现在无法读取那里 Docker 运行的内容。"
 
 msgid "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
 msgstr "{count, plural, other {# 个容器，{running} 个正在运行}}"
@@ -8250,6 +8341,240 @@ msgstr "{name} 在 10 秒内没有停止，因此已被强制结束。"
 msgid "{name} stopped."
 msgstr "{name} 已停止。"
 
+msgid "Action"
+msgstr "操作"
+
+msgid "Address"
+msgstr "地址"
+
+msgid "Allow"
+msgstr "允许"
+
+msgid "Any port"
+msgstr "任意端口"
+
+msgid "Any {proto} port"
+msgstr "任意 {proto} 端口"
+
+msgid "Anywhere"
+msgstr "任意来源"
+
+msgid "Anywhere, IPv6"
+msgstr "任意来源，IPv6"
+
+msgid "Can't tell"
+msgstr "无法判断"
+
+msgid "Can't tell: Docker isn't answering, and this may be a port it publishes, which {by} doesn't cover"
+msgstr "无法判断：Docker 没有响应，这可能是它发布的端口，而 {by} 不覆盖这类端口"
+
+msgid "Can't tell: Dockwell can't read {by}"
+msgstr "无法判断：Dockwell 无法读取 {by}"
+
+msgid "Can't tell: a {by} rule for it covers one interface alone"
+msgstr "无法判断：{by} 针对它的规则只作用于一个接口"
+
+msgid "Can't tell: a {by} rule names an app profile without saying its ports"
+msgstr "无法判断：{by} 的某条规则引用了应用配置，但没有说明其端口"
+
+msgid "Can't tell: rules in {by} may drop it, and Dockwell doesn't weigh them one by one"
+msgstr "无法判断：{by} 中的规则可能会丢弃它，Dockwell 不会逐条计入"
+
+msgid "Can't tell: {by} lets in a service Dockwell doesn't know the ports of"
+msgstr "无法判断：{by} 放行了一个 Dockwell 不知道端口的服务"
+
+msgid "Can't tell: {by} lets it in to one of the server's addresses alone"
+msgstr "无法判断：{by} 只在服务器的某一个地址上放行它"
+
+msgid "Can't tell: {by}'s rich rules for it run first, and Dockwell doesn't weigh them"
+msgstr "无法判断：{by} 针对它的富规则先执行，Dockwell 不会计入这些规则"
+
+msgid "Can't tell: {by}'s zones treat it apart, by the interface traffic arrives on"
+msgstr "无法判断：{by} 的各区域对它的处理不同，取决于流量从哪个接口进入"
+
+msgid "Closed by {by}"
+msgstr "已被 {by} 关闭"
+
+msgid "Default zone · read-only"
+msgstr "默认区域 · 只读"
+
+msgid "Deny"
+msgstr "拒绝"
+
+msgid "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them, but for what Docker's proxy takes, as marked."
+msgstr "Docker 会在 ufw 或 firewalld 的规则看到之前把这些流量转发给容器，因此这些规则不覆盖它们，标注为经 Docker 代理的除外。"
+
+#. placeholder {0}: server.name
+msgid "Dockwell can't read {0}'s firewall"
+msgstr "Dockwell 无法读取 {0} 的防火墙"
+
+msgid "Every IPv4 address"
+msgstr "所有 IPv4 地址"
+
+msgid "Every IPv6 address"
+msgstr "所有 IPv6 地址"
+
+msgid "Every address"
+msgstr "所有地址"
+
+msgid "Inbound traffic"
+msgstr "入站流量"
+
+msgid "It doesn't say what it does with what no rule matches."
+msgstr "它没有说明如何处理不匹配任何规则的流量。"
+
+msgid "It drops what no rule lets in."
+msgstr "它会丢弃没有规则放行的流量。"
+
+msgid "It lets in what no rule turns away."
+msgstr "它会放行没有规则拦下的流量。"
+
+msgid "It takes traffic from {sources}."
+msgstr "它接收来自 {sources} 的流量。"
+
+msgid "It takes traffic on {ifaces}."
+msgstr "它接收 {ifaces} 上的流量。"
+
+msgid "It takes what no other zone does."
+msgstr "它接收其他区域都不接收的流量。"
+
+msgid "It turns away what no rule lets in."
+msgstr "它会拒收没有规则放行的流量。"
+
+msgid "Its port"
+msgstr "容器端口"
+
+msgid "Limit"
+msgstr "限速"
+
+msgid "Note"
+msgstr "备注"
+
+#. placeholder {0}: server.name
+msgid "Nothing filters what comes in to {0}: it has no ufw, firewalld, nftables or iptables rules that could."
+msgstr "没有任何东西过滤进入 {0} 的流量：它没有能起作用的 ufw、firewalld、nftables 或 iptables 规则。"
+
+msgid "On · read-only, as Dockwell didn't make it"
+msgstr "已启用 · 只读，因为不是 Dockwell 创建的"
+
+msgid "Only from {sources}, as {by} says"
+msgstr "仅限来自 {sources}，按 {by} 的规则"
+
+msgid "Only from {sources}, or on {ifaces}, as {by} says"
+msgstr "仅限来自 {sources} 或经 {ifaces}，按 {by} 的规则"
+
+msgid "Only on {ifaces}, as {by} says"
+msgstr "仅限经 {ifaces}，按 {by} 的规则"
+
+msgid "Open to what {by} always lets in on this port: DHCP replies, or local discovery"
+msgstr "对 {by} 在此端口上始终放行的流量开放：DHCP 应答或本地发现"
+
+msgid "Open, as {by} allows it"
+msgstr "开放，{by} 放行了它"
+
+msgid "Open: nothing here closes it"
+msgstr "开放：这里没有规则关闭它"
+
+msgid "Ports Docker publishes"
+msgstr "Docker 发布的端口"
+
+msgid "Reach"
+msgstr "可达性"
+
+#. placeholder {0}: server.name
+msgid "Reading what filters {0}'s traffic"
+msgstr "正在读取过滤 {0} 流量的规则"
+
+msgid "Reject"
+msgstr "拒收"
+
+msgid "Rich rules, which run before the rest"
+msgstr "富规则，先于其他规则执行"
+
+msgctxt "firewall rule sets"
+msgid "Rules"
+msgstr "规则集"
+
+msgid "Rules of {title}"
+msgstr "{title} 的规则"
+
+msgid "Rules ufw, firewalld and Docker didn't make. A drop in any of them wins, and Dockwell doesn't weigh them one by one, so where they may drop what listens above, it says it can't tell."
+msgstr "不是由 ufw、firewalld 或 Docker 创建的规则。其中任何一处丢弃都会生效，而 Dockwell 不会逐条计入，因此在它们可能丢弃上方监听流量的地方，会显示无法判断。"
+
+#. placeholder {0}: server.name
+#. placeholder {1}: server.name
+msgid "The agent on {0} is older than the control plane, so it can't read the firewall. Run the install script on {1} again to update it."
+msgstr "{0} 上的代理比控制平面旧，因此无法读取防火墙。请在 {1} 上再次运行安装脚本来更新它。"
+
+msgid "The kernel's other rules"
+msgstr "内核中的其他规则"
+
+msgid "Through Docker's proxy, so the input rules cover it."
+msgstr "经 Docker 代理，因此 input 规则覆盖它。"
+
+#. placeholder {0}: server.name
+msgid "What listens on {0}"
+msgstr "{0} 上的监听端口"
+
+msgid "What they hold"
+msgstr "包含内容"
+
+msgid "firewalld"
+msgstr "firewalld"
+
+#. placeholder {0}: tool.name
+msgid "firewalld, zone {0}"
+msgstr "firewalld，区域 {0}"
+
+msgid "iptables"
+msgstr "iptables"
+
+#. placeholder {0}: tool.name
+msgid "iptables, {0}"
+msgstr "iptables，{0}"
+
+msgid "iptables-legacy"
+msgstr "iptables-legacy"
+
+#. placeholder {0}: tool.name
+msgid "iptables-legacy, {0}"
+msgstr "iptables-legacy，{0}"
+
+msgid "nftables"
+msgstr "nftables"
+
+#. placeholder {0}: tool.name
+msgid "nftables table {0}"
+msgstr "nftables 表 {0}"
+
+msgid "on {iface}"
+msgstr "经 {iface}"
+
+msgid "ufw"
+msgstr "ufw"
+
+#. placeholder {0}: listening.length
+#. placeholder {0}: ports.length
+msgid "{0, plural, one {# port} other {# ports}}"
+msgstr "{0, plural, other {# 个端口}}"
+
+#. placeholder {0}: fw.dockerUserRules
+msgid "{0, plural, one {Docker's DOCKER-USER chain holds # rule, which filters these, and which Dockwell doesn't weigh.} other {Docker's DOCKER-USER chain holds # rules, which filter these, and which Dockwell doesn't weigh one by one.}}"
+msgstr "{0, plural, other {Docker 的 DOCKER-USER 链中有 # 条规则会过滤这些端口，Dockwell 不会逐条计入。}}"
+
+#. placeholder {0}: server.name
+msgid "{0} isn't reporting, so what filters its traffic can't be read now."
+msgstr "{0} 未在上报，因此现在无法读取过滤其流量的规则。"
+
+msgid "{count}, none on what comes in."
+msgstr "{count}，没有作用于入站流量的。"
+
+msgid "{count}, {input} of them on what comes in."
+msgstr "{count}，其中 {input} 作用于入站流量。"
+
+msgid "{count}. Its input chain drops what no rule lets in."
+msgstr "{count}。其 input 链会丢弃没有规则放行的流量。"
+
 msgid "Loading servers"
 msgstr "正在加载服务器"
 
@@ -8277,8 +8602,8 @@ msgstr "你已离线"
 msgid "All activity"
 msgstr "全部动态"
 
-msgid "CPU above {HIGH}%"
-msgstr "CPU 超过 {HIGH}%"
+msgid "CPU above {HIGH}% since {since}"
+msgstr "自 {since} 起 CPU 超过 {HIGH}%"
 
 msgid "Can't say how it is now"
 msgstr "目前无法判断其状态"
@@ -8296,8 +8621,8 @@ msgstr "复制{label} {address}"
 msgid "Docker hasn't answered for {0}"
 msgstr "Docker 已 {0} 未响应"
 
-msgid "Memory above {HIGH}%"
-msgstr "内存超过 {HIGH}%"
+msgid "Memory above {HIGH}% since {since}"
+msgstr "自 {since} 起内存超过 {HIGH}%"
 
 msgid "No apps here yet. Deploy one from an image or the catalog."
 msgstr "这里还没有应用。从镜像或应用目录部署一个。"
@@ -8306,11 +8631,11 @@ msgid "Not known"
 msgstr "未知"
 
 msgid "Not reporting"
-msgstr "未在上报"
+msgstr "没有上报数据"
 
 #. placeholder {0}: lasted(server.lastSeenTime)
 msgid "Not reporting for {0}"
-msgstr "已 {0} 未上报"
+msgstr "已 {0} 没有上报数据"
 
 msgid "Nothing has happened here yet."
 msgstr "这里还没有发生任何事。"
@@ -8346,6 +8671,10 @@ msgstr "{0, plural, other {# 个应用}}"
 
 msgid "{replicas, plural, one {# replica} other {# replicas}}"
 msgstr "{replicas, plural, other {# 个副本}}"
+
+#. placeholder {0}: words.ago(heard, now)
+msgid "{text}, as last heard {0}"
+msgstr "{text}，最后一次收到于 {0}"
 
 #. placeholder {0}: g.owner.name
 #. placeholder {0}: owner.name
@@ -8577,6 +8906,9 @@ msgstr "它的代理最后一次上报于 {seen}，此处显示的是当时的�
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> 可能已被移除，或者链接有误。"
 
+msgid "Firewall"
+msgstr "防火墙"
+
 msgid "Move in"
 msgstr "迁入"
 
@@ -8792,6 +9124,12 @@ msgstr "显示 {count} 台中的 {shown} 台 · 按名称排序"
 msgid "sorted by name"
 msgstr "按名称排序"
 
+msgid "CPU above {HIGH_USE}%"
+msgstr "CPU 超过 {HIGH_USE}%"
+
+msgid "Memory above {HIGH_USE}%"
+msgstr "内存超过 {HIGH_USE}%"
+
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "还没有服务器。在这台服务器上运行 <0>dockwell token create</0> 来添加一台。"
 
@@ -8938,9 +9276,6 @@ msgstr "API"
 
 msgid "API tokens"
 msgstr "API 令牌"
-
-msgid "Action"
-msgstr "操作"
 
 msgid "All sources"
 msgstr "所有来源"
@@ -9271,9 +9606,6 @@ msgstr "每次更改都会连同被替换的值记入动态。"
 
 msgid "A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with."
 msgstr "新的计划（例如备份计划）除非指定了自己的时区，否则都使用这个时区，无论来自面板、CLI 还是 API。每个计划保留创建时的时区。"
-
-msgid "Address"
-msgstr "地址"
 
 msgid "Always on, through an SSH tunnel to the server"
 msgstr "始终可用，通过到服务器的 SSH 隧道访问"

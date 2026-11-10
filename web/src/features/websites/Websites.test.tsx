@@ -312,6 +312,12 @@ describe("The websites", () => {
     expect(screen.getByRole("link", { name: "New website" })).toHaveAttribute("href", "/websites/new");
   });
 
+  it("holds no empty line under the title once it knows there are none", async () => {
+    const { container } = renderAt("/websites", api([]));
+    await screen.findByRole("heading", { name: "No websites yet" });
+    expect(container.querySelector(".page-lead")).toBeNull();
+  });
+
   it("says when it can't read them, and tries again", async () => {
     const user = userEvent.setup();
     let calls = 0;

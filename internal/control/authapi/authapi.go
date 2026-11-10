@@ -568,6 +568,10 @@ const (
 	// this address can confirm, in a session not signed in just now. Sign
 	// in again, then add it.
 	ReasonNeedsFreshSignIn = "needs_fresh_sign_in"
+	// ReasonAgentOutdated: the server's agent is older than the control plane,
+	// and doesn't know what the call asks of it. Run the install script on the
+	// server again to update it.
+	ReasonAgentOutdated = "agent_outdated"
 )
 
 // ReasonError is a Connect error that names its reason under ReasonKey.

@@ -85,11 +85,10 @@ function itsDomain(site: Site, server: { id: string; name: string }, days?: numb
     tunnel ? bytes(7, "off") : Buffer.alloc(0),
     site.port ? number(8, site.port) : Buffer.alloc(0),
   ]);
-  // An hour short of whole days: the page counts days up from its own clock, which is
-  // from before this answer, so an expiry of exactly 61 days read as 62 on a slow run.
+  // Leave a minute inside the intended day for the panel's clock estimate.
   const certificate = tunnel
     ? number(1, NONE)
-    : Buffer.concat([number(1, ISSUED), bytes(4, number(1, Math.floor(Date.now() / 1000) + days * 86_400 - 3_600))]);
+    : Buffer.concat([number(1, ISSUED), bytes(4, number(1, Math.floor(Date.now() / 1000) + days * 86_400 - 60))]);
   const status = Buffer.concat([bytes(1, site.domain), bytes(2, certificate)]);
   const on = Buffer.concat([bytes(1, server.id), bytes(2, server.name), bytes(3, status)]);
   const scheme = tunnel ? "http" : "https";

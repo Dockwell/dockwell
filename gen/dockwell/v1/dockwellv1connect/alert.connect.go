@@ -54,6 +54,12 @@ const (
 	AlertServiceListAlertMutesProcedure = "/dockwell.v1.AlertService/ListAlertMutes"
 	// AlertServiceMuteAlertsProcedure is the fully-qualified name of the AlertService's MuteAlerts RPC.
 	AlertServiceMuteAlertsProcedure = "/dockwell.v1.AlertService/MuteAlerts"
+	// AlertServiceAcknowledgeAlertProcedure is the fully-qualified name of the AlertService's
+	// AcknowledgeAlert RPC.
+	AlertServiceAcknowledgeAlertProcedure = "/dockwell.v1.AlertService/AcknowledgeAlert"
+	// AlertServiceUnacknowledgeAlertProcedure is the fully-qualified name of the AlertService's
+	// UnacknowledgeAlert RPC.
+	AlertServiceUnacknowledgeAlertProcedure = "/dockwell.v1.AlertService/UnacknowledgeAlert"
 	// AlertServiceUnmuteAlertsProcedure is the fully-qualified name of the AlertService's UnmuteAlerts
 	// RPC.
 	AlertServiceUnmuteAlertsProcedure = "/dockwell.v1.AlertService/UnmuteAlerts"
@@ -84,6 +90,14 @@ type AlertServiceClient interface {
 	// out still gets its resolved one. When the mute ends, what's still firing is
 	// sent. Muting again what's muted moves its end.
 	MuteAlerts(context.Context, *connect.Request[v1.MuteAlertsRequest]) (*connect.Response[v1.MuteAlertsResponse], error)
+	// AcknowledgeAlert says someone has seen an open alert and is on it: who and
+	// when, on the alert and on Activity. It holds nothing back and sends nothing;
+	// a mute does that. Acknowledging one that someone else has takes it over. It
+	// ends when the alert resolves. Only an open alert can be acknowledged.
+	AcknowledgeAlert(context.Context, *connect.Request[v1.AcknowledgeAlertRequest]) (*connect.Response[v1.AcknowledgeAlertResponse], error)
+	// UnacknowledgeAlert takes an acknowledgement back, so the alert reads as
+	// nobody's again.
+	UnacknowledgeAlert(context.Context, *connect.Request[v1.UnacknowledgeAlertRequest]) (*connect.Response[v1.UnacknowledgeAlertResponse], error)
 	// UnmuteAlerts ends a mute now, and sends what's still firing.
 	UnmuteAlerts(context.Context, *connect.Request[v1.UnmuteAlertsRequest]) (*connect.Response[v1.UnmuteAlertsResponse], error)
 }
@@ -146,6 +160,18 @@ func NewAlertServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(alertServiceMethods.ByName("MuteAlerts")),
 			connect.WithClientOptions(opts...),
 		),
+		acknowledgeAlert: connect.NewClient[v1.AcknowledgeAlertRequest, v1.AcknowledgeAlertResponse](
+			httpClient,
+			baseURL+AlertServiceAcknowledgeAlertProcedure,
+			connect.WithSchema(alertServiceMethods.ByName("AcknowledgeAlert")),
+			connect.WithClientOptions(opts...),
+		),
+		unacknowledgeAlert: connect.NewClient[v1.UnacknowledgeAlertRequest, v1.UnacknowledgeAlertResponse](
+			httpClient,
+			baseURL+AlertServiceUnacknowledgeAlertProcedure,
+			connect.WithSchema(alertServiceMethods.ByName("UnacknowledgeAlert")),
+			connect.WithClientOptions(opts...),
+		),
 		unmuteAlerts: connect.NewClient[v1.UnmuteAlertsRequest, v1.UnmuteAlertsResponse](
 			httpClient,
 			baseURL+AlertServiceUnmuteAlertsProcedure,
@@ -164,6 +190,8 @@ type alertServiceClient struct {
 	testAlertChannel    *connect.Client[v1.TestAlertChannelRequest, v1.TestAlertChannelResponse]
 	listAlertMutes      *connect.Client[v1.ListAlertMutesRequest, v1.ListAlertMutesResponse]
 	muteAlerts          *connect.Client[v1.MuteAlertsRequest, v1.MuteAlertsResponse]
+	acknowledgeAlert    *connect.Client[v1.AcknowledgeAlertRequest, v1.AcknowledgeAlertResponse]
+	unacknowledgeAlert  *connect.Client[v1.UnacknowledgeAlertRequest, v1.UnacknowledgeAlertResponse]
 	unmuteAlerts        *connect.Client[v1.UnmuteAlertsRequest, v1.UnmuteAlertsResponse]
 }
 
@@ -202,6 +230,16 @@ func (c *alertServiceClient) MuteAlerts(ctx context.Context, req *connect.Reques
 	return c.muteAlerts.CallUnary(ctx, req)
 }
 
+// AcknowledgeAlert calls dockwell.v1.AlertService.AcknowledgeAlert.
+func (c *alertServiceClient) AcknowledgeAlert(ctx context.Context, req *connect.Request[v1.AcknowledgeAlertRequest]) (*connect.Response[v1.AcknowledgeAlertResponse], error) {
+	return c.acknowledgeAlert.CallUnary(ctx, req)
+}
+
+// UnacknowledgeAlert calls dockwell.v1.AlertService.UnacknowledgeAlert.
+func (c *alertServiceClient) UnacknowledgeAlert(ctx context.Context, req *connect.Request[v1.UnacknowledgeAlertRequest]) (*connect.Response[v1.UnacknowledgeAlertResponse], error) {
+	return c.unacknowledgeAlert.CallUnary(ctx, req)
+}
+
 // UnmuteAlerts calls dockwell.v1.AlertService.UnmuteAlerts.
 func (c *alertServiceClient) UnmuteAlerts(ctx context.Context, req *connect.Request[v1.UnmuteAlertsRequest]) (*connect.Response[v1.UnmuteAlertsResponse], error) {
 	return c.unmuteAlerts.CallUnary(ctx, req)
@@ -232,6 +270,14 @@ type AlertServiceHandler interface {
 	// out still gets its resolved one. When the mute ends, what's still firing is
 	// sent. Muting again what's muted moves its end.
 	MuteAlerts(context.Context, *connect.Request[v1.MuteAlertsRequest]) (*connect.Response[v1.MuteAlertsResponse], error)
+	// AcknowledgeAlert says someone has seen an open alert and is on it: who and
+	// when, on the alert and on Activity. It holds nothing back and sends nothing;
+	// a mute does that. Acknowledging one that someone else has takes it over. It
+	// ends when the alert resolves. Only an open alert can be acknowledged.
+	AcknowledgeAlert(context.Context, *connect.Request[v1.AcknowledgeAlertRequest]) (*connect.Response[v1.AcknowledgeAlertResponse], error)
+	// UnacknowledgeAlert takes an acknowledgement back, so the alert reads as
+	// nobody's again.
+	UnacknowledgeAlert(context.Context, *connect.Request[v1.UnacknowledgeAlertRequest]) (*connect.Response[v1.UnacknowledgeAlertResponse], error)
 	// UnmuteAlerts ends a mute now, and sends what's still firing.
 	UnmuteAlerts(context.Context, *connect.Request[v1.UnmuteAlertsRequest]) (*connect.Response[v1.UnmuteAlertsResponse], error)
 }
@@ -290,6 +336,18 @@ func NewAlertServiceHandler(svc AlertServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(alertServiceMethods.ByName("MuteAlerts")),
 		connect.WithHandlerOptions(opts...),
 	)
+	alertServiceAcknowledgeAlertHandler := connect.NewUnaryHandler(
+		AlertServiceAcknowledgeAlertProcedure,
+		svc.AcknowledgeAlert,
+		connect.WithSchema(alertServiceMethods.ByName("AcknowledgeAlert")),
+		connect.WithHandlerOptions(opts...),
+	)
+	alertServiceUnacknowledgeAlertHandler := connect.NewUnaryHandler(
+		AlertServiceUnacknowledgeAlertProcedure,
+		svc.UnacknowledgeAlert,
+		connect.WithSchema(alertServiceMethods.ByName("UnacknowledgeAlert")),
+		connect.WithHandlerOptions(opts...),
+	)
 	alertServiceUnmuteAlertsHandler := connect.NewUnaryHandler(
 		AlertServiceUnmuteAlertsProcedure,
 		svc.UnmuteAlerts,
@@ -312,6 +370,10 @@ func NewAlertServiceHandler(svc AlertServiceHandler, opts ...connect.HandlerOpti
 			alertServiceListAlertMutesHandler.ServeHTTP(w, r)
 		case AlertServiceMuteAlertsProcedure:
 			alertServiceMuteAlertsHandler.ServeHTTP(w, r)
+		case AlertServiceAcknowledgeAlertProcedure:
+			alertServiceAcknowledgeAlertHandler.ServeHTTP(w, r)
+		case AlertServiceUnacknowledgeAlertProcedure:
+			alertServiceUnacknowledgeAlertHandler.ServeHTTP(w, r)
 		case AlertServiceUnmuteAlertsProcedure:
 			alertServiceUnmuteAlertsHandler.ServeHTTP(w, r)
 		default:
@@ -349,6 +411,14 @@ func (UnimplementedAlertServiceHandler) ListAlertMutes(context.Context, *connect
 
 func (UnimplementedAlertServiceHandler) MuteAlerts(context.Context, *connect.Request[v1.MuteAlertsRequest]) (*connect.Response[v1.MuteAlertsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AlertService.MuteAlerts is not implemented"))
+}
+
+func (UnimplementedAlertServiceHandler) AcknowledgeAlert(context.Context, *connect.Request[v1.AcknowledgeAlertRequest]) (*connect.Response[v1.AcknowledgeAlertResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AlertService.AcknowledgeAlert is not implemented"))
+}
+
+func (UnimplementedAlertServiceHandler) UnacknowledgeAlert(context.Context, *connect.Request[v1.UnacknowledgeAlertRequest]) (*connect.Response[v1.UnacknowledgeAlertResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AlertService.UnacknowledgeAlert is not implemented"))
 }
 
 func (UnimplementedAlertServiceHandler) UnmuteAlerts(context.Context, *connect.Request[v1.UnmuteAlertsRequest]) (*connect.Response[v1.UnmuteAlertsResponse], error) {
