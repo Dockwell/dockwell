@@ -166,7 +166,7 @@ func (f *FirstPasswords) set(ctx context.Context, c *docker.Container, e *Engine
 	}
 	users := make([]string, 0, len(moves))
 	for _, m := range moves {
-		if !aUser.MatchString(m.user) {
+		if !aUser(m.user) {
 			return fmt.Errorf("%s has a user Dockwell can't name safely, %d characters long, so it changed no password. Change it in %s, then try again", e.Name, len(m.user), e.Name)
 		}
 		users = append(users, "'"+m.user+"'")
@@ -190,11 +190,17 @@ func (f *FirstPasswords) set(ctx context.Context, c *docker.Container, e *Engine
 }
 
 // aUser and aHost are a user's name and a host it signs in from, which need nothing
-// escaped in a quoted string.
+// escaped in a quoted string. Their lengths are checked apart from their form, as a
+// counted repetition compiles to that many copies, which the agent would build as
+// it starts.
 var (
-	aUser = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,80}$`)
-	aHost = regexp.MustCompile(`^[A-Za-z0-9._%:-]{1,255}$`)
+	userForm = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+	hostForm = regexp.MustCompile(`^[A-Za-z0-9._%:-]+$`)
 )
+
+func aUser(s string) bool { return len(s) <= 80 && userForm.MatchString(s) }
+
+func aHost(s string) bool { return len(s) <= 255 && hostForm.MatchString(s) }
 
 // accounts reads what the users query lists: each user with the hosts it has, as
 // MySQL and MariaDB keep each of those as a user of its own, such as 'root'@'%' and
@@ -228,7 +234,7 @@ func (e *Engine) alterUsers(hosts map[string][]string, moves []passwordMove) (st
 			identified = "IDENTIFIED BY '" + mysqlQuoted(m.to) + "'"
 		}
 		for _, h := range hosts[m.user] {
-			if !aHost.MatchString(h) {
+			if !aHost(h) {
 				return "", fmt.Errorf("%s has the user %s from a host Dockwell can't name safely, so it changed no password. Change it in %s, then try again", e.Name, m.user, e.Name)
 			}
 			b.WriteString("ALTER USER '" + m.user + "'@'" + h + "' " + identified + ";\n")
