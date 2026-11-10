@@ -4913,11 +4913,21 @@ msgstr "Give {missingLabel} a value to review the plan"
 msgid "Its site"
 msgstr "Its site"
 
+msgid "Limits and restarts"
+msgstr "Limits and restarts"
+
+msgid "No limits"
+msgstr "No limits"
+
 msgid "Open {app}"
 msgstr "Open {app}"
 
 msgid "Reaches"
 msgstr "Reaches"
+
+#. placeholder {0}: inSentence(words.restart(restartOf(part)))
+msgid "Restarts {0}"
+msgstr "Restarts {0}"
 
 msgid "What it installs"
 msgstr "What it installs"
@@ -4946,6 +4956,9 @@ msgstr "{0, plural, one {# secret generated} other {# secrets generated}}"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
+
+msgid "{cpus} vCPU"
+msgstr "{cpus} vCPU"
 
 msgid "A change to how {version} runs is out."
 msgstr "A change to how {version} runs is out."
@@ -8482,9 +8495,6 @@ msgstr "Files"
 
 msgid "No servers yet"
 msgstr "No servers yet"
-
-msgid "{cpus} vCPU"
-msgstr "{cpus} vCPU"
 
 msgid "Apps on this server"
 msgstr "Apps on this server"

@@ -4913,11 +4913,21 @@ msgstr "请填写{missingLabel}，然后审阅计划"
 msgid "Its site"
 msgstr "官网"
 
+msgid "Limits and restarts"
+msgstr "限制与重启"
+
+msgid "No limits"
+msgstr "不限制"
+
 msgid "Open {app}"
 msgstr "打开 {app}"
 
 msgid "Reaches"
 msgstr "可访问"
+
+#. placeholder {0}: inSentence(words.restart(restartOf(part)))
+msgid "Restarts {0}"
+msgstr "重启：{0}"
 
 msgid "What it installs"
 msgstr "安装内容"
@@ -4946,6 +4956,9 @@ msgstr "{0, plural, other {已生成 # 个密钥}}"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} 采用 {license} 许可证。"
+
+msgid "{cpus} vCPU"
+msgstr "{cpus} 个 vCPU"
 
 msgid "A change to how {version} runs is out."
 msgstr "{version} 的运行方式有更新。"
@@ -8482,9 +8495,6 @@ msgstr "文件"
 
 msgid "No servers yet"
 msgstr "还没有服务器"
-
-msgid "{cpus} vCPU"
-msgstr "{cpus} 个 vCPU"
 
 msgid "Apps on this server"
 msgstr "此服务器上的应用"
