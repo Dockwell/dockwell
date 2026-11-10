@@ -1925,6 +1925,9 @@ msgstr "Point its DNS at this server."
 msgid "Point its DNS at your tunnel or proxy."
 msgstr "Point its DNS at your tunnel or proxy."
 
+msgid "Points {followsApp} at it too: {followsNames}"
+msgstr "Points {followsApp} at it too: {followsNames}"
+
 msgid "Port in the app"
 msgstr "Port in the app"
 
@@ -1933,6 +1936,9 @@ msgstr "Port on the server"
 
 msgid "Send {wanted} to {name}"
 msgstr "Send {wanted} to {name}"
+
+msgid "Send {wanted} to {name}, and point {followsApp} at it"
+msgstr "Send {wanted} to {name}, and point {followsApp} at it"
 
 msgid "What the app listens on, such as 80."
 msgstr "What the app listens on, such as 80."
@@ -5177,6 +5183,12 @@ msgstr "Its first account is its owner"
 msgid "Its first account is its owner: make yours before it has a domain"
 msgstr "Its first account is its owner: make yours before it has a domain"
 
+msgid "Its links follow its domain, {domain}: {names}"
+msgstr "Its links follow its domain, {domain}: {names}"
+
+msgid "Its links follow the domain you add: {names}"
+msgstr "Its links follow the domain you add: {names}"
+
 msgid "Point {app} at {domain}"
 msgstr "Point {app} at {domain}"
 
@@ -5200,12 +5212,6 @@ msgstr "Signs in with a key Dockwell generates and seals"
 
 msgid "Signs in with a key you give"
 msgstr "Signs in with a key you give"
-
-msgid "{names} follow its domain, {domain}"
-msgstr "{names} follow its domain, {domain}"
-
-msgid "{names} follow the domain you add"
-msgstr "{names} follow the domain you add"
 
 msgid "Open full size"
 msgstr "Open full size"

@@ -16,6 +16,7 @@ import {
   Connection,
   DeploymentState,
   DomainCheckState,
+  EntrySchema,
   FieldOp,
   HealthState,
   IntentKind,
@@ -1082,6 +1083,115 @@ describe("an app's overview", () => {
       resource: { kind: "route", scope: alone.resource?.scope, name: "app-example-com-2" },
       spec: { kind: { case: "route", value: { domain: "app.example.com", service: "alone", port: 80 } } },
     });
+  });
+
+  it("points a catalog app at its first domain in the same plan", async () => {
+    const user = userEvent.setup();
+    const ghost = anApp("ghost", "ghost:6.4", {}, {});
+    const asked: { summary: string; edits: unknown[] }[] = [];
+    const entry = create(EntrySchema, {
+      id: "ghost",
+      name: "Ghost",
+      version: "6.4",
+      addressVariables: [{ service: "ghost", variable: "url", value: "https://{domain}" }],
+    });
+    renderAt(
+      "/apps/svc_ghost",
+      api([ghost], {
+        services: { listServices: () => ({ services: [ghost] }), listServiceRevisions: () => ({ revisions }) },
+        domains: { listDomains: () => ({ domains: [] }) },
+        catalog: {
+          listCatalogInstalls: () => ({
+            installs: [
+              {
+                project: "ghost",
+                name: "Ghost",
+                pin: { entry: "ghost" },
+                webServiceId: "svc_ghost",
+                environmentId: ENV,
+              },
+            ],
+          }),
+          getCatalogEntry: () => ({ entry, project: "ghost" }),
+        },
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+          proposeChange: (req) => {
+            asked.push({ summary: req.summary, edits: req.edits });
+            return { change: webPlanned() };
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain to ghost" });
+    expect(await within(sheet).findByText("Points Ghost at it too: url")).toBeVisible();
+    await user.type(within(sheet).getByLabelText("Domain"), "blog.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+    expect(asked[0]?.summary).toBe("Send blog.example.com to ghost, and point Ghost at it");
+    expect(asked[0]?.edits).toHaveLength(3);
+    expect(JSON.stringify(asked[0]?.edits.slice(1), (_, v) => (typeof v === "bigint" ? Number(v) : v))).toContain(
+      "https://blog.example.com",
+    );
+  });
+
+  it("leaves a catalog app's links alone when it has a domain already", async () => {
+    const user = userEvent.setup();
+    const ghost = anApp("ghost", "ghost:6.4", {}, {});
+    const asked: { summary: string; edits: unknown[] }[] = [];
+    const entry = create(EntrySchema, {
+      id: "ghost",
+      name: "Ghost",
+      version: "6.4",
+      addressVariables: [{ service: "ghost", variable: "url", value: "https://{domain}" }],
+    });
+    renderAt(
+      "/apps/svc_ghost",
+      api([ghost], {
+        services: { listServices: () => ({ services: [ghost] }), listServiceRevisions: () => ({ revisions }) },
+        domains: {
+          listDomains: () => ({
+            domains: [
+              { name: "blog.example.com", routes: [{ id: "res_1", name: "blog", service: "ghost", port: 2368 }] },
+            ],
+          }),
+        },
+        catalog: {
+          listCatalogInstalls: () => ({
+            installs: [
+              {
+                project: "ghost",
+                name: "Ghost",
+                pin: { entry: "ghost" },
+                webServiceId: "svc_ghost",
+                environmentId: ENV,
+              },
+            ],
+          }),
+          getCatalogEntry: () => ({ entry, project: "ghost" }),
+        },
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+          proposeChange: (req) => {
+            asked.push({ summary: req.summary, edits: req.edits });
+            return { change: webPlanned() };
+          },
+        },
+      }),
+    );
+    // Once its domain is read, so the sheet knows it isn't the first.
+    await screen.findByText("blog.example.com");
+    await user.click(await screen.findByRole("button", { name: /Add a domain/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain to ghost" });
+    await user.type(within(sheet).getByLabelText("Domain"), "www.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+    expect(within(sheet).queryByText(/Points Ghost at it too/)).not.toBeInTheDocument();
+    expect(asked[0]?.summary).toBe("Send www.example.com to ghost");
+    expect(asked[0]?.edits).toHaveLength(1);
   });
 
   it("offers a route with no certificate, for a tunnel or a proxy in front", async () => {

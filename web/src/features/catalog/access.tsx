@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { useQuery } from "@connectrpc/connect-query";
 import {
   type CatalogInstall,
   ChangeService,
   DomainService,
+  type EditSchema,
   type Entry,
   type Input,
   InputType,
@@ -84,7 +86,7 @@ export function useEntryFacts(entry: Entry | undefined): Fact[] {
     });
   if (entry.addressVariables.length > 0) {
     const names = entry.addressVariables.map((a) => a.variable).join(", ");
-    out.push({ key: "address", icon: "globe", text: t`${names} follow the domain you add` });
+    out.push({ key: "address", icon: "globe", text: t`Its links follow the domain you add: ${names}` });
   }
   for (const [i, note] of entry.notes.entries()) out.push({ key: `note-${i}`, icon: "question", text: note });
   if (entry.firstSteps) out.push({ key: "first", icon: "arrow-right", text: entry.firstSteps });
@@ -148,6 +150,39 @@ export function SignInCard({ entry, install }: { entry: Entry; install: CatalogI
   );
 }
 
+/** Sets each variable a service has of its own, and has it use one of its environment's for one it doesn't. */
+function setting(service: ServiceInfo, values: Readonly<Record<string, string>>): Map<string, EnvEdit> {
+  const own = new Set(valuesOf(service).map((v) => v.name));
+  return new Map(
+    Object.entries(values).map(([name, value]): [string, EnvEdit] => [
+      name,
+      own.has(name) ? { op: "change", name, value } : { op: "add", name, value, secret: false },
+    ]),
+  );
+}
+
+/**
+ * The edits that point a catalog app's links at domain: each variable its entry
+ * says follows the domain (Entry.address_variables), set on the service of its
+ * own name, found by inEnvironment.
+ */
+export function addressEdits(
+  entry: Entry,
+  domain: string,
+  inEnvironment: (name: string) => ServiceInfo | undefined,
+): MessageInitShape<typeof EditSchema>[] {
+  const byService = new Map<string, Record<string, string>>();
+  for (const a of entry.addressVariables) {
+    const values = byService.get(a.service) ?? {};
+    values[a.variable] = a.value.replaceAll("{domain}", domain);
+    byService.set(a.service, values);
+  }
+  return [...byService].flatMap(([name, values]) => {
+    const service = inEnvironment(name);
+    return service ? envEdits(service, setting(service, values)) : [];
+  });
+}
+
 /**
  * What an installed app says of itself as state, each with the action that resolves it
  * where there is one: closing sign-ups, and setting what follows its domain to the
@@ -173,16 +208,6 @@ export function useInstallFacts(
   const app = entry.name;
   const inEnvironment = (name: string) =>
     services.find((s) => environmentOf(s) === install.environmentId && nameOf(s) === name);
-  // Sets each variable a service has of its own, and has it use one of its environment's for one it doesn't.
-  const setting = (service: ServiceInfo, values: Readonly<Record<string, string>>): Map<string, EnvEdit> => {
-    const own = new Set(valuesOf(service).map((v) => v.name));
-    return new Map(
-      Object.entries(values).map(([name, value]): [string, EnvEdit] => [
-        name,
-        own.has(name) ? { op: "change", name, value } : { op: "add", name, value, secret: false },
-      ]),
-    );
-  };
   const out: Fact[] = [];
   if (entry.firstVisitorOwns) {
     out.push({
@@ -225,22 +250,13 @@ export function useInstallFacts(
     const names = entry.addressVariables.map((a) => a.variable).join(", ");
     const domain = domains[0]?.name ?? "";
     if (!domain) {
-      out.push({ key: "address", icon: "globe", text: t`${names} follow the domain you add` });
+      out.push({ key: "address", icon: "globe", text: t`Its links follow the domain you add: ${names}` });
     } else {
-      const byService = new Map<string, Record<string, string>>();
-      for (const a of entry.addressVariables) {
-        const values = byService.get(a.service) ?? {};
-        values[a.variable] = a.value.replaceAll("{domain}", domain);
-        byService.set(a.service, values);
-      }
-      const edits = [...byService].flatMap(([name, values]) => {
-        const service = inEnvironment(name);
-        return service ? envEdits(service, setting(service, values)) : [];
-      });
+      const edits = addressEdits(entry, domain, inEnvironment);
       out.push({
         key: "address",
         icon: "globe",
-        text: t`${names} follow its domain, ${domain}`,
+        text: t`Its links follow its domain, ${domain}: ${names}`,
         action: (
           <Button
             size="sm"

@@ -1925,6 +1925,9 @@ msgstr "将其 DNS 指向此服务器。"
 msgid "Point its DNS at your tunnel or proxy."
 msgstr "将它的 DNS 指向你的隧道或代理。"
 
+msgid "Points {followsApp} at it too: {followsNames}"
+msgstr "同时让 {followsApp} 指向它：{followsNames}"
+
 msgid "Port in the app"
 msgstr "应用内端口"
 
@@ -1933,6 +1936,9 @@ msgstr "服务器上的端口"
 
 msgid "Send {wanted} to {name}"
 msgstr "将 {wanted} 发送到 {name}"
+
+msgid "Send {wanted} to {name}, and point {followsApp} at it"
+msgstr "将 {wanted} 发送到 {name}，并让 {followsApp} 指向它"
 
 msgid "What the app listens on, such as 80."
 msgstr "应用监听的端口，例如 80。"
@@ -5177,6 +5183,12 @@ msgstr "它的第一个账号就是所有者"
 msgid "Its first account is its owner: make yours before it has a domain"
 msgstr "它的第一个账号就是所有者：请在它有域名之前创建你的账号"
 
+msgid "Its links follow its domain, {domain}: {names}"
+msgstr "它的链接跟随它的域名 {domain}：{names}"
+
+msgid "Its links follow the domain you add: {names}"
+msgstr "它的链接跟随你添加的域名：{names}"
+
 msgid "Point {app} at {domain}"
 msgstr "将 {app} 指向 {domain}"
 
@@ -5200,12 +5212,6 @@ msgstr "使用 Dockwell 生成并加密保存的密钥登录"
 
 msgid "Signs in with a key you give"
 msgstr "使用你提供的密钥登录"
-
-msgid "{names} follow its domain, {domain}"
-msgstr "{names} 跟随它的域名 {domain}"
-
-msgid "{names} follow the domain you add"
-msgstr "{names} 跟随你添加的域名"
 
 msgid "Open full size"
 msgstr "查看原图"
