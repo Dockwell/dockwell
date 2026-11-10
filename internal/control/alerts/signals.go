@@ -481,7 +481,7 @@ func (s *signals) drillsFailed(ctx context.Context) ([]finding, error) {
 					if d.Result != store.DrillFailed {
 						continue
 					}
-					b = store.Backup{StartedAt: d.StartedAt, Volume: volumes[i].Name}
+					b = store.Backup{StartedAt: cmp.Or(d.BackupAt, d.StartedAt), Volume: volumes[i].Name}
 				case err != nil:
 					return err
 				}
@@ -501,7 +501,7 @@ func (s *signals) drillsFailed(ctx context.Context) ([]finding, error) {
 					}
 					f.verdict, f.since = holds, at
 					f.title = "The newest checked backup of " + j.volume + " doesn't restore"
-					f.detail = sentence(j.drill.Why) + ". A restore of it would fail the same way. Backups says more: fix what it says, then back it up and check it again."
+					f.detail = sentence(j.drill.Why) + ". A restore of it would come back the same. Back it up again, and check the new one."
 				}
 				out = append(out, f)
 			}

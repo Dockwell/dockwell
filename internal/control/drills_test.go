@@ -164,6 +164,20 @@ func testABackupIsCheckedInADrill(t *testing.T, backend store.Backend) {
 	if _, err := bc.DeleteBackup(t.Context(), connect.NewRequest(&dockwellv1.DeleteBackupRequest{Id: older.GetId()})); err != nil {
 		t.Errorf("deleting it once the drill ended: %v", err)
 	}
+	// Deleting the backup that failed, as retention would, keeps the alert: nothing as
+	// new has passed. A newer backup that passes resolves it.
+	if _, err := bc.DeleteBackup(t.Context(), connect.NewRequest(&dockwellv1.DeleteBackupRequest{Id: newer.GetId()})); err != nil {
+		t.Fatalf("deleting the backup that failed: %v", err)
+	}
+	if got := firing(); len(got) != 1 {
+		t.Errorf("deleting the backup that failed resolved the alert: %v", got)
+	}
+	if newest := drill(take().GetId()); newest.GetResult() != dockwellv1.DrillResult_DRILL_RESULT_PASSED {
+		t.Fatalf("the newest backup's drill = %v", newest)
+	}
+	if got := firing(); len(got) != 0 {
+		t.Errorf("a newer backup passed, and restore-drill-failed is still firing %v", got)
+	}
 	_, err = bc.DrillBackup(t.Context(), connect.NewRequest(&dockwellv1.DrillBackupRequest{Id: "bkp_none"}))
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Errorf("a drill of no backup: %v", err)

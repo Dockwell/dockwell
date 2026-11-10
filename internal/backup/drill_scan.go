@@ -21,6 +21,8 @@ type dumpTable struct {
 	// schema is PostgreSQL's, such as public; MySQL has none.
 	schema, name string
 	filled       bool
+	// memory says MySQL keeps it in memory alone, so it's empty after any restart.
+	memory bool
 }
 
 // heldDump is what a dump holds, as a drill reads it on its way into the load (ADR
@@ -38,6 +40,7 @@ type heldDump struct {
 
 	current string
 	copying *dumpTable // a COPY under way, which a row fills
+	making  *dumpTable // a MySQL CREATE TABLE under way, until its closing line
 	line    []byte
 	long    bool // the line under way is past lineHead
 }
@@ -137,8 +140,14 @@ func (h *heldDump) mysqlLine(line string) {
 		h.database(name)
 	case strings.HasPrefix(line, "CREATE TABLE "):
 		if name, ok := mysqlName(strings.TrimPrefix(line, "CREATE TABLE ")); ok {
-			h.table("", name)
+			h.making = h.table("", name)
 		}
+	case h.making != nil && strings.HasPrefix(line, ") "):
+		// mysqldump closes a CREATE TABLE with its options: ) ENGINE=MEMORY ...;
+		if strings.Contains(strings.ToUpper(line), "ENGINE=MEMORY") {
+			h.making.memory = true
+		}
+		h.making = nil
 	case strings.HasPrefix(line, "INSERT INTO "):
 		if name, ok := mysqlName(strings.TrimPrefix(line, "INSERT INTO ")); ok {
 			if t := h.table("", name); t != nil {

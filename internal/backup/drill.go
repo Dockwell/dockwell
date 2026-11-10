@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -37,8 +38,10 @@ const (
 	// logRoom is the most a database's log takes beside its data while it loads: the
 	// WAL, with max_wal_size, or MySQL's redo log, with the binary log off.
 	logRoom = 256 << 20
-	// drillWatch is how often a drill reads its disk while it runs.
-	drillWatch = 5 * time.Second
+	// drillWatch is how often a drill reads its disk while it runs, and
+	// drillWatchHelper how often where each read starts a helper container.
+	drillWatch       = 5 * time.Second
+	drillWatchHelper = time.Minute
 	// drillShares weighs a drill's CPU against the live app's 1024.
 	drillShares = 256
 	// drillScore has the kernel kill a drill first when the server runs out of memory.
@@ -47,6 +50,8 @@ const (
 	drillTail = 8
 	// drillGone bounds removing what a drill made, once it ended.
 	drillGone = 2 * time.Minute
+	// drillStopWait is how long MySQL gets to shut down cleanly after its load.
+	drillStopWait = 5 * time.Minute
 	// fullAt is the disk-full rule's own threshold, 90%, which a drill never takes
 	// a disk past.
 	fullAt = 90
@@ -122,6 +127,8 @@ type drillRun struct {
 type drillDisk struct {
 	free, size int64
 	filesystem string
+	// helper says a helper container measured it, as its path can't be statted here.
+	helper bool
 }
 
 // DrillMemory reads how much memory the server has free for a new process, or
@@ -342,7 +349,7 @@ func (r *Runner) drillDiskOf(ctx context.Context, t volume.Target) (drillDisk, e
 	if err != nil {
 		return drillDisk{}, fmt.Errorf("can't read how much is free where it restores: %w", err)
 	}
-	return drillDisk{free: stats.Free, size: stats.Size, filesystem: stats.Filesystem}, nil
+	return drillDisk{free: stats.Free, size: stats.Size, filesystem: stats.Filesystem, helper: true}, nil
 }
 
 // watchDrillDisk stops a drill whose disk comes near full, as the database writes its
@@ -360,6 +367,9 @@ func (r *Runner) watchDrillDisk(ctx context.Context, t volume.Target, floor int6
 		if err == nil && at.free < floor {
 			run.stop(errNoRoom)
 			return
+		}
+		if at.helper {
+			tick.Reset(drillWatchHelper)
 		}
 	}
 }
@@ -399,6 +409,9 @@ type drillPlan struct {
 	password        string // made for the drill, and kept nowhere
 	scratch, label  string
 	cpus            int // the server's
+	// preload is the live PostgreSQL's shared_preload_libraries, from its command
+	// line, as an extension such as pg_cron loads only through it.
+	preload string
 }
 
 // drillPlan finds the image the database runs now, or the one the backup was taken
@@ -416,6 +429,9 @@ func (r *Runner) drillPlan(ctx context.Context, d Drill, m *Manifest, kind *data
 			return nil, err
 		}
 		p.image, p.tag, live = c.Image, c.Config.Image, c.Config.Env
+		if kind.name == "PostgreSQL" {
+			p.preload = preloadOf(append(append([]string{}, c.Config.Entrypoint...), c.Config.Cmd...))
+		}
 		if c.HostConfig.Memory > 0 {
 			p.memory = c.HostConfig.Memory
 		}
@@ -476,6 +492,35 @@ func drillEnv(kind *databaseKind, live []string, password string) (env []string,
 	return env, superuser
 }
 
+// preloadOf reads shared_preload_libraries from a PostgreSQL command line, in any
+// of the ways postgres takes it: -c name=value, -cname=value or --name=value, with
+// dashes or underscores. A value with anything but names and commas isn't taken.
+func preloadOf(args []string) string {
+	value := ""
+	for i, a := range args {
+		setting := ""
+		switch {
+		case a == "-c" && i+1 < len(args):
+			setting = args[i+1]
+		case strings.HasPrefix(a, "-c"):
+			setting = strings.TrimPrefix(a, "-c")
+		case strings.HasPrefix(a, "--"):
+			setting = strings.TrimPrefix(a, "--")
+		}
+		name, v, ok := strings.Cut(setting, "=")
+		if ok && strings.ReplaceAll(name, "-", "_") == "shared_preload_libraries" {
+			value = v
+		}
+	}
+	for name := range strings.SplitSeq(value, ",") {
+		name = strings.TrimSpace(name)
+		if name == "" || strings.Trim(name, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.$/-") != "" {
+			return ""
+		}
+	}
+	return value
+}
+
 // withoutAuth takes initdb's sign-in flags out of its arguments, so the drill's
 // database trusts its own socket.
 func withoutAuth(args string) string {
@@ -503,6 +548,9 @@ func (p *drillPlan) flags(files bool) []string {
 			"-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off",
 			"-c", "wal_level=minimal", "-c", "max_wal_senders=0", "-c", "max_wal_size=256MB",
 		}
+		if p.preload != "" {
+			out = append(out, "-c", "shared_preload_libraries="+p.preload)
+		}
 		if files {
 			out = append(out, "-c", "hba_file="+drillHBA)
 		}
@@ -526,7 +574,15 @@ const drillHBA = "/tmp/dockwell-drill-hba.conf"
 // kernel's first to kill, and nothing mounted but its scratch volume, where the live
 // database has its data. files says it runs on a copy of a database's files.
 func drillRequest(p *drillPlan, files bool) *docker.CreateRequest {
-	cfg := docker.Config{Image: p.image, Env: p.env, Labels: map[string]string{labelDrill: p.label}}
+	env := p.env
+	if files {
+		// A copy brings its own users and needs no password; without one, an image
+		// that finds no data stops rather than make a database that's empty.
+		env = slices.DeleteFunc(slices.Clone(env), func(e string) bool {
+			return strings.HasPrefix(e, "POSTGRES_PASSWORD=") || strings.HasPrefix(e, "MYSQL_ROOT_PASSWORD=")
+		})
+	}
+	cfg := docker.Config{Image: p.image, Env: env, Labels: map[string]string{labelDrill: p.label}}
 	if files && p.kind.name == "PostgreSQL" {
 		// The image's own command, after a line that writes the drill's pg_hba.conf.
 		cfg.Entrypoint = []string{"sh", "-c", `printf 'local all all trust\n' > ` + drillHBA + ` && exec "$@"`, "drill"}
@@ -598,6 +654,13 @@ func (r *Runner) drillDump(ctx context.Context, m *Manifest, file string, p *dri
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		if diskFilled(err) {
+			return unchecked("the disk it restores to filled up as it loaded, so it wasn't checked")
+		}
+		if said := plainOf(err); strings.Contains(said, "shared_preload_libraries") {
+			// The setting is somewhere other than the command line, such as its config file.
+			return unchecked("the dump uses an extension that loads only through shared_preload_libraries, which this database sets outside its command line. Set it there to have its drills check it")
+		}
 		return r.drillDied(ctx, db, p, report, failed("the dump didn't load: %s", plainOf(err)))
 	}
 	_ = held.Close()
@@ -605,6 +668,12 @@ func (r *Runner) drillDump(ctx context.Context, m *Manifest, file string, p *dri
 	if p.kind.name == "MySQL" {
 		// The dump brought its own users, and took the drill's password with them.
 		resource.Progress(ctx, "Starting MySQL again without its users, to check it")
+		// It loaded with the log written once a second, so it stops as it would be
+		// stopped, and writes everything, before it starts again: a kill could lose
+		// the last tables' rows, which would read as a backup that lost them.
+		if err := r.Client.StopContainer(ctx, db.id, drillStopWait); err != nil {
+			return err
+		}
 		if err := r.Client.RemoveOneOff(ctx, db.id); err != nil {
 			return err
 		}
@@ -660,6 +729,9 @@ func (r *Runner) drillUnpack(ctx context.Context, m *Manifest, file string, t vo
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		if diskFilled(err) {
+			return unchecked("the disk it restores to filled up as it unpacked, so it wasn't checked")
+		}
 		return failed("it didn't unpack: %s", plainOf(err))
 	}
 	report.Restored = stats.Bytes
@@ -702,6 +774,11 @@ func (r *Runner) drillDied(ctx context.Context, db *database, p *drillPlan, repo
 	if c, inspect := r.Client.InspectContainer(ctx, db.id); inspect == nil && c.State.OOMKilled {
 		return unchecked("it ran out of the %s of memory it may use, so it stopped", human.Size(p.memory))
 	}
+	// A copy drill starts with no password, so an image that finds no data where it
+	// looks stops rather than make an empty database that would pass.
+	if strings.Contains(report.Detail, "is uninitialized") {
+		return unchecked("the copy isn't where %s looks for its data, %s, so it wasn't checked. Back it up as a dump to check it", p.tag, p.data)
+	}
 	var de *drillError
 	if errors.As(err, &de) || ctx.Err() != nil {
 		return err
@@ -722,11 +799,18 @@ func (r *Runner) lastLines(ctx context.Context, id string) string {
 		if err != nil {
 			break
 		}
-		if line := strings.TrimSpace(quoted.ReplaceAllString(string(e.Text), "'...'")); line != "" {
+		if line := strings.TrimSpace(withoutValues(string(e.Text))); line != "" {
 			out = append(out, line)
 		}
 	}
 	return strings.Join(out, "\n")
+}
+
+// diskFilled says an error is a disk that ran out of room, between the watch's looks,
+// which says nothing of the backup.
+func diskFilled(err error) bool {
+	said := strings.ToLower(err.Error())
+	return errors.Is(err, syscall.ENOSPC) || strings.Contains(said, "no space left on device") || strings.Contains(said, "could not extend file")
 }
 
 // plainOf is an error in its plain words.
@@ -817,7 +901,8 @@ func (r *Runner) checkHeld(ctx context.Context, db *database, p *drillPlan, held
 		if !there[key] {
 			return failed("%s, which the dump makes, isn't there", tableName(t))
 		}
-		if t.filled {
+		// A MEMORY table is empty after any restart, its rows never on disk.
+		if t.filled && !t.memory {
 			filled = append(filled, t)
 		}
 	}
@@ -870,18 +955,24 @@ func (r *Runner) emptyOf(ctx context.Context, db *database, p *drillPlan, batch 
 	return nil, nil
 }
 
-// pick reads the first index a query printed.
+// pick reads the lowest index a query printed, so a failure names the first empty
+// table the dump made, whatever order the rows came back in.
 func pick(out string, err error) func([]*dumpTable) (*dumpTable, error) {
 	return func(batch []*dumpTable) (*dumpTable, error) {
 		if err != nil {
 			return nil, err
 		}
-		for line := range lineSet(out) {
-			if i, err := strconv.Atoi(line); err == nil && i >= 0 && i < len(batch) {
-				return batch[i], nil
+		first := -1
+		for line := range strings.SplitSeq(out, "\n") {
+			i, err := strconv.Atoi(strings.TrimSpace(line))
+			if err == nil && i >= 0 && i < len(batch) && (first < 0 || i < first) {
+				first = i
 			}
 		}
-		return nil, nil
+		if first < 0 {
+			return nil, nil
+		}
+		return batch[first], nil
 	}
 }
 
@@ -942,10 +1033,12 @@ func (r *Runner) sweepDrills(ctx context.Context, keep string) {
 
 // sweepIdle sweeps what drills left while none runs.
 func (r *Runner) sweepIdle(ctx context.Context) {
-	r.mu.Lock()
-	busy := r.drilling != nil
-	r.mu.Unlock()
-	if !busy {
-		r.sweepDrills(ctx, "")
+	// It holds the drill slot while it sweeps, so a drill that starts meanwhile can't
+	// lose its scratch volume to it.
+	run := &drillRun{id: "sweep", stop: func(error) {}, done: make(chan struct{})}
+	if r.takeDrillSlot(run) != nil {
+		return
 	}
+	defer r.giveDrillSlot(run)
+	r.sweepDrills(ctx, "")
 }

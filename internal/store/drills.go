@@ -40,26 +40,31 @@ type Drill struct {
 	// PolicyID is the backup policy it ran for, as its schedule. Empty for one someone
 	// started.
 	PolicyID string
+	// BackupAt is when its backup was taken, kept for a failed drill whose backup is gone.
+	BackupAt time.Time
 }
 
-const drillColumns = `id, backup_id, environment_id, volume_id, server_id, result, why, detail, restored_bytes, tables_checked, unpacked_only, actor, started_at, finished_at, policy_id`
+const drillColumns = `id, backup_id, environment_id, volume_id, server_id, result, why, detail, restored_bytes, tables_checked, unpacked_only, actor, started_at, finished_at, policy_id, backup_at`
 
 func scanDrill(row interface{ Scan(...any) error }) (Drill, error) {
 	var d Drill
-	var started int64
+	var started, backupAt int64
 	var finished sql.NullInt64
-	err := row.Scan(&d.ID, &d.BackupID, &d.EnvironmentID, &d.VolumeID, &d.ServerID, &d.Result, &d.Why, &d.Detail, &d.RestoredBytes, &d.Tables, &d.UnpackedOnly, &d.Actor, &started, &finished, &d.PolicyID)
+	err := row.Scan(&d.ID, &d.BackupID, &d.EnvironmentID, &d.VolumeID, &d.ServerID, &d.Result, &d.Why, &d.Detail, &d.RestoredBytes, &d.Tables, &d.UnpackedOnly, &d.Actor, &started, &finished, &d.PolicyID, &backupAt)
 	if err != nil {
 		return Drill{}, err
 	}
 	d.StartedAt, d.FinishedAt = fromMillis(started), timePtr(finished)
+	if backupAt > 0 {
+		d.BackupAt = fromMillis(backupAt)
+	}
 	return d, nil
 }
 
 // CreateDrill records a drill that's starting.
 func (t *Tx) CreateDrill(ctx context.Context, d Drill) error {
-	_, err := t.exec(ctx, `INSERT INTO backup_drills (id, backup_id, environment_id, volume_id, server_id, result, actor, started_at, policy_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		d.ID, d.BackupID, d.EnvironmentID, d.VolumeID, d.ServerID, d.Result, d.Actor, millis(d.StartedAt), d.PolicyID)
+	_, err := t.exec(ctx, `INSERT INTO backup_drills (id, backup_id, environment_id, volume_id, server_id, result, actor, started_at, policy_id, backup_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		d.ID, d.BackupID, d.EnvironmentID, d.VolumeID, d.ServerID, d.Result, d.Actor, millis(d.StartedAt), d.PolicyID, millis(d.BackupAt))
 	if err != nil {
 		return fmt.Errorf("can't record drill %s: %w", d.ID, err)
 	}
@@ -72,6 +77,18 @@ func (t *Tx) FinishDrill(ctx context.Context, d Drill) error {
 		d.Result, d.Why, d.Detail, d.RestoredBytes, d.Tables, d.UnpackedOnly, nullMillis(d.FinishedAt), d.ID)
 	if err != nil {
 		return fmt.Errorf("can't record how drill %s ended: %w", d.ID, err)
+	}
+	if d.Result != DrillPassed {
+		return nil
+	}
+	// A pass answers for every failure kept of a backup that's gone, on that volume
+	// and server, that was taken no later than the backup that passed.
+	_, err = t.exec(ctx, `DELETE FROM backup_drills WHERE result = 'failed'
+		AND backup_id NOT IN (SELECT id FROM backups)
+		AND (volume_id, server_id) IN (SELECT volume_id, server_id FROM backup_drills WHERE id = ?)
+		AND backup_at <= (SELECT backup_at FROM backup_drills WHERE id = ?)`, d.ID, d.ID)
+	if err != nil {
+		return fmt.Errorf("can't forget the failures drill %s answers for: %w", d.ID, err)
 	}
 	return nil
 }
@@ -99,6 +116,8 @@ type DrillFilter struct {
 	Result string
 	// Since is the earliest start.
 	Since *time.Time
+	// Limit is the most it lists, the newest; zero lists all.
+	Limit int
 }
 
 // ListDrills returns drills, newest first.
@@ -134,6 +153,9 @@ func (t *Tx) ListDrills(ctx context.Context, f DrillFilter) ([]Drill, error) {
 		query += ` WHERE ` + strings.Join(where, " AND ")
 	}
 	query += ` ORDER BY started_at DESC, id DESC`
+	if f.Limit > 0 {
+		query, args = query+` LIMIT ?`, append(args, f.Limit)
+	}
 	rows, err := t.query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("can't list drills: %w", err)
@@ -167,9 +189,10 @@ func (t *Tx) NewestDrills(ctx context.Context, backupIDs []string) (map[string]D
 	return out, nil
 }
 
-// DeleteDrills forgets a backup's drills, as they go with it.
+// DeleteDrills forgets a backup's drills, as they go with it, but for a failed one.
 func (t *Tx) DeleteDrills(ctx context.Context, backupID string) error {
-	if _, err := t.exec(ctx, `DELETE FROM backup_drills WHERE backup_id = ?`, backupID); err != nil {
+	// A failed drill stays, so restore-drill-failed holds until a newer backup passes.
+	if _, err := t.exec(ctx, `DELETE FROM backup_drills WHERE backup_id = ? AND result <> 'failed'`, backupID); err != nil {
 		return fmt.Errorf("can't forget the drills of backup %s: %w", backupID, err)
 	}
 	return nil

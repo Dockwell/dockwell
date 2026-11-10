@@ -218,6 +218,21 @@ func TestACopyUnpacksWhole(t *testing.T) {
 	if got.Outcome != DrillPassed || !got.UnpackedOnly || got.Restored < int64(len("hello")+len("about us")) {
 		t.Fatalf("the drill = %+v, want passed, unpacked only", got)
 	}
+	// Its helper unpacks into the drill's scratch volume alone, sealed off as ever.
+	unpacked := 0
+	for _, h := range b.engine.Helpers() {
+		if !slices.Contains(h.Cmd, "unpack") {
+			continue
+		}
+		unpacked++
+		if len(h.HostConfig.Mounts) != 1 || !strings.HasPrefix(h.HostConfig.Mounts[0].Source, "dockwell-drill-drl_01copy") ||
+			h.HostConfig.Mounts[0].Source == b.target.Name || h.HostConfig.NetworkMode != "none" {
+			t.Errorf("the drill's helper mounts %+v on %q", h.HostConfig.Mounts, h.HostConfig.NetworkMode)
+		}
+	}
+	if unpacked != 1 {
+		t.Errorf("%d helpers unpacked, want the drill's one", unpacked)
+	}
 	b.nothingLeft()
 }
 
@@ -289,7 +304,12 @@ func TestADrillRunsTheImageNotTheService(t *testing.T) {
 		if h.OomScoreAdj != 1000 || h.CPUShares != 256 || h.Memory != 2<<30 || h.MemorySwap != h.Memory || h.NanoCPUs != 5e8 {
 			t.Errorf("files %t: its bounds are %+v", files, h)
 		}
-		if req.Labels[labelDrill] != "drl_01" || !slices.Equal(req.Env, env) {
+		// A copy needs no password, and without one an image that finds no data stops.
+		want := env
+		if files {
+			want = env[:len(env)-1]
+		}
+		if req.Labels[labelDrill] != "drl_01" || !slices.Equal(req.Env, want) {
 			t.Errorf("files %t: it carries %v and %v", files, req.Labels, req.Env)
 		}
 		cmd := strings.Join(append(append([]string{}, req.Entrypoint...), req.Cmd...), " ")
@@ -300,9 +320,35 @@ func TestADrillRunsTheImageNotTheService(t *testing.T) {
 			t.Errorf("a drill of files runs %q, want the image's own command after its pg_hba.conf", cmd)
 		}
 	}
+	// Of the service's command line, it takes shared_preload_libraries alone, which
+	// an extension such as pg_cron needs to load at all.
+	p.preload = preloadOf([]string{"postgres", "-c", "config_file=/etc/pg.conf", "-c", "shared_preload_libraries=pg_cron,pg_stat_statements"})
+	cmd := strings.Join(drillRequest(p, false).Cmd, " ")
+	if !strings.HasSuffix(cmd, "-c shared_preload_libraries=pg_cron,pg_stat_statements") || strings.Contains(cmd, "config_file") {
+		t.Errorf("with a preload, it runs %q", cmd)
+	}
 	mysql, _ := drillEnv(kindNamed("MySQL"), []string{"MYSQL_ROOT_PASSWORD=live", "MYSQL_DATABASE=shop", "MYSQL_USER=app", "MYSQL_PASSWORD=apps"}, "drill")
 	if !slices.Equal(mysql, []string{"MYSQL_DATABASE=shop", "MYSQL_ROOT_PASSWORD=drill"}) {
 		t.Errorf("MySQL's drill environment is %q", mysql)
+	}
+}
+
+// shared_preload_libraries is read however postgres takes it, and a value that
+// isn't names and commas isn't taken.
+func TestADrillReadsWhatPostgreSQLPreloads(t *testing.T) {
+	for args, want := range map[string]string{
+		"postgres -c shared_preload_libraries=pg_cron":                                              "pg_cron",
+		"postgres -cshared_preload_libraries=timescaledb":                                           "timescaledb",
+		"postgres --shared-preload-libraries=citus,pg_cron":                                         "citus,pg_cron",
+		"postgres --shared_preload_libraries=$libdir/pg_cron":                                       "$libdir/pg_cron",
+		"postgres -c max_connections=200":                                                           "",
+		"postgres -c shared_preload_libraries=a;rm -rf /":                                           "",
+		"postgres -c shared_preload_libraries=":                                                     "",
+		"docker-entrypoint.sh postgres -c shared_preload_libraries=a -c shared_preload_libraries=b": "b",
+	} {
+		if got := preloadOf(strings.Fields(args)); got != want {
+			t.Errorf("%s: %q, want %q", args, got, want)
+		}
 	}
 }
 
@@ -363,10 +409,16 @@ func TestADumpSaysWhatItHolds(t *testing.T) {
 		"CREATE TABLE `orders` (\n  `id` int NOT NULL\n) ENGINE=InnoDB;\n" +
 		"INSERT INTO `orders` VALUES (1),(2);\n" +
 		"CREATE TABLE `odd``name` (\n  `id` int\n);\n" +
-		"/*!50001 CREATE VIEW `v` AS SELECT 1 AS `a` */;\n"))
+		"/*!50001 CREATE VIEW `v` AS SELECT 1 AS `a` */;\n" +
+		"CREATE TABLE `sessions` (\n  `id` int\n) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4;\n" +
+		"INSERT INTO `sessions` VALUES (1);\n"))
 	_ = m.Close()
-	if !slices.Equal(m.databases, []string{"shop"}) || len(m.tables) != 2 || !m.tables[0].filled || m.tables[1].name != "odd`name" || m.tables[1].filled {
+	if !slices.Equal(m.databases, []string{"shop"}) || len(m.tables) != 3 || !m.tables[0].filled || m.tables[1].name != "odd`name" || m.tables[1].filled {
 		t.Errorf("MySQL: databases %v, tables %+v %+v", m.databases, m.tables[0], m.tables[len(m.tables)-1])
+	}
+	// A MEMORY table's rows are gone after any restart, so the check expects it empty.
+	if m.tables[0].memory || m.tables[1].memory || !m.tables[2].memory || !m.tables[2].filled {
+		t.Errorf("MySQL: memory tables %+v %+v %+v", m.tables[0], m.tables[1], m.tables[2])
 	}
 }
 
@@ -384,5 +436,21 @@ func TestADumpOfManyTablesIsBounded(t *testing.T) {
 	_, _ = h.Write([]byte(b.String()))
 	if len(h.tables) != maxTables || !h.over {
 		t.Errorf("it holds %d tables, over %t", len(h.tables), h.over)
+	}
+}
+
+// What a database says keeps no value a row held: quoted, or a key's, which
+// PostgreSQL names unquoted.
+func TestWhatADatabaseSaysKeepsNoValues(t *testing.T) {
+	for said, want := range map[string]string{
+		`DETAIL:  Key (email)=(someone@example.com) already exists.`:               `DETAIL:  Key (email)=(...) already exists.`,
+		`DETAIL:  Key (a, b)=(1, f(x)) already exists.`:                            `DETAIL:  Key (a, b)=(...) already exists.`,
+		`ERROR:  duplicate key value violates unique constraint "users_email_key"`: `ERROR:  duplicate key value violates unique constraint '...'`,
+		`Key (id)=(7) is not present in table "orders".`:                           `Key (id)=(...) is not present in table '...'.`,
+		`nothing to take out`: `nothing to take out`,
+	} {
+		if got := withoutValues(said); got != want {
+			t.Errorf("%s\n got %s\nwant %s", said, got, want)
+		}
 	}
 }

@@ -365,7 +365,39 @@ var quoted = regexp.MustCompile(`'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"`)
 // can read the change, however much the backup was kept from them.
 func scrubbed(said string) string {
 	first, _, _ := strings.Cut(strings.TrimSpace(said), "\n")
-	return quoted.ReplaceAllString(first, "'...'")
+	return withoutValues(first)
+}
+
+// withoutValues takes out what a line quotes, and the values PostgreSQL names a key
+// by, unquoted: Key (email)=(someone@example.com) reads Key (email)=(...).
+func withoutValues(line string) string {
+	line = quoted.ReplaceAllString(line, "'...'")
+	var b strings.Builder
+	for {
+		i := strings.Index(line, ")=(")
+		if i < 0 {
+			break
+		}
+		b.WriteString(line[:i+3])
+		line = line[i+3:]
+		depth, end := 1, len(line)
+		for j := range len(line) {
+			switch line[j] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+			}
+			if depth == 0 {
+				end = j
+				break
+			}
+		}
+		b.WriteString("...")
+		line = line[end:]
+	}
+	b.WriteString(line)
+	return b.String()
 }
 
 // verifyDump reads a dump back, to the words the tool ends a whole one with.

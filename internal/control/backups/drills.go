@@ -109,7 +109,7 @@ func (h *Handler) startDrill(ctx context.Context, b store.Backup, server store.S
 	now := h.now()
 	d := store.Drill{
 		ID: id.New(id.Drill), BackupID: b.ID, EnvironmentID: b.EnvironmentID, VolumeID: b.VolumeID, ServerID: b.ServerID,
-		Result: store.DrillRunning, Actor: actor, StartedAt: now, PolicyID: policyID,
+		Result: store.DrillRunning, Actor: actor, StartedAt: now, PolicyID: policyID, BackupAt: b.StartedAt,
 	}
 	h.mu.Lock()
 	if h.drilling == nil {
@@ -321,20 +321,27 @@ func (h *Handler) runDrillsDue(ctx context.Context) error {
 // drillIsDue says a policy's drill is due on a server, and of which backup: the
 // newest of the policy's there that read back whole. None yet waits for one.
 func drillIsDue(ctx context.Context, tx *store.Tx, p policy, serverID string, now time.Time) (store.Backup, bool, error) {
-	last, err := tx.ListDrills(ctx, store.DrillFilter{PolicyID: p.id, ServerID: serverID})
+	last, err := tx.ListDrills(ctx, store.DrillFilter{PolicyID: p.id, ServerID: serverID, Limit: 1})
 	if err != nil {
 		return store.Backup{}, false, err
 	}
 	since := p.madeAt
+	retry := false
 	if len(last) > 0 {
 		if last[0].Result == store.DrillRunning {
 			return store.Backup{}, false, nil
 		}
 		if last[0].StartedAt.After(since) {
 			since = last[0].StartedAt
+			// One that didn't run tries again at the policy's next run (ADR 0068), not
+			// a whole drill period on.
+			retry = last[0].Result == store.DrillNotChecked
 		}
 	}
 	next := backuppolicy.NextDrill(p.spec, since)
+	if retry {
+		next = backuppolicy.Next(p.spec, since).Add(backuppolicy.DrillAfter)
+	}
 	if next.IsZero() || next.After(now) {
 		return store.Backup{}, false, nil
 	}
@@ -366,7 +373,7 @@ func (h *Handler) startScheduledDrill(ctx context.Context, run drillDue) {
 	if why != "" {
 		d := store.Drill{
 			ID: id.New(id.Drill), BackupID: run.backup.ID, EnvironmentID: run.backup.EnvironmentID, VolumeID: run.backup.VolumeID, ServerID: run.server.ID,
-			Result: store.DrillRunning, Actor: revision.SystemActor, StartedAt: h.now(), PolicyID: run.policy.id,
+			Result: store.DrillRunning, Actor: revision.SystemActor, StartedAt: h.now(), PolicyID: run.policy.id, BackupAt: run.backup.StartedAt,
 		}
 		if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.CreateDrill(ctx, d) }); err != nil {
 			h.logger.ErrorContext(ctx, "can't record a restore drill", slog.String("error", err.Error()))

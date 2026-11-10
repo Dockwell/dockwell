@@ -4693,6 +4693,10 @@ msgstr "Back up a volume before you change what's in it. A database's backup sto
 msgid "Backups, newest first"
 msgstr "Backups, newest first"
 
+#. placeholder {0}: refused.get(b.id)
+msgid "Can't check it now: {0}"
+msgstr "Can't check it now: {0}"
+
 msgid "Check it restores"
 msgstr "Check it restores"
 
@@ -4789,9 +4793,6 @@ msgstr "Sending to {0}"
 
 msgid "Started"
 msgstr "Started"
-
-msgid "This backup can't be checked now"
-msgstr "This backup can't be checked now"
 
 msgid "This backup didn't come back"
 msgstr "This backup didn't come back"

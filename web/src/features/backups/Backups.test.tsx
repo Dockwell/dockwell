@@ -931,8 +931,32 @@ describe("the backups page", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Check it restores" }));
-    expect(await screen.findByText("This backup can't be checked now")).toBeVisible();
-    expect(screen.getByText(/checks one at a time/)).toBeVisible();
+    const row = screen.getAllByRole("row")[1] as HTMLElement;
+    expect(await within(row).findByRole("alert")).toHaveTextContent(/^Can't check it now: .*checks one at a time/);
+  });
+
+  it("keeps Check it restores busy while it asks, so a second click sends nothing", async () => {
+    const user = userEvent.setup();
+    let asked = 0;
+    let answer: () => void = () => {};
+    renderAt(
+      "/backups",
+      copies([aBackup()], {
+        drillBackup: () => {
+          asked++;
+          return new Promise((resolve) => {
+            answer = () => resolve({});
+          });
+        },
+      }),
+    );
+    const check = await screen.findByRole("button", { name: "Check it restores" });
+    await user.click(check);
+    expect(check).toHaveAttribute("aria-busy", "true");
+    await user.click(check);
+    expect(asked).toBe(1);
+    answer();
+    await waitFor(() => expect(check).not.toHaveAttribute("aria-busy"));
   });
 
   it("offers a restore while its server has it, and no fetch", async () => {

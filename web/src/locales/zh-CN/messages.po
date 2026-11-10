@@ -4693,6 +4693,10 @@ msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何
 msgid "Backups, newest first"
 msgstr "备份，最新的在前"
 
+#. placeholder {0}: refused.get(b.id)
+msgid "Can't check it now: {0}"
+msgstr "现在无法检查：{0}"
+
 msgid "Check it restores"
 msgstr "检查能否恢复"
 
@@ -4789,9 +4793,6 @@ msgstr "正在发送到 {0}"
 
 msgid "Started"
 msgstr "开始时间"
-
-msgid "This backup can't be checked now"
-msgstr "现在无法检查这个备份"
 
 msgid "This backup didn't come back"
 msgstr "未能取回此备份"

@@ -37,7 +37,7 @@ A rule is a resource of kind `alert.rule`, and a channel one of kind `alert.chan
 
 ### An install starts with a rule for each condition
 
-On its first start with alerts, an install makes one rule per condition, as Dockwell's own change, applied at once like the install's default project ([ADR 0014](0014-object-model-and-store.md)) and left off the timeline as that one is. Each sends to every channel, as a rule that names none does, so the install tells you of what matters as soon as you add one channel. Each start makes any default the install has never had: rules someone deleted stay deleted, as the store remembers every rule it ever managed, and a default a later release adds, such as `restore-drill-failed` ([ADR 0068](0068-restore-drills.md)), reaches an install as it upgrades.
+On its first start with alerts, an install makes one rule per condition, as Dockwell's own change, applied at once like the install's default project ([ADR 0014](0014-object-model-and-store.md)) and left off the timeline as that one is. Each sends to every channel, as a rule that names none does, so the install tells you of what matters as soon as you add one channel. A setting, `alerts.defaults`, records that they were made, and one more for each default a later release adds, such as `restore-drill-failed` ([ADR 0068](0068-restore-drills.md)), so an install that upgrades gets each once, and rules someone deleted stay deleted.
 
 | Rule | Fires when | Severity | Repeats |
 | --- | --- | --- | --- |

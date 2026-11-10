@@ -147,19 +147,33 @@ export function BackupRows({ backups, caption }: { backups: readonly Backup[]; c
   const [deleting, setDeleting] = useState<Backup>();
   const [choosing, setChoosing] = useState<Backup>();
   const [bringBackFailure, setBringBackFailure] = useState<string>();
-  const [checkFailure, setCheckFailure] = useState<string>();
+  // A check in flight, and why one was refused, each on its own row.
+  const [checking, setChecking] = useState<ReadonlySet<string>>(new Set());
+  const [refused, setRefused] = useState<ReadonlyMap<string, string>>(new Map());
   const listed = () =>
     queries.invalidateQueries({
       queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
     });
   // A drill runs on its server and says how it went on the backup's row (ADR 0068).
   const check = async (backup: Backup) => {
-    setCheckFailure(undefined);
+    if (checking.has(backup.id)) return;
+    setChecking((was) => new Set(was).add(backup.id));
+    setRefused((was) => {
+      const next = new Map(was);
+      next.delete(backup.id);
+      return next;
+    });
     try {
       await client.drillBackup({ id: backup.id });
       await listed();
     } catch (error) {
-      setCheckFailure(sentence(error));
+      setRefused((was) => new Map(was).set(backup.id, sentence(error)));
+    } finally {
+      setChecking((was) => {
+        const next = new Set(was);
+        next.delete(backup.id);
+        return next;
+      });
     }
   };
   const restore = (backup: Backup) => {
@@ -184,11 +198,6 @@ export function BackupRows({ backups, caption }: { backups: readonly Backup[]; c
           {bringBackFailure}
         </Callout>
       ) : null}
-      {checkFailure ? (
-        <Callout tone="warning" title={t`This backup can't be checked now`}>
-          {checkFailure}
-        </Callout>
-      ) : null}
       <BackupsList
         backups={backups}
         caption={caption ?? t`Backups, newest first`}
@@ -196,6 +205,8 @@ export function BackupRows({ backups, caption }: { backups: readonly Backup[]; c
         onFetch={(b) => (b.fetchOnto.length > 1 ? setChoosing(b) : void bringBack(b, b.fetchOnto[0] ?? ""))}
         onDelete={setDeleting}
         onCheck={(b) => void check(b)}
+        checking={checking}
+        refused={refused}
       />
       {deleting ? <DeleteSheet backup={deleting} client={client} onClose={() => setDeleting(undefined)} /> : null}
       {choosing ? (
@@ -216,6 +227,8 @@ function BackupsList({
   onFetch,
   onDelete,
   onCheck,
+  checking,
+  refused,
 }: {
   backups: readonly Backup[];
   caption: string;
@@ -223,6 +236,8 @@ function BackupsList({
   onFetch: (backup: Backup) => void;
   onDelete: (backup: Backup) => void;
   onCheck: (backup: Backup) => void;
+  checking: ReadonlySet<string>;
+  refused: ReadonlyMap<string, string>;
 }) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
@@ -261,7 +276,13 @@ function BackupsList({
         backup={b}
         // Only a whole backup its server has now can be checked there.
         onCheck={b.onServer && b.state === BackupState.DONE ? () => onCheck(b) : undefined}
+        pending={checking.has(b.id)}
       />
+      {refused.get(b.id) ? (
+        <span className="backup-why is-failed" role="alert">
+          {t`Can't check it now: ${refused.get(b.id)}`}
+        </span>
+      ) : null}
       {b.copy === BackupCopy.PENDING ? <span className="backup-why">{t`Sending to ${b.destination}`}</span> : null}
       {b.copy === BackupCopy.FAILED ? (
         <span className="backup-why">{t`It didn't reach ${b.destination}: ${b.copyError}`}</span>
@@ -498,7 +519,7 @@ function DeleteSheet({
  * checked, unpacked whole, failed with what failed, or not checked with why, which
  * says nothing of the backup.
  */
-function DrillLine({ backup, onCheck }: { backup: Backup; onCheck?: () => void }) {
+function DrillLine({ backup, onCheck, pending }: { backup: Backup; onCheck?: () => void; pending?: boolean }) {
   const { t } = useLingui();
   const time = useTimeWords();
   // An action on what you can see stays where it is, off, with why (ADR 0059).
@@ -511,6 +532,7 @@ function DrillLine({ backup, onCheck }: { backup: Backup; onCheck?: () => void }
         variant="ghost"
         className="backup-drill-action"
         onClick={onCheck}
+        loading={pending}
         {...may(BackupService.method.drillBackup, { environment: backup.environmentId }).off}
       >
         {label}

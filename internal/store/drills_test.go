@@ -3,6 +3,7 @@
 package store_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -35,7 +36,7 @@ func TestRestoreDrills(t *testing.T) {
 				{ID: "drl_3", BackupID: "bkp_2", Result: store.DrillRunning},
 			} {
 				d.EnvironmentID, d.VolumeID, d.ServerID, d.Actor = "env_1", "res_vol", "srv_1", "usr_1"
-				d.StartedAt = now.Add(time.Duration(i) * time.Minute)
+				d.StartedAt, d.BackupAt = now.Add(time.Duration(i)*time.Minute), now
 				if err := tx.CreateDrill(ctx, d); err != nil {
 					return err
 				}
@@ -61,7 +62,7 @@ func TestRestoreDrills(t *testing.T) {
 			t.Fatal(err)
 		}
 		got := newest["bkp_1"]
-		if got.ID != "drl_2" || got.Result != store.DrillFailed || got.Tables != 12 || got.RestoredBytes != 4096 || got.FinishedAt == nil || !got.FinishedAt.Equal(finished) || got.Why == "" {
+		if got.ID != "drl_2" || got.Result != store.DrillFailed || got.Tables != 12 || got.RestoredBytes != 4096 || got.FinishedAt == nil || !got.FinishedAt.Equal(finished) || got.Why == "" || !got.BackupAt.Equal(now) {
 			t.Errorf("bkp_1's newest drill is %+v", got)
 		}
 		if newest["bkp_2"].ID != "drl_3" || len(newest) != 2 {
@@ -71,15 +72,40 @@ func TestRestoreDrills(t *testing.T) {
 			t.Errorf("running %v, the volume's %d", running, len(volume))
 		}
 
-		update(func(tx *store.Tx) error { return tx.DeleteBackup(ctx, "bkp_1") })
-		if err := db.View(ctx, func(tx *store.Tx) error {
-			left, err := tx.ListDrills(ctx, store.DrillFilter{VolumeID: "res_vol"})
-			if err == nil && (len(left) != 1 || left[0].ID != "drl_3") {
-				t.Errorf("once bkp_1 went, its drills left %v", left)
+		left := func(want ...string) {
+			t.Helper()
+			if err := db.View(ctx, func(tx *store.Tx) error {
+				drills, err := tx.ListDrills(ctx, store.DrillFilter{VolumeID: "res_vol"})
+				var ids []string
+				for _, d := range drills {
+					ids = append(ids, d.ID)
+				}
+				if err == nil && !slices.Equal(ids, want) {
+					t.Errorf("drills left %v, want %v", ids, want)
+				}
+				return err
+			}); err != nil {
+				t.Fatal(err)
 			}
-			return err
-		}); err != nil {
-			t.Fatal(err)
 		}
+		// A backup's drills go with it, but for a failed one, which keeps the alert it
+		// raised until a backup at least as new passes.
+		update(func(tx *store.Tx) error { return tx.DeleteBackup(ctx, "bkp_1") })
+		left("drl_3", "drl_2")
+		update(func(tx *store.Tx) error {
+			if err := tx.CreateBackup(ctx, store.Backup{ID: "bkp_0", EnvironmentID: "env_1", Volume: "data", VolumeID: "res_vol", ServerID: "srv_1", State: store.BackupDone, Actor: "usr_1", StartedAt: now.Add(-time.Hour)}); err != nil {
+				return err
+			}
+			older := store.Drill{ID: "drl_0", BackupID: "bkp_0", EnvironmentID: "env_1", VolumeID: "res_vol", ServerID: "srv_1", Actor: "usr_1", Result: store.DrillRunning, StartedAt: now.Add(-time.Minute), BackupAt: now.Add(-time.Hour)}
+			if err := tx.CreateDrill(ctx, older); err != nil {
+				return err
+			}
+			return tx.FinishDrill(ctx, store.Drill{ID: "drl_0", Result: store.DrillPassed, FinishedAt: &finished})
+		})
+		left("drl_3", "drl_2", "drl_0")
+		update(func(tx *store.Tx) error {
+			return tx.FinishDrill(ctx, store.Drill{ID: "drl_3", Result: store.DrillPassed, FinishedAt: &finished})
+		})
+		left("drl_3", "drl_0")
 	})
 }
