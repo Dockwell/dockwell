@@ -4,12 +4,14 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Connection, type Server } from "@dockwell/api";
 import { Callout, PHONE_QUERY, type Tone, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
-import { Trans, useLingui } from "@lingui/react/macro";
+import { useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { serviceCommands } from "../servers/commands";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { CopyButton } from "../system/CopyCommand";
 
 /** What a callout on the fleet's overview says, and which server it opens, if one. */
 interface Notice {
@@ -18,6 +20,8 @@ interface Notice {
   body: ReactNode;
   /** The server to inspect; every server when it's about several. */
   serverId?: string;
+  /** A command to copy and run on the server, where Dockwell can't act itself. */
+  command?: { text: string; label: string; copied: string };
 }
 
 /**
@@ -40,15 +44,25 @@ export function FleetCallout({ servers }: { servers: readonly Server[] }) {
       tone={notice.tone}
       title={notice.title}
       actions={
-        notice.serverId ? (
-          <RouterButtonLink to="/servers/$serverId" params={{ serverId: notice.serverId }} {...button}>
-            {t`Inspect`}
-          </RouterButtonLink>
-        ) : (
-          <RouterButtonLink to="/servers" {...button}>
-            {t`Inspect`}
-          </RouterButtonLink>
-        )
+        <>
+          {notice.command ? (
+            <CopyButton
+              text={notice.command.text}
+              label={notice.command.label}
+              copiedLabel={notice.command.copied}
+              {...button}
+            />
+          ) : null}
+          {notice.serverId ? (
+            <RouterButtonLink to="/servers/$serverId" params={{ serverId: notice.serverId }} {...button}>
+              {t`Inspect`}
+            </RouterButtonLink>
+          ) : (
+            <RouterButtonLink to="/servers" {...button}>
+              {t`Inspect`}
+            </RouterButtonLink>
+          )}
+        </>
       }
     >
       {notice.body}
@@ -63,6 +77,22 @@ function useNotice(servers: readonly Server[]): Notice | undefined {
   const now = useControlPlaneNow();
   const names = (list: readonly Server[]) =>
     new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(list.map((s) => s.name));
+  // What to run on a server where Dockwell can't act, as its service manager takes it. Closures, as t works only here.
+  const restart = (s: Server) => ({
+    text: serviceCommands(s).restartAgent,
+    label: t`Copy the restart command`,
+    copied: t`Restart command copied`,
+  });
+  const start = (s: Server) => ({
+    text: serviceCommands(s).startAgent,
+    label: t`Copy the start command`,
+    copied: t`Start command copied`,
+  });
+  const docker = (s: Server) => ({
+    text: serviceCommands(s).restartDocker,
+    label: t`Copy the command that restarts Docker`,
+    copied: t`Command copied`,
+  });
 
   const down = servers.filter((s) => s.connection === Connection.UNREACHABLE);
   const [first] = down;
@@ -73,17 +103,8 @@ function useNotice(servers: readonly Server[]): Notice | undefined {
       tone: "critical",
       title: t`${name} isn't reporting`,
       serverId: first.id,
-      body: seen ? (
-        <Trans>
-          Its agent last reported {seen}, so its numbers are left out of the fleet's. Check that{" "}
-          <code>dockwell run</code> is still running on the server.
-        </Trans>
-      ) : (
-        <Trans>
-          Its agent has disconnected, so its numbers are left out of the fleet's. Check that <code>dockwell run</code>{" "}
-          is still running on the server.
-        </Trans>
-      ),
+      body: seen ? t`Last heard ${seen}; its numbers are left out of the fleet's.` : t`Its agent disconnected.`,
+      command: restart(first),
     };
   }
   if (down.length > 1) {
@@ -91,12 +112,8 @@ function useNotice(servers: readonly Server[]): Notice | undefined {
     return {
       tone: "critical",
       title: plural(down.length, { one: "# server isn't reporting", other: "# servers aren't reporting" }),
-      body: (
-        <Trans>
-          {list} stopped reporting, so their numbers are left out of the fleet's. Check that <code>dockwell run</code>{" "}
-          is still running on each.
-        </Trans>
-      ),
+      body: t`${list} stopped reporting; their numbers are left out of the fleet's.`,
+      command: first ? restart(first) : undefined,
     };
   }
 
@@ -108,12 +125,8 @@ function useNotice(servers: readonly Server[]): Notice | undefined {
       tone: "warning",
       title: t`${name} can't read Docker`,
       serverId: one.id,
-      body: (
-        <Trans>
-          Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker
-          is running on the server.
-        </Trans>
-      ),
+      body: t`Its agent is connected; Docker doesn't answer.`,
+      command: docker(one),
     };
   }
   if (blind.length > 1) {
@@ -121,12 +134,8 @@ function useNotice(servers: readonly Server[]): Notice | undefined {
     return {
       tone: "warning",
       title: plural(blind.length, { one: "# server can't read Docker", other: "# servers can't read Docker" }),
-      body: (
-        <Trans>
-          On {list}, the agent is connected but Docker doesn't answer, so nobody can say how what runs there is. Check
-          that Docker is running on each.
-        </Trans>
-      ),
+      body: t`On ${list}, the agent is connected and Docker doesn't answer.`,
+      command: one ? docker(one) : undefined,
     };
   }
 
@@ -138,11 +147,8 @@ function useNotice(servers: readonly Server[]): Notice | undefined {
       tone: "info",
       title: t`${name} is waiting for its agent`,
       serverId: next.id,
-      body: (
-        <Trans>
-          It joined, but its agent hasn't connected yet. Start it with <code>dockwell run</code> on the server.
-        </Trans>
-      ),
+      body: t`It joined, and its agent hasn't connected yet.`,
+      command: start(next),
     };
   }
   if (waiting.length > 1) {
@@ -153,12 +159,8 @@ function useNotice(servers: readonly Server[]): Notice | undefined {
         one: "# server is waiting for its agent",
         other: "# servers are waiting for their agents",
       }),
-      body: (
-        <Trans>
-          {list} joined, but their agents haven't connected yet. Start each with <code>dockwell run</code> on the
-          server.
-        </Trans>
-      ),
+      body: t`${list} joined, and their agents haven't connected yet.`,
+      command: next ? start(next) : undefined,
     };
   }
   return undefined;

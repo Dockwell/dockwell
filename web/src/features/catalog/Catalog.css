@@ -641,3 +641,110 @@
     flex: none;
   }
 }
+
+/* A default as one line: what it is, its value, its state, and Change, which turns
+   it into its field in place (defaults first, power one step away). */
+.catalog-chosen-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.catalog-chosen {
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: minmax(96px, 9.5rem) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-1) var(--space-4);
+  min-width: 0;
+}
+
+.catalog-chosen-label {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.catalog-chosen-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-2);
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.catalog-chosen-value code {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.catalog-chosen-icon {
+  flex: none;
+  align-self: center;
+  color: var(--warning);
+}
+
+.catalog-chosen.is-warning .catalog-chosen-value > span {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.catalog-chosen-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+.catalog-chosen-state.is-free {
+  color: var(--healthy);
+}
+
+.catalog-chosen-state.is-taken {
+  color: var(--critical);
+}
+
+.catalog-chosen-state.is-checking .dw-glyph {
+  color: var(--cobalt);
+}
+
+/* Change is a link-sized action at the end of the line, as the port field's Use is. */
+.catalog-change {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--cobalt);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.catalog-change:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (pointer: coarse) {
+  .catalog-change {
+    min-height: 44px;
+    padding: 0 var(--space-2);
+  }
+}
+
+/* On a phone the label sits over its value, as a phone's form does. */
+.catalog-sheet.is-phone .catalog-chosen {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}

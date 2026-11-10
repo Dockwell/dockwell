@@ -113,7 +113,7 @@ export function useNetworkWords() {
           return {
             status: "unknown",
             word: t`Not checked`,
-            proof: t`Only something outside connecting proves a way in, such as a certificate for a domain here`,
+            proof: t`A domain's certificate here would show it`,
           };
       }
     },
