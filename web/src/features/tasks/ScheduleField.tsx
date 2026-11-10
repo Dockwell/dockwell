@@ -88,6 +88,7 @@ export function ScheduleField({ value, onChange, zone, error }: ScheduleFieldPro
   const shape = useMemo(() => shapeOf(value), [value]);
   // Cron, once chosen, stays cron until a person picks another kind, whatever is typed.
   const [custom, setCustom] = useState(shape.every === "cron");
+  // In Custom, its one field stands in for the pickers of the shape the cron matches.
   const every: Every = custom ? "cron" : shape.every;
 
   const days = useMemo(() => {
@@ -125,19 +126,26 @@ export function ScheduleField({ value, onChange, zone, error }: ScheduleFieldPro
   };
 
   const parsed = parseCron(value);
+  // A zone the browser doesn't know, as one set from the CLI may be, leaves out the preview.
+  const when = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat(i18n.locale, {
+        timeZone: zone,
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        // The locale's own clock, as the time picker beside it shows it.
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return undefined;
+    }
+  }, [i18n.locale, zone]);
   const runs = useMemo(() => {
     const schedule = parseCron(value);
-    return schedule ? nextRuns(schedule, now, zone, 3) : [];
-  }, [value, now, zone]);
-  const when = new Intl.DateTimeFormat(i18n.locale, {
-    timeZone: zone,
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    // The locale's own clock, as the time picker beside it shows it.
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+    return schedule && when ? nextRuns(schedule, now, zone, 3) : [];
+  }, [value, now, zone, when]);
   const typedError =
     every === "cron" && value.trim() !== "" && !parsed ? t`That isn't cron Dockwell reads.` : undefined;
   const shownError = error ?? typedError;
@@ -160,7 +168,7 @@ export function ScheduleField({ value, onChange, zone, error }: ScheduleFieldPro
           ]}
           onChange={(event) => pick(event.target.value as Every)}
         />
-        {shape.every === "minutes" ? (
+        {!custom && shape.every === "minutes" ? (
           <SelectField
             label={t`Every`}
             value={String(shape.n)}
@@ -168,7 +176,7 @@ export function ScheduleField({ value, onChange, zone, error }: ScheduleFieldPro
             onChange={(event) => onChange(cronOf({ every: "minutes", n: Number(event.target.value) }))}
           />
         ) : null}
-        {shape.every === "hour" ? (
+        {!custom && shape.every === "hour" ? (
           <SelectField
             label={t`At minute`}
             value={String(shape.minute)}
@@ -176,7 +184,7 @@ export function ScheduleField({ value, onChange, zone, error }: ScheduleFieldPro
             onChange={(event) => onChange(cronOf({ every: "hour", minute: Number(event.target.value) }))}
           />
         ) : null}
-        {shape.every === "week" ? (
+        {!custom && shape.every === "week" ? (
           <SelectField
             label={t({ message: "On", context: "a day of the week" })}
             value={String(shape.day)}
@@ -185,7 +193,7 @@ export function ScheduleField({ value, onChange, zone, error }: ScheduleFieldPro
             onChange={(event) => onChange(cronOf({ ...shape, day: Number(event.target.value) }))}
           />
         ) : null}
-        {shape.every === "month" ? (
+        {!custom && shape.every === "month" ? (
           <SelectField
             label={t`On day`}
             value={String(shape.date)}
@@ -193,7 +201,8 @@ export function ScheduleField({ value, onChange, zone, error }: ScheduleFieldPro
             onChange={(event) => onChange(cronOf({ ...shape, date: Number(event.target.value) }))}
           />
         ) : null}
-        {shape.every === "day" || shape.every === "weekday" || shape.every === "week" || shape.every === "month" ? (
+        {!custom &&
+        (shape.every === "day" || shape.every === "weekday" || shape.every === "week" || shape.every === "month") ? (
           <TextField
             label={t`At`}
             type="time"
@@ -217,12 +226,12 @@ export function ScheduleField({ value, onChange, zone, error }: ScheduleFieldPro
         />
       ) : null}
       <p className="schedule-next" id={`${id}-next`} aria-live="polite">
-        {runs.length > 0 ? (
+        {!when ? null : runs.length > 0 ? (
           <>
             <span>{t`Next, in ${zone}: ${runs.map((ms) => when.format(new Date(ms))).join(" · ")}`}</span>
             {every === "cron" ? null : <code className="schedule-cron">{value.trim()}</code>}
           </>
-        ) : parsed ? (
+        ) : parsed && !shownError ? (
           <span>{t`No date matches it, so it never runs.`}</span>
         ) : null}
       </p>

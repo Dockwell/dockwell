@@ -10377,7 +10377,6 @@ msgstr "Your passkey confirms it. You see the token once, right after you create
 msgid "from <0>{0}</0>"
 msgstr "from <0>{0}</0>"
 
-#. placeholder {0}: folder.trim() || "/"
 #. placeholder {0}: words.span(Math.max(0, when.getTime() - now))
 msgid "in {0}"
 msgstr "in {0}"
@@ -10741,9 +10740,6 @@ msgstr "Every day"
 msgid "Every few minutes"
 msgstr "Every few minutes"
 
-msgid "Every hour"
-msgstr "Every hour"
-
 msgid "Every month"
 msgstr "Every month"
 
@@ -10983,6 +10979,11 @@ msgstr "What the CLI and the API call it."
 #. placeholder {0}: task.servers.map((s) => s.serverName).join(", ")
 msgid "Where it runs now: {0}"
 msgstr "Where it runs now: {0}"
+
+#. placeholder {0}: folder.trim() || "/"
+msgctxt "the folder a task runs in"
+msgid "in {0}"
+msgstr "in {0}"
 
 msgid "no retries"
 msgstr "no retries"

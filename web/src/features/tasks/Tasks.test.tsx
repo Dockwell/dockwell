@@ -399,6 +399,55 @@ describe("scheduled tasks", () => {
     expect(proposed).not.toHaveBeenCalled();
   });
 
+  it("refuses a schedule no date matches, as the control plane would", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn();
+    renderAt("/scheduled-tasks", api([], { changes: { proposeChange: proposed } }));
+    await user.click((await screen.findAllByRole("button", { name: /New task/ }))[0] as HTMLElement);
+    const sheet = await screen.findByRole("dialog", { name: "New task" });
+    await user.type(within(sheet).getByLabelText("Command"), "true");
+    await user.selectOptions(within(sheet).getByLabelText("Schedule"), "cron");
+    // Custom's one field stands in for the time picker of the shape it came from.
+    expect(within(sheet).queryByLabelText("At")).toBeNull();
+    const cron = within(sheet).getByLabelText("Cron");
+    await user.clear(cron);
+    await user.type(cron, "0 0 30 2 *");
+    expect(within(sheet).getByText("No date matches it, so it never runs.")).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    expect(within(sheet).getAllByText("No date matches it, so it never runs.")).toHaveLength(1);
+    expect(proposed).not.toHaveBeenCalled();
+  });
+
+  it("leaves out the next runs in a zone the browser doesn't know, and opens all the same", async () => {
+    const user = userEvent.setup();
+    const odd = aTask();
+    if (odd.spec) odd.spec.timeZone = "Mars/Olympus_Mons";
+    renderAt("/scheduled-tasks", api([odd]));
+    const panel = await screen.findByRole("region", { name: "Nightly sales report" });
+    await user.click(within(panel).getByRole("button", { name: "Edit" }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).getByLabelText("Schedule")).toBeVisible();
+    expect(within(sheet).queryByText(/^Next, in /)).toBeNull();
+  });
+
+  it("names the folder a shell command runs in its own words, in Chinese too", async () => {
+    activateLocale("zh-CN");
+    try {
+      const user = userEvent.setup();
+      renderAt("/scheduled-tasks", api([]));
+      await user.click((await screen.findAllByRole("button", { name: /新建任务/ }))[0] as HTMLElement);
+      const sheet = await screen.findByRole("dialog");
+      await user.type(within(sheet).getByLabelText("命令"), "find /var/log/app -mtime +7 -delete");
+      const advanced = within(sheet)
+        .getAllByRole("button")
+        .find((b) => b.textContent?.includes("在 / 中运行"));
+      expect(advanced).toBeDefined();
+      expect(sheet.textContent).not.toContain("/后");
+    } finally {
+      activateLocale("en");
+    }
+  });
+
   it("opens the task it made once the plan applies, where Run now is", async () => {
     const user = userEvent.setup();
     let tasks: TaskInfo[] = [];

@@ -10377,7 +10377,6 @@ msgstr "需要你的通行密钥确认。令牌只在创建后立即显示一次
 msgid "from <0>{0}</0>"
 msgstr "来自 <0>{0}</0>"
 
-#. placeholder {0}: folder.trim() || "/"
 #. placeholder {0}: words.span(Math.max(0, when.getTime() - now))
 msgid "in {0}"
 msgstr "{0}后"
@@ -10741,9 +10740,6 @@ msgstr "每天"
 msgid "Every few minutes"
 msgstr "每隔几分钟"
 
-msgid "Every hour"
-msgstr "每小时"
-
 msgid "Every month"
 msgstr "每月"
 
@@ -10983,6 +10979,11 @@ msgstr "CLI 和 API 用它来指代此任务。"
 #. placeholder {0}: task.servers.map((s) => s.serverName).join(", ")
 msgid "Where it runs now: {0}"
 msgstr "当前运行位置：{0}"
+
+#. placeholder {0}: folder.trim() || "/"
+msgctxt "the folder a task runs in"
+msgid "in {0}"
+msgstr "在 {0} 中运行"
 
 msgid "no retries"
 msgstr "不重试"

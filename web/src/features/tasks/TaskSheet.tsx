@@ -17,7 +17,7 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
-import { parseCron } from "../../lib/cron";
+import { nextRuns, parseCron } from "../../lib/cron";
 import { usePlaces, useServices } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
@@ -148,6 +148,9 @@ export function TaskSheet({
   const minutes = Number(timeout);
   // What the schedule's runs read in: the task's own zone, else the install's.
   const readsIn = zone || scheduleZone.zone || "UTC";
+  const parsedSchedule = parseCron(schedule);
+  // A schedule no date matches, such as 30 February, the control plane refuses: it never runs.
+  const neverRuns = parsedSchedule ? nextRuns(parsedSchedule, Date.now(), "UTC", 1).length === 0 : false;
   const errors = {
     name: task || NAME.test(name) ? undefined : t`Use lowercase letters, digits and hyphens, such as nightly-report.`,
     command: kind !== "request" && command.trim() === "" ? t`Say what it runs.` : undefined,
@@ -160,7 +163,11 @@ export function TaskSheet({
       expect !== "" && !(Number(expect) >= 100 && Number(expect) <= 599)
         ? t`Use an HTTP status from 100 to 599, or leave it empty for any 2xx.`
         : undefined,
-    schedule: parseCron(schedule) ? undefined : t`Use cron's five fields, such as 0 4 * * *.`,
+    schedule: !parsedSchedule
+      ? t`Use cron's five fields, such as 0 4 * * *.`
+      : neverRuns
+        ? t`No date matches it, so it never runs.`
+        : undefined,
     timeout: !(Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440) ? t`Use 1 to 1,440 minutes.` : undefined,
   };
   const valid = Object.values(errors).every((e) => e === undefined);
@@ -230,7 +237,8 @@ export function TaskSheet({
   }[retries];
   const summary = [
     task ? "" : t`Named ${name}`,
-    kind === "shell" ? t`in ${folder.trim() || "/"}` : "",
+    // Its own context: "in {0}" is also a time ("in 3 min"), which zh-CN puts after the number.
+    kind === "shell" ? t({ message: `in ${folder.trim() || "/"}`, context: "the folder a task runs in" }) : "",
     t`stops after ${minutes || "?"} min`,
     failing ?? "",
     skipMissed ? t`skips missed runs` : "",
