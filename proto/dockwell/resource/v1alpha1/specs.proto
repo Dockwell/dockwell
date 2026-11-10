@@ -745,6 +745,11 @@ message Spec {
     AlertRule alert_rule = 110;
     // Where alerts are sent, kind "alert.channel".
     AlertChannel alert_channel = 111;
+    // A server's host: what Dockwell does to the server itself, kind
+    // "server.host", one for each server, named "host". Its spec is empty for
+    // now; installing updates is a flagged edit of it, which makes no revision
+    // (ADR 0064).
+    ServerHost server_host = 113;
     // Work that runs on a schedule, kind "task". Numbered in the block scheduled
     // tasks hold, as open work adds to this message.
     Task task = 150;
@@ -978,3 +983,10 @@ message AlertTelegram {
   // name, such as "@example_alerts". The bot has to be in it.
   string chat_id = 2;
 }
+
+// ServerHost is a server's host, kind "server.host": one for each server, named
+// "host", made as the server joins. Installing its updates is an edit of it that
+// makes no revision, as a restart of a service is, with a plan, a passkey and an
+// admin (ADR 0064). Later settings of the server itself, such as whether it
+// installs updates by itself, become fields here.
+message ServerHost {}

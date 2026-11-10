@@ -37,6 +37,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -95,7 +96,6 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
 	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
-	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
 	cfg.OnePanel = serverOnePanel(stdio)
 	cfg.Terminals = terminal.New(terminal.Options{
 		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
@@ -288,11 +288,15 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		exposed = agent.ExposedPorts(nil)
 	}
 	firewalls := firewallAccess(ctx, logger, dir, tools, dockerOrNot(client, socket, err), exposed, ownPorts, panel == nil && len(ownPorts) > 0)
+	packages := serverUpdates(stdio, logger, dir.Agent())
+	// A server's host installs its updates in a unit of systemd's own (ADR 0064).
+	installs := &updates.Installer{Reader: packages, Units: updates.Systemd{Reader: packages}, Dir: filepath.Join(dir.Agent(), "install")}
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
 			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}, tasks,
-			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls}),
+			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls}, &host.Driver{Backend: updates.Host{Installer: installs}}),
+		Updates:   packages,
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Tasks: tasks, Tools: tools, Access: firewalls,
 	}

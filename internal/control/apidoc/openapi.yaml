@@ -4302,6 +4302,39 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/updates:planInstall:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                PlanInstallUpdates plans installing the package updates waiting on
+                 servers: the security fixes, or every update. Each server's agent
+                 simulates the exact install, versions pinned, and the plan lists every
+                 package it installs, those it pulls in too, whether a reboot follows and
+                 whether Docker restarts. It's a change with a plan and no revision, as a
+                 restart is: an upgrade can't be undone, and the plan says so. Applying it
+                 takes a person's passkey, as it runs as root on the server. See
+                 docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
+            operationId: ChangeService_PlanInstallUpdates
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanInstallUpdatesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanInstallUpdatesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/variables:
         get:
             tags:
@@ -10943,6 +10976,32 @@ components:
                 terminal:
                     $ref: '#/components/schemas/Terminal'
             description: OpenTerminalResponse is the terminal, running.
+        PackageInstall:
+            type: object
+            properties:
+                packages:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PackageUpdate'
+                    description: |-
+                        Each package, from the version installed to the one it gets; a package the
+                         others pull in has none installed.
+                reboot:
+                    type: boolean
+                    description: A package takes effect only after a reboot, which is a change of its own.
+                dockerRestarts:
+                    type: boolean
+                    description: |-
+                        Docker's engine restarts, and with it every container on the server and
+                         the domains Caddy serves there, unless keeps_running.
+                keepsRunning:
+                    type: boolean
+                    description: |-
+                        Docker keeps containers running while it restarts (live-restore), which
+                         holds across patch releases of the same version only.
+            description: |-
+                PackageInstall is what installing a server's updates will do, as its package
+                 manager simulated the exact command.
         PackageUpdate:
             type: object
             properties:
@@ -11127,6 +11186,29 @@ components:
             description: |-
                 Plan is what applying a change would do: what changes, where, and for
                  how long.
+        PlanInstallUpdatesRequest:
+            type: object
+            properties:
+                serverIds:
+                    type: array
+                    items:
+                        type: string
+                    description: The servers, by ID. One server is a set of one.
+                all:
+                    type: boolean
+                    description: Installs every update waiting, not only the security fixes.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it installs.
+            description: PlanInstallUpdatesRequest names the servers and which updates to install.
+        PlanInstallUpdatesResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: PlanInstallUpdatesResponse carries the planned install.
         PlanNote:
             type: object
             properties:
@@ -11435,6 +11517,12 @@ components:
                          SSH stays open from, by name, so a person sees whether their own address
                          is there, and a stranger's. Unset on a step that leaves SSH open to
                          anywhere.
+                install:
+                    allOf:
+                        - $ref: '#/components/schemas/PackageInstall'
+                    description: |-
+                        What installing updates will do, for a step that installs them on a
+                         server's host: the agent's simulation of the exact command.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -11510,6 +11598,12 @@ components:
                         What the change lets it reach on its servers that it couldn't before,
                          or reach in another way, which a person approves. The control plane
                          decides this from the specs, not from what the servers report.
+                install:
+                    allOf:
+                        - $ref: '#/components/schemas/PackageInstall'
+                    description: |-
+                        What installing updates on its server will do, for a server's host the
+                         change installs on.
             description: PlannedResource is what a plan does to one resource as a whole.
         PortMapping:
             type: object
@@ -12918,6 +13012,15 @@ components:
                          and when stale.
                     format: date-time
             description: ServerHealth is how a service is on one server.
+        ServerHost:
+            type: object
+            properties: {}
+            description: |-
+                ServerHost is a server's host, kind "server.host": one for each server, named
+                 "host", made as the server joins. Installing its updates is an edit of it that
+                 makes no revision, as a restart of a service is, with a plan, a passkey and an
+                 admin (ADR 0064). Later settings of the server itself, such as whether it
+                 installs updates by itself, become fields here.
         ServerInventory:
             type: object
             properties:
@@ -13804,6 +13907,14 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/AlertChannel'
                     description: Where alerts are sent, kind "alert.channel".
+                serverHost:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerHost'
+                    description: |-
+                        A server's host: what Dockwell does to the server itself, kind
+                         "server.host", one for each server, named "host". Its spec is empty for
+                         now; installing updates is a flagged edit of it, which makes no revision
+                         (ADR 0064).
                 task:
                     allOf:
                         - $ref: '#/components/schemas/Task'

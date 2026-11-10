@@ -248,6 +248,10 @@ type Decision struct {
 	// BackupFirst says what a step that backs up a volume, before the rest of its
 	// change, does.
 	BackupFirst *BackupFirst `json:",omitempty"`
+	// Install says what a step that installs a server's updates does, as its
+	// agent simulated the exact command (ADR 0064). Its fingerprint covers it, so
+	// a person never applies a list they didn't see.
+	Install *Install `json:",omitempty"`
 	// Returning names stopped containers Docker starts again when it next
 	// restarts, and that may then take the ports a server's proxy needs. It never
 	// stops a plan, and a fingerprint leaves it out.
@@ -496,6 +500,54 @@ type RestorePlan struct {
 	// Reached is what the backup's volume reached when it was taken that's as good
 	// as root. Its agent says, and that can only make a plan louder.
 	Reached []string `json:",omitempty"`
+}
+
+// Install is what installing a server's updates does: every package, from the
+// version installed to the one it gets, those the others pull in too, and what
+// follows (ADR 0064).
+type Install struct {
+	Packages []InstallPackage
+	// Reboot says a package takes effect only after a reboot.
+	Reboot bool `json:",omitempty"`
+	// DockerRestarts says Docker's engine restarts, and KeepsRunning that it keeps
+	// containers running meanwhile.
+	DockerRestarts bool `json:",omitempty"`
+	KeepsRunning   bool `json:",omitempty"`
+}
+
+// InstallPackage is one package an install installs.
+type InstallPackage struct {
+	Name         string
+	Architecture string `json:",omitempty"`
+	// From is the version installed: empty for a package the others pull in.
+	From     string `json:",omitempty"`
+	To       string
+	Origin   string `json:",omitempty"`
+	Security bool   `json:",omitempty"`
+	// Reboot and Docker say it takes effect after a reboot, or restarts Docker.
+	Reboot bool `json:",omitempty"`
+	Docker bool `json:",omitempty"`
+}
+
+// InstallAsked is an install a change asks of a server's host.
+type InstallAsked struct {
+	// Change is the change's ID, which names the install's unit.
+	Change string
+	// All installs every update waiting, not only the security fixes.
+	All bool `json:",omitempty"`
+	// Packages are what the plan fixed: none at planning; on a resume, what it
+	// checks against.
+	Packages []InstallPackage `json:",omitempty"`
+}
+
+// Installer is a kind that installs its server's updates as a step of a change:
+// the server's host (ADR 0064).
+type Installer interface {
+	// JudgeInstall plans the install, or on a resume what's left of it, and reports
+	// false when nothing is: every package at its planned version.
+	JudgeInstall(ctx context.Context, ref Ref, ask InstallAsked) (Decision, bool, error)
+	// ApplyInstall carries out the step: its Install, for the change DeployOf says.
+	ApplyInstall(ctx context.Context, step Step) error
 }
 
 // BackupFirst is a backup a change takes before anything else it does.

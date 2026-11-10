@@ -2001,6 +2001,22 @@ func Methods() []*apicli.Method {
 			Call: apicli.Unary[v1.GetServerUpdatesRequest, v1.GetServerUpdatesResponse](dockwellv1connect.UpdateServiceGetServerUpdatesProcedure),
 		},
 		{
+			Name:      "dockwell.v1.ChangeService.PlanInstallUpdates",
+			Procedure: dockwellv1connect.ChangeServicePlanInstallUpdatesProcedure,
+			HTTP:      "POST /v1/updates:planInstall",
+			Noun:      "updates",
+			Verb:      "install",
+			Short:     "Plan installing the package updates waiting on servers",
+			Long:      "Plan installing the package updates waiting on servers: the security fixes, or\nevery update. Each server's agent simulates the exact install, versions pinned,\nand the plan lists every package it installs, those it pulls in too, whether a\nreboot follows and whether Docker restarts. It's a change with a plan and no\nrevision, as a restart is: an upgrade can't be undone, and the plan says so.\nApplying it takes a person's passkey, as it runs as root on the server. See\ndocs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.",
+			Effect:    v1.Effect_EFFECT_PLAN,
+			Fields: []apicli.Field{
+				{Path: "server_ids", Help: "The servers, by ID. One server is a set of one."},
+				{Path: "all", Help: "Installs every update waiting, not only the security fixes."},
+				{Path: "summary", Help: "What the change is for, for the timeline. Empty says what it installs."},
+			},
+			Call: apicli.Unary[v1.PlanInstallUpdatesRequest, v1.PlanInstallUpdatesResponse](dockwellv1connect.ChangeServicePlanInstallUpdatesProcedure),
+		},
+		{
 			Name:      "dockwell.v1.VariableService.ListVariables",
 			Procedure: dockwellv1connect.VariableServiceListVariablesProcedure,
 			HTTP:      "GET /v1/variables",
@@ -2148,7 +2164,7 @@ func Nouns() []apicli.Noun {
 		{Name: "tasks", Short: "List, get, runs, run, create, update or delete tasks", Long: "TaskService is work that runs on a schedule: a shell command on a server, a\ncommand in an app's image, or an HTTP request. A task is a resource of kind\n\"task\", so making, changing, pausing and deleting one is a change with a plan,\nthrough ChangeService. Each server's agent keeps its own tasks' time, so they\nrun while the control plane is away, and the control plane keeps what each run\ndid. See docs/adr/0053-scheduled-tasks.md.\n\ndockwell tasks create, update and delete each propose a change, show its plan,\nand ask before applying it."},
 		{Name: "terminals", Short: "Open, list, attach, write or close terminals", Long: "TerminalService opens a shell on a server, through its agent, and carries what's\ntyped and what it prints. A server's shell is root's, so it's as good as root:\nsee docs/adr/0037-a-terminal-on-a-server.md and docs/security/terminal.md.\n\nEvery method needs an admin in a signed-in session: no API token can call them,\nwhatever its scope. A terminal belongs to the person and the session that opened\nit, and nobody else can reach it. Opening one takes a passkey, just now. Opening\nand closing one are on record in Activity, and what's typed and printed is never\nrecorded.\n\nA terminal runs on its server apart from any connection, so a client that loses\nits stream attaches again from the last byte it had, and misses nothing that\nfits in what the server keeps. dockwell terminals attach streams, so it has no\nREST path."},
 		{Name: "totp", Short: "Get, disable or unlock TOTP, and 4 more", Long: "Code sign-in lets you sign in with a code from an authenticator app, or with a\none-time recovery code, beside your passkeys. Wrong codes slow it down, and too\nmany lock it until dockwell totp unlock turns it back on. Setting it up needs a\nsigned-in session, which no API token gives, and your passkey to confirm it, so\nyou do it in the panel, under Profile and security."},
-		{Name: "updates", Short: "Get or check updates", Long: "UpdateService says which package updates wait on a server, through its agent,\nwhich reads them with the server's own package manager: apt, dnf or apk. Nothing\nis read while nobody asks, and a server's package lists are refreshed at most\ndaily. See docs/adr/0043-package-updates-on-a-server.md."},
+		{Name: "updates", Short: "Get, check or install updates", Long: "UpdateService says which package updates wait on a server, through its agent,\nwhich reads them with the server's own package manager: apt, dnf or apk. Nothing\nis read while nobody asks, and a server's package lists are refreshed at most\ndaily. See docs/adr/0043-package-updates-on-a-server.md."},
 		{Name: "variables", Short: "List, create, update or delete variables", Long: "A variable is a value of an environment that its services use, such as\nLOG_LEVEL=info. It isn't secret: plans and the panel show it. Services use\nvariables and secrets by reference, under the names they expect, so changing one\nis a plan that restarts every service that uses it.\n\ndockwell variables create, update and delete each propose a change, show its\nplan, and ask before applying it."},
 		{Name: "websites", Short: "List, runtimes, preview, create, update or delete websites", Long: "WebsiteService lists your websites, and plans making one, changing what it\nserves and deleting it, each as a change to apply or discard. A website is a\nproject of its own: Dockwell writes its route, and the service that serves it,\nfrom what you choose, such as a URL to send its requests to. Its domain gets its\ncertificate as any route's does, or none behind a tunnel or a proxy that ends\nTLS. See docs/adr/0039-websites-as-projects-of-their-own.md."},
 	}
@@ -2454,6 +2470,12 @@ func Kinds() []*apicli.Kind {
 				{Path: "telegram.bot_token", Help: "The bot's token, such as \"123456789:AAE…\", which BotFather gives.", Sensitive: true},
 				{Path: "telegram.chat_id", Help: "The chat, by its ID, such as \"-1001234567890\" for a group, or a channel's name, such as \"@example_alerts\". The bot has to be in it."},
 			},
+		},
+		{
+			Field: "server_host",
+			Noun:  "server-hosts",
+			Short: "A server's host: what Dockwell does to the server itself, kind \"server.host\", one for each server, named \"host\"",
+			Long:  "ServerHost is a server's host, kind \"server.host\": one for each server, named\n\"host\", made as the server joins. Installing its updates is an edit of it that\nmakes no revision, as a restart of a service is, with a plan, a passkey and an\nadmin (ADR 0064). Later settings of the server itself, such as whether it\ninstalls updates by itself, become fields here.",
 		},
 		{
 			Field: "task",

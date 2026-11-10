@@ -174,6 +174,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 			Reached: r.Reached,
 		}
 	}
+	p.Install = Install(s.Install)
 	if b := s.BackupFirst; b != nil {
 		p.BackupFirst = &dockwellv1.BackupFirst{BackupId: b.ID, Method: BackupMethod(b.Method), Database: b.Database, Stops: b.Stops, EstimateBytes: b.Estimate, Unmeasured: b.Unmeasured}
 	}
@@ -435,6 +436,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 			Reached: r.GetReached(),
 		}
 	}
+	s.Install = InstallFrom(p.GetInstall())
 	if b := p.GetBackupFirst(); b != nil {
 		s.BackupFirst = &resource.BackupFirst{ID: b.GetBackupId(), Method: BackupMethodFrom(b.GetMethod()), Database: b.GetDatabase(), Stops: b.GetStops(), Estimate: b.GetEstimateBytes(), Unmeasured: b.GetUnmeasured()}
 	}
@@ -447,4 +449,48 @@ func Duration(d time.Duration) *durationpb.Duration {
 		return nil
 	}
 	return durationpb.New(d)
+}
+
+// Install is an install's plan as the API says it; nil for none.
+func Install(in *resource.Install) *dockwellv1.PackageInstall {
+	if in == nil {
+		return nil
+	}
+	return &dockwellv1.PackageInstall{Packages: Packages(in.Packages), Reboot: in.Reboot, DockerRestarts: in.DockerRestarts, KeepsRunning: in.KeepsRunning}
+}
+
+// InstallFrom reads an install's plan as the API says it; nil for none.
+func InstallFrom(p *dockwellv1.PackageInstall) *resource.Install {
+	if p == nil {
+		return nil
+	}
+	return &resource.Install{Packages: PackagesFrom(p.GetPackages()), Reboot: p.GetReboot(), DockerRestarts: p.GetDockerRestarts(), KeepsRunning: p.GetKeepsRunning()}
+}
+
+// Packages are an install's packages as the API says them.
+func Packages(ps []resource.InstallPackage) []*dockwellv1.PackageUpdate {
+	out := make([]*dockwellv1.PackageUpdate, 0, len(ps))
+	for _, p := range ps {
+		u := &dockwellv1.PackageUpdate{Name: p.Name, Architecture: p.Architecture, Installed: p.From, Available: p.To, Origin: p.Origin, Security: p.Security}
+		switch {
+		case p.Reboot:
+			u.Effect = dockwellv1.PackageEffect_PACKAGE_EFFECT_REBOOT
+		case p.Docker:
+			u.Effect = dockwellv1.PackageEffect_PACKAGE_EFFECT_DOCKER_RESTART
+		}
+		out = append(out, u)
+	}
+	return out
+}
+
+// PackagesFrom reads an install's packages as the API says them.
+func PackagesFrom(ps []*dockwellv1.PackageUpdate) []resource.InstallPackage {
+	out := make([]resource.InstallPackage, 0, len(ps))
+	for _, u := range ps {
+		out = append(out, resource.InstallPackage{
+			Name: u.GetName(), Architecture: u.GetArchitecture(), From: u.GetInstalled(), To: u.GetAvailable(), Origin: u.GetOrigin(), Security: u.GetSecurity(),
+			Reboot: u.GetEffect() == dockwellv1.PackageEffect_PACKAGE_EFFECT_REBOOT, Docker: u.GetEffect() == dockwellv1.PackageEffect_PACKAGE_EFFECT_DOCKER_RESTART,
+		})
+	}
+	return out
 }

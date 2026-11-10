@@ -87,7 +87,8 @@ function makeStand() {
   const head = `#!/bin/sh\nFIX='${fixtures}'\nROOT='${stand}'\necho "$(basename "$0") $*" >> "$ROOT/calls"\n`;
   put(
     "usr/bin/apt-get",
-    `${head}case "$*" in\n*" update") sleep 1; touch "$ROOT/${lists}" ;;\n*" upgrade") cat "$FIX/apt-simulate-ubuntu.txt" ;;\nesac\n`,
+    // An install's simulation (ADR 0064) says what the read's does, as apt would for these packages.
+    `${head}case "$*" in\n*" update") sleep 1; touch "$ROOT/${lists}" ;;\n*" upgrade") cat "$FIX/apt-simulate-ubuntu.txt" ;;\n*"--simulate"*" install "*) cat "$FIX/apt-simulate-ubuntu.txt" ;;\nesac\n`,
     0o755,
   );
   put("usr/bin/dpkg-query", `${head}cat "$FIX/dpkg-query.txt"; exit 1\n`, 0o755);
@@ -232,8 +233,10 @@ async function main() {
 
   step("it leads with the security fixes, then the rest, as Server-Updates has them");
   await page.getByText("6 security updates are ready to install").waitFor();
-  await page.getByRole("button", { name: "Copy the upgrade command" }).first().waitFor();
-  await page.getByText("installs them within about a day", { exact: false }).first().waitFor();
+  // On apt, installing them is a plan away (ADR 0064).
+  await page.getByRole("button", { name: "Install security updates" }).waitFor();
+  await page.getByRole("button", { name: "Install every update" }).first().waitFor();
+  await page.getByText("installs them within about a day.", { exact: false }).first().waitFor();
   await page.getByText("6 from noble-security", { exact: false }).waitFor();
   const table = page.getByRole("table", { name: /^Security updates for / });
   await table.waitFor();
@@ -290,6 +293,29 @@ async function main() {
   await page.getByRole("button", { name: "Check now" }).click();
   await sleep(1500);
   if (refreshes() !== 2) fail("Check now refreshed twice within a minute");
+
+  step("Install security updates plans what the server simulated, what it pulls in too, and what restarts");
+  // The install's simulation, apart from the reads', which simulate an upgrade.
+  const simulated = () =>
+    readFileSync(join(stand, "calls"), "utf8")
+      .split("\n")
+      .filter((l) => l.startsWith("apt-get ") && l.includes("--simulate") && l.includes(" install -- ")).length;
+  await page.getByRole("button", { name: "Install security updates" }).click();
+  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const packages = plan.getByRole("list", { name: /^Packages it installs on / });
+  await packages.waitFor({ timeout: 30_000 });
+  await packages.getByRole("listitem").filter({ hasText: "openssl" }).getByText("→", { exact: false }).waitFor();
+  await packages
+    .getByRole("listitem")
+    .filter({ hasText: "linux-image-6.8.0-49-generic" })
+    .getByText("Pulled in")
+    .waitFor();
+  await plan.getByText(/^Docker restarts/).waitFor();
+  await plan.getByText("Applying this asks for your passkey").waitFor();
+  if (simulated() !== 1) fail(`the plan simulated the install ${simulated()} times, want once`);
+  await shoot(page, "install-plan");
+  await plan.getByRole("button", { name: "Cancel" }).click();
+  await plan.waitFor({ state: "hidden" });
 
   step("on a phone, a package a row, and the overview's card is one link");
   await page.setViewportSize({ width: 390, height: 844 });

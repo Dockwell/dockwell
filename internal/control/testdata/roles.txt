@@ -57,6 +57,7 @@ ChangeService.DiscardChange                    plan         developer  developer
 ChangeService.GetChange                        read         viewer     viewer     project
 ChangeService.ListChanges                      read         viewer     viewer     project
 ChangeService.ListDrift                        read         viewer     viewer     project
+ChangeService.PlanInstallUpdates               plan         admin      admin      install  session
 ChangeService.ProposeChange                    plan         developer  developer  project
 ChangeService.RestartService                   plan         developer  developer  project
 ChangeService.RevertDrift                      plan         developer  developer  project

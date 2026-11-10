@@ -315,7 +315,9 @@ func (d *Docker) nameClashes(ctx context.Context, t Target, spec *resourcev1.Con
 	for _, id := range also {
 		takingOn[id] = true
 	}
-	for _, want := range resource.DesiredIn(ctx) {
+	asked := resource.DesiredIn(ctx)
+	for di := range asked {
+		want := &asked[di]
 		if want.Adopt != "" {
 			takingOn[want.Adopt] = true
 		}

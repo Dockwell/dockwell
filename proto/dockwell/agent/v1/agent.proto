@@ -1487,6 +1487,20 @@ message DesiredResource {
   string scope_name = 9;
   // Backs up the resource's data as a step of this change, under this ID.
   string backup_id = 10;
+  // Installs updates on the server, for its host (ADR 0064). Numbered in the
+  // servers area's block, 230 to 239.
+  InstallUpdates install_updates = 232;
+}
+
+// InstallUpdates asks a server's host to install its updates.
+message InstallUpdates {
+  // The change, which names the install's unit, so a resume finds it.
+  string change_id = 1;
+  // Every update waiting, not only the security fixes, at planning.
+  bool all = 2;
+  // The packages the plan fixed, as the plan simulated them: empty at planning,
+  // and what a resume checks against.
+  repeated dockwell.v1.PackageUpdate packages = 3;
 }
 
 // CancelCall stops a call: its caller went away, or its time ran out.

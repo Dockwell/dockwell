@@ -53,6 +53,7 @@ func Commands() []string {
 		"resources",
 		"routes",
 		"secrets",
+		"server-hosts",
 		"servers",
 		"services",
 		"sessions",

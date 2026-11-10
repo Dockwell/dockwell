@@ -476,8 +476,8 @@ type anAgent struct{}
 
 func (anAgent) Plan(_ context.Context, desired []resource.Desired) ([]resource.Step, error) {
 	out := make([]resource.Step, len(desired))
-	for i, d := range desired {
-		out[i] = resource.Step{Ref: d.Ref, Decision: resource.Decision{Action: resource.ActionCreate}}
+	for i := range desired {
+		out[i] = resource.Step{Ref: desired[i].Ref, Decision: resource.Decision{Action: resource.ActionCreate}}
 	}
 	return out, nil
 }

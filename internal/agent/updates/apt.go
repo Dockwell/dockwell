@@ -21,6 +21,7 @@ const (
 	aptGet    = "/usr/bin/apt-get"
 	aptCache  = "/usr/bin/apt-cache"
 	dpkgQuery = "/usr/bin/dpkg-query"
+	dpkg      = "/usr/bin/dpkg"
 )
 
 // apt reads updates on Debian, Ubuntu and what's built on them.

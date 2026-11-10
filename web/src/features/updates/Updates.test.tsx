@@ -6,13 +6,20 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   AutomaticUpdatesSchema,
   BuildInfoSchema,
+  type Change,
+  ChangeSchema,
+  ChangeState,
   DockwellReleaseSchema,
   GetServerUpdatesResponseSchema,
   PackageEffect,
   PackageManager,
   PackageUpdateSchema,
+  PlanAction,
+  type PlanInstallUpdatesRequest,
   ServerInventorySchema,
   ServerUpdatesSchema,
+  Surface,
+  type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
@@ -22,7 +29,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { authError } from "../../test/auth";
-import { feed, onPhone, renderAt } from "../../test/render";
+import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { releaseStanding, splitVersion, summarize } from "./updates";
 
@@ -102,16 +109,53 @@ function answer(updates: MessageInitShape<typeof ServerUpdatesSchema> = {}, newe
   });
 }
 
-async function renderUpdates(get: () => ReturnType<typeof answer>, path = "/servers/srv_1/updates", check = vi.fn()) {
+async function renderUpdates(
+  get: () => ReturnType<typeof answer>,
+  path = "/servers/srv_1/updates",
+  check = vi.fn(),
+  more: Api = {},
+) {
   const watch = feed<WatchServersResponse>();
   watch.push(changed(hz1), snapshotComplete);
   const getServerUpdates = vi.fn(get);
   const rendered = renderAt(path, {
+    ...more,
     servers: { watchServers: watch.stream },
     updates: { getServerUpdates, checkServerUpdates: check },
   });
   await screen.findByRole("heading", { level: 1 });
   return { ...rendered, getServerUpdates, check };
+}
+
+/** The plan for hz-1's security fixes, as the server's agent simulated it: openssl, and what it pulls in. */
+function installPlan(): Change {
+  const host = { kind: "server.host", scope: "srv_1", name: "host" };
+  const install = {
+    packages: [
+      { name: "openssl", installed: "3.0.13-0ubuntu3.4", available: "3.0.13-0ubuntu3.5", security: true },
+      { name: "libssl-extra", available: "3.0.13-0ubuntu3.5", security: true },
+    ],
+    dockerRestarts: true,
+  };
+  return create(ChangeSchema, {
+    id: "chg_install",
+    summary: "Install security updates on hz-1",
+    state: ChangeState.PLANNED,
+    proposedVia: Surface.PANEL,
+    createTime: timestampFromDate(NOW),
+    plan: {
+      fingerprint: "f0e1d2c3b4a5968778695a4b3c2d1e0f",
+      hostAccess: true,
+      resources: [{ id: "res_host", resource: host, action: PlanAction.UPDATE, servers: ["srv_1"], install }],
+      servers: [
+        {
+          serverId: "srv_1",
+          serverName: "hz-1",
+          steps: [{ resourceId: "res_host", resource: host, action: PlanAction.UPDATE, install }],
+        },
+      ],
+    },
+  });
 }
 
 afterEach(() => {
@@ -162,12 +206,9 @@ describe("UpdatesPage", () => {
     const lead = await callout("3 security updates are ready to install");
     expect(lead).toHaveAttribute("role", "status");
     expect(lead).toHaveTextContent("One needs a reboot, and apps and websites go offline while hz-1 restarts.");
-    expect(lead).toHaveTextContent(
-      "unattended-upgrades installs them within about a day; the command installs every update waiting now.",
-    );
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    await user.click(within(lead).getByRole("button", { name: "Copy the upgrade command" }));
-    expect(await navigator.clipboard.readText()).toBe("sudo apt-get upgrade --with-new-pkgs");
+    expect(lead).toHaveTextContent("unattended-upgrades installs them within about a day.");
+    expect(within(lead).getByRole("button", { name: "Install security updates" })).toBeEnabled();
+    expect(within(lead).getByRole("button", { name: "Install every update" })).toBeEnabled();
     expect(screen.getByText("3 from noble-security · checked 20 min ago")).toBeVisible();
     const table = screen.getByRole("table", { name: "Security updates for hz-1" });
     const rows = within(table).getAllByRole("row").slice(1);
@@ -329,8 +370,65 @@ describe("UpdatesPage", () => {
     expect(await screen.findByRole("link", { name: "Updates 5" })).toBeVisible();
     const lead = await callout("5 security updates are ready to install");
     expect(lead).toHaveTextContent("2 need a reboot, and apps and websites go offline while hz-1 restarts.");
-    expect(lead).toHaveTextContent("Dockwell can't install them yet; the command installs every update waiting");
+    // The plan says the rest: what it installs, and that it takes a passkey.
+    expect(lead).not.toHaveTextContent("Review the plan");
+  });
+
+  it("installs the security fixes as a plan: what the server simulated, what it pulls in, and what follows", async () => {
+    const user = userEvent.setup();
+    const planInstallUpdates = vi.fn((_req: PlanInstallUpdatesRequest) => ({ change: installPlan() }));
+    await renderUpdates(() => answer(), "/servers/srv_1/updates", vi.fn(), {
+      changes: { planInstallUpdates, watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const lead = await callout("3 security updates are ready to install");
+    await user.click(within(lead).getByRole("button", { name: "Install security updates" }));
+    await waitFor(() => expect(planInstallUpdates).toHaveBeenCalledTimes(1));
+    expect(planInstallUpdates.mock.calls[0]?.[0]).toMatchObject({ serverIds: ["srv_1"], all: false });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(await within(sheet).findByText(/Install 2 packages on/)).toBeVisible();
+    const packages = within(sheet).getByRole("list", { name: "Packages it installs on hz-1" });
+    const rows = within(packages).getAllByRole("listitem");
+    expect(rows.map((r) => r.textContent)).toEqual([
+      "openssl 3.0.13-0ubuntu3.4 → 3.0.13-0ubuntu3.5Security fix",
+      "libssl-extra 3.0.13-0ubuntu3.5Pulled inSecurity fix",
+    ]);
+    expect(sheet).toHaveTextContent("Docker restarts: every app and website on hz-1 stops until it's back");
+    // As good as root, with no undo, and Docker's restart is the server's downtime.
+    expect(within(sheet).getByText("Applying this asks for your passkey")).toBeVisible();
+    expect(within(sheet).getByText("No undo")).toBeVisible();
+    expect(within(sheet).queryByText(/Undo for/)).toBeNull();
+    expect(within(sheet).getByText(/apps and websites stop while Docker restarts/)).toBeVisible();
+    expect(within(sheet).queryByText(/no downtime expected/)).toBeNull();
+
+    await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
+    await user.click(within(lead).getByRole("button", { name: "Install every update" }));
+    await waitFor(() => expect(planInstallUpdates).toHaveBeenCalledTimes(2));
+    expect(planInstallUpdates.mock.calls[1]?.[0]).toMatchObject({ serverIds: ["srv_1"], all: true });
+  });
+
+  it("offers every update in one step when none is a security fix", async () => {
+    await renderUpdates(() => answer({ packages: waiting.filter((p) => !p.security && p.name !== "docker-ce") }));
+    const lead = await callout("2 updates are ready to install");
+    expect(within(lead).getByRole("button", { name: "Install every update" })).toBeEnabled();
+    expect(within(lead).queryByRole("button", { name: "Install security updates" })).toBeNull();
+  });
+
+  it("points at no command where it has none to give", async () => {
+    await renderUpdates(() => answer({ manager: PackageManager.UNSPECIFIED }));
+    const lead = await callout("3 security updates are ready to install");
+    expect(lead).toHaveTextContent("unattended-upgrades installs them within about a day.");
+    expect(lead).not.toHaveTextContent("the command");
+    expect(within(lead).queryByRole("button", { name: "Copy the upgrade command" })).toBeNull();
+  });
+
+  it("gives the command on a server that doesn't install with apt, and offers no install", async () => {
+    await renderUpdates(() => answer({ manager: PackageManager.DNF, automatic: undefined }));
+    const lead = await callout("3 security updates are ready to install");
+    expect(lead).toHaveTextContent(
+      "Dockwell installs updates with apt for now; the command installs every update waiting, not only these.",
+    );
     expect(within(lead).getByRole("button", { name: "Copy the upgrade command" })).toBeVisible();
+    expect(within(lead).queryByRole("button", { name: /Install/ })).toBeNull();
   });
 
   it("refreshes the lists when asked, and asks again while it checks", async () => {

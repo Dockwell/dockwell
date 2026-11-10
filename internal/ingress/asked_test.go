@@ -87,10 +87,12 @@ func addAndRemove(t *testing.T, s *setup, prefix string, names int) error {
 	if err := s.Check(t.Context(), out[0].Ref, out); err != nil {
 		return err
 	}
-	for _, d := range out {
+	for di := range out {
+		d := &out[di]
 		s.apply(t, d.Ref.Name, d.Spec.(*resourcev1.Route))
 	}
-	for _, d := range out {
+	for di := range out {
+		d := &out[di]
 		s.apply(t, d.Ref.Name, nil)
 	}
 	return nil

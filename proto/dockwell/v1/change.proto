@@ -7,6 +7,7 @@ package dockwell.v1;
 import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/token.proto";
+import "dockwell/v1/update.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
@@ -183,6 +184,30 @@ service ChangeService {
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/services/{id}:restart"
+      body: "*"
+    };
+  }
+
+  // PlanInstallUpdates plans installing the package updates waiting on
+  // servers: the security fixes, or every update. Each server's agent
+  // simulates the exact install, versions pinned, and the plan lists every
+  // package it installs, those it pulls in too, whether a reboot follows and
+  // whether Docker restarts. It's a change with a plan and no revision, as a
+  // restart is: an upgrade can't be undone, and the plan says so. Applying it
+  // takes a person's passkey, as it runs as root on the server. See
+  // docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
+  rpc PlanInstallUpdates(PlanInstallUpdatesRequest) returns (PlanInstallUpdatesResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "updates"
+      verb: "install"
+    };
+    option (google.api.http) = {
+      post: "/v1/updates:planInstall"
       body: "*"
     };
   }
@@ -476,6 +501,38 @@ message RestartServiceRequest {
 message RestartServiceResponse {
   // The change, planned, with its plan.
   Change change = 1;
+}
+
+// PlanInstallUpdatesRequest names the servers and which updates to install.
+message PlanInstallUpdatesRequest {
+  // The servers, by ID. One server is a set of one.
+  repeated string server_ids = 1;
+  // Installs every update waiting, not only the security fixes.
+  bool all = 2;
+  // What the change is for, for the timeline. Empty says what it installs.
+  string summary = 3;
+}
+
+// PlanInstallUpdatesResponse carries the planned install.
+message PlanInstallUpdatesResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// PackageInstall is what installing a server's updates will do, as its package
+// manager simulated the exact command.
+message PackageInstall {
+  // Each package, from the version installed to the one it gets; a package the
+  // others pull in has none installed.
+  repeated PackageUpdate packages = 1;
+  // A package takes effect only after a reboot, which is a change of its own.
+  bool reboot = 2;
+  // Docker's engine restarts, and with it every container on the server and
+  // the domains Caddy serves there, unless keeps_running.
+  bool docker_restarts = 3;
+  // Docker keeps containers running while it restarts (live-restore), which
+  // holds across patch releases of the same version only.
+  bool keeps_running = 4;
 }
 
 // ListDriftRequest says where to look for drift.
@@ -925,6 +982,9 @@ message PlannedResource {
   // or reach in another way, which a person approves. The control plane
   // decides this from the specs, not from what the servers report.
   repeated HostAccess host_access = 8;
+  // What installing updates on its server will do, for a server's host the
+  // change installs on.
+  PackageInstall install = 9;
 }
 
 // HostAccess is something on a server that a resource reaches beyond what
@@ -1196,6 +1256,9 @@ message PlanStep {
   // is there, and a stranger's. Unset on a step that leaves SSH open to
   // anywhere.
   AccessStays stays = 43;
+  // What installing updates will do, for a step that installs them on a
+  // server's host: the agent's simulation of the exact command.
+  PackageInstall install = 45;
 }
 
 // AccessStays is who still reaches a server's SSH once a change that narrows

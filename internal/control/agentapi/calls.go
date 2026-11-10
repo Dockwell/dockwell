@@ -920,6 +920,13 @@ func (s *Session) notConnected() error {
 	return fault.New(resource.ErrNotConnected, "%s's agent disconnected before the call reached it, so it didn't run", s.name)
 }
 
+// Runs reports whether the agent has a driver for kind.
+func (s *Session) Runs(kind resource.Kind) bool {
+	s.kindsMu.Lock()
+	defer s.kindsMu.Unlock()
+	return slices.Contains(s.kinds, kind)
+}
+
 // supports refuses a kind the agent has no driver for, or can't run now,
 // with the agent's reason, such as Docker not running.
 func (s *Session) supports(ref resource.Ref) error {
@@ -950,14 +957,15 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		return nil, err
 	}
 	refs := make([]resource.Ref, len(desired))
-	for i, d := range desired {
-		refs[i] = d.Ref
+	for i := range desired {
+		refs[i] = desired[i].Ref
 	}
 	if err := s.checkReads(ctx, refs); err != nil {
 		return nil, err
 	}
 	call := &agentv1.PlanCall{}
-	for _, d := range desired {
+	for i := range desired {
+		d := &desired[i]
 		if err := s.supports(d.Ref); err != nil {
 			return nil, err
 		}
@@ -975,6 +983,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		dr.ScopeName = s.scopeName(ctx, d.Ref)
 		if b := d.Backup; b != nil {
 			dr.BackupId = b.ID
+		}
+		if in := d.Install; in != nil {
+			dr.InstallUpdates = &agentv1.InstallUpdates{ChangeId: in.Change, All: in.All, Packages: resourcepb.Packages(in.Packages)}
 		}
 		call.Desired = append(call.Desired, dr)
 	}
@@ -1155,7 +1166,8 @@ func (s *Session) checkReads(ctx context.Context, refs []resource.Ref) error {
 
 // checkAllWrites is checkWrites for all a plan asks of this agent.
 func (s *Session) checkAllWrites(desired []resource.Desired) error {
-	for _, d := range desired {
+	for di := range desired {
+		d := &desired[di]
 		if err := s.checkWrites(d.Ref, d.Spec); err != nil {
 			return err
 		}

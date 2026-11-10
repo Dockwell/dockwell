@@ -4,8 +4,10 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
+  ChangeService,
   type DockwellRelease,
   PackageEffect,
+  PackageManager,
   type PackageUpdate,
   type Server,
   type ServerUpdates,
@@ -29,6 +31,7 @@ import { type ReactNode, useId, useMemo, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { useControlPlaneNow } from "../servers/useFleet";
@@ -153,9 +156,25 @@ function Updates({ server }: { server: Server }) {
   );
 }
 
+/**
+ * Installing a server's updates as a plan (ADR 0064): the security fixes, or every update, each
+ * opening the plan sheet on what the server's agent simulated. Only apt installs for now.
+ */
+function useInstall(server: Server, updates: ServerUpdates) {
+  const transport = useTransport();
+  const sheet = useChangeSheet();
+  const may = useMay()(ChangeService.method.planInstallUpdates, { install: true });
+  const client = createClient(ChangeService, transport);
+  const offered = updates.manager === PackageManager.APT;
+  const open = (all: boolean) =>
+    sheet.open({ kind: "plan", make: () => client.planInstallUpdates({ serverIds: [server.id], all }) });
+  return { offered, may, open };
+}
+
 /** The one callout the tab leads with: what's most worth doing, or why what's here can't stand. */
 function Lead({ server, updates, summary }: { server: Server; updates: ServerUpdates; summary: UpdatesSummary }) {
   const { t } = useLingui();
+  const install = useInstall(server, updates);
   const command = upgradeCommand(updates.manager);
   const auto = updates.automatic;
   const tool = auto?.on ? auto.tool : "";
@@ -197,6 +216,32 @@ function Lead({ server, updates, summary }: { server: Server; updates: ServerUpd
               one: `One needs a reboot, and apps and websites go offline while ${name} restarts.`,
               other: `# need a reboot, and apps and websites go offline while ${name} restarts.`,
             });
+    if (install.offered) {
+      return (
+        <Callout
+          tone="warning"
+          title={title}
+          actions={
+            <>
+              <Button size="sm" variant="primary" onClick={() => install.open(false)} {...install.may.off}>
+                <Trans>Install security updates</Trans>
+              </Button>
+              <Button size="sm" onClick={() => install.open(true)} {...install.may.off}>
+                <Trans>Install every update</Trans>
+              </Button>
+            </>
+          }
+        >
+          {/* The plan says what it installs and that it takes a passkey; the lead says only what's urgent. */}
+          {rebooting ? `${rebooting} ` : null}
+          {tool ? (
+            <Trans>
+              <code>{tool}</code> installs them within about a day.
+            </Trans>
+          ) : null}
+        </Callout>
+      );
+    }
     const copy = command ? (
       <CopyAction
         text={command}
@@ -209,13 +254,36 @@ function Lead({ server, updates, summary }: { server: Server; updates: ServerUpd
       <Callout tone="warning" title={title} actions={copy}>
         {rebooting ? `${rebooting} ` : null}
         {tool ? (
-          <Trans>
-            <code>{tool}</code> installs them within about a day; the command installs every update waiting now.
-          </Trans>
+          command ? (
+            <Trans>
+              <code>{tool}</code> installs them within about a day; the command installs every update waiting now.
+            </Trans>
+          ) : (
+            <Trans>
+              <code>{tool}</code> installs them within about a day.
+            </Trans>
+          )
+        ) : command ? (
+          t`Dockwell installs updates with apt for now; the command installs every update waiting, not only these.`
         ) : (
-          t`Dockwell can't install them yet; the command installs every update waiting, not only these.`
+          t`Dockwell installs updates with apt for now, so install these with ${name}'s own package manager.`
         )}
       </Callout>
+    );
+  }
+  // Updates wait, none of them security fixes: installing them is one step away, quietly.
+  if (install.offered && summary.other.length > 0) {
+    const n = summary.other.length;
+    return (
+      <Callout
+        tone="info"
+        title={plural(n, { one: "# update is ready to install", other: "# updates are ready to install" })}
+        actions={
+          <Button size="sm" onClick={() => install.open(true)} {...install.may.off}>
+            <Trans>Install every update</Trans>
+          </Button>
+        }
+      />
     );
   }
   return null;

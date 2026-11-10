@@ -1027,7 +1027,8 @@ func (d *Driver) CheckPortsAt(ctx context.Context, t Target, c *resourcev1.Conta
 // run by hand is about to start with it.
 func (d *Driver) CheckPlan(ctx context.Context, want resource.Desired, all []resource.Desired) error {
 	var planned []Planned
-	for _, o := range all {
+	for di := range all {
+		o := &all[di]
 		if o.Ref.Kind != Kind {
 			continue
 		}

@@ -5181,6 +5181,9 @@ msgstr "about {span} down, and up to {bound} until healthy"
 msgid "about {span} down, if there is a newer image"
 msgstr "about {span} down, if there is a newer image"
 
+msgid "apps and websites stop while Docker restarts"
+msgstr "apps and websites stop while Docker restarts"
+
 msgid "no downtime expected"
 msgstr "no downtime expected"
 
@@ -5356,6 +5359,12 @@ msgstr "Brings back the data the server kept"
 msgid "Destroys data"
 msgstr "Destroys data"
 
+msgid "Docker restarts, and keeps containers running while it does"
+msgstr "Docker restarts, and keeps containers running while it does"
+
+msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
+msgstr "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
+
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 
@@ -5368,8 +5377,21 @@ msgstr "No downtime"
 msgid "No steps: it left the fleet"
 msgstr "No steps: it left the fleet"
 
+msgid "Nothing else restarts. It can't be undone: what it installs stays installed"
+msgstr "Nothing else restarts. It can't be undone: what it installs stays installed"
+
+msgid "Packages it installs on {server}"
+msgstr "Packages it installs on {server}"
+
+msgid "Pulled in"
+msgstr "Pulled in"
+
 msgid "Reaches {reach} on {server}"
 msgstr "Reaches {reach} on {server}"
+
+msgctxt "a package update"
+msgid "Security fix"
+msgstr "Security fix"
 
 msgid "Steps"
 msgstr "Steps"
@@ -5385,6 +5407,12 @@ msgstr "Takes out of use what its image keeps at {kept}, which the server keeps 
 
 msgid "Up to {stepBound} until healthy"
 msgstr "Up to {stepBound} until healthy"
+
+msgid "{n, plural, one {Install # package on} other {Install # packages on}}"
+msgstr "{n, plural, one {Install # package on} other {Install # packages on}}"
+
+msgid "{server} needs a reboot for this to take effect, which is a change of its own"
+msgstr "{server} needs a reboot for this to take effect, which is a change of its own"
 
 msgid "<0>{name}</0> is back as it was"
 msgstr "<0>{name}</0> is back as it was"
@@ -11513,6 +11541,9 @@ msgstr "{n, plural, one {# security update} other {# security updates}}"
 msgid "<0>{0}</0> · agent and control plane"
 msgstr "<0>{0}</0> · agent and control plane"
 
+msgid "<0>{tool}</0> installs them within about a day."
+msgstr "<0>{tool}</0> installs them within about a day."
+
 msgid "<0>{tool}</0> installs them within about a day; the command installs every update waiting now."
 msgstr "<0>{tool}</0> installs them within about a day; the command installs every update waiting now."
 
@@ -11568,12 +11599,15 @@ msgstr "Docker Engine"
 msgid "Docker and Dockwell"
 msgstr "Docker and Dockwell"
 
-msgid "Dockwell can't install them yet; the command installs every update waiting, not only these."
-msgstr "Dockwell can't install them yet; the command installs every update waiting, not only these."
-
 #. placeholder {0}: server.name
 msgid "Dockwell couldn't ask {0} for its updates"
 msgstr "Dockwell couldn't ask {0} for its updates"
+
+msgid "Dockwell installs updates with apt for now, so install these with {name}'s own package manager."
+msgstr "Dockwell installs updates with apt for now, so install these with {name}'s own package manager."
+
+msgid "Dockwell installs updates with apt for now; the command installs every update waiting, not only these."
+msgstr "Dockwell installs updates with apt for now; the command installs every update waiting, not only these."
 
 msgid "Dockwell refreshes them once they're a day old, when someone looks"
 msgstr "Dockwell refreshes them once they're a day old, when someone looks"
@@ -11585,6 +11619,12 @@ msgstr "From {0}"
 #. placeholder {0}: from.length
 msgid "From {0} sources"
 msgstr "From {0} sources"
+
+msgid "Install every update"
+msgstr "Install every update"
+
+msgid "Install security updates"
+msgstr "Install security updates"
 
 msgctxt "a package's version"
 msgid "Installed"
@@ -11730,6 +11770,9 @@ msgstr "{n, plural, one {# more is held back: {names}. An upgrade doesn't take i
 
 msgid "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
 msgstr "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
+
+msgid "{n, plural, one {# update is ready to install} other {# updates are ready to install}}"
+msgstr "{n, plural, one {# update is ready to install} other {# updates are ready to install}}"
 
 msgid "{newest} available"
 msgstr "{newest} available"

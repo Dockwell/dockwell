@@ -18,7 +18,16 @@ import type { ReactNode } from "react";
 
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
-import { asGoodAsRoot, changing, factAndRest, onlyIfNewer, reloadsProxy, shownName, startsStopped } from "./plan";
+import {
+  asGoodAsRoot,
+  changing,
+  factAndRest,
+  installs,
+  onlyIfNewer,
+  reloadsProxy,
+  shownName,
+  startsStopped,
+} from "./plan";
 import { namesARange, plain, type RolloutLine, useChangeWords } from "./words";
 
 /** One thing to know about a plan before applying it. */
@@ -61,7 +70,8 @@ export function needsConfirming(plan: Plan | undefined): boolean {
 
 /** Whether applying a plan asks for a passkey, as the control plane decides it: anything as good as root does. */
 export function needsPasskey(plan: Plan | undefined): boolean {
-  return plan !== undefined && accessOf(plan).some(asGoodAsRoot);
+  // An install's maintainer scripts run as root, which its plan says by what it installs.
+  return plan !== undefined && (accessOf(plan).some(asGoodAsRoot) || installs(plan));
 }
 
 /** How much worse one reach is than another, so the worst leads. */

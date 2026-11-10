@@ -188,9 +188,12 @@ type Server struct {
 	// backups takes backups, and those under way end with the control plane.
 	backups *backups.Handler
 	// tasks reads scheduled tasks' runs from the agents that run them.
-	tasks     *tasks.Handler
-	public    https.Source
-	changes   *revision.Engine
+	tasks   *tasks.Handler
+	public  https.Source
+	changes *revision.Engine
+	// hosts gives each server its host (ADR 0064), once its agent runs the kind.
+	hosts     *Hosts
+	store     *store.DB
 	stepGrace time.Duration
 	ports     *PublicPorts
 }
@@ -228,7 +231,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace}
 	ports.server = s
 	s.ports = ports
 	if s.stepGrace <= 0 {
@@ -248,6 +251,9 @@ func New(cfg Config) (*Server, error) {
 		cfg.Agents.CheckNaming(cfg.Secrets)
 	}
 	// A service's containers are named after what people call its environment.
+	if cfg.Changes != nil && cfg.Agents != nil && cfg.Store != nil {
+		s.hosts = &Hosts{DB: cfg.Store, Engine: cfg.Changes, Agents: cfg.Agents, Logger: cfg.Logger}
+	}
 	if cfg.Agents != nil && cfg.Store != nil {
 		cfg.Agents.NameScopes(scopeNames{db: cfg.Store})
 	}
@@ -658,6 +664,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	if s.backups != nil {
 		api.Go(func() { s.backups.KeepRunning(apiCtx) })
+	}
+	if s.hosts != nil {
+		api.Go(func() { s.hosts.Run(apiCtx) })
 	}
 	if s.tasks != nil {
 		s.tasks.Start(apiCtx)
