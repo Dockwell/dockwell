@@ -13,10 +13,14 @@ import (
 // An image reference, as Docker reads one: [registry/]name[:tag][@digest].
 // See the grammar in github.com/distribution/reference, which Docker uses.
 var (
-	pathPartRE  = regexp.MustCompile(`^[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*$`)
-	domainPart  = `(?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])`
-	registryRE  = regexp.MustCompile(`^(?:` + domainPart + `(?:\.` + domainPart + `)*|\[[0-9a-fA-F:.]+\])(?::[0-9]+)?$`)
-	tagRE       = regexp.MustCompile(`^\w[\w.-]{0,127}$`)
+	pathPartRE = regexp.MustCompile(`^[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*$`)
+	domainPart = `(?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])`
+	registryRE = regexp.MustCompile(`^(?:` + domainPart + `(?:\.` + domainPart + `)*|\[[0-9a-fA-F:.]+\])(?::[0-9]+)?$`)
+	// A tag's length, maxTagLen, is checked apart from its form: a counted
+	// repetition, such as {0,127}, compiles to that many copies of what it repeats,
+	// which every agent pays for as it starts (ADR 0060).
+	tagRE       = regexp.MustCompile(`^\w[\w.-]*$`)
+	maxTagLen   = 128
 	digestRE    = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*(?:[-_+.][A-Za-z][A-Za-z0-9]*)*:[0-9a-fA-F]{32,}$`)
 	maxImageLen = 255
 )
@@ -39,7 +43,7 @@ func CheckImage(ref string) error {
 	name, tag := rest, ""
 	if i := strings.LastIndex(rest, ":"); i > strings.LastIndex(rest, "/") {
 		name, tag = rest[:i], rest[i+1:]
-		if !tagRE.MatchString(tag) {
+		if len(tag) > maxTagLen || !tagRE.MatchString(tag) {
 			return fmt.Errorf("the image %q has the tag %q, which isn't one Docker takes. A tag is up to 128 letters, digits, underscores, dots and dashes, "+
 				"and doesn't start with a dot or a dash, such as 1.27 or v2-alpine", ref, tag)
 		}
