@@ -30,6 +30,7 @@ import { describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { SERVER } from "../../test/apps";
+import { openHowItWorks } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 
 function aBackup(init: MessageInitShape<typeof BackupSchema> = {}): Backup {
@@ -289,9 +290,16 @@ describe("the backups page", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Restore" }));
-    expect(await screen.findByText(/Everything in orders on hz-1 is replaced with the dump from/)).toBeVisible();
-    expect(screen.getByText(/PostgreSQL starts anew on an empty volume and loads the dump, 312 MB/)).toBeVisible();
-    expect(screen.getByText(/db and web stop while this happens/)).toBeVisible();
+    const risk = (await screen.findByRole("alert")).closest(".plan-risk") as HTMLElement;
+    expect(risk.querySelector(".dw-callout-title")).toHaveTextContent(
+      /^Everything in orders on hz-1 is replaced with the dump from/,
+    );
+    expect(within(risk).getAllByText("db and web stop while this happens.")[0]).toBeVisible();
+    // How it goes is one step away.
+    openHowItWorks(risk);
+    expect(
+      within(risk).getByText(/PostgreSQL starts anew on an empty volume and loads the dump, 312 MB/),
+    ).toBeVisible();
     expect(screen.queryByText(/wrote these files/)).toBeNull();
   });
 
@@ -316,10 +324,11 @@ describe("the backups page", () => {
     const warning = (await screen.findByText(/wrote these files/)).closest(".plan-risk");
     expect(warning).toHaveClass("dw-tone-warning");
     expect(warning).toHaveTextContent("postgres:16.4 wrote these files, and postgres:17.11 runs on them now");
-    expect(screen.getByText(/may not start on files from another release. Deploy postgres:16.4 first/)).toBeVisible();
-    expect(screen.getByText(/Everything in orders on hz-1 is replaced/).closest(".plan-risk")).not.toHaveClass(
-      "dw-tone-warning",
-    );
+    expect(
+      within(warning as HTMLElement).getByText("Deploy postgres:16.4 first, or restore a dump instead."),
+    ).toBeVisible();
+    expect(warning).toHaveTextContent("may not start on files from another release");
+    expect(screen.getByRole("alert")).toHaveTextContent(/^Everything in orders on hz-1 is replaced/);
   });
 
   it("says what a schedule costs, and plans it", async () => {
