@@ -100,9 +100,11 @@ export function ImageField({
   const where = { environment, server: server ?? "" };
   // Reading an image is the start of planning an app, which is a developer's (ADR 0059).
   const may = useMay();
-  const canSearch = may(ImageService.method.searchImages).allowed;
-  const canList = may(ImageService.method.listImageTags).allowed;
-  const canRead = may(ImageService.method.getImage).allowed;
+  // In the app's environment: a developer elsewhere who only views this one reads nothing here.
+  const place = environment ? { environment } : undefined;
+  const canSearch = may(ImageService.method.searchImages, place).allowed;
+  const canList = may(ImageService.method.listImageTags, place).allowed;
+  const canRead = may(ImageService.method.getImage, place).allowed;
 
   // Names while there's no tag, of Docker Hub's alone; a repository's tags after its colon.
   const term = useSettled(tag === undefined && !elsewhere(repository) ? repository : "", LOOK_AFTER_MS);
