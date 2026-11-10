@@ -371,9 +371,12 @@ func (r *reconciler) runs(ctx context.Context, rv resource.Reviver, rec desired.
 		case st.Running || !st.Wants:
 		case act && st.Failed != "":
 			r.start(look, rv, ref, st.Failed, st.ID, "")
-		case rec.Lost && st.Failed == "":
+		case rec.Lost && st.Failed == "" && st.Sole:
 			// Whether or not the control plane is there, and at once: nobody
-			// asked for this stop, and nothing else starts it again.
+			// asked for this stop, and nothing else starts it again. Only while
+			// it stands alone, as it did when the stop was settled: with another
+			// container beside it now, which is the service isn't the agent's
+			// to say.
 			r.start(look, rv, ref, "", st.ID, lostNote)
 		}
 		return

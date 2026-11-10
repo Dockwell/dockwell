@@ -615,3 +615,29 @@ func TestWithMoreThanOneAndNoStopKnownNothingIsStarted(t *testing.T) {
 		t.Fatalf("someone stopped the one that ran, and it stands %+v", st)
 	}
 }
+
+// What Docker stopped as it came back is started only while it stands alone. A
+// container that came to answer to the service since, as one made by hand, or a
+// rollout cut short, leaves the agent starting none of them.
+func TestALostOneIsntStartedBesideAnotherThatCameSince(t *testing.T) {
+	s := newStand(t)
+	s.run(t, webRef, nginx, nil)
+	lost := s.e.Container("web").ID
+	s.connected()
+	s.noted(t)
+	s.e.DaemonKilled()
+	s.noted(t)
+	if st := s.stands(t); !st.Lost {
+		t.Fatalf("it stands %+v; want lost", st)
+	}
+	select {
+	case <-s.r.lost: // the wake the settling sent
+	default:
+	}
+	s.revision = "1"
+	since := s.another(t, "2", "created")
+	s.r.startLost(t.Context())
+	s.presence.set(false, time.Now().Add(-time.Hour))
+	s.pass(t)
+	s.nothingStarted(t, lost, since)
+}
