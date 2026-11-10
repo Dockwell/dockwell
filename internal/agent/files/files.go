@@ -300,18 +300,32 @@ func PageAfter(page string) (string, error) {
 // pageToken is what a listing gives for the page after the name it ended on.
 func pageToken(after string) string { return base64.RawURLEncoding.EncodeToString([]byte(after)) }
 
+// holds reports a name that holds match, case aside, without a lowered copy of each
+// name: a search reads every name of a folder of any size. A name is at most 255
+// bytes, so trying each place in it costs little.
+func holds(name, match string) bool {
+	if match == "" {
+		return true
+	}
+	for i := 0; i+len(match) <= len(name); i++ {
+		if strings.EqualFold(name[i:i+len(match)], match) {
+			return true
+		}
+	}
+	return false
+}
+
 // pageOf reads a directory's names a chunk at a time and keeps the first
 // MaxEntries+1 in name order that come after after and hold match, case aside. So
 // a folder of any size lists from its first name, with memory for two pages of
 // names at most, whatever it holds.
 func pageOf(ctx context.Context, dir *os.File, after, match string) ([]string, error) {
 	keep := MaxEntries + 1
-	lower := strings.ToLower(match)
 	var names []string
 	for {
 		chunk, err := dir.Readdirnames(listChunk)
 		for _, n := range chunk {
-			if after != "" && n <= after || lower != "" && !strings.Contains(strings.ToLower(n), lower) {
+			if after != "" && n <= after || !holds(n, match) {
 				continue
 			}
 			names = append(names, n)

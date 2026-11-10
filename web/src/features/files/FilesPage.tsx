@@ -27,7 +27,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { isTransient } from "../../app/api";
 import { isRoleRefusal, reasonOf, sentence } from "../../lib/errors";
@@ -203,10 +203,14 @@ function opensAsFolder(entry: FileEntry): boolean {
 }
 
 /** Folders first, then by name, as the mock has them. */
-function rowsOf(entries: readonly FileEntry[]): Row[] {
+/** The rows of a listing: folders first, then by name; or by name alone, for a folder read a page at a time. */
+function rowsOf(entries: readonly FileEntry[], byNameAlone = false): Row[] {
   return entries
     .map((entry) => ({ name: entry.name, entry, folder: opensAsFolder(entry) }))
-    .sort((a, b) => Number(b.folder) - Number(a.folder) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    .sort(
+      (a, b) =>
+        (byNameAlone ? 0 : Number(b.folder) - Number(a.folder)) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+    );
 }
 
 /** What's open over the listing, if anything. */
@@ -266,11 +270,15 @@ function Files({ server, folder, file, reading }: FilesProps) {
   const serverId = server.id;
   const putBack = useRestore(serverId);
   const restoreProblem = useRestoreProblem(serverId);
-  // A refused listing is on record, so it isn't asked again each time the window takes focus.
+  // A refused listing is on record, so it isn't asked again each time the window takes focus; nor is a
+  // folder larger than a page, as its agent reads every name of it for each page.
   const query = useQuery(
     FileService.method.listFiles,
     { serverId, path: folder },
-    { retry: retryListing, refetchOnWindowFocus: (q) => q.state.status !== "error" },
+    {
+      retry: retryListing,
+      refetchOnWindowFocus: (q) => q.state.status !== "error" && !q.state.data?.nextPage,
+    },
   );
   const listing = query.data;
   const shown = listing?.path ?? folder;
@@ -285,39 +293,48 @@ function Files({ server, folder, file, reading }: FilesProps) {
     { retry: retryListing, refetchOnWindowFocus: false },
   );
   const first = searching ? search.data : listing;
-  // The pages after the first, in name order, as Show more brings them. They belong to the first page they
-  // followed, so another folder, another search or a first page read again starts over.
-  const [after, setAfter] = useState<{ first?: ListFilesResponse; pages: ListFilesResponse[]; problem?: string }>({
-    pages: [],
-  });
-  const more = after.first === first ? after.pages : [];
-  const moreProblem = after.first === first ? after.problem : undefined;
+  // The pages after the first, in name order, as Show more brings them. They belong to the folder, the search
+  // and where the first page ended, so a first page read again that ends where it did keeps them, and another
+  // folder or search starts over.
+  const pagesOf = `${folder}\0${searching ? wanted : ""}\0${first?.nextPage ?? ""}`;
+  const [after, setAfter] = useState<{ of?: string; pages: ListFilesResponse[]; problem?: string }>({ pages: [] });
+  const more = after.of === pagesOf ? after.pages : [];
+  const moreProblem = after.of === pagesOf ? after.problem : undefined;
   const [loadingMore, setLoadingMore] = useState(false);
   const nextPage = (more.at(-1) ?? first)?.nextPage ?? "";
   const transport = useTransport();
+  // A page asked for as the person leaves isn't read to its end for nobody.
+  const asking = useRef<AbortController | undefined>(undefined);
+  useEffect(() => () => asking.current?.abort(), []);
   const showMore = async () => {
-    const from = first;
+    const of = pagesOf;
+    asking.current?.abort();
+    const ask = new AbortController();
+    asking.current = ask;
     setLoadingMore(true);
     try {
-      const page = await createClient(FileService, transport).listFiles({
-        serverId,
-        path: folder,
-        match: searching ? wanted : "",
-        page: nextPage,
-      });
-      setAfter((was) => ({ first: from, pages: [...(was.first === from ? was.pages : []), page] }));
+      const page = await createClient(FileService, transport).listFiles(
+        { serverId, path: folder, match: searching ? wanted : "", page: nextPage },
+        { signal: ask.signal },
+      );
+      setAfter((was) => ({ of, pages: [...(was.of === of ? was.pages : []), page] }));
     } catch (err) {
-      setAfter((was) => ({ first: from, pages: was.first === from ? was.pages : [], problem: sentence(err) }));
+      if (ask.signal.aborted) return;
+      setAfter((was) => ({ of, pages: was.of === of ? was.pages : [], problem: sentence(err) }));
     } finally {
-      setLoadingMore(false);
+      if (asking.current === ask) setLoadingMore(false);
     }
   };
 
   const rows = useMemo(() => {
     const typed = filter.trim().toLowerCase();
-    const all = rowsOf([first, ...more].flatMap((page) => page?.entries ?? []));
+    // A folder read a page at a time lists by name alone, so a page brought later goes below what's shown.
+    const all = rowsOf(
+      [first, ...more].flatMap((page) => page?.entries ?? []),
+      big,
+    );
     return typed ? all.filter((row) => row.name.toLowerCase().includes(typed)) : all;
-  }, [first, more, filter]);
+  }, [first, more, filter, big]);
 
   const open = (row: Row) => {
     if (row.entry.unreadableName) return;

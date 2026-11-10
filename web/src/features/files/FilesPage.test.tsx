@@ -386,6 +386,59 @@ describe("FilesPage", () => {
     expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
   });
 
+  it("keeps a large folder's pages when the window takes focus, and doesn't read it again", async () => {
+    const listFiles = vi.fn((req: { page: string }) =>
+      req.page === "after-index"
+        ? create(ListFilesResponseSchema, { ...site, entries: [entry("zz-last.txt")] })
+        : create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 5 items/);
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(rowNames()).toContain("zz-last.txt"));
+    const asked = listFiles.mock.calls.length;
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(listFiles.mock.calls.length).toBe(asked);
+    expect(rowNames()).toContain("zz-last.txt");
+  });
+
+  it("puts a later page below what's shown, by name, folders and all", async () => {
+    const listFiles = vi.fn((req: { page: string }) =>
+      req.page === "after-b"
+        ? create(ListFilesResponseSchema, { ...site, entries: [folderEntry("c-dir"), entry("d.txt")] })
+        : create(ListFilesResponseSchema, {
+            ...site,
+            entries: [entry("a.txt"), entry("b.txt")],
+            truncated: true,
+            nextPage: "after-b",
+          }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 2 items/);
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(rowNames()).toEqual(["a.txt", "b.txt", "c-dir", "d.txt"]));
+  });
+
+  it("stops asking for a page once the person has left", async () => {
+    let signal: AbortSignal | undefined;
+    const listFiles = vi.fn((req: { page: string }, ctx: HandlerContext) => {
+      if (req.page !== "after-index")
+        return create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" });
+      signal = ctx.signal;
+      return untilAborted(ctx.signal).then(() => create(ListFilesResponseSchema, { ...site }));
+    });
+    const { unmount } = await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 5 items/);
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(signal).toBeDefined());
+    unmount();
+    await waitFor(() => expect(signal?.aborted).toBe(true));
+  });
+
   it("brings a large folder's next page, in name order, with Show more", async () => {
     const listFiles = vi.fn((req: { page: string }) =>
       req.page === "after-index"

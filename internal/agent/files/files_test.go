@@ -290,6 +290,26 @@ func TestALargeFolderListsInNameOrderAPageAtATime(t *testing.T) {
 	})
 }
 
+func TestASearchFindsANameCaseAsideWithoutCopyingIt(t *testing.T) {
+	for _, c := range []struct {
+		name, match string
+		want        bool
+	}{
+		{"Error.LOG", "error", true},
+		{"access.log", "ERR", false},
+		{"access.log", "", true},
+		{"ÉTÉ-2026.txt", "été", true},
+		{"a", "ab", false},
+	} {
+		if got := holds(c.name, c.match); got != c.want {
+			t.Errorf("holds(%q, %q) = %t, want %t", c.name, c.match, got, c.want)
+		}
+	}
+	if n := testing.AllocsPerRun(100, func() { holds("access-04999.log", "ERROR") }); n != 0 {
+		t.Errorf("a search allocates %v times a name", n)
+	}
+}
+
 func TestAListingStopsAtItsLimits(t *testing.T) {
 	d := newDisk(t)
 	t.Run("entries", func(t *testing.T) {
