@@ -1254,6 +1254,10 @@ msgstr "Alerts sections"
 msgid "Channels"
 msgstr "Channels"
 
+msgctxt "checks of a URL"
+msgid "Checks"
+msgstr "Checks"
+
 msgid "Nothing open"
 msgstr "Nothing open"
 
@@ -1276,8 +1280,11 @@ msgstr "{0, plural, one {sent to # channel} other {sent to # channels}}"
 msgid "{firing} open"
 msgstr "{firing} open"
 
-msgid "A group's ID, or a channel's name, such as @example_alerts. Add the bot to it first."
-msgstr "A group's ID, or a channel's name, such as @example_alerts. Add the bot to it first."
+msgid "A channel needs a name: lowercase letters, digits and dashes."
+msgstr "A channel needs a name: lowercase letters, digits and dashes."
+
+msgid "A group's ID or a channel's @name, with the bot added to it."
+msgstr "A group's ID or a channel's @name, with the bot added to it."
 
 msgid "Access token"
 msgstr "Access token"
@@ -1285,19 +1292,23 @@ msgstr "Access token"
 msgid "Add a channel"
 msgstr "Add a channel"
 
-#. placeholder {0}: form.name
-msgid "Add the alert channel {0}"
-msgstr "Add the alert channel {0}"
+msgid "Add the alert channel {name}"
+msgstr "Add the alert channel {name}"
 
-msgid "An address your SMTP server sends as."
-msgstr "An address your SMTP server sends as."
+msgid "An address the mail service sends as."
+msgstr "An address the mail service sends as."
+
+msgid "Another SMTP server"
+msgstr "Another SMTP server"
+
+msgid "Another channel has this name. Rules name a channel by it, so give this one another."
+msgstr "Another channel has this name. Rules name a channel by it, so give this one another."
 
 msgid "Bot token"
 msgstr "Bot token"
 
-#. placeholder {0}: form.name
-msgid "Change the alert channel {0}"
-msgstr "Change the alert channel {0}"
+msgid "Change the alert channel {name}"
+msgstr "Change the alert channel {name}"
 
 #. placeholder {0}: channel.name
 msgid "Change {0}"
@@ -1312,8 +1323,8 @@ msgstr "Dockwell didn't send it"
 msgid "Dockwell keeps it sealed. Leave it empty to keep it."
 msgstr "Dockwell keeps it sealed. Leave it empty to keep it."
 
-msgid "Dockwell posts each alert to it as JSON. It may hold a token, so it's kept sealed, and lists show only its host."
-msgstr "Dockwell posts each alert to it as JSON. It may hold a token, so it's kept sealed, and lists show only its host."
+msgid "Each alert is posted to it as JSON. Kept sealed; lists show its host."
+msgstr "Each alert is posted to it as JSON. Kept sealed; lists show its host."
 
 msgid "For a server or topic that asks for one."
 msgstr "For a server or topic that asks for one."
@@ -1321,29 +1332,38 @@ msgstr "For a server or topic that asks for one."
 msgid "From @BotFather, when you make the bot. It's kept sealed."
 msgstr "From @BotFather, when you make the bot. It's kept sealed."
 
-msgid "From the channel's settings, under Integrations, then Webhooks. Anyone with it can post there, so it's kept sealed."
-msgstr "From the channel's settings, under Integrations, then Webhooks. Anyone with it can post there, so it's kept sealed."
+msgid "From the channel's Integrations, then Webhooks. Kept sealed."
+msgstr "From the channel's Integrations, then Webhooks. Kept sealed."
 
-msgid "From your Slack app's Incoming Webhooks page. Anyone with it can post there, so it's kept sealed."
-msgstr "From your Slack app's Incoming Webhooks page. Anyone with it can post there, so it's kept sealed."
+msgid "From your Slack app's Incoming Webhooks. Kept sealed."
+msgstr "From your Slack app's Incoming Webhooks. Kept sealed."
 
-msgid "It said: {said}. Check what the form holds, then send another."
-msgstr "It said: {said}. Check what the form holds, then send another."
+msgid "It said: {said}."
+msgstr "It said: {said}."
+
+msgid "Its server changed, so give the password again."
+msgstr "Its server changed, so give the password again."
 
 msgid "Kept, sealed"
 msgstr "Kept, sealed"
 
-msgid "Lowercase letters, digits and dashes. Rules name a channel by it."
-msgstr "Lowercase letters, digits and dashes. Rules name a channel by it."
+msgid "Lowercase letters, digits and dashes, starting and ending with a letter or digit."
+msgstr "Lowercase letters, digits and dashes, starting and ending with a letter or digit."
+
+msgid "Made hard to guess, and kept sealed. Subscribe to it in the ntfy app."
+msgstr "Made hard to guess, and kept sealed. Subscribe to it in the ntfy app."
+
+msgid "Mail service"
+msgstr "Mail service"
 
 msgid "Name"
 msgstr "Name"
 
+msgid "Named {name}"
+msgstr "Named {name}"
+
 msgid "None, on this network"
 msgstr "None, on this network"
-
-msgid "On ntfy.sh anyone who knows a topic can read it, so this one is hard to guess, and kept sealed. Subscribe to it in the ntfy app."
-msgstr "On ntfy.sh anyone who knows a topic can read it, so this one is hard to guess, and kept sealed. Subscribe to it in the ntfy app."
 
 msgid "Password"
 msgstr "Password"
@@ -1351,12 +1371,17 @@ msgstr "Password"
 msgid "Port"
 msgstr "Port"
 
+msgid "Region"
+msgstr "Region"
+
 msgid "Remove"
 msgstr "Remove"
 
-#. placeholder {0}: form.name
-msgid "Remove the alert channel {0}"
-msgstr "Remove the alert channel {0}"
+msgid "Remove the alert channel {name}"
+msgstr "Remove the alert channel {name}"
+
+msgid "Rules name a channel by it."
+msgstr "Rules name a channel by it."
 
 msgid "SMTP server"
 msgstr "SMTP server"
@@ -1376,14 +1401,14 @@ msgstr "Sending a test…"
 msgid "Sends to"
 msgstr "Sends to"
 
-msgid "Sent only over TLS, and kept sealed. Changing the server, port, security or user asks for it again."
-msgstr "Sent only over TLS, and kept sealed. Changing the server, port, security or user asks for it again."
+msgid "Sent only over TLS, and kept sealed."
+msgstr "Sent only over TLS, and kept sealed."
 
 msgid "Signing secret"
 msgstr "Signing secret"
 
-msgid "Signs each request in a Dockwell-Signature header, so your endpoint can tell it came from this install."
-msgstr "Signs each request in a Dockwell-Signature header, so your endpoint can tell it came from this install."
+msgid "Signs each request, in a Dockwell-Signature header."
+msgstr "Signs each request, in a Dockwell-Signature header."
 
 msgid "TLS"
 msgstr "TLS"
@@ -1403,8 +1428,8 @@ msgstr "Topic"
 msgid "URL"
 msgstr "URL"
 
-msgid "Up to 10 addresses, separated by commas."
-msgstr "Up to 10 addresses, separated by commas."
+msgid "Up to 10, separated by commas."
+msgstr "Up to 10, separated by commas."
 
 msgid "User"
 msgstr "User"
@@ -1412,11 +1437,14 @@ msgstr "User"
 msgid "Webhook URL"
 msgstr "Webhook URL"
 
+msgid "no TLS"
+msgstr "no TLS"
+
 msgid "ntfy.sh unless you give a server of your own."
 msgstr "ntfy.sh unless you give a server of your own."
 
-msgid "{kindName} answered {said}. Look for a message titled Dockwell test message."
-msgstr "{kindName} answered {said}. Look for a message titled Dockwell test message."
+msgid "{kindName} answered {said}."
+msgstr "{kindName} answered {said}."
 
 msgid "A rule that names no channel sends to every one."
 msgstr "A rule that names no channel sends to every one."
@@ -1533,6 +1561,60 @@ msgstr "{failing, plural, one {# failing} other {# failing}}"
 msgid "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
 msgstr "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
 
+msgid "Address"
+msgstr "Address"
+
+msgid "Can't load the checks"
+msgstr "Can't load the checks"
+
+msgid "Every 15 min"
+msgstr "Every 15 min"
+
+msgid "Every 30 s"
+msgstr "Every 30 s"
+
+msgid "Every 5 min"
+msgstr "Every 5 min"
+
+msgid "Every minute"
+msgstr "Every minute"
+
+msgid "Inside the network"
+msgstr "Inside the network"
+
+msgid "Last answers"
+msgstr "Last answers"
+
+#. placeholder {0}: runs.length
+msgid "Last {0} runs"
+msgstr "Last {0} runs"
+
+msgid "No address is watched yet"
+msgstr "No address is watched yet"
+
+msgid "No answer yet"
+msgstr "No answer yet"
+
+msgctxt "how a check runs"
+msgid "Runs"
+msgstr "Runs"
+
+msgid "Watch an address"
+msgstr "Watch an address"
+
+msgid "Watch one from its app's or website's domain, and Dockwell alerts when it stops answering."
+msgstr "Watch one from its app's or website's domain, and Dockwell alerts when it stops answering."
+
+msgid "the control server"
+msgstr "the control server"
+
+#. placeholder {0}: run.status
+msgid "{0} in {ms} ms"
+msgstr "{0} in {ms} ms"
+
+msgid "{often} from {from}"
+msgstr "{often} from {from}"
+
 msgid "Alert rules"
 msgstr "Alert rules"
 
@@ -1634,6 +1716,136 @@ msgstr "{h} h {m} min"
 
 msgid "{m} min"
 msgstr "{m} min"
+
+msgid "Watch"
+msgstr "Watch"
+
+msgid "Watch {where}"
+msgstr "Watch {where}"
+
+msgid "Watched · {word}"
+msgstr "Watched · {word}"
+
+msgid "{where} is watched: {word}"
+msgstr "{where} is watched: {word}"
+
+msgid "Asking {host} from the control server…"
+msgstr "Asking {host} from the control server…"
+
+msgid "Change the check of {host}"
+msgstr "Change the check of {host}"
+
+msgid "Change the check of {host}, inside the network"
+msgstr "Change the check of {host}, inside the network"
+
+msgid "Dockwell asks it from the control server, and alerts when it stops answering."
+msgstr "Dockwell asks it from the control server, and alerts when it stops answering."
+
+msgid "Down after"
+msgstr "Down after"
+
+msgid "Every 15 minutes"
+msgstr "Every 15 minutes"
+
+msgid "Every 30 seconds"
+msgstr "Every 30 seconds"
+
+msgid "Every 5 minutes"
+msgstr "Every 5 minutes"
+
+msgid "How often"
+msgstr "How often"
+
+msgid "It alerts once it has been down {hold}, and reads up again after 2 passing runs in a row."
+msgstr "It alerts once it has been down {hold}, and reads up again after 2 passing runs in a row."
+
+#. placeholder {0}: run.status
+msgid "It answered {0} in {ms} ms."
+msgstr "It answered {0} in {ms} ms."
+
+#. placeholder {0}: run.status
+msgid "It answered {0}."
+msgstr "It answered {0}."
+
+#. placeholder {0}: run.said
+msgid "It didn't answer as it should: {0}."
+msgstr "It didn't answer as it should: {0}."
+
+msgid "It shows in plans and on Activity, so leave tokens and passwords out of it."
+msgstr "It shows in plans and on Activity, so leave tokens and passwords out of it."
+
+msgid "Leave the user and password out: a check asks as a visitor does."
+msgstr "Leave the user and password out: a check asks as a visitor does."
+
+msgid "Reach an address on the control server's private networks too. Without it, a check reaches the internet alone."
+msgstr "Reach an address on the control server's private networks too. Without it, a check reaches the internet alone."
+
+msgid "See every check"
+msgstr "See every check"
+
+msgid "Stop watching"
+msgstr "Stop watching"
+
+msgid "Stop watching {host}"
+msgstr "Stop watching {host}"
+
+msgid "Type the address to watch, such as https://shop.example.com/."
+msgstr "Type the address to watch, such as https://shop.example.com/."
+
+msgid "Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
+msgstr "Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
+
+msgid "Use an http or https address, such as https://shop.example.com/."
+msgstr "Use an http or https address, such as https://shop.example.com/."
+
+msgid "Watch this address"
+msgstr "Watch this address"
+
+msgid "Watch {host}"
+msgstr "Watch {host}"
+
+msgid "Watch {host}, inside the network"
+msgstr "Watch {host}, inside the network"
+
+msgid "Watching {host}"
+msgstr "Watching {host}"
+
+msgid "alerts every channel"
+msgstr "alerts every channel"
+
+msgid "alerts {names}"
+msgstr "alerts {names}"
+
+msgid "inside the network"
+msgstr "inside the network"
+
+msgid "the Address down rule is off, so nothing is sent"
+msgstr "the Address down rule is off, so nothing is sent"
+
+#. placeholder {0}: check.spec?.downAfter || CHECK_DEFAULTS.downAfter
+msgid "{0, plural, one {Dockwell asks again on its own, and the check reads down after # failed run.} other {Dockwell asks again on its own, and the check reads down after # failed runs in a row.}}"
+msgstr "{0, plural, one {Dockwell asks again on its own, and the check reads down after # failed run.} other {Dockwell asks again on its own, and the check reads down after # failed runs in a row.}}"
+
+msgid "{n, plural, one {# failed run} other {# failed runs}}"
+msgstr "{n, plural, one {# failed run} other {# failed runs}}"
+
+msgid "{n, plural, one {down after # failure} other {down after # failures}}"
+msgstr "{n, plural, one {down after # failure} other {down after # failures}}"
+
+msgctxt "check state"
+msgid "Down"
+msgstr "Down"
+
+msgctxt "check state"
+msgid "Failing"
+msgstr "Failing"
+
+msgctxt "check state"
+msgid "Up"
+msgstr "Up"
+
+msgid "Waiting for its first run"
+msgstr "Waiting for its first run"
 
 msgid "Discord"
 msgstr "Discord"
@@ -4501,9 +4713,6 @@ msgstr "Keep this passphrase somewhere else"
 msgid "MinIO or other S3 storage"
 msgstr "MinIO or other S3 storage"
 
-msgid "Named {name}"
-msgstr "Named {name}"
-
 msgid "No test"
 msgstr "No test"
 
@@ -4521,9 +4730,6 @@ msgstr "Passphrase"
 
 msgid "Passphrase copied"
 msgstr "Passphrase copied"
-
-msgid "Region"
-msgstr "Region"
 
 msgid "Secret key"
 msgstr "Secret key"
@@ -4675,9 +4881,6 @@ msgstr "Dockwell can't say yet what each backup takes, as this volume is empty o
 
 msgid "Hourly"
 msgstr "Hourly"
-
-msgid "How often"
-msgstr "How often"
 
 msgid "In UTC. Set the install's time zone in Settings to use another."
 msgstr "In UTC. Set the install's time zone in Settings to use another."
@@ -8939,9 +9142,6 @@ msgstr "{name} stopped."
 msgid "Action"
 msgstr "Action"
 
-msgid "Address"
-msgstr "Address"
-
 msgid "Allow"
 msgstr "Allow"
 
@@ -11326,9 +11526,6 @@ msgstr "Every day at {at}"
 
 msgid "Every hour at {at}"
 msgstr "Every hour at {at}"
-
-msgid "Every minute"
-msgstr "Every minute"
 
 msgid "Every weekday at {at}"
 msgstr "Every weekday at {at}"

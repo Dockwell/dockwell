@@ -22,6 +22,14 @@ const NO_REPEAT = new Set([Condition.CHANGE_FAILED]);
 /** Durations a person picks from, as a rule writes them: the control plane's own spelling, so an unchanged one compares equal. */
 const HOLDS = ["1m", "2m", "5m", "10m", "15m", "30m", "1h", "2h"];
 const LATE = ["15m", "30m", "1h", "2h", "6h", "12h"];
+/** How late a run is before it fires, when a rule doesn't say: the control plane's alert.DefaultLate. */
+const DEFAULT_LATE = "1h";
+
+/** The level a rule fires at when it doesn't say, as the control plane fills it in (alert.Rule.Validate). */
+function defaultThreshold(condition: Condition): number {
+  if (PERCENT.has(condition)) return 90;
+  return condition === Condition.CERTIFICATE_EXPIRING ? 14 : 0;
+}
 const REPEATS = ["", "10m", "30m", "1h", "4h", "12h", "24h", "168h"];
 const PERCENTS = [70, 75, 80, 85, 90, 95, 98];
 const DAYS = [3, 7, 14, 21, 30, 60];
@@ -49,8 +57,10 @@ export function RuleSheet({ rule, onClose }: { rule: AlertRuleInfo; onClose: () 
   const ruleName = rule.name;
   const condition = spec?.condition ?? Condition.UNSPECIFIED;
   const [on, setOn] = useState(!spec?.disabled);
-  const [threshold, setThreshold] = useState(spec?.threshold ?? 0);
-  const [duration, setDuration] = useState(spec?.duration ?? "");
+  // What's shown is what's planned: an empty level or wait starts at the default the control plane would fill in,
+  // so a rule left as it was plans no change either way.
+  const [threshold, setThreshold] = useState(spec?.threshold || defaultThreshold(condition));
+  const [duration, setDuration] = useState(spec?.duration || (condition === Condition.BACKUP_LATE ? DEFAULT_LATE : ""));
   const [severity, setSeverity] = useState(spec?.severity ?? Severity.WARNING);
   const [repeat, setRepeat] = useState(spec?.repeat ?? "");
   const [named, setNamed] = useState<string[]>(spec?.channels ?? []);
@@ -146,18 +156,19 @@ export function RuleSheet({ rule, onClose }: { rule: AlertRuleInfo; onClose: () 
                   label={
                     condition === Condition.DISK_FULL ? t`When a disk is fuller than` : t`When memory in use is over`
                   }
-                  value={String(threshold || 90)}
-                  options={(PERCENTS.includes(threshold) || threshold === 0 ? PERCENTS : [threshold, ...PERCENTS]).map(
-                    (p) => ({ value: String(p), label: `${p}%` }),
-                  )}
+                  value={String(threshold)}
+                  options={(PERCENTS.includes(threshold) ? PERCENTS : [threshold, ...PERCENTS]).map((p) => ({
+                    value: String(p),
+                    label: `${p}%`,
+                  }))}
                   onChange={(event) => setThreshold(Number(event.target.value))}
                 />
               ) : null}
               {condition === Condition.CERTIFICATE_EXPIRING ? (
                 <SelectField
                   label={t`When it expires within`}
-                  value={String(threshold || 14)}
-                  options={(DAYS.includes(threshold) || threshold === 0 ? DAYS : [threshold, ...DAYS]).map((d) => ({
+                  value={String(threshold)}
+                  options={(DAYS.includes(threshold) ? DAYS : [threshold, ...DAYS]).map((d) => ({
                     value: String(d),
                     label: t`${d} days`,
                   }))}
@@ -167,8 +178,8 @@ export function RuleSheet({ rule, onClose }: { rule: AlertRuleInfo; onClose: () 
               {condition === Condition.BACKUP_LATE ? (
                 <SelectField
                   label={t`When a run is late by`}
-                  value={duration || "1h"}
-                  options={withCurrent(LATE, duration || "1h").map((d) => ({ value: d, label: span(d) }))}
+                  value={duration}
+                  options={withCurrent(LATE, duration).map((d) => ({ value: d, label: span(d) }))}
                   onChange={(event) => setDuration(event.target.value)}
                 />
               ) : NO_DURATION.has(condition) ? null : (
