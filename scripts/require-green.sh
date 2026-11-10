@@ -13,7 +13,7 @@ set -euo pipefail
 
 sha=${1:?usage: scripts/require-green.sh <commit>}
 repo=${GITHUB_REPOSITORY:-Dockwell/dockwell}
-required=("Go" "API schema" "Licenses and links" "Panel")
+required=("Go" "API schema" "Licenses and links" "Panel" "Chaos on Docker")
 deadline=$((SECONDS + 20 * 60))
 
 if ! git merge-base --is-ancestor "$sha" origin/main; then

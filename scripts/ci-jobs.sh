@@ -35,11 +35,11 @@
 set -euo pipefail
 shopt -s inherit_errexit
 
-# Every job either workflow gates on what changed, in the order they're
+# Every job the workflows gate on what changed, in the order they're
 # listed. Licenses and links and Install, every job always run, and Build of
 # main runs on every pull request, as it can't run this before it builds.
 # every-leg isn't a job: it runs every install leg, not only some.
-ci_jobs="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load transfers-load e2e schema panel"
+ci_jobs="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel"
 install_jobs="snapshot budgets install systemd every-leg"
 every_job="$ci_jobs $install_jobs"
 
@@ -48,6 +48,7 @@ declare -A names=(
   [go]="Go" [docker-go]="Go on Docker" [caddy-go]="Go on Caddy" [docker-e2e]="Service end to end on Docker"
   [catalog-docker]="Catalog on Docker" [docker-panel]="Panel end to end on Docker" [logs-load]="Log load"
   [containers-load]="Hundreds of containers" [transfers-load]="Transfer load" [e2e]="Panel end to end" [schema]="API schema" [panel]="Panel"
+  [chaos]="Chaos on Docker"
   [snapshot]="Release snapshot" [budgets]="Memory budgets"
   [install]="Install on each image" [systemd]="Install with systemd" [every-leg]="every install leg"
 )
@@ -105,6 +106,7 @@ jobs_for() {
   .github/workflows/* | .github/actions/* | Makefile | scripts/ci-jobs.sh | scripts/ci-jobs-test.sh)
     echo "$every_job"
     ;;
+  scripts/chaos/* | scripts/chaos.sh) echo "go chaos" ;;
   *_test.go) echo "$gotest" ;;
   # go vet ./... compiles a Go file wherever it is, under docs/ too.
   *.go) echo "$go" ;;

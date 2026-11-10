@@ -20,9 +20,9 @@ failed=0
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
-all="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load transfers-load e2e schema panel snapshot budgets install systemd every-leg"
+all="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel snapshot budgets install systemd every-leg"
 # Go code: every CI job, the budgets, and some install legs.
-go="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load transfers-load e2e schema panel snapshot budgets install systemd"
+go="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel snapshot budgets install systemd"
 web="schema panel e2e docker-panel"
 install="snapshot install systemd every-leg"
 
@@ -66,6 +66,8 @@ picks "$go" proto/dockwell/v1/servers.proto gen/openapi/openapi.yaml
 picks "$go" scripts/docker-e2e.sh
 picks "$go" scripts/transfers-load.sh
 picks "$go" scripts/fakedocker/main.go
+picks "go chaos" scripts/chaos/main.go scripts/chaos.sh
+picks "go chaos" scripts/chaos/recovery_test.go
 picks "$go" scripts/check-panel-size.sh
 picks "$go" internal/catalog/catalog.go
 # go vet ./... compiles a Go file anywhere.
@@ -94,6 +96,7 @@ picks "$install" scripts/sigstore_trusted_root.json
 picks "snapshot budgets" scripts/budgets.sh
 picks "snapshot budgets $install" .goreleaser.yaml
 picks "$all" .github/workflows/ci.yml
+picks "$all" .github/workflows/chaos.yml
 picks "$all" Makefile
 picks "$all" scripts/ci-jobs.sh
 picks "$all" .gitignore
