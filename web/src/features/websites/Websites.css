@@ -348,6 +348,24 @@
   color: var(--warning);
 }
 
+/* What puts a state right, beside it, as a link reads. */
+.website-folder-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.website-folder-action:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 /* The runtimes, as Websites-List draws them under the list. */
 .websites-runtimes {
   display: flex;

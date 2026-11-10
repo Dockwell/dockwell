@@ -173,7 +173,8 @@ export function missing(s: Settings): Missing | undefined {
     case "php":
       if (s.root.trim() === "") return { field: "root", why: "root" };
       if (!s.root.trim().startsWith("/")) return { field: "root", why: "root-absolute" };
-      if (s.serves === "php" && s.user.trim() !== "" && !/^\d{1,10}$/.test(s.user.trim()))
+      // By number, as the server takes it: a user alone, or a user and a group, as it stores them.
+      if (s.serves === "php" && s.user.trim() !== "" && !/^\d{1,10}(:\d{1,10})?$/.test(s.user.trim()))
         return { field: "user", why: "user" };
       if (s.serves === "php" && s.uploadMB.trim() !== "" && !/^\d{1,4}$/.test(s.uploadMB.trim()))
         return { field: "uploadMB", why: "upload" };

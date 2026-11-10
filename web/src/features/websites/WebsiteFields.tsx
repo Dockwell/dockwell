@@ -9,6 +9,7 @@ import { useLingui } from "@lingui/react/macro";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
+import { useMay } from "../auth/may";
 import { nameOf, parentOf } from "../files/paths";
 import { indexOf, type Missing, type Serves, type Settings } from "./settings";
 import { useRuntimes } from "./website";
@@ -29,7 +30,7 @@ export function useMissingWords(): (m: Missing) => string {
       case "root-absolute":
         return t`Give the folder from the top, starting with /, such as /var/www/blog.`;
       case "user":
-        return t`Give the user by number, such as 1000.`;
+        return t`Give the user and group by number, such as 1000:1000.`;
       case "upload":
         return t`Give a number of MiB, such as 64.`;
     }
@@ -319,6 +320,10 @@ function FolderField({
   const { t } = useLingui();
   const transport = useTransport();
   const client = useMemo(() => createClient(FileService, transport), [transport]);
+  const mayList = useMay()(FileService.method.listFiles);
+  // Who PHP runs as, when the form filled it from the folder's owner, so it follows the
+  // folder until someone types another.
+  const filled = useRef("");
   const index = indexOf(s.index);
   // Lookups, as the folder note's are: the form reads them, not a person opening a folder, so
   // one the server refuses goes on no Activity.
@@ -344,37 +349,51 @@ function FolderField({
       label={t`Folder`}
       value={s.root}
       error={error}
-      // Sent back to it with something wrong, it's open, with the path to change.
+      // Sent back to it with something wrong, it's open, with the path to change, and
+      // stays open while that's fixed.
       defaultOpen={error !== undefined}
-      key={error === undefined ? "closed" : "refused"}
       list={list}
+      // Reading a server's folders is an admin's (ADR 0059): off, with why, for anyone else.
+      disabled={mayList.off.disabled}
+      off={mayList.reason || undefined}
       note={
-        was && s.root.trim() !== was.root ? (
-          <WasHint>{t`Was ${was.root}`}</WasHint>
-        ) : (
-          <FolderNote
-            server={server}
-            root={s.root}
-            serves={s.serves}
-            index={index.length > 0 ? index : s.serves === "php" ? ["index.php", "index.html"] : []}
-            onOwner={
-              s.serves === "folder"
-                ? (owner) => {
-                    if (owner !== s.owner) onChange({ ...s, owner });
-                  }
-                : undefined
-            }
-            user={s.serves === "php" ? phpUser(s.user) : undefined}
-            onFolderOwner={
-              s.serves === "php"
-                ? (owner) => {
-                    // What's typed stays: the note says when PHP can't write there.
-                    if (s.user.trim() === "") onChange({ ...s, user: owner });
-                  }
-                : undefined
-            }
-          />
-        )
+        <>
+          {was && s.root.trim() !== was.root ? (
+            <>
+              <WasHint>{t`Was ${was.root}`}</WasHint>{" "}
+            </>
+          ) : null}
+          {mayList.allowed ? (
+            <FolderNote
+              server={server}
+              root={s.root}
+              serves={s.serves}
+              index={index.length > 0 ? index : s.serves === "php" ? ["index.php", "index.html"] : []}
+              onOwner={
+                s.serves === "folder"
+                  ? (owner) => {
+                      if (owner !== s.owner) onChange({ ...s, owner });
+                    }
+                  : undefined
+              }
+              user={s.serves === "php" ? phpUser(s.user) : undefined}
+              onFolderOwner={
+                s.serves === "php"
+                  ? (owner) => {
+                      // PHP runs as the folder's owner, following the folder picked, until
+                      // someone types who it runs as: what's typed stays, and the note says
+                      // when PHP can't write there.
+                      const typed = s.user.trim();
+                      if (typed !== "" && typed !== filled.current) return;
+                      filled.current = owner;
+                      if (owner !== typed) onChange({ ...s, user: owner });
+                    }
+                  : undefined
+              }
+              onRunAs={s.serves === "php" ? (owner) => onChange({ ...s, user: owner }) : undefined}
+            />
+          ) : null}
+        </>
       }
       onChange={(root) => onChange({ ...s, root })}
     />
@@ -407,6 +426,7 @@ export function FolderNote({
   onOwner,
   user,
   onFolderOwner,
+  onRunAs,
 }: {
   server: string;
   root: string;
@@ -419,6 +439,8 @@ export function FolderNote({
   user?: string;
   /** Hears the owner of a folder that's there, for a PHP website to run as, as "uid:gid". */
   onFolderOwner?: (owner: string) => void;
+  /** Runs PHP as the folder's owner, as "uid:gid", from the state that says it can't write there. */
+  onRunAs?: (owner: string) => void;
 }) {
   const { t } = useLingui();
   const path = useSettled(root.trim().replace(/\/+$/, ""), READ_AFTER_MS);
@@ -489,7 +511,19 @@ export function FolderNote({
     }
     if (!canWrite(user, directory.mode, directory.uid, directory.gid)) {
       const theirs = `${directory.uid}:${directory.gid}`;
-      return say("warning", t`PHP runs as ${user} and can't write there. Its owner is ${theirs}.`);
+      return say(
+        "warning",
+        <>
+          {t`PHP runs as ${user} and can't write there.`}{" "}
+          {onRunAs ? (
+            <button type="button" className="website-folder-action" onClick={() => onRunAs(theirs)}>
+              {t`Run as ${theirs}`}
+            </button>
+          ) : (
+            t`Its owner is ${theirs}.`
+          )}
+        </>,
+      );
     }
   }
   const names = index.length > 0 ? index : ["index.html", "index.htm"];

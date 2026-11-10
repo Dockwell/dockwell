@@ -623,7 +623,8 @@ describe("A website that serves a folder", () => {
     expect(within(sheet).getByRole("textbox", { name: "Path" })).toHaveAttribute("aria-invalid", "true");
     await user.type(within(sheet).getByLabelText("Domain"), "shop.example.com");
     // The domain gave it a folder, so what it said of none goes.
-    expect(chosenFolder(sheet, "/var/www/shop.example.com")).toBeVisible();
+    // The picker stays open, as it was opened on what was refused, with the path it follows.
+    expect(within(sheet).getByRole("textbox", { name: "Path" })).toHaveValue("/var/www/shop.example.com");
     expect(within(sheet).queryByText(/Give the folder/)).not.toBeInTheDocument();
     expect(await within(sheet).findByText("New. Made with the site.", {}, { timeout: 3_000 })).toBeVisible();
     // A folder that isn't there is seen from the folder above, as asking for it would go on Activity as refused.
@@ -909,12 +910,12 @@ describe("A PHP website", () => {
     await user.clear(within(sheet).getByLabelText("Runs as"));
     await user.type(within(sheet).getByLabelText("Runs as"), "82:82");
     expect(
-      await within(sheet).findByText(
-        "PHP runs as 82:82 and can't write there. Its owner is 1000:1000.",
-        {},
-        { timeout: 3_000 },
-      ),
+      await within(sheet).findByText("PHP runs as 82:82 and can't write there.", {}, { timeout: 3_000 }),
     ).toBeVisible();
+    // The state comes with what puts it right.
+    await user.click(within(sheet).getByRole("button", { name: "Run as 1000:1000" }));
+    expect(within(sheet).getByLabelText("Runs as")).toHaveValue("1000:1000");
+    expect(await within(sheet).findByText("Holds index.php", {}, { timeout: 3_000 })).toBeVisible();
     await pickFolder(user, sheet, "/srv/roots");
     expect(
       await within(sheet).findByText("Root owns it, so PHP can't save uploads there.", {}, { timeout: 3_000 }),
@@ -925,6 +926,166 @@ describe("A PHP website", () => {
     await pickFolder(user, sheet, "/srv/linked");
     expect(await within(sheet).findByText("Holds index.php", {}, { timeout: 3_000 })).toBeVisible();
   }, 30_000);
+
+  it("plans a site in a folder that's there as the folder's owner, without opening Advanced", async () => {
+    const user = userEvent.setup();
+    let asked: CreateWebsiteRequest | undefined;
+    renderAt(
+      "/websites/new?php=8.3",
+      api([], {
+        websites: {
+          createWebsite: (req) => {
+            asked = req;
+            return { change: planned };
+          },
+        },
+        files: {
+          listFiles: disk({ "/var/www/shop.example.com": { mode: "drwxr-xr-x", entries: [entry("index.php")] } }),
+        },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await user.click(within(sheet).getByLabelText("Domain"));
+    await user.paste("shop.example.com");
+    expect(await within(sheet).findByText("Holds index.php", {}, { timeout: 3_000 })).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveAccessibleDescription(
+      "Runs as 1000:1000 · 64 MiB uploads",
+    );
+    // What the form filled in, it takes: uid:gid, as the server stores it.
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.website?.serves.value).toMatchObject({ user: "1000:1000" });
+    expect(within(sheet).queryByText(/Give the user/)).not.toBeInTheDocument();
+  });
+
+  it("keeps Advanced open while a field in it that was refused is fixed", async () => {
+    const user = userEvent.setup();
+    renderAt("/websites/new?php=8.3", api([]));
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await user.type(within(sheet).getByLabelText("Domain"), "shop.example.com");
+    await openAdvanced(user, sheet);
+    await user.type(within(sheet).getByLabelText("Runs as"), "www");
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    // Refused, it opens on the field, and one key clearing the error doesn't fold it away.
+    const field = await within(sheet).findByLabelText("Runs as");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(within(sheet).getByText("Give the user and group by number, such as 1000:1000.")).toBeVisible();
+    await user.clear(field);
+    await user.type(field, "1");
+    expect(within(sheet).getByLabelText("Runs as")).toHaveValue("1");
+    expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("follows the folder picked with who PHP runs as, until that's typed", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/websites/new?php=8.3",
+      api([], {
+        files: {
+          listFiles: disk({
+            "/srv/mine": { mode: "drwxr-xr-x", entries: [entry("index.php")] },
+            "/srv/theirs": { mode: "drwxr-xr-x", uid: 33, entries: [entry("index.php")] },
+          }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    const advanced = within(sheet).getByRole("button", { name: "Advanced" });
+    await pickFolder(user, sheet, "/srv/mine");
+    await waitFor(() => expect(advanced).toHaveAccessibleDescription("Runs as 1000:1000 · 64 MiB uploads"), {
+      timeout: 3_000,
+    });
+    await pickFolder(user, sheet, "/srv/theirs");
+    await waitFor(() => expect(advanced).toHaveAccessibleDescription("Runs as 33:33 · 64 MiB uploads"), {
+      timeout: 3_000,
+    });
+    // Typed, it stays, and the note says when PHP can't write there.
+    await openAdvanced(user, sheet);
+    await user.clear(within(sheet).getByLabelText("Runs as"));
+    await user.type(within(sheet).getByLabelText("Runs as"), "1000");
+    await pickFolder(user, sheet, "/srv/mine");
+    expect(await within(sheet).findByText("Holds index.php", {}, { timeout: 3_000 })).toBeVisible();
+    expect(within(sheet).getByLabelText("Runs as")).toHaveValue("1000");
+  }, 30_000);
+
+  it("opens a stored site that runs as a user and group as valid", async () => {
+    onWideScreen();
+    const both = create(WebsiteInfoSchema, {
+      id: "prj_shop",
+      name: "shop-example-com",
+      domain: "shop.example.com",
+      spec: {
+        serves: {
+          case: "php",
+          value: {
+            root: "/var/www/shop",
+            version: "8.3",
+            index: [],
+            user: "1000:1000",
+            uploadLimitMb: 0,
+            filesOnly: false,
+          },
+        },
+      },
+      environmentId: "env_shop",
+      serviceId: "svc_shopweb",
+      phpServiceId: "svc_shopphp",
+      routeId: "rte_shop",
+      updateTime: timestampFromDate(new Date(2026, 9, 13, 12)),
+      serverId: SERVER,
+      serverName: "hz-1",
+    });
+    renderAt(
+      "/websites/prj_shop/configuration",
+      api([both], {
+        files: { listFiles: disk({ "/var/www/shop": { mode: "drwxr-xr-x", entries: [entry("index.php")] } }) },
+      }),
+    );
+    expect(await screen.findByRole("heading", { level: 1, name: "shop.example.com" })).toBeVisible();
+    expect(await screen.findByText("Valid")).toBeVisible();
+    expect(screen.queryByText("Not valid")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Give the user/)).not.toBeInTheDocument();
+  });
+
+  it("says what a site's folder was and what's in the one picked, as it changes", async () => {
+    onWideScreen();
+    const user = userEvent.setup();
+    renderAt(
+      "/websites/prj_docs/configuration",
+      api([docs], {
+        files: {
+          listFiles: disk({
+            "/var/www/docs": { mode: "drwxr-xr-x", entries: [entry("index.html")] },
+            "/srv/site": { mode: "drwxr-xr-x", entries: [entry("readme.md")] },
+          }),
+        },
+      }),
+    );
+    expect(await screen.findByRole("heading", { level: 1, name: "docs.example.com" })).toBeVisible();
+    await pickFolder(user, document.body, "/srv/site");
+    expect(await screen.findByText("Was /var/www/docs")).toBeVisible();
+    // The live check stays beside it, where the edit needs it most.
+    expect(
+      await screen.findByText("No index.html here yet, so it answers 404 until there is.", {}, { timeout: 3_000 }),
+    ).toBeVisible();
+  });
+
+  it("keeps a refused folder's picker open while its path is fixed", async () => {
+    const user = userEvent.setup();
+    renderAt("/websites/new", api([]));
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    const path = within(sheet).getByRole("textbox", { name: "Path" });
+    expect(path).toHaveAttribute("aria-invalid", "true");
+    // The form takes you to the first field refused, the domain, on the next frame.
+    await waitFor(() => expect(within(sheet).getByLabelText("Domain")).toHaveFocus());
+    await user.type(path, "/srv/x");
+    // The first key clears what was refused, and the picker stays where it's typed in.
+    expect(within(sheet).getByRole("textbox", { name: "Path" })).toHaveValue("/srv/x");
+    expect(within(sheet).getByRole("textbox", { name: "Path" })).toHaveFocus();
+  });
 
   it("opens on how each part of it runs, and what it serves", async () => {
     onWideScreen();

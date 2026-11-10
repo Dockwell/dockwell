@@ -131,7 +131,15 @@ export function WebsiteFiles() {
         ) : listed.error ? (
           reasonOf(listed.error) === "not_found" ? (
             <div className="website-files-note">
-              <Callout tone="warning" title={t`The folder isn't on the server`} />
+              <Callout
+                tone="warning"
+                title={t`The folder isn't on the server`}
+                actions={
+                  <RouterButtonLink to="/websites/$websiteId/configuration" params={{ websiteId: site.id }} size="sm">
+                    <Trans>Change the folder</Trans>
+                  </RouterButtonLink>
+                }
+              />
             </div>
           ) : (
             <div className="website-files-note">

@@ -12305,8 +12305,8 @@ msgstr "Give the folder from the top, starting with /, such as /var/www/blog."
 msgid "Give the folder that holds its files, such as /var/www/blog."
 msgstr "Give the folder that holds its files, such as /var/www/blog."
 
-msgid "Give the user by number, such as 1000."
-msgstr "Give the user by number, such as 1000."
+msgid "Give the user and group by number, such as 1000:1000."
+msgstr "Give the user and group by number, such as 1000:1000."
 
 msgid "Goes to index.php, as WordPress and Laravel want"
 msgstr "Goes to index.php, as WordPress and Laravel want"
@@ -12323,6 +12323,9 @@ msgstr "Index files"
 msgid "It sees every visitor as local, so the plan asks you to approve it."
 msgstr "It sees every visitor as local, so the plan asks you to approve it."
 
+msgid "Its owner is {theirs}."
+msgstr "Its owner is {theirs}."
+
 msgid "New. Made with the site, for PHP to write in."
 msgstr "New. Made with the site, for PHP to write in."
 
@@ -12338,8 +12341,8 @@ msgstr "No {first} here yet, so it answers 404 until there is."
 msgid "PHP"
 msgstr "PHP"
 
-msgid "PHP runs as {user} and can't write there. Its owner is {theirs}."
-msgstr "PHP runs as {user} and can't write there. Its owner is {theirs}."
+msgid "PHP runs as {user} and can't write there."
+msgstr "PHP runs as {user} and can't write there."
 
 msgid "PHP version"
 msgstr "PHP version"
@@ -12356,6 +12359,9 @@ msgstr "PHP {0} · {1}"
 
 msgid "Root owns it, so PHP can't save uploads there."
 msgstr "Root owns it, so PHP can't save uploads there."
+
+msgid "Run as {theirs}"
+msgstr "Run as {theirs}"
 
 msgid "Runs as"
 msgstr "Runs as"
@@ -12412,6 +12418,9 @@ msgstr "What isn't a file"
 
 msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
 msgstr "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
+
+msgid "Change the folder"
+msgstr "Change the folder"
 
 msgid "Changed"
 msgstr "Changed"

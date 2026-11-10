@@ -153,7 +153,8 @@ export function NewWebsiteSheet({
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (busy) return;
+    // Enter and Ctrl+Enter follow the role, as the button does.
+    if (busy || !mayCreate.allowed) return;
     const domainOk = typed !== "" && !/\s/.test(typed);
     const gap = missing(settings);
     const named = proxyList(proxies);
@@ -222,6 +223,10 @@ export function NewWebsiteSheet({
     { value: "port", hint: t`Something listening on this server, such as port 3000.` },
   ];
   const fieldErrors = fieldError ? { [fieldError.field]: fieldError.said } : {};
+  // A section that holds what was refused opens, and stays open until it's closed by
+  // hand, so fixing the field doesn't fold it away under the cursor.
+  if (fieldError !== undefined && ADVANCED_FIELDS.includes(fieldError.field) && !moreOpen) setMoreOpen(true);
+  if (proxiesError !== undefined && !httpsOpen) setHttpsOpen(true);
   const onFields = (next: Settings) => {
     if (next.root !== settings.root) rootTyped.current = true;
     setSettings(next);
@@ -353,7 +358,7 @@ export function NewWebsiteSheet({
           <Advanced
             summary={summary(settings)}
             // A field it holds that was refused is shown, ready to change.
-            open={moreOpen || (fieldError !== undefined && ADVANCED_FIELDS.includes(fieldError.field))}
+            open={moreOpen}
             onOpenChange={setMoreOpen}
           >
             <WebsiteFields
@@ -375,7 +380,7 @@ export function NewWebsiteSheet({
                 ? t`Off: plain HTTP to anyone`
                 : t`Handled in front of this server`
           }
-          open={httpsOpen || proxiesError !== undefined}
+          open={httpsOpen}
           onOpenChange={setHttpsOpen}
         >
           <FrontFields

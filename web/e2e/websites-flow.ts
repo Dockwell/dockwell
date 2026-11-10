@@ -140,8 +140,12 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await sheet.getByText("Name the domain, such as blog.example.com.").waitFor();
   await sheet.getByText("Give the folder that holds its files, such as /var/www/blog.").waitFor();
   await sheet.getByRole("textbox", { name: "Domain", exact: true }).fill("blog.example.net");
-  // The folder is picked, not typed: one line with Change, which follows the domain.
-  await sheet.getByRole("button", { name: "Change the folder, /var/www/blog.example.net" }).waitFor();
+  // The folder is picked, not typed. Refused a moment ago, its picker stays open while
+  // it's fixed, and its path follows the domain.
+  const path = sheet.getByRole("textbox", { name: "Path", exact: true });
+  if ((await path.inputValue()) !== "/var/www/blog.example.net") {
+    fail(`the folder doesn't follow the domain: ${await path.inputValue()}`);
+  }
   // With several servers, the sheet asks which, as a website runs on one.
   const where = sheet.getByRole("combobox", { name: "Server" });
   if ((await where.count()) > 0) {

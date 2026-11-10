@@ -12305,8 +12305,8 @@ msgstr "请从根目录写起，以 / 开头，例如 /var/www/blog。"
 msgid "Give the folder that holds its files, such as /var/www/blog."
 msgstr "请填写存放网站文件的文件夹，例如 /var/www/blog。"
 
-msgid "Give the user by number, such as 1000."
-msgstr "请用数字填写用户，例如 1000。"
+msgid "Give the user and group by number, such as 1000:1000."
+msgstr "请用编号填写用户和组，例如 1000:1000。"
 
 msgid "Goes to index.php, as WordPress and Laravel want"
 msgstr "交给 index.php，符合 WordPress 和 Laravel 的要求"
@@ -12323,6 +12323,9 @@ msgstr "首页文件"
 msgid "It sees every visitor as local, so the plan asks you to approve it."
 msgstr "它会把每个访客都视为本地访客，因此计划会请你批准。"
 
+msgid "Its owner is {theirs}."
+msgstr "其所有者是 {theirs}。"
+
 msgid "New. Made with the site, for PHP to write in."
 msgstr "新文件夹。随网站一起创建，供 PHP 写入。"
 
@@ -12338,8 +12341,8 @@ msgstr "这里还没有 {first}，在它出现之前会返回 404。"
 msgid "PHP"
 msgstr "PHP"
 
-msgid "PHP runs as {user} and can't write there. Its owner is {theirs}."
-msgstr "PHP 以 {user} 运行，无法写入此处。其所有者是 {theirs}。"
+msgid "PHP runs as {user} and can't write there."
+msgstr "PHP 以 {user} 运行，无法写入此处。"
 
 msgid "PHP version"
 msgstr "PHP 版本"
@@ -12356,6 +12359,9 @@ msgstr "PHP {0} · {1}"
 
 msgid "Root owns it, so PHP can't save uploads there."
 msgstr "它归 root 所有，因此 PHP 无法在此保存上传的文件。"
+
+msgid "Run as {theirs}"
+msgstr "以 {theirs} 运行"
 
 msgid "Runs as"
 msgstr "运行用户"
@@ -12412,6 +12418,9 @@ msgstr "不是文件的路径"
 
 msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
 msgstr "{others, plural, other {包含 {found} 及另外 # 项}}"
+
+msgid "Change the folder"
+msgstr "更改文件夹"
 
 msgid "Changed"
 msgstr "更改于"
