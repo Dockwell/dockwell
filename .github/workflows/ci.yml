@@ -198,6 +198,9 @@ jobs:
     # Pebble, which the script fetches (ADR 0024), with Dockwell as root, as on a
     # server.
     env:
+      # Ubuntu's packages from the mirror beside the runners: the public one took 11 minutes
+      # for one read on 2026-11-10, and the step with it its whole deadline (#391).
+      E2E_UBUNTU_MIRROR: http://azure.archive.ubuntu.com/ubuntu/
       E2E_PANEL: "1"
       E2E_ROOT: "1"
     steps:

@@ -401,6 +401,13 @@ export DEBIAN_FRONTEND=noninteractive
 # try a download again, and give up on one after 30 s. The reader's own refresh, in
 # this container, reads the same settings.
 printf '%s\n' 'Acquire::ForceIPv4 "true";' 'Acquire::Retries "3";' 'Acquire::http::Timeout "30";' >/etc/apt/apt.conf.d/99-e2e-network
+# Where the run names a mirror for Ubuntu, as CI does with the one beside its runners,
+# the archive and security pockets are read from it: the suites, and so what counts as
+# a security fix, stay the same. Debian keeps its own.
+if [ -n "${E2E_UBUNTU_MIRROR:-}" ] && [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+  sed -i -E "s#^URIs: http://(archive|security)\\.ubuntu\\.com/ubuntu/?#URIs: $E2E_UBUNTU_MIRROR#" /etc/apt/sources.list.d/ubuntu.sources
+  echo "raw Ubuntu's packages come from $E2E_UBUNTU_MIRROR" >&2
+fi
 apt-get -qq update >/dev/null
 for p in less tzdata tar gzip bash libssl3 libgnutls30 libsystemd0 libudev1 gpgv libsqlite3-0; do
   count=$(apt-cache madison "$p" | awk -F'|' '{ gsub(/ /, "", $2); print $2 }' | sort -u | wc -l)
@@ -464,13 +471,13 @@ SH
 # JSON on standard output. It runs in a command substitution, so its caller fails
 # for it, by the reader's exit.
 read_updates() {
-  docker run --rm -v "$updates_bin:/usr/local/bin/dockwell-updates:ro" \
+  docker run --rm -e E2E_UBUNTU_MIRROR="${E2E_UBUNTU_MIRROR:-}" -v "$updates_bin:/usr/local/bin/dockwell-updates:ro" \
     -v "$rollout_dir/prepare-$2.sh:/prepare.sh:ro" -v "$rollout_dir/after-$2.sh:/after.sh:ro" "$1" \
     sh -c 'sh /prepare.sh || exit; dockwell-updates; code=$?; sh /after.sh >&2; exit $code' 2>"$rollout_dir/said"
 }
 said() { cat "$rollout_dir/said"; }
 # What a package mirror that is down, slow or half way through a sync leaves in what the tools print.
-mirror_trouble='Failed to fetch|Some index files failed to download|Mirror sync in progress|Could not resolve|Temporary failure|Cannot initiate the connection|Connection timed out|Timeout was reached|Curl error|temporary error'
+mirror_trouble='Failed to fetch|Some index files failed to download|Mirror sync in progress|Could not resolve|Temporary failure|Cannot initiate the connection|Connection timed out|Timeout was reached|Curl error|temporary error|didn.t finish within'
 # read_updates_patiently IMAGE KIND is read_updates, tried up to three times while
 # the mirror is what fails: the reader's exit or its refresh error, with one of the
 # lines above in what was said. Anything else fails at once, as before. It says on
