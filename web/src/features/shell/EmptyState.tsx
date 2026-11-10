@@ -9,8 +9,8 @@ export interface EmptyStateProps {
   icon: IconName;
   /** The fact, short. */
   title: ReactNode;
-  /** What it means and what to do next. */
-  children: ReactNode;
+  /** What it means, in a line, when the title and the action don't say it. */
+  children?: ReactNode;
   /** One large button or link, when there is a next step. */
   action?: ReactNode;
 }
@@ -23,7 +23,7 @@ export function EmptyState({ icon, title, children, action }: EmptyStateProps) {
         <Icon name={icon} size={20} />
       </span>
       <h2 className="dw-text-heading">{title}</h2>
-      <div className="empty-state-text">{children}</div>
+      {children ? <div className="empty-state-text">{children}</div> : null}
       {action}
     </div>
   );

@@ -2680,6 +2680,12 @@ msgstr "所有服务器"
 msgid "Can't load the apps"
 msgstr "无法加载应用"
 
+msgid "Clear the filter"
+msgstr "清除筛选词"
+
+msgid "Clear the filters"
+msgstr "清除筛选"
+
 msgid "Export"
 msgstr "导出"
 
@@ -2698,8 +2704,17 @@ msgstr "正在加载应用"
 msgid "New app"
 msgstr "新建应用"
 
-msgid "No app here has <0>{query}</0> in its name or image. Try part of a name, or clear the filter."
-msgstr "此处没有名称或镜像包含 <0>{query}</0> 的应用。请试试名称的一部分，或清除筛选条件。"
+msgid "No app here has <0>{query}</0> in its name, image or domain."
+msgstr "这里没有名称、镜像或域名包含 <0>{query}</0> 的应用。"
+
+msgid "No apps here"
+msgstr "这里没有应用"
+
+msgid "No apps in {environment}"
+msgstr "{environment} 中没有应用"
+
+msgid "No apps on {server}"
+msgstr "{server} 上没有应用"
 
 msgid "No apps yet"
 msgstr "还没有应用"
@@ -2707,23 +2722,26 @@ msgstr "还没有应用"
 msgid "Nothing matches"
 msgstr "没有匹配项"
 
-msgid "Run an image or a Compose file on your server. You review a plan before anything starts."
-msgstr "在服务器上运行镜像或 Compose 文件。开始之前你会先审查计划。"
-
 msgid "Runs on"
 msgstr "运行于"
 
+msgid "Show all environments"
+msgstr "显示所有环境"
+
+msgid "Show all servers"
+msgstr "显示所有服务器"
+
 msgid "Show them first"
 msgstr "优先显示"
-
-msgid "There are no apps here yet. Choose another environment, or make one with New app."
-msgstr "这里还没有应用。请选择其他环境，或通过“新建应用”创建一个。"
 
 msgid "Unfold {title}"
 msgstr "展开 {title}"
 
 msgid "What runs on your servers isn't affected."
 msgstr "服务器上运行的内容不受影响。"
+
+msgid "You review a plan before anything starts."
+msgstr "任何内容启动前，你都会先审阅计划。"
 
 msgid "{count, plural, one {# app in {where}} other {# apps in {where}}}"
 msgstr "{count, plural, other {{where} 中有 # 个应用}}"
@@ -6923,9 +6941,6 @@ msgstr "无法读取你的应用"
 
 msgid "Certificates"
 msgstr "证书"
-
-msgid "Clear the filters"
-msgstr "清除筛选"
 
 msgid "DNS"
 msgstr "DNS"

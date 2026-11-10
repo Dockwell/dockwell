@@ -2680,6 +2680,12 @@ msgstr "All servers"
 msgid "Can't load the apps"
 msgstr "Can't load the apps"
 
+msgid "Clear the filter"
+msgstr "Clear the filter"
+
+msgid "Clear the filters"
+msgstr "Clear the filters"
+
 msgid "Export"
 msgstr "Export"
 
@@ -2698,8 +2704,17 @@ msgstr "Loading apps"
 msgid "New app"
 msgstr "New app"
 
-msgid "No app here has <0>{query}</0> in its name or image. Try part of a name, or clear the filter."
-msgstr "No app here has <0>{query}</0> in its name or image. Try part of a name, or clear the filter."
+msgid "No app here has <0>{query}</0> in its name, image or domain."
+msgstr "No app here has <0>{query}</0> in its name, image or domain."
+
+msgid "No apps here"
+msgstr "No apps here"
+
+msgid "No apps in {environment}"
+msgstr "No apps in {environment}"
+
+msgid "No apps on {server}"
+msgstr "No apps on {server}"
 
 msgid "No apps yet"
 msgstr "No apps yet"
@@ -2707,23 +2722,26 @@ msgstr "No apps yet"
 msgid "Nothing matches"
 msgstr "Nothing matches"
 
-msgid "Run an image or a Compose file on your server. You review a plan before anything starts."
-msgstr "Run an image or a Compose file on your server. You review a plan before anything starts."
-
 msgid "Runs on"
 msgstr "Runs on"
 
+msgid "Show all environments"
+msgstr "Show all environments"
+
+msgid "Show all servers"
+msgstr "Show all servers"
+
 msgid "Show them first"
 msgstr "Show them first"
-
-msgid "There are no apps here yet. Choose another environment, or make one with New app."
-msgstr "There are no apps here yet. Choose another environment, or make one with New app."
 
 msgid "Unfold {title}"
 msgstr "Unfold {title}"
 
 msgid "What runs on your servers isn't affected."
 msgstr "What runs on your servers isn't affected."
+
+msgid "You review a plan before anything starts."
+msgstr "You review a plan before anything starts."
 
 msgid "{count, plural, one {# app in {where}} other {# apps in {where}}}"
 msgstr "{count, plural, one {# app in {where}} other {# apps in {where}}}"
@@ -6923,9 +6941,6 @@ msgstr "Can't read your apps"
 
 msgid "Certificates"
 msgstr "Certificates"
-
-msgid "Clear the filters"
-msgstr "Clear the filters"
 
 msgid "DNS"
 msgstr "DNS"
