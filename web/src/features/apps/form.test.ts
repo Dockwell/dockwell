@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
-import { ImageConfigSchema, Protocol } from "@dockwell/api";
+import { EditSchema, ImageConfigSchema, Protocol } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
 import { appEdits, fieldOf, fillFromImage, type ImageForm, parseEnv, pathReach, validPort, volumeName } from "./form";
@@ -139,8 +139,9 @@ describe("filling New app from an image", () => {
     expect(filled.env.map((e) => e.name)).toEqual(["PGDATA"]);
     // Left as the image gives it, the spec needn't say it.
     const edits = appEdits(filled, "postgres", { environment: "", servers: [], volumes: [] });
-    const app = edits.at(-1)?.spec?.kind?.case === "service" ? edits.at(-1)?.spec?.kind?.value : undefined;
-    expect(app?.runs?.case === "app" ? app.runs.value?.env : undefined).toEqual({});
+    const edit = create(EditSchema, edits.at(-1));
+    const service = edit.spec?.kind.case === "service" ? edit.spec.kind.value : undefined;
+    expect(service?.runs.case === "app" ? service.runs.value.env : undefined).toEqual({});
   });
 
   it("refills only what nobody changed when the image changes", () => {
