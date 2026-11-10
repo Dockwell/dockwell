@@ -7045,11 +7045,20 @@ msgstr "Leave {name} without saving? What you typed goes."
 msgid "Load the server's version"
 msgstr "Load the server's version"
 
+msgid "Mixed line endings"
+msgstr "Mixed line endings"
+
 msgid "Reading {name}"
 msgstr "Reading {name}"
 
 msgid "Save over it"
 msgstr "Save over it"
+
+msgid "Save with CRLF"
+msgstr "Save with CRLF"
+
+msgid "Save with LF"
+msgstr "Save with LF"
 
 msgid "Saved {name}"
 msgstr "Saved {name}"
@@ -7069,8 +7078,8 @@ msgstr "Showing the first 1 MB"
 msgid "The passkey prompt closed, so nothing was saved. Save again when you're ready."
 msgstr "The passkey prompt closed, so nothing was saved. Save again when you're ready."
 
-msgid "This file can't be edited here"
-msgstr "This file can't be edited here"
+msgid "This edit moves too much to keep each line's ending"
+msgstr "This edit moves too much to keep each line's ending"
 
 msgid "This file changed on the server"
 msgstr "This file changed on the server"
@@ -7121,11 +7130,8 @@ msgstr "{changes, plural, one {# line changed} other {# lines changed}}"
 msgid "{name} changed after you opened it, so nothing was saved. What you typed is still here. Save over the server's version, or load it in place of yours."
 msgstr "{name} changed after you opened it, so nothing was saved. What you typed is still here. Save over the server's version, or load it in place of yours."
 
-msgid "{name} has more than one kind of line ending now, so it can't be loaded here."
-msgstr "{name} has more than one kind of line ending now, so it can't be loaded here."
-
-msgid "{name} has more than one kind of line ending, so saving it here would change lines you didn't touch. Connect to the server over SSH to edit it."
-msgstr "{name} has more than one kind of line ending, so saving it here would change lines you didn't touch. Connect to the server over SSH to edit it."
+msgid "{name} has more than one kind of line ending; pick one for every line."
+msgstr "{name} has more than one kind of line ending; pick one for every line."
 
 msgid "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
 msgstr "{name} isn't a text file under 1 MB any more, so it can't be loaded here."
