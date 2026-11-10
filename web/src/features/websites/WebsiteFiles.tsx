@@ -13,7 +13,6 @@ import { formatBytes, formatDay } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { join } from "../files/paths";
 import { EmptyState } from "../shell/EmptyState";
-import { DEFAULT_PHP_USER, FolderNote } from "./WebsiteFields";
 import { useWebsiteValue } from "./WebsiteLayout";
 import { kindOf, targetOf } from "./website";
 
@@ -132,13 +131,7 @@ export function WebsiteFiles() {
         ) : listed.error ? (
           reasonOf(listed.error) === "not_found" ? (
             <div className="website-files-note">
-              <FolderNote
-                server={site.serverId}
-                root={root}
-                serves={kind === "php" ? "php" : "folder"}
-                index={[]}
-                user={site.spec?.serves.case === "php" ? site.spec.serves.value.user || DEFAULT_PHP_USER : undefined}
-              />
+              <Callout tone="warning" title={t`The folder isn't on the server`} />
             </div>
           ) : (
             <div className="website-files-note">

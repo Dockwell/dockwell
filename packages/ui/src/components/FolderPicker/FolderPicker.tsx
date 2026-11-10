@@ -27,7 +27,7 @@ export interface FolderPickerProps {
    */
   list: (path: string) => Promise<FolderListing>;
   /**
-   * What's known of the chosen folder, as one short line beside it, such as "New, made
+   * What's known of the chosen folder, as one short line under it, such as "New, made
    * with the site" or "12 files".
    */
   note?: ReactNode;
@@ -55,8 +55,8 @@ function crumbs(path: string): { name: string; path: string }[] {
 }
 
 /**
- * Chooses a folder on a server. Closed, it is one line: the folder, what's known of it,
- * and Change. Open, a person browses the server's folders and picks one, names a new
+ * Chooses a folder on a server. Closed, it is the folder and Change, with what's known
+ * of the folder on the line under. Open, a person browses the server's folders and picks one, names a new
  * one inside the folder they're looking at, or types a path, as someone who knows it
  * would. It makes nothing itself: a new folder is whatever uses the path's to make.
  */

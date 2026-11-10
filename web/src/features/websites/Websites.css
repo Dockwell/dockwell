@@ -339,16 +339,13 @@
   text-overflow: ellipsis;
 }
 
-.website-folder-holds {
-  margin-top: calc(-1 * var(--space-2));
-  font-size: 12.5px;
-  line-height: 18px;
-  color: var(--ink-muted);
+/* What's known of a website's folder, beside it in the folder picker: a word of state. */
+.website-folder-state.is-ok {
+  color: var(--ink-2);
 }
 
-.website-folder-holds a,
-.website-folder-note a {
-  color: var(--link);
+.website-folder-state.is-warning {
+  color: var(--warning);
 }
 
 /* The runtimes, as Websites-List draws them under the list. */

@@ -25,6 +25,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { aHealth, anApp, places, SERVER } from "../../test/apps";
+import { moved, watched } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { changedLines } from "./website";
@@ -158,6 +159,28 @@ function disk(
     err.metadata.set("Dockwell-Error", "not_found");
     throw err;
   };
+}
+
+type User = ReturnType<typeof userEvent.setup>;
+
+/** The folder a folder picker has chosen, as its Change button names it. */
+const chosenFolder = (scope: HTMLElement, path: string) =>
+  within(scope).getByRole("button", { name: `Change the folder, ${path}` });
+
+/** Picks a folder by typing its path, as a power user does, opening the picker first. */
+async function pickFolder(user: User, scope: HTMLElement, path: string) {
+  if (!within(scope).queryByRole("textbox", { name: "Path" })) {
+    await user.click(within(scope).getByRole("button", { name: /^Change the folder|^Choose a folder/ }));
+  }
+  const typed = within(scope).getByRole("textbox", { name: "Path" });
+  await user.clear(typed);
+  await user.type(typed, path);
+}
+
+/** Opens a sheet's Advanced section by its label, unless it's open. */
+async function openAdvanced(user: User, scope: HTMLElement, label = "Advanced") {
+  const toggle = within(scope).getByRole("button", { name: label });
+  if (toggle.getAttribute("aria-expanded") !== "true") await user.click(toggle);
 }
 
 const days = (n: number) => timestampFromDate(new Date(Date.now() + n * 86_400_000 - 60_000));
@@ -469,12 +492,57 @@ describe("New website", () => {
     await user.type(within(sheet).getByLabelText("Domain"), "tools.example.com");
     await user.click(within(sheet).getByRole("radio", { name: /A port on this server/ }));
     await user.type(within(sheet).getByLabelText("Port on the server"), "3000");
+    // A port on the server has nothing under Advanced, and HTTPS says it's on.
+    expect(within(sheet).queryByRole("button", { name: "Advanced" })).not.toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "HTTPS" })).toHaveAccessibleDescription(
+      "On, with a certificate that comes by itself",
+    );
+    await openAdvanced(user, sheet, "HTTPS");
     await user.click(within(sheet).getByRole("switch", { name: /tunnel/i }));
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toBeDefined());
     expect(asked?.website?.serves).toEqual({ case: "proxy", value: expect.objectContaining({ port: 3000 }) });
     expect(asked?.tls).toBe("off");
     expect(asked?.trustedProxies).toEqual(["127.0.0.1"]);
+  });
+
+  it("opens the website it made once its plan applies", async () => {
+    const user = userEvent.setup();
+    const watch = feed<WatchChangeResponse>();
+    // The website is its project, which the plan makes with its web server.
+    const made = create(ChangeSchema, {
+      id: "chg_site",
+      summary: "Add the website shop.example.com",
+      state: ChangeState.PLANNED,
+      plan: {
+        fingerprint: "feedfacefeedfacefeedfacefeedface",
+        summary: { create: 2 },
+        resources: [
+          { id: "prj_shop", resource: { kind: "project", name: "shop-example-com" }, action: PlanAction.CREATE },
+          { id: "svc_web", resource: { kind: "service", scope: "env_new", name: "web" }, action: PlanAction.CREATE },
+        ],
+      },
+    });
+    const { router } = renderAt(
+      "/websites/new",
+      api([], {
+        websites: { createWebsite: () => ({ change: made }) },
+        changes: {
+          watchChange: watch.stream,
+          applyChange: () => ({ change: moved(made, { state: ChangeState.APPLYING }) }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await user.type(within(sheet).getByLabelText("Domain"), "shop.example.com");
+    await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
+    await user.type(within(sheet).getByLabelText("URL"), "https://backend.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    const plan = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(within(plan).getByRole("button", { name: /Apply plan/ }));
+    watch.push(watched(moved(made, { state: ChangeState.APPLIED })));
+    await user.click(await screen.findByRole("button", { name: "Go to the website" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/websites/prj_shop"));
   });
 
   it("says at the field what's missing, and what the server refused", async () => {
@@ -547,25 +615,27 @@ describe("A website that serves a folder", () => {
     );
     const sheet = await screen.findByRole("dialog", { name: "New website" });
     expect(within(sheet).getByRole("radio", { name: /^Files in a folder/ })).toBeChecked();
+    // What starts at a default is a line under Advanced, and nothing to fill in.
+    expect(within(sheet).queryByLabelText("Index files")).not.toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveAccessibleDescription("index.html index.htm");
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
-    expect(within(sheet).getByLabelText("Folder")).toHaveAttribute("aria-invalid", "true");
+    // Sent back with no folder, the picker is open at its path, ready to type.
+    expect(within(sheet).getByRole("textbox", { name: "Path" })).toHaveAttribute("aria-invalid", "true");
     await user.type(within(sheet).getByLabelText("Domain"), "shop.example.com");
-    expect(within(sheet).getByLabelText("Folder")).toHaveValue("/var/www/shop.example.com");
     // The domain gave it a folder, so what it said of none goes.
-    expect(within(sheet).getByLabelText("Folder")).not.toHaveAttribute("aria-invalid", "true");
-    expect(await within(sheet).findByText(/Nothing is at/, {}, { timeout: 3_000 })).toBeVisible();
+    expect(chosenFolder(sheet, "/var/www/shop.example.com")).toBeVisible();
+    expect(within(sheet).queryByText(/Give the folder/)).not.toBeInTheDocument();
+    expect(await within(sheet).findByText("New. Made with the site.", {}, { timeout: 3_000 })).toBeVisible();
+    // A folder that isn't there is seen from the folder above, as asking for it would go on Activity as refused.
+    expect(read).not.toContain("/var/www/shop.example.com");
 
-    await user.clear(within(sheet).getByLabelText("Folder"));
-    await user.type(within(sheet).getByLabelText("Folder"), "/srv/site");
-    expect(await within(sheet).findByText("Holds index.html and 2 more.", {}, { timeout: 3_000 })).toBeVisible();
-    expect(within(sheet).getByRole("link", { name: "Open in Files" })).toHaveAttribute(
-      "href",
-      `/servers/${SERVER}/files?path=%2Fsrv%2Fsite`,
-    );
-    // The domain doesn't take a folder that was typed.
+    await pickFolder(user, sheet, "/srv/site");
+    expect(await within(sheet).findByText("Holds index.html and 2 more", {}, { timeout: 3_000 })).toBeVisible();
+    // The domain doesn't take a folder that was picked.
     await user.type(within(sheet).getByLabelText("Domain"), "x");
-    expect(within(sheet).getByLabelText("Folder")).toHaveValue("/srv/site");
+    expect(within(sheet).getByRole("textbox", { name: "Path" })).toHaveValue("/srv/site");
 
+    await openAdvanced(user, sheet);
     await user.click(within(sheet).getByRole("switch", { name: /Single-page app/ }));
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toBeDefined());
@@ -574,8 +644,6 @@ describe("A website that serves a folder", () => {
       value: expect.objectContaining({ root: "/srv/site", index: [], singlePageApp: true }),
     });
     expect(read).toContain("/srv/site");
-    // A folder that isn't there is seen from the folder above, as asking for it would go on Activity as refused.
-    expect(read).not.toContain("/var/www/shop.example.com");
   });
 
   it("makes a folder that isn't there as the folder above's owner, and says so", async () => {
@@ -596,13 +664,14 @@ describe("A website that serves a folder", () => {
     );
     const sheet = await screen.findByRole("dialog", { name: "New website" });
     await user.type(within(sheet).getByLabelText("Domain"), "docs.example.com");
-    // Nothing is above it either, so it'd be root's: the note says how to make it first.
-    expect(await within(sheet).findByText(/sudo install -d -o/, {}, { timeout: 3_000 })).toBeVisible();
-    await user.clear(within(sheet).getByLabelText("Folder"));
-    await user.type(within(sheet).getByLabelText("Folder"), "/srv/new");
-    expect(await within(sheet).findByText(/owned by/, {}, { timeout: 3_000 })).toHaveTextContent(
-      "Dockwell makes it as the plan applies, owned by mira as /srv is",
-    );
+    // Nothing is there, nor above it: it's made with the site, with nothing to run first.
+    expect(await within(sheet).findByText("New. Made with the site.", {}, { timeout: 3_000 })).toBeVisible();
+    expect(within(sheet).queryByText(/sudo/)).not.toBeInTheDocument();
+    await pickFolder(user, sheet, "/srv/new");
+    // Made in a person's folder, it's theirs, so they can put the site's files in it.
+    expect(
+      await within(sheet).findByText("New. Made with the site, owned by mira.", {}, { timeout: 3_000 }),
+    ).toBeVisible();
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toBeDefined());
     expect(asked?.website?.serves).toEqual({
@@ -622,8 +691,10 @@ describe("A website that serves a folder", () => {
       }),
     );
     const sheet = await screen.findByRole("dialog", { name: "New website" });
-    await user.type(within(sheet).getByLabelText("Folder"), "/srv/wp");
-    expect(await within(sheet).findByText(/Files in a folder run no script/, {}, { timeout: 3_000 })).toBeVisible();
+    await pickFolder(user, sheet, "/srv/wp");
+    expect(
+      await within(sheet).findByText("Holds index.php, which only a PHP site runs.", {}, { timeout: 3_000 }),
+    ).toBeVisible();
   });
 
   it("says when the web server can't read the folder, or there's no index in it", async () => {
@@ -641,18 +712,25 @@ describe("A website that serves a folder", () => {
       }),
     );
     const sheet = await screen.findByRole("dialog", { name: "New website" });
-    const folder = within(sheet).getByLabelText("Folder");
-    await user.type(folder, "/srv/closed");
+    await pickFolder(user, sheet, "/srv/closed");
     expect(
-      await within(sheet).findByText(/closed to everyone else, so it answers 403/, {}, { timeout: 3_000 }),
+      await within(sheet).findByText(
+        "Closed to the web server (drwx------), so it would answer 403.",
+        {},
+        { timeout: 3_000 },
+      ),
     ).toBeVisible();
-    await user.clear(folder);
-    await user.type(folder, "/srv/shut");
-    expect(await within(sheet).findByText(/closed to everyone but its owner/, {}, { timeout: 3_000 })).toBeVisible();
-    await user.clear(folder);
-    await user.type(folder, "/srv/empty");
+    await pickFolder(user, sheet, "/srv/shut");
     expect(
-      await within(sheet).findByText(/so its address answers 404 until there is/, {}, { timeout: 3_000 }),
+      await within(sheet).findByText("The web server can't read index.html (-rw-------).", {}, { timeout: 3_000 }),
+    ).toBeVisible();
+    await pickFolder(user, sheet, "/srv/empty");
+    expect(
+      await within(sheet).findByText(
+        "No index.html here yet, so it answers 404 until there is.",
+        {},
+        { timeout: 3_000 },
+      ),
     ).toBeVisible();
   });
 
@@ -673,7 +751,7 @@ describe("A website that serves a folder", () => {
       `/servers/${SERVER}/files?path=%2Fvar%2Fwww%2Fdocs`,
     );
     expect(screen.getByLabelText("Serves")).toHaveValue("folder");
-    expect(screen.getByLabelText("Folder")).toHaveValue("/var/www/docs");
+    expect(chosenFolder(document.body, "/var/www/docs")).toBeVisible();
     const code = await screen.findByRole("region", { name: "The web server's config" });
     await waitFor(() => expect(code).toHaveTextContent("file_server"));
   });
@@ -711,8 +789,14 @@ describe("A PHP website", () => {
     expect(within(sheet).getByRole("radio", { name: /^PHP/ })).toBeChecked();
     await user.click(within(sheet).getByLabelText("Domain"));
     await user.paste("shop.example.com");
-    expect(await within(sheet).findByText("Holds index.php.", {}, { timeout: 3_000 })).toBeVisible();
+    expect(await within(sheet).findByText("Holds index.php", {}, { timeout: 3_000 })).toBeVisible();
     expect(within(sheet).getByLabelText("PHP version")).toHaveValue("8.3");
+    // PHP runs as the folder's owner, said in Advanced's line.
+    expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveAccessibleDescription(
+      "Runs as 1000:1000 · 64 MiB uploads",
+    );
+    await openAdvanced(user, sheet);
+    await user.clear(within(sheet).getByLabelText("Runs as"));
     await user.click(within(sheet).getByLabelText("Runs as"));
     await user.paste("www");
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
@@ -817,26 +901,29 @@ describe("A PHP website", () => {
       }),
     );
     const sheet = await screen.findByRole("dialog", { name: "New website" });
-    const folder = within(sheet).getByLabelText("Folder");
-    await user.clear(folder);
-    await user.type(folder, "/srv/mine");
+    await pickFolder(user, sheet, "/srv/mine");
     // index.php at 0640 is PHP's to read, as its owner, so nothing's wrong.
-    expect(await within(sheet).findByText("Holds index.php.", {}, { timeout: 3_000 })).toBeVisible();
+    expect(await within(sheet).findByText("Holds index.php", {}, { timeout: 3_000 })).toBeVisible();
+    await openAdvanced(user, sheet);
     expect(within(sheet).getByLabelText("Runs as")).toHaveValue("1000:1000");
     await user.clear(within(sheet).getByLabelText("Runs as"));
     await user.type(within(sheet).getByLabelText("Runs as"), "82:82");
-    expect(await within(sheet).findByText(/so PHP can't write there/, {}, { timeout: 3_000 })).toBeVisible();
-    await user.clear(folder);
-    await user.type(folder, "/srv/roots");
     expect(
-      await within(sheet).findByText(/is root's, and PHP never runs as root/, {}, { timeout: 3_000 }),
+      await within(sheet).findByText(
+        "PHP runs as 82:82 and can't write there. Its owner is 1000:1000.",
+        {},
+        { timeout: 3_000 },
+      ),
+    ).toBeVisible();
+    await pickFolder(user, sheet, "/srv/roots");
+    expect(
+      await within(sheet).findByText("Root owns it, so PHP can't save uploads there.", {}, { timeout: 3_000 }),
     ).toBeVisible();
     // A folder anyone may walk but not list, with its index a symlink, is fine.
     await user.clear(within(sheet).getByLabelText("Runs as"));
     await user.type(within(sheet).getByLabelText("Runs as"), "1000:1000");
-    await user.clear(folder);
-    await user.type(folder, "/srv/linked");
-    expect(await within(sheet).findByText("Holds index.php.", {}, { timeout: 3_000 })).toBeVisible();
+    await pickFolder(user, sheet, "/srv/linked");
+    expect(await within(sheet).findByText("Holds index.php", {}, { timeout: 3_000 })).toBeVisible();
   }, 30_000);
 
   it("opens on how each part of it runs, and what it serves", async () => {

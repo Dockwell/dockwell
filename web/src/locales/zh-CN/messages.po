@@ -11992,17 +11992,11 @@ msgstr "{envName} 中的服务按名称使用这些值。更改一个值后，�
 msgid "as {0}"
 msgstr "作为 {0}"
 
-msgid "A PHP site, such as WordPress: PHP-FPM of the version you choose runs its code, and its other files are served as they are. You approve the folder in the plan."
-msgstr "PHP 网站，例如 WordPress：由你选择版本的 PHP-FPM 运行它的代码，其他文件原样提供。你需要在计划中批准该文件夹。"
+msgid "A static site, sent as its files are."
+msgstr "静态网站，文件原样发送。"
 
-msgid "A static site: the files in a folder on this server, as they are. You approve the folder in the plan."
-msgstr "静态网站：原样提供此服务器上某个文件夹中的文件。你需要在计划中批准该文件夹。"
-
-msgid "A website runs on one server, as its certificate comes to the one its DNS points at."
-msgstr "网站运行在一台服务器上，因为证书只会颁发给其 DNS 指向的那一台。"
-
-msgid "Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on."
-msgstr "另一个站点，或你网络中的某个地址，例如 http://10.0.0.5:8080。由它自己的小型 Web 服务器转发每个请求。"
+msgid "Another site, or an address on your network."
+msgstr "另一个网站，或你网络中的某个地址。"
 
 msgid "Choose a server"
 msgstr "选择服务器"
@@ -12010,11 +12004,23 @@ msgstr "选择服务器"
 msgid "Choose the server it runs on."
 msgstr "请选择它运行的服务器。"
 
+msgid "Go to the website"
+msgstr "前往该网站"
+
+msgid "Handled in front of this server"
+msgstr "由此服务器前面的服务处理"
+
 msgid "Name the domain, such as blog.example.com."
 msgstr "请填写域名，例如 blog.example.com。"
 
 msgid "New website"
 msgstr "新建网站"
+
+msgid "Off: plain HTTP to anyone"
+msgstr "关闭：对任何人使用普通 HTTP"
+
+msgid "On, with a certificate that comes by itself"
+msgstr "开启，证书自动签发"
 
 msgid "People reach it at its domain, over HTTPS"
 msgstr "访问者通过 HTTPS 在其域名上访问它"
@@ -12025,14 +12031,29 @@ msgstr "访问者通过明文 HTTP 在其域名上访问它"
 msgid "People reach it at its domain, through what's in front of this server"
 msgstr "访问者经由此服务器前面的隧道或代理在其域名上访问它"
 
-msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
-msgstr "将它的 DNS 指向此服务器，之前或之后均可。指向后证书会自动签发。"
+msgid "Runs as {who} · {mb} MiB uploads"
+msgstr "以 {who} 运行 · 上传上限 {mb} MiB"
 
-msgid "Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan."
-msgstr "服务器本身上监听的程序，例如端口 3000。它会把每个访问者都视为本机，所以需要你在计划中批准。"
+msgid "Runs as {who} · {mb} MiB uploads · only files answer"
+msgstr "以 {who} 运行 · 上传上限 {mb} MiB · 仅响应文件"
+
+msgid "Sends the URL's own name as Host"
+msgstr "将 URL 自己的主机名作为 Host 发送"
+
+msgid "Sends this domain as Host"
+msgstr "将此域名作为 Host 发送"
+
+msgid "Something listening on this server, such as port 3000."
+msgstr "此服务器上正在监听的服务，例如端口 3000。"
+
+msgid "Such as WordPress, run by PHP-FPM of its own."
+msgstr "例如 WordPress，由独立的 PHP-FPM 运行。"
 
 msgid "What it serves"
 msgstr "提供的内容"
+
+msgid "{index} · single-page app"
+msgstr "{index} · 单页应用"
 
 #. placeholder {0}: runtime.version
 msgid "<0>{name}</0> runs an older build of {0}"
@@ -12245,31 +12266,20 @@ msgstr "由 Dockwell 根据这些设置生成"
 msgid "{changes, plural, one {# change} other {# changes}}"
 msgstr "{changes, plural, other {# 处更改}}"
 
-#. placeholder {0}: shut.name
-#. placeholder {1}: shut.mode
-msgid "<0>{0}</0> is <1>{1}</1>, closed to everyone but its owner, so the web server can't read it. Run <2>chmod o+r</2> on it, and on the folder's other files."
-msgstr "<0>{0}</0> 的权限是 <1>{1}</1>，只有所有者可读，所以 Web 服务器读不到它。请对它以及该文件夹中的其他文件运行 <2>chmod o+r</2>。"
-
-msgid "<0>{path}</0> holds <1>index.php</1>. Files in a folder run no script, and hide every one, as its source can hold passwords, so those addresses answer 404."
-msgstr "<0>{path}</0> 中有 <1>index.php</1>。文件夹中的文件不会运行任何脚本，并且会隐藏所有脚本，因为脚本源码中可能有密码，所以这些地址会返回 404。"
-
-msgid "<0>{path}</0> is a file, not a folder. Give the folder that holds the site's files."
-msgstr "<0>{path}</0> 是文件，不是文件夹。请填写存放网站文件的文件夹。"
-
-msgid "<0>{path}</0> is root's, and PHP never runs as root, so it can't write there: uploads, caches and updates fail. Run <1>sudo chown -R {user} {path}</1>, or give the folder to the user PHP runs as."
-msgstr "<0>{path}</0> 归 root 所有，而 PHP 从不以 root 运行，所以无法在其中写入：上传、缓存和更新都会失败。请运行 <1>sudo chown -R {user} {path}</1>，或把文件夹交给 PHP 运行时所用的用户。"
-
 msgid "A URL"
 msgstr "URL"
+
+msgid "A path with no file gets the index, for an app that routes in the browser."
+msgstr "没有对应文件的路径返回首页，适用于在浏览器中路由的应用。"
 
 msgid "A port on this server"
 msgstr "此服务器上的端口"
 
-msgid "Answers a path with no file of its own with the index, as an app that routes in the browser needs. Off, it gets a 404."
-msgstr "没有对应文件的路径用首页文件响应，在浏览器中处理路由的应用需要这样。关闭时返回 404。"
+msgid "A user and group by number, as uid:gid. Empty runs it as www-data."
+msgstr "用户和组的编号，格式为 uid:gid。留空则以 www-data 运行。"
 
-msgid "As WordPress, Laravel and most PHP apps want, for their own addresses"
-msgstr "WordPress、Laravel 等大多数 PHP 应用需要这样处理自己的地址"
+msgid "Closed to the web server ({mode}), so it would answer 403."
+msgstr "Web 服务器无法访问（{mode}），因此会返回 403。"
 
 msgid "Files in a folder"
 msgstr "文件夹中的文件"
@@ -12277,8 +12287,8 @@ msgstr "文件夹中的文件"
 msgid "Folder"
 msgstr "文件夹"
 
-msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
-msgstr "适用于承载多个域名的站点，例如通过 HTTPS 访问的另一个站点。关闭时，它收到的是此网站的域名。"
+msgid "For a backend that serves several names. Off, it gets this website's domain."
+msgstr "适用于服务多个主机名的后端。关闭时，它收到此网站的域名。"
 
 msgid "Gets a 404"
 msgstr "返回 404"
@@ -12298,43 +12308,38 @@ msgstr "请填写存放网站文件的文件夹，例如 /var/www/blog。"
 msgid "Give the user by number, such as 1000."
 msgstr "请用数字填写用户，例如 1000。"
 
-msgid "Goes to index.php"
-msgstr "交给 index.php"
+msgid "Goes to index.php, as WordPress and Laravel want"
+msgstr "交给 index.php，符合 WordPress 和 Laravel 的要求"
 
-msgid "Holds {found}."
-msgstr "包含 {found}。"
+msgid "Holds index.php, which only a PHP site runs."
+msgstr "包含 index.php，只有 PHP 网站才会运行它。"
+
+msgid "Holds {found}"
+msgstr "包含 {found}"
 
 msgid "Index files"
 msgstr "首页文件"
 
-msgid "Nothing is at <0>{path}</0> or <1>{up}</1> yet, so the folder would be made root's, and no one else could put the site's files in it. Make it first, as yours, with <2>sudo install -d -o $(id -u) -g $(id -g) {path}</2>."
-msgstr "<0>{path}</0> 和 <1>{up}</1> 都还不存在，所以文件夹会归 root 所有，其他人无法向其中放入网站文件。请先用 <2>sudo install -d -o $(id -u) -g $(id -g) {path}</2> 以你自己的身份创建它。"
+msgid "It sees every visitor as local, so the plan asks you to approve it."
+msgstr "它会把每个访客都视为本地访客，因此计划会请你批准。"
 
-#. placeholder {0}: parent?.owner || owner
-msgid "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{0}</1> as <2>{up}</2> is, so put the site's files in it as that user, with scp or rsync."
-msgstr "<0>{path}</0> 还不存在。应用计划时 Dockwell 会创建它，所有者与 <2>{up}</2> 相同，为 <1>{0}</1>，请以该用户身份用 scp 或 rsync 放入网站文件。"
+msgid "New. Made with the site, for PHP to write in."
+msgstr "新文件夹。随网站一起创建，供 PHP 写入。"
 
-msgid "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{user}</1>, the user PHP runs as, so its code can write there. Put the site's files in it with <2>sudo rsync</2>, then <3>sudo chown -R {user} {path}</3>."
-msgstr "<0>{path}</0> 还不存在。应用计划时 Dockwell 会创建它，所有者为 PHP 运行时所用的用户 <1>{user}</1>，以便其代码可以写入。请用 <2>sudo rsync</2> 放入网站文件，然后运行 <3>sudo chown -R {user} {path}</3>。"
+msgid "New. Made with the site, owned by {by}."
+msgstr "新文件夹。随网站一起创建，归 {by} 所有。"
 
-msgid "On the server. Its web server reads it as nobody's user, so what's in it must be readable by everyone."
-msgstr "位于服务器上。它的 Web 服务器以 nobody 用户读取，所以其中的内容必须所有人可读。"
+msgid "New. Made with the site."
+msgstr "新文件夹。随网站一起创建。"
 
-msgid "On the server. PHP reads and writes it as the user below, and its web server reads it as nobody's user, so its files must be readable by everyone."
-msgstr "位于服务器上。PHP 以下面的用户读写它，它的 Web 服务器以 nobody 用户读取，所以其中的文件必须所有人可读。"
-
-msgid "Only what's in the folder answers"
-msgstr "只有文件夹中的文件会响应"
-
-msgid "Open in Files"
-msgstr "在“文件”中打开"
+msgid "No {first} here yet, so it answers 404 until there is."
+msgstr "这里还没有 {first}，在它出现之前会返回 404。"
 
 msgid "PHP"
 msgstr "PHP"
 
-#. placeholder {0}: directory.mode
-msgid "PHP runs as <0>{user}</0>, and <1>{path}</1> is <2>{theirs}</2>'s, <3>{0}</3>, so PHP can't write there: uploads, caches and updates fail. Run it as <4>{theirs}</4>, or run <5>sudo chown -R {user} {path}</5>."
-msgstr "PHP 以 <0>{user}</0> 运行，而 <1>{path}</1> 归 <2>{theirs}</2> 所有，权限为 <3>{0}</3>，所以 PHP 无法在其中写入：上传、缓存和更新都会失败。请以 <4>{theirs}</4> 运行，或运行 <5>sudo chown -R {user} {path}</5>。"
+msgid "PHP runs as {user} and can't write there. Its owner is {theirs}."
+msgstr "PHP 以 {user} 运行，无法写入此处。其所有者是 {theirs}。"
 
 msgid "PHP version"
 msgstr "PHP 版本"
@@ -12349,11 +12354,11 @@ msgstr "PHP {0}"
 msgid "PHP {0} · {1}"
 msgstr "PHP {0} · {1}"
 
+msgid "Root owns it, so PHP can't save uploads there."
+msgstr "它归 root 所有，因此 PHP 无法在此保存上传的文件。"
+
 msgid "Runs as"
 msgstr "运行用户"
-
-msgid "Runs in PHP-FPM of its own, so no other website moves with it"
-msgstr "在它自己的 PHP-FPM 中运行，其他网站不受影响"
 
 msgid "Send the URL's own name as Host"
 msgstr "将 URL 自己的主机名作为 Host 发送"
@@ -12364,23 +12369,14 @@ msgstr "单页应用"
 msgid "Start it with http:// or https://, such as https://backend.example.com."
 msgstr "请以 http:// 或 https:// 开头，例如 https://backend.example.com。"
 
-msgid "The first of these in a folder answers for it."
-msgstr "文件夹中按顺序找到的第一个文件用来响应该文件夹。"
+msgid "That's a file, not a folder."
+msgstr "这是一个文件，不是文件夹。"
 
-msgid "The first of these in a folder answers for it. A script among them runs, and the rest are sent as they are."
-msgstr "文件夹中按顺序找到的第一个文件用来响应该文件夹。其中的脚本会被执行，其余文件原样发送。"
+msgid "The first one found answers for a folder."
+msgstr "找到的第一个文件用于响应该文件夹。"
 
-msgid "The folder owner's user and group, as uid:gid, so PHP can write there, and what it writes keeps its owner. stat -c %u:%g on the folder says it. Empty runs it as www-data, 82:82. Never root."
-msgstr "文件夹所有者的用户和组，写作 uid:gid，以便 PHP 可以在其中写入，且写入的内容保持该所有者。对文件夹运行 stat -c %u:%g 可查看。留空则以 www-data（82:82）运行。绝不以 root 运行。"
-
-msgid "The most a request may send, such as a file uploaded, in MiB, as PHP counts it. Empty takes 64."
-msgstr "单个请求最多可发送的大小，例如上传的文件，单位为 MiB，与 PHP 的计法相同。留空则为 64。"
-
-msgid "The web server reads the folder as nobody's user, and <0>{path}</0> is <1>{mode}</1>, closed to everyone else, so it answers 403. Run <2>chmod o+x {path}</2>, and <3>o+r</3> on its files."
-msgstr "Web 服务器以 nobody 用户读取该文件夹，而 <0>{path}</0> 的权限为 <1>{mode}</1>，对其他人关闭，所以会返回 403。请运行 <2>chmod o+x {path}</2>，并对其中的文件加上 <3>o+r</3>。"
-
-msgid "There's no <0>{first}</0> in <1>{path}</1>, so its address answers 404 until there is. Add one, or name the index the site has."
-msgstr "<1>{path}</1> 中没有 <0>{first}</0>，所以在添加之前访问它会返回 404。请添加一个，或填写网站已有的首页文件。"
+msgid "The web server can't read {name} ({fileMode})."
+msgstr "Web 服务器无法读取 {name}（{fileMode}）。"
 
 msgid "Upload limit"
 msgstr "上传上限"
@@ -12414,14 +12410,8 @@ msgstr "原为 {0} · 在那里监听的程序会把每个访问者都视为本�
 msgid "What isn't a file"
 msgstr "不是文件的路径"
 
-msgid "What listens on the server itself, on 127.0.0.1 or every address. It sees every visitor as local, so you approve it in the plan."
-msgstr "服务器本身上监听的程序，监听 127.0.0.1 或所有地址。它会把每个访问者都视为本机，所以需要你在计划中批准。"
-
-msgid "With a path, such as /app, each request goes under it."
-msgstr "带路径时（例如 /app），每个请求都会放在该路径下。"
-
-msgid "{others, plural, one {Holds {found} and # more.} other {Holds {found} and # more.}}"
-msgstr "{others, plural, other {包含 {found} 以及另外 # 项。}}"
+msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
+msgstr "{others, plural, other {包含 {found} 及另外 # 项}}"
 
 msgid "Changed"
 msgstr "更改于"
@@ -12435,11 +12425,17 @@ msgstr "权限"
 msgid "No folder of its own"
 msgstr "没有自己的文件夹"
 
+msgid "Open in Files"
+msgstr "在“文件”中打开"
+
 msgid "Put the site's files in it with scp or rsync. Files edits files that are there."
 msgstr "请用 scp 或 rsync 把网站文件放进去。“文件”只能编辑已有的文件。"
 
 msgid "The folder is empty"
 msgstr "文件夹是空的"
+
+msgid "The folder isn't on the server"
+msgstr "服务器上没有这个文件夹"
 
 msgid "This website sends its requests on, so it has no files here. What it sends to keeps its own."
 msgstr "这个网站把请求转发出去，所以这里没有它的文件。转发目标保存自己的文件。"
@@ -12501,6 +12497,9 @@ msgstr "谁的日志"
 
 msgid "Change it"
 msgstr "修改"
+
+msgid "Goes to index.php"
+msgstr "交给 index.php"
 
 msgid "How it serves"
 msgstr "提供方式"
