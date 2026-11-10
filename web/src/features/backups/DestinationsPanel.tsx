@@ -3,13 +3,13 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import { type BackupDestinationInfo, BackupService } from "@dockwell/api";
-import { Button, Callout, Panel, Sheet, Switch, TextField } from "@dockwell/ui";
+import { Button, Panel } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { CopyButton } from "../system/CopyCommand";
+import { DestinationSheet } from "./DestinationSheet";
 import "./Backups.css";
 
 /** The storage backups can go to. */
@@ -78,150 +78,7 @@ export function DestinationsPanel({ destinations }: { destinations: readonly Bac
           ))}
         </ul>
       )}
-      {adding ? <DestinationSheet onClose={() => setAdding(false)} /> : null}
+      {adding ? <DestinationSheet existing={destinations} onClose={() => setAdding(false)} /> : null}
     </Panel>
-  );
-}
-
-/** A passphrase no one chose: 32 random bytes, as letters and digits a person can copy. */
-function makePassphrase(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, "");
-}
-
-/** Adds storage. What signs in goes into the plan's change sealed, and shows nowhere. Integrations opens it too. */
-export function DestinationSheet({ onClose }: { onClose: () => void }) {
-  const { t } = useLingui();
-  const sheet = useChangeSheet();
-  const [name, setName] = useState("");
-  const [endpoint, setEndpoint] = useState("");
-  const [bucket, setBucket] = useState("");
-  const [region, setRegion] = useState("");
-  const [accessKey, setAccessKey] = useState("");
-  const [secretKey, setSecretKey] = useState("");
-  const [made] = useState(makePassphrase);
-  const [own, setOwn] = useState(false);
-  const [typed, setTyped] = useState("");
-  const [saved, setSaved] = useState(false);
-  const passphrase = own ? typed : made;
-  const ready =
-    name !== "" &&
-    endpoint !== "" &&
-    bucket !== "" &&
-    accessKey !== "" &&
-    secretKey !== "" &&
-    (own ? typed.length >= 16 : saved);
-  const review = () =>
-    sheet.open({
-      kind: "propose",
-      summary: t`Send backups to ${name}`,
-      edits: [
-        {
-          resource: { kind: "backup.destination", name },
-          spec: {
-            kind: { case: "backupDestination", value: { endpoint, bucket, region, accessKey, secretKey, passphrase } },
-          },
-        },
-      ],
-      onClose: (change) => {
-        if (change) onClose();
-      },
-    });
-  return (
-    <Sheet
-      open
-      onClose={onClose}
-      title={t`Add a destination`}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            <Trans>Cancel</Trans>
-          </Button>
-          <Button variant="primary" disabled={!ready} onClick={review}>
-            <Trans>Review plan</Trans>
-          </Button>
-        </>
-      }
-    >
-      <div className="backup-sheet">
-        <TextField label={t`Name`} mono value={name} placeholder="r2" onChange={(e) => setName(e.target.value)} />
-        <TextField
-          label={t`Endpoint`}
-          mono
-          value={endpoint}
-          placeholder="https://<account>.r2.cloudflarestorage.com"
-          onChange={(e) => setEndpoint(e.target.value)}
-        />
-        <TextField label={t`Bucket`} mono value={bucket} onChange={(e) => setBucket(e.target.value)} />
-        <TextField
-          label={t`Region`}
-          mono
-          value={region}
-          optional
-          hint={t`Leave it out for storage that has none, such as R2.`}
-          onChange={(e) => setRegion(e.target.value)}
-        />
-        <TextField
-          label={t`Access key`}
-          mono
-          autoComplete="off"
-          value={accessKey}
-          onChange={(e) => setAccessKey(e.target.value)}
-        />
-        <TextField
-          label={t`Secret key`}
-          mono
-          type="password"
-          autoComplete="off"
-          value={secretKey}
-          hint={t`Dockwell keeps it encrypted, and sends it only to a server sending a backup.`}
-          onChange={(e) => setSecretKey(e.target.value)}
-        />
-        <Switch
-          checked={own}
-          onChange={setOwn}
-          label={t`Use a passphrase I already have`}
-          description={t`Copies an earlier destination sealed open only with the passphrase it had.`}
-        />
-        {own ? (
-          <TextField
-            label={t`Passphrase`}
-            mono
-            type="password"
-            autoComplete="off"
-            value={typed}
-            hint={t`At least 16 characters.`}
-            onChange={(e) => setTyped(e.target.value)}
-          />
-        ) : (
-          <>
-            <Callout tone="warning" title={t`Keep this passphrase somewhere else`}>
-              <p className="backup-sheet-line">
-                <Trans>
-                  Each backup is encrypted with this before it leaves its server, so your storage provider can't read
-                  it. Nothing else opens one, and Dockwell shows it only now. If you lose this install, you need it to
-                  open what's in the bucket.
-                </Trans>
-              </p>
-              <code className="backup-passphrase">
-                {Array.from(made.matchAll(/.{1,6}/g), (group) => (
-                  <span key={group.index}>{group[0]}</span>
-                ))}
-              </code>
-              <CopyButton
-                text={made}
-                label={t`Copy the passphrase`}
-                copiedLabel={t`Passphrase copied`}
-                variant="secondary"
-              />
-            </Callout>
-            <label className="backup-saved">
-              <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
-              <Trans>I've kept a copy of the passphrase</Trans>
-            </label>
-          </>
-        )}
-      </div>
-    </Sheet>
   );
 }
