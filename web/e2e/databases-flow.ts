@@ -70,6 +70,22 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await connect.getByText(`postgres://postgres:${revealed}@db:5432/app`, { exact: true }).waitFor();
   await connect.getByRole("button", { name: "Hide" }).click();
   if ((await page.content()).includes(revealed)) fail("the page keeps the password after it's hidden");
+
+  step("databases: changing the password is a plan, with a new one generated in the database and its secret at once");
+  await connect.getByRole("button", { name: "Change password" }).click();
+  const changing = page.getByRole("dialog", { name: "Review plan" });
+  await changing.getByRole("button", { name: /Apply plan/ }).waitFor({ timeout: 30_000 });
+  await shoot(page, "database-change-password-plan");
+  await changing.getByRole("button", { name: /Apply plan/ }).click();
+  const changed = page.getByRole("button", { name: "Done", exact: true });
+  await changed.waitFor({ timeout: 60_000 });
+  await changed.click();
+  await connect.getByRole("button", { name: "Reveal password" }).click();
+  await connect.getByRole("button", { name: "Copy password" }).waitFor({ timeout: 20_000 });
+  const renewed = (await connect.locator(".dw-conn-code.is-revealed").innerText()).trim();
+  if (!/^[A-Za-z0-9]{32}$/.test(renewed) || renewed === revealed)
+    fail("changing the password left the secret as it was");
+  await connect.getByRole("button", { name: "Hide" }).click();
   await page.getByText("99.2").waitFor();
   await page.getByText(/PostgreSQL's own dump, while it runs/).waitFor();
   const users = page.getByRole("table", { name: "Users of db" });
