@@ -24,6 +24,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"google.golang.org/protobuf/proto"
+
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource/alert"
@@ -240,6 +242,20 @@ func TestARunKeepsAFewHundredBytesOfWhatTheFarEndSays(t *testing.T) {
 		run := Probe(t.Context(), unfollowing(srv), checkOf(t, &resourcev1.AlertCheck{Address: srv.URL + "/", Keyword: "Welcome"}), nil)
 		if said := run.GetSaid(); len(said) > MaxSaid || !strings.HasPrefix(said, "it moved to bbb") || !strings.HasSuffix(said, "…") {
 			t.Errorf("said %d bytes: %.200q", len(said), said)
+		}
+	})
+	t.Run("a redirect to a host that isn't UTF-8", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Location", "https://%ff%fe.example/")
+			w.WriteHeader(http.StatusFound)
+		}))
+		t.Cleanup(srv.Close)
+		run := Probe(t.Context(), unfollowing(srv), checkOf(t, &resourcev1.AlertCheck{Address: srv.URL + "/", Keyword: "Welcome"}), nil)
+		if said := run.GetSaid(); !utf8.ValidString(said) || !strings.HasPrefix(said, "it moved to ") {
+			t.Errorf("said %q", said)
+		}
+		if _, err := proto.Marshal(run); err != nil {
+			t.Errorf("a run with those words can't be sent: %v", err)
 		}
 	})
 	t.Run("words cut on a character", func(t *testing.T) {

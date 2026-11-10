@@ -162,13 +162,13 @@ func (Check) CapWords(have int) string {
 	return fmt.Sprintf("the install has %d checks, and keeps %d at most, as each one is a request every interval. Remove a check you no longer need, then add this one", have, MaxChecks)
 }
 
+// numeric is a host of numbers only, in any base a resolver may read.
+var numeric = regexp.MustCompile(`(?i)^(0x[0-9a-f]*|\d+)(\.(0x[0-9a-f]*|\d+))*\.?$`)
+
 // reachable refuses, as the plan is made, an address a check can never reach
 // from the control plane, written out as one: this server's loopback, a metadata
 // service, a link-local address; and a private one, unless the check says it's
 // inside the network. A name is judged as it's dialed, each run.
-// numeric is a host of numbers only, in any base a resolver may read.
-var numeric = regexp.MustCompile(`(?i)^(0x[0-9a-f]*|\d+)(\.(0x[0-9a-f]*|\d+))*\.?$`)
-
 func reachable(host string, inside bool) error {
 	why := netguard.Forbidden(host, netguard.Options{Private: inside})
 	switch {

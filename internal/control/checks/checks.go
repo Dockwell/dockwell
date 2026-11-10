@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -466,7 +467,10 @@ func words(ctx context.Context, err error, timeout time.Duration, host string) s
 }
 
 // clip keeps s to at most n bytes, cut on a rune, with an ellipsis where it's cut.
+// Bytes that aren't UTF-8, which a far end can put in a redirect's host, become U+FFFD
+// first: a run's words go into alerts, which neither Postgres nor protobuf takes otherwise.
 func clip(s string, n int) string {
+	s = strings.ToValidUTF8(s, "\uFFFD")
 	if len(s) <= n {
 		return s
 	}
