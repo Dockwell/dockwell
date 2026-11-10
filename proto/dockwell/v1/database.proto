@@ -26,6 +26,9 @@ service DatabaseService {
   rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/databases"};
   }
 
@@ -34,7 +37,48 @@ service DatabaseService {
   rpc GetDatabase(GetDatabaseRequest) returns (GetDatabaseResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/databases/{id}"};
+  }
+
+  // CreateDatabaseUser plans a database inside a database server, with a user who
+  // owns it, and a password for them that the control plane generates and keeps as a
+  // secret of the environment, which nobody sees unless they reveal it. The user is a
+  // resource, of kind "database.user", so it's a change with a plan, a revision and an
+  // undo, and setting the secret anew changes the password. Only PostgreSQL, MySQL
+  // and MariaDB have users of their own.
+  rpc CreateDatabaseUser(CreateDatabaseUserRequest) returns (CreateDatabaseUserResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "add-user"};
+    option (google.api.http) = {
+      post: "/v1/databases/{id}/users"
+      body: "*"
+    };
+  }
+  // ChangeDatabasePassword plans a new password for one of a database's users: its
+  // first user, such as MariaDB's root or PostgreSQL's postgres, whose password is in
+  // the secret the service starts with (Database.password_secret), or a user Dockwell
+  // made (CreateDatabaseUser). The control plane generates it, as it does a new
+  // user's, and sets the secret to it, so the plan restarts the database and every
+  // app that uses the secret, and nobody sees the password unless they reveal it. The
+  // agent changes it in the database as it restarts, so what signs in with the secret
+  // keeps signing in (ADR 0038). A database whose password isn't in a secret has
+  // none to change here.
+  rpc ChangeDatabasePassword(ChangeDatabasePasswordRequest) returns (ChangeDatabasePasswordResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "change-password"};
+    option (google.api.http) = {
+      post: "/v1/databases/{id}:changePassword"
+      body: "*"
+    };
   }
 }
 
@@ -171,6 +215,13 @@ message DatabaseAccount {
   repeated string databases = 5;
   // True for one the server made for itself, such as mysql.sys.
   bool system = 6;
+  // For a user Dockwell made, a resource of kind "database.user": the secret their
+  // password is in, by name.
+  string secret = 7;
+  // The services that use that secret, by name, which are what signs in as them.
+  repeated string used_by = 8;
+  // The resource's ID, for a user Dockwell made.
+  string resource_id = 9;
 }
 
 // ListDatabasesRequest asks for the databases.
@@ -192,6 +243,55 @@ message GetDatabaseRequest {
   // The environment of a service named by name, by name or ID, when its project
   // has more than one.
   string environment = 3;
+}
+
+// CreateDatabaseUserRequest names a database server, and the user and database to
+// make in it.
+message CreateDatabaseUserRequest {
+  // The service that runs it, by ID or by name.
+  string id = 1;
+  // The user's name, such as "shop": lowercase letters, digits and underscores,
+  // starting with a letter, at most 32.
+  string user = 2;
+  // The database they own, named as a user is. Empty takes the user's name.
+  string database = 3 [(dockwell.v1.flag) = "database-name"];
+  // The secret their password goes in, such as "SHOP_DATABASE_PASSWORD". Empty
+  // takes the user's name in capitals, then "_DATABASE_PASSWORD". It must not be
+  // there already.
+  string secret = 4;
+  // The project of a service named by name, by name or ID, when more than one has a
+  // service of that name.
+  string project = 5;
+  // The environment of a service named by name, by name or ID, when its project has
+  // more than one.
+  string environment = 6;
+}
+
+// CreateDatabaseUserResponse carries the planned change.
+message CreateDatabaseUserResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// ChangeDatabasePasswordRequest names a database, and the user whose password changes.
+message ChangeDatabasePasswordRequest {
+  // The service that runs it, by ID or by name.
+  string id = 1;
+  // The user, by name: one Dockwell made, such as "shop". Empty is its first user,
+  // whose password is in Database.password_secret.
+  string user = 2;
+  // The project of a service named by name, by name or ID, when more than one has a
+  // service of that name.
+  string project = 3;
+  // The environment of a service named by name, by name or ID, when its project has
+  // more than one.
+  string environment = 4;
+}
+
+// ChangeDatabasePasswordResponse is the change that gives the user a new password.
+message ChangeDatabasePasswordResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
 }
 
 // GetDatabaseResponse is one database.

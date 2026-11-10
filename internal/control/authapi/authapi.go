@@ -106,6 +106,14 @@ func (h *Handler) GetAuthState(ctx context.Context, _ *connect.Request[dockwellv
 		msg.User = userProto(p.User)
 		msg.SessionId = p.Session.ID
 		msg.SignInMethod = methodProto(p.Session.Method)
+		// What they hold, for the panel to offer only what they may do (ADR 0059).
+		grants, err := h.auth.Grants(ctx, p)
+		if err != nil {
+			return nil, h.rpcError(ctx, err)
+		}
+		for _, g := range grants {
+			msg.Grants = append(msg.Grants, &dockwellv1.RoleGrant{ProjectId: g.ProjectID, Role: RoleProto(g.Role)})
+		}
 	} else if req, ok := ctx.Value(requestKey{}).(request); ok && req.token != "" && !sessionUnchecked(ctx) {
 		// A cookie for a session that ended: clear it. One that couldn't be
 		// checked stays, as its session may still work.
@@ -361,6 +369,13 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE:         auth.StepUpApplyRootChange,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SAVE_WAY_BACK_IN:          auth.StepUpSaveWayBackIn,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_END_PROCESS:               auth.StepUpEndProcess,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL:             auth.StepUpOpenTerminal,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE:            auth.StepUpApproveChange,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_MAKE_WAY_BACK_IN:          auth.StepUpMakeWayBackIn,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_MOVE_WAY_BACK_IN:          auth.StepUpMoveWayBackIn,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_DELETE_WAY_BACK_IN:        auth.StepUpDeleteWayBackIn,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_RESTORE_WAY_BACK_IN:       auth.StepUpRestoreWayBackIn,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_ADD_SERVER:                auth.StepUpAddServer,
 }
 
 // FinishStepUp checks the passkey's answer and returns a proof.
@@ -551,6 +566,9 @@ const (
 	// ReasonNeedsSession: the call came with an API token, and no token may
 	// make it: it is destructive, or manages sign-in or tokens.
 	ReasonNeedsSession = "needs_session"
+	// ReasonNeedsRole: the call needs a role the caller doesn't hold, or for
+	// an API token, its maker doesn't (ADR 0049).
+	ReasonNeedsRole = "needs_role"
 	// ReasonNeedsStepUp: the call needs a fresh passkey assertion for it,
 	// from FinishStepUp, and its proof is missing, used, expired, or for
 	// something else.
@@ -559,6 +577,10 @@ const (
 	// this address can confirm, in a session not signed in just now. Sign
 	// in again, then add it.
 	ReasonNeedsFreshSignIn = "needs_fresh_sign_in"
+	// ReasonAgentOutdated: the server's agent is older than the control plane,
+	// and doesn't know what the call asks of it. Run the install script on the
+	// server again to update it.
+	ReasonAgentOutdated = "agent_outdated"
 )
 
 // ReasonError is a Connect error that names its reason under ReasonKey.
@@ -644,11 +666,22 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 func UserProto(u store.User) *dockwellv1.User { return userProto(u) }
 
 func userProto(u store.User) *dockwellv1.User {
-	role := dockwellv1.Role_ROLE_UNSPECIFIED
-	if u.Role == store.RoleOwner {
-		role = dockwellv1.Role_ROLE_OWNER
+	return &dockwellv1.User{Id: u.ID, Name: u.Name, Email: u.Email, Role: RoleProto(u.Role), CreateTime: timestamppb.New(u.CreatedAt)}
+}
+
+// RoleProto is a role as the API names it.
+func RoleProto(role string) dockwellv1.Role {
+	switch role {
+	case store.RoleOwner:
+		return dockwellv1.Role_ROLE_OWNER
+	case store.RoleAdmin:
+		return dockwellv1.Role_ROLE_ADMIN
+	case store.RoleDeveloper:
+		return dockwellv1.Role_ROLE_DEVELOPER
+	case store.RoleViewer:
+		return dockwellv1.Role_ROLE_VIEWER
 	}
-	return &dockwellv1.User{Id: u.ID, Name: u.Name, Email: u.Email, Role: role, CreateTime: timestamppb.New(u.CreatedAt)}
+	return dockwellv1.Role_ROLE_UNSPECIFIED
 }
 
 func methodProto(m string) dockwellv1.SignInMethod {

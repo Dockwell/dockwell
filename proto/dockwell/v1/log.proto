@@ -31,6 +31,9 @@ service LogService {
   rpc ListLogSources(ListLogSourcesRequest) returns (ListLogSourcesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.needs_grant) = TOKEN_GRANT_LOGS;
     option (google.api.http) = {get: "/v1/services/{id}/logSources"};
     option (dockwell.v1.command) = {
@@ -45,6 +48,9 @@ service LogService {
   rpc ReadLogs(ReadLogsRequest) returns (ReadLogsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.needs_grant) = TOKEN_GRANT_LOGS;
     option (google.api.http) = {get: "/v1/services/{id}/logs"};
     option (dockwell.v1.command) = {
@@ -60,6 +66,9 @@ service LogService {
   // left off when the server returns.
   rpc WatchLogs(WatchLogsRequest) returns (stream WatchLogsResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.needs_grant) = TOKEN_GRANT_LOGS;
     option (dockwell.v1.command) = {
       noun: "logs"

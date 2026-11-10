@@ -56,16 +56,36 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await fitsItsWidth(page, "the databases list");
   await shoot(page, "databases-list");
 
-  step("databases: a database's page masks its password, and says where it is");
+  step("databases: a database's page lists what to connect with, its password masked until a passkey reveals it");
   await row.click();
   await page.getByRole("heading", { level: 1, name: "db" }).waitFor();
-  const url = page.getByLabel("Internal URL", { exact: true });
-  const shown = await url.inputValue();
-  if (shown !== "postgres://postgres:••••@db:5432/app") fail(`the internal URL reads ${shown}`);
-  await page
-    .getByText(/The password is in the secret/)
-    .getByText("POSTGRES_PASSWORD")
-    .waitFor();
+  const connect = page.getByRole("region", { name: "Connect" });
+  await connect.getByText("postgres://postgres:••••••••••••@db:5432/app", { exact: true }).waitFor();
+  await connect.getByText("Kept in the secret POSTGRES_PASSWORD").waitFor();
+  // The virtual authenticator answers the passkey prompt, as Touch ID would.
+  await connect.getByRole("button", { name: "Reveal password" }).click();
+  await connect.getByRole("button", { name: "Copy password" }).waitFor({ timeout: 20_000 });
+  const revealed = (await connect.locator(".dw-conn-code.is-revealed").innerText()).trim();
+  if (!/^[A-Za-z0-9]{32}$/.test(revealed)) fail(`the revealed password reads ${revealed.length} characters`);
+  await connect.getByText(`postgres://postgres:${revealed}@db:5432/app`, { exact: true }).waitFor();
+  await connect.getByRole("button", { name: "Hide" }).click();
+  if ((await page.content()).includes(revealed)) fail("the page keeps the password after it's hidden");
+
+  step("databases: changing the password is a plan, with a new one generated in the database and its secret at once");
+  await connect.getByRole("button", { name: "Change password" }).click();
+  const changing = page.getByRole("dialog", { name: "Review plan" });
+  await changing.getByRole("button", { name: /Apply plan/ }).waitFor({ timeout: 30_000 });
+  await shoot(page, "database-change-password-plan");
+  await changing.getByRole("button", { name: /Apply plan/ }).click();
+  const changed = page.getByRole("button", { name: "Done", exact: true });
+  await changed.waitFor({ timeout: 60_000 });
+  await changed.click();
+  await connect.getByRole("button", { name: "Reveal password" }).click();
+  await connect.getByRole("button", { name: "Copy password" }).waitFor({ timeout: 20_000 });
+  const renewed = (await connect.locator(".dw-conn-code.is-revealed").innerText()).trim();
+  if (!/^[A-Za-z0-9]{32}$/.test(renewed) || renewed === revealed)
+    fail("changing the password left the secret as it was");
+  await connect.getByRole("button", { name: "Hide" }).click();
   await page.getByText("99.2").waitFor();
   await page.getByText(/PostgreSQL's own dump, while it runs/).waitFor();
   const users = page.getByRole("table", { name: "Users of db" });
@@ -77,6 +97,32 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await page.getByRole("navigation", { name: "Database sections" }).getByRole("link", { name: /Users/ }).click();
   await page.getByRole("table", { name: "Databases in db" }).getByText("app", { exact: true }).first().waitFor();
   await shoot(page, "database-users");
+
+  step("databases: a user with a database of their own is a plan, with a password no one typed");
+  await page.getByRole("button", { name: "Add a user" }).click();
+  const adding = page.getByRole("dialog", { name: "Add a user to db" });
+  await adding.getByLabel("User", { exact: true }).fill("orders");
+  await shoot(page, "database-add-user");
+  await adding.getByRole("button", { name: /Review plan/ }).click();
+  const planned = page.getByRole("dialog", { name: "Review plan" });
+  await planned.getByRole("button", { name: /Apply plan/ }).waitFor({ timeout: 30_000 });
+  await shoot(page, "database-add-user-plan");
+  const shownPlan = await planned.innerText();
+  if (!shownPlan.includes("orders")) fail(`the plan for a user doesn't name them: ${shownPlan.slice(0, 400)}`);
+  if (/[A-Za-z0-9]{32}/.test(shownPlan.replace(/ORDERS_DATABASE_PASSWORD|chg_[A-Z0-9]+|sha256:[0-9a-f]+/g, ""))) {
+    fail("the plan for a user shows what may be its password");
+  }
+  await planned.getByRole("button", { name: /Apply plan/ }).click();
+  const done = page.getByRole("button", { name: "Done", exact: true });
+  await done.waitFor({ timeout: 60_000 });
+  await done.click();
+  const orders = page
+    .getByRole("table", { name: "Users of db" })
+    .getByRole("row")
+    .filter({ hasText: "ORDERS_DATABASE_PASSWORD" });
+  await orders.waitFor({ timeout: 30_000 });
+  await page.getByRole("table", { name: "Databases in db" }).getByText("orders", { exact: true }).first().waitFor();
+  await shoot(page, "database-user-added");
 
   step("databases: its backups are a tab, where one is taken and one restores through a plan");
   await page.getByRole("navigation", { name: "Database sections" }).getByRole("link", { name: "Backups" }).click();
@@ -108,7 +154,7 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   const builtIn = readFileSync("internal/catalog/entries/postgres.yaml", "utf8");
   const newer = builtIn
     .replace('version: "17.11"', 'version: "17.12"')
-    .replace("release: 1", "release: 2")
+    .replace(/^release: (\d+)$/m, (_, current: string) => `release: ${Number(current) + 1}`)
     .replace(/postgres:17\.11@sha256:[0-9a-f]{64}/, `postgres:17.12@sha256:${"3".repeat(64)}`);
   if (newer === builtIn || !newer.includes("postgres:17.12@"))
     fail("the newer release of PostgreSQL reads the same as the built-in one");
@@ -133,8 +179,13 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await phoneRow.waitFor({ timeout: 20_000 });
   await fitsItsWidth(page, "the databases list on a phone");
   await phoneRow.click();
-  await page.getByLabel("Internal URL", { exact: true }).waitFor();
+  const phoneConnect = page.getByRole("region", { name: "Connect" });
+  const masked = phoneConnect.locator(".dw-conn-code.is-masked");
+  await masked.waitFor({ timeout: 20_000 });
   await fitsItsWidth(page, "a database's page on a phone");
+  // The masked password keeps to one line beside its actions, rather than a dot to a line.
+  const tall = await masked.evaluate((el) => el.getBoundingClientRect().height);
+  if (tall > 28) fail(`the masked password on a phone is ${Math.round(tall)} px tall, more than one line`);
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 

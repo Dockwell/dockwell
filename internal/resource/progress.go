@@ -38,6 +38,10 @@ type Deploy struct {
 	// Run says, as a plan judges it, that someone asked for this resource to run, as
 	// a deploy or a rollback does, and it isn't only part of a file (Desired.Run).
 	Run bool
+	// LastAccess says this is the change's last step on its server of a kind
+	// under the firewall's timer (AccessGuard): the agent waits for the change
+	// to be confirmed, or its timer to run out, before the step ends (ADR 0052).
+	LastAccess bool
 }
 
 type deployKey struct{}

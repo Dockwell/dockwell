@@ -3,6 +3,7 @@
 import { create } from "@bufbuild/protobuf";
 import { createRouterTransport, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
 import {
+  AlertService,
   AuditService,
   AuthService,
   BackupService,
@@ -14,6 +15,7 @@ import {
   DomainService,
   EventService,
   FileService,
+  FirewallService,
   GetVersionResponseSchema,
   HealthService,
   ImportService,
@@ -25,6 +27,8 @@ import {
   ServiceService,
   SettingsService,
   SystemService,
+  TaskService,
+  TerminalService,
   TokenService,
   UpdateService,
   VariableService,
@@ -60,6 +64,7 @@ export type Api = {
   logs?: Partial<ServiceImpl<typeof LogService>>;
   health?: Partial<ServiceImpl<typeof HealthService>>;
   containers?: Partial<ServiceImpl<typeof ContainerService>>;
+  firewall?: Partial<ServiceImpl<typeof FirewallService>>;
   files?: Partial<ServiceImpl<typeof FileService>>;
   backups?: Partial<ServiceImpl<typeof BackupService>>;
   processes?: Partial<ServiceImpl<typeof ProcessService>>;
@@ -70,6 +75,9 @@ export type Api = {
   audit?: Partial<ServiceImpl<typeof AuditService>>;
   members?: Partial<ServiceImpl<typeof MemberService>>;
   imports?: Partial<ServiceImpl<typeof ImportService>>;
+  tasks?: Partial<ServiceImpl<typeof TaskService>>;
+  alerts?: Partial<ServiceImpl<typeof AlertService>>;
+  terminals?: Partial<ServiceImpl<typeof TerminalService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -101,7 +109,8 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
     ({ service }) => {
       service(SystemService, api.system ?? {});
       service(ServerService, { watchServers: quietWatch, ...api.servers });
-      service(AuthService, api.auth ?? {});
+      // Mira, signed in as the owner, unless a test says who is: what the panel offers follows what they hold.
+      service(AuthService, { getAuthState: () => authState(), ...api.auth });
       service(TokenService, api.tokens ?? {});
       service(ChangeService, api.changes ?? {});
       // The command bar lists projects and recent changes; with none, it lists none.
@@ -115,6 +124,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(LogService, api.logs ?? {});
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
+      service(FirewallService, { getServerFirewall: () => ({ firewall: {} }), ...api.firewall });
       service(FileService, api.files ?? {});
       service(ProcessService, { watchProcesses: quietWatch, ...api.processes });
       service(AuditService, { listAuditEvents: () => ({}), ...api.audit });
@@ -122,6 +132,15 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(SettingsService, { getSettings: () => ({ settings: { timeZone: "UTC" } }), ...api.settings });
       service(UpdateService, api.updates ?? {});
       service(ImportService, api.imports ?? {});
+      service(TaskService, { listTasks: () => ({}), listTaskRuns: () => ({}), ...api.tasks });
+      service(AlertService, {
+        listAlerts: () => ({}),
+        listAlertRules: () => ({}),
+        listAlertChannels: () => ({}),
+        listAlertDeliveries: () => ({}),
+        ...api.alerts,
+      });
+      service(TerminalService, { listTerminals: () => ({}), ...api.terminals });
       service(BackupService, {
         listBackups: () => ({}),
         listBackupPolicies: () => ({}),

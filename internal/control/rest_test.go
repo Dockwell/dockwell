@@ -34,7 +34,9 @@ type restMethod struct {
 	verb      string
 	path      string // with {id} and other variables as they are in the rule
 	body      string
-	md        protoreflect.MethodDescriptor
+	// responseBody is the field of the answer that's its body, if it's not all of it.
+	responseBody string
+	md           protoreflect.MethodDescriptor
 }
 
 // restMethods lists every REST path in dockwell.v1, from the schema.
@@ -54,7 +56,7 @@ func restMethods(t *testing.T) []restMethod {
 				verb, path := httpRule(rule)
 				out = append(out, restMethod{
 					procedure: "/" + string(sd.FullName()) + "/" + string(md.Name()),
-					verb:      verb, path: path, body: rule.GetBody(), md: md,
+					verb:      verb, path: path, body: rule.GetBody(), responseBody: rule.GetResponseBody(), md: md,
 				})
 			}
 		}
@@ -162,8 +164,26 @@ func TestEveryMethodHasARESTPath(t *testing.T) {
 				procedure := "/" + string(sd.FullName()) + "/" + string(md.Name())
 				m, ok := rules[procedure]
 				if md.IsStreamingClient() || md.IsStreamingServer() {
-					if ok {
-						t.Errorf("%s streams, so it can't have a REST path, but has %s %s", md.FullName(), m.verb, m.path)
+					// REST carries a stream of bytes, and nothing else: an upload as a PUT
+					// whose body is the bytes, and a download as a GET that only reads.
+					if !ok {
+						continue
+					}
+					opts, _ := md.Options().(*descriptorpb.MethodOptions)
+					effect, _ := proto.GetExtension(opts, dockwellv1.E_Effect).(dockwellv1.Effect)
+					upload := md.IsStreamingClient() && !md.IsStreamingServer() && m.verb == http.MethodPut &&
+						md.Input().Fields().ByName(protoreflect.Name(m.body)) != nil &&
+						md.Input().Fields().ByName(protoreflect.Name(m.body)).Message().FullName() == "google.api.HttpBody"
+					download := md.IsStreamingServer() && !md.IsStreamingClient() && m.verb == http.MethodGet && m.body == "" &&
+						md.Output().Fields().ByName(protoreflect.Name(m.responseBody)) != nil &&
+						md.Output().Fields().ByName(protoreflect.Name(m.responseBody)).Message().FullName() == "google.api.HttpBody" &&
+						effect == dockwellv1.Effect_EFFECT_READ &&
+						opts.GetIdempotencyLevel() == descriptorpb.MethodOptions_NO_SIDE_EFFECTS
+					if !upload && !download {
+						t.Errorf("%s streams, so it can't have a REST path, but has %s %s: only a stream of google.api.HttpBody can, as a PUT or a read's GET", md.FullName(), m.verb, m.path)
+					}
+					if !strings.HasPrefix(m.path, authapi.RESTPrefix) {
+						t.Errorf("%s's REST path %s isn't under %s", md.FullName(), m.path, authapi.RESTPrefix)
 					}
 					continue
 				}
@@ -831,4 +851,39 @@ func TestEveryRESTPathFindsItsMethod(t *testing.T) {
 	if _, ok := routes.procedureOf(http.MethodGet, "/v1/nothing/here"); ok {
 		t.Error("a path no rule names found a method")
 	}
+}
+
+// Who calls a REST path, and their role, are checked before its query and body
+// are read: someone signed out learns they're signed out, and someone whose
+// role doesn't cover the call learns that, however wrong the request.
+func TestRESTChecksTheCallerBeforeTheRequest(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		anon := newBrowser(t, b.origin, f.api, nil)
+		hold := aMember(t, f)
+		hold(onInstall(store.RoleViewer))
+		for _, tt := range []struct {
+			who            *browser
+			verb, path     string
+			body           string
+			status         int
+			reason, saying string
+		}{
+			{anon, http.MethodGet, "/v1/auditEvents?pageSize=notanumber", "", http.StatusUnauthorized, "unauthenticated", ""},
+			{anon, http.MethodPost, "/v1/settings:setTimeZone", "{not json", http.StatusUnauthorized, "unauthenticated", ""},
+			{b, http.MethodGet, "/v1/auditEvents?pageSize=notanumber", "", http.StatusForbidden, "needs_role", "only an admin or the owner can do this, and you're a viewer"},
+			{b, http.MethodPost, "/v1/settings:setTimeZone", "{not json", http.StatusForbidden, "needs_role", "only an admin or the owner"},
+			{b, http.MethodPost, "/v1/servers/srv_nothere:setPublicAddress", `{"ipv4":{"address":"192.0.2.10"}}`, http.StatusForbidden, "needs_role", ""},
+			// What the caller may make is still read as Vanguard reads it.
+			{b, http.MethodGet, "/v1/events?pageSize=notanumber", "", http.StatusBadRequest, "", ""},
+		} {
+			status, reason, body := callREST(t, tt.who, tt.verb, tt.path, nil, tt.body)
+			var said rpcStatus
+			_ = json.Unmarshal([]byte(body), &said)
+			if status != tt.status || reason != tt.reason || !strings.Contains(said.Message, tt.saying) {
+				t.Errorf("%s %s: %d %q %s, want %d %q saying %q", tt.verb, tt.path, status, reason, body, tt.status, tt.reason, tt.saying)
+			}
+		}
+	})
 }

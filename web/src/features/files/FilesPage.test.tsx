@@ -15,7 +15,7 @@ import {
 } from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
 import { focusManager } from "@tanstack/react-query";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -113,7 +113,7 @@ describe("FilesPage", () => {
     expect(await screen.findByRole("link", { name: "Files" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("groups its places as Server-Files does: the common ones, then the server's root, with yours marked", async () => {
+  it("groups its places as Server-Files does: the common ones, then the server's folders, with yours marked", async () => {
     await renderFiles("/servers/srv_1/files?path=/var/www/site", { listFiles: () => site });
     const places = await screen.findByRole("navigation", { name: "Places" });
     const common = within(places).getByRole("group", { name: "Common places" });
@@ -123,15 +123,81 @@ describe("FilesPage", () => {
         .map((l) => l.textContent),
     ).toEqual(["Websites", "Logs", "Docker volumes"]);
     const server = within(places).getByRole("group", { name: "Server" });
+    // The server's own folders are a tree, from its root.
+    expect(within(server).getAllByRole("link")[0]).toHaveTextContent(/^\/$/);
+    // A folder inside a place is in that place, not in the root that holds them all.
+    expect(within(common).getByRole("link", { name: "Websites" })).toHaveAttribute("aria-current", "location");
+    expect(within(server).getAllByRole("link")[0]).not.toHaveAttribute("aria-current");
+    expect(places.querySelector(".files-places-rule")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("shows the server's folders as a tree, open down to where you are, and opens another in place", async () => {
+    const at = (path: string, ...names: EntryInit[]) =>
+      create(ListFilesResponseSchema, {
+        path,
+        directory: folderEntry(path),
+        entries: names.map((more) => folderEntry(String(more.name), more)),
+      });
+    const folders: Record<string, ReturnType<typeof at>> = {
+      "/": at("/", { name: "etc" }, { name: "var" }),
+      "/var": at("/var", { name: "lib", refused: true }, { name: "www" }),
+      "/var/www": create(ListFilesResponseSchema, {
+        path: "/var/www",
+        directory: folderEntry("www"),
+        entries: [entry("index.php"), folderEntry("blog")],
+      }),
+      "/etc": at("/etc", { name: "nginx" }),
+    };
+    const listFiles = vi.fn((req: { path: string; lookup: boolean }) => folders[req.path] ?? at(req.path));
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    const server = within(await screen.findByRole("navigation", { name: "Places" })).getByRole("group", {
+      name: "Server",
+    });
+    // Folders only, each level under the one that holds it; what's beside the way stays shut.
+    await within(server).findByRole("link", { name: "blog" });
     expect(
       within(server)
         .getAllByRole("link")
         .map((l) => l.textContent),
-    ).toEqual(["Server root"]);
-    // A folder inside a place is in that place, not in the root that holds them all.
-    expect(within(common).getByRole("link", { name: "Websites" })).toHaveAttribute("aria-current", "location");
-    expect(within(server).getByRole("link", { name: "Server root" })).not.toHaveAttribute("aria-current");
-    expect(places.querySelector(".files-places-rule")).toHaveAttribute("aria-hidden", "true");
+    ).toEqual(["/", "etc", "var", "lib", "www", "blog"]);
+    expect(within(server).getByRole("link", { name: "www" })).toHaveAttribute("aria-current", "page");
+    expect(within(server).getByRole("link", { name: "www" })).toHaveAttribute(
+      "href",
+      "/servers/srv_1/files?path=%2Fvar%2Fwww",
+    );
+    // The folder you're in is the page's own listing. The ones above are lookups, which go on no Activity.
+    const asked = () => listFiles.mock.calls.map(([req]) => `${req.path}${req.lookup ? " lookup" : ""}`).sort();
+    expect(asked()).toEqual(["/ lookup", "/var lookup", "/var/www"]);
+    // What Dockwell doesn't open has nothing to show.
+    expect(within(server).queryByRole("button", { name: "Show the folders in lib" })).toBeNull();
+
+    await userEvent.click(within(server).getByRole("button", { name: "Show the folders in etc" }));
+    expect(await within(server).findByRole("link", { name: "nginx" })).toBeVisible();
+    expect(within(server).getByRole("button", { name: "Hide the folders in etc" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    // And the way to where you are closes too, without leaving the folder.
+    await userEvent.click(within(server).getByRole("button", { name: "Hide the folders in var" }));
+    expect(within(server).queryByRole("link", { name: "www" })).toBeNull();
+    expect(screen.getByRole("table", { name: "Files in /var/www" })).toBeVisible();
+  });
+
+  it("keeps the way to where you are in the tree, past what one folder shows of its own", async () => {
+    const many = Array.from({ length: 70 }, (_, i) => folderEntry(`pkg-${String(i).padStart(2, "0")}`));
+    const listFiles = (req: { path: string }) =>
+      create(ListFilesResponseSchema, {
+        path: req.path,
+        directory: folderEntry(req.path),
+        entries: req.path === "/" ? many : [],
+      });
+    await renderFiles("/servers/srv_1/files?path=/pkg-68", { listFiles });
+    const server = within(await screen.findByRole("navigation", { name: "Places" })).getByRole("group", {
+      name: "Server",
+    });
+    expect(await within(server).findByRole("link", { name: "pkg-68" })).toHaveAttribute("aria-current", "page");
+    expect(within(server).queryByRole("link", { name: "pkg-69" })).toBeNull();
+    expect(within(server).getByText("and 9 more, in its list")).toBeVisible();
   });
 
   it("marks the place you're on as yours, and only it", async () => {
@@ -161,9 +227,10 @@ describe("FilesPage", () => {
   it("opens a folder, and follows a link to one", async () => {
     const listFiles = vi.fn(() => site);
     const { router } = await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
-    await userEvent.click(await screen.findByText("wp-admin"));
+    const list = () => screen.findByRole("table");
+    await userEvent.click(await within(await list()).findByText("wp-admin"));
     await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www/wp-admin" }));
-    await userEvent.click(await screen.findByText("current"));
+    await userEvent.click(await within(await list()).findByText("current"));
     await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www/current" }));
   });
 
@@ -227,6 +294,7 @@ describe("FilesPage", () => {
     const code = screen.getByRole("textbox", { name: "Contents of huge.log" });
     expect(code).toHaveAttribute("readonly");
     expect(screen.getByText("it can't be edited here", { exact: false })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Download huge.log" })).toBeVisible();
   });
 
   it("says why a file is refused, in the agent's words", async () => {
@@ -238,8 +306,10 @@ describe("FilesPage", () => {
     });
     expect(await screen.findByText("Dockwell doesn't open this file")).toBeVisible();
     expect(screen.getByText("/var/lib/dockwell is Dockwell's own data", { exact: false })).toBeVisible();
+    // A download would be refused the same way, and a browser would say only "Failed".
+    expect(screen.queryByRole("link", { name: "Download key" })).toBeNull();
     // The folder stays, to go on from.
-    expect(screen.getByText("wp-admin")).toBeVisible();
+    expect(within(screen.getByRole("table")).getByText("wp-admin")).toBeVisible();
   });
 
   it("says why a folder can't be read, and offers a way up", async () => {
@@ -281,7 +351,9 @@ describe("FilesPage", () => {
     await renderFiles("/servers/srv_1/files?path=/mnt/nas", { listFiles });
     expect(await screen.findByText("This path isn't answering")).toBeVisible();
     expect(screen.getByText("/mnt/nas isn't answering", { exact: false })).toBeVisible();
-    expect(listFiles).toHaveBeenCalledTimes(1);
+    // Once for the path itself: the tree asks for the folders above it, never for it again.
+    const asked = (listFiles.mock.calls as unknown as [{ path: string }][]).map(([req]) => req.path);
+    expect(asked.filter((path) => path === "/mnt/nas")).toHaveLength(1);
   });
 
   it("says when a file isn't answering", async () => {
@@ -305,11 +377,95 @@ describe("FilesPage", () => {
     expect(screen.getByText("Nothing here matches your search.")).toBeVisible();
   });
 
-  it("says when a folder holds more than a listing shows", async () => {
+  it("says an older agent lists only part of a large folder, and how to see the rest", async () => {
     await renderFiles("/servers/srv_1/files?path=/var/www", {
       listFiles: () => create(ListFilesResponseSchema, { ...site, truncated: true }),
     });
     expect(await screen.findByText("This folder holds more than a listing shows")).toBeVisible();
+    expect(screen.getByText(/Update the agent on hz-1 to search and page through them all/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  });
+
+  it("keeps a large folder's pages when the window takes focus, and doesn't read it again", async () => {
+    const listFiles = vi.fn((req: { page: string }) =>
+      req.page === "after-index"
+        ? create(ListFilesResponseSchema, { ...site, entries: [entry("zz-last.txt")] })
+        : create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 5 items/);
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(rowNames()).toContain("zz-last.txt"));
+    const asked = listFiles.mock.calls.length;
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(listFiles.mock.calls.length).toBe(asked);
+    expect(rowNames()).toContain("zz-last.txt");
+  });
+
+  it("puts a later page below what's shown, by name, folders and all", async () => {
+    const listFiles = vi.fn((req: { page: string }) =>
+      req.page === "after-b"
+        ? create(ListFilesResponseSchema, { ...site, entries: [folderEntry("c-dir"), entry("d.txt")] })
+        : create(ListFilesResponseSchema, {
+            ...site,
+            entries: [entry("a.txt"), entry("b.txt")],
+            truncated: true,
+            nextPage: "after-b",
+          }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 2 items/);
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(rowNames()).toEqual(["a.txt", "b.txt", "c-dir", "d.txt"]));
+  });
+
+  it("stops asking for a page once the person has left", async () => {
+    let signal: AbortSignal | undefined;
+    const listFiles = vi.fn((req: { page: string }, ctx: HandlerContext) => {
+      if (req.page !== "after-index")
+        return create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" });
+      signal = ctx.signal;
+      return untilAborted(ctx.signal).then(() => create(ListFilesResponseSchema, { ...site }));
+    });
+    const { unmount } = await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 5 items/);
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(signal).toBeDefined());
+    unmount();
+    await waitFor(() => expect(signal?.aborted).toBe(true));
+  });
+
+  it("brings a large folder's next page, in name order, with Show more", async () => {
+    const listFiles = vi.fn((req: { page: string }) =>
+      req.page === "after-index"
+        ? create(ListFilesResponseSchema, { ...site, entries: [entry("zz-last.txt")] })
+        : create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    expect(await screen.findByText(/^More than 5 items/)).toBeVisible();
+    expect(screen.queryByText("This folder holds more than a listing shows")).toBeNull();
+    expect(screen.getByText("5 shown, by name")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(rowNames()).toContain("zz-last.txt"));
+    expect(listFiles.mock.lastCall?.[0]).toMatchObject({ path: "/var/www", page: "after-index", match: "" });
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  });
+
+  it("searches a large folder through every name, on its server", async () => {
+    const listFiles = vi.fn((req: { match: string }) =>
+      req.match === "err"
+        ? create(ListFilesResponseSchema, { ...site, entries: [entry("error.log"), entry("stderr.txt")] })
+        : create(ListFilesResponseSchema, { ...site, truncated: true, nextPage: "after-index" }),
+    );
+    await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
+    await screen.findByText(/^More than 5 items/);
+    await userEvent.type(screen.getByRole("textbox", { name: "Search in www" }), "err");
+    await waitFor(() => expect(rowNames()).toEqual(["error.log", "stderr.txt"]));
+    expect(listFiles).toHaveBeenCalledWith(expect.objectContaining({ match: "err" }), expect.anything());
   });
 
   it("doesn't open a file whose name it can't send back", async () => {
@@ -401,34 +557,118 @@ describe("editing a file", () => {
     expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: "a\r\nb\r\nc" }), expect.anything()]);
   });
 
+  it("saves a second time from what the first save wrote, so no untouched line's ending moves", async () => {
+    let version = 1;
+    const saveFile = vi.fn(() => saved(`v${++version}`));
+    await open({ readFile: () => text("\rx\r\nx\n\n\n"), saveFile });
+    const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    // A line inserted at the top, saved; then the third line retyped, saved again.
+    fireEvent.change(field, { target: { value: "x\n\nx\nx\n\n\n" } });
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
+    expect(saveFile.mock.lastCall).toEqual([
+      expect.objectContaining({ content: "x\n\rx\r\nx\n\n\n" }),
+      expect.anything(),
+    ]);
+    await waitFor(() => expect(screen.getAllByText("Saved .user.ini").length).toBeGreaterThan(0));
+    fireEvent.change(field, { target: { value: "x\n\nEDITED\nx\n\n\n" } });
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
+    expect(saveFile.mock.lastCall).toEqual([
+      expect.objectContaining({ content: "x\n\rEDITED\r\nx\n\n\n", version: "v2" }),
+      expect.anything(),
+    ]);
+  });
+
+  it("asks for one ending when an edit moves too much to keep each line's, and saves with it", async () => {
+    const alternating = Array.from({ length: 1200 }, (_, i) => `line ${i}${i % 2 ? "\r\n" : "\n"}`).join("");
+    const saveFile = vi.fn(() => saved());
+    await open({ readFile: () => text(alternating), saveFile });
+    const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    const lines = alternating.replace(/\r\n/g, "\n").split("\n");
+    lines.splice(3, 0, ...Array.from({ length: 501 }, (_, i) => `pasted ${i}`));
+    lines[lines.length - 2] = "the last line, edited";
+    fireEvent.change(field, { target: { value: lines.join("\n") } });
+    await userEvent.click(saveButton());
+    expect(await screen.findByText("This edit moves too much to keep each line's ending")).toBeVisible();
+    expect(saveFile).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Save with CRLF" }));
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
+    expect(saveFile.mock.lastCall).toEqual([
+      expect.objectContaining({ content: lines.join("\r\n") }),
+      expect.anything(),
+    ]);
+  });
+
+  // The re-check's medium: Save over it rereads the file, then asks for an ending again, and the pick
+  // saved over the version first read, which the server refused again, round after round.
+  it("saves a large edit over the server's version once you pick an ending after Save over it", async () => {
+    const alternating = Array.from({ length: 1200 }, (_, i) => `line ${i}${i % 2 ? "\r\n" : "\n"}`).join("");
+    let server = "v1";
+    const readFile = vi.fn(() => text(alternating, { version: server }));
+    const saveFile = vi.fn((req: { version: string }) => {
+      if (req.version !== server) throw refused("file_changed", "it changed", Code.FailedPrecondition);
+      server = "v9";
+      return saved("v9");
+    });
+    await open({ readFile, saveFile });
+    const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
+    const lines = alternating.replace(/\r\n/g, "\n").split("\n");
+    lines.splice(3, 0, ...Array.from({ length: 501 }, (_, i) => `pasted ${i}`));
+    lines[lines.length - 2] = "the last line, edited";
+    fireEvent.change(field, { target: { value: lines.join("\n") } });
+    // Someone else saves the file meanwhile.
+    server = "v3";
+    await userEvent.click(saveButton());
+    await userEvent.click(await screen.findByRole("button", { name: "Save with CRLF" }));
+    await screen.findByText("This file changed on the server");
+    await userEvent.click(screen.getByRole("button", { name: "Save over it" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Save with CRLF" }));
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
+    expect(saveFile.mock.calls.map(([req]) => req.version)).toEqual(["v1", "v3"]);
+    expect(saveFile.mock.lastCall).toEqual([
+      expect.objectContaining({ content: lines.join("\r\n"), version: "v3" }),
+      expect.anything(),
+    ]);
+    expect(server).toBe("v9");
+    await waitFor(() => expect(screen.getAllByText("Saved .user.ini").length).toBeGreaterThan(0));
+  });
+
   it.each([
-    ["one stray CRLF", "#!/bin/sh\necho a\r\necho b\n"],
-    ["a lone CR", "a\rb\n"],
-  ])("won't edit a file with %s, as saving it would change lines nobody touched", async (_, content) => {
+    ["one stray CRLF", "#!/bin/sh\necho a\r\necho b\n", "#!/bin/sh\necho a\r\necho b\nx"],
+    ["a lone CR", "a\rb\n", "a\rb\nx"],
+  ])("edits a file with %s, and saves each line with the ending it had", async (_, content, sent) => {
     const saveFile = vi.fn(() => saved());
     await open({ readFile: () => text(content), saveFile });
     const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
-    expect(field).toHaveAttribute("readonly");
-    expect(screen.getByText("This file can't be edited here")).toBeVisible();
-    expect(screen.getByText("would change lines you didn't touch", { exact: false })).toBeVisible();
+    expect(field).not.toHaveAttribute("readonly");
+    expect(screen.getByText("Mixed line endings")).toBeVisible();
     await userEvent.type(field, "x");
-    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    expect(saveFile).not.toHaveBeenCalled();
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(saveFile).toHaveBeenCalled());
+    expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: sent }), expect.anything()]);
   });
 
-  it("won't take a file with mixed line endings in place of yours", async () => {
+  it("takes the server's version with mixed line endings in place of yours, and keeps them on the next save", async () => {
     const readFile = vi
       .fn()
       .mockReturnValueOnce(text("old\n"))
       .mockReturnValue(text("a\r\nb\n", { version: "v3" }));
+    let calls = 0;
     const saveFile = vi.fn(() => {
-      throw refused("file_changed", "it changed", Code.FailedPrecondition);
+      calls++;
+      if (calls === 1) throw refused("file_changed", "it changed", Code.FailedPrecondition);
+      return saved();
     });
     const { field } = await edited({ readFile, saveFile });
     await userEvent.click(saveButton());
     await userEvent.click(await screen.findByRole("button", { name: "Load the server's version" }));
-    expect(await screen.findByText("has more than one kind of line ending now", { exact: false })).toBeVisible();
-    expect(field).toHaveValue("memory_limit = 512M");
+    await waitFor(() => expect(field).toHaveValue("a\nb\n"));
+    expect(screen.getByText("Mixed line endings")).toBeVisible();
+    await userEvent.type(field, "c");
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
+    expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: "a\r\nb\nc" }), expect.anything()]);
   });
 
   it("reads a file from an agent too old to save, and says what to do", async () => {
@@ -627,7 +867,7 @@ describe("editing a file", () => {
       expect(await screen.findByText("Saved .user.ini", { selector: "p" })).toBeVisible();
     });
 
-    it("points to SSH with no passkey for this address, and keeps what you typed", async () => {
+    it("offers to add a passkey here when there's none for this address, and keeps what you typed", async () => {
       stubPasskeys();
       const { field } = await edited(
         { readFile: wayIn, saveFile: asks },
@@ -639,8 +879,11 @@ describe("editing a file", () => {
         },
       );
       await userEvent.click(saveButton());
-      expect(await screen.findByText("Connect to the server over SSH to change it", { exact: false })).toBeVisible();
-      expect(screen.getByText(`Saving ${keys} takes a passkey`, { exact: false })).toBeVisible();
+      expect(
+        await screen.findByText("Saving this takes a passkey, and there's none for this address yet"),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "Add a passkey here" })).toBeEnabled();
+      expect(screen.queryByText(/over SSH/)).toBeNull();
       expect(field).toHaveValue("memory_limit = 512M");
     });
 
@@ -784,6 +1027,26 @@ describe("editing a file", () => {
     expect(screen.queryByText("You have unsaved changes to .user.ini")).toBeNull();
   });
 
+  it("closes up the columns of facts beside an open file, so a name keeps its room", async () => {
+    vi.stubGlobal("confirm", () => true);
+    const { router } = await edited({ readFile: () => text("old\n") });
+    const width = (name: string) => screen.getByRole("columnheader", { name }).style.width;
+    expect([width("Size"), width("Modified"), width("Permissions"), width("Owner")]).toEqual([
+      "68px",
+      "78px",
+      "100px",
+      "80px",
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: "Close .user.ini" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www" }));
+    expect([width("Size"), width("Modified"), width("Permissions"), width("Owner")]).toEqual([
+      "84px",
+      "92px",
+      "116px",
+      "96px",
+    ]);
+  });
+
   it("asks before leaving what you typed", async () => {
     const confirm = vi.fn(() => false);
     vi.stubGlobal("confirm", confirm);
@@ -825,7 +1088,7 @@ describe("FilesPage on a phone", () => {
     onPhone();
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
     await screen.findByText("wp-admin");
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Size"]);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Size", "Actions"]);
     expect(screen.getByRole("navigation", { name: "Places" })).toBeVisible();
   });
 

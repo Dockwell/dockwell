@@ -4,6 +4,7 @@ import type { AnchorHTMLAttributes, ButtonHTMLAttributes, Ref } from "react";
 
 import { cx, hasContent } from "../../lib/cx";
 import { keyShortcut } from "../../lib/keyShortcut";
+import { useOff } from "../../lib/off";
 import { Glyph } from "../Glyph/Glyph";
 import { Icon } from "../Icon/Icon";
 import type { IconName } from "../Icon/icons";
@@ -29,6 +30,13 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
    * Keep the label and change its verb ("Deploying").
    */
   loading?: boolean;
+  /**
+   * Why someone may not use it, such as "Only an admin or the owner can do
+   * this." It stays in place and in the tab order, off, with this as its
+   * description, shown on hover and on focus. Use it for what a role refuses;
+   * `disabled` is for what isn't ready yet.
+   */
+  off?: string | undefined;
   ref?: Ref<HTMLButtonElement>;
 }
 
@@ -40,6 +48,7 @@ export function Button({
   iconAfter,
   kbd,
   loading = false,
+  off,
   className,
   children,
   type = "button",
@@ -48,6 +57,7 @@ export function Button({
   ...rest
 }: ButtonProps) {
   const iconOnly = !hasContent(children);
+  const offered = useOff(off);
   return (
     <button
       {...rest}
@@ -61,8 +71,10 @@ export function Button({
         loading && "is-loading",
         className,
       )}
-      disabled={disabled}
+      // Off with a reason keeps its focus, so it isn't disabled as well.
+      disabled={off ? undefined : disabled}
       aria-disabled={loading || undefined}
+      {...offered.props}
       aria-busy={loading || undefined}
       // A submit button that is loading mustn't submit its form again.
       onClick={loading ? (event) => event.preventDefault() : onClick}
@@ -76,6 +88,7 @@ export function Button({
       {iconAfter ? <Icon name={iconAfter} size={14} /> : null}
       {/* Kept out of the name, so the button reads "Apply plan", not "Apply plan⌘↵". */}
       {kbd ? <Kbd aria-hidden="true">{kbd}</Kbd> : null}
+      {offered.why}
     </button>
   );
 }

@@ -126,12 +126,15 @@ type Agents interface {
 type Engine struct {
 	// onBackup hears of each backup a step takes.
 	onBackup func(context.Context, BackupStep)
-	db       *store.DB
-	kinds    *resource.Registry
-	agents   Agents
-	sealer   Sealer
-	logger   *slog.Logger
-	now      func() time.Time
+	// roles has a person's change without a caller in its context refused
+	// (RequireRoles).
+	roles  bool
+	db     *store.DB
+	kinds  *resource.Registry
+	agents Agents
+	sealer Sealer
+	logger *slog.Logger
+	now    func() time.Time
 	// mu makes commits take turns: checking again that nothing moved since
 	// the plan, and committing the revisions, happen together. Planning
 	// asks agents, so it happens outside mu, and so do the steps: a slow
@@ -218,6 +221,9 @@ type Edit struct {
 	// latest the edit is stale, as it would quietly undo what came between.
 	// Zero is an edit that says the whole spec itself.
 	Base int
+	// KeepEnv names a service's own environment variables to keep as they are,
+	// for a client that can't read their values back (resource.EnvKeeper).
+	KeepEnv []string
 	// Pull asks the server for the resource's image again as this applies, as a
 	// deploy of the tag it already names does: the plan can't know what the tag
 	// points at now, so a revision comes only if it finds a newer image.
@@ -384,6 +390,14 @@ type ResourcePlan struct {
 	// couldn't before, from its specs (resource.HostAccesser). A plan with
 	// any needs a person to apply it.
 	HostAccess []resource.Access `json:",omitempty"`
+	// Keeps is the access ADR 0048 makes an admin's that it already has and
+	// keeps while the change has it run something else: under what's as good
+	// as root, any change to what runs, another tag of its image included;
+	// under other such access, another repository, command or entrypoint.
+	// Whoever changes what runs there gets what it reaches, so applying is an
+	// admin's (ADR 0049). It asks no passkey and no warning: who may apply is
+	// all it decides.
+	Keeps []resource.Access `json:",omitempty"`
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -626,8 +640,22 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if len(p.Edits) == 0 {
 		return nil, fault.New(ErrInvalid, "the change has no edits. Add one for each resource to change")
 	}
+	if err := e.db.View(ctx, func(tx *store.Tx) error { return e.reachFirst(ctx, tx, p.Actor, p.Edits) }); err != nil {
+		return nil, err
+	}
 	items, err := e.items(ctx, p.Edits, rotate)
 	if err != nil {
+		return nil, err
+	}
+	if err := e.db.View(ctx, func(tx *store.Tx) error {
+		if err := e.checkRoles(ctx, tx, p.Actor, nil, items, planning); err != nil {
+			return err
+		}
+		if err := e.capsHeld(ctx, tx, items); err != nil {
+			return err
+		}
+		return e.portsOutOfReach(ctx, tx, items)
+	}); err != nil {
 		return nil, err
 	}
 	changeID := id.New(id.Change)
@@ -664,6 +692,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
 	p.Notes = unmeasuredNotes(plan, sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, keptNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes))))))))
+	if p.Notes, err = e.taskNotes(ctx, plan, items, p.Notes); err != nil {
+		return nil, err
+	}
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -723,6 +754,77 @@ func (e *Engine) keptLogsNotes(ctx context.Context, plan *Plan, items []item, no
 		}
 	}
 	return out, nil
+}
+
+// taskNotes are a plan's notes, naming the tasks that run in an app this makes
+// reach what's as good as root on its server, each with its command: they run in
+// what it runs, so they reach it too (ADR 0053).
+func (e *Engine) taskNotes(ctx context.Context, plan *Plan, items []item, notes []Note) ([]Note, error) {
+	out := slices.Clone(notes)
+	for i := range items {
+		it := &items[i]
+		if it.ref.Kind != "service" || it.spec == nil || !slices.ContainsFunc(plan.Resources, func(r ResourcePlan) bool {
+			return r.Ref == it.ref && slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot)
+		}) {
+			continue
+		}
+		commands := map[string]string{}
+		err := e.db.View(ctx, func(tx *store.Tx) error {
+			stored, err := tx.ListResources(ctx, it.ref.Scope, taskKind)
+			if err != nil {
+				return err
+			}
+			for _, r := range stored {
+				spec, err := e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+				if err != nil {
+					return err
+				}
+				if app := appTask(spec); app.GetService() == it.ref.Name {
+					commands[r.Name] = app.GetCommand()
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		// What this change does to a task in the same scope is what counts.
+		for j := range items {
+			other := &items[j]
+			if other.ref.Kind != taskKind || other.ref.Scope != it.ref.Scope {
+				continue
+			}
+			delete(commands, other.ref.Name)
+			if app := appTask(other.spec); app.GetService() == it.ref.Name {
+				commands[other.ref.Name] = app.GetCommand()
+			}
+		}
+		if len(commands) == 0 {
+			continue
+		}
+		var names, said []string
+		for _, name := range slices.Sorted(maps.Keys(commands)) {
+			names = append(names, name, commands[name])
+			said = append(said, name+" runs "+commands[name])
+		}
+		out = append(out, Note{
+			Reason: "tasks_as_root", Ref: it.ref, Names: names, Named: true,
+			Message: fmt.Sprintf("%s's tasks run in what it runs, so they reach what it reaches on its server too: %s.", it.ref.Name, strings.Join(said, "; ")),
+		})
+	}
+	return out, nil
+}
+
+// taskKind is the scheduled tasks' kind (ADR 0053).
+const taskKind = "task"
+
+// appTask is what a task runs in an app, or nil for a task that runs anything else.
+func appTask(spec proto.Message) *resourcev1.TaskApp {
+	t, ok := spec.(*resourcev1.Task)
+	if !ok {
+		return nil
+	}
+	return t.GetApp()
 }
 
 // awayServers names each server a resource was ever placed on that isn't connected and
@@ -1121,6 +1223,12 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 					return err
 				}
 				it.spec = proto.Clone(ed.Spec)
+				// What the edit keeps is in the spec before anything checks it.
+				if len(ed.KeepEnv) > 0 {
+					if it.kept, err = e.keepEnv(it, ed.KeepEnv); err != nil {
+						return err
+					}
+				}
 				if err := e.kinds.Validate(ed.Ref.Kind, it.spec); err != nil {
 					return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
 				}
@@ -1128,6 +1236,11 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 				if k, ok := e.keeper(ed.Ref.Kind); ok && it.current != nil && !ed.Observed && !ed.Reverses {
 					if it.kept, err = k.Keep(it.current, it.spec); err != nil {
 						return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
+					}
+				}
+				if t, err := e.kinds.Type(ed.Ref.Kind); it.current == nil && err == nil && !ed.Reverses {
+					if d, ok := t.(resource.NewDefaulter); ok {
+						d.DefaultNew(ed.Ref, it.spec)
 					}
 				}
 				if t, err := e.kinds.Type(ed.Ref.Kind); it.current == nil && err == nil {
@@ -1176,6 +1289,30 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 		return items, err
 	}
 	return items, e.checkKept(ctx, items)
+}
+
+// keepEnv puts the values an edit names to keep into its spec, from what's there.
+func (e *Engine) keepEnv(it item, names []string) (resource.Kept, error) {
+	t, err := e.kinds.Type(it.ref.Kind)
+	if err != nil {
+		return resource.Kept{}, fault.New(ErrInvalid, "%w", err)
+	}
+	k, ok := t.(resource.EnvKeeper)
+	_, keeper := t.(resource.Keeper)
+	switch {
+	case keeper:
+		// Both would say what they kept in it.kept, and one would drop the other's word.
+		return resource.Kept{}, fmt.Errorf("%s is a kind that keeps what it was made with, so it can't keep environment variables too", it.ref.Kind)
+	case !ok:
+		return resource.Kept{}, fault.New(ErrInvalid, "%s keeps environment variables, which only a service has. Leave keep_env out", it.ref)
+	case it.current == nil:
+		return resource.Kept{}, fault.New(ErrInvalid, "%s keeps environment variables, but there's no %s yet to keep them from. Set them in the spec", it.ref, it.ref.Kind)
+	}
+	kept, err := k.KeepEnv(it.current, it.spec, names)
+	if err != nil {
+		return resource.Kept{}, fault.New(ErrInvalid, "%s: %w", it.ref, err)
+	}
+	return kept, nil
 }
 
 // checkKept refuses an edit that would take what it kept to a server that hasn't got
@@ -1749,7 +1886,7 @@ func (e *Engine) withFirstEnvironments(ctx context.Context, tx *store.Tx, items 
 		if env.id == "" {
 			env.id = e.newID(scope.EnvironmentKind)
 		}
-		env.spec = &resourcev1.Environment{}
+		env.spec = &resourcev1.Environment{Protection: scope.DefaultProtection(scope.DefaultEnvironment)}
 		if env.encoded, err = resource.Encode(env.spec); err != nil {
 			return items, err
 		}
@@ -1922,6 +2059,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	}
 	actions := map[string][]resource.Action{} // each item's steps, on every server
 	access := map[string][]resource.Access{}  // what each item gains on its servers
+	keeps := map[string][]resource.Access{}   // what each keeps while it runs something else
 	var before, after map[resource.Ref]proto.Message
 	var takes map[resource.Ref][]resource.Access
 	if len(servers) > 0 {
@@ -2041,6 +2179,10 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				}
 				// What a person approved was where a path led then.
 				gained = append(gained, resource.NewAccess(gained, movedOff(reaches, moved))...)
+				if kept := resource.NewAccess(gained, e.keptWhileRunningElse(it, server, reaches, leads)); len(kept) > 0 {
+					keeps[it.id] = append(keeps[it.id], resource.NewAccess(keeps[it.id], kept)...)
+					fmt.Fprintf(fp, "keeps %s|%s|%v\n", server, ref(it.ref), kept)
+				}
 				// What a backup holds came from what its volume reached then, and a
 				// volume of that name now may reach far less.
 				if len(asRoot(reaches, leads)) == 0 {
@@ -2089,7 +2231,12 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			sp.Downtime += s.Downtime
 			sp.UntilHealthy += max(s.Downtime, s.UntilHealthy)
 			actions[ids[s.Ref]] = append(actions[ids[s.Ref]], s.Action)
-			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, s.Downtime, len(s.Changes), s.Destroys, s.Warnings,
+			downtime := s.Downtime
+			if s.BackupFirst != nil {
+				// A backup's cost can change as its volume grows (ADR 0033).
+				downtime = 0
+			}
+			fmt.Fprintf(fp, "step %t|%s|%s|%s|%d|%d|%d|%t|%v|%d|%v|%t|%t|%t\n", s.Pull, server, ref(s.Ref), s.Action, s.Effect, downtime, len(s.Changes), s.Destroys, s.Warnings,
 				s.UntilHealthy, s.Kept, s.Restores, s.HealthUnknown, s.HidesLogs)
 			if s.Adopts != "" || s.Releases {
 				fmt.Fprintf(fp, "  adopts %s|%t\n", s.Adopts, s.Releases)
@@ -2130,7 +2277,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	masked := e.switchSides(items)
 	for i := range items {
 		rp := items[i].resourcePlan(actions[items[i].id])
-		rp.HostAccess = access[items[i].id]
+		rp.HostAccess, rp.Keeps = access[items[i].id], keeps[items[i].id]
 		if masked[items[i].ref] {
 			for j := range rp.Changes {
 				rp.Changes[j].Sensitive, rp.Changes[j].From, rp.Changes[j].To = true, "", ""
@@ -2211,6 +2358,50 @@ func (e *Engine) writtenAs(kind resource.Kind, spec proto.Message, list []resour
 		}
 		a.Writer, a.Detail, a.User = writer, detail, user
 	}
+}
+
+// Reaches is what each of a page of resources reaches on its servers as its
+// spec says, through what it mounts too, as a plan reads it (reach), but for where
+// a path leads, which only an agent says. So ListServices can tell an editor that
+// a passkey is coming before it plans, from the same rule the plan's gate uses.
+// What they mount is read by kind and scope, once each, so a page costs the same
+// few queries however many it holds. specs[i] is refs[i]'s.
+func (e *Engine) Reaches(ctx context.Context, tx *store.Tx, refs []resource.Ref, specs []proto.Message) ([][]resource.Access, error) {
+	type group struct {
+		scope string
+		kind  resource.Kind
+	}
+	var groups []group
+	for i := range refs {
+		for _, use := range e.kinds.References(refs[i].Kind, specs[i]) {
+			if g := (group{refs[i].Scope, use.Kind}); !use.Apart && !slices.Contains(groups, g) {
+				groups = append(groups, g)
+			}
+		}
+	}
+	named := map[resource.Ref]proto.Message{}
+	for _, g := range groups {
+		list, err := tx.ListResources(ctx, g.scope, string(g.kind))
+		if err != nil {
+			return nil, err
+		}
+		stored := make([]store.StoredSpec, len(list))
+		for k := range list {
+			stored[k] = store.StoredSpec{At: store.InRevision(list[k].ID, list[k].Kind, list[k].Revision), Spec: list[k].Spec}
+		}
+		decoded, err := e.decodeAll(ctx, tx, stored)
+		if err != nil {
+			return nil, fmt.Errorf("reading the %ss of %s: %w", g.kind, g.scope, err)
+		}
+		for k := range list {
+			named[resource.Ref{Kind: g.kind, Scope: g.scope, Name: list[k].Name}] = decoded[k]
+		}
+	}
+	out := make([][]resource.Access, len(refs))
+	for i := range refs {
+		out[i] = e.reach(refs[i], specs[i], named)
+	}
+	return out, nil
 }
 
 // named reads what the items name (resource.Referrer), as it stands
@@ -2296,16 +2487,80 @@ func (e *Engine) runsSomethingElse(it *item, server string) bool {
 	if it.restoreOn(server) != nil {
 		return true
 	}
-	n, ok := e.imageNamer(it.ref.Kind)
 	current, desired := it.currentOn(server), it.desiredOn(server)
-	if !ok || current == nil || desired == nil {
+	if current == nil || desired == nil {
 		return false
+	}
+	n, ok := e.imageNamer(it.ref.Kind)
+	if !ok {
+		// A kind that runs code with no image, as a scheduled task's shell command.
+		w, ok := e.whatRunner(it.ref.Kind)
+		return ok && !proto.Equal(w.WhatRuns(current), w.WhatRuns(desired))
 	}
 	before, after := n.WhatRuns(current), n.WhatRuns(desired)
 	if now := n.ImageOf(desired); docker.Repository(n.ImageOf(current)) == docker.Repository(now) {
 		n.SetImage(before, now)
 	}
 	return !proto.Equal(before, after)
+}
+
+// keptWhileRunningElse is what of the access an item reaches on a server, by
+// where its paths lead, ADR 0048 makes an admin's and the change has it keep
+// while it runs something else (ResourcePlan.Keeps). Under what's as good as
+// root, that's any change to what runs, another tag of the same repository
+// included, as whoever can push to it would get root. Under other such access,
+// it's another repository, command or entrypoint: a new tag of the same
+// repository is the ordinary deploy, of what an admin trusted with that access.
+// Pulling a mutable tag can run a newer image without changing the spec.
+func (e *Engine) keptWhileRunningElse(it *item, server string, reaches []resource.Access, leads map[string]string) []resource.Access {
+	current, desired := it.currentOn(server), it.desiredOn(server)
+	n, ok := e.imageNamer(it.ref.Kind)
+	if !ok || current == nil || desired == nil {
+		return nil // what's new there gains what it reaches, and what goes runs nothing
+	}
+	var root, other []resource.Access
+	for i := range reaches {
+		switch led := reaches[i].Leading(leads[reaches[i].Path]); {
+		case led.AsGoodAsRoot():
+			root = append(root, led)
+		case installWide(led) != "":
+			other = append(other, led)
+		}
+	}
+	switch {
+	case len(root) > 0 && (it.pull || it.restoreOn(server) != nil || !proto.Equal(n.WhatRuns(current), n.WhatRuns(desired))):
+		return append(root, other...)
+	case len(other) > 0 && startsSomethingElse(n.ImageOf(current), n.ImageOf(desired), current, desired):
+		return other
+	}
+	return nil
+}
+
+// startsSomethingElse reports a spec that starts another program than before:
+// another repository, command (including an exec health check) or entrypoint.
+// A kind whose spec isn't a container's counts any change to what it runs.
+func startsSomethingElse(imageBefore, imageAfter string, before, after proto.Message) bool {
+	if docker.Repository(imageBefore) != docker.Repository(imageAfter) {
+		return true
+	}
+	was, now := runs(before), runs(after)
+	if was == nil || now == nil {
+		return !proto.Equal(before, after)
+	}
+	return !slices.Equal(was.GetCommand(), now.GetCommand()) || !slices.Equal(was.GetEntrypoint(), now.GetEntrypoint()) ||
+		was.GetNoEntrypoint() != now.GetNoEntrypoint() ||
+		!slices.Equal(was.GetHealthcheck().GetTest(), now.GetHealthcheck().GetTest())
+}
+
+// runs is the container a spec runs: a container's own, or a service's app.
+func runs(spec proto.Message) *resourcev1.Container {
+	switch s := spec.(type) {
+	case *resourcev1.Container:
+		return s
+	case *resourcev1.Service:
+		return s.GetApp()
+	}
+	return nil
 }
 
 // movedOff is what of list is a server path that doesn't lead where it did.
@@ -2712,6 +2967,9 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 		if items, err = e.current(ctx, tx, c); err != nil {
 			return err
 		}
+		if err := e.checkRoles(ctx, tx, cmp.Or(by.Actor, c.Actor), &c, items, applying); err != nil {
+			return err
+		}
 		held, err = e.holdsToo(ctx, tx, items)
 		return err
 	})
@@ -2860,6 +3118,15 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 		if err := e.unmoved(ctx, tx.Tx, c, items); err != nil {
 			return err
 		}
+		// A kind's cap holds as the change commits, not only as it was planned:
+		// plans made side by side each counted the same, and this transaction,
+		// held under e.mu, is the one count no other apply runs beside. A
+		// rollback puts back what was, which held the cap then.
+		if !rollback {
+			if err := e.capsHeld(ctx, tx.Tx, items); err != nil {
+				return err
+			}
+		}
 		for i := range items {
 			it := &items[i]
 			if !it.changes() {
@@ -2996,7 +3263,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		return 1
 	}
 	slices.SortStableFunc(builds, func(a, b queued) int { return backupFirst(a) - backupFirst(b) })
-	queue := slices.Concat(builds, deletes)
+	queue := accessBetween(e, plan, builds, deletes, func(q queued) (string, resource.Kind) { return q.server, q.step.Ref.Kind })
 	digests := map[at]string{}
 
 	// A removed server takes no steps. What the change took off it is
@@ -3083,6 +3350,16 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		_, u := e.step(c.ID, q.index, StepWaiting, msg)
 		waits = append(waits, u)
 	}
+	// Each server's last step of a kind under the firewall's timer waits for the
+	// change's confirmation there, so one confirmation covers all of that
+	// server's steps (ADR 0052). A change to several servers waits on each in
+	// turn, as its steps run server by server.
+	lastAccess := map[string]int{}
+	for qi, q := range queue {
+		if e.guardsAccess(q.step.Ref.Kind) {
+			lastAccess[q.server] = qi
+		}
+	}
 	done := map[at]bool{}
 	for qi, q := range queue {
 		if e.isStopping() {
@@ -3116,11 +3393,15 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			told.Digest, told.Note, told.Untouched = cmp.Or(o.Digest, told.Digest), cmp.Or(told.Note, o.Note), told.Untouched || o.Untouched
 			told.Did = cmp.Or(o.Did, told.Did)
 			told.Backup = cmp.Or(o.Backup, told.Backup)
+			if o.Waits != nil {
+				e.awaits(c.ID, index, *o.Waits)
+			}
 			if o.Replacing {
 				e.pulledNewer(ctx, c.ID, items, it, q.server, o)
 			}
 		})
-		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c)})
+		last, guarded := lastAccess[q.server]
+		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c), LastAccess: guarded && last == qi})
 		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
 		called()
 		switch {
@@ -3986,6 +4267,19 @@ func (e *Engine) checkRestores(ctx context.Context, plan *Plan, items []item) er
 // deploy of one that started meanwhile would run on data that's being replaced.
 func (e *Engine) holdsToo(ctx context.Context, tx *store.Tx, items []item) ([]item, error) {
 	held := items
+	// A change to who reaches a server waits for its confirmation, and claims the
+	// server's access as it does, so only one waits there at a time: two that
+	// waited at once would each put back a firewall without the other's change
+	// when its timer ran out (ADR 0052).
+	claimed := map[string]bool{}
+	for i := range items {
+		server := items[i].ref.Scope
+		if !e.guardsAccess(items[i].ref.Kind) || claimed[server] {
+			continue
+		}
+		claimed[server] = true
+		held = append(held, item{id: "access " + server, ref: resource.Ref{Kind: "server.access", Scope: server, Name: "this server's firewall"}})
+	}
 	for i := range items {
 		if items[i].restore == nil {
 			continue
@@ -4000,6 +4294,75 @@ func (e *Engine) holdsToo(ctx context.Context, tx *store.Tx, items []item) ([]it
 		}
 	}
 	return held, nil
+}
+
+// accessBetween puts the steps of kinds under the firewall's timer after
+// every other build and before every other delete, each server's together, in
+// their order: a change waits on a server for its confirmation at its last
+// such step there, under a timer that starts at its first, so nothing else
+// runs while the timer does, neither a slow step of another kind nor another
+// server's wait (ADR 0052). Nothing is deleted before the wait, so a change
+// nobody confirms rolls back with everything it would have removed still
+// there. A rule depends on nothing, so where it runs in the change is free.
+func accessBetween[Q any](e *Engine, plan *Plan, builds, deletes []Q, of func(Q) (string, resource.Kind)) []Q {
+	var out, after []Q
+	access := map[string][]Q{}
+	for _, list := range []struct {
+		steps []Q
+		rest  *[]Q
+	}{{builds, &out}, {deletes, &after}} {
+		for _, q := range list.steps {
+			server, kind := of(q)
+			if e.guardsAccess(kind) {
+				access[server] = append(access[server], q)
+			} else {
+				*list.rest = append(*list.rest, q)
+			}
+		}
+	}
+	for _, server := range serversOf(plan) {
+		out = append(out, access[server]...)
+	}
+	return append(out, after...)
+}
+
+// TouchesAccess says whether a plan changes who reaches a server: it has a step
+// of a kind under the firewall's timer, so it waits for a confirmation, and
+// takes a person and a passkey to apply.
+func (e *Engine) TouchesAccess(p *Plan) bool {
+	return p != nil && slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return e.guardsAccess(r.Ref.Kind) })
+}
+
+// AccessConfirmer is an agent that can keep a change to its server's firewall
+// that waits for its confirmation.
+type AccessConfirmer interface {
+	ConfirmAccess(ctx context.Context, changeID string) (resource.AccessVerdict, error)
+}
+
+// ConfirmAccess confirms a change that waits on a server for its confirmation,
+// through that server's agent, and says what the agent did. With a deadline,
+// it confirms only the wait that has it, so a confirmation sent again can't
+// keep another.
+func (e *Engine) ConfirmAccess(ctx context.Context, changeID, server string, deadline time.Time) (resource.AccessVerdict, error) {
+	w := e.Awaiting(changeID, server)
+	if w == nil || !deadline.IsZero() && !deadline.Equal(w.Deadline) {
+		return resource.AccessNotWaiting, nil
+	}
+	agent, online := e.agents.Agent(server)
+	if !online {
+		return 0, fault.New(ErrOffline, "the server's agent isn't connected, so nothing can confirm the change there. Its timer puts back the firewall as it was")
+	}
+	confirmer, ok := agent.(AccessConfirmer)
+	if !ok {
+		return 0, errors.New("the server's agent can't confirm a change")
+	}
+	return confirmer.ConfirmAccess(ctx, changeID)
+}
+
+// guardsAccess says whether a kind applies under the firewall's timer.
+func (e *Engine) guardsAccess(kind resource.Kind) bool {
+	t, err := e.kinds.Type(kind)
+	return err == nil && resource.GuardsAccess(t)
 }
 
 // undoRestore plans putting back what a change's restore replaced, which is all
@@ -4020,6 +4383,13 @@ func (e *Engine) Discard(ctx context.Context, changeID string, by By) error {
 			return err
 		case c.State != store.ChangePlanned:
 			return fault.New(ErrNotPlanned, "%s is %s, and only a planned change can be discarded", changeID, c.State)
+		}
+		items, err := e.placed(ctx, tx.Tx, c)
+		if err != nil {
+			return err
+		}
+		if err := e.checkRoles(ctx, tx.Tx, by.Actor, &c, items, discarding); err != nil {
+			return err
 		}
 		if err := tx.SetChangeState(ctx, changeID, store.ChangeDiscarded, "", time.Time{}); err != nil {
 			return err
@@ -4129,6 +4499,16 @@ func (e *Engine) pinIfMoved(ctx context.Context, tx *store.Tx, rev *store.Revisi
 	out := proto.Clone(spec)
 	namer.SetImage(out, resource.PinnedImage(namer.ImageOf(spec), digest))
 	return out, nil
+}
+
+// whatRunner returns a kind as a WhatRunner, if it is one.
+func (e *Engine) whatRunner(kind resource.Kind) (resource.WhatRunner, bool) {
+	t, err := e.kinds.Type(kind)
+	if err != nil {
+		return nil, false
+	}
+	w, ok := t.(resource.WhatRunner)
+	return w, ok
 }
 
 // imageNamer returns a kind as an ImageNamer, if it is one.

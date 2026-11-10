@@ -14,6 +14,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { formatDay } from "../../lib/format";
 import { Page } from "../shell/Page";
 import "./Settings.css";
+import { useMay } from "../auth/may";
 
 /** Where the install docs say how to change what dockwell run starts with. */
 const CHANGE_SETTINGS = "https://github.com/Dockwell/dockwell/blob/main/docs/install.md#change-settings";
@@ -64,6 +65,11 @@ function zones(): string[] {
 /** The install's name and time zone, saved together, each on Activity when it changes. */
 function InstallPanel({ settings }: { settings: Settings | undefined }) {
   const { t } = useLingui();
+  // The install's name and time zone are an admin's to set: off, with why, for anyone else (ADR 0059).
+  const may = useMay();
+  const maySave = [may(SettingsService.method.setInstallName), may(SettingsService.method.setTimeZone)].find(
+    (offer) => !offer.allowed,
+  ) ?? { off: {} };
   const transport = useTransport();
   const queryClient = useQueryClient();
   const [name, setName] = useState<string>();
@@ -165,7 +171,14 @@ function InstallPanel({ settings }: { settings: Settings | undefined }) {
               ? t`Saved. It's on Activity.`
               : t`A change goes on Activity, with what it replaced.`}
           </span>
-          <Button type="submit" size="sm" icon="check" loading={busy} disabled={!changedName && !changedZone}>
+          <Button
+            type="submit"
+            size="sm"
+            icon="check"
+            loading={busy}
+            disabled={!changedName && !changedZone}
+            {...maySave.off}
+          >
             <Trans>Save</Trans>
           </Button>
         </div>

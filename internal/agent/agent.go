@@ -27,9 +27,12 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/hosttool"
+	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/delivery"
@@ -38,6 +41,14 @@ import (
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
 )
+
+// AccessConfirmer keeps a change to the firewall that waits for its
+// confirmation, and says what the server holds of Dockwell's firewall now
+// (ADR 0052).
+type AccessConfirmer interface {
+	Confirm(ctx context.Context, change string) resource.AccessVerdict
+	Applied() access.Applied
+}
 
 // Config configures Run.
 type Config struct {
@@ -73,6 +84,12 @@ type Config struct {
 	NoLookup bool
 	// Logs reads what this server's containers print. Nil reads none.
 	Logs LogReader
+	// Tools runs the server's own tools, such as ufw and nft, as ADR 0043 has
+	// it. Nil runs none, as in a test.
+	Tools *hosttool.Runner
+	// Access keeps a change to the firewall that waits for its confirmation,
+	// when the control plane confirms it. Nil keeps none.
+	Access AccessConfirmer
 	// Docker lists this server's containers. Nil lists none.
 	Docker *docker.Client
 	// Backups takes and removes backups of this server's volumes. Nil takes none.
@@ -91,11 +108,19 @@ type Config struct {
 	// OnePanel reads what 1Panel keeps on this server, for an import (ADR 0056).
 	// Nil reads nothing.
 	OnePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
+	// Tasks runs this server's scheduled tasks and keeps their runs (ADR 0053).
+	// Nil runs none.
+	Tasks TaskKeeper
+	// Terminals opens shells on this server for a person, across streams. Run
+	// runs it. Nil opens none.
+	Terminals *terminal.Manager
 	// CallGrace is how long a call gets to end once its time is up or its stream is
 	// going, before it's left behind. Zero means DefaultCallGrace.
 	CallGrace time.Duration
 	// unfinished is what outlives its call, across this agent's streams.
 	unfinished *unfinished
+	// firewall reads what filters the server's inbound traffic, when asked.
+	firewall *firewallReader
 	// outlook keeps what the server found out from one stream to the next.
 	outlook *outlook
 	// disks adds up what takes the disk Docker's data is on, when asked.
@@ -154,6 +179,20 @@ type LogReader interface {
 	// it all or ctx ends. send may block: a follow drops what it can't send,
 	// and says how much.
 	Stream(ctx context.Context, call *agentv1.LogsCall, send func(*agentv1.SendLogsRequest) error) error
+}
+
+// TaskKeeper runs this server's scheduled tasks on its own clock, and keeps their
+// runs until the control plane reads them (ADR 0053).
+type TaskKeeper interface {
+	// RunNow runs a task now, as its schedule would.
+	RunNow(ctx context.Context, ref resource.Ref) (*dockwellv1.TaskRun, error)
+	// Runs returns the runs past after, and lets go of the ones before it.
+	Runs(after string) (*agentv1.TaskRunsResult, error)
+	// RunsReady says a run started or ended.
+	RunsReady() <-chan struct{}
+	// Drain waits up to wait, once the agent is stopping, for the runs that stops
+	// to end and be kept.
+	Drain(wait time.Duration)
 }
 
 // BackupTaker takes and removes backups on this server (ADR 0033). What restores
@@ -253,14 +292,17 @@ const (
 type kinds struct {
 	ready       []string
 	unavailable map[string]string
+	// notHere are the unavailable kinds whose server doesn't have what they
+	// need, such as nft or fail2ban: said for the record, not as a warning.
+	notHere map[string]bool
 }
 
 // readyKinds checks which kinds the agent's drivers can run now.
 func readyKinds(ctx context.Context, drivers *resource.Registry) kinds {
 	ctx, cancel := context.WithTimeout(ctx, readyWait)
 	defer cancel()
-	ready, unavailable := drivers.Ready(ctx)
-	k := kinds{ready: make([]string, 0, len(ready))}
+	ready, unavailable := drivers.ReadyWhy(ctx)
+	k := kinds{ready: make([]string, 0, len(ready)), notHere: map[string]bool{}}
 	for _, r := range ready {
 		k.ready = append(k.ready, string(r))
 	}
@@ -268,7 +310,10 @@ func readyKinds(ctx context.Context, drivers *resource.Registry) kinds {
 		if k.unavailable == nil {
 			k.unavailable = map[string]string{}
 		}
-		k.unavailable[string(kind)] = why
+		k.unavailable[string(kind)] = why.Error()
+		if resource.IsNotHere(why) {
+			k.notHere[string(kind)] = true
+		}
 	}
 	return k
 }
@@ -312,7 +357,10 @@ func (k kinds) proto() ([]string, []*agentv1.UnavailableKind) {
 	return k.ready, out
 }
 
-// log says which kinds the agent can't run, and why, once per reason.
+// log says which kinds the agent can't run, and why, once per reason: as a
+// warning where something is wrong, such as Docker not answering, and for the
+// record alone where the server doesn't have what a kind needs, such as nft or
+// fail2ban, which nobody may ever have asked of it.
 func (k kinds) log(ctx context.Context, logger *slog.Logger) {
 	byReason := map[string][]string{}
 	for kind, why := range k.unavailable {
@@ -321,6 +369,11 @@ func (k kinds) log(ctx context.Context, logger *slog.Logger) {
 	for _, why := range slices.Sorted(maps.Keys(byReason)) {
 		names := byReason[why]
 		slices.Sort(names)
+		if k.notHere[names[0]] {
+			logger.InfoContext(ctx, "the agent offers some kinds only once the server has what they need",
+				slog.Any("kinds", names), slog.String("reason", why))
+			continue
+		}
 		logger.WarnContext(ctx, "the agent can't run some kinds of resource; it offers them once it can",
 			slog.Any("kinds", names), slog.String("reason", why))
 	}
@@ -333,6 +386,7 @@ func Run(ctx context.Context, cfg Config) error {
 		cfg.Collector = collect.New()
 	}
 	cfg.outlook = &outlook{}
+	cfg.firewall = newFirewallReader(cfg)
 	cfg.disks = &diskUse{docker: cfg.Docker, collector: cfg.Collector, now: time.Now}
 	cfg.procs = newProcesses(cfg.Collector, cfg.Docker)
 	if cfg.Drivers == nil {
@@ -346,8 +400,14 @@ func Run(ctx context.Context, cfg Config) error {
 		slog.Time("certificate_expires", id.Cert().NotAfter))
 
 	var wg sync.WaitGroup
+	if cfg.Files != nil {
+		wg.Go(func() { cfg.Files.KeepDeleted(ctx) })
+	}
 	wg.Go(func() { keepRenewed(ctx, cfg) })
 	wg.Go(func() { keepConnected(ctx, cfg) })
+	if cfg.Terminals != nil {
+		wg.Go(func() { cfg.Terminals.Run(ctx) })
+	}
 	wg.Wait()
 	return nil
 }
@@ -447,8 +507,11 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true}
 	hello.Kinds, hello.Unavailable = offered.proto()
+	if cfg.Terminals != nil {
+		hello.Terminals, hello.OpenTerminals, hello.ContainerTerminals = true, cfg.Terminals.Known(), true
+	}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}
@@ -626,12 +689,33 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Files != nil {
 		savesEnded = cfg.Files.SavesEnded()
 	}
+	var runsReady <-chan struct{}
+	if cfg.Tasks != nil {
+		runsReady = cfg.Tasks.RunsReady()
+	}
+	var terminalsEnded <-chan struct{}
+	if cfg.Terminals != nil {
+		terminalsEnded = cfg.Terminals.Ended()
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-terminalsEnded:
+			// What can't go now goes on the next stream, which says it's still to come.
+			ended := cfg.Terminals.TakeEnded()
+			for i, e := range ended {
+				if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_TerminalEnded{TerminalEnded: e}}); err != nil {
+					cfg.Terminals.Untold(ended[i:])
+					return err
+				}
+			}
 		case ended := <-savesEnded:
 			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_SaveEnded{SaveEnded: ended}}); err != nil {
+				return err
+			}
+		case <-runsReady:
+			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_TaskRunsReady{TaskRunsReady: &agentv1.TaskRunsReady{}}}); err != nil {
 				return err
 			}
 		case <-domainsChanged:

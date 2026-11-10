@@ -2,11 +2,13 @@
 
 // Walks a server's files in headless Chromium, against a real `dockwell run` and
 // its own agent, on this machine's disk, in a temporary directory: browsing, a
-// file, what isn't text, what's too large, what's refused, a path that leads
-// nowhere, and a phone. It edits and saves a file, on a desktop and a phone, finds
-// a file changed under it, keeps what it typed, stops at a link swapped in, keeps a
+// folder past a listing's page and a search through it, a file, what isn't text,
+// what's too large, what's refused, a path that leads nowhere, and a phone. It
+// edits and saves a file, on a desktop and a phone, finds a file changed under
+// it, keeps what it typed, stops at a link swapped in, keeps a
 // byte order mark, which this build's binary format loses on the way in, and finds
-// what it did on Activity.
+// what it did on Activity. It makes, renames, deletes and puts back a folder, and
+// uploads a file and an archive it unpacks, then downloads a file and a folder.
 // The CLI's token is refused. With --shots <dir> it saves screenshots at 1440, 800,
 // 390 and 360 px, light and dark.
 //
@@ -16,12 +18,23 @@
 // Chromium is the system's: CHROMIUM_PATH, or /usr/bin/chromium.
 
 import { type ChildProcess, execFileSync, spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { type Browser, chromium, type Page } from "playwright-core";
+
+import { describePages, watchBrowser } from "./report.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -112,6 +125,10 @@ function makeSite() {
   // A folder longer than its pane, as /etc is.
   mkdirSync(join(site, "many"));
   for (let i = 0; i < 120; i++) writeFileSync(join(site, "many", `part-${String(i).padStart(3, "0")}.conf`), "");
+  // A folder past a listing's page, made backwards so the disk's order isn't the names'.
+  mkdirSync(join(site, "big"));
+  for (let i = 5049; i >= 0; i--) writeFileSync(join(site, "big", `item-${String(i).padStart(5, "0")}.txt`), "");
+  writeFileSync(join(site, "big", "zz-needle.log"), "");
 }
 
 async function shoot(page: Page, name: string) {
@@ -155,11 +172,17 @@ async function main() {
     recover.match(/(http:\/\/localhost:\d+\/recover#[A-Za-z0-9_-]{43})/)?.[1] ??
     fail(`dockwell recover printed:\n${recover}`);
 
-  browser = await chromium.launch({ executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium" });
+  browser = await chromium.launch({
+    executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
+    // /dev/shm is small in a container and shared by every browser on the machine; Chromium crashes when it fills.
+    args: ["--disable-dev-shm-usage"],
+  });
+  watchBrowser(browser);
   const context = await browser.newContext({ viewport: { width: 1440, height: 970 }, colorScheme: "light" });
   const page = await context.newPage();
   lastPage = page;
-  page.on("pageerror", (err) => fail(`the page threw: ${err.message}`));
+  // A throw in a listener would end the process and skip the report and the cleaning up.
+  page.on("pageerror", (err) => pageThrew(new Error(`the page threw: ${err.message}`)));
   await page.goto(signIn);
   await page.getByText("You signed in with a one-time link").first().waitFor();
 
@@ -199,6 +222,21 @@ async function main() {
   const long = await pageHeight();
   if (long > short)
     fail(`a folder of 120 files makes the page ${long - short} px taller than a short one, past its pane`);
+  await page.goto(at({ path: site }));
+  await page.getByText("nginx.conf").waitFor();
+
+  step("a folder past a page lists by name, Show more brings the rest, and a search finds a name on any page");
+  await page.goto(at({ path: join(site, "big") }));
+  await page.getByText(/^More than 5,000 items/).waitFor();
+  await page.getByText("item-00000.txt").waitFor({ state: "attached" });
+  if ((await page.getByText("zz-needle.log").count()) > 0) fail("the first page went past the first 5,000 names");
+  await page.getByRole("button", { name: "Show more" }).click();
+  await page.getByText("zz-needle.log").waitFor({ state: "attached" });
+  await page.goto(at({ path: join(site, "big") }));
+  await page.getByText(/^More than 5,000 items/).waitFor();
+  await page.getByRole("textbox", { name: "Search in big" }).fill("needle");
+  await page.getByText("zz-needle.log").waitFor({ state: "attached" });
+  await shoot(page, "big-folder-search");
   await page.goto(at({ path: site }));
   await page.getByText("nginx.conf").waitFor();
 
@@ -256,9 +294,17 @@ async function main() {
     fail(`a save changed bytes nobody touched: ${readFileSync(join(site, "app.ini")).toString("hex")}`);
   }
 
-  step("a file with more than one kind of line ending reads, and doesn't edit");
+  step("a file with more than one kind of line ending edits, and a save keeps each line's");
   await page.getByText("mixed.sh").click();
-  await page.getByText("This file can't be edited here").waitFor();
+  const mixed = page.getByRole("textbox", { name: "Contents of mixed.sh" });
+  await mixed.waitFor();
+  await page.getByText("Mixed line endings").waitFor();
+  await mixed.fill("#!/bin/sh\necho a\necho c\n");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByText("Saved mixed.sh").first().waitFor();
+  const kept = readFileSync(join(site, "mixed.sh"), "utf8");
+  if (kept !== "#!/bin/sh\necho a\r\necho c\n")
+    fail(`a save changed line endings nobody touched: ${JSON.stringify(kept)}`);
   await page.getByRole("button", { name: "Close mixed.sh" }).click();
 
   step("a link swapped in under what you typed isn't saved through, whatever its text");
@@ -325,6 +371,83 @@ async function main() {
   await page.getByRole("link", { name: "Go up to" }).click();
   await page.getByText("nginx.conf").waitFor();
 
+  step("make a folder, rename it, delete it, and put it back");
+  await page.goto(at({ path: site }));
+  await page.getByRole("button", { name: "New folder" }).click();
+  // In the list: the tree beside it names the same folders.
+  const listed = page.getByRole("table", { name: `Files in ${site}` });
+  const naming = page.getByRole("dialog", { name: /^New folder in/ });
+  await naming.getByRole("textbox", { name: "Name" }).fill("uploads");
+  await naming.getByRole("button", { name: "Make folder" }).click();
+  await naming.waitFor({ state: "detached" });
+  await listed.getByText("uploads", { exact: true }).waitFor();
+  if (!statSync(join(site, "uploads")).isDirectory()) fail("the new folder isn't on the disk");
+  await listed.getByText("uploads", { exact: true }).hover();
+  await page.getByRole("button", { name: "Rename uploads" }).click();
+  const renaming = page.getByRole("dialog", { name: "Rename uploads" });
+  await renaming.getByRole("textbox", { name: "Name" }).fill("media");
+  await renaming.getByRole("button", { name: "Rename" }).click();
+  await listed.getByText("media", { exact: true }).waitFor();
+  if (existsSync(join(site, "uploads")) || !existsSync(join(site, "media"))) fail("the rename isn't on the disk");
+  await listed.getByText("media", { exact: true }).hover();
+  await page.getByRole("button", { name: "Delete media" }).click();
+  const deleting = page.getByRole("dialog", { name: "Delete media" });
+  await deleting.getByText("and everything in it go to Recently deleted", { exact: false }).waitFor();
+  await deleting.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByText("Deleted media").waitFor();
+  if (existsSync(join(site, "media"))) fail("the deleted folder is still on the disk");
+  await shoot(page, "deleted");
+  await page.getByRole("button", { name: "Put back" }).click();
+  await listed.getByText("media", { exact: true }).waitFor();
+  if (!existsSync(join(site, "media"))) fail("what was put back isn't on the disk");
+
+  step("upload a file and an archive to unpack, then download a file and a folder");
+  await page.goto(at({ path: site }));
+  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  const uploading = page.getByRole("dialog", { name: /^Upload to/ });
+  await uploading.getByText("Up to 16 GB a file", { exact: false }).waitFor();
+  const backup = Buffer.alloc(3 << 20, "dockwell ");
+  const themeDir = mkdtempSync(join(tmpdir(), "dockwell-theme-"));
+  writeFileSync(join(themeDir, "index.html"), "<h1>theme</h1>\n");
+  const theme = join(mkdtempSync(join(tmpdir(), "dockwell-upload-")), "theme.tar.gz");
+  execFileSync("tar", ["czf", theme, "-C", themeDir, "index.html"]);
+  await uploading.getByLabel("Choose files to upload").setInputFiles([
+    { name: "backup.sql", mimeType: "application/octet-stream", buffer: backup },
+    { name: "theme.tar.gz", mimeType: "application/gzip", buffer: readFileSync(theme) },
+  ]);
+  await uploading.getByRole("switch", { name: /Unpack archives/ }).click();
+  await uploading.getByText("unpacks into theme", { exact: false }).waitFor();
+  await shoot(page, "upload");
+  await uploading.getByRole("button", { name: "Upload 2 files" }).click();
+  await uploading.getByText("Uploaded, and unpacked 1 item into theme").waitFor();
+  await uploading.getByText(/^Uploaded · /).waitFor();
+  await shoot(page, "uploaded");
+  if (!readFileSync(join(site, "backup.sql")).equals(backup)) fail("the upload isn't on the disk as it was sent");
+  if (readFileSync(join(site, "theme", "index.html"), "utf8") !== "<h1>theme</h1>\n") fail("the archive didn't unpack");
+  await uploading.getByRole("button", { name: "Done" }).click();
+  await uploading.waitFor({ state: "detached" });
+  await page.getByRole("row", { name: /backup\.sql/ }).hover();
+  const [file] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("link", { name: "Download backup.sql" }).click(),
+  ]);
+  if (file.suggestedFilename() !== "backup.sql" || !readFileSync(await file.path()).equals(backup)) {
+    fail(`a download saved as ${file.suggestedFilename()} isn't what's on the server`);
+  }
+  await page.getByRole("row", { name: /^conf\.d/ }).hover();
+  const [folder] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("link", { name: "Download conf.d as a .zip" }).click(),
+  ]);
+  if (
+    folder.suggestedFilename() !== "conf.d.zip" ||
+    readFileSync(await folder.path())
+      .subarray(0, 2)
+      .toString() !== "PK"
+  ) {
+    fail(`a folder's download saved as ${folder.suggestedFilename()} isn't a zip`);
+  }
+
   step("a file on a phone takes the screen, and its header goes back");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(at({ path: site }));
@@ -356,6 +479,34 @@ async function main() {
     .first()
     .waitFor();
   await page.getByText("Couldn't open /proc on").first().waitFor();
+  await page
+    .getByText(`Made ${join(site, "uploads")} on`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Moved ${join(site, "uploads")} to ${join(site, "media")} on`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Deleted ${join(site, "media")} on`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Put back ${join(site, "media")} on`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Uploaded ${join(site, "theme.tar.gz")} to`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Downloaded ${join(site, "backup.sql")} from`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Downloaded ${join(site, "conf.d")} from`)
+    .first()
+    .waitFor();
   await shoot(page, "activity");
   await page.getByText(`Saved ${conf} on`).first().click();
   await page.getByRole("link", { name: "Open the file" }).click();
@@ -398,11 +549,17 @@ async function finish(code: number): Promise<never> {
   process.exit(code);
 }
 
-main().then(
+let pageThrew: (err: Error) => void = () => {};
+const pageError = new Promise<never>((_, threw) => {
+  pageThrew = threw;
+});
+
+Promise.race([main(), pageError]).then(
   () => finish(0),
   async (err: unknown) => {
     console.error(err);
     console.error(serverLog.join("").split("\n").slice(-30).join("\n"));
+    console.error(await describePages());
     if (shots && lastPage) {
       mkdirSync(shots, { recursive: true });
       await lastPage.screenshot({ path: join(shots, "failure.png") }).catch(() => {});

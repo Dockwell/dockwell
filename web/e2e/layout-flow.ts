@@ -85,6 +85,12 @@ async function open(page: Page, origin: string, path: string, waitFor?: string) 
   // The top bar names the server once the fleet has loaded.
   await page.locator(".topbar-scope").waitFor();
   if (waitFor) await page.locator(waitFor).first().waitFor();
+  // Measured once fonts have loaded and two frames have laid the page out, not mid-layout.
+  await page.evaluate(() =>
+    document.fonts.ready.then(
+      () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+    ),
+  );
 }
 
 const near = (a: number, b: number, by = 2) => Math.abs(a - b) <= by;
@@ -151,7 +157,8 @@ export async function layoutFlow(page: Page, { origin, step }: LayoutFlowOptions
   }
   const [was, is] = [overview.tabs, logs.tabs];
   if (!was || !is || !near(was.left, is.left, 1) || !near(was.right, is.right, 1)) {
-    fail("an app's tabs move on its Logs tab");
+    const edges = (b: Box | undefined) => (b ? `${px(b.left)} to ${px(b.right)}` : "nowhere");
+    fail(`an app's tabs move on its Logs tab: ${edges(was)} on its overview, ${edges(is)} on Logs`);
   }
   if (!logs.logs || !near(logs.logs.width, logs.main.width - 48, 2)) {
     fail(`the log view is ${px(logs.logs?.width ?? 0)} wide in a ${px(logs.main.width)} column, not the whole of it`);

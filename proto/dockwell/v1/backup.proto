@@ -24,6 +24,9 @@ service BackupService {
   rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/backups"};
   }
 
@@ -31,6 +34,9 @@ service BackupService {
   rpc GetBackup(GetBackupRequest) returns (GetBackupResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/backups/{id}"};
   }
 
@@ -41,6 +47,9 @@ service BackupService {
   rpc PreviewBackup(PreviewBackupRequest) returns (PreviewBackupResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/backups:preview"};
   }
 
@@ -49,6 +58,9 @@ service BackupService {
   // the caller waits: follow it with GetBackup.
   rpc CreateBackup(CreateBackupRequest) returns (CreateBackupResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/backups"
       body: "*"
@@ -60,6 +72,9 @@ service BackupService {
   // server, and its record goes all the same.
   rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.needs_session) = true;
     option (google.api.http) = {delete: "/v1/backups/{id}"};
   }
@@ -70,6 +85,9 @@ service BackupService {
   rpc ListBackupPolicies(ListBackupPoliciesRequest) returns (ListBackupPoliciesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.command) = {
       noun: "backups"
       verb: "policies"
@@ -83,11 +101,37 @@ service BackupService {
   rpc ListBackupDestinations(ListBackupDestinationsRequest) returns (ListBackupDestinationsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_NAMED;
     option (dockwell.v1.command) = {
       noun: "backups"
       verb: "destinations"
     };
     option (google.api.http) = {get: "/v1/backup-destinations"};
+  }
+
+  // TestBackupDestination signs in to storage with what a destination form holds,
+  // before anything is planned, and says what it found: the buckets the keys may
+  // list, and, given a bucket, whether a file can be written there, which it writes
+  // under the destination's prefix and deletes. It reaches the storage from the
+  // control server, which may reach what some servers can't, or not what they can:
+  // the internet and private networks, never the control server's own loopback, and
+  // it follows no redirect. It keeps nothing, and it's on the activity log without
+  // what signs in.
+  rpc TestBackupDestination(TestBackupDestinationRequest) returns (TestBackupDestinationResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "backups"
+      verb: "test-destination"
+    };
+    option (google.api.http) = {
+      post: "/v1/backup-destinations:test"
+      body: "*"
+    };
   }
 
   // FetchBackup brings a backup back from its destination onto a server that has the
@@ -96,6 +140,9 @@ service BackupService {
   // back whole before it counts. The server has to be connected.
   rpc FetchBackup(FetchBackupRequest) returns (FetchBackupResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/backups/{id}:fetch"
       body: "*"
@@ -109,6 +156,9 @@ service BackupService {
   // puts that back.
   rpc RestoreBackup(RestoreBackupRequest) returns (RestoreBackupResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/backups/{id}:restore"
       body: "*"
@@ -378,4 +428,52 @@ message RestoreBackupRequest {
 message RestoreBackupResponse {
   // The change, planned, with its plan.
   Change change = 1;
+}
+
+// TestBackupDestinationRequest is what a destination form holds. The passphrase is
+// left out: nothing is sealed in a test.
+message TestBackupDestinationRequest {
+  // The storage's endpoint, region, bucket (empty to list them alone), prefix and keys.
+  dockwell.resource.v1alpha1.BackupDestination destination = 1;
+}
+
+// TestBackupDestinationResponse says what the storage answered.
+message TestBackupDestinationResponse {
+  // Whether the storage answered at the endpoint, and took the keys.
+  bool signed_in = 1;
+  // The buckets the keys may list, by name. A key scoped to one bucket may list none.
+  repeated string buckets = 2;
+  // Whether the keys may list buckets at all.
+  bool listed = 3;
+  // Whether a test file was written to the bucket. With no problem it was deleted
+  // again; with CANT_DELETE it's still there, as test_file.
+  bool wrote = 4;
+  // What went wrong, when something did.
+  BackupDestinationProblem problem = 5;
+  // What the storage said of it, as its own code, such as AccessDenied, with nothing
+  // that signs in.
+  string said = 6;
+  // The region the storage says the bucket is in, with WRONG_REGION.
+  string region = 7;
+  // The test file that was written and couldn't be deleted, with CANT_DELETE.
+  string test_file = 8;
+}
+
+// BackupDestinationProblem is why a test didn't get as far as writing.
+enum BackupDestinationProblem {
+  BACKUP_DESTINATION_PROBLEM_UNSPECIFIED = 0;
+  // Nothing answered at the endpoint.
+  BACKUP_DESTINATION_PROBLEM_UNREACHABLE = 1 [(dockwell.v1.word) = "Unreachable"];
+  // The storage refused the keys.
+  BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED = 2 [(dockwell.v1.word) = "Keys refused"];
+  // The bucket isn't there.
+  BACKUP_DESTINATION_PROBLEM_NO_BUCKET = 3 [(dockwell.v1.word) = "No such bucket"];
+  // The keys may not write to the bucket.
+  BACKUP_DESTINATION_PROBLEM_CANT_WRITE = 4 [(dockwell.v1.word) = "Can't write"];
+  // The bucket is in another region than the form's, as region says.
+  BACKUP_DESTINATION_PROBLEM_WRONG_REGION = 5 [(dockwell.v1.word) = "Wrong region"];
+  // The test file was written and couldn't be deleted, so a backup's pruning would fail.
+  BACKUP_DESTINATION_PROBLEM_CANT_DELETE = 6 [(dockwell.v1.word) = "Can't delete"];
+  // The storage answered with an error of its own.
+  BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR = 7 [(dockwell.v1.word) = "Storage error"];
 }

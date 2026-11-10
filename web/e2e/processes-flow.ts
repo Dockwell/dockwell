@@ -10,6 +10,7 @@ import { spawn } from "node:child_process";
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { ownServerPath } from "./own-server.ts";
 
 interface ProcessesFlowOptions {
   origin: string;
@@ -28,9 +29,7 @@ export async function processesFlow(page: Page, { origin, step, shoot }: Process
   try {
     const pid = sleeper.pid ?? fail("couldn't start a process to stop");
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`${origin}/`);
-    const link = await page.locator('a[href^="/servers/srv_"]').first().getAttribute("href");
-    if (!link) fail("the overview links to no server");
+    const link = await ownServerPath(page, origin);
     await page.goto(`${origin}${link}`);
     await page
       .getByRole("navigation", { name: /^Server / })
@@ -52,9 +51,21 @@ export async function processesFlow(page: Page, { origin, step, shoot }: Process
     await shoot(page, "server-processes");
 
     await page.getByRole("textbox", { name: "Filter processes" }).fill(String(pid));
+    // The summary uses the deferred filter, so it waits for the results to settle.
+    await page.getByText(/^\d+ (?:process matches|processes match)\./).waitFor();
     const row = table.getByRole("row", { name: new RegExp(`\\bsleep\\b.*\\b${pid}\\b`) });
     await row.waitFor();
-    if ((await table.getByRole("row").count()) !== 2) fail(`filtering by PID ${pid} left more than its row`);
+    // Search matches substrings: another PID, command or owner can contain these digits too.
+    const unrelated = await table.locator("tbody tr").evaluateAll(
+      (rows, query) =>
+        rows.flatMap((row) => {
+          const fields = [...row.querySelectorAll("td")].slice(0, 3).map((cell) => cell.textContent ?? "");
+          fields.push(row.querySelector(".procs-sub")?.getAttribute("title") ?? "");
+          return fields.some((field) => field.includes(query)) ? [] : [row.textContent];
+        }),
+      String(pid),
+    );
+    if (unrelated.length) fail(`filtering by PID ${pid} left unrelated rows: ${unrelated.join("; ")}`);
 
     step("stopping it says what that does, asks for the passkey, and it gets SIGTERM");
     await row.getByRole("button", { name: `Stop sleep (PID ${pid})` }).click();

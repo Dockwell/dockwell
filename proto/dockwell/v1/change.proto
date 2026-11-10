@@ -53,6 +53,9 @@ service ChangeService {
   // value is no change, and a plan masks one that differs.
   rpc ProposeChange(ProposeChangeRequest) returns (ProposeChangeResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/changes"
       body: "*"
@@ -64,6 +67,9 @@ service ChangeService {
   rpc GetChange(GetChangeRequest) returns (GetChangeResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/changes/{id}"};
   }
 
@@ -73,6 +79,9 @@ service ChangeService {
   rpc ListChanges(ListChangesRequest) returns (ListChangesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/changes"};
   }
 
@@ -92,6 +101,9 @@ service ChangeService {
   // signed-in session: no API token may apply one.
   rpc ApplyChange(ApplyChangeRequest) returns (ApplyChangeResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/changes/{id}:apply"
       body: "*"
@@ -105,6 +117,9 @@ service ChangeService {
   // number of clients can watch one change, whoever applies it.
   rpc WatchChange(WatchChangeRequest) returns (stream WatchChangeResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
   }
 
   // UndoChange plans putting back everything an applied change did, as a
@@ -113,8 +128,31 @@ service ChangeService {
   // again since: undo that later change first, or edit the resource.
   rpc UndoChange(UndoChangeRequest) returns (UndoChangeResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/changes/{id}:undo"
+      body: "*"
+    };
+  }
+
+  // ConfirmChange keeps a change to a server's firewall that waits for its
+  // confirmation (Change.confirmation), once you have checked that you can
+  // still reach the server as the confirmation says. Only the person who
+  // applied it may confirm it, in the session they applied it from. Without a
+  // confirmation in time, the server puts back its firewall as it was, and the
+  // change rolls back (ADR 0052). A server's firewall is the whole server's,
+  // so confirming is an admin's, as applying such a change is, and no API
+  // token can call it.
+  rpc ConfirmChange(ConfirmChangeRequest) returns (ConfirmChangeResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/changes/{id}:confirm"
       body: "*"
     };
   }
@@ -123,6 +161,9 @@ service ChangeService {
   // stays on record as discarded.
   rpc DiscardChange(DiscardChangeRequest) returns (DiscardChangeResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/changes/{id}:discard"
       body: "*"
@@ -137,6 +178,9 @@ service ChangeService {
   // nothing to undo, and a restart that fails leaves the revision where it was.
   rpc RestartService(RestartServiceRequest) returns (RestartServiceResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/services/{id}:restart"
       body: "*"
@@ -149,6 +193,9 @@ service ChangeService {
   rpc ListDrift(ListDriftRequest) returns (ListDriftResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/drift"};
   }
 
@@ -156,6 +203,9 @@ service ChangeService {
   // revision on the servers it runs on.
   rpc RevertDrift(RevertDriftRequest) returns (RevertDriftResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/drift:revert"
       body: "*"
@@ -167,6 +217,9 @@ service ChangeService {
   // server the resource runs on is brought to match, and the plan shows it.
   rpc AdoptDrift(AdoptDriftRequest) returns (AdoptDriftResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/drift:adopt"
       body: "*"
@@ -212,6 +265,22 @@ message Edit {
   // without its project is an error that names the projects. Other kinds
   // name their project, if they live in one, in resource.scope.
   string project = 5;
+  // The revision of the resource the spec was made from, as a list gave it,
+  // for an edit that read the spec and changed part of it. If the resource has
+  // changed since, the edit is stale, an error with the reason "plan_stale", as
+  // planning it would quietly undo what came between: read it again, and edit
+  // that. 0 checks nothing, for an edit that says the whole spec itself.
+  int64 base_revision = 6;
+  // A service's own environment variables to keep as they are, by name, for a
+  // client that can't read their values back, as no response carries them:
+  // it sends the rest of the spec, and names these instead of setting them.
+  // Each must be one the service has now, and not one the spec sets too. Only
+  // an edit of a service that's there takes it, and only with base_revision,
+  // the revision the rest was read at: without one the edit is refused, as a
+  // change since the read would be undone. A value kept goes nowhere it hasn't
+  // been, so the edit can't place the service on another server: set the value
+  // again in the edit to run it there.
+  repeated string keep_env = 7;
 }
 
 // ResourceRef names a resource.
@@ -294,6 +363,41 @@ message ApplyChangeRequest {
   // can apply one. Call without it first: it checks everything else, then
   // refuses with the reason needs_step_up.
   string proof = 3;
+}
+
+// ConfirmChangeRequest names a change that waits for its confirmation, and the
+// server whose confirmation it is, as a change to several servers waits on each
+// in turn.
+message ConfirmChangeRequest {
+  // The change's ID.
+  string id = 1;
+  // The server the confirmation is for: the one you checked you can still
+  // reach. It's refused unless that server waits now.
+  string server_id = 2;
+  // The deadline the confirmation answers, as the change said it. When it's
+  // set, it's refused unless the server still waits for that deadline, so a
+  // confirmation sent twice can't keep a wait it wasn't for.
+  google.protobuf.Timestamp deadline = 3;
+}
+
+// ConfirmChangeResponse carries the change, which goes on applying, or ends
+// applied, once the server has kept what it waited for.
+message ConfirmChangeResponse {
+  // The change.
+  Change change = 1;
+}
+
+// ChangeConfirmation is what a change to a server's firewall waits for: that
+// the person who applied it confirms they can still reach the server, before
+// the server's timer runs out and it puts back its firewall as it was.
+message ChangeConfirmation {
+  // The server whose firewall changed.
+  string server_id = 1;
+  // When the server puts back its firewall, unless confirmed first.
+  google.protobuf.Timestamp deadline = 2;
+  // The ports the server's SSH listens on now, for the test the person runs
+  // before confirming: a new SSH session, from where they are, with their key.
+  repeated uint32 ssh_ports = 3;
 }
 
 // ApplyChangeResponse carries the change as it starts applying.
@@ -509,6 +613,25 @@ message Change {
   string because = 19;
   // True for a restart, which makes no revision.
   bool restart = 20;
+  // True on a planned change with an item in a protected environment: a
+  // developer's waits for an admin or the owner to apply it, and someone
+  // else's is approved with a passkey (ADR 0049).
+  bool protected = 21;
+  // On a planned change, for whoever reads it: true when applying it approves
+  // someone else's change in a protected environment, which takes a session,
+  // the plan's fingerprint and a passkey (STEP_UP_ACTION_APPROVE_CHANGE),
+  // whether they planned it in the panel or with an API token.
+  bool approves = 22;
+  // On a planned change, for whoever reads it below an admin: why it waits for
+  // an admin or the owner to apply it, such as "As it changes web in a
+  // protected environment, an admin or the owner applies this. Leave it
+  // planned for them". Empty when they may apply it, and for a viewer, who
+  // applies nothing.
+  string waits = 23;
+  // What the change waits for, while a change to a server's firewall waits
+  // for its confirmation (ConfirmChange). Unset otherwise. Numbered apart, as
+  // open work adds to this message.
+  ChangeConfirmation confirmation = 40;
 }
 
 // RollbackStatus is how the rollback of a failed change is going, for
@@ -704,9 +827,11 @@ message PlanNote {
   // upgrade that runs without a backup first, "upgrade_kept" for what a person changed that the upgrade
   // changes too, which stays, "upgrade_dropped" for what they changed that it
   // drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
-  // whose data stays as the new version left it, and "tmpfs_no_size" for a Compose
-  // file's tmpfs that nothing stops taking half the server's memory. Another reason
-  // may come: its message says what it means.
+  // whose data stays as the new version left it, "tmpfs_no_size" for a Compose
+  // file's tmpfs that nothing stops taking half the server's memory, and
+  // "tasks_as_root" for an app this makes reach what's as good as root, whose
+  // scheduled tasks run in it and reach the same. Another reason may come: its
+  // message says what it means.
   string reason = 1;
   // What it says, for people: the fact, what it means, and what to do.
   string message = 2;
@@ -715,7 +840,7 @@ message PlanNote {
   // The names it is about: the variable, then the field that holds it, for
   // "exposed_variable"; the project, then the services it runs, for
   // "updates_project"; the volumes and server paths for "volumes_stay"; the path
-  // for "tmpfs_no_size"; the
+  // for "tmpfs_no_size"; each task, then its command, for "tasks_as_root"; the
   // variables and secrets, by the names the service sees, for "values_latest";
   // the image, the revision and its digest for "digest_pinned" and "digest_gone",
   // and the image and the revision for "digest_differs"; the container_name, or
@@ -926,6 +1051,10 @@ enum HostAccessKind {
   // A backup of a volume that reached path, which is as good as root, coming back
   // into a volume that doesn't. What it holds can be read from there.
   HOST_ACCESS_KIND_BACKUP_OF = 18;
+  // A shell command the agent runs on the server as root, on a schedule (ADR
+  // 0053): the same as root. Numbered in the block scheduled tasks hold, as open
+  // work adds to this enum.
+  HOST_ACCESS_KIND_SERVER_SHELL = 150;
 }
 
 // ServerPlan is the part of a plan on one server.
@@ -1057,6 +1186,40 @@ message PlanStep {
   RestorePlan restore = 40;
   // What a step that backs up a volume before the rest of a change does.
   BackupFirst backup_first = 41;
+  // What a step that turns on deny everything else closes: each port that
+  // listens on the server, or that Docker publishes, that no rule lets in from
+  // anywhere, such as "8080/tcp (shop-web-1)". SSH's ports and the control
+  // plane's own stay let in by their pins, and aren't here (ADR 0052).
+  repeated string closes = 42;
+  // How the server stays reachable once a step that narrows SSH is kept: who
+  // SSH stays open from, by name, so a person sees whether their own address
+  // is there, and a stranger's. Unset on a step that leaves SSH open to
+  // anywhere.
+  AccessStays stays = 43;
+}
+
+// AccessStays is who still reaches a server's SSH once a change that narrows
+// it is kept (ADR 0052). An address here is all that keeps its person in: if
+// it changes, SSH is closed to them until a rule allows its port from where
+// they are.
+message AccessStays {
+  // SSH's ports the change narrows, such as 22.
+  repeated uint32 ssh_ports = 1;
+  // The addresses pinned to SSH: those signed in over SSH as it was planned,
+  // and those kept from earlier changes, such as "203.0.113.7/32".
+  repeated string pinned = 2;
+  // What rules allow SSH's ports from, such as "198.51.100.0/24". Empty when
+  // no rule allows them.
+  repeated string allowed = 3;
+  // WireGuard tunnels whose port no rule allows, each as "wg0 (51820/udp)", or
+  // "wg0" where Dockwell couldn't read its port, when the change turns deny
+  // everything else on: the tunnel's next handshake is dropped, and SSH over
+  // it with it, though it passes the test while the tunnel's flow is tracked.
+  repeated string tunnels = 4;
+  // The ports the panel and the control plane listen on, on the control
+  // server, when the change turns deny everything else on there: they stay
+  // open by their pin, and the test to run is the panel in a new tab too.
+  repeated uint32 panel_ports = 5;
 }
 
 // BackupFirst is a backup a change takes before anything else it does, as a catalog
@@ -1465,7 +1628,9 @@ message StepProgress {
   string detail = 10;
   // What a failure comes down to, when the driver knows, so a client can say
   // what to do about it where it is: "image", "command", "exits", "unhealthy",
-  // "port" or "mount". Empty when it doesn't, and it may gain others.
+  // "port", "mount", or "registry" for a registry that didn't answer a pull
+  // properly, where the same pull may work in a while. Empty when it doesn't,
+  // and it may gain others.
   string reason = 11;
   // True when the server went away during the step, so nothing can say whether
   // it ran until the server is back.
@@ -1476,6 +1641,10 @@ message StepProgress {
   // it's done, for a step that failed, and for one a run that stopped partway had
   // done already.
   PlanAction did = 14;
+  // What the step waits for, while a change to who reaches its server waits
+  // for the person who applied it to confirm they still can (ConfirmChange).
+  // Numbered apart, as open work adds to this message.
+  ChangeConfirmation confirmation = 40;
 }
 
 // StepState is how a step is going.

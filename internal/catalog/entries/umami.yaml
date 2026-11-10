@@ -2,9 +2,25 @@
 id: umami
 name: Umami
 summary: Counts your sites' visitors and pages, without cookies
+description: |-
+  Umami shows how people use your websites through a clear analytics dashboard. Explore page views, traffic sources, devices and events while collecting less visitor information than many traditional analytics tools.
+
+  This entry includes Umami and its PostgreSQL database. Add your website after installation and include the tracking script on the pages you want to measure.
+icon: /catalog-media/umami-icon.webp
+documentation: https://umami.is/docs
+appSource: https://github.com/umami-software/umami
+features:
+  - "Website traffic dashboards"
+  - "Sources, pages and device breakdowns"
+  - "Custom event tracking"
+  - "Cookie-free analytics"
+screenshots:
+  - path: /catalog-media/umami-dashboard.webp
+    caption: "Explore website visits, referrers and countries in Umami"
+    source: https://umami.is/_next/static/immutable/media/screenshot-dashboard.3vmc7t3hapnqk.jpg
 category: analytics
 version: "3.4.1"
-release: 1
+release: 3
 homepage: https://umami.is
 license: AGPL-3.0-only
 appLicense: MIT
@@ -20,9 +36,7 @@ firstSteps: >-
   3000:127.0.0.1:3000 you@your-server, using the port you gave it, then open
   http://localhost:3000. Sign in, and change the password under Settings, Profile.
   Add a domain on its page only after that, over HTTPS or behind your tunnel, as your
-  sites load its tracker from it. Leave the POSTGRES_PASSWORD secret as it is: its
-  database keeps the password it started with, and Umami would then use one it
-  doesn't take.
+  sites load its tracker from it.
 inputs:
   - name: PORT
     label: Port on this server

@@ -10,7 +10,9 @@ import {
   Connection,
   GetVersionResponseSchema,
   ListChangesResponseSchema,
+  Role,
   ServerInventorySchema,
+  ServerStrain,
   Surface,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -21,6 +23,7 @@ import { describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { anApp } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 
@@ -140,6 +143,7 @@ describe("the shell on wide screens", () => {
 
   it("lays out every section of the design's rail, in its order", async () => {
     await renderWith("/", hz1);
+    await within(rail()).findByRole("link", { name: "Dockwell 0.4.0: control plane status" });
     const names = within(rail()).getAllByRole("link").map(shown);
     expect(names).toEqual([
       "0.4.0",
@@ -161,6 +165,15 @@ describe("the shell on wide screens", () => {
     const you = within(rail()).getByRole("link", { name: "Mira Chen Owner" });
     expect(you).toHaveAttribute("href", "/profile");
     expect(you.querySelector(".rail-avatar")).toHaveTextContent("MC");
+  });
+
+  it("names a viewer's role under their name", async () => {
+    renderAt("/", { auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) } });
+    expect(
+      await within(await screen.findByRole("navigation", { name: "Main" })).findByRole("link", {
+        name: "Mira Chen Viewer",
+      }),
+    ).toHaveAttribute("href", "/profile");
   });
 
   // Someone who didn't run the CLI learns that a change waits for them (#112).
@@ -194,6 +207,17 @@ describe("the shell on wide screens", () => {
       // Generated content would join the name, as "Overview Overview".
       expect(item).not.toHaveAttribute("data-label");
     }
+  });
+
+  it("counts a degraded server in the top bar, and doesn't say all are healthy", async () => {
+    await renderWith(
+      "/",
+      hz1,
+      aServer({ ...hz2, strainedSince: timestampFromDate(new Date(2026, 10, 7, 13, 58)), strain: ServerStrain.CPU }),
+    );
+    const top = screen.getByRole("banner");
+    expect(await within(top).findByText("1 degraded")).toBeVisible();
+    expect(within(top).queryByText("All healthy")).toBeNull();
   });
 
   it("says the counts may be stale while the watch reconnects", async () => {
@@ -462,8 +486,9 @@ describe("the shell on phones", () => {
   it("names the Servers tab for a fleet", async () => {
     onPhone();
     await renderWith("/", hz1, hz2);
+    // The page's heading is there before the watch has brought both servers, so wait for the name.
     expect(
-      within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Servers" }),
+      await within(screen.getByRole("navigation", { name: "Main" })).findByRole("link", { name: "Servers" }),
     ).toBeVisible();
   });
 

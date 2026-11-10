@@ -2,9 +2,25 @@
 id: pgadmin
 name: pgAdmin
 summary: Manage PostgreSQL databases from your browser
+description: |-
+  pgAdmin is a browser-based administration tool for PostgreSQL. Inspect database objects, write and run SQL, and investigate activity from one workspace.
+
+  This entry installs pgAdmin on its own. Register a PostgreSQL server after setup using that database's address and credentials; a database server is not included.
+icon: /catalog-media/pgadmin-icon.webp
+documentation: https://www.pgadmin.org/docs/
+appSource: https://github.com/pgadmin-org/pgadmin4
+features:
+  - "PostgreSQL object browser"
+  - "SQL query editor"
+  - "Database activity views"
+  - "Connections to multiple PostgreSQL servers"
+screenshots:
+  - path: /catalog-media/pgadmin-dashboard.webp
+    caption: "Database activity in pgAdmin"
+    source: https://raw.githubusercontent.com/pgadmin-org/pgadmin4/ec7ec4b3afc65eedb9fa6b5771ce39d082985636/docs/en_US/images/dashboard_activity.png
 category: databases
 version: "9.18"
-release: 1
+release: 2
 homepage: https://www.pgadmin.org
 license: AGPL-3.0-only
 appLicense: PostgreSQL

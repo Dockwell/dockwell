@@ -169,7 +169,11 @@ type Resource struct {
 	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
 	// The name to show, such as "Storefront", from its spec, for kinds whose
 	// spec has one. Empty when it isn't set.
-	DisplayName   string `protobuf:"bytes,5,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	DisplayName string `protobuf:"bytes,5,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// True for an environment that's protected, where a developer's change
+	// waits for an admin or the owner (ADR 0049): as its spec says, or by its
+	// name for one from before protection was written. False for anything else.
+	Protected     bool `protobuf:"varint,6,opt,name=protected,proto3" json:"protected,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -239,6 +243,13 @@ func (x *Resource) GetDisplayName() string {
 	return ""
 }
 
+func (x *Resource) GetProtected() bool {
+	if x != nil {
+		return x.Protected
+	}
+	return false
+}
+
 var File_dockwell_v1_resource_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_resource_proto_rawDesc = "" +
@@ -252,16 +263,17 @@ const file_dockwell_v1_resource_proto_rawDesc = "" +
 	"page_token\x18\x04 \x01(\tR\tpageToken\"t\n" +
 	"\x15ListResourcesResponse\x123\n" +
 	"\tresources\x18\x01 \x03(\v2\x15.dockwell.v1.ResourceR\tresources\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xcc\x01\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xea\x01\n" +
 	"\bResource\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x1a\n" +
 	"\brevision\x18\x03 \x01(\x03R\brevision\x12;\n" +
 	"\vupdate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"updateTime\x12!\n" +
-	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName2\x87\x01\n" +
-	"\x0fResourceService\x12t\n" +
-	"\rListResources\x12!.dockwell.v1.ListResourcesRequest\x1a\".dockwell.v1.ListResourcesResponse\"\x1c\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/resources\x90\x02\x01B\xa6\x01\n" +
+	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName\x12\x1c\n" +
+	"\tprotected\x18\x06 \x01(\bR\tprotected2\x94\x01\n" +
+	"\x0fResourceService\x12\x80\x01\n" +
+	"\rListResources\x12!.dockwell.v1.ListResourcesRequest\x1a\".dockwell.v1.ListResourcesResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/resources\x90\x02\x01B\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rResourceProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

@@ -22,6 +22,8 @@ import { parseArgs } from "node:util";
 
 import { type Browser, chromium, type Page } from "playwright-core";
 
+import { describePages, watchBrowser } from "./report.ts";
+
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
 
@@ -195,11 +197,17 @@ async function main() {
 
   if (refreshes() + reads() > 0) fail("the agent ran apt before anyone looked");
 
-  browser = await chromium.launch({ executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium" });
+  browser = await chromium.launch({
+    executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
+    // /dev/shm is small in a container and shared by every browser on the machine; Chromium crashes when it fills.
+    args: ["--disable-dev-shm-usage"],
+  });
+  watchBrowser(browser);
   const context = await browser.newContext({ viewport: { width: 1440, height: 970 }, colorScheme: "light" });
   const page = await context.newPage();
   lastPage = page;
-  page.on("pageerror", (err) => fail(`the page threw: ${err.message}`));
+  // A throw in a listener would end the process and skip the report and the cleaning up.
+  page.on("pageerror", (err) => pageThrew(new Error(`the page threw: ${err.message}`)));
   await page.goto(signIn);
   await page.getByText("You signed in with a one-time link").first().waitFor();
 
@@ -224,11 +232,8 @@ async function main() {
 
   step("it leads with the security fixes, then the rest, as Server-Updates has them");
   await page.getByText("6 security updates are ready to install").waitFor();
-  await page.getByText("sudo apt-get upgrade --with-new-pkgs", { exact: true }).first().waitFor();
-  await page
-    .getByText("installs updates by itself, so these go in within about a day", { exact: false })
-    .first()
-    .waitFor();
+  await page.getByRole("button", { name: "Copy the upgrade command" }).first().waitFor();
+  await page.getByText("installs them within about a day", { exact: false }).first().waitFor();
   await page.getByText("6 from noble-security", { exact: false }).waitFor();
   const table = page.getByRole("table", { name: /^Security updates for / });
   await table.waitFor();
@@ -327,11 +332,17 @@ async function finish(code: number): Promise<never> {
   process.exit(code);
 }
 
-main().then(
+let pageThrew: (err: Error) => void = () => {};
+const pageError = new Promise<never>((_, threw) => {
+  pageThrew = threw;
+});
+
+Promise.race([main(), pageError]).then(
   () => finish(0),
   async (err: unknown) => {
     console.error(err);
     console.error(serverLog.join("").split("\n").slice(-30).join("\n"));
+    console.error(await describePages());
     if (shots && lastPage) {
       mkdirSync(shots, { recursive: true });
       await lastPage.screenshot({ path: join(shots, "failure.png") }).catch(() => {});

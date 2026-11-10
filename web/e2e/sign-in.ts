@@ -37,7 +37,9 @@ import { parseArgs } from "node:util";
 import { type Browser, type BrowserContext, chromium, type Locator, type Page } from "playwright-core";
 
 import { dockerMade, dockerProbe, dockerStop, removeMade } from "./docker-probe.ts";
+import { hostTools } from "./firewall-flow.ts";
 import { runFlows } from "./flows.ts";
+import { describePages, watchBrowser } from "./report.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -52,6 +54,8 @@ const port = 7650 + Math.floor(Math.random() * 300);
 const origin = `http://localhost:${port}`;
 const data = mkdtempSync(join(tmpdir(), "dockwell-e2e-"));
 const catalogDir = mkdtempSync(join(tmpdir(), "dockwell-e2e-catalog-"));
+// The agent's stand-ins for the server's own tools, such as ufw, as a test runs none of the machine's.
+const tools = hostTools(mkdtempSync(join(tmpdir(), "dockwell-e2e-tools-")));
 
 let server: ChildProcess | undefined;
 let docker: ChildProcess | undefined;
@@ -155,6 +159,7 @@ async function start(): Promise<string> {
         ...engine,
         USER: "mira",
         DOCKWELL_CATALOG_DIR: catalogDir,
+        DOCKWELL_TEST_TOOLS: tools,
       },
     },
   );
@@ -202,18 +207,26 @@ async function withAuthenticator(context: BrowserContext, page: Page) {
 
 async function shoot(page: Page, name: string) {
   if (!shots) return;
-  for (const scheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme: scheme });
-    for (const width of [1440, 800, 390, 360]) {
-      await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
-      // A full-page shot of a long page starts at its top, as someone arriving would see it.
-      await page.evaluate(() => window.scrollTo(0, 0));
-      await page.waitForTimeout(100);
-      await page.screenshot({ path: join(shots, `${name}-${width}-${scheme}.png`), fullPage: true });
+  const viewport = page.viewportSize();
+  const colorScheme = await page.evaluate(() =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+  );
+  try {
+    for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      for (const width of [1440, 800, 390, 360]) {
+        await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+        // A full-page shot of a long page starts at its top, as someone arriving would see it.
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.waitForTimeout(100);
+        await page.screenshot({ path: join(shots, `${name}-${width}-${scheme}.png`), fullPage: true });
+      }
     }
+  } finally {
+    // Recording a screen must not turn the phone assertions after it into desktop checks.
+    await page.emulateMedia({ colorScheme });
+    if (viewport) await page.setViewportSize(viewport);
   }
-  await page.emulateMedia({ colorScheme: "light" });
-  await page.setViewportSize({ width: 1440, height: 900 });
 }
 
 function totp(secretBase32: string, step = Math.floor(Date.now() / 30_000)): string {
@@ -240,8 +253,11 @@ async function main() {
 
   browser = await chromium.launch({
     executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
+    // /dev/shm is small in a container and shared by every browser on the machine; Chromium crashes when it fills.
+    args: ["--disable-dev-shm-usage"],
     headless: true,
   });
+  watchBrowser(browser);
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   // A throw in here would end the process and skip the cleaning up.
@@ -264,9 +280,17 @@ async function main() {
   await page.getByLabel("Email").fill("mira@acme.dev");
   const claimSaid = await watchFor(page, ["The owner account wasn't created", "This install already has an owner"]);
   await page.getByRole("button", { name: "Create passkey" }).click();
-  await expectPage(page, "Overview", 15_000);
+  // A new owner starts where the first app comes from, with the overview a click away.
+  await expectPage(page, "What do you want to run?", 15_000);
+  await page
+    .getByRole("list", { name: "Ways to run your first app" })
+    .getByRole("link", { name: "A Docker image" })
+    .waitFor();
   const claimFlashed = await claimSaid();
-  if (claimFlashed.length > 0) fail(`the claim showed ${JSON.stringify(claimFlashed)} on its way to the overview`);
+  if (claimFlashed.length > 0) fail(`the claim showed ${JSON.stringify(claimFlashed)} on its way to the start`);
+  await shoot(page, "start");
+  await page.getByRole("link", { name: "Skip to the overview" }).click();
+  await expectPage(page, "Overview", 15_000);
   // The control plane's own agent reports within a few seconds, and its live stats follow.
   await page.locator(".dw-metric", { hasText: "CPU" }).waitFor({ timeout: 15_000 });
   await nav(page).getByRole("link", { name: "Mira Chen Owner" }).waitFor();
@@ -451,6 +475,7 @@ async function main() {
   await sessions.getByRole("listitem").nth(1).waitFor({ state: "detached" });
   await phone.goto(`${origin}/more`);
   await expectPage(phone, "Sign in to Dockwell");
+  await other.close();
   step("  the other browser is signed out");
 
   step("API tokens: make one in Settings, call REST and Connect with it, then revoke it");
@@ -892,10 +917,12 @@ try {
 } catch (err) {
   console.error(`e2e: failed: ${err instanceof Error ? err.message : String(err)}`);
   console.error(log.join("").split("\n").slice(-30).join("\n"));
+  console.error(await describePages());
   process.exitCode = 1;
 } finally {
   await browser?.close();
   server?.kill("SIGTERM");
   docker?.kill("SIGTERM");
   rmSync(data, { recursive: true, force: true });
+  rmSync(tools, { recursive: true, force: true });
 }

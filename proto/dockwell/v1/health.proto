@@ -24,6 +24,9 @@ service HealthService {
   rpc ListHealth(ListHealthRequest) returns (ListHealthResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/health"};
   }
 }
@@ -122,6 +125,10 @@ message InstanceHealth {
   // Its ID in Docker. A replace can keep a container's name and number, and only
   // this says it's another container. Empty from an older agent.
   string container_id = 12;
+  // It ran to its end: it exited 0, and Docker won't start it again, as its
+  // restart policy is no or on-failure. A one-shot job, such as a migration,
+  // that did its work. False from an older agent.
+  bool finished = 13;
 }
 
 // HealthResult is one check's result.

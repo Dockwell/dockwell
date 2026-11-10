@@ -114,6 +114,13 @@ const STATES: readonly {
     notice: /web is paused/,
   },
   {
+    // A one-shot job that ran to its end isn't down, as Alerts has it.
+    on: { state: HealthState.NOT_RUNNING, finished: true, said: "the container exited with code 0" },
+    word: "Finished",
+    tone: "dw-tone-idle",
+    says: /It ran to its end and exited 0, as a one-shot job does/,
+  },
+  {
     on: { state: HealthState.UNKNOWN, lastSaid: HealthState.HEALTHY },
     word: "Unknown",
     tone: "dw-tone-unknown",
@@ -449,12 +456,14 @@ describe("what the fleet last said stands by its age too", () => {
         },
       },
     });
-    const list = await screen.findByRole("region", { name: "Servers" });
-    await waitFor(() => expect(list.querySelector(".servers-row .dw-tone-healthy")).not.toBeNull());
+    const list = await screen.findByRole("table", { name: "Servers, sorted by name" });
+    await waitFor(() => expect(list.querySelector("tbody .dw-tone-healthy")).not.toBeNull());
     answering = false;
     await vi.advanceTimersByTimeAsync(35_000);
-    await waitFor(() => expect(list.querySelector(".servers-row .dw-tone-unknown")).not.toBeNull());
+    await waitFor(() => expect(list.querySelector("tbody .dw-tone-unknown")).not.toBeNull());
     expect(list.querySelector(".dw-tone-healthy")).toBeNull();
+    // The tiles say so too.
+    expect(screen.queryByRole("button", { name: /Healthy/ })).toBeNull();
   });
 });
 

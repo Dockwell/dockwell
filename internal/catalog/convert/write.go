@@ -47,6 +47,9 @@ func Encode(e *catalogv1.Entry, src Source, date string) ([]byte, error) {
 	}
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "# SPDX-License-Identifier: %s\n", src.License)
+	if line := copyrightOf(src); line != "" {
+		fmt.Fprintf(&b, "# %s\n", line)
+	}
 	fmt.Fprintf(&b, "# Converted from %s, %s, %s,\n", src.Name, src.Repository, e.GetSource().GetPath())
 	fmt.Fprintf(&b, "# and modified by Dockwell's converter on %s.\n", date)
 	enc := yaml.NewEncoder(&b)
@@ -158,6 +161,12 @@ func Write(dir string, src Source, results []Result, previous map[string]*catalo
 			return fmt.Errorf("removing %s: %w", file, err)
 		}
 	}
+	if len(src.LicenseText) > 0 {
+		file := filepath.Join(dir, "LICENSE")
+		if err := os.WriteFile(file, src.LicenseText, 0o644); err != nil { //nolint:gosec // a catalog is for anyone to read
+			return fmt.Errorf("writing %s: %w", file, err)
+		}
+	}
 	rows := make([]Row, 0, len(results))
 	for i := range results {
 		rows = append(rows, rowOf(&results[i]))
@@ -241,7 +250,7 @@ func Report(src Source, rows []Row, stay, gone []string) []byte {
 		for _, c := range classes {
 			fmt.Fprintf(&b, "| %s | %d |\n", cell(string(c)), counts[c])
 		}
-		b.WriteString("\n## Each app left out\n\n| App | Version | Why |\n| --- | --- | --- |\n")
+		b.WriteString("\n## Each app left out\n\n| App | Where | Why |\n| --- | --- | --- |\n")
 		for i := range rows {
 			r := &rows[i]
 			if r.Version == "" && r.Held == "" {

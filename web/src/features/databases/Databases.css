@@ -44,6 +44,11 @@
   margin: 0;
 }
 
+/* A section's action sits at its end. */
+.database-section-action {
+  margin-left: auto;
+}
+
 .databases-section-head .databases-muted {
   font-size: 13px;
   line-height: 18px;
@@ -251,7 +256,7 @@
 }
 
 .databases-phone-row.is-static {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .databases-phone-row:not(.is-static):active {
@@ -408,12 +413,6 @@
   min-width: 0;
 }
 
-.database-connection-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
 .database-line {
   margin: 0;
   font-size: 13px;
@@ -426,18 +425,9 @@
   color: var(--ink);
 }
 
-.database-line a {
-  color: var(--link);
-}
-
 /* What a database or Docker said, which may hold a path or a command no space breaks. */
 .database-said {
   overflow-wrap: anywhere;
-}
-
-.database-rule {
-  height: 1px;
-  background: var(--line);
 }
 
 .database-section {

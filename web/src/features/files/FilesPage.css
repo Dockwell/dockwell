@@ -119,12 +119,141 @@
   background: var(--line);
 }
 
+/* The server's folders as a tree: a row a folder, indented by how deep it is, with the one you're in marked. */
+.files-tree,
+.files-tree ul {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * The panel is as tall as the list beside it, as Server-Files draws them, and the tree scrolls in what's left
+ * of it. So a deep tree never makes the page taller than its panes: it has a floor, and no height of its own.
+ */
+.files-places:has(.files-tree) {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+.files-places:has(.files-tree) > .dw-panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.files-places:has(.files-tree) nav,
+.files-places-group:has(.files-tree) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.files-tree {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 200px;
+  overflow-y: auto;
+}
+
+.files-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  height: var(--control-sm);
+  border-radius: var(--radius-sm);
+}
+
+.files-tree-row:hover {
+  background: var(--surface-sunken);
+}
+
+.files-tree-row.is-current {
+  background: var(--selection);
+}
+
+.files-tree-toggle {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+button.files-tree-toggle:hover {
+  color: var(--ink);
+}
+
+.files-tree-link {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  align-self: stretch;
+  min-width: 0;
+  padding-inline-end: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.files-tree-link .dw-icon {
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.files-tree-toggle:focus-visible,
+.files-tree-link:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: -2px;
+}
+
+.files-tree-name {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-tree-note {
+  margin: 0;
+  padding-block: var(--space-1);
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
 .files-list {
   flex: 1 1 520px;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   min-width: 0;
+}
+
+/* Under a folder that holds more than a page: how many are shown, and Show more. */
+.files-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.files-more-problem {
+  color: var(--critical);
 }
 
 /* Columns keep their widths, so a long name or link gives way, not the Size column. */
@@ -397,4 +526,198 @@
     flex: 1 1 0;
     height: 48px;
   }
+}
+
+/* Search and what makes something new, as the mock's toolbar has them. */
+.files-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Each row's own actions, quiet until the row is in reach. */
+.files-row-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.files-row-actions .dw-btn {
+  color: var(--ink-muted);
+}
+
+@media (hover: hover) {
+  .files-list tr:not(:hover, :focus-within) .files-row-actions .dw-btn {
+    opacity: 0;
+  }
+}
+
+.files-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.files-sheet-line {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.files-deleted {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.files-deleted-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+
+.files-deleted-row:first-child {
+  border-top: none;
+}
+
+.files-deleted-what {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* What a row says wraps, so a narrow screen shows all of when it goes, and where from. */
+.files-deleted-meta {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.files-deleted-actions {
+  display: inline-flex;
+  flex: none;
+  gap: var(--space-1);
+}
+
+.files-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.files-actions .dw-btn {
+  justify-content: flex-start;
+}
+
+.files-deleted-from {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+/* Files dragged over the listing go into this folder when dropped. */
+.files-list[data-dropping] {
+  border-radius: var(--radius-md);
+  outline: 2px dashed var(--cobalt);
+  outline-offset: 2px;
+}
+
+.files-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.files-drop[data-over] {
+  border-color: var(--cobalt);
+  background: var(--cobalt-soft);
+}
+
+.files-drop .files-sheet-line {
+  color: var(--ink);
+}
+
+.files-drop-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.files-uploads {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.files-upload-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+
+.files-upload-row:first-child {
+  border-top: none;
+}
+
+.files-upload-row > .files-icon {
+  padding-top: 2px;
+}
+
+.files-upload-row[data-stage="done"] > .files-icon {
+  color: var(--healthy);
+}
+
+.files-upload-row[data-stage="failed"] > .files-icon,
+.files-upload-row[data-stage="tooLarge"] > .files-icon,
+.files-upload-row[data-stage="folder"] > .files-icon {
+  color: var(--warning);
+}
+
+.files-progress {
+  width: 100%;
+  height: 4px;
+  margin-top: 4px;
+  overflow: hidden;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  appearance: none;
+}
+
+.files-progress::-webkit-progress-bar {
+  background: var(--surface-sunken);
+}
+
+.files-progress::-webkit-progress-value {
+  border-radius: var(--radius-full);
+  background: var(--cobalt);
+}
+
+.files-progress::-moz-progress-bar {
+  border-radius: var(--radius-full);
+  background: var(--cobalt);
+}
+
+.files-upload-problem {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--critical);
 }

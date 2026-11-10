@@ -235,6 +235,16 @@ func ReadMountOptions(o string) MountOptions {
 	return out
 }
 
+// localMountTypes are what the local driver may mount besides a bind. Anything
+// else reads paths a plan can't name: overlay takes them in o, and a disk's
+// filesystem takes a device under /dev.
+var localMountTypes = []string{"nfs", "nfs4", "cifs", "tmpfs"}
+
+// LocalMountType reports a type the local driver's options may mount besides a
+// bind, which reaches nothing on the server: a plan takes these (volume's
+// validateMount), and an agent's root check counts any other as root.
+func LocalMountType(kind string) bool { return slices.Contains(localMountTypes, kind) }
+
 // BindDevice is the server path a volume binds, as the local driver's
 // options type: none, o: bind and device: /srv/data have it.
 func BindDevice(driver string, options map[string]string) (string, bool) {
@@ -1027,6 +1037,13 @@ func (d *Driver) CheckPlan(ctx context.Context, want resource.Desired, all []res
 	}
 	return d.CheckPortsAt(ctx, HostTarget(want.Ref), want.Spec.(*resourcev1.Container), planned)
 }
+
+// Publishes reports a container that publishes what p does on its server: the
+// same port and protocol, on an address that overlaps.
+func Publishes(c *resourcev1.Container, p *resourcev1.PortMapping) bool { return publishes(c, p) }
+
+// PortWords names a port on the server, as a refusal says it: "port 8080".
+func PortWords(p *resourcev1.PortMapping) string { return portWords(p) }
 
 // publishes reports whether a container publishes something that can't share a
 // server with p.

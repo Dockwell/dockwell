@@ -26,7 +26,7 @@ To serve the panel over HTTPS on your own domain instead, point the domain's DNS
 
 ## Add a server
 
-On the control server, make a join ticket:
+In the panel, open **Servers**, choose **Add server** and confirm with your passkey. The sheet shows the one command to run on the new server, with a join ticket in it, and says when the server joins. Or, on the control server, make a ticket yourself:
 
 ```sh
 dockwell token create
@@ -224,7 +224,7 @@ What to copy, from `/var/lib/dockwell`:
 - `control/key`, the key that seals every secret in the store. Keep this copy apart from the rest: the store's secrets open with nothing else, and the key opens nothing without the store.
 - `agent/`, the control server's own agent, so it comes back as the same server rather than joining again as a new one.
 
-Stop Dockwell for the copy, so the store is whole: SQLite writes to a file beside it while it runs. Your apps keep serving while it's stopped, Caddy keeps routing to them, and the servers that joined reconnect when it's back. The commands copy only once Dockwell has stopped, so a failed stop copies nothing, and start it again whatever the copy did. The archive leaves out the key, and anything a first start left beside it.
+Run these in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. Stop Dockwell for the copy, so the store is whole: SQLite writes to a file beside it while it runs. Your apps keep serving while it's stopped, Caddy keeps routing to them, and the servers that joined reconnect when it's back. The commands copy only once Dockwell has stopped, so a failed stop copies nothing, and start it again whatever the copy did. The archive leaves out the key, and anything a first start left beside it.
 
 With systemd:
 

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Connection, HealthCheckKind } from "@dockwell/api";
+import { Connection, HealthCheckKind, TerminalService } from "@dockwell/api";
 import { StatusBadge } from "@dockwell/ui";
-import { useLingui } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
+import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
 import { MachineWords } from "../changes/FailureNotice";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import type { AppHealth, HealthKind, RunsOnServer, Unread } from "./health";
@@ -60,6 +62,8 @@ export function useHealthWords(): HealthWords {
           return t`Paused`;
         case "unknown":
           return t`Unknown`;
+        case "finished":
+          return t`Finished`;
       }
     };
     const noCheck = t`Nothing checks it, so this only means it started.`;
@@ -102,6 +106,8 @@ export function useHealthWords(): HealthWords {
             return said ? asSentence(said) : t`Its check keeps failing.`;
           case "not-running":
             return said ? asSentence(said) : t`It has no container on this server.`;
+          case "finished":
+            return t`It ran to its end and exited 0, as a one-shot job does, so nothing restarts it.`;
           case "paused": {
             const command = `docker unpause ${server.container}`;
             return t`Someone paused it, so it serves nothing and no check runs. Unpause it with ${command}.`;
@@ -149,6 +155,7 @@ export function useRunsNow(health: AppHealth | undefined, name: string): string 
     case "healthy":
     case "running":
     case "starting":
+    case "finished":
       return "";
   }
 }
@@ -194,6 +201,7 @@ export function useHealthTitle(health: AppHealth): string {
  * said and when. With more than one server, each says for itself.
  */
 export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boolean }) {
+  const mayShell = useMay()(TerminalService.method.listTerminals).allowed;
   const { t } = useLingui();
   const words = useHealthWords();
   const time = useTimeWords();
@@ -233,6 +241,21 @@ export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boo
               </MachineWords>
               {checked && showTime ? <span className="app-muted"> {checked}</span> : null}
             </p>
+            {/* A shell is a way to a place only an admin reads, so it's left out for anyone else (ADR 0059). */}
+            {server.container && showTime && mayShell ? (
+              <RouterButtonLink
+                to="/servers/$serverId/terminal"
+                params={{ serverId: server.serverId }}
+                search={{ container: server.container }}
+                variant="ghost"
+                size="sm"
+                icon="terminal"
+                className="app-runs-shell"
+                aria-label={t`Open a shell in ${server.container} on ${server.serverName}`}
+              >
+                <Trans>Shell</Trans>
+              </RouterButtonLink>
+            ) : null}
           </li>
         );
       })}

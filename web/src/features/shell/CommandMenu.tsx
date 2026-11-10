@@ -2,7 +2,15 @@
 
 import { createClient, type Transport } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { ChangeService, EventKind, EventService, type Resource, ResourceService, SystemService } from "@dockwell/api";
+import {
+  ChangeService,
+  EventKind,
+  EventService,
+  type Resource,
+  ResourceService,
+  SettingsService,
+  SystemService,
+} from "@dockwell/api";
 import { CommandBar, type CommandItem, type ThemePreference, useThemePreference, useUIStrings } from "@dockwell/ui";
 import type { I18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
@@ -14,6 +22,7 @@ import { onApple } from "../../lib/platform";
 import { appState, environmentOf, imageOf, nameOf } from "../apps/app";
 import { useServices } from "../apps/useServices";
 import { useAppWords } from "../apps/words";
+import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { isPrivateAddress, serverStatus } from "../servers/server";
@@ -100,7 +109,7 @@ type Prompt =
 
 /**
  * Plans deleting a project, with the volumes and networks left in it, as nothing else
- * in the panel deletes those, and "Delete this app" keeps its volumes. So the plan names
+ * in the panel deletes those, and deleting an app from its Settings keeps its volumes. So the plan names
  * each, and a volume going needs a person's confirmation, as any data loss does.
  * Whatever else is left keeps the project, and the API says what.
  */
@@ -153,6 +162,7 @@ function Commands({ onClose }: { onClose: () => void }) {
   const appWords = useAppWords();
   const [prompt, setPrompt] = useState<Prompt>();
   const [query, setQuery] = useState("");
+  const may = useMay();
 
   const commands = useMemo(() => {
     const list: Command[] = [];
@@ -250,14 +260,17 @@ function Commands({ onClose }: { onClose: () => void }) {
       label: t`Open the databases`,
       run: () => navigate({ to: "/databases" }),
     });
-    list.push({
-      id: "status",
-      group: pages,
-      icon: "gauge",
-      label: t`Check the control plane's status`,
-      hint: version ? shortVersion(version) : undefined,
-      run: () => navigate({ to: "/settings/control-plane" }),
-    });
+    // An entry is something to run, so one you may not run is left out (ADR 0059).
+    if (may(SettingsService.method.getControlPlane).allowed) {
+      list.push({
+        id: "status",
+        group: pages,
+        icon: "gauge",
+        label: t`Check the control plane's status`,
+        hint: version ? shortVersion(version) : undefined,
+        run: () => navigate({ to: "/settings/control-plane" }),
+      });
+    }
     list.push({
       id: "profile",
       group: pages,
@@ -334,35 +347,41 @@ function Commands({ onClose }: { onClose: () => void }) {
     }
 
     const actions = t`Actions`;
-    list.push({
-      id: "new-app",
-      group: actions,
-      icon: "plus",
-      label: t`New app`,
-      hint: t`Opens a plan`,
-      run: () => navigate({ to: "/apps/new" }),
-    });
-    list.push({
-      id: "create-project",
-      group: actions,
-      icon: "plus",
-      label: t`Create a project`,
-      hint: t`Opens a plan`,
-      keepOpen: "step",
-      run: () => setPrompt({ kind: "project" }),
-    });
-    list.push({
-      id: "create-environment",
-      group: actions,
-      icon: "plus",
-      label: t`Create an environment`,
-      hint: t`Opens a plan`,
-      keepOpen: "step",
-      // Which project it is for is asked once the projects are in, and only if there is a choice.
-      run: () => setPrompt({ kind: "environment" }),
-    });
+    const plans = may(ChangeService.method.proposeChange).allowed;
+    // A project itself is in no project, so making or deleting one is an admin's (ADR 0049).
+    const plansProjects = may(ChangeService.method.proposeChange, { install: true }).allowed;
+    if (plans)
+      list.push({
+        id: "new-app",
+        group: actions,
+        icon: "plus",
+        label: t`New app`,
+        hint: t`Opens a plan`,
+        run: () => navigate({ to: "/apps/new" }),
+      });
+    if (plansProjects)
+      list.push({
+        id: "create-project",
+        group: actions,
+        icon: "plus",
+        label: t`Create a project`,
+        hint: t`Opens a plan`,
+        keepOpen: "step",
+        run: () => setPrompt({ kind: "project" }),
+      });
+    if (plans)
+      list.push({
+        id: "create-environment",
+        group: actions,
+        icon: "plus",
+        label: t`Create an environment`,
+        hint: t`Opens a plan`,
+        keepOpen: "step",
+        // Which project it is for is asked once the projects are in, and only if there is a choice.
+        run: () => setPrompt({ kind: "environment" }),
+      });
     // The organization keeps a project, so the only one has nothing to offer.
-    if ((projects?.length ?? 0) > 1) {
+    if (plansProjects && (projects?.length ?? 0) > 1) {
       list.push({
         id: "delete-project",
         group: actions,
@@ -411,6 +430,7 @@ function Commands({ onClose }: { onClose: () => void }) {
     sheet,
     onClose,
     transport,
+    may,
   ]);
 
   const project = prompt ? projectFor(prompt, projects) : undefined;

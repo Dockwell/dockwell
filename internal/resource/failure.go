@@ -31,6 +31,10 @@ const (
 	ReasonUnhealthy = "unhealthy" // it runs, and fails its health check
 	ReasonPort      = "port"      // a port it publishes is in use
 	ReasonMount     = "mount"     // a volume or a path it mounts
+	// ReasonRegistry is the registry's own trouble: it didn't answer a pull
+	// properly, so the same pull may work in a while, and nothing about the image
+	// needs changing.
+	ReasonRegistry = "registry"
 )
 
 func (f *Failure) Error() string { return f.Err.Error() }

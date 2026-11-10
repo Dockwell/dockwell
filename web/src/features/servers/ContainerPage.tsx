@@ -2,13 +2,13 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { ChangeState, ComposeService, ContainerService, type ServerContainer } from "@dockwell/api";
+import { ChangeState, ComposeService, ContainerService, ContainerState, type ServerContainer } from "@dockwell/api";
 import { Button, Icon, Panel, SelectField, StatusBadge, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-
 import { sentence } from "../../lib/errors";
+import { RouterButtonLink } from "../../lib/links";
 import { usePlaces } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { LogsPage, type LogsSearch } from "../logs/LogsPage";
@@ -24,6 +24,7 @@ import {
   statusOf,
   useContainerStateWord,
 } from "./containers";
+import { useTakeOn } from "./takeOn";
 import { useFleet } from "./useFleet";
 import "./ContainersPanel.css";
 
@@ -85,6 +86,18 @@ export function ContainerPage({
           ) : null
         }
         lead={container ? <code>{container.image}</code> : undefined}
+        actions={
+          container?.state === ContainerState.RUNNING ? (
+            <RouterButtonLink
+              to="/servers/$serverId/terminal"
+              params={{ serverId }}
+              search={{ container: name }}
+              icon="terminal"
+            >
+              <Trans>Open a shell</Trans>
+            </RouterButtonLink>
+          ) : undefined
+        }
         phoneSub={container ? stateWord(container.state) : undefined}
         backLink={back}
         phoneAction={
@@ -142,12 +155,13 @@ function TakeItOn({
   const sheet = useChangeSheet();
   const navigate = useNavigate();
   const places = usePlaces();
+  const { take, environmentFor } = useTakeOn(serverId);
   const [name, setName] = useState(() => serviceNameFor(container));
   const [environment, setEnvironment] = useState("");
   const project = container.composeProject;
   // What came late to a project that was taken on belongs with the rest of it.
   const joins = project ? places.environments.find((e) => e.project === labelFor(project)) : undefined;
-  const chosen = environment || joins?.id || places.defaultEnvironment?.id || "";
+  const chosen = environment || environmentFor(container);
   const openProject = () =>
     sheet.open({
       kind: "plan",
@@ -156,23 +170,7 @@ function TakeItOn({
         if (change?.state === ChangeState.APPLIED) void navigate({ to: "/apps" });
       },
     });
-  const open = () =>
-    sheet.open({
-      kind: "plan",
-      make: () =>
-        createClient(ContainerService, transport).adoptContainer({
-          id: container.name,
-          server: serverId,
-          service: name,
-          environment: chosen,
-        }),
-      onClose: (change) => {
-        const made = change?.plan?.resources[0]?.id;
-        if (change?.state === ChangeState.APPLIED && made) {
-          void navigate({ to: "/apps/$serviceId", params: { serviceId: made } });
-        }
-      },
-    });
+  const open = () => take(container, name, chosen);
   return (
     <Panel title={t`Take it on`}>
       <div className="container-take-on">

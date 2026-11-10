@@ -1,21 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Server } from "@dockwell/api";
-import { PHONE_QUERY, useMediaQuery, useUIStrings } from "@dockwell/ui";
+import { Connection, type Server, ServerService } from "@dockwell/api";
+import { Button, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
+import { useMay } from "../auth/may";
+import { AddServerSheet } from "../servers/AddServerSheet";
 import { Connecting, FleetUnreadNote, usePageReconnecting } from "../servers/FleetNotes";
 import { ServerCallout } from "../servers/ServerCallout";
 import { ServerMetrics } from "../servers/ServerMetrics";
-import { ServersPanel } from "../servers/ServersPanel";
 import { useServerWords } from "../servers/server";
 import { useFleet, useFleetUnread } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page, type PageProps } from "../shell/Page";
 import { UpdatesCard, UpdatesPhoneCard } from "../updates/UpdatesCard";
+import { FleetOverview } from "./FleetOverview";
 import { OverviewApps } from "./OverviewApps";
 import { OverviewBackups } from "./OverviewBackups";
 import { RecentChanges } from "./RecentChanges";
@@ -25,11 +27,10 @@ import "./Overview.css";
  * The first screen: is everything OK? With one server, that server's health,
  * live, then what runs on it, what changed, how its backups stand and which
  * updates wait, as Overview-Single has them. With none, how to add one. From the
- * second server on, every server in a list, until the fleet overview exists.
+ * second server on, the fleet's, as Overview-Fleet has it.
  */
 export function Overview() {
   const { t } = useLingui();
-  const strings = useUIStrings();
   const state = useFleet();
   const status = usePageReconnecting(state.status);
   if (state.status === "connecting") {
@@ -41,34 +42,22 @@ export function Overview() {
   }
   const { servers } = state;
   const [only] = servers;
-  const count = servers.length;
   if (servers.length === 1 && only) return <OneServer server={only} status={status} />;
   if (servers.length === 0) {
     return (
       <OverviewPage servers={0} title={t`Overview`} status={status}>
-        <EmptyState icon="server" title={<Trans>No servers yet</Trans>}>
-          <p>
-            <Trans>
-              Run <code>dockwell token create</code> on the control server, then <code>dockwell join</code> with the
-              ticket it prints on the server you want to add.
-            </Trans>
-          </p>
-        </EmptyState>
+        <NoServers />
       </OverviewPage>
     );
   }
-  return (
-    <OverviewPage servers={count} title={t`Overview`} lead={strings.fleetGrid.servers(count)} status={status}>
-      <ServersPanel linked reconnectingNote={false} />
-    </OverviewPage>
-  );
+  return <FleetOverview servers={servers} status={status} />;
 }
 
 /**
- * The overview's page, at the width of what it shows: one server's dashboard is a wide page; a fleet's list of
- * servers is a table of few columns, and the note while it connects or before a server joins needs no room, so those
- * are standard (Layout in design/system/README.md). Each state takes its width from here, so none takes another by
- * mistake. One server's dashboard grows from the connecting note's width once the fleet's state arrives.
+ * The overview's page, at the width of what it shows: one server's dashboard is a wide page, and so is a fleet's
+ * (FleetOverview); the note while it connects or before a server joins needs no room, so those are standard (Layout
+ * in design/system/README.md). Each state takes its width from here, so none takes another by mistake. One server's
+ * dashboard grows from the connecting note's width once the fleet's state arrives.
  */
 function OverviewPage({ servers, ...props }: Omit<PageProps, "width"> & { servers?: number }) {
   return <Page {...props} width={servers === 1 ? "wide" : "standard"} />;
@@ -105,7 +94,12 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
       }
     >
       {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <ServerCallout server={server} />}
-      <ServerMetrics server={server} fourth="network" compact={phone} />
+      <ServerMetrics
+        server={server}
+        fourth="network"
+        compact={phone}
+        stale={unread !== undefined || server.connection !== Connection.CONNECTED}
+      />
       <div className="overview-columns">
         <div className="overview-main">
           <OverviewApps />
@@ -119,5 +113,25 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
         </div>
       </div>
     </OverviewPage>
+  );
+}
+
+/** No server has joined: adding one is the way on. */
+function NoServers() {
+  const [adding, setAdding] = useState(false);
+  const mayAdd = useMay()(ServerService.method.createJoinTicket);
+  return (
+    <>
+      <EmptyState
+        icon="server"
+        title={<Trans>No servers yet</Trans>}
+        action={
+          <Button variant="primary" icon="plus" onClick={() => setAdding(true)} {...mayAdd.off}>
+            <Trans>Add server</Trans>
+          </Button>
+        }
+      />
+      {adding ? <AddServerSheet control={undefined} onClose={() => setAdding(false)} /> : null}
+    </>
   );
 }

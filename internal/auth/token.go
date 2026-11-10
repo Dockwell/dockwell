@@ -77,7 +77,7 @@ var (
 	// ErrTokenLogs is a token without the logs grant reading logs.
 	ErrTokenLogs = errors.New("this API token can't read logs, which often hold secrets that apps print. " +
 		"Create a token that can read logs in Settings, under API tokens")
-	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, reveal a secret, reach a server's files or processes, rename the install, or change how you sign in and your tokens. " +
+	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, reveal a secret, reach a server's files, processes or terminal, rename the install, or change how you sign in and your tokens. " +
 		"Sign in and do it in the panel")
 )
 
@@ -175,7 +175,7 @@ func (s *Service) CreateLocalToken(ctx context.Context, actor, name, scope strin
 	return s.createToken(ctx, func(tx *store.Tx) (store.User, error) {
 		u, err := tx.Owner(ctx)
 		if errors.Is(err, store.ErrNotFound) {
-			return u, errors.New("this install has no owner yet, so local access has nobody to act for. Claim it with the link from dockwell claim")
+			return u, errNoOwner(ctx, tx, "local access has nobody to act for")
 		}
 		return u, err
 	}, actor, strings.TrimPrefix(actor, "cli:"), name, scope, []string{store.GrantLogs}, &expires, nil)

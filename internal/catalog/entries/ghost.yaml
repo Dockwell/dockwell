@@ -2,9 +2,25 @@
 id: ghost
 name: Ghost
 summary: Blogs, newsletters and memberships
+description: |-
+  Ghost is a publishing platform for articles, newsletters and memberships. Write in its editor, organize a publication, and manage the readers who subscribe to it.
+
+  This install includes Ghost and its database. You can choose a theme and connect your domain after installation. Sending newsletters and taking payments require the corresponding email and payment services.
+icon: /catalog-media/ghost-icon.webp
+documentation: https://docs.ghost.org
+appSource: https://github.com/TryGhost/Ghost
+features:
+  - "Article and page editor"
+  - "Themes for your publication"
+  - "Member and subscription management"
+  - "Newsletter publishing"
+screenshots:
+  - path: /catalog-media/ghost-publishing.webp
+    caption: "Ghost publishing and membership tools"
+    source: https://user-images.githubusercontent.com/353959/169805900-66be5b89-0859-4816-8da9-528ed7534704.png
 category: cms
 version: "6.72.0"
-release: 1
+release: 3
 homepage: https://ghost.org
 license: AGPL-3.0-only
 appLicense: MIT
@@ -21,9 +37,7 @@ firstSteps: >-
   after that, over HTTPS or behind your tunnel, as a new domain's certificate shows
   in public logs within minutes, then set url on the ghost service to that address,
   as Ghost links every page there. Ghost emails a code to sign in on each new device,
-  so set its mail__ settings on the ghost service before you need one. Leave the
-  MYSQL_PASSWORD secret as it is: its database keeps the password it started with,
-  and Ghost would then use one it doesn't take.
+  so set its mail__ settings on the ghost service before you need one.
 inputs:
   - name: PORT
     label: Port on this server

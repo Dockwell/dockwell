@@ -2,9 +2,28 @@
 id: t3code
 name: T3 Code
 summary: Run coding agents on your server, and reach them from any device
+description: |-
+  T3 Code gives you a workspace for coding agents that you can reach from your browser. Keep projects on your server, follow agent conversations, and work with the tools your agents need.
+
+  This entry uses the t3code-docker server packaging. Add an HTTPS domain, open its setup page, pair your devices and connect your agent accounts. Agent providers bring their own accounts and terms.
+icon: /catalog-media/t3code-icon.webp
+documentation: https://github.com/dizys/t3code-docker#readme
+appSource: https://github.com/pingdotgg/t3code
+features:
+  - "Browser access to coding agents"
+  - "Projects and workspace files on your server"
+  - "Device pairing through the setup page"
+  - "Persistent home and workspace storage"
+screenshots:
+  - path: /catalog-media/t3code-workspace.webp
+    caption: Coding conversations and changes in the T3 Code workspace
+    source: https://raw.githubusercontent.com/pingdotgg/t3code/ff7aa5ace311c70587631dcedb43f1d92068c342/apps/marketing/src/assets/app-desktop.webp
+  - path: /catalog-media/t3code-setup.webp
+    caption: "Pair devices and connect coding agents in T3 Code setup"
+    source: https://raw.githubusercontent.com/dizys/t3code-docker/a6831ef592a26a301ed7a7052111874a04ef7e8f/docs/media/setup-light.png
 category: ai
 version: "0.26.5"
-release: 2
+release: 3
 homepage: https://github.com/dizys/t3code-docker
 license: AGPL-3.0-only
 appLicense: MIT

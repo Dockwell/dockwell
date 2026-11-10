@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/catalog/v1alpha1/entry.proto.
  */
 export const file_dockwell_catalog_v1alpha1_entry: GenFile = /*@__PURE__*/
-  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIv4CCgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCSI6CgZTb3VyY2USEgoKcmVwb3NpdG9yeRgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmNvbW1pdBgDIAEoCSKxAQoFSW5wdXQSDAoEbmFtZRgBIAEoCRINCgVsYWJlbBgCIAEoCRIMCgRoaW50GAMgASgJEjIKBHR5cGUYBCABKA4yJC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0VHlwZRIVCg1kZWZhdWx0X3ZhbHVlGAUgASgJEhAKCG9wdGlvbmFsGAYgASgIEhAKCGdlbmVyYXRlGAcgASgNEg4KBmxvZ2dlZBgIIAEoCCIWCgNXZWISDwoHc2VydmljZRgBIAEoCSp+CglJbnB1dFR5cGUSGgoWSU5QVVRfVFlQRV9VTlNQRUNJRklFRBAAEhMKD0lOUFVUX1RZUEVfVEVYVBABEhQKEElOUFVUX1RZUEVfRU1BSUwQAhITCg9JTlBVVF9UWVBFX1BPUlQQAxIVChFJTlBVVF9UWVBFX1NFQ1JFVBAEQv0BCh1jb20uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMUIKRW50cnlQcm90b1ABWkpnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExO2NhdGFsb2d2MWFscGhhMaICA0RDWKoCGURvY2t3ZWxsLkNhdGFsb2cuVjFhbHBoYTHKAhlEb2Nrd2VsbFxDYXRhbG9nXFYxYWxwaGEx4gIlRG9ja3dlbGxcQ2F0YWxvZ1xWMWFscGhhMVxHUEJNZXRhZGF0YeoCG0RvY2t3ZWxsOjpDYXRhbG9nOjpWMWFscGhhMWIGcHJvdG8z");
+  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIpoECgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCRITCgtkZXNjcmlwdGlvbhgRIAEoCRIMCgRpY29uGBIgASgJEjoKC3NjcmVlbnNob3RzGBMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TY3JlZW5zaG90EhUKDWRvY3VtZW50YXRpb24YFCABKAkSEgoKYXBwX3NvdXJjZRgVIAEoCRIQCghmZWF0dXJlcxgWIAMoCSI7CgpTY3JlZW5zaG90EgwKBHBhdGgYASABKAkSDwoHY2FwdGlvbhgCIAEoCRIOCgZzb3VyY2UYAyABKAkiOgoGU291cmNlEhIKCnJlcG9zaXRvcnkYASABKAkSDAoEcGF0aBgCIAEoCRIOCgZjb21taXQYAyABKAki7QEKBUlucHV0EgwKBG5hbWUYASABKAkSDQoFbGFiZWwYAiABKAkSDAoEaGludBgDIAEoCRIyCgR0eXBlGAQgASgOMiQuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5JbnB1dFR5cGUSFQoNZGVmYXVsdF92YWx1ZRgFIAEoCRIQCghvcHRpb25hbBgGIAEoCBIQCghnZW5lcmF0ZRgHIAEoDRIOCgZsb2dnZWQYCCABKAgSOgoLZ2VuZXJhdGVfYXMYUCABKA4yJS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkdlbmVyYXRlQXMiFgoDV2ViEg8KB3NlcnZpY2UYASABKAkqVgoKR2VuZXJhdGVBcxIbChdHRU5FUkFURV9BU19VTlNQRUNJRklFRBAAEhMKD0dFTkVSQVRFX0FTX0hFWBABEhYKEkdFTkVSQVRFX0FTX0JBU0U2NBACKn4KCUlucHV0VHlwZRIaChZJTlBVVF9UWVBFX1VOU1BFQ0lGSUVEEAASEwoPSU5QVVRfVFlQRV9URVhUEAESFAoQSU5QVVRfVFlQRV9FTUFJTBACEhMKD0lOUFVUX1RZUEVfUE9SVBADEhUKEUlOUFVUX1RZUEVfU0VDUkVUEARC/QEKHWNvbS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExQgpFbnRyeVByb3RvUAFaSmdpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL2NhdGFsb2cvdjFhbHBoYTE7Y2F0YWxvZ3YxYWxwaGExogIDRENYqgIZRG9ja3dlbGwuQ2F0YWxvZy5WMWFscGhhMcoCGURvY2t3ZWxsXENhdGFsb2dcVjFhbHBoYTHiAiVEb2Nrd2VsbFxDYXRhbG9nXFYxYWxwaGExXEdQQk1ldGFkYXRh6gIbRG9ja3dlbGw6OkNhdGFsb2c6OlYxYWxwaGExYgZwcm90bzM");
 
 /**
  * Entry is one app a catalog offers, at one version. It installs through the
@@ -151,6 +151,51 @@ export type Entry = Message<"dockwell.catalog.v1alpha1.Entry"> & {
    * @generated from field: repeated string databases = 16;
    */
   databases: string[];
+
+  /**
+   * What the app does and who it is for, in the catalog's own words. Plain
+   * text, with blank lines between paragraphs; never HTML or Markdown.
+   *
+   * @generated from field: string description = 17;
+   */
+  description: string;
+
+  /**
+   * The app's own logo, used to identify it. A local image path under
+   * /catalog-media/, served with the panel. Empty when no artwork is available.
+   *
+   * @generated from field: string icon = 18;
+   */
+  icon: string;
+
+  /**
+   * Genuine previews of the app, with captions identifying what they show.
+   * A command-line service need not have a screenshot.
+   *
+   * @generated from field: repeated dockwell.catalog.v1alpha1.Screenshot screenshots = 19;
+   */
+  screenshots: Screenshot[];
+
+  /**
+   * The app's documentation, at an HTTPS address.
+   *
+   * @generated from field: string documentation = 20;
+   */
+  documentation: string;
+
+  /**
+   * The app's source repository, distinct from the source of this entry.
+   *
+   * @generated from field: string app_source = 21;
+   */
+  appSource: string;
+
+  /**
+   * A short list of things the app can do, in the catalog's own words.
+   *
+   * @generated from field: repeated string features = 22;
+   */
+  features: string[];
 };
 
 /**
@@ -159,6 +204,42 @@ export type Entry = Message<"dockwell.catalog.v1alpha1.Entry"> & {
  */
 export const EntrySchema: GenMessage<Entry> = /*@__PURE__*/
   messageDesc(file_dockwell_catalog_v1alpha1_entry, 0);
+
+/**
+ * Screenshot is a preview a person can read before starting an installation.
+ * Media ships with the panel; browsing never asks a third-party host for it.
+ *
+ * @generated from message dockwell.catalog.v1alpha1.Screenshot
+ */
+export type Screenshot = Message<"dockwell.catalog.v1alpha1.Screenshot"> & {
+  /**
+   * A local raster image path under /catalog-media/.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * What the screenshot shows, also used as its accessible description.
+   *
+   * @generated from field: string caption = 2;
+   */
+  caption: string;
+
+  /**
+   * Where the project published the original, at an HTTPS address.
+   *
+   * @generated from field: string source = 3;
+   */
+  source: string;
+};
+
+/**
+ * Describes the message dockwell.catalog.v1alpha1.Screenshot.
+ * Use `create(ScreenshotSchema)` to create a new message.
+ */
+export const ScreenshotSchema: GenMessage<Screenshot> = /*@__PURE__*/
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 1);
 
 /**
  * Source is where an entry came from.
@@ -193,7 +274,7 @@ export type Source = Message<"dockwell.catalog.v1alpha1.Source"> & {
  * Use `create(SourceSchema)` to create a new message.
  */
 export const SourceSchema: GenMessage<Source> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 1);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 2);
 
 /**
  * Input is one thing an entry needs to know to install, named by the ${NAME}
@@ -262,6 +343,14 @@ export type Input = Message<"dockwell.catalog.v1alpha1.Input"> & {
    * @generated from field: bool logged = 8;
    */
   logged: boolean;
+
+  /**
+   * How a generated secret is written, for an app that reads it as a key: letters
+   * and digits unless set.
+   *
+   * @generated from field: dockwell.catalog.v1alpha1.GenerateAs generate_as = 80;
+   */
+  generateAs: GenerateAs;
 };
 
 /**
@@ -269,7 +358,7 @@ export type Input = Message<"dockwell.catalog.v1alpha1.Input"> & {
  * Use `create(InputSchema)` to create a new message.
  */
 export const InputSchema: GenMessage<Input> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 2);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 3);
 
 /**
  * Web says what a person opens once an entry is installed.
@@ -290,7 +379,43 @@ export type Web = Message<"dockwell.catalog.v1alpha1.Web"> & {
  * Use `create(WebSchema)` to create a new message.
  */
 export const WebSchema: GenMessage<Web> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 3);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 4);
+
+/**
+ * GenerateAs is how a generated secret is written.
+ *
+ * @generated from enum dockwell.catalog.v1alpha1.GenerateAs
+ */
+export enum GenerateAs {
+  /**
+   * Letters and digits, as many as generate says.
+   *
+   * @generated from enum value: GENERATE_AS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Hex digits, as many as generate says, as openssl rand -hex writes them.
+   *
+   * @generated from enum value: GENERATE_AS_HEX = 1;
+   */
+  HEX = 1,
+
+  /**
+   * As many random bytes as generate says, in standard base64 with its
+   * padding, as openssl rand -base64 writes them, for an app that decodes its
+   * key.
+   *
+   * @generated from enum value: GENERATE_AS_BASE64 = 2;
+   */
+  BASE64 = 2,
+}
+
+/**
+ * Describes the enum dockwell.catalog.v1alpha1.GenerateAs.
+ */
+export const GenerateAsSchema: GenEnum<GenerateAs> = /*@__PURE__*/
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 0);
 
 /**
  * InputType is what an input takes.
@@ -343,5 +468,5 @@ export enum InputType {
  * Describes the enum dockwell.catalog.v1alpha1.InputType.
  */
 export const InputTypeSchema: GenEnum<InputType> = /*@__PURE__*/
-  enumDesc(file_dockwell_catalog_v1alpha1_entry, 0);
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 1);
 

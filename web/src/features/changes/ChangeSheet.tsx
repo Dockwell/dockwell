@@ -5,9 +5,12 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type Client, createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
+  ActorKind,
+  AlertService,
   BackupService,
   CatalogService,
   type Change,
+  type ChangeConfirmation,
   ChangeService,
   ChangeState,
   Connection,
@@ -69,10 +72,12 @@ import { readHealthSoon, useHealth } from "../apps/health";
 import { readServicesAgain, useServices } from "../apps/useServices";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
+import { useSignedInUser } from "../auth/useAuthState";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { ConfirmAccess } from "./ConfirmAccess";
 import { BecauseNotice, FailureNotice, MachineWords } from "./FailureNotice";
 import { useFieldRows } from "./fields";
 import { followChange } from "./follow";
@@ -110,6 +115,7 @@ import {
 import { RollbackLine, rollbackSubject } from "./RollbackLine";
 import { useAlsoWords, useChangeWords } from "./words";
 import "./ChangeSheet.css";
+import { placesOfChange, useMay } from "../auth/may";
 
 /** What every opening may say about what comes next. */
 interface Then {
@@ -331,6 +337,7 @@ function refreshAfter(queryClient: QueryClient): void {
     CatalogService,
     BackupService,
     WebsiteService,
+    AlertService,
   ]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }
@@ -353,7 +360,7 @@ function later(was: Change | undefined, next: Change | undefined): Change | unde
   return next;
 }
 
-type Busy = "apply" | undefined;
+type Busy = "apply" | "discard" | undefined;
 
 /** How often a plan refused for another change's sake looks to see whether that has ended. */
 const BUSY_LOOK_MS = 1_500;
@@ -515,6 +522,18 @@ function ChangeSheet({
     })
     .map((s) => s.serverName);
   const canApply = confirmed && offline.length === 0;
+  // A plan the reader's role doesn't cover waits for an admin or the owner, and
+  // someone else's in a protected environment, an admin approves with a
+  // passkey, however it was planned: the API says which (ADR 0049).
+  const user = useSignedInUser();
+  // Undoing plans a change, which a viewer can't (ADR 0059). Applying and discarding are the plan's to say, below.
+  const mayUndo = useMay()(ChangeService.method.undoChange, placesOfChange(change));
+  const waits = phase === "review" && (change?.waits ?? "") !== "";
+  const approves = phase === "review" && change?.approves === true;
+  // Theirs to discard, as the sheet's own plan is: one they planned in the panel.
+  const theirs =
+    proposal.current !== undefined ||
+    (change?.proposedBy?.kind === ActorKind.USER && change.proposedBy.id === user?.id);
 
   const apply = useCallback(async () => {
     if (!change || !canApply || busy) return;
@@ -552,20 +571,22 @@ function ChangeSheet({
   const leave = phase === "failed" && opening.onDone ? opening.onDone : close;
 
   // ⌘↵ (Ctrl+Enter elsewhere) goes on through the flow, as each button says:
-  // it applies the plan, and once that is over, takes the way on. A key held
-  // down from the step before doesn't count, so it never applies a plan unseen.
+  // it applies the plan, and once that is over, takes the way on. A plan that
+  // waits for an admin offers no Apply, so it takes what the footer offers. A
+  // key held down from the step before doesn't count, so it never applies a
+  // plan unseen.
   const over = phase === "arrived" || phase === "failed" || phase === "history" || phase === "discarded";
   useEffect(() => {
     if (away || (phase !== "review" && !over)) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey) || event.isComposing || event.repeat) return;
       event.preventDefault();
-      if (phase === "review") void apply();
+      if (phase === "review" && !waits) void apply();
       else primary.current?.click();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [away, phase, over, apply]);
+  }, [away, phase, over, waits, apply]);
 
   // Focus goes where the next step is, so a keyboard needs no Tab to go on, and
   // never falls out of the sheet as a button it was on goes away. It stays on
@@ -636,8 +657,51 @@ function ChangeSheet({
     </span>
   );
 
+  // Leaving a plan that waits keeps it planned, for an admin to find on Activity.
+  const leaveForAdmin = useCallback(() => {
+    const held = proposal.current;
+    if (held) held.keep = true;
+    close();
+  }, [close]);
+
+  // Discarding a plan that waits: the sheet's own goes as it closes; one
+  // reopened from Activity is discarded here, and the sheet says it was.
+  const discard = useCallback(async () => {
+    if (proposal.current || !change) {
+      close();
+      return;
+    }
+    setBusy("discard");
+    setFailure(undefined);
+    try {
+      const res = await client.discardChange({ id: change.id });
+      setChange((was) => later(was, res.change));
+    } catch (err) {
+      setFailure(err);
+    } finally {
+      setBusy(undefined);
+    }
+  }, [change, client, close]);
+
   let footer: ReactNode;
-  if (phase === "planning" || phase === "unplanned" || phase === "nothing") {
+  if (waits) {
+    footer = (
+      <>
+        <span className="dw-sheet-note">
+          <Icon name="shield" size={14} />
+          <Trans>An admin or the owner applies this</Trans>
+        </span>
+        {theirs ? (
+          <Button variant="ghost" size={size} onClick={() => void discard()} loading={busy === "discard"}>
+            <Trans>Discard</Trans>
+          </Button>
+        ) : null}
+        <Button variant="primary" size={size} onClick={leaveForAdmin} ref={primary}>
+          <Trans>Leave it for an admin</Trans>
+        </Button>
+      </>
+    );
+  } else if (phase === "planning" || phase === "unplanned" || phase === "nothing") {
     footer = (
       <Button variant="secondary" size={size} onClick={close} ref={primary}>
         <Trans>Close</Trans>
@@ -671,7 +735,7 @@ function ChangeSheet({
         />
         <div className="plan-gate-note">
           {undoNote}
-          {needsPasskey(plan) ? (
+          {needsPasskey(plan) || approves ? (
             <span className="dw-sheet-note">
               <Icon name="key" size={14} />
               <Trans>Applying this asks for your passkey</Trans>
@@ -689,6 +753,18 @@ function ChangeSheet({
           <span className="dw-sheet-note">
             <Trans>{offline.join(", ")} has to reconnect first</Trans>
           </span>
+        ) : approves && change?.proposedBy?.kind === ActorKind.TOKEN ? (
+          <span className="dw-sheet-note">
+            <Icon name="key" size={14} />
+            <Trans>
+              Applying this approves a change planned with the API token {change.proposedBy.name}, with your passkey
+            </Trans>
+          </span>
+        ) : approves ? (
+          <span className="dw-sheet-note">
+            <Icon name="key" size={14} />
+            <Trans>Applying this approves {change?.proposedBy?.name}'s change, with your passkey</Trans>
+          </span>
         ) : (
           undoNote
         )}
@@ -702,7 +778,11 @@ function ChangeSheet({
     footer = (
       <>
         <span className="dw-sheet-note">
-          <Trans>It keeps applying if you close this.</Trans>
+          {confirmationOf(change) ? (
+            <Trans>If you close this without keeping it, the change goes back on its own.</Trans>
+          ) : (
+            <Trans>It keeps applying if you close this.</Trans>
+          )}
         </span>
         <Button variant="ghost" size={size} onClick={close}>
           <Trans>Close</Trans>
@@ -724,6 +804,7 @@ function ChangeSheet({
             icon="undo"
             onClick={() => open({ kind: "undo", id: change.id })}
             className="plan-undo"
+            {...mayUndo.off}
           >
             <Trans>Undo until {deadline}</Trans>
           </Button>
@@ -888,6 +969,8 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
           return t`${name} isn't running`;
         case "paused":
           return t`${name} is paused`;
+        case "finished":
+          return t`${name} ran to its end`;
         case "unknown":
       }
     }
@@ -906,6 +989,14 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   }
   if (plan?.servers.some((server) => server.steps.some((step) => step.releases))) {
     return t`Dockwell let go of ${subject}`;
+  }
+  // A server's firewall policy has one name, "default", which says nothing: its
+  // title says what it does.
+  if (only?.resource?.kind === "firewall.policy") {
+    const where = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? only.resource.scope;
+    return only.action === PlanAction.DELETE
+      ? t`${where} lets in what no rule drops`
+      : t`${where} denies everything else`;
   }
   switch (only?.action) {
     case PlanAction.CREATE:
@@ -950,7 +1041,7 @@ function PlanBody({
   const { t } = useLingui();
   const words = useChangeWords();
   const alsoWords = useAlsoWords();
-  const risks = useRisks(plan);
+  const risks = useRisks(plan, phase !== "review");
   // Worked out from the review on, so an arrival has what it says as it lands, and room for it.
   const reach = useReach(plan, change, phase === "arrived");
   const serving = reach.domains.flatMap(({ read }) =>
@@ -974,7 +1065,8 @@ function PlanBody({
     return (
       <div className="plan-body">
         <Callout tone="critical">
-          <MachineWords>{sentence(failure)}</MachineWords>
+          {/* What the form that opened this says of it, as a stale plan, which only the form can put right. */}
+          {opening.fix?.(reasonOf(failure)) ?? <MachineWords>{sentence(failure)}</MachineWords>}
         </Callout>
       </div>
     );
@@ -1017,16 +1109,35 @@ function PlanBody({
   const setOut = phase === "failed" ? t`What it set out to do` : t`What it would have done`;
   const stepsDone = steps.filter((s) => s.state === StepState.DONE).length;
   const nothingNewer = foundNothingNewer(change);
+  const confirmation = phase === "applying" ? confirmationOf(change) : undefined;
 
   return (
     <div className="plan-body">
       {failure ? (
         <Callout tone="critical" title={t`That didn't apply`}>
-          <MachineWords>{refusal(failure, plan)}</MachineWords>
+          {/* What the form that opened this says of it, as a stale plan, which only the form can put right. */}
+          {opening.fix?.(reasonOf(failure)) ?? <MachineWords>{refusal(failure, plan)}</MachineWords>}
         </Callout>
+      ) : null}
+      {/* A change to who reaches a server waits for you to say you still can: that comes first. */}
+      {confirmation && change ? (
+        <ConfirmAccess
+          changeId={change.id}
+          wait={confirmation}
+          stays={
+            plan?.servers.find((s) => s.serverId === confirmation.serverId)?.steps.find((step) => step.stays)?.stays
+          }
+          appliedBy={change.appliedBy?.id}
+        />
       ) : null}
       {/* A change Dockwell made on its own says why first, as nobody asked for it. */}
       {change?.because ? <BecauseNotice because={change.because} /> : null}
+      {/* A plan that waits for an admin says why, in the server's words, which name what it reaches. */}
+      {phase === "review" && change?.waits ? (
+        <Callout tone="info" title={t`Waits for an admin or the owner`}>
+          <MachineWords>{change.waits}</MachineWords>
+        </Callout>
+      ) : null}
       {/* What it reaches stays said while it runs and once it has, so nothing moves as it lands. */}
       {phase === "review" || phase === "applying" || phase === "arrived" ? (
         <TopNotice risks={risks} warnings={warnings} offline={phase === "review" ? offline : []} phase={phase} />
@@ -1043,6 +1154,7 @@ function PlanBody({
           {dataLeft ? (
             <Callout tone="warning" title={dataLeft.title}>
               {dataLeft.detail}
+              <HowItWorks notices={[{ key: "data-left", ...dataLeft }]} />
             </Callout>
           ) : null}
           {wentOffline(change) ? null : (
@@ -1174,14 +1286,16 @@ function TopNotice({
       <>
         <Callout tone="critical" title={<MachineWords>{first.title}</MachineWords>} className="plan-risk">
           {first.detail}
-          {rest.map((risk) => (
-            <p key={risk.key} className="plan-risk-more">
-              <b>
-                <MachineWords>{risk.title}</MachineWords>.
-              </b>{" "}
-              {risk.detail}
-            </p>
-          ))}
+          {inSight([first, ...rest])
+            .slice(1)
+            .map((risk) => (
+              <p key={risk.key} className="plan-risk-more">
+                <b>
+                  <MachineWords>{risk.title}</MachineWords>.
+                </b>{" "}
+                {risk.detail}
+              </p>
+            ))}
           {risks.some((risk) => risk.trust) ? (
             <p className="plan-risk-more">
               {phase === "review" ? (
@@ -1191,6 +1305,7 @@ function TopNotice({
               )}
             </p>
           ) : null}
+          <HowItWorks notices={[first, ...rest]} />
         </Callout>
         {risks
           .filter((risk) => risk.amber)
@@ -1202,6 +1317,7 @@ function TopNotice({
               className="plan-risk"
             >
               {risk.detail}
+              <HowItWorks notices={[risk]} />
             </Callout>
           ))}
       </>
@@ -1219,7 +1335,7 @@ function TopNotice({
       ),
     });
   }
-  const [lead, ...others] = notices;
+  const [lead, ...others] = inSight(notices);
   if (!lead) return null;
   return (
     <Callout tone="warning" title={<MachineWords>{lead.title}</MachineWords>} className="plan-risk">
@@ -1232,8 +1348,67 @@ function TopNotice({
           <MachineWords>{notice.detail}</MachineWords>
         </p>
       ))}
+      <HowItWorks notices={notices} />
     </Callout>
   );
+}
+
+/**
+ * Why a notice says what it says, and how it comes about, closed: the notice
+ * itself is its fact and what to do about it. Several in one callout each say
+ * whose it is.
+ */
+function HowItWorks({ notices }: { notices: readonly Notice[] }) {
+  // Whose each reason is shows once it's open, so a closed one repeats no title in the page.
+  const [open, setOpen] = useState(false);
+  // Notices of one title, such as each way an app gets root, give their reasons together.
+  const groups: { title: ReactNode; reasons: { key: string; more: ReactNode }[] }[] = [];
+  for (const { key, title, more } of notices) {
+    if (more === undefined || more === "") continue;
+    const same = groups.find((g) => typeof title === "string" && g.title === title);
+    if (same) same.reasons.push({ key, more });
+    else groups.push({ title, reasons: [{ key, more }] });
+  }
+  if (groups.length === 0) return null;
+  const several = inSight(notices).length > 1;
+  return (
+    <details className="plan-details plan-how" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>
+        <Trans>How this works</Trans>
+      </summary>
+      {groups.flatMap((group) =>
+        group.reasons.map(({ key, more }, i) => (
+          <p key={key} className="plan-risk-more">
+            {several && open && i === 0 ? (
+              <>
+                <b>
+                  <MachineWords>{group.title}</MachineWords>.
+                </b>{" "}
+              </>
+            ) : null}
+            <MachineWords>{more}</MachineWords>
+          </p>
+        )),
+      )}
+    </details>
+  );
+}
+
+/**
+ * The notices a callout shows, each once: one with the title and the words of
+ * one before it says nothing new in sight, as what differs, such as how an app
+ * gets root, is under How this works.
+ */
+function inSight(notices: readonly Notice[]): Notice[] {
+  const seen = new Set<string>();
+  return notices.filter((notice) => {
+    const { title, detail } = notice;
+    if (typeof title !== "string" || (detail !== undefined && typeof detail !== "string")) return true;
+    const key = `${title}\n${detail ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /** Which project and environment a plan lands in, once there is a choice of either, so it can't read as another's. */
@@ -1980,7 +2155,14 @@ function Effects({
   fleet: boolean;
 }) {
   const { t } = useLingui();
-  const rows: { icon?: IconName; warn?: boolean; title: ReactNode; detail?: ReactNode; key: string }[] = [];
+  const rows: {
+    icon?: IconName;
+    warn?: boolean;
+    title: ReactNode;
+    detail?: ReactNode;
+    more?: ReactNode;
+    key: string;
+  }[] = [];
   if (phone) rows.push({ key: "reach", icon: "activity", title: <Impact plan={plan} /> });
   // What is there today: a step that fails puts back what ran, as ADR 0017 has it. Waves and their checks are #28.
   // A restart changes no spec, so it has nothing to roll back to.
@@ -2058,6 +2240,7 @@ function Effects({
               <div className="plan-effect-text">
                 <span className="plan-effect-title">{row.title}</span>
                 {row.detail ? <span className="plan-effect-detail">{row.detail}</span> : null}
+                <HowItWorks notices={[row]} />
               </div>
             </div>
           ))}
@@ -2065,4 +2248,15 @@ function Effects({
       ) : null}
     </>
   );
+}
+
+/**
+ * What a change waits for, while a change to who reaches a server waits for you
+ * to confirm you still can: on its steps, as the watch moves them on, and on the
+ * change itself only when it has no steps to say. The change's own is as of
+ * when it was read, so a step that has moved on since outranks it.
+ */
+function confirmationOf(change: Change | undefined): ChangeConfirmation | undefined {
+  if (change && change.steps.length > 0) return change.steps.find((s) => s.confirmation)?.confirmation;
+  return change?.confirmation;
 }

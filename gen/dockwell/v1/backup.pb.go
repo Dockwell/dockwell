@@ -138,6 +138,78 @@ func (BackupCopy) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{1}
 }
 
+// BackupDestinationProblem is why a test didn't get as far as writing.
+type BackupDestinationProblem int32
+
+const (
+	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_UNSPECIFIED BackupDestinationProblem = 0
+	// Nothing answered at the endpoint.
+	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_UNREACHABLE BackupDestinationProblem = 1
+	// The storage refused the keys.
+	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED BackupDestinationProblem = 2
+	// The bucket isn't there.
+	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_NO_BUCKET BackupDestinationProblem = 3
+	// The keys may not write to the bucket.
+	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_CANT_WRITE BackupDestinationProblem = 4
+	// The bucket is in another region than the form's, as region says.
+	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_WRONG_REGION BackupDestinationProblem = 5
+	// The test file was written and couldn't be deleted, so a backup's pruning would fail.
+	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_CANT_DELETE BackupDestinationProblem = 6
+	// The storage answered with an error of its own.
+	BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR BackupDestinationProblem = 7
+)
+
+// Enum value maps for BackupDestinationProblem.
+var (
+	BackupDestinationProblem_name = map[int32]string{
+		0: "BACKUP_DESTINATION_PROBLEM_UNSPECIFIED",
+		1: "BACKUP_DESTINATION_PROBLEM_UNREACHABLE",
+		2: "BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED",
+		3: "BACKUP_DESTINATION_PROBLEM_NO_BUCKET",
+		4: "BACKUP_DESTINATION_PROBLEM_CANT_WRITE",
+		5: "BACKUP_DESTINATION_PROBLEM_WRONG_REGION",
+		6: "BACKUP_DESTINATION_PROBLEM_CANT_DELETE",
+		7: "BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR",
+	}
+	BackupDestinationProblem_value = map[string]int32{
+		"BACKUP_DESTINATION_PROBLEM_UNSPECIFIED":   0,
+		"BACKUP_DESTINATION_PROBLEM_UNREACHABLE":   1,
+		"BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED":  2,
+		"BACKUP_DESTINATION_PROBLEM_NO_BUCKET":     3,
+		"BACKUP_DESTINATION_PROBLEM_CANT_WRITE":    4,
+		"BACKUP_DESTINATION_PROBLEM_WRONG_REGION":  5,
+		"BACKUP_DESTINATION_PROBLEM_CANT_DELETE":   6,
+		"BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR": 7,
+	}
+)
+
+func (x BackupDestinationProblem) Enum() *BackupDestinationProblem {
+	p := new(BackupDestinationProblem)
+	*p = x
+	return p
+}
+
+func (x BackupDestinationProblem) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BackupDestinationProblem) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_backup_proto_enumTypes[2].Descriptor()
+}
+
+func (BackupDestinationProblem) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_backup_proto_enumTypes[2]
+}
+
+func (x BackupDestinationProblem) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use BackupDestinationProblem.Descriptor instead.
+func (BackupDestinationProblem) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{2}
+}
+
 // Backup is one backup of one volume.
 type Backup struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1594,6 +1666,164 @@ func (x *RestoreBackupResponse) GetChange() *Change {
 	return nil
 }
 
+// TestBackupDestinationRequest is what a destination form holds. The passphrase is
+// left out: nothing is sealed in a test.
+type TestBackupDestinationRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The storage's endpoint, region, bucket (empty to list them alone), prefix and keys.
+	Destination   *v1alpha1.BackupDestination `protobuf:"bytes,1,opt,name=destination,proto3" json:"destination,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestBackupDestinationRequest) Reset() {
+	*x = TestBackupDestinationRequest{}
+	mi := &file_dockwell_v1_backup_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestBackupDestinationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestBackupDestinationRequest) ProtoMessage() {}
+
+func (x *TestBackupDestinationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_backup_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestBackupDestinationRequest.ProtoReflect.Descriptor instead.
+func (*TestBackupDestinationRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *TestBackupDestinationRequest) GetDestination() *v1alpha1.BackupDestination {
+	if x != nil {
+		return x.Destination
+	}
+	return nil
+}
+
+// TestBackupDestinationResponse says what the storage answered.
+type TestBackupDestinationResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Whether the storage answered at the endpoint, and took the keys.
+	SignedIn bool `protobuf:"varint,1,opt,name=signed_in,json=signedIn,proto3" json:"signed_in,omitempty"`
+	// The buckets the keys may list, by name. A key scoped to one bucket may list none.
+	Buckets []string `protobuf:"bytes,2,rep,name=buckets,proto3" json:"buckets,omitempty"`
+	// Whether the keys may list buckets at all.
+	Listed bool `protobuf:"varint,3,opt,name=listed,proto3" json:"listed,omitempty"`
+	// Whether a test file was written to the bucket. With no problem it was deleted
+	// again; with CANT_DELETE it's still there, as test_file.
+	Wrote bool `protobuf:"varint,4,opt,name=wrote,proto3" json:"wrote,omitempty"`
+	// What went wrong, when something did.
+	Problem BackupDestinationProblem `protobuf:"varint,5,opt,name=problem,proto3,enum=dockwell.v1.BackupDestinationProblem" json:"problem,omitempty"`
+	// What the storage said of it, as its own code, such as AccessDenied, with nothing
+	// that signs in.
+	Said string `protobuf:"bytes,6,opt,name=said,proto3" json:"said,omitempty"`
+	// The region the storage says the bucket is in, with WRONG_REGION.
+	Region string `protobuf:"bytes,7,opt,name=region,proto3" json:"region,omitempty"`
+	// The test file that was written and couldn't be deleted, with CANT_DELETE.
+	TestFile      string `protobuf:"bytes,8,opt,name=test_file,json=testFile,proto3" json:"test_file,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestBackupDestinationResponse) Reset() {
+	*x = TestBackupDestinationResponse{}
+	mi := &file_dockwell_v1_backup_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestBackupDestinationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestBackupDestinationResponse) ProtoMessage() {}
+
+func (x *TestBackupDestinationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_backup_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestBackupDestinationResponse.ProtoReflect.Descriptor instead.
+func (*TestBackupDestinationResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_backup_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *TestBackupDestinationResponse) GetSignedIn() bool {
+	if x != nil {
+		return x.SignedIn
+	}
+	return false
+}
+
+func (x *TestBackupDestinationResponse) GetBuckets() []string {
+	if x != nil {
+		return x.Buckets
+	}
+	return nil
+}
+
+func (x *TestBackupDestinationResponse) GetListed() bool {
+	if x != nil {
+		return x.Listed
+	}
+	return false
+}
+
+func (x *TestBackupDestinationResponse) GetWrote() bool {
+	if x != nil {
+		return x.Wrote
+	}
+	return false
+}
+
+func (x *TestBackupDestinationResponse) GetProblem() BackupDestinationProblem {
+	if x != nil {
+		return x.Problem
+	}
+	return BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_UNSPECIFIED
+}
+
+func (x *TestBackupDestinationResponse) GetSaid() string {
+	if x != nil {
+		return x.Said
+	}
+	return ""
+}
+
+func (x *TestBackupDestinationResponse) GetRegion() string {
+	if x != nil {
+		return x.Region
+	}
+	return ""
+}
+
+func (x *TestBackupDestinationResponse) GetTestFile() string {
+	if x != nil {
+		return x.TestFile
+	}
+	return ""
+}
+
 var File_dockwell_v1_backup_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_backup_proto_rawDesc = "" +
@@ -1708,7 +1938,18 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\asummary\x18\x02 \x01(\tR\asummary\"D\n" +
 	"\x15RestoreBackupResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change*\x98\x01\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"o\n" +
+	"\x1cTestBackupDestinationRequest\x12O\n" +
+	"\vdestination\x18\x01 \x01(\v2-.dockwell.resource.v1alpha1.BackupDestinationR\vdestination\"\x8e\x02\n" +
+	"\x1dTestBackupDestinationResponse\x12\x1b\n" +
+	"\tsigned_in\x18\x01 \x01(\bR\bsignedIn\x12\x18\n" +
+	"\abuckets\x18\x02 \x03(\tR\abuckets\x12\x16\n" +
+	"\x06listed\x18\x03 \x01(\bR\x06listed\x12\x14\n" +
+	"\x05wrote\x18\x04 \x01(\bR\x05wrote\x12?\n" +
+	"\aproblem\x18\x05 \x01(\x0e2%.dockwell.v1.BackupDestinationProblemR\aproblem\x12\x12\n" +
+	"\x04said\x18\x06 \x01(\tR\x04said\x12\x16\n" +
+	"\x06region\x18\a \x01(\tR\x06region\x12\x1b\n" +
+	"\ttest_file\x18\b \x01(\tR\btestFile*\x98\x01\n" +
 	"\vBackupState\x12\x1c\n" +
 	"\x18BACKUP_STATE_UNSPECIFIED\x10\x00\x12%\n" +
 	"\x14BACKUP_STATE_RUNNING\x10\x01\x1a\v\xa2\xbb\x18\aRunning\x12\x1f\n" +
@@ -1722,19 +1963,30 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x12BACKUP_COPY_STORED\x10\x02\x1a\n" +
 	"\xa2\xbb\x18\x06Stored\x12\"\n" +
 	"\x12BACKUP_COPY_FAILED\x10\x03\x1a\n" +
-	"\xa2\xbb\x18\x06Failed2\xa2\t\n" +
-	"\rBackupService\x12l\n" +
-	"\vListBackups\x12\x1f.dockwell.v1.ListBackupsRequest\x1a .dockwell.v1.ListBackupsResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/backups\x90\x02\x01\x12k\n" +
-	"\tGetBackup\x12\x1d.dockwell.v1.GetBackupRequest\x1a\x1e.dockwell.v1.GetBackupResponse\"\x1f\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/backups/{id}\x90\x02\x01\x12z\n" +
-	"\rPreviewBackup\x12!.dockwell.v1.PreviewBackupRequest\x1a\".dockwell.v1.PreviewBackupResponse\"\"\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/backups:preview\x90\x02\x01\x12o\n" +
-	"\fCreateBackup\x12 .dockwell.v1.CreateBackupRequest\x1a!.dockwell.v1.CreateBackupResponse\"\x1a\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/backups\x12u\n" +
-	"\fDeleteBackup\x12 .dockwell.v1.DeleteBackupRequest\x1a!.dockwell.v1.DeleteBackupResponse\" \xa0\xbb\x18\x04\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x12*\x10/v1/backups/{id}\x12\xa0\x01\n" +
-	"\x12ListBackupPolicies\x12&.dockwell.v1.ListBackupPoliciesRequest\x1a'.dockwell.v1.ListBackupPoliciesResponse\"9\xa0\xbb\x18\x01\xaa\xbb\x18\x13\n" +
-	"\abackups\x12\bpolicies\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/backup-policies\x90\x02\x01\x12\xb4\x01\n" +
-	"\x16ListBackupDestinations\x12*.dockwell.v1.ListBackupDestinationsRequest\x1a+.dockwell.v1.ListBackupDestinationsResponse\"A\xa0\xbb\x18\x01\xaa\xbb\x18\x17\n" +
-	"\abackups\x12\fdestinations\x82\xd3\xe4\x93\x02\x19\x12\x17/v1/backup-destinations\x90\x02\x01\x12w\n" +
-	"\vFetchBackup\x12\x1f.dockwell.v1.FetchBackupRequest\x1a .dockwell.v1.FetchBackupResponse\"%\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/backups/{id}:fetch\x12\x7f\n" +
-	"\rRestoreBackup\x12!.dockwell.v1.RestoreBackupRequest\x1a\".dockwell.v1.RestoreBackupResponse\"'\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/backups/{id}:restoreB\xa4\x01\n" +
+	"\xa2\xbb\x18\x06Failed*\xfa\x03\n" +
+	"\x18BackupDestinationProblem\x12*\n" +
+	"&BACKUP_DESTINATION_PROBLEM_UNSPECIFIED\x10\x00\x12;\n" +
+	"&BACKUP_DESTINATION_PROBLEM_UNREACHABLE\x10\x01\x1a\x0f\xa2\xbb\x18\vUnreachable\x12=\n" +
+	"'BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED\x10\x02\x1a\x10\xa2\xbb\x18\fKeys refused\x12<\n" +
+	"$BACKUP_DESTINATION_PROBLEM_NO_BUCKET\x10\x03\x1a\x12\xa2\xbb\x18\x0eNo such bucket\x12:\n" +
+	"%BACKUP_DESTINATION_PROBLEM_CANT_WRITE\x10\x04\x1a\x0f\xa2\xbb\x18\vCan't write\x12=\n" +
+	"'BACKUP_DESTINATION_PROBLEM_WRONG_REGION\x10\x05\x1a\x10\xa2\xbb\x18\fWrong region\x12<\n" +
+	"&BACKUP_DESTINATION_PROBLEM_CANT_DELETE\x10\x06\x1a\x10\xa2\xbb\x18\fCan't delete\x12?\n" +
+	"(BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR\x10\a\x1a\x11\xa2\xbb\x18\rStorage error2\xdb\v\n" +
+	"\rBackupService\x12x\n" +
+	"\vListBackups\x12\x1f.dockwell.v1.ListBackupsRequest\x1a .dockwell.v1.ListBackupsResponse\"&\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\r\x12\v/v1/backups\x90\x02\x01\x12w\n" +
+	"\tGetBackup\x12\x1d.dockwell.v1.GetBackupRequest\x1a\x1e.dockwell.v1.GetBackupResponse\"+\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/backups/{id}\x90\x02\x01\x12\x86\x01\n" +
+	"\rPreviewBackup\x12!.dockwell.v1.PreviewBackupRequest\x1a\".dockwell.v1.PreviewBackupResponse\".\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/backups:preview\x90\x02\x01\x12{\n" +
+	"\fCreateBackup\x12 .dockwell.v1.CreateBackupRequest\x1a!.dockwell.v1.CreateBackupResponse\"&\xa0\xbb\x18\x03\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/backups\x12\x81\x01\n" +
+	"\fDeleteBackup\x12 .dockwell.v1.DeleteBackupRequest\x1a!.dockwell.v1.DeleteBackupResponse\",\xa0\xbb\x18\x04\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x12*\x10/v1/backups/{id}\x12\xac\x01\n" +
+	"\x12ListBackupPolicies\x12&.dockwell.v1.ListBackupPoliciesRequest\x1a'.dockwell.v1.ListBackupPoliciesResponse\"E\xa0\xbb\x18\x01\xaa\xbb\x18\x13\n" +
+	"\abackups\x12\bpolicies\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/backup-policies\x90\x02\x01\x12\xc0\x01\n" +
+	"\x16ListBackupDestinations\x12*.dockwell.v1.ListBackupDestinationsRequest\x1a+.dockwell.v1.ListBackupDestinationsResponse\"M\xa0\xbb\x18\x01\xaa\xbb\x18\x17\n" +
+	"\abackups\x12\fdestinations\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\x19\x12\x17/v1/backup-destinations\x90\x02\x01\x12\xc6\x01\n" +
+	"\x15TestBackupDestination\x12).dockwell.v1.TestBackupDestinationRequest\x1a*.dockwell.v1.TestBackupDestinationResponse\"V\xa0\xbb\x18\x03\xaa\xbb\x18\x1b\n" +
+	"\abackups\x12\x10test-destination\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v1/backup-destinations:test\x12\x83\x01\n" +
+	"\vFetchBackup\x12\x1f.dockwell.v1.FetchBackupRequest\x1a .dockwell.v1.FetchBackupResponse\"1\xa0\xbb\x18\x03\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/backups/{id}:fetch\x12\x8b\x01\n" +
+	"\rRestoreBackup\x12!.dockwell.v1.RestoreBackupRequest\x1a\".dockwell.v1.RestoreBackupResponse\"3\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/backups/{id}:restoreB\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vBackupProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -1749,81 +2001,89 @@ func file_dockwell_v1_backup_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_backup_proto_rawDescData
 }
 
-var file_dockwell_v1_backup_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_dockwell_v1_backup_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_dockwell_v1_backup_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_dockwell_v1_backup_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_dockwell_v1_backup_proto_goTypes = []any{
 	(BackupState)(0),                       // 0: dockwell.v1.BackupState
 	(BackupCopy)(0),                        // 1: dockwell.v1.BackupCopy
-	(*Backup)(nil),                         // 2: dockwell.v1.Backup
-	(*BackupDestinationInfo)(nil),          // 3: dockwell.v1.BackupDestinationInfo
-	(*ListBackupDestinationsRequest)(nil),  // 4: dockwell.v1.ListBackupDestinationsRequest
-	(*ListBackupDestinationsResponse)(nil), // 5: dockwell.v1.ListBackupDestinationsResponse
-	(*FetchBackupRequest)(nil),             // 6: dockwell.v1.FetchBackupRequest
-	(*FetchBackupResponse)(nil),            // 7: dockwell.v1.FetchBackupResponse
-	(*BackupPolicyInfo)(nil),               // 8: dockwell.v1.BackupPolicyInfo
-	(*ListBackupPoliciesRequest)(nil),      // 9: dockwell.v1.ListBackupPoliciesRequest
-	(*ListBackupPoliciesResponse)(nil),     // 10: dockwell.v1.ListBackupPoliciesResponse
-	(*ListBackupsRequest)(nil),             // 11: dockwell.v1.ListBackupsRequest
-	(*ListBackupsResponse)(nil),            // 12: dockwell.v1.ListBackupsResponse
-	(*GetBackupRequest)(nil),               // 13: dockwell.v1.GetBackupRequest
-	(*GetBackupResponse)(nil),              // 14: dockwell.v1.GetBackupResponse
-	(*PreviewBackupRequest)(nil),           // 15: dockwell.v1.PreviewBackupRequest
-	(*PreviewBackupResponse)(nil),          // 16: dockwell.v1.PreviewBackupResponse
-	(*CreateBackupRequest)(nil),            // 17: dockwell.v1.CreateBackupRequest
-	(*CreateBackupResponse)(nil),           // 18: dockwell.v1.CreateBackupResponse
-	(*DeleteBackupRequest)(nil),            // 19: dockwell.v1.DeleteBackupRequest
-	(*DeleteBackupResponse)(nil),           // 20: dockwell.v1.DeleteBackupResponse
-	(*RestoreBackupRequest)(nil),           // 21: dockwell.v1.RestoreBackupRequest
-	(*RestoreBackupResponse)(nil),          // 22: dockwell.v1.RestoreBackupResponse
-	(BackupMethod)(0),                      // 23: dockwell.v1.BackupMethod
-	(*timestamppb.Timestamp)(nil),          // 24: google.protobuf.Timestamp
-	(*Actor)(nil),                          // 25: dockwell.v1.Actor
-	(*v1alpha1.BackupPolicy)(nil),          // 26: dockwell.resource.v1alpha1.BackupPolicy
-	(*Change)(nil),                         // 27: dockwell.v1.Change
+	(BackupDestinationProblem)(0),          // 2: dockwell.v1.BackupDestinationProblem
+	(*Backup)(nil),                         // 3: dockwell.v1.Backup
+	(*BackupDestinationInfo)(nil),          // 4: dockwell.v1.BackupDestinationInfo
+	(*ListBackupDestinationsRequest)(nil),  // 5: dockwell.v1.ListBackupDestinationsRequest
+	(*ListBackupDestinationsResponse)(nil), // 6: dockwell.v1.ListBackupDestinationsResponse
+	(*FetchBackupRequest)(nil),             // 7: dockwell.v1.FetchBackupRequest
+	(*FetchBackupResponse)(nil),            // 8: dockwell.v1.FetchBackupResponse
+	(*BackupPolicyInfo)(nil),               // 9: dockwell.v1.BackupPolicyInfo
+	(*ListBackupPoliciesRequest)(nil),      // 10: dockwell.v1.ListBackupPoliciesRequest
+	(*ListBackupPoliciesResponse)(nil),     // 11: dockwell.v1.ListBackupPoliciesResponse
+	(*ListBackupsRequest)(nil),             // 12: dockwell.v1.ListBackupsRequest
+	(*ListBackupsResponse)(nil),            // 13: dockwell.v1.ListBackupsResponse
+	(*GetBackupRequest)(nil),               // 14: dockwell.v1.GetBackupRequest
+	(*GetBackupResponse)(nil),              // 15: dockwell.v1.GetBackupResponse
+	(*PreviewBackupRequest)(nil),           // 16: dockwell.v1.PreviewBackupRequest
+	(*PreviewBackupResponse)(nil),          // 17: dockwell.v1.PreviewBackupResponse
+	(*CreateBackupRequest)(nil),            // 18: dockwell.v1.CreateBackupRequest
+	(*CreateBackupResponse)(nil),           // 19: dockwell.v1.CreateBackupResponse
+	(*DeleteBackupRequest)(nil),            // 20: dockwell.v1.DeleteBackupRequest
+	(*DeleteBackupResponse)(nil),           // 21: dockwell.v1.DeleteBackupResponse
+	(*RestoreBackupRequest)(nil),           // 22: dockwell.v1.RestoreBackupRequest
+	(*RestoreBackupResponse)(nil),          // 23: dockwell.v1.RestoreBackupResponse
+	(*TestBackupDestinationRequest)(nil),   // 24: dockwell.v1.TestBackupDestinationRequest
+	(*TestBackupDestinationResponse)(nil),  // 25: dockwell.v1.TestBackupDestinationResponse
+	(BackupMethod)(0),                      // 26: dockwell.v1.BackupMethod
+	(*timestamppb.Timestamp)(nil),          // 27: google.protobuf.Timestamp
+	(*Actor)(nil),                          // 28: dockwell.v1.Actor
+	(*v1alpha1.BackupPolicy)(nil),          // 29: dockwell.resource.v1alpha1.BackupPolicy
+	(*Change)(nil),                         // 30: dockwell.v1.Change
+	(*v1alpha1.BackupDestination)(nil),     // 31: dockwell.resource.v1alpha1.BackupDestination
 }
 var file_dockwell_v1_backup_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.Backup.state:type_name -> dockwell.v1.BackupState
-	23, // 1: dockwell.v1.Backup.method:type_name -> dockwell.v1.BackupMethod
-	24, // 2: dockwell.v1.Backup.started_at:type_name -> google.protobuf.Timestamp
-	24, // 3: dockwell.v1.Backup.finished_at:type_name -> google.protobuf.Timestamp
-	25, // 4: dockwell.v1.Backup.actor:type_name -> dockwell.v1.Actor
+	26, // 1: dockwell.v1.Backup.method:type_name -> dockwell.v1.BackupMethod
+	27, // 2: dockwell.v1.Backup.started_at:type_name -> google.protobuf.Timestamp
+	27, // 3: dockwell.v1.Backup.finished_at:type_name -> google.protobuf.Timestamp
+	28, // 4: dockwell.v1.Backup.actor:type_name -> dockwell.v1.Actor
 	1,  // 5: dockwell.v1.Backup.copy:type_name -> dockwell.v1.BackupCopy
-	24, // 6: dockwell.v1.BackupDestinationInfo.last_upload:type_name -> google.protobuf.Timestamp
-	24, // 7: dockwell.v1.BackupDestinationInfo.last_failure:type_name -> google.protobuf.Timestamp
-	3,  // 8: dockwell.v1.ListBackupDestinationsResponse.destinations:type_name -> dockwell.v1.BackupDestinationInfo
-	2,  // 9: dockwell.v1.FetchBackupResponse.backup:type_name -> dockwell.v1.Backup
-	26, // 10: dockwell.v1.BackupPolicyInfo.spec:type_name -> dockwell.resource.v1alpha1.BackupPolicy
-	24, // 11: dockwell.v1.BackupPolicyInfo.next_run:type_name -> google.protobuf.Timestamp
-	2,  // 12: dockwell.v1.BackupPolicyInfo.last:type_name -> dockwell.v1.Backup
-	8,  // 13: dockwell.v1.ListBackupPoliciesResponse.policies:type_name -> dockwell.v1.BackupPolicyInfo
-	2,  // 14: dockwell.v1.ListBackupsResponse.backups:type_name -> dockwell.v1.Backup
-	2,  // 15: dockwell.v1.GetBackupResponse.backup:type_name -> dockwell.v1.Backup
-	23, // 16: dockwell.v1.PreviewBackupResponse.method:type_name -> dockwell.v1.BackupMethod
-	2,  // 17: dockwell.v1.CreateBackupResponse.backup:type_name -> dockwell.v1.Backup
-	27, // 18: dockwell.v1.RestoreBackupResponse.change:type_name -> dockwell.v1.Change
-	11, // 19: dockwell.v1.BackupService.ListBackups:input_type -> dockwell.v1.ListBackupsRequest
-	13, // 20: dockwell.v1.BackupService.GetBackup:input_type -> dockwell.v1.GetBackupRequest
-	15, // 21: dockwell.v1.BackupService.PreviewBackup:input_type -> dockwell.v1.PreviewBackupRequest
-	17, // 22: dockwell.v1.BackupService.CreateBackup:input_type -> dockwell.v1.CreateBackupRequest
-	19, // 23: dockwell.v1.BackupService.DeleteBackup:input_type -> dockwell.v1.DeleteBackupRequest
-	9,  // 24: dockwell.v1.BackupService.ListBackupPolicies:input_type -> dockwell.v1.ListBackupPoliciesRequest
-	4,  // 25: dockwell.v1.BackupService.ListBackupDestinations:input_type -> dockwell.v1.ListBackupDestinationsRequest
-	6,  // 26: dockwell.v1.BackupService.FetchBackup:input_type -> dockwell.v1.FetchBackupRequest
-	21, // 27: dockwell.v1.BackupService.RestoreBackup:input_type -> dockwell.v1.RestoreBackupRequest
-	12, // 28: dockwell.v1.BackupService.ListBackups:output_type -> dockwell.v1.ListBackupsResponse
-	14, // 29: dockwell.v1.BackupService.GetBackup:output_type -> dockwell.v1.GetBackupResponse
-	16, // 30: dockwell.v1.BackupService.PreviewBackup:output_type -> dockwell.v1.PreviewBackupResponse
-	18, // 31: dockwell.v1.BackupService.CreateBackup:output_type -> dockwell.v1.CreateBackupResponse
-	20, // 32: dockwell.v1.BackupService.DeleteBackup:output_type -> dockwell.v1.DeleteBackupResponse
-	10, // 33: dockwell.v1.BackupService.ListBackupPolicies:output_type -> dockwell.v1.ListBackupPoliciesResponse
-	5,  // 34: dockwell.v1.BackupService.ListBackupDestinations:output_type -> dockwell.v1.ListBackupDestinationsResponse
-	7,  // 35: dockwell.v1.BackupService.FetchBackup:output_type -> dockwell.v1.FetchBackupResponse
-	22, // 36: dockwell.v1.BackupService.RestoreBackup:output_type -> dockwell.v1.RestoreBackupResponse
-	28, // [28:37] is the sub-list for method output_type
-	19, // [19:28] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	27, // 6: dockwell.v1.BackupDestinationInfo.last_upload:type_name -> google.protobuf.Timestamp
+	27, // 7: dockwell.v1.BackupDestinationInfo.last_failure:type_name -> google.protobuf.Timestamp
+	4,  // 8: dockwell.v1.ListBackupDestinationsResponse.destinations:type_name -> dockwell.v1.BackupDestinationInfo
+	3,  // 9: dockwell.v1.FetchBackupResponse.backup:type_name -> dockwell.v1.Backup
+	29, // 10: dockwell.v1.BackupPolicyInfo.spec:type_name -> dockwell.resource.v1alpha1.BackupPolicy
+	27, // 11: dockwell.v1.BackupPolicyInfo.next_run:type_name -> google.protobuf.Timestamp
+	3,  // 12: dockwell.v1.BackupPolicyInfo.last:type_name -> dockwell.v1.Backup
+	9,  // 13: dockwell.v1.ListBackupPoliciesResponse.policies:type_name -> dockwell.v1.BackupPolicyInfo
+	3,  // 14: dockwell.v1.ListBackupsResponse.backups:type_name -> dockwell.v1.Backup
+	3,  // 15: dockwell.v1.GetBackupResponse.backup:type_name -> dockwell.v1.Backup
+	26, // 16: dockwell.v1.PreviewBackupResponse.method:type_name -> dockwell.v1.BackupMethod
+	3,  // 17: dockwell.v1.CreateBackupResponse.backup:type_name -> dockwell.v1.Backup
+	30, // 18: dockwell.v1.RestoreBackupResponse.change:type_name -> dockwell.v1.Change
+	31, // 19: dockwell.v1.TestBackupDestinationRequest.destination:type_name -> dockwell.resource.v1alpha1.BackupDestination
+	2,  // 20: dockwell.v1.TestBackupDestinationResponse.problem:type_name -> dockwell.v1.BackupDestinationProblem
+	12, // 21: dockwell.v1.BackupService.ListBackups:input_type -> dockwell.v1.ListBackupsRequest
+	14, // 22: dockwell.v1.BackupService.GetBackup:input_type -> dockwell.v1.GetBackupRequest
+	16, // 23: dockwell.v1.BackupService.PreviewBackup:input_type -> dockwell.v1.PreviewBackupRequest
+	18, // 24: dockwell.v1.BackupService.CreateBackup:input_type -> dockwell.v1.CreateBackupRequest
+	20, // 25: dockwell.v1.BackupService.DeleteBackup:input_type -> dockwell.v1.DeleteBackupRequest
+	10, // 26: dockwell.v1.BackupService.ListBackupPolicies:input_type -> dockwell.v1.ListBackupPoliciesRequest
+	5,  // 27: dockwell.v1.BackupService.ListBackupDestinations:input_type -> dockwell.v1.ListBackupDestinationsRequest
+	24, // 28: dockwell.v1.BackupService.TestBackupDestination:input_type -> dockwell.v1.TestBackupDestinationRequest
+	7,  // 29: dockwell.v1.BackupService.FetchBackup:input_type -> dockwell.v1.FetchBackupRequest
+	22, // 30: dockwell.v1.BackupService.RestoreBackup:input_type -> dockwell.v1.RestoreBackupRequest
+	13, // 31: dockwell.v1.BackupService.ListBackups:output_type -> dockwell.v1.ListBackupsResponse
+	15, // 32: dockwell.v1.BackupService.GetBackup:output_type -> dockwell.v1.GetBackupResponse
+	17, // 33: dockwell.v1.BackupService.PreviewBackup:output_type -> dockwell.v1.PreviewBackupResponse
+	19, // 34: dockwell.v1.BackupService.CreateBackup:output_type -> dockwell.v1.CreateBackupResponse
+	21, // 35: dockwell.v1.BackupService.DeleteBackup:output_type -> dockwell.v1.DeleteBackupResponse
+	11, // 36: dockwell.v1.BackupService.ListBackupPolicies:output_type -> dockwell.v1.ListBackupPoliciesResponse
+	6,  // 37: dockwell.v1.BackupService.ListBackupDestinations:output_type -> dockwell.v1.ListBackupDestinationsResponse
+	25, // 38: dockwell.v1.BackupService.TestBackupDestination:output_type -> dockwell.v1.TestBackupDestinationResponse
+	8,  // 39: dockwell.v1.BackupService.FetchBackup:output_type -> dockwell.v1.FetchBackupResponse
+	23, // 40: dockwell.v1.BackupService.RestoreBackup:output_type -> dockwell.v1.RestoreBackupResponse
+	31, // [31:41] is the sub-list for method output_type
+	21, // [21:31] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_backup_proto_init() }
@@ -1838,8 +2098,8 @@ func file_dockwell_v1_backup_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_backup_proto_rawDesc), len(file_dockwell_v1_backup_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   21,
+			NumEnums:      3,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

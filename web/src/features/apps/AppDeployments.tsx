@@ -14,7 +14,6 @@ import {
 } from "@dockwell/api";
 import {
   Button,
-  Callout,
   cx,
   Icon,
   type IconName,
@@ -33,9 +32,9 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { isValidElement, type ReactNode, useCallback, useMemo, useRef } from "react";
 
-import { sentence } from "../../lib/errors";
 import { formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { FailureNotice } from "../changes/FailureNotice";
 import { useFieldRows } from "../changes/fields";
@@ -44,11 +43,13 @@ import { RollbackLine, rollbackSubject } from "../changes/RollbackLine";
 import { useChangeWords } from "../changes/words";
 import { DeployLogLink } from "../logs/DeployLogLinks";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
+import { ReadFailed } from "../shell/ReadFailed";
 import { useApp, useRevisions } from "./AppContext";
 import { ListSkeleton } from "./AppsPage";
 import {
   bareImage,
   canRollBackTo,
+  environmentOf,
   fieldOfChange,
   imageChange,
   nameOf,
@@ -243,17 +244,15 @@ export function AppDeployments() {
 
   if (history.error && !revisions) {
     return (
-      <Callout
-        tone="critical"
+      <ReadFailed
+        error={history.error}
         title={t`Can't load the deployments`}
         actions={
           <Button onClick={() => void history.refetch()} loading={history.isFetching}>
             <Trans>Try again</Trans>
           </Button>
         }
-      >
-        {sentence(history.error)}
-      </Callout>
+      />
     );
   }
 
@@ -447,6 +446,9 @@ function RollBackFoot({
 }) {
   const target = rollBackTarget(rev, latest, revisions);
   const shown = revisionName(rev.number);
+  // An action on what you can see stays where it is, off, with why (ADR 0059).
+  const { service } = useApp();
+  const mayRollBack = useMay()(ServiceService.method.rollBackService, { environment: environmentOf(service) });
   if (!target) {
     if (rev.number === latest || !rev.matchesLatest) return null;
     // The record matches, which says nothing of a container removed by hand. The
@@ -465,6 +467,7 @@ function RollBackFoot({
             size={wide ? "lg" : "md"}
             onClick={() => onRollBack(rev)}
             className={cx(wide && "deploy-wide")}
+            {...mayRollBack.off}
           >
             <Trans>Roll back to {shown}</Trans>
           </Button>
@@ -485,6 +488,7 @@ function RollBackFoot({
         size={wide ? "lg" : "md"}
         onClick={() => onRollBack(target)}
         className={cx(wide && "deploy-wide")}
+        {...mayRollBack.off}
       >
         <Trans>Roll back to {name}</Trans>
       </Button>

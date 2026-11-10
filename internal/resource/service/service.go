@@ -23,11 +23,13 @@ import (
 	"fmt"
 	"maps"
 	"strings"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
@@ -44,7 +46,21 @@ const Kind resource.Kind = "service"
 // checks specs, its Containers needs no Runtime.
 type Driver struct {
 	Containers container.Driver
+	// Passwords, where set, keeps a database's first user's password the one its
+	// container starts with, as a replace gives it a new one (database.FirstPasswords).
+	Passwords Passwords
 }
+
+// Passwords changes a database's first user's password in what runs of a service, to
+// the one app starts with, before app replaces it, and says how to put it back should
+// what runs afterwards be the container from before. A nil undo means it changed
+// nothing.
+type Passwords interface {
+	Change(ctx context.Context, project, service string, app *resourcev1.Container) (undo func(context.Context) error, err error)
+}
+
+// passwordsBack is how long putting a password back may take, after a rollout failed.
+const passwordsBack = 30 * time.Second
 
 var (
 	_ resource.Driver   = (*Driver)(nil)
@@ -160,6 +176,49 @@ func (*Driver) KeptData(spec proto.Message) []string {
 	return out
 }
 
+// KeepEnv puts the values of the app's own environment variables named into
+// desired, from current, for an edit by a client that can't read them back, as
+// no response carries them (resource.EnvKeeper).
+func (*Driver) KeepEnv(current, desired proto.Message, names []string) (resource.Kept, error) {
+	if len(names) == 0 {
+		return resource.Kept{}, nil
+	}
+	cur, _ := current.(*resourcev1.Service)
+	want, _ := desired.(*resourcev1.Service)
+	app := want.GetApp()
+	if cur == nil || app == nil {
+		return resource.Kept{}, errors.New("it keeps environment variables, but runs no image to give them to. Leave keep_env out")
+	}
+	have := cur.GetApp().GetEnv()
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		v, ok := have[name]
+		switch {
+		case seen[name]:
+			return resource.Kept{}, fmt.Errorf("keep_env names %s twice. Name it once", name)
+		case !ok:
+			return resource.Kept{}, fmt.Errorf("it has no environment variable %s of its own to keep. Read it again, and set %s or leave it out", name, name)
+		}
+		if _, set := app.GetEnv()[name]; set {
+			return resource.Kept{}, fmt.Errorf("the edit both sets and keeps %s. Set it, or keep it", name)
+		}
+		seen[name] = true
+		if app.Env == nil {
+			app.Env = make(map[string]string, len(names))
+		}
+		app.Env[name] = v
+	}
+	words := "keeps the value of " + names[0] + " as it is, as nobody read it back"
+	if len(names) > 1 {
+		words = "keeps the values of " + human.List(names) + " as they are, as nobody read them back"
+	}
+	return resource.Kept{
+		Reason: "keeps_env",
+		Words:  words,
+		Stays:  "the values it keeps go only to the servers that have them. Set them again in the edit to run it there",
+	}, nil
+}
+
 // Target is where a service runs on a server: in its environment's
 // Compose project, as that project's service of the same name, in a
 // container named as Compose names a service's first, such as
@@ -178,7 +237,7 @@ func Target(ref resource.Ref) container.Target {
 // old way goes on being its own until a deploy replaces it (ADR 0035).
 func TargetIn(ctx context.Context, ref resource.Ref) container.Target {
 	t := Target(ref)
-	if name := resource.ScopeName(ctx, ref.Scope); container.ScopeNameRE.MatchString(name) {
+	if name := resource.ScopeName(ctx, ref.Scope); container.IsScopeName(name) {
 		t.Prefix = name
 		t.Name = docker.ReadableName(name, ref.Name, 1)
 	}
@@ -418,7 +477,23 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 		return err
 	}
 	app := binding.App(svc, env)
-	return d.Containers.ApplyAt(ctx, TargetIn(ctx, step.Ref), step, app)
+	t := TargetIn(ctx, step.Ref)
+	var undo func(context.Context) error
+	if d.Passwords != nil && step.Action == resource.ActionReplace {
+		if undo, err = d.Passwords.Change(ctx, t.Project, t.Service, app); err != nil {
+			return err
+		}
+	}
+	err = d.Containers.ApplyAt(ctx, t, step, app)
+	if err != nil && undo != nil {
+		// What failed may have put the old container back, which starts with the old one.
+		back, cancel := resource.Finishing(ctx, passwordsBack)
+		defer cancel()
+		if undoErr := undo(back); undoErr != nil {
+			return fmt.Errorf("%w. %w", err, undoErr)
+		}
+	}
+	return err
 }
 
 // Verify checks the service's container is healthy.

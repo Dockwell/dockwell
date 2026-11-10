@@ -38,6 +38,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { RevealsProvider, useReveal, useReveals } from "./useReveal";
 import "./VariablesPage.css";
+import { useMay } from "../auth/may";
 
 /** A name a process's environment takes, as the control plane checks it. */
 const NAME = /^[A-Za-z_][A-Za-z0-9_]{0,254}$/;
@@ -134,7 +135,7 @@ export function VariablesPage({ environment, onEnvironment }: VariablesPageProps
   const list = useAllVariables(chosen?.id);
   const [editing, setEditing] = useState<EnvironmentVariable>();
   // Kept here, so a value revealed stays revealed when the layout changes, as when a phone turns.
-  const reveals = useReveals();
+  const reveals = useReveals(chosen?.id);
   const envName = chosen ? environmentLabel(chosen, projects) : "";
   const variables = list.data?.variables ?? [];
   const secrets = variables.filter((v) => v.secret).length;
@@ -277,10 +278,15 @@ function ValueCell({ variable }: { variable: EnvironmentVariable }) {
 }
 
 /** A secret's value: hidden, until a passkey reveals it, for a minute. */
-function SecretValue({ variable }: { variable: EnvironmentVariable }) {
+export function SecretValue({ variable }: { variable: EnvironmentVariable }) {
   const { t } = useLingui();
   const name = variable.name;
   const shown = useReveal(variable.id);
+  // Revealing is a developer's, and an admin's in a protected environment: off, with why, otherwise (ADR 0059).
+  const mayReveal = useMay()(
+    VariableService.method.revealSecret,
+    shown.environment ? { environment: shown.environment } : undefined,
+  );
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -313,6 +319,7 @@ function SecretValue({ variable }: { variable: EnvironmentVariable }) {
             disabled={!passkeysAvailable()}
             aria-label={t`Reveal ${name}`}
             onClick={shown.reveal}
+            {...mayReveal.off}
           >
             <span className="variables-button-word">
               <Trans>Reveal</Trans>

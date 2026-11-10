@@ -21,6 +21,7 @@ import { appsFlow } from "./apps-flow.ts";
 import { containersFlow } from "./containers-flow.ts";
 import { dockerMade, dockerProbe, removeMade } from "./docker-probe.ts";
 import { healthFlow } from "./health-flow.ts";
+import { describePages, watchBrowser } from "./report.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
@@ -138,8 +139,11 @@ try {
   if (claim === "") throw new Error(`dockwell claim printed no claim link:\n${claimed}`);
   browser = await chromium.launch({
     executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
+    // /dev/shm is small in a container and shared by every browser on the machine; Chromium crashes when it fills.
+    args: ["--disable-dev-shm-usage"],
     headless: true,
   });
+  watchBrowser(browser);
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   // A throw in here would end the process and skip the cleaning up.
@@ -163,6 +167,11 @@ try {
     await page.getByLabel("Your name").fill("Mira Chen");
     await page.getByLabel("Email").fill("mira@acme.dev");
     await page.getByRole("button", { name: "Create passkey" }).click();
+    // A new owner starts where the first app comes from, with the overview a click away.
+    await page
+      .getByRole("heading", { level: 1, name: "What do you want to run?", exact: true })
+      .waitFor({ timeout: 15_000 });
+    await page.getByRole("link", { name: "Skip to the overview" }).click();
     await page.getByRole("heading", { level: 1, name: "Overview", exact: true }).waitFor({ timeout: 15_000 });
     await page.locator(".dw-metric", { hasText: "CPU" }).waitFor({ timeout: 20_000 });
     await appsFlow(page, {
@@ -203,6 +212,7 @@ try {
 } catch (err) {
   console.error(`e2e: failed: ${err instanceof Error ? err.message : String(err)}`);
   console.error(log.join("").split("\n").slice(-30).join("\n"));
+  console.error(await describePages());
   process.exitCode = 1;
 } finally {
   await browser?.close();

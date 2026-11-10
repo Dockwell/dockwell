@@ -4,6 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
+  AlertCheckState,
   CertificateState,
   ChangeSchema,
   ChangeState,
@@ -308,6 +309,12 @@ describe("The websites", () => {
     renderAt("/websites", api([]));
     expect(await screen.findByRole("heading", { name: "No websites yet" })).toBeVisible();
     expect(screen.getByRole("link", { name: "New website" })).toHaveAttribute("href", "/websites/new");
+  });
+
+  it("holds no empty line under the title once it knows there are none", async () => {
+    const { container } = renderAt("/websites", api([]));
+    await screen.findByRole("heading", { name: "No websites yet" });
+    expect(container.querySelector(".page-lead")).toBeNull();
   });
 
   it("says when it can't read them, and tries again", async () => {
@@ -832,6 +839,37 @@ describe("A PHP website", () => {
     await user.type(folder, "/srv/linked");
     expect(await within(sheet).findByText("Holds index.php.", {}, { timeout: 3_000 })).toBeVisible();
   }, 30_000);
+
+  it("offers Watch on a domain that serves, and says how the check that watches it stands", async () => {
+    onWideScreen();
+    const user = userEvent.setup();
+    let checks: { id: string; name: string; spec: { address: string }; state: AlertCheckState }[] = [];
+    const alerts = {
+      listAlertChecks: () => ({ checks }),
+      listAlertRules: () => ({}),
+      listAlertChannels: () => ({}),
+    };
+    const { unmount } = renderAt("/websites/prj_blog", api([blog], { alerts }));
+    const parts = await screen.findByRole("region", { name: "How it serves" });
+    await user.click(await within(parts).findByRole("button", { name: "Watch blog.example.com" }));
+    const sheet = await screen.findByRole("dialog", { name: "Watch this address" });
+    expect(within(sheet).getByLabelText("Address")).toHaveValue("https://blog.example.com");
+    unmount();
+
+    checks = [
+      {
+        id: "chk_blog",
+        name: "blog-example-com",
+        spec: { address: "https://blog.example.com/" },
+        state: AlertCheckState.UP,
+      },
+    ];
+    renderAt("/websites/prj_blog", api([blog], { alerts }));
+    const again = await screen.findByRole("region", { name: "How it serves" });
+    const link = await within(again).findByRole("link", { name: "blog.example.com is watched: Up" });
+    expect(link).toHaveAttribute("href", "/alerts/checks");
+    expect(within(again).queryByRole("button", { name: /^Watch / })).toBeNull();
+  });
 
   it("opens on how each part of it runs, and what it serves", async () => {
     onWideScreen();

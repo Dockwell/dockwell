@@ -62,6 +62,8 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 		changesTable(w, m, now)
 	case *dockwellv1.ListDriftResponse:
 		driftTable(w, m)
+	case *dockwellv1.ListAlertsResponse:
+		alertsTable(w, m, now)
 	case *dockwellv1.ListLogSourcesResponse:
 		sourcesTable(w, m, now)
 	case *dockwellv1.ListWebsitesResponse:
@@ -365,6 +367,33 @@ func changesTable(w io.Writer, res *dockwellv1.ListChangesResponse, now time.Tim
 	_ = tw.Flush()
 	if t := res.GetNextPageToken(); t != "" {
 		fmt.Fprintf(w, "\nThere are more. See them with dockwell changes list --page-token %s\n", t)
+	}
+}
+
+func alertsTable(w io.Writer, res *dockwellv1.ListAlertsResponse, now time.Time) {
+	if len(res.GetAlerts()) == 0 {
+		fmt.Fprintln(w, "Nothing has fired. Dockwell watches every server and app, and lists here what a rule held for.")
+		return
+	}
+	tw := newTable(w)
+	row(tw, "State", "Severity", "Alert", "Rule", "Opened", "Resolved")
+	for _, a := range res.GetAlerts() {
+		state := "Firing"
+		if a.GetState() == dockwellv1.AlertState_ALERT_STATE_RESOLVED {
+			state = "Resolved"
+		}
+		if a.GetMuted() {
+			state += ", muted"
+		}
+		severity := "Warning"
+		if a.GetSeverity() == resourcev1.AlertRule_SEVERITY_CRITICAL {
+			severity = "Critical"
+		}
+		row(tw, state, severity, a.GetTitle(), a.GetRuleName(), when(a.GetOpenTime(), now), orDash(when(a.GetResolveTime(), now)))
+	}
+	_ = tw.Flush()
+	if t := res.GetNextPageToken(); t != "" {
+		fmt.Fprintf(w, "\nThere are more. See them with dockwell alerts list --page-token %s\n", t)
 	}
 }
 
@@ -767,6 +796,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 				if warning == dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT {
 					fmt.Fprintln(tw, "      May cut off remote access to "+s.GetServerName()+", such as SSH.")
 				}
+			}
+			for _, line := range staysWords(st.GetStays(), s.GetServerName()) {
+				fmt.Fprintln(tw, "      "+line)
 			}
 		}
 		_ = tw.Flush()
@@ -1181,6 +1213,7 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_EXTERNAL_VOLUME:  resource.AccessExternalVolume,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TAKES_ON:         resource.AccessTakesOn,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF:        resource.AccessBackupOf,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_SHELL:     resource.AccessServerShell,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY:       resource.AccessCapability,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_GROUP:            resource.AccessGroup,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_PRIVILEGED:       resource.AccessPrivileged,
@@ -1438,4 +1471,30 @@ func sendsTo(w *resourcev1.Website) string {
 		return p.GetUrl()
 	}
 	return "-"
+}
+
+// staysWords says who SSH stays open from once a step that narrows it is kept,
+// and what else deny everything else would drop, as the plan has them.
+func staysWords(a *dockwellv1.AccessStays, server string) []string {
+	if a == nil {
+		return nil
+	}
+	var out []string
+	if len(a.GetSshPorts()) > 0 {
+		from := strings.Join(slices.Concat(a.GetPinned(), a.GetAllowed()), ", ")
+		if from == "" {
+			from = "nowhere"
+		} else {
+			from = "only from " + from
+		}
+		ports := make([]string, len(a.GetSshPorts()))
+		for i, p := range a.GetSshPorts() {
+			ports[i] = strconv.FormatUint(uint64(p), 10)
+		}
+		out = append(out, fmt.Sprintf("SSH on %s stays open %s. If your address isn't one of these, or stops being one, SSH closes to you. To keep it open from more, add a rule that allows port %s first.", server, from, strings.Join(ports, ", ")))
+	}
+	if len(a.GetTunnels()) > 0 {
+		out = append(out, fmt.Sprintf("No rule allows the WireGuard tunnel %s, so deny everything else drops its next handshake, and SSH over it. Keep a rule that allows the tunnel's UDP port.", strings.Join(a.GetTunnels(), ", ")))
+	}
+	return out
 }

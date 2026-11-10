@@ -310,6 +310,17 @@ message FirewallRule {
   string comment = 5;
 }
 
+// FirewallPolicy is what a server's firewall does with inbound traffic no rule
+// lets in, kind "firewall.policy", named "default", one for each server.
+// Without one, or with deny_everything_else off, what no rule drops comes in,
+// as it did before Dockwell (ADR 0052).
+message FirewallPolicy {
+  // Drop inbound traffic no rule lets in. What keeps the server reachable is
+  // still let in: connections already open, SSH from where people come in now,
+  // and on the control server its own ports.
+  bool deny_everything_else = 1;
+}
+
 // FirewallAction is what a rule does with matching traffic.
 enum FirewallAction {
   // Allow, the default.
@@ -444,6 +455,24 @@ message CatalogPin {
 message Environment {
   // How the panel shows it, such as "Staging". Empty shows its name.
   string display_name = 1;
+  // Whether a developer's change here waits for an admin or the owner. Every
+  // environment Dockwell makes has it written: protected for one named
+  // production, open for any other. An edit that leaves it out keeps what's
+  // there. Unset, as on an environment from before, it reads as that default
+  // by its name (ADR 0049). Making one with other than the default, or
+  // changing it, is an admin's.
+  Protection protection = 2;
+}
+
+// Protection is whether a developer's change in an environment waits for an
+// admin or the owner.
+enum Protection {
+  PROTECTION_UNSPECIFIED = 0;
+  // A developer's change waits for an admin or the owner, who applies it with
+  // a passkey.
+  PROTECTION_PROTECTED = 1;
+  // A developer applies their own changes.
+  PROTECTION_OPEN = 2;
 }
 
 // Service is anything that runs in an environment, placed on servers: for
@@ -510,6 +539,28 @@ message Volume {
   map<string, string> options = 2 [(sensitive) = true];
   // Labels on the volume, for tools that read them.
   map<string, string> labels = 3;
+}
+
+// DatabaseUser is a database inside a database server that a service of its
+// environment runs, with the user who owns it, who signs in with a secret of the
+// environment. The service runs PostgreSQL, MySQL or MariaDB from its official image,
+// and the user and the database are made in its own container, with its own tools,
+// on the servers it runs on (ADR 0038). Its name is the user's, such as "shop".
+// Setting the secret anew changes the user's password, and deleting one drops the
+// user and the database, with everything in it.
+message DatabaseUser {
+  // The service that runs the database server, by name, such as "db".
+  string service = 1;
+  // The database the user owns, which is made with them, such as "shop". Empty
+  // takes the user's name. It can't change once made.
+  string database_name = 2;
+  // The environment's secret the user's password is in, by name, such as
+  // "SHOP_DATABASE_PASSWORD".
+  string password = 3;
+  // The revision of the secret the user was given. Dockwell sets it when a change
+  // is planned, so setting the secret anew gives the user its new password. An
+  // edit's is ignored.
+  map<string, int64> revisions = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // BackupPolicy backs up a volume in its environment on a schedule, on every server
@@ -668,6 +719,9 @@ message Spec {
     Container container = 4;
     // A firewall rule on a server, kind "firewall.rule".
     FirewallRule firewall_rule = 5;
+    // What a server's firewall does with what no rule lets in, kind
+    // "firewall.policy". Numbered apart, as open work adds to this message.
+    FirewallPolicy firewall_policy = 40;
     // A volume in an environment, kind "volume".
     Volume volume = 6;
     // A network in an environment, kind "network".
@@ -683,5 +737,282 @@ message Spec {
     BackupPolicy backup_policy = 20;
     // S3-compatible storage backups go to, kind "backup.destination".
     BackupDestination backup_destination = 21;
+    // A database and the user who owns it, in a database server a service runs,
+    // kind "database.user". Numbered apart, as open work adds to this message.
+    DatabaseUser database_user = 30;
+    // What Dockwell watches for, and who it tells, kind "alert.rule". Numbered
+    // apart, as open work adds to this message.
+    AlertRule alert_rule = 110;
+    // Where alerts are sent, kind "alert.channel".
+    AlertChannel alert_channel = 111;
+    // An address checked for whether it answers, kind "alert.check" (ADR 0066).
+    AlertCheck alert_check = 112;
+    // Work that runs on a schedule, kind "task". Numbered in the block scheduled
+    // tasks hold, as open work adds to this message.
+    Task task = 150;
   }
+}
+
+// Task is work that runs on a schedule, on each server it's placed on, kind "task"
+// (ADR 0053): a shell command on the server, a command in an app's image, or an
+// HTTP request. Each server's agent keeps its time, so a task runs while the
+// control plane is away.
+message Task {
+  // What it runs.
+  oneof runs {
+    // A shell command on the server, which the agent runs as root. Making one, or
+    // changing what it runs, takes a person and a passkey.
+    TaskShell shell = 1;
+    // A command in an app's image, as a one-off container with the app's
+    // environment, mounts and networks.
+    TaskApp app = 2;
+    // An HTTP request to a URL, from the server.
+    TaskRequest request = 3;
+  }
+  // When it runs, in cron's five fields, minute, hour, day of the month, month and
+  // day of the week, such as "0 4 * * *", or @hourly, @daily, @weekly, @monthly or
+  // @yearly. Nothing runs more often than once a minute.
+  string schedule = 4;
+  // The time zone schedule is in, such as "Europe/Amsterdam". Left out, a change
+  // that makes or updates the task sets the install's time zone, from Settings,
+  // and UTC where the install has none.
+  string time_zone = 5;
+  // How long a run may take, in seconds, before it's stopped: 600 unless set, at
+  // most 86400.
+  uint32 timeout_seconds = 6;
+  // How many more times a run that fails or times out tries, a minute apart: 0
+  // to 3.
+  uint32 retries = 7;
+  // Keeps it from running on its schedule. Run now still runs it.
+  bool paused = 8;
+  // Skips a run missed while its server was off or its agent stopped, rather than
+  // running it once when the agent starts.
+  bool skip_missed = 9;
+  // What people call it, such as "Nightly sales report". Its name when empty.
+  string display_name = 10;
+}
+
+// TaskShell is a shell command on the server.
+message TaskShell {
+  // The command, run with /bin/sh -c, such as "find /var/log/app -mtime +7 -delete".
+  string command = 1;
+  // The folder it runs in: / unless set.
+  string working_dir = 2;
+}
+
+// TaskApp is a command in an app's image.
+message TaskApp {
+  // The app, by name, in the task's environment.
+  string service = 1;
+  // The command, as words split as a shell splits them, run after the app's
+  // entrypoint in place of its command, such as "/app/api report sales". It runs
+  // without a shell unless it names one.
+  string command = 2;
+}
+
+// TaskRequest is an HTTP request to a URL. A run keeps the status, the time it
+// took and the size of the answer, never the body.
+message TaskRequest {
+  // The URL, http or https.
+  string url = 1;
+  // GET unless set, or HEAD or POST, with no body.
+  string method = 2;
+  // The status it expects, such as 204. Any 2xx unless set.
+  uint32 expect_status = 3;
+}
+
+// AlertRule is something Dockwell watches for, on every server or app it
+// applies to, and who it tells when it holds. It lives in the organization, and
+// the control plane evaluates it, from what it hears of servers already. See
+// docs/adr/0044-alerts.md.
+message AlertRule {
+  // What it watches for.
+  enum Condition {
+    CONDITION_UNSPECIFIED = 0;
+    // A service isn't running, or fails its health check.
+    CONDITION_SERVICE_DOWN = 1;
+    // The control plane hasn't heard from a server's agent.
+    CONDITION_SERVER_UNREACHABLE = 2;
+    // A server's disk is fuller than threshold percent.
+    CONDITION_DISK_FULL = 3;
+    // A server's memory is more in use than threshold percent.
+    CONDITION_MEMORY_HIGH = 4;
+    // A domain's certificate expires within threshold days.
+    CONDITION_CERTIFICATE_EXPIRING = 5;
+    // A domain's certificate couldn't be issued or renewed.
+    CONDITION_CERTIFICATE_FAILED = 6;
+    // A volume's last backup failed, or its copy didn't reach its destination.
+    CONDITION_BACKUP_FAILED = 7;
+    // A backup schedule's run is later than duration says it may be.
+    CONDITION_BACKUP_LATE = 8;
+    // A change failed or rolled back, a deploy among them.
+    CONDITION_CHANGE_FAILED = 9;
+    // An address a check watches doesn't answer as it should, as many runs in a
+    // row as the check says (ADR 0066).
+    CONDITION_CHECK_DOWN = 10;
+  }
+  // How much it matters, which a message says and a channel can choose by.
+  enum Severity {
+    SEVERITY_UNSPECIFIED = 0;
+    // Someone should look soon. The default.
+    SEVERITY_WARNING = 1;
+    // Something is down, or is about to be.
+    SEVERITY_CRITICAL = 2;
+  }
+  // What it watches for.
+  Condition condition = 1;
+  // The level, for a condition that has one: a percent for disk and memory, 1 to
+  // 100, and days for a certificate, 1 to 90. Others leave it 0.
+  uint32 threshold = 2;
+  // How long the condition holds before the alert fires, such as "5m". Empty
+  // fires at once. For a late backup, how long after its time a run may start.
+  string duration = 3;
+  // How much it matters: warning unless set.
+  Severity severity = 4;
+  // The channels it sends to, by name. Empty sends to every channel, so a rule
+  // tells someone as soon as there is one.
+  repeated string channels = 5;
+  // Sends an alert that's still firing again this often, such as "4h". Empty
+  // sends it once, and once more when it resolves.
+  string repeat = 6;
+  // Keeps the rule without evaluating it.
+  bool disabled = 7;
+}
+
+// AlertCheck is an address Dockwell asks, every so often, whether it answers as
+// it should: an uptime check. It lives in the organization, and the control
+// plane runs it. A run is one GET, with no redirect followed, that keeps nothing
+// of the answer but its status, how long it took, and whether the keyword was
+// there. See docs/adr/0066-checks-of-a-url.md.
+message AlertCheck {
+  // The address it asks, an http or https URL, such as
+  // "https://shop.example.com/".
+  string address = 1;
+  // How often it's checked: "30s", "1m", "5m" or "15m". "1m" unless set.
+  string every = 2;
+  // How long a run waits for an answer: "10s" unless set, at most "30s", and
+  // less than every.
+  string timeout = 3;
+  // How many runs in a row have to fail for it to read down: 2 unless set, 1 to 10.
+  // Down, it reads up again after 2 runs in a row pass.
+  uint32 down_after = 4;
+  // The lowest status that counts as up: 200 unless set.
+  uint32 expect_from = 5;
+  // The highest status that counts as up: 399 unless set, so a redirect is up.
+  uint32 expect_to = 6;
+  // Text the answer's first 64 KiB has to hold, when set, such as "Welcome".
+  string keyword = 7;
+  // Says the keyword has to be absent instead, such as "Error".
+  bool keyword_absent = 8;
+  // Lets the check reach the private networks the control server is on, such as
+  // an address only the office's network serves. Unset, it reaches the internet
+  // alone, keyword included, and a name that resolves to a private address reads
+  // failing with how to allow it. Never this server's loopback, nor a metadata or
+  // link-local address. Plans, the Checks tab and Activity show it (ADR 0066).
+  bool inside_network = 9;
+}
+
+// AlertChannel is somewhere alerts are sent. It lives in the organization. What
+// signs in to it is sealed, and a plan says only that it changed (ADR 0022).
+message AlertChannel {
+  // Where it sends.
+  oneof to {
+    // An HTTP endpoint of your own, sent JSON.
+    AlertWebhook webhook = 1;
+    // Email, through an SMTP server.
+    AlertEmail email = 2;
+    // A topic on an ntfy server, which pushes to phones.
+    AlertNtfy ntfy = 3;
+    // A Slack channel, through an incoming webhook.
+    AlertSlack slack = 4;
+    // A Discord channel, through a webhook.
+    AlertDiscord discord = 5;
+    // A Telegram chat, through a bot.
+    AlertTelegram telegram = 6;
+  }
+}
+
+// AlertWebhook sends each alert, and each that resolves, as JSON in a POST.
+message AlertWebhook {
+  // The URL, such as "https://hooks.example.com/dockwell". It may hold a token,
+  // so it's sealed, and lists show only its host.
+  string url = 1 [(sensitive) = true];
+  // What signs each request, in a Dockwell-Signature header, so the endpoint
+  // can tell it came from this install. Empty signs nothing.
+  string secret = 2 [(sensitive) = true];
+}
+
+// AlertEmail sends each alert as an email, through an SMTP server such as your
+// mail provider's. Dockwell talks TLS to it, unless it's on this server or its
+// private network, and sends its password only over TLS.
+message AlertEmail {
+  // How Dockwell secures its connection to the SMTP server.
+  enum Security {
+    // STARTTLS, unless set.
+    SECURITY_UNSPECIFIED = 0;
+    // A plain connection that STARTTLS makes TLS, as on port 587.
+    SECURITY_STARTTLS = 1;
+    // TLS from the start, as on port 465.
+    SECURITY_TLS = 2;
+    // No TLS: only for a server on this server or its private network.
+    SECURITY_NONE = 3;
+  }
+  // The SMTP server's name or address, such as "smtp.example.com".
+  string host = 1;
+  // Its port: 587 for STARTTLS and 465 for TLS unless set, and 25 for none.
+  uint32 port = 2;
+  // How Dockwell secures the connection.
+  Security security = 3;
+  // Who Dockwell signs in as, when the server asks for that. Empty signs in as
+  // no one.
+  string username = 4;
+  // The password Dockwell signs in with. Changing the server, its port, its
+  // security or the user needs it again.
+  string password = 5 [(sensitive) = true];
+  // Who the emails come from, such as "Dockwell <alerts@example.com>".
+  string from = 6;
+  // Who they go to, such as "ops@example.com": one to ten addresses.
+  repeated string to = 7;
+}
+
+// AlertNtfy publishes each alert to a topic on an ntfy server, such as ntfy.sh
+// or one of your own, which pushes it to the phones that subscribe.
+message AlertNtfy {
+  // The server, such as "https://ntfy.sh", which it is unless set.
+  string server = 1;
+  // The topic, such as "dockwell-alerts-x7f2". On a public server anyone who
+  // knows it can read what's sent, so it's sealed like a password, and lists
+  // show only the server.
+  string topic = 2 [(sensitive) = true];
+  // An access token, for a server or topic that asks for one. Changing the
+  // server needs it again.
+  string token = 3 [(sensitive) = true];
+}
+
+// AlertSlack posts each alert to a Slack channel, through an incoming webhook
+// a Slack app gives.
+message AlertSlack {
+  // The webhook's URL, such as "https://hooks.slack.com/services/T000/B000/XXXX".
+  // It's what lets anyone post there, so it's sealed, and lists show only its
+  // host.
+  string url = 1 [(sensitive) = true];
+}
+
+// AlertDiscord posts each alert to a Discord channel, through a webhook the
+// channel's settings give.
+message AlertDiscord {
+  // The webhook's URL, such as "https://discord.com/api/webhooks/0000/XXXX".
+  // It's what lets anyone post there, so it's sealed, and lists show only its
+  // host.
+  string url = 1 [(sensitive) = true];
+}
+
+// AlertTelegram sends each alert to a Telegram chat, as a bot you made with
+// @BotFather.
+message AlertTelegram {
+  // The bot's token, such as "123456789:AAE…", which BotFather gives.
+  string bot_token = 1 [(sensitive) = true];
+  // The chat, by its ID, such as "-1001234567890" for a group, or a channel's
+  // name, such as "@example_alerts". The bot has to be in it.
+  string chat_id = 2;
 }

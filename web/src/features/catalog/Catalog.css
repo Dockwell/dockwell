@@ -47,17 +47,17 @@
 
 .catalog-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-6);
 }
 
 .catalog-card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   min-width: 0;
-  padding: var(--space-4);
+  padding: var(--space-5);
   color: var(--ink);
   text-decoration: none;
 }
@@ -73,18 +73,32 @@
   min-width: 0;
 }
 
-.catalog-mono {
+.catalog-icon {
   display: grid;
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   place-items: center;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--surface-sunken);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+.catalog-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: contain;
+}
+
+.catalog-icon.is-large {
+  width: 72px;
+  height: 72px;
+  font-size: 22px;
 }
 
 .catalog-card-title {
@@ -95,7 +109,7 @@
 }
 
 .catalog-card-name {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 20px;
 }
@@ -127,8 +141,9 @@
 }
 
 .catalog-card-summary {
-  font-size: 13px;
-  line-height: 18px;
+  min-height: 40px;
+  color: var(--ink-muted);
+  font: var(--text-body);
 }
 
 .catalog-card-foot {
@@ -138,14 +153,16 @@
   gap: var(--space-2);
   margin-top: auto;
   color: var(--ink-muted);
-  font: 400 12px / 16px var(--font-mono);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-size: 12px;
 }
 
-.catalog-card-project {
-  overflow: hidden;
-  color: var(--ink);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.catalog-card-more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 500;
 }
 
 .catalog-note {
@@ -241,9 +258,368 @@
   font-size: 12.5px;
 }
 
+.catalog-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.catalog-back:hover {
+  color: var(--ink);
+}
+
+/*
+ * The app's mark stands beside its name and what it is, as an app store's page has
+ * them, so the summary starts under the name and not under the mark.
+ */
+.catalog-detail .page-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+}
+
+.catalog-detail .page-heading > .catalog-back {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-bottom: var(--space-2);
+}
+
+.catalog-detail .page-title-row {
+  display: contents;
+}
+
+.catalog-detail .page-title-row .catalog-icon {
+  grid-row: 2 / span 2;
+  grid-column: 1;
+}
+
+.catalog-detail .page-title {
+  grid-column: 2;
+  align-self: end;
+}
+
+.catalog-detail .page-lead {
+  grid-column: 2;
+  align-self: start;
+}
+
+.catalog-detail-phone-intro {
+  display: none;
+}
+
+.catalog-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-8);
+  margin: 0 0 var(--space-8);
+  padding: var(--space-4) 0;
+  border-block: 1px solid var(--line);
+}
+
+.catalog-facts dt {
+  margin-bottom: var(--space-1);
+  color: var(--ink-muted);
+  font: var(--text-caption);
+}
+
+.catalog-facts dd {
+  margin: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.catalog-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.4fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.catalog-detail-main,
+.catalog-detail-aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.catalog-detail-aside {
+  gap: var(--space-4);
+}
+
+.catalog-section h2,
+.catalog-info h2 {
+  margin: 0 0 var(--space-4);
+  font: var(--text-heading);
+  letter-spacing: var(--text-heading-tracking);
+}
+
+.catalog-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.catalog-section-head > span {
+  color: var(--ink-muted);
+  font: var(--text-caption);
+}
+
+/*
+ * Each screenshot's frame takes the picture's own shape, at most its own size: they come 480 to 1120 px
+ * wide and from tall to very wide, so one fixed frame left bars beside most of them on a wide screen,
+ * and filling it would blur the small ones.
+ */
+.catalog-screenshots {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding-bottom: var(--space-3);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.catalog-screenshots figure {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  max-width: 90%;
+  margin: 0;
+  scroll-snap-align: start;
+}
+
+.catalog-screenshots figure:only-child {
+  max-width: 100%;
+}
+
+.catalog-screenshots figure > a {
+  position: relative;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.catalog-screenshots img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 560px;
+}
+
+.catalog-preview-open {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: var(--text-caption);
+}
+
+.catalog-screenshots figcaption {
+  margin-top: var(--space-2);
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.catalog-screenshots figcaption a {
+  margin-left: var(--space-2);
+  color: var(--link);
+}
+
+.catalog-preview-missing {
+  display: flex;
+  width: 480px;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  aspect-ratio: 16 / 10;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+}
+
+.catalog-description {
+  margin: 0;
+  font-size: 14px;
+  line-height: 23px;
+  overflow-wrap: anywhere;
+}
+
+.catalog-description p {
+  margin: 0 0 var(--space-4);
+}
+
+.catalog-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-features li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 14px;
+}
+
+.catalog-features svg {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 2px;
+  color: var(--ink-muted);
+}
+
+.catalog-info {
+  padding: var(--space-5);
+}
+
+.catalog-project-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  color: var(--link);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.catalog-project-link:hover {
+  text-decoration: underline;
+}
+
+.catalog-includes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-includes li {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.catalog-includes svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ink-muted);
+}
+
+.catalog-includes li > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.catalog-includes strong,
+.catalog-installation strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.catalog-includes code,
+.catalog-installation code {
+  color: var(--ink-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.catalog-includes li span {
+  color: var(--ink-muted);
+  font: var(--text-caption);
+}
+
+.catalog-info-note {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.catalog-info-note svg {
+  flex: none;
+}
+
+.catalog-installation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+}
+
+.catalog-installation-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 959.98px) {
+  .catalog-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .catalog-detail-aside {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+    align-items: start;
+  }
+}
+
 /* On a phone the categories keep to one row that scrolls sideways, as Activity's kinds
    do, so the apps start near the top however many categories there are. */
 @media (max-width: 639.98px) {
+  .catalog-detail-phone-intro {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+  }
+
+  .catalog-detail-phone-intro p {
+    margin: 0;
+    font: var(--text-body);
+  }
+
+  .catalog-facts {
+    gap: var(--space-4) var(--space-5);
+    margin-bottom: var(--space-6);
+  }
   .catalog-search {
     flex: 1 1 100%;
     min-width: 0;
@@ -264,4 +640,111 @@
   .catalog-chip {
     flex: none;
   }
+}
+
+/* A default as one line: what it is, its value, its state, and Change, which turns
+   it into its field in place (defaults first, power one step away). */
+.catalog-chosen-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.catalog-chosen {
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: minmax(96px, 9.5rem) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-1) var(--space-4);
+  min-width: 0;
+}
+
+.catalog-chosen-label {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.catalog-chosen-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-2);
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.catalog-chosen-value code {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.catalog-chosen-icon {
+  flex: none;
+  align-self: center;
+  color: var(--warning);
+}
+
+.catalog-chosen.is-warning .catalog-chosen-value > span {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.catalog-chosen-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+.catalog-chosen-state.is-free {
+  color: var(--healthy);
+}
+
+.catalog-chosen-state.is-taken {
+  color: var(--critical);
+}
+
+.catalog-chosen-state.is-checking .dw-glyph {
+  color: var(--cobalt);
+}
+
+/* Change is a link-sized action at the end of the line, as the port field's Use is. */
+.catalog-change {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--cobalt);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.catalog-change:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (pointer: coarse) {
+  .catalog-change {
+    min-height: 44px;
+    padding: 0 var(--space-2);
+  }
+}
+
+/* On a phone the label sits over its value, as a phone's form does. */
+.catalog-sheet.is-phone .catalog-chosen {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
 }

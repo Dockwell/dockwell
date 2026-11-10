@@ -92,6 +92,32 @@ a.dw-btn {
   filter: brightness(1.06);
 }
 
+/*
+ * Off with a reason (lib/off.css): it keeps its focus, so its fill and its words fade one by one, as fading the
+ * button whole would fade the reason shown beside it.
+ */
+.dw-btn[data-off]:active {
+  transform: none;
+}
+.dw-btn-primary[data-off],
+.dw-btn-primary[data-off]:hover {
+  background: color-mix(in srgb, var(--action) 45%, transparent);
+}
+.dw-btn-danger[data-off],
+.dw-btn-danger[data-off]:hover {
+  background: color-mix(in srgb, var(--critical) 45%, transparent);
+  filter: none;
+}
+.dw-btn-secondary[data-off],
+.dw-btn-secondary[data-off]:hover {
+  border-color: color-mix(in srgb, var(--line) 45%, transparent);
+  box-shadow: none;
+}
+.dw-btn-ghost[data-off]:hover {
+  background: transparent;
+  color: var(--ink-muted);
+}
+
 /* The cap takes the button's own colour at full strength, so it holds 4.5:1; only its edge is softer. */
 .dw-btn .dw-kbd {
   margin: 0 -4px 0 2px;

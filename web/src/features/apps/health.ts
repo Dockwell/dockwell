@@ -29,8 +29,20 @@ const SOON_FOR_MS = 30_000;
 export { READ_TIMEOUT_MS } from "../../lib/standing";
 export { TRUST_FOR_MS } from "../../lib/wake";
 
-/** How something runs, as far as anything checked. The record of what was deployed is AppState's. */
-export type HealthKind = "healthy" | "running" | "starting" | "unhealthy" | "not-running" | "paused" | "unknown";
+/**
+ * How something runs, as far as anything checked. The record of what was deployed is
+ * AppState's. "finished" is a one-shot job that ran to its end, which isn't down, as
+ * Alerts has it too.
+ */
+export type HealthKind =
+  | "healthy"
+  | "running"
+  | "starting"
+  | "unhealthy"
+  | "not-running"
+  | "paused"
+  | "unknown"
+  | "finished";
 
 /**
  * How the design system draws each. Only a check that passed reads as healthy. What
@@ -45,6 +57,7 @@ const LOOKS: Readonly<Record<HealthKind, Status>> = {
   "not-running": "down",
   paused: "stopped",
   unknown: "unknown",
+  finished: "stopped",
 };
 
 const KINDS: Readonly<Record<HealthState, HealthKind>> = {
@@ -137,8 +150,15 @@ export type { Unread } from "../../lib/online";
 const date = (at: Parameters<typeof timestampDate>[0] | undefined): Date | undefined =>
   at ? timestampDate(at) : undefined;
 
+/** A server's containers of a service each ran to its end: a one-shot job that did its work. */
+function finishedOn(server: ServerHealth): boolean {
+  return (
+    server.state === HealthState.NOT_RUNNING && server.instances.length > 0 && server.instances.every((i) => i.finished)
+  );
+}
+
 function onServer(server: ServerHealth): RunsOnServer {
-  const kind = KINDS[server.state];
+  const kind = finishedOn(server) ? "finished" : KINDS[server.state];
   // While two are there, the one this is about is the one that reads as the server does.
   const instance = server.instances.find((i) => i.state === server.state) ?? server.instances[0];
   const said = instance ? KINDS[instance.state] : undefined;
@@ -176,8 +196,15 @@ function newestBy(server: ServerHealth): RunsOnServer["newest"] {
 
 /** How a service runs, from what the server said of it. */
 export function healthOf(service: ServiceHealth): AppHealth {
-  const kind = KINDS[service.state];
   const servers = service.servers.map(onServer);
+  // Not running where it finished is as well as it gets: the rest of its servers say how it is.
+  let kind = KINDS[service.state];
+  if (kind === "not-running" && servers.length > 0 && !servers.some((s) => s.kind === "not-running")) {
+    kind = servers.reduce<HealthKind>(
+      (worst, s) => (WORST_FIRST.indexOf(s.kind) < WORST_FIRST.indexOf(worst) ? s.kind : worst),
+      "finished",
+    );
+  }
   return {
     kind,
     status: LOOKS[kind],
@@ -206,6 +233,7 @@ const WORST_FIRST: readonly HealthKind[] = [
   "starting",
   "running",
   "healthy",
+  "finished",
 ];
 
 /** How a whole project runs: its worst app, with what can't be read last, as a failed read says nothing of it. */

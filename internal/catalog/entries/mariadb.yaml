@@ -2,9 +2,25 @@
 id: mariadb
 name: MariaDB
 summary: Relational database, with phpMyAdmin to manage it
+description: |-
+  MariaDB is a relational database for applications that use SQL. It stores structured data with transactions, indexes and familiar MySQL-compatible tools.
+
+  This entry includes phpMyAdmin so you can browse tables and run queries from your browser. Database data lives on a persistent volume, and Dockwell generates the initial root password.
+icon: /catalog-media/mariadb-icon.webp
+documentation: https://mariadb.com/docs/server
+appSource: https://github.com/MariaDB/server
+features:
+  - "SQL database with transactions"
+  - "MySQL-compatible client tools"
+  - "Included phpMyAdmin web interface"
+  - "Persistent database storage"
+screenshots:
+  - path: /catalog-media/phpmyadmin-tables.webp
+    caption: "Manage MariaDB tables in phpMyAdmin, included with this install"
+    source: https://raw.githubusercontent.com/phpmyadmin/website/9a1840a005292617d3e2b18dbeeffba8dd38f264/pmaweb/static/images/screenshots/structure.png
 category: databases
 version: "12.3.3"
-release: 1
+release: 3
 homepage: https://mariadb.org
 license: AGPL-3.0-only
 appLicense: GPL-2.0-only
@@ -19,10 +35,7 @@ firstSteps: >-
   behind your tunnel, and open it there. To open it before that, use an SSH tunnel from
   your computer: ssh -N -L 8083:127.0.0.1:8083 you@your-server, using the port you gave
   it, then open http://localhost:8083. Sign in as user root, with the password in the
-  MARIADB_ROOT_PASSWORD secret. That secret sets the password on first
-  start only, so changing it doesn't change what signs in. To change the password, run
-  ALTER USER for both 'root'@'%' and 'root'@'localhost' in phpMyAdmin, then set the
-  secret to match.
+  MARIADB_ROOT_PASSWORD secret.
 inputs:
   - name: ADMIN_PORT
     label: phpMyAdmin port on this server

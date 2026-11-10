@@ -48,6 +48,10 @@ export function useAuditWords(): (event: AuditEvent) => Said {
           return { title: t`Couldn't confirm with a passkey`, tone: "warning" };
         case "token.refuse":
           return { title: t`Refused a call this token can't make`, tone: "warning" };
+        case "role.refuse":
+          return { title: t`Refused a call their role doesn't cover`, tone: "warning" };
+        case "owner.transfer":
+          return { title: name ? t`Made ${name} the owner` : t`Moved ownership of this install` };
         case "token.use":
           return { title: t`Used from a new address` };
         case "install.create":
@@ -64,6 +68,16 @@ export function useAuditWords(): (event: AuditEvent) => Said {
           };
         case "totp.lock":
           return { title: t`Stopped sign-in with codes after too many wrong ones`, tone: "warning" };
+        case "logs.read":
+          // A container Dockwell didn't make is read through its server, which the target names.
+          if (e.target?.id.startsWith("srv_")) {
+            return { title: name ? t`Read a container's logs on ${name}` : t`Read a container's logs` };
+          }
+          return { title: name ? t`Read the logs of ${name}` : t`Read logs` };
+        case "terminal.opening":
+          return { title: name ? t`Started opening a terminal on ${name}` : t`Started opening a terminal` };
+        case "recovery_code.use":
+          return { title: t`Signed in with a recovery code`, tone: "warning" };
         case "file.saving": {
           const path = event?.subject?.path || e.subject;
           return { title: name ? t`Saving ${path} on ${name}` : t`Saving ${path}` };

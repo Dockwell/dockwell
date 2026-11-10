@@ -44,6 +44,13 @@ const (
 	AgentServiceConnectProcedure = "/dockwell.agent.v1.AgentService/Connect"
 	// AgentServiceSendLogsProcedure is the fully-qualified name of the AgentService's SendLogs RPC.
 	AgentServiceSendLogsProcedure = "/dockwell.agent.v1.AgentService/SendLogs"
+	// AgentServiceTerminalProcedure is the fully-qualified name of the AgentService's Terminal RPC.
+	AgentServiceTerminalProcedure = "/dockwell.agent.v1.AgentService/Terminal"
+	// AgentServiceReceiveFileProcedure is the fully-qualified name of the AgentService's ReceiveFile
+	// RPC.
+	AgentServiceReceiveFileProcedure = "/dockwell.agent.v1.AgentService/ReceiveFile"
+	// AgentServiceSendFileProcedure is the fully-qualified name of the AgentService's SendFile RPC.
+	AgentServiceSendFileProcedure = "/dockwell.agent.v1.AgentService/SendFile"
 )
 
 // AgentServiceClient is a client for the dockwell.agent.v1.AgentService service.
@@ -68,6 +75,20 @@ type AgentServiceClient interface {
 	// sending, and the agent drops what it can't send, and says how many. See
 	// docs/adr/0025-logs-per-deploy.md.
 	SendLogs(context.Context) *connect.ClientStreamForClient[v1.SendLogsRequest, v1.SendLogsResponse]
+	// Terminal carries one attachment of a terminal (AttachTerminalCall), which the
+	// agent opens on a connection of its own for each one, as SendLogs does: what
+	// the terminal prints goes up, and what's typed comes down. Flow control is the
+	// backpressure, so a reader that's slow holds up this terminal's shell and
+	// nothing else. See docs/adr/0037-a-terminal-on-a-server.md.
+	Terminal(context.Context) *connect.BidiStreamForClient[v1.TerminalRequest, v1.TerminalResponse]
+	// ReceiveFile carries what's uploaded for one WriteUploadCall, from the
+	// control plane to the agent, which opens it on a connection of its own, as
+	// SendLogs does, so a file shares nothing with Connect. Flow control bounds
+	// what either side holds. See docs/adr/0045-a-file-manager-on-a-server.md.
+	ReceiveFile(context.Context, *connect.Request[v1.ReceiveFileRequest]) (*connect.ServerStreamForClient[v1.ReceiveFileResponse], error)
+	// SendFile carries what's downloaded for one DownloadFileCall, from the
+	// agent to the control plane, on a connection of its own.
+	SendFile(context.Context) *connect.ClientStreamForClient[v1.SendFileRequest, v1.SendFileResponse]
 }
 
 // NewAgentServiceClient constructs a client for the dockwell.agent.v1.AgentService service. By
@@ -105,6 +126,24 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("SendLogs")),
 			connect.WithClientOptions(opts...),
 		),
+		terminal: connect.NewClient[v1.TerminalRequest, v1.TerminalResponse](
+			httpClient,
+			baseURL+AgentServiceTerminalProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("Terminal")),
+			connect.WithClientOptions(opts...),
+		),
+		receiveFile: connect.NewClient[v1.ReceiveFileRequest, v1.ReceiveFileResponse](
+			httpClient,
+			baseURL+AgentServiceReceiveFileProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("ReceiveFile")),
+			connect.WithClientOptions(opts...),
+		),
+		sendFile: connect.NewClient[v1.SendFileRequest, v1.SendFileResponse](
+			httpClient,
+			baseURL+AgentServiceSendFileProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("SendFile")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -114,6 +153,9 @@ type agentServiceClient struct {
 	renewCertificate *connect.Client[v1.RenewCertificateRequest, v1.RenewCertificateResponse]
 	connect          *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
 	sendLogs         *connect.Client[v1.SendLogsRequest, v1.SendLogsResponse]
+	terminal         *connect.Client[v1.TerminalRequest, v1.TerminalResponse]
+	receiveFile      *connect.Client[v1.ReceiveFileRequest, v1.ReceiveFileResponse]
+	sendFile         *connect.Client[v1.SendFileRequest, v1.SendFileResponse]
 }
 
 // Join calls dockwell.agent.v1.AgentService.Join.
@@ -134,6 +176,21 @@ func (c *agentServiceClient) Connect(ctx context.Context) *connect.BidiStreamFor
 // SendLogs calls dockwell.agent.v1.AgentService.SendLogs.
 func (c *agentServiceClient) SendLogs(ctx context.Context) *connect.ClientStreamForClient[v1.SendLogsRequest, v1.SendLogsResponse] {
 	return c.sendLogs.CallClientStream(ctx)
+}
+
+// Terminal calls dockwell.agent.v1.AgentService.Terminal.
+func (c *agentServiceClient) Terminal(ctx context.Context) *connect.BidiStreamForClient[v1.TerminalRequest, v1.TerminalResponse] {
+	return c.terminal.CallBidiStream(ctx)
+}
+
+// ReceiveFile calls dockwell.agent.v1.AgentService.ReceiveFile.
+func (c *agentServiceClient) ReceiveFile(ctx context.Context, req *connect.Request[v1.ReceiveFileRequest]) (*connect.ServerStreamForClient[v1.ReceiveFileResponse], error) {
+	return c.receiveFile.CallServerStream(ctx, req)
+}
+
+// SendFile calls dockwell.agent.v1.AgentService.SendFile.
+func (c *agentServiceClient) SendFile(ctx context.Context) *connect.ClientStreamForClient[v1.SendFileRequest, v1.SendFileResponse] {
+	return c.sendFile.CallClientStream(ctx)
 }
 
 // AgentServiceHandler is an implementation of the dockwell.agent.v1.AgentService service.
@@ -158,6 +215,20 @@ type AgentServiceHandler interface {
 	// sending, and the agent drops what it can't send, and says how many. See
 	// docs/adr/0025-logs-per-deploy.md.
 	SendLogs(context.Context, *connect.ClientStream[v1.SendLogsRequest]) (*connect.Response[v1.SendLogsResponse], error)
+	// Terminal carries one attachment of a terminal (AttachTerminalCall), which the
+	// agent opens on a connection of its own for each one, as SendLogs does: what
+	// the terminal prints goes up, and what's typed comes down. Flow control is the
+	// backpressure, so a reader that's slow holds up this terminal's shell and
+	// nothing else. See docs/adr/0037-a-terminal-on-a-server.md.
+	Terminal(context.Context, *connect.BidiStream[v1.TerminalRequest, v1.TerminalResponse]) error
+	// ReceiveFile carries what's uploaded for one WriteUploadCall, from the
+	// control plane to the agent, which opens it on a connection of its own, as
+	// SendLogs does, so a file shares nothing with Connect. Flow control bounds
+	// what either side holds. See docs/adr/0045-a-file-manager-on-a-server.md.
+	ReceiveFile(context.Context, *connect.Request[v1.ReceiveFileRequest], *connect.ServerStream[v1.ReceiveFileResponse]) error
+	// SendFile carries what's downloaded for one DownloadFileCall, from the
+	// agent to the control plane, on a connection of its own.
+	SendFile(context.Context, *connect.ClientStream[v1.SendFileRequest]) (*connect.Response[v1.SendFileResponse], error)
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -191,6 +262,24 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("SendLogs")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceTerminalHandler := connect.NewBidiStreamHandler(
+		AgentServiceTerminalProcedure,
+		svc.Terminal,
+		connect.WithSchema(agentServiceMethods.ByName("Terminal")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceReceiveFileHandler := connect.NewServerStreamHandler(
+		AgentServiceReceiveFileProcedure,
+		svc.ReceiveFile,
+		connect.WithSchema(agentServiceMethods.ByName("ReceiveFile")),
+		connect.WithHandlerOptions(opts...),
+	)
+	agentServiceSendFileHandler := connect.NewClientStreamHandler(
+		AgentServiceSendFileProcedure,
+		svc.SendFile,
+		connect.WithSchema(agentServiceMethods.ByName("SendFile")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.agent.v1.AgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AgentServiceJoinProcedure:
@@ -201,6 +290,12 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceConnectHandler.ServeHTTP(w, r)
 		case AgentServiceSendLogsProcedure:
 			agentServiceSendLogsHandler.ServeHTTP(w, r)
+		case AgentServiceTerminalProcedure:
+			agentServiceTerminalHandler.ServeHTTP(w, r)
+		case AgentServiceReceiveFileProcedure:
+			agentServiceReceiveFileHandler.ServeHTTP(w, r)
+		case AgentServiceSendFileProcedure:
+			agentServiceSendFileHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -224,4 +319,16 @@ func (UnimplementedAgentServiceHandler) Connect(context.Context, *connect.BidiSt
 
 func (UnimplementedAgentServiceHandler) SendLogs(context.Context, *connect.ClientStream[v1.SendLogsRequest]) (*connect.Response[v1.SendLogsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.agent.v1.AgentService.SendLogs is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) Terminal(context.Context, *connect.BidiStream[v1.TerminalRequest, v1.TerminalResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.agent.v1.AgentService.Terminal is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) ReceiveFile(context.Context, *connect.Request[v1.ReceiveFileRequest], *connect.ServerStream[v1.ReceiveFileResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.agent.v1.AgentService.ReceiveFile is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) SendFile(context.Context, *connect.ClientStream[v1.SendFileRequest]) (*connect.Response[v1.SendFileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.agent.v1.AgentService.SendFile is not implemented"))
 }

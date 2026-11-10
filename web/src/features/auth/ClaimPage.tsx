@@ -102,8 +102,8 @@ export function ClaimPage() {
               onCode={setCode}
               token={token}
               linkProblem={check.isError ? check.error : undefined}
+              linkWorks={linkToken !== "" && token === linkToken && check.isSuccess}
               domain={auth.data?.domain ?? ""}
-              publicAddress={check.data?.publicAddress ?? ""}
               onClaimed={() => setClaimedHere(true)}
             />
             <div className="claim-aside">
@@ -123,13 +123,14 @@ interface OwnerFormProps {
   onCode: (code: string) => void;
   token: string;
   linkProblem: unknown;
+  /** The code came in the link, and the control plane says it works: there's nothing to type. */
+  linkWorks: boolean;
   domain: string;
-  publicAddress: string;
   /** Called once the owner exists, before the sign-in state is read again. */
   onClaimed: () => void;
 }
 
-function OwnerForm({ name, code, onCode, token, linkProblem, domain, publicAddress, onClaimed }: OwnerFormProps) {
+function OwnerForm({ name, code, onCode, token, linkProblem, linkWorks, domain, onClaimed }: OwnerFormProps) {
   const { t } = useLingui();
   const titleId = useId();
   const transport = useTransport();
@@ -142,6 +143,7 @@ function OwnerForm({ name, code, onCode, token, linkProblem, domain, publicAddre
   const [invalid, setInvalid] = useState<{ person?: string; email?: string; code?: string }>({});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<unknown>();
+  const [typing, setTyping] = useState(false);
   const device = useDeviceName();
   const canUsePasskeys = passkeysAvailable();
 
@@ -163,8 +165,9 @@ function OwnerForm({ name, code, onCode, token, linkProblem, domain, publicAddre
       await client.finishClaim({ ceremonyId: begin.ceremonyId, token, credentialJson, passkeyName: device });
       onClaimed();
       await refreshAuth();
-      // The claim page has done its work: Back mustn't return to it.
-      await navigate({ to: "/", replace: true });
+      // The claim page has done its work: Back mustn't return to it. A new owner starts
+      // where the first app comes from, as Onboarding-FirstDeploy has it.
+      await navigate({ to: "/start", replace: true });
     } catch (err) {
       setProblem(err);
     } finally {
@@ -204,23 +207,32 @@ function OwnerForm({ name, code, onCode, token, linkProblem, domain, publicAddre
             hint={t`You sign in with it when you use a code.`}
           />
         </div>
-        <TextField
-          label={t`Claim code`}
-          value={code}
-          onChange={(e) => onCode(e.target.value)}
-          mono
-          icon="key"
-          size="lg"
-          autoComplete="off"
-          error={invalid.code}
-          hint={
-            <Trans>
-              From the claim link. Run <code>{claimCommand}</code> on {name} for a new one.
-            </Trans>
-          }
-        />
+        {linkWorks && !typing && !invalid.code ? (
+          <div className="claim-link-state">
+            <StatusBadge status="healthy" label={t`Claim link works`} labelIsState />
+            <Button size="sm" variant="ghost" onClick={() => setTyping(true)}>
+              <Trans>Use another code</Trans>
+            </Button>
+          </div>
+        ) : (
+          <TextField
+            label={t`Claim code`}
+            value={code}
+            onChange={(e) => onCode(e.target.value)}
+            mono
+            icon="key"
+            size="lg"
+            autoComplete="off"
+            error={invalid.code}
+            hint={
+              <Trans>
+                From the claim link. Run <code>{claimCommand}</code> on {name} for a new one.
+              </Trans>
+            }
+          />
+        )}
         <div className="claim-rule" />
-        <PanelAddress domain={domain} publicAddress={publicAddress} />
+        <PanelAddress domain={domain} />
         <div className="claim-fill" />
         {shownProblem ? (
           <Callout tone="critical" title={t`The owner account wasn't created`}>
@@ -249,7 +261,7 @@ function OwnerForm({ name, code, onCode, token, linkProblem, domain, publicAddre
 }
 
 /** Where the panel answers, and how to give it a domain. */
-function PanelAddress({ domain, publicAddress }: { domain: string; publicAddress: string }) {
+function PanelAddress({ domain }: { domain: string }) {
   const { t } = useLingui();
   if (domain) {
     return (
@@ -264,9 +276,6 @@ function PanelAddress({ domain, publicAddress }: { domain: string; publicAddress
       />
     );
   }
-  // The control plane names a public address only when it knows one, and an
-  // IPv6 one takes an AAAA record rather than an A record.
-  const record = publicAddress.includes(":") ? "AAAA" : "A";
   return (
     <TextField
       label={t`Panel address`}
@@ -275,19 +284,7 @@ function PanelAddress({ domain, publicAddress }: { domain: string; publicAddress
       readOnly
       mono
       size="lg"
-      hint={
-        publicAddress ? (
-          <Trans>
-            Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its{" "}
-            {record} record to <code>{publicAddress}</code>, then restart dockwell with <code>--domain</code>.
-          </Trans>
-        ) : (
-          <Trans>
-            Only through your SSH tunnel, and your passkey works only here. For HTTPS on your own domain, point its A or
-            AAAA record to this server's public address, then restart dockwell with <code>--domain</code>.
-          </Trans>
-        )
-      }
+      hint={t`Your passkey works at this address only. A domain with HTTPS can come later, under Settings.`}
     />
   );
 }

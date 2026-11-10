@@ -3,6 +3,8 @@
 package catalog_test
 
 import (
+	"encoding/base64"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -254,16 +256,14 @@ func TestAFirstVisitorAppMakesItsAccountBeforeItsDomain(t *testing.T) {
 
 // These apps read their password from the environment on first start alone, so a
 // rotation leaves the old one signing in, and the panel revealing a new one that
-// doesn't. Each entry says so, and how to change the password instead.
+// doesn't. Each entry says so, and how to change the password instead. A database's
+// own users aren't among them: the agent changes theirs as the secret changes (ADR 0038).
 func TestAPasswordReadOnFirstStartSaysSo(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for id, how := range map[string]string{
-		"postgres":            "ALTER USER postgres PASSWORD",
-		"mysql":               "ALTER USER",
-		"mariadb":             "ALTER USER",
 		"nginx-proxy-manager": "change the password in the console",
 		"pgadmin":             "choose Change password",
 		"nextcloud":           "under Security",
@@ -276,10 +276,10 @@ func TestAPasswordReadOnFirstStartSaysSo(t *testing.T) {
 	}
 }
 
-// A database reads its password on first start alone, and an app beside it reads the
-// same secret each time it starts, so changing that secret leaves the app with one the
-// database doesn't take. Dockwell doesn't rotate these, and each entry says to leave it.
-func TestADatabasesSharedPasswordSaysLeaveIt(t *testing.T) {
+// A database's users take a new password as their secret changes (ADR 0038), so an
+// app beside one that shares that secret keeps signing in, and no entry tells anyone
+// to leave it as it is, or to change it by hand.
+func TestADatabasesSharedPasswordFollowsItsSecret(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
 		t.Fatal(err)
@@ -288,20 +288,15 @@ func TestADatabasesSharedPasswordSaysLeaveIt(t *testing.T) {
 	for _, e := range c.All() {
 		stack, filled := read(t, e)
 		for name, value := range filled.Secrets {
-			var database, app bool
 			for _, s := range stack.Services {
-				if !slices.Contains(slices.Collect(maps.Values(s.Spec.GetApp().GetEnv())), value) {
-					continue
-				}
-				if databases.MatchString(s.Spec.GetApp().GetImage()) {
-					database = true
-				} else {
-					app = true
+				if databases.MatchString(s.Spec.GetApp().GetImage()) && slices.Contains(slices.Collect(maps.Values(s.Spec.GetApp().GetEnv())), value) &&
+					strings.Contains(e.GetFirstSteps(), "Leave the "+name+" secret as it is") {
+					t.Errorf("%s says to leave its database's %s as it is, which now changes with it", e.GetId(), name)
 				}
 			}
-			if database && app && !strings.Contains(e.GetFirstSteps(), "Leave the "+name+" secret as it is") {
-				t.Errorf("%s shares %s between its database and its app, and its first steps don't say to leave it as it is", e.GetId(), name)
-			}
+		}
+		if steps := e.GetFirstSteps(); strings.Contains(steps, "ALTER USER") {
+			t.Errorf("%s says to change a database's password by hand: %q", e.GetId(), steps)
 		}
 	}
 }
@@ -747,6 +742,8 @@ func TestCheckTakesASecretThatStandsAlone(t *testing.T) {
 		"a value":      "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}",
 		"a list entry": "- POSTGRES_PASSWORD=${POSTGRES_PASSWORD}",
 		"a word":       "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: [\"serve\", \"${POSTGRES_PASSWORD}\"]",
+		// A longer name that starts with this one is another secret, not this one inside it.
+		"beside one whose name starts with it": "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n      OTHER: x${POSTGRES_PASSWORD_OLD}",
 	} {
 		e := proto.CloneOf(base)
 		e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", compose, 1)
@@ -776,6 +773,32 @@ func TestSuggestMovesPastWhatsTaken(t *testing.T) {
 	}
 	if _, ok := got["D"]; ok {
 		t.Error("it suggests a secret")
+	}
+}
+
+// A key an app decodes is generated as it reads one: hex digits, or random bytes in
+// base64, as openssl rand writes them.
+func TestASecretIsGeneratedAsItsAppReadsIt(t *testing.T) {
+	e := &catalogv1.Entry{Name: "Thing", Inputs: []*catalogv1.Input{
+		{Name: "HEX", Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 33, GenerateAs: catalogv1.GenerateAs_GENERATE_AS_HEX},
+		{Name: "B64", Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32, GenerateAs: catalogv1.GenerateAs_GENERATE_AS_BASE64},
+	}}
+	filled, err := catalog.Fill(e, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h := filled.Secrets["HEX"]; len(h) != 33 || strings.Trim(h, "0123456789abcdef") != "" {
+		t.Errorf("HEX is %q, want 33 hex digits", h)
+	}
+	if b, err := base64.StdEncoding.DecodeString(filled.Secrets["B64"]); err != nil || len(b) != 32 {
+		t.Errorf("B64 is %q, which decodes to %d bytes, %v; want 32", filled.Secrets["B64"], len(b), err)
+	}
+	e.Inputs = append(e.Inputs, &catalogv1.Input{Name: "TYPED", Type: catalogv1.InputType_INPUT_TYPE_SECRET, GenerateAs: catalogv1.GenerateAs_GENERATE_AS_HEX})
+	e.Compose = "services:\n  a:\n    image: x@sha256:" + strings.Repeat("a", 64) + "\n    environment:\n      HEX: ${HEX}\n      B64: ${B64}\n      TYPED: ${TYPED}\n"
+	e.Id, e.Summary, e.Category, e.Version, e.Release, e.License = "thing", "A thing", "ai", "1", 1, "MIT"
+	e.Source = &catalogv1.Source{Repository: "https://example.com/thing"}
+	if err := catalog.Check(e); err == nil || !strings.Contains(err.Error(), "TYPED says how to write what it generates, and generates nothing") {
+		t.Errorf("Check = %v", err)
 	}
 }
 
@@ -905,7 +928,7 @@ func TestADirectoryOfEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	newer := strings.Replace(string(raw), "release: 1\n", "release: 9\n", 1)
+	newer := strings.Replace(string(raw), fmt.Sprintf("release: %d\n", mine.GetRelease()), "release: 9\n", 1)
 	if err := os.WriteFile(filepath.Join(dir, "postgres.yaml"), []byte(newer), 0o600); err != nil {
 		t.Fatal(err)
 	}

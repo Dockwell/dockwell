@@ -15,6 +15,9 @@ service SystemService {
   rpc GetVersion(GetVersionRequest) returns (GetVersionResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
     option (google.api.http) = {get: "/v1/version"};
     // dockwell version shows the CLI's own build.
     option (dockwell.v1.command) = {

@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Button, Callout, cx, Glyph, Icon, Panel, PHONE_QUERY, STATUS, Table, useMediaQuery } from "@dockwell/ui";
+import { Button, cx, Glyph, Icon, Panel, PHONE_QUERY, STATUS, Table, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
 
-import { sentence } from "../../lib/errors";
 import { formatDateTime } from "../../lib/format";
-import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { ListSkeleton, useAppsLead } from "../apps/AppsPage";
 import { type AppGroup, groupApps, groupDeployedAt, imageOf, nameOf, shortImage, sortGroups } from "../apps/app";
@@ -19,7 +17,9 @@ import { ImageName } from "../apps/ImageName";
 import { usePlaces, useServices } from "../apps/useServices";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import "../apps/Apps.css";
+import { StartChoices } from "./StartChoices";
 import "./Overview.css";
+import { ReadFailed } from "../shell/ReadFailed";
 
 /** How many apps the overview lists before View all. */
 const SHOWN = 8;
@@ -43,7 +43,7 @@ function rowName(row: Row): string {
  * and where it answers, what needs a look first, and the rest one click away.
  * A project of several apps is one row, as Apps folds it.
  */
-export function OverviewApps() {
+export function OverviewApps({ fleet = false }: { fleet?: boolean }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const services = useServices();
@@ -63,8 +63,8 @@ export function OverviewApps() {
     body = <ListSkeleton label={t`Loading apps`} />;
   } else if (services.error) {
     body = (
-      <Callout
-        tone="critical"
+      <ReadFailed
+        error={services.error}
         title={t`Can't load the apps`}
         actions={
           <Button onClick={() => void services.refetch()} loading={services.isFetching}>
@@ -72,24 +72,13 @@ export function OverviewApps() {
           </Button>
         }
       >
-        {sentence(services.error)} <Trans>What runs on your servers isn't affected.</Trans>
-      </Callout>
+        <Trans>What runs on your servers isn't affected.</Trans>
+      </ReadFailed>
     );
   } else if (rows.length === 0) {
-    body = (
-      <Panel>
-        <div className="overview-empty">
-          <p>
-            <Trans>No apps yet. Run an image, a Compose file or an app from the catalog.</Trans>
-          </p>
-          <RouterButtonLink to="/apps/new" size="sm" icon="plus">
-            <Trans>New app</Trans>
-          </RouterButtonLink>
-        </div>
-      </Panel>
-    );
+    body = <StartChoices compact />;
   } else {
-    body = phone ? <PhoneRows rows={rows} health={health} /> : <AppsRows rows={rows} health={health} />;
+    body = phone ? <PhoneRows rows={rows} health={health} /> : <AppsRows rows={rows} health={health} fleet={fleet} />;
   }
 
   return (
@@ -110,7 +99,18 @@ export function OverviewApps() {
   );
 }
 
-function AppsRows({ rows, health }: { rows: readonly Row[]; health: HealthView }) {
+/** Where an app or a project's apps run, by server name, as each deployment names it. */
+function serversOf(group: Row["group"]): string[] {
+  const names = new Set<string>();
+  for (const service of group.services) for (const d of service.deployments) if (d.serverName) names.add(d.serverName);
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * The apps as a table. On a fleet, as Overview-Fleet has it, where each runs
+ * takes the place of when it was deployed.
+ */
+function AppsRows({ rows, health, fleet }: { rows: readonly Row[]; health: HealthView; fleet: boolean }) {
   const { t, i18n } = useLingui();
   const time = useTimeWords();
   const navigate = useNavigate();
@@ -135,7 +135,7 @@ function AppsRows({ rows, health }: { rows: readonly Row[]; health: HealthView }
     <Table<Row>
       className="overview-apps"
       density="compact"
-      caption={t`Apps on this server`}
+      caption={fleet ? t`Apps on your servers` : t`Apps on this server`}
       rows={rows}
       onRowClick={open}
       columns={[
@@ -171,6 +171,25 @@ function AppsRows({ rows, health }: { rows: readonly Row[]; health: HealthView }
             return <HealthBadge health={runs} className="apps-status" title={words.word(runs)} />;
           },
         },
+        ...(fleet
+          ? [
+              {
+                key: "runs",
+                header: t`Runs on`,
+                width: "26%",
+                render: (row: Row) => {
+                  const names = serversOf(row.group);
+                  if (names.length === 0) return <span aria-hidden="true">—</span>;
+                  return (
+                    <span className="overview-runs" title={names.join(", ")}>
+                      <span>{plural(names.length, { one: "# server", other: "# servers" })}</span>
+                      <code className="apps-clip">{names.join(", ")}</code>
+                    </span>
+                  );
+                },
+              },
+            ]
+          : []),
         {
           key: "domain",
           header: t`Domain`,
@@ -190,21 +209,25 @@ function AppsRows({ rows, health }: { rows: readonly Row[]; health: HealthView }
             );
           },
         },
-        {
-          key: "deployed",
-          header: t`Deployed`,
-          width: 104,
-          align: "right",
-          muted: true,
-          render: (row) => {
-            const when = groupDeployedAt(row.group);
-            return (
-              <time dateTime={when.toISOString()} title={formatDateTime(when, i18n.locale)}>
-                {time.ago(when, now)}
-              </time>
-            );
-          },
-        },
+        ...(fleet
+          ? []
+          : [
+              {
+                key: "deployed",
+                header: t`Deployed`,
+                width: 104,
+                align: "right" as const,
+                muted: true,
+                render: (row: Row) => {
+                  const when = groupDeployedAt(row.group);
+                  return (
+                    <time dateTime={when.toISOString()} title={formatDateTime(when, i18n.locale)}>
+                      {time.ago(when, now)}
+                    </time>
+                  );
+                },
+              },
+            ]),
       ]}
     />
   );

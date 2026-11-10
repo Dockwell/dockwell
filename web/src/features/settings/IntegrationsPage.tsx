@@ -2,19 +2,20 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import type { BackupDestinationInfo } from "@dockwell/api";
-import { Button, Callout, Icon, type IconName, Panel, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
+import { Button, Icon, type IconName, Panel, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 
-import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
-import { DestinationSheet, useDestinations } from "../backups/DestinationsPanel";
+import { DestinationSheet } from "../backups/DestinationSheet";
+import { useDestinations } from "../backups/DestinationsPanel";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import "../backups/Backups.css";
 import "./Settings.css";
+import { ReadFailed } from "../shell/ReadFailed";
 
 const CLOUDFLARE =
   "https://github.com/Dockwell/dockwell/blob/main/docs/install.md#behind-cloudflare-tunnel-or-another-proxy";
@@ -76,8 +77,8 @@ export function IntegrationsPage() {
           ) : null}
         </div>
         {destinations.error && !destinations.data ? (
-          <Callout
-            tone="critical"
+          <ReadFailed
+            error={destinations.error}
             title={t`Dockwell can't list where backups go`}
             actions={
               <Button
@@ -89,9 +90,7 @@ export function IntegrationsPage() {
                 <Trans>Try again</Trans>
               </Button>
             }
-          >
-            {sentence(destinations.error)}
-          </Callout>
+          />
         ) : !read ? (
           <div className="integrations-grid" aria-busy="true">
             <div className="dw-panel integrations-card integrations-skeleton" />
@@ -168,7 +167,7 @@ export function IntegrationsPage() {
 
       {/* A phone's header has no room for the aside, so it closes the page. */}
       {phone ? variables : null}
-      {adding ? <DestinationSheet onClose={() => setAdding(false)} /> : null}
+      {adding ? <DestinationSheet existing={list} onClose={() => setAdding(false)} /> : null}
     </Page>
   );
 }

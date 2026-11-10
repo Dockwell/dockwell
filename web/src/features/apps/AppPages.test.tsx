@@ -144,7 +144,7 @@ describe("an app's frame", () => {
       within(tabs)
         .getAllByRole("link")
         .map((l) => l.textContent),
-    ).toEqual(["Overview", "Deployments 3", "Logs", "Environment"]);
+    ).toEqual(["Overview", "Deployments 3", "Logs", "Environment", "Settings"]);
     expect(within(tabs).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Apps/web");
     expect(document.title).toBe("web · Dockwell");
@@ -256,7 +256,9 @@ describe("an app's frame", () => {
     // It sees TZ under a name of its own, so the row says which it is.
     expect(await (await row("TZ_NAME")).findByText("UTC")).toBeVisible();
     expect((await row("TZ_NAME")).getByRole("cell", { name: "Variable TZ" })).toBeVisible();
-    expect((await row("API_KEY")).getByRole("cell", { name: "Hidden" })).toBeVisible();
+    // A secret is hidden until a passkey reveals it, as on Variables.
+    expect((await row("API_KEY")).getByRole("img", { name: "Hidden" })).toBeVisible();
+    expect((await row("API_KEY")).getByRole("button", { name: "Reveal API_KEY" })).toBeVisible();
     expect((await row("API_KEY")).getByRole("cell", { name: "Secret" })).toBeVisible();
     expect((await row("DB_PASS")).getByRole("cell", { name: "Secret DB_PASSWORD" })).toBeVisible();
     expect((await row("OWN")).getByRole("cell", { name: "Set on this app" })).toBeVisible();
@@ -276,9 +278,9 @@ describe("an app's frame", () => {
     expect(screen.queryByText("None set")).not.toBeInTheDocument();
     await router.navigate({ to: "/apps/$serviceId/environment", params: { serviceId: service.id } });
     expect(await screen.findByRole("cell", { name: "API_KEY" })).toBeVisible();
-    expect(screen.queryByText("No environment variables")).not.toBeInTheDocument();
-    // With nothing plain to show, it asks nothing of the variables.
-    expect(reads).not.toHaveBeenCalled();
+    expect(screen.queryByText(/This app runs with only what its image sets/)).not.toBeInTheDocument();
+    // It reads the environment's variables once, to offer them to the app.
+    await waitFor(() => expect(reads).toHaveBeenCalledOnce());
   });
 
   it("says when a variable's value couldn't be read, not that it's empty", async () => {
@@ -398,18 +400,35 @@ describe("an app's frame", () => {
     const { container } = renderAt("/apps/svc_web", api());
     expect(await screen.findByRole("heading", { level: 1, name: "web" })).toBeVisible();
     expect(screen.getByText("r3 · Checking · web:1.5")).toBeVisible();
-    expect(container.querySelector(".app-actionbar")).toHaveTextContent(/^RestartDeploy$/);
+    // As M-App has it, Logs first, with Restart kept between.
+    const bar = container.querySelector(".app-actionbar") as HTMLElement;
+    expect(bar).toHaveTextContent(/^LogsRestartDeploy$/);
+    expect(within(bar).getByRole("link", { name: "Logs" })).toHaveAttribute("href", "/apps/svc_web/logs");
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/apps");
     await expectAccessible(container);
   });
 
-  it("has one way to the logs, its tab", async () => {
-    renderAt("/apps/svc_web", api());
+  it("goes to the logs from its tab, and from the header between Restart and Deploy on every tab", async () => {
+    const { router } = renderAt("/apps/svc_web", api());
     await screen.findByRole("heading", { level: 1, name: "web" });
-    expect(screen.getAllByRole("link", { name: "Logs" })).toHaveLength(1);
-    expect(
-      within(screen.getByRole("navigation", { name: "App sections" })).getByRole("link", { name: "Logs" }),
-    ).toBeVisible();
+    const tab = within(screen.getByRole("navigation", { name: "App sections" })).getByRole("link", { name: "Logs" });
+    expect(tab).toBeVisible();
+    const links = screen.getAllByRole("link", { name: "Logs" });
+    expect(links).toHaveLength(2);
+    const header = links.find((l) => l !== tab) as HTMLElement;
+    expect(header).toHaveAttribute("href", "/apps/svc_web/logs");
+    // Between Restart and Deploy, as App-Overview has it.
+    expect(header.previousElementSibling).toHaveTextContent("Restart");
+    expect(header.nextElementSibling).toHaveTextContent("Deploy");
+    await act(() => router.navigate({ to: "/apps/$serviceId/logs", params: { serviceId: "svc_web" } }));
+    // On the Logs tab it stays where it was, as App-Logs has it, and says it's this page.
+    await screen.findByRole("region", { name: "Logs" });
+    const there = screen.getAllByRole("link", { name: "Logs" });
+    expect(there).toHaveLength(2);
+    for (const link of there) expect(link).toHaveAttribute("aria-current", "page");
+    const kept = there.find((l) => l.classList.contains("dw-btn")) as HTMLElement;
+    expect(kept.previousElementSibling).toHaveTextContent("Restart");
+    expect(kept.nextElementSibling).toHaveTextContent("Deploy");
   });
 
   it("shows the project it's in, once there is more than one", async () => {
@@ -646,11 +665,14 @@ describe("an app's overview", () => {
     const sheet = await screen.findByRole("dialog", { name: "Add a port to alone" });
     await expectAccessible(document.body);
 
-    // A port is a number; that's said at the field, before anything is asked.
+    // The server's port starts at a free one; what the app listens on is the person's to say,
+    // and a port is a number, which is said at the field before anything is asked.
+    expect(within(sheet).getByLabelText<HTMLInputElement>("On the server").value).toBe("8080");
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
-    expect(within(sheet).getByLabelText("On the server")).toHaveAccessibleDescription("Use a port from 1 to 65535.");
+    expect(within(sheet).getByLabelText("In the app")).toHaveAccessibleDescription("Use a port from 1 to 65535.");
     expect(asked).toEqual([]);
 
+    await user.clear(within(sheet).getByLabelText("On the server"));
     await user.type(within(sheet).getByLabelText("On the server"), "80");
     await user.type(within(sheet).getByLabelText("In the app"), "80");
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
@@ -793,6 +815,7 @@ describe("an app's overview", () => {
 
     await user.click(await screen.findByRole("button", { name: "Add a port" }));
     const port = await screen.findByRole("dialog", { name: "Add a port to web" });
+    await user.clear(within(port).getByLabelText("On the server"));
     await user.type(within(port).getByLabelText("On the server"), "81");
     await user.type(within(port).getByLabelText("In the app"), "80");
     await user.click(within(port).getByRole("button", { name: /Review plan/ }));
@@ -1850,8 +1873,12 @@ describe("an app's overview", () => {
           },
         },
       );
-      expect(await screen.findByText(/takes its domains with it/)).toBeVisible();
-      await user.click(screen.getByRole("button", { name: "Delete this app" }));
+      // The danger zone is on Settings, as the mock has it.
+      await user.click(
+        within(screen.getByRole("navigation", { name: "App sections" })).getByRole("link", { name: "Settings" }),
+      );
+      expect(await screen.findByText(/its domains go with it/)).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Delete web" }));
       await screen.findByRole("dialog", { name: "Review plan" });
       expect(edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete])).toEqual([
         ["route", "ours", true],
@@ -3045,6 +3072,7 @@ describe("an app's overview", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Add a port" }));
     const form = await screen.findByRole("dialog", { name: "Add a port to alone" });
+    await user.clear(within(form).getByLabelText(/On the server/));
     await user.type(within(form).getByLabelText(/On the server/), "8080");
     await user.type(within(form).getByLabelText(/In the app/), "80");
     await user.click(within(form).getByRole("button", { name: "Review plan" }));
@@ -3083,6 +3111,7 @@ describe("an app's overview", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Add a port" }));
     const form = await screen.findByRole("dialog", { name: "Add a port to alone" });
+    await user.clear(within(form).getByLabelText(/On the server/));
     await user.type(within(form).getByLabelText(/On the server/), "8080");
     await user.type(within(form).getByLabelText(/In the app/), "80");
     await user.click(within(form).getByRole("button", { name: "Review plan" }));
@@ -3255,7 +3284,7 @@ describe("an app's overview", () => {
     const proposals: { edits: { delete: boolean; resource?: { name: string } }[] }[] = [];
     const applied = webPlanned();
     renderAt(
-      "/apps/svc_web",
+      "/apps/svc_web/settings",
       api([web], {
         changes: {
           proposeChange: (req) => {
@@ -3267,7 +3296,7 @@ describe("an app's overview", () => {
         },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Delete this app" }));
+    await user.click(await screen.findByRole("button", { name: "Delete web" }));
     await screen.findByRole("dialog", { name: "Review plan" });
     expect(proposals[0]?.edits[0]).toMatchObject({ delete: true, resource: { name: "web" } });
   });

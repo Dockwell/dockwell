@@ -118,6 +118,34 @@ const (
 	WarningMayLockOut Warning = iota + 1
 )
 
+// AccessGuard is a kind that decides who reaches a server, as firewall.rule
+// does, and so applies under the firewall's timer: a change to one waits for
+// the person who applied it to confirm they can still reach the server, and
+// puts back what was there if nobody does in time. Every change to one claims
+// the server's access too, so only one waits on a server at a time, and it
+// takes a person and a passkey (ADR 0052).
+type AccessGuard interface {
+	GuardsAccess()
+}
+
+// GuardsAccess says whether a kind applies under the firewall's timer.
+func GuardsAccess(t Type) bool {
+	_, ok := t.(AccessGuard)
+	return ok
+}
+
+// AccessStays is who still reaches a server's SSH once a change that narrows it
+// is kept: the addresses pinned, what rules allow SSH's ports from, any
+// WireGuard tunnel whose port no rule allows, and the panel's own ports where
+// the change turns deny everything else on on the control server.
+type AccessStays struct {
+	SSHPorts   []uint32 `json:",omitempty"`
+	Pinned     []string `json:",omitempty"`
+	Allowed    []string `json:",omitempty"`
+	Tunnels    []string `json:",omitempty"`
+	PanelPorts []uint32 `json:",omitempty"`
+}
+
 // Decision is a driver's judgement of one step.
 type Decision struct {
 	// PlannedLeads says where the server paths the resource mounts led when this
@@ -244,6 +272,13 @@ type Decision struct {
 	// if its server could say. It never stops a plan, and a fingerprint leaves it
 	// out: the spec says the port.
 	ServerPort *ServerPortCheck `json:",omitempty"`
+	// Closes is what a step that turns deny everything else on closes: each port
+	// that listens or that Docker publishes, that no rule lets in from anywhere,
+	// such as "8080/tcp (shop-web-1)" (ADR 0052). It never stops a plan.
+	Closes []string `json:",omitempty"`
+	// Stays is who still reaches the server's SSH once a step that narrows it is
+	// kept (ADR 0052). It never stops a plan.
+	Stays *AccessStays `json:",omitempty"`
 	// Goes says what someone visiting a route finds once the step takes it away, as
 	// a route stops nothing the plan counts as downtime and yet stops people reaching
 	// what it served. It never stops a plan, and a fingerprint leaves it out, as it
@@ -670,7 +705,7 @@ func (a Access) Leading(to string) Access {
 // needs a signed-in person; only this asks them for more than a click, as a
 // warning that comes with every folder is a warning nobody reads (ADR 0028).
 func (a Access) AsGoodAsRoot() bool {
-	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork || a.Kind == AccessBackupOf ||
+	return a.SameAsRoot || a.Kind == AccessDocker || a.Kind == AccessNetwork || a.Kind == AccessBackupOf || a.Kind == AccessServerShell ||
 		a.Kind == AccessNetworkDriver && a.Driver == "host"
 }
 
@@ -754,6 +789,9 @@ const (
 	// AccessBackupOf is a backup of a volume that reached Path, as good as root,
 	// coming back into one that doesn't. What it holds can be read from there.
 	AccessBackupOf
+	// AccessServerShell is a shell command the agent runs on the server as root, on
+	// a schedule (ADR 0053): the same as root.
+	AccessServerShell
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -972,6 +1010,8 @@ func AccessWords(a Access) string {
 		return "HTTPS on " + plain(a.Path) + ", which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 	case AccessBackupOf:
 		return "a backup of a volume that reached " + plain(a.Path) + ", which can hold what's there, as good as root"
+	case AccessServerShell:
+		return "a shell command on the server, which runs as root"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }
@@ -1017,6 +1057,23 @@ type Keeper interface {
 // putting back a revision don't ask it.
 type ChangeChecker interface {
 	CheckInChange(current, desired proto.Message, others []Ref) error
+}
+
+// NewDefaulter is a kind whose new resources take a default from their ref
+// where their edit leaves it out, such as an environment's protection from its
+// name. An edit of one that's there keeps what's there instead (Keeper).
+type NewDefaulter interface {
+	DefaultNew(ref Ref, spec proto.Message)
+}
+
+// EnvKeeper is a kind whose spec holds values no response carries, which an edit
+// by a client that can't read them back names to keep as they are, rather than
+// setting them (Edit.keep_env): a service's own environment variables. KeepEnv
+// puts the values of those named into desired from current, and says what it
+// kept for a plan's note, as a Keeper does. It refuses a name current hasn't got,
+// or one desired sets too.
+type EnvKeeper interface {
+	KeepEnv(current, desired proto.Message, names []string) (Kept, error)
 }
 
 // NewChecker is a kind that asks more of a new resource than Validate can of an edit,
@@ -1158,7 +1215,18 @@ type NameChecker interface {
 	CheckName(name string) error
 }
 
-var labelRE = regexp.MustCompile(`^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`)
+// labelRE is the form of a DNS label, and maxLabel how long one gets. The length
+// is checked apart from the form: a counted repetition, such as {0,61}, compiles
+// to that many copies of what it repeats, which every agent pays for as it starts
+// (ADR 0060).
+var labelRE = regexp.MustCompile(`^[a-z]([a-z0-9-]*[a-z0-9])?$`)
+
+const maxLabel = 63
+
+// IsLabel reports whether name is one CheckLabel takes.
+func IsLabel(name string) bool {
+	return len(name) <= maxLabel && labelRE.MatchString(name)
+}
 
 // CheckLabel requires a name that is a DNS label, so it fits in URLs, in
 // hostnames such as a service's URL, and on the command line: 1 to 63
@@ -1166,7 +1234,7 @@ var labelRE = regexp.MustCompile(`^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`)
 // with a letter or digit. Projects, environments and services take such
 // names. what names the kind, and example is a name that would do.
 func CheckLabel(what, name, example string) error {
-	if !labelRE.MatchString(name) {
+	if !IsLabel(name) {
 		return fmt.Errorf("%q isn't a valid %s name: use up to 63 lowercase letters, digits and dashes, starting with a letter and ending with a letter or digit, such as %s",
 			name, what, example)
 	}
@@ -1206,6 +1274,16 @@ type Use struct {
 // schedule. It has revisions and plans, and no steps.
 type Unplaced interface {
 	Unplaced()
+}
+
+// Capped is a Type an install keeps at most so many of, such as checks of a URL,
+// which each cost the control plane a request an interval (ADR 0066). A plan
+// that would take the install past Cap is refused, with CapWords' reason.
+type Capped interface {
+	Cap() int
+	// CapWords says why a plan that would make the install have more than Cap
+	// is refused, and what to do instead.
+	CapWords(have int) string
 }
 
 // Rotates is a Type whose sensitive fields plan as a change whenever an edit sets
@@ -1292,6 +1370,29 @@ func (r *Registry) HostAccess(kind Kind, spec proto.Message) []Access {
 		return h.HostAccess(spec)
 	}
 	return nil
+}
+
+// notHere is why a driver can't run on a server that doesn't have what its
+// kind needs, and may never: nftables, fail2ban. That's the server as it is,
+// not a fault, so it isn't said as a warning.
+type notHere struct{ error }
+
+func (e notHere) Unwrap() error { return e.error }
+
+// NotHere marks why a driver can't run as the server not having what its kind
+// needs, such as a tool nobody installed, rather than something gone wrong.
+// The kind is offered once the server has it.
+func NotHere(err error) error {
+	if err == nil {
+		return nil
+	}
+	return notHere{err}
+}
+
+// IsNotHere reports a reason NotHere marked.
+func IsNotHere(err error) bool {
+	var n notHere
+	return errors.As(err, &n)
 }
 
 // Readier is a driver that can't always run, such as one that needs
@@ -1522,6 +1623,19 @@ type SharedReadier interface {
 // other kind with a driver can't. Drivers that share an answer are asked
 // once.
 func (r *Registry) Ready(ctx context.Context) (ready []Kind, unavailable map[Kind]string) {
+	ready, why := r.ReadyWhy(ctx)
+	for k, err := range why {
+		if unavailable == nil {
+			unavailable = map[Kind]string{}
+		}
+		unavailable[k] = err.Error()
+	}
+	return ready, unavailable
+}
+
+// ReadyWhy is Ready with each reason as the driver gave it, so a caller can
+// tell a server that doesn't have what a kind needs (IsNotHere) from a fault.
+func (r *Registry) ReadyWhy(ctx context.Context) (ready []Kind, unavailable map[Kind]error) {
 	answers := map[any]error{}
 	ask := func(d Readier) error {
 		s, ok := d.(SharedReadier)
@@ -1544,9 +1658,9 @@ func (r *Registry) Ready(ctx context.Context) (ready []Kind, unavailable map[Kin
 		}
 		if err := ask(d); err != nil {
 			if unavailable == nil {
-				unavailable = map[Kind]string{}
+				unavailable = map[Kind]error{}
 			}
-			unavailable[k] = err.Error()
+			unavailable[k] = err
 			continue
 		}
 		ready = append(ready, k)

@@ -44,6 +44,21 @@ describe("FleetGrid", () => {
     await expectAccessible(container);
   });
 
+  it("counts and draws servers nobody can say anything of as unknown, never as healthy", () => {
+    const { container } = render(
+      <FleetGrid
+        servers={[
+          { id: "a", name: "a", status: "unknown" },
+          { id: "b", name: "b", status: "unknown" },
+        ]}
+      />,
+    );
+    expect(container.querySelector(".dw-fleet-legend")?.textContent).toBe("2 servers2 unknown");
+    const tile = screen.getByRole("button", { name: "a, Unknown" });
+    expect(tile).toHaveClass("dw-tile-unknown");
+    expect(tile.querySelector("svg")).not.toBeNull();
+  });
+
   it("lists each group's tiles as buttons named with the server and its state", () => {
     render(<FleetGrid groups={groups} />);
     const fra = screen.getByRole("list", { name: "fra-1" });

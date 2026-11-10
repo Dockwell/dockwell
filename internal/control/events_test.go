@@ -23,6 +23,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -228,7 +229,11 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 	// An API token's change is the token's, from the API.
 	token := createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
 	script := changeClient(bearer{token: token, rt: b.client.Transport}, b.origin)
-	byToken := propose(t, script, "Open http", ruleEdit("http", 80))
+	// A token may apply this: a firewall rule takes a person (ADR 0052).
+	byToken := propose(t, script, "Run cache", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Name: "cache"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Container{Container: &resourcev1.Container{Image: "redis:7"}}},
+	})
 	watch.until("the token's change shows", func(w *eventWatch) bool {
 		e := w.latest[byToken.GetId()]
 		return e.GetActor().GetKind() == dockwellv1.ActorKind_ACTOR_KIND_TOKEN && e.GetSurface() == dockwellv1.Surface_SURFACE_API
@@ -298,7 +303,7 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 	// Filters.
 	onlyChanges := listEvents(t, ev, &dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_CHANGE}})
 	if got := actions(onlyChanges); !slices.Equal(got, []string{
-		"change.planned Open http", "change.applied Roll back Break web", "change.failed Break web", "change.applied Undo: Run web",
+		"change.planned Run cache", "change.applied Roll back Break web", "change.failed Break web", "change.applied Undo: Run web",
 		"change.applied Run web",
 	}) {
 		t.Errorf("the changes are %v", got)
@@ -432,9 +437,14 @@ func testProjectEventsAndResources(t *testing.T, backend store.Backend) {
 	for _, r := range all.Msg.GetResources() {
 		made = append(made, r.GetResource().GetKind()+" "+r.GetResource().GetName())
 	}
-	if !slices.Equal(made, []string{
-		"project default", "environment production", "project shop", "environment production", "environment staging", "environment qa",
-	}) {
+	// An install starts with its alert rules too, after its default project.
+	var rules []string
+	for _, d := range alert.Defaults() {
+		rules = append(rules, "alert.rule "+d.Name)
+	}
+	if !slices.Equal(made, slices.Concat([]string{"project default", "environment production"}, rules, []string{
+		"project shop", "environment production", "environment staging", "environment qa",
+	})) {
 		t.Errorf("every resource, oldest first, is %v", made)
 	}
 	var paged []string

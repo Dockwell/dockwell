@@ -34,12 +34,16 @@ var agentPackages = []string{
 	"gen/dockwell/resource/v1alpha1",
 	"gen/dockwell/v1",
 	"internal/agent",
+	"internal/agent/access", // who reaches the server, under the firewall's timer (ADR 0052)
 	"internal/agent/collect",
 	"internal/agent/enroll",
 	"internal/agent/files",      // a server's files, for a person (ADR 0032)
+	"internal/agent/hosttool",   // running the server's own tools, such as ufw and nft (ADR 0043, ADR 0052)
 	"internal/agent/logs",       // reading logs, and keeping those of removed containers (ADR 0025)
+	"internal/agent/nftables",   // Dockwell's own nftables table, written with nft (ADR 0052)
 	"internal/agent/onepanel",   // reading what 1Panel keeps, for an import (ADR 0056)
 	"internal/agent/sqlitefile", // reading 1Panel's SQLite records, read-only, without SQLite (ADR 0056)
+	"internal/agent/terminal",   // a server's terminals, for a person (ADR 0037)
 	"internal/agent/updates",    // a server's package updates, read with its own package manager (ADR 0043)
 	"internal/backup",           // taking and restoring backups on this server (ADR 0033)
 	"internal/backup/s3",        // sending them to S3-compatible storage, with no SDK
@@ -47,6 +51,7 @@ var agentPackages = []string{
 	"internal/buildinfo",
 	"internal/cli",
 	"internal/cli/apinames", // the API commands' names, to say they're in the full build
+	"internal/cron",         // the schedule each scheduled task runs on (ADR 0053)
 	"internal/database",     // reading a database in its own container (ADR 0038)
 	"internal/datadir",
 	"internal/delivery", // opens the values of a step's variables and secrets, sealed to the stream
@@ -59,16 +64,19 @@ var agentPackages = []string{
 	"internal/ingress/caddy",
 	"internal/logging",
 	"internal/mounts", // what's mounted, to keep away from a mount that stopped answering
+	"internal/netif",  // which network interfaces are physical, as sysfs says
 	"internal/pki",
 	"internal/resource",
 	"internal/resource/binding",   // a service's environment and label, from what it uses
 	"internal/resource/container", // the Docker driver's kinds
+	"internal/resource/firewall",  // firewall rules and the policy, on every server (ADR 0052)
 	"internal/resource/network",
 	"internal/resource/resourcepb",
 	"internal/resource/route", // the ingress's kind (ADR 0024)
 	"internal/resource/service",
 	"internal/resource/variable", // the names and kinds a service's Validate checks what it uses by
 	"internal/resource/volume",
+	"internal/task", // scheduled tasks, which each agent runs on its own clock (ADR 0053)
 	"internal/ticket",
 	"internal/volumetool", // reading and writing a volume's bytes, in a throwaway container (ADR 0033)
 }
@@ -270,4 +278,72 @@ func TestNeitherBuildLinksTheCatalogConverter(t *testing.T) {
 			}
 		}
 	}
+}
+
+// What a package allocates as the program starts costs every server more than its
+// size: it lands among what lives as long as the agent does, and the heap never
+// closes the gaps it leaves. Regular expressions with a counted repetition did
+// that, each compiling to as many copies of what it repeats, and took about
+// 0.85 MB of an idle agent (docs/adr/0060-what-an-idle-agent-keeps-in-memory.md).
+// So a package of the agent's own may allocate only so much before main runs.
+const (
+	// initBudget is the most one package of this module may allocate as the agent
+	// build starts, and initBudgetAll the most they may together, in bytes. The
+	// largest was 163 KB and the sum 351 KB when this was set; before, 816 KB and
+	// 1,334 KB.
+	initBudget    = 256 << 10
+	initBudgetAll = 512 << 10
+)
+
+func TestTheAgentBuildAllocatesLittleAsItStarts(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds the agent build")
+	}
+	bin := t.TempDir() + "/dockwell-agent"
+	build := exec.CommandContext(t.Context(), "go", "build", "-tags", "agent", "-o", bin, ".")
+	build.Env = append(os.Environ(), "CGO_ENABLED=0")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("go build -tags agent: %v\n%s", err, out)
+	}
+	run := exec.CommandContext(t.Context(), bin, "version")
+	run.Env = append(os.Environ(), "GODEBUG=inittrace=1")
+	var trace bytes.Buffer
+	run.Stderr = &trace
+	if err := run.Run(); err != nil {
+		t.Fatalf("dockwell version: %v\n%s", err, trace.String())
+	}
+	// A line is "init <package> @<when> ms, <how long> ms clock, <bytes> bytes, <allocs> allocs".
+	sum, seen := 0, 0
+	for line := range strings.Lines(trace.String()) {
+		f := strings.Fields(line)
+		if len(f) < 9 || f[0] != "init" || f[8] != "bytes," {
+			continue
+		}
+		seen++
+		// Generated code registers its messages, which is the schema's size, not a
+		// package's choice.
+		if !within(f[1], module+"/internal") && !within(f[1], module+"/cmd") {
+			continue
+		}
+		var n int
+		if _, err := fmt.Sscan(f[7], &n); err != nil {
+			t.Fatalf("can't read the bytes in %q: %v", line, err)
+		}
+		sum += n
+		if n > initBudget {
+			t.Errorf("%s allocates %d KB as the agent build starts, over the %d KB a package may. "+
+				"Look at its package-level variables: a regular expression with a counted repetition, such as {0,254}, "+
+				"compiles to that many copies, so check the length apart from the form, as resource.IsLabel does; "+
+				"build a large table on first use",
+				strings.TrimPrefix(f[1], module+"/"), n>>10, initBudget>>10)
+		}
+	}
+	if seen == 0 {
+		t.Fatalf("GODEBUG=inittrace=1 printed no line this test reads, so it checked nothing:\n%s", trace.String())
+	}
+	if sum > initBudgetAll {
+		t.Errorf("the agent build's own packages allocate %d KB between them as it starts, over %d KB. "+
+			"Run GODEBUG=inittrace=1 bin/dockwell-agent version to see which, and build what's large on first use", sum>>10, initBudgetAll>>10)
+	}
+	t.Logf("the agent build's own packages allocate %d KB as it starts", sum>>10)
 }

@@ -13,44 +13,67 @@ import {
   InputType,
 } from "@dockwell/api";
 import {
+  Advanced,
   Button,
   Callout,
   cx,
+  Glyph,
   Icon,
   PHONE_QUERY,
   type PlanChange,
   PlanDiff,
   type PlanResource,
+  type PortCheck,
+  PortField,
   Sheet,
+  STATUS,
   TextField,
+  TONE,
   useMediaQuery,
+  useUIStrings,
+  validPortNumber,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useMemo, useState } from "react";
 
+import { methodCommand } from "../../lib/cli";
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { portRefusal, SERVICE_NAME, tidyMessage } from "../apps/app";
 import { RunsOnField } from "../apps/NewAppSheet";
+import { useMay } from "../auth/may";
+import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { asGoodAsRoot } from "../changes/plan";
+import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
+import { CopyAsCommand } from "../system/CopyCommand";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
+
+/** A label as it reads inside a sentence: "Adminer port" is "adminer port", while "API key" keeps its capitals. */
+const inSentence = (label: string) =>
+  /^[A-Z][a-z]*(\s|$)/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label;
 
 /** Whether a person gives an input: Dockwell makes one that generates. */
 const asked = (input: Input) => input.generate === 0;
 
 /**
- * Install from the catalog (Catalog-Install): one sheet that asks only what the app
- * needs, starting from what's free, and ends in the plan. Nothing runs until the plan
- * applies, and a password no one types is made and sealed by the control plane, so
- * it's never here. Once it applies, it leads to the app, with where it's reached.
+ * Install from the catalog (Catalog-Install), defaults first: the newest version,
+ * a name that's free, the server, a free port for each it publishes and the
+ * folders it reads, each a line with Change, and what only a person has as a
+ * field. The rest, what it generates, what it installs and the CLI command, is
+ * under Advanced. Nothing runs until the plan applies, and a password no one
+ * types is made and sealed by the control plane, so it's never here. Once it
+ * applies, it leads to where what it made is used: a database's page, with how
+ * to connect, or the app's.
  */
 export function InstallSheet({ id, onClose }: { id: string; onClose: () => void }) {
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
+  // Installing makes a project of its own, which is an admin's (ADR 0049): off, with why, for anyone else.
+  const mayInstall = useMay()(CatalogService.method.installCatalogEntry);
   const phone = useMediaQuery(PHONE_QUERY);
   const transport = useTransport();
   const navigate = useNavigate();
@@ -58,6 +81,7 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
   const client = useMemo(() => createClient(CatalogService, transport), [transport]);
   const got = useQuery(CatalogService.method.getCatalogEntry, { id });
   const entry = got.data?.entry;
+  const email = useSignedInUser()?.email ?? "";
   const inputs = (entry?.inputs ?? []).filter(asked);
   const generated = (entry?.inputs ?? []).filter((input) => !asked(input));
 
@@ -65,46 +89,114 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
   const [typed, setTyped] = useState<Readonly<Record<string, string>>>({});
   const [typedName, setTypedName] = useState<string>();
   const [chosenServers, setChosenServers] = useState<readonly string[]>([]);
+  // The defaults someone pressed Change on, which show as their fields from then on.
+  const [changing, setChanging] = useState<ReadonlySet<string>>(new Set());
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
   const [nameError, setNameError] = useState<string>();
   const [serversError, setServersError] = useState<string>();
   // The plan under review takes this sheet over, and Cancel brings the form back as it was.
   const [plan, setPlan] = useState<Opening>();
+  const change = (key: string) => setChanging((was) => new Set(was).add(key));
+
+  // What's free is read on the servers it will run on: the one there is, or those chosen.
+  const onlyId = only?.id;
+  const serverIds = useMemo(
+    () => (fleet ? [...chosenServers] : onlyId ? [onlyId] : []),
+    [fleet, chosenServers, onlyId],
+  );
+  const ports = useServerPorts(serverIds);
+  const holderName = (holder: PortHolder) => (holder.kind === "proxy" ? t`Dockwell's proxy` : holder.name);
+
+  // An email it asks for, such as for an owner's account, starts as yours.
+  const suggested = (input: Input) => got.data?.values[input.name] || (input.type === InputType.EMAIL ? email : "");
+  const portInputs = inputs.filter((input) => input.type === InputType.PORT);
+  // Each port nobody typed takes the first free one from what the control plane
+  // suggests, past what the server holds and the ports above it, so no two take one.
+  const freePorts: Record<string, string> = {};
+  if (ports.ready) {
+    const taken = portInputs.flatMap((input) => {
+      const v = typed[input.name];
+      return v !== undefined && validPortNumber(v) ? [Number(v)] : [];
+    });
+    for (const input of portInputs) {
+      if (typed[input.name] !== undefined) continue;
+      const from = Number(suggested(input) || input.defaultValue);
+      const free = ports.free(validPortNumber(String(from)) ? from : undefined, false, taken);
+      freePorts[input.name] = String(free);
+      taken.push(free);
+    }
+  }
+  const value = (input: Input) => typed[input.name] ?? freePorts[input.name] ?? suggested(input);
+  // The ports the others take, which this one can't.
+  const othersOf = (input: Input) =>
+    portInputs
+      .filter((other) => other.name !== input.name && validPortNumber(value(other)))
+      .map((other) => Number(value(other)));
+  const portCheck = (input: Input): PortCheck => ports.check(value(input), false, holderName, othersOf(input));
+
+  // The folders on the server its parts read, by the input that names each, such as for media.
+  const folders = new Set((got.data?.parts ?? []).flatMap((part) => Object.values(part.pathInputs)));
+  // On top: a default with a line of its own, and what only a person has. Under Advanced: the rest.
+  const onTop = (input: Input) =>
+    input.type === InputType.PORT ||
+    input.type === InputType.EMAIL ||
+    folders.has(input.name) ||
+    (!input.optional && suggested(input) === "");
+  const top = inputs.filter(onTop);
+  const more = inputs.filter((input) => !onTop(input));
 
   const name = (typedName ?? got.data?.project ?? "").trim();
-  const value = (input: Input) => typed[input.name] ?? got.data?.values[input.name] ?? "";
+  const nameOpen = changing.has("name") || nameError !== undefined;
+  // A default shows as its field once someone changes it, and from the start when there's no default to show.
+  const open = (input: Input) => changing.has(input.name) || suggested(input) === "";
   const missing = inputs.find((input) => !input.optional && value(input).trim() === "");
   const nameInvalid = name === "" || !SERVICE_NAME.test(name);
   const ready = entry !== undefined && !nameInvalid && !missing;
   const app = entry?.name ?? id;
-  const version = entry?.version ?? "";
-  const onlyName = only?.name ?? "";
   const webService = entry?.web?.service ?? "";
   const missingLabel = missing?.label ?? "";
-  const sealed = generated.filter((input) => !input.logged);
-  const logged = generated.filter((input) => input.logged);
-  // Labels as they are, as they're the fields' own too, joined as the reader's language
-  // does, with a space between a label and a joining word in Han, such as 和.
-  const listed = (inputs: readonly Input[]) =>
-    new Intl.ListFormat(i18n.locale, { type: "conjunction" })
-      .formatToParts(inputs.map((input) => input.label))
-      .map((part) =>
-        part.type === "literal" && /\p{Script=Han}/u.test(part.value) ? ` ${part.value.trim()} ` : part.value,
-      )
-      .join("");
-  const made = listed(sealed);
-  const inLog = listed(logged);
   const license = entry?.appLicense ?? "";
+  const values = Object.fromEntries(inputs.map((input) => [input.name, value(input).trim()]));
 
-  const review = (change: Change | undefined) => {
-    const opens = change?.plan?.resources.find((r) => r.resource?.kind === "service" && r.resource.name === webService);
+  // The same install from the CLI: what differs from what it would pick, with a typed secret from your environment.
+  const secrets = new Set(inputs.filter((input) => input.type === InputType.SECRET).map((input) => input.name));
+  const command = entry
+    ? methodCommand(
+        CatalogService.method.installCatalogEntry,
+        {
+          id,
+          project: name !== got.data?.project ? name : "",
+          values: Object.fromEntries(
+            Object.entries(values).filter(([key, v]) => v !== "" && v !== (got.data?.values[key] ?? "")),
+          ),
+          servers: fleet ? [...chosenServers] : [],
+        },
+        (_path, key) => !secrets.has(key),
+      )
+    : "";
+  const summary = [
+    ...more.filter((input) => value(input).trim() !== "").map((input) => `${input.label} ${value(input).trim()}`),
+    ...(generated.length > 0
+      ? [plural(generated.length, { one: "# secret generated", other: "# secrets generated" })]
+      : []),
+    ...(got.data?.parts ?? []).map((part) => part.image),
+  ].join(" · ");
+
+  const review = (planned: Change | undefined) => {
+    const service = (name: string) =>
+      planned?.plan?.resources.find((r) => r.resource?.kind === "service" && r.resource.name === name);
+    // A database lands on its own page, with how to connect, rather than on the tool beside it.
+    const database = entry?.category === "databases" ? got.data?.parts.find((p) => p.database)?.service : undefined;
+    const lands = database ? service(database) : undefined;
+    const opens = service(webService);
     setPlan({
       kind: "plan",
-      make: () => Promise.resolve({ change }),
+      make: () => Promise.resolve({ change: planned }),
       retryLabel: t`Edit and try again`,
       onDone: onClose,
-      ...(opens ? { doneLabel: t`Open ${app}` } : { doneLabel: t`Show the apps` }),
+      ...(lands || opens ? { doneLabel: t`Open ${app}` } : { doneLabel: t`Show the apps` }),
       onClose: (after) => {
         // Cancelled, or it failed and came back as it was: back to the form, as you left it.
         if (
@@ -118,7 +210,9 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
           return;
         }
         // Undone in the same sheet, it has no page to open.
-        if (opens && after.reverts === "") void navigate({ to: "/apps/$serviceId", params: { serviceId: opens.id } });
+        if (after.reverts !== "") void navigate({ to: "/apps" });
+        else if (lands) void navigate({ to: "/databases/$serviceId", params: { serviceId: lands.id } });
+        else if (opens) void navigate({ to: "/apps/$serviceId", params: { serviceId: opens.id } });
         else void navigate({ to: "/apps" });
       },
     });
@@ -135,15 +229,32 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
     }
     setBusy(true);
     try {
-      const values = Object.fromEntries(inputs.map((input) => [input.name, value(input).trim()]));
       const res = await client.installCatalogEntry({ id, project: name, values, servers: [...chosenServers] });
       review(res.change);
     } catch (err) {
-      if (reasonOf(err) === "project_exists") setNameError(sentence(err));
-      else setFailure(portRefusal(sentence(err)) ?? sentence(err));
+      if (reasonOf(err) === "project_exists") {
+        setNameError(sentence(err));
+        change("name");
+      } else setFailure(portRefusal(sentence(err)) ?? sentence(err));
     } finally {
       setBusy(false);
     }
+  };
+
+  const field = (input: Input) => {
+    const port = input.type === InputType.PORT;
+    const from = Number(value(input));
+    return (
+      <InputField
+        key={input.name}
+        input={input}
+        value={value(input)}
+        check={port ? portCheck(input) : undefined}
+        free={port ? ports.free(validPortNumber(value(input)) ? from : undefined, false, othersOf(input)) : undefined}
+        autoFocus={changing.has(input.name)}
+        onChange={(next) => setTyped((was) => ({ ...was, [input.name]: next }))}
+      />
+    );
   };
 
   return (
@@ -151,7 +262,7 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
       open
       over={plan ? <PlanView opening={plan} /> : undefined}
       title={t`Install ${app}`}
-      subtitle={entry ? `${t`Version ${version}`} · ${entry.summary}` : undefined}
+      subtitle={entry?.summary}
       onClose={onClose}
       className={cx("app-sheet", "catalog-sheet", phone && "is-phone")}
       footer={
@@ -176,6 +287,7 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
             disabled={!ready}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void submit()}
+            {...mayInstall.off}
           >
             <Trans>Review plan</Trans>
           </Button>
@@ -203,95 +315,87 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
         ) : null}
         {entry ? (
           <>
-            {entry.hostAccess ? (
-              <Callout tone="warning" title={t`It reaches past its containers`}>
-                {entry.hostAccess}
-              </Callout>
-            ) : null}
-            {entry.firstSteps ? (
-              <Callout tone="warning" title={t`What to do first`}>
-                {entry.firstSteps}
-              </Callout>
-            ) : null}
-            <TextField
-              label={t`Name`}
-              mono
-              value={typedName ?? got.data?.project ?? ""}
-              error={
-                nameError ??
-                (typedName !== undefined && nameInvalid
-                  ? t`Use lowercase letters, digits and dashes, starting with a letter, such as shop.`
-                  : undefined)
-              }
-              hint={t`Its project, which keeps it apart from your other apps.`}
-              onChange={(event) => {
-                setTypedName(event.target.value);
-                setNameError(undefined);
-              }}
-            />
-            {inputs.map((input) => (
-              <InputField
-                key={input.name}
-                input={input}
-                value={value(input)}
-                onChange={(next) => setTyped((was) => ({ ...was, [input.name]: next }))}
-              />
-            ))}
-            {sealed.length > 0 ? (
-              <p className="catalog-sheet-note">
-                <Icon name="key" size={14} />
-                <span>
-                  {plural(sealed.length, {
-                    one: `Dockwell generates this and keeps it sealed, for you to reveal with your passkey: ${made}`,
-                    other: `Dockwell generates these and keeps them sealed, for you to reveal with your passkey: ${made}`,
-                  })}
-                </span>
-              </p>
-            ) : null}
-            {logged.length > 0 ? (
-              <p className="catalog-sheet-note">
-                <Icon name="key" size={14} />
-                <span>
-                  {plural(logged.length, {
-                    one: `Dockwell generates this, but ${app} writes it in its log, which takes no passkey to read, so change it after you first sign in: ${inLog}`,
-                    other: `Dockwell generates these, but ${app} writes them in its log, which takes no passkey to read, so change them after you first sign in: ${inLog}`,
-                  })}
-                </span>
-              </p>
-            ) : null}
-            {fleet ? (
-              <RunsOnField
-                value={chosenServers}
-                onChange={(next) => {
-                  setChosenServers(next);
-                  setServersError(undefined);
+            <div className="catalog-chosen-list">
+              <Chosen label={t`Version`} value={entry.version} />
+              {nameOpen ? (
+                <TextField
+                  label={t`Name`}
+                  mono
+                  autoFocus={changing.has("name") && !nameError}
+                  value={typedName ?? got.data?.project ?? ""}
+                  error={
+                    nameError ??
+                    (nameInvalid
+                      ? t`Use lowercase letters, digits and dashes, starting with a letter, such as shop.`
+                      : undefined)
+                  }
+                  onChange={(event) => {
+                    setTypedName(event.target.value);
+                    setNameError(undefined);
+                  }}
+                />
+              ) : (
+                <Chosen label={t`Name`} value={name} onChange={() => change("name")} />
+              )}
+              {fleet ? (
+                <RunsOnField
+                  value={chosenServers}
+                  onChange={(next) => {
+                    setChosenServers(next);
+                    setServersError(undefined);
+                  }}
+                  error={serversError}
+                  servers={servers ?? []}
+                />
+              ) : only ? (
+                <Chosen label={t`Runs on`} value={only.name} />
+              ) : null}
+              {top.map((input) =>
+                open(input) ? (
+                  field(input)
+                ) : (
+                  <Chosen
+                    key={input.name}
+                    label={input.label}
+                    value={value(input)}
+                    state={input.type === InputType.PORT ? <PortState check={portCheck(input)} /> : undefined}
+                    onChange={() => change(input.name)}
+                  />
+                ),
+              )}
+              {entry.hostAccess ? <Chosen label={t`Reaches`} value={entry.hostAccess} tone="warning" /> : null}
+            </div>
+            <Advanced open={advancedOpen} onOpenChange={setAdvancedOpen} summary={summary}>
+              {more.map(field)}
+              {generated.length > 0 ? (
+                <div className="catalog-chosen-list">
+                  {generated.map((input) => (
+                    <Chosen
+                      key={input.name}
+                      label={input.label}
+                      value={input.logged ? t`Generated, in ${app}'s log` : t`Generated and sealed`}
+                      plain
+                    />
+                  ))}
+                </div>
+              ) : null}
+              <Parts
+                parts={got.data?.parts ?? []}
+                typed={(name) => {
+                  const input = inputs.find((i) => i.name === name);
+                  return input ? value(input).trim() : "";
                 }}
-                error={serversError}
-                servers={servers ?? []}
               />
-            ) : only ? (
-              <p className="catalog-sheet-note">
-                <Icon name="server" size={14} />
-                <span>
-                  <Trans>Runs on {onlyName}</Trans>
-                </span>
+              <p className="catalog-sheet-source">
+                <Trans>
+                  {app} is under the {license} licence.
+                </Trans>{" "}
+                <a href={entry.homepage} target="_blank" rel="noreferrer" className="catalog-link">
+                  <Trans>Its site</Trans>
+                </a>
               </p>
-            ) : null}
-            <Parts
-              parts={got.data?.parts ?? []}
-              typed={(name) => {
-                const input = inputs.find((i) => i.name === name);
-                return input ? value(input).trim() : "";
-              }}
-            />
-            <p className="catalog-sheet-source">
-              <Trans>
-                {app} is under the {license} licence.
-              </Trans>{" "}
-              <a href={entry.homepage} target="_blank" rel="noreferrer" className="catalog-link">
-                <Trans>Its site</Trans>
-              </a>
-            </p>
+              {command ? <CopyAsCommand command={command} /> : null}
+            </Advanced>
           </>
         ) : !got.error ? (
           <p className="catalog-note" aria-busy="true">
@@ -300,6 +404,69 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
         ) : null}
       </form>
     </Sheet>
+  );
+}
+
+/**
+ * A default as a line: what it is, its value, a state when it has one (a port's
+ * Free), and Change, which turns it into its field.
+ */
+function Chosen({
+  label,
+  value,
+  state,
+  onChange,
+  tone,
+  plain,
+}: {
+  label: string;
+  value: string;
+  state?: ReactNode;
+  onChange?: () => void;
+  tone?: "warning";
+  /** The value is words, not something to copy, such as "Generated and sealed". */
+  plain?: boolean;
+}) {
+  const { t } = useLingui();
+  const id = useId();
+  const what = inSentence(label);
+  return (
+    <fieldset className={cx("catalog-chosen", tone && `is-${tone}`)} aria-labelledby={id}>
+      <span id={id} className="catalog-chosen-label">
+        {label}
+      </span>
+      <span className="catalog-chosen-value">
+        {tone === "warning" ? <Icon name="shield" size={14} className="catalog-chosen-icon" /> : null}
+        {plain || tone ? <span>{value}</span> : <code>{value}</code>}
+        {state}
+        {onChange ? (
+          <button type="button" className="catalog-change" aria-label={t`Change ${what}`} onClick={onChange}>
+            <Trans>Change</Trans>
+          </button>
+        ) : null}
+      </span>
+    </fieldset>
+  );
+}
+
+/** Whether a port is free, as the port field says it beside the number. */
+function PortState({ check }: { check: PortCheck }) {
+  const words = useUIStrings().portField;
+  if (check.state === "unknown") return null;
+  return (
+    <span className={cx("catalog-chosen-state", `is-${check.state}`)}>
+      <Glyph
+        shape={
+          check.state === "checking"
+            ? STATUS.deploying.shape
+            : check.state === "free"
+              ? TONE.healthy.shape
+              : TONE.critical.shape
+        }
+        size={9}
+      />
+      {check.state === "taken" && check.by ? words.takenBy(check.by) : words[check.state]}
+    </span>
   );
 }
 
@@ -361,19 +528,49 @@ function Parts({ parts, typed }: { parts: readonly CatalogPart[]; typed: (input:
   );
 }
 
-/** A field for one input, as its type asks. A secret never shows as you type it, or stays in a browser's memory. */
-function InputField({ input, value, onChange }: { input: Input; value: string; onChange: (next: string) => void }) {
+/**
+ * A field for one input, as its type asks: a port with whether it's free, and
+ * a free one to take when it isn't. A secret never shows as you type it, or
+ * stays in a browser's memory.
+ */
+function InputField({
+  input,
+  value,
+  check,
+  free,
+  autoFocus,
+  onChange,
+}: {
+  input: Input;
+  value: string;
+  check: PortCheck | undefined;
+  free: number | undefined;
+  autoFocus: boolean;
+  onChange: (next: string) => void;
+}) {
+  if (input.type === InputType.PORT) {
+    return (
+      <PortField
+        label={input.label}
+        hint={input.hint || undefined}
+        autoFocus={autoFocus}
+        value={value}
+        check={check}
+        suggestion={check?.state === "taken" ? free : undefined}
+        onChange={onChange}
+      />
+    );
+  }
   const secret = input.type === InputType.SECRET;
-  const port = input.type === InputType.PORT;
   return (
     <TextField
       label={input.label}
       hint={input.hint || undefined}
       optional={input.optional}
-      mono={port || secret}
+      mono={secret || input.type === InputType.TEXT}
       type={secret ? "password" : input.type === InputType.EMAIL ? "email" : "text"}
-      inputMode={port ? "numeric" : undefined}
       autoComplete="off"
+      autoFocus={autoFocus}
       value={value}
       onChange={(event) => onChange(event.target.value)}
     />

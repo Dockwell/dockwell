@@ -80,6 +80,7 @@ port=${addr##*:}
 cookie=$(mktemp)
 passkey=$(mktemp)
 stepup=$(mktemp)
+shell=$(mktemp)
 # What a file's relative paths start from. Not the data directory, which no
 # container may mount, and Docker makes what's in it as root.
 real_dir=$(mktemp -d)
@@ -147,8 +148,8 @@ cleanup() {
   done
   docker image rm e2e-local-only:1 >/dev/null 2>&1 || true
   docker ps --all --quiet --filter label=dev.dockwell.volume-tool | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
-  docker rm --force e2e-s3 e2e-by-hand e2e-take-on e2e-on-bridge e2e-sidecar e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
-  docker volume rm e2e-by-hand-data e2e-take-on-data >/dev/null 2>&1 || true
+  docker rm --force e2e-shell-ash e2e-shell-bash e2e-shell-root e2e-shell-none e2e-shell-vol e2e-shell-link e2e-shell-data e2e-s3 e2e-by-hand e2e-take-on e2e-on-bridge e2e-sidecar e2e-routed e2e-agent-web e2e-two-own e2e-two-agent e2e-holds-80 e2e-returns e2e-on-server e2e-not-started e2e-oom dockwell-ingress dockwell-ingress-keep >/dev/null 2>&1 || true
+  docker volume rm e2e-by-hand-data e2e-take-on-data e2e-shell-etc e2e-shell-data >/dev/null 2>&1 || true
   docker network rm e2e-by-hand-net >/dev/null 2>&1 || true
   moving_tidy
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-lan e2e-tunnel e2e-other >/dev/null 2>&1 || true
@@ -160,7 +161,7 @@ cleanup() {
   done
   wait 2>/dev/null || true
   docker image rm --force dockwell-e2e-app:slow dockwell-e2e-app:never >/dev/null 2>&1 || true
-  priv rm -rf "$log" "$agent_log" "$cookie" "$passkey" "$stepup" "$data" "$agent_data" "$pebble_dir" "$catalog_dir" "$real_dir" "$rollout_dir"
+  priv rm -rf "$log" "$agent_log" "$cookie" "$passkey" "$stepup" "$shell" "$data" "$agent_data" "$pebble_dir" "$catalog_dir" "$real_dir" "$rollout_dir"
 }
 trap cleanup EXIT
 
@@ -250,8 +251,29 @@ for _ in $(seq 300); do
   sleep 0.1
 done
 grep -q 'connected to the control plane' "$log" || fail "the control server's own agent didn't connect within 30 s"
-if grep -q "the agent can't run some kinds" "$log"; then
-  fail "the agent can't run the Docker kinds; is Docker running?"
+# The kinds this script deploys need Docker, so each has to be offered by now.
+# The agent says which kinds it can't run, and why, a line for each reason:
+# only one that names a Docker kind stops the run, and it's said with the
+# agent's own reason. The firewall's kinds and fail2ban's jails are left out
+# here by design: under DOCKWELL_TEST the agent runs no nft, so this job never
+# touches the runner's own firewall, and a runner has no fail2ban. What proves
+# them is the step "The table against real nftables" in CI's Go on Docker job,
+# which loads, keeps and reverts Dockwell's table in a network namespace of
+# its own (ADR 0052).
+docker_kinds='["container","network","route","service","volume"]'
+# cant_run FILTER lists the kinds the agent's log says it doesn't offer, with why, that FILTER takes.
+cant_run() {
+  { grep -E "the agent (can't run some kinds|offers some kinds only once)" "$log" || true; } |
+    jq -r --argjson want "$docker_kinds" "$1"' | "  \(.kinds | join(", ")): \(.reason)"'
+}
+# shellcheck disable=SC2016 # jq's own variables
+missing=$(cant_run 'select(any(.kinds[]; . as $k | $want | index($k)))') || fail "can't read which kinds the agent offers from its log"
+if [[ -n "$missing" ]]; then
+  # shellcheck disable=SC2016 # jq's own variables
+  others=$(cant_run 'select(all(.kinds[]; . as $k | $want | index($k) | not))') || others=""
+  [[ -z "$others" ]] || others=$(printf '\nIt also offers none of these, which this script has no need of:\n%s' "$others")
+  fail "the agent can't run a kind this script deploys:
+$missing$others"
 fi
 
 # Local access acts for the install's owner, so claim it first, with a
@@ -292,6 +314,20 @@ wait_applied() {
     sleep 0.5
   done
   fail "$1 is $state after 120 s, want applied"
+}
+# wait_failed waits for a change that's to fail, and says why it did.
+wait_failed() {
+  local state=""
+  for _ in $(seq 240); do
+    state=$(change_field "$1" state) || state=""
+    [[ "$state" == CHANGE_STATE_FAILED ]] && {
+      change_field "$1" error
+      return 0
+    }
+    [[ "$state" == CHANGE_STATE_APPLIED ]] && fail "$1 applied, and it was to fail"
+    sleep 0.5
+  done
+  fail "$1 is $state after 120 s, want failed"
 }
 # take_on has a person plan and apply taking a container on as a service, and checks
 # nothing about it moved. A refusal says why, in what the job prints. It sets taken_plan
@@ -382,6 +418,17 @@ updates_bin="$rollout_dir/updates"
 cat >"$rollout_dir/prepare-apt.sh" <<'SH'
 set -e
 export DEBIAN_FRONTEND=noninteractive
+# The runner's containers have no IPv6 route, and a mirror may be slow: ask over IPv4,
+# try a download again, and give up on one after 30 s. The reader's own refresh, in
+# this container, reads the same settings.
+printf '%s\n' 'Acquire::ForceIPv4 "true";' 'Acquire::Retries "3";' 'Acquire::http::Timeout "30";' >/etc/apt/apt.conf.d/99-e2e-network
+# Where the run names a mirror for Ubuntu, as CI does with the one beside its runners,
+# the archive and security pockets are read from it: the suites, and so what counts as
+# a security fix, stay the same. Debian keeps its own.
+if [ -n "${E2E_UBUNTU_MIRROR:-}" ] && [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+  sed -i -E "s#^URIs: http://(archive|security)\\.ubuntu\\.com/ubuntu/?#URIs: $E2E_UBUNTU_MIRROR#" /etc/apt/sources.list.d/ubuntu.sources
+  echo "raw Ubuntu's packages come from $E2E_UBUNTU_MIRROR" >&2
+fi
 apt-get -qq update >/dev/null
 for p in less tzdata tar gzip bash libssl3 libgnutls30 libsystemd0 libudev1 gpgv libsqlite3-0; do
   count=$(apt-cache madison "$p" | awk -F'|' '{ gsub(/ /, "", $2); print $2 }' | sort -u | wc -l)
@@ -445,11 +492,39 @@ SH
 # JSON on standard output. It runs in a command substitution, so its caller fails
 # for it, by the reader's exit.
 read_updates() {
-  docker run --rm -v "$updates_bin:/usr/local/bin/dockwell-updates:ro" \
+  docker run --rm -e E2E_UBUNTU_MIRROR="${E2E_UBUNTU_MIRROR:-}" -v "$updates_bin:/usr/local/bin/dockwell-updates:ro" \
     -v "$rollout_dir/prepare-$2.sh:/prepare.sh:ro" -v "$rollout_dir/after-$2.sh:/after.sh:ro" "$1" \
     sh -c 'sh /prepare.sh || exit; dockwell-updates; code=$?; sh /after.sh >&2; exit $code' 2>"$rollout_dir/said"
 }
 said() { cat "$rollout_dir/said"; }
+# What a package mirror that is down, slow or half way through a sync leaves in what the tools print:
+# apt's words, then dnf's for a mirror that served a broken or empty repomd.xml.
+mirror_trouble='Failed to fetch|Some index files failed to download|Mirror sync in progress|Could not resolve|Temporary failure|Cannot initiate the connection|Connection timed out|Timeout was reached|Curl error|temporary error|didn.t finish within|Failed to download metadata for repo|repomd.xml parser error|Cannot download repomd.xml|Errors during downloading metadata'
+# read_updates_patiently IMAGE KIND is read_updates, tried up to three times while
+# the mirror is what fails: the reader's exit or its refresh error, with one of the
+# lines above in what was said. Anything else fails at once, as before. It says on
+# standard error how long each read took, so a slow mirror shows in the log.
+read_updates_patiently() {
+  local try out started
+  for try in 1 2 3; do
+    started=$SECONDS
+    if out=$(read_updates "$1" "$2"); then
+      if [[ $try -lt 3 && -n "$(jq -r '.refreshError // ""' <<<"$out" 2>/dev/null)" ]] &&
+        grep -qE "$mirror_trouble" <<<"$out$(said)"; then
+        echo "docker-e2e: on $1 the reader couldn't refresh the package lists (try $try of 3, $((SECONDS - started)) s); trying again in 30 s" >&2
+        sleep 30
+        continue
+      fi
+      echo "docker-e2e: $1 read in $((SECONDS - started)) s" >&2
+      printf '%s\n' "$out"
+      return 0
+    fi
+    [[ $try -lt 3 ]] && grep -qE "$mirror_trouble" "$rollout_dir/said" || return 1
+    echo "docker-e2e: $1's package mirror didn't answer whole (try $try of 3, $((SECONDS - started)) s): $(grep -m1 -E "$mirror_trouble" "$rollout_dir/said"). Trying again in 30 s" >&2
+    sleep 30
+  done
+  return 1
+}
 # raw prints what the tool printed as it was, after a blank line, or nothing.
 raw() {
   local printed
@@ -473,7 +548,7 @@ put_back() {
 }
 for distro in "Ubuntu ubuntu:24.04" "Debian debian:12"; do
   name=${distro%% *}
-  out=$(read_updates "${distro#* }" apt) || fail "the agent's reader failed on $name: $(said)"
+  out=$(read_updates_patiently "${distro#* }" apt) || fail "the agent's reader failed on $name: $(said)"
   jq -e '.manager == "PACKAGE_MANAGER_APT" and .marksSecurity and (.unavailable // "") == "" and (.refreshError // "") == "" and .listsTime != null' >/dev/null <<<"$out" ||
     fail "on $name, the reader said: $out"
   put_back "$name" "$out"
@@ -482,7 +557,7 @@ for distro in "Ubuntu ubuntu:24.04" "Debian debian:12"; do
   diff <(the_reader_says "$out" '.packages[]? | select(.security) | .name') <(the_tool_says security) ||
     fail "on $name, the reader marked other security fixes than apt-get --simulate does"
 done
-alma=$(read_updates almalinux:9 dnf) || fail "the agent's reader failed on AlmaLinux: $(said)"
+alma=$(read_updates_patiently almalinux:9 dnf) || fail "the agent's reader failed on AlmaLinux: $(said)"
 jq -e '.manager == "PACKAGE_MANAGER_DNF" and .marksSecurity and (.refreshError // "") == "" and .listsTime != null' >/dev/null <<<"$alma" ||
   fail "on AlmaLinux, the reader said: $alma$(raw)"
 put_back AlmaLinux "$alma"
@@ -493,7 +568,7 @@ advised=$(the_tool_says advisory | sed -E 's/-[^-]+-[^-]+$//' | sort -u)
 listed=$(the_tool_says name | sed -E 's/\.[^.]+$//' | sort -u)
 diff <(the_reader_says "$alma" '.packages[]? | select(.security) | .name') <(comm -12 <(echo "$advised") <(echo "$listed")) ||
   fail "on AlmaLinux, the reader marked other security fixes than dnf updateinfo names:$(raw)"
-alpine=$(read_updates alpine:3.20 apk) || fail "the agent's reader failed on Alpine: $(said)"
+alpine=$(read_updates_patiently alpine:3.20 apk) || fail "the agent's reader failed on Alpine: $(said)"
 jq -e '.manager == "PACKAGE_MANAGER_APK" and (.marksSecurity // false) == false and (.refreshError // "") == "" and .listsTime != null' >/dev/null <<<"$alpine" ||
   fail "on Alpine, the reader said: $alpine"
 diff <(the_reader_says "$alpine" '.packages[]? | .name + "-" + .installed') <(the_tool_says name) ||
@@ -1042,13 +1117,17 @@ answers() { [[ "$(docker exec "$1" redis-cli -a "$2" --no-auth-warning ping 2>&1
 # on this server reads them there.
 nothing_shows() {
   local reads value
-  reads=$({
-    dw changes list --page-size 200 --json
-    dw services list --json
-    dw compose export
-    dw drift list --json
+  # Each read has to work, and each environment's export, by its ID: with more than
+  # one project, an export that names none reads nothing.
+  reads=$(
+    dw changes list --page-size 200 --json || exit 1
+    dw services list --json || exit 1
+    for env in $(dw resources list --json | jq -r '.resources[] | select(.resource.kind == "environment") | .id'); do
+      dw compose export --environment "$env" || exit 1
+    done
+    dw drift list --json || exit 1
     dw events list --page-size 200 --json
-  }) || fail "reading what the install says failed"
+  ) || fail "reading what the install says failed"
   for id in $(dw changes list --page-size 200 --json | jq -r '.changes[].id'); do
     reads+=$(dw changes get "$id" --json) || fail "changes get $id failed"
   done
@@ -3813,6 +3892,110 @@ jq -e '.readings[0] | (.unread // "") == "" and (.version | startswith("17.")) a
 [[ "$said" != *"$password"* ]] || fail "what PostgreSQL says of itself holds its password"
 pg postgres "SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE query = 'SELECT pg_sleep(30)'" >/dev/null || fail "can't let the client on PostgreSQL go"
 
+step "Databases: a user with a database of their own is a plan, with a password no one typed, and setting it anew signs them in with the new one"
+db_id=$(jq -r '.id' <<<"$said")
+db_env=$(jq -r '.resource.scope' <<<"$said")
+planned=$(dw databases add-user "$db_id" --user buyer --plan-only --json) || fail "planning a user failed: $planned"
+jq -e '[.change.plan.resources[].resource | .kind + " " + .name] | sort == ["database.user buyer", "secret BUYER_DATABASE_PASSWORD"]' <<<"$planned" >/dev/null ||
+  fail "the plan for a user makes: $(jq -c '[.change.plan.resources[].resource]' <<<"$planned")"
+dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes >/dev/null || fail "making the user failed"
+[[ "$(pg postgres "SELECT rolpassword LIKE 'SCRAM-SHA-256\$4096:%' FROM pg_authid WHERE rolname = 'buyer'")" == t ]] ||
+  fail "buyer's password isn't a SCRAM verifier: $(pg postgres "SELECT left(rolpassword, 14) FROM pg_authid WHERE rolname = 'buyer'" 2>&1)"
+[[ "$(pg postgres "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'buyer'")" == buyer ]] || fail "buyer doesn't own the database buyer"
+[[ "$(pg postgres "SELECT has_database_privilege('shopper', 'buyer', 'CONNECT')")" == f ]] || fail "another user can connect to buyer's database"
+said=$(dw databases get "$db_id" --json) || fail "reading the database failed"
+jq -e '.database.readings[0].users[] | select(.name == "buyer") | .secret == "BUYER_DATABASE_PASSWORD" and (.resourceId | startswith("dbu_"))' <<<"$said" >/dev/null ||
+  fail "the database says of buyer: $(jq -c '.database.readings[0].users' <<<"$said")"
+# Setting the secret to a value this step knows reaches the user, which then signs in with it.
+printf 'e2e-buyer-password-7Rk2' >"$data/buyer-password"
+dw secrets update BUYER_DATABASE_PASSWORD --environment "$db_env" --value-file "$data/buyer-password" --yes >/dev/null ||
+  fail "setting buyer's password anew failed"
+# buyer_says signs in as buyer at an address: by the service's name it's over the
+# project's network, where the image checks a password. It answers 42 only from there.
+buyer_says() {
+  docker exec -e PGPASSWORD="$2" "$postgres_db" psql -X -h "$1" -U buyer -d buyer -tAc \
+    "SELECT CASE WHEN inet_client_addr() IS NULL OR inet_client_addr() <<= '127.0.0.0/8' THEN 'from inside' ELSE (40 + 2)::text END" 2>&1
+}
+[[ "$(buyer_says db e2e-buyer-password-7Rk2)" == 42 ]] || fail "buyer can't sign in over the network with the secret's new value: $(buyer_says db e2e-buyer-password-7Rk2)"
+[[ "$(buyer_says db not-the-password)" != 42 ]] || fail "buyer signs in over the network with any password"
+# Inside its own container the image trusts every connection, as the Users tab says.
+[[ "$(buyer_says 127.0.0.1 not-the-password)" == "from inside" ]] ||
+  fail "inside its container, PostgreSQL doesn't let anything in as the Users tab says: $(buyer_says 127.0.0.1 not-the-password)"
+nothing_shows e2e-buyer-password-7Rk2
+# A role with something in another database isn't dropped, and neither is its database:
+# dropping the database first would leave the user.
+pg shop 'CREATE TABLE buyer_reads (id int); GRANT SELECT ON buyer_reads TO buyer' || fail "can't grant buyer something in shop"
+planned=$(dw changes propose --summary "Delete the database user buyer" --edits '{"resource":{"kind":"database.user","scope":"'"$db_env"'","name":"buyer"},"delete":true}' --plan-only --json) ||
+  fail "planning to delete buyer failed: $planned"
+fingerprint=$(change_field "$(jq -r '.change.id' <<<"$planned")" plan.fingerprint) || fail "can't read the plan of the delete"
+person_call ChangeService/ApplyChange "{\"id\":\"$(jq -r '.change.id' <<<"$planned")\",\"fingerprint\":\"$fingerprint\"}" >/dev/null ||
+  fail "a person can't apply the delete"
+blocked=$(wait_failed "$(jq -r '.change.id' <<<"$planned")")
+[[ "$blocked" == *"buyer has something outside its database buyer, so nothing was dropped"* ]] || fail "dropping buyer with a grant in shop says: $blocked"
+[[ "$(pg postgres "SELECT count(*) FROM pg_database WHERE datname = 'buyer'")" == 1 ]] || fail "a drop that stopped took the database buyer with it"
+pg shop 'DROP TABLE buyer_reads' || fail "can't drop what buyer was granted"
+# Deleting it drops the user and the database, which a person applies.
+planned=$(dw changes propose --summary "Delete the database user buyer" --edits '{"resource":{"kind":"database.user","scope":"'"$db_env"'","name":"buyer"},"delete":true}' --plan-only --json) ||
+  fail "planning to delete buyer failed: $planned"
+jq -e '.change.plan.destructive' <<<"$planned" >/dev/null || fail "dropping buyer doesn't say it destroys data: $planned"
+person_apply "$(jq -r '.change.id' <<<"$planned")"
+[[ -z "$(pg postgres "SELECT 1 FROM pg_roles WHERE rolname = 'buyer'")" ]] || fail "buyer is still there"
+[[ -z "$(pg postgres "SELECT 1 FROM pg_database WHERE datname = 'buyer'")" ]] || fail "the database buyer is still there"
+
+step "Scheduled tasks: a shell command, a command in an app and a request each run on their server, keep what they printed, and a failure is on Activity"
+pg_env=$(dw services list --json | jq -r --arg p "$catalog_project" '.services[] | select((.resource.scope | ascii_downcase) == $p and .resource.name == "db") | .resource.scope' | head -1)
+[[ "$pg_env" == env_* ]] || fail "can't find the environment PostgreSQL runs in"
+# task_ran runs a task now, waits for the run to end, and prints it.
+task_ran() {
+  local started run said=""
+  started=$(dw tasks run "$1" --environment "$pg_env" --yes --json) || fail "running $1 failed: $started"
+  run=$(jq -r '.run.id' <<<"$started")
+  for _ in $(seq 120); do
+    said=$(dw tasks runs "$1" --environment "$pg_env" --json) || fail "reading $1's runs failed"
+    jq -e --arg r "$run" '.runs[] | select(.id == $r and .state != "TASK_RUN_STATE_RUNNING")' <<<"$said" && return 0
+    sleep 0.5
+  done
+  fail "$1's run $run didn't end: $said"
+}
+# A shell command is root on the server, so a person applies it with a passkey.
+planned=$(dw tasks create rotate-e2e --environment "$pg_env" --shell-command 'echo rotated-by-dockwell; echo to-stderr >&2' --schedule '@yearly' --plan-only --json) ||
+  fail "planning a shell task failed: $planned"
+jq -e '.change.plan.hostAccess' <<<"$planned" >/dev/null || fail "a shell task plans no host access: $planned"
+person_apply_root "$(jq -r '.change.id' <<<"$planned")"
+run=$(task_ran rotate-e2e)
+jq -e '.state == "TASK_RUN_STATE_SUCCEEDED" and ([.output[].text] | index("rotated-by-dockwell") and index("to-stderr"))' <<<"$run" >/dev/null ||
+  fail "the shell task ran as: $run"
+# A command in an app's image runs as a one-off container with the app's environment, and goes when it ends.
+# shellcheck disable=SC2016 # for the shell in the app's image
+planned=$(dw tasks create psql-e2e --environment "$pg_env" --app-service db --app-command 'sh -c "psql --version; echo user=$POSTGRES_USER"' --schedule '@daily' --plan-only --json) ||
+  fail "planning an app's task failed: $planned"
+person_apply "$(jq -r '.change.id' <<<"$planned")"
+run=$(task_ran psql-e2e)
+jq -e '.state == "TASK_RUN_STATE_SUCCEEDED" and ([.output[].text | select(startswith("psql (PostgreSQL)"))] | length == 1)' <<<"$run" >/dev/null ||
+  fail "the app's task ran as: $run"
+[[ -z "$(docker ps -aq --filter label=dev.dockwell.task=psql-e2e)" ]] || fail "the app's task left its container behind"
+# A request asks a URL from the server, and keeps its status.
+planned=$(dw tasks create ping-e2e --environment "$pg_env" --request-url "http://127.0.0.1:$port/healthz" --schedule '@hourly' --plan-only --json) ||
+  fail "planning a request failed: $planned"
+person_apply "$(jq -r '.change.id' <<<"$planned")"
+run=$(task_ran ping-e2e)
+jq -e '.state == "TASK_RUN_STATE_SUCCEEDED" and .attempts[0].httpStatus == 200' <<<"$run" >/dev/null || fail "the request ran as: $run"
+# A run that fails says so, and is on Activity.
+planned=$(dw tasks create fails-e2e --environment "$pg_env" --shell-command 'echo going; exit 7' --schedule '@yearly' --plan-only --json) ||
+  fail "planning a failing task failed: $planned"
+person_apply_root "$(jq -r '.change.id' <<<"$planned")"
+run=$(task_ran fails-e2e)
+jq -e '.state == "TASK_RUN_STATE_FAILED" and .attempts[0].exitCode == 7 and .error == "it exited with 7"' <<<"$run" >/dev/null || fail "the failing task ran as: $run"
+said=$(dw events list --kinds task --json) || fail "listing task events failed"
+jq -e '[.events[] | select(.action == "task.failed" and .taskRun.task == "fails-e2e" and .taskRun.exitCode == 7)] | length == 1' <<<"$said" >/dev/null ||
+  fail "Activity says of the failing task: $said"
+listed=$(dw tasks list --json) || fail "listing tasks failed"
+jq -e '[.tasks[].resource.name] | index("rotate-e2e") and index("psql-e2e") and index("ping-e2e") and index("fails-e2e")' <<<"$listed" >/dev/null ||
+  fail "the task list is: $listed"
+for name in rotate-e2e psql-e2e ping-e2e fails-e2e; do
+  dw tasks delete "$name" --environment "$pg_env" --yes >/dev/null || fail "deleting $name failed"
+done
+
 step "Catalog: MySQL runs with a password of its own, and phpMyAdmin signs in with it"
 catalog_install mysql
 mysql_db=$(catalog_container db)
@@ -3885,6 +4068,33 @@ jq -e '.readings[0] | (.unread // "") == "" and (.version | startswith("8.4")) a
   fail "MySQL says: $(jq -c '.readings' <<<"$said")"
 [[ "$said" != *"$password"* ]] || fail "what MySQL says of itself holds its password"
 for id in $(my "SELECT ID FROM information_schema.PROCESSLIST WHERE INFO = 'SELECT SLEEP(30)'"); do my "KILL $id" || fail "can't let the client on MySQL go"; done
+
+step "Databases: a user in MySQL is a plan too, and signs in with what its secret is set to"
+db_id=$(jq -r '.id' <<<"$said")
+db_env=$(jq -r '.resource.scope' <<<"$said")
+# A grant reads _ in a name as any character, so a database beside it that matches
+# that pattern shows whether the user reaches only its own.
+my "CREATE DATABASE sellerx1" || fail "can't make a database"
+planned=$(dw databases add-user "$db_id" --user seller --database-name seller_1 --plan-only --json) || fail "planning a MySQL user failed: $planned"
+dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes >/dev/null || fail "making the MySQL user failed"
+[[ "$(my "SELECT COUNT(*) FROM mysql.user WHERE User = 'seller' AND Host = '%'")" == 1 ]] || fail "MySQL has no user seller"
+[[ -n "$(my "SHOW DATABASES LIKE 'seller\\_1'")" ]] || fail "MySQL has no database seller_1"
+said=$(dw databases get "$db_id" --json) || fail "reading the database failed"
+jq -e '.database.readings[0].users[] | select(.name == "seller") | .databases == ["seller_1"] and .secret == "SELLER_DATABASE_PASSWORD"' <<<"$said" >/dev/null ||
+  fail "the database says of seller: $(jq -c '.database.readings[0].users' <<<"$said")"
+printf 'e2e-seller-password-3Wq8' >"$data/seller-password"
+dw secrets update SELLER_DATABASE_PASSWORD --environment "$db_env" --value-file "$data/seller-password" --yes >/dev/null ||
+  fail "setting seller's password anew failed"
+# seller_says runs SQL as seller over the project's network, by the service's name.
+seller_says() { docker exec "$mysql_db" sh -c 'MYSQL_PWD=$1 exec mysql -useller -hdb -N -e "$2"' sh "$1" "$2" 2>&1; }
+[[ "$(seller_says e2e-seller-password-3Wq8 'SELECT 40 + 2')" == 42 ]] ||
+  fail "seller can't sign in with the secret's new value: $(seller_says e2e-seller-password-3Wq8 'SELECT 40 + 2')"
+[[ "$(seller_says not-the-password 'SELECT 40 + 2')" != 42 ]] || fail "seller signs in with any password"
+seller_says e2e-seller-password-3Wq8 'CREATE TABLE seller_1.orders (id INT)' >/dev/null || fail "seller can't make a table in seller_1"
+if seller_says e2e-seller-password-3Wq8 'CREATE TABLE sellerx1.orders (id INT)' >/dev/null; then
+  fail "seller can make a table in sellerx1, which its grant on seller_1 matched as a pattern"
+fi
+nothing_shows e2e-seller-password-3Wq8
 
 step "Catalog: Nginx Proxy Manager takes the email it was given and the password it wasn't"
 catalog_install nginx-proxy-manager --values ADMIN_EMAIL=owner@example.com
@@ -4028,7 +4238,8 @@ jq -e '(.change.plan.notes | any(.reason == "backup_first")) and (.change.plan.s
 change=$(jq -r .change.id <<<"$planned")
 dw changes apply "$change" --yes >/dev/null || fail "applying the upgrade failed"
 catalog_runs() {
-  local at runs
+  # port is local, as the script's own names where the control plane listens.
+  local at runs port
   at=$(catalog_container web)
   runs=$(docker inspect --format '{{.Config.Image}}' "$at") || fail "docker inspect $at failed"
   [[ "$runs" == "$1" ]] || fail "it runs $runs, want $1"
@@ -4171,5 +4382,46 @@ for name in e2e-two-own e2e-two-agent; do
 done
 dw containers delete e2e-two-own --on "$own_id" --yes || fail "deleting e2e-two-own failed"
 dw containers delete e2e-two-agent --on "$agent_id" --yes || fail "deleting e2e-two-agent failed"
+
+step "A shell in a container: the first shell its image has, as its user, and a passkey only where it's as good as root"
+(cd "$(dirname "$0")/.." && go build -o "$shell" ./scripts/shell) || fail "can't build scripts/shell"
+docker run -d --name e2e-shell-ash alpine:3.20 sleep 600 >/dev/null || fail "can't run alpine"
+docker run -d --name e2e-shell-bash --user nobody nginx:1.27 sleep 600 >/dev/null || fail "can't run nginx"
+docker run -d --name e2e-shell-root --privileged alpine:3.20 sleep 600 >/dev/null || fail "can't run a privileged alpine"
+docker run -d --name e2e-shell-none registry.k8s.io/pause:3.10 >/dev/null || fail "can't run the pause image"
+# What it mounts counts as where that leads: a volume that binds /etc, and a bind of a
+# link to /etc, each from a container that's otherwise ordinary.
+docker volume create --driver local -o type=none -o o=bind -o device=/etc e2e-shell-etc >/dev/null || fail "can't make a volume that binds /etc"
+ln -sfn /etc "$rollout_dir/etc-link" || fail "can't make a link to /etc"
+docker run -d --name e2e-shell-vol -v e2e-shell-etc:/host-etc:ro alpine:3.20 sleep 600 >/dev/null || fail "can't run alpine with a volume that binds /etc"
+docker run -d --name e2e-shell-link -v "$rollout_dir/etc-link:/host-etc:ro" alpine:3.20 sleep 600 >/dev/null || fail "can't run alpine with a link to /etc"
+# An ordinary named volume is the folder Docker keeps it in, and reaches no further.
+docker run -d --name e2e-shell-data -v e2e-shell-data:/data alpine:3.20 sleep 600 >/dev/null || fail "can't run alpine with a named volume"
+# shellcheck disable=SC2016 # the line is for the container's shell to expand
+in_shell() { "$shell" "http://localhost:$port" "$cookie" "$passkey" "$own_id" "$1" 'echo "in-$((6*7)) $0 $(id -un)"'; }
+said=$(in_shell e2e-shell-ash) || fail "a shell in alpine failed: $said"
+grep -q '^passkey: false' <<<"$said" || fail "a shell in a container that reaches no further than itself asked for the passkey: $said"
+grep -q 'in-42 /bin/ash root' <<<"$said" || fail "a shell in alpine isn't ash, as root: $said"
+said=$(in_shell e2e-shell-bash) || fail "a shell in nginx failed: $said"
+grep -q 'in-42 /bin/bash nobody' <<<"$said" || fail "a shell in nginx isn't bash, as the container's user: $said"
+said=$(in_shell e2e-shell-root) || fail "a shell in a privileged container failed: $said"
+grep -q '^passkey: true' <<<"$said" || fail "a shell in a privileged container opened with no passkey: $said"
+grep -q 'in-42 /bin/ash root' <<<"$said" || fail "a shell in a privileged alpine isn't ash: $said"
+for name in e2e-shell-vol e2e-shell-link; do
+  said=$(in_shell "$name") || fail "a shell in $name failed: $said"
+  grep -q '^passkey: true' <<<"$said" || fail "a shell in $name, which reaches /etc, opened with no passkey: $said"
+done
+# The kernel followed the link as the container started, and keeps /etc mounted
+# whatever the link says since, so the check goes by what's mounted.
+mkdir -p "$rollout_dir/plain" || fail "can't make a plain folder"
+ln -sfn "$rollout_dir/plain" "$rollout_dir/etc-link" || fail "can't move the link"
+said=$(in_shell e2e-shell-link) || fail "a shell in e2e-shell-link, after its link moved, failed: $said"
+grep -q '^passkey: true' <<<"$said" || fail "with its link moved after it started, a shell in e2e-shell-link, which still has /etc mounted, opened with no passkey: $said"
+said=$(in_shell e2e-shell-data) || fail "a shell in a container with a named volume failed: $said"
+grep -q '^passkey: false' <<<"$said" || fail "a shell in a container with an ordinary named volume asked for the passkey: $said"
+if said=$(in_shell e2e-shell-none 2>&1); then fail "a shell opened in the pause image, which has none: $said"; fi
+[[ "$said" == *"has none of /bin/bash, /bin/ash and /bin/sh"* ]] || fail "a container with no shell was refused saying: $said"
+docker rm --force e2e-shell-ash e2e-shell-bash e2e-shell-root e2e-shell-none e2e-shell-vol e2e-shell-link e2e-shell-data >/dev/null || fail "removing the shells' containers failed"
+docker volume rm e2e-shell-etc e2e-shell-data >/dev/null || fail "removing the shells' volumes failed"
 
 echo "docker-e2e: ok"

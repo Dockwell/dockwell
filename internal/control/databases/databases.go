@@ -9,10 +9,13 @@ package databases
 import (
 	"cmp"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,12 +30,14 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -59,8 +64,15 @@ type Secrets interface {
 	DecodeEach(ctx context.Context, tx *store.Tx, specs []store.StoredSpec) ([]proto.Message, []error, error)
 }
 
+// Changes proposes a change, as ProposeChange does, for a method that makes edits of
+// its own.
+type Changes interface {
+	Propose(ctx context.Context, summary string, edits []*dockwellv1.Edit, field func(*scope.ChoiceError, string) string, also changes.Also) (*dockwellv1.Change, error)
+}
+
 // Handler implements DatabaseService.
 type Handler struct {
+	changes Changes
 	agents  *agentapi.Agents
 	backups Backups
 	db      *store.DB
@@ -78,12 +90,13 @@ var _ dockwellv1connect.DatabaseServiceHandler = (*Handler)(nil)
 type keptReading struct {
 	reading *dockwellv1.DatabaseReading
 	at      time.Time
+	made    string
 }
 
 // New returns a handler that reads the store through keeper, asks agents what each
 // database says, and backups for what's kept of each.
-func New(agents *agentapi.Agents, backups Backups, db *store.DB, keeper Secrets, logger *slog.Logger) *Handler {
-	return &Handler{agents: agents, backups: backups, db: db, keeper: keeper, logger: logger, now: time.Now, kept: map[string]keptReading{}}
+func New(ch Changes, agents *agentapi.Agents, backups Backups, db *store.DB, keeper Secrets, logger *slog.Logger) *Handler {
+	return &Handler{changes: ch, agents: agents, backups: backups, db: db, keeper: keeper, logger: logger, now: time.Now, kept: map[string]keptReading{}}
 }
 
 // placed is a database with where it runs.
@@ -91,6 +104,9 @@ type placed struct {
 	db      *dockwellv1.Database
 	ref     resource.Ref
 	servers []store.Server
+	// made is what Dockwell last changed of it: its service's revision, and each of
+	// its users' revisions. A reading kept from before a change is no reading of it.
+	made string
 }
 
 // ListDatabases returns every database.
@@ -127,6 +143,225 @@ func (h *Handler) GetDatabase(ctx context.Context, req *connect.Request[dockwell
 		return nil, h.fail(ctx, err)
 	}
 	return connect.NewResponse(&dockwellv1.GetDatabaseResponse{Database: one.db}), nil
+}
+
+// passwordLength is how long a generated password is: 62 characters to choose from,
+// for about 190 bits.
+const passwordLength = 32
+
+// passwordAlphabet is what a generated password is made of, which every engine, URL
+// and shell takes as it is.
+const passwordAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+// CreateDatabaseUser plans a user and its database, with a generated password kept as
+// a secret of the environment.
+func (h *Handler) CreateDatabaseUser(ctx context.Context, req *connect.Request[dockwellv1.CreateDatabaseUserRequest]) (*connect.Response[dockwellv1.CreateDatabaseUserResponse], error) {
+	m := req.Msg
+	if m.GetId() == "" {
+		return nil, authapi.Invalid(errors.New("the request names no database. Pass its service's ID, or its name"))
+	}
+	user := m.GetUser()
+	if err := database.CheckSQLName("user", user); err != nil {
+		return nil, invalidField("user", err)
+	}
+	db := cmp.Or(m.GetDatabase(), user)
+	if err := database.CheckSQLName("database", db); err != nil {
+		return nil, invalidField("database", err)
+	}
+	secret := cmp.Or(m.GetSecret(), strings.ToUpper(user)+"_DATABASE_PASSWORD")
+	if err := variable.CheckName("secret", secret); err != nil {
+		return nil, invalidField("secret", err)
+	}
+	list, err := h.list(ctx)
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	server, err := h.pick(ctx, list, m.GetId(), m.GetProject(), m.GetEnvironment())
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	engine := database.Of(server.db.GetEngine())
+	if !engine.SQL() {
+		return nil, authapi.Invalid(fmt.Errorf("%s runs %s, which has no users of its own", server.ref.Name, engine.Name))
+	}
+	if len(server.servers) == 0 {
+		return nil, authapi.Invalid(fmt.Errorf("%s runs on no server now, and a user is made where it runs. Deploy it first", server.ref.Name))
+	}
+	env := server.ref.Scope
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		for _, taken := range []struct {
+			kind              resource.Kind
+			field, name, what string
+		}{
+			{database.UserKind, "user", user, fmt.Sprintf("a database user %s in this environment already. Choose another name", user)},
+			{variable.SecretKind, "secret", secret, fmt.Sprintf("a secret %s in this environment already, and a new user's password goes in a new one. Choose another name for it", secret)},
+			{variable.VariableKind, "secret", secret, fmt.Sprintf("a variable %s in this environment already, and a new user's password goes in a secret of its own. Choose another name for it", secret)},
+		} {
+			r, err := tx.GetResource(ctx, string(taken.kind), env, taken.name)
+			switch {
+			case err == nil && r.Spec != nil:
+				return invalidField(taken.field, errors.New("there's "+taken.what))
+			case err != nil && !errors.Is(err, store.ErrNotFound):
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	password, err := generate(passwordLength)
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	servers := make([]string, 0, len(server.servers))
+	for i := range server.servers {
+		servers = append(servers, server.servers[i].ID)
+	}
+	spec := &resourcev1.DatabaseUser{Service: server.ref.Name, Password: secret}
+	if db != user {
+		spec.DatabaseName = db
+	}
+	edits := []*dockwellv1.Edit{
+		{
+			Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: env, Name: secret},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: password}}},
+		},
+		{
+			Resource: &dockwellv1.ResourceRef{Kind: string(database.UserKind), Scope: env, Name: user},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: spec}},
+			Servers:  servers,
+		},
+	}
+	summary := fmt.Sprintf("Add the user %s to %s, with the database %s", user, server.ref.Name, db)
+	change, err := h.changes.Propose(ctx, summary, edits, nil, changes.Also{})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.CreateDatabaseUserResponse{Change: change}), nil
+}
+
+// ChangeDatabasePassword plans a new generated password for a database's first user,
+// in the secret its service starts with, or for a user Dockwell made, in theirs.
+// Setting the secret takes in the database and every app that uses it, and the agent
+// changes the first user's in the database as it restarts (ADR 0038), as a user's
+// own step does for theirs.
+func (h *Handler) ChangeDatabasePassword(ctx context.Context, req *connect.Request[dockwellv1.ChangeDatabasePasswordRequest]) (*connect.Response[dockwellv1.ChangeDatabasePasswordResponse], error) {
+	m := req.Msg
+	if m.GetId() == "" {
+		return nil, authapi.Invalid(errors.New("the request names no database. Pass its service's ID, or its name"))
+	}
+	list, err := h.list(ctx)
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	server, err := h.pick(ctx, list, m.GetId(), m.GetProject(), m.GetEnvironment())
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	engine := database.Of(server.db.GetEngine())
+	name, env := server.ref.Name, server.ref.Scope
+	whose, secret := m.GetUser(), server.db.GetPasswordSecret()
+	if whose == "" {
+		if secret == "" {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("%s's password isn't in a secret of its environment, so Dockwell has none to change. Keep it in a secret on its app's page first", name), "no_secret")
+		}
+		if engine.SQL() {
+			for i := range server.servers {
+				on := &server.servers[i]
+				if s, ok := h.agents.Session(on.ID); ok && !s.FirstPasswords() {
+					return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+						fmt.Errorf("%s's agent is too old to change a password in %s as it restarts. Update the agent on %s, then try again", on.Name, engine.Name, on.Name), "agent_outdated")
+				}
+			}
+		}
+		whose = firstUserOf(engine)
+	} else {
+		if err := database.CheckSQLName("user", whose); err != nil {
+			return nil, invalidField("user", err)
+		}
+		if secret, err = h.userSecret(ctx, env, name, whose); err != nil {
+			return nil, h.fail(ctx, err)
+		}
+	}
+	password, err := generate(passwordLength)
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	edits := []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: env, Name: secret},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: password}}},
+	}}
+	summary := fmt.Sprintf("Change the password of %s in %s", whose, name)
+	if whose == "" {
+		summary = "Change the password of " + name
+	}
+	change, err := h.changes.Propose(ctx, summary, edits, nil, changes.Also{})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.ChangeDatabasePasswordResponse{Change: change}), nil
+}
+
+// firstUserOf is who an engine's image makes first, as its password secret is theirs:
+// empty for Redis and Valkey, which have no users of their own.
+func firstUserOf(e *database.Engine) string {
+	switch e.Kind {
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL:
+		return "postgres"
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
+		return "root"
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
+		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
+	}
+	return ""
+}
+
+// userSecret is the secret a user Dockwell made in a database server, by its service's
+// name, keeps their password in.
+func (h *Handler) userSecret(ctx context.Context, env, server, user string) (string, error) {
+	var secret string
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		r, err := tx.GetResource(ctx, string(database.UserKind), env, user)
+		switch {
+		case errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil:
+			return invalidField("user", fmt.Errorf("%s has no user %s that Dockwell made. Choose one from its Users tab", server, user))
+		case err != nil:
+			return err
+		}
+		// A user's spec holds nothing secret, so it's stored as it is.
+		spec := &resourcev1.DatabaseUser{}
+		if err := proto.Unmarshal(r.Spec, spec); err != nil {
+			return fmt.Errorf("can't read the database user %s: %w", user, err)
+		}
+		if spec.GetService() != server {
+			return invalidField("user", fmt.Errorf("the user %s is %s's, not %s's", user, spec.GetService(), server))
+		}
+		secret = spec.GetPassword()
+		return nil
+	})
+	return secret, err
+}
+
+// invalidField is an invalid argument in one field of a request, which its reason
+// names, as "invalid_user", so a form can say it beside that field.
+func invalidField(field string, err error) *connect.Error {
+	return authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid_"+field)
+}
+
+// generate makes a password of n characters, each as likely as any other.
+func generate(n int) (string, error) {
+	var b strings.Builder
+	size := big.NewInt(int64(len(passwordAlphabet)))
+	for range n {
+		i, err := rand.Int(rand.Reader, size)
+		if err != nil {
+			return "", fmt.Errorf("generating a password: %w", err)
+		}
+		b.WriteByte(passwordAlphabet[i.Int64()])
+	}
+	return b.String(), nil
 }
 
 // pick finds the database a request names, by its service's ID or its name.
@@ -211,6 +446,21 @@ func (h *Handler) list(ctx context.Context) ([]*placed, error) {
 				byID[servers[i].ID] = servers[i]
 			}
 		}
+		// A user's spec holds nothing secret, so it's stored as it is.
+		made, err := tx.ListKind(ctx, string(database.UserKind))
+		if err != nil {
+			return err
+		}
+		users := map[string][]string{}
+		for i := range made {
+			u := &made[i]
+			spec := &resourcev1.DatabaseUser{}
+			if err := proto.Unmarshal(u.Spec, spec); err != nil {
+				return fmt.Errorf("can't read the database user %s: %w", u.Name, err)
+			}
+			key := u.Scope + "/" + spec.GetService()
+			users[key] = append(users[key], u.ID+"@"+strconv.Itoa(u.Revision))
+		}
 		inScope := map[string][]string{}
 		for i := range services {
 			inScope[services[i].Scope] = append(inScope[services[i].Scope], services[i].Name)
@@ -264,7 +514,10 @@ func (h *Handler) list(ctx context.Context) ([]*placed, error) {
 				entries[r.Scope] = entry
 			}
 			db.CatalogEntry = entry
-			p := &placed{db: db, ref: resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}}
+			p := &placed{db: db, ref: resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}, made: strconv.Itoa(r.Revision)}
+			for _, u := range users[r.Scope+"/"+r.Name] {
+				p.made += " " + u
+			}
 			for _, d := range deployments[r.ID] { //nolint:gocritic // a few rows, read once
 				if s, ok := byID[d.Server]; ok && d.State != store.DeploymentSuperseded {
 					p.servers = append(p.servers, s)
@@ -331,7 +584,58 @@ func (h *Handler) complete(ctx context.Context, list []*placed) error {
 		}
 	}
 	h.read(ctx, list)
-	return nil
+	return h.made(ctx, list)
+}
+
+// made marks the users Dockwell made in each database, with the secret each signs in
+// with and the services that use it. A spec of a database user holds nothing secret,
+// so it's stored as it is.
+func (h *Handler) made(ctx context.Context, list []*placed) error {
+	byScope := map[string][]*placed{}
+	for _, p := range list {
+		byScope[p.ref.Scope] = append(byScope[p.ref.Scope], p)
+	}
+	return h.db.View(ctx, func(tx *store.Tx) error {
+		for env, dbs := range byScope {
+			users, err := tx.ListResources(ctx, env, string(database.UserKind))
+			if err != nil {
+				return err
+			}
+			if len(users) == 0 {
+				continue
+			}
+			uses, err := tx.UsersOf(ctx, env, string(variable.SecretKind))
+			if err != nil {
+				return err
+			}
+			for i := range users {
+				u := &users[i]
+				spec := &resourcev1.DatabaseUser{}
+				if err := proto.Unmarshal(u.Spec, spec); err != nil {
+					return fmt.Errorf("can't read the database user %s: %w", u.Name, err)
+				}
+				var usedBy []string
+				for j := range uses {
+					if uses[j].Kind == string(service.Kind) && uses[j].Uses.Name == spec.GetPassword() && !slices.Contains(usedBy, uses[j].Name) {
+						usedBy = append(usedBy, uses[j].Name)
+					}
+				}
+				for _, p := range dbs {
+					if p.ref.Name != spec.GetService() {
+						continue
+					}
+					for _, r := range p.db.GetReadings() {
+						for _, a := range r.GetUsers() {
+							if a.GetName() == u.Name {
+								a.Secret, a.UsedBy, a.ResourceId = spec.GetPassword(), usedBy, u.ID
+							}
+						}
+					}
+				}
+			}
+		}
+		return nil
+	})
 }
 
 // read asks each server about its databases at once, all servers together, and
@@ -347,7 +651,7 @@ func (h *Handler) read(ctx context.Context, list []*placed) {
 	for _, p := range list {
 		for i := range p.servers {
 			s := p.servers[i]
-			if r, ok := h.fresh(s.ID, p.db.GetId(), now); ok {
+			if r, ok := h.fresh(s.ID, p.db.GetId(), p.made, now); ok {
 				p.db.Readings = append(p.db.Readings, r)
 				continue
 			}
@@ -377,12 +681,12 @@ func (h *Handler) read(ctx context.Context, list []*placed) {
 	}
 }
 
-// fresh is a reading taken a moment ago.
-func (h *Handler) fresh(server, db string, now time.Time) (*dockwellv1.DatabaseReading, bool) {
+// fresh is a reading taken a moment ago, of the database as Dockwell last changed it.
+func (h *Handler) fresh(server, db, made string, now time.Time) (*dockwellv1.DatabaseReading, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	k, ok := h.kept[server+"/"+db]
-	if !ok || now.Sub(k.at) >= keepFor {
+	if !ok || now.Sub(k.at) >= keepFor || k.made != made {
 		return nil, false
 	}
 	return proto.CloneOf(k.reading), true
@@ -430,7 +734,7 @@ func (h *Handler) ask(ctx context.Context, server store.Server, dbs []*placed) [
 		r.ServerId, r.ServerName, r.ReadTime = server.ID, server.Name, timestamppb.New(at)
 		out[i] = r
 		if keep {
-			h.kept[server.ID+"/"+p.db.GetId()] = keptReading{reading: proto.CloneOf(r), at: at}
+			h.kept[server.ID+"/"+p.db.GetId()] = keptReading{reading: proto.CloneOf(r), at: at, made: p.made}
 		}
 	}
 	for k, v := range h.kept {

@@ -24,6 +24,9 @@ service TokenService {
   // response, and only there: Dockwell keeps only its hash.
   rpc CreateToken(CreateTokenRequest) returns (CreateTokenResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/tokens"
       body: "*"
@@ -36,6 +39,9 @@ service TokenService {
   rpc ListTokens(ListTokensRequest) returns (ListTokensResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {get: "/v1/tokens"};
     option (dockwell.v1.command) = {noun: "api-tokens"};
   }
@@ -44,6 +50,9 @@ service TokenService {
   // close.
   rpc RevokeToken(RevokeTokenRequest) returns (RevokeTokenResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/tokens/{id}:revoke"
       body: "*"

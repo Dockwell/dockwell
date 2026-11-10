@@ -61,6 +61,58 @@ extend google.protobuf.MethodOptions {
   // What an API token needs for this method, beyond its scope, because of
   // what the method can read. Most methods leave it unset.
   TokenGrant needs_grant = 50103;
+  // The lowest role the method needs where its objects are in an open
+  // environment, or in none. Every Dockwell method sets it, and a test fails
+  // the build on one that doesn't. See
+  // docs/adr/0049-roles-and-invites-by-project.md.
+  Needs min_role = 50104;
+  // The lowest role the method needs where any of its objects is in a
+  // protected environment. Every Dockwell method sets it too.
+  Needs min_role_protected = 50105;
+  // What the method's objects are, which says how its role is checked.
+  // Every Dockwell method sets it.
+  Reach reach = 50106;
+}
+
+// Needs is the lowest role a method needs (ADR 0049). A role holds where its
+// grant does: on a project, or on the install, which covers every project.
+enum Needs {
+  NEEDS_UNSPECIFIED = 0;
+  // No role: a call before signing in, or signing out, which someone with no
+  // grant left may still do.
+  NEEDS_NOTHING = 1;
+  // A viewer's grant: reading.
+  NEEDS_VIEWER = 2;
+  // A developer's grant: planning, and applying outside protected
+  // environments.
+  NEEDS_DEVELOPER = 3;
+  // An admin's grant, which is on the whole install.
+  NEEDS_ADMIN = 4;
+  // The owner.
+  NEEDS_OWNER = 5;
+}
+
+// Reach says what a method's objects are, for how its role is checked
+// (ADR 0049).
+enum Reach {
+  REACH_UNSPECIFIED = 0;
+  // Nobody's: a call before signing in, such as signing in or the version.
+  REACH_ANYONE = 1;
+  // The caller's own sign-in, sessions and tokens, and nobody else's.
+  REACH_SELF = 2;
+  // The same for everyone who holds a grant, such as the catalog's apps.
+  REACH_SHARED = 3;
+  // A project's own objects, named by ID or listed, each placed by the
+  // resolver. What a list or a filter holds on a server alone, such as a
+  // firewall rule, a container on its own or an access event, is placed as
+  // the install's.
+  REACH_PROJECT = 4;
+  // What projects name on the install, such as servers and backup
+  // destinations, read or checked; below an admin, a response holds names and
+  // states only.
+  REACH_NAMED = 5;
+  // The install's own, such as files, terminals and settings.
+  REACH_INSTALL = 6;
 }
 
 // Noun describes one noun of the dockwell CLI, the command that holds the

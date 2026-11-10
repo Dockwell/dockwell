@@ -767,7 +767,7 @@ export async function planFlow(
   await linkRisk.waitFor();
   if (!(await linkRisk.evaluate((el) => el.classList.contains("dw-tone-critical"))))
     fail("a symlink to /etc isn't red");
-  if (!(await linkRisk.innerText()).includes("It leads to /etc")) fail("it doesn't say where the symlink leads");
+  if (!(await linkRisk.innerText()).includes("which leads to /etc")) fail("it doesn't say where the symlink leads");
   if ((await linked.locator(".plan-gate").count()) !== 1) fail("a symlink to /etc asks for no typing");
   await shoot(page, "plan-symlink");
   await linked.getByRole("button", { name: "Cancel" }).click();
@@ -886,7 +886,15 @@ volumes:
   await page.goto(`${origin}/apps`);
   await page.getByRole("link", { name: "fixme", exact: true }).click();
   await page.getByRole("heading", { level: 1, name: "fixme", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Delete this app" }).click();
+  // Deleting is in Settings' danger zone, as the mock has it.
+  await page
+    .getByRole("navigation", { name: "App sections" })
+    .getByRole("link", { name: "Settings", exact: true })
+    .click();
+  await page
+    .getByRole("region", { name: "Danger zone" })
+    .getByRole("button", { name: /^Delete / })
+    .click();
   const deleting = page.getByRole("dialog", { name: "Review plan" });
   await deleting.waitFor();
   const button = deleting.getByRole("button", { name: /Delete fixme/ });

@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { ChangeService, LogService } from "@dockwell/api";
+import { ChangeService, LogService, ServiceService } from "@dockwell/api";
 import { Button, Callout, Icon, PHONE_QUERY, StatusBadge, TabNav, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useMatch } from "@tanstack/react-router";
@@ -38,6 +38,7 @@ import { useWhoWords } from "./revision";
 import { usePlaces, useServices } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
+import { useMay } from "../auth/may";
 import { useServicesWatch } from "./ServicesLive";
 
 /**
@@ -202,6 +203,11 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       make: () => createClient(ChangeService, transport).restartService({ id: service.id }),
     });
   const place = places.place(environmentOf(service));
+  // An action on what you can see stays where it is, off, with why (ADR 0059).
+  const may = useMay();
+  const here = { environment: environmentOf(service) };
+  const mayRestart = may(ChangeService.method.restartService, here);
+  const mayDeploy = may(ServiceService.method.deployService, here);
   return (
     <Page
       title={name}
@@ -252,12 +258,19 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       actions={
         <>
           {restartable ? (
-            <Button icon="refresh" onClick={restart}>
+            <Button icon="refresh" onClick={restart} {...mayRestart.off}>
               <Trans>Restart</Trans>
             </Button>
           ) : null}
+          {/*
+            As App-Overview has it, between Restart and Deploy. It stays on the Logs tab too, as App-Logs has it,
+            so the buttons don't move from tab to tab; there the router marks it as the current page.
+          */}
+          <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal">
+            <Trans>Logs</Trans>
+          </RouterButtonLink>
           {changeable ? (
-            <Button variant="primary" icon="deploy" onClick={() => setDeploying(true)}>
+            <Button variant="primary" icon="deploy" onClick={() => setDeploying(true)} {...mayDeploy.off}>
               <Trans>Deploy</Trans>
             </Button>
           ) : null}
@@ -293,18 +306,24 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           <RouterTabLink to="/apps/$serviceId/environment" params={{ serviceId }}>
             <Trans>Environment</Trans>
           </RouterTabLink>
+          <RouterTabLink to="/apps/$serviceId/settings" params={{ serviceId }}>
+            <Trans>Settings</Trans>
+          </RouterTabLink>
         </TabNav>
       )}
       <LogsSearchButton value={searchButton}>{children}</LogsSearchButton>
       {/* The logs tab has a bar of its own on a phone: Download and Copy. */}
       {phone && !onLogs && changeable ? (
         <div className="app-actionbar">
+          <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal" size="lg">
+            <Trans>Logs</Trans>
+          </RouterButtonLink>
           {restartable ? (
-            <Button icon="refresh" size="lg" onClick={restart}>
+            <Button icon="refresh" size="lg" onClick={restart} {...mayRestart.off}>
               <Trans>Restart</Trans>
             </Button>
           ) : null}
-          <Button variant="primary" icon="deploy" size="lg" onClick={() => setDeploying(true)}>
+          <Button variant="primary" icon="deploy" size="lg" onClick={() => setDeploying(true)} {...mayDeploy.off}>
             <Trans>Deploy</Trans>
           </Button>
         </div>

@@ -711,12 +711,12 @@ const file_dockwell_v1_container_proto_rawDesc = "" +
 	"\x1aCONTAINER_STATE_RESTARTING\x10\x04\x12\x1c\n" +
 	"\x18CONTAINER_STATE_REMOVING\x10\x05\x12\x1a\n" +
 	"\x16CONTAINER_STATE_EXITED\x10\x06\x12\x18\n" +
-	"\x14CONTAINER_STATE_DEAD\x10\a2\xad\x02\n" +
-	"\x10ContainerService\x12x\n" +
-	"\x0eListContainers\x12\".dockwell.v1.ListContainersRequest\x1a#.dockwell.v1.ListContainersResponse\"\x1d\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x10\x12\x0e/v1/containers\x90\x02\x01\x12\x9e\x01\n" +
-	"\x0eAdoptContainer\x12\".dockwell.v1.AdoptContainerRequest\x1a#.dockwell.v1.AdoptContainerResponse\"C\xa0\xbb\x18\x02\xaa\xbb\x18\x13\n" +
+	"\x14CONTAINER_STATE_DEAD\x10\a2\xc6\x02\n" +
+	"\x10ContainerService\x12\x84\x01\n" +
+	"\x0eListContainers\x12\".dockwell.v1.ListContainersRequest\x1a#.dockwell.v1.ListContainersResponse\")\xa0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x10\x12\x0e/v1/containers\x90\x02\x01\x12\xaa\x01\n" +
+	"\x0eAdoptContainer\x12\".dockwell.v1.AdoptContainerRequest\x1a#.dockwell.v1.AdoptContainerResponse\"O\xa0\xbb\x18\x02\xaa\xbb\x18\x13\n" +
 	"\n" +
-	"containers\x12\x05adopt\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/containers/{id}:adoptB\xa7\x01\n" +
+	"containers\x12\x05adopt\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/containers/{id}:adoptB\xa7\x01\n" +
 	"\x0fcom.dockwell.v1B\x0eContainerProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

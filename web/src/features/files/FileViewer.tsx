@@ -2,23 +2,24 @@
 
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
-import { type FileEntry, FileService, type ReadFileResponse, StepUpAction } from "@dockwell/api";
-import { Button, Callout, CodeField, Icon, Panel, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
+import { downloadFileURL, type FileEntry, FileService, type ReadFileResponse, StepUpAction } from "@dockwell/api";
+import { Button, ButtonLink, Callout, CodeField, Icon, Panel, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBlocker, useNavigate } from "@tanstack/react-router";
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 
-import { reasonOf, sentence } from "../../lib/errors";
+import { isRoleRefusal, reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { onApple } from "../../lib/platform";
 import { PasskeyError } from "../../lib/webauthn";
+import { AddPasskeyHere } from "../auth/AddPasskeyHere";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Base, type Draft, dropDraft, heldDraft, holdDraft } from "./drafts";
-import { changedLines, editable, lineCount, lineEnding, nameOf, restoreEndings } from "./paths";
+import { changedLines, editable, lineCount, lineEnding, nameOf, withEndings } from "./paths";
 
 interface FileViewerProps {
   serverId: string;
@@ -51,15 +52,22 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
     void navigate({ to: "/servers/$serverId/files", params: { serverId }, search: { path: folder } });
   };
   const size = file ? formatBytes(file.sizeBytes, i18n.locale) : "";
+  const download = (
+    <ButtonLink size="sm" icon="download" href={downloadFileURL({ serverId, path })} download>
+      <Trans>Download</Trans>
+    </ButtonLink>
+  );
   const body = () => {
     if (query.error) {
       const reason = reasonOf(query.error);
-      const refused = reason === "file_refused";
-      const title = refused
-        ? t`Dockwell doesn't open this file`
-        : reason === "path_not_answering"
-          ? t`This path isn't answering`
-          : t`Can't read this file`;
+      const refused = reason === "file_refused" || isRoleRefusal(query.error);
+      const title = isRoleRefusal(query.error)
+        ? t`Your role doesn't cover this`
+        : reason === "file_refused"
+          ? t`Dockwell doesn't open this file`
+          : reason === "path_not_answering"
+            ? t`This path isn't answering`
+            : t`Can't read this file`;
       return (
         <div className="files-note">
           <Callout tone={refused ? "warning" : "critical"} title={title}>
@@ -78,10 +86,10 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
     if (read.binary) {
       return (
         <div className="files-note">
-          <Callout tone="info" title={t`This isn't a text file`}>
+          <Callout tone="info" title={t`This isn't a text file`} actions={download}>
             <Trans>
-              It's {size}, and it isn't UTF-8 text, so there's nothing to show here. Connect to the server over SSH to
-              work with it.
+              It's {size}, and it isn't UTF-8 text, so there's nothing to show here. Download it to open it on your
+              computer, or connect to the server over SSH to work with it.
             </Trans>
           </Callout>
         </div>
@@ -91,10 +99,10 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
       return (
         <>
           <div className="files-note">
-            <Callout tone="warning" title={t`Showing the first 1 MB`}>
+            <Callout tone="warning" title={t`Showing the first 1 MB`} actions={download}>
               <Trans>
-                This file is {size}, so the rest of it stays on the server, and it can't be edited here. Connect to the
-                server over SSH to work with it all.
+                This file is {size}, so the rest of it stays on the server, and it can't be edited here. Download it to
+                see it all, or connect to the server over SSH to work with it.
               </Trans>
             </Callout>
           </div>
@@ -108,21 +116,6 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
           <div className="files-note">
             <Callout tone="info" title={t`This server's agent can't save files`}>
               <Trans>Update the agent on this server to edit {name} here. You can still read it.</Trans>
-            </Callout>
-          </div>
-          <CodeField className="files-code" aria-label={t`Contents of ${name}`} value={read.content} readOnly />
-        </>
-      );
-    }
-    if (lineEnding(read.content) === "mixed") {
-      return (
-        <>
-          <div className="files-note">
-            <Callout tone="info" title={t`This file can't be edited here`}>
-              <Trans>
-                {name} has more than one kind of line ending, so saving it here would change lines you didn't touch.
-                Connect to the server over SSH to edit it.
-              </Trans>
             </Callout>
           </div>
           <CodeField className="files-code" aria-label={t`Contents of ${name}`} value={read.content} readOnly />
@@ -151,7 +144,23 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
         )
       }
       actions={
-        phone ? undefined : <Button variant="ghost" size="sm" icon="x" aria-label={t`Close ${name}`} onClick={close} />
+        phone ? undefined : (
+          <>
+            {/* What a read refused, a download does, and a browser shows only "Failed" for it. */}
+            {query.error ? null : (
+              <ButtonLink
+                variant="ghost"
+                size="sm"
+                icon="download"
+                href={downloadFileURL({ serverId, path })}
+                download
+                aria-label={t`Download ${name}`}
+                title={t`Download`}
+              />
+            )}
+            <Button variant="ghost" size="sm" icon="x" aria-label={t`Close ${name}`} onClick={close} />
+          </>
+        )
       }
     >
       {file ? (
@@ -179,7 +188,7 @@ function baseOf(read: ReadFileResponse): Base {
   return {
     text: editable(read.content),
     version: read.version,
-    crlf: lineEnding(read.content) === "CRLF",
+    original: read.content,
     where: read.path,
     wayBackIn: read.wayBackIn,
   };
@@ -200,14 +209,21 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
   const explain = useAuthError();
   const [base, setBase] = useState(() => baseOf(read));
   const [draft, setDraft] = useState(base.text);
+  // A save keeps each line's ending, so a file with more than one kind says so and edits as any other.
+  const ending = useMemo(() => lineEnding(base.original), [base.original]);
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [problem, setProblem] = useState<string>();
+  // Saving took a passkey, and there's none for this address: offer to add one, then save again.
+  const [noPasskey, setNoPasskey] = useState(false);
   // A save that was writing as the server stopped answering isn't a failure.
   const [mayLand, setMayLand] = useState(false);
   // Where the file leads now, once that isn't where it led when you read it.
   const [moved, setMoved] = useState<string>();
   const [justSaved, setJustSaved] = useState(false);
+  // An edit too large to keep each line's ending, on a file with more than one kind: the person picks one,
+  // and it's saved over the version this holds, the one the save that asked was going to save over.
+  const [pickEnding, setPickEnding] = useState<string>();
   const who = useSignedInUser()?.id ?? "";
   const [offer, setOffer] = useState<Draft | undefined>(() => heldDraft(serverId, path, who));
   const edited = draft !== base.text;
@@ -225,6 +241,7 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
 
   const client = createClient(FileService, transport);
   const change = (next: string) => {
+    setPickEnding(undefined);
     setDraft(next);
     setJustSaved(false);
     onEdited(next !== base.text);
@@ -252,11 +269,19 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
     setOffer(undefined);
   };
 
-  const save = async (over: string) => {
+  /** Saves what's typed over the version given, each line with its own ending, or every line with one. */
+  const save = async (over: string, every?: "LF" | "CRLF") => {
     const sent = draft;
-    const content = restoreEndings(sent, base.crlf);
+    const content =
+      every === "CRLF" ? sent.replace(/\n/g, "\r\n") : every === "LF" ? sent : withEndings(sent, base.original);
+    if (content === undefined) {
+      setPickEnding(over);
+      return;
+    }
+    setPickEnding(undefined);
     setSaving(true);
     setProblem(undefined);
+    setNoPasskey(false);
     setMayLand(false);
     setConflict(false);
     setJustSaved(false);
@@ -275,7 +300,8 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
             confirmedPath: base.wayBackIn || proof ? base.where : "",
           }),
       );
-      setBase((was) => ({ ...was, text: sent, version: res.version }));
+      // What was saved is what the next save keeps each line's ending from.
+      setBase((was) => ({ ...was, text: sent, original: content, version: res.version }));
       dropDraft(serverId, path);
       setJustSaved(true);
       onSaved(res.file);
@@ -286,12 +312,8 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
     } catch (err) {
       const reason = reasonOf(err);
       if (reason === "file_changed") setConflict(true);
-      else if (reason === "no_passkey_here") {
-        const where = base.where;
-        setProblem(
-          t`Saving ${where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it.`,
-        );
-      } else {
+      else if (reason === "no_passkey_here") setNoPasskey(true);
+      else {
         setMayLand(reason === "save_may_land");
         if (err instanceof PasskeyError && err.problem === "cancelled") {
           setProblem(t`The passkey prompt closed, so nothing was saved. Save again when you're ready.`);
@@ -334,11 +356,6 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
       if (!now.version) {
         setConflict(false);
         setProblem(t`${name} isn't a text file under 1 MB any more, so it can't be loaded here.`);
-        return;
-      }
-      if (lineEnding(now.content) === "mixed") {
-        setConflict(false);
-        setProblem(t`${name} has more than one kind of line ending now, so it can't be loaded here.`);
         return;
       }
       const next = baseOf(now);
@@ -428,6 +445,14 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
           </Callout>
         </div>
       ) : null}
+      {noPasskey ? (
+        <div className="files-note">
+          <AddPasskeyHere
+            title={t`Saving this takes a passkey, and there's none for this address yet`}
+            onAdded={() => void save(base.version)}
+          />
+        </div>
+      ) : null}
       {problem ? (
         <div className="files-note">
           <Callout
@@ -449,8 +474,28 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
       <div className="files-foot">
         <span>{plural(lineCount(draft), { one: "# line", other: "# lines" })}</span>
         <span>UTF-8</span>
-        <span>{base.crlf ? "CRLF" : "LF"}</span>
+        <span>{ending === "mixed" ? t`Mixed line endings` : ending}</span>
       </div>
+      {edited && pickEnding !== undefined ? (
+        <div className="files-note">
+          <Callout
+            tone="warning"
+            title={t`This edit moves too much to keep each line's ending`}
+            actions={
+              <>
+                <Button size="sm" disabled={saving} onClick={() => void save(pickEnding, "LF")}>
+                  <Trans>Save with LF</Trans>
+                </Button>
+                <Button size="sm" disabled={saving} onClick={() => void save(pickEnding, "CRLF")}>
+                  <Trans>Save with CRLF</Trans>
+                </Button>
+              </>
+            }
+          >
+            {t`${name} has more than one kind of line ending; pick one for every line.`}
+          </Callout>
+        </div>
+      ) : null}
       {edited ? (
         <div className="files-save">
           <div className="files-save-what">

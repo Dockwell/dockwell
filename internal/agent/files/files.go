@@ -9,8 +9,10 @@ package files
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -20,6 +22,7 @@ import (
 	"os/user"
 	"path"
 	"regexp"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -42,6 +45,8 @@ const (
 	MaxFileBytes = 1 << 20
 	// MaxEntries is the most entries a listing returns.
 	MaxEntries = 5000
+	// listChunk is how many names a listing reads from a directory at a time.
+	listChunk = 4096
 	// maxListBytes is the most a listing's names and link targets come to, as
 	// each target can be 4 KiB, and an oversized message would end the stream.
 	maxListBytes = 4 << 20
@@ -50,6 +55,21 @@ const (
 	// slots is how many of these calls run at once. Each can hold a file in
 	// memory, and they share the agent's stream.
 	slots = 4
+	// transfers is how many uploads and downloads run at once, each on a
+	// connection of its own, and each holding a part or two at a time.
+	transfers = 3
+	// transferWait is how long an upload or a download waits for one of those
+	// places before the agent says it's busy, rather than leave a person looking
+	// at nothing moving.
+	transferWait = 20 * time.Second
+	// settleAfter is how long after the last transfer the agent hands back the
+	// memory transfers used, as an upload's next part may follow at once.
+	settleAfter = 2 * time.Second
+	// transferGC is the collector's target while transfers run, as GOGC says it:
+	// each frame is garbage once it's written, and the heap that's live is small,
+	// so collecting twice as often costs little and keeps the agent within its
+	// budget on a busy server, where a collector that falls behind lets it grow.
+	transferGC = 50
 )
 
 // Server reads a server's files.
@@ -68,6 +88,13 @@ type Server struct {
 	logger     *slog.Logger
 	dockerRoot func(context.Context) (string, error)
 	slots      chan struct{}
+	transfers  chan struct{}
+	// settle hands back what transfers used, once none has run for settleAfter,
+	// and gcWas is the collector's target from before they started, when gcSet.
+	// It's mu that guards them.
+	settle *time.Timer
+	gcWas  int
+	gcSet  bool
 
 	// mu is never held across anything that touches a disk.
 	mu    sync.Mutex
@@ -82,8 +109,29 @@ type Server struct {
 	systemPlaces func() []string
 	listedFiles  []string
 	accounts     func() (passwd, group string)
+	// homeRoot is where people's homes are, as the rule for logins has it, which a
+	// server can have lead elsewhere.
+	homeRoot string
+	// identityOf says what's at a path, by device and inode. A test stands in for
+	// a bind mount with it, as giving one place two names takes root.
+	identityOf func(path string) (identity, bool)
+	// unpackLimit is the most entries an archive unpacks to: maxUnpacked, unless a
+	// test says fewer.
+	unpackLimit uint64
+	// transferWait is how long a transfer waits for a place: transferWait, unless
+	// a test says less.
+	transferWait time.Duration
+	// statfs reads a disk's free space as an unpack goes: unix.Fstatfs, unless a
+	// test fills the disk.
+	statfs func(fd int, st *unix.Statfs_t) error
 	// saving keeps saves of roots to one at a time.
 	saving sync.Mutex
+	// claimed holds the entries of Recently deleted a call has. It's mu that guards it.
+	claimed map[string]bool
+	// pruneNow asks for what's deleted for good to go now (KeepDeleted).
+	pruneNow chan struct{}
+	// now is the time, which a test can move on.
+	now func() time.Time
 }
 
 // New returns a Server. dataDir is Dockwell's data directory, and dockerRoot says
@@ -93,9 +141,10 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 		logger = slog.New(slog.DiscardHandler)
 	}
 	s := &Server{
-		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots),
+		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots), transfers: make(chan struct{}, transfers),
 		stuck: map[*trail]string{}, mounts: mounts.Read, savesEnded: make(chan *agentv1.SaveEnded, maxStuck),
-		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts,
+		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts, homeRoot: "/home", identityOf: statIdentity,
+		claimed: map[string]bool{}, pruneNow: make(chan struct{}, 1), now: time.Now,
 	}
 	s.roots = s.loadRoots()
 	return s
@@ -111,6 +160,74 @@ func (s *Server) Take(ctx context.Context) (func(), error) {
 	case <-ctx.Done():
 		return nil, fmt.Errorf("the agent is busy reading other files: %w", ctx.Err())
 	}
+}
+
+// ErrBusy is a transfer that waited transferWait for a place, and got none.
+var ErrBusy = errors.New("every upload and download the server runs at once is under way")
+
+// Busy is what a transfer that got no place says.
+func Busy() *agentv1.FileRefusal {
+	return &agentv1.FileRefusal{
+		Kind:    agentv1.FileRefusal_KIND_BUSY,
+		Message: fmt.Sprintf("the server is busy with %d other uploads and downloads, so this one didn't start. Try again once one of them ends", transfers),
+	}
+}
+
+// TakeTransfer waits for one of the places an upload's write or a download runs
+// in, and returns how to give it back. They're long, so they don't take the places
+// listings and reads need. One that waits transferWait for none fails with ErrBusy.
+func (s *Server) TakeTransfer(ctx context.Context) (func(), error) {
+	wait := time.NewTimer(cmp.Or(s.transferWait, transferWait))
+	defer wait.Stop()
+	select {
+	case s.transfers <- struct{}{}:
+		s.mu.Lock()
+		if !s.gcSet {
+			s.gcWas, s.gcSet = debug.SetGCPercent(transferGC), true
+			// Off, or lower already, stays as it is.
+			if s.gcWas < transferGC {
+				debug.SetGCPercent(s.gcWas)
+			}
+		}
+		s.mu.Unlock()
+		return func() {
+			<-s.transfers
+			s.settleSoon()
+		}, nil
+	case <-wait.C:
+		return nil, ErrBusy
+	case <-ctx.Done():
+		return nil, fmt.Errorf("the agent is busy with %d other uploads and downloads: %w", transfers, ctx.Err())
+	}
+}
+
+// settleSoon has settleIfIdle run once settleAfter passes with nothing more to
+// settle.
+func (s *Server) settleSoon() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.settle == nil {
+		s.settle = time.AfterFunc(settleAfter, s.settleIfIdle)
+	} else {
+		s.settle.Reset(settleAfter)
+	}
+}
+
+// settleIfIdle hands the memory transfers used back to the system, when none is
+// running, so an agent's memory after a large upload or download is what it was
+// before: Go keeps what it freed for a while otherwise, and the agent's budget is
+// its memory at rest.
+func (s *Server) settleIfIdle() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.transfers) != 0 {
+		return
+	}
+	if s.gcSet {
+		debug.SetGCPercent(s.gcWas)
+		s.gcSet = false
+	}
+	debug.FreeOSMemory()
 }
 
 // CheckPath refuses a path that isn't absolute, or that could read otherwise
@@ -154,17 +271,88 @@ func Printable(text string) string {
 	return text
 }
 
-// List returns what the directory at p holds.
-func (s *Server) List(ctx context.Context, p string) (*agentv1.ListFilesResult, error) {
+// List returns what the directory at p holds, a page at a time in name order: the
+// names that hold match, if it isn't empty, after the page a token from an earlier
+// listing names, if it isn't empty.
+func (s *Server) List(ctx context.Context, p, match, page string) (*agentv1.ListFilesResult, error) {
 	if err := CheckPath(p); err != nil {
 		return nil, err
 	}
+	after, err := PageAfter(page)
+	if err != nil {
+		return nil, err
+	}
 	return attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.ListFilesResult, error) {
-		return s.list(ctx, t, p)
+		return s.list(ctx, t, p, match, after)
 	}, func(r *agentv1.FileRefusal) *agentv1.ListFilesResult { return &agentv1.ListFilesResult{Refusal: r} })
 }
 
-func (s *Server) list(ctx context.Context, t *trail, p string) (*agentv1.ListFilesResult, error) {
+// PageAfter is the name a page token says a listing goes on after: the token is
+// the name's bytes, as a name needn't be UTF-8.
+func PageAfter(page string) (string, error) {
+	after, err := base64.RawURLEncoding.DecodeString(page)
+	if err != nil || page != "" && len(after) == 0 {
+		return "", errors.New("that page token isn't one a listing gave. List the folder again from its start")
+	}
+	return string(after), nil
+}
+
+// pageToken is what a listing gives for the page after the name it ended on.
+func pageToken(after string) string { return base64.RawURLEncoding.EncodeToString([]byte(after)) }
+
+// holds reports a name that holds match, case aside, without a lowered copy of each
+// name: a search reads every name of a folder of any size. A name is at most 255
+// bytes, so trying each place in it costs little.
+func holds(name, match string) bool {
+	if match == "" {
+		return true
+	}
+	for i := 0; i+len(match) <= len(name); i++ {
+		if strings.EqualFold(name[i:i+len(match)], match) {
+			return true
+		}
+	}
+	return false
+}
+
+// pageOf reads a directory's names a chunk at a time and keeps the first
+// MaxEntries+1 in name order that come after after and hold match, case aside. So
+// a folder of any size lists from its first name, with memory for two pages of
+// names at most, whatever it holds.
+func pageOf(ctx context.Context, dir *os.File, after, match string) ([]string, error) {
+	keep := MaxEntries + 1
+	var names []string
+	for {
+		chunk, err := dir.Readdirnames(listChunk)
+		for _, n := range chunk {
+			if after != "" && n <= after || !holds(n, match) {
+				continue
+			}
+			names = append(names, n)
+		}
+		if len(names) >= 2*keep {
+			slices.Sort(names)
+			clear(names[keep:])
+			names = names[:keep]
+		}
+		if errors.Is(err, io.EOF) || err == nil && len(chunk) == 0 {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+	}
+	slices.Sort(names)
+	if len(names) > keep {
+		names = names[:keep]
+	}
+	return names, nil
+}
+
+func (s *Server) list(ctx context.Context, t *trail, p, match, after string) (*agentv1.ListFilesResult, error) {
 	g := s.guard(ctx)
 	w, refusal := g.walk(t, p)
 	if refusal != nil {
@@ -187,21 +375,29 @@ func (s *Server) list(ctx context.Context, t *trail, p string) (*agentv1.ListFil
 	}
 	dir := os.NewFile(uintptr(fd), where)
 	defer dir.Close()
-	names, err := dir.Readdirnames(MaxEntries + 1)
-	if err != nil && !errors.Is(err, io.EOF) {
+	names, err := pageOf(ctx, dir, after, match)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return &agentv1.ListFilesResult{Refusal: denied(where, err)}, nil
 	}
 	truncated := len(names) > MaxEntries
 	if truncated {
 		names = names[:MaxEntries]
 	}
-	slices.Sort(names)
 	owners := owners{}
 	here := &dockwellv1.ListFilesResponse{Path: where, Directory: entry(path.Base(where), &w.st, owners), Truncated: truncated}
+	// The last name this page went past, listed or not, which the next page starts after.
+	upTo := after
 	room := maxListBytes
 	for i, name := range names {
 		if i%256 == 0 && ctx.Err() != nil {
 			return nil, ctx.Err()
+		}
+		if arriving(name) {
+			upTo = name
+			continue
 		}
 		e := &dockwellv1.FileEntry{Name: strings.ToValidUTF8(name, "\uFFFD"), UnreadableName: !utf8.ValidString(name)}
 		// What's known not to answer is listed by name alone, so the folder around
@@ -209,6 +405,7 @@ func (s *Server) list(ctx context.Context, t *trail, p string) (*agentv1.ListFil
 		if t.touch(joined(where, name)) == nil {
 			var st unix.Stat_t
 			if unix.Fstatat(fd, name, &st, unix.AT_SYMLINK_NOFOLLOW) != nil {
+				upTo = name
 				continue // it went as we read
 			}
 			e = entry(name, &st, owners)
@@ -223,6 +420,10 @@ func (s *Server) list(ctx context.Context, t *trail, p string) (*agentv1.ListFil
 			break
 		}
 		here.Entries = append(here.Entries, e)
+		upTo = name
+	}
+	if here.Truncated && upTo != "" {
+		here.NextPage = pageToken(upTo)
 	}
 	return &agentv1.ListFilesResult{Listing: here}, nil
 }

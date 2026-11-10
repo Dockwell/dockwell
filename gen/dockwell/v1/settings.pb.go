@@ -1062,16 +1062,16 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\x10StateStoreEngine\x12\"\n" +
 	"\x1eSTATE_STORE_ENGINE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19STATE_STORE_ENGINE_SQLITE\x10\x01\x12\x1f\n" +
-	"\x1bSTATE_STORE_ENGINE_POSTGRES\x10\x022\x97\t\n" +
-	"\x0fSettingsService\x12\x80\x01\n" +
-	"\vGetSettings\x12\x1f.dockwell.v1.GetSettingsRequest\x1a .dockwell.v1.GetSettingsResponse\".\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +
-	"\bsettings\x12\x03get\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/settings\x90\x02\x01\x12\x9a\x01\n" +
-	"\x0eSetInstallName\x12\".dockwell.v1.SetInstallNameRequest\x1a#.dockwell.v1.SetInstallNameResponse\"?\xa0\xbb\x18\x03\xaa\xbb\x18\x14\n" +
-	"\bsettings\x12\bset-name\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/settings:setName\x12\x96\x01\n" +
-	"\vSetTimeZone\x12\x1f.dockwell.v1.SetTimeZoneRequest\x1a .dockwell.v1.SetTimeZoneResponse\"D\xa0\xbb\x18\x03\xaa\xbb\x18\x19\n" +
-	"\bsettings\x12\rset-time-zone\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/settings:setTimeZone\x12\x95\x01\n" +
-	"\x0fGetControlPlane\x12#.dockwell.v1.GetControlPlaneRequest\x1a$.dockwell.v1.GetControlPlaneResponse\"7\xa0\xbb\x18\x01\xaa\xbb\x18\x14\n" +
-	"\rcontrol-plane\x12\x03get\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/controlPlane\x90\x02\x01\x1a\xb2\x04\xa2\xbb\x18\x8a\x02\n" +
+	"\x1bSTATE_STORE_ENGINE_POSTGRES\x10\x022\xc7\t\n" +
+	"\x0fSettingsService\x12\x8c\x01\n" +
+	"\vGetSettings\x12\x1f.dockwell.v1.GetSettingsRequest\x1a .dockwell.v1.GetSettingsResponse\":\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +
+	"\bsettings\x12\x03get\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x03\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/settings\x90\x02\x01\x12\xa6\x01\n" +
+	"\x0eSetInstallName\x12\".dockwell.v1.SetInstallNameRequest\x1a#.dockwell.v1.SetInstallNameResponse\"K\xa0\xbb\x18\x03\xaa\xbb\x18\x14\n" +
+	"\bsettings\x12\bset-name\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/settings:setName\x12\xa2\x01\n" +
+	"\vSetTimeZone\x12\x1f.dockwell.v1.SetTimeZoneRequest\x1a .dockwell.v1.SetTimeZoneResponse\"P\xa0\xbb\x18\x03\xaa\xbb\x18\x19\n" +
+	"\bsettings\x12\rset-time-zone\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/settings:setTimeZone\x12\xa1\x01\n" +
+	"\x0fGetControlPlane\x12#.dockwell.v1.GetControlPlaneRequest\x1a$.dockwell.v1.GetControlPlaneResponse\"C\xa0\xbb\x18\x01\xaa\xbb\x18\x14\n" +
+	"\rcontrol-plane\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/controlPlane\x90\x02\x01\x1a\xb2\x04\xa2\xbb\x18\x8a\x02\n" +
 	"\bsettings\x12\xfd\x01The install's settings are what it's called, the time zone new schedules start in, and how its panel is served. They change what Dockwell says and suggests, not what runs, so a change needs no plan, and each is on the activity log with what it replaced.\xa2\xbb\x18\x9e\x02\n" +
 	"\rcontrol-plane\x12\x8c\x02The control plane serves the panel and API, beside an agent of its own. It says the build it runs, where it keeps its state and the install's key, the addresses it answers on, and how it's doing. Most of that comes from how dockwell run was started, and changes there.B\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rSettingsProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"

@@ -35,6 +35,8 @@ describe("a page's width by its kind", () => {
     ["/", "Overview", "wide", "CPU"],
     ["/servers/srv_1", "hz-1", "wide"],
     ["/servers/srv_1/files", "hz-1", "wide"],
+    // Servers, with a server inspected beside its list, as Servers-List lays them out.
+    ["/servers", "Servers", "wide"],
     ["/settings/general", "General", "narrow"],
     ["/profile", "Profile and security", "narrow"],
     // A table of few columns reads at a detail page's width, its head and table sharing their edges.
@@ -43,13 +45,12 @@ describe("a page's width by its kind", () => {
     ["/domains", "Domains", "standard"],
     ["/backups", "Backups", "standard"],
     ["/activity", "Activity", "standard"],
-    ["/servers", "Servers", "standard"],
     ["/more", "More", "standard"],
   ])("%s is %s", async (path, heading, kind, ready?: string) => {
     expect(kindOf(await pageAt(path, heading, [hz1], ready))).toBe(kind);
   });
 
-  it("makes a fleet's Overview, a list of its servers, a standard page", async () => {
-    expect(kindOf(await pageAt("/", "Overview", [hz1, hz2], "hz-2"))).toBe("standard");
+  it("makes a fleet's Overview a wide page, a dashboard as one server's is", async () => {
+    expect(kindOf(await pageAt("/", "Overview", [hz1, hz2], "Servers serving"))).toBe("wide");
   });
 });

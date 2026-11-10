@@ -9,8 +9,10 @@ import {
   ChangeService,
   ChangeState,
   type Event,
+  type EventAlert,
   type EventBackup,
   EventKind,
+  type EventTerminal,
   ResourceService,
 } from "@dockwell/api";
 import {
@@ -33,7 +35,7 @@ import {
 import type { I18n } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type ReactNode, useCallback, useMemo, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatClock, formatDateTime, formatWeekday } from "../../lib/format";
@@ -46,19 +48,22 @@ import { useFieldRows } from "../changes/fields";
 import { canUndo, failedStep, shortFingerprint, wentOffline } from "../changes/plan";
 import { RollbackLine, rollbackSubject, useRollbackWord } from "../changes/RollbackLine";
 import { type StepLook, useChangeWords } from "../changes/words";
+import { parentOf } from "../files/paths";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { useEndWords } from "../terminal/words";
 import { useActorWords } from "./actor";
 import { type Described, happenedAt, useCounts, useDescribe, useHealthEventWords, useProgress } from "./describe";
 import { RecordedPlan } from "./RecordedPlan";
 import { type EventFilter, useEvents } from "./useEvents";
 import "./ActivityPage.css";
+import { placesOfChange, useMay } from "../auth/may";
 
 /** The kinds of event Activity filters by, as its search names them. */
-export type ActivityKind = "changes" | "servers" | "access" | "health" | "backups";
+export type ActivityKind = "changes" | "servers" | "access" | "health" | "backups" | "alerts";
 
 /** Activity's place, in its URL: the filters and the event open beside the list. */
 export interface ActivitySearch {
@@ -76,6 +81,7 @@ const KINDS: Readonly<Record<ActivityKind, EventKind>> = {
   access: EventKind.ACCESS,
   health: EventKind.HEALTH,
   backups: EventKind.BACKUP,
+  alerts: EventKind.ALERT,
 };
 
 /** Dockwell, in the actor filter. */
@@ -121,11 +127,29 @@ export function ActivityPage({
     for (const e of events ?? []) if (e.change) out.set(e.id, e.change.summary);
     return out;
   }, [events]);
-  const days = useMemo(() => byDay(events ?? []), [events]);
+  // A run of the same thing done again, as reading one file over and over, is one row on a
+  // wide screen, which says how many times. A phone's timeline has no room to say so.
+  const { shown, repeats } = useMemo(() => collapseRepeats(events ?? []), [events]);
+  const days = useMemo(() => byDay(phone ? (events ?? []) : shown), [events, shown, phone]);
   const selected = search.event ? events?.find((e) => e.id === search.event) : undefined;
   const select = (id: string | undefined) => onSearch({ ...search, event: id });
   // Below the list, where a narrow screen puts it, an event chosen comes into view.
   const layout = useRef<HTMLDivElement>(null);
+  const filters = useRef<HTMLDivElement>(null);
+  // On a phone the kinds scroll sideways: keep the one chosen in sight, as a link
+  // may open Activity on any of them.
+  const kind = search.kind ?? "all";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: it runs when the kind changes, and reads the segment that kind checked from the page
+  useEffect(() => {
+    const row = filters.current?.querySelector<HTMLElement>(".dw-seg");
+    const on = row?.querySelector<HTMLElement>(`[aria-checked="true"]`);
+    if (!row || !on) return;
+    const edge = row.getBoundingClientRect();
+    const box = on.getBoundingClientRect();
+    if (box.left < edge.left || box.right > edge.right) {
+      row.scrollLeft += box.left - edge.left - (edge.width - box.width) / 2;
+    }
+  }, [kind]);
   const reveal = (tries = 10) =>
     requestAnimationFrame(() => {
       const detail = layout.current?.querySelector<HTMLElement>(".activity-detail");
@@ -144,6 +168,7 @@ export function ActivityPage({
     { value: "access", label: t`Access` },
     { value: "health", label: t`Health` },
     { value: "backups", label: t`Backups` },
+    { value: "alerts", label: t`Alerts` },
   ];
 
   let body: ReactNode;
@@ -174,7 +199,7 @@ export function ActivityPage({
       <>
         {days.map((day) => {
           const label = dayLabel(day.date, now, i18n);
-          const count = day.events.length;
+          const count = day.events.reduce((n, e) => n + (phone ? 1 : (repeats.get(e.id)?.length ?? 1)), 0);
           const long = formatWeekday(day.date, i18n.locale);
           const meta = plural(count, { one: `${long} · # event`, other: `${long} · # events` });
           return (
@@ -188,6 +213,7 @@ export function ActivityPage({
               ) : (
                 <DayTable
                   events={day.events}
+                  repeats={repeats}
                   summaries={summaries}
                   now={now}
                   caption={label}
@@ -220,14 +246,14 @@ export function ActivityPage({
   return (
     <Page
       title={t`Activity`}
-      lead={t`Every change, server event, access grant, change of health and backup, newest first`}
+      lead={t`Every change, server event, access grant, change of health, backup and alert, newest first`}
       status={status}
       className="activity"
     >
-      <div className="activity-filters">
+      <div ref={filters} className="activity-filters">
         <SegmentedControl
           options={kindOptions}
-          value={search.kind ?? "all"}
+          value={kind}
           label={t`Event type`}
           onChange={(value) =>
             onSearch({ ...search, kind: value === "all" ? undefined : (value as ActivityKind), event: undefined })
@@ -246,6 +272,7 @@ export function ActivityPage({
         {selected && !phone ? (
           <Detail
             event={selected}
+            repeats={repeats.get(selected.id)}
             described={describe(selected, summaries)}
             now={now}
             time={time}
@@ -275,12 +302,58 @@ interface Day {
   events: Event[];
 }
 
+/** How far apart the same thing done again may be, to be one row. */
+const REPEAT_MS = 10 * 60_000;
+
+/**
+ * Runs of the same access, newest first, as one row each: the same actor doing the
+ * same thing to the same subject from the same surface, each within REPEAT_MS of
+ * the one after, on the same local day. Changes, health and the rest each say
+ * something new. Each run is under its newest.
+ */
+export function collapseRepeats(events: readonly Event[]): { shown: Event[]; repeats: Map<string, Event[]> } {
+  const shown: Event[] = [];
+  const repeats = new Map<string, Event[]>();
+  const sameness = (e: Event) =>
+    e.kind !== EventKind.ACCESS
+      ? undefined
+      : [e.kind, e.action, e.surface, e.actor?.kind, e.actor?.id, e.subject?.id, e.subject?.path, e.subject?.name].join(
+          "|",
+        );
+  let run: Event[] | undefined;
+  let runKey: string | undefined;
+  for (const event of events) {
+    const key = sameness(event);
+    const last = run?.at(-1);
+    if (
+      run &&
+      last &&
+      key !== undefined &&
+      key === runKey &&
+      dayKey(happenedAt(last)) === dayKey(happenedAt(event)) &&
+      happenedAt(last).getTime() - happenedAt(event).getTime() <= REPEAT_MS
+    ) {
+      run.push(event);
+      continue;
+    }
+    run = [event];
+    runKey = key;
+    shown.push(event);
+    repeats.set(event.id, run);
+  }
+  return { shown, repeats };
+}
+
+function dayKey(date: Date): string {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
 /** Events by the local day they happened on, newest day first, as they come. */
 function byDay(events: readonly Event[]): Day[] {
   const out: Day[] = [];
   for (const event of events) {
     const date = event.time ? timestampDate(event.time) : new Date(0);
-    const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    const key = dayKey(date);
     const last = out[out.length - 1];
     if (last?.key === key) last.events.push(event);
     else out.push({ key, date, events: [event] });
@@ -322,12 +395,22 @@ function useMeta() {
         const said = health.flips(event);
         return { look: health.look(event), parts: said ? [said] : [] };
       }
+      if (event.kind === EventKind.ALERT && event.alert?.reason) {
+        return { look: undefined, parts: [words.via(event.surface), event.alert.reason] };
+      }
       if (!change) return { look: undefined, parts: [words.via(event.surface)] };
       const parts: string[] = [];
       const steps = change.state === ChangeState.APPLYING ? progress(change) : "";
       const brief = steps || counts(change);
       if (brief) parts.push(brief);
       if (change.undoneBy) parts.push(t`Undone`);
+      // A planned change the reader's role doesn't cover waits for an admin or the
+      // owner, and someone else's in a protected environment, an admin's
+      // approval, however it was planned: the API says which (ADR 0049).
+      if (change.state === ChangeState.PLANNED) {
+        if (change.waits) parts.push(t`Waits for an admin`);
+        else if (change.approves) parts.push(t`Waits for your approval`);
+      }
       const rollback = rollbackWord(change);
       if (rollback) parts.push(rollback);
       return { look: words.state(change.state), parts };
@@ -357,12 +440,18 @@ interface DayProps {
 
 function DayTable({
   events,
+  repeats,
   summaries,
   now,
   caption,
   selected,
   onSelect,
-}: DayProps & { caption: string; selected: string | undefined; onSelect: (event: Event) => void }) {
+}: DayProps & {
+  repeats: ReadonlyMap<string, Event[]>;
+  caption: string;
+  selected: string | undefined;
+  onSelect: (event: Event) => void;
+}) {
   const { t, i18n } = useLingui();
   const describe = useDescribe();
   const time = useTimeWords();
@@ -373,12 +462,17 @@ function DayTable({
       header: t`Event`,
       render: (event) => {
         const d = describe(event, summaries);
+        const line = meta(event);
+        const times = repeats.get(event.id)?.length ?? 1;
         return (
           <div className="activity-event">
             <Mark icon={d.icon} tone={d.tone} />
             <div className="activity-event-text">
               <span className="activity-event-title">{d.title}</span>
-              <MetaLine {...meta(event)} />
+              <MetaLine
+                look={line.look}
+                parts={times > 1 ? [...line.parts, plural(times, { one: "# time", other: "# times" })] : line.parts}
+              />
             </div>
           </div>
         );
@@ -428,6 +522,8 @@ export function EventTimeline({
   const time = useTimeWords();
   const meta = useMeta();
   const sheet = useChangeSheet();
+  const may = useMay();
+  const mayUndo = may(ChangeService.method.undoChange).allowed;
   const items: TimelineEvent[] = events.map((event) => {
     const d = describe(event, summaries);
     const date = happenedAt(event);
@@ -449,7 +545,8 @@ export function EventTimeline({
       meta: (({ look, parts }) => (look ? [look.word, ...parts] : parts).join(" · "))(meta(event)),
       time: time.ago(date, now),
       datetime: date.toISOString(),
-      undoable: canUndo(change, now),
+      // Where each of its items is: undoing plans in every one of them.
+      undoable: canUndo(change, now) && may(ChangeService.method.undoChange, placesOfChange(change)).allowed,
       undoLabel: t`Undo`,
     };
   });
@@ -457,7 +554,8 @@ export function EventTimeline({
     <Timeline
       className={framed ? "activity-timeline" : undefined}
       events={items}
-      onUndo={(item) => sheet.open({ kind: "undo", id: String(item.id) })}
+      // A timeline's undo has no off state, so it isn't drawn for someone who may not undo (ADR 0059).
+      {...(mayUndo ? { onUndo: (item) => sheet.open({ kind: "undo", id: String(item.id) }) } : {})}
     />
   );
 }
@@ -591,6 +689,8 @@ export function kindOf(resourceId: string): string {
 
 interface DetailProps {
   event: Event;
+  /** The run it heads, when the same was done again, newest first. */
+  repeats?: readonly Event[] | undefined;
   described: Described;
   now: number;
   time: ReturnType<typeof useTimeWords>;
@@ -601,7 +701,9 @@ interface DetailProps {
 }
 
 /** The selected event beside the list: who, when, from where, and for a change what it changed. */
-function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo }: DetailProps) {
+function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpen, onUndo }: DetailProps) {
+  // Undoing plans a change, which a viewer can't: off, with why (ADR 0059).
+  const mayUndo = useMay()(ChangeService.method.undoChange, placesOfChange(event.change));
   const { t, i18n } = useLingui();
   const words = useChangeWords();
   const rows = useFieldRows();
@@ -639,6 +741,27 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
       <Trans>Open the file</Trans>
     </RouterButtonLink>
   ) : null;
+  // What was made, moved or put back is in a folder, which a file link might not open.
+  const placed =
+    event.action === "file.make" ||
+    event.action === "file.move" ||
+    event.action === "file.restore" ||
+    event.action === "file.upload"
+      ? event.subject
+      : undefined;
+  const placedAt = placed ? placed.toPath || placed.path : "";
+  const toFolder =
+    placed && placedAt ? (
+      <RouterButtonLink
+        to="/servers/$serverId/files"
+        params={{ serverId: placed.id }}
+        search={{ path: parentOf(placedAt) }}
+        variant="ghost"
+        icon="folder"
+      >
+        <Trans>Open the folder</Trans>
+      </RouterButtonLink>
+    ) : null;
   return (
     <div className="activity-detail">
       <Panel
@@ -661,6 +784,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
             <dd>
               {formatDateTime(date, i18n.locale)} <span className="activity-muted">· {ago}</span>
             </dd>
+            {repeats && repeats.length > 1 ? <RepeatFacts run={repeats} /> : null}
             <dt>{t`From`}</dt>
             <dd>{words.surface(event.surface)}</dd>
             {change && proposedApart(change) ? (
@@ -710,7 +834,8 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
                 ) : null}
               </>
             ) : null}
-            {!change && event.subject ? (
+            {/* A mute's subject is its rule, which the Rule row names. */}
+            {!change && event.subject && (event.subject.name || !event.alert) ? (
               <>
                 <dt>{t`About`}</dt>
                 <dd>{event.subject.name || <code className="activity-code">{event.subject.id}</code>}</dd>
@@ -718,6 +843,8 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
             ) : null}
             {event.health ? <HealthFacts event={event} /> : null}
             {event.backup ? <BackupFacts backup={event.backup} /> : null}
+            {event.alert ? <AlertFacts alert={event.alert} /> : null}
+            {event.terminal ? <TerminalFacts terminal={event.terminal} /> : null}
           </dl>
           {change?.because ? <BecauseNotice because={change.because} /> : null}
           {change?.state === ChangeState.FAILED ? (
@@ -726,8 +853,11 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
           {change?.state === ChangeState.FAILED && change.error && !wentOffline(change) ? (
             <FailureNotice message={change.error} detail={failedStep(change)?.detail} />
           ) : null}
-          {change?.state === ChangeState.FAILED && !wentOffline(change) ? (
-            <FailedDeployLogs change={full.data?.change ?? change} />
+          {change &&
+          ((change.state === ChangeState.FAILED && !wentOffline(change)) ||
+            change.state === ChangeState.APPLIED ||
+            change.state === ChangeState.APPLYING) ? (
+            <FailedDeployLogs key={`${change.id}:${change.state}`} change={full.data?.change ?? change} />
           ) : null}
           {change ? (
             <div className="activity-detail-section">
@@ -751,7 +881,7 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
             <div className="activity-detail-actions">
               {toVariables}
               {canUndo(change, now) ? (
-                <Button icon="undo" onClick={() => onUndo(change.id)}>
+                <Button icon="undo" onClick={() => onUndo(change.id)} {...mayUndo.off}>
                   <Trans>Undo this change</Trans>
                 </Button>
               ) : null}
@@ -763,10 +893,11 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
                 {change.state === ChangeState.PLANNED ? <Trans>Review plan</Trans> : <Trans>Open plan</Trans>}
               </Button>
             </div>
-          ) : toVariables || toFile ? (
+          ) : toVariables || toFile || toFolder ? (
             <div className="activity-detail-actions">
               {toVariables}
               {toFile}
+              {toFolder}
             </div>
           ) : event.health && event.subject?.id ? (
             <div className="activity-detail-actions">
@@ -783,6 +914,57 @@ function Detail({ event, described, now, time, onClose, onSelect, onOpen, onUndo
         </div>
       </Panel>
     </div>
+  );
+}
+
+/** An alert, or a mute, in the facts of an event: its rule, where, why it was muted, and what it said. */
+function AlertFacts({ alert }: { alert: EventAlert }) {
+  const { t } = useLingui();
+  return (
+    <>
+      {alert.rule ? (
+        <>
+          <dt>{t`Rule`}</dt>
+          <dd>
+            <code className="activity-code">{alert.rule}</code>
+          </dd>
+        </>
+      ) : null}
+      {alert.serverName ? (
+        <>
+          <dt>{t`Server`}</dt>
+          <dd>
+            <code className="activity-code">{alert.serverName}</code>
+          </dd>
+        </>
+      ) : null}
+      {alert.reason ? (
+        <>
+          <dt>{t`Why`}</dt>
+          <dd>{alert.reason}</dd>
+        </>
+      ) : null}
+      {alert.detail ? (
+        <>
+          <dt>{t`What it said`}</dt>
+          <dd>{alert.detail}</dd>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/** How often the same was done again, and over what time, for a row that stands for a run. */
+function RepeatFacts({ run }: { run: readonly Event[] }) {
+  const { t, i18n } = useLingui();
+  const count = run.length;
+  const first = formatClock(happenedAt(run[run.length - 1] as Event), i18n.locale);
+  const last = formatClock(happenedAt(run[0] as Event), i18n.locale);
+  return (
+    <>
+      <dt>{t`Times`}</dt>
+      <dd>{first === last ? t`${count}, at ${first}` : t`${count}, from ${first} to ${last}`}</dd>
+    </>
   );
 }
 
@@ -809,6 +991,50 @@ function BackupFacts({ backup }: { backup: EventBackup }) {
         <>
           <dt>{t`Why it failed`}</dt>
           <dd>{backup.error}</dd>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/** A terminal, in the facts of its opening or closing: who it ran as, when, and how it ended. Never what was typed. */
+function TerminalFacts({ terminal }: { terminal: EventTerminal }) {
+  const { t, i18n } = useLingui();
+  const ended = useEndWords();
+  return (
+    <>
+      {terminal.id ? (
+        <>
+          <dt>{t`Terminal`}</dt>
+          <dd>
+            <code className="activity-code">{terminal.id}</code>
+          </dd>
+        </>
+      ) : null}
+      {terminal.title ? (
+        <>
+          <dt>{t`Ran as`}</dt>
+          <dd>
+            <code className="activity-code">{terminal.title}</code>
+          </dd>
+        </>
+      ) : null}
+      {terminal.openTime && terminal.end ? (
+        <>
+          <dt>{t({ message: "Opened", context: "terminal" })}</dt>
+          <dd>{formatDateTime(timestampDate(terminal.openTime), i18n.locale)}</dd>
+        </>
+      ) : null}
+      {terminal.end ? (
+        <>
+          <dt>{t`How it ended`}</dt>
+          <dd>{ended(terminal.end).text}</dd>
+        </>
+      ) : null}
+      {terminal.error ? (
+        <>
+          <dt>{t`Why`}</dt>
+          <dd>{terminal.error}</dd>
         </>
       ) : null}
     </>

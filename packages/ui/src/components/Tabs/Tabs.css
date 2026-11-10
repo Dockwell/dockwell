@@ -9,6 +9,8 @@
   padding: 4px;
   overflow-x: auto;
   scrollbar-width: none;
+  /* A tab scrolled to, as one focused by keyboard is, clears the fade at the edge. */
+  scroll-padding-inline: var(--space-8);
   background: linear-gradient(var(--line), var(--line)) no-repeat left bottom / 100% 1px;
   background-origin: content-box;
   background-clip: content-box;

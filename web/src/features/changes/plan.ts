@@ -18,9 +18,9 @@ import {
   type StepProgress,
   StepState,
 } from "@dockwell/api";
-import type { PlanAction as DiffAction, PlanChange, PlanKind, PlanResource } from "@dockwell/ui";
+import type { PlanAction as DiffAction, PlanKind, PlanResource } from "@dockwell/ui";
 
-import type { FieldSource } from "./fields";
+import type { FieldRows } from "./fields";
 
 /** The limits a container can change in place, for as long as it goes on having them. */
 const IN_PLACE_LIMITS: ReadonlySet<string> = new Set([
@@ -145,7 +145,7 @@ function readingOrder(resource: PlanResource, planned: PlannedResource | undefin
  */
 export function diffResources(
   plan: Plan | undefined,
-  rows: (source: FieldSource) => PlanChange[],
+  rows: FieldRows,
   options: { expanded?: boolean; tag?: (intent: Intent) => string } = {},
 ): PlanResource[] {
   const intent = intentOf(plan);
@@ -168,7 +168,7 @@ export function diffResources(
       name: shownName(resource) || resource.id,
       changes,
     };
-    if (diffKind(kind) === "resource") out.kindLabel = kindWord(kind);
+    if (diffKind(kind) === "resource") out.kindLabel = rows.kindWord?.(kind) ?? kindWord(kind);
     if (maybe.has(resource.id)) out.ifNewer = true;
     if (steps.some((s) => s.restart !== "")) out.restart = true;
     if (intent?.resourceId === resource.id && resource.action !== PlanAction.DELETE) {
@@ -410,6 +410,12 @@ export function isFleet(plan: Plan | undefined): boolean {
  * as an older agent's may have: "service web in env_01M…" reads "web".
  */
 export function withoutIds(message: string): string {
+  // A firewall change its server refused at planning says why after the
+  // machine's own words for where: only the why is for a person.
+  const refused = message.match(
+    /^can't plan on [^:]+: can't plan firewall\.(?:rule|policy) \S+ in srv_[0-9A-Za-z]+: (.+)$/is,
+  );
+  if (refused?.[1]) return refused[1].charAt(0).toUpperCase() + refused[1].slice(1);
   return message
     .replace(/^.*?\bisn't valid: /, "")
     .replace(/\bservice (\S+) in env_[0-9A-Za-z]+/g, "$1")

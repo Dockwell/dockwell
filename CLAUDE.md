@@ -15,6 +15,7 @@ An open-source control plane for servers, from one VPS to a fleet. One Go codeba
 - `make check` runs what CI runs: lint for Go, the schema, TypeScript, CSS and shell scripts (with shellcheck, when it is installed), translations, license headers and doc links; Go and TypeScript tests; the generated-code and breaking-change checks; and a smoke test of the built binary. CI is the gate: before a push, run `make lint` and the tests for what you changed, such as `go test -race` on the packages you touched, the panel's tests if you touched the panel, and `make e2e` if you changed what a person sees or does. Nothing merges until CI is fully green, the Docker jobs included, and its review is done. Several agents share one machine, so don't queue a full `make check` before every push.
 - The Install workflow also runs `make budgets` (idle memory: agent under 40 MB, with a warning from 30 MB, control plane plus agent under 250 MB; on pull requests, beside main's build) and `make install-test` (the install script in containers; needs Docker and cosign v3). Run them when you change `scripts/install.sh` or anything that could move memory.
 - `make logs-load` measures an agent while a container floods its log, on a fake Docker. Run it when you change how logs are read or sent.
+- `make transfers-load` measures an agent while four files upload and four download at once. Run it when you change how files are uploaded, downloaded or unpacked, or the agent's connection to the control plane.
 - The store's tests run on SQLite, and on Postgres too when `DOCKWELL_TEST_POSTGRES` names a server, as CI sets it. Set it when you change `internal/store` or any query.
 - The ingress's tests run against real Caddy and Pebble when `DOCKWELL_TEST_CADDY` and `DOCKWELL_TEST_PEBBLE` name them, as CI sets them. `scripts/ingress-tools.sh <dir>` fetches both. Set them when you change `internal/ingress`.
 - `make generate` after any change in `proto/` or `design/system/tokens.json`. Commit what it writes.
@@ -24,7 +25,8 @@ An open-source control plane for servers, from one VPS to a fleet. One Go codeba
 
 ## Rules
 
-- UI text, CLI output, errors and docs follow the content fundamentals in `design/system/README.md`: sentence case, address the reader as "you", no emoji or exclamation marks, fact then consequence then fix.
+- Every screen follows the interaction principles in `design/system/README.md` before its words: the interface does the work (pickers, defaults, live checks, buttons that act), defaults first with power one step away, and guidance only as a short state with an action. A sentence that tells a person to do something by hand is a missing feature.
+- UI text, CLI output, errors and docs follow the content fundamentals there: sentence case, address the reader as "you", no emoji or exclamation marks, and the text budget (one line of help per field at most, a callout is a title and one short sentence, no paragraphs in forms, sheets or cards). Errors and alerts give the fact, then the consequence, then the fix.
 - Terminology: *server* and *control server* in the product; *agent* for the binary in docs and the CLI; never *master* or *slave*.
 - Every change to managed state is a revision with a plan (PRD principle 2). Don't add a mutating path that bypasses the revision store: only `internal/revision` calls `store.DB.Revise`, and a test fails on anything else that does.
 - The panel uses only the public API through the generated client. Nothing is UI-only.

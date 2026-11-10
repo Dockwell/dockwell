@@ -8,12 +8,12 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { initials, useRoleName } from "../auth/user";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import "./Settings.css";
+import { ReadFailed } from "../shell/ReadFailed";
 
 const ADR = "https://github.com/Dockwell/dockwell/blob/main/docs/adr/0048-members-as-far-as-one-owner-goes.md";
 
@@ -33,17 +33,15 @@ export function MembersPage() {
   let people: ReactNode;
   if (list.error && !list.data) {
     people = (
-      <Callout
-        tone="critical"
+      <ReadFailed
+        error={list.error}
         title={t`Dockwell can't say who signs in`}
         actions={
           <Button size="sm" icon="refresh" loading={list.isFetching} onClick={() => void list.refetch()}>
             <Trans>Try again</Trans>
           </Button>
         }
-      >
-        {sentence(list.error)}
-      </Callout>
+      />
     );
   } else if (!list.data) {
     people = (

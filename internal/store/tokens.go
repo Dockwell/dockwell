@@ -133,6 +133,16 @@ func (t *Tx) CountLiveAPITokens(ctx context.Context, userID string, now time.Tim
 	return n, nil
 }
 
+// RevokeLocalTokens revokes the tokens the CLI made for a person's local access,
+// as ownership leaving them takes what acted for them (ADR 0049).
+func (t *Tx) RevokeLocalTokens(ctx context.Context, userID string, at time.Time) error {
+	if _, err := t.exec(ctx, `UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND local_account <> '' AND revoked_at IS NULL`,
+		millis(at), userID); err != nil {
+		return fmt.Errorf("can't revoke the local tokens of %s: %w", userID, err)
+	}
+	return nil
+}
+
 // RevokeAPIToken stops one of a user's tokens working, or reports
 // ErrNotFound when the user has no such token still unrevoked.
 func (t *Tx) RevokeAPIToken(ctx context.Context, userID, id string, at time.Time) error {

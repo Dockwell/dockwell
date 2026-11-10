@@ -30,16 +30,18 @@ import {
   Timeline,
   type TimelineEvent,
   useMediaQuery,
+  useOff,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 
-import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { happenedAt, useDescribe, useHealthEventWords } from "../activity/describe";
+import { WatchAddress } from "../alerts/WatchAddress";
+import { type Offer, useMay } from "../auth/may";
 import { AppBackups } from "../backups/AppBackups";
 import { InstalledPanel } from "../catalog/InstalledPanel";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -49,6 +51,7 @@ import { useWaitingFor } from "../changes/waiting";
 import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
 import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { ReadFailed } from "../shell/ReadFailed";
 import { AddDomainSheet, type MoveBehind, moveBehindOf } from "./AddDomainSheet";
 import { AddPortSheet } from "./AddPortSheet";
 import { useApp, useRevisions } from "./AppContext";
@@ -102,7 +105,6 @@ export function AppOverview() {
         <VolumesPanel app={appOf(service)} />
         <AppBackups service={service} app={appOf(service)} />
         <RunsWithPanel />
-        <DeletePanel />
       </div>
     </div>
   );
@@ -465,6 +467,8 @@ function RunningPanel() {
   const moving = isMoving(state);
   const [addingPort, setAddingPort] = useState(false);
   const [addingDomain, setAddingDomain] = useState(false);
+  // An action on what you can see stays where it is, off, with why (ADR 0059).
+  const mayAddPort = useMay()(ServiceService.method.addServicePort, { environment: environmentOf(service) });
   // An arrival sends you here to add one. Going back or reading the page again shouldn't open it again.
   const navigate = useNavigate();
   const { add }: { add?: "domain" | "port" } = useSearch({ strict: false });
@@ -495,12 +499,12 @@ function RunningPanel() {
         <span className="app-running-actions">
           {reached ? (
             <>
-              <button type="button" className="app-panel-link" onClick={() => setAddingDomain(true)}>
+              <PanelLink offer={mayAddPort} onClick={() => setAddingDomain(true)}>
                 <Trans>Add a domain</Trans>
-              </button>
-              <button type="button" className="app-panel-link" onClick={() => setAddingPort(true)}>
+              </PanelLink>
+              <PanelLink offer={mayAddPort} onClick={() => setAddingPort(true)}>
                 <Trans>Add a port</Trans>
-              </button>
+              </PanelLink>
             </>
           ) : null}
         </span>
@@ -615,6 +619,9 @@ function DomainRow({
         <DomainFacts domain={domain} route={route} look={look} silent={silent} read={read} />
       </div>
       <div className="app-reach-acts">
+        {said ? (
+          <WatchAddress url={visitorUrl(domain, route)} where={where} serving={look.state === "serving"} />
+        ) : null}
         {said && look.state === "serving" ? (
           <a
             className="app-reach-open"
@@ -660,6 +667,7 @@ function ReachedAt({
 }) {
   const { t } = useLingui();
   const { servers } = useFleetView();
+  const mayAdd = useMay()(ServiceService.method.addServicePort, { environment: environmentOf(service) });
   const { domains, read, isPending, failed, retrying, retry } = useAppDomains(service);
   const sheet = useChangeSheet();
   const name = nameOf(service);
@@ -694,10 +702,10 @@ function ReachedAt({
             )}
           </p>
           <div className="app-reach-actions">
-            <Button icon="plus" onClick={onAddDomain}>
+            <Button icon="plus" onClick={onAddDomain} {...mayAdd.off}>
               <Trans>Add a domain</Trans>
             </Button>
-            <Button icon="plus" onClick={onAddPort}>
+            <Button icon="plus" onClick={onAddPort} {...mayAdd.off}>
               <Trans>Add a port</Trans>
             </Button>
           </div>
@@ -839,9 +847,13 @@ function RecentDeployments() {
   const moving = isMoving(state);
   const shown = (revisions ?? []).slice(0, RECENT);
   // The newest revision that would run, and that differs from what runs now.
-  const back = (revisions ?? [])
-    .slice(1)
-    .find((r) => canRollBackTo(r, state.kind === "failed" || state.kind === "rollback-failed"));
+  // A timeline's undo has no off state, so it isn't drawn for someone who may not roll back (ADR 0059).
+  const mayRollBack = useMay()(ServiceService.method.rollBackService, { environment: environmentOf(service) }).allowed;
+  const back = !mayRollBack
+    ? undefined
+    : (revisions ?? [])
+        .slice(1)
+        .find((r) => canRollBackTo(r, state.kind === "failed" || state.kind === "rollback-failed"));
   const backTo = back ? revisionName(back.number) : "";
   const events: TimelineEvent[] = shown.map((rev, i) => {
     const change = rev.change;
@@ -875,17 +887,15 @@ function RecentDeployments() {
       }
     >
       {error && !revisions ? (
-        <Callout
-          tone="critical"
+        <ReadFailed
+          error={error}
           title={t`Can't load the deployments`}
           actions={
             <Button onClick={() => void refetch()} loading={isFetching}>
               <Trans>Try again</Trans>
             </Button>
           }
-        >
-          {sentence(error)}
-        </Callout>
+        />
       ) : isPending ? (
         // Holds the room what's coming will take, so nothing under it moves.
         <p
@@ -1201,55 +1211,47 @@ function RunsWithPanel() {
   );
 }
 
-/** Deleting is a plan too: this only opens it. */
-function DeletePanel() {
+/**
+ * Deleting an app is a plan too: this only opens it. A route can't outlive what
+ * it serves, so the plan takes the app's domains with it, and lists them. Once it
+ * applies, the app's pages have nothing to show, so the list comes next.
+ */
+export function useDeleteApp(service: ServiceInfo): { routes: number; open: () => void } {
   const { t } = useLingui();
-  const { service } = useApp();
   const sheet = useChangeSheet();
   const navigate = useNavigate();
   const name = nameOf(service);
   const resource = service.resource;
-  // A route can't outlive what it serves, so its plan takes them with it, and lists them.
   const routes = useAppDomains(service).domains.flatMap((domain) =>
     domain.routes.filter((route) => route.service === name),
   );
-  return (
-    <Panel className="app-delete">
-      <p className="app-delete-text">
-        {routes.length > 0 ? (
-          <Trans>
-            Deleting {name} stops it, removes its container, and takes its domains with it. Its volumes stay, and you
-            review a plan first.
-          </Trans>
-        ) : (
-          <Trans>
-            Deleting {name} stops it and removes its container. Its volumes stay, and you review a plan first.
-          </Trans>
-        )}
-      </p>
-      <Button
-        icon="trash"
-        onClick={() =>
-          sheet.open({
-            kind: "propose",
-            summary: t`Delete ${name}`,
-            edits: [
-              ...routes.map((route) => ({
-                resource: { kind: "route", scope: resource?.scope ?? "", name: route.name },
-                delete: true,
-              })),
-              { resource: { kind: "service", scope: resource?.scope ?? "", name }, delete: true },
-            ],
-            onClose: (change) => {
-              if (change && change.state !== ChangeState.PLANNED && change.state !== ChangeState.FAILED) {
-                void navigate({ to: "/apps" });
-              }
-            },
-          })
+  const open = () =>
+    sheet.open({
+      kind: "propose",
+      summary: t`Delete ${name}`,
+      edits: [
+        ...routes.map((route) => ({
+          resource: { kind: "route", scope: resource?.scope ?? "", name: route.name },
+          delete: true,
+        })),
+        { resource: { kind: "service", scope: resource?.scope ?? "", name }, delete: true },
+      ],
+      onClose: (change) => {
+        if (change && change.state !== ChangeState.PLANNED && change.state !== ChangeState.FAILED) {
+          void navigate({ to: "/apps" });
         }
-      >
-        <Trans>Delete this app</Trans>
-      </Button>
-    </Panel>
+      },
+    });
+  return { routes: routes.length, open };
+}
+
+/** A panel's link that acts, which stays where it is, off, with why, for someone who may not (ADR 0059). */
+function PanelLink({ offer, onClick, children }: { offer: Offer; onClick: () => void; children: ReactNode }) {
+  const off = useOff(offer.reason || undefined);
+  return (
+    <button type="button" className="app-panel-link" onClick={onClick} disabled={offer.off.disabled} {...off.props}>
+      <span>{children}</span>
+      {off.why}
+    </button>
   );
 }

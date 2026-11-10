@@ -31,6 +31,9 @@ type rewritten struct {
 	reaches []string
 	// web is the input that names the port a person opens, empty for none.
 	web string
+	// typed are the volumes and networks whose driver or options a person types, as
+	// "volume data", which a reading of the file with stand-ins can't speak for.
+	typed map[string]bool
 }
 
 // rewrite turns a source's Compose file into what an entry may say, and its form
@@ -55,6 +58,8 @@ func rewrite(app App) (rewritten, error) {
 	if err := expandAliases(doc); err != nil {
 		return out, err
 	}
+	// A source's comments are its own, and what follows moves the lines they sat on.
+	dropComments(doc)
 	root := doc.Content[0]
 	// Compose reads $NAME as ${NAME}, and the rest of this reads the second.
 	walkScalars(root, func(n *yaml.Node) { n.Value = braceVars(n.Value) })
@@ -95,13 +100,10 @@ func rewrite(app App) (rewritten, error) {
 			named[n.Value] = name
 		}
 		mapDel(svc, "container_name")
+		// Coolify's own, which says what its health page leaves out.
+		mapDel(svc, "exclude_from_hc")
 		if labels := mapGet(svc, "labels"); labels != nil {
-			for _, platform := range []string{"createdBy", "skipStatusCheck"} {
-				mapDel(labels, platform)
-				labels.Content = slices.DeleteFunc(labels.Content, func(n *yaml.Node) bool {
-					return labels.Kind == yaml.SequenceNode && strings.HasPrefix(n.Value, platform+"=")
-				})
-			}
+			dropLabels(labels)
 			if len(labels.Content) == 0 {
 				mapDel(svc, "labels")
 			}
@@ -160,6 +162,7 @@ func rewrite(app App) (rewritten, error) {
 	if err := nested(folders); err != nil {
 		return out, err
 	}
+	out.reaches, out.typed = append(out.reaches, typedAccess(root)...), typedResources(root)
 	images := imageNodes(doc)
 	// Longest first, so ${CONTAINER_NAME}-worker is renamed before ${CONTAINER_NAME}
 	// is, and in one order every run.
@@ -189,10 +192,25 @@ func rewrite(app App) (rewritten, error) {
 	for i := range out.reaches {
 		out.reaches[i] = renameVars(out.reaches[i], renames)
 	}
-	out.inputs = inputsOf(app.Fields, renames, root)
+	fields := slices.Clone(app.Fields)
+	for i := range fields {
+		if to, ok := renames[fields[i].Name]; ok {
+			fields[i].Name = to
+		}
+	}
+	made, err := sharedSecrets(root, fields, images)
+	if err != nil {
+		return out, err
+	}
+	out.inputs = inputsOf(append(fields, made...), nil, root)
 	asked := map[string]bool{}
 	for _, in := range out.inputs {
 		asked[in.GetName()] = true
+		if in.GetType() == catalogv1.InputType_INPUT_TYPE_SECRET {
+			// A secret is a whole value, written plainly: the form asks for it as :?
+			// asked Compose to, and a default in the file is one everyone would share.
+			walkScalars(root, func(n *yaml.Node) { n.Value = replaceVar(n.Value, in.GetName(), "${"+in.GetName()+"}") })
+		}
 	}
 	for _, f := range app.Fields {
 		if f.Web && f.Kind == Port {
@@ -220,6 +238,201 @@ func rewrite(app App) (rewritten, error) {
 	}
 	out.file, err = encodeFile(doc)
 	return out, err
+}
+
+// dropComments takes every comment off a file.
+func dropComments(n *yaml.Node) {
+	n.HeadComment, n.LineComment, n.FootComment = "", "", ""
+	for _, c := range n.Content {
+		dropComments(c)
+	}
+}
+
+// sharedSecrets finds each secret the file writes out, where everyone who installs it
+// would share it and every plan would show it: a value written under a secret's name,
+// as ADMIN_PASSWORD: example, or the default of a variable no field fills, where the
+// variable or what it's written under is named as a secret, as DB_PASS:
+// ${DB_PASS:-example}. Each becomes a secret Dockwell generates and seals, one for
+// each distinct value, so a database and its app that wrote the same one still agree.
+// A switch, such as true, or a path is no secret.
+//
+// A value written inside a longer one too, as a connection URL holds a password,
+// couldn't follow a generated secret, as the catalog keeps a secret a value of its
+// own, so the app is left out, saying so. Where a name is written, as an image, a
+// volume, a host, a path or a user is, the same word is a name, not the secret.
+func sharedSecrets(root *yaml.Node, fields []Field, images map[*yaml.Node]bool) ([]Field, error) {
+	filled := map[string]bool{}
+	for _, f := range fields {
+		filled[f.Name] = true
+	}
+	// What the file names already, which a secret named for a key takes no name of.
+	taken := usedNames(root)
+	for name := range filled {
+		taken[name] = true
+	}
+	// The key each value of an environment is written under.
+	keyOf := map[*yaml.Node]string{}
+	services := mapGet(root, "services")
+	for i := 1; services != nil && i < len(services.Content); i += 2 {
+		env := mapGet(services.Content[i], "environment")
+		if env == nil {
+			continue
+		}
+		switch env.Kind {
+		case yaml.MappingNode:
+			for j := 0; j+1 < len(env.Content); j += 2 {
+				keyOf[env.Content[j+1]] = env.Content[j].Value
+			}
+		case yaml.SequenceNode:
+			for _, n := range env.Content {
+				if k, _, ok := strings.Cut(n.Value, "="); ok {
+					keyOf[n] = strings.TrimSpace(k)
+				}
+			}
+		default:
+		}
+	}
+	byValue := map[string]string{} // a value, by the secret it becomes
+	byVar := map[string]string{}   // a variable, by the secret it becomes
+	var out []Field
+	var listed error
+	secret := func(value, name string) string {
+		value = strings.TrimSpace(value)
+		if input, ok := byValue[value]; ok {
+			return input
+		}
+		input := freeName(strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(name)), taken)
+		byValue[value] = input
+		out = append(out, Field{Name: input, Label: labelOf(input), Kind: Generated})
+		return input
+	}
+	walkScalars(root, func(n *yaml.Node) {
+		key, inEnv := keyOf[n]
+		value := n.Value
+		if inEnv && n.Kind == yaml.ScalarNode && strings.HasPrefix(value, key+"=") {
+			value = strings.TrimPrefix(value, key+"=")
+		}
+		uses := usesOf(value)
+		if inEnv && listed == nil && listsSecrets(key) && (len(uses) == 0 && literalSecret(value) ||
+			len(uses) == 1 && (uses[0].op == ":-" || uses[0].op == "-") && literalSecret(defaultOf(value, uses[0]))) {
+			listed = leave(ClassCantSay, "its %s writes out secrets every install would share, in a form of its app's own, "+
+				"which one generated secret can't take yet", key)
+		}
+		if inEnv && len(uses) == 0 && secretNamed(key) && literalSecret(value) {
+			ref := "${" + secret(value, key) + "}"
+			if n.Value != value {
+				n.Value = key + "=" + ref
+			} else {
+				n.Value, n.Tag, n.Style = ref, "!!str", 0
+			}
+			return
+		}
+		for _, u := range uses {
+			if u.op != ":-" && u.op != "-" || filled[u.name] || byVar[u.name] != "" {
+				continue
+			}
+			def := defaultOf(value, u)
+			whole := inEnv && u.at == 2 && u.end+len(u.op)+len(def)+1 == len(value)
+			if !literalSecret(def) || !secretNamed(u.name) && (!whole || !secretNamed(key)) {
+				continue
+			}
+			if input, ok := byValue[strings.TrimSpace(def)]; ok {
+				byVar[u.name] = input
+			} else {
+				// The variable keeps its own name, as it's the one the file uses.
+				taken[u.name] = false
+				byVar[u.name] = secret(def, u.name)
+			}
+		}
+	})
+	if listed != nil {
+		return nil, listed
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	walkScalars(root, func(n *yaml.Node) {
+		for name, input := range byVar {
+			n.Value = replaceVar(n.Value, name, "${"+input+"}")
+		}
+	})
+	names := nameNodes(root, images)
+	for _, value := range slices.Sorted(maps.Keys(byValue)) {
+		input := byValue[value]
+		var elsewhere string
+		walkScalars(root, func(n *yaml.Node) {
+			whole := n.Value
+			if key, ok := keyOf[n]; ok && strings.HasPrefix(whole, key+"=") {
+				whole = strings.TrimPrefix(whole, key+"=")
+			}
+			// The same value whole, as a database named as its password is, is another
+			// value that happens to match.
+			if elsewhere == "" && !names[n] && strings.TrimSpace(whole) != value && holdsSecret(n.Value, value) {
+				elsewhere = n.Value
+			}
+		})
+		if elsewhere != "" {
+			return nil, leave(ClassInside, "its secret %s's value is written elsewhere in the file too, in %q, which a generated secret couldn't follow", input, nodeText(&yaml.Node{Kind: yaml.ScalarNode, Value: elsewhere}))
+		}
+	}
+	return out, nil
+}
+
+// nameNodes are where a file writes names alone: each service's image, volumes,
+// ports, networks, host and the services it waits for.
+func nameNodes(root *yaml.Node, images map[*yaml.Node]bool) map[*yaml.Node]bool {
+	out := maps.Clone(images)
+	services := mapGet(root, "services")
+	for i := 1; services != nil && i < len(services.Content); i += 2 {
+		for _, key := range []string{"volumes", "ports", "networks", "hostname", "container_name", "depends_on", "links", "extends", "volumes_from"} {
+			if n := mapGet(services.Content[i], key); n != nil {
+				walkScalars(n, func(s *yaml.Node) { out[s] = true })
+			}
+		}
+	}
+	return out
+}
+
+// holdsSecret says a longer value holds a secret's: the same word, where a name
+// isn't written. A word runs on through - _ and ., so postgres isn't in postgres-data,
+// and a word after ://, @ or /, or after a user's or database's flag or key, as in
+// pg_isready -U postgres -d postgres, is a user, a host, a database or a path.
+func holdsSecret(s, value string) bool {
+	word := func(b byte) bool {
+		return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9' || b == '-' || b == '_' || b == '.'
+	}
+	for at := 0; ; {
+		i := strings.Index(s[at:], value)
+		if i < 0 {
+			return false
+		}
+		start, end := at+i, at+i+len(value)
+		at = start + 1
+		if start > 0 && word(s[start-1]) || end < len(s) && word(s[end]) {
+			continue
+		}
+		if !nameBefore.MatchString(s[:start]) {
+			return true
+		}
+	}
+}
+
+// nameBefore is what comes before a name: a URL's scheme, a host's @, a path's /, a
+// user's flag or key, or a database's flag, as pg_isready -d writes it.
+var nameBefore = regexp.MustCompile(`(?i)(://|@|/|-u\s*|--user(name)?[\s=]+|\buser(name)?\s*[=:]\s*|\buser id\s*=\s*|\buid\s*=\s*|\s-d\s+|--dbname[\s=]+)$`)
+
+// literalSecret says a value written under a secret's name is one: written out, and no
+// switch, such as true or 0, or path, such as /run/secrets/db.
+func literalSecret(value string) bool {
+	value = strings.TrimSpace(value)
+	switch {
+	case value == "", strings.Contains(value, "$"),
+		strings.HasPrefix(value, "/"), strings.HasPrefix(value, "./"), strings.HasPrefix(value, "../"), strings.HasPrefix(value, "~/"):
+		return false
+	}
+	// A switch, or a word for none, as YANDEX_MAP_TOKEN: 0 and MAIL_PASSWORD: null say
+	// there's no token or password.
+	return !slices.Contains([]string{"true", "false", "yes", "no", "on", "off", "0", "1", "null", "none"}, strings.ToLower(value))
 }
 
 // maxNodes bounds what expanding a file's aliases makes, as a few aliases of aliases
@@ -355,6 +568,84 @@ func dashServices(doc *yaml.Node) error {
 	return nil
 }
 
+// hostFields are a service's fields that decide what it reaches on its server, so one
+// a person types reaches it, whatever its default.
+var hostFields = []string{
+	"privileged", "network_mode", "pid", "ipc", "userns_mode", "cgroup_parent", "runtime",
+	"cap_add", "devices", "security_opt", "sysctls", "group_add", "volumes_from",
+}
+
+// typedAccess says what a file reaches through values a person types: a field of a
+// service's that decides what it reaches, and a volume's or a network's driver, its
+// options, or the name of one the server has.
+func typedAccess(root *yaml.Node) []string {
+	var out []string
+	services := mapGet(root, "services")
+	for i := 0; services != nil && i+1 < len(services.Content); i += 2 {
+		name, svc := services.Content[i].Value, services.Content[i+1]
+		for _, field := range hostFields {
+			if v := mapGet(svc, field); v != nil && typedNode(v) {
+				out = append(out, fmt.Sprintf("%s: its %s, as a person sets it, %s", name, field, nodeText(v)))
+			}
+		}
+	}
+	for _, kind := range []string{"volumes", "networks"} {
+		top := mapGet(root, kind)
+		for i := 0; top != nil && i+1 < len(top.Content); i += 2 {
+			name, spec := top.Content[i].Value, top.Content[i+1]
+			what := strings.TrimSuffix(kind, "s") + " " + name
+			for _, field := range []string{"driver", "name", "external"} {
+				if v := mapGet(spec, field); v != nil && typedNode(v) {
+					out = append(out, fmt.Sprintf("%s: its %s, as a person sets it, %s", what, field, nodeText(v)))
+				}
+			}
+			opts := mapGet(spec, "driver_opts")
+			for j := 0; opts != nil && j+1 < len(opts.Content); j += 2 {
+				key, v := opts.Content[j].Value, opts.Content[j+1]
+				switch {
+				case !typedNode(v):
+				case key == "device" || key == "mountpoint":
+					out = append(out, fmt.Sprintf("%s: a server path a person names, %s", what, nodeText(v)))
+				default:
+					out = append(out, fmt.Sprintf("%s: its driver's %s, as a person sets it, %s", what, key, nodeText(v)))
+				}
+			}
+		}
+	}
+	return out
+}
+
+// typedResources are the volumes and networks typedAccess speaks for.
+func typedResources(root *yaml.Node) map[string]bool {
+	out := map[string]bool{}
+	for _, kind := range []string{"volumes", "networks"} {
+		top := mapGet(root, kind)
+		for i := 0; top != nil && i+1 < len(top.Content); i += 2 {
+			spec := top.Content[i+1]
+			for _, field := range []string{"driver", "driver_opts", "name", "external"} {
+				if v := mapGet(spec, field); v != nil && typedNode(v) {
+					out[strings.TrimSuffix(kind, "s")+" "+top.Content[i].Value] = true
+				}
+			}
+		}
+	}
+	return out
+}
+
+// typedNode says a person types some of a value: it uses a variable.
+func typedNode(n *yaml.Node) bool {
+	typed := false
+	walkScalars(n, func(s *yaml.Node) {
+		if len(usesOf(braceVars(s.Value))) > 0 {
+			typed = true
+		}
+	})
+	if n.Kind == yaml.ScalarNode {
+		typed = len(usesOf(braceVars(n.Value))) > 0
+	}
+	return typed
+}
+
 // nested refuses a folder bound inside another, as Docker shares what's in it and two
 // volumes wouldn't.
 func nested(folders map[string]string) error {
@@ -385,7 +676,8 @@ func loopback(p *yaml.Node) error {
 		default:
 			return errNoPort
 		}
-		p.Style = yaml.DoubleQuotedStyle
+		// A port written as a number, such as 3000, is text once it says where.
+		p.Tag, p.Style = "!!str", yaml.DoubleQuotedStyle
 	case yaml.MappingNode:
 		if ip := mapGet(p, "host_ip"); ip != nil {
 			ip.Value = "127.0.0.1"
@@ -435,9 +727,25 @@ type mounted struct {
 // own is UTC and the mount is host access a person would have to approve for nothing
 // more. A folder a person names reaches the server, whatever its default.
 func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
+	if v.Kind == yaml.MappingNode {
+		if mapGet(v, "content") != nil {
+			return mounted{}, leave(ClassShipped, "it writes a file of its own into the container, which an entry can't declare yet")
+		}
+		// Coolify's own, which makes the folder first, as Docker does for a volume.
+		mapDel(v, "is_directory")
+	}
 	source, set := volumeSource(v)
 	if source == "" {
 		return mounted{}, nil
+	}
+	if volumeLike.MatchString(source) {
+		// A named volume, which a platform may declare for its file where the file
+		// doesn't.
+		return mounted{named: source}, nil
+	}
+	if !strings.HasPrefix(source, "/") && !strings.HasPrefix(source, "~") && !strings.HasPrefix(source, "$") && !strings.HasPrefix(source, ".") {
+		// A folder written without its ./, as Coolify's files do.
+		source = "./" + source
 	}
 	switch {
 	case source == "/etc/localtime" || source == "/etc/timezone":
@@ -474,15 +782,44 @@ func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
 	return mounted{named: named}, nil
 }
 
+// volumeLike is a named volume's name, as Compose tells one from a path.
+var volumeLike = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+
+// dropLabels drops the labels a platform reads, which nothing in Dockwell does:
+// 1Panel's, Coolify's, and Traefik's, as Dockwell's proxy is Caddy.
+func dropLabels(labels *yaml.Node) {
+	platform := func(key string) bool {
+		return key == "createdBy" || key == "skipStatusCheck" || strings.HasPrefix(key, "traefik.") || strings.HasPrefix(key, "coolify.")
+	}
+	switch labels.Kind {
+	case yaml.MappingNode:
+		for i := 0; i+1 < len(labels.Content); {
+			if platform(labels.Content[i].Value) {
+				labels.Content = append(labels.Content[:i], labels.Content[i+2:]...)
+			} else {
+				i += 2
+			}
+		}
+	case yaml.SequenceNode:
+		labels.Content = slices.DeleteFunc(labels.Content, func(n *yaml.Node) bool {
+			key, _, _ := strings.Cut(n.Value, "=")
+			return platform(key)
+		})
+	default:
+	}
+}
+
 // volumeSource finds what a volume mounts, and how to change it.
 func volumeSource(v *yaml.Node) (string, func(string)) {
 	switch v.Kind {
 	case yaml.ScalarNode:
-		parts := strings.SplitN(v.Value, ":", 2)
+		// At the first colon outside ${...}, so ${DATA:-./data}:/data is ${DATA:-./data}.
+		parts := splitPort(v.Value)
 		if len(parts) < 2 {
 			return "", nil
 		}
-		return parts[0], func(named string) { v.Value = named + ":" + parts[1] }
+		rest := strings.Join(parts[1:], ":")
+		return parts[0], func(named string) { v.Value = named + ":" + rest }
 	case yaml.MappingNode:
 		src := mapGet(v, "source")
 		if src == nil {
@@ -504,7 +841,7 @@ func readOnly(v *yaml.Node) bool {
 		ro := mapGet(v, "read_only")
 		return ro != nil && ro.Value == "true"
 	}
-	parts := strings.Split(v.Value, ":")
+	parts := splitPort(v.Value)
 	return len(parts) == 3 && slices.Contains(strings.Split(parts[2], ","), "ro")
 }
 
@@ -564,6 +901,34 @@ func renameVars(s string, renames map[string]string) string {
 			b.WriteString(to)
 			last = u.end
 		}
+	}
+	b.WriteString(s[last:])
+	return b.String()
+}
+
+// replaceVar replaces each use of a variable in a value, with whatever default it
+// has, with what stands for it.
+func replaceVar(s, name, with string) string {
+	var b strings.Builder
+	last := 0
+	for _, u := range usesOf(s) {
+		if u.name != name || u.at < last {
+			continue
+		}
+		start := u.at - 2 // ${
+		end := u.end
+		for depth := 1; end < len(s) && depth > 0; end++ {
+			switch {
+			case strings.HasPrefix(s[end:], "${"):
+				depth++
+				end++
+			case s[end] == '}':
+				depth--
+			}
+		}
+		b.WriteString(s[last:start])
+		b.WriteString(with)
+		last = end
 	}
 	b.WriteString(s[last:])
 	return b.String()
@@ -644,8 +1009,17 @@ func inputsOf(fields []Field, renames map[string]string, root *yaml.Node) []*cat
 			}
 		case f.Kind == Secret:
 			in.Type, in.DefaultValue = catalogv1.InputType_INPUT_TYPE_SECRET, ""
+		case f.Kind == Email:
+			in.Type = catalogv1.InputType_INPUT_TYPE_EMAIL
 		case f.Kind == Generated:
-			in.Type, in.DefaultValue, in.Generate, in.Optional = catalogv1.InputType_INPUT_TYPE_SECRET, "", 32, false
+			in.Type, in.DefaultValue, in.Optional = catalogv1.InputType_INPUT_TYPE_SECRET, "", false
+			// The source's own length, as an app may want a key of exactly that, and at
+			// least what the catalog takes.
+			n := f.Length
+			if n == 0 {
+				n = 32
+			}
+			in.Generate, in.GenerateAs = uint32(max(n, 16)), f.As
 		default:
 			in.Type = catalogv1.InputType_INPUT_TYPE_TEXT
 			if len(f.Choices) > 0 {

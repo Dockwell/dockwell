@@ -616,3 +616,32 @@ func (s *syncWriter) Write(p []byte) (int, error) {
 	defer s.mu.Unlock()
 	return s.w.Write(p)
 }
+
+// A firewall step isn't desired state: it's kept only once confirmed, which the
+// step can't say, and the access manager keeps what was confirmed itself.
+func TestAFirewallStepIsntDesiredState(t *testing.T) {
+	desired := &peeking{}
+	out := &sent{results: map[uint64]*agentv1.CallResult{}}
+	c := newCalls(context.Background(), Config{
+		Logger: slog.New(slog.DiscardHandler), Drivers: resource.NewRegistry(&firewall.Driver{Backend: firewall.NewFake()}),
+		Desired: desired,
+	}, out.send, nil)
+	ref := resource.Ref{Kind: firewall.Kind, Scope: "srv_1", Name: "http"}
+	spec, err := resource.Encode(&resourcev1.FirewallRule{Port: 80, Action: resourcev1.FirewallAction_FIREWALL_ACTION_ALLOW, Protocol: resourcev1.Protocol_PROTOCOL_TCP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	step := resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionCreate}}
+	c.start(&agentv1.Call{Id: 1, Timeout: durationpb.New(time.Minute), Call: &agentv1.Call_Apply{Apply: &agentv1.ApplyCall{
+		Step: resourcepb.Step(step, ""), Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(ref), Spec: spec},
+	}}})
+	c.stop()
+	if r := out.result(1); r.GetApply() == nil {
+		t.Fatalf("the step ended with %v, want it applied", r)
+	}
+	desired.mu.Lock()
+	defer desired.mu.Unlock()
+	if desired.calls != 0 {
+		t.Errorf("Desired heard of %d firewall steps, want none", desired.calls)
+	}
+}

@@ -23,6 +23,9 @@ service ContainerService {
   rpc ListContainers(ListContainersRequest) returns (ListContainersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (google.api.http) = {get: "/v1/containers"};
   }
 
@@ -36,6 +39,9 @@ service ContainerService {
   // it again.
   rpc AdoptContainer(AdoptContainerRequest) returns (AdoptContainerResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (google.api.http) = {
       post: "/v1/containers/{id}:adopt"

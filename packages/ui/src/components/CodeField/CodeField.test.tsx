@@ -80,6 +80,25 @@ describe("CodeField", () => {
     expect(field.scrollTop).toBe(100);
   });
 
+  it("fades at an edge a long line runs past, and not where nothing is cut", () => {
+    const { container } = render(<CodeField aria-label="File" value={"a long line\nshort"} onChange={() => {}} />);
+    const el = screen.getByRole("textbox", { name: "File" });
+    const body = container.querySelector(".dw-code-body") as HTMLElement;
+    // jsdom lays nothing out, so nothing is cut until the sizes say so.
+    expect(body).not.toHaveClass("is-cut-right");
+    Object.defineProperty(el, "clientWidth", { configurable: true, value: 200 });
+    Object.defineProperty(el, "scrollWidth", { configurable: true, value: 500 });
+    fireEvent.scroll(el, { target: { scrollLeft: 0 } });
+    expect(body).toHaveClass("is-cut-right");
+    expect(body).not.toHaveClass("is-cut-left");
+    fireEvent.scroll(el, { target: { scrollLeft: 120 } });
+    expect(body).toHaveClass("is-cut-right");
+    expect(body).toHaveClass("is-cut-left");
+    fireEvent.scroll(el, { target: { scrollLeft: 300 } });
+    expect(body).not.toHaveClass("is-cut-right");
+    expect(body).toHaveClass("is-cut-left");
+  });
+
   it("still hands its ref to whoever passes one", () => {
     const seen: (HTMLTextAreaElement | null)[] = [];
     render(<CodeField label="File" value="a" onChange={() => {}} ref={(el) => void seen.push(el)} />);

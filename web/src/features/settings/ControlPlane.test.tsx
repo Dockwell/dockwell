@@ -50,6 +50,13 @@ function plane(init: Plane = {}) {
 }
 
 const control = aServer({ id: "srv_1", name: "hz-1", controlServer: true, agentBuild: { version: "v0.4.0" } });
+// Joined, its agent never connected: joining gave it a last-seen time all the same.
+const waiting = aServer({
+  id: "srv_4",
+  name: "hz-4",
+  connection: Connection.PENDING,
+  lastSeenTime: timestampFromDate(new Date(Date.now() - 22 * 60_000)),
+});
 const away = aServer({
   id: "srv_2",
   name: "hz-2",
@@ -119,6 +126,10 @@ describe("Control plane", () => {
     const command = copyCommand("/var/lib/dockwell", "/var/lib/dockwell/control/key", ServiceManager.SYSTEMD);
     expect(within(backups).getByText((_, el) => el?.tagName === "CODE" && el.textContent === command)).toBeVisible();
     expect(backups).toHaveTextContent("copies nothing if it can't");
+    // Dockwell's own terminal ends when Dockwell stops, so nothing after the stop runs.
+    expect(backups).toHaveTextContent(
+      "Run this in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped.",
+    );
     expect(within(backups).getByRole("link", { name: "How to back it up and restore it" })).toHaveAttribute(
       "href",
       "https://github.com/Dockwell/dockwell/blob/main/docs/install.md#back-up-the-control-plane",
@@ -156,6 +167,13 @@ describe("Control plane", () => {
     );
     expect(within(updates).getByText("sudo sh -s -- --version 0.4.0")).toBeVisible();
     expect(within(updates).queryByText(/current|latest/i)).toBeNull();
+  });
+
+  it("says an agent that joined and never connected hasn't, whatever its join's time", async () => {
+    renderPlane({}, {}, [control, waiting]);
+    const agents = await panel("Agents");
+    expect(within(agents).getByText("hasn't connected yet")).toBeVisible();
+    expect(agents).not.toHaveTextContent("last heard");
   });
 
   it("counts its agents, and names those away or on another version", async () => {
@@ -240,7 +258,7 @@ describe("copyCommand", () => {
 describe("the backup's words", () => {
   it("say to run it as root under OpenRC, and to stop a hand-started Dockwell first", async () => {
     renderPlane({ serviceManager: ServiceManager.OPENRC });
-    expect(await panel("Backups")).toHaveTextContent("Run this as root.");
+    expect(await panel("Backups")).toHaveTextContent("Run this as root, in an SSH session on the control server");
     expect(within(await panel("Backups")).getByText(/rc-service dockwell stop &&/)).toBeVisible();
   });
 
@@ -249,5 +267,7 @@ describe("the backup's words", () => {
     const backups = await panel("Backups");
     expect(backups).toHaveTextContent("Dockwell doesn't run as a service here, so stop dockwell run first");
     expect(backups).not.toHaveTextContent("systemctl");
+    // Started by hand, nothing here stops it, so where the command runs doesn't matter.
+    expect(backups).not.toHaveTextContent("SSH session");
   });
 });

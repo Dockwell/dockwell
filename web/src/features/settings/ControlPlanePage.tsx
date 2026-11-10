@@ -11,11 +11,10 @@ import {
   SettingsService,
   StateStoreEngine,
 } from "@dockwell/api";
-import { Button, Callout, Glyph, Icon, Panel, STATUS, StatusBadge } from "@dockwell/ui";
+import { Button, Glyph, Icon, Panel, STATUS, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 
-import { sentence } from "../../lib/errors";
 import { formatBytes, formatDay, formatFixed } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { serverStatus } from "../servers/server";
@@ -24,6 +23,7 @@ import { Page } from "../shell/Page";
 import { shortVersion } from "../shell/version";
 import { CopyCommand } from "../system/CopyCommand";
 import "./Settings.css";
+import { ReadFailed } from "../shell/ReadFailed";
 
 /**
  * How to install, and so to upgrade: the same command again, as root
@@ -60,17 +60,15 @@ export function ControlPlanePage() {
   return (
     <Page width="narrow" title={t`Control plane`} lead={lead} back="/settings" className="control-plane">
       {got.error ? (
-        <Callout
-          tone="critical"
+        <ReadFailed
+          error={got.error}
           title={t`Dockwell can't say how its control plane is`}
           actions={
             <Button size="sm" icon="refresh" loading={got.isFetching} onClick={() => void got.refetch()}>
               <Trans>Try again</Trans>
             </Button>
           }
-        >
-          {sentence(got.error)}
-        </Callout>
+        />
       ) : null}
       <Replicas cp={cp} own={own} />
       <div className="cp-panels">
@@ -234,13 +232,17 @@ function BackupPanel({ cp }: { cp: ControlPlane | undefined }) {
             <p className="cp-text">
               {manager === ServiceManager.SYSTEMD ? (
                 <Trans>
-                  This stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps
-                  keep serving while it's stopped, and servers reconnect when it's back.
+                  Run this in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell
+                  ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for
+                  the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's
+                  stopped, and servers reconnect when it's back.
                 </Trans>
               ) : manager === ServiceManager.OPENRC ? (
                 <Trans>
-                  Run this as root. It stops Dockwell for the copy, so the store is whole, and copies nothing if it
-                  can't. Your apps keep serving while it's stopped, and servers reconnect when it's back.
+                  Run this as root, in an SSH session on the control server, not in a terminal Dockwell opens: stopping
+                  Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops
+                  Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving
+                  while it's stopped, and servers reconnect when it's back.
                 </Trans>
               ) : (
                 <Trans>
@@ -404,7 +406,7 @@ function AgentsPanel({ cp, servers }: { cp: ControlPlane | undefined; servers: S
                   status={serverStatus(s)}
                   label={<code>{s.name}</code>}
                   meta={
-                    s.lastSeenTime
+                    s.lastSeenTime && s.connection !== Connection.PENDING
                       ? t`not connected, last heard ${words.ago(timestampDate(s.lastSeenTime), now)}`
                       : t`hasn't connected yet`
                   }

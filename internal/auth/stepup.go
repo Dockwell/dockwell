@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,10 +29,10 @@ import (
 // to their API tokens that could let a stolen session keep its hold: adding
 // or removing a passkey, setting up or turning off code sign-in, making
 // recovery codes and creating a token. So does what could do the same on a
-// server: applying a plan that's as good as root there, and saving a file
-// that's a way back onto it. See
-// docs/adr/0022-secrets-encrypted-at-rest.md,
-// docs/adr/0011-claim-and-sign-in.md and docs/adr/0032-files-on-a-server.md.
+// server: applying a plan that's as good as root there, saving a file that's a
+// way back onto it, and opening a terminal on it. See
+// docs/adr/0022-secrets-encrypted-at-rest.md, docs/adr/0011-claim-and-sign-in.md,
+// docs/adr/0032-files-on-a-server.md and docs/adr/0037-a-terminal-on-a-server.md.
 
 // StepUpTTL is how long a step-up's proof works.
 const StepUpTTL = time.Minute
@@ -72,6 +73,26 @@ const (
 	// StepUpEndProcess ends a process on a server. Its target is the server's ID
 	// and the process's, as "srv_…:1234".
 	StepUpEndProcess StepUpAction = "process.end"
+	// StepUpOpenTerminal opens a root shell on a server. Its target is the
+	// server's ID. A proof opens one terminal (ADR 0037).
+	StepUpOpenTerminal StepUpAction = "terminal.open"
+	// StepUpApproveChange applies someone else's change in a protected
+	// environment. Its target is the change's ID and its plan's fingerprint, as
+	// "chg_…:fingerprint".
+	StepUpApproveChange StepUpAction = "change.approve"
+	// StepUpMakeWayBackIn makes a file or a folder that's a way back onto a server.
+	// Its target is the server's ID and the path, as for a save.
+	StepUpMakeWayBackIn StepUpAction = "file.make_way_back_in"
+	// StepUpMoveWayBackIn moves what's at a path where either end is a way back onto
+	// a server. Its target is the server's ID and both paths, on two lines.
+	StepUpMoveWayBackIn StepUpAction = "file.move_way_back_in"
+	// StepUpDeleteWayBackIn deletes what's a way back onto a server, or holds one.
+	StepUpDeleteWayBackIn StepUpAction = "file.delete_way_back_in"
+	// StepUpRestoreWayBackIn puts back what was deleted where that's a way back
+	// onto a server. Its target is the server's ID and the path it goes back to.
+	StepUpRestoreWayBackIn StepUpAction = "file.restore_way_back_in"
+	// StepUpAddServer makes a ticket that adds a server to the fleet.
+	StepUpAddServer StepUpAction = "server.add"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -90,13 +111,21 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpApplyRootChange: {"applying", true},
 	StepUpSaveWayBackIn:   {"saving", true},
 	StepUpEndProcess:      {"ending process", true},
+	StepUpOpenTerminal:    {"opening a terminal on", true},
+	StepUpApproveChange:   {"approving", true},
+	// A move's target has its two paths on two lines, which doing puts in words.
+	StepUpMakeWayBackIn:    {"making", true},
+	StepUpMoveWayBackIn:    {"moving", true},
+	StepUpDeleteWayBackIn:  {"deleting", true},
+	StepUpRestoreWayBackIn: {"putting back", true},
+	StepUpAddServer:        {"adding a server", false},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".
 func doing(action StepUpAction, target string) string {
 	a := stepUpActions[action]
 	if a.targeted {
-		return a.doing + " " + target
+		return a.doing + " " + strings.ReplaceAll(target, "\n", " to ")
 	}
 	return a.doing
 }

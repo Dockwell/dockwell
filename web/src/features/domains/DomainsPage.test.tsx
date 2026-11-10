@@ -5,6 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   CertificateState,
   Connection,
+  DomainCheckState,
   type ProposeChangeRequest,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -494,6 +495,95 @@ describe("the list of domains", () => {
       }),
     );
     await waitFor(async () => expect(await rowOf(/app\.example\.com/)).toHaveTextContent("production"));
+  });
+});
+
+describe("DNS and certificates, as Domains-List has them", () => {
+  /** A domain whose one server says what its certificate and DNS are. */
+  const said = (name: string, cert: ReturnType<typeof certificate>, dns?: object) =>
+    aDomain({ name, server: { status: { domain: name, certificate: cert, ...(dns ? { dns } : {}) } } });
+
+  it("says where each name's DNS leads, with the addresses it found", async () => {
+    renderAt(
+      "/domains",
+      api([
+        said("here.example.com", certificate(CertificateState.ISSUED, "", 61), {
+          state: DomainCheckState.POINTS_HERE,
+          found: ["198.51.100.7"],
+        }),
+        said("proxied.example.com", certificate(CertificateState.NONE), {
+          state: DomainCheckState.ELSEWHERE,
+          found: ["203.0.113.10"],
+          proxied: true,
+        }),
+        said("new.example.com", certificate(CertificateState.PENDING), { state: DomainCheckState.NO_RECORD }),
+        said("away.example.com", certificate(CertificateState.PENDING), {
+          state: DomainCheckState.ELSEWHERE,
+          found: ["203.0.113.9"],
+        }),
+      ]),
+    );
+    const table = await screen.findByRole("table", { name: "Domains" });
+    expect(within(table).getByRole("columnheader", { name: "DNS" })).toBeVisible();
+    expect(await rowOf(/here\.example\.com/)).toHaveTextContent("Points here198.51.100.7");
+    expect(await rowOf(/proxied\.example\.com/)).toHaveTextContent("Proxied by Cloudflare203.0.113.10");
+    expect(await rowOf(/new\.example\.com/)).toHaveTextContent("No record yet");
+    expect(await rowOf(/away\.example\.com/)).toHaveTextContent("Points elsewhere203.0.113.9");
+  });
+
+  it("says beside the list how the certificates stand, and which runs out first", async () => {
+    renderAt(
+      "/domains",
+      api([
+        said("soon.example.com", certificate(CertificateState.ISSUED, "", 2)),
+        said("late.example.com", certificate(CertificateState.ISSUED, "", 61)),
+        said("new.example.com", certificate(CertificateState.PENDING)),
+      ]),
+    );
+    const panel = await screen.findByRole("region", { name: "Certificates" });
+    expect(panel).toHaveTextContent("Renewed automatically");
+    expect(panel).toHaveTextContent("Runs out firstsoon.example.com in 2 days");
+    expect(panel).toHaveTextContent("Valid2");
+    expect(panel).toHaveTextContent("Issuing1");
+    expect(panel).not.toHaveTextContent("Failed");
+  });
+
+  it("counts every domain once, whatever the filters show, so the panel stays put", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/domains",
+      api([
+        said("soon.example.com", certificate(CertificateState.ISSUED, "", 2)),
+        said("new.example.com", certificate(CertificateState.PENDING)),
+        aDomain({
+          name: "far.example.com",
+          certificate: certificate(CertificateState.ISSUED, "", 61),
+          servers: [{ serverId: "srv_2", serverName: "hz-2", stale: true }],
+        }),
+      ]),
+    );
+    const panel = await screen.findByRole("region", { name: "Certificates" });
+    const stands = () => {
+      expect(panel).toHaveTextContent("Valid1");
+      expect(panel).toHaveTextContent("Issuing1");
+      // Nobody can say how a domain stands whose server isn't connected, and it still counts.
+      expect(panel).toHaveTextContent("Not connected1");
+    };
+    stands();
+    await user.type(screen.getByRole("searchbox", { name: "Filter domains" }), "nothing-like-this");
+    expect(await screen.findByText("Nothing matches")).toBeVisible();
+    expect(screen.getByRole("region", { name: "Certificates" })).toBe(panel);
+    stands();
+  });
+
+  it("takes the DNS a name has on each of its servers at its worst", async () => {
+    const { dnsOf } = await import("./dns");
+    const on = (state: DomainCheckState, proxied = false) => ({ status: { dns: { state, proxied, found: [] } } });
+    const domain = aDomain({
+      name: "two.example.com",
+      servers: [on(DomainCheckState.POINTS_HERE), on(DomainCheckState.ELSEWHERE)],
+    });
+    expect(dnsOf(domain as never)?.state).toBe(DomainCheckState.ELSEWHERE);
   });
 });
 
@@ -1241,6 +1331,27 @@ describe("the list of domains on a phone", () => {
     const prod = await screen.findByRole("link", { name: /^prod\.example\.com/ });
     await waitFor(() => expect(prod).toHaveTextContent("hz-1 · production"));
     expect(screen.getByRole("link", { name: /^staging\.example\.com/ })).toHaveTextContent("hz-1 · staging");
+  });
+
+  it("says where each name's DNS leads under what it reaches, and nothing before a server has read it", async () => {
+    onPhone();
+    const on = (name: string, dns?: object) =>
+      aDomain({ name, server: { status: { domain: name, certificate: issued, ...(dns ? { dns } : {}) } } });
+    renderAt(
+      "/domains",
+      api([
+        on("here.example.com", { state: DomainCheckState.POINTS_HERE, found: ["198.51.100.7"] }),
+        on("away.example.com", { state: DomainCheckState.ELSEWHERE, found: ["203.0.113.9"] }),
+        on("unread.example.com"),
+      ]),
+    );
+    expect(await screen.findByRole("link", { name: /^here\.example\.com/ })).toHaveTextContent(
+      "Points here · 198.51.100.7",
+    );
+    expect(screen.getByRole("link", { name: /^away\.example\.com/ })).toHaveTextContent(
+      "Points elsewhere · 203.0.113.9",
+    );
+    expect(screen.getByRole("link", { name: /^unread\.example\.com/ })).not.toHaveTextContent("Not read yet");
   });
 
   it("clips neither what a row reaches nor where", async () => {
