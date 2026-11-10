@@ -1276,8 +1276,11 @@ msgstr "{0, plural, other {发送到 # 个渠道}}"
 msgid "{firing} open"
 msgstr "{firing} 个未解决"
 
-msgid "A group's ID, or a channel's name, such as @example_alerts. Add the bot to it first."
-msgstr "群组的 ID，或频道的名称，例如 @example_alerts。请先把机器人加入其中。"
+msgid "A channel needs a name: lowercase letters, digits and dashes."
+msgstr "渠道需要一个名称：使用小写字母、数字和连字符。"
+
+msgid "A group's ID or a channel's @name, with the bot added to it."
+msgstr "群组 ID 或频道的 @名称，需先把机器人加进去。"
 
 msgid "Access token"
 msgstr "访问令牌"
@@ -1285,19 +1288,23 @@ msgstr "访问令牌"
 msgid "Add a channel"
 msgstr "添加渠道"
 
-#. placeholder {0}: form.name
-msgid "Add the alert channel {0}"
-msgstr "添加告警渠道 {0}"
+msgid "Add the alert channel {name}"
+msgstr "添加告警渠道 {name}"
 
-msgid "An address your SMTP server sends as."
-msgstr "你的 SMTP 服务器用来发信的地址。"
+msgid "An address the mail service sends as."
+msgstr "邮件服务用来发信的地址。"
+
+msgid "Another SMTP server"
+msgstr "其他 SMTP 服务器"
+
+msgid "Another channel has this name. Rules name a channel by it, so give this one another."
+msgstr "已有渠道使用这个名称。规则用名称来指代渠道，请换一个。"
 
 msgid "Bot token"
 msgstr "机器人令牌"
 
-#. placeholder {0}: form.name
-msgid "Change the alert channel {0}"
-msgstr "更改告警渠道 {0}"
+msgid "Change the alert channel {name}"
+msgstr "修改告警渠道 {name}"
 
 #. placeholder {0}: channel.name
 msgid "Change {0}"
@@ -1312,8 +1319,8 @@ msgstr "Dockwell 没有发送"
 msgid "Dockwell keeps it sealed. Leave it empty to keep it."
 msgstr "Dockwell 会加密保存它。留空即保留原值。"
 
-msgid "Dockwell posts each alert to it as JSON. It may hold a token, so it's kept sealed, and lists show only its host."
-msgstr "Dockwell 会把每条告警以 JSON 形式发送到这里。它可能含有令牌，因此会加密保存，列表中只显示主机名。"
+msgid "Each alert is posted to it as JSON. Kept sealed; lists show its host."
+msgstr "每条告警以 JSON 发送到这里。加密保存，列表中只显示主机名。"
 
 msgid "For a server or topic that asks for one."
 msgstr "用于需要令牌的服务器或主题。"
@@ -1321,29 +1328,38 @@ msgstr "用于需要令牌的服务器或主题。"
 msgid "From @BotFather, when you make the bot. It's kept sealed."
 msgstr "创建机器人时由 @BotFather 提供。会加密保存。"
 
-msgid "From the channel's settings, under Integrations, then Webhooks. Anyone with it can post there, so it's kept sealed."
-msgstr "在频道设置的“整合”中的“Webhook”里获取。任何拿到它的人都能在那里发消息，因此会加密保存。"
+msgid "From the channel's Integrations, then Webhooks. Kept sealed."
+msgstr "在频道的“整合”中的“Webhooks”里。加密保存。"
 
-msgid "From your Slack app's Incoming Webhooks page. Anyone with it can post there, so it's kept sealed."
-msgstr "在 Slack 应用的 Incoming Webhooks 页面获取。任何拿到它的人都能在那里发消息，因此会加密保存。"
+msgid "From your Slack app's Incoming Webhooks. Kept sealed."
+msgstr "在 Slack 应用的 Incoming Webhooks 中。加密保存。"
 
-msgid "It said: {said}. Check what the form holds, then send another."
-msgstr "它回复：{said}。请检查表单中的内容，然后再发送一次。"
+msgid "It said: {said}."
+msgstr "它说：{said}。"
+
+msgid "Its server changed, so give the password again."
+msgstr "它的服务器变了，请重新输入密码。"
 
 msgid "Kept, sealed"
 msgstr "已保留，已加密"
 
-msgid "Lowercase letters, digits and dashes. Rules name a channel by it."
-msgstr "小写字母、数字和短横线。规则用它来指定渠道。"
+msgid "Lowercase letters, digits and dashes, starting and ending with a letter or digit."
+msgstr "使用小写字母、数字和连字符，并以字母或数字开头和结尾。"
+
+msgid "Made hard to guess, and kept sealed. Subscribe to it in the ntfy app."
+msgstr "已设为难以猜到并加密保存。在 ntfy 应用中订阅它。"
+
+msgid "Mail service"
+msgstr "邮件服务"
 
 msgid "Name"
 msgstr "名称"
 
+msgid "Named {name}"
+msgstr "名为 {name}"
+
 msgid "None, on this network"
 msgstr "无，在本网络内"
-
-msgid "On ntfy.sh anyone who knows a topic can read it, so this one is hard to guess, and kept sealed. Subscribe to it in the ntfy app."
-msgstr "在 ntfy.sh 上，任何知道主题的人都能读取它，因此这个主题很难猜到，并会加密保存。在 ntfy 应用中订阅它。"
 
 msgid "Password"
 msgstr "密码"
@@ -1351,12 +1367,17 @@ msgstr "密码"
 msgid "Port"
 msgstr "端口"
 
+msgid "Region"
+msgstr "区域"
+
 msgid "Remove"
 msgstr "移除"
 
-#. placeholder {0}: form.name
-msgid "Remove the alert channel {0}"
-msgstr "移除告警渠道 {0}"
+msgid "Remove the alert channel {name}"
+msgstr "删除告警渠道 {name}"
+
+msgid "Rules name a channel by it."
+msgstr "规则用它来指代渠道。"
 
 msgid "SMTP server"
 msgstr "SMTP 服务器"
@@ -1376,14 +1397,14 @@ msgstr "正在发送测试…"
 msgid "Sends to"
 msgstr "发送到"
 
-msgid "Sent only over TLS, and kept sealed. Changing the server, port, security or user asks for it again."
-msgstr "只通过 TLS 发送，并加密保存。更改服务器、端口、安全方式或用户时需要重新填写。"
+msgid "Sent only over TLS, and kept sealed."
+msgstr "只通过 TLS 发送，并加密保存。"
 
 msgid "Signing secret"
 msgstr "签名密钥"
 
-msgid "Signs each request in a Dockwell-Signature header, so your endpoint can tell it came from this install."
-msgstr "在 Dockwell-Signature 请求头中为每个请求签名，让你的端点能确认请求来自此安装。"
+msgid "Signs each request, in a Dockwell-Signature header."
+msgstr "在 Dockwell-Signature 请求头中为每个请求签名。"
 
 msgid "TLS"
 msgstr "TLS"
@@ -1403,8 +1424,8 @@ msgstr "主题"
 msgid "URL"
 msgstr "URL"
 
-msgid "Up to 10 addresses, separated by commas."
-msgstr "最多 10 个地址，用逗号分隔。"
+msgid "Up to 10, separated by commas."
+msgstr "最多 10 个，用逗号分隔。"
 
 msgid "User"
 msgstr "用户"
@@ -1412,11 +1433,14 @@ msgstr "用户"
 msgid "Webhook URL"
 msgstr "Webhook URL"
 
+msgid "no TLS"
+msgstr "不使用 TLS"
+
 msgid "ntfy.sh unless you give a server of your own."
 msgstr "除非你填写自己的服务器，否则使用 ntfy.sh。"
 
-msgid "{kindName} answered {said}. Look for a message titled Dockwell test message."
-msgstr "{kindName} 回复了 {said}。请查找标题为 Dockwell test message 的消息。"
+msgid "{kindName} answered {said}."
+msgstr "{kindName} 回复：{said}。"
 
 msgid "A rule that names no channel sends to every one."
 msgstr "没有指定渠道的规则会发送到所有渠道。"
@@ -4501,9 +4525,6 @@ msgstr "请将此密码短语保存到其他地方"
 msgid "MinIO or other S3 storage"
 msgstr "MinIO 或其他 S3 存储"
 
-msgid "Named {name}"
-msgstr "名为 {name}"
-
 msgid "No test"
 msgstr "未能测试"
 
@@ -4521,9 +4542,6 @@ msgstr "密码短语"
 
 msgid "Passphrase copied"
 msgstr "密码短语已复制"
-
-msgid "Region"
-msgstr "区域"
 
 msgid "Secret key"
 msgstr "私密密钥"

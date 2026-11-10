@@ -28,7 +28,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "AlertService.listAlertRules": { within: "AlertService.listAlerts" },
   "AlertService.listAlerts": "may",
   "AlertService.muteAlerts": "unused",
-  "AlertService.testAlertChannel": { within: "AlertService.listAlerts" },
+  "AlertService.testAlertChannel": "may",
   "AlertService.unmuteAlerts": "unused",
   "AlertService.unacknowledgeAlert": { within: "AlertService.listAlerts" },
 
