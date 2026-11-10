@@ -8,6 +8,7 @@ import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 // AlertService says what's wrong now and what was, the rules that decide it
@@ -30,6 +31,10 @@ service AlertService {
   option (dockwell.v1.nouns) = {
     name: "alert-channels"
     help: "A channel is somewhere alerts are sent, such as a webhook. What signs in to it is sealed, never shown again, and a plan says only that it changed. Channels are resources: creating, changing and deleting one is a change, with a plan, that undo takes back. TestAlertChannel sends a test message and says what the far end answered."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "alert-checks"
+    help: "A check is an address Dockwell asks every so often whether it answers as it should, from the control server: an uptime check. It reads down once as many runs in a row as it says have failed, which the check-down rule alerts on. Checks are resources: creating, changing and deleting one is a change, with a plan, that undo takes back. ListAlertChecks shows how each stands and its last runs."
   };
   option (dockwell.v1.nouns) = {
     name: "alert-deliveries"
@@ -60,6 +65,17 @@ service AlertService {
     option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_INSTALL;
     option (google.api.http) = {get: "/v1/alert-rules"};
+  }
+
+  // ListAlertChecks returns every check, with how it stands and its last runs,
+  // newest first. A check made a moment ago reads waiting until its first run.
+  rpc ListAlertChecks(ListAlertChecksRequest) returns (ListAlertChecksResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {get: "/v1/alert-checks"};
   }
 
   // ListAlertChannels returns every channel, with how its last message went, and
@@ -304,6 +320,67 @@ message AlertRuleInfo {
   google.protobuf.Timestamp muted_until = 8;
   // Whether Dockwell made it, as one of an install's first rules.
   bool built_in = 9;
+}
+
+// AlertCheckInfo is a check, how it stands, and its last runs.
+message AlertCheckInfo {
+  // The check's ID, "chk_…", and its name.
+  string id = 1;
+  string name = 2;
+  // What it is.
+  dockwell.resource.v1alpha1.AlertCheck spec = 3;
+  // How it stands.
+  AlertCheckState state = 4;
+  // Since when it has stood so. Unset while it waits for its first run.
+  google.protobuf.Timestamp since = 5;
+  // Its last runs, newest first, at most 10. They're in memory, so a restart of
+  // the control plane starts them again.
+  repeated AlertCheckRun runs = 6;
+  // Where it runs from, in words, such as "the control server".
+  string from = 7;
+  // Why Dockwell can't run the check now, such as a spec it can't read; empty
+  // while it can. A check with a problem keeps the alert it had open.
+  string problem = 8;
+}
+
+// AlertCheckState is how a check stands.
+enum AlertCheckState {
+  ALERT_CHECK_STATE_UNSPECIFIED = 0;
+  // It hasn't run yet.
+  ALERT_CHECK_STATE_WAITING = 1 [(dockwell.v1.word) = "Waiting"];
+  // Its last run passed, and if it was down, the one before passed too.
+  ALERT_CHECK_STATE_UP = 2 [(dockwell.v1.word) = "Up"];
+  // Its last run failed, and not yet as many in a row as make it down.
+  ALERT_CHECK_STATE_FAILING = 3 [(dockwell.v1.word) = "Failing"];
+  // As many runs in a row as it says have failed, and not yet 2 in a row passed
+  // since.
+  ALERT_CHECK_STATE_DOWN = 4 [(dockwell.v1.word) = "Down"];
+}
+
+// AlertCheckRun is one run of a check.
+message AlertCheckRun {
+  // When it ran.
+  google.protobuf.Timestamp time = 1;
+  // Whether it passed.
+  bool ok = 2;
+  // The status the address answered with. 0 when nothing answered.
+  uint32 status = 3;
+  // How long the answer took, to its headers.
+  google.protobuf.Duration took = 4;
+  // What went wrong, in words, such as "no answer within 10s" or "502, outside
+  // 200 to 399". Empty when it passed.
+  string said = 5;
+  // True for a run that didn't start, as every slot for runs was taken: it says
+  // nothing of the address, and counts neither as up nor as a failure.
+  bool skipped = 6;
+}
+
+// ListAlertChecksRequest asks for every check.
+message ListAlertChecksRequest {}
+
+// ListAlertChecksResponse lists the checks.
+message ListAlertChecksResponse {
+  repeated AlertCheckInfo checks = 1;
 }
 
 // ListAlertRulesRequest asks for every rule.
