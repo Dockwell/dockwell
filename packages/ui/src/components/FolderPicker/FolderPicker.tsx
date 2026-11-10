@@ -1,0 +1,244 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+
+import { cx, hasContent } from "../../lib/cx";
+import { useUIStrings } from "../../lib/strings";
+import { Button } from "../Button/Button";
+import { Icon } from "../Icon/Icon";
+import "./FolderPicker.css";
+
+/** What a folder holds, as far as choosing one needs: its own folders, by name. */
+export interface FolderListing {
+  /** The folder's path as the server resolved it, with links followed. */
+  path: string;
+  folders: readonly { name: string; locked?: boolean }[];
+}
+
+export interface FolderPickerProps {
+  /** Sits above, in sentence case. */
+  label: ReactNode;
+  /** The folder chosen, as an absolute path. */
+  value: string;
+  onChange: (path: string) => void;
+  /**
+   * Reads a folder's own folders. It rejects when the folder isn't there or can't be
+   * read, and the picker then looks in the folder above.
+   */
+  list: (path: string) => Promise<FolderListing>;
+  /**
+   * What's known of the chosen folder, as one short line beside it, such as "New, made
+   * with the site" or "12 files".
+   */
+  note?: ReactNode;
+  /** Replaces the note. Say what is wrong and how to fix it. */
+  error?: ReactNode;
+  /** Starts open, as when a form sends someone back to it. */
+  defaultOpen?: boolean;
+  disabled?: boolean;
+  className?: string;
+}
+
+/** The folder a path sits in: "/" for what's at the top. */
+function parentOf(path: string): string {
+  const cut = path.replace(/\/+$/, "").lastIndexOf("/");
+  return cut <= 0 ? "/" : path.slice(0, cut);
+}
+
+const join = (dir: string, name: string) => (dir === "/" ? `/${name}` : `${dir}/${name}`);
+
+/** Each folder on the way to a path, from the top. */
+function crumbs(path: string): { name: string; path: string }[] {
+  const out = [{ name: "/", path: "/" }];
+  for (const name of path.split("/").filter(Boolean)) out.push({ name, path: join(out.at(-1)?.path ?? "/", name) });
+  return out;
+}
+
+/**
+ * Chooses a folder on a server. Closed, it is one line: the folder, what's known of it,
+ * and Change. Open, a person browses the server's folders and picks one, names a new
+ * one inside the folder they're looking at, or types a path, as someone who knows it
+ * would. It makes nothing itself: a new folder is whatever uses the path's to make.
+ */
+export function FolderPicker({
+  label,
+  value,
+  onChange,
+  list,
+  note,
+  error,
+  defaultOpen = false,
+  disabled = false,
+  className,
+}: FolderPickerProps) {
+  const strings = useUIStrings().folderPicker;
+  const id = useId();
+  const [open, setOpen] = useState(defaultOpen);
+  // The folder being looked in, and what it holds once read.
+  const [at, setAt] = useState("/");
+  const [listing, setListing] = useState<FolderListing>();
+  const [failed, setFailed] = useState(false);
+  const [naming, setNaming] = useState("");
+  const asked = useRef(0);
+  const invalid = hasContent(error);
+
+  /** Looks in a folder, and in the one above when it isn't there, up to the top. */
+  const look = (path: string) => {
+    const mine = ++asked.current;
+    setListing(undefined);
+    setFailed(false);
+    const tryAt = (where: string) => {
+      list(where).then(
+        (found) => {
+          if (asked.current !== mine) return;
+          setAt(where);
+          setListing(found);
+        },
+        () => {
+          if (asked.current !== mine) return;
+          if (where === "/") {
+            setAt("/");
+            setFailed(true);
+          } else tryAt(parentOf(where));
+        },
+      );
+    };
+    tryAt(path);
+  };
+
+  // Opening looks where the chosen folder would be: in it when it's there, above it otherwise.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only as it opens, not as the value follows what's picked.
+  useEffect(() => {
+    if (open) look(value.startsWith("/") ? value : "/");
+  }, [open]);
+
+  const choose = (path: string) => {
+    onChange(path);
+    look(path);
+  };
+  const add = () => {
+    const name = naming.trim().replace(/^\/+|\/+$/g, "");
+    if (name === "" || name.includes("/")) return;
+    onChange(join(at, name));
+    setNaming("");
+  };
+
+  return (
+    <div className={cx("dw-field", "dw-folder", invalid && "is-invalid", className)}>
+      <span className="dw-field-label" id={`${id}-label`}>
+        {label}
+      </span>
+      <div className="dw-folder-summary">
+        <span className="dw-folder-icon" aria-hidden="true">
+          <Icon name="folder" size={16} />
+        </span>
+        <code className="dw-folder-path" title={value}>
+          {value || strings.none}
+        </code>
+        {!invalid && hasContent(note) ? <span className="dw-folder-note">{note}</span> : null}
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={disabled}
+          aria-expanded={open}
+          aria-controls={`${id}-panel`}
+          aria-label={open ? strings.done : strings.changeNamed(value)}
+          onClick={() => setOpen(!open)}
+        >
+          {open ? strings.done : strings.change}
+        </Button>
+      </div>
+      {invalid ? <div className="dw-field-error">{error}</div> : null}
+      {open ? (
+        // biome-ignore lint/a11y/useSemanticElements: a fieldset would nest a second legend under the field's label
+        <div className="dw-folder-panel" id={`${id}-panel`} role="group" aria-labelledby={`${id}-label`}>
+          <label className="dw-folder-typed">
+            <span className="dw-folder-sub">{strings.path}</span>
+            <input
+              className="dw-folder-input"
+              value={value}
+              spellCheck={false}
+              autoCapitalize="none"
+              autoCorrect="off"
+              aria-invalid={invalid || undefined}
+              onChange={(event) => onChange(event.target.value)}
+              // A path that's typed is looked in once it's left, so the list follows it.
+              onBlur={() => {
+                if (value.startsWith("/")) look(value);
+              }}
+            />
+          </label>
+          <nav className="dw-folder-crumbs" aria-label={strings.lookingIn}>
+            {crumbs(at).map((c, i, all) => (
+              <span key={c.path}>
+                {i > 1 ? <span aria-hidden="true">/</span> : null}
+                <button
+                  type="button"
+                  className="dw-folder-crumb"
+                  aria-current={i === all.length - 1 ? "location" : undefined}
+                  onClick={() => choose(c.path)}
+                >
+                  {c.name}
+                </button>
+              </span>
+            ))}
+          </nav>
+          <ul
+            className="dw-folder-list"
+            aria-label={strings.foldersIn(at)}
+            aria-busy={listing === undefined && !failed}
+          >
+            {failed ? (
+              <li className="dw-folder-quiet">{strings.cantRead}</li>
+            ) : listing === undefined ? (
+              <li className="dw-folder-quiet">{strings.reading}</li>
+            ) : listing.folders.length === 0 ? (
+              <li className="dw-folder-quiet">{strings.empty}</li>
+            ) : (
+              listing.folders.map((folder) => {
+                const path = join(at, folder.name);
+                return (
+                  <li key={folder.name}>
+                    <button
+                      type="button"
+                      className={cx("dw-folder-row", path === value && "is-chosen")}
+                      disabled={folder.locked}
+                      aria-pressed={path === value}
+                      onClick={() => choose(path)}
+                    >
+                      <Icon name={folder.locked ? "lock" : "folder"} size={14} />
+                      <span>{folder.name}</span>
+                    </button>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+          <div className="dw-folder-new">
+            <label className="dw-folder-typed">
+              <span className="dw-folder-sub">{strings.newIn(at)}</span>
+              <input
+                className="dw-folder-input"
+                value={naming}
+                placeholder={strings.newName}
+                spellCheck={false}
+                autoCapitalize="none"
+                autoCorrect="off"
+                onChange={(event) => setNaming(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  // The form around it isn't sent by naming a folder.
+                  event.preventDefault();
+                  add();
+                }}
+              />
+            </label>
+            <Button size="sm" icon="plus" disabled={naming.trim() === "" || naming.includes("/")} onClick={add}>
+              {strings.use}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

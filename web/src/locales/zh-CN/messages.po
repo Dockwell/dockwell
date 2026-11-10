@@ -13,14 +13,35 @@ msgstr "超过 1 万行新日志"
 msgid "CPU"
 msgstr "CPU"
 
+msgid "Can't read the server's folders now"
+msgstr "现在无法读取服务器上的文件夹"
+
 msgid "Cancel"
 msgstr "取消"
+
+msgid "Change"
+msgstr "更改"
+
+msgid "Change the folder, {path}"
+msgstr "更改文件夹，{path}"
+
+msgid "Check again"
+msgstr "重新检查"
+
+msgid "Choose a folder"
+msgstr "选择文件夹"
 
 msgid "Close"
 msgstr "关闭"
 
 msgid "Command bar"
 msgstr "命令栏"
+
+msgid "Copied {value}"
+msgstr "已复制 {value}"
+
+msgid "Copy {value}"
+msgstr "复制 {value}"
 
 msgid "Create"
 msgstr "创建"
@@ -43,11 +64,17 @@ msgstr "正在部署"
 msgid "Dismiss"
 msgstr "关闭"
 
+msgid "Done"
+msgstr "完成"
+
 msgid "Down"
 msgstr "宕机"
 
 msgid "Error"
 msgstr "错误"
+
+msgid "Folders in {path}"
+msgstr "{path} 中的文件夹"
 
 msgid "Follow"
 msgstr "跟随"
@@ -64,8 +91,20 @@ msgstr "悬停或聚焦一台服务器以查看详情。"
 msgid "In <0>{scope}</0>"
 msgstr "范围：<0>{scope}</0>"
 
+msgid "Looking in"
+msgstr "正在查看"
+
 msgid "Memory"
 msgstr "内存"
+
+msgid "New folder in {path}"
+msgstr "在 {path} 中新建文件夹"
+
+msgid "No folder chosen"
+msgstr "尚未选择文件夹"
+
+msgid "No folders here"
+msgstr "这里没有文件夹"
 
 msgid "Nothing here yet."
 msgstr "这里还没有内容。"
@@ -75,6 +114,9 @@ msgstr "没有与“{query}”匹配的结果。试试服务器、应用或操�
 
 msgid "Optional"
 msgstr "可选"
+
+msgid "Path"
+msgstr "路径"
 
 msgid "Pause"
 msgstr "暂停"
@@ -87,6 +129,9 @@ msgstr "受保护的环境"
 
 msgid "Put back"
 msgstr "收起"
+
+msgid "Reading…"
+msgstr "读取中…"
 
 msgid "Remove {what}"
 msgstr "移除 {what}"
@@ -139,6 +184,10 @@ msgstr "原地更新"
 msgid "Updated in place"
 msgstr "已原地更新"
 
+#. The button that takes the new folder's name as the folder to use.
+msgid "Use"
+msgstr "使用"
+
 msgid "Warning"
 msgstr "警告"
 
@@ -177,6 +226,10 @@ msgstr "已隐藏"
 
 msgid "job"
 msgstr "任务"
+
+#. Placeholder of the field that names a new folder.
+msgid "name"
+msgstr "名称"
 
 msgid "network"
 msgstr "网络"
@@ -1576,9 +1629,6 @@ msgstr "把 {key} 添加到 {name}"
 msgid "Can't read the environment's variables and secrets"
 msgstr "无法读取环境中的变量和密钥"
 
-msgid "Change"
-msgstr "更改"
-
 msgid "Change the environment of {name}"
 msgstr "更改 {name} 的环境变量"
 
@@ -1698,9 +1748,6 @@ msgstr "未应用的更改"
 
 msgid "Updated"
 msgstr "更新"
-
-msgid "Use"
-msgstr "使用"
 
 msgid "Use letters, digits and underscores, starting with a letter or underscore."
 msgstr "请使用字母、数字和下划线，并以字母或下划线开头。"
@@ -2319,9 +2366,6 @@ msgstr "还没有任何更改。"
 
 msgid "Nothing set aside"
 msgstr "没有预留"
-
-msgid "Path"
-msgstr "路径"
 
 msgid "Path in the app"
 msgstr "应用内路径"
@@ -4332,9 +4376,6 @@ msgstr "运行中应用的副本"
 
 msgid "Daily at {at}"
 msgstr "每天 {at}"
-
-msgid "Done"
-msgstr "完成"
 
 msgid "Exact copy"
 msgstr "精确副本"
@@ -8630,9 +8671,6 @@ msgstr "每 2 秒"
 
 msgid "memory"
 msgstr "内存"
-
-msgid "name"
-msgstr "名称"
 
 msgid "uptime"
 msgstr "运行时长"

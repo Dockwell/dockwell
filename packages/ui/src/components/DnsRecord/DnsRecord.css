@@ -1,0 +1,64 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.dw-dns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  container-type: inline-size;
+}
+.dw-dns-row {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-md);
+  padding: 0 var(--space-1) 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font-size: 13px;
+}
+.dw-dns-type {
+  color: var(--ink-muted);
+}
+.dw-dns-name,
+.dw-dns-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dw-dns-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-height: var(--control-sm);
+}
+.dw-dns-note {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+/* In a narrow place the name has a line to itself, and the value the next, beside its copy button. */
+@container (max-width: 440px) {
+  .dw-dns-row {
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    grid-template-areas:
+      "type name name"
+      "value value copy";
+    row-gap: 0;
+    padding-block: var(--space-2) var(--space-1);
+  }
+  .dw-dns-type {
+    grid-area: type;
+  }
+  .dw-dns-name {
+    grid-area: name;
+  }
+  .dw-dns-value {
+    grid-area: value;
+  }
+  .dw-dns-row .dw-btn {
+    grid-area: copy;
+  }
+}

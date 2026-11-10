@@ -10,7 +10,9 @@ export { Button, ButtonLink, type ButtonLinkProps, type ButtonProps } from "./co
 export { Callout, type CalloutProps } from "./components/Callout/Callout";
 export { CodeField, type CodeFieldProps } from "./components/CodeField/CodeField";
 export { CommandBar, type CommandBarProps, type CommandItem } from "./components/CommandBar/CommandBar";
+export { DnsRecord, type DnsRecordProps } from "./components/DnsRecord/DnsRecord";
 export { FleetGrid, type FleetGridProps, type FleetGroup, type FleetServer } from "./components/FleetGrid/FleetGrid";
+export { type FolderListing, FolderPicker, type FolderPickerProps } from "./components/FolderPicker/FolderPicker";
 export { Glyph, type GlyphProps } from "./components/Glyph/Glyph";
 export { Icon, type IconProps } from "./components/Icon/Icon";
 export { type IconName, iconNames } from "./components/Icon/icons";

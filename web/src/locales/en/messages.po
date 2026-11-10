@@ -13,14 +13,35 @@ msgstr "10k+ new lines"
 msgid "CPU"
 msgstr "CPU"
 
+msgid "Can't read the server's folders now"
+msgstr "Can't read the server's folders now"
+
 msgid "Cancel"
 msgstr "Cancel"
+
+msgid "Change"
+msgstr "Change"
+
+msgid "Change the folder, {path}"
+msgstr "Change the folder, {path}"
+
+msgid "Check again"
+msgstr "Check again"
+
+msgid "Choose a folder"
+msgstr "Choose a folder"
 
 msgid "Close"
 msgstr "Close"
 
 msgid "Command bar"
 msgstr "Command bar"
+
+msgid "Copied {value}"
+msgstr "Copied {value}"
+
+msgid "Copy {value}"
+msgstr "Copy {value}"
 
 msgid "Create"
 msgstr "Create"
@@ -43,11 +64,17 @@ msgstr "Deploying"
 msgid "Dismiss"
 msgstr "Dismiss"
 
+msgid "Done"
+msgstr "Done"
+
 msgid "Down"
 msgstr "Down"
 
 msgid "Error"
 msgstr "Error"
+
+msgid "Folders in {path}"
+msgstr "Folders in {path}"
 
 msgid "Follow"
 msgstr "Follow"
@@ -64,8 +91,20 @@ msgstr "Hover or focus a server to inspect it."
 msgid "In <0>{scope}</0>"
 msgstr "In <0>{scope}</0>"
 
+msgid "Looking in"
+msgstr "Looking in"
+
 msgid "Memory"
 msgstr "Memory"
+
+msgid "New folder in {path}"
+msgstr "New folder in {path}"
+
+msgid "No folder chosen"
+msgstr "No folder chosen"
+
+msgid "No folders here"
+msgstr "No folders here"
 
 msgid "Nothing here yet."
 msgstr "Nothing here yet."
@@ -75,6 +114,9 @@ msgstr "Nothing matches “{query}”. Try a server, app or action name."
 
 msgid "Optional"
 msgstr "Optional"
+
+msgid "Path"
+msgstr "Path"
 
 msgid "Pause"
 msgstr "Pause"
@@ -87,6 +129,9 @@ msgstr "Protected environment"
 
 msgid "Put back"
 msgstr "Put back"
+
+msgid "Reading…"
+msgstr "Reading…"
 
 msgid "Remove {what}"
 msgstr "Remove {what}"
@@ -139,6 +184,10 @@ msgstr "Update in place"
 msgid "Updated in place"
 msgstr "Updated in place"
 
+#. The button that takes the new folder's name as the folder to use.
+msgid "Use"
+msgstr "Use"
+
 msgid "Warning"
 msgstr "Warning"
 
@@ -177,6 +226,10 @@ msgstr "hidden"
 
 msgid "job"
 msgstr "job"
+
+#. Placeholder of the field that names a new folder.
+msgid "name"
+msgstr "name"
 
 msgid "network"
 msgstr "network"
@@ -1576,9 +1629,6 @@ msgstr "Add {key} to {name}"
 msgid "Can't read the environment's variables and secrets"
 msgstr "Can't read the environment's variables and secrets"
 
-msgid "Change"
-msgstr "Change"
-
 msgid "Change the environment of {name}"
 msgstr "Change the environment of {name}"
 
@@ -1698,9 +1748,6 @@ msgstr "Unapplied changes"
 
 msgid "Updated"
 msgstr "Updated"
-
-msgid "Use"
-msgstr "Use"
 
 msgid "Use letters, digits and underscores, starting with a letter or underscore."
 msgstr "Use letters, digits and underscores, starting with a letter or underscore."
@@ -2319,9 +2366,6 @@ msgstr "Nothing has changed yet."
 
 msgid "Nothing set aside"
 msgstr "Nothing set aside"
-
-msgid "Path"
-msgstr "Path"
 
 msgid "Path in the app"
 msgstr "Path in the app"
@@ -4332,9 +4376,6 @@ msgstr "Copy of a running app"
 
 msgid "Daily at {at}"
 msgstr "Daily at {at}"
-
-msgid "Done"
-msgstr "Done"
 
 msgid "Exact copy"
 msgstr "Exact copy"
@@ -8630,9 +8671,6 @@ msgstr "every 2 s"
 
 msgid "memory"
 msgstr "memory"
-
-msgid "name"
-msgstr "name"
 
 msgid "uptime"
 msgstr "uptime"
