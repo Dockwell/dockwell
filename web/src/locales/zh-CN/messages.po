@@ -1093,17 +1093,17 @@ msgstr "触发时间"
 msgid "It resolved {0}, after {lasted}."
 msgstr "它已于 {0} 恢复，持续了 {lasted}。"
 
-msgid "Its own events are further back than this page reads. Activity has them."
-msgstr "它自己的事件比本页读取的范围更早。动态里有这些记录。"
+msgid "It's further back than this page reads."
+msgstr "更早的内容超出了本页读取的范围。"
+
+msgid "Its events are further back than this page reads."
+msgstr "它的事件超出了本页读取的范围。"
 
 msgid "Lasted"
 msgstr "持续时间"
 
 msgid "Messages about it"
 msgstr "与它有关的消息"
-
-msgid "More has happened here since than this page reads back through. Activity has all of it."
-msgstr "此后这里发生的事情超出了本页回看的范围。动态里有全部记录。"
 
 msgid "Nobody did"
 msgstr "无人确认"
@@ -1122,6 +1122,12 @@ msgstr "它没有再发生别的事情。"
 
 msgid "Open for"
 msgstr "已持续"
+
+msgid "See it on Activity"
+msgstr "在动态中查看"
+
+msgid "See them on Activity"
+msgstr "在动态中查看"
 
 msgid "Sending"
 msgstr "发送"
@@ -1346,9 +1352,6 @@ msgstr "渠道"
 msgid "Dockwell didn't send a test to {name}"
 msgstr "Dockwell 没有向 {name} 发送测试"
 
-msgid "Dockwell watches your servers and apps from the first start, and puts what it finds on Activity. Add a channel, such as email, Slack or ntfy on your phone, and every rule sends to it."
-msgstr "Dockwell 从首次启动起就会监视你的服务器和应用，并把发现的情况记录到动态中。添加一个渠道，例如电子邮件、Slack 或手机上的 ntfy，所有规则都会发送到那里。"
-
 #. placeholder {0}: list(r.failed)
 msgid "Failed to {0}"
 msgstr "发送到 {0} 失败"
@@ -1440,20 +1443,14 @@ msgstr "{failed, plural, other {# 个失败}}"
 msgid "{failing, plural, one {# failing} other {# failing}}"
 msgstr "{failing, plural, other {# 个发送失败}}"
 
+msgid "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
+msgstr "{waiting, plural, other {添加后，# 条规则会发送到这里。}}"
+
 msgid "Alert rules"
 msgstr "告警规则"
 
 msgid "Can't load the rules"
 msgstr "无法加载规则"
-
-msgid "Change a rule with dockwell alert-rules update, as a plan that undo takes back."
-msgstr "用 dockwell alert-rules update 更改规则，它是一个可撤销的计划。"
-
-msgid "Choose where alerts go"
-msgstr "选择告警发往何处"
-
-msgid "Dockwell watches every server and app, and says here when a rule holds: an app down, a server it can't reach, a disk nearly full, a certificate about to end, a backup that failed."
-msgstr "Dockwell 会监视每台服务器和每个应用，并在规则成立时在这里说明：应用宕机、服务器无法连接、磁盘将满、证书即将到期、备份失败。"
 
 msgid "Every channel"
 msgstr "所有渠道"
@@ -1467,8 +1464,89 @@ msgstr "尚未触发任何告警"
 msgid "Off"
 msgstr "关闭"
 
+msgid "See the rules"
+msgstr "查看规则"
+
 msgid "Severity"
 msgstr "严重程度"
+
+msgid "{watching, plural, one {# rule watching · nowhere to send yet} other {# rules watching · nowhere to send yet}}"
+msgstr "{watching, plural, other {# 条规则在监视 · 还没有发送渠道}}"
+
+msgid "{watching, plural, one {# rule watching} other {# rules watching}}"
+msgstr "{watching, plural, other {# 条规则在监视}}"
+
+msgid "At once"
+msgstr "立即"
+
+msgid "Change the alert rule {ruleName}"
+msgstr "修改告警规则 {ruleName}"
+
+msgid "Daily"
+msgstr "每天"
+
+msgid "Every hour"
+msgstr "每小时"
+
+msgid "Every {each}"
+msgstr "每 {each}"
+
+msgid "For"
+msgstr "持续"
+
+msgid "How much it matters"
+msgstr "严重程度"
+
+msgid "Never"
+msgstr "从不"
+
+msgid "No channel yet."
+msgstr "还没有渠道。"
+
+msgid "Nothing fires, and what's open now resolves."
+msgstr "不再触发，当前未结束的告警会被解除。"
+
+msgid "Only some"
+msgstr "仅部分渠道"
+
+msgid "Pick at least one."
+msgstr "至少选择一个。"
+
+msgid "Turn off the alert rule {ruleName}"
+msgstr "关闭告警规则 {ruleName}"
+
+msgid "Watch for this"
+msgstr "监视此项"
+
+msgid "Weekly"
+msgstr "每周"
+
+msgid "When a disk is fuller than"
+msgstr "磁盘使用超过"
+
+msgid "When a run is late by"
+msgstr "运行延迟超过"
+
+msgid "When it expires within"
+msgstr "在此时间内到期"
+
+msgid "When memory in use is over"
+msgstr "内存使用超过"
+
+msgid "While it lasts, say it again"
+msgstr "持续期间再次发送"
+
+msgid "{d} days"
+msgstr "{d} 天"
+
+msgid "{h} h"
+msgstr "{h} 小时"
+
+msgid "{h} h {m} min"
+msgstr "{h} 小时 {m} 分钟"
+
+msgid "{m} min"
+msgstr "{m} 分钟"
 
 msgid "Discord"
 msgstr "Discord"
@@ -3412,9 +3490,6 @@ msgstr "始终"
 msgid "Can't be read"
 msgstr "无法读取"
 
-msgid "Never"
-msgstr "从不"
-
 msgid "Not placed"
 msgstr "未部署"
 
@@ -4408,9 +4483,6 @@ msgstr "按计划备份 {0}"
 msgid "Backups to keep"
 msgstr "保留的备份数"
 
-msgid "Daily"
-msgstr "每天"
-
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell 无法估算占用空间"
 
@@ -4451,9 +4523,6 @@ msgstr "请使用 24 小时制 HH:MM，例如 03:00。"
 
 msgid "Use a number from 1 to 1000."
 msgstr "请填写 1 到 1000 之间的数字。"
-
-msgid "Weekly"
-msgstr "每周"
 
 msgid "What runs keeps running, so each copy can hold half a write, and the app may not start from it."
 msgstr "正在运行的内容会继续运行，因此每份副本都可能包含写到一半的内容，应用可能无法从中启动。"
@@ -4826,6 +4895,9 @@ msgstr "此计划要求的一切都已就绪，没有需要应用的内容。"
 msgid "How this works"
 msgstr "工作原理"
 
+msgid "If you close this without keeping it, the change goes back on its own."
+msgstr "如果你不保留就关闭，这项更改会自动撤回。"
+
 msgid "In environment <0>{environment}</0>"
 msgstr "位于环境 <0>{environment}</0>"
 
@@ -5050,6 +5122,51 @@ msgstr "{subject} 已接管"
 
 msgid "{verb} {name}"
 msgstr "{verb} {name}"
+
+msgid "{where} denies everything else"
+msgstr "{where} 拒绝其他一切流量"
+
+msgid "{where} lets in what no rule drops"
+msgstr "{where} 放行没有规则丢弃的流量"
+
+msgid "Check you can still reach {name}"
+msgstr "确认你仍能访问 {name}"
+
+msgid "Keep the change"
+msgstr "保留更改"
+
+msgid "Once kept, SSH stays open only from {from}."
+msgstr "保留后，SSH 只对 {from} 开放。"
+
+msgid "Only the person who applied this change can keep it, from where they applied it."
+msgstr "只有应用这项更改的人，在应用它的会话中，才能保留它。"
+
+msgid "Open a new SSH session from here with your key, and keep the change if it works."
+msgstr "从这里用你的密钥打开一个新的 SSH 会话，能连上就保留此更改。"
+
+msgid "Open a new SSH session to port {portList} from here with your key, and keep the change if it works."
+msgstr "从这里用你的密钥向端口 {portList} 打开一个新的 SSH 会话，能连上就保留此更改。"
+
+msgid "Open a new SSH session to port {port} from here with your key, and keep the change if it works."
+msgstr "从这里用你的密钥向端口 {port} 打开一个新的 SSH 会话，能连上就保留此更改。"
+
+msgid "That wait is over: this sheet shows whether the server kept the change."
+msgstr "这次等待已经结束：此面板会显示服务器是否保留了更改。"
+
+msgid "Then open the panel at its own address in a new tab."
+msgstr "然后在新标签页中用面板自己的地址打开面板。"
+
+msgid "or"
+msgstr "或"
+
+msgid "{name} is putting back its firewall as it was."
+msgstr "{name} 正在把防火墙恢复为原样。"
+
+msgid "{name} puts back its firewall as it was in {left} s unless you keep it."
+msgstr "除非你保留这项更改，{name} 将在 {left} 秒后把防火墙恢复为原样。"
+
+msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
+msgstr "{name} 的代理没有连接，因此时间用完后它会恢复防火墙。"
 
 msgid "Details"
 msgstr "详细信息"
@@ -5460,6 +5577,13 @@ msgstr "请检查应用能否读取数据。"
 msgid "Check that you have another way in, such as your provider's console, before you apply it."
 msgstr "应用前，请确认你还有其他登录途径，例如服务商的控制台。"
 
+#. placeholder {0}: server.serverName
+msgid "Deny everything else closes what no rule lets in on {0}"
+msgstr "拒绝其他一切流量会关闭 {0} 上没有规则放行的端口"
+
+msgid "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up."
+msgstr "“拒绝其他所有流量”会丢弃隧道的下一次握手，经隧道的 SSH 也随之中断，尽管隧道连通时测试仍会通过。"
+
 msgid "Deploy {writtenBy} first, or restore a dump instead."
 msgstr "请先部署 {writtenBy} 再恢复，或者改为恢复转储。"
 
@@ -5502,6 +5626,9 @@ msgstr "如果它是机密，请改为在 environment 中设置，让应用从�
 msgid "If that isn't what you meant, change name: in the file to give it a project of its own."
 msgstr "如果这不是你的本意，请修改文件中的 name:，让它有自己的项目。"
 
+msgid "If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later."
+msgstr "如果你的地址不在其中，或以后不再是其中之一，SSH 就会对你关闭，而且之后没有计时器能发现这一点。"
+
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "如果回滚 {name}，{names} 会保持原样：新版本写入的内容不会被撤销。"
 
@@ -5525,6 +5652,9 @@ msgstr "它可以写入包含 <1>{held}</1> 的 <0>{holder}</0>，而 {holdsFor}
 
 msgid "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
 msgstr "在此期间无法读取；服务器恢复连接且满 7 天后，这些日志会被删除。"
+
+msgid "It closes {closes}: add a rule for any you mean to keep open."
+msgstr "它会关闭 {closes}：要保持开放的，请为其添加规则。"
 
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "它拥有 Linux 能力 <0>{path}</0>，相当于 root。"
@@ -5571,6 +5701,9 @@ msgstr "它的环境变量会加密后一同进入 Dockwell。任何计划或日
 msgid "Its volumes are backed up first"
 msgstr "它的卷会先备份"
 
+msgid "Keep a rule that allows the tunnel's UDP port."
+msgstr "请保留一条允许隧道 UDP 端口的规则。"
+
 msgid "Leave it alone in 1Panel from now on, and never uninstall it there."
 msgstr "从现在起不要在 1Panel 中操作它，也绝不要在那里卸载它。"
 
@@ -5588,6 +5721,10 @@ msgstr "升级前不会创建备份"
 
 msgid "No backup was taken, and the data stays as it is now"
 msgstr "没有做过备份,数据保持现状"
+
+#. placeholder {0}: server.serverName
+msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
+msgstr "{0} 上没有规则允许 WireGuard 隧道 {tunnels}"
 
 msgid "Point what uses it at a name only one of them has."
 msgstr "请让使用方指向只有其中一个容器拥有的名称。"
@@ -5609,6 +5746,14 @@ msgstr "完成后请在“备份”中恢复 {which}，创建于 {when}。"
 
 msgid "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
 msgstr "修订版本 {revision} 在各服务器上运行的 {image} 镜像不同，因此 {name} 将运行 {image} 当前指向的镜像"
+
+#. placeholder {0}: server.serverName
+msgid "SSH on {0} stays open from nowhere"
+msgstr "{0} 上的 SSH 不再对任何地址开放"
+
+#. placeholder {0}: server.serverName
+msgid "SSH on {0} stays open only from {from}"
+msgstr "{0} 上的 SSH 只对 {from} 开放"
 
 msgid "Something may still manage {container}"
 msgstr "可能还有其他工具在管理 {container}"
@@ -5661,6 +5806,9 @@ msgstr "服务器的安全取决于它能访问的内容，所以这相当于拥
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 msgstr "修订版本 {revision} 运行的 {image}（{digest}）已不在服务器上，其镜像仓库也不提供，因此 {name} 将运行 {image} 当前指向的镜像"
 
+msgid "These ports listen, or Docker publishes them, and no rule lets them in from anywhere. SSH stays open as this plan says, and on the control server its own ports stay open."
+msgstr "这些端口正在监听，或由 Docker 发布，且没有规则允许任意来源访问。SSH 按此计划所述保持开放，控制服务器自身的端口也保持开放。"
+
 msgid "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
 msgstr "它们在 {name} 运行的环境中运行，因此在服务器上也能访问它能访问的内容：{list}。"
 
@@ -5703,6 +5851,9 @@ msgstr "要改回某个值，请在“变量和密钥”中修改。"
 
 msgid "To keep it hidden, write the {where} as a list, with each word its own variable."
 msgstr "要隐藏它，请把{where}写成列表，每个词使用各自的变量。"
+
+msgid "To keep it open from more, add a rule that allows port {ports} first."
+msgstr "要对更多地址开放，请先添加一条允许端口 {ports} 的规则。"
 
 msgid "Two containers may write to {shared}"
 msgstr "两个容器可能同时写入 {shared}"
@@ -8458,6 +8609,9 @@ msgstr "Docker 会在 ufw 或 firewalld 的规则看到之前把这些流量转�
 msgid "Dockwell can't read {0}'s firewall"
 msgstr "Dockwell 无法读取 {0} 的防火墙"
 
+msgid "Dockwell's rules cover these too, as Docker forwards them: with deny everything else on, only a port a rule of Dockwell's allows reaches its container."
+msgstr "Docker 转发这些端口时，Dockwell 的规则同样覆盖它们：开启拒绝其他一切流量后，只有 Dockwell 规则放行的端口能到达其容器。"
+
 msgid "Every IPv4 address"
 msgstr "所有 IPv4 地址"
 
@@ -8506,6 +8660,10 @@ msgstr "没有任何东西过滤进入 {0} 的流量：它没有能起作用的 
 
 msgid "On · read-only, as Dockwell didn't make it"
 msgstr "已启用 · 只读，因为不是 Dockwell 创建的"
+
+#. placeholder {0}: server.name
+msgid "Only Dockwell's rules filter what comes in to {0}: it has no ufw, firewalld or other nftables or iptables rules of its own."
+msgstr "只有 Dockwell 的规则过滤进入 {0} 的流量：它自己没有 ufw、firewalld 或其他 nftables、iptables 规则。"
 
 msgid "Only from {sources}, as {by} says"
 msgstr "仅限来自 {sources}，按 {by} 的规则"
@@ -8624,6 +8782,93 @@ msgstr "{count}，其中 {input} 作用于入站流量。"
 
 msgid "{count}. Its input chain drops what no rule lets in."
 msgstr "{count}。其 input 链会丢弃没有规则放行的流量。"
+
+msgid "A change to this firewall waits for you to keep it, so nothing else here changes until it's kept or {name} puts it back."
+msgstr "此防火墙有一项更改正等待你保留，因此在它被保留或 {name} 将其恢复之前，这里的其他内容都不会更改。"
+
+msgid "Add a rule"
+msgstr "添加规则"
+
+#. placeholder {0}: server.name
+msgid "Add a rule to {0}"
+msgstr "为 {0} 添加规则"
+
+msgid "Addresses or ranges, such as 203.0.113.0/24, separated by commas. Empty is anywhere."
+msgstr "地址或范围，例如 203.0.113.0/24，用逗号分隔。留空表示任意来源。"
+
+msgid "Allow {n}/{protocol} on {serverName}"
+msgstr "在 {serverName} 上允许 {n}/{protocol}"
+
+msgid "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, everything they'd drop gets in. Nothing is lost, and nobody is locked out."
+msgstr "{name} 启动时，这些规则会关闭，直到几秒后它的代理启动并重新加载它们：在这几秒里，它们本会丢弃的一切流量都能进入。不会丢失任何内容，也不会有人被锁在外面。"
+
+msgid "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, what they deny gets in. Nothing is lost, and nobody is locked out."
+msgstr "{name} 启动时，这些规则会关闭，直到几秒后它的代理启动并重新加载它们：在这几秒里，它们拒绝的流量能进入。不会丢失任何内容，也不会有人被锁在外面。"
+
+msgid "Change waiting for Keep"
+msgstr "更改等待保留"
+
+msgid "Deny everything else"
+msgstr "拒绝其他一切流量"
+
+msgid "Deny everything else on {name}"
+msgstr "在 {name} 上拒绝其他一切流量"
+
+msgid "Deny everything else, waiting for Keep"
+msgstr "拒绝其他一切流量，等待保留"
+
+msgid "Deny {n}/{protocol} on {serverName}"
+msgstr "在 {serverName} 上拒绝 {n}/{protocol}"
+
+msgid "Dockwell has no rules for {name} yet. What comes in is as the server's own firewall leaves it."
+msgstr "Dockwell 还没有为 {name} 设置规则。入站流量取决于服务器自己的防火墙。"
+
+msgid "Dockwell has no rules for {name}, and denies everything else: only connections already open, SSH from the addresses it keeps, and on the control server its own ports, get in."
+msgstr "Dockwell 没有为 {name} 设置规则，并拒绝其他一切流量：只有已建立的连接、来自它保留的地址的 SSH，以及控制服务器上它自己的端口能进入。"
+
+msgid "Dockwell's rules"
+msgstr "Dockwell 的规则"
+
+msgid "Drops what no rule lets in. Connections already open, SSH from where people come in now, and on the control server its own ports, stay let in."
+msgstr "丢弃没有规则放行的流量。已建立的连接、来自当前登录来源的 SSH，以及控制服务器上它自己的端口，仍然放行。"
+
+msgid "It applies as a plan, and stays only once you confirm you can still reach the server"
+msgstr "它以计划的形式应用，只有在你确认仍能访问服务器后才会保留"
+
+msgid "Let in what no rule drops on {name}"
+msgstr "在 {name} 上放行没有规则丢弃的流量"
+
+msgid "Name a port from 1 to 65535, such as 443."
+msgstr "请填写 1 到 65535 之间的端口，例如 443。"
+
+msgid "Nothing listens"
+msgstr "没有监听"
+
+msgid "Plan it"
+msgstr "生成计划"
+
+msgid "Removal waiting for Keep"
+msgstr "移除等待保留"
+
+#. placeholder {0}: row.id
+msgid "Remove the rule {0}"
+msgstr "移除规则 {0}"
+
+#. placeholder {0}: rule.name
+msgid "Remove the rule {0} from {name}"
+msgstr "从 {name} 移除规则 {0}"
+
+msgid "The server itself"
+msgstr "服务器本身"
+
+msgid "Waiting for Keep"
+msgstr "等待保留"
+
+msgid "Why the rule is there, shown beside it."
+msgstr "说明这条规则的用途，显示在它旁边。"
+
+msgid "{name} can't hold Dockwell's firewall, so no rule or policy can be planned for it: {why}"
+msgstr "{name} 无法承载 Dockwell 的防火墙，因此无法为它规划任何规则或策略：{why}"
 
 msgid "Loading servers"
 msgstr "正在加载服务器"
@@ -10714,9 +10959,6 @@ msgstr "未能启动"
 
 msgid "Every day at {at}"
 msgstr "每天 {at}"
-
-msgid "Every hour"
-msgstr "每小时"
 
 msgid "Every hour at {at}"
 msgstr "每小时的 {at}"

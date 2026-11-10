@@ -725,7 +725,7 @@ func TestARollbackStopsWaitingForARemovedServer(t *testing.T) {
 		f["srv_A"].agent = hooked{Agent: f["srv_A"].agent, before: func(resource.Step) { f["srv_B"].online.Store(false) }}
 		onB := web("nginx:1.27")
 		onB.Ref.Scope = "srv_B"
-		err := e.Apply(t.Context(), propose(t, e, "Open http and run web", rule("srv_A", "http", 80), onB).Change)
+		err := e.Apply(t.Context(), propose(t, e, "Open http and run web", onA(), onB).Change)
 		var failed *FailedError
 		if !errors.As(err, &failed) || !errors.Is(failed.RollbackErr, ErrPending) {
 			t.Fatalf("apply = %v, want a failure with the rollback waiting for srv_B", err)

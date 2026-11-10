@@ -100,6 +100,24 @@ export async function alertsFlow(page: Page, { origin, step, shoot, docker, sock
     await rules.getByRole("row", { name: /server\.connected == false/ }).waitFor();
     if ((await rules.getByRole("row").count()) !== 10) fail("Rules doesn't list the nine rules an install starts with");
 
+    step("alerts: a rule changes from its row, as a plan: disk-full says it again weekly");
+    // Only how often it repeats, so nothing later in the flow fires that wouldn't have.
+    await rules.getByRole("row", { name: /disk\.percent/ }).click();
+    const ruleSheet = page.getByRole("dialog");
+    await ruleSheet.getByRole("combobox", { name: "While it lasts, say it again" }).selectOption("168h");
+    await shoot(page, "alerts-rule");
+    await ruleSheet.getByRole("button", { name: "Review plan" }).click();
+    const rulePlan = page.locator(".plan-sheet");
+    await rulePlan.getByRole("button", { name: /Apply plan/ }).click();
+    await page.getByRole("button", { name: "Done", exact: true }).click({ timeout: 30_000 });
+    await rules.getByRole("row", { name: /disk\.percent/ }).click();
+    const weekly = await page
+      .getByRole("dialog")
+      .getByRole("combobox", { name: "While it lasts, say it again" })
+      .inputValue({ timeout: 20_000 });
+    if (weekly !== "168h") fail(`disk-full repeats every ${weekly} after the plan applied, not weekly`);
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+
     step("alerts: with nowhere to send, Channels says so, and adds one");
     await page.getByRole("link", { name: /Channels/ }).click();
     await page.getByText("Nowhere to send alerts yet", { exact: true }).waitFor();

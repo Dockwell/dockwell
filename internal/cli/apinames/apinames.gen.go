@@ -39,6 +39,7 @@ func Commands() []string {
 		"events",
 		"files",
 		"firewall",
+		"firewall-policies",
 		"firewall-rules",
 		"health",
 		"import",

@@ -62,6 +62,12 @@ type StepProgress struct {
 	// Lost is true when the server went away during the step, so nothing can
 	// say whether it ran until the server is back.
 	Lost bool `json:"lost,omitempty"`
+	// Confirm is what the step waits for, while a change to who reaches its
+	// server waits for the person who applied it to confirm they still can.
+	// It belongs to the run that waits, so it isn't stored: a control plane
+	// that starts again can't confirm it, and the server's timer puts back its
+	// firewall.
+	Confirm *resource.AccessWait `json:"-"`
 	// Note is what the step found that changed what it did, such as a pull that
 	// found nothing newer.
 	Started  time.Time `json:"started,omitzero"`
@@ -330,6 +336,8 @@ func (e *Engine) step(changeID string, i int, state StepState, message string) (
 		s.Finished = now
 	}
 	s.State, s.Message, s.Activity, s.Detail = state, message, "", ""
+	// What a step waited for is over once it runs again or ends.
+	s.Confirm = nil
 	step := *s
 	c := p.clone()
 	return &c, &Update{Index: i, Step: &step}
@@ -384,6 +392,39 @@ func (e *Engine) progressed(changeID string, i int, message string) {
 	p.Steps[i].Message, p.Steps[i].Activity = message, message
 	step := p.Steps[i]
 	e.publishLocked(changeID, Update{Index: i, Step: &step})
+}
+
+// awaits records what a running step waits for: its server's confirmation of a
+// change to who reaches it, until a deadline.
+func (e *Engine) awaits(changeID string, i int, w resource.AccessWait) {
+	e.pmu.Lock()
+	defer e.pmu.Unlock()
+	p, ok := e.live[changeID]
+	if !ok || i < 0 || i >= len(p.Steps) || p.Steps[i].State != StepRunning {
+		return
+	}
+	p.Steps[i].Confirm = &w
+	step := p.Steps[i]
+	e.publishLocked(changeID, Update{Index: i, Step: &step})
+}
+
+// Awaiting is what a change waits for on a server, if it waits there for its
+// confirmation now. Only a running step waits: step clears what one waited for
+// as it moves on.
+func (e *Engine) Awaiting(changeID, server string) *resource.AccessWait {
+	e.pmu.Lock()
+	defer e.pmu.Unlock()
+	p, ok := e.live[changeID]
+	if !ok {
+		return nil
+	}
+	for i := range p.Steps {
+		if s := &p.Steps[i]; s.Confirm != nil && s.Server == server {
+			w := *s.Confirm
+			return &w
+		}
+	}
+	return nil
 }
 
 // announce tells a change's watchers that a step moved on; nil tells them

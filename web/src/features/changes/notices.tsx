@@ -526,7 +526,7 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
   };
 }
 
-export function useRisks(plan: Plan | undefined): Notice[] {
+export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
   const { t } = useLingui();
   const restoreNotices = useRestoreNotices();
   const { root } = useReaches(plan);
@@ -570,11 +570,46 @@ export function useRisks(plan: Plan | undefined): Notice[] {
           more: t`${name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes, which can corrupt a database.`,
         });
       }
-      if (step.warnings.includes(PlanWarning.MAY_LOCK_OUT)) {
+      if (step.warnings.includes(PlanWarning.MAY_LOCK_OUT) && !applied) {
         out.push({
           key: `lock-${key}`,
           title: t`This may cut off access to ${server.serverName}`,
           detail: t`Check that you have another way in, such as your provider's console, before you apply it.`,
+        });
+      }
+      if (step.closes.length > 0) {
+        const closes = step.closes.join(", ");
+        out.push({
+          key: `closes-${key}`,
+          amber: true,
+          title: t`Deny everything else closes what no rule lets in on ${server.serverName}`,
+          detail: t`It closes ${closes}: add a rule for any you mean to keep open.`,
+          more: t`These ports listen, or Docker publishes them, and no rule lets them in from anywhere. SSH stays open as this plan says, and on the control server its own ports stay open.`,
+        });
+      }
+      // Who SSH stays open from, by name: a pin holds only while its address does.
+      const stays = step.stays;
+      if (stays && stays.sshPorts.length > 0 && !applied) {
+        const from = [...stays.pinned, ...stays.allowed].join(", ");
+        const ports = stays.sshPorts.join(", ");
+        out.push({
+          key: `stays-${key}`,
+          amber: true,
+          title: from
+            ? t`SSH on ${server.serverName} stays open only from ${from}`
+            : t`SSH on ${server.serverName} stays open from nowhere`,
+          detail: t`To keep it open from more, add a rule that allows port ${ports} first.`,
+          more: t`If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later.`,
+        });
+      }
+      if (stays && stays.tunnels.length > 0 && !applied) {
+        const tunnels = stays.tunnels.join(", ");
+        out.push({
+          key: `tunnels-${key}`,
+          amber: true,
+          title: t`No rule allows the WireGuard tunnel ${tunnels} on ${server.serverName}`,
+          detail: t`Keep a rule that allows the tunnel's UDP port.`,
+          more: t`Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up.`,
         });
       }
     }

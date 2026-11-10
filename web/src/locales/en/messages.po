@@ -1093,17 +1093,17 @@ msgstr "Fired"
 msgid "It resolved {0}, after {lasted}."
 msgstr "It resolved {0}, after {lasted}."
 
-msgid "Its own events are further back than this page reads. Activity has them."
-msgstr "Its own events are further back than this page reads. Activity has them."
+msgid "It's further back than this page reads."
+msgstr "It's further back than this page reads."
+
+msgid "Its events are further back than this page reads."
+msgstr "Its events are further back than this page reads."
 
 msgid "Lasted"
 msgstr "Lasted"
 
 msgid "Messages about it"
 msgstr "Messages about it"
-
-msgid "More has happened here since than this page reads back through. Activity has all of it."
-msgstr "More has happened here since than this page reads back through. Activity has all of it."
 
 msgid "Nobody did"
 msgstr "Nobody did"
@@ -1122,6 +1122,12 @@ msgstr "Nothing more has happened to it."
 
 msgid "Open for"
 msgstr "Open for"
+
+msgid "See it on Activity"
+msgstr "See it on Activity"
+
+msgid "See them on Activity"
+msgstr "See them on Activity"
 
 msgid "Sending"
 msgstr "Sending"
@@ -1346,9 +1352,6 @@ msgstr "Channel"
 msgid "Dockwell didn't send a test to {name}"
 msgstr "Dockwell didn't send a test to {name}"
 
-msgid "Dockwell watches your servers and apps from the first start, and puts what it finds on Activity. Add a channel, such as email, Slack or ntfy on your phone, and every rule sends to it."
-msgstr "Dockwell watches your servers and apps from the first start, and puts what it finds on Activity. Add a channel, such as email, Slack or ntfy on your phone, and every rule sends to it."
-
 #. placeholder {0}: list(r.failed)
 msgid "Failed to {0}"
 msgstr "Failed to {0}"
@@ -1440,20 +1443,14 @@ msgstr "{failed, plural, one {# failed} other {# failed}}"
 msgid "{failing, plural, one {# failing} other {# failing}}"
 msgstr "{failing, plural, one {# failing} other {# failing}}"
 
+msgid "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
+msgstr "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
+
 msgid "Alert rules"
 msgstr "Alert rules"
 
 msgid "Can't load the rules"
 msgstr "Can't load the rules"
-
-msgid "Change a rule with dockwell alert-rules update, as a plan that undo takes back."
-msgstr "Change a rule with dockwell alert-rules update, as a plan that undo takes back."
-
-msgid "Choose where alerts go"
-msgstr "Choose where alerts go"
-
-msgid "Dockwell watches every server and app, and says here when a rule holds: an app down, a server it can't reach, a disk nearly full, a certificate about to end, a backup that failed."
-msgstr "Dockwell watches every server and app, and says here when a rule holds: an app down, a server it can't reach, a disk nearly full, a certificate about to end, a backup that failed."
 
 msgid "Every channel"
 msgstr "Every channel"
@@ -1467,8 +1464,89 @@ msgstr "Nothing has fired"
 msgid "Off"
 msgstr "Off"
 
+msgid "See the rules"
+msgstr "See the rules"
+
 msgid "Severity"
 msgstr "Severity"
+
+msgid "{watching, plural, one {# rule watching · nowhere to send yet} other {# rules watching · nowhere to send yet}}"
+msgstr "{watching, plural, one {# rule watching · nowhere to send yet} other {# rules watching · nowhere to send yet}}"
+
+msgid "{watching, plural, one {# rule watching} other {# rules watching}}"
+msgstr "{watching, plural, one {# rule watching} other {# rules watching}}"
+
+msgid "At once"
+msgstr "At once"
+
+msgid "Change the alert rule {ruleName}"
+msgstr "Change the alert rule {ruleName}"
+
+msgid "Daily"
+msgstr "Daily"
+
+msgid "Every hour"
+msgstr "Every hour"
+
+msgid "Every {each}"
+msgstr "Every {each}"
+
+msgid "For"
+msgstr "For"
+
+msgid "How much it matters"
+msgstr "How much it matters"
+
+msgid "Never"
+msgstr "Never"
+
+msgid "No channel yet."
+msgstr "No channel yet."
+
+msgid "Nothing fires, and what's open now resolves."
+msgstr "Nothing fires, and what's open now resolves."
+
+msgid "Only some"
+msgstr "Only some"
+
+msgid "Pick at least one."
+msgstr "Pick at least one."
+
+msgid "Turn off the alert rule {ruleName}"
+msgstr "Turn off the alert rule {ruleName}"
+
+msgid "Watch for this"
+msgstr "Watch for this"
+
+msgid "Weekly"
+msgstr "Weekly"
+
+msgid "When a disk is fuller than"
+msgstr "When a disk is fuller than"
+
+msgid "When a run is late by"
+msgstr "When a run is late by"
+
+msgid "When it expires within"
+msgstr "When it expires within"
+
+msgid "When memory in use is over"
+msgstr "When memory in use is over"
+
+msgid "While it lasts, say it again"
+msgstr "While it lasts, say it again"
+
+msgid "{d} days"
+msgstr "{d} days"
+
+msgid "{h} h"
+msgstr "{h} h"
+
+msgid "{h} h {m} min"
+msgstr "{h} h {m} min"
+
+msgid "{m} min"
+msgstr "{m} min"
 
 msgid "Discord"
 msgstr "Discord"
@@ -3412,9 +3490,6 @@ msgstr "Always"
 msgid "Can't be read"
 msgstr "Can't be read"
 
-msgid "Never"
-msgstr "Never"
-
 msgid "Not placed"
 msgstr "Not placed"
 
@@ -4408,9 +4483,6 @@ msgstr "Back up {0} on a schedule"
 msgid "Backups to keep"
 msgstr "Backups to keep"
 
-msgid "Daily"
-msgstr "Daily"
-
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell can't say what this costs"
 
@@ -4451,9 +4523,6 @@ msgstr "Use 24-hour HH:MM, such as 03:00."
 
 msgid "Use a number from 1 to 1000."
 msgstr "Use a number from 1 to 1000."
-
-msgid "Weekly"
-msgstr "Weekly"
 
 msgid "What runs keeps running, so each copy can hold half a write, and the app may not start from it."
 msgstr "What runs keeps running, so each copy can hold half a write, and the app may not start from it."
@@ -4826,6 +4895,9 @@ msgstr "Everything this plan asks for is already as it says, so there is nothing
 msgid "How this works"
 msgstr "How this works"
 
+msgid "If you close this without keeping it, the change goes back on its own."
+msgstr "If you close this without keeping it, the change goes back on its own."
+
 msgid "In environment <0>{environment}</0>"
 msgstr "In environment <0>{environment}</0>"
 
@@ -5050,6 +5122,51 @@ msgstr "{subject} is taken on"
 
 msgid "{verb} {name}"
 msgstr "{verb} {name}"
+
+msgid "{where} denies everything else"
+msgstr "{where} denies everything else"
+
+msgid "{where} lets in what no rule drops"
+msgstr "{where} lets in what no rule drops"
+
+msgid "Check you can still reach {name}"
+msgstr "Check you can still reach {name}"
+
+msgid "Keep the change"
+msgstr "Keep the change"
+
+msgid "Once kept, SSH stays open only from {from}."
+msgstr "Once kept, SSH stays open only from {from}."
+
+msgid "Only the person who applied this change can keep it, from where they applied it."
+msgstr "Only the person who applied this change can keep it, from where they applied it."
+
+msgid "Open a new SSH session from here with your key, and keep the change if it works."
+msgstr "Open a new SSH session from here with your key, and keep the change if it works."
+
+msgid "Open a new SSH session to port {portList} from here with your key, and keep the change if it works."
+msgstr "Open a new SSH session to port {portList} from here with your key, and keep the change if it works."
+
+msgid "Open a new SSH session to port {port} from here with your key, and keep the change if it works."
+msgstr "Open a new SSH session to port {port} from here with your key, and keep the change if it works."
+
+msgid "That wait is over: this sheet shows whether the server kept the change."
+msgstr "That wait is over: this sheet shows whether the server kept the change."
+
+msgid "Then open the panel at its own address in a new tab."
+msgstr "Then open the panel at its own address in a new tab."
+
+msgid "or"
+msgstr "or"
+
+msgid "{name} is putting back its firewall as it was."
+msgstr "{name} is putting back its firewall as it was."
+
+msgid "{name} puts back its firewall as it was in {left} s unless you keep it."
+msgstr "{name} puts back its firewall as it was in {left} s unless you keep it."
+
+msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
+msgstr "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 
 msgid "Details"
 msgstr "Details"
@@ -5460,6 +5577,13 @@ msgstr "Check that the app reads its data."
 msgid "Check that you have another way in, such as your provider's console, before you apply it."
 msgstr "Check that you have another way in, such as your provider's console, before you apply it."
 
+#. placeholder {0}: server.serverName
+msgid "Deny everything else closes what no rule lets in on {0}"
+msgstr "Deny everything else closes what no rule lets in on {0}"
+
+msgid "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up."
+msgstr "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up."
+
 msgid "Deploy {writtenBy} first, or restore a dump instead."
 msgstr "Deploy {writtenBy} first, or restore a dump instead."
 
@@ -5502,6 +5626,9 @@ msgstr "If it's a secret, set it in environment for the app to read instead."
 msgid "If that isn't what you meant, change name: in the file to give it a project of its own."
 msgstr "If that isn't what you meant, change name: in the file to give it a project of its own."
 
+msgid "If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later."
+msgstr "If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later."
+
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 
@@ -5525,6 +5652,9 @@ msgstr "It can write to <0>{holder}</0>, which holds <1>{held}</1>, which {holds
 
 msgid "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
 msgstr "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
+
+msgid "It closes {closes}: add a rule for any you mean to keep open."
+msgstr "It closes {closes}: add a rule for any you mean to keep open."
 
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "It has the Linux capability <0>{path}</0>, which is the same as root."
@@ -5571,6 +5701,9 @@ msgstr "Its environment comes into Dockwell with it, sealed. No plan or log show
 msgid "Its volumes are backed up first"
 msgstr "Its volumes are backed up first"
 
+msgid "Keep a rule that allows the tunnel's UDP port."
+msgstr "Keep a rule that allows the tunnel's UDP port."
+
 msgid "Leave it alone in 1Panel from now on, and never uninstall it there."
 msgstr "Leave it alone in 1Panel from now on, and never uninstall it there."
 
@@ -5588,6 +5721,10 @@ msgstr "No backup is taken first"
 
 msgid "No backup was taken, and the data stays as it is now"
 msgstr "No backup was taken, and the data stays as it is now"
+
+#. placeholder {0}: server.serverName
+msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
+msgstr "No rule allows the WireGuard tunnel {tunnels} on {0}"
 
 msgid "Point what uses it at a name only one of them has."
 msgstr "Point what uses it at a name only one of them has."
@@ -5609,6 +5746,14 @@ msgstr "Restore {which}, from {when}, from Backups after this."
 
 msgid "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
 msgstr "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
+
+#. placeholder {0}: server.serverName
+msgid "SSH on {0} stays open from nowhere"
+msgstr "SSH on {0} stays open from nowhere"
+
+#. placeholder {0}: server.serverName
+msgid "SSH on {0} stays open only from {from}"
+msgstr "SSH on {0} stays open only from {from}"
 
 msgid "Something may still manage {container}"
 msgstr "Something may still manage {container}"
@@ -5661,6 +5806,9 @@ msgstr "The server's security rests on what that reaches, so it is as good as ro
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 msgstr "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 
+msgid "These ports listen, or Docker publishes them, and no rule lets them in from anywhere. SSH stays open as this plan says, and on the control server its own ports stay open."
+msgstr "These ports listen, or Docker publishes them, and no rule lets them in from anywhere. SSH stays open as this plan says, and on the control server its own ports stay open."
+
 msgid "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
 msgstr "They run in what {name} runs, so they reach what it reaches on its server too: {list}."
 
@@ -5703,6 +5851,9 @@ msgstr "To go back on a value, change it in Variables and secrets."
 
 msgid "To keep it hidden, write the {where} as a list, with each word its own variable."
 msgstr "To keep it hidden, write the {where} as a list, with each word its own variable."
+
+msgid "To keep it open from more, add a rule that allows port {ports} first."
+msgstr "To keep it open from more, add a rule that allows port {ports} first."
 
 msgid "Two containers may write to {shared}"
 msgstr "Two containers may write to {shared}"
@@ -8458,6 +8609,9 @@ msgstr "Docker forwards these to their containers before ufw's or firewalld's ru
 msgid "Dockwell can't read {0}'s firewall"
 msgstr "Dockwell can't read {0}'s firewall"
 
+msgid "Dockwell's rules cover these too, as Docker forwards them: with deny everything else on, only a port a rule of Dockwell's allows reaches its container."
+msgstr "Dockwell's rules cover these too, as Docker forwards them: with deny everything else on, only a port a rule of Dockwell's allows reaches its container."
+
 msgid "Every IPv4 address"
 msgstr "Every IPv4 address"
 
@@ -8506,6 +8660,10 @@ msgstr "Nothing filters what comes in to {0}: it has no ufw, firewalld, nftables
 
 msgid "On · read-only, as Dockwell didn't make it"
 msgstr "On · read-only, as Dockwell didn't make it"
+
+#. placeholder {0}: server.name
+msgid "Only Dockwell's rules filter what comes in to {0}: it has no ufw, firewalld or other nftables or iptables rules of its own."
+msgstr "Only Dockwell's rules filter what comes in to {0}: it has no ufw, firewalld or other nftables or iptables rules of its own."
 
 msgid "Only from {sources}, as {by} says"
 msgstr "Only from {sources}, as {by} says"
@@ -8624,6 +8782,93 @@ msgstr "{count}, {input} of them on what comes in."
 
 msgid "{count}. Its input chain drops what no rule lets in."
 msgstr "{count}. Its input chain drops what no rule lets in."
+
+msgid "A change to this firewall waits for you to keep it, so nothing else here changes until it's kept or {name} puts it back."
+msgstr "A change to this firewall waits for you to keep it, so nothing else here changes until it's kept or {name} puts it back."
+
+msgid "Add a rule"
+msgstr "Add a rule"
+
+#. placeholder {0}: server.name
+msgid "Add a rule to {0}"
+msgstr "Add a rule to {0}"
+
+msgid "Addresses or ranges, such as 203.0.113.0/24, separated by commas. Empty is anywhere."
+msgstr "Addresses or ranges, such as 203.0.113.0/24, separated by commas. Empty is anywhere."
+
+msgid "Allow {n}/{protocol} on {serverName}"
+msgstr "Allow {n}/{protocol} on {serverName}"
+
+msgid "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, everything they'd drop gets in. Nothing is lost, and nobody is locked out."
+msgstr "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, everything they'd drop gets in. Nothing is lost, and nobody is locked out."
+
+msgid "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, what they deny gets in. Nothing is lost, and nobody is locked out."
+msgstr "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, what they deny gets in. Nothing is lost, and nobody is locked out."
+
+msgid "Change waiting for Keep"
+msgstr "Change waiting for Keep"
+
+msgid "Deny everything else"
+msgstr "Deny everything else"
+
+msgid "Deny everything else on {name}"
+msgstr "Deny everything else on {name}"
+
+msgid "Deny everything else, waiting for Keep"
+msgstr "Deny everything else, waiting for Keep"
+
+msgid "Deny {n}/{protocol} on {serverName}"
+msgstr "Deny {n}/{protocol} on {serverName}"
+
+msgid "Dockwell has no rules for {name} yet. What comes in is as the server's own firewall leaves it."
+msgstr "Dockwell has no rules for {name} yet. What comes in is as the server's own firewall leaves it."
+
+msgid "Dockwell has no rules for {name}, and denies everything else: only connections already open, SSH from the addresses it keeps, and on the control server its own ports, get in."
+msgstr "Dockwell has no rules for {name}, and denies everything else: only connections already open, SSH from the addresses it keeps, and on the control server its own ports, get in."
+
+msgid "Dockwell's rules"
+msgstr "Dockwell's rules"
+
+msgid "Drops what no rule lets in. Connections already open, SSH from where people come in now, and on the control server its own ports, stay let in."
+msgstr "Drops what no rule lets in. Connections already open, SSH from where people come in now, and on the control server its own ports, stay let in."
+
+msgid "It applies as a plan, and stays only once you confirm you can still reach the server"
+msgstr "It applies as a plan, and stays only once you confirm you can still reach the server"
+
+msgid "Let in what no rule drops on {name}"
+msgstr "Let in what no rule drops on {name}"
+
+msgid "Name a port from 1 to 65535, such as 443."
+msgstr "Name a port from 1 to 65535, such as 443."
+
+msgid "Nothing listens"
+msgstr "Nothing listens"
+
+msgid "Plan it"
+msgstr "Plan it"
+
+msgid "Removal waiting for Keep"
+msgstr "Removal waiting for Keep"
+
+#. placeholder {0}: row.id
+msgid "Remove the rule {0}"
+msgstr "Remove the rule {0}"
+
+#. placeholder {0}: rule.name
+msgid "Remove the rule {0} from {name}"
+msgstr "Remove the rule {0} from {name}"
+
+msgid "The server itself"
+msgstr "The server itself"
+
+msgid "Waiting for Keep"
+msgstr "Waiting for Keep"
+
+msgid "Why the rule is there, shown beside it."
+msgstr "Why the rule is there, shown beside it."
+
+msgid "{name} can't hold Dockwell's firewall, so no rule or policy can be planned for it: {why}"
+msgstr "{name} can't hold Dockwell's firewall, so no rule or policy can be planned for it: {why}"
 
 msgid "Loading servers"
 msgstr "Loading servers"
@@ -10714,9 +10959,6 @@ msgstr "Didn't start"
 
 msgid "Every day at {at}"
 msgstr "Every day at {at}"
-
-msgid "Every hour"
-msgstr "Every hour"
 
 msgid "Every hour at {at}"
 msgstr "Every hour at {at}"

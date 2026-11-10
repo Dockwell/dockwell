@@ -1109,3 +1109,24 @@ func TestAWebsitesPreviewAndListRead(t *testing.T) {
 		t.Errorf("the list reads\n%s", b.String())
 	}
 }
+
+// A plan that narrows SSH says who it stays open from, and what else deny
+// everything else would drop.
+func TestAPlanSaysWhoSSHStaysOpenFrom(t *testing.T) {
+	var buf bytes.Buffer
+	PlanView(&buf, &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{
+		ServerId: "srv_1", ServerName: "hz-1",
+		Steps: []*dockwellv1.PlanStep{{
+			ResourceId: "res_1", Resource: &dockwellv1.ResourceRef{Kind: "firewall.policy", Name: "default"}, Action: dockwellv1.PlanAction_PLAN_ACTION_CREATE,
+			Stays: &dockwellv1.AccessStays{SshPorts: []uint32{22}, Pinned: []string{"203.0.113.7/32"}, Allowed: []string{"198.51.100.0/24"}, Tunnels: []string{"wg0 (51820/udp)"}},
+		}},
+	}}})
+	for _, want := range []string{
+		"SSH on hz-1 stays open only from 203.0.113.7/32, 198.51.100.0/24. If your address isn't one of these, or stops being one, SSH closes to you. To keep it open from more, add a rule that allows port 22 first.",
+		"No rule allows the WireGuard tunnel wg0 (51820/udp), so deny everything else drops its next handshake, and SSH over it.",
+	} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("the plan doesn't say %q:\n%s", want, buf.String())
+		}
+	}
+}
