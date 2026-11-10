@@ -9350,9 +9350,6 @@ msgstr "{name} and {more} more"
 msgid "A file beside the control plane, for one control plane"
 msgstr "A file beside the control plane, for one control plane"
 
-msgid "A server that joined upgrades the same way: run the install script again on it."
-msgstr "A server that joined upgrades the same way: run the install script again on it."
-
 msgid "Agents"
 msgstr "Agents"
 
@@ -9476,6 +9473,10 @@ msgstr "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1
 
 msgid "This control plane"
 msgstr "This control plane"
+
+#. placeholder {0}: s.name
+msgid "Update the agent on {0}"
+msgstr "Update the agent on {0}"
 
 msgid "agent"
 msgstr "agent"

@@ -16,6 +16,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 
 import { formatBytes, formatDay, formatFixed } from "../../lib/format";
+import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { serverStatus } from "../servers/server";
 import { useControlPlaneNow, useFleet } from "../servers/useFleet";
@@ -398,19 +399,26 @@ function AgentsPanel({ cp, servers }: { cp: ControlPlane | undefined; servers: S
               </li>
             ))}
             {behind.map((s) => (
-              <li key={`v-${s.id}`}>
+              <li key={`v-${s.id}`} className="cp-agent-behind">
                 <StatusBadge
                   status="degraded"
                   label={<code>{s.name}</code>}
                   meta={t`runs ${shortVersion(s.agentBuild?.version ?? "")}`}
                 />
+                {/* Its Updates tab has the command that updates it, from where this install's releases come. */}
+                <RouterButtonLink
+                  to="/servers/$serverId/updates"
+                  params={{ serverId: s.id }}
+                  size="sm"
+                  variant="secondary"
+                  aria-label={t`Update the agent on ${s.name}`}
+                >
+                  <Trans>Update</Trans>
+                </RouterButtonLink>
               </li>
             ))}
           </ul>
         ) : null}
-        <p className="cp-note cp-divided">
-          <Trans>A server that joined upgrades the same way: run the install script again on it.</Trans>
-        </p>
       </div>
     </Panel>
   );
