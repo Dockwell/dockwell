@@ -25,7 +25,9 @@ import { type ReactNode, useMemo, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { matches, mountSource, portWords, READ_EVERY_MS, statusOf, useContainerStateWord } from "./containers";
+import { useTakeOn } from "./takeOn";
 import "./ContainersPanel.css";
+import { useMay } from "../auth/may";
 
 /** A filter earns its place once there are more containers than read at a glance. */
 const FILTER_FROM = 13;
@@ -54,13 +56,15 @@ function Some({ items, more }: { items: readonly string[]; more: number }) {
 export function ContainersPanel({ server }: { server: Server }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
+  // The containers on a server are an admin's to read, and the panel is left out for anyone else (ADR 0059).
+  const allowed = useMay()(ContainerService.method.listContainers).allowed;
   // A server whose agent isn't reporting can't say what runs there: it isn't asked.
   const connected = server.connection === Connection.CONNECTED;
   const blind = connected && server.dockerUnreadableSince !== undefined;
   const list = useQuery(
     ContainerService.method.listContainers,
     { server: server.id },
-    { refetchInterval: READ_EVERY_MS, retry: false, enabled: connected && !blind },
+    { refetchInterval: READ_EVERY_MS, retry: false, enabled: allowed && connected && !blind },
   );
   const [filter, setFilter] = useState("");
   const [shown, setShown] = useState(PAGE);
@@ -72,6 +76,7 @@ export function ContainersPanel({ server }: { server: Server }) {
   const unlisted = list.data?.unlisted ?? 0;
   const projects = useMemo(() => new Set((containers ?? []).map((c) => c.composeProject)), [containers]);
 
+  if (!allowed) return null;
   // What it last read can't stand once it can't be read, so that is all this says.
   const body: ReactNode = !connected ? (
     <p className="containers-note">
@@ -183,6 +188,7 @@ function Rows({
   const { t } = useLingui();
   const navigate = useNavigate();
   const stateWord = useContainerStateWord();
+  const { take } = useTakeOn(server);
   const columns = useMemo<TableColumn<ServerContainer>[]>(
     () => [
       {
@@ -223,8 +229,28 @@ function Rows({
         mono: true,
         render: (c) => <Some items={c.mounts.map(mountSource)} more={c.moreMounts} />,
       },
+      {
+        // Taking it on, with the name and place Dockwell would give it; its own page picks others.
+        key: "take",
+        header: <span className="dw-sr">{t`Take on`}</span>,
+        width: 96,
+        align: "right",
+        render: (c) => (
+          <Button
+            size="sm"
+            variant="secondary"
+            aria-label={t`Take ${c.name} on as an app`}
+            onClick={(event) => {
+              event.stopPropagation();
+              take(c);
+            }}
+          >
+            {t`Take on`}
+          </Button>
+        ),
+      },
     ],
-    [t, server, stateWord, projects],
+    [t, server, stateWord, projects, take],
   );
   return (
     <Table<ServerContainer>

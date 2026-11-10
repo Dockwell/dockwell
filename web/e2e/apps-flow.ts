@@ -109,15 +109,18 @@ export async function appsFlow(
     fail(`port ${port} answers as "${got}", want ${version}`);
   };
 
-  step("apps: the list invites the first app, and New app opens on Git, and asks only for an image");
+  step("apps: the list offers the ways to a first app, and a Docker image asks only for the image");
   await page.goto(`${origin}/apps`);
   await page.getByRole("heading", { name: "No apps yet" }).waitFor();
-  await page.getByRole("link", { name: "New app" }).click();
+  await page
+    .getByRole("list", { name: "Ways to run your first app" })
+    .getByRole("link", { name: "A Docker image" })
+    .click();
   const sheet = page.getByRole("dialog", { name: "New app" });
   await sheet.waitFor();
-  if (!(await sheet.getByRole("radio", { name: "Git" }).isChecked()))
-    fail("New app doesn't open on Git, as Apps-New has it");
-  await sheet.getByRole("radio", { name: "Image" }).click();
+  // A Docker image opens New app on Image, though New app on its own opens on Git.
+  if (!(await sheet.getByRole("radio", { name: "Image" }).isChecked()))
+    fail("A Docker image opens New app on something other than Image");
   if ((await sheet.getByRole("group", { name: "Runs on" }).count()) > 0)
     fail("New app asks where to run with one server");
   await shoot(page, "apps-new");

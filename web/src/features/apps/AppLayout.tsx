@@ -39,6 +39,7 @@ import { useWhoWords } from "./revision";
 import { usePlaces, useServices } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
+import { useMay } from "../auth/may";
 import { useServicesWatch } from "./ServicesLive";
 
 /**
@@ -218,6 +219,11 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       make: () => createClient(ChangeService, transport).restartService({ id: service.id }),
     });
   const place = places.place(environmentOf(service));
+  // An action on what you can see stays where it is, off, with why (ADR 0059).
+  const may = useMay();
+  const here = { environment: environmentOf(service) };
+  const mayRestart = may(ChangeService.method.restartService, here);
+  const mayDeploy = may(ServiceService.method.deployService, here);
   return (
     <Page
       title={name}
@@ -289,7 +295,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       actions={
         <>
           {restartable ? (
-            <Button icon="refresh" onClick={restart}>
+            <Button icon="refresh" onClick={restart} {...mayRestart.off}>
               <Trans>Restart</Trans>
             </Button>
           ) : null}
@@ -301,7 +307,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             <Trans>Logs</Trans>
           </RouterButtonLink>
           {changeable ? (
-            <Button variant="primary" icon="deploy" onClick={deploy}>
+            <Button variant="primary" icon="deploy" onClick={deploy} {...mayDeploy.off}>
               <Trans>Deploy</Trans>
             </Button>
           ) : null}
@@ -350,11 +356,11 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             <Trans>Logs</Trans>
           </RouterButtonLink>
           {restartable ? (
-            <Button icon="refresh" size="lg" onClick={restart}>
+            <Button icon="refresh" size="lg" onClick={restart} {...mayRestart.off}>
               <Trans>Restart</Trans>
             </Button>
           ) : null}
-          <Button variant="primary" icon="deploy" size="lg" onClick={deploy}>
+          <Button variant="primary" icon="deploy" size="lg" onClick={deploy} {...mayDeploy.off}>
             <Trans>Deploy</Trans>
           </Button>
         </div>

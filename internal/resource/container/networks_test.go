@@ -210,9 +210,14 @@ func testTwoChangesCantTakeOneName(t *testing.T, held func(*http.Request) bool) 
 		}
 		return nil
 	})
-	errs := make([]error, 2)
-	var wg sync.WaitGroup
-	for i, ref := range []resource.Ref{first, second} {
+	// Both are planned before either applies, as two changes planned at once are: the
+	// check that stops the second is the one at apply, not the plan's.
+	type planned struct {
+		step resource.Step
+		spec *resourcev1.Service
+	}
+	plans := make([]planned, 0, 2)
+	for _, ref := range []resource.Ref{first, second} {
 		s := spec()
 		if err := l.Drivers.Validate(ref.Kind, s); err != nil {
 			t.Fatal(err)
@@ -221,11 +226,16 @@ func testTwoChangesCantTakeOneName(t *testing.T, held func(*http.Request) bool) 
 		if err != nil {
 			t.Fatalf("plan %s: %v", ref, err)
 		}
+		plans = append(plans, planned{steps[0], s})
+	}
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	for i := range plans {
 		wg.Go(func() {
 			if i == 1 {
 				time.Sleep(50 * time.Millisecond) // the first is making its container by now
 			}
-			errs[i] = l.Apply(t.Context(), steps[0], s)
+			errs[i] = l.Apply(t.Context(), plans[i].step, plans[i].spec)
 		})
 	}
 	wg.Wait()

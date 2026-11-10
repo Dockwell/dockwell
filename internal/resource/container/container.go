@@ -55,20 +55,32 @@ type Target struct {
 	Prefix string
 }
 
-// ScopeNameRE is the form of what people call an environment in its
-// containers' names, "<project>.<environment>": two names of the kind a
-// project and an environment take (resource.CheckLabel), which have no dots,
-// so the parts never run together, and what follows the last dot of a name is
-// the service and its number.
-var ScopeNameRE = regexp.MustCompile(`^[a-z]([a-z0-9-]{0,61}[a-z0-9])?\.[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`)
+// IsScopeName reports whether name has the form of what people call an
+// environment in its containers' names, "<project>.<environment>": two names of
+// the kind a project and an environment take (resource.CheckLabel), which have no
+// dots, so the parts never run together, and what follows the last dot of a name
+// is the service and its number.
+func IsScopeName(name string) bool {
+	project, environment, ok := strings.Cut(name, ".")
+	return ok && resource.IsLabel(project) && resource.IsLabel(environment)
+}
 
-// readableForm is the form of a service's container named after what people
-// call its environment, default.production.web-1: three names of the kind a
-// project, an environment and a service take, and a number.
-var readableForm = regexp.MustCompile(`^` + labelPart + `\.` + labelPart + `\.` + labelPart + `-[0-9]+$`)
-
-// labelPart is a name of the kind resource.CheckLabel takes.
-const labelPart = `[a-z]([a-z0-9-]{0,61}[a-z0-9])?`
+// isReadableForm reports whether name has the form of a service's container named
+// after what people call its environment, default.production.web-1: three names of
+// the kind a project, an environment and a service take, and a number.
+func isReadableForm(name string) bool {
+	parts := strings.Split(name, ".")
+	if len(parts) != 3 || !resource.IsLabel(parts[0]) || !resource.IsLabel(parts[1]) {
+		return false
+	}
+	// The number has no dash in it, so it starts after the last one.
+	dash := strings.LastIndexByte(parts[2], '-')
+	if dash < 0 {
+		return false
+	}
+	service, number := parts[2][:dash], parts[2][dash+1:]
+	return resource.IsLabel(service) && number != "" && strings.Trim(number, "0123456789") == ""
+}
 
 // HostTarget is where a container run on its own goes: by its name, in
 // its server's Compose project.
@@ -186,7 +198,7 @@ func (*Driver) CheckName(name string) error {
 // a name of that form already goes on being edited, undone and adopted, as it was
 // there before the form was a service's (ADR 0035).
 func (*Driver) CheckNewName(name string) error {
-	if readableForm.MatchString(name) {
+	if isReadableForm(name) {
 		return fmt.Errorf("%q has the form of a service's container, <project>.<environment>.<service>-1, so a container run by hand can't take it. Choose a name that doesn't end in -<number> after two dots, or run it as a service", name)
 	}
 	return nil
@@ -756,7 +768,7 @@ func validateHTTPCheck(h *resourcev1.HttpCheck) error {
 			return fmt.Errorf("the health check's path %q can't go in a request: use up to %d characters, with no spaces, control characters or #", p, maxCheckPath)
 		}
 	}
-	if host := h.GetHost(); host != "" && !checkHostRE.MatchString(host) {
+	if host := h.GetHost(); host != "" && !isCheckHost(host) {
 		return fmt.Errorf("the health check's host %q isn't one to send: give a name and, if you need one, a port, such as app.example.com", host)
 	}
 	return nil
@@ -764,7 +776,20 @@ func validateHTTPCheck(h *resourcev1.HttpCheck) error {
 
 const maxCheckPath = 1024
 
-var checkHostRE = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?(:[0-9]{1,5})?$`)
+// checkHostRE is the form of a health check's host: a name and, perhaps, a port.
+// maxHostname is how long the name gets, checked apart from the form: a counted
+// repetition as long as a name compiles to that many copies of what it repeats,
+// which every agent pays for as it starts (ADR 0060).
+var checkHostRE = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:\d{1,5})?$`)
+
+const maxHostname = 253
+
+// isCheckHost reports whether host is one a health check can send.
+func isCheckHost(host string) bool {
+	// A name has no colon, so it ends at the first.
+	name, _, _ := strings.Cut(host, ":")
+	return len(name) <= maxHostname && checkHostRE.MatchString(host)
+}
 
 // Observe asks Docker.
 func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {

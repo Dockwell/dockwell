@@ -62,6 +62,9 @@ type gate struct {
 }
 
 func (g *gate) Put(ctx context.Context, name string, rule *resourcev1.FirewallRule) error {
+	if name == "refused" {
+		return errors.New("the kernel refused the rule")
+	}
 	if name == "slow" {
 		g.started <- struct{}{}
 		select {
@@ -110,6 +113,9 @@ type testServer struct {
 	mounts agent.MountTable
 	// terms opens its terminals, as /bin/sh in a directory of its own.
 	terms *terminal.Manager
+	// access keeps its firewall's changes that wait for their confirmation, when
+	// it has a firewall under the timer.
+	access agent.AccessConfirmer
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -169,7 +175,7 @@ func (s *testServer) run(t *testing.T) {
 	cfg := agent.Config{
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, OnePanel: s.onePanel, Terminals: s.terms,
+		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, OnePanel: s.onePanel, Terminals: s.terms, Access: s.access,
 	}
 	if cfg.Probe == nil {
 		cfg.Probe = answersEverything
@@ -264,8 +270,16 @@ func signedIn(t *testing.T, f *fullServer) *browser {
 }
 
 func changeClient(c connect.HTTPClient, origin string) dockwellv1connect.ChangeServiceClient {
-	return dockwellv1connect.NewChangeServiceClient(c, origin, connect.WithProtoJSON())
+	client := dockwellv1connect.NewChangeServiceClient(c, origin, connect.WithProtoJSON())
+	if b, ok := c.(*browser); ok {
+		browsers.Store(client, b)
+	}
+	return client
 }
+
+// browsers are the browsers change clients were made from, so apply can confirm
+// a plan that takes a passkey with the browser's, as a person does.
+var browsers sync.Map
 
 // webEdit runs a container named web on the only server, which it leaves
 // to be filled in.
@@ -356,10 +370,28 @@ func waitWatch(t *testing.T, ch <-chan watched) watched {
 func apply(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *dockwellv1.Change) *dockwellv1.Change {
 	t.Helper()
 	w := watch(t, c, ch.GetId())
-	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId()})); err != nil {
+	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: ch.GetId()}); err != nil {
 		t.Fatalf("ApplyChange %s: %v", ch.GetSummary(), err)
 	}
 	return waitWatch(t, w).last()
+}
+
+// applyChange applies a change, and confirms it with the browser's passkey when
+// its plan takes one, as a change to a server's firewall does.
+func applyChange(t *testing.T, c dockwellv1connect.ChangeServiceClient, req *dockwellv1.ApplyChangeRequest) (*connect.Response[dockwellv1.ApplyChangeResponse], error) {
+	t.Helper()
+	res, err := c.ApplyChange(t.Context(), connect.NewRequest(req))
+	if reasonOf(err) != authapi.ReasonNeedsStepUp {
+		return res, err
+	}
+	b, ok := browsers.Load(c)
+	if !ok {
+		return res, err
+	}
+	proof := stepUpFor(t, b.(*browser), dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, req.GetId())
+	again := proto.CloneOf(req)
+	again.Proof = proof
+	return c.ApplyChange(t.Context(), connect.NewRequest(again))
 }
 
 func reasonOf(err error) string {
@@ -688,7 +720,7 @@ func testStaleAndChangedPlans(t *testing.T, backend store.Backend) {
 	first := propose(t, c, "Open http", ruleEdit("http", 80))
 	second := propose(t, c, "Open http on 8080", ruleEdit("http", 8080))
 	apply(t, c, first)
-	_, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: second.GetId()}))
+	_, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: second.GetId()})
 	if reasonOf(err) != "plan_stale" || connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), first.GetId()) {
 		t.Errorf("applying a plan made before another change = %v, want plan_stale naming %s", err, first.GetId())
 	}
@@ -698,7 +730,8 @@ func testStaleAndChangedPlans(t *testing.T, backend store.Backend) {
 	if err := hz1.fw.Delete(t.Context(), "http"); err != nil {
 		t.Fatal(err)
 	}
-	_, err = c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: edit.GetId()}))
+	// Moving an allow to another port may lock someone out, so it takes the plan's fingerprint.
+	_, err = applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: edit.GetId(), Fingerprint: edit.GetPlan().GetFingerprint()})
 	if reasonOf(err) != "plan_changed" {
 		t.Errorf("applying a plan the server no longer matches = %v, want plan_changed", err)
 	}
@@ -715,13 +748,14 @@ func testAFailedApplyRollsBack(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	hz1 := f.addServer(t, true)
-	hz1.docker.Broken["nginx:broken"] = true
 	c := changeClient(b, b.origin)
 
-	failed := apply(t, c, propose(t, c, "Open http and run web", ruleEdit("http", 80), ruleEdit("https", 443),
-		webEdit("nginx:broken", nil)))
-	if failed.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || failed.GetRolledBackBy() == "" || !strings.Contains(failed.GetError(), "isn't healthy") {
-		t.Fatalf("a change with a broken image = %v, want it failed and rolled back", failed)
+	// The firewall's steps run after the others (ADR 0052): web, then http,
+	// then a rule the server refuses.
+	failed := apply(t, c, propose(t, c, "Run web and open http", webEdit("nginx:1.27", nil), ruleEdit("http", 80),
+		ruleEdit("refused", 443)))
+	if failed.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || failed.GetRolledBackBy() == "" || !strings.Contains(failed.GetError(), "refused the rule") {
+		t.Fatalf("a change with a rule the server refuses = %v, want it failed and rolled back", failed)
 	}
 	var states []dockwellv1.StepState
 	for _, s := range failed.GetSteps() {
@@ -740,6 +774,9 @@ func testAFailedApplyRollsBack(t *testing.T, backend store.Backend) {
 	if hz1.fw.Len() != 0 {
 		t.Errorf("after the rollback hz-1 has %d rules, want none", hz1.fw.Len())
 	}
+	if got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"}); got != nil {
+		t.Errorf("after the rollback hz-1 runs web as %v, want it gone", got)
+	}
 }
 
 // A stream that drops while a step runs fails the step, and the rollback
@@ -756,7 +793,7 @@ func testADroppedStreamResumesOnReconnect(t *testing.T, backend store.Backend) {
 
 	ch := propose(t, c, "Open http and slow", ruleEdit("http", 80), ruleEdit("slow", 8080))
 	w := watch(t, c, ch.GetId())
-	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId()})); err != nil {
+	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: ch.GetId()}); err != nil {
 		t.Fatal(err)
 	}
 	<-hz1.fw.started // the slow rule's step is running
@@ -787,6 +824,9 @@ func testADroppedStreamResumesOnReconnect(t *testing.T, backend store.Backend) {
 	}
 	if hz1.fw.Len() != 0 {
 		t.Errorf("after the rollback hz-1 has %d rules, want none", hz1.fw.Len())
+	}
+	if got, _ := hz1.docker.Inspect(t.Context(), container.Target{Name: "web"}); got != nil {
+		t.Errorf("after the rollback hz-1 runs web as %v, want it gone", got)
 	}
 }
 
@@ -967,13 +1007,21 @@ func testDestructivePlansNeedASessionAndAConfirmation(t *testing.T, backend stor
 	script := changeClient(bearer{token: token, rt: b.client.Transport}, b.origin)
 
 	// A token may propose and apply what can be undone.
-	open := propose(t, script, "Open http", ruleEdit("http", 80))
-	if open.GetProposedVia() != dockwellv1.Surface_SURFACE_API || open.GetProposedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_TOKEN ||
-		open.GetProposedBy().GetName() != "CI TOKEN_SCOPE_READ_WRITE" {
-		t.Errorf("a change a token proposed = %v", open)
+	run := propose(t, script, "Run web", webEdit("nginx:1.27", nil))
+	if run.GetProposedVia() != dockwellv1.Surface_SURFACE_API || run.GetProposedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_TOKEN ||
+		run.GetProposedBy().GetName() != "CI TOKEN_SCOPE_READ_WRITE" {
+		t.Errorf("a change a token proposed = %v", run)
 	}
-	if got := apply(t, script, open); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED || got.GetAppliedVia() != dockwellv1.Surface_SURFACE_API {
+	if got := apply(t, script, run); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED || got.GetAppliedVia() != dockwellv1.Surface_SURFACE_API {
 		t.Errorf("a token's apply = %v", got)
+	}
+	// It may propose a change to who reaches a server, and not apply it: a person
+	// applies that, with a passkey, and confirms they can still reach the server
+	// (ADR 0052).
+	open := propose(t, script, "Open http", ruleEdit("http", 80))
+	_, err := script.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: open.GetId()}))
+	if reasonOf(err) != authapi.ReasonNeedsSession || !strings.Contains(err.Error(), "changes who reaches a server") {
+		t.Errorf("a token applying a firewall rule = %v, want needs_session", err)
 	}
 	// The CLI says it is the CLI, and its changes record it.
 	cli := dockwellv1connect.NewChangeServiceClient(bearer{token: token, rt: b.client.Transport}, b.origin,
@@ -997,7 +1045,7 @@ func testDestructivePlansNeedASessionAndAConfirmation(t *testing.T, backend stor
 	if !block.GetPlan().GetDestructive() || block.GetPlan().GetServers()[0].GetSteps()[0].GetWarnings()[0] != dockwellv1.PlanWarning_PLAN_WARNING_MAY_LOCK_OUT {
 		t.Fatalf("blocking SSH plans %v, want it destructive, warning of a lockout", block.GetPlan())
 	}
-	_, err := script.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: block.GetId(), Fingerprint: fp}))
+	_, err = script.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: block.GetId(), Fingerprint: fp}))
 	if reasonOf(err) != authapi.ReasonNeedsSession || connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Errorf("a token applying a destructive plan = %v, want needs_session", err)
 	}
@@ -1010,7 +1058,7 @@ func testDestructivePlansNeedASessionAndAConfirmation(t *testing.T, backend stor
 		t.Errorf("applying with another plan's fingerprint = %v, want plan_changed", err)
 	}
 	w := watch(t, c, block.GetId())
-	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: block.GetId(), Fingerprint: fp})); err != nil {
+	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: block.GetId(), Fingerprint: fp}); err != nil {
 		t.Fatal(err)
 	}
 	if got := waitWatch(t, w).last(); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
@@ -1079,7 +1127,7 @@ func testAStopMidApplyLeavesTheChangeForTheNextStart(t *testing.T, backend store
 	hz1 := f.addServer(t, true)
 	c := changeClient(b, b.origin)
 	ch := propose(t, c, "Open http and slow", ruleEdit("http", 80), ruleEdit("slow", 8080))
-	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId()})); err != nil {
+	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: ch.GetId()}); err != nil {
 		t.Fatal(err)
 	}
 	<-hz1.fw.started // the slow rule's step is running

@@ -35,12 +35,48 @@ type Backend interface {
 	Delete(ctx context.Context, name string) error
 }
 
+// Checker is a backend that refuses, when a change is planned, a rule or a
+// policy that leaves the server unsafe to reach: one that narrows SSH with
+// nobody's address to keep, or denies the control plane's own ports (ADR
+// 0052). It judges the state the edit leaves: actual is what's there now, nil
+// for nothing, and desired what it becomes, nil to delete it.
+type Checker interface {
+	CheckRule(actual, desired *resourcev1.FirewallRule) error
+	CheckPolicy(desired *resourcev1.FirewallPolicy) error
+}
+
+// Waiter is a backend whose changes wait for their confirmation: the change's
+// last step on the server ends once it's kept, or fails once the server put
+// back what it had (ADR 0052).
+type Waiter interface {
+	Wait(ctx context.Context) error
+}
+
 // Driver manages firewall rules.
 type Driver struct {
 	Backend Backend
 }
 
-var _ resource.Driver = (*Driver)(nil)
+var (
+	_ resource.Driver      = (*Driver)(nil)
+	_ resource.AccessGuard = (*Driver)(nil)
+	_ resource.Readier     = (*Driver)(nil)
+)
+
+// GuardsAccess marks a rule as deciding who reaches the server: it applies
+// under the firewall's timer.
+func (*Driver) GuardsAccess() {}
+
+// Ready says whether the server can hold Dockwell's firewall, when the backend
+// can say.
+func (d *Driver) Ready(ctx context.Context) error { return ready(ctx, d.Backend) }
+
+func ready(ctx context.Context, backend any) error {
+	if r, ok := backend.(resource.Readier); ok {
+		return r.Ready(ctx)
+	}
+	return nil
+}
 
 // Kind returns "firewall.rule".
 func (*Driver) Kind() resource.Kind { return Kind }
@@ -93,8 +129,10 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 	return r, nil
 }
 
-// Plan never has downtime, but flags a rule that may cut off SSH.
-func (*Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
+// Plan never has downtime, but flags a rule that may cut off access: a deny, or
+// an allow deleted or narrowed, which under deny everything else drops what it
+// let in. It lets the backend refuse what leaves the server unsafe to reach.
+func (d *Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
 	var dec resource.Decision
 	switch {
 	case actual == nil:
@@ -104,10 +142,57 @@ func (*Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resourc
 	default:
 		dec.Action = resource.ActionUpdate
 	}
-	if r, ok := desired.(*resourcev1.FirewallRule); ok && blocksSSH(r) {
+	was, _ := actual.(*resourcev1.FirewallRule)
+	r, _ := desired.(*resourcev1.FirewallRule)
+	if blocksSSH(r) || r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY || narrows(was, r) {
 		dec.Warnings = append(dec.Warnings, resource.WarningMayLockOut)
 	}
+	if c, ok := d.Backend.(Checker); ok {
+		if err := c.CheckRule(was, r); err != nil {
+			return dec, err
+		}
+	}
+	if s, ok := d.Backend.(Stayer); ok {
+		dec.Stays = s.StaysAfterRule(was, r)
+	}
 	return dec, nil
+}
+
+// narrows says whether an edit takes away some of what an allow let in: it
+// deletes it, makes it a deny, moves it, or lets in from fewer places.
+func narrows(was, r *resourcev1.FirewallRule) bool {
+	if was == nil || was.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY {
+		return false
+	}
+	if r == nil || r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY ||
+		r.GetPort() != was.GetPort() || r.GetProtocol() != was.GetProtocol() {
+		return true
+	}
+	return !covers(r.GetSources(), was.GetSources())
+}
+
+// covers says whether sources take in every address of others; empty is
+// anywhere.
+func covers(sources, others []string) bool {
+	if len(sources) == 0 {
+		return true
+	}
+	if len(others) == 0 {
+		return false
+	}
+	for _, o := range others {
+		p, err := netip.ParsePrefix(o)
+		if err != nil {
+			return false
+		}
+		if !slices.ContainsFunc(sources, func(s string) bool {
+			q, err := netip.ParsePrefix(s)
+			return err == nil && q.Bits() <= p.Bits() && q.Contains(p.Addr())
+		}) {
+			return false
+		}
+	}
+	return true
 }
 
 // blocksSSH reports a rule that denies SSH from anywhere: no sources, or a
@@ -140,6 +225,15 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 	}
 }
 
-// Verify has nothing to check beyond the rule being there: a rule has no
-// health of its own.
-func (*Driver) Verify(context.Context, resource.Ref, proto.Message) error { return nil }
+// Verify waits, on a backend whose changes wait for their confirmation, for
+// the change to be kept. A rule has no health of its own.
+func (d *Driver) Verify(ctx context.Context, _ resource.Ref, _ proto.Message) error {
+	return wait(ctx, d.Backend)
+}
+
+func wait(ctx context.Context, backend any) error {
+	if w, ok := backend.(Waiter); ok {
+		return w.Wait(ctx)
+	}
+	return nil
+}

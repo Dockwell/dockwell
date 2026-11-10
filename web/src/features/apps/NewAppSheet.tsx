@@ -52,7 +52,9 @@ import {
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
+import { useMay } from "../auth/may";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
+import { useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import {
   appOf,
@@ -132,6 +134,7 @@ export function NewAppSheet({
   const navigate = useNavigate();
   const { fleet, servers, only } = useFleetView();
   const places = usePlaces();
+  const may = useMay();
   const services = useServices().data;
   const changes = useMemo(() => createClient(ChangeService, transport), [transport]);
   const composer = useMemo(() => createClient(ComposeService, transport), [transport]);
@@ -187,6 +190,12 @@ export function NewAppSheet({
     (source === "compose" ? fileEnvironments[0]?.id : defaultPlace?.id) ||
     "";
 
+  // Planning is a developer's, where it goes: off, with why, for anyone else (ADR 0059).
+  const where = scope ? { environment: scope } : undefined;
+  const mayPlan =
+    source === "compose"
+      ? may(ComposeService.method.importCompose, where)
+      : may(ChangeService.method.proposeChange, where);
   const volumes = useQuery(ResourceService.method.listResources, { kind: "volume", scope }, { enabled: scope !== "" })
     .data?.resources;
   const name = image.name.trim() || (source === "git" ? nameFromRepository(git.url) : nameFromImage(image.image));
@@ -317,11 +326,15 @@ export function NewAppSheet({
         }
         // Undone in the same sheet, it has no page to open.
         if (open === "app" && service && after.reverts === "") {
-          // An app built from Git lands on its build, with its log as it comes.
-          void navigate({
-            to: source === "git" ? "/apps/$serviceId/deployments" : "/apps/$serviceId",
-            params: { serviceId: service.id },
-          });
+          // An app built from Git lands on its first build, with its log as it
+          // comes, on a phone too, where a revision opens only when named.
+          if (source === "git") {
+            void navigate({
+              to: "/apps/$serviceId/deployments",
+              params: { serviceId: service.id },
+              search: { revision: "1" },
+            });
+          } else void navigate({ to: "/apps/$serviceId", params: { serviceId: service.id } });
         } else void navigate({ to: "/apps" });
       },
     });
@@ -520,6 +533,7 @@ export function NewAppSheet({
               disabled={source === "compose" && !composeReady}
               kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
               onClick={() => void submit()}
+              {...mayPlan.off}
             >
               <Trans>Review plan</Trans>
             </Button>
@@ -575,6 +589,7 @@ export function NewAppSheet({
               if (clear) setErrors(({ [clear]: _, ...rest }) => rest);
             }}
             server={chosenServers[0] ?? ""}
+            runsOn={chosenServers.length > 0 ? chosenServers : only ? [only.id] : []}
             waitForServer={needsPlace}
             serversKnown={servers !== undefined}
             showBuild={showBuild}
@@ -761,6 +776,7 @@ function GitFields({
   onError,
   fieldRef,
   server,
+  runsOn,
   waitForServer,
   serversKnown,
 }: {
@@ -768,6 +784,8 @@ function GitFields({
   onGit: (next: Partial<GitForm>, clear?: string) => void;
   /** The server it runs on, when one is chosen, which reads how the repository builds. */
   server: string;
+  /** The servers it runs on, the one there is while there is one, for the ports they have free. */
+  runsOn: readonly string[];
   /** True while there's more than one server and none is chosen: nothing reads it yet. */
   waitForServer: boolean;
   /** False until the panel knows the servers, and so whether one must be chosen. */
@@ -799,10 +817,22 @@ function GitFields({
       ? [{ value: git.ref, label: git.ref }]
       : []),
   ];
-  // What the Dockerfile exposes is the port to publish, offered beside Ports for
-  // one press: publishing a port on the server is a person's choice, and under
-  // roles an admin's to apply, so it is never filled in unasked.
+  // The port the Dockerfile exposes goes in "In the app", with a free port on the
+  // server, once for each reading and only into a form with no port yet, as an
+  // image's does: a port someone removed stays removed.
   const [exposed, setExposed] = useState<readonly number[]>([]);
+  const serverPorts = useServerPorts(runsOn);
+  const filledFor = useRef("");
+  useEffect(() => {
+    const port = exposed[0];
+    const key = exposed.join(",");
+    if (port === undefined || !serverPorts.ready || filledFor.current === key) return;
+    filledFor.current = key;
+    if (form.ports.length > 0) return;
+    update({
+      ports: [{ key: nextKey(), host: String(serverPorts.free(port)), container: String(port), protocol: "tcp" }],
+    });
+  }, [exposed, serverPorts, form.ports.length, update]);
   return (
     <>
       <div className="git-source">
@@ -957,7 +987,7 @@ function GitFields({
         onChange={(event) => update({ name: event.target.value }, "name")}
       />
       <div className="app-rule" />
-      <PortsSection form={form} errors={errors} update={update} clear={clear} exposed={exposed[0]} />
+      <PortsSection form={form} errors={errors} update={update} clear={clear} />
       <EnvSection form={form} errors={errors} update={update} clear={clear} />
       <MountsSection form={form} errors={errors} update={update} clear={clear} />
     </>
@@ -983,11 +1013,13 @@ function useRepository(typed: string): {
     const id = setTimeout(() => setUrl(typed.trim()), 600);
     return () => clearTimeout(id);
   }, [typed]);
-  const worth = looksLikeRepository(typed);
+  // Having the control server ask a repository is a developer's, as planning is (ADR 0059).
+  const allowed = useMay()(BuildService.method.listRepositoryBranches).allowed;
+  const worth = looksLikeRepository(typed) && allowed;
   const asked = useQuery(
     BuildService.method.listRepositoryBranches,
     { url },
-    { enabled: looksLikeRepository(url), retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
+    { enabled: allowed && looksLikeRepository(url), retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
   );
   if (!worth) return { checked: false, branches: [], defaultBranch: "" };
   if (url !== typed.trim() || asked.isFetching)
@@ -1055,7 +1087,9 @@ function BuildRow({
     settled,
   ) as [string, string, string, string, GitForm["builder"], string, string, string, string, boolean];
   // A reading checks out on the server that will build it, and none is chosen yet.
-  const ready = looksLikeRepository(url) && !waiting && checked;
+  // Reading how it builds is a developer's where it goes, as planning is (ADR 0059).
+  const allowed = useMay()(BuildService.method.detectBuild).allowed;
+  const ready = looksLikeRepository(url) && !waiting && checked && allowed;
   const read = useQuery(
     BuildService.method.detectBuild,
     { build: buildOf({ url, ref, context, dockerfile, builder, buildCommand, startCommand, args }), server: on },
@@ -1188,31 +1222,18 @@ function SectionHead({
   );
 }
 
-function PortsSection({
-  form,
-  errors,
-  update,
-  clear,
-  exposed,
-}: SectionProps & {
-  /** The port the build says the app listens on, offered while no port is published. */
-  exposed?: number;
-}) {
+function PortsSection({ form, errors, update, clear }: SectionProps) {
   const { t } = useLingui();
   const id = useId();
-  const offer = form.ports.length === 0 && exposed ? String(exposed) : "";
-  const add = () =>
-    update({ ports: [...form.ports, { key: nextKey(), host: offer, container: offer, protocol: "tcp" }] });
+  const add = () => update({ ports: [...form.ports, { key: nextKey(), host: "", container: "", protocol: "tcp" }] });
   const change = (row: PortRow, next: Partial<PortRow>) =>
     update({ ports: form.ports.map((p) => (p.key === row.key ? { ...p, ...next } : p)) });
   return (
     <fieldset className="app-section" aria-labelledby={id}>
-      <SectionHead title={t`Ports`} id={id} add={offer ? t`Publish ${offer}` : t`Add port`} onAdd={add}>
-        {offer
-          ? t`The build exposes ${offer}.`
-          : form.ports.length === 0
-            ? t`Nothing outside the server reaches it until you publish a port.`
-            : t`Such as 8080 on the server, to 80 in the app.`}
+      <SectionHead title={t`Ports`} id={id} add={t`Add port`} onAdd={add}>
+        {form.ports.length === 0
+          ? t`Nothing outside the server reaches it until you publish a port.`
+          : t`Such as 8080 on the server, to 80 in the app.`}
       </SectionHead>
       {form.ports.map((row, i) => (
         <div key={row.key} className="app-row-group">
@@ -1445,6 +1466,8 @@ function useComposeCheck(file: string, variables: Readonly<Record<string, string
     const timer = setTimeout(() => setSettled({ file, variables, env, directory }), CHECK_AFTER_MS);
     return () => clearTimeout(timer);
   }, [file, variables, env, directory]);
+  // Reading a file is the start of planning it, which is a developer's (ADR 0059).
+  const allowed = useMay()(ComposeService.method.checkCompose).allowed;
   const query = useQuery(
     ComposeService.method.checkCompose,
     {
@@ -1454,7 +1477,7 @@ function useComposeCheck(file: string, variables: Readonly<Record<string, string
       directory: settled.directory.trim(),
     },
     {
-      enabled: settled.file.trim() !== "",
+      enabled: settled.file.trim() !== "" && allowed,
       placeholderData: (previous) => previous,
       staleTime: 60_000,
       // A query's key is what it asked, and here that holds an .env's values, so nothing keeps it once it's done with.

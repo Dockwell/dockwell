@@ -23,6 +23,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { formatClock, formatDateTime } from "../../lib/format";
 import { EmptyState } from "../shell/EmptyState";
+import { ReadFailed } from "../shell/ReadFailed";
 import { AlertsPage } from "./AlertsPage";
 import { ChannelSheet } from "./ChannelSheet";
 import { CHANNEL_KIND, channelStatus, isChannelType, routing, useChannels, useDeliveries, useRules } from "./useAlerts";
@@ -100,6 +101,8 @@ export function ChannelsTab() {
   const test = useSendTest();
   const [editing, setEditing] = useState<AlertChannelInfo | "new">();
   const list = channels.data?.channels ?? [];
+  // The rules on, which send to every channel once there is one.
+  const waiting = (useRules().data?.rules ?? []).filter((r) => !r.spec?.disabled).length;
 
   const add = (
     <Button variant="primary" icon="plus" onClick={() => setEditing("new")}>
@@ -176,20 +179,18 @@ export function ChannelsTab() {
 
   let body: ReactNode;
   if (channels.error) {
-    body = (
-      <Callout tone="critical" title={t`Can't load the channels`}>
-        {sentence(channels.error)}
-      </Callout>
-    );
+    body = <ReadFailed error={channels.error} title={t`Can't load the channels`} />;
   } else if (!channels.data) {
     body = null;
   } else if (list.length === 0) {
     body = (
       <EmptyState icon="bell" title={t`Nowhere to send alerts yet`} action={add}>
-        <Trans>
-          Dockwell watches your servers and apps from the first start, and puts what it finds on Activity. Add a
-          channel, such as email, Slack or ntfy on your phone, and every rule sends to it.
-        </Trans>
+        {waiting > 0
+          ? plural(waiting, {
+              one: "# rule sends to it once there's one.",
+              other: "# rules send to it once there's one.",
+            })
+          : null}
       </EmptyState>
     );
   } else {

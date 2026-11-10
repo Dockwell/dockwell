@@ -184,7 +184,7 @@ describe("New app, from Git", () => {
     );
   });
 
-  it("checks the repository as you type, offers its branches to choose, and offers the port the build exposes", async () => {
+  it("checks the repository as you type, offers its branches to choose, and takes its port from what the build exposes", async () => {
     const user = userEvent.setup();
     const proposed: ProposeChangeRequest[] = [];
     renderAt(
@@ -229,12 +229,9 @@ describe("New app, from Git", () => {
         .map((o) => o.textContent),
     ).toEqual(["main (default)", "fix/cart", "next"]);
     expect(branch).toHaveValue("");
-    // What the Dockerfile exposes is offered as the port, for one press, and nothing is published unasked.
-    await within(sheet).findByText("The build exposes 8080.", {}, { timeout: 3000 });
-    expect(within(sheet).queryByLabelText("On the server")).not.toBeInTheDocument();
-    await user.click(within(sheet).getByRole("button", { name: "Publish 8080" }));
+    // The port the Dockerfile exposes goes in the app, with a free one on the server.
+    await waitFor(() => expect(within(sheet).getByLabelText("In the app")).toHaveValue("8080"), { timeout: 3000 });
     expect(within(sheet).getByLabelText("On the server")).toHaveValue("8080");
-    expect(within(sheet).getByLabelText("In the app")).toHaveValue("8080");
     await user.selectOptions(branch, "next");
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await waitFor(() => expect(proposed.length).toBe(1));
@@ -246,6 +243,33 @@ describe("New app, from Git", () => {
     expect(spec?.case === "service" && spec.value.runs.case === "app" ? spec.value.runs.value.ports : []).toMatchObject(
       [{ hostPort: 8080, containerPort: 8080 }],
     );
+  });
+
+  it("takes a free port on the server when another app holds the one the build exposes", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/new",
+      api({
+        services: {
+          listServices: () => ({
+            services: [anApp("shop", "ghcr.io/acme/shop:1.4", { ports: [{ hostPort: 8080, containerPort: 80 }] })],
+          }),
+          listServiceRevisions: () => ({}),
+        },
+        builds: {
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            ref: "main",
+            serverName: "hz-1",
+            detection: { builder: ImageBuild_Builder.DOCKERFILE, dockerfile: "Dockerfile", exposedPorts: [8080] },
+          }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/search-ui");
+    await waitFor(() => expect(within(sheet).getByLabelText("In the app")).toHaveValue("8080"), { timeout: 3000 });
+    expect(within(sheet).getByLabelText("On the server")).toHaveValue("8081");
   });
 
   it("says at the repository's own field that it can't be read, once, and still takes a branch you type", async () => {
@@ -304,6 +328,7 @@ describe("New app, from Git", () => {
     const done = await screen.findByRole("dialog", { name: "nginx is deployed" });
     await user.click(within(done).getByRole("button", { name: "Open nginx" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_nginx/deployments"));
+    expect(router.state.location.search).toEqual({ revision: "1" });
   });
 
   it("says when Railpack can't tell how to build it, and what to do", async () => {

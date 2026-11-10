@@ -6,7 +6,7 @@ import { createConnectTransport } from "@connectrpc/connect-web";
 import { AuthService } from "@dockwell/api";
 import { QueryClient } from "@tanstack/react-query";
 
-import { isSessionEnded } from "../lib/errors";
+import { isRoleRefusal, isSessionEnded } from "../lib/errors";
 
 /**
  * How long a call with one answer may take when it says nothing of its own: longer
@@ -85,7 +85,9 @@ export function recheckAuth(client: QueryClient): void {
  */
 export function watchSession(onEnded: () => void): Interceptor {
   const check = (error: unknown) => {
-    if (isSessionEnded(error)) onEnded();
+    // A role refusal says what the panel holds of its reader is out of date, as after a grant
+    // changed while it was open: it reads the sign-in state again, and offers what's true now (ADR 0059).
+    if (isSessionEnded(error) || isRoleRefusal(error)) onEnded();
   };
   return (next) => async (req) => {
     try {

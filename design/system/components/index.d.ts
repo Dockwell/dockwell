@@ -151,7 +151,10 @@ export interface CommandBarProps {
 export declare function CommandBar(props: CommandBarProps): React.ReactElement | null;
 
 export interface SparklineProps {
-  data: number[];
+  /** null is a gap, where nothing was heard: the line breaks there. */
+  data: (number | null)[];
+  /** Each point's highest beside data's averages, drawn as a light band above the line. */
+  peaks?: (number | null)[];
   width?: number | string;
   height?: number;
   tone?: 'ink' | 'cobalt' | 'healthy' | 'warning' | 'critical' | 'idle';
@@ -172,7 +175,8 @@ export interface MetricProps {
   icon?: IconName;
   delta?: React.ReactNode;
   deltaTone?: 'healthy' | 'warning' | 'critical';
-  data?: number[];
+  data?: (number | null)[];
+  peaks?: (number | null)[];
   tone?: SparklineProps['tone'];
   threshold?: number;
   min?: number;

@@ -176,7 +176,8 @@ func (f *Firewall) nftIn(ctx context.Context, turn *hosttool.Turn, what string, 
 		err = hosttool.Fail("nft", res)
 	}
 	if err != nil {
-		return fmt.Errorf("%w, so nothing changed", f.why(what, err, res))
+		// What changed comes first, so the fix why ends with stays last.
+		return fmt.Errorf("nothing changed, as Dockwell couldn't %s: %w", what, f.why(what, err, res))
 	}
 	return nil
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { AuditService, MemberService, SettingsService } from "@dockwell/api";
 import { Icon, type IconName, Panel, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
@@ -7,6 +8,7 @@ import { useId } from "react";
 
 import { Page } from "../shell/Page";
 import "./Settings.css";
+import { useMay } from "../auth/may";
 
 /** A section of Settings, where it is, and the group it's in. */
 interface Section {
@@ -25,22 +27,30 @@ interface Section {
 /** Settings' sections, in their groups, as Settings-General.dc.html has them. */
 function useSections(): { label: string; sections: Section[] }[] {
   const { t } = useLingui();
+  const may = useMay();
+  // A way to a place you can't read is left out (ADR 0059).
+  const members: Section[] = may(MemberService.method.listMembers).allowed
+    ? [{ to: "/settings/members", label: t`Members`, icon: "users" }]
+    : [];
+  const audit: Section[] = may(AuditService.method.listAuditEvents).allowed
+    ? [{ to: "/settings/audit-log", label: t`Audit log`, icon: "file" }]
+    : [];
+  const controlPlane: Section[] = may(SettingsService.method.getControlPlane).allowed
+    ? [{ to: "/settings/control-plane", label: t`Control plane`, icon: "server" }]
+    : [];
   return [
     {
       label: t`Install`,
       sections: [
         { to: "/settings/general", label: t`General`, icon: "settings" },
-        { to: "/settings/members", label: t`Members`, icon: "users" },
+        ...members,
         { to: "/settings/api-tokens", label: t`API tokens`, icon: "key" },
-        { to: "/settings/audit-log", label: t`Audit log`, icon: "file" },
+        ...audit,
       ],
     },
     {
       label: t`Platform`,
-      sections: [
-        { to: "/settings/control-plane", label: t`Control plane`, icon: "server" },
-        { to: "/settings/integrations", label: t`Integrations`, icon: "layers" },
-      ],
+      sections: [...controlPlane, { to: "/settings/integrations", label: t`Integrations`, icon: "layers" }],
     },
     { label: t`Account`, sections: [{ to: "/profile", label: t`Profile and security`, icon: "user" }] },
   ];

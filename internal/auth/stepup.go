@@ -91,6 +91,8 @@ const (
 	// StepUpRestoreWayBackIn puts back what was deleted where that's a way back
 	// onto a server. Its target is the server's ID and the path it goes back to.
 	StepUpRestoreWayBackIn StepUpAction = "file.restore_way_back_in"
+	// StepUpAddServer makes a ticket that adds a server to the fleet.
+	StepUpAddServer StepUpAction = "server.add"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -116,6 +118,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpMoveWayBackIn:    {"moving", true},
 	StepUpDeleteWayBackIn:  {"deleting", true},
 	StepUpRestoreWayBackIn: {"putting back", true},
+	StepUpAddServer:        {"adding a server", false},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".

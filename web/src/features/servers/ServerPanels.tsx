@@ -2,7 +2,7 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { Connection, type PublicAddress, type Server, SystemService } from "@dockwell/api";
+import { Connection, type PublicAddress, type Server, ServerService, SystemService } from "@dockwell/api";
 import { Button, Panel, Sparkline, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
@@ -16,6 +16,7 @@ import { SetPublicAddressSheet } from "./SetPublicAddressSheet";
 import { isPrivateAddress, serverStatus } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 import "./ServerPanels.css";
+import { useMay } from "../auth/may";
 
 /** What the server is: its system and hardware. */
 export function SystemPanel({ server }: { server: Server }) {
@@ -68,6 +69,8 @@ export function NetworkPanel({ server, stale = false }: { server: Server; stale?
   const locale = i18n.locale;
   const words = useNetworkWords();
   const clock = useControlPlaneNow();
+  // A server's public address is an admin's to set: off, with why, for anyone else (ADR 0059).
+  const maySet = useMay()(ServerService.method.setServerPublicAddress);
   // Which address the sheet is changing, or null for a first one.
   const [setting, setSetting] = useState<PublicAddress | null>();
   const network = server.network;
@@ -96,7 +99,7 @@ export function NetworkPanel({ server, stale = false }: { server: Server; stale?
               <span className="fact-copy">
                 <code>{ip}</code>
                 <CopyButton text={ip} label={t`Copy ${ip}`} />
-                <Button variant="ghost" size="sm" onClick={() => setSetting(address)}>
+                <Button variant="ghost" size="sm" onClick={() => setSetting(address)} {...maySet.off}>
                   <Trans>Change</Trans>
                 </Button>
               </span>
@@ -108,7 +111,7 @@ export function NetworkPanel({ server, stale = false }: { server: Server; stale?
           <Fact term={t`Public address`}>
             <span className="fact-copy">
               <Muted>{t`Not known`}</Muted>
-              <Button variant="ghost" size="sm" onClick={() => setSetting(null)}>
+              <Button variant="ghost" size="sm" onClick={() => setSetting(null)} {...maySet.off}>
                 <Trans>Set</Trans>
               </Button>
             </span>

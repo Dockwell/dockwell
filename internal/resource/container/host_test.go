@@ -611,11 +611,12 @@ func deadPath(t *testing.T, under string) (release func(), asked *atomic.Int32) 
 	var once sync.Once
 	release = func() { once.Do(func() { close(gone) }) }
 	asked = &atomic.Int32{}
-	restore := container.StopAnswering(50*time.Millisecond, func(p string) {
+	restore := container.StopAnswering(50*time.Millisecond, func(p string) <-chan struct{} {
 		if p == under || strings.HasPrefix(p, under+"/") {
 			asked.Add(1)
-			<-gone
+			return gone
 		}
+		return nil
 	})
 	t.Cleanup(func() { release(); restore() })
 	return release, asked
@@ -693,6 +694,7 @@ func TestARolloutOnAPathThatStopsAnsweringSaysWhich(t *testing.T) {
 // A path that stops answering on a mount that can, takes the mount with it: every
 // other path there is told at once, with no thread held and no wait claimed, however
 // many there are, and a path that only leads there is too. Anywhere else, plans go on.
+// A path that is slow on its way to the mount is told the same, and is no second wait.
 func TestADeadMountCostsOneWaitAndStopsNothingElse(t *testing.T) {
 	dir := t.TempDir()
 	dead := filepath.Join(dir, "nfs")
@@ -707,11 +709,18 @@ func TestADeadMountCostsOneWaitAndStopsNothingElse(t *testing.T) {
 	var asked atomic.Int32
 	var once sync.Once
 	release := func() { once.Do(func() { close(gone) }) }
-	restore := container.StopAnswering(50*time.Millisecond, func(p string) {
+	// One follow is held up on its way to the mount for longer than a path has to
+	// answer, as a busy machine holds one up.
+	var slow atomic.Bool
+	restore := container.StopAnswering(50*time.Millisecond, func(p string) <-chan struct{} {
+		if p == dir && slow.CompareAndSwap(true, false) {
+			time.Sleep(150 * time.Millisecond)
+		}
 		if strings.HasPrefix(p, dead+"/") {
 			asked.Add(1)
-			<-gone
+			return gone
 		}
+		return nil
 	})
 	t.Cleanup(func() { release(); restore() })
 	container.PretendMounts("22 1 8:1 / / rw - ext4 /dev/sda1 rw\n40 22 0:50 / " + dead + " rw - nfs4 filer:/export rw\n")
@@ -721,13 +730,13 @@ func TestADeadMountCostsOneWaitAndStopsNothingElse(t *testing.T) {
 	}
 	for i := range container.MaxStuckPaths + 5 {
 		p := filepath.Join(dead, strconv.Itoa(i))
-		start := time.Now()
+		slow.Store(i == 4)
 		_, err := container.Resolve(p)
 		if !errors.Is(err, resource.ErrPathNotAnswering) {
 			t.Fatalf("%d: %v", i, err)
 		}
-		if took := time.Since(start); took >= 50*time.Millisecond {
-			t.Errorf("%s waited %s on a mount known not to answer", p, took)
+		if n := container.WaitsOver(); n != 1 {
+			t.Fatalf("%s was the wait number %d on a mount known not to answer", p, n)
 		}
 		if strings.Contains(err.Error(), "after") || !strings.Contains(err.Error(), dead+" isn't answering") || !strings.Contains(err.Error(), p) {
 			t.Fatalf("a path nobody asked says %v", err)
@@ -739,9 +748,28 @@ func TestADeadMountCostsOneWaitAndStopsNothingElse(t *testing.T) {
 	if n := asked.Load(); n != 1 {
 		t.Errorf("the mount was asked %d times, each holding a thread", n)
 	}
+	if n := container.WaitsOver(); n != 1 {
+		t.Errorf("the mount cost %d waits", n)
+	}
 	local := filepath.Join(dir, "local")
 	if to, err := container.Resolve(local); err != nil || to != local {
 		t.Errorf("a path elsewhere = %q, %v, with one mount down", to, err)
+	}
+}
+
+// On the product's own clock a path has its time to answer, and no less. The tests
+// around this one end a wait when a path is stuck instead, so none of them reads it.
+func TestAPathHasItsTimeToAnswer(t *testing.T) {
+	until := make(chan struct{})
+	defer close(until)
+	const wait = 20 * time.Millisecond
+	start := time.Now()
+	err := container.FollowStuck(wait, until)
+	if !errors.Is(err, resource.ErrPathNotAnswering) || !strings.Contains(err.Error(), "after 0.02 s") {
+		t.Fatalf("got %v", err)
+	}
+	if took := time.Since(start); took < wait {
+		t.Errorf("it gave up after %s, before the path had its %s", took, wait)
 	}
 }
 
@@ -751,11 +779,12 @@ func TestWhatsLeftBehindOfPathsIsBounded(t *testing.T) {
 	dir := t.TempDir()
 	gone := make(chan struct{})
 	var asked atomic.Int32
-	restore := container.StopAnswering(5*time.Millisecond, func(p string) {
+	restore := container.StopAnswering(5*time.Millisecond, func(p string) <-chan struct{} {
 		if strings.HasPrefix(p, dir+"/") {
 			asked.Add(1)
-			<-gone
+			return gone
 		}
+		return nil
 	})
 	t.Cleanup(func() { close(gone); restore() })
 	for i := range container.MaxStuckPaths + 5 {

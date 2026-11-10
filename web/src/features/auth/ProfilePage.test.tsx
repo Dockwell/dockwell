@@ -301,9 +301,41 @@ describe("ProfilePage", () => {
       api({ getAuthState: () => authState({ rpId: "panel.example.com", domain: "panel.example.com" }) }),
     );
     expect(await screen.findByText("No passkey works at panel.example.com yet")).toBeVisible();
-    expect(screen.getByText("dockwell recover").parentElement).toHaveTextContent(
-      "run dockwell recover on the server: its link signs you in here, so you can add a passkey with no code.",
+    expect(screen.getByRole("button", { name: "Add a passkey here" })).toBeEnabled();
+  });
+
+  it("adds a passkey here from the note, with a fresh sign-in confirming it", async () => {
+    const passkeys = stubPasskeys();
+    const finishAddPasskey = vi.fn(() => ({}));
+    renderAt(
+      "/profile",
+      api({
+        getAuthState: () => authState({ rpId: "panel.example.com", domain: "panel.example.com" }),
+        // Signed in by code just now: adding one needs no passkey here.
+        beginAddPasskey: vi.fn(() => ({ ceremonyId: "cer_add", optionsJson: creationOptions })),
+        finishAddPasskey,
+      }),
     );
+    await userEvent.click(await screen.findByRole("button", { name: "Add a passkey here" }));
+    await waitFor(() => expect(finishAddPasskey).toHaveBeenCalled());
+    expect(passkeys.create).toHaveBeenCalledOnce();
+  });
+
+  it("says what fixes it when adding a passkey here needs a fresh sign-in, and signs out for one", async () => {
+    stubPasskeys();
+    const signOut = vi.fn(() => ({}));
+    renderAt(
+      "/profile",
+      api({
+        getAuthState: () => authState({ rpId: "panel.example.com", domain: "panel.example.com" }),
+        beginAddPasskey: () => Promise.reject(authError(Code.FailedPrecondition, "needs_fresh_sign_in")),
+        signOut,
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Add a passkey here" }));
+    expect(await screen.findByText("Adding one here needs a sign-in just now, with a code or a link.")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Sign in again" }));
+    await waitFor(() => expect(signOut).toHaveBeenCalled());
   });
 
   it("warns that code sign-in is locked, and unlocks it", async () => {

@@ -293,6 +293,20 @@ message StepOutcome {
   dockwell.v1.PlanAction did = 6;
   // The backup it took, for a step that takes one.
   BackupResult backup = 7;
+  // What the step waits for, once a change to the firewall has loaded and
+  // waits for its confirmation. Numbered in the server overview's block.
+  AccessWait waits = 44;
+}
+
+// AccessWait is a change to the firewall that waits for its confirmation.
+message AccessWait {
+  // When the agent puts back the firewall as it was, unless confirmed first.
+  google.protobuf.Timestamp deadline = 1;
+  // The ports SSH listens on now, for the test the person runs first.
+  repeated uint32 ssh_ports = 2;
+  // How long there was until the deadline when the agent said it, so the
+  // control plane counts down by its own clock, whatever the agent's.
+  google.protobuf.Duration left = 3;
 }
 
 // Kinds lists the kinds of resource an agent can run now, and why it
@@ -376,6 +390,10 @@ message Hello {
   // True when the agent uploads and downloads files, in bounded chunks over
   // ReceiveFile and SendFile, as ADR 0045 says.
   bool transfers_files = 121;
+  // True when a listing goes in name order a page at a time, and takes a name to
+  // match (ListFilesCall's match and page). The control plane sends neither to one
+  // that doesn't. The servers area takes 230 to 239 in agent messages.
+  bool pages_listings = 230;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -565,6 +583,8 @@ message Call {
     // Read what filters the server's inbound traffic, changing nothing. Numbered
     // in the block for a server's own pages.
     FirewallCall firewall = 43;
+    // Keeps a change to the firewall that waits for its confirmation.
+    ConfirmAccessCall confirm_access = 44;
     // Ask whether what a website sends to answers, from the server. Numbered in
     // the websites' block, as open work adds to this message.
     ProbeCall probe = 60;
@@ -634,6 +654,33 @@ message ProbeCall {
 // ufw, firewalld and nftables with their own commands, and Docker's published
 // ports, and changes nothing.
 message FirewallCall {}
+
+// ConfirmAccessCall confirms a change to the firewall that waits on this server
+// for its confirmation, so the agent keeps it, rather than put back what was
+// there when its timer runs out (ADR 0052).
+message ConfirmAccessCall {
+  // The change.
+  string change_id = 1;
+}
+
+// ConfirmAccessResult says what came of a confirmation.
+message ConfirmAccessResult {
+  // What the agent did.
+  AccessVerdict verdict = 1;
+}
+
+// AccessVerdict is what came of a change to the firewall under its timer.
+enum AccessVerdict {
+  ACCESS_VERDICT_UNSPECIFIED = 0;
+  // Confirmed before its timer ran out, and kept. The agent recorded it on
+  // disk before it said so.
+  ACCESS_VERDICT_KEPT = 1;
+  // Its timer ran out first, or the agent restarted, and the agent put back
+  // the firewall as it was last confirmed.
+  ACCESS_VERDICT_ROLLED_BACK = 2;
+  // No such change waits on this server, and the agent knows of none.
+  ACCESS_VERDICT_NOT_WAITING = 3;
+}
 
 // ProcessesCall asks what runs on the server. CPU covers the time since the last
 // such call, which the agent forgets 30 s after it, so nothing is read or held
@@ -937,6 +984,11 @@ message ContainersCall {
 message ListFilesCall {
   // The directory's absolute path.
   string path = 1;
+  // Lists only the names that hold this, case aside, such as "error". Empty lists
+  // every name.
+  string match = 230;
+  // Lists the page after the one whose next_page this is. Empty lists the first.
+  string page = 231;
 }
 
 // ReadFileCall asks for a file's text.
@@ -1435,6 +1487,11 @@ message Deploy {
   // True when the change rolls a failed one back, so what the step replaces
   // or removes failed.
   bool rollback = 3;
+  // True for the change's last step on this server of a kind under the
+  // firewall's timer, such as firewall.rule: the agent waits for the change to
+  // be confirmed, or its timer to run out, before the step ends (ADR 0052).
+  // Numbered in the server overview's block, as open work adds here.
+  bool last_access_step = 45;
 }
 
 // Values are what a service's variables and secrets resolve to on the
@@ -1571,6 +1628,7 @@ message CallResult {
     DatabaseResult database = 30;
     // What a firewall call read.
     dockwell.v1.ServerFirewall firewall = 43;
+    ConfirmAccessResult confirm_access = 44;
     // What a probe found.
     ProbeResult probe = 60;
     // Answers cancel_build. Numbered apart, as open work adds to this message.

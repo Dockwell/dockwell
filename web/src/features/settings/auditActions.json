@@ -1,8 +1,10 @@
 [
+  "alert.acknowledge",
   "alert.firing",
   "alert.mute",
   "alert.resolved",
   "alert.test",
+  "alert.unacknowledge",
   "alert.unmute",
   "auth.sign_in",
   "auth.sign_in_failed",
@@ -17,6 +19,7 @@
   "backup.fetched",
   "backup.server_copy_removed",
   "backup.taken",
+  "backup_destination.test",
   "build.cancel",
   "change.applied",
   "change.apply_unconfirmed",

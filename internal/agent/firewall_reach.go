@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/nftables"
 )
 
 // listeners reads what listens on the server beyond loopback, from /proc/net's
@@ -140,6 +141,8 @@ type reachOptions struct {
 	// dockerUnknown is Docker not saying which ports it publishes, so a
 	// listener may be its proxy for a published port.
 	dockerUnknown bool
+	// dockwell is Dockwell's own table, as loaded now. Nil when none is.
+	dockwell *nftables.Table
 }
 
 // reachOf works out how far a listener reaches past the firewalls here, for
@@ -151,11 +154,11 @@ func reachOf(l *dockwellv1.HostListener, tools []*dockwellv1.FirewallTool, opts 
 	var r reached
 	switch {
 	case opts.dualStack:
-		r = wider(reachFor(l, tools, 4), reachFor(l, tools, 6))
+		r = wider(reachFor(l, tools, opts.dockwell, 4), reachFor(l, tools, opts.dockwell, 6))
 	case strings.Contains(l.GetAddress(), ":"):
-		r = reachFor(l, tools, 6)
+		r = reachFor(l, tools, opts.dockwell, 6)
 	default:
-		r = reachFor(l, tools, 4)
+		r = reachFor(l, tools, opts.dockwell, 4)
 	}
 	// Docker's proxy listens on the ports Docker publishes, which ufw's and
 	// firewalld's rules don't cover; without Docker's list, any of these may be one.
@@ -166,8 +169,8 @@ func reachOf(l *dockwellv1.HostListener, tools []*dockwellv1.FirewallTool, opts 
 }
 
 // reachFor weighs a listener over one family against every firewall that
-// covers that family, the narrowest winning.
-func reachFor(l *dockwellv1.HostListener, tools []*dockwellv1.FirewallTool, family int) reached {
+// covers that family, Dockwell's own with the rest, the narrowest winning.
+func reachFor(l *dockwellv1.HostListener, tools []*dockwellv1.FirewallTool, dockwell *nftables.Table, family int) reached {
 	out := reached{reach: dockwellv1.ListenerReach_LISTENER_REACH_OPEN}
 	take := func(r reached) {
 		n, have := narrowness(r.reach), narrowness(out.reach)
@@ -202,7 +205,63 @@ func reachFor(l *dockwellv1.HostListener, tools []*dockwellv1.FirewallTool, fami
 	if len(zones) > 0 {
 		take(firewalldReach(l, zones, family))
 	}
+	if dockwell != nil {
+		take(dockwellReach(l, dockwell, family))
+	}
 	return out
+}
+
+// dockwellReach weighs a listener against Dockwell's own table as nft runs it:
+// its pins, its allows, its denies, then its policy, the first that matches
+// deciding for those it covers. A rule from some addresses lets those in, or
+// keeps them out, and leaves the rest to what follows. Traffic from Docker's
+// networks, which the table leaves to their containers, isn't from outside.
+func dockwellReach(l *dockwellv1.HostListener, t *nftables.Table, family int) reached {
+	const by = "Dockwell"
+	var allowed []string
+	matches := func(r nftables.Rule) (anywhere bool, sources []string, covers bool) {
+		if r.Protocol != l.GetProtocol() || !slices.Contains(r.Ports, uint16(l.GetPort())) { //nolint:gosec // a port
+			return false, nil, false
+		}
+		if len(r.Sources) == 0 {
+			return true, nil, true
+		}
+		for _, p := range r.Sources {
+			if (family == 4) == p.Addr().Unmap().Is4() {
+				sources = append(sources, p.Masked().String())
+			}
+		}
+		return false, sources, len(sources) > 0
+	}
+	accepts := slices.Concat(t.Pins, t.Allows)
+	for _, r := range accepts {
+		anywhere, sources, covers := matches(r)
+		switch {
+		case !covers:
+		case anywhere:
+			return reached{reach: dockwellv1.ListenerReach_LISTENER_REACH_OPEN, by: by}
+		default:
+			for _, s := range sources {
+				allowed = appendNew(allowed, s)
+			}
+		}
+	}
+	for _, r := range t.Denies {
+		if anywhere, _, covers := matches(r); covers && anywhere {
+			if len(allowed) > 0 {
+				return reached{reach: dockwellv1.ListenerReach_LISTENER_REACH_SOME, by: by, sources: allowed}
+			}
+			return reached{reach: dockwellv1.ListenerReach_LISTENER_REACH_CLOSED, by: by}
+		}
+	}
+	if t.DenyRest {
+		if len(allowed) > 0 {
+			return reached{reach: dockwellv1.ListenerReach_LISTENER_REACH_SOME, by: by, sources: allowed}
+		}
+		return reached{reach: dockwellv1.ListenerReach_LISTENER_REACH_CLOSED, by: by}
+	}
+	// Nothing here closes it: what decides is the others', or nothing.
+	return reached{reach: dockwellv1.ListenerReach_LISTENER_REACH_OPEN}
 }
 
 // wider is how far a socket that takes both families reaches: as far as the

@@ -16,6 +16,8 @@ import (
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/agent/v1/agentv1connect"
@@ -565,12 +567,12 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		ctx = resource.WithProgress(ctx, progress.say)
 		ctx = resource.WithOutcome(ctx, func(o resource.Outcome) {
 			_ = c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Progress{Progress: &agentv1.CallProgress{
-				Id: call.GetId(), Outcome: &agentv1.StepOutcome{Digest: o.Digest, Previous: o.Previous, Replacing: o.Replacing, Note: o.Note, Untouched: o.Untouched, Did: resourcepb.Did(o.Did), Backup: backupTaken(o.Backup)},
+				Id: call.GetId(), Outcome: &agentv1.StepOutcome{Digest: o.Digest, Previous: o.Previous, Replacing: o.Replacing, Note: o.Note, Untouched: o.Untouched, Did: resourcepb.Did(o.Did), Backup: backupTaken(o.Backup), Waits: accessWait(o.Waits)},
 			}}})
 		})
 		if d := call.GetApply().GetDeploy(); d != nil {
 			ctx = resource.WithDeploy(ctx, resource.Deploy{
-				Revision: int(d.GetRevision()), Change: d.GetChangeId(), Rollback: d.GetRollback(),
+				Revision: int(d.GetRevision()), Change: d.GetChangeId(), Rollback: d.GetRollback(), LastAccess: d.GetLastAccessStep(),
 			})
 			ctx = resource.WithBuilds(ctx, c.buildUpdates(d.GetChangeId(), ref))
 		}
@@ -592,7 +594,10 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if err := c.local.Apply(applyCtx, step, spec); err != nil {
 			return fail(err)
 		}
-		if c.cfg.Desired != nil {
+		// A kind under the firewall's timer is kept only once confirmed, which
+		// the step can't say: the access manager keeps what was confirmed itself
+		// (ADR 0052), so it isn't desired state until then.
+		if c.cfg.Desired != nil && !c.guardsAccess(ref.Kind) {
 			if err := c.cfg.Desired.Applied(ctx, ref, spec); err != nil {
 				c.logger.Warn("applied a step, but can't keep its desired state", slog.String("resource", ref.String()), slog.String("error", err.Error()))
 			}
@@ -734,7 +739,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if c.cfg.Files == nil {
 			return fail(errNoFiles)
 		}
-		listing, err := c.cfg.Files.List(ctx, list.GetPath())
+		listing, err := c.cfg.Files.List(ctx, list.GetPath(), list.GetMatch(), list.GetPage())
 		if err != nil {
 			return fail(err)
 		}
@@ -769,6 +774,13 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_CloseTerminal{CloseTerminal: &agentv1.CloseTerminalResult{End: end}}}
+	}
+	if confirm := call.GetConfirmAccess(); confirm != nil {
+		if c.cfg.Access == nil {
+			return &agentv1.CallResult{Result: &agentv1.CallResult_ConfirmAccess{ConfirmAccess: &agentv1.ConfirmAccessResult{Verdict: agentv1.AccessVerdict_ACCESS_VERDICT_NOT_WAITING}}}
+		}
+		v := c.cfg.Access.Confirm(ctx, confirm.GetChangeId())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ConfirmAccess{ConfirmAccess: &agentv1.ConfirmAccessResult{Verdict: accessVerdicts[v]}}}
 	}
 	if save := call.GetSaveFile(); save != nil {
 		if c.cfg.Files == nil {
@@ -1140,4 +1152,25 @@ func (c *calls) download(ctx context.Context, call *agentv1.DownloadFileCall) *a
 		return fail(err)
 	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_DownloadFile{DownloadFile: out}}
+}
+
+// accessVerdicts are the verdicts as the agent protocol says them.
+var accessVerdicts = map[resource.AccessVerdict]agentv1.AccessVerdict{
+	resource.AccessKept:       agentv1.AccessVerdict_ACCESS_VERDICT_KEPT,
+	resource.AccessRolledBack: agentv1.AccessVerdict_ACCESS_VERDICT_ROLLED_BACK,
+	resource.AccessNotWaiting: agentv1.AccessVerdict_ACCESS_VERDICT_NOT_WAITING,
+}
+
+// accessWait is what a step waits for, as the agent protocol says it.
+func accessWait(w *resource.AccessWait) *agentv1.AccessWait {
+	if w == nil {
+		return nil
+	}
+	return &agentv1.AccessWait{Deadline: timestamppb.New(w.Deadline), SshPorts: w.SSHPorts, Left: durationpb.New(w.Left)}
+}
+
+// guardsAccess says whether a kind applies under the firewall's timer.
+func (c *calls) guardsAccess(kind resource.Kind) bool {
+	t, err := c.cfg.Drivers.Type(kind)
+	return err == nil && resource.GuardsAccess(t)
 }

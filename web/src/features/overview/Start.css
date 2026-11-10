@@ -1,0 +1,135 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The ways in to a first app: cards on the start page, a row of choices on the overview. */
+.start-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.start-choice {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  transition: border-color var(--motion-fast) var(--ease-out);
+}
+
+.start-choice:hover,
+.start-choice:focus-within {
+  border-color: var(--line-strong);
+}
+
+.start-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: var(--ink);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+}
+
+.start-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.start-title {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  text-decoration: none;
+}
+
+/* The whole card answers a click on its title. */
+.start-title::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.start-title:focus-visible {
+  outline: none;
+}
+
+.start-choice:has(.start-title:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.start-line {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.start-apps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.start-apps .catalog-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.start-apps .catalog-icon img {
+  width: 24px;
+  height: 24px;
+}
+
+.start-more {
+  margin-left: var(--space-1);
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.start-go {
+  flex: none;
+  align-self: center;
+  color: var(--ink-muted);
+}
+
+/* Two by two beside the overview's other cards, one above the other on a phone. */
+.start-choices.is-compact {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-2);
+}
+
+.start-choices.is-compact .start-choice {
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+}
+
+.start-choices.is-compact .start-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.start-choices.is-compact .start-line {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.start-skip {
+  color: var(--ink-muted);
+  font-size: 13px;
+}

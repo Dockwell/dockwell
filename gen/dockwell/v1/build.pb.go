@@ -95,6 +95,7 @@ func (BuildState) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_build_proto_rawDescGZIP(), []int{0}
 }
 
+// ListRepositoryBranchesRequest names a repository to ask for its branches.
 type ListRepositoryBranchesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The repository's URL, such as "https://github.com/acme/web.git".
@@ -140,6 +141,7 @@ func (x *ListRepositoryBranchesRequest) GetUrl() string {
 	return ""
 }
 
+// ListRepositoryBranchesResponse is a repository's branches, as it says them.
 type ListRepositoryBranchesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Its branches by name, the default first, up to 500.
