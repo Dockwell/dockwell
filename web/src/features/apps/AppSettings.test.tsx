@@ -8,6 +8,7 @@ import {
   HealthcheckSchema,
   HostAccessKind,
   HostAccessSchema,
+  ImageAnswer,
   MountSchema,
   PortMappingSchema,
   type ProposeChangeRequest,
@@ -78,6 +79,56 @@ const appOf = (request: ProposeChangeRequest | undefined): Container | undefined
 };
 
 describe("an app's settings", () => {
+  it("says what its image runs where the app sets nothing, and offers limits that fit its server", async () => {
+    const user = userEvent.setup();
+    const service = anApp("web", "nginx:1.27", { ports: [{ hostPort: 8080, containerPort: 80 }] });
+    service.revision = 4n;
+    const watch = feed<WatchServersResponse>();
+    watch.push(
+      changed(
+        aServer({
+          id: "srv_1",
+          name: "hz-1",
+          inventory: { osName: "Ubuntu 24.04.1 LTS", cpuCount: 2, memoryBytes: 2n << 30n },
+        }),
+      ),
+      snapshotComplete,
+    );
+    renderAt("/apps/svc_web/settings", {
+      ...api(service),
+      servers: { watchServers: watch.stream },
+      images: {
+        getImage: () => ({
+          answer: ImageAnswer.FOUND,
+          config: {
+            command: ["nginx", "-g", "daemon off;"],
+            workingDir: "/usr/share/nginx",
+            healthcheck: ["CMD-SHELL", "curl -f http://localhost/"],
+            ports: [{ port: 80 }],
+          },
+        }),
+      },
+    });
+    await ready();
+    const general = await screen.findByRole("region", { name: "General" });
+    await waitFor(() => expect(general).toHaveTextContent("nginx -g 'daemon off;' the image's"));
+    expect(general).toHaveTextContent("root the image's");
+    expect(general).toHaveTextContent("/usr/share/nginx the image's");
+    expect(screen.getByRole("region", { name: "Health check" })).toHaveTextContent(
+      "curl -f http://localhost/ the image's",
+    );
+    await user.click(screen.getByRole("button", { name: "Edit Resources" }));
+    const form = screen.getByRole("form", { name: "Edit Resources" });
+    const memory = within(form).getByRole("combobox", { name: "Memory limit" });
+    expect(
+      within(memory)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["No limit", "256M", "512M", "1G", "Other"]);
+    expect(memory).toHaveAccessibleDescription(/^hz-1 has 2/);
+    expect(within(form).getByRole("combobox", { name: "CPU limit" })).toHaveAccessibleDescription("hz-1 has 2 vCPU.");
+  });
+
   it("shows how it runs, section by section, each with its own Edit", async () => {
     const { container } = renderAt("/apps/svc_web/settings", api(anEditedApp()));
     await ready();
@@ -133,8 +184,15 @@ describe("an app's settings", () => {
     await user.click(screen.getByRole("button", { name: "Edit Health check" }));
     const form = screen.getByRole("form", { name: "Edit Health check" });
     await user.click(within(form).getByRole("radio", { name: "HTTP" }));
-    await user.type(within(form).getByRole("textbox", { name: "Port in the app" }), "80");
-    await user.type(within(form).getByRole("textbox", { name: "Path" }), "/healthz");
+    // The port it listens on is offered, and the paths an app's health is often at.
+    const port = within(form).getByRole("combobox", { name: "Port in the app" });
+    await user.clear(port);
+    await user.type(port, "80");
+    await user.type(within(form).getByRole("combobox", { name: "Path" }), "/healthz");
+    // Its timing is one step away, said in a line while closed.
+    const timing = within(form).getByRole("button", { name: "Timing" });
+    expect(timing).toHaveAccessibleDescription("Every 10s, 5s to answer, unhealthy after 3 failures");
+    await user.click(timing);
     await user.type(within(form).getByRole("textbox", { name: "Every" }), "10");
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));
     expect(within(form).getByText("Use a duration, such as 10s or 1m.")).toBeVisible();
@@ -168,7 +226,7 @@ describe("an app's settings", () => {
 
     await user.click(screen.getByRole("button", { name: "Edit Resources" }));
     const form = screen.getByRole("form", { name: "Edit Resources" });
-    await user.type(within(form).getByRole("textbox", { name: "Memory limit" }), "256M");
+    await user.selectOptions(within(form).getByRole("combobox", { name: "Memory limit" }), "256M");
     expect(within(form).getByText("A limit never asks for your passkey, whatever web reaches.")).toBeVisible();
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(proposals).toHaveLength(1));
@@ -209,19 +267,16 @@ describe("an app's settings", () => {
     await user.click(screen.getByRole("button", { name: "Edit Volumes and mounts" }));
     const form = screen.getByRole("form", { name: "Edit Volumes and mounts" });
     await user.click(within(form).getByRole("button", { name: "Add a volume or mount" }));
-    await user.type(
-      within(form).getByRole("textbox", { name: "Mount 2: volume or server path" }),
-      "/var/run/docker.sock",
-    );
-    await user.type(within(form).getByRole("textbox", { name: "Mount 2: path in the app" }), "/var/run/docker.sock");
+    await user.type(within(form).getByLabelText("Mount 2: volume or server path"), "/var/run/docker.sock");
+    await user.type(within(form).getByLabelText("Mount 2: path in the app"), "/var/run/docker.sock");
     expect(within(form).getByText(/gives this app control of Docker on the server, the same as root/)).toBeVisible();
     await user.click(within(form).getByRole("button", { name: "Add a volume or mount" }));
-    await user.type(within(form).getByRole("textbox", { name: "Mount 3: volume or server path" }), "cache");
-    await user.type(within(form).getByRole("textbox", { name: "Mount 3: path in the app" }), "cache");
+    await user.type(within(form).getByLabelText("Mount 3: volume or server path"), "cache");
+    await user.type(within(form).getByLabelText("Mount 3: path in the app"), "cache");
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));
     expect(within(form).getByText("Use an absolute path in the app, such as /data.")).toBeVisible();
-    await user.clear(within(form).getByRole("textbox", { name: "Mount 3: path in the app" }));
-    await user.type(within(form).getByRole("textbox", { name: "Mount 3: path in the app" }), "/cache");
+    await user.clear(within(form).getByLabelText("Mount 3: path in the app"));
+    await user.type(within(form).getByLabelText("Mount 3: path in the app"), "/cache");
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(proposals).toHaveLength(1));
     // data is there already; cache comes with it, on the server the app runs on.
@@ -364,7 +419,7 @@ describe("an app's settings, where it could go wrong", () => {
     renderAt("/apps/svc_web/settings", stale);
     await ready();
     await user.click(screen.getByRole("button", { name: "Edit Resources" }));
-    await user.type(screen.getByRole("textbox", { name: "Memory limit" }), "256M");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Memory limit" }), "256M");
     await user.click(screen.getByRole("button", { name: /Review plan/ }));
     expect(
       await screen.findByText(
@@ -392,6 +447,7 @@ describe("an app's settings, where it could go wrong", () => {
     renderAt("/apps/svc_web/settings", api(service, proposals));
     await ready();
     await user.click(screen.getByRole("button", { name: "Edit Health check" }));
+    await user.click(screen.getByRole("button", { name: "Timing" }));
     await user.type(screen.getByRole("textbox", { name: "Every" }), "5s");
     await user.click(screen.getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(proposals).toHaveLength(1));
@@ -425,13 +481,13 @@ describe("an app's settings, where it could go wrong", () => {
     await user.click(screen.getByRole("button", { name: "Edit Volumes and mounts" }));
     const form = screen.getByRole("form", { name: "Edit Volumes and mounts" });
     await user.click(within(form).getByRole("button", { name: "Add a volume or mount" }));
-    await user.type(within(form).getByRole("textbox", { name: "Mount 2: volume or server path" }), "/etc/nginx");
+    await user.type(within(form).getByLabelText("Mount 2: volume or server path"), "/etc/nginx");
     expect(within(form).getByText(/is as good as root there, so applying this asks for your passkey/)).toBeVisible();
     expect(
       within(form).getByText("web is as good as root on its server, so applying this asks for your passkey."),
     ).toBeVisible();
-    await user.clear(within(form).getByRole("textbox", { name: "Mount 2: volume or server path" }));
-    await user.type(within(form).getByRole("textbox", { name: "Mount 2: volume or server path" }), "/srv/web");
+    await user.clear(within(form).getByLabelText("Mount 2: volume or server path"));
+    await user.type(within(form).getByLabelText("Mount 2: volume or server path"), "/srv/web");
     expect(within(form).getByText(/You approve this in the plan; API tokens can't./)).toBeVisible();
     expect(within(form).queryByText(/asks for your passkey/)).toBeNull();
   });
@@ -442,7 +498,10 @@ describe("an app's settings, where it could go wrong", () => {
     renderAt("/apps/svc_web/settings", api(anEditedApp(), proposals));
     await ready();
     await user.click(screen.getByRole("button", { name: "Edit Resources" }));
-    await user.type(screen.getByRole("textbox", { name: "Memory limit" }), "1.5G");
+    // An amount that isn't one of the picks is typed, under Other.
+    await user.selectOptions(screen.getByRole("combobox", { name: "Memory limit" }), "other");
+    await user.type(screen.getByRole("textbox", { name: "Memory limit, typed" }), "1.5G");
+    await user.click(screen.getByRole("button", { name: "Memory kept for it" }));
     await user.type(screen.getByRole("textbox", { name: "Memory kept for it" }), "2Gi");
     await user.click(screen.getByRole("button", { name: /Review plan/ }));
     expect(screen.getByText("Keep no more for it than its limit, 1.5G.")).toBeVisible();

@@ -2309,8 +2309,14 @@ msgstr "有引号没有闭合。请闭合它，或去掉它。"
 msgid "Add a volume or mount"
 msgstr "添加卷或挂载"
 
+msgid "Any status from 200 to 399 passes."
+msgstr "200 到 399 之间的任何状态码都算通过。"
+
 msgid "CPU limit"
 msgstr "CPU 限制"
+
+msgid "CPU limit, typed"
+msgstr "CPU 上限（手动输入）"
 
 msgid "Change how {name} runs"
 msgstr "更改 {name} 的运行方式"
@@ -2340,17 +2346,8 @@ msgstr "危险操作"
 msgid "Docker changes a limit on the running container, except to lift one, which replaces it."
 msgstr "Docker 会在运行中的容器上直接修改限制；取消限制则会替换容器。"
 
-msgid "Docker runs this in the container. It passes when it exits with 0."
-msgstr "Docker 在容器内运行它。退出码为 0 即为通过。"
-
 msgid "Docker's default"
 msgstr "Docker 默认值"
-
-msgid "Dockwell's agent asks the app for the path on its port. Any status from 200 to 399 passes, and the image needs no curl."
-msgstr "Dockwell 的 agent 会请求应用端口上的这个路径。200 到 399 之间的任何状态码都算通过，镜像里不需要 curl。"
-
-msgid "Dockwell's agent connects to the port. It passes once the app takes the connection."
-msgstr "Dockwell 的 agent 会连接这个端口。应用接受连接即为通过。"
 
 msgid "Edit"
 msgstr "编辑"
@@ -2373,8 +2370,14 @@ msgstr "编辑卷和挂载"
 msgid "Edit {title}"
 msgstr "编辑{title}"
 
+msgid "Empty runs the image's own."
+msgstr "留空则运行镜像自带的命令。"
+
 msgid "Every"
 msgstr "间隔"
+
+msgid "Every {everyNow}, {limitNow} to answer, unhealthy after {failures} failures"
+msgstr "每 {everyNow} 一次，{limitNow} 内应答，连续失败 {failures} 次即为不健康"
 
 msgid "Failures in this time don't count."
 msgstr "这段时间内的失败不计入。"
@@ -2394,6 +2397,12 @@ msgstr "检查方式"
 msgid "It mounts nothing. Add a volume to keep what it writes across deploys."
 msgstr "它没有挂载任何内容。添加一个卷，部署之间就能保留它写入的数据。"
 
+msgid "It passes once the app takes a connection."
+msgstr "应用接受连接即算通过。"
+
+msgid "It passes when it exits with 0."
+msgstr "以 0 退出即算通过。"
+
 msgid "It publishes none. Add one to reach it from outside the server."
 msgstr "它没有发布端口。添加一个，就能从服务器外访问它。"
 
@@ -2406,14 +2415,14 @@ msgstr "为它预留的不能超过它的限制 {memory}。"
 msgid "Kept for it"
 msgstr "为它预留"
 
-msgid "Leave it empty to run the image's own."
-msgstr "留空则运行镜像自带的命令。"
-
 msgid "Memory kept for it"
 msgstr "为它预留的内存"
 
 msgid "Memory limit"
 msgstr "内存限制"
+
+msgid "Memory limit, typed"
+msgstr "内存上限（手动输入）"
 
 msgid "Mount {n}: path in the app"
 msgstr "挂载 {n}：应用内路径"
@@ -2423,9 +2432,6 @@ msgstr "挂载 {n}：卷或服务器路径"
 
 msgid "Name a volume, such as data, or a path on the server, such as /srv/app."
 msgstr "填写卷名，例如 data，或服务器上的路径，例如 /srv/app。"
-
-msgid "No check at all, not even the image's. Running only means it started."
-msgstr "完全不检查，连镜像自带的也不用。“正在运行”只表示它已启动。"
 
 msgid "No limit"
 msgstr "不限制"
@@ -2451,6 +2457,10 @@ msgstr "还没有任何更改。"
 
 msgid "Nothing set aside"
 msgstr "没有预留"
+
+msgctxt "a limit typed in"
+msgid "Other"
+msgstr "其他"
 
 msgid "Path"
 msgstr "路径"
@@ -2482,6 +2492,9 @@ msgstr "审查计划会先说明这会替换什么。在你应用之前，什么
 msgid "Run no entrypoint, not even the image's"
 msgstr "不运行入口点，连镜像自带的也不用"
 
+msgid "Running only means it started."
+msgstr "“运行中”只表示它已启动。"
+
 msgid "Say what to run, such as curl -f http://localhost/."
 msgstr "填写要运行的命令，例如 curl -f http://localhost/。"
 
@@ -2494,23 +2507,29 @@ msgstr "会停止它并移除它的容器，它的域名也会一并移除。它
 msgid "Stops it and removes its container. Its volumes stay, and you review a plan first."
 msgstr "会停止它并移除它的容器。它的卷会保留，并且你会先审查一个计划。"
 
-msgid "Such as 512M or 2G."
-msgstr "例如 512M 或 2G。"
-
 msgid "TCP"
 msgstr "TCP"
+
+msgid "The image has none, so Running only means it started"
+msgstr "镜像没有健康检查，因此“运行中”只表示它已启动"
 
 msgid "The image's"
 msgstr "镜像自带"
 
-msgid "The image's own check, if it has one. Without one, Running only means it started."
-msgstr "使用镜像自带的检查（如果有）。没有时，“正在运行”只表示它已启动。"
+msgid "The image's own, if it has one"
+msgstr "镜像自带的检查（如果有）"
 
 msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
 msgstr "这会访问服务器上的 <0>{source}</0>。需要你在计划中批准，API 令牌无法批准。"
 
 msgid "Timeout"
 msgstr "超时"
+
+msgid "Timing"
+msgstr "时间设置"
+
+msgid "Turned off, so Running only means it started"
+msgstr "已关闭，因此“运行中”只表示它已启动"
 
 msgid "Unhealthy after"
 msgstr "判定不健康"
@@ -2551,10 +2570,17 @@ msgstr "次失败"
 msgid "on the server, to the app"
 msgstr "服务器端口到应用端口"
 
+msgctxt "a setting the image makes"
+msgid "the image's"
+msgstr "镜像自带"
+
 #. placeholder {0}: inv.cpuCount
 #. placeholder {0}: r.cpus
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
+
+msgid "{c} vCPU"
+msgstr "{c} vCPU"
 
 msgid "{name} changed after you started, so the form shows it as it is now. Make your change again."
 msgstr "你开始编辑之后，{name} 发生了变化，所以表单现在显示它当前的样子。请重新做一次你的更改。"
@@ -2567,6 +2593,12 @@ msgstr "{name} 在它的服务器上等同于 root，所以应用这次更改需
 
 msgid "{retries} failed checks in a row"
 msgstr "连续 {retries} 次检查失败"
+
+msgid "{serverName} has {cpuCount} vCPU."
+msgstr "{serverName} 有 {cpuCount} 个 vCPU。"
+
+msgid "{serverName} has {totalWords}."
+msgstr "{serverName} 有 {totalWords}。"
 
 msgid "+{others}"
 msgstr "+{others}"
