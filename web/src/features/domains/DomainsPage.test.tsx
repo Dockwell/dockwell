@@ -1333,6 +1333,27 @@ describe("the list of domains on a phone", () => {
     expect(screen.getByRole("link", { name: /^staging\.example\.com/ })).toHaveTextContent("hz-1 · staging");
   });
 
+  it("says where each name's DNS leads under what it reaches, and nothing before a server has read it", async () => {
+    onPhone();
+    const on = (name: string, dns?: object) =>
+      aDomain({ name, server: { status: { domain: name, certificate: issued, ...(dns ? { dns } : {}) } } });
+    renderAt(
+      "/domains",
+      api([
+        on("here.example.com", { state: DomainCheckState.POINTS_HERE, found: ["198.51.100.7"] }),
+        on("away.example.com", { state: DomainCheckState.ELSEWHERE, found: ["203.0.113.9"] }),
+        on("unread.example.com"),
+      ]),
+    );
+    expect(await screen.findByRole("link", { name: /^here\.example\.com/ })).toHaveTextContent(
+      "Points here · 198.51.100.7",
+    );
+    expect(screen.getByRole("link", { name: /^away\.example\.com/ })).toHaveTextContent(
+      "Points elsewhere · 203.0.113.9",
+    );
+    expect(screen.getByRole("link", { name: /^unread\.example\.com/ })).not.toHaveTextContent("Not read yet");
+  });
+
   it("clips neither what a row reaches nor where", async () => {
     onPhone();
     const name = "a-service-with-a-name-long-enough-to-wrap-on-a-phone";

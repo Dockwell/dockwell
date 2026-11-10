@@ -136,7 +136,10 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
         ) : null}
         <div className="tasks-block">
           <div className="tasks-row">
-            <span className="tasks-label">{plural(runs.length, { one: "Last run", other: "Last # runs" })}</span>
+            <span className="tasks-label">
+              {/* Before a first run there are none to count: "Last 0 runs" says less than the table's own head. */}
+              {runs.length === 0 ? t`Last run` : plural(runs.length, { one: "Last run", other: "Last # runs" })}
+            </span>
             <span className="tasks-label">
               {runs.length === 0
                 ? t`None yet`
