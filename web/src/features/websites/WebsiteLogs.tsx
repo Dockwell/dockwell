@@ -59,12 +59,9 @@ export function WebsiteLogs({
     <EmptyState icon="file" title={<Trans>Nothing here writes logs</Trans>}>
       <p>
         {kindOf(site.spec) === "port" ? (
-          <Trans>
-            The ingress sends this website straight to port {port} on the server, with nothing of its own between. What
-            listens there keeps its own logs.
-          </Trans>
+          <Trans>What listens on port {port} keeps its own.</Trans>
         ) : (
-          <Trans>This website has no web server of its own now, so there's nothing of its own to read.</Trans>
+          <Trans>It has no web server of its own now.</Trans>
         )}
       </p>
     </EmptyState>

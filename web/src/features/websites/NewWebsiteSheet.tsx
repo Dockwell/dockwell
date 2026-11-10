@@ -28,7 +28,6 @@ import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { type FleetState, useFleet } from "../servers/useFleet";
 import {
   BLANK,
-  indexOf,
   type Missing,
   missing,
   type Serves,
@@ -36,7 +35,7 @@ import {
   refusedField as servesField,
   specOf,
 } from "./settings";
-import { hasAdvanced, useMissingWords, useServesWords, WebsiteFields } from "./WebsiteFields";
+import { SplitWebsiteFields, useMissingWords, useServesWords } from "./WebsiteFields";
 import "../apps/Apps.css";
 import "./Websites.css";
 import { useMay } from "../auth/may";
@@ -45,26 +44,6 @@ import { useMay } from "../auth/may";
 function serverOf(fleet: FleetState, id: string): Server | undefined {
   if (fleet.status === "connecting") return undefined;
   return fleet.servers.find((s) => s.id === id) ?? (fleet.servers.length === 1 ? fleet.servers[0] : undefined);
-}
-
-/** The fields Advanced holds, so a form that refuses one opens it. */
-const ADVANCED_FIELDS: readonly Missing["field"][] = ["user", "uploadMB"];
-
-/** What a kind's Advanced starts at, in one line, so nobody opens it to find out. */
-function useAdvancedSummary(): (s: Settings) => string {
-  const { t } = useLingui();
-  return (s) => {
-    if (s.serves === "url") return s.targetHost ? t`Sends the URL's own name as Host` : t`Sends this domain as Host`;
-    if (s.serves === "folder") {
-      const index = indexOf(s.index).join(" ") || "index.html index.htm";
-      return s.singlePageApp ? t`${index} · single-page app` : index;
-    }
-    const who = s.user.trim() || "www-data";
-    const mb = Number(s.uploadMB) || 64;
-    return s.filesOnly
-      ? t`Runs as ${who} · ${mb} MiB uploads · only files answer`
-      : t`Runs as ${who} · ${mb} MiB uploads`;
-  };
 }
 
 /**
@@ -111,9 +90,7 @@ export function NewWebsiteSheet({
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState<Opening>();
-  const [moreOpen, setMoreOpen] = useState(false);
   const [httpsOpen, setHttpsOpen] = useState(false);
-  const summary = useAdvancedSummary();
   const field = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const choiceName = useId();
@@ -223,9 +200,8 @@ export function NewWebsiteSheet({
     { value: "port", hint: t`Something listening on this server, such as port 3000.` },
   ];
   const fieldErrors = fieldError ? { [fieldError.field]: fieldError.said } : {};
-  // A section that holds what was refused opens, and stays open until it's closed by
-  // hand, so fixing the field doesn't fold it away under the cursor.
-  if (fieldError !== undefined && ADVANCED_FIELDS.includes(fieldError.field) && !moreOpen) setMoreOpen(true);
+  // HTTPS opens on what's in front being refused, and stays open until it's closed by
+  // hand, so fixing it doesn't fold it away under the cursor, as Advanced does.
   if (proxiesError !== undefined && !httpsOpen) setHttpsOpen(true);
   const onFields = (next: Settings) => {
     if (next.root !== settings.root) rootTyped.current = true;
@@ -347,29 +323,12 @@ export function NewWebsiteSheet({
             </label>
           ))}
         </fieldset>
-        <WebsiteFields
-          part="main"
+        <SplitWebsiteFields
           settings={settings}
           server={serverOf(fleet, server)?.id ?? ""}
           errors={fieldErrors}
           onChange={onFields}
         />
-        {hasAdvanced(settings.serves) ? (
-          <Advanced
-            summary={summary(settings)}
-            // A field it holds that was refused is shown, ready to change.
-            open={moreOpen}
-            onOpenChange={setMoreOpen}
-          >
-            <WebsiteFields
-              part="advanced"
-              settings={settings}
-              server={serverOf(fleet, server)?.id ?? ""}
-              errors={fieldErrors}
-              onChange={onFields}
-            />
-          </Advanced>
-        ) : null}
         {/* HTTPS is on, with its certificate coming by itself: what's in front is one step away. */}
         <Advanced
           label={t`HTTPS`}

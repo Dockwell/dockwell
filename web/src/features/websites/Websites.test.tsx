@@ -735,6 +735,18 @@ describe("A website that serves a folder", () => {
     ).toBeVisible();
   });
 
+  it("says a site's missing folder is made again by its plan, not made new", async () => {
+    onWideScreen();
+    renderAt(
+      "/websites/prj_docs/configuration",
+      api([docs], { files: { listFiles: disk({ "/srv/x": { mode: "drwxr-xr-x", entries: [] } }) } }),
+    );
+    expect(
+      await screen.findByText("Not on the server. Made as the plan applies.", {}, { timeout: 3_000 }),
+    ).toBeVisible();
+    expect(screen.queryByText(/^New\./)).not.toBeInTheDocument();
+  });
+
   it("shows what serves it, and leads to its files", async () => {
     onWideScreen();
     renderAt(
@@ -1125,7 +1137,21 @@ describe("A PHP website", () => {
     );
     expect(await screen.findByRole("heading", { level: 1, name: "shop.example.com" })).toBeVisible();
     expect(screen.getByLabelText("Serves")).toHaveValue("php");
-    expect(screen.getByText(/the folder stays on the server with what PHP wrote there/)).toBeVisible();
+    expect(screen.getByText("Its folder stays on the server, with what PHP wrote there.")).toBeVisible();
+    // What has a default is a line under Advanced, until it's opened.
+    const advanced = screen.getByRole("button", { name: "Advanced" });
+    expect(advanced).toHaveAccessibleDescription("Runs as 1000 · 64 MiB uploads");
+    expect(screen.queryByLabelText("Upload limit")).not.toBeInTheDocument();
+    await user.click(advanced);
+    await user.clear(screen.getByLabelText("Upload limit"));
+    await user.type(screen.getByLabelText("Upload limit"), "128");
+    // Closed again, it says an edit is in it.
+    await user.click(advanced);
+    expect(advanced).toHaveTextContent("1 changed");
+    await user.click(advanced);
+    await user.clear(screen.getByLabelText("Upload limit"));
+    await user.type(screen.getByLabelText("Upload limit"), "64");
+    expect(advanced).not.toHaveTextContent("changed");
     const version = await screen.findByLabelText("PHP version");
     await waitFor(() => expect(version).toHaveValue("8.3"));
     await user.selectOptions(version, "8.4");
@@ -1135,6 +1161,21 @@ describe("A PHP website", () => {
     await user.click(plan);
     await waitFor(() => expect(asked?.website?.serves.case).toBe("php"));
     expect(asked?.website?.serves.value).toMatchObject({ version: "8.4", root: "/var/www/shop" });
+  });
+
+  it("offers to upload into an empty folder, from where its files are listed", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/websites/prj_shop/files",
+      api([shop], { files: { listFiles: disk({ "/var/www/shop": { mode: "drwxr-xr-x", entries: [] } }) } }),
+    );
+    expect(await screen.findByRole("heading", { name: "The folder is empty" })).toBeVisible();
+    expect(screen.queryByText(/scp|rsync/)).not.toBeInTheDocument();
+    const upload = screen.getAllByRole("button", { name: "Upload files" });
+    // One way in: the empty folder's own button, not a second in the panel's head.
+    expect(upload).toHaveLength(1);
+    await user.click(upload[0] as HTMLElement);
+    expect(await screen.findByRole("dialog", { name: "Upload to shop" })).toBeVisible();
   });
 
   it("lists what's at the top of its folder, each opening in Files", async () => {
@@ -1270,7 +1311,7 @@ describe("A website's configuration", () => {
     const code = await screen.findByRole("region", { name: "The web server's config" });
     await waitFor(() => expect(code).toHaveTextContent("reverse_proxy https://backend.example.com"));
     expect(code.querySelectorAll(".is-changed").length).toBeGreaterThan(0);
-    expect(screen.getByText(/runs a config these settings don't write/)).toBeVisible();
+    expect(screen.getByText(/edited outside Websites\. Review plan puts it back\./)).toBeVisible();
     const review = screen.getByRole("button", { name: /Review plan/ });
     await waitFor(() => expect(review).toBeEnabled());
     await user.click(review);

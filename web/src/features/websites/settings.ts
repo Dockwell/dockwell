@@ -133,7 +133,8 @@ export function changed(was: Settings, now: Settings): string[] {
       if (indexOf(now.index).join(" ") !== indexOf(was.index).join(" ")) out.push("index");
       if (now.version !== was.version) out.push("version");
       if (now.user.trim() !== was.user) out.push("user");
-      if ((Number(now.uploadMB) || 0) !== (Number(was.uploadMB) || 0)) out.push("uploadMB");
+      // Empty, or 0 as stored, is the default, 64 MiB, so typing 64 changes nothing.
+      if ((Number(now.uploadMB) || 64) !== (Number(was.uploadMB) || 64)) out.push("uploadMB");
       if (now.filesOnly !== was.filesOnly) out.push("filesOnly");
       break;
     case "url":

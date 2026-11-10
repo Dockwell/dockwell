@@ -3,15 +3,16 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import { type FileEntry, FileService, FileType } from "@dockwell/api";
-import { Callout, Icon, Panel, Table, type TableColumn } from "@dockwell/ui";
+import { Button, Callout, Icon, Panel, Table, type TableColumn } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes, formatDay } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { join } from "../files/paths";
+import { UploadSheet } from "../files/upload";
 import { EmptyState } from "../shell/EmptyState";
 import { useWebsiteValue } from "./WebsiteLayout";
 import { kindOf, targetOf } from "./website";
@@ -25,8 +26,8 @@ function sorted(entries: readonly FileEntry[]): FileEntry[] {
 
 /**
  * A website's files: what's at the top of its folder, as Files reads it on its server,
- * each opening there, where it's edited and saved. A website that sends its requests
- * on has no folder of its own.
+ * each opening there, where it's edited and saved, and Upload, which puts files in it
+ * from here. A website that sends its requests on has no folder of its own.
  */
 export function WebsiteFiles() {
   const { t, i18n } = useLingui();
@@ -35,6 +36,7 @@ export function WebsiteFiles() {
   const kind = kindOf(site.spec);
   const root = targetOf(site.spec);
   const has = kind === "folder" || kind === "php";
+  const [uploading, setUploading] = useState(false);
   const listed = useQuery(
     FileService.method.listFiles,
     { serverId: site.serverId, path: root },
@@ -95,20 +97,36 @@ export function WebsiteFiles() {
     return (
       <EmptyState icon="folder" title={<Trans>No folder of its own</Trans>}>
         <p>
-          <Trans>This website sends its requests on, so it has no files here. What it sends to keeps its own.</Trans>
+          <Trans>It sends its requests on.</Trans>
         </p>
       </EmptyState>
     );
   }
-  const open = (
-    <RouterButtonLink
-      to="/servers/$serverId/files"
-      params={{ serverId: site.serverId }}
-      search={{ path: root }}
-      size="sm"
+  // Files go where the listing says the folder is, with every link followed.
+  const folder = listed.data?.path ?? "";
+  const upload = (size?: "lg") => (
+    <Button
+      icon="upload"
+      variant={size ? "primary" : "secondary"}
+      size={size ?? "sm"}
+      onClick={() => setUploading(true)}
     >
-      <Trans>Open in Files</Trans>
-    </RouterButtonLink>
+      <Trans>Upload files</Trans>
+    </Button>
+  );
+  const open = (
+    <>
+      {/* An empty folder offers it as its one action, below. */}
+      {folder && (listed.data?.entries.length ?? 0) > 0 ? upload() : null}
+      <RouterButtonLink
+        to="/servers/$serverId/files"
+        params={{ serverId: site.serverId }}
+        search={{ path: root }}
+        size="sm"
+      >
+        <Trans>Open in Files</Trans>
+      </RouterButtonLink>
+    </>
   );
   return (
     <div className="website-tab">
@@ -147,11 +165,7 @@ export function WebsiteFiles() {
             </div>
           )
         ) : listed.data.entries.length === 0 ? (
-          <EmptyState icon="folder" title={<Trans>The folder is empty</Trans>}>
-            <p>
-              <Trans>Put the site's files in it with scp or rsync. Files edits files that are there.</Trans>
-            </p>
-          </EmptyState>
+          <EmptyState icon="folder" title={<Trans>The folder is empty</Trans>} action={upload("lg")} />
         ) : (
           <Table<FileEntry>
             className="website-files"
@@ -162,6 +176,9 @@ export function WebsiteFiles() {
           />
         )}
       </Panel>
+      {uploading && folder ? (
+        <UploadSheet serverId={site.serverId} folder={folder} onClose={() => setUploading(false)} />
+      ) : null}
     </div>
   );
 }

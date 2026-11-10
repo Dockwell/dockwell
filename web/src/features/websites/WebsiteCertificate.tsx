@@ -22,7 +22,7 @@ export function WebsiteCertificate() {
     return (
       <EmptyState icon="shield" title={<Trans>No domain, so no certificate</Trans>}>
         <p>
-          <Trans>No route gives this website a domain now. Delete the website, and add it again with one.</Trans>
+          <Trans>Delete the website and make it again with a domain.</Trans>
         </p>
       </EmptyState>
     );
@@ -52,8 +52,8 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
           ))}
           <p className="websites-muted">
             {domain.routes[0]?.tls === "off"
-              ? t`TLS ends before this server, at a tunnel or a proxy in front, so it asks for no certificate here.`
-              : t`It comes from Let's Encrypt over HTTP-01 or TLS-ALPN-01 once DNS points here, and renews by itself.`}
+              ? t`TLS ends at a tunnel or a proxy in front, so there's no certificate here.`
+              : t`From Let's Encrypt once DNS points here, and renewed by itself.`}
           </p>
         </div>
       </Panel>

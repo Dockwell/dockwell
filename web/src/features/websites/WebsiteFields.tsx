@@ -3,7 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { type FileEntry, FileService, FileType } from "@dockwell/api";
-import { type FolderListing, FolderPicker, SelectField, Switch, TextField } from "@dockwell/ui";
+import { Advanced, type FolderListing, FolderPicker, SelectField, Switch, Tag, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -11,7 +11,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { reasonOf, sentence } from "../../lib/errors";
 import { useMay } from "../auth/may";
 import { nameOf, parentOf } from "../files/paths";
-import { indexOf, type Missing, type Serves, type Settings } from "./settings";
+import { changed, indexOf, type Missing, type Serves, type Settings } from "./settings";
 import { useRuntimes } from "./website";
 
 /** What a form says of a field it can refuse by itself. */
@@ -93,6 +93,67 @@ export function hasAdvanced(serves: Serves): boolean {
   return serves !== "port";
 }
 
+/** The settings Advanced holds, as changed() names them, and the fields of them a form can refuse. */
+const ADVANCED_SETTINGS = new Set(["index", "singlePageApp", "user", "uploadMB", "filesOnly", "targetHost"]);
+const ADVANCED_FIELDS: readonly Missing["field"][] = ["user", "uploadMB"];
+
+/** What a kind's Advanced holds, in one line, so nobody opens it to find out. */
+function useAdvancedSummary(): (s: Settings) => string {
+  const { t } = useLingui();
+  return (s) => {
+    if (s.serves === "url") return s.targetHost ? t`Sends the URL's own name as Host` : t`Sends this domain as Host`;
+    if (s.serves === "folder") {
+      const index = indexOf(s.index).join(" ") || "index.html index.htm";
+      return s.singlePageApp ? t`${index} · single-page app` : index;
+    }
+    const who = s.user.trim() || "www-data";
+    const mb = Number(s.uploadMB) || 64;
+    return s.filesOnly
+      ? t`Runs as ${who} · ${mb} MiB uploads · only files answer`
+      : t`Runs as ${who} · ${mb} MiB uploads`;
+  };
+}
+
+/**
+ * A website's fields as its forms show them: what everyone sets, then the rest, each
+ * at a good default, under a closed Advanced whose line says what they are. It opens
+ * on a field in it that was refused, and says how many of its settings an edit changed.
+ */
+export function SplitWebsiteFields(props: {
+  settings: Settings;
+  onChange: (next: Settings) => void;
+  was?: Settings;
+  errors: Partial<Record<Missing["field"], string | undefined>>;
+  server: string;
+}) {
+  const summary = useAdvancedSummary();
+  const [open, setOpen] = useState(false);
+  const { settings, was, errors } = props;
+  const refused = ADVANCED_FIELDS.some((field) => errors[field] !== undefined);
+  const edited = was ? changed(was, settings).filter((name) => ADVANCED_SETTINGS.has(name)).length : 0;
+  return (
+    <>
+      <WebsiteFields {...props} part="main" />
+      {hasAdvanced(settings.serves) ? (
+        <Advanced
+          summary={summary(settings)}
+          badge={
+            edited > 0 ? (
+              <Tag tone="cobalt" words>
+                {plural(edited, { one: "# changed", other: "# changed" })}
+              </Tag>
+            ) : null
+          }
+          open={open || refused}
+          onOpenChange={setOpen}
+        >
+          <WebsiteFields {...props} part="advanced" />
+        </Advanced>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * The fields of what a website serves, for the kind its settings say: a folder, a URL
  * or a port on the server. New website shows what everyone sets, and keeps the rest,
@@ -121,7 +182,14 @@ export function WebsiteFields({
   const main = part !== "advanced";
   const advanced = part !== "main";
   const folder = (
-    <FolderField settings={s} was={same ? was : undefined} error={errors.root} server={server} onChange={onChange} />
+    <FolderField
+      settings={s}
+      was={same ? was : undefined}
+      existing={was !== undefined}
+      error={errors.root}
+      server={server}
+      onChange={onChange}
+    />
   );
   if (s.serves === "php") {
     const newest = runtimes.data?.[0]?.version ?? "";
@@ -307,12 +375,15 @@ export function WebsiteFields({
 function FolderField({
   settings: s,
   was,
+  existing,
   error,
   server,
   onChange,
 }: {
   settings: Settings;
   was: Settings | undefined;
+  /** A website that's there already, whose missing folder its next plan makes, not a new one. */
+  existing: boolean;
   error: string | undefined;
   server: string;
   onChange: (next: Settings) => void;
@@ -367,6 +438,7 @@ function FolderField({
             <FolderNote
               server={server}
               root={s.root}
+              existing={existing}
               serves={s.serves}
               index={index.length > 0 ? index : s.serves === "php" ? ["index.php", "index.html"] : []}
               onOwner={
@@ -427,9 +499,12 @@ export function FolderNote({
   user,
   onFolderOwner,
   onRunAs,
+  existing = false,
 }: {
   server: string;
   root: string;
+  /** A website that's there already: a folder that isn't is made by its next plan. */
+  existing?: boolean;
   /** What the website does with the folder: serves its files, or runs its PHP too. */
   serves?: Serves;
   index: readonly string[];
@@ -491,6 +566,7 @@ export function FolderNote({
     <span className={`website-folder-state is-${tone}`}>{words}</span>
   );
   if (aboveMissing || !there) {
+    if (existing) return say("new", t`Not on the server. Made as the plan applies.`);
     if (user) return say("new", t`New. Made with the site, for PHP to write in.`);
     // Made as the folder above is owned, so whoever puts files there can put the site's there too.
     const by = parent && parent.uid !== 0 ? parent.owner || `${parent.uid}:${parent.gid}` : "";
