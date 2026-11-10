@@ -445,6 +445,22 @@ func Methods() []*apicli.Method {
 			Call: apicli.Unary[v1.ApplyChangeRequest, v1.ApplyChangeResponse](dockwellv1connect.ChangeServiceApplyChangeProcedure),
 		},
 		{
+			Name:      "dockwell.v1.ChangeService.ConfirmChange",
+			Procedure: dockwellv1connect.ChangeServiceConfirmChangeProcedure,
+			HTTP:      "POST /v1/changes/{id}:confirm",
+			Noun:      "changes",
+			Verb:      "confirm",
+			Short:     "Keep a change to a server's firewall that waits for its confirmation (Change.confirmation)",
+			Long:      "Keep a change to a server's firewall that waits for its confirmation\n(Change.confirmation), once you have checked that you can still reach the server\nas the confirmation says. Only the person who applied it may confirm it, in the\nsession they applied it from. Without a confirmation in time, the server puts\nback its firewall as it was, and the change rolls back (ADR 0052). A server's\nfirewall is the whole server's, so confirming is an admin's, as applying such a\nchange is, and no API token can call it.",
+			Effect:    v1.Effect_EFFECT_APPLY,
+			Fields: []apicli.Field{
+				{Path: "id", Help: "The change's ID.", Arg: true},
+				{Path: "server_id", Help: "The server the confirmation is for: the one you checked you can still reach. It's refused unless that server waits now."},
+				{Path: "deadline", Help: "The deadline the confirmation answers, as the change said it. When it's set, it's refused unless the server still waits for that deadline, so a confirmation sent twice can't keep a wait it wasn't for."},
+			},
+			Call: apicli.Unary[v1.ConfirmChangeRequest, v1.ConfirmChangeResponse](dockwellv1connect.ChangeServiceConfirmChangeProcedure),
+		},
+		{
 			Name:      "dockwell.v1.ChangeService.DiscardChange",
 			Procedure: dockwellv1connect.ChangeServiceDiscardChangeProcedure,
 			HTTP:      "POST /v1/changes/{id}:discard",
@@ -2059,7 +2075,7 @@ func Nouns() []apicli.Noun {
 		{Name: "auth-state", Short: "Say whether the install has an owner", Long: "The install's auth state says whether it has an owner yet, who is signed in on a\nrequest, and which address passkeys are made for there. dockwell auth-state get\nneeds no sign-in."},
 		{Name: "backups", Short: "List, get, preview, create, delete, policies, destinations, fetch or restore backups", Long: "BackupService is an app's volumes and databases, backed up on the server that\nhas them. Taking a backup is an event: it changes no desired state, so it makes\nno revision, and a failed one shows on the timeline. Restoring one is a change\nwith a plan, which says what it replaces and what stops, and which only a person\ncan apply. See docs/adr/0033-backups-of-volumes-and-databases.md.\n\nA backup holds what its app stored, secrets among them, so nothing here gives\nanyone its bytes."},
 		{Name: "catalog", Short: "List, get, installs, upgrade or install catalog", Long: "CatalogService lists the apps you can install, and plans installing one as a\nproject of its own: a Compose file with sensible ports and generated passwords,\nsealed, through the same plan as any other change. Nothing runs until you apply\nit. See docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md."},
-		{Name: "changes", Short: "Propose, get, list, apply, watch, undo or discard changes", Long: "A change is a set of edits to managed state, with the plan that carries them\nout. You propose edits and get a plan back; applying it writes immutable\nrevisions and runs its steps on the servers; undoing it makes a new plan that\nputs things back. A change applies only as it was planned, and a plan never\nshows a secret, only that it changed.\n\nSee docs/adr/0009-resources-revisions-and-plans.md and\ndocs/adr/0017-the-change-api-and-the-agent-stream.md."},
+		{Name: "changes", Short: "Propose, get, list, apply, watch, undo, confirm or discard changes", Long: "A change is a set of edits to managed state, with the plan that carries them\nout. You propose edits and get a plan back; applying it writes immutable\nrevisions and runs its steps on the servers; undoing it makes a new plan that\nputs things back. A change applies only as it was planned, and a plan never\nshows a secret, only that it changed.\n\nSee docs/adr/0009-resources-revisions-and-plans.md and\ndocs/adr/0017-the-change-api-and-the-agent-stream.md."},
 		{Name: "claim-link", Short: "Check, begin or finish claim link", Long: "A claim link, which dockwell run and dockwell claim print, creates the install's\nowner with a passkey, and works once. dockwell claim-link check describes the\nserver a link claims, and dockwell claim-link begin and dockwell claim-link\nfinish make the passkey, which takes a browser: open the link in one."},
 		{Name: "compose", Short: "Import, adopt, check or export compose", Long: "ComposeService turns a Docker Compose file into a project's services, volumes\nand networks, and any of them back into one. Each file gets a project of its\nown, so two files with a service of one name run side by side, on networks of\ntheir own, as they do under docker compose. An environment is one Compose\nproject: its containers carry the labels Docker Compose gives its own, so docker\ncompose sees them, and an exported file runs the same with docker compose alone\n(PRD principle 6). See docs/adr/0021-the-docker-driver.md and\ndocs/adr/0026-the-app-screens.md."},
 		{Name: "containers", Short: "List, adopt, create, update or delete containers", Long: "ContainerService reads the containers on a server that Dockwell didn't make:\nthose that were there before it, and those someone runs by hand or with a\nCompose file of their own. Reading them changes nothing, and nothing here comes\nfrom a container's environment, which may hold secrets, or its labels and\ncommand, which may too. See docs/adr/0031-containers-dockwell-didnt-make.md.\n\nA service's containers aren't here: they are the service's. dockwell logs read\nand dockwell logs follow read what one of these prints, given its server.\n\ndockwell containers create, update and delete each propose a change, show its\nplan, and ask before applying it."},
@@ -2244,6 +2260,15 @@ func Kinds() []*apicli.Kind {
 				{Path: "port", Help: "The port the rule covers."},
 				{Path: "sources", Help: "Source addresses in CIDR form, such as \"203.0.113.0/24\". Empty means anywhere."},
 				{Path: "comment", Help: "Why the rule exists, shown next to it."},
+			},
+		},
+		{
+			Field: "firewall_policy",
+			Noun:  "firewall-policies",
+			Short: "What a server's firewall does with what no rule lets in, kind \"firewall.policy\"",
+			Long:  "FirewallPolicy is what a server's firewall does with inbound traffic no rule\nlets in, kind \"firewall.policy\", named \"default\", one for each server. Without\none, or with deny_everything_else off, what no rule drops comes in, as it did\nbefore Dockwell (ADR 0052).",
+			Fields: []apicli.Field{
+				{Path: "deny_everything_else", Help: "Drop inbound traffic no rule lets in. What keeps the server reachable is still let in: connections already open, SSH from where people come in now, and on the control server its own ports."},
 			},
 		},
 		{

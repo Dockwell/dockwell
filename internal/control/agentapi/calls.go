@@ -541,7 +541,7 @@ func (s *Session) progressed(p *agentv1.CallProgress) {
 	s.mu.Unlock()
 	if o := p.GetOutcome(); o != nil {
 		if told != nil {
-			told(resource.Outcome{Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote(), Untouched: o.GetUntouched(), Did: resourcepb.DidFrom(o.GetDid()), Backup: backupTaken(o.GetBackup())})
+			told(resource.Outcome{Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote(), Untouched: o.GetUntouched(), Did: resourcepb.DidFrom(o.GetDid()), Backup: backupTaken(o.GetBackup()), Waits: accessWait(o.GetWaits())})
 		}
 		return
 	}
@@ -1049,7 +1049,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	defer clear(values)
 	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled, PlannedLeads: step.PlannedLeads, Finishing: step.Finishing}
 	if d := resource.DeployOf(ctx); d != (resource.Deploy{}) {
-		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback}
+		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback, LastAccessStep: d.LastAccess}
 	}
 	var seal func(*Session) error
 	if uses {
@@ -1426,6 +1426,43 @@ func (s *Session) RunTask(ctx context.Context, ref resource.Ref) (*dockwellv1.Ta
 		return nil, err
 	}
 	return r.GetRunTask().GetRun(), nil
+}
+
+// accessWait reads what a step waits for, if anything, with its deadline by
+// the control plane's clock where the agent said how long was left.
+func accessWait(w *agentv1.AccessWait) *resource.AccessWait {
+	if w == nil {
+		return nil
+	}
+	out := &resource.AccessWait{Deadline: w.GetDeadline().AsTime(), SSHPorts: w.GetSshPorts()}
+	if left := w.GetLeft(); left != nil {
+		out.Left = left.AsDuration()
+		out.Deadline = time.Now().Add(out.Left)
+	}
+	return out
+}
+
+// ConfirmAccess confirms a change to the server's firewall that waits for its
+// confirmation, and says what the agent did: kept it, or had put back the
+// firewall already.
+func (s *Session) ConfirmAccess(ctx context.Context, changeID string) (resource.AccessVerdict, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ConfirmAccess{ConfirmAccess: &agentv1.ConfirmAccessCall{ChangeId: changeID}}}, ObserveTimeout, nil)
+	if unknownCall(err) {
+		return 0, ErrAgentOutdated
+	}
+	if err != nil {
+		return 0, err
+	}
+	switch r.GetConfirmAccess().GetVerdict() {
+	case agentv1.AccessVerdict_ACCESS_VERDICT_KEPT:
+		return resource.AccessKept, nil
+	case agentv1.AccessVerdict_ACCESS_VERDICT_ROLLED_BACK:
+		return resource.AccessRolledBack, nil
+	case agentv1.AccessVerdict_ACCESS_VERDICT_NOT_WAITING:
+		return resource.AccessNotWaiting, nil
+	case agentv1.AccessVerdict_ACCESS_VERDICT_UNSPECIFIED:
+	}
+	return 0, errors.New("the agent said nothing of the change")
 }
 
 // backupTaken reads what a step took.

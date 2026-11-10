@@ -1122,6 +1122,36 @@ func TestAKeptLogWithAllItsLinesDoesntSaySoOtherwise(t *testing.T) {
 	}
 }
 
+// The first copy has a time limit, as it runs before a step's downtime starts. When
+// its time is up the last copy carries on from where it stopped, and whether lines
+// are missing is what that one finds: a slow disk alone doesn't make a log short.
+func TestAKeptLogWhoseFirstCopyRanOutOfTimeIsWholeWhenTheLastCopyReachedIt(t *testing.T) {
+	e := dockertest.New(t)
+	addContainer(t, e, "app-1", 1)
+	printMany(e, "short", 15_000)
+	r := newReader(t, e)
+	// No time at all: the first copy reads nothing, every time.
+	r.Archive.CopyWait = -1
+	keep(t, r, e, "app-1", false)
+	if k := r.Archive.List(testProject, testService); k[0].Lines != 15_000 || k[0].CutShort || !k[0].HoleTo.IsZero() {
+		t.Errorf("kept %d of 15,000 lines, with cut_short %v and a hole to %v", k[0].Lines, k[0].CutShort, k[0].HoleTo)
+	}
+}
+
+// When the last copy doesn't reach back to where the first one stopped, lines are
+// missing, and the kept log says so.
+func TestAKeptLogWhoseFirstCopyRanOutOfTimeSaysWhatTheLastCopyMissed(t *testing.T) {
+	e := dockertest.New(t)
+	addContainer(t, e, "app-1", 1)
+	printMany(e, "short", 30_000)
+	r := newReader(t, e)
+	r.Archive.CopyWait = -1
+	keep(t, r, e, "app-1", false)
+	if k := r.Archive.List(testProject, testService); k[0].Lines >= 30_000 || !k[0].CutShort {
+		t.Errorf("kept %d of 30,000 lines, with cut_short %v", k[0].Lines, k[0].CutShort)
+	}
+}
+
 // A container that writes more while it stops than the last copy looks back leaves a
 // hole in the middle of its log, and a marker says where.
 func TestAKeptLogMarksTheHoleItsLastCopyLeft(t *testing.T) {

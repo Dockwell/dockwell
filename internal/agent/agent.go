@@ -27,6 +27,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
@@ -40,6 +41,14 @@ import (
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
 )
+
+// AccessConfirmer keeps a change to the firewall that waits for its
+// confirmation, and says what the server holds of Dockwell's firewall now
+// (ADR 0052).
+type AccessConfirmer interface {
+	Confirm(ctx context.Context, change string) resource.AccessVerdict
+	Applied() access.Applied
+}
 
 // Config configures Run.
 type Config struct {
@@ -78,6 +87,9 @@ type Config struct {
 	// Tools runs the server's own tools, such as ufw and nft, as ADR 0043 has
 	// it. Nil runs none, as in a test.
 	Tools *hosttool.Runner
+	// Access keeps a change to the firewall that waits for its confirmation,
+	// when the control plane confirms it. Nil keeps none.
+	Access AccessConfirmer
 	// Docker lists this server's containers. Nil lists none.
 	Docker *docker.Client
 	// Backups takes and removes backups of this server's volumes. Nil takes none.
@@ -280,14 +292,17 @@ const (
 type kinds struct {
 	ready       []string
 	unavailable map[string]string
+	// notHere are the unavailable kinds whose server doesn't have what they
+	// need, such as nft or fail2ban: said for the record, not as a warning.
+	notHere map[string]bool
 }
 
 // readyKinds checks which kinds the agent's drivers can run now.
 func readyKinds(ctx context.Context, drivers *resource.Registry) kinds {
 	ctx, cancel := context.WithTimeout(ctx, readyWait)
 	defer cancel()
-	ready, unavailable := drivers.Ready(ctx)
-	k := kinds{ready: make([]string, 0, len(ready))}
+	ready, unavailable := drivers.ReadyWhy(ctx)
+	k := kinds{ready: make([]string, 0, len(ready)), notHere: map[string]bool{}}
 	for _, r := range ready {
 		k.ready = append(k.ready, string(r))
 	}
@@ -295,7 +310,10 @@ func readyKinds(ctx context.Context, drivers *resource.Registry) kinds {
 		if k.unavailable == nil {
 			k.unavailable = map[string]string{}
 		}
-		k.unavailable[string(kind)] = why
+		k.unavailable[string(kind)] = why.Error()
+		if resource.IsNotHere(why) {
+			k.notHere[string(kind)] = true
+		}
 	}
 	return k
 }
@@ -339,7 +357,10 @@ func (k kinds) proto() ([]string, []*agentv1.UnavailableKind) {
 	return k.ready, out
 }
 
-// log says which kinds the agent can't run, and why, once per reason.
+// log says which kinds the agent can't run, and why, once per reason: as a
+// warning where something is wrong, such as Docker not answering, and for the
+// record alone where the server doesn't have what a kind needs, such as nft or
+// fail2ban, which nobody may ever have asked of it.
 func (k kinds) log(ctx context.Context, logger *slog.Logger) {
 	byReason := map[string][]string{}
 	for kind, why := range k.unavailable {
@@ -348,6 +369,11 @@ func (k kinds) log(ctx context.Context, logger *slog.Logger) {
 	for _, why := range slices.Sorted(maps.Keys(byReason)) {
 		names := byReason[why]
 		slices.Sort(names)
+		if k.notHere[names[0]] {
+			logger.InfoContext(ctx, "the agent offers some kinds only once the server has what they need",
+				slog.Any("kinds", names), slog.String("reason", why))
+			continue
+		}
 		logger.WarnContext(ctx, "the agent can't run some kinds of resource; it offers them once it can",
 			slog.Any("kinds", names), slog.String("reason", why))
 	}

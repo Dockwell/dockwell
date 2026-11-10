@@ -16,6 +16,7 @@ import {
 import { useQueries } from "@tanstack/react-query";
 
 import { READ_EVERY_MS } from "../../lib/standing";
+import { useMay } from "../auth/may";
 import { installIn, useCatalog, useInstalls } from "../catalog/useCatalog";
 import { useFleetView } from "../servers/useFleet";
 
@@ -154,7 +155,9 @@ const STRANGERS_EVERY_MS = 30_000;
 export function useStrangers(): Stranger[] {
   const transport = useTransport();
   const { servers } = useFleetView();
-  const connected = (servers ?? []).filter((s) => s.connection === Connection.CONNECTED);
+  // A server's containers are an admin's to read: nobody else is shown one to take on (ADR 0059).
+  const allowed = useMay()(ContainerService.method.listContainers).allowed;
+  const connected = allowed ? (servers ?? []).filter((s) => s.connection === Connection.CONNECTED) : [];
   const reads = useQueries({
     queries: connected.map((server) => ({
       ...createQueryOptions(ContainerService.method.listContainers, { server: server.id }, { transport }),

@@ -2,7 +2,7 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { BackupState, DomainService, SystemService } from "@dockwell/api";
+import { AlertService, BackupState, DomainService, SettingsService, SystemService } from "@dockwell/api";
 import { Icon, type IconName, type ThemePreference, useThemePreference } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -18,6 +18,7 @@ import { Page } from "./Page";
 import { AFTER_DOMAINS, BEFORE_DOMAINS, UPCOMING, type UpcomingSection } from "./sections";
 import { shortVersion } from "./version";
 import "./MorePage.css";
+import { useMay } from "../auth/may";
 
 /**
  * The phone's More tab: every section the tab bar has no room for, an
@@ -56,7 +57,13 @@ export function MorePage() {
     );
   };
 
-  const operate: UpcomingSection[] = [...(fleet ? (["fleet-actions"] as const) : []), "alerts", "scheduled-tasks"];
+  const may = useMay();
+  // A way to a place you can't read is left out (ADR 0059).
+  const operate: UpcomingSection[] = [
+    ...(fleet ? (["fleet-actions"] as const) : []),
+    ...(may(AlertService.method.listAlerts).allowed ? (["alerts"] as const) : []),
+    "scheduled-tasks",
+  ];
   return (
     <Page title={t`More`}>
       <nav className="dw-panel more-group" aria-label={t`Resources`}>
@@ -85,9 +92,11 @@ export function MorePage() {
         <Link to="/settings" className="more-row">
           <RowBody icon="settings" label={t`Settings`} />
         </Link>
-        <Link to="/settings/control-plane" className="more-row">
-          <RowBody icon="gauge" label={t`Control plane`} value={version ? shortVersion(version) : undefined} />
-        </Link>
+        {may(SettingsService.method.getControlPlane).allowed ? (
+          <Link to="/settings/control-plane" className="more-row">
+            <RowBody icon="gauge" label={t`Control plane`} value={version ? shortVersion(version) : undefined} />
+          </Link>
+        ) : null}
         <Link to="/profile" className="more-row">
           <RowBody icon="user" label={t`Profile and security`} value={user?.name} />
         </Link>

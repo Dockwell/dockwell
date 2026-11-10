@@ -35,14 +35,20 @@ const MaxValue = 64 << 10
 // Types returns the variable and secret types.
 func Types() []resource.Type { return []resource.Type{Type{}, SecretType{}} }
 
-var nameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,254}$`)
+// nameRE is the form of a name, and maxName how long one gets. The length is
+// checked apart from the form: a counted repetition, such as {0,254}, compiles to
+// that many copies of what it repeats, which every agent pays for as it starts
+// (ADR 0060).
+var nameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+const maxName = 255
 
 // CheckName requires a name a process's environment takes: letters,
 // digits and underscores, starting with a letter or an underscore, such as
 // DATABASE_URL. Variables, secrets and the names services see them as all
 // take such names. what names the thing, such as "variable".
 func CheckName(what, name string) error {
-	if !nameRE.MatchString(name) {
+	if len(name) > maxName || !nameRE.MatchString(name) {
 		return fmt.Errorf("%q isn't a valid %s name: use up to 255 letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL",
 			name, what)
 	}

@@ -17,6 +17,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatPercent } from "../../lib/format";
 import "./DiskUse.css";
+import { useMay } from "../auth/may";
 
 /** How long what takes the disk stands before the page asks again, while it's open. Docker adds up every volume to answer. */
 const ASK_EVERY_MS = 5 * 60_000;
@@ -40,7 +41,9 @@ export function DiskUsePanel({ server }: { server: Server }) {
   const { t } = useLingui();
   const connected = server.connection === Connection.CONNECTED;
   // An agent that can't read Docker can't ask it either.
-  const asking = connected && server.dockerUnreadableSince === undefined;
+  // What fills a server's disks is an admin's to read, and the panel is left out for anyone else (ADR 0059).
+  const allowed = useMay()(ServerService.method.getServerDiskUse).allowed;
+  const asking = allowed && connected && server.dockerUnreadableSince === undefined;
   const use = useQuery(
     ServerService.method.getServerDiskUse,
     { id: server.id },
@@ -53,7 +56,7 @@ export function DiskUsePanel({ server }: { server: Server }) {
   // While Docker adds it up, each disk shows what's used and free, as when it can't say.
   const busy = asking && use.isPending;
   const others = disks.filter((disk) => disk.mountPoint !== dockerDisk?.mountPoint);
-  if (!busy && !dockerDisk && disks.length === 0) return null;
+  if (!allowed || (!busy && !dockerDisk && disks.length === 0)) return null;
   return (
     <Panel
       title={t`Disk usage`}

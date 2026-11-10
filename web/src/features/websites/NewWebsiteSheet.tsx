@@ -27,6 +27,7 @@ import {
 import { useMissingWords, useServesWords, WebsiteFields } from "./WebsiteFields";
 import "../apps/Apps.css";
 import "./Websites.css";
+import { useMay } from "../auth/may";
 
 /** The server a website goes on: the one chosen, or the only one there is. */
 function serverOf(fleet: FleetState, id: string): Server | undefined {
@@ -51,6 +52,8 @@ export function NewWebsiteSheet({
   start?: { serves?: Serves; version?: string };
 }) {
   const { t } = useLingui();
+  // A website makes a project of its own, which is an admin's (ADR 0049): off, with why, for anyone else.
+  const mayCreate = useMay()(WebsiteService.method.createWebsite);
   const transport = useTransport();
   const phone = useMediaQuery(PHONE_QUERY);
   const client = useMemo(() => createClient(WebsiteService, transport), [transport]);
@@ -221,6 +224,7 @@ export function NewWebsiteSheet({
             loading={busy}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void submit()}
+            {...mayCreate.off}
           >
             <Trans>Review plan</Trans>
           </Button>

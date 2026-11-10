@@ -52,6 +52,9 @@ const (
 	// ChangeServiceUndoChangeProcedure is the fully-qualified name of the ChangeService's UndoChange
 	// RPC.
 	ChangeServiceUndoChangeProcedure = "/dockwell.v1.ChangeService/UndoChange"
+	// ChangeServiceConfirmChangeProcedure is the fully-qualified name of the ChangeService's
+	// ConfirmChange RPC.
+	ChangeServiceConfirmChangeProcedure = "/dockwell.v1.ChangeService/ConfirmChange"
 	// ChangeServiceDiscardChangeProcedure is the fully-qualified name of the ChangeService's
 	// DiscardChange RPC.
 	ChangeServiceDiscardChangeProcedure = "/dockwell.v1.ChangeService/DiscardChange"
@@ -116,6 +119,15 @@ type ChangeServiceClient interface {
 	// older than its undo window, or when a resource it touched has changed
 	// again since: undo that later change first, or edit the resource.
 	UndoChange(context.Context, *connect.Request[v1.UndoChangeRequest]) (*connect.Response[v1.UndoChangeResponse], error)
+	// ConfirmChange keeps a change to a server's firewall that waits for its
+	// confirmation (Change.confirmation), once you have checked that you can
+	// still reach the server as the confirmation says. Only the person who
+	// applied it may confirm it, in the session they applied it from. Without a
+	// confirmation in time, the server puts back its firewall as it was, and the
+	// change rolls back (ADR 0052). A server's firewall is the whole server's,
+	// so confirming is an admin's, as applying such a change is, and no API
+	// token can call it.
+	ConfirmChange(context.Context, *connect.Request[v1.ConfirmChangeRequest]) (*connect.Response[v1.ConfirmChangeResponse], error)
 	// DiscardChange drops a planned change without applying it. The change
 	// stays on record as discarded.
 	DiscardChange(context.Context, *connect.Request[v1.DiscardChangeRequest]) (*connect.Response[v1.DiscardChangeResponse], error)
@@ -188,6 +200,12 @@ func NewChangeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(changeServiceMethods.ByName("UndoChange")),
 			connect.WithClientOptions(opts...),
 		),
+		confirmChange: connect.NewClient[v1.ConfirmChangeRequest, v1.ConfirmChangeResponse](
+			httpClient,
+			baseURL+ChangeServiceConfirmChangeProcedure,
+			connect.WithSchema(changeServiceMethods.ByName("ConfirmChange")),
+			connect.WithClientOptions(opts...),
+		),
 		discardChange: connect.NewClient[v1.DiscardChangeRequest, v1.DiscardChangeResponse](
 			httpClient,
 			baseURL+ChangeServiceDiscardChangeProcedure,
@@ -230,6 +248,7 @@ type changeServiceClient struct {
 	applyChange    *connect.Client[v1.ApplyChangeRequest, v1.ApplyChangeResponse]
 	watchChange    *connect.Client[v1.WatchChangeRequest, v1.WatchChangeResponse]
 	undoChange     *connect.Client[v1.UndoChangeRequest, v1.UndoChangeResponse]
+	confirmChange  *connect.Client[v1.ConfirmChangeRequest, v1.ConfirmChangeResponse]
 	discardChange  *connect.Client[v1.DiscardChangeRequest, v1.DiscardChangeResponse]
 	restartService *connect.Client[v1.RestartServiceRequest, v1.RestartServiceResponse]
 	listDrift      *connect.Client[v1.ListDriftRequest, v1.ListDriftResponse]
@@ -265,6 +284,11 @@ func (c *changeServiceClient) WatchChange(ctx context.Context, req *connect.Requ
 // UndoChange calls dockwell.v1.ChangeService.UndoChange.
 func (c *changeServiceClient) UndoChange(ctx context.Context, req *connect.Request[v1.UndoChangeRequest]) (*connect.Response[v1.UndoChangeResponse], error) {
 	return c.undoChange.CallUnary(ctx, req)
+}
+
+// ConfirmChange calls dockwell.v1.ChangeService.ConfirmChange.
+func (c *changeServiceClient) ConfirmChange(ctx context.Context, req *connect.Request[v1.ConfirmChangeRequest]) (*connect.Response[v1.ConfirmChangeResponse], error) {
+	return c.confirmChange.CallUnary(ctx, req)
 }
 
 // DiscardChange calls dockwell.v1.ChangeService.DiscardChange.
@@ -340,6 +364,15 @@ type ChangeServiceHandler interface {
 	// older than its undo window, or when a resource it touched has changed
 	// again since: undo that later change first, or edit the resource.
 	UndoChange(context.Context, *connect.Request[v1.UndoChangeRequest]) (*connect.Response[v1.UndoChangeResponse], error)
+	// ConfirmChange keeps a change to a server's firewall that waits for its
+	// confirmation (Change.confirmation), once you have checked that you can
+	// still reach the server as the confirmation says. Only the person who
+	// applied it may confirm it, in the session they applied it from. Without a
+	// confirmation in time, the server puts back its firewall as it was, and the
+	// change rolls back (ADR 0052). A server's firewall is the whole server's,
+	// so confirming is an admin's, as applying such a change is, and no API
+	// token can call it.
+	ConfirmChange(context.Context, *connect.Request[v1.ConfirmChangeRequest]) (*connect.Response[v1.ConfirmChangeResponse], error)
 	// DiscardChange drops a planned change without applying it. The change
 	// stays on record as discarded.
 	DiscardChange(context.Context, *connect.Request[v1.DiscardChangeRequest]) (*connect.Response[v1.DiscardChangeResponse], error)
@@ -408,6 +441,12 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(changeServiceMethods.ByName("UndoChange")),
 		connect.WithHandlerOptions(opts...),
 	)
+	changeServiceConfirmChangeHandler := connect.NewUnaryHandler(
+		ChangeServiceConfirmChangeProcedure,
+		svc.ConfirmChange,
+		connect.WithSchema(changeServiceMethods.ByName("ConfirmChange")),
+		connect.WithHandlerOptions(opts...),
+	)
 	changeServiceDiscardChangeHandler := connect.NewUnaryHandler(
 		ChangeServiceDiscardChangeProcedure,
 		svc.DiscardChange,
@@ -453,6 +492,8 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 			changeServiceWatchChangeHandler.ServeHTTP(w, r)
 		case ChangeServiceUndoChangeProcedure:
 			changeServiceUndoChangeHandler.ServeHTTP(w, r)
+		case ChangeServiceConfirmChangeProcedure:
+			changeServiceConfirmChangeHandler.ServeHTTP(w, r)
 		case ChangeServiceDiscardChangeProcedure:
 			changeServiceDiscardChangeHandler.ServeHTTP(w, r)
 		case ChangeServiceRestartServiceProcedure:
@@ -494,6 +535,10 @@ func (UnimplementedChangeServiceHandler) WatchChange(context.Context, *connect.R
 
 func (UnimplementedChangeServiceHandler) UndoChange(context.Context, *connect.Request[v1.UndoChangeRequest]) (*connect.Response[v1.UndoChangeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.UndoChange is not implemented"))
+}
+
+func (UnimplementedChangeServiceHandler) ConfirmChange(context.Context, *connect.Request[v1.ConfirmChangeRequest]) (*connect.Response[v1.ConfirmChangeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.ConfirmChange is not implemented"))
 }
 
 func (UnimplementedChangeServiceHandler) DiscardChange(context.Context, *connect.Request[v1.DiscardChangeRequest]) (*connect.Response[v1.DiscardChangeResponse], error) {

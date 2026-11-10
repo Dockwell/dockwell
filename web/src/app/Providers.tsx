@@ -169,6 +169,15 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
         newName: t({ message: "name", comment: "Placeholder of the field that names a new folder." }),
         use: t({ message: "Use", comment: "The button that takes the new folder's name as the folder to use." }),
       },
+      advanced: t`Advanced`,
+      portField: {
+        checking: t({ message: "Checking", context: "a port on the server" }),
+        free: t({ message: "Free", context: "a port on the server" }),
+        taken: t({ message: "Taken", context: "a port on the server" }),
+        takenBy: (by) => <Trans>{by} uses it</Trans>,
+        use: (port) => t`Use ${port}`,
+        range: t`Use a port from 1 to 65535.`,
+      },
     }),
     [t, active],
   );
