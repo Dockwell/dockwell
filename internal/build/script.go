@@ -60,6 +60,35 @@ if [ -f "$ctx/$DW_DOCKERFILE" ]; then
   case "$dfdir" in ` + sourceDir + `|` + sourceDir + `/*) df="$dfdir/$(basename "$DW_DOCKERFILE")";; esac
 fi`
 
+// AppArmorProfile is the profile each of a build's steps runs under where the
+// server has it loaded: Docker's own for its containers, which Docker loads as
+// it starts.
+const AppArmorProfile = "docker-default"
+
+// confineScript says what confines each of a build's steps beside seccomp, as aa:
+// Docker's AppArmor profile, where the server's kernel has AppArmor on and has the
+// profile loaded. The builder reads that itself, so every agent decides alike,
+// root or not: an agent that isn't root can't read the server's profiles, and the
+// builder, privileged, can, once it has mounted securityfs, which Docker gives no
+// container. It says which it is, for the build's log.
+//
+// BuildKit refuses a profile ("AppArmor is not supported on this host") unless
+// /sbin/apparmor_parser is there, which it takes as the sign that profiles can be
+// loaded, and its image has none. It never runs it: the server's Docker loaded
+// the profile, and runc changes to it by name through /proc. So an empty file
+// stands in for it, in the builder's own filesystem, which goes with the builder.
+const confineScript = `aa=""
+if [ "$(cat /sys/module/apparmor/parameters/enabled 2>/dev/null)" = Y ]; then
+  [ -d /sys/kernel/security/apparmor ] || mount -t securityfs securityfs /sys/kernel/security 2>/dev/null || true
+  if grep -q '^` + AppArmorProfile + ` ' /sys/kernel/security/apparmor/profiles 2>/dev/null; then
+    aa=` + AppArmorProfile + `
+    [ -e /sbin/apparmor_parser ] || : >/sbin/apparmor_parser
+    say apparmor "$aa"
+  else
+    say noapparmor
+  fi
+fi`
+
 // script is what a builder runs, in BuildKit's image, with BusyBox's sh. It checks
 // out the commit and says what it is. With the Dockerfile, which must be where the
 // build says, it builds with BuildKit's Dockerfile frontend. With Railpack, it
@@ -86,11 +115,7 @@ fi
 say builder "$builder"
 say phase start
 mkdir -p /etc/buildkit
-aa=""
-if [ -n "${DW_APPARMOR:-}" ]; then
-  [ -d /sys/kernel/security/apparmor ] || mount -t securityfs securityfs /sys/kernel/security 2>/dev/null || true
-  if [ -d /sys/kernel/security/apparmor ]; then aa=$DW_APPARMOR; else say noapparmor; fi
-fi
+` + confineScript + `
 {
   printf '[worker.oci]\n  gc = true\n  maxUsedSpace = "%s"\n' "$DW_KEEP"
   if [ -n "$aa" ]; then printf '  apparmor-profile = "%s"\n' "$aa"; fi

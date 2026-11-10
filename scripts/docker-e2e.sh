@@ -4453,7 +4453,9 @@ build_evidence() {
     echo "--- the AppArmor profiles Docker's containers use"
     priv grep -E '^(docker|runc|buildkit)' /sys/kernel/security/apparmor/profiles || true
     echo "--- what the kernel said of AppArmor last"
-    priv dmesg 2>/dev/null | grep -i apparmor | tail -n 40 || true
+    priv dmesg 2>/dev/null | grep -i 'apparmor="DENIED"' | tail -n 30 || true
+    echo "--- and of loading Docker's profile"
+    priv dmesg 2>/dev/null | grep -i 'name="docker-default"' | tail -n 5 || true
     echo "--- builders left"
     docker ps --all --filter label=dev.dockwell.builder || true
   } >&2
@@ -4482,33 +4484,47 @@ apply_build() {
   cat "$git_dir/apply-$name"
 }
 
-step "Builds: an app builds on the control server, whose agent is root, with its steps under Docker's AppArmor profile"
-# Every build above ran on the agent build's server, whose agent isn't root, so it
-# can't read which profiles the server has, and its steps run under none. A server's
-# own agent is root, as this one is with E2E_ROOT, and confines each step.
+step "Builds: on each server, the agent build's and the control server's, a build's steps run under Docker's AppArmor profile"
+# The builder reads what the server's kernel has loaded for itself, so an agent that
+# isn't root, as the agent build's is here, confines its steps as one that is root
+# does, as the control server's is with E2E_ROOT. BuildKit's image has no
+# apparmor_parser, without which BuildKit refuses any profile: what stands in for it
+# is part of what this proves.
 control_id=$(dw servers list --json | jq -r --arg agent "$agent_id" '[.servers[] | select(.id != $agent) | .id] | first // empty') || fail "servers list failed"
 [[ "$control_id" == srv_* ]] || fail "the control server isn't in the list of servers: $(dw servers list --json)"
-planned=$(dw services create e2e-confined --environment "$build_env" --on "$control_id" --build-git-url "$git_url/web.git" --build-git-ref confined --plan-only --json) ||
-  fail "planning an app that builds on the control server failed"
-apply_build "$(jq -r '.change.id' <<<"$planned")" e2e-confined || fail "an app didn't build on the control server"
-confined_id=$(service_id e2e-confined)
-[[ "$confined_id" == svc_* ]] || fail "e2e-confined isn't in $build_env: $(dw services list --json)"
-confined_build=$(dw builds list "$confined_id" --json | jq -r '.builds[0].id')
-confined_log=$(dw builds log "$confined_build") || fail "builds log failed"
-[[ "$confined_log" == *"this step runs under: "* ]] || fail "the build's step on the control server printed nothing: $confined_log"
-# Only root reads the list of profiles, and so only then does the agent confine a step.
-if [[ -n "${E2E_ROOT:-}" ]] && priv grep -q '^docker-default ' /sys/kernel/security/apparmor/profiles 2>/dev/null; then
-  if [[ "$confined_log" != *"this step runs under: docker-default"* ]]; then
-    build_evidence "$confined_build"
-    fail "the server has docker-default, the agent is root, and the build's step didn't run under it: $confined_log"
+# Only root reads the kernel's list of profiles. Docker says whether it uses AppArmor
+# at all, and loads its profile as it starts where it does.
+confines=""
+if [[ "$(docker info --format '{{json .SecurityOptions}}')" == *name=apparmor* ]]; then
+  confines=1
+  if [[ -n "${E2E_ROOT:-}" ]] && ! priv grep -q '^docker-default ' /sys/kernel/security/apparmor/profiles; then
+    fail "Docker says it uses AppArmor, and the kernel hasn't docker-default loaded: $(priv cat /sys/kernel/security/apparmor/profiles | head -n 20)"
   fi
-else
-  echo "A step under AppArmor wasn't checked, as that needs E2E_ROOT and a server with docker-default loaded. CI has both"
 fi
-dw services delete e2e-confined --environment "$build_env" --yes || fail "deleting e2e-confined failed"
+for where in "agent:$agent_id" "control:$control_id"; do
+  name="e2e-confined-${where%%:*}"
+  planned=$(dw services create "$name" --environment "$build_env" --on "${where#*:}" --build-git-url "$git_url/web.git" --build-git-ref "confined-${where%%:*}" --plan-only --json) ||
+    fail "planning $name failed"
+  apply_build "$(jq -r '.change.id' <<<"$planned")" "$name" || fail "an app didn't build on the ${where%%:*} server"
+  confined_id=$(service_id "$name")
+  [[ "$confined_id" == svc_* ]] || fail "$name isn't in $build_env: $(dw services list --json)"
+  confined_build=$(dw builds list "$confined_id" --json | jq -r '.builds[0].id')
+  confined_log=$(dw builds log "$confined_build") || fail "builds log failed"
+  [[ "$confined_log" == *"this step runs under: "* ]] || fail "the build's step on the ${where%%:*} server printed nothing: $confined_log"
+  if [[ -n "$confines" ]]; then
+    if [[ "$confined_log" != *"this step runs under: docker-default"* || "$confined_log" != *"Each step runs under the server's AppArmor profile docker-default"* ]]; then
+      build_evidence "$confined_build"
+      fail "Docker uses AppArmor here, and the build's step on the ${where%%:*} server didn't run under docker-default, or its log doesn't say so: $confined_log"
+    fi
+  elif [[ "$confined_log" == *"AppArmor profile"* ]]; then
+    fail "Docker doesn't use AppArmor here, and the build on the ${where%%:*} server says its steps run under a profile: $confined_log"
+  fi
+  dw services delete "$name" --environment "$build_env" --yes || fail "deleting $name failed"
+done
+[[ -n "$confines" ]] || echo "A step under AppArmor wasn't checked, as Docker doesn't use AppArmor on this machine. CI's does"
 
 step "Builds: a build's secret reaches its steps, and never its log or its image"
-# On the control server too, whose agent is root, with /run in memory.
+# On the control server, whose agent is root, with /run in memory.
 printf 'e2e-npm-secret-value' >"$git_dir/npm"
 dw secrets create NPM --environment "$build_env" --value-file "$git_dir/npm" --yes || fail "secrets create NPM failed"
 planned=$(dw services create e2e-secret --environment "$build_env" --on "$control_id" --build-git-url "$git_url/web.git" --build-git-ref secret --build-secrets NPM_TOKEN=NPM --plan-only --json) ||

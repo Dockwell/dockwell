@@ -217,8 +217,10 @@ func (r *report) markerLine(rest string) {
 		}
 	case "pruned":
 		r.pruned = true
+	case "apparmor":
+		r.add(0, "Each step runs under the server's AppArmor profile "+arg+", as Docker's containers do")
 	case "noapparmor":
-		r.add(0, "This server's AppArmor can't be reached from the builder, so the build's steps run under seccomp's profile alone")
+		r.add(0, "This server has AppArmor on without Docker's profile, "+AppArmorProfile+", so the build's steps run under seccomp's profile alone, as Docker's containers do here")
 	case "fail":
 		r.failed = arg
 	case "builder":

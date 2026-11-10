@@ -267,25 +267,6 @@ func (b *Builder) ensureNetwork(ctx context.Context) error {
 	return nil
 }
 
-// appArmor is the AppArmor profile a build's steps run under: Docker's own, as
-// Docker's builder applies it, when the server has it loaded.
-func (b *Builder) appArmor() string {
-	read := b.AppArmorProfiles
-	if read == nil {
-		read = func() ([]byte, error) { return os.ReadFile("/sys/kernel/security/apparmor/profiles") }
-	}
-	raw, err := read()
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(raw), "\n") {
-		if name, _, _ := strings.Cut(line, " "); name == "docker-default" {
-			return "docker-default"
-		}
-	}
-	return ""
-}
-
 // statfsFree is how much of the filesystem path is on is free to anyone.
 func statfsFree(path string) (int64, error) {
 	var st syscall.Statfs_t

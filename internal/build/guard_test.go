@@ -6,6 +6,9 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -201,26 +204,63 @@ func TestBuildsRunOnANetworkWhereNoContainerReachesAnother(t *testing.T) {
 	}
 }
 
+// The builder's own shell runs the lines that decide what confines a step, against
+// a server's files as they'd be: its paths alone are pointed into a folder.
 func TestStepsRunUnderDockersAppArmorProfileWhereThereIsOne(t *testing.T) {
 	for _, c := range []struct {
-		profiles string
-		want     string
+		name              string
+		enabled, profiles string
+		noSecurityfs      bool
+		want              string
+		parser            bool
 	}{
-		{"docker-default (enforce)\nlsb_release (enforce)\n", "docker-default"},
-		{"lsb_release (enforce)\n", ""},
+		{"Docker's profile is loaded", "Y\n", "docker-default (enforce)\nrunc (unconfined)\n", false, "dockwell:apparmor docker-default\naa=docker-default\n", true},
+		{"AppArmor is on without Docker's profile", "Y\n", "lsb_release (enforce)\ndocker-default-old (enforce)\n", false, "dockwell:noapparmor\naa=\n", false},
+		{"AppArmor is on and its files can't be reached", "Y\n", "", true, "dockwell:noapparmor\naa=\n", false},
+		{"the server has no AppArmor", "", "docker-default (enforce)\n", false, "aa=\n", false},
+		{"AppArmor is off", "N\n", "docker-default (enforce)\n", false, "aa=\n", false},
 	} {
-		b := newBench(t)
-		b.builder.AppArmorProfiles = func() ([]byte, error) { return []byte(c.profiles), nil }
-		commit := b.repo.Commit("main", "Something", map[string]string{"Dockerfile": nodeDockerfile})
-		if err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A")); err != nil {
+		root := t.TempDir()
+		write := func(p, content string) {
+			t.Helper()
+			if err := os.MkdirAll(filepath.Dir(filepath.Join(root, p)), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, p), []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if c.enabled != "" {
+			write("sys/module/apparmor/parameters/enabled", c.enabled)
+		}
+		if !c.noSecurityfs {
+			write("sys/kernel/security/apparmor/profiles", c.profiles)
+		}
+		if err := os.MkdirAll(filepath.Join(root, "sbin"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if got, _ := envOf(b.made("dockwell-build")[0], "DW_APPARMOR"); got != c.want {
-			t.Errorf("with %q loaded, the steps run under %q, not %q", c.profiles, got, c.want)
+		lines := strings.NewReplacer("/sys/", root+"/sys/", "/sbin/", root+"/sbin/").Replace(confineScript)
+		// mount can't run here, as it can't where a server keeps securityfs from the builder.
+		cmd := exec.CommandContext(t.Context(), "sh", "-eu", "-c", "say() { printf 'dockwell:%s\\n' \"$*\"; }\nmount() { return 1; }\n"+lines+"\necho \"aa=$aa\"")
+		out, err := cmd.CombinedOutput()
+		if err != nil || string(out) != c.want {
+			t.Errorf("where %s, the builder says %q, %v, want %q", c.name, out, err, c.want)
+		}
+		if _, err := os.Stat(filepath.Join(root, "sbin/apparmor_parser")); (err == nil) != c.parser {
+			t.Errorf("where %s, what stands in for AppArmor's parser is there: %v, want %v", c.name, err == nil, c.parser)
 		}
 	}
-	if !strings.Contains(script, `apparmor-profile = "%s"`) {
-		t.Error("the script doesn't give BuildKit the profile")
+	if !strings.Contains(script, confineScript) || !strings.Contains(script, `apparmor-profile = "%s"`) {
+		t.Error("the script doesn't read what confines a step, or doesn't give BuildKit the profile")
+	}
+	// Every agent decides alike: nothing of the agent's own says what confines a step.
+	b := newBench(t)
+	commit := b.repo.Commit("main", "Something", map[string]string{"Dockerfile": nodeDockerfile})
+	if err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A")); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := envOf(b.made("dockwell-build")[0], "DW_APPARMOR"); ok {
+		t.Errorf("the agent tells the builder DW_APPARMOR=%q, which the builder reads for itself", got)
 	}
 }
 

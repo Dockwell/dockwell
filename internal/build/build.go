@@ -92,9 +92,6 @@ type Builder struct {
 	WatchEvery time.Duration
 	// LookupIP finds where a name leads: the server's resolver unless set.
 	LookupIP func(ctx context.Context, host string) ([]net.IP, error)
-	// AppArmorProfiles reads the AppArmor profiles the server has loaded:
-	// /sys/kernel/security/apparmor/profiles unless set.
-	AppArmorProfiles func() ([]byte, error)
 	// InMemory says whether path is in memory, as a tmpfs: statfs unless set.
 	InMemory func(path string) bool
 	// Now is the clock.
@@ -328,15 +325,12 @@ func (b *Builder) ended(ctx context.Context, req service.BuildRequest, f facts, 
 }
 
 // guardEnv says what the builder's script does beside the build: prune the cache
-// first when its last build didn't, and run each step under AppArmor's profile for
-// Docker where the server has it.
+// first when its last build didn't. What confines each step, the script reads in
+// the builder itself (confineScript).
 func (b *Builder) guardEnv(volume string) []string {
 	var out []string
 	if b.pruneFirst(volume) {
 		out = append(out, "DW_PRUNE_FIRST=1")
-	}
-	if p := b.appArmor(); p != "" {
-		out = append(out, "DW_APPARMOR="+p)
 	}
 	return out
 }

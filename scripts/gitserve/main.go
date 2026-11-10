@@ -9,7 +9,8 @@
 //   - broken fails at its fourth step, saying "npm ERR! missing script: build";
 //   - slow prints "installing packages" and takes a minute, for a build seen under way;
 //   - noisy builds a larger image and prints 20,000 lines, for an agent's memory;
-//   - confined runs one step that says which AppArmor profile it runs under;
+//   - confined-agent and confined-control each run a step that says which AppArmor
+//     profile it runs under, for a build on each of two servers;
 //   - secret reads the build secret NPM_TOKEN in two steps, and prints it in one;
 //   - secret-fails prints NPM_TOKEN in a step that then fails;
 //   - node is a Node app with no Dockerfile, which Railpack builds;
@@ -58,6 +59,15 @@ EXPOSE 8080
 CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
 `
 
+// confined is app with a step that prints the AppArmor profile it runs under.
+const confined = `FROM busybox:1.37
+WORKDIR /app
+COPY . .
+RUN echo "this step runs under: $(cat /proc/self/attr/current 2>/dev/null || echo no AppArmor)"
+EXPOSE 8080
+CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
+`
+
 // branch is a branch of web.git: its name, its commit's subject, and the files it
 // changes from main's.
 type branch struct {
@@ -89,16 +99,12 @@ RUN for i in $(seq 1 20000); do echo "line $i of what a build prints, and then s
 EXPOSE 8080
 CMD ["node", "-e", "require('http').createServer((q, s) => s.end('noisy')).listen(8080)"]
 `, "index.html": "noisy\n"}},
-	// A step that runs, never from the cache of another branch's build, as its files
-	// differ, and says what confines it: a build on a server whose agent is root runs
-	// each step under Docker's AppArmor profile where the server has it (ADR 0046).
-	{"confined", "Tidy the checkout page", map[string]string{"Dockerfile": `FROM busybox:1.37
-WORKDIR /app
-COPY . .
-RUN echo "this step runs under: $(cat /proc/self/attr/current 2>/dev/null || echo no AppArmor)"
-EXPOSE 8080
-CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
-`, "index.html": "Tidy the checkout page\n"}},
+	// A step that says what confines it: each step of a build runs under Docker's
+	// AppArmor profile where the server has it (ADR 0046). Two branches whose files
+	// differ, so the second server's build runs the step, and doesn't take it from
+	// the cache the first one's left.
+	{"confined-agent", "Tidy the checkout page", map[string]string{"Dockerfile": confined, "index.html": "Tidy the checkout page\n"}},
+	{"confined-control", "Tidy the cart page", map[string]string{"Dockerfile": confined, "index.html": "Tidy the cart page\n"}},
 	// A build that uses a secret, which has to reach its step and nowhere else.
 	{"secret", "Install private packages", map[string]string{"Dockerfile": `FROM busybox:1.37
 WORKDIR /app
