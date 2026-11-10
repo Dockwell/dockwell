@@ -6996,23 +6996,20 @@ msgstr "{theSecret} 已经是一个密钥。"
 msgid "{wanted} signs in to {name} already."
 msgstr "{wanted} 已经可以登录 {name}。"
 
-msgid "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
-msgstr "恢复会通过一个说明此事的计划替换现有内容，并把被替换的内容保留 7 天。"
+msgid "A backup before a change or an upgrade lets you put it back."
+msgstr "在修改或升级前备份，就能恢复回去。"
 
-msgid "Back it up before you change what's in it, or upgrade it."
-msgstr "在修改其中内容或升级之前，先备份它。"
+msgid "A copy of its files, which stops {engine} a moment"
+msgstr "复制其文件，{engine} 会短暂停止"
+
+msgid "A plan, which keeps what it replaces for 7 days"
+msgstr "通过计划进行，被替换的内容保留 7 天"
 
 msgid "Backups of {name}, newest first"
 msgstr "{name} 的备份，最新在前"
 
 msgid "Dockwell can't read the backups of {name}"
 msgstr "Dockwell 无法读取 {name} 的备份"
-
-msgid "Each backup is a copy of its files, which stops {engine} for an exact copy unless you choose to copy it running."
-msgstr "每次备份都是它文件的副本：为得到精确副本会先停止 {engine}，除非你选择在运行中复制。"
-
-msgid "Each backup is {dumpOf}'s own dump of everything in it, taken while it runs, so nothing stops."
-msgstr "每次备份都是 {dumpOf} 自带的完整转储，在运行中进行，不会停止任何服务。"
 
 msgid "How it's backed up"
 msgstr "备份方式"
@@ -7022,6 +7019,12 @@ msgstr "{name} 还没有备份"
 
 msgid "Only by hand"
 msgstr "仅手动"
+
+msgid "Restoring"
+msgstr "恢复"
+
+msgid "{dumpOf}'s own dump, while it runs"
+msgstr "{dumpOf} 自带的转储，运行中进行"
 
 msgid "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
 msgstr "<0>{serviceId}</0> 可能已被删除，或者它运行的已不是 Dockwell 认识的数据库。"
@@ -7071,8 +7074,8 @@ msgstr "不在卷中"
 msgid "A change to how {engine} {now} runs is out"
 msgstr "{engine} {now} 的运行方式有更新"
 
-msgid "A copy of its files, which stops it for an exact copy unless you choose to copy it running"
-msgstr "复制它的文件：为得到精确副本会先停止它，除非你选择在运行中复制"
+msgid "A copy of its files, which stops it a moment"
+msgstr "复制其文件，会短暂停止它"
 
 msgid "All its backups"
 msgstr "它的全部备份"
@@ -7104,26 +7107,32 @@ msgstr "{place} 中的应用可连接"
 msgid "From this server alone"
 msgstr "仅此服务器可连接"
 
+msgid "Give it a volume"
+msgstr "为它添加卷"
+
 msgid "Host"
 msgstr "主机"
 
 msgid "It sets no most"
 msgstr "未设置上限"
 
-msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
-msgstr "它的数据在 <0>{volume}</0> 中，这个卷不是 Dockwell 创建的，因此 Dockwell 不会备份它。请在它原来的地方备份，或把数据移到该应用自己的卷中。"
+msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, which it doesn't back up."
+msgstr "其数据位于 <0>{volume}</0>，这个卷不是 Dockwell 创建的，因此不会备份。"
 
-msgid "Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give it a volume on its app's page."
-msgstr "它的数据不在卷中，容器被替换时数据会随之丢失，也没有可备份的内容。请在它的应用页面为它添加一个卷。"
+msgid "Its data isn't in a volume, so it goes with its container."
+msgstr "其数据不在卷中，会随容器一起消失。"
 
 msgid "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
 msgstr "各项数值、数据库和用户来自 {server}，它运行在 {count} 台服务器上，这是其中一台。"
 
-msgid "Its numbers, databases and users show again once it does."
-msgstr "它报告后，这里会重新显示各项数值、数据库和用户。"
-
 msgid "Its password is in its own environment, sealed, so it has no secret to reveal."
 msgstr "它的密码保存在自己的环境中并已加密，因此没有可显示的密钥。"
+
+msgid "Its plan backs up its volumes first; undoing it keeps the data as {next} left it."
+msgstr "其计划会先备份卷；撤销时数据保持 {next} 留下的样子。"
+
+msgid "Its plan backs up the data with {dumpOf}'s dump first; undoing it keeps the data as {next} left it."
+msgstr "其计划会先用 {dumpOf} 的转储备份数据；撤销时数据保持 {next} 留下的样子。"
 
 msgid "Its server didn't say"
 msgstr "它的服务器没有说明"
@@ -7177,14 +7186,9 @@ msgstr "本服务器磁盘，未加密"
 msgid "Up for"
 msgstr "已运行"
 
-msgid "Upgrading is a plan that backs up its data with {dumpOf}'s own dump before anything else, and says which backup holds it. Undoing it puts this version back, and leaves the data as the new one left it."
-msgstr "升级是一个计划：先用 {dumpOf} 自带的转储备份数据，并说明数据在哪个备份中。撤销会换回这个版本，数据保持新版本留下的样子。"
-
-msgid "Upgrading is a plan that backs up its volumes before anything else, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
-msgstr "升级是一个计划：先备份它的卷，并说明每个卷在哪个备份中。撤销会换回这个版本，数据保持新版本留下的样子。"
-
-msgid "Upgrading is a plan that backs up its volumes before anything else, with a copy of their files, which stops {engine} for a moment, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
-msgstr "升级是一个计划：先复制卷的文件来备份，这会让 {engine} 停止片刻，并说明每个卷在哪个备份中。撤销会换回这个版本，数据保持新版本留下的样子。"
+msgctxt "what a database or Docker said when it couldn't be read"
+msgid "What it said"
+msgstr "原始信息"
 
 msgid "When you ask"
 msgstr "手动发起时"
@@ -7231,6 +7235,9 @@ msgstr "{name} 中的数据库"
 msgid "Granted on"
 msgstr "已授权"
 
+msgid "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
+msgstr "在其容器内部，PostgreSQL 镜像允许任何进程无需密码以任意用户登录。"
+
 msgid "Its own"
 msgstr "系统自带"
 
@@ -7248,9 +7255,6 @@ msgstr "没有自己的数据库"
 
 msgid "Not one of Dockwell's"
 msgstr "非 Dockwell 创建"
-
-msgid "Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one."
-msgstr "通过网络时，每个用户都要用自己的密码登录。在它自己的容器内，PostgreSQL 官方镜像允许任何进程不用密码以任何用户登录。"
 
 msgid "Owns"
 msgstr "拥有"
@@ -7284,9 +7288,6 @@ msgstr "{more, plural, other {还有 # 个数据库或用户未在此列出}}"
 
 msgid "+{left}"
 msgstr "+{left}"
-
-msgid "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
-msgstr "这里的数据库是指用官方镜像运行 PostgreSQL、MySQL、MariaDB、Redis 或 Valkey 的服务。可以从应用目录安装一个，或接管服务器上已在运行的数据库。"
 
 msgid "Beside it"
 msgstr "同环境服务"
@@ -7342,6 +7343,9 @@ msgstr "服务器上没有任何改动。页面会自动重试。"
 msgid "Nothing has happened to them lately"
 msgstr "最近没有相关动态"
 
+msgid "PostgreSQL, MySQL, MariaDB, Redis or Valkey, from the catalog or already running on a server."
+msgstr "来自应用目录，或已在服务器上运行的 PostgreSQL、MySQL、MariaDB、Redis 或 Valkey。"
+
 msgid "Reading what happened"
 msgstr "正在读取动态"
 
@@ -7351,8 +7355,8 @@ msgstr "最近动态"
 msgid "Some on schedule"
 msgstr "部分按计划运行"
 
-msgid "Take one on from its page to see it here. It keeps running as it is, with no restart."
-msgstr "在它的页面接管后，它就会显示在这里。接管时它保持原样运行，不会重启。"
+msgid "Take one on from its page: it keeps running, with no restart."
+msgstr "在它的页面接管：它会继续运行，无需重启。"
 
 msgid "by hand"
 msgstr "手动"

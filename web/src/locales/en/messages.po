@@ -6996,23 +6996,20 @@ msgstr "{theSecret} is a secret already."
 msgid "{wanted} signs in to {name} already."
 msgstr "{wanted} signs in to {name} already."
 
-msgid "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
-msgstr "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
+msgid "A backup before a change or an upgrade lets you put it back."
+msgstr "A backup before a change or an upgrade lets you put it back."
 
-msgid "Back it up before you change what's in it, or upgrade it."
-msgstr "Back it up before you change what's in it, or upgrade it."
+msgid "A copy of its files, which stops {engine} a moment"
+msgstr "A copy of its files, which stops {engine} a moment"
+
+msgid "A plan, which keeps what it replaces for 7 days"
+msgstr "A plan, which keeps what it replaces for 7 days"
 
 msgid "Backups of {name}, newest first"
 msgstr "Backups of {name}, newest first"
 
 msgid "Dockwell can't read the backups of {name}"
 msgstr "Dockwell can't read the backups of {name}"
-
-msgid "Each backup is a copy of its files, which stops {engine} for an exact copy unless you choose to copy it running."
-msgstr "Each backup is a copy of its files, which stops {engine} for an exact copy unless you choose to copy it running."
-
-msgid "Each backup is {dumpOf}'s own dump of everything in it, taken while it runs, so nothing stops."
-msgstr "Each backup is {dumpOf}'s own dump of everything in it, taken while it runs, so nothing stops."
 
 msgid "How it's backed up"
 msgstr "How it's backed up"
@@ -7022,6 +7019,12 @@ msgstr "No backups of {name} yet"
 
 msgid "Only by hand"
 msgstr "Only by hand"
+
+msgid "Restoring"
+msgstr "Restoring"
+
+msgid "{dumpOf}'s own dump, while it runs"
+msgstr "{dumpOf}'s own dump, while it runs"
 
 msgid "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
 msgstr "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
@@ -7071,8 +7074,8 @@ msgstr "not in a volume"
 msgid "A change to how {engine} {now} runs is out"
 msgstr "A change to how {engine} {now} runs is out"
 
-msgid "A copy of its files, which stops it for an exact copy unless you choose to copy it running"
-msgstr "A copy of its files, which stops it for an exact copy unless you choose to copy it running"
+msgid "A copy of its files, which stops it a moment"
+msgstr "A copy of its files, which stops it a moment"
 
 msgid "All its backups"
 msgstr "All its backups"
@@ -7104,26 +7107,32 @@ msgstr "From apps in {place}"
 msgid "From this server alone"
 msgstr "From this server alone"
 
+msgid "Give it a volume"
+msgstr "Give it a volume"
+
 msgid "Host"
 msgstr "Host"
 
 msgid "It sets no most"
 msgstr "It sets no most"
 
-msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
-msgstr "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
+msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, which it doesn't back up."
+msgstr "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, which it doesn't back up."
 
-msgid "Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give it a volume on its app's page."
-msgstr "Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give it a volume on its app's page."
+msgid "Its data isn't in a volume, so it goes with its container."
+msgstr "Its data isn't in a volume, so it goes with its container."
 
 msgid "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
 msgstr "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
 
-msgid "Its numbers, databases and users show again once it does."
-msgstr "Its numbers, databases and users show again once it does."
-
 msgid "Its password is in its own environment, sealed, so it has no secret to reveal."
 msgstr "Its password is in its own environment, sealed, so it has no secret to reveal."
+
+msgid "Its plan backs up its volumes first; undoing it keeps the data as {next} left it."
+msgstr "Its plan backs up its volumes first; undoing it keeps the data as {next} left it."
+
+msgid "Its plan backs up the data with {dumpOf}'s dump first; undoing it keeps the data as {next} left it."
+msgstr "Its plan backs up the data with {dumpOf}'s dump first; undoing it keeps the data as {next} left it."
 
 msgid "Its server didn't say"
 msgstr "Its server didn't say"
@@ -7177,14 +7186,9 @@ msgstr "This server's disk, unencrypted"
 msgid "Up for"
 msgstr "Up for"
 
-msgid "Upgrading is a plan that backs up its data with {dumpOf}'s own dump before anything else, and says which backup holds it. Undoing it puts this version back, and leaves the data as the new one left it."
-msgstr "Upgrading is a plan that backs up its data with {dumpOf}'s own dump before anything else, and says which backup holds it. Undoing it puts this version back, and leaves the data as the new one left it."
-
-msgid "Upgrading is a plan that backs up its volumes before anything else, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
-msgstr "Upgrading is a plan that backs up its volumes before anything else, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
-
-msgid "Upgrading is a plan that backs up its volumes before anything else, with a copy of their files, which stops {engine} for a moment, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
-msgstr "Upgrading is a plan that backs up its volumes before anything else, with a copy of their files, which stops {engine} for a moment, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
+msgctxt "what a database or Docker said when it couldn't be read"
+msgid "What it said"
+msgstr "What it said"
 
 msgid "When you ask"
 msgstr "When you ask"
@@ -7231,6 +7235,9 @@ msgstr "Databases in {name}"
 msgid "Granted on"
 msgstr "Granted on"
 
+msgid "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
+msgstr "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
+
 msgid "Its own"
 msgstr "Its own"
 
@@ -7248,9 +7255,6 @@ msgstr "None of their own"
 
 msgid "Not one of Dockwell's"
 msgstr "Not one of Dockwell's"
-
-msgid "Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one."
-msgstr "Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one."
 
 msgid "Owns"
 msgstr "Owns"
@@ -7284,9 +7288,6 @@ msgstr "{more, plural, one {# more database or user isn't listed here} other {# 
 
 msgid "+{left}"
 msgstr "+{left}"
-
-msgid "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
-msgstr "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
 
 msgid "Beside it"
 msgstr "Beside it"
@@ -7342,6 +7343,9 @@ msgstr "Nothing changed on the servers. The page tries again by itself."
 msgid "Nothing has happened to them lately"
 msgstr "Nothing has happened to them lately"
 
+msgid "PostgreSQL, MySQL, MariaDB, Redis or Valkey, from the catalog or already running on a server."
+msgstr "PostgreSQL, MySQL, MariaDB, Redis or Valkey, from the catalog or already running on a server."
+
 msgid "Reading what happened"
 msgstr "Reading what happened"
 
@@ -7351,8 +7355,8 @@ msgstr "Recent activity"
 msgid "Some on schedule"
 msgstr "Some on schedule"
 
-msgid "Take one on from its page to see it here. It keeps running as it is, with no restart."
-msgstr "Take one on from its page to see it here. It keeps running as it is, with no restart."
+msgid "Take one on from its page: it keeps running, with no restart."
+msgstr "Take one on from its page: it keeps running, with no restart."
 
 msgid "by hand"
 msgstr "by hand"
