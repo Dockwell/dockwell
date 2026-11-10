@@ -197,11 +197,17 @@ describe("a server on a phone", () => {
   });
 
   it("says a server waits for its agent, with the command that starts it to copy", async () => {
-    await renderPhone(aServer({ ...hz1, connection: Connection.PENDING, stats: undefined, history: [] }));
+    // Joining gives it a last-seen time; its agent hasn't spoken yet, so nothing reads as stopped or heard.
+    await renderPhone(
+      aServer({ ...hz1, connection: Connection.PENDING, stats: undefined, history: [], lastSeenTime: minutesAgo(6) }),
+    );
     expect(screen.getByRole("region", { name: "Status" })).toHaveTextContent("Private IP10.0.0.2");
     const status = screen.getByRole("region", { name: "Status" });
     expect(status).toHaveTextContent("Waiting for its agent");
+    expect(status).toHaveTextContent("Waiting");
+    expect(status).not.toHaveTextContent("Stopped");
     expect(within(status).getByRole("button", { name: "Copy the start command" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Agent" })).toHaveTextContent("Last heartbeatNever");
   });
 
   it("says how long Docker hasn't answered, with the command that restarts it to copy", async () => {

@@ -124,7 +124,12 @@ function PhoneStatus({ server, unread, heard }: { server: Server; unread: boolea
     <section className="dw-panel phone-status" aria-label={t`Status`}>
       <div className="phone-status-head">
         <div>
-          <StatusBadge status={status} variant="pill" />
+          <StatusBadge
+            status={status}
+            variant="pill"
+            label={server.connection === Connection.PENDING ? t`Waiting` : undefined}
+            labelIsState={server.connection === Connection.PENDING}
+          />
         </div>
         <span className="phone-status-line">{line}</span>
         {fix ? <div className="phone-status-fix">{fix}</div> : null}

@@ -248,7 +248,12 @@ export function AgentPanel({ server, unknown = false }: { server: Server; unknow
         {connected ? <Fact term={t`Connected`}>{t`For ${connected}`}</Fact> : null}
         {blind ? <DockerFact since={timestampDate(blind)} now={now} server={server} /> : null}
         <Fact term={t`Last heartbeat`}>
-          {server.lastSeenTime ? words.ago(timestampDate(server.lastSeenTime), now) : <Muted>{t`Never`}</Muted>}
+          {/* A server that joined has a time from its join, not from its agent, which hasn't spoken yet. */}
+          {server.lastSeenTime && server.connection !== Connection.PENDING ? (
+            words.ago(timestampDate(server.lastSeenTime), now)
+          ) : (
+            <Muted>{t`Never`}</Muted>
+          )}
         </Fact>
         {joined ? (
           <Fact term={t`Joined`}>
