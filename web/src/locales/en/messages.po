@@ -8155,14 +8155,14 @@ msgstr "{0, plural, one {agents on # version} other {agents on # versions}}"
 msgid "{used} of {total}"
 msgstr "{used} of {total}"
 
+msgid "Add server"
+msgstr "Add server"
+
 msgid "Files"
 msgstr "Files"
 
 msgid "No servers yet"
 msgstr "No servers yet"
-
-msgid "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
-msgstr "Run <0>dockwell token create</0> on the control server, then <1>dockwell join</1> with the ticket it prints on the server you want to add."
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} vCPU"
@@ -8250,44 +8250,93 @@ msgstr "What do you want to run?"
 msgid "Add a server"
 msgstr "Add a server"
 
-msgid "Connect a new server with a ticket from the control server."
-msgstr "Connect a new server with a ticket from the control server."
+msgid "Any Linux server you have root on: another provider, a home lab or a VM."
+msgstr "Any Linux server you have root on: another provider, a home lab or a VM."
 
-msgid "It shows on Servers as soon as its agent connects. Your apps stay where they are: an app moves only when you apply a plan for it."
-msgstr "It shows on Servers as soon as its agent connects. Your apps stay where they are: an app moves only when you apply a plan for it."
+msgid "Confirm with your passkey. The command works once, for an hour."
+msgstr "Confirm with your passkey. The command works once, for an hour."
 
-msgid "Join and start the agent"
-msgstr "Join and start the agent"
+msgid "Install an agent of the control server's version as <0>dockwell</0> first."
+msgstr "Install an agent of the control server's version as <0>dockwell</0> first."
 
-msgid "Make a ticket on the control server"
-msgstr "Make a ticket on the control server"
+msgid "Install the agent of <0>{version}</0> as <1>dockwell</1> first, as this build has no installer."
+msgstr "Install the agent of <0>{version}</0> as <1>dockwell</1> first, as this build has no installer."
 
-msgid "Make a ticket on {name}"
-msgstr "Make a ticket on {name}"
+msgid "It joins in seconds."
+msgstr "It joins in seconds."
 
-msgid "On any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the control plane's version of the agent, joins, and starts."
-msgstr "On any Linux server: another provider, a home lab or a VM. Put the ticket in place of <0><ticket></0>. It installs the control plane's version of the agent, joins, and starts."
+msgid "It joins in seconds. Nothing on {name} changes."
+msgstr "It joins in seconds. Nothing on {name} changes."
 
-msgid "On the new server, put the ticket in place of <0><ticket></0>. Run both commands as the same user, with <1>sudo</1> for both when using the system service. Keep <2>dockwell run</2> running, or configure it as a service."
-msgstr "On the new server, put the ticket in place of <0><ticket></0>. Run both commands as the same user, with <1>sudo</1> for both when using the system service. Keep <2>dockwell run</2> running, or configure it as a service."
+msgid "It joins through {host}, a private address."
+msgstr "It joins through {host}, a private address."
 
-msgid "Over SSH, as the user that runs Dockwell, with <0>sudo</0> in front when it runs as the system service. The ticket works once, for an hour."
-msgstr "Over SSH, as the user that runs Dockwell, with <0>sudo</0> in front when it runs as the system service. The ticket works once, for an hour."
+msgid "It reaches {controlName} at {host}."
+msgstr "It reaches {controlName} at {host}."
 
-msgid "Reading the control server's installation details."
-msgstr "Reading the control server's installation details."
+msgid "It's the address {controlName} goes out from."
+msgstr "It's the address {controlName} goes out from."
+
+msgid "Make a new command"
+msgstr "Make a new command"
+
+msgid "Make the command"
+msgstr "Make the command"
+
+msgid "Making the command"
+msgstr "Making the command"
+
+msgid "No command yet"
+msgstr "No command yet"
+
+msgid "Only servers on {controlName}'s network can join"
+msgstr "Only servers on {controlName}'s network can join"
+
+msgid "Open {joinedName}"
+msgstr "Open {joinedName}"
 
 msgid "Run one command on the new server"
 msgstr "Run one command on the new server"
 
-msgid "The control server's installation details are unavailable. Install an agent that matches its version as <0>dockwell</0> before joining."
-msgstr "The control server's installation details are unavailable. Install an agent that matches its version as <0>dockwell</0> before joining."
+msgid "Run these on the new server, as root"
+msgstr "Run these on the new server, as root"
 
-msgid "This control server runs a development build with no release installer. Build the agent from the same source revision for the new server's architecture and install it as <0>dockwell</0>."
-msgstr "This control server runs a development build with no release installer. Build the agent from the same source revision for the new server's architecture and install it as <0>dockwell</0>."
+msgid "Run this on the new server"
+msgstr "Run this on the new server"
 
-msgid "Watch it appear"
-msgstr "Watch it appear"
+msgid "Set public address"
+msgstr "Set public address"
+
+msgid "This command expired"
+msgstr "This command expired"
+
+msgid "Waiting for the server to join"
+msgstr "Waiting for the server to join"
+
+#. placeholder {0}: left(expires - now)
+msgid "Works once · expires in {0}"
+msgstr "Works once · expires in {0}"
+
+msgid "Your apps stay where they are. New ones ask where to run."
+msgstr "Your apps stay where they are. New ones ask where to run."
+
+msgid "Your passkey didn't confirm it, so there's no command yet. Try again."
+msgstr "Your passkey didn't confirm it, so there's no command yet. Try again."
+
+msgid "{host} may not lead back to {controlName}"
+msgstr "{host} may not lead back to {controlName}"
+
+msgid "{hours} h"
+msgstr "{hours} h"
+
+msgid "{joinedName} joined"
+msgstr "{joinedName} joined"
+
+msgid "{joinedName} joined, starting its agent"
+msgstr "{joinedName} joined, starting its agent"
+
+msgid "{minutes} min"
+msgstr "{minutes} min"
 
 msgid "Back to the server"
 msgstr "Back to the server"
@@ -9346,12 +9395,6 @@ msgstr "{size} · none in use"
 
 msgid "{size} · {inUse} in use"
 msgstr "{size} · {inUse} in use"
-
-msgid "Add one with a ticket from the control server."
-msgstr "Add one with a ticket from the control server."
-
-msgid "Add server"
-msgstr "Add server"
 
 msgid "CPU {cpu}%"
 msgstr "CPU {cpu}%"
@@ -12243,9 +12286,6 @@ msgstr "{count} s"
 
 msgid "{count} s ago"
 msgstr "{count} s ago"
-
-msgid "{minutes} min"
-msgstr "{minutes} min"
 
 msgid "{minutes} min {seconds} s"
 msgstr "{minutes} min {seconds} s"
