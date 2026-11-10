@@ -4,7 +4,10 @@
 // connected, what the server is, and its recent stats. Agents' streams
 // write to it, and the API reads and watches it.
 //
-// Stats live only in memory, in a short ring per server for sparklines.
+// Stats live only in memory, in a short ring per server for sparklines, and
+// come often only while someone watches: agents sample every StatsInterval
+// while a watch is open, and every IdleInterval, which is only what their
+// streams need to stay open, while none is (ADR 0040).
 // What a server is (its inventory and agent build) is also written to the
 // store, so an offline server still shows its OS and hardware after a
 // restart.
@@ -29,9 +32,19 @@ import (
 
 // Tuning.
 const (
-	// StatsInterval is how often agents send stats.
+	// StatsInterval is how often agents send stats while anyone watches the
+	// fleet.
 	StatsInterval = 5 * time.Second
-	// HistoryLength is how many samples are kept per server.
+	// IdleInterval is how often agents send stats while nobody watches: what
+	// their streams need to stay open, as the control plane closes one that says
+	// nothing for 30 s, with room for two samples to be late, and no more.
+	IdleInterval = 10 * time.Second
+	// IdleAfter is how long agents go on at StatsInterval once the last watch
+	// has closed, so a page that reloads, or a phone that locks for a moment,
+	// doesn't slow them down and speed them up again.
+	IdleAfter = 30 * time.Second
+	// HistoryLength is how many samples are kept per server: 5 min of them at
+	// StatsInterval.
 	HistoryLength = 60
 	// HistoryWindow is how far back the samples kept go: 5 min. A server
 	// that stops reporting keeps its last samples, but once it reports
@@ -41,9 +54,6 @@ const (
 	// refreshEvery is how often what's known of a server's network is worked out
 	// again with nothing new heard, as what's known of it can run out.
 	refreshEvery = time.Minute
-	// watcherBuffer is how far a watcher may fall behind before it is
-	// dropped; it reconnects and gets a fresh snapshot.
-	watcherBuffer = 256
 )
 
 // ErrNotFound reports an unknown server.
@@ -115,14 +125,25 @@ type Hub struct {
 	mu       sync.Mutex
 	servers  map[string]*live
 	control  string
-	watchers map[chan Update]struct{}
+	watchers map[*watcher]struct{}
 	// controlMoved signals that the control server's public address may have changed.
 	controlMoved chan struct{}
+
+	// watched is whether agents should sample at StatsInterval: while a watch is
+	// open, and for idleAfter after the last closes. idleGen tells the timer that
+	// slows them down whether a watch has opened since it was set.
+	watched   bool
+	idleAfter time.Duration
+	idleGen   uint64
+	// pacing keeps what hears the pace hearing each change in order, each with
+	// the pace as it then stands, so the last word is always the latest.
+	pacing sync.Mutex
+	onPace []func(time.Duration)
 }
 
 // New loads the servers the store knows.
 func New(ctx context.Context, db *store.DB, logger *slog.Logger) (*Hub, error) {
-	h := &Hub{db: db, logger: logger, now: time.Now, servers: map[string]*live{}, watchers: map[chan Update]struct{}{}, controlMoved: make(chan struct{}, 1)}
+	h := &Hub{db: db, logger: logger, now: time.Now, servers: map[string]*live{}, watchers: map[*watcher]struct{}{}, controlMoved: make(chan struct{}, 1), idleAfter: IdleAfter}
 	err := db.View(ctx, func(tx *store.Tx) error {
 		servers, err := tx.ListServers(ctx)
 		if err != nil {
@@ -200,7 +221,7 @@ func (h *Hub) Removed(id string) {
 	if l.held != nil {
 		l.held.Stop()
 	}
-	h.broadcastLocked(Update{Server: h.toProtoLocked(id, l, false), Removed: true})
+	h.changedLocked(id, false, h.toProtoLocked(id, l, false))
 }
 
 // Attach records the stream of srv's agent opening with a hello. srv is
@@ -375,25 +396,147 @@ func (h *Hub) Get(id string) (*dockwellv1.Server, error) {
 	return h.toProtoLocked(id, l, true), nil
 }
 
+// watcher is one watch of the fleet. It keeps only which servers changed since it
+// last sent, and sends each as it stands when it does, so one that reads slowly,
+// as a page over a slow link does, or one that opens as hundreds of agents answer
+// a faster pace at once, gets each server's latest state rather than falling
+// behind, and what waits for it grows to one entry a server at most.
+type watcher struct {
+	out  chan Update
+	wake chan struct{}
+	// pending is each server that changed since the watcher last sent, and order
+	// the order they first did. Hub.mu guards both.
+	pending map[string]*pending
+	order   []string
+}
+
+// pending is what a watcher has yet to send of one server.
+type pending struct {
+	// history sends the server's history too, for a server that has just
+	// connected. A watcher that reads slowly misses the samples in between,
+	// rather than being sent more as it falls behind.
+	history bool
+	// removed is the server's last state, once it has gone.
+	removed *dockwellv1.Server
+}
+
 // Watch returns every server with history, and a channel of changes from
-// then on. The channel closes when ctx is done, or if the watcher falls so
-// far behind that it should start again from a fresh snapshot.
+// then on, which closes when ctx is done. While any watch is open, agents
+// sample at StatsInterval.
 func (h *Hub) Watch(ctx context.Context) ([]*dockwellv1.Server, <-chan Update) {
-	ch := make(chan Update, watcherBuffer)
+	w := &watcher{out: make(chan Update), wake: make(chan struct{}, 1), pending: map[string]*pending{}}
 	h.mu.Lock()
 	snapshot := h.snapshotLocked(true)
-	h.watchers[ch] = struct{}{}
+	h.watchers[w] = struct{}{}
+	h.idleGen++ // a timer set to slow agents down no longer should
+	quicken := !h.watched
+	h.watched = true
 	h.mu.Unlock()
-	go func() {
-		<-ctx.Done()
+	if quicken {
+		h.tellPace()
+	}
+	go h.send(ctx, w)
+	return snapshot, w.out
+}
+
+// send sends w what changed, as each server stands when it does, until ctx is done.
+func (h *Hub) send(ctx context.Context, w *watcher) {
+	defer func() {
 		h.mu.Lock()
-		defer h.mu.Unlock()
-		if _, ok := h.watchers[ch]; ok {
-			delete(h.watchers, ch)
-			close(ch)
-		}
+		delete(h.watchers, w)
+		h.unwatchedLocked()
+		h.mu.Unlock()
+		close(w.out)
 	}()
-	return snapshot, ch
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-w.wake:
+		}
+		h.mu.Lock()
+		batch := make([]Update, 0, len(w.order))
+		for _, id := range w.order {
+			p := w.pending[id]
+			if p.removed != nil {
+				batch = append(batch, Update{Server: p.removed, Removed: true})
+			} else if l, ok := h.servers[id]; ok {
+				batch = append(batch, Update{Server: h.toProtoLocked(id, l, p.history)})
+			}
+		}
+		clear(w.pending)
+		w.order = w.order[:0]
+		h.mu.Unlock()
+		for _, u := range batch {
+			select {
+			case w.out <- u:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
+}
+
+// SlowDownAfter sets how long agents go on at StatsInterval once the last watch
+// has closed, IdleAfter unless set, as a test that watches them slow down needs.
+func (h *Hub) SlowDownAfter(d time.Duration) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.idleAfter = d
+}
+
+// Pace is how often agents should send stats now: StatsInterval while anyone
+// watches, IdleInterval while nobody does.
+func (h *Hub) Pace() time.Duration {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.paceLocked()
+}
+
+func (h *Hub) paceLocked() time.Duration {
+	if h.watched {
+		return StatsInterval
+	}
+	return IdleInterval
+}
+
+// OnPace has fn hear the pace each time it changes, with the pace as it stands
+// when fn runs, so what fn hears last is always the latest. fn mustn't block.
+func (h *Hub) OnPace(fn func(time.Duration)) {
+	h.pacing.Lock()
+	defer h.pacing.Unlock()
+	h.onPace = append(h.onPace, fn)
+}
+
+// tellPace tells what hears the pace how it stands now.
+func (h *Hub) tellPace() {
+	h.pacing.Lock()
+	defer h.pacing.Unlock()
+	pace := h.Pace()
+	for _, fn := range h.onPace {
+		fn(pace)
+	}
+}
+
+// unwatchedLocked notes a watch has gone. Once the last has, agents slow down
+// after idleAfter, unless one opens in the meantime.
+func (h *Hub) unwatchedLocked() {
+	if len(h.watchers) > 0 || !h.watched {
+		return
+	}
+	h.idleGen++
+	gen := h.idleGen
+	time.AfterFunc(h.idleAfter, func() {
+		h.mu.Lock()
+		slow := h.idleGen == gen && len(h.watchers) == 0 && h.watched
+		if slow {
+			h.watched = false
+		}
+		h.mu.Unlock()
+		if slow {
+			h.tellPace()
+		}
+	})
 }
 
 func (h *Hub) snapshotLocked(history bool) []*dockwellv1.Server {
@@ -409,24 +552,30 @@ func (h *Hub) snapshotLocked(history bool) []*dockwellv1.Server {
 	return out
 }
 
-// notifyLocked tells watchers about a server's latest state. withHistory
-// sends the whole history, for a server that has just connected.
+// notifyLocked tells watchers a server changed. withHistory sends its whole
+// history, for a server that has just connected.
 func (h *Hub) notifyLocked(id string, withHistory bool) {
-	l, ok := h.servers[id]
-	if !ok || len(h.watchers) == 0 {
+	if _, ok := h.servers[id]; !ok {
 		return
 	}
-	h.broadcastLocked(Update{Server: h.toProtoLocked(id, l, withHistory)})
+	h.changedLocked(id, withHistory, nil)
 }
 
-func (h *Hub) broadcastLocked(u Update) {
-	for ch := range h.watchers {
+// changedLocked notes for each watcher that a server changed, or went, with
+// removed its last state, and wakes it. It never waits for a watcher.
+func (h *Hub) changedLocked(id string, withHistory bool, removed *dockwellv1.Server) {
+	for w := range h.watchers {
+		p, ok := w.pending[id]
+		if !ok {
+			p = &pending{}
+			w.pending[id] = p
+			w.order = append(w.order, id)
+		}
+		p.history = p.history || withHistory
+		p.removed = removed
 		select {
-		case ch <- u:
+		case w.wake <- struct{}{}:
 		default:
-			// Too far behind: drop it, and it starts again from a snapshot.
-			delete(h.watchers, ch)
-			close(ch)
 		}
 	}
 }

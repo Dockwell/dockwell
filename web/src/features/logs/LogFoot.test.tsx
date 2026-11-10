@@ -6,7 +6,7 @@ import { i18n } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 import { act, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { LogFoot, SearchCount } from "./LogFoot";
@@ -42,6 +42,41 @@ const words = (store: LogStore, query: string): ReactNode => (
     <SearchCount store={store} query={query} step={undefined} />
   </I18nProvider>
 );
+
+describe("what a pause says", () => {
+  beforeEach(() => activateLocale("en"));
+  afterEach(() => vi.useRealTimers());
+
+  // The page stops following a render before the store holds still, and the foot
+  // drawn in between said a pause at 00:00:00, with nothing since.
+  it("says when it paused as soon as the store holds still", () => {
+    const store = filled();
+    const paused = (
+      <I18nProvider i18n={i18n}>
+        <LogFoot
+          store={store}
+          deep={undefined}
+          query=""
+          stale={false}
+          live={true}
+          following={false}
+          rangeLabel=""
+          rangeEnd={0}
+          levelFiltered={false}
+          phone={false}
+          onPause={() => {}}
+          onLastSkip={() => {}}
+        />
+      </I18nProvider>
+    );
+    const { container } = render(paused);
+    const at = new Date(2026, 10, 8, 9, 41, 7);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(at);
+    act(() => store.setHolding(true));
+    expect(container).toHaveTextContent("Paused at 09:41:07. 0 lines since.");
+  });
+});
 
 describe("what a search says of what it found", () => {
   beforeEach(() => activateLocale("en"));

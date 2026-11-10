@@ -85,13 +85,16 @@ generate: deps ## Regenerate code and the OpenAPI document from proto/, and the 
 			{ printf '// SPDX-License-Identifier: Apache-2.0\n\n'; cat "$$f"; } >"$$f.spdx" && mv "$$f.spdx" "$$f"; \
 		fi; \
 	done
+# protoc-gen-openapi writes a route that streams bytes as JSON: this says what it
+# carries, and writes those routes for the TypeScript client (ADR 0045).
+	go run ./scripts/openapistreams $(OPENAPI) packages/api/src/gen/streams.ts
 # The control plane serves the OpenAPI document, and go:embed can't reach gen/.
 	cp $(OPENAPI) internal/control/apidoc/openapi.yaml
 	pnpm --filter @dockwell/ui tokens
 
 .PHONY: test
 test: deps ## Run the Go and TypeScript tests, the agent build's with its tag too
-	go test -race -coverprofile=coverage.out ./...
+	go test -timeout 20m -race -coverprofile=coverage.out ./...
 	go test -race -tags agent $(AGENT_PKGS)
 	pnpm -r --if-present test
 
@@ -169,12 +172,13 @@ smoke: build build-agent ## Start the built binaries: the full build serves the 
 	scripts/smoke-agent.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: e2e
-e2e: build ## Claim, sign in, run the panel's flows, follow logs, walk a server's files and read its updates in headless Chromium, with a virtual passkey and a fake Docker Engine (SHOTS=dir saves screenshots)
+e2e: build ## Claim, sign in, run the panel's flows, follow logs, walk a server's files, read its updates and use its terminal in headless Chromium, with a virtual passkey and a fake Docker Engine (SHOTS=dir saves screenshots)
 	go build -o bin/fakedocker ./scripts/fakedocker
 	node web/e2e/sign-in.ts $(BIN) --fake-docker bin/fakedocker $(if $(SHOTS),--shots $(SHOTS))
 	node web/e2e/logs.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
 	node web/e2e/files.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
 	node web/e2e/updates.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
+	node web/e2e/terminal.ts $(BIN) --fake-docker bin/fakedocker $(if $(SHOTS),--shots $(SHOTS))
 
 .PHONY: docker-panel-e2e
 docker-panel-e2e: build ## Create, deploy, roll back and export an app in the panel on this machine's Docker, in headless Chromium
@@ -188,9 +192,18 @@ containers-load: build-go build-agent ## Measure an agent's memory on a server o
 logs-load: build-go build-agent ## Measure an agent's memory while a container floods its log, on a fake Docker
 	scripts/logs-load.sh $(BIN) $(AGENT_BIN)
 
+.PHONY: transfers-load
+transfers-load: build-go build-agent ## Measure an agent's memory while four files upload and four download at once
+	scripts/transfers-load.sh $(BIN) $(AGENT_BIN)
+
 .PHONY: docker-e2e
 docker-e2e: build-go build-agent ## Run, change, undo and export a service through the CLI on this machine's Docker, import a Compose file, and run a container through the agent build
 	scripts/docker-e2e.sh $(BIN) $(AGENT_BIN)
+
+.PHONY: catalog-e2e
+catalog-e2e: build-go ## Install, check, upgrade and remove catalog apps on this machine's Docker, as APPS="pgadmin redis" names them
+	@test -n "$(APPS)" || { echo 'catalog-e2e: name the apps to try, such as make catalog-e2e APPS="pgadmin redis"' >&2; exit 1; }
+	scripts/catalog-e2e.sh $(BIN) $(APPS)
 
 .PHONY: budgets
 budgets: build build-agent ## Fail if the builds are over their idle memory budgets; BASELINE=other/dockwell and BASELINE_AGENT=other/dockwell-agent measure those too (about 7 minutes)

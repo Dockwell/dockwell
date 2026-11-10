@@ -2,9 +2,10 @@
 
 import { Connection, HealthCheckKind } from "@dockwell/api";
 import { StatusBadge } from "@dockwell/ui";
-import { useLingui } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
+import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { MachineWords } from "../changes/FailureNotice";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
@@ -60,6 +61,8 @@ export function useHealthWords(): HealthWords {
           return t`Paused`;
         case "unknown":
           return t`Unknown`;
+        case "finished":
+          return t`Finished`;
       }
     };
     const noCheck = t`Nothing checks it, so this only means it started.`;
@@ -102,6 +105,8 @@ export function useHealthWords(): HealthWords {
             return said ? asSentence(said) : t`Its check keeps failing.`;
           case "not-running":
             return said ? asSentence(said) : t`It has no container on this server.`;
+          case "finished":
+            return t`It ran to its end and exited 0, as a one-shot job does, so nothing restarts it.`;
           case "paused": {
             const command = `docker unpause ${server.container}`;
             return t`Someone paused it, so it serves nothing and no check runs. Unpause it with ${command}.`;
@@ -149,6 +154,7 @@ export function useRunsNow(health: AppHealth | undefined, name: string): string 
     case "healthy":
     case "running":
     case "starting":
+    case "finished":
       return "";
   }
 }
@@ -233,6 +239,20 @@ export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boo
               </MachineWords>
               {checked && showTime ? <span className="app-muted"> {checked}</span> : null}
             </p>
+            {server.container && showTime ? (
+              <RouterButtonLink
+                to="/servers/$serverId/terminal"
+                params={{ serverId: server.serverId }}
+                search={{ container: server.container }}
+                variant="ghost"
+                size="sm"
+                icon="terminal"
+                className="app-runs-shell"
+                aria-label={t`Open a shell in ${server.container} on ${server.serverName}`}
+              >
+                <Trans>Shell</Trans>
+              </RouterButtonLink>
+            ) : null}
           </li>
         );
       })}

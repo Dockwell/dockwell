@@ -165,6 +165,22 @@ sample() {
   echo "$rss $pss $anon"
 }
 
+# tasks_json prints the scheduled tasks a joined agent is measured with, as the agent
+# keeps them (ADR 0053): ten shell commands and ten requests to the control plane at
+# $1, each every minute, so the agent runs twenty in each minute it's measured. An
+# agent from before tasks has nothing that reads them.
+tasks_json() {
+  local api=$1 now sep="" i
+  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  printf '['
+  for i in $(seq 10); do
+    printf '%s{"ref":{"Kind":"task","Scope":"env_budgets","Name":"shell-%d"},"spec":{"shell":{"command":"echo %d"},"schedule":"* * * * *","timeZone":"UTC"},"last_due":"%s"}' "$sep" "$i" "$i" "$now"
+    sep=,
+    printf ',{"ref":{"Kind":"task","Scope":"env_budgets","Name":"ping-%d"},"spec":{"request":{"url":"http://%s/healthz"},"schedule":"* * * * *","timeZone":"UTC"},"last_due":"%s"}' "$i" "$api" "$now"
+  done
+  printf ']\n'
+}
+
 # run measures a control plane of the full build $2 and an agent of the
 # agent build $3, called $4, as run $1, and writes their figures to
 # $work/$1/figures.
@@ -197,6 +213,9 @@ run() {
   [[ -n "$ticket" ]] || fail "$k" "dockwell token create printed no ticket"
   "$dir/agent" join --data-dir "$dir/agent.d" --name "budgets-agent-$k" "$ticket" >"$dir/join.log" 2>&1 ||
     fail "$k" "dockwell join failed"
+  # It runs with tasks scheduled, as a server that has some does.
+  mkdir -p "$dir/agent.d/agent/tasks"
+  tasks_json "$api" >"$dir/agent.d/agent/tasks/tasks.json"
   "$dir/agent" run --data-dir "$dir/agent.d" --log-format json >"$dir/agent.log" 2>&1 &
   agent=$!
   echo "$agent" >>"$work/pids"

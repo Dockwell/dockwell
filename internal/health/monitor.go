@@ -111,6 +111,7 @@ type watched struct {
 	seen                   bool      // in the latest list
 	readAt                 time.Time // when it was last read in full
 	slow                   bool      // its last check took its time
+	finished               bool      // it exited 0, and nothing starts it again
 }
 
 func (m *Monitor) init() {
@@ -177,7 +178,7 @@ func (m *Monitor) Report() []*dockwellv1.InstanceHealth {
 	for id, w := range m.watched {
 		h := &dockwellv1.InstanceHealth{
 			Project: w.project, Service: w.service, Number: w.number, Container: w.name, ContainerId: id, State: w.state, Check: w.kind,
-			Failing: w.failing, Since: timestamppb.New(w.since),
+			Failing: w.failing, Since: timestamppb.New(w.since), Finished: w.finished,
 		}
 		if r := w.last; r != nil {
 			h.Last = &dockwellv1.HealthResult{Passed: r.Passed, Output: r.Output, Time: timestamppb.New(r.At)}
@@ -494,6 +495,9 @@ func (m *Monitor) read(ctx context.Context, id string, w *watched) {
 			w.kind = dockwellv1.HealthCheckKind_HEALTH_CHECK_KIND_NONE
 		}
 	}
+	if s.Running || s.Restarting {
+		w.finished = false
+	}
 	switch {
 	case s.Restarting:
 		m.foundOut(w, "the container keeps restarting: it last exited with code "+strconv.Itoa(s.ExitCode))
@@ -505,6 +509,9 @@ func (m *Monitor) read(ctx context.Context, id string, w *watched) {
 	case !s.Running:
 		w.failing = 0
 		m.foundOut(w, "the container isn't running: it is "+cmp.Or(s.Status, "stopped")+", with exit code "+strconv.Itoa(s.ExitCode))
+		if f := finished(c); f != w.finished {
+			w.finished, m.dirty = f, true
+		}
 		m.setState(w, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING)
 	case w.check != nil:
 		// The checks say. A container that started again begins again.
@@ -532,6 +539,19 @@ func (m *Monitor) read(ctx context.Context, id string, w *watched) {
 			m.setState(w, dockwellv1.HealthState_HEALTH_STATE_STARTING)
 		}
 	}
+}
+
+// finished reports a container that ran to its end: it exited 0, and Docker won't
+// start it again, as a one-shot job such as a migration does once its work is done.
+func finished(c *docker.Container) bool {
+	if c.State.ExitCode != 0 || c.State.Status != "exited" {
+		return false
+	}
+	switch c.HostConfig.RestartPolicy.Name {
+	case "", "no", "on-failure":
+		return true
+	}
+	return false
 }
 
 // pausedWords is what a paused container comes to. Docker counts it as running and

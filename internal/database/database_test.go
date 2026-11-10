@@ -3,6 +3,7 @@
 package database
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -222,7 +223,7 @@ func TestParseMySQL(t *testing.T) {
 		"Innodb_buffer_pool_read_requests\t1000\nInnodb_buffer_pool_reads\t50\nThreads_connected\t4\nUptime\t120\n" +
 		"d\tinformation_schema\t16384\nd\tmysql\t2000\nd\tperformance_schema\t4096\nd\tshop\\tfront\t5000\nd\tsys\t0\n" +
 		"u\thealthcheck\tlocalhost\tN\nu\tmariadb.sys\tlocalhost\tN\nu\troot\t%\tY\nu\tshop\t%\tN\n" +
-		"g\tshop\t%\tshop\\tfront\n"
+		"g\tshop\t%\tshop\\tfront\ng\tshop\t%\tshop\\\\_1\n"
 	e := Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB)
 	r, err := parseMySQL(e, []byte(said))
 	if err != nil {
@@ -242,7 +243,7 @@ func TestParseMySQL(t *testing.T) {
 		t.Errorf("databases %q, want mysql, shop\\tfront and sys", names)
 	}
 	users := r.GetUsers()
-	if len(users) != 4 || !users[0].GetSystem() || !users[1].GetSystem() || !users[2].GetSuperuser() || users[3].GetDatabases()[0] != "shop\tfront" {
+	if len(users) != 4 || !users[0].GetSystem() || !users[1].GetSystem() || !users[2].GetSuperuser() || !slices.Equal(users[3].GetDatabases(), []string{"shop\tfront", "shop_1"}) {
 		t.Errorf("users %v", users)
 	}
 	if _, err := parseMySQL(e, []byte("Uptime\t3\n")); err == nil {
@@ -301,5 +302,64 @@ func TestEachReadingAsksForWhatsTrueNowAndGivesUp(t *testing.T) {
 	if !strings.Contains(strings.Join(cmd, " "), "statement_timeout=6000") || !strings.Contains(strings.Join(cmd, " "), "PGCONNECT_TIMEOUT=5") ||
 		!strings.Contains(sql, "pid <> pg_backend_pid()") {
 		t.Errorf("PostgreSQL reads with %q and %q", cmd, sql)
+	}
+}
+
+func TestMakingAUserKeepsThePasswordOutOfWhatServersLog(t *testing.T) {
+	pg := Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL)
+	sql, err := pg.make("shop", "shop", "a'pass\\word", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(sql, "pass") || !strings.Contains(sql, `ALTER ROLE "shop" LOGIN PASSWORD 'SCRAM-SHA-256$4096:`) {
+		t.Errorf("PostgreSQL is given %q", sql)
+	}
+	// What a step makes, it makes only where it isn't yet, so one that stopped halfway finishes.
+	for _, want := range []string{
+		"SELECT 'CREATE ROLE \"shop\" LOGIN' WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'shop')\n\\gexec\n",
+		"SELECT 'CREATE DATABASE \"shop\" OWNER \"shop\"' WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'shop')\n\\gexec\n",
+		"REVOKE ALL ON DATABASE \"shop\" FROM PUBLIC;\n",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Errorf("PostgreSQL is given %q, without %q", sql, want)
+		}
+	}
+	if _, err := pg.make("shop", "shop", "pässword", true); err == nil {
+		t.Error("PostgreSQL is given a verifier of a password it would normalize first")
+	}
+	maria := Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB)
+	sql, _ = maria.make("shop", "orders_1", "password", true)
+	if !strings.Contains(sql, "IDENTIFIED BY PASSWORD '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19'") || strings.Contains(sql, "'password'") ||
+		!strings.Contains(sql, "CREATE DATABASE IF NOT EXISTS `orders_1`;") || !strings.Contains(sql, "CREATE USER IF NOT EXISTS 'shop'@'%'") ||
+		!strings.Contains(sql, "GRANT ALL PRIVILEGES ON `orders\\_1`.* TO 'shop'@'%'") {
+		t.Errorf("MariaDB is given %q", sql)
+	}
+	mysql := Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL)
+	sql, _ = mysql.make("shop", "shop", `it's\a`, false)
+	if !strings.Contains(sql, `ALTER USER 'shop'@'%' IDENTIFIED BY 'it\'s\\a'`) || !strings.HasPrefix(sql, "SET SESSION sql_mode = '';") {
+		t.Errorf("MySQL is given %q", sql)
+	}
+	if _, err := Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS).make("shop", "shop", "x", true); err == nil {
+		t.Error("Redis makes a user")
+	}
+	// A role with something in another database stops the drop before anything goes,
+	// and PostgreSQL before 13 has no DROP DATABASE ... WITH (FORCE).
+	drop := pg.drop("shop", "orders")
+	if strings.Contains(drop, "FORCE") || !strings.HasPrefix(drop, "DO $$BEGIN IF EXISTS (SELECT 1 FROM pg_shdepend") ||
+		!strings.HasSuffix(drop, "DROP DATABASE IF EXISTS \"orders\";\nDROP ROLE IF EXISTS \"shop\";\n") {
+		t.Errorf("PostgreSQL drops with %q", drop)
+	}
+}
+
+func TestUserNamesAreOnesEveryEngineTakesAsTheyAre(t *testing.T) {
+	for _, ok := range []string{"shop", "a", "shop_2", "s23456789012345678901234567890ab"} {
+		if err := CheckSQLName("user", ok); err != nil {
+			t.Errorf("%q: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"", "Shop", "2shop", "shop-web", `shop"`, "shop'", "s234567890123456789012345678901ab", "_shop"} {
+		if CheckSQLName("user", bad) == nil {
+			t.Errorf("%q passes", bad)
+		}
 	}
 }

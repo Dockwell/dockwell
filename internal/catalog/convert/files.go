@@ -114,6 +114,23 @@ func (t *tree) readDir(name string) ([]fs.DirEntry, error) {
 	return ents, nil
 }
 
+// ReadLicense reads a source's licence's text from its checkout, as a file there.
+func ReadLicense(root string, src Source) ([]byte, error) {
+	if src.LicenseFile == "" {
+		return nil, nil
+	}
+	t, err := openTree(root)
+	if err != nil {
+		return nil, err
+	}
+	defer t.Close()
+	text, err := t.readFile(src.LicenseFile)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s's licence: %w. What's converted from it goes with its licence's text", src.Name, err)
+	}
+	return text, nil
+}
+
 // placeholder says a file is only there to keep its folder in Git.
 func placeholder(name string) bool {
 	return name == ".gitkeep" || name == ".keep"

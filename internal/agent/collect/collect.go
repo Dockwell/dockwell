@@ -29,8 +29,9 @@ import (
 	"github.com/dockwell/dockwell/internal/mounts"
 )
 
-// Collector samples one server. It is not safe for concurrent use: Stats
-// keeps the previous sample to compute rates.
+// Collector samples one server. Stats is not safe for concurrent use, as it
+// keeps the previous sample to compute rates. DiskOf keeps nothing, so it's safe
+// beside it, as a disk use call runs beside the stream's samples.
 type Collector struct {
 	// Root reads files such as "proc/stat". Defaults to the real root.
 	Root fs.FS
@@ -158,6 +159,12 @@ func (c *Collector) Stats(now time.Time) *dockwellv1.ServerStats {
 	if avail, ok := mem["MemAvailable"]; ok && avail <= st.MemoryTotalBytes {
 		st.MemoryUsedBytes = st.MemoryTotalBytes - avail
 	}
+	st.SwapTotalBytes = mem["SwapTotal"]
+	if free, ok := mem["SwapFree"]; ok && free <= st.SwapTotalBytes {
+		st.SwapUsedBytes = st.SwapTotalBytes - free
+	}
+	// The agent's own resident set, as /proc/self/status says it in kB.
+	st.AgentMemoryBytes = parseMeminfo(c.read("proc/self/status"))["VmRSS"]
 
 	if f := strings.Fields(string(c.read("proc/loadavg"))); len(f) >= 3 {
 		st.Load1, _ = strconv.ParseFloat(f[0], 64)
@@ -172,6 +179,7 @@ func (c *Collector) Stats(now time.Time) *dockwellv1.ServerStats {
 
 	if rx, tx, ok := netTotals(c.read("proc/net/dev")); ok {
 		cur.rx, cur.tx, cur.haveNet = rx, tx, true
+		st.NetworkRxBytes, st.NetworkTxBytes = rx, tx
 		if p := c.prev; p != nil && p.haveNet {
 			if secs := now.Sub(p.at).Seconds(); secs > 0 && rx >= p.rx && tx >= p.tx {
 				st.NetworkRxBytesPerSecond = uint64(float64(rx-p.rx) / secs)
@@ -190,6 +198,31 @@ func (c *Collector) Stats(now time.Time) *dockwellv1.ServerStats {
 
 	c.prev = cur
 	return st
+}
+
+// DiskOf finds the data disk that holds path: the one mounted at the longest
+// prefix of it. ok is false when no data disk holds it, or its size can't be
+// read.
+func (c *Collector) DiskOf(path string) (mountPoint string, size, used uint64, ok bool) {
+	for _, m := range c.mounts() {
+		if !within(path, m.point) || (ok && len(m.point) <= len(mountPoint)) {
+			continue
+		}
+		s, u, err := c.Statfs(m.point)
+		if err != nil || s == 0 {
+			continue
+		}
+		mountPoint, size, used, ok = m.point, s, u, true
+	}
+	return mountPoint, size, used, ok
+}
+
+// within reports whether path is dir or below it.
+func within(path, dir string) bool {
+	if dir == "/" || path == dir {
+		return strings.HasPrefix(path, "/")
+	}
+	return strings.HasPrefix(path, dir+"/")
 }
 
 func (c *Collector) read(name string) []byte {

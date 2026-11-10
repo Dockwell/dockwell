@@ -15,19 +15,20 @@ import "./Overview.css";
 /** How many changes the overview shows; Activity has the rest. */
 const SHOWN = 4;
 
-const CHANGES: EventFilter = {
-  kinds: [EventKind.CHANGE],
-  serverId: "",
-  resourceId: "",
-  actorId: "",
-  actorKind: ActorKind.UNSPECIFIED,
-};
+const CHANGES: readonly EventKind[] = [EventKind.CHANGE];
 
-/** The newest changes, live, as Activity's timeline draws them, each opening its plan. */
-export function RecentChanges() {
+/**
+ * The newest changes, live, as Activity's timeline draws them, each opening its plan.
+ * kinds widens what counts, as the fleet's overview has apps' health too.
+ */
+export function RecentChanges({ kinds = CHANGES, className }: { kinds?: readonly EventKind[]; className?: string }) {
   const { t } = useLingui();
   const now = useControlPlaneNow(15_000);
-  const { state } = useEvents(CHANGES);
+  const filter = useMemo<EventFilter>(
+    () => ({ kinds: [...kinds], serverId: "", resourceId: "", actorId: "", actorKind: ActorKind.UNSPECIFIED }),
+    [kinds],
+  );
+  const { state } = useEvents(filter);
   const events = state.status === "connecting" ? undefined : state.events;
   // What reverted changes were called, so an undo can say what it undid.
   const summaries = useMemo(() => {
@@ -39,6 +40,7 @@ export function RecentChanges() {
 
   return (
     <Panel
+      className={className}
       title={t`Recent changes`}
       actions={
         <Link to="/activity" className="overview-link">

@@ -76,6 +76,7 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.EXTERNAL_VOLUME]: 3,
   [HostAccessKind.TAKES_ON]: 3,
   [HostAccessKind.BACKUP_OF]: 0,
+  [HostAccessKind.SERVER_SHELL]: 0,
   [HostAccessKind.SERVER_PORT]: 3,
   [HostAccessKind.PLAIN_FOR_ANYONE]: 4,
   [HostAccessKind.TRUSTED_PROXY]: 4,
@@ -255,6 +256,12 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           detail: andWriter(
             t`Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds.`,
           ),
+        };
+      case HostAccessKind.SERVER_SHELL:
+        return {
+          key,
+          title: t`${name} runs a shell command as root on ${server}`,
+          detail: t`It runs on its schedule, and whenever someone runs it now. Whatever it runs, it runs with everything root can do there.`,
         };
       case HostAccessKind.BACKUP_OF:
         return {
@@ -683,6 +690,16 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           title: t`No backup is taken first`,
           detail: t`You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated. Back up what you can't lose first.`,
         };
+      case "tasks_as_root": {
+        const tasks: string[] = [];
+        for (let i = 0; i + 1 < note.names.length; i += 2) tasks.push(`${note.names[i]}: ${note.names[i + 1]}`);
+        const list = tasks.join("; ");
+        return {
+          key,
+          title: t`${name}'s scheduled tasks get the same reach`,
+          detail: t`They run in what ${name} runs, so they reach what it reaches on its server too: ${list}.`,
+        };
+      }
       case "tmpfs_no_size": {
         const [target = ""] = note.names;
         return {
@@ -810,7 +827,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
     }),
   );
   // These say what a pull does, which is no warning: there is nothing to weigh.
-  const quiet = new Set(["pulls_again", "leaves_pin", "starts_stopped"]);
+  // And what an edit kept of an app's own values: information, which an aside says once.
+  const quiet = new Set(["pulls_again", "leaves_pin", "starts_stopped", "keeps_env"]);
   const fromRollouts = rollouts
     .filter((line) => line.warn)
     .map(
@@ -847,6 +865,12 @@ export function useAsides(plan: Plan | undefined): Notice[] {
     }
     // Only the server can say a plan will start what isn't running, and it says how it found it.
     if (note.reason === "starts_stopped") out.push({ key: `starts-${i}`, title: `${note.message}.` });
+    // What an edit kept unread of an app's own values, as the server says it, once for each app:
+    // the server notes it for each server the app's step is on.
+    if (note.reason === "keeps_env") {
+      const key = `keeps-${note.resource?.scope ?? ""}/${name}`;
+      if (!out.some((n) => n.key === key)) out.push({ key, title: `${note.message}.` });
+    }
     if (note.reason !== "pulls_again") continue;
     // More than its image may differ on a server, and then the pull doesn't decide it.
     out.push({

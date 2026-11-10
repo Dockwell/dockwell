@@ -63,7 +63,9 @@ export function MorePage() {
         <Link to="/variables" className="more-row">
           <RowBody icon="key" label={t`Variables and secrets`} />
         </Link>
-        {section("websites")}
+        <Link to="/websites" className="more-row">
+          <RowBody icon="browser" label={t`Websites`} />
+        </Link>
         <Link to="/databases" className="more-row">
           <RowBody icon="database" label={t`Databases`} />
         </Link>
@@ -83,7 +85,7 @@ export function MorePage() {
         <Link to="/settings" className="more-row">
           <RowBody icon="settings" label={t`Settings`} />
         </Link>
-        <Link to="/status" className="more-row">
+        <Link to="/settings/control-plane" className="more-row">
           <RowBody icon="gauge" label={t`Control plane`} value={version ? shortVersion(version) : undefined} />
         </Link>
         <Link to="/profile" className="more-row">

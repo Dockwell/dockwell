@@ -157,7 +157,7 @@ var (
 	serviceKeys = keys("image", "command", "entrypoint", "environment", "ports", "restart", "labels", "volumes",
 		"networks", "network_mode", "user", "working_dir", "healthcheck", "depends_on", "expose", "stop_grace_period",
 		"container_name", "build", "deploy", "cpus", "mem_limit", "mem_reservation",
-		"cap_add", "cap_drop", "group_add", "privileged", "logging", "shm_size", "tmpfs")
+		"cap_add", "cap_drop", "group_add", "privileged", "logging", "shm_size", "tmpfs", "extra_hosts")
 	volumeKeys  = keys("driver", "driver_opts", "labels")
 	networkKeys = keys("driver", "driver_opts", "internal", "labels", "external", "name")
 	healthKeys  = keys("test", "interval", "timeout", "start_period", "retries", "disable")
@@ -878,6 +878,18 @@ func ordered(services types.Services) ([]string, error) {
 	return out, nil
 }
 
+// extraHosts are a file's extra_hosts as a spec keeps them, hostname:address, which
+// compose-go reads from a list or a mapping into one map.
+func extraHosts(h types.HostsList) []string {
+	var out []string
+	for _, name := range slices.Sorted(maps.Keys(h)) {
+		for _, addr := range h[name] {
+			out = append(out, name+":"+addr)
+		}
+	}
+	return out
+}
+
 func nonEmpty[M ~map[string]string](m M) map[string]string {
 	if len(m) == 0 {
 		return nil
@@ -930,6 +942,7 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 	}
 	c.CapAdd, c.CapDrop, c.GroupAdd, c.Privileged, c.Resources = s.CapAdd, s.CapDrop, s.GroupAdd, s.Privileged, p.limits[name]
 	c.ShmSize, c.Tmpfs = p.memory[name].shm, p.memory[name].tmpfs
+	c.ExtraHosts = extraHosts(s.ExtraHosts)
 	for _, k := range slices.Sorted(maps.Keys(s.Environment)) {
 		v := s.Environment[k]
 		if v == nil && slices.ContainsFunc(uses, func(u resource.Use) bool { return u.As == k }) {

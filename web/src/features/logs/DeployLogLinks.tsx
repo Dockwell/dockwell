@@ -29,7 +29,9 @@ export function DeployLogLink({
   const sources = useQuery(
     LogService.method.listLogSources,
     { id: serviceId },
-    { retry: false, refetchOnWindowFocus: false },
+    // A cache read made before a container existed must not hide its logs when
+    // this deploy is opened again or Activity sees it finish.
+    { retry: false, refetchOnWindowFocus: false, refetchOnMount: "always" },
   );
   const data = sources.data;
   if (!data) return null;
@@ -49,8 +51,9 @@ export function DeployLogLink({
 }
 
 /**
- * Links to the logs of what a failed change deployed, which is where to look
- * next: a server keeps them after the rollback removes the container. A change
+ * Links to the logs of what a change deployed: after a failure, which is where to
+ * look next, as a server keeps them after the rollback removes the container, and
+ * after a change that went well, to see how what it started runs. A change
  * that touched no service has none to link to, and a plan in brief, which has no
  * resources, shows none until the whole of it is read.
  */

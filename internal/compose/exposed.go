@@ -47,7 +47,7 @@ type Exposed struct {
 var (
 	quietServiceFields = keys(
 		// Names.
-		"image", "container_name", "network_mode", "networks", "user", "cap_add", "cap_drop", "group_add",
+		"image", "container_name", "network_mode", "networks", "user", "cap_add", "cap_drop", "group_add", "extra_hosts",
 		// Numbers, and one of a few words.
 		"ports", "restart", "cpus", "mem_limit", "mem_reservation", "shm_size", "deploy", "privileged", "stop_grace_period",
 		"healthcheck.interval", "healthcheck.timeout", "healthcheck.start_period", "healthcheck.retries", "healthcheck.disable",

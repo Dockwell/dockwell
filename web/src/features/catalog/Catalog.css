@@ -47,17 +47,17 @@
 
 .catalog-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-6);
 }
 
 .catalog-card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   min-width: 0;
-  padding: var(--space-4);
+  padding: var(--space-5);
   color: var(--ink);
   text-decoration: none;
 }
@@ -73,18 +73,32 @@
   min-width: 0;
 }
 
-.catalog-mono {
+.catalog-icon {
   display: grid;
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   place-items: center;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--surface-sunken);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+.catalog-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: contain;
+}
+
+.catalog-icon.is-large {
+  width: 72px;
+  height: 72px;
+  font-size: 22px;
 }
 
 .catalog-card-title {
@@ -95,7 +109,7 @@
 }
 
 .catalog-card-name {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 20px;
 }
@@ -127,8 +141,9 @@
 }
 
 .catalog-card-summary {
-  font-size: 13px;
-  line-height: 18px;
+  min-height: 40px;
+  color: var(--ink-muted);
+  font: var(--text-body);
 }
 
 .catalog-card-foot {
@@ -138,14 +153,16 @@
   gap: var(--space-2);
   margin-top: auto;
   color: var(--ink-muted);
-  font: 400 12px / 16px var(--font-mono);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-size: 12px;
 }
 
-.catalog-card-project {
-  overflow: hidden;
-  color: var(--ink);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.catalog-card-more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 500;
 }
 
 .catalog-note {
@@ -210,4 +227,374 @@
   margin: 0;
   font-size: 13px;
   line-height: 20px;
+}
+
+/* Under a rule, as the mock's plan is. */
+.catalog-parts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.catalog-parts-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.catalog-parts-head h3 {
+  margin: 0;
+  font: var(--text-label);
+  letter-spacing: var(--text-label-tracking);
+}
+
+.catalog-parts-head span {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+.catalog-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.catalog-back:hover {
+  color: var(--ink);
+}
+
+.catalog-detail .page-title-row .catalog-icon {
+  order: -1;
+  margin-right: var(--space-2);
+}
+
+.catalog-detail-phone-intro {
+  display: none;
+}
+
+.catalog-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-8);
+  margin: 0 0 var(--space-8);
+  padding: var(--space-4) 0;
+  border-block: 1px solid var(--line);
+}
+
+.catalog-facts dt {
+  margin-bottom: var(--space-1);
+  color: var(--ink-muted);
+  font: var(--text-caption);
+}
+
+.catalog-facts dd {
+  margin: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.catalog-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.4fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.catalog-detail-main,
+.catalog-detail-aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.catalog-detail-aside {
+  gap: var(--space-4);
+}
+
+.catalog-section h2,
+.catalog-info h2 {
+  margin: 0 0 var(--space-4);
+  font: var(--text-heading);
+  letter-spacing: var(--text-heading-tracking);
+}
+
+.catalog-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.catalog-section-head > span {
+  color: var(--ink-muted);
+  font: var(--text-caption);
+}
+
+.catalog-screenshots {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 90%;
+  gap: var(--space-4);
+  padding-bottom: var(--space-3);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.catalog-screenshots:has(figure:only-child) {
+  grid-auto-columns: 100%;
+}
+
+.catalog-screenshots figure {
+  min-width: 0;
+  margin: 0;
+  scroll-snap-align: start;
+}
+
+.catalog-screenshots figure > a {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.catalog-screenshots img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: contain;
+}
+
+.catalog-preview-open {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: var(--text-caption);
+}
+
+.catalog-screenshots figcaption {
+  margin-top: var(--space-2);
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.catalog-screenshots figcaption a {
+  margin-left: var(--space-2);
+  color: var(--link);
+}
+
+.catalog-preview-missing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  aspect-ratio: 16 / 10;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+}
+
+.catalog-description {
+  margin: 0;
+  font-size: 14px;
+  line-height: 23px;
+  overflow-wrap: anywhere;
+}
+
+.catalog-description p {
+  margin: 0 0 var(--space-4);
+}
+
+.catalog-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-features li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 14px;
+}
+
+.catalog-features svg {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 2px;
+  color: var(--ink-muted);
+}
+
+.catalog-info {
+  padding: var(--space-5);
+}
+
+.catalog-project-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  color: var(--link);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.catalog-project-link:hover {
+  text-decoration: underline;
+}
+
+.catalog-includes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-includes li {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.catalog-includes svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ink-muted);
+}
+
+.catalog-includes li > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.catalog-includes strong,
+.catalog-installation strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.catalog-includes code,
+.catalog-installation code {
+  color: var(--ink-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.catalog-includes li span {
+  color: var(--ink-muted);
+  font: var(--text-caption);
+}
+
+.catalog-info-note {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.catalog-info-note svg {
+  flex: none;
+}
+
+.catalog-installation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+}
+
+.catalog-installation-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 959.98px) {
+  .catalog-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .catalog-detail-aside {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+    align-items: start;
+  }
+}
+
+/* On a phone the categories keep to one row that scrolls sideways, as Activity's kinds
+   do, so the apps start near the top however many categories there are. */
+@media (max-width: 639.98px) {
+  .catalog-detail-phone-intro {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+  }
+
+  .catalog-detail-phone-intro p {
+    margin: 0;
+    font: var(--text-body);
+  }
+
+  .catalog-facts {
+    gap: var(--space-4) var(--space-5);
+    margin-bottom: var(--space-6);
+  }
+  .catalog-search {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .catalog-chips {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  /* While there's more of the row to scroll to, its end fades. */
+  .catalog-chips.has-more {
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  }
+
+  .catalog-chip {
+    flex: none;
+  }
 }

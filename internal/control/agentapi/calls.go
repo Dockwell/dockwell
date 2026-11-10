@@ -76,8 +76,10 @@ type Agents struct {
 	scopes ScopeNamer
 
 	mu        sync.Mutex
-	sessions  map[string]*Session // the newest stream of each server
-	uploads   map[uint64]*upload  // logs calls under way, by their streams
+	sessions  map[string]*Session      // the newest stream of each server
+	uploads   map[uint64]*upload       // logs calls under way, by their streams
+	links     map[uint64]*TerminalLink // terminals' attachments under way, by their streams
+	transfers map[uint64]*transfer     // uploads' writes and downloads under way, by their streams
 	onConnect []func(server string)
 	// opened is closed, and made again, whenever a session opens, for the
 	// calls waiting for a server's next stream.
@@ -97,13 +99,21 @@ type Agents struct {
 	health       map[string]health.Report
 	healthHearer func(server string, instances []*dockwellv1.InstanceHealth)
 	saveHearer   func(server string, ended *agentv1.SaveEnded)
+	// pace is how often agents should send stats, as last set, and paceGen counts
+	// each setting, so a stream never hears an older pace after a newer one. Zero
+	// before it's set, when the welcome's pace stands.
+	pace       time.Duration
+	paceGen    uint64
+	runsHearer func(server string)
+	// terminalHearer hears how each terminal ended.
+	terminalHearer func(server string, ended *agentv1.TerminalEnded)
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
 // send back.
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
-		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, opened: make(chan struct{}), moved: map[string]time.Time{},
+		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, links: map[uint64]*TerminalLink{}, transfers: map[uint64]*transfer{}, opened: make(chan struct{}), moved: map[string]time.Time{},
 		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{}, health: map[string]health.Report{},
 	}
 }
@@ -124,6 +134,24 @@ func (a *Agents) reportSaveEnded(server string, ended *agentv1.SaveEnded) {
 	a.mu.Unlock()
 	if hear != nil {
 		hear(server, ended)
+	}
+}
+
+// OnTaskRunsReady calls fn when a server's agent says its scheduled tasks have runs
+// the control plane hasn't read (ADR 0053).
+func (a *Agents) OnTaskRunsReady(fn func(server string)) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.runsHearer = fn
+}
+
+// reportTaskRunsReady passes on that an agent has runs to read.
+func (a *Agents) reportTaskRunsReady(server string) {
+	a.mu.Lock()
+	hear := a.runsHearer
+	a.mu.Unlock()
+	if hear != nil {
+		hear(server)
 	}
 }
 
@@ -375,8 +403,9 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
-		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
+		followsPace: hello.GetFollowsPace(),
+		pending:     map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	a.mu.Lock()
@@ -384,9 +413,29 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	delete(a.moved, server)
 	close(a.opened)
 	a.opened = make(chan struct{})
+	// The pace may have changed since the welcome said it.
+	pace, gen := a.pace, a.paceGen
 	a.mu.Unlock()
+	if gen > 0 {
+		go s.tellPace(pace, gen)
+	}
 	a.connected(server)
 	return s
+}
+
+// SetPace tells every agent how often to send stats from now on, as people start
+// and stop watching (ADR 0040).
+func (a *Agents) SetPace(pace time.Duration) {
+	a.mu.Lock()
+	a.pace = pace
+	a.paceGen++
+	gen := a.paceGen
+	sessions := slices.Collect(maps.Values(a.sessions))
+	a.mu.Unlock()
+	for _, s := range sessions {
+		// Apart, so a stream that's slow to take a message holds up no other.
+		go s.tellPace(pace, gen)
+	}
 }
 
 // connected runs the OnConnect hooks for server, each in its own
@@ -422,6 +471,21 @@ type Session struct {
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
 	readsUpdates bool
+	// followsPace says the agent sends stats at the pace each Pace says. One
+	// that doesn't is never told one.
+	followsPace bool
+	// readsOnePanel says the agent reads what 1Panel keeps (ADR 0056).
+	readsOnePanel bool
+	// terminals says the agent opens terminals, and openTerminals which it had
+	// as the stream opened, which is then.
+	terminals          bool
+	containerTerminals bool
+	openTerminals      []string
+	opened             time.Time
+	// managesFiles says the agent makes, moves, deletes and puts back files (ADR 0045).
+	managesFiles bool
+	// transfersFiles says the agent uploads and downloads them.
+	transfersFiles bool
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -431,6 +495,11 @@ type Session struct {
 	// draining stops calls once the agent said it is moving to a new
 	// stream: they go to the next one.
 	draining bool
+
+	// paceMu keeps the paces this stream hears in order, and paceGen is the
+	// latest it heard.
+	paceMu  sync.Mutex
+	paceGen uint64
 
 	mu      sync.Mutex
 	next    uint64
@@ -586,6 +655,71 @@ func (s *Session) writeCall(msg *agentv1.ConnectResponse) error {
 	}
 	return s.send(msg)
 }
+
+// tellPace tells the agent the pace setting gen says, unless it heard a later one
+// or doesn't follow a pace.
+func (s *Session) tellPace(pace time.Duration, gen uint64) {
+	if !s.followsPace {
+		return
+	}
+	s.paceMu.Lock()
+	defer s.paceMu.Unlock()
+	if gen <= s.paceGen {
+		return
+	}
+	s.paceGen = gen
+	// A stream that has ended takes nothing, and its next hears the pace as it opens.
+	_ = s.write(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Pace{Pace: &agentv1.Pace{StatsInterval: durationpb.New(pace)}}})
+}
+
+// DiskUseTimeout bounds a disk use call: the agent's own bound, and room for its
+// answer to come back.
+const DiskUseTimeout = 70 * time.Second
+
+// DiskUse asks the agent what takes the room on the disk that holds Docker's data.
+func (s *Session) DiskUse(ctx context.Context) (*dockwellv1.ServerDiskUse, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DiskUse{DiskUse: &agentv1.DiskUseCall{}}}, DiskUseTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetDiskUse() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetDiskUse(), nil
+}
+
+// Processes asks the agent what runs on its server.
+func (s *Session) Processes(ctx context.Context) (*dockwellv1.ProcessList, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Processes{Processes: &agentv1.ProcessesCall{}}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetProcesses() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetProcesses().GetList(), nil
+}
+
+// EndProcessTimeout bounds ending a process: SIGTERM's 10 s, SIGKILL's 5, and room
+// for the answer to come back.
+const EndProcessTimeout = 20 * time.Second
+
+// EndProcess asks the agent to end a process, and says what it was and whether it
+// took SIGKILL.
+func (s *Session) EndProcess(ctx context.Context, pid uint32, start uint64) (*agentv1.EndProcessResult, error) {
+	call := &agentv1.EndProcessCall{Pid: pid, StartTicks: start}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_EndProcess{EndProcess: call}}, EndProcessTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetEndProcess() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetEndProcess(), nil
+}
+
+// ErrOlderAgent is an agent that doesn't know a call, as one from before it.
+var ErrOlderAgent = errors.New("its agent is older than the control plane, and doesn't know how. Upgrade it by running the install script on the server again")
 
 // leftMoving reports a session that ended as its agent moved to a new stream.
 func (s *Session) leftMoving() bool {
@@ -769,6 +903,11 @@ func (s *Session) lost(c *agentv1.Call) error {
 	if c.GetSaveFile() != nil {
 		return fault.New(ErrLost, "%s's agent disconnected before it answered, so the file may or may not have saved. "+
 			"Open it again once the agent reconnects, to see what's there", s.name)
+	}
+	if c.GetMakeFile() != nil || c.GetMoveFile() != nil || c.GetDeleteFile() != nil || c.GetRestoreFile() != nil || c.GetPurgeDeleted() != nil ||
+		c.GetBeginUpload() != nil || c.GetFinishUpload() != nil {
+		return fault.New(ErrLost, "%s's agent disconnected before it answered, so this may or may not have happened. "+
+			"Look at the folder again once the agent reconnects", s.name)
 	}
 	return fault.New(ErrLost, "%s's agent disconnected before it answered. Try again once it reconnects", s.name)
 }
@@ -1237,6 +1376,31 @@ func (s *Session) Containers(ctx context.Context, container string) (*agentv1.Co
 		return nil, err
 	}
 	return r.GetContainers(), nil
+}
+
+// TaskRuns reads the runs a server's scheduled tasks have had past after, and lets
+// the agent go of those at or before it (ADR 0053).
+func (s *Session) TaskRuns(ctx context.Context, after string) (*agentv1.TaskRunsResult, error) {
+	if err := s.supports(resource.Ref{Kind: "task", Name: "runs"}); err != nil {
+		return nil, err
+	}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_TaskRuns{TaskRuns: &agentv1.TaskRunsCall{After: after}}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetTaskRuns(), nil
+}
+
+// RunTask runs a scheduled task now, and returns its run, started.
+func (s *Session) RunTask(ctx context.Context, ref resource.Ref) (*dockwellv1.TaskRun, error) {
+	if err := s.supports(ref); err != nil {
+		return nil, err
+	}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_RunTask{RunTask: &agentv1.RunTaskCall{Task: resourcepb.Ref(ref)}}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetRunTask().GetRun(), nil
 }
 
 // backupTaken reads what a step took.

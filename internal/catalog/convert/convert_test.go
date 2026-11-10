@@ -303,7 +303,7 @@ func TestAYoungVersionWaits(t *testing.T) {
 	c.Registry = &fakeRegistry{built: map[string]time.Time{"example/a:2.0": now.Add(-3 * 24 * time.Hour)}}
 	c.Overlays["a"] = written("Stands in", "ai")
 	r = c.Convert(t.Context(), App{ID: "a", Name: "A", Version: "2.0", Compose: []byte("services:\n  a:\n    image: example/a:2.0\n")})
-	if r.Entry != nil || !r.Again || !r.Young || r.LeftOut != "example/a:2.0 is 3 days old, and converts once it's 14" {
+	if r.Entry != nil || !r.Again || !r.Young || r.LeftOut != "example/a:2.0 is 3 days old, and converts once it's 14 days old" {
 		t.Errorf("a young version with none before it: %+v", r)
 	}
 }
@@ -339,7 +339,11 @@ func TestAnOverlayWins(t *testing.T) {
 	c := converter()
 	c.Overlays["notes"] = Overlay{Entry: &catalogv1.Entry{
 		Name: "Notes Server", Summary: "Keeps notes", Category: "notes", AppLicense: "MIT", FirstSteps: "Open it.",
-		Inputs: []*catalogv1.Input{{Name: "ADMIN_USER", Label: "Your name", Hint: "You sign in with it."}},
+		Description: "A place for your notes.", Icon: "/catalog-media/notes.webp",
+		Documentation: "https://example.com/docs", AppSource: "https://example.com/source",
+		Features:    []string{"Search your notes"},
+		Screenshots: []*catalogv1.Screenshot{{Path: "/catalog-media/notes-screen.webp", Caption: "Your notes", Source: "https://example.com/notes.png"}},
+		Inputs:      []*catalogv1.Input{{Name: "ADMIN_USER", Label: "Your name", Hint: "You sign in with it."}},
 	}}
 	r := convertFixture(t, c, "notes")
 	e := r.Entry
@@ -350,6 +354,15 @@ func TestAnOverlayWins(t *testing.T) {
 	if e.GetName() != "Notes Server" || e.GetAppLicense() != "MIT" || e.GetFirstSteps() != "Open it." ||
 		e.GetInputs()[i].GetLabel() != "Your name" || e.GetInputs()[i].GetHint() != "You sign in with it." || e.GetInputs()[i].GetDefaultValue() != "owner" {
 		t.Errorf("the overlay didn't win: %v", e)
+	}
+	written := c.Overlays["notes"].Entry
+	if e.GetDescription() != written.GetDescription() || e.GetIcon() != written.GetIcon() || e.GetDocumentation() != written.GetDocumentation() || e.GetAppSource() != written.GetAppSource() || !slices.Equal(e.GetFeatures(), written.GetFeatures()) || !proto.Equal(e.GetScreenshots()[0], written.GetScreenshots()[0]) {
+		t.Errorf("the overlay lost its presentation: %v", e)
+	}
+	e.Features[0] = "Changed"
+	e.Screenshots[0].Caption = "Changed"
+	if written.GetFeatures()[0] == "Changed" || written.GetScreenshots()[0].GetCaption() == "Changed" {
+		t.Error("the converted entry shares presentation with its overlay")
 	}
 }
 
@@ -464,7 +477,7 @@ func TestHelpers(t *testing.T) {
 	}
 	versions := []string{"1.10.0", "1.9.0", "1.9.0-alpine", "v2.0", "20250803"}
 	slices.SortFunc(versions, compareVersions)
-	if want := []string{"1.9.0", "1.9.0-alpine", "1.10.0", "v2.0", "20250803"}; !slices.Equal(versions, want) {
+	if want := []string{"1.9.0-alpine", "1.9.0", "1.10.0", "v2.0", "20250803"}; !slices.Equal(versions, want) {
 		t.Errorf("versions sort as %q, want %q", versions, want)
 	}
 	if got := renameVars("a=${PANEL_X} b=${PANEL_X:-${PANEL_Y}} c=$${PANEL_X}", map[string]string{"PANEL_X": "X", "PANEL_Y": "Y"}); got != "a=${X} b=${X:-${Y}} c=$${PANEL_X}" {

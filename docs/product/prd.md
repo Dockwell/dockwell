@@ -201,7 +201,7 @@ Launch (P0) makes Dockwell the best single-server panel with real CI/CD across a
 | Automate | Config as code: a dockwell.toml or Compose file round-trips with the UI; GitOps sync | P1 · Team |
 | Automate | MCP server with plan-first semantics: agents propose plans, humans approve destructive steps | P1 · Team |
 | Automate | Ops assistant that explains failed deploys and proposes fixes as plans | P1 · Team |
-| Catalog | Curated catalog of 200+ apps; versioned templates; upgrades take a backup first | P0 · Launch |
+| Catalog | Curated catalog of 200+ apps; browse each app's logo, description, features and genuine screenshots before choosing to install; versioned templates; upgrades take a backup first | P0 · Launch |
 | Catalog | Custom catalogs from a Git URL; import Coolify and Dokploy templates and any Compose file | P1 · Team |
 
 ## Signature experiences
@@ -409,7 +409,7 @@ The largest risk is scope — this is three products in one — so every mitigat
 - [x] State store: recommend SQLite for single-node and Postgres for HA, behind one interface. **Decided** ([ADR 0004](../adr/0004-sqlite-then-postgres.md)).
 - [x] Ingress: recommend Caddy by default, with OpenResty available per node for PHP-heavy hosts and 1Panel parity. **Decided:** Caddy first; OpenResty later ([ADR 0005](../adr/0005-caddy-ingress.md)).
 - [ ] Config-as-code format: a new dockwell.toml, or Compose with `x-dockwell` extensions. Recommend extended Compose for portability.
-- [x] Web stack: recommend React + TypeScript on a component library built from the Dockwell design system, with live updates over WebSocket. **Decided:** React + TypeScript; live updates use the schema's server streams, with WebSocket kept for the terminal ([ADR 0006](../adr/0006-web-react-typescript.md), [ADR 0003](../adr/0003-one-schema-protobuf-connect.md)).
+- [x] Web stack: recommend React + TypeScript on a component library built from the Dockwell design system, with live updates over WebSocket. **Decided:** React + TypeScript; live updates use the schema's server streams, the terminal's too ([ADR 0006](../adr/0006-web-react-typescript.md), [ADR 0003](../adr/0003-one-schema-protobuf-connect.md), [ADR 0037](../adr/0037-a-terminal-on-a-server.md)).
 - [ ] Name: Dockwell, chosen 3 Nov. dockwell.dev, dockwell.io and the GitHub org were free that day; register them and run a trademark search.
 - [x] Topology: one control plane and headless agents everywhere; HA control plane in the Organization tier and Cloud. ([ADR 0007](../adr/0007-one-binary-two-roles.md))
 - [x] Terminology: *server* in the UI, CLI, API and docs; *agent* for the binary; never *master* or *slave*.

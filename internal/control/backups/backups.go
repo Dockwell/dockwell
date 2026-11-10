@@ -360,7 +360,8 @@ func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, sto
 func (h *Handler) send(ctx context.Context, s *agentapi.Session, b store.Backup, ref resource.Ref, destination map[string]string, surface string) {
 	got, err := s.SendBackup(ctx, &agentv1.SendBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref)}, destination)
 	record := context.WithoutCancel(ctx)
-	action, told := "", Told{ID: b.ID, Volume: b.Volume, Destination: b.Destination}
+	told := Told{ID: b.ID, Volume: b.Volume, Destination: b.Destination}
+	var action string // what to put on the timeline, if anything
 	if err != nil {
 		action = ActionCopyFailed
 		told.Error, _ = resource.Explain(err)

@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { CatalogPage } from "../../features/catalog/CatalogPage";
-import { InstallSheet } from "../../features/catalog/InstallSheet";
+import { CatalogDetailPage } from "../../features/catalog/CatalogDetailPage";
+import { catalogSearch } from "../../features/catalog/search";
 
-/** Installing an app: its sheet over the catalog, as Catalog-Install draws it, at an address of its own. */
+/** An app's page comes before its separate installation form. */
 export const Route = createFileRoute("/_shell/catalog/$entryId")({
-  component: function InstallApp() {
+  validateSearch: catalogSearch,
+  component: function CatalogApp() {
     const { entryId } = Route.useParams();
-    const navigate = useNavigate();
+    const search = Route.useSearch();
     return (
-      <CatalogPage>
-        <InstallSheet id={entryId} onClose={() => void navigate({ to: "/catalog" })} />
-      </CatalogPage>
+      <CatalogDetailPage id={entryId} search={search}>
+        <Outlet />
+      </CatalogDetailPage>
     );
   },
 });

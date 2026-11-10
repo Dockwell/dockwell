@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { Code, ConnectError } from "@connectrpc/connect";
-import type { Database } from "@dockwell/api";
-import { Callout, Icon, PHONE_QUERY, TabNav, useMediaQuery } from "@dockwell/ui";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
+import { useTransport } from "@connectrpc/connect-query";
+import { CatalogService, type Database } from "@dockwell/api";
+import { Button, Callout, Icon, PHONE_QUERY, TabNav, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { createContext, type ReactNode, use } from "react";
@@ -14,10 +15,11 @@ import { useTimeWords } from "../../lib/time";
 import { HealthBadge, useHealthTitle, useHealthWords } from "../apps/Health";
 import { useHealth } from "../apps/health";
 import { usePlaces } from "../apps/useServices";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAgoNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
-import { engineAndVersion, firstReading, readOf, speaksSQL, useDatabase } from "./useDatabases";
+import { engineAndVersion, firstReading, readOf, speaksSQL, useDatabase, useOwnInstall } from "./useDatabases";
 import "../apps/Apps.css";
 import "./Databases.css";
 
@@ -121,6 +123,24 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
   const healthWords = useHealthWords();
   const places = usePlaces();
   const time = useTimeWords();
+  const sheet = useChangeSheet();
+  const transport = useTransport();
+  const install = useOwnInstall(db);
+  const next = install?.upgrade?.version ?? "";
+  const upgrade = install?.upgrade
+    ? () =>
+        sheet.open({
+          kind: "plan",
+          make: () => createClient(CatalogService, transport).upgradeCatalogInstall({ id: install.projectId }),
+        })
+    : undefined;
+  const upgradeWords =
+    next && next === install?.pin?.version ? (
+      <Trans>Review the change to {next}</Trans>
+    ) : (
+      <Trans>Upgrade to {next}</Trans>
+    );
+  const backedUp = db.volumeId !== "";
   const newest = db.newestBackup?.startedAt ? timestampDate(db.newestBackup.startedAt) : undefined;
   const now = useAgoNow(newest);
   const name = db.resource?.name ?? db.id;
@@ -148,9 +168,16 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
       phoneSub={[engineAndVersion(db, read), healthWords.word(health)].join(" · ")}
       backLink={<BackToDatabases />}
       actions={
-        <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: db.id }} icon="service">
-          <Trans>Open as an app</Trans>
-        </RouterButtonLink>
+        <>
+          <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: db.id }} icon="service">
+            <Trans>Open as an app</Trans>
+          </RouterButtonLink>
+          {upgrade ? (
+            <Button variant="primary" icon="deploy" onClick={upgrade}>
+              {upgradeWords}
+            </Button>
+          ) : null}
+        </>
       }
       className="database-page"
     >
@@ -158,6 +185,11 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
         <RouterTabLink to="/databases/$serviceId" params={{ serviceId: db.id }} activeOptions={{ exact: true }}>
           <Trans>Overview</Trans>
         </RouterTabLink>
+        {backedUp ? (
+          <RouterTabLink to="/databases/$serviceId/backups" params={{ serviceId: db.id }}>
+            <Trans>Backups</Trans>
+          </RouterTabLink>
+        ) : null}
         {speaksSQL(db.engine) ? (
           <RouterTabLink
             to="/databases/$serviceId/users"
@@ -174,6 +206,11 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
           <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: db.id }} icon="service" size="lg">
             <Trans>Open as an app</Trans>
           </RouterButtonLink>
+          {upgrade ? (
+            <Button variant="primary" icon="deploy" size="lg" onClick={upgrade}>
+              {upgradeWords}
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </Page>

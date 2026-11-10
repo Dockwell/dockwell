@@ -53,6 +53,36 @@ message Entry {
   // "The server's own network, to reach routes on loopback". A person approves
   // it in the plan, which says exactly what. Empty when it reaches nothing.
   string host_access = 15;
+  // The services its Compose file runs that are databases the app keeps its data
+  // in, by name, such as "db". A page names each as a database rather than an app.
+  // Empty leaves that to the images Dockwell knows as databases.
+  repeated string databases = 16;
+  // What the app does and who it is for, in the catalog's own words. Plain
+  // text, with blank lines between paragraphs; never HTML or Markdown.
+  string description = 17;
+  // The app's own logo, used to identify it. A local image path under
+  // /catalog-media/, served with the panel. Empty when no artwork is available.
+  string icon = 18;
+  // Genuine previews of the app, with captions identifying what they show.
+  // A command-line service need not have a screenshot.
+  repeated Screenshot screenshots = 19;
+  // The app's documentation, at an HTTPS address.
+  string documentation = 20;
+  // The app's source repository, distinct from the source of this entry.
+  string app_source = 21;
+  // A short list of things the app can do, in the catalog's own words.
+  repeated string features = 22;
+}
+
+// Screenshot is a preview a person can read before starting an installation.
+// Media ships with the panel; browsing never asks a third-party host for it.
+message Screenshot {
+  // A local raster image path under /catalog-media/.
+  string path = 1;
+  // What the screenshot shows, also used as its accessible description.
+  string caption = 2;
+  // Where the project published the original, at an HTTPS address.
+  string source = 3;
 }
 
 // Source is where an entry came from.
@@ -89,6 +119,21 @@ message Input {
   // its first password. Reading a log takes no passkey, so nothing may call it
   // sealed, and a person hears that before they apply.
   bool logged = 8;
+  // How a generated secret is written, for an app that reads it as a key: letters
+  // and digits unless set.
+  GenerateAs generate_as = 80;
+}
+
+// GenerateAs is how a generated secret is written.
+enum GenerateAs {
+  // Letters and digits, as many as generate says.
+  GENERATE_AS_UNSPECIFIED = 0;
+  // Hex digits, as many as generate says, as openssl rand -hex writes them.
+  GENERATE_AS_HEX = 1;
+  // As many random bytes as generate says, in standard base64 with its
+  // padding, as openssl rand -base64 writes them, for an app that decodes its
+  // key.
+  GENERATE_AS_BASE64 = 2;
 }
 
 // InputType is what an input takes.

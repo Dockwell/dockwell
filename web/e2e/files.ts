@@ -6,7 +6,8 @@
 // nowhere, and a phone. It edits and saves a file, on a desktop and a phone, finds
 // a file changed under it, keeps what it typed, stops at a link swapped in, keeps a
 // byte order mark, which this build's binary format loses on the way in, and finds
-// what it did on Activity.
+// what it did on Activity. It makes, renames, deletes and puts back a folder, and
+// uploads a file and an archive it unpacks, then downloads a file and a folder.
 // The CLI's token is refused. With --shots <dir> it saves screenshots at 1440, 800,
 // 390 and 360 px, light and dark.
 //
@@ -16,7 +17,16 @@
 // Chromium is the system's: CHROMIUM_PATH, or /usr/bin/chromium.
 
 import { type ChildProcess, execFileSync, spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -333,6 +343,81 @@ async function main() {
   await page.getByRole("link", { name: "Go up to" }).click();
   await page.getByText("nginx.conf").waitFor();
 
+  step("make a folder, rename it, delete it, and put it back");
+  await page.goto(at({ path: site }));
+  await page.getByRole("button", { name: "New folder" }).click();
+  const naming = page.getByRole("dialog", { name: /^New folder in/ });
+  await naming.getByRole("textbox", { name: "Name" }).fill("uploads");
+  await naming.getByRole("button", { name: "Make folder" }).click();
+  await naming.waitFor({ state: "detached" });
+  await page.getByText("uploads", { exact: true }).waitFor();
+  if (!statSync(join(site, "uploads")).isDirectory()) fail("the new folder isn't on the disk");
+  await page.getByText("uploads", { exact: true }).hover();
+  await page.getByRole("button", { name: "Rename uploads" }).click();
+  const renaming = page.getByRole("dialog", { name: "Rename uploads" });
+  await renaming.getByRole("textbox", { name: "Name" }).fill("media");
+  await renaming.getByRole("button", { name: "Rename" }).click();
+  await page.getByText("media", { exact: true }).waitFor();
+  if (existsSync(join(site, "uploads")) || !existsSync(join(site, "media"))) fail("the rename isn't on the disk");
+  await page.getByText("media", { exact: true }).hover();
+  await page.getByRole("button", { name: "Delete media" }).click();
+  const deleting = page.getByRole("dialog", { name: "Delete media" });
+  await deleting.getByText("and everything in it go to Recently deleted", { exact: false }).waitFor();
+  await deleting.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByText("Deleted media").waitFor();
+  if (existsSync(join(site, "media"))) fail("the deleted folder is still on the disk");
+  await shoot(page, "deleted");
+  await page.getByRole("button", { name: "Put back" }).click();
+  await page.getByText("media", { exact: true }).waitFor();
+  if (!existsSync(join(site, "media"))) fail("what was put back isn't on the disk");
+
+  step("upload a file and an archive to unpack, then download a file and a folder");
+  await page.goto(at({ path: site }));
+  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  const uploading = page.getByRole("dialog", { name: /^Upload to/ });
+  await uploading.getByText("Up to 16 GB a file", { exact: false }).waitFor();
+  const backup = Buffer.alloc(3 << 20, "dockwell ");
+  const themeDir = mkdtempSync(join(tmpdir(), "dockwell-theme-"));
+  writeFileSync(join(themeDir, "index.html"), "<h1>theme</h1>\n");
+  const theme = join(mkdtempSync(join(tmpdir(), "dockwell-upload-")), "theme.tar.gz");
+  execFileSync("tar", ["czf", theme, "-C", themeDir, "index.html"]);
+  await uploading.getByLabel("Choose files to upload").setInputFiles([
+    { name: "backup.sql", mimeType: "application/octet-stream", buffer: backup },
+    { name: "theme.tar.gz", mimeType: "application/gzip", buffer: readFileSync(theme) },
+  ]);
+  await uploading.getByRole("switch", { name: /Unpack archives/ }).click();
+  await uploading.getByText("unpacks into theme", { exact: false }).waitFor();
+  await shoot(page, "upload");
+  await uploading.getByRole("button", { name: "Upload 2 files" }).click();
+  await uploading.getByText("Uploaded, and unpacked 1 item into theme").waitFor();
+  await uploading.getByText(/^Uploaded · /).waitFor();
+  await shoot(page, "uploaded");
+  if (!readFileSync(join(site, "backup.sql")).equals(backup)) fail("the upload isn't on the disk as it was sent");
+  if (readFileSync(join(site, "theme", "index.html"), "utf8") !== "<h1>theme</h1>\n") fail("the archive didn't unpack");
+  await uploading.getByRole("button", { name: "Done" }).click();
+  await uploading.waitFor({ state: "detached" });
+  await page.getByRole("row", { name: /backup\.sql/ }).hover();
+  const [file] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("link", { name: "Download backup.sql" }).click(),
+  ]);
+  if (file.suggestedFilename() !== "backup.sql" || !readFileSync(await file.path()).equals(backup)) {
+    fail(`a download saved as ${file.suggestedFilename()} isn't what's on the server`);
+  }
+  await page.getByRole("row", { name: /^conf\.d/ }).hover();
+  const [folder] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("link", { name: "Download conf.d as a .zip" }).click(),
+  ]);
+  if (
+    folder.suggestedFilename() !== "conf.d.zip" ||
+    readFileSync(await folder.path())
+      .subarray(0, 2)
+      .toString() !== "PK"
+  ) {
+    fail(`a folder's download saved as ${folder.suggestedFilename()} isn't a zip`);
+  }
+
   step("a file on a phone takes the screen, and its header goes back");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(at({ path: site }));
@@ -364,6 +449,34 @@ async function main() {
     .first()
     .waitFor();
   await page.getByText("Couldn't open /proc on").first().waitFor();
+  await page
+    .getByText(`Made ${join(site, "uploads")} on`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Moved ${join(site, "uploads")} to ${join(site, "media")} on`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Deleted ${join(site, "media")} on`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Put back ${join(site, "media")} on`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Uploaded ${join(site, "theme.tar.gz")} to`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Downloaded ${join(site, "backup.sql")} from`)
+    .first()
+    .waitFor();
+  await page
+    .getByText(`Downloaded ${join(site, "conf.d")} from`)
+    .first()
+    .waitFor();
   await shoot(page, "activity");
   await page.getByText(`Saved ${conf} on`).first().click();
   await page.getByRole("link", { name: "Open the file" }).click();

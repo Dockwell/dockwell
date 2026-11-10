@@ -14,7 +14,13 @@ package apinames
 // noun of the methods of dockwell.v1, and one for each kind of resource.
 func Commands() []string {
 	return []string{
+		"alert-channels",
+		"alert-deliveries",
+		"alert-mutes",
+		"alert-rules",
+		"alerts",
 		"api-tokens",
+		"audit-events",
 		"auth-state",
 		"backup-destinations",
 		"backup-policies",
@@ -24,6 +30,8 @@ func Commands() []string {
 		"claim-link",
 		"compose",
 		"containers",
+		"control-plane",
+		"database-users",
 		"databases",
 		"domains",
 		"drift",
@@ -32,9 +40,12 @@ func Commands() []string {
 		"files",
 		"firewall-rules",
 		"health",
+		"import",
 		"logs",
+		"members",
 		"networks",
 		"passkeys",
+		"processes",
 		"projects",
 		"resources",
 		"routes",
@@ -44,9 +55,12 @@ func Commands() []string {
 		"sessions",
 		"settings",
 		"system",
+		"tasks",
+		"terminals",
 		"totp",
 		"updates",
 		"variables",
 		"volumes",
+		"websites",
 	}
 }

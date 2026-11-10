@@ -39,7 +39,7 @@ shopt -s inherit_errexit
 # listed. Licenses and links and Install, every job always run, and Build of
 # main runs on every pull request, as it can't run this before it builds.
 # every-leg isn't a job: it runs every install leg, not only some.
-ci_jobs="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load e2e schema panel"
+ci_jobs="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load transfers-load e2e schema panel"
 install_jobs="snapshot budgets install systemd every-leg"
 every_job="$ci_jobs $install_jobs"
 
@@ -47,7 +47,7 @@ every_job="$ci_jobs $install_jobs"
 declare -A names=(
   [go]="Go" [docker-go]="Go on Docker" [caddy-go]="Go on Caddy" [docker-e2e]="Service end to end on Docker"
   [catalog-docker]="Catalog on Docker" [docker-panel]="Panel end to end on Docker" [logs-load]="Log load"
-  [containers-load]="Hundreds of containers" [e2e]="Panel end to end" [schema]="API schema" [panel]="Panel"
+  [containers-load]="Hundreds of containers" [transfers-load]="Transfer load" [e2e]="Panel end to end" [schema]="API schema" [panel]="Panel"
   [snapshot]="Release snapshot" [budgets]="Memory budgets"
   [install]="Install on each image" [systemd]="Install with systemd" [every-leg]="every install leg"
 )
@@ -115,7 +115,7 @@ jobs_for() {
   internal/catalog/entries/*.yaml) echo "$catalog" ;;
   # The Go tests source it, the load tests and the budgets read its memory
   # limit, and Service end to end on Docker uninstalls with it.
-  scripts/install.sh) echo "go containers-load docker-e2e $install $budgets" ;;
+  scripts/install.sh) echo "go containers-load transfers-load docker-e2e $install $budgets" ;;
   # A Go test runs it, and so do the install legs, under mawk, gawk and busybox.
   scripts/connected.awk) echo "$go $install" ;;
   scripts/install-test/* | scripts/sigstore_trusted_root.json) echo "$install" ;;

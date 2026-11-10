@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -1027,4 +1028,66 @@ func TestSlowDownRoundsUp(t *testing.T) {
 			t.Errorf("SlowDown{%s} = %q, want %q", wait, got, want)
 		}
 	}
+}
+
+// How someone can sign in now counts what signing in would take: a passkey for an
+// address the panel no longer has, or flagged as copied, signs in nowhere, and code
+// sign-in that's locked doesn't sign in until the owner lifts the lock.
+func TestSignInOfSaysWhatSignsInNow(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := newFixture(t, backend, "")
+		owner := f.claim(t, localhost, &authtest.Authenticator{})
+		now := f.clock.now()
+		err := f.db.Update(t.Context(), func(tx *store.Tx) error {
+			for _, p := range []store.Passkey{
+				{ID: "pky_old", UserID: owner.User.ID, CredentialID: []byte("old"), RPID: "old.example.com", Name: "Old address", Record: []byte("{}"), CreatedAt: now},
+				{ID: "pky_copy", UserID: owner.User.ID, CredentialID: []byte("copy"), RPID: "localhost", Name: "Copied", Record: []byte("{}"), CreatedAt: now},
+			} {
+				if err := tx.CreatePasskey(t.Context(), p); err != nil {
+					return err
+				}
+			}
+			return tx.FlagPasskeyClone(t.Context(), "pky_copy", now)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		read := func() SignIn {
+			t.Helper()
+			var in SignIn
+			err := f.db.View(t.Context(), func(tx *store.Tx) error {
+				u, err := tx.GetUser(t.Context(), owner.User.ID)
+				if err != nil {
+					return err
+				}
+				in, err = f.svc.SignInOf(t.Context(), tx, &u)
+				return err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return in
+		}
+		if in := read(); in.Passkeys != 1 || !slices.Equal(in.Addresses, []string{"localhost"}) || in.Codes || in.CodesLocked {
+			t.Errorf("before codes, signs in with %+v, want the one passkey that works, at localhost", in)
+		}
+		f.enableTOTP(t, ownerPrincipal(owner))
+		if in := read(); !in.Codes || in.CodesLocked || in.RecoveryCodesLeft != 10 {
+			t.Errorf("with codes, signs in with %+v, want codes and 10 recovery codes", in)
+		}
+		err = f.db.Update(t.Context(), func(tx *store.Tx) error {
+			for range lockAfter {
+				if _, err := tx.RecordCodeFailure(t.Context(), guardBucket(owner.User.Email), now, lockAfter); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if in := read(); in.Codes || !in.CodesLocked {
+			t.Errorf("with codes locked, signs in with %+v, want codes locked and not counted", in)
+		}
+	})
 }

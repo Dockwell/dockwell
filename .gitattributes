@@ -2,6 +2,10 @@
 
 *.woff2 binary
 *.png   binary
+*.webp  binary
+
+# Keep the projects' source notices verbatim, including their trailing spaces.
+/web/public/catalog-media/licenses/** linguist-vendored=true whitespace=-blank-at-eol
 
 # Generated: `make generate` (proto/, tokens), the router plugin (routeTree),
 # and the package managers.

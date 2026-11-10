@@ -20,9 +20,9 @@ failed=0
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
-all="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load e2e schema panel snapshot budgets install systemd every-leg"
+all="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load transfers-load e2e schema panel snapshot budgets install systemd every-leg"
 # Go code: every CI job, the budgets, and some install legs.
-go="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load e2e schema panel snapshot budgets install systemd"
+go="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load transfers-load e2e schema panel snapshot budgets install systemd"
 web="schema panel e2e docker-panel"
 install="snapshot install systemd every-leg"
 
@@ -64,6 +64,7 @@ picks "$go" internal/cli/join.go
 picks "$go" cmd/dockwell/main.go
 picks "$go" proto/dockwell/v1/servers.proto gen/openapi/openapi.yaml
 picks "$go" scripts/docker-e2e.sh
+picks "$go" scripts/transfers-load.sh
 picks "$go" scripts/fakedocker/main.go
 picks "$go" scripts/check-panel-size.sh
 picks "$go" internal/catalog/catalog.go
@@ -85,7 +86,7 @@ picks "schema panel" packages/mockview/src/mocks.ts
 picks "go docker-e2e catalog-docker e2e" internal/catalog/entries/redis.yaml
 picks "go docker-e2e catalog-docker e2e" internal/catalog/entries/redis.yaml internal/catalog/entries/mariadb.yaml
 # Service end to end on Docker uninstalls with it.
-picks "go containers-load docker-e2e snapshot budgets $install" scripts/install.sh
+picks "go containers-load transfers-load docker-e2e snapshot budgets $install" scripts/install.sh
 # It runs inside the install legs, under mawk, gawk and busybox awk.
 picks "$go $install" scripts/connected.awk
 picks "$install" scripts/install-test/run.sh

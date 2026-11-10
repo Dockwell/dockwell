@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -146,12 +147,19 @@ func Demux(r io.Reader, stdout, stderr io.Writer) error {
 	var head [8]byte
 	var system []byte
 	for {
-		if _, err := io.ReadFull(r, head[:]); err != nil {
-			if errors.Is(err, io.EOF) {
+		if n, err := io.ReadFull(r, head[:]); err != nil {
+			// The engine closes the connection when the process ends. If the
+			// process left some of its stdin unread, the kernel says so to the
+			// next read here as a reset in place of the end, once all the engine
+			// sent has been read. How it went is its exit code's to say.
+			if errors.Is(err, io.EOF) || n == 0 && errors.Is(err, syscall.ECONNRESET) {
 				break
 			}
 			if errors.Is(err, net.ErrClosed) {
 				return err
+			}
+			if n == 0 {
+				return fmt.Errorf("docker's stream broke off: %w", err)
 			}
 			return fmt.Errorf("docker's stream ended partway through a frame: %w", err)
 		}

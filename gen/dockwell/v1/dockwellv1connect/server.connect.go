@@ -43,6 +43,9 @@ const (
 	// ServerServiceWatchServersProcedure is the fully-qualified name of the ServerService's
 	// WatchServers RPC.
 	ServerServiceWatchServersProcedure = "/dockwell.v1.ServerService/WatchServers"
+	// ServerServiceGetServerDiskUseProcedure is the fully-qualified name of the ServerService's
+	// GetServerDiskUse RPC.
+	ServerServiceGetServerDiskUseProcedure = "/dockwell.v1.ServerService/GetServerDiskUse"
 	// ServerServiceSetServerPublicAddressProcedure is the fully-qualified name of the ServerService's
 	// SetServerPublicAddress RPC.
 	ServerServiceSetServerPublicAddressProcedure = "/dockwell.v1.ServerService/SetServerPublicAddress"
@@ -58,6 +61,13 @@ type ServerServiceClient interface {
 	// end of that snapshot, and then streams each change within a second of
 	// the agent reporting it. It has no REST path, as streams have none.
 	WatchServers(context.Context, *connect.Request[v1.WatchServersRequest]) (*connect.ServerStreamForClient[v1.WatchServersResponse], error)
+	// GetServerDiskUse says what takes the room on the disk that holds Docker's
+	// data: images, containers, volumes, the build cache and logs, and the rest.
+	// The server's agent asks Docker when this is called, and only then, as
+	// Docker adds up every volume to answer, which takes a while on a big disk.
+	// An answer stands for 30 s, so a page opened twice asks once. See
+	// docs/adr/0040-a-servers-live-use.md.
+	GetServerDiskUse(context.Context, *connect.Request[v1.GetServerDiskUseRequest]) (*connect.Response[v1.GetServerDiskUseResponse], error)
 	// SetServerPublicAddress records a server's public address, as a person
 	// knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
 	// address are kept apart. An empty address goes back to what Dockwell finds
@@ -97,6 +107,13 @@ func NewServerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(serverServiceMethods.ByName("WatchServers")),
 			connect.WithClientOptions(opts...),
 		),
+		getServerDiskUse: connect.NewClient[v1.GetServerDiskUseRequest, v1.GetServerDiskUseResponse](
+			httpClient,
+			baseURL+ServerServiceGetServerDiskUseProcedure,
+			connect.WithSchema(serverServiceMethods.ByName("GetServerDiskUse")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		setServerPublicAddress: connect.NewClient[v1.SetServerPublicAddressRequest, v1.SetServerPublicAddressResponse](
 			httpClient,
 			baseURL+ServerServiceSetServerPublicAddressProcedure,
@@ -111,6 +128,7 @@ type serverServiceClient struct {
 	listServers            *connect.Client[v1.ListServersRequest, v1.ListServersResponse]
 	getServer              *connect.Client[v1.GetServerRequest, v1.GetServerResponse]
 	watchServers           *connect.Client[v1.WatchServersRequest, v1.WatchServersResponse]
+	getServerDiskUse       *connect.Client[v1.GetServerDiskUseRequest, v1.GetServerDiskUseResponse]
 	setServerPublicAddress *connect.Client[v1.SetServerPublicAddressRequest, v1.SetServerPublicAddressResponse]
 }
 
@@ -129,6 +147,11 @@ func (c *serverServiceClient) WatchServers(ctx context.Context, req *connect.Req
 	return c.watchServers.CallServerStream(ctx, req)
 }
 
+// GetServerDiskUse calls dockwell.v1.ServerService.GetServerDiskUse.
+func (c *serverServiceClient) GetServerDiskUse(ctx context.Context, req *connect.Request[v1.GetServerDiskUseRequest]) (*connect.Response[v1.GetServerDiskUseResponse], error) {
+	return c.getServerDiskUse.CallUnary(ctx, req)
+}
+
 // SetServerPublicAddress calls dockwell.v1.ServerService.SetServerPublicAddress.
 func (c *serverServiceClient) SetServerPublicAddress(ctx context.Context, req *connect.Request[v1.SetServerPublicAddressRequest]) (*connect.Response[v1.SetServerPublicAddressResponse], error) {
 	return c.setServerPublicAddress.CallUnary(ctx, req)
@@ -144,6 +167,13 @@ type ServerServiceHandler interface {
 	// end of that snapshot, and then streams each change within a second of
 	// the agent reporting it. It has no REST path, as streams have none.
 	WatchServers(context.Context, *connect.Request[v1.WatchServersRequest], *connect.ServerStream[v1.WatchServersResponse]) error
+	// GetServerDiskUse says what takes the room on the disk that holds Docker's
+	// data: images, containers, volumes, the build cache and logs, and the rest.
+	// The server's agent asks Docker when this is called, and only then, as
+	// Docker adds up every volume to answer, which takes a while on a big disk.
+	// An answer stands for 30 s, so a page opened twice asks once. See
+	// docs/adr/0040-a-servers-live-use.md.
+	GetServerDiskUse(context.Context, *connect.Request[v1.GetServerDiskUseRequest]) (*connect.Response[v1.GetServerDiskUseResponse], error)
 	// SetServerPublicAddress records a server's public address, as a person
 	// knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
 	// address are kept apart. An empty address goes back to what Dockwell finds
@@ -179,6 +209,13 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(serverServiceMethods.ByName("WatchServers")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serverServiceGetServerDiskUseHandler := connect.NewUnaryHandler(
+		ServerServiceGetServerDiskUseProcedure,
+		svc.GetServerDiskUse,
+		connect.WithSchema(serverServiceMethods.ByName("GetServerDiskUse")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	serverServiceSetServerPublicAddressHandler := connect.NewUnaryHandler(
 		ServerServiceSetServerPublicAddressProcedure,
 		svc.SetServerPublicAddress,
@@ -193,6 +230,8 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 			serverServiceGetServerHandler.ServeHTTP(w, r)
 		case ServerServiceWatchServersProcedure:
 			serverServiceWatchServersHandler.ServeHTTP(w, r)
+		case ServerServiceGetServerDiskUseProcedure:
+			serverServiceGetServerDiskUseHandler.ServeHTTP(w, r)
 		case ServerServiceSetServerPublicAddressProcedure:
 			serverServiceSetServerPublicAddressHandler.ServeHTTP(w, r)
 		default:
@@ -214,6 +253,10 @@ func (UnimplementedServerServiceHandler) GetServer(context.Context, *connect.Req
 
 func (UnimplementedServerServiceHandler) WatchServers(context.Context, *connect.Request[v1.WatchServersRequest], *connect.ServerStream[v1.WatchServersResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.WatchServers is not implemented"))
+}
+
+func (UnimplementedServerServiceHandler) GetServerDiskUse(context.Context, *connect.Request[v1.GetServerDiskUseRequest]) (*connect.Response[v1.GetServerDiskUseResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.GetServerDiskUse is not implemented"))
 }
 
 func (UnimplementedServerServiceHandler) SetServerPublicAddress(context.Context, *connect.Request[v1.SetServerPublicAddressRequest]) (*connect.Response[v1.SetServerPublicAddressResponse], error) {

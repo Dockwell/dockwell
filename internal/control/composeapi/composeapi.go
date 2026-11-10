@@ -297,16 +297,66 @@ func (h *Handler) AdoptCompose(ctx context.Context, req *connect.Request[dockwel
 	if m.GetName() == "" {
 		return nil, invalid(errors.New("the request names no Compose project. Pass one in name, such as shop"))
 	}
-	s, list, err := h.containers.InProject(ctx, m.GetServer(), m.GetName())
+	t, err := h.ReadTaking(ctx, m.GetServer(), m.GetName(), m.GetProject(), m.GetEnvironment())
+	if err != nil {
+		return nil, err
+	}
+	if len(t.Refusals) > 0 {
+		return nil, invalid(fmt.Errorf("%s. It all stays as it is, and nothing was taken on. Deal with those, then take the project on, or leave it outside Dockwell", strings.Join(t.Refusals, ". ")))
+	}
+	c, err := h.changes.Propose(ctx, "Take on "+m.GetName(), t.Edits, nil, changes.Also{Edits: t.Made, Adopts: t.Adopts, Notes: t.Notes})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.AdoptComposeResponse{Change: c}), nil
+}
+
+// Taking is what taking on a Compose project would plan, and what's in the way of
+// it, as AdoptCompose reads it.
+type Taking struct {
+	// Project is the project it goes into.
+	Project string
+	// Edits make a service of each of its containers.
+	Edits []*dockwellv1.Edit
+	// Made makes the project and its environment, where they're new.
+	Made []revision.Edit
+	// Adopts says which container each edit takes on.
+	Adopts map[resource.Ref]changes.Adoption
+	// Notes are what its plan says of taking it on.
+	Notes []revision.Note
+	// Refusals are what's in the way of taking it on, each in words a person can act on.
+	Refusals []string
+}
+
+// ReadTaking reads what taking on the Compose project name on server would plan,
+// into project and environment, as AdoptCompose takes them. What's in the way is
+// collected, whatever kind it is, so a person fixes it once rather than meeting it
+// one thing at a time.
+func (h *Handler) ReadTaking(ctx context.Context, server, name, project, environment string) (*Taking, error) {
+	r, err := h.containers.ReadRunning(ctx, server)
+	if err != nil {
+		return nil, err
+	}
+	return h.ReadTakingIn(ctx, r, name, project, environment)
+}
+
+// ReadRunning reads what a server runs, once, for ReadTakingIn and TakenOn.
+func (h *Handler) ReadRunning(ctx context.Context, server string) (*containers.Running, error) {
+	return h.containers.ReadRunning(ctx, server)
+}
+
+// ReadTakingIn is ReadTaking, of what r read the server running.
+func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name, project, environment string) (*Taking, error) {
+	s := r.Server
+	list, err := r.InProject(name)
 	if err != nil {
 		return nil, err
 	}
 	byName := make(map[string][]*dockwellv1.ServerContainer, len(list))
 	for _, c := range list {
-		name := containers.ServiceName(c)
-		byName[name] = append(byName[name], c)
+		byName[containers.ServiceName(c)] = append(byName[containers.ServiceName(c)], c)
 	}
-	place, err := h.destination(ctx, m.GetProject(), m.GetEnvironment(), containers.Label(m.GetName()))
+	place, err := h.destination(ctx, project, environment, containers.Label(name))
 	if err != nil {
 		return nil, err
 	}
@@ -314,55 +364,100 @@ func (h *Handler) AdoptCompose(ctx context.Context, req *connect.Request[dockwel
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	// Each thing in the way is collected, whatever kind it is, so a person fixes them
-	// once rather than meeting them one at a time.
-	var edits []*dockwellv1.Edit
-	var refusals []string
+	t := &Taking{Project: place.project, Made: place.made, Adopts: make(map[resource.Ref]changes.Adoption, len(byName))}
 	var manager, folder string
-	adopts := make(map[string]changes.Adoption, len(byName))
-	for _, name := range slices.Sorted(maps.Keys(byName)) {
-		c := byName[name][0]
-		if len(byName[name]) > 1 {
-			refusals = append(refusals, oneService(name, byName[name]))
+	for _, svcName := range slices.Sorted(maps.Keys(byName)) {
+		c := byName[svcName][0]
+		if len(byName[svcName]) > 1 {
+			t.Refusals = append(t.Refusals, oneService(svcName, byName[svcName]))
 		}
-		if slices.Contains(running, name) {
-			refusals = append(refusals, fmt.Sprintf("the project %s runs a service %s already, so it can't take on %s as well. Pass another project", place.project, name, c.GetName()))
+		if slices.Contains(running, svcName) {
+			t.Refusals = append(t.Refusals, fmt.Sprintf("the project %s runs a service %s already, so it can't take on %s as well. Pass another project", place.project, svcName, c.GetName()))
 		}
-		ref := resource.Ref{Kind: service.Kind, Scope: place.environment, Name: name}
+		ref := resource.Ref{Kind: service.Kind, Scope: place.environment, Name: svcName}
 		svc, found, err := h.containers.ReadAs(ctx, s, c, ref)
 		if err != nil {
 			return nil, err
 		}
 		if why := containers.Refusal(c.GetName(), found); why != "" {
-			refusals = append(refusals, why)
+			t.Refusals = append(t.Refusals, why)
 		}
 		manager, folder = cmp.Or(manager, found.Manager), cmp.Or(folder, found.Folder)
-		adopts[name] = changes.Adoption{ID: c.GetId(), Name: c.GetName()}
-		edits = append(edits, &dockwellv1.Edit{
-			Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: place.environment, Name: name},
+		t.Adopts[ref] = changes.Adoption{ID: c.GetId(), Name: c.GetName()}
+		t.Edits = append(t.Edits, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: place.environment, Name: svcName},
 			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: svc}},
 			Servers:  []string{s.ID},
 		})
-	}
-	if len(refusals) > 0 {
-		return nil, invalid(fmt.Errorf("%s. It all stays as it is, and nothing was taken on. Deal with those, then take the project on, or leave it outside Dockwell", strings.Join(refusals, ". ")))
 	}
 	names := make([]string, 0, len(list))
 	for _, c := range list {
 		names = append(names, c.GetName())
 	}
-	c, err := h.changes.Propose(ctx, "Take on "+m.GetName(), edits, nil, changes.Also{
-		Edits: place.made, Adopts: adopts,
-		Notes: []revision.Note{
-			{Reason: "takes_on", Message: fmt.Sprintf(
-				"Takes on %s as it is: its containers keep running, with no restart, on the networks and volumes they have. Changing an image later replaces that container, under a name of Dockwell's, and it keeps its volumes. What it wrote anywhere else goes with the old container.", m.GetName())},
-			revision.ManagedElsewhere(resource.Elsewhere{Manager: manager, Container: human.List(names), Project: m.GetName(), Folder: folder}),
-		},
+	t.Notes = []revision.Note{
+		{Reason: "takes_on", Message: fmt.Sprintf(
+			"Takes on %s as it is: its containers keep running, with no restart, on the networks and volumes they have. Changing an image later replaces that container, under a name of Dockwell's, and it keeps its volumes. What it wrote anywhere else goes with the old container.", name)},
+		revision.ManagedElsewhere(resource.Elsewhere{Manager: manager, Container: human.List(names), Project: name, Folder: folder}),
+	}
+	return t, nil
+}
+
+// TakenOn is the project of Dockwell's that runs the container called name, as r
+// read the server, or "" where none does: one taken on keeps its name, and runs in
+// its environment's Compose project.
+func (h *Handler) TakenOn(ctx context.Context, r *containers.Running, name string) (string, error) {
+	env := r.RunsAs(name)
+	if env == "" {
+		return "", nil
+	}
+	project := ""
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			for _, e := range p.Environments {
+				if docker.Project(e.ID) == env {
+					project = p.Name
+				}
+			}
+		}
+		return nil
 	})
 	if err != nil {
-		return nil, err
+		return "", h.internal(ctx, err)
 	}
-	return connect.NewResponse(&dockwellv1.AdoptComposeResponse{Change: c}), nil
+	return project, nil
+}
+
+// FreeProject is want, or, where a project has that name, the first of
+// want-1panel, want-1panel-2 and on that none has: a project to take something on
+// into that's no one else's.
+func (h *Handler) FreeProject(ctx context.Context, want string) (string, error) {
+	var names []string
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		for _, p := range tree.Projects {
+			names = append(names, p.Name)
+		}
+		return err
+	})
+	if err != nil {
+		return "", h.internal(ctx, err)
+	}
+	for i := 0; ; i++ {
+		name := want
+		switch {
+		case i == 1:
+			name = want + "-1panel"
+		case i > 1:
+			name = fmt.Sprintf("%s-1panel-%d", want, i)
+		}
+		if !slices.Contains(names, name) {
+			return name, nil
+		}
+	}
 }
 
 // oneService says why containers that come to one service's name can't be taken on:

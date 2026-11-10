@@ -1,6 +1,6 @@
 # Files: threat model
 
-Files hands a browser a server's disk, to read and to write, through an agent that runs as root. This says what that protects, from whom, what's refused, and what it doesn't protect. The design is in [ADR 0032](../adr/0032-files-on-a-server.md), beside the threat models for [secrets](secrets.md) and [sign-in](sign-in.md). The code is in `internal/agent/files` and `internal/control/files`.
+Files hands a browser a server's disk, to read and to write, through an agent that runs as root. This says what that protects, from whom, what's refused, and what it doesn't protect. The design is in [ADR 0032](../adr/0032-files-on-a-server.md) and, for making, moving, deleting, uploading and downloading, [ADR 0045](../adr/0045-a-file-manager-on-a-server.md), beside the threat models for [secrets](secrets.md) and [sign-in](sign-in.md). The code is in `internal/agent/files` and `internal/control/files`.
 
 ## What there is to protect
 
@@ -15,7 +15,7 @@ Files hands a browser a server's disk, to read and to write, through an agent th
 
 ## What's refused
 
-The agent refuses to read or save these whoever asks, over every surface, and no step-up opens them. Each refusal says why, and points at SSH. Every refused or failed read or save, and every refused listing, is on Activity, whatever the reason, so a miss shows as a hit does. A listing that works isn't, as it returns names and runs on every click, and neither is one that can't reach its server, as the panel asks again by itself.
+The agent refuses to read or save these whoever asks, over every surface, and no step-up opens them. Each refusal says why, and points at SSH. Every refused or failed read or save, and every refused listing, is on Activity, whatever the reason, so a miss shows as a hit does. The one exception is a form's lookup (`ListFilesRequest.lookup`), such as a website's, which looks whether a folder is there as a person types it: what it can't list goes on no Activity, as it's a guess at a path, and it asks only a person's session, as every listing does. A listing that works isn't, as it returns names and runs on every click, and neither is one that can't reach its server, as the panel asks again by itself.
 
 | Refused | Why |
 | --- | --- |
@@ -47,6 +47,8 @@ The agent refuses to read or save these whoever asks, over every surface, and no
 | It tries to | What happens |
 | --- | --- |
 | List a directory, read a file or save one, with any scope | Refused with `needs_session`, by the interceptor and again by the handler. Tested over Connect and REST, read-only and read-write |
+| Make, move or delete a file, or list, put back or delete what's in Recently deleted | Refused the same way. Tested over REST, read-only and read-write |
+| Begin, send or finish an upload, or download a file or a folder | Refused the same way, with nothing on record and nothing sent. Tested over REST, read-only and read-write |
 | Use a person's session beside it | The token alone counts, and is refused ([ADR 0016](../adr/0016-scoped-api-tokens.md)) |
 
 ### A stolen session
@@ -68,7 +70,15 @@ The agent refuses to read or save these whoever asks, over every surface, and no
 | Read what a volume held by restoring its backup into an ordinary one of its name | A backup says what its volume reached, and a restore asks for that, whatever the volume it comes back into reaches. Tested |
 | Turn a folder into a link, for what mounts it to follow when it next starts | The agent checks where a path leads right before every start it asks for, keeps what a moved path stopped from starting by itself, and checks a restore before it writes. Docker's own restarts ask nobody, so a read-write mount that holds another's source counts as root at plan time, however either path is written, and a token can't change what runs in it. Tested |
 | Save a file without leaving a record | It can't. `file.saving` is written before the agent is asked, and if it can't be written nothing is. Tested |
+| Make, move, delete or put back a way in, such as moving its own key over `authorized_keys`, or a folder into a home | It can't without the person's passkey, for those paths on that server, by the rule a save goes by, on each end of a move. A folder counts for every account's home it is or holds. Each one is on the timeline, in a warning tone where it took a passkey. Tested |
+| Delete what the server runs on, or move it aside to put its own in place | The same: a delete under a system path asks for a passkey, and a folder that holds what's refused, or a mount, isn't moved or deleted at all. Tested |
+| Delete for good, so nothing can be put back | It can, with a session, as a person can. It's on the timeline as deleted for good. What's in Recently deleted already is out of Files' reach until it's put back |
 | Write over the install's key, or a secret's value in Docker's state | Refused: a save takes the same walk as a read |
+| Upload a way in, such as `authorized_keys`, or a cron job | It can't without the person's passkey, for that path on that server, when the upload begins, as making it would. One that's become a way in by the time it finishes starts again. Each upload is on the timeline with its size, in a warning tone where it took a passkey. Tested |
+| Upload an archive that unpacks a way in, or a credentials file | The passkey is for the archive, not what's in it, so an entry that would be a way in, or that the refused list holds as credentials, stops the unpack, and what it made goes. Tested |
+| Download what a read refuses, or a key inside a folder | Refused by the same walk. A folder's archive leaves out what a read would refuse in it, and a private key or a line of a password file anywhere in what's sent stops the download before it goes, by the rules a read goes by in a file's first MiB, across parts. Tested, past the first MiB, for an encrypted key in the old PEM form and a hash line |
+| Download without leaving a record | It can't. `file.download` is written before any of it goes, and if it can't be written nothing goes. Tested |
+| Fill the server's disk with uploads | It can, up to what's free when each begins, as it can with a plan. An upload not finished within a day goes, and one the panel leaves out or stops when its sheet closes goes at once (`CancelUpload`) |
 | Force a cross-site request | Reading a file is a POST, so the guard's origin checks apply. Listing is a GET: a page on another site can't read the answer |
 
 ### A compromised app
@@ -88,10 +98,28 @@ It can't reach past its container on its own. What it can do is leave things for
 | Plant a symlink where a person will open a file, to have them save through it | The save follows the link and writes where it leads, as a read does, unless that's refused. The panel shows a link's target in the folder and over the file, and the audit log and the timeline name where the save landed. Tested |
 | Swap a file a person has open for a link to `authorized_keys`, even with the same text, for their save to land there | The version covers where the walk ended and which file that was, so the save reads as changed, and writes nothing. "Save over it" reads the path again, sees it leads elsewhere, stops, and names where, so a person only saves there with it in front of them. Tested |
 | Swap a file for a link or another file as a save goes on | The save writes only to the file it read: the agent opens it from the directory it checked, with `O_NOFOLLOW`, and compares its identity. Anything else reads as changed, and nothing is written. Tested |
+| Fill or finish another person's upload, or one from another session of theirs, to put their own bytes where the other's passkey said | An upload is the session's that began it: the agent keeps who began it in its note, and every later call has to come from the same user and session, or it finds no such upload (`upload_gone`). An upload's file is in no listing and no folder's download, so its ID isn't there to find. Tested, with a second session signed in by a link |
+| Swap a folder for a link while a person uploads into it, to have the file land elsewhere | An upload's file is made beside where it goes when it begins, and finishing walks the path again: one that leads elsewhere now isn't put in place, and the rename never replaces. Tested |
+| Plant a link in a folder a person downloads, to have the archive take what it leads to | A folder's archive doesn't follow links, or cross onto another filesystem mounted there. Tested for a link |
+| Swap a FIFO or a device in for a file as a folder is downloaded, to have the agent stream it as root, or hang | Each entry is opened without following a link and checked to be the same regular file, by device and inode, that the agent looked at, or it's left out. Tested against a FIFO swapped in as it runs |
+| Hold every transfer a server runs, by stopping a download's reader or an upload's sender | Each has 60 seconds to make progress, then it ends and lets go of its place. One that finds no place in 20 seconds is refused as busy, and says so. Tested with three stalled downloads and a stalled upload |
+| Plant a link where a person will delete or move something, to have the delete reach where it leads | A delete, a move and a rename act on the last part as itself, so a link goes as a link, and what it leads to stays. Removing a folder for good goes through descriptors and stays on its filesystem, so a link in it is removed, not followed. Tested |
+| Swap what a person is deleting for something else as it goes | What was checked is what's moved: the agent compares what it moved with what it checked, by device and inode, and puts back anything else. What's removed in the background is checked the same way first. Tested |
 | Change a file a person is editing, to have their save undo it, or to slip something in | A save names the version it was edited from, and a file that differs isn't written over. The person sees that it changed, and chooses. Tested |
 | Have a person's session overwrite a binary it knows the digest of, such as `/usr/bin/sudo` | A save goes only over what reads as text, and the version counts for nothing on anything else. Tested |
 | Fill the disk, so a save leaves a file cut short | A copy of the old text goes beside the file first. A disk that can't hold that stops the save with the file untouched. One that holds the copy can still fail the write, as the file grows: the old text goes back, and failing that the copy stays, and the error names it, with the file cut short. Tested, with a real write that fails partway |
 | Turn a folder a service mounts into a link to `/etc`, to be mounted next | A container says where its paths led when it was made, so a plan that finds one moved asks as if for the first time, and what makes a container looks again and refuses. That holds for what a plan makes. A container that starts again isn't asked about: see [known gaps](#known-gaps). Tested |
+
+### An archive from elsewhere
+
+A person uploads an archive they got from a vendor, a backup or a theme site, and asks for it to be unpacked. Whoever made it chose what's in it.
+
+| It tries to | What happens |
+| --- | --- |
+| Write outside its folder, with `../` in an entry's name, or a link and then a file through it | The agent makes each entry through the descriptors of the folders above it, opened without following a link and never onto another filesystem, refuses `..`, and makes no links. Tested |
+| Write over what's there | It unpacks into a new folder beside it, and stops if that name is taken. Tested |
+| Fill the disk or the agent's memory, with a hundred thousand files or a zip bomb | It stops past 100,000 entries, 64 folders deep or 16 GB unpacked, and what it made goes. A zip that says it holds more entries is refused before anything is read or made. A zip's directory is read a record at a time, and a file's bytes a part at a time, so the agent holds about as much for an archive of 99,000 entries as for one of a few, and what it used goes back once it's done. Each entry is checked against its size and CRC-32. Tested for entries, depth, and memory over 99,000 entries |
+| Run as root, with a set-user-ID file | A file is 0644, or 0755 where the archive marks it executable, and takes the folder's owner and group. No set-ID bit is kept |
 
 ### A mount that stops answering
 
@@ -115,7 +143,9 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 - **Keep a stolen session out of the disk.** A session controls every server: it can apply a plan that mounts `/etc`, with no passkey ([ADR 0021](../adr/0021-the-docker-driver.md#host-access)). Reading a file takes no step-up, as that would add a prompt without closing that door. Saving to a way back in does, and so does a plan that's as good as root: see [ADR 0032](../adr/0032-files-on-a-server.md#a-step-up-for-a-way-back-in-and-for-nothing-else).
 - **Stop a stolen session reaching what's refused.** The refused list stops Files. ADR 0021 lets a session mount Docker's socket with no passkey, and through it reach everything here.
 - **Keep a stolen session out of a server with no Docker by any other way.** With no plan to run, Files is new reach there, and Activity is what shows it.
+- **Read what's uploaded.** An upload's contents aren't checked, as a save's aren't. A way in takes a passkey by its path.
 - **Undo a save.** A file isn't managed state, so there's no revision to go back to. The panel says so beside the Save button.
+- **Undo a delete on another disk.** Recently deleted is a rename into Dockwell's data, so it only holds what's on the same filesystem. Elsewhere the panel says a delete can't be put back before it happens.
 - **Know what a file does.** A save to a cron job, a unit file or `sudoers` is root, and takes a passkey, but Dockwell doesn't read what's in it or check its syntax. What runs that isn't on the list, such as a script a cron job calls, takes none.
 - **Keep what's typed in a tab that closes.** What's typed stays in memory through a session that ends, and leaving the page asks first, but it never goes in the browser's storage, so a tab the browser discards loses it.
 - **Tell a config with a password in it from one without.** `.env`, `wp-config.php` and the like are readable with a session.
@@ -128,9 +158,13 @@ It gets nothing new. The agent reads for the person who asked, and hands nothing
 - **A copy of something refused.** A backup of the data directory made by hand, under another path, is served like any file. The database is SQLite, which reads as binary, and the key is raw bytes, which do too, so neither's contents go out. A JSON or text copy of a token would.
 - **An `EnvironmentFile` with `DOCKWELL_DATABASE` in it** is named by the operator, so Dockwell can't refuse it by its path. Keep the password in `/root/.pgpass`, which is refused. The database holds sealed specs, and reaching it isn't reaching the key.
 - **Credentials in other forms.** A key that isn't PEM, such as a PuTTY key or one in the body of a config file, isn't refused, and neither is a token in a dotfile, such as the CLI's own.
-- **A file over 1 MiB** is checked for a key only in what is read of it, and only that part goes out.
+- **A file over 1 MiB** is checked for a key only in what is read of it, and only that part goes out. A download checks all of it as it goes.
+- **A download cut short at a key** has sent what came before it. Its status went first, so the connection is cut, and a browser shows it failed, but a client that keeps what came of a cut connection has that part. Tested
 - **Five stuck calls stop Files on that server** until one comes back, for paths and mounts alike. The agent, its stream and everything else on the server carry on. A call stuck in the kernel can also outlast the agent's own stop, as nothing can end it until the mount answers.
 - **A hard link to a refused file,** made by root, reads as what it is: a file somewhere else.
 - **Activity shows paths.** Anyone who can read events, a read-only token included, sees which files were read, saved and refused, not what's in them.
 - **Part of a Docker data root, apart from the rest.** A root no one has named is known by holding `containers` and at least two more of Docker's own directories. A backup of `overlay2` alone, or of `containers` alone, has nothing to tell it by, so what's in it is served, other than the files refused by what they are.
+- **A home on a network mount, behind a link.** Its links aren't followed, as that would hold every call while the mount is down, so it's compared as the accounts write it.
+- **Anyone signed in can put back or purge any entry** in a server's Recently deleted, until roles come (#263).
+- **Root inside a deleted folder.** Removing a folder for good, as root, removes what's in it whoever owns it. Someone who can write the folder can move a folder of root's into it as it's removed, as with any `rm -r` run by root in a folder others can write.
 - **A save has a moment in the open.** The file is read and written moments apart, so a writer that lands between them is lost. A reader can catch a file half written, as a save writes in place to keep what a container mounts. A power cut in that moment can leave it half written, and the copy of what was saved beside it, as `.dockwell-save-…`.

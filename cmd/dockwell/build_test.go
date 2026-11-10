@@ -36,15 +36,19 @@ var agentPackages = []string{
 	"internal/agent",
 	"internal/agent/collect",
 	"internal/agent/enroll",
-	"internal/agent/files",   // a server's files, for a person (ADR 0032)
-	"internal/agent/logs",    // reading logs, and keeping those of removed containers (ADR 0025)
-	"internal/agent/updates", // a server's package updates, read with its own package manager (ADR 0043)
-	"internal/backup",        // taking and restoring backups on this server (ADR 0033)
-	"internal/backup/s3",     // sending them to S3-compatible storage, with no SDK
-	"internal/backup/seal",   // sealing them before they leave
+	"internal/agent/files",      // a server's files, for a person (ADR 0032)
+	"internal/agent/logs",       // reading logs, and keeping those of removed containers (ADR 0025)
+	"internal/agent/onepanel",   // reading what 1Panel keeps, for an import (ADR 0056)
+	"internal/agent/sqlitefile", // reading 1Panel's SQLite records, read-only, without SQLite (ADR 0056)
+	"internal/agent/terminal",   // a server's terminals, for a person (ADR 0037)
+	"internal/agent/updates",    // a server's package updates, read with its own package manager (ADR 0043)
+	"internal/backup",           // taking and restoring backups on this server (ADR 0033)
+	"internal/backup/s3",        // sending them to S3-compatible storage, with no SDK
+	"internal/backup/seal",      // sealing them before they leave
 	"internal/buildinfo",
 	"internal/cli",
 	"internal/cli/apinames", // the API commands' names, to say they're in the full build
+	"internal/cron",         // the schedule each scheduled task runs on (ADR 0053)
 	"internal/database",     // reading a database in its own container (ADR 0038)
 	"internal/datadir",
 	"internal/delivery", // opens the values of a step's variables and secrets, sealed to the stream
@@ -67,6 +71,7 @@ var agentPackages = []string{
 	"internal/resource/service",
 	"internal/resource/variable", // the names and kinds a service's Validate checks what it uses by
 	"internal/resource/volume",
+	"internal/task", // scheduled tasks, which each agent runs on its own clock (ADR 0053)
 	"internal/ticket",
 	"internal/volumetool", // reading and writing a volume's bytes, in a throwaway container (ADR 0033)
 }

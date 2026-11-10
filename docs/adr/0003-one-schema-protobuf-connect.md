@@ -13,7 +13,7 @@ Principle 1 of the PRD: the UI, API, CLI, Git config and MCP server are views of
 - It is served with Connect (`connectrpc.com/connect`). The same handlers speak gRPC to agents and the CLI, and the Connect protocol (JSON over HTTP) to the browser and to `curl`.
 - Resource-style REST paths come from `google.api.http` annotations, transcoded by Vanguard (`connectrpc.com/vanguard`). An OpenAPI document is generated from the same schema.
 - Generated from the schema: Go server interfaces, the TypeScript client (`protobuf-es` and `connect-es`), the CLI's commands and the MCP server's tools. Custom method options mark what the generators need, for example that a method only proposes a plan, or that it is destructive and needs approval.
-- Live state uses server-streaming RPCs. The interactive terminal is the one bidirectional exception, and it runs over a WebSocket.
+- Live state uses server-streaming RPCs. The interactive terminal was to be the one bidirectional exception, over a WebSocket. [ADR 0037](0037-a-terminal-on-a-server.md) put it in the schema instead, as a server stream and calls.
 
 ## Consequences
 

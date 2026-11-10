@@ -30,6 +30,7 @@ import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { useWebsites } from "../websites/website";
 import {
   type AppGroup,
   appState,
@@ -160,6 +161,7 @@ export function AppsPage({
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const services = useServices();
+  const sites = useWebsites();
   const { reconnecting } = useServicesWatch();
   const { servers, fleet } = useFleetView();
   const places = usePlaces();
@@ -178,7 +180,11 @@ export function AppsPage({
     return () => clearTimeout(timer);
   }, [query, search, onSearch]);
 
-  const all = services.data;
+  // A website's own services are its to show, on Websites (ADR 0039).
+  const all = useMemo(() => {
+    const served = new Set((sites.data ?? []).map((w) => w.environmentId));
+    return services.data?.filter((s) => !served.has(environmentOf(s)));
+  }, [services.data, sites.data]);
   const environments = useMemo(() => {
     const counts = new Map<string, number>();
     for (const s of all ?? []) counts.set(environmentOf(s), (counts.get(environmentOf(s)) ?? 0) + 1);
@@ -265,7 +271,7 @@ export function AppsPage({
 
   const open = (id: string) => void navigate({ to: "/apps/$serviceId", params: { serviceId: id } });
 
-  const pending = services.isPending || places.isPending || (!ordered && (all?.length ?? 0) > 0);
+  const pending = services.isPending || places.isPending || sites.isPending || (!ordered && (all?.length ?? 0) > 0);
   const count = all?.length ?? 0;
   // The filter's row is there or not by how many apps there are: remembering
   // last time's count keeps the list from moving when they land.
@@ -298,18 +304,26 @@ export function AppsPage({
     body = (
       <AppsSkeleton label={t`Loading apps`} fleet={fleet} rows={Math.min(Math.max(all?.length ?? 3, 1), HELD_ROWS)} />
     );
-  } else if (services.error) {
+  } else if (services.error || sites.error) {
+    // Without the websites, a website's own web server would list as an app.
+    const error = services.error ?? sites.error;
     body = (
       <Callout
         tone="critical"
         title={t`Can't load the apps`}
         actions={
-          <Button onClick={() => void services.refetch()} loading={services.isFetching}>
+          <Button
+            onClick={() => {
+              if (services.error) void services.refetch();
+              if (sites.error) void sites.refetch();
+            }}
+            loading={services.isFetching || sites.isFetching}
+          >
             <Trans>Try again</Trans>
           </Button>
         }
       >
-        {sentence(services.error)} <Trans>What runs on your servers isn't affected.</Trans>
+        {error ? sentence(error) : null} <Trans>What runs on your servers isn't affected.</Trans>
       </Callout>
     );
   } else if ((all?.length ?? 0) === 0) {

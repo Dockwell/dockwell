@@ -72,17 +72,17 @@ func explain(err error, c *Client, command string, names *strings.Replacer) erro
 		if c.Local {
 			return errors.New("the control plane rejected the token for local access, even a new one. Check its logs, or sign in with dockwell login")
 		}
-		return fmt.Errorf("%s rejected your API token: it's unknown, revoked or expired. Make a new one in the panel, under Profile and security, then run dockwell login %s",
+		return fmt.Errorf("%s rejected your API token: it's unknown, revoked or expired. Make a new one in the panel, in Settings under API tokens, then run dockwell login %s",
 			c.URL, c.URL)
 	case authapi.ReasonTokenScope:
 		if c.Local {
 			return fmt.Errorf("local access on this server is read-only, so %s can't make changes. "+
 				"Run dockwell login --local to let it make changes for %s, or sign in with a read-write API token", command, Span(auth.LocalTokenTTL))
 		}
-		return fmt.Errorf("your API token is read-only, so %s can't make changes. Make a read-write token in the panel, under Profile and security, then run dockwell login %s",
+		return fmt.Errorf("your API token is read-only, so %s can't make changes. Make a read-write token in the panel, in Settings under API tokens, then run dockwell login %s",
 			command, c.URL)
 	case authapi.ReasonTokenLogs:
-		return fmt.Errorf("your API token can't read logs, which often hold secrets that apps print. Make a token that can in the panel, under Profile and security, then run dockwell login %s", c.URL)
+		return fmt.Errorf("your API token can't read logs, which often hold secrets that apps print. Make a token that can in the panel, in Settings under API tokens, then run dockwell login %s", c.URL)
 	case authapi.ReasonNeedsSession:
 		return ExitError{ExitNeedsPerson, fmt.Errorf("%s Open the panel at %s", sentence(msg), c.PanelURL("/"))}
 	case authapi.ReasonMisdirected:
