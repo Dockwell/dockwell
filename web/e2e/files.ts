@@ -274,9 +274,17 @@ async function main() {
     fail(`a save changed bytes nobody touched: ${readFileSync(join(site, "app.ini")).toString("hex")}`);
   }
 
-  step("a file with more than one kind of line ending reads, and doesn't edit");
+  step("a file with more than one kind of line ending edits, and a save keeps each line's");
   await page.getByText("mixed.sh").click();
-  await page.getByText("This file can't be edited here").waitFor();
+  const mixed = page.getByRole("textbox", { name: "Contents of mixed.sh" });
+  await mixed.waitFor();
+  await page.getByText("Mixed line endings").waitFor();
+  await mixed.fill("#!/bin/sh\necho a\necho c\n");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByText("Saved mixed.sh").first().waitFor();
+  const kept = readFileSync(join(site, "mixed.sh"), "utf8");
+  if (kept !== "#!/bin/sh\necho a\r\necho c\n")
+    fail(`a save changed line endings nobody touched: ${JSON.stringify(kept)}`);
   await page.getByRole("button", { name: "Close mixed.sh" }).click();
 
   step("a link swapped in under what you typed isn't saved through, whatever its text");

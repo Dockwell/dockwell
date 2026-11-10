@@ -4,7 +4,8 @@
 export interface Base {
   text: string;
   version: string;
-  crlf: boolean;
+  /** The file's text as it was read, whose line endings a save keeps. */
+  original: string;
   /** Where the path led when this was read: a save goes only there. */
   where: string;
   /** Saving it takes a passkey, as it's a way back onto the server. */

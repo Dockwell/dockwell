@@ -474,33 +474,40 @@ describe("editing a file", () => {
   });
 
   it.each([
-    ["one stray CRLF", "#!/bin/sh\necho a\r\necho b\n"],
-    ["a lone CR", "a\rb\n"],
-  ])("won't edit a file with %s, as saving it would change lines nobody touched", async (_, content) => {
+    ["one stray CRLF", "#!/bin/sh\necho a\r\necho b\n", "#!/bin/sh\necho a\r\necho b\nx"],
+    ["a lone CR", "a\rb\n", "a\rb\nx"],
+  ])("edits a file with %s, and saves each line with the ending it had", async (_, content, sent) => {
     const saveFile = vi.fn(() => saved());
     await open({ readFile: () => text(content), saveFile });
     const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
-    expect(field).toHaveAttribute("readonly");
-    expect(screen.getByText("This file can't be edited here")).toBeVisible();
-    expect(screen.getByText("would change lines you didn't touch", { exact: false })).toBeVisible();
+    expect(field).not.toHaveAttribute("readonly");
+    expect(screen.getByText("Mixed line endings")).toBeVisible();
     await userEvent.type(field, "x");
-    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    expect(saveFile).not.toHaveBeenCalled();
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(saveFile).toHaveBeenCalled());
+    expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: sent }), expect.anything()]);
   });
 
-  it("won't take a file with mixed line endings in place of yours", async () => {
+  it("takes the server's version with mixed line endings in place of yours, and keeps them on the next save", async () => {
     const readFile = vi
       .fn()
       .mockReturnValueOnce(text("old\n"))
       .mockReturnValue(text("a\r\nb\n", { version: "v3" }));
+    let calls = 0;
     const saveFile = vi.fn(() => {
-      throw refused("file_changed", "it changed", Code.FailedPrecondition);
+      calls++;
+      if (calls === 1) throw refused("file_changed", "it changed", Code.FailedPrecondition);
+      return saved();
     });
     const { field } = await edited({ readFile, saveFile });
     await userEvent.click(saveButton());
     await userEvent.click(await screen.findByRole("button", { name: "Load the server's version" }));
-    expect(await screen.findByText("has more than one kind of line ending now", { exact: false })).toBeVisible();
-    expect(field).toHaveValue("memory_limit = 512M");
+    await waitFor(() => expect(field).toHaveValue("a\nb\n"));
+    expect(screen.getByText("Mixed line endings")).toBeVisible();
+    await userEvent.type(field, "c");
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
+    expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: "a\r\nb\nc" }), expect.anything()]);
   });
 
   it("reads a file from an agent too old to save, and says what to do", async () => {

@@ -8,7 +8,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBlocker, useNavigate } from "@tanstack/react-router";
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 
 import { isRoleRefusal, reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
@@ -18,7 +18,7 @@ import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Base, type Draft, dropDraft, heldDraft, holdDraft } from "./drafts";
-import { changedLines, editable, lineCount, lineEnding, nameOf, restoreEndings } from "./paths";
+import { changedLines, editable, lineCount, lineEnding, nameOf, withEndings } from "./paths";
 
 interface FileViewerProps {
   serverId: string;
@@ -121,21 +121,6 @@ export function FileViewer({ serverId, path, folder }: FileViewerProps) {
         </>
       );
     }
-    if (lineEnding(read.content) === "mixed") {
-      return (
-        <>
-          <div className="files-note">
-            <Callout tone="info" title={t`This file can't be edited here`}>
-              <Trans>
-                {name} has more than one kind of line ending, so saving it here would change lines you didn't touch.
-                Connect to the server over SSH to edit it.
-              </Trans>
-            </Callout>
-          </div>
-          <CodeField className="files-code" aria-label={t`Contents of ${name}`} value={read.content} readOnly />
-        </>
-      );
-    }
     return <Editor serverId={serverId} path={path} name={name} read={read} onSaved={setSaved} onEdited={setEdited} />;
   };
   return (
@@ -202,7 +187,7 @@ function baseOf(read: ReadFileResponse): Base {
   return {
     text: editable(read.content),
     version: read.version,
-    crlf: lineEnding(read.content) === "CRLF",
+    original: read.content,
     where: read.path,
     wayBackIn: read.wayBackIn,
   };
@@ -223,6 +208,8 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
   const explain = useAuthError();
   const [base, setBase] = useState(() => baseOf(read));
   const [draft, setDraft] = useState(base.text);
+  // A save keeps each line's ending, so a file with more than one kind says so and edits as any other.
+  const ending = useMemo(() => lineEnding(base.original), [base.original]);
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [problem, setProblem] = useState<string>();
@@ -277,7 +264,7 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
 
   const save = async (over: string) => {
     const sent = draft;
-    const content = restoreEndings(sent, base.crlf);
+    const content = withEndings(sent, base.original);
     setSaving(true);
     setProblem(undefined);
     setMayLand(false);
@@ -357,11 +344,6 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
       if (!now.version) {
         setConflict(false);
         setProblem(t`${name} isn't a text file under 1 MB any more, so it can't be loaded here.`);
-        return;
-      }
-      if (lineEnding(now.content) === "mixed") {
-        setConflict(false);
-        setProblem(t`${name} has more than one kind of line ending now, so it can't be loaded here.`);
         return;
       }
       const next = baseOf(now);
@@ -472,7 +454,7 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
       <div className="files-foot">
         <span>{plural(lineCount(draft), { one: "# line", other: "# lines" })}</span>
         <span>UTF-8</span>
-        <span>{base.crlf ? "CRLF" : "LF"}</span>
+        <span>{ending === "mixed" ? t`Mixed line endings` : ending}</span>
       </div>
       {edited ? (
         <div className="files-save">
