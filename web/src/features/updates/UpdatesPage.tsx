@@ -31,6 +31,7 @@ import { useTimeWords } from "../../lib/time";
 import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { ReadFailed } from "../shell/ReadFailed";
 import {
   installCommand,
   managerName,
@@ -87,9 +88,8 @@ function Updates({ server }: { server: Server }) {
   }
   if (query.error && !updates) {
     return (
-      <Callout tone="warning" title={t`Dockwell couldn't ask ${server.name} for its updates`}>
-        {sentence(query.error)}
-      </Callout>
+      // A role that doesn't cover a server's updates is told so as everywhere else.
+      <ReadFailed error={query.error} tone="warning" title={t`Dockwell couldn't ask ${server.name} for its updates`} />
     );
   }
   if (!updates) return null;
