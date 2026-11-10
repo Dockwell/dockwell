@@ -40,7 +40,7 @@ export function AlertsPage({
       : undefined;
   return (
     <Page title={t`Alerts`} lead={lead} actions={actions} phoneAction={phoneAction} className="alerts">
-      <TabNav label={t`Alerts sections`} className="alerts-tabs">
+      <TabNav label={t`Alerts sections`}>
         <RouterTabLink
           to="/alerts"
           activeOptions={{ exact: true }}

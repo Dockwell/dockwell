@@ -675,7 +675,10 @@ describe("ServerOverview", () => {
     onPhone();
     const user = userEvent.setup();
     await renderServer("/servers", hz1, aServer({ id: "srv_2", name: "hz-2", stats: sample(8) }));
-    await user.click(screen.getByRole("link", { name: "hz-2" }));
+    await user.click(
+      within(screen.getByRole("region", { name: "Servers at a glance" })).getByRole("button", { name: /^hz-2, / }),
+    );
+    await user.click(within(screen.getByRole("region", { name: "Chosen server" })).getByRole("link", { name: "Open" }));
 
     expect(await screen.findByRole("heading", { level: 1, name: "hz-2" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/servers");
