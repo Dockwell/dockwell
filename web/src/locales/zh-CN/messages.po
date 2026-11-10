@@ -831,6 +831,9 @@ msgstr "{name} 在 {server} 上的健康状态发生了变化"
 msgid "Took back the acknowledgement of the alert: {title}"
 msgstr "已撤回对告警的确认：{title}"
 
+msgid "Took over the alert from {from}: {title}"
+msgstr "已从 {from} 接手告警：{title}"
+
 msgid "Turned off codes from an authenticator app"
 msgstr "关闭了身份验证器应用验证码"
 
@@ -965,11 +968,11 @@ msgstr "确认"
 msgid "Acknowledge: {title}"
 msgstr "确认：{title}"
 
-msgid "Acknowledged by you {ago}"
-msgstr "你已于 {ago}确认"
+msgid "Acknowledged by you"
+msgstr "你已确认"
 
-msgid "Acknowledged by {name} {ago}"
-msgstr "{name} 已于 {ago}确认"
+msgid "Acknowledged by {name}"
+msgstr "{name} 已确认"
 
 msgid "Critical"
 msgstr "严重"
@@ -1018,7 +1021,7 @@ msgid "Take back"
 msgstr "撤回"
 
 msgid "Take back your acknowledgement of: {title}"
-msgstr "撤回你对它的确认：{title}"
+msgstr "撤回你的确认：{title}"
 
 msgid "Take over"
 msgstr "接手"

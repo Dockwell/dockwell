@@ -831,6 +831,9 @@ msgstr "The health of {name} changed on {server}"
 msgid "Took back the acknowledgement of the alert: {title}"
 msgstr "Took back the acknowledgement of the alert: {title}"
 
+msgid "Took over the alert from {from}: {title}"
+msgstr "Took over the alert from {from}: {title}"
+
 msgid "Turned off codes from an authenticator app"
 msgstr "Turned off codes from an authenticator app"
 
@@ -965,11 +968,11 @@ msgstr "Acknowledge"
 msgid "Acknowledge: {title}"
 msgstr "Acknowledge: {title}"
 
-msgid "Acknowledged by you {ago}"
-msgstr "Acknowledged by you {ago}"
+msgid "Acknowledged by you"
+msgstr "Acknowledged by you"
 
-msgid "Acknowledged by {name} {ago}"
-msgstr "Acknowledged by {name} {ago}"
+msgid "Acknowledged by {name}"
+msgstr "Acknowledged by {name}"
 
 msgid "Critical"
 msgstr "Critical"

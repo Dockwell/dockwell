@@ -156,7 +156,24 @@
 }
 
 .alerts-card-seen {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-1);
+  align-items: center;
   font-size: 13px;
+}
+
+/* A token's, a server's or the CLI's mark, as Activity draws them, so it doesn't read as a person. */
+.alerts-card-by {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
 }
 
 .alerts-card-failed {

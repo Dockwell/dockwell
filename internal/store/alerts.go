@@ -132,11 +132,11 @@ func (t *Tx) AcknowledgeAlert(ctx context.Context, id string, at time.Time, acto
 	return n > 0, nil
 }
 
-// UnacknowledgeAlert takes back an open alert's acknowledgement. It reports
-// whether there was one to take: an alert nobody has, or one that resolved
-// meanwhile, isn't touched.
-func (t *Tx) UnacknowledgeAlert(ctx context.Context, id string) (bool, error) {
-	res, err := t.exec(ctx, `UPDATE alerts SET acknowledged_at = NULL, acknowledged_by = '' WHERE id = ? AND resolved_at IS NULL AND acknowledged_at IS NOT NULL`, id)
+// UnacknowledgeAlert takes back the acknowledgement actor has on an open alert. It
+// reports whether there was one of theirs to take: an alert nobody has, one
+// someone else has, or one that resolved meanwhile, isn't touched.
+func (t *Tx) UnacknowledgeAlert(ctx context.Context, id, actor string) (bool, error) {
+	res, err := t.exec(ctx, `UPDATE alerts SET acknowledged_at = NULL, acknowledged_by = '' WHERE id = ? AND resolved_at IS NULL AND acknowledged_at IS NOT NULL AND acknowledged_by = ?`, id, actor)
 	if err != nil {
 		return false, fmt.Errorf("can't take back the acknowledgement of alert %s: %w", id, err)
 	}

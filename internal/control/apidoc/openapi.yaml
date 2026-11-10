@@ -7655,6 +7655,12 @@ components:
                 value:
                     type: integer
                     format: int32
+                takenFrom:
+                    allOf:
+                        - $ref: '#/components/schemas/Actor'
+                    description: |-
+                        Who had the alert before, on an acknowledgement that took it over from
+                         someone. Unset otherwise.
             description: |-
                 EventAlert is an alert that fired or resolved, or a mute of a rule or a
                  server that began or ended. Its subject is what the alert is about, and its

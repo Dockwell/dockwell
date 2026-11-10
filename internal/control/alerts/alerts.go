@@ -583,29 +583,40 @@ func (h *Handler) acknowledge(ctx context.Context, alertID string, on bool) (*do
 		switch {
 		case a.ResolvedAt != nil && on:
 			return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("that alert resolved, so there's nothing left to be on"), "alert_resolved")
-		case a.ResolvedAt != nil || (!on && a.AcknowledgedAt == nil):
-			return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("nobody has acknowledged that alert, or it resolved, so there's nothing to take back"), "not_acknowledged")
+		case a.ResolvedAt != nil:
+			return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("that alert resolved, so there's nothing to take back. It keeps who had it"), "alert_resolved")
+		case !on && a.AcknowledgedAt == nil:
+			return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("nobody has acknowledged that alert, so there's nothing to take back"), "not_acknowledged")
 		}
 		same := on && a.AcknowledgedAt != nil && a.AcknowledgedBy == p.Actor()
 		if !same {
 			var done bool
-			action := ActionAcknowledge
+			action, before := ActionAcknowledge, ""
 			if on {
-				done, err = tx.AcknowledgeAlert(ctx, a.ID, now, p.Actor())
+				if a.AcknowledgedAt != nil {
+					before = a.AcknowledgedBy
+				}
+				if done, err = tx.AcknowledgeAlert(ctx, a.ID, now, p.Actor()); err != nil {
+					return err
+				}
+				if !done {
+					// The read above saw it open, so it resolved since, as a store that doesn't hold a read still can let it.
+					return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("that alert resolved, so there's nothing left to be on"), "alert_resolved")
+				}
 				a.AcknowledgedAt, a.AcknowledgedBy = &now, p.Actor()
 			} else {
 				action = ActionUnacknowledge
-				done, err = tx.UnacknowledgeAlert(ctx, a.ID)
+				// Only whoever has it takes it back: the write names them, so a card that's
+				// out of date can't take back what someone else took over since.
+				if done, err = tx.UnacknowledgeAlert(ctx, a.ID, p.Actor()); err != nil {
+					return err
+				}
+				if !done {
+					return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("someone else has that alert now, so it isn't yours to take back. Take it over instead, if you're on it"), "not_yours")
+				}
 				a.AcknowledgedAt, a.AcknowledgedBy = nil, ""
 			}
-			if err != nil {
-				return err
-			}
-			if !done {
-				// The read above saw it open, in this transaction, so this is for a store that says otherwise.
-				return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("that alert resolved, so there's nothing left to be on"), "alert_resolved")
-			}
-			if err := recordSeen(ctx, tx, action, a, p.Actor(), client.Surface(p), now); err != nil {
+			if err := recordSeen(ctx, tx, action, a, before, p.Actor(), client.Surface(p), now); err != nil {
 				return err
 			}
 		}
@@ -627,12 +638,14 @@ func (h *Handler) acknowledge(ctx context.Context, alertID string, on bool) (*do
 }
 
 // recordSeen puts an acknowledgement, or its taking back, on the audit log, and
-// so on Activity: the alert as its firing named it, by who did it.
-func recordSeen(ctx context.Context, tx *store.Tx, action string, a store.Alert, actor, surface string, now time.Time) error {
+// so on Activity: the alert as its firing named it, by who did it, and from whom
+// when it was taken over.
+func recordSeen(ctx context.Context, tx *store.Tx, action string, a store.Alert, takenFrom, actor, surface string, now time.Time) error {
 	opened := a.OpenedAt
 	detail, err := json.Marshal(Told{
 		ID: a.ID, Rule: a.RuleName, Severity: a.Severity, Condition: a.Condition, Title: a.Title,
 		SubjectName: a.SubjectName, Facts: ReadFacts(a.Facts), ServerID: a.ServerID, Path: a.Path, OpenedAt: &opened,
+		TakenFrom: takenFrom,
 	})
 	if err != nil {
 		return err

@@ -531,8 +531,13 @@ function describeAlert(event: Event, i18n: I18n): Described {
       };
     case "alert.resolved":
       return { title: i18n._(msg`Resolved: ${title}`), icon: "alert" };
-    case "alert.acknowledge":
-      return { title: i18n._(msg`Acknowledged the alert: ${title}`), icon: "alert" };
+    case "alert.acknowledge": {
+      // Taken over from someone, the event says from whom, so it stands without the one before it.
+      const from = a?.takenFrom ? a.takenFrom.name || a.takenFrom.id : "";
+      return from
+        ? { title: i18n._(msg`Took over the alert from ${from}: ${title}`), icon: "alert" }
+        : { title: i18n._(msg`Acknowledged the alert: ${title}`), icon: "alert" };
+    }
     case "alert.unacknowledge":
       return { title: i18n._(msg`Took back the acknowledgement of the alert: ${title}`), icon: "alert" };
     case "alert.mute":

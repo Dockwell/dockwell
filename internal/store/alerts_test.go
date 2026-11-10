@@ -139,7 +139,7 @@ func TestWhoHasAnAlert(t *testing.T) {
 			if err != nil || a.AcknowledgedAt != nil || a.AcknowledgedBy != "" {
 				t.Errorf("a new alert is %+v, %v; want nobody's", a, err)
 			}
-			if had, err := tx.UnacknowledgeAlert(ctx, "alt_open"); err != nil || had {
+			if had, err := tx.UnacknowledgeAlert(ctx, "alt_open", "usr_mira"); err != nil || had {
 				t.Errorf("taking back what nobody has = %v, %v", had, err)
 			}
 			for _, who := range []string{"usr_mira", "usr_leo"} {
@@ -160,11 +160,24 @@ func TestWhoHasAnAlert(t *testing.T) {
 			if err != nil || len(open) != 1 || open[0].AcknowledgedBy != "usr_leo" || open[0].AcknowledgedAt == nil || !open[0].AcknowledgedAt.Equal(t0.Add(time.Minute)) {
 				t.Errorf("OpenAlerts = %+v, %v; want usr_leo to have it since a minute past", open, err)
 			}
+			// Only whoever has it takes it back: someone it was taken over from doesn't.
+			if had, err := tx.UnacknowledgeAlert(ctx, "alt_open", "usr_mira"); err != nil || had {
+				t.Errorf("taking back someone else's acknowledgement = %v, %v", had, err)
+			}
+			if a, err := tx.GetAlert(ctx, "alt_open"); err != nil || a.AcknowledgedBy != "usr_leo" {
+				t.Errorf("after that, the alert is %+v, %v; want usr_leo still on it", a, err)
+			}
+			if had, err := tx.UnacknowledgeAlert(ctx, "alt_open", "usr_leo"); err != nil || !had {
+				t.Errorf("taking back your own = %v, %v", had, err)
+			}
+			if ok, err := tx.AcknowledgeAlert(ctx, "alt_open", t0.Add(2*time.Minute), "usr_leo"); err != nil || !ok {
+				t.Errorf("acknowledging it again = %v, %v", ok, err)
+			}
 			// Resolving it keeps who had it, and nothing takes that back after.
 			if err := tx.ResolveAlert(ctx, "alt_open", t0.Add(time.Hour), "", false); err != nil {
 				return err
 			}
-			if had, err := tx.UnacknowledgeAlert(ctx, "alt_open"); err != nil || had {
+			if had, err := tx.UnacknowledgeAlert(ctx, "alt_open", "usr_leo"); err != nil || had {
 				t.Errorf("taking back the acknowledgement of an alert that resolved = %v, %v", had, err)
 			}
 			a, err := tx.GetAlert(ctx, "alt_open")

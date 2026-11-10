@@ -4,6 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
+  ActorKind,
   type Alert,
   AlertService,
   AlertRule_Condition as Condition,
@@ -21,6 +22,7 @@ import { sentence } from "../../lib/errors";
 import { formatClock, formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { useActorWords } from "../activity/actor";
 import { alertTitle } from "../activity/describe";
 import { useSignedInUser } from "../auth/useAuthState";
 import { trend } from "../servers/history";
@@ -56,25 +58,40 @@ function useAcknowledge() {
   const transport = useTransport();
   const queryClient = useQueryClient();
   const client = useMemo(() => createClient(AlertService, transport), [transport]);
-  const [busy, setBusy] = useState<string>();
-  const [failed, setFailed] = useState<{ id: string; error: unknown }>();
+  // By alert, as two cards can be asked at once, and each keeps its own refusal until it's closed or asked again.
+  const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
+  const [failed, setFailed] = useState<ReadonlyMap<string, unknown>>(new Map());
+  const mark = (id: string, on: boolean) =>
+    setBusy((was) => {
+      const next = new Set(was);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  const fail = (id: string, error?: unknown) =>
+    setFailed((was) => {
+      const next = new Map(was);
+      if (error === undefined) next.delete(id);
+      else next.set(id, error);
+      return next;
+    });
   const run = async (id: string, on: boolean) => {
-    setBusy(id);
-    setFailed(undefined);
+    mark(id, true);
+    fail(id);
     try {
       if (on) await client.acknowledgeAlert({ id });
       else await client.unacknowledgeAlert({ id });
     } catch (error) {
-      setFailed({ id, error });
+      fail(id, error);
     } finally {
-      setBusy(undefined);
-      // Refused or not, the alert may no longer be as the card says: it may have resolved.
+      mark(id, false);
+      // Refused or not, the alert may no longer be as the card says: it may have resolved, or someone took it over.
       void queryClient.invalidateQueries({
         queryKey: createConnectQueryKey({ schema: AlertService, cardinality: undefined }),
       });
     }
   };
-  return { busy, failed, run };
+  return { busy, failed, run, dismiss: (id: string) => fail(id) };
 }
 
 type Acknowledge = ReturnType<typeof useAcknowledge>;
@@ -138,13 +155,16 @@ function AlertCard({
   const { t, i18n } = useLingui();
   const words = useTimeWords();
   const me = useSignedInUser();
-  // Who's on it, if anyone: you, or someone else by the name Activity gives them.
+  const actorWords = useActorWords();
+  // Who's on it, if anyone: you, or someone else, named and marked as Activity does, so a
+  // token reads as a token whatever its maker called it. Your own token isn't you.
   const by = alert.acknowledgeTime ? alert.acknowledgedBy : undefined;
-  const mine = by !== undefined && me !== undefined && by.id === me.id;
-  const name = by?.name || by?.id || "";
+  const mine = by !== undefined && me !== undefined && by.kind === ActorKind.USER && by.id === me.id;
+  const who = actorWords(by);
+  const name = who.name;
   const ago = alert.acknowledgeTime ? words.ago(timestampDate(alert.acknowledgeTime), now) : "";
-  const busy = acknowledge.busy === alert.id;
-  const failed = acknowledge.failed?.id === alert.id ? acknowledge.failed.error : undefined;
+  const busy = acknowledge.busy.has(alert.id);
+  const failed = acknowledge.failed.get(alert.id);
   const critical = alert.severity === Severity.CRITICAL;
   const title = alertTitle(alert, i18n);
   const opened = ms(alert.openTime);
@@ -174,15 +194,24 @@ function AlertCard({
       </div>
       {alert.detail ? <p className="alerts-card-detail">{alert.detail}</p> : null}
       <div className="alerts-card-foot">
-        {by === undefined ? (
-          <span className="alerts-muted">
+        {/* A status, so a change of who has it is said to someone who can't see it change. */}
+        <span role="status" className={cx("alerts-card-seen", by === undefined && "alerts-muted")}>
+          {by === undefined ? (
             <Trans>Not acknowledged</Trans>
-          </span>
-        ) : (
-          <span className="alerts-card-seen">
-            {mine ? t`Acknowledged by you ${ago}` : t`Acknowledged by ${name} ${ago}`}
-          </span>
-        )}
+          ) : (
+            <>
+              {who.icon ? (
+                <span className="alerts-card-by" aria-hidden="true">
+                  <Icon name={who.icon} size={12} />
+                </span>
+              ) : null}
+              <span title={who.full === who.name ? undefined : who.full}>
+                {mine ? t`Acknowledged by you` : t`Acknowledged by ${name}`}
+              </span>
+              <span className="alerts-muted"> · {ago}</span>
+            </>
+          )}
+        </span>
         <span className="alerts-card-spacer" />
         <span className="alerts-muted">
           <code>{alert.ruleName}</code>
@@ -213,7 +242,16 @@ function AlertCard({
         <Inspect alert={alert} title={title} />
       </div>
       {failed ? (
-        <Callout tone="critical" title={t`That didn't take`} className="alerts-card-failed">
+        <Callout
+          tone="critical"
+          title={t`That didn't take`}
+          className="alerts-card-failed"
+          actions={
+            <Button size="sm" variant="ghost" onClick={() => acknowledge.dismiss(alert.id)}>
+              <Trans>Close</Trans>
+            </Button>
+          }
+        >
           {sentence(failed)}
         </Callout>
       ) : null}

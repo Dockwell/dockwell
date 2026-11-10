@@ -97,6 +97,9 @@ type Told struct {
 	Until       *time.Time `json:"until,omitempty"`
 	Reason      string     `json:"reason,omitempty"`
 	Detail      string     `json:"detail,omitempty"`
+	// TakenFrom is who had the alert before, as an actor, on an acknowledgement
+	// that took it over, so the event says both without the one before it.
+	TakenFrom string `json:"taken_from,omitempty"`
 }
 
 // Facts are what an alert's title says, apart, so the panel can say it in its own
