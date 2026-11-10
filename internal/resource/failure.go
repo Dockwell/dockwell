@@ -33,6 +33,10 @@ const (
 	ReasonMount     = "mount"     // a volume or a path it mounts
 	ReasonBuild     = "build"     // building its image from source failed
 	ReasonCancelled = "cancelled" // someone cancelled its build
+	// ReasonRegistry is the registry's own trouble: it didn't answer a pull
+	// properly, so the same pull may work in a while, and nothing about the image
+	// needs changing.
+	ReasonRegistry = "registry"
 )
 
 func (f *Failure) Error() string { return f.Err.Error() }

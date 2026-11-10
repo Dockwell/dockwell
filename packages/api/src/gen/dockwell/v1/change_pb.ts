@@ -3459,7 +3459,9 @@ export type StepProgress = Message<"dockwell.v1.StepProgress"> & {
   /**
    * What a failure comes down to, when the driver knows, so a client can say
    * what to do about it where it is: "image", "command", "exits", "unhealthy",
-   * "port" or "mount". Empty when it doesn't, and it may gain others.
+   * "port", "mount", or "registry" for a registry that didn't answer a pull
+   * properly, where the same pull may work in a while. Empty when it doesn't,
+   * and it may gain others.
    *
    * @generated from field: string reason = 11;
    */
