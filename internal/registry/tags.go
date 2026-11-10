@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -139,7 +138,7 @@ func readTagPage(body io.Reader, limit int) (names []string, whole bool) {
 			if dec.Decode(&name) != nil {
 				return names, false
 			}
-			if tagRe.MatchString(name) {
+			if tagRe().MatchString(name) {
 				names = append(names, name)
 			}
 		}
@@ -223,13 +222,13 @@ func (c *Client) hubTags(ctx context.Context, r Ref) ([]Tag, error) {
 	return out, nil
 }
 
-var versionRe = regexp.MustCompile(`^v?(\d+(?:\.\d+)*)(?:([-+._])(.*))?$`)
+var versionRe = lazyRe(`^v?(\d+(?:\.\d+)*)(?:([-+._])(.*))?$`)
 
 // preRelease are the words that make a tag's suffix a version before its
 // release, rather than a variant of it, such as 1.27-rc1 against 1.27-alpine.
 var preRelease = []string{"alpha", "beta", "rc", "pre", "dev", "snapshot", "nightly"}
 
-func versionLike(tag string) bool { return versionRe.MatchString(tag) }
+func versionLike(tag string) bool { return versionRe().MatchString(tag) }
 
 type version struct {
 	nums   []int
@@ -239,7 +238,7 @@ type version struct {
 }
 
 func parseVersion(tag string) version {
-	m := versionRe.FindStringSubmatch(tag)
+	m := versionRe().FindStringSubmatch(tag)
 	if m == nil {
 		return version{}
 	}

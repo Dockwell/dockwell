@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // Hub is what Docker Hub is called in a Ref.
@@ -23,15 +24,22 @@ type Ref struct {
 	Tag, Digest string
 }
 
+// The grammars, compiled on first use: the agent build starts with them unbuilt
+// (cmd/dockwell's TestTheAgentBuildAllocatesLittleAsItStarts).
 var (
 	// A repository's path: lowercase parts, as the distribution spec has them.
-	pathPart = regexp.MustCompile(`^[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*$`)
-	tagRe    = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`)
-	digestRe = regexp.MustCompile(`^[a-z0-9]+(?:[.+_-][a-z0-9]+)*:[a-zA-Z0-9=_-]{32,}$`)
+	pathPart = lazyRe(`^[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*$`)
+	tagRe    = lazyRe(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`)
+	digestRe = lazyRe(`^[a-z0-9]+(?:[.+_-][a-z0-9]+)*:[a-zA-Z0-9=_-]{32,}$`)
 	// A registry's host, as Docker's grammar has it: a name of dotted labels, or
 	// an IPv6 address in brackets, and a port.
-	hostRe = regexp.MustCompile(`^(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*|\[[0-9A-Fa-f:.]+\])(?::[0-9]{1,5})?$`)
+	hostRe = lazyRe(`^(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*|\[[0-9A-Fa-f:.]+\])(?::[0-9]{1,5})?$`)
 )
+
+// lazyRe is a pattern compiled the first time it's asked for.
+func lazyRe(pattern string) func() *regexp.Regexp {
+	return sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(pattern) })
+}
 
 // ErrBadRef is a reference no registry could hold.
 var ErrBadRef = errors.New("that isn't an image reference")
@@ -48,19 +56,19 @@ func Parse(s string) (Ref, error) {
 	name := s
 	if at := strings.Index(name, "@"); at >= 0 {
 		r.Digest, name = name[at+1:], name[:at]
-		if !digestRe.MatchString(r.Digest) {
+		if !digestRe().MatchString(r.Digest) {
 			return Ref{}, fmt.Errorf("%w: %q has a digest that isn't one", ErrBadRef, s)
 		}
 	}
 	if colon := strings.LastIndex(name, ":"); colon > strings.LastIndex(name, "/") {
 		r.Tag, name = name[colon+1:], name[:colon]
-		if !tagRe.MatchString(r.Tag) {
+		if !tagRe().MatchString(r.Tag) {
 			return Ref{}, fmt.Errorf("%w: %q has a tag that isn't one", ErrBadRef, s)
 		}
 	}
 	first, rest, hasPath := strings.Cut(name, "/")
 	if hasPath && NamesAHost(first) {
-		if !hostRe.MatchString(first) {
+		if !hostRe().MatchString(first) {
 			return Ref{}, fmt.Errorf("%w: %q names a registry that isn't a host", ErrBadRef, s)
 		}
 		r.Registry, name = strings.ToLower(first), rest
@@ -74,7 +82,7 @@ func Parse(s string) (Ref, error) {
 		name = "library/" + name
 	}
 	for part := range strings.SplitSeq(name, "/") {
-		if !pathPart.MatchString(part) {
+		if !pathPart().MatchString(part) {
 			return Ref{}, fmt.Errorf("%w: %q has a name that isn't one; use lowercase letters, digits, dots, dashes and underscores", ErrBadRef, s)
 		}
 	}
