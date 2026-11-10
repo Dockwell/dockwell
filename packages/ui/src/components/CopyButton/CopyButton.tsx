@@ -13,6 +13,8 @@ export interface CopyButtonProps extends Omit<ButtonProps, "onClick" | "icon" | 
   copiedLabel: string;
   /** Shows only the icon, with label as the button's name. */
   iconOnly?: boolean;
+  /** Runs once the text is on the clipboard. */
+  onCopied?: () => void;
 }
 
 /**
@@ -20,7 +22,15 @@ export interface CopyButtonProps extends Omit<ButtonProps, "onClick" | "icon" | 
  * ready to copy again. If the browser refuses, the text stays on screen to
  * select by hand.
  */
-export function CopyButton({ text, label, copiedLabel, iconOnly = false, size = "sm", ...button }: CopyButtonProps) {
+export function CopyButton({
+  text,
+  label,
+  copiedLabel,
+  iconOnly = false,
+  size = "sm",
+  onCopied,
+  ...button
+}: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -33,6 +43,7 @@ export function CopyButton({ text, label, copiedLabel, iconOnly = false, size = 
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      onCopied?.();
     } catch {
       // Clipboard access was refused; the text stays selectable.
     }

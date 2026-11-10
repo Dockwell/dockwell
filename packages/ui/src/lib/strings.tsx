@@ -139,6 +139,22 @@ export interface UIStrings {
     /** The same, once it has copied. */
     copiedWithout: (label: string, secret: string) => string;
   };
+  /** Advanced: what the disclosure is called when the form gives it no name of its own. */
+  advanced: string;
+  portField: {
+    /** Beside a port while the server is asked. */
+    checking: string;
+    /** Beside a port nothing holds. */
+    free: string;
+    /** Beside a port something holds, and under it when what holds it isn't known. */
+    taken: string;
+    /** Under a port something holds, naming what, such as "redis uses it". */
+    takenBy: (by: ReactNode) => ReactNode;
+    /** Takes the free port offered, such as "Use 8084". */
+    use: (port: number) => string;
+    /** Under a number that isn't a port. */
+    range: string;
+  };
 }
 
 /** A label as it reads inside a sentence: "Host" is "host", while "API key" and "MySQL" keep their capitals. */
@@ -269,6 +285,15 @@ export const englishStrings: UIStrings = {
     copied: (label) => `${label} copied`,
     copyWithout: (label, secret) => `Copy ${inSentence(label)}, without the ${inSentence(secret)}`,
     copiedWithout: (label, secret) => `${label} copied, without the ${inSentence(secret)}`,
+  },
+  advanced: "Advanced",
+  portField: {
+    checking: "Checking",
+    free: "Free",
+    taken: "Taken",
+    takenBy: (by) => <>{by} uses it</>,
+    use: (port) => `Use ${port}`,
+    range: "Use a port from 1 to 65535.",
   },
 };
 

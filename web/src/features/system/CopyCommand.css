@@ -21,3 +21,21 @@
   line-height: 20px;
   overflow-wrap: anywhere;
 }
+
+/* A form's command: two quiet buttons, and the command under them on asking. */
+.copy-as-command {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.copy-as-command-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-left: calc(-1 * var(--space-2));
+}
+/* A form may take more than one command, one to a line, as a shell reads them. */
+.copy-as-command-well code {
+  white-space: pre-wrap;
+}

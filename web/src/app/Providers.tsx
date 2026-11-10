@@ -175,6 +175,15 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
           return t`${label} copied, without the ${without}`;
         },
       },
+      advanced: t`Advanced`,
+      portField: {
+        checking: t({ message: "Checking", context: "a port on the server" }),
+        free: t({ message: "Free", context: "a port on the server" }),
+        taken: t({ message: "Taken", context: "a port on the server" }),
+        takenBy: (by) => <Trans>{by} uses it</Trans>,
+        use: (port) => t`Use ${port}`,
+        range: t`Use a port from 1 to 65535.`,
+      },
     }),
     [t, active],
   );

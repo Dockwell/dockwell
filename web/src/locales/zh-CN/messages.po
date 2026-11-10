@@ -10,11 +10,18 @@ msgstr ""
 msgid "10k+ new lines"
 msgstr "超过 1 万行新日志"
 
+msgid "Advanced"
+msgstr "高级"
+
 msgid "CPU"
 msgstr "CPU"
 
 msgid "Cancel"
 msgstr "取消"
+
+msgctxt "a port on the server"
+msgid "Checking"
+msgstr "正在检查"
 
 msgid "Close"
 msgstr "关闭"
@@ -64,6 +71,10 @@ msgstr "跟随"
 
 msgid "Following"
 msgstr "跟随中"
+
+msgctxt "a port on the server"
+msgid "Free"
+msgstr "空闲"
 
 msgid "Healthy"
 msgstr "健康"
@@ -149,6 +160,10 @@ msgstr "显示整行"
 msgid "Stopped"
 msgstr "已停止"
 
+msgctxt "a port on the server"
+msgid "Taken"
+msgstr "已占用"
+
 msgid "Undo"
 msgstr "撤销"
 
@@ -160,6 +175,12 @@ msgstr "原地更新"
 
 msgid "Updated in place"
 msgstr "已原地更新"
+
+msgid "Use a port from 1 to 65535."
+msgstr "请使用 1 到 65535 之间的端口。"
+
+msgid "Use {port}"
+msgstr "使用 {port}"
 
 msgid "Warning"
 msgstr "警告"
@@ -269,6 +290,9 @@ msgstr "变量"
 
 msgid "volume"
 msgstr "卷"
+
+msgid "{by} uses it"
+msgstr "{by} 正在使用"
 
 msgid "{count, plural, one {# new line} other {# new lines}}"
 msgstr "{count, plural, other {# 行新日志}}"
@@ -1561,9 +1585,6 @@ msgstr "服务器上的端口"
 msgid "Send {wanted} to {name}"
 msgstr "将 {wanted} 发送到 {name}"
 
-msgid "Use a port from 1 to 65535."
-msgstr "请使用 1 到 65535 之间的端口。"
-
 msgid "What the app listens on, such as 80."
 msgstr "应用监听的端口，例如 80。"
 
@@ -1573,11 +1594,17 @@ msgstr "{typed} 目前指向 {leavesApp}。继续操作会将它移到这里，�
 msgid "Add a port to {name}"
 msgstr "为 {name} 添加端口"
 
+msgid "Anywhere"
+msgstr "任意来源"
+
 msgid "Check the port in the app, then try again."
 msgstr "请检查应用内的端口，然后重试。"
 
 msgid "Dockwell is putting {name} back. You can review this plan once that ends."
 msgstr "Dockwell 正在恢复 {name}。结束后你就可以查看此计划。"
+
+msgid "Dockwell's proxy"
+msgstr "Dockwell 的代理"
 
 msgid "In the app"
 msgstr "应用内"
@@ -1585,8 +1612,8 @@ msgstr "应用内"
 msgid "On the server"
 msgstr "在服务器上"
 
-msgid "People outside the server reach the app through this port"
-msgstr "服务器外部的用户通过这个端口访问应用"
+msgid "Only the server"
+msgstr "仅限服务器本机"
 
 msgid "Protocol"
 msgstr "协议"
@@ -1594,8 +1621,23 @@ msgstr "协议"
 msgid "Publish port {hostPort} on {name}"
 msgstr "在 {name} 上发布端口 {hostPort}"
 
-msgid "What people connect to, such as 8080."
-msgstr "外部连接使用的端口，例如 8080。"
+msgid "Reachable at <0>{where}</0>"
+msgstr "访问地址 <0>{where}</0>"
+
+msgid "Reachable from"
+msgstr "可访问来源"
+
+msgid "TCP · from anywhere"
+msgstr "TCP · 任意来源"
+
+msgid "TCP · only from the server"
+msgstr "TCP · 仅限服务器本机"
+
+msgid "UDP · from anywhere"
+msgstr "UDP · 任意来源"
+
+msgid "UDP · only from the server"
+msgstr "UDP · 仅限服务器本机"
 
 msgid "{name} is still deploying. You can review this plan once that ends."
 msgstr "{name} 仍在部署中。部署结束后即可审阅这个计划。"
@@ -8302,9 +8344,6 @@ msgstr "任意端口"
 msgid "Any {proto} port"
 msgstr "任意 {proto} 端口"
 
-msgid "Anywhere"
-msgstr "任意来源"
-
 msgid "Anywhere, IPv6"
 msgstr "任意来源，IPv6"
 
@@ -10272,8 +10311,20 @@ msgstr "计划任务"
 msgid "Command copied"
 msgstr "命令已复制"
 
+msgid "Copied the command"
+msgstr "已复制命令"
+
+msgid "Copy as CLI command"
+msgstr "复制为 CLI 命令"
+
 msgid "Copy command"
 msgstr "复制命令"
+
+msgid "Hide it"
+msgstr "隐藏"
+
+msgid "Show it"
+msgstr "显示"
 
 msgid "No page here"
 msgstr "页面不存在"

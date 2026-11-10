@@ -665,11 +665,14 @@ describe("an app's overview", () => {
     const sheet = await screen.findByRole("dialog", { name: "Add a port to alone" });
     await expectAccessible(document.body);
 
-    // A port is a number; that's said at the field, before anything is asked.
+    // The server's port starts at a free one; what the app listens on is the person's to say,
+    // and a port is a number, which is said at the field before anything is asked.
+    expect(within(sheet).getByLabelText<HTMLInputElement>("On the server").value).toBe("8080");
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
-    expect(within(sheet).getByLabelText("On the server")).toHaveAccessibleDescription("Use a port from 1 to 65535.");
+    expect(within(sheet).getByLabelText("In the app")).toHaveAccessibleDescription("Use a port from 1 to 65535.");
     expect(asked).toEqual([]);
 
+    await user.clear(within(sheet).getByLabelText("On the server"));
     await user.type(within(sheet).getByLabelText("On the server"), "80");
     await user.type(within(sheet).getByLabelText("In the app"), "80");
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
@@ -812,6 +815,7 @@ describe("an app's overview", () => {
 
     await user.click(await screen.findByRole("button", { name: "Add a port" }));
     const port = await screen.findByRole("dialog", { name: "Add a port to web" });
+    await user.clear(within(port).getByLabelText("On the server"));
     await user.type(within(port).getByLabelText("On the server"), "81");
     await user.type(within(port).getByLabelText("In the app"), "80");
     await user.click(within(port).getByRole("button", { name: /Review plan/ }));
@@ -3068,6 +3072,7 @@ describe("an app's overview", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Add a port" }));
     const form = await screen.findByRole("dialog", { name: "Add a port to alone" });
+    await user.clear(within(form).getByLabelText(/On the server/));
     await user.type(within(form).getByLabelText(/On the server/), "8080");
     await user.type(within(form).getByLabelText(/In the app/), "80");
     await user.click(within(form).getByRole("button", { name: "Review plan" }));
@@ -3106,6 +3111,7 @@ describe("an app's overview", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Add a port" }));
     const form = await screen.findByRole("dialog", { name: "Add a port to alone" });
+    await user.clear(within(form).getByLabelText(/On the server/));
     await user.type(within(form).getByLabelText(/On the server/), "8080");
     await user.type(within(form).getByLabelText(/In the app/), "80");
     await user.click(within(form).getByRole("button", { name: "Review plan" }));

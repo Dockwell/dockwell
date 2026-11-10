@@ -6,6 +6,7 @@
 // foundations there, as pages put dw-panel on their own elements too.
 // Guidelines for every component live in design/system/components/<Name>/README.md.
 
+export { Advanced, type AdvancedProps } from "./components/Advanced/Advanced";
 export { Button, ButtonLink, type ButtonLinkProps, type ButtonProps } from "./components/Button/Button";
 export { Callout, type CalloutProps } from "./components/Callout/Callout";
 export { CodeField, type CodeFieldProps } from "./components/CodeField/CodeField";
@@ -44,6 +45,7 @@ export {
   type PlanResource,
   type PlanValue,
 } from "./components/PlanDiff/PlanDiff";
+export { type PortCheck, PortField, type PortFieldProps, validPortNumber } from "./components/PortField/PortField";
 export { ScopeBar, type ScopeBarProps, type ScopeLevel } from "./components/ScopeBar/ScopeBar";
 export {
   SegmentedControl,
