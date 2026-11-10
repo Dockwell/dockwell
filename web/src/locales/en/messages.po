@@ -7966,6 +7966,10 @@ msgstr "Apps you run with Dockwell are under <0>Apps</0>."
 msgid "Containers Dockwell didn't make"
 msgstr "Containers Dockwell didn't make"
 
+#. placeholder {0}: server.name
+msgid "Docker isn't answering on {0}, so what runs there can't be read now."
+msgstr "Docker isn't answering on {0}, so what runs there can't be read now."
+
 msgid "Docker runs nothing here that Dockwell didn't make."
 msgstr "Docker runs nothing here that Dockwell didn't make."
 
@@ -7986,6 +7990,14 @@ msgstr "See them all with <0>docker ps -a</0> on the server."
 
 msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
 msgstr "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
+
+#. placeholder {0}: server.name
+msgid "{0} is waiting for its agent, so what Docker runs there can't be read yet."
+msgstr "{0} is waiting for its agent, so what Docker runs there can't be read yet."
+
+#. placeholder {0}: server.name
+msgid "{0} isn't reporting, so what Docker runs there can't be read now."
+msgstr "{0} isn't reporting, so what Docker runs there can't be read now."
 
 msgid "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
 msgstr "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
@@ -8387,8 +8399,8 @@ msgstr "You're offline"
 msgid "All activity"
 msgstr "All activity"
 
-msgid "CPU above {HIGH}%"
-msgstr "CPU above {HIGH}%"
+msgid "CPU above {HIGH}% since {since}"
+msgstr "CPU above {HIGH}% since {since}"
 
 msgid "Can't say how it is now"
 msgstr "Can't say how it is now"
@@ -8406,8 +8418,8 @@ msgstr "Copy {label} {address}"
 msgid "Docker hasn't answered for {0}"
 msgstr "Docker hasn't answered for {0}"
 
-msgid "Memory above {HIGH}%"
-msgstr "Memory above {HIGH}%"
+msgid "Memory above {HIGH}% since {since}"
+msgstr "Memory above {HIGH}% since {since}"
 
 msgid "No apps here yet. Deploy one from an image or the catalog."
 msgstr "No apps here yet. Deploy one from an image or the catalog."
@@ -8455,6 +8467,10 @@ msgstr "{0, plural, one {# app} other {# apps}}"
 
 msgid "{replicas, plural, one {# replica} other {# replicas}}"
 msgstr "{replicas, plural, one {# replica} other {# replicas}}"
+
+#. placeholder {0}: words.ago(heard, now)
+msgid "{text}, as last heard {0}"
+msgstr "{text}, as last heard {0}"
 
 #. placeholder {0}: g.owner.name
 #. placeholder {0}: owner.name
@@ -8903,6 +8919,12 @@ msgstr "Showing {shown} of {count} · sorted by name"
 
 msgid "sorted by name"
 msgstr "sorted by name"
+
+msgid "CPU above {HIGH_USE}%"
+msgstr "CPU above {HIGH_USE}%"
+
+msgid "Memory above {HIGH_USE}%"
+msgstr "Memory above {HIGH_USE}%"
 
 msgid "No servers yet. Add one with <0>dockwell token create</0> on this server."
 msgstr "No servers yet. Add one with <0>dockwell token create</0> on this server."

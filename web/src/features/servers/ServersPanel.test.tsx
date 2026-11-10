@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { Connection, type WatchServersResponse } from "@dockwell/api";
+import { Connection, ServerStrain, type WatchServersResponse } from "@dockwell/api";
 import { act, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -42,6 +43,24 @@ describe("ServersPanel", () => {
     expect(second).toHaveTextContent("Waiting for its agent");
     expect(second).toHaveTextContent("Unknown system");
     expect(within(second as HTMLElement).queryByText("CPU")).toBeNull();
+  });
+
+  it("says why a server is degraded, beside its triangle", async () => {
+    const watch = feed<WatchServersResponse>();
+    watch.push(
+      changed(
+        aServer({
+          ...controlServer,
+          strainedSince: timestampFromDate(new Date(2026, 10, 7, 13, 58)),
+          strain: ServerStrain.MEMORY,
+        }),
+      ),
+      snapshotComplete,
+    );
+    renderPanel(watch);
+    const [row] = await within(await screen.findByRole("region", { name: "Servers" })).findAllByRole("listitem");
+    expect(row).toHaveTextContent("Degraded: hz-1");
+    expect(row).toHaveTextContent("Memory above 90%");
   });
 
   it("follows changes as agents report them", async () => {

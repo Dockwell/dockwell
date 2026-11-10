@@ -12,6 +12,7 @@ import {
   ListChangesResponseSchema,
   Role,
   ServerInventorySchema,
+  ServerStrain,
   Surface,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -206,6 +207,17 @@ describe("the shell on wide screens", () => {
       // Generated content would join the name, as "Overview Overview".
       expect(item).not.toHaveAttribute("data-label");
     }
+  });
+
+  it("counts a degraded server in the top bar, and doesn't say all are healthy", async () => {
+    await renderWith(
+      "/",
+      hz1,
+      aServer({ ...hz2, strainedSince: timestampFromDate(new Date(2026, 10, 7, 13, 58)), strain: ServerStrain.CPU }),
+    );
+    const top = screen.getByRole("banner");
+    expect(await within(top).findByText("1 degraded")).toBeVisible();
+    expect(within(top).queryByText("All healthy")).toBeNull();
   });
 
   it("says the counts may be stale while the watch reconnects", async () => {

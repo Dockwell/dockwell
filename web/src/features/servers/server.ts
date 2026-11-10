@@ -16,13 +16,28 @@ const STATUS: Partial<Record<Connection, Status>> = {
 };
 
 /**
+ * Past this share of its memory or CPU, a meter reads as a warning, as the mocks
+ * have it. Whether the server is degraded for it is the control plane's to say,
+ * once it has lasted (strained_since), so every page and the CLI agree.
+ */
+export const HIGH_USE = 90;
+
+/**
  * A server's state as the design system draws it: connected is healthy, gone
  * quiet is down, not yet heard from is stopped. Connected with an agent that
- * can't read Docker is degraded, as nobody can say what runs there. A state this
- * panel doesn't know, from a newer control plane, is stopped too.
+ * can't read Docker, or strained, as the control plane says, is degraded. A
+ * state this panel doesn't know, from a newer control plane, is stopped too. A
+ * full server's strain is its strainedSince; a summary's, strained.
  */
-export function serverStatus(server: { connection: Connection; dockerUnreadableSince?: unknown }): Status {
-  if (server.connection === Connection.CONNECTED && server.dockerUnreadableSince !== undefined) return "degraded";
+export function serverStatus(server: {
+  connection: Connection;
+  dockerUnreadableSince?: unknown;
+  strainedSince?: unknown;
+  strained?: boolean;
+}): Status {
+  const connected = server.connection === Connection.CONNECTED;
+  if (connected && server.dockerUnreadableSince !== undefined) return "degraded";
+  if (connected && (server.strained ?? server.strainedSince !== undefined)) return "degraded";
   return STATUS[server.connection] ?? "stopped";
 }
 
@@ -64,6 +79,8 @@ export interface ServerSummary {
   address: string | undefined;
   /** Since when its agent can't read Docker, for one that's connected and can't. */
   dockerUnreadableSince?: number;
+  /** True for one that's connected with memory or CPU past HIGH_USE. */
+  strained?: boolean;
 }
 
 /**
@@ -83,19 +100,21 @@ export interface FleetView {
   only: ServerSummary | undefined;
   /**
    * How many servers are in each state. Unknown counts what is in none of the others.
-   * Docker counts the connected ones whose agent can't read Docker.
+   * Docker counts the connected ones whose agent can't read Docker, and strained
+   * the connected ones short of memory or CPU, as the control plane says.
    */
-  counts: { connected: number; down: number; waiting: number; unknown: number; docker: number };
+  counts: { connected: number; down: number; waiting: number; unknown: number; docker: number; strained: number };
 }
 
 /** Sums up state for the shell, reusing what it can of the view before it so equal parts keep their identity. */
 export function fleetView(state: FleetState, prev?: FleetView): FleetView {
   const servers = state.status === "connecting" ? undefined : summaries(state.servers, prev?.servers);
-  const counts = { connected: 0, down: 0, waiting: 0, unknown: 0, docker: 0 };
+  const counts = { connected: 0, down: 0, waiting: 0, unknown: 0, docker: 0, strained: 0 };
   for (const server of servers ?? []) {
     if (server.connection === Connection.CONNECTED) {
       counts.connected++;
       if (server.dockerUnreadableSince !== undefined) counts.docker++;
+      if (server.strained) counts.strained++;
     } else if (server.connection === Connection.UNREACHABLE) counts.down++;
     else if (server.connection === Connection.PENDING) counts.waiting++;
     else counts.unknown++;
@@ -126,6 +145,7 @@ function summaries(servers: readonly Server[], prev: readonly ServerSummary[] | 
       ...(server.connection === Connection.CONNECTED && server.dockerUnreadableSince
         ? { dockerUnreadableSince: timestampMs(server.dockerUnreadableSince) }
         : {}),
+      ...(server.connection === Connection.CONNECTED && server.strainedSince ? { strained: true } : {}),
     };
     const old = prev?.[i];
     return old && sameSummary(old, summary) ? old : summary;
@@ -141,7 +161,8 @@ function sameSummary(a: ServerSummary, b: ServerSummary): boolean {
     a.address === b.address &&
     a.lastSeen === b.lastSeen &&
     a.connectedAt === b.connectedAt &&
-    a.dockerUnreadableSince === b.dockerUnreadableSince
+    a.dockerUnreadableSince === b.dockerUnreadableSince &&
+    a.strained === b.strained
   );
 }
 
@@ -150,6 +171,7 @@ function sameView(a: FleetView, b: FleetView): boolean {
     a.status === b.status &&
     a.servers === b.servers &&
     a.counts.connected === b.counts.connected &&
+    a.counts.strained === b.counts.strained &&
     a.counts.down === b.counts.down &&
     a.counts.waiting === b.counts.waiting &&
     a.counts.unknown === b.counts.unknown &&
