@@ -289,6 +289,13 @@ func (s *Service) BeginStepUp(ctx context.Context, client Client, p Principal, a
 		return Ceremony{}, fmt.Errorf("%w: say which action to confirm, and on what, such as revealing a secret by its ID", ErrInvalid)
 	case !a.targeted:
 		target = p.User.ID // it acts on the person
+	case action == StepUpInvite:
+		// The email is written one way, the server's, so what the panel typed and what
+		// CreateInvite checks against agree whatever the letters (İ lowercases two ways).
+		var err error
+		if target, err = normalizeInviteTarget(target); err != nil {
+			return Ceremony{}, err
+		}
 	}
 	rp, err := s.relyingParty(client.Site)
 	if err != nil {

@@ -22,6 +22,7 @@ function api(overrides: Record<string, unknown> = {}) {
     checkInvite: vi.fn((_req: CheckInviteRequest) => ({
       email: "ada@example.com",
       role: Role.DEVELOPER,
+      projectId: "prj_1",
       projectName: "shop",
       invitedBy: "Mira Chen",
       expireTime: timestampFromDate(new Date(Date.now() + 7 * 86_400_000)),

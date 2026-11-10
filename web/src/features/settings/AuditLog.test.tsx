@@ -328,10 +328,27 @@ describe("Audit log", () => {
       audit: {
         listAuditEvents: () => ({
           events: [
-            member("evt_i", "member.invite", { email: "ada@example.com", role: Role.DEVELOPER, projectName: "shop" }),
+            member("evt_i", "member.invite", {
+              email: "ada@example.com",
+              role: Role.DEVELOPER,
+              projectId: "prj_1",
+              projectName: "shop",
+            }),
             member("evt_a", "member.invite", { email: "sam@example.com", role: Role.ADMIN }),
             member("evt_r", "member.invite_revoke", { email: "lin@example.com", role: Role.VIEWER }),
-            member("evt_j", "member.join", { email: "ada@example.com", name: "Ada Lovelace", role: Role.VIEWER }),
+            member("evt_j", "member.join", {
+              email: "ada@example.com",
+              name: "Ada Lovelace",
+              role: Role.VIEWER,
+              address: "203.0.113.7",
+            }),
+            // A project deleted since has an ID and no name: it's never read as every project.
+            member("evt_g", "member.join", {
+              email: "bo@example.com",
+              name: "Bo",
+              role: Role.VIEWER,
+              projectId: "prj_9",
+            }),
           ],
         }),
       },
@@ -339,7 +356,8 @@ describe("Audit log", () => {
     expect(await screen.findByText("Invited ada@example.com as a developer of shop")).toBeVisible();
     expect(screen.getByText("Invited sam@example.com as an admin")).toBeVisible();
     expect(screen.getByText("Revoked the invite for lin@example.com")).toBeVisible();
-    expect(screen.getByText("Ada Lovelace joined as a viewer of every project")).toBeVisible();
+    expect(screen.getByText("Ada Lovelace joined as a viewer of every project, from 203.0.113.7")).toBeVisible();
+    expect(screen.getByText("Bo joined as a viewer of a project that's gone")).toBeVisible();
   });
 
   it("writes CSV that a spreadsheet reads back", () => {

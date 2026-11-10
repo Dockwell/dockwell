@@ -74,6 +74,10 @@ service AuthService {
 
   // CheckClaim checks a claim link without spending it, and describes the
   // server it claims.
+  //
+  // It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+  // calls so marked as GETs, with the request in the address, and this one's
+  // request is a secret (a test in internal/control holds it to that).
   rpc CheckClaim(CheckClaimRequest) returns (CheckClaimResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
     option (dockwell.v1.min_role) = NEEDS_NOTHING;
@@ -117,6 +121,10 @@ service AuthService {
   // CheckInvite reads an invite's link without spending it: who invited
   // them, as what, and where. It works only at the panel's domain, where the
   // passkey is made.
+  //
+  // It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+  // calls so marked as GETs, with the request in the address, and this one's
+  // request is a secret (a test in internal/control holds it to that).
   rpc CheckInvite(CheckInviteRequest) returns (CheckInviteResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
     option (dockwell.v1.min_role) = NEEDS_NOTHING;
@@ -601,6 +609,9 @@ message CheckInviteResponse {
   // Who made it, by name.
   string invited_by = 4;
   google.protobuf.Timestamp expire_time = 5;
+  // The project's ID, for a developer or a viewer of one. Empty for the whole
+  // install: what says "every project" is this, never an empty name.
+  string project_id = 6;
 }
 
 // BeginAcceptInviteRequest names the person accepting.

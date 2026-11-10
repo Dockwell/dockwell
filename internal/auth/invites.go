@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -62,6 +63,20 @@ func InviteTarget(email, role, projectID string) string {
 	return email + " " + role + " " + place
 }
 
+// normalizeInviteTarget writes a step-up target's email as CreateInvite will:
+// "Ada@Example.com developer prj_…" becomes "ada@example.com developer prj_…".
+func normalizeInviteTarget(target string) (string, error) {
+	email, rest, ok := strings.Cut(strings.TrimSpace(target), " ")
+	if !ok {
+		return "", fmt.Errorf("%w: an invite's passkey confirms an email, a role and a place", ErrInvalid)
+	}
+	email, err := normalizeEmail(email)
+	if err != nil {
+		return "", err
+	}
+	return email + " " + rest, nil
+}
+
 // MadeInvite is an invite just made, with its link, shown once.
 type MadeInvite struct {
 	Invite store.Invite
@@ -82,13 +97,19 @@ func (d memberDetail) String() string {
 	return string(b)
 }
 
+// MemberDetail is what a member's audit event recorded: who, as what, where,
+// and for someone who joined, the address they joined from.
+type MemberDetail struct {
+	Email, Name, Role, Project, From string
+}
+
 // ReadMemberDetail reads what a member's audit event recorded.
-func ReadMemberDetail(detail string) (email, name, role, project string, ok bool) {
+func ReadMemberDetail(detail string) (MemberDetail, bool) {
 	var d memberDetail
 	if err := json.Unmarshal([]byte(detail), &d); err != nil || d.Email == "" {
-		return "", "", "", "", false
+		return MemberDetail{}, false
 	}
-	return d.Email, d.Name, d.Role, d.Project, true
+	return MemberDetail(d), true
 }
 
 // CreateInvite invites email to sign in with role in the place projectID names,
@@ -113,6 +134,10 @@ func (s *Service) CreateInvite(ctx context.Context, client Client, p Principal, 
 	if s.sites.Domain == "" {
 		return MadeInvite{}, ErrInviteNeedsDomain
 	}
+	// Someone who signs in already is told so before the passkey's proof is spent on them.
+	if err := s.db.View(ctx, func(tx *store.Tx) error { return s.memberAlready(ctx, tx, email) }); err != nil {
+		return MadeInvite{}, err
+	}
 	if err := s.UseStepUp(p, proof, StepUpInvite, InviteTarget(email, role, projectID)); err != nil {
 		return MadeInvite{}, err
 	}
@@ -128,9 +153,8 @@ func (s *Service) CreateInvite(ctx context.Context, client Client, p Principal, 
 		CreatedAt: now, CreatedBy: p.Actor(), ExpiresAt: now.Add(lasts),
 	}
 	err = s.db.Update(ctx, func(tx *store.Tx) error {
-		if _, err := tx.GetUserByEmail(ctx, email); err == nil {
-			return fault.New(ErrMemberExists, "%s signs in here already. Change what they hold in Members instead", email)
-		} else if !errors.Is(err, store.ErrNotFound) {
+		// Again, with the write: they may have joined since.
+		if err := s.memberAlready(ctx, tx, email); err != nil {
 			return err
 		}
 		open, err := tx.ListOpenInvites(ctx, now)
@@ -140,6 +164,11 @@ func (s *Service) CreateInvite(ctx context.Context, client Client, p Principal, 
 		for i := range open {
 			if open[i].Email == email {
 				if err := tx.RevokeInvite(ctx, open[i].ID, p.Actor(), now); err != nil {
+					return err
+				}
+				// The one it replaces stops working, which is on record as any revoke is.
+				if err := s.auditFrom(ctx, tx, p.Actor(), client.Surface(p), "member.invite_revoke", open[i].ID,
+					memberDetail{Email: open[i].Email, Role: open[i].Role, Project: open[i].ProjectID}.String()); err != nil {
 					return err
 				}
 			}
@@ -154,6 +183,16 @@ func (s *Service) CreateInvite(ctx context.Context, client Client, p Principal, 
 		return MadeInvite{}, err
 	}
 	return MadeInvite{Invite: inv, Link: "https://" + s.sites.Domain + "/invite#" + secret}, nil
+}
+
+// memberAlready refuses inviting someone who signs in here already.
+func (s *Service) memberAlready(ctx context.Context, tx *store.Tx, email string) error {
+	if _, err := tx.GetUserByEmail(ctx, email); err == nil {
+		return fault.New(ErrMemberExists, "%s signs in here already. Change what they hold in Members instead", email)
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	return nil
 }
 
 // RevokeInvite stops an open invite working.
@@ -229,8 +268,22 @@ func (s *Service) openInvite(ctx context.Context, tx *store.Tx, secret string) (
 	if !inv.Open(s.now()) {
 		return store.Invite{}, ErrInviteRejected
 	}
+	// Its place is checked each time it's opened: an invite to a project that's gone
+	// since would make someone who holds nothing, so it's refused as any other is.
+	if inv.ProjectID != store.Install {
+		r, err := tx.GetResourceByID(ctx, inv.ProjectID)
+		if errors.Is(err, store.ErrNotFound) || err == nil && (r.Spec == nil || r.Kind != projectKind) {
+			return store.Invite{}, ErrInviteRejected
+		}
+		if err != nil {
+			return store.Invite{}, err
+		}
+	}
 	return inv, nil
 }
+
+// projectKind is a project's kind, as internal/scope names it.
+const projectKind = "project"
 
 // ActorName is who an actor is, by name, for words: a person's name, or for an
 // API token, its maker's.

@@ -48,23 +48,33 @@ export function useRoleNames(): (role: Role) => string {
   );
 }
 
+/** Where a role is held: a project by its ID, with its name, or no project for the whole install. */
+export interface RolePlace {
+  projectId: string;
+  projectName: string;
+}
+
 /**
  * Who a role makes someone, where, in a sentence: "an admin", "a developer of
- * shop", "a viewer of every project".
+ * shop", "a viewer of every project". Every project is the install, which has
+ * no project ID: a project whose name can't be read, as one deleted since, is
+ * never taken for it.
  */
-export function useRolePhrase(): (role: Role, project: string) => string {
+export function useRolePhrase(): (role: Role, place: RolePlace) => string {
   const { t } = useLingui();
   return useCallback(
-    (role: Role, project: string) => {
+    (role: Role, place: RolePlace) => {
+      const everywhere = place.projectId === "";
+      const project = place.projectName || t`a project that's gone`;
       switch (role) {
         case Role.OWNER:
           return t`the owner`;
         case Role.ADMIN:
           return t`an admin`;
         case Role.DEVELOPER:
-          return project ? t`a developer of ${project}` : t`a developer of every project`;
+          return everywhere ? t`a developer of every project` : t`a developer of ${project}`;
         case Role.VIEWER:
-          return project ? t`a viewer of ${project}` : t`a viewer of every project`;
+          return everywhere ? t`a viewer of every project` : t`a viewer of ${project}`;
         default:
           return t`someone with no role`;
       }

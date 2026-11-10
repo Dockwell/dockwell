@@ -95,7 +95,7 @@ export function useAuthError({ claimCommand = "dockwell claim" }: { claimCommand
         case "invite_elsewhere":
           return t`This invite works only at the panel's domain, where the install keeps serving. Open the link exactly as you were sent it.`;
         case "signed_in":
-          return t`Someone is signed in in this browser, and an invite makes someone new. Sign out, or open the link in a private window.`;
+          return t`This browser is already signed in, and an invite makes someone new. Sign out, or open the link in a private window.`;
         case "member_exists":
           return t`That person signs in here already. Change what they hold in Members instead.`;
         case "needs_domain":

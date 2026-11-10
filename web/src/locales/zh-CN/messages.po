@@ -667,7 +667,7 @@ msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"
 
 #. placeholder {0}: m?.email ?? ""
-#. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, m?.projectName ?? "")
+#. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" })
 msgid "Invited {0} as {1}"
 msgstr "邀请 {0} 成为 {1}"
 
@@ -867,11 +867,6 @@ msgstr "一台服务器"
 msgid "its server"
 msgstr "它的服务器"
 
-#. placeholder {0}: m?.name || m?.email || ""
-#. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, m?.projectName ?? "")
-msgid "{0} joined as {1}"
-msgstr "{0} 已加入，成为 {1}"
-
 #. placeholder {0}: s.create
 msgid "{0} to create"
 msgstr "{0} 项创建"
@@ -966,6 +961,12 @@ msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
 
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, other {{subject} 的证书将在 # 天内过期}}"
+
+msgid "{who} joined as {as}"
+msgstr "{who} 已加入，成为 {as}"
+
+msgid "{who} joined as {as}, from {from}"
+msgstr "{who} 已加入，成为 {as}，来自 {from}"
 
 msgid "Critical"
 msgstr "严重"
@@ -3885,9 +3886,6 @@ msgstr "邀请需要面板的域名，因为链接使用该域名，受邀者的
 msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 msgstr "通行密钥需要主机名，不能用 IP 地址。请在同一端口上打开 http://localhost 访问面板。"
 
-msgid "Someone is signed in in this browser, and an invite makes someone new. Sign out, or open the link in a private window."
-msgstr "此浏览器中已有人登录，而邀请会创建一个新成员。请先退出登录，或在隐私窗口中打开链接。"
-
 msgid "Something went wrong. Try again."
 msgstr "出了点问题。请重试。"
 
@@ -3948,6 +3946,9 @@ msgstr "通行密钥请求已过期。请重试。"
 msgid "This browser can't use passkeys at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain over HTTPS."
 msgstr "这个浏览器无法在此地址使用通行密钥。请通过 SSH 隧道在 http://localhost 打开面板，或通过 HTTPS 在它的域名上打开。"
 
+msgid "This browser is already signed in, and an invite makes someone new. Sign out, or open the link in a private window."
+msgstr "此浏览器已登录，而邀请会创建一个新成员。请先退出登录，或在隐私窗口中打开链接。"
+
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run {claimCommand} on the server for a new link."
 msgstr "这个认领链接无效、已使用、已被新链接取代或已过期。请在服务器上运行 {claimCommand} 获取新链接。"
 
@@ -4002,6 +4003,9 @@ msgstr "所有项目的开发者"
 
 msgid "a developer of {project}"
 msgstr "{project} 的开发者"
+
+msgid "a project that's gone"
+msgstr "一个已不存在的项目"
 
 msgid "a viewer of every project"
 msgstr "所有项目的查看者"
@@ -9677,8 +9681,11 @@ msgstr "1 人可以登录这个安装，即其所有者"
 msgid "<0>dockwell recover</0> on the control server"
 msgstr "在控制服务器上运行 <0>dockwell recover</0>"
 
-msgid "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it."
-msgstr "开发者在受保护环境中的更改会等待管理员或所有者，由其使用通行密钥应用。请检查每个环境是否符合你的预期。"
+msgid "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in: Dockwell keeps no record of the tick."
+msgstr "开发者在受保护环境中的更改会等待管理员或所有者，由其使用通行密钥应用。请检查每个环境是否符合你的预期。这是一条提醒，在有其他人登录之前会一直显示：Dockwell 不会记录这个勾选。"
+
+msgid "A project that's gone"
+msgstr "已不存在的项目"
 
 msgid "All projects"
 msgstr "所有项目"

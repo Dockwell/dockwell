@@ -98,6 +98,7 @@ function SignedInElsewhere({ name }: { name: string }) {
 interface Offer {
   email: string;
   role: Role;
+  projectId: string;
   projectName: string;
   invitedBy: string;
   expireTime?: Parameters<typeof timestampDate>[0];
@@ -116,7 +117,7 @@ function AcceptForm({ secret, invite }: { secret: string; invite: Offer }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<unknown>();
   const canUsePasskeys = passkeysAvailable();
-  const where = rolePhrase(invite.role, invite.projectName);
+  const where = rolePhrase(invite.role, invite);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

@@ -524,7 +524,7 @@ func Methods() []*apicli.Method {
 			Noun:      "claim-link",
 			Verb:      "check",
 			Short:     "Check a claim link without spending it",
-			Long:      "Check a claim link without spending it, and describes the server it claims.",
+			Long:      "Check a claim link without spending it, and describes the server it claims.\n\nIt only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends calls so\nmarked as GETs, with the request in the address, and this one's request is a\nsecret (a test in internal/control holds it to that).",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "token", Flag: "claim-token", Help: "The token from the claim link, the part after \"#\"."},
@@ -1117,7 +1117,7 @@ func Methods() []*apicli.Method {
 			Noun:      "invite",
 			Verb:      "check",
 			Short:     "Read an invite's link without spending it",
-			Long:      "Read an invite's link without spending it: who invited them, as what, and where.\nIt works only at the panel's domain, where the passkey is made.",
+			Long:      "Read an invite's link without spending it: who invited them, as what, and where.\nIt works only at the panel's domain, where the passkey is made.\n\nIt only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends calls so\nmarked as GETs, with the request in the address, and this one's request is a\nsecret (a test in internal/control holds it to that).",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "secret"},

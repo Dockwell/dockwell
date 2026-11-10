@@ -1011,8 +1011,11 @@ type CheckInviteResponse struct {
 	// whole install.
 	ProjectName string `protobuf:"bytes,3,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
 	// Who made it, by name.
-	InvitedBy     string                 `protobuf:"bytes,4,opt,name=invited_by,json=invitedBy,proto3" json:"invited_by,omitempty"`
-	ExpireTime    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	InvitedBy  string                 `protobuf:"bytes,4,opt,name=invited_by,json=invitedBy,proto3" json:"invited_by,omitempty"`
+	ExpireTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	// The project's ID, for a developer or a viewer of one. Empty for the whole
+	// install: what says "every project" is this, never an empty name.
+	ProjectId     string `protobuf:"bytes,6,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1080,6 +1083,13 @@ func (x *CheckInviteResponse) GetExpireTime() *timestamppb.Timestamp {
 		return x.ExpireTime
 	}
 	return nil
+}
+
+func (x *CheckInviteResponse) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
 }
 
 // BeginAcceptInviteRequest names the person accepting.
@@ -3658,7 +3668,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x13FinishClaimResponse\x12%\n" +
 	"\x04user\x18\x01 \x01(\v2\x11.dockwell.v1.UserR\x04user\",\n" +
 	"\x12CheckInviteRequest\x12\x16\n" +
-	"\x06secret\x18\x01 \x01(\tR\x06secret\"\xd1\x01\n" +
+	"\x06secret\x18\x01 \x01(\tR\x06secret\"\xf0\x01\n" +
 	"\x13CheckInviteResponse\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12%\n" +
 	"\x04role\x18\x02 \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\x12!\n" +
@@ -3666,7 +3676,9 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\n" +
 	"invited_by\x18\x04 \x01(\tR\tinvitedBy\x12;\n" +
 	"\vexpire_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"expireTime\"F\n" +
+	"expireTime\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x06 \x01(\tR\tprojectId\"F\n" +
 	"\x18BeginAcceptInviteRequest\x12\x16\n" +
 	"\x06secret\x18\x01 \x01(\tR\x06secret\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"_\n" +

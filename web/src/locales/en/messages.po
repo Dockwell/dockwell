@@ -667,7 +667,7 @@ msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"
 
 #. placeholder {0}: m?.email ?? ""
-#. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, m?.projectName ?? "")
+#. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" })
 msgid "Invited {0} as {1}"
 msgstr "Invited {0} as {1}"
 
@@ -867,11 +867,6 @@ msgstr "a server"
 msgid "its server"
 msgstr "its server"
 
-#. placeholder {0}: m?.name || m?.email || ""
-#. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, m?.projectName ?? "")
-msgid "{0} joined as {1}"
-msgstr "{0} joined as {1}"
-
 #. placeholder {0}: s.create
 msgid "{0} to create"
 msgstr "{0} to create"
@@ -966,6 +961,12 @@ msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps don
 
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
+
+msgid "{who} joined as {as}"
+msgstr "{who} joined as {as}"
+
+msgid "{who} joined as {as}, from {from}"
+msgstr "{who} joined as {as}, from {from}"
 
 msgid "Critical"
 msgstr "Critical"
@@ -3885,9 +3886,6 @@ msgstr "Invites need the panel's domain, as the link uses it and the invited per
 msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 msgstr "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 
-msgid "Someone is signed in in this browser, and an invite makes someone new. Sign out, or open the link in a private window."
-msgstr "Someone is signed in in this browser, and an invite makes someone new. Sign out, or open the link in a private window."
-
 msgid "Something went wrong. Try again."
 msgstr "Something went wrong. Try again."
 
@@ -3948,6 +3946,9 @@ msgstr "The passkey request expired. Try again."
 msgid "This browser can't use passkeys at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain over HTTPS."
 msgstr "This browser can't use passkeys at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain over HTTPS."
 
+msgid "This browser is already signed in, and an invite makes someone new. Sign out, or open the link in a private window."
+msgstr "This browser is already signed in, and an invite makes someone new. Sign out, or open the link in a private window."
+
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run {claimCommand} on the server for a new link."
 msgstr "This claim link is invalid, already used, replaced by a newer one, or expired. Run {claimCommand} on the server for a new link."
 
@@ -4002,6 +4003,9 @@ msgstr "a developer of every project"
 
 msgid "a developer of {project}"
 msgstr "a developer of {project}"
+
+msgid "a project that's gone"
+msgstr "a project that's gone"
 
 msgid "a viewer of every project"
 msgstr "a viewer of every project"
@@ -9677,8 +9681,11 @@ msgstr "1 person signs in to this install, its owner"
 msgid "<0>dockwell recover</0> on the control server"
 msgstr "<0>dockwell recover</0> on the control server"
 
-msgid "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it."
-msgstr "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it."
+msgid "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in: Dockwell keeps no record of the tick."
+msgstr "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in: Dockwell keeps no record of the tick."
+
+msgid "A project that's gone"
+msgstr "A project that's gone"
 
 msgid "All projects"
 msgstr "All projects"

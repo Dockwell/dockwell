@@ -120,6 +120,10 @@ type AuthServiceClient interface {
 	GetAuthState(context.Context, *connect.Request[v1.GetAuthStateRequest]) (*connect.Response[v1.GetAuthStateResponse], error)
 	// CheckClaim checks a claim link without spending it, and describes the
 	// server it claims.
+	//
+	// It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+	// calls so marked as GETs, with the request in the address, and this one's
+	// request is a secret (a test in internal/control holds it to that).
 	CheckClaim(context.Context, *connect.Request[v1.CheckClaimRequest]) (*connect.Response[v1.CheckClaimResponse], error)
 	// BeginClaim starts creating the owner's first passkey.
 	BeginClaim(context.Context, *connect.Request[v1.BeginClaimRequest]) (*connect.Response[v1.BeginClaimResponse], error)
@@ -129,6 +133,10 @@ type AuthServiceClient interface {
 	// CheckInvite reads an invite's link without spending it: who invited
 	// them, as what, and where. It works only at the panel's domain, where the
 	// passkey is made.
+	//
+	// It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+	// calls so marked as GETs, with the request in the address, and this one's
+	// request is a secret (a test in internal/control holds it to that).
 	CheckInvite(context.Context, *connect.Request[v1.CheckInviteRequest]) (*connect.Response[v1.CheckInviteResponse], error)
 	// BeginAcceptInvite starts creating the passkey of the person an invite
 	// names. It refuses while someone is signed in in the browser: accepting
@@ -579,6 +587,10 @@ type AuthServiceHandler interface {
 	GetAuthState(context.Context, *connect.Request[v1.GetAuthStateRequest]) (*connect.Response[v1.GetAuthStateResponse], error)
 	// CheckClaim checks a claim link without spending it, and describes the
 	// server it claims.
+	//
+	// It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+	// calls so marked as GETs, with the request in the address, and this one's
+	// request is a secret (a test in internal/control holds it to that).
 	CheckClaim(context.Context, *connect.Request[v1.CheckClaimRequest]) (*connect.Response[v1.CheckClaimResponse], error)
 	// BeginClaim starts creating the owner's first passkey.
 	BeginClaim(context.Context, *connect.Request[v1.BeginClaimRequest]) (*connect.Response[v1.BeginClaimResponse], error)
@@ -588,6 +600,10 @@ type AuthServiceHandler interface {
 	// CheckInvite reads an invite's link without spending it: who invited
 	// them, as what, and where. It works only at the panel's domain, where the
 	// passkey is made.
+	//
+	// It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+	// calls so marked as GETs, with the request in the address, and this one's
+	// request is a secret (a test in internal/control holds it to that).
 	CheckInvite(context.Context, *connect.Request[v1.CheckInviteRequest]) (*connect.Response[v1.CheckInviteResponse], error)
 	// BeginAcceptInvite starts creating the passkey of the person an invite
 	// names. It refuses while someone is signed in in the browser: accepting

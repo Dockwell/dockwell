@@ -1608,8 +1608,10 @@ type EventMember struct {
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Role Role   `protobuf:"varint,3,opt,name=role,proto3,enum=dockwell.v1.Role" json:"role,omitempty"`
 	// The project, for a role in one. Empty for the whole install.
-	ProjectId     string `protobuf:"bytes,4,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
-	ProjectName   string `protobuf:"bytes,5,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
+	ProjectId   string `protobuf:"bytes,4,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	ProjectName string `protobuf:"bytes,5,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
+	// The address someone joined from, on member.join. Empty otherwise.
+	Address       string `protobuf:"bytes,6,opt,name=address,proto3" json:"address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1675,6 +1677,13 @@ func (x *EventMember) GetProjectId() string {
 func (x *EventMember) GetProjectName() string {
 	if x != nil {
 		return x.ProjectName
+	}
+	return ""
+}
+
+func (x *EventMember) GetAddress() string {
+	if x != nil {
+		return x.Address
 	}
 	return ""
 }
@@ -1813,14 +1822,15 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\vway_back_in\x18e \x01(\bR\twayBackIn\x12\x19\n" +
 	"\bfor_good\x18f \x01(\bR\aforGood\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18g \x01(\x04R\tsizeBytes\"\xa0\x01\n" +
+	"size_bytes\x18g \x01(\x04R\tsizeBytes\"\xba\x01\n" +
 	"\vEventMember\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12%\n" +
 	"\x04role\x18\x03 \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x04 \x01(\tR\tprojectId\x12!\n" +
-	"\fproject_name\x18\x05 \x01(\tR\vprojectName*\xdf\x01\n" +
+	"\fproject_name\x18\x05 \x01(\tR\vprojectName\x12\x18\n" +
+	"\aaddress\x18\x06 \x01(\tR\aaddress*\xdf\x01\n" +
 	"\tEventKind\x12\x1a\n" +
 	"\x16EVENT_KIND_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11EVENT_KIND_CHANGE\x10\x01\x12\x15\n" +

@@ -202,7 +202,7 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
         case "member.invite": {
           const m = event.member;
           return {
-            title: t`Invited ${m?.email ?? ""} as ${rolePhrase(m?.role ?? Role.UNSPECIFIED, m?.projectName ?? "")}`,
+            title: t`Invited ${m?.email ?? ""} as ${rolePhrase(m?.role ?? Role.UNSPECIFIED, { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" })}`,
             icon: "users",
           };
         }
@@ -210,10 +210,14 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: t`Revoked the invite for ${event.member?.email ?? ""}`, icon: "users" };
         case "member.join": {
           const m = event.member;
-          return {
-            title: t`${m?.name || m?.email || ""} joined as ${rolePhrase(m?.role ?? Role.UNSPECIFIED, m?.projectName ?? "")}`,
-            icon: "users",
-          };
+          const who = m?.name || m?.email || "";
+          const as = rolePhrase(m?.role ?? Role.UNSPECIFIED, {
+            projectId: m?.projectId ?? "",
+            projectName: m?.projectName ?? "",
+          });
+          // The address they joined from, which is how a join nobody expected is noticed (ADR 0049).
+          const from = m?.address ?? "";
+          return { title: from ? t`${who} joined as ${as}, from ${from}` : t`${who} joined as ${as}`, icon: "users" };
         }
         // Each says what it replaced, as that's the way back to it.
         case "settings.name": {

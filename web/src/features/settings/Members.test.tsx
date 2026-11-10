@@ -210,7 +210,8 @@ describe("Members", () => {
         link: "https://panel.example.com/invite#s3cr3t",
         invite: {
           id: "inv_1",
-          email: req.email,
+          // As the control plane writes it: in small letters, its way.
+          email: req.email.toLowerCase(),
           role: req.role,
           expireTime: timestampFromDate(new Date(Date.now() + 7 * 86_400_000)),
         },
@@ -239,12 +240,14 @@ describe("Members", () => {
     await user.click(screen.getByRole("button", { name: "Invite" }));
     expect(await screen.findByText("Send this link to ada@example.com")).toBeVisible();
     expect(screen.getByText("https://panel.example.com/invite#s3cr3t")).toBeVisible();
+    // The email goes as typed, in the passkey's target and in the invite alike: the control
+    // plane writes it its one way for both, so a letter such as İ can't part the two.
     expect(beginStepUp).toHaveBeenCalledWith(
-      expect.objectContaining({ action: StepUpAction.INVITE, target: "ada@example.com developer install" }),
+      expect.objectContaining({ action: StepUpAction.INVITE, target: "Ada@Example.com developer install" }),
       expect.anything(),
     );
     expect(createInvite).toHaveBeenLastCalledWith(
-      expect.objectContaining({ email: "ada@example.com", role: Role.DEVELOPER, project: "", proof: "proof_1" }),
+      expect.objectContaining({ email: "Ada@Example.com", role: Role.DEVELOPER, project: "", proof: "proof_1" }),
       expect.anything(),
     );
   });
@@ -347,6 +350,7 @@ describe("Members", () => {
               id: "inv_1",
               email: "sam@example.com",
               role: Role.VIEWER,
+              projectId: "prj_1",
               projectName: "shop",
               invitedBy: "Mira Chen",
               createTime: timestampFromDate(new Date(Date.now() - 3_600_000)),

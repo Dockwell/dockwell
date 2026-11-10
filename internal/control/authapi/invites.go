@@ -53,7 +53,7 @@ func (h *Handler) CheckInvite(ctx context.Context, req *connect.Request[dockwell
 		return nil, h.rpcError(ctx, err)
 	}
 	return connect.NewResponse(&dockwellv1.CheckInviteResponse{
-		Email: info.Email, Role: RoleProto(info.Role), ProjectName: info.ProjectName, InvitedBy: info.InvitedBy,
+		Email: info.Email, Role: RoleProto(info.Role), ProjectName: info.ProjectName, ProjectId: info.ProjectID, InvitedBy: info.InvitedBy,
 		ExpireTime: timestamppb.New(info.ExpiresAt),
 	}), nil
 }

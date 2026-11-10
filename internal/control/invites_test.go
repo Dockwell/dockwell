@@ -275,3 +275,68 @@ func TestInvitesNeedTheDomain(t *testing.T) {
 		t.Errorf("an invite without a domain: %v, want needs_domain", err)
 	}
 }
+
+// An invite to a project that's gone since works no more, at any step, and says
+// what any invite that doesn't work says: it never makes someone who holds
+// nothing, and never reads as an invite to every project.
+func TestAnInviteToAProjectThatsGoneIsRefused(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newInviteStand(t, backend)
+		ctx := t.Context()
+		var shopID string
+		_ = s.srv.store.View(ctx, func(tx *store.Tx) error {
+			all, err := tx.ListKind(ctx, "project")
+			for _, p := range all {
+				if p.Name == "shop" {
+					shopID = p.ID
+				}
+			}
+			return err
+		})
+		made, err := s.invite(t, "ada@example.com", dockwellv1.Role_ROLE_DEVELOPER, "shop", shopID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		secret := secretOf(t, made.GetLink())
+		ada := s.newcomer()
+		checked, err := ada.authClient().CheckInvite(ctx, connect.NewRequest(&dockwellv1.CheckInviteRequest{Secret: secret}))
+		if err != nil || checked.Msg.GetProjectId() != shopID || checked.Msg.GetProjectName() != "shop" {
+			t.Fatalf("the invite, while shop is there: %v, %v; want its project by ID and name", checked, err)
+		}
+		// A passkey begun while shop is there.
+		begun, err := ada.authClient().BeginAcceptInvite(ctx, connect.NewRequest(&dockwellv1.BeginAcceptInviteRequest{Secret: secret, Name: "Ada Lovelace"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cred, _, err := ada.auth.Create(begun.Msg.GetOptionsJson(), ada.origin)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		c := changeClient(s.owner, s.origin)
+		if gone := apply(t, c, propose(t, c, "Delete shop", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "shop"}, Delete: true,
+		})); gone.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("deleting shop ended %v: %v", gone.GetState(), gone.GetError())
+		}
+
+		_, unknown := ada.authClient().CheckInvite(ctx, connect.NewRequest(&dockwellv1.CheckInviteRequest{Secret: "never-a-secret-never-a-secret-never-a-secret"}))
+		_, opened := ada.authClient().CheckInvite(ctx, connect.NewRequest(&dockwellv1.CheckInviteRequest{Secret: secret}))
+		if reasonOf(opened) != "invite_rejected" || unknown == nil || opened.Error() != unknown.Error() {
+			t.Errorf("opening it once shop is gone: %v, want what an unknown invite gets, %v", opened, unknown)
+		}
+		if _, err := ada.authClient().BeginAcceptInvite(ctx, connect.NewRequest(&dockwellv1.BeginAcceptInviteRequest{Secret: secret, Name: "Ada"})); reasonOf(err) != "invite_rejected" {
+			t.Errorf("beginning its passkey once shop is gone: %v, want invite_rejected", err)
+		}
+		_, err = ada.authClient().FinishAcceptInvite(ctx, connect.NewRequest(&dockwellv1.FinishAcceptInviteRequest{
+			CeremonyId: begun.Msg.GetCeremonyId(), Secret: secret, CredentialJson: cred, PasskeyName: "Firefox on Linux",
+		}))
+		if reasonOf(err) != "invite_rejected" {
+			t.Errorf("finishing a passkey begun before shop went: %v, want invite_rejected", err)
+		}
+		list, err := s.members.ListMembers(ctx, connect.NewRequest(&dockwellv1.ListMembersRequest{}))
+		if err != nil || len(list.Msg.GetMembers()) != 1 {
+			t.Errorf("Members lists %v, %v; want the owner alone", list.Msg.GetMembers(), err)
+		}
+	})
+}

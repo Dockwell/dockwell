@@ -624,10 +624,10 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	}
 	if strings.HasPrefix(a.Action, "member.") {
 		// Who, with what role, where (ADR 0049): only internal/auth writes these.
-		if email, name, role, project, ok := auth.ReadMemberDetail(a.Detail); ok {
-			e.Member = &dockwellv1.EventMember{Email: email, Name: name, Role: authapi.RoleProto(role), ProjectId: project}
-			if project != store.Install {
-				e.Member.ProjectName = look.Name(project)
+		if m, ok := auth.ReadMemberDetail(a.Detail); ok {
+			e.Member = &dockwellv1.EventMember{Email: m.Email, Name: m.Name, Role: authapi.RoleProto(m.Role), ProjectId: m.Project, Address: m.From}
+			if m.Project != store.Install {
+				e.Member.ProjectName = look.Name(m.Project)
 			}
 		}
 	}

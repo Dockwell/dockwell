@@ -207,12 +207,14 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
   const place = choosePlace ? project : "";
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const address = email.trim().toLowerCase();
+    // As typed: the control plane writes it its one way, in small letters, for the passkey's
+    // target and for the invite alike, so the two can't differ over a letter such as İ.
+    const address = email.trim();
     if (!/^[^\s@]+@[^\s@]+$/.test(address)) {
       setInvalid(t`Enter an email address, such as ada@example.com.`);
       return;
     }
-    if (members.some((m) => m.user?.email === address)) {
+    if (members.some((m) => m.user?.email.toLowerCase() === address.toLowerCase())) {
       setInvalid(t`${address} signs in here already.`);
       return;
     }
@@ -230,7 +232,8 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
         client.createInvite({ email: address, role, project: place, proof }),
       );
       setSent({
-        email: address,
+        // As the control plane wrote it, which is who the invite is for.
+        email: res.invite?.email || address,
         link: res.link,
         until: res.invite?.expireTime ? timestampDate(res.invite.expireTime) : undefined,
       });
@@ -422,7 +425,8 @@ function ProtectionCheck({
       <p className="members-invite-note">
         <Trans>
           A developer's change in a protected environment waits for an admin or the owner, who applies it with a
-          passkey. Check that each environment is as you want it.
+          passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in:
+          Dockwell keeps no record of the tick.
         </Trans>
       </p>
       {list}
@@ -504,6 +508,12 @@ function RoleTag({ role }: { role: Role }) {
 
 /** A row of the table: a member by their user's ID, or an open invite by its ID. */
 type Row = { id: string; member: Member; invite?: undefined } | { id: string; invite: Invite; member?: undefined };
+
+/** Where an invite gives its role: the whole install, which has no project ID, or its project by name. */
+function useInvitePlace(): (invite: Invite) => string {
+  const { t } = useLingui();
+  return (invite) => (invite.projectId === "" ? t`All projects` : invite.projectName || t`A project that's gone`);
+}
 
 /** Where someone holds a role: the whole install, or their projects by name. */
 function usePlacesOf(): (m: Member) => string {
@@ -612,6 +622,7 @@ function MembersTable({
   const signIn = useSignInWords();
   const lastActive = useLastActive();
   const placesOf = usePlacesOf();
+  const invitePlace = useInvitePlace();
   const expires = useExpires();
   const rows: Row[] = [
     ...members.map((member) => ({ id: member.user?.id ?? "", member })),
@@ -635,7 +646,7 @@ function MembersTable({
             key: "projects",
             header: t`Projects`,
             width: 140,
-            render: (r: Row) => (r.member ? placesOf(r.member) : r.invite.projectName || t`All projects`),
+            render: (r: Row) => (r.member ? placesOf(r.member) : invitePlace(r.invite)),
           },
         ]
       : []),
@@ -708,6 +719,7 @@ function MemberFacts({ member }: { member: Member }) {
 /** An open invite as a phone shows it. */
 function InviteFacts({ invite }: { invite: Invite }) {
   const { t } = useLingui();
+  const invitePlace = useInvitePlace();
   const expires = useExpires();
   return (
     <div className="tokens-facts">
@@ -718,7 +730,7 @@ function InviteFacts({ invite }: { invite: Invite }) {
           <RoleTag role={invite.role} />
         </dd>
         <dt>{t`Projects`}</dt>
-        <dd>{invite.projectName || t`All projects`}</dd>
+        <dd>{invitePlace(invite)}</dd>
         <dt>{t`Expires`}</dt>
         <dd>{expires(invite)}</dd>
       </dl>

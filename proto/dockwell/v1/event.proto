@@ -416,4 +416,6 @@ message EventMember {
   // The project, for a role in one. Empty for the whole install.
   string project_id = 4;
   string project_name = 5;
+  // The address someone joined from, on member.join. Empty otherwise.
+  string address = 6;
 }

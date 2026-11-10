@@ -995,6 +995,10 @@ paths:
             description: |-
                 CheckClaim checks a claim link without spending it, and describes the
                  server it claims.
+
+                 It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+                 calls so marked as GETs, with the request in the address, and this one's
+                 request is a secret (a test in internal/control holds it to that).
             operationId: AuthService_CheckClaim
             requestBody:
                 content:
@@ -1707,6 +1711,10 @@ paths:
                 CheckInvite reads an invite's link without spending it: who invited
                  them, as what, and where. It works only at the panel's domain, where the
                  passkey is made.
+
+                 It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+                 calls so marked as GETs, with the request in the address, and this one's
+                 request is a secret (a test in internal/control holds it to that).
             operationId: AuthService_CheckInvite
             requestBody:
                 content:
@@ -6152,6 +6160,11 @@ components:
                 expireTime:
                     type: string
                     format: date-time
+                projectId:
+                    type: string
+                    description: |-
+                        The project's ID, for a developer or a viewer of one. Empty for the whole
+                         install: what says "every project" is this, never an empty name.
             description: CheckInviteResponse says what an invite offers.
         CheckServerUpdatesRequest:
             type: object
@@ -7926,6 +7939,9 @@ components:
                     description: The project, for a role in one. Empty for the whole install.
                 projectName:
                     type: string
+                address:
+                    type: string
+                    description: The address someone joined from, on member.join. Empty otherwise.
             description: EventMember is who a member's event is about, with what role, where.
         EventProcess:
             type: object
