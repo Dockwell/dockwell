@@ -4342,8 +4342,55 @@ git_url=$(head -1 "$git_dir/serving")
 [[ "$git_url" == http://* ]] || fail "the Git server didn't say where it serves: $(cat "$git_dir/serving")"
 move_main() { curl -fsS -X POST "$git_url/_move?branch=main&to=$1" || fail "the Git server didn't move main to $1"; }
 built_port=18093
+# build_evidence BUILD prints what explains a build that failed on real Docker: its
+# record and its log, as kept, with its secrets masked, then what Docker and the
+# kernel say of AppArmor, which confines each step where the server has it.
+build_evidence() {
+  {
+    echo "--- the build's record and log"
+    if [[ "$1" == bld_* ]]; then
+      dw builds get "$1" --json || true
+      dw builds log "$1" || true
+    else
+      echo "no build was recorded before the change ended"
+    fi
+    echo "--- Docker's security options"
+    docker info --format '{{json .SecurityOptions}}' || true
+    echo "--- the AppArmor profiles Docker's containers use"
+    priv grep -E '^(docker|runc|buildkit)' /sys/kernel/security/apparmor/profiles || true
+    echo "--- what the kernel said of AppArmor last"
+    priv dmesg 2>/dev/null | grep -i 'apparmor="DENIED"' | tail -n 30 || true
+    echo "--- and of loading Docker's profile"
+    priv dmesg 2>/dev/null | grep -i 'name="docker-default"' | tail -n 5 || true
+    echo "--- builders left"
+    docker ps --all --filter label=dev.dockwell.builder || true
+  } >&2
+}
+# building NAME COMMAND... runs a command that builds the new service NAME, and keeps
+# its build's ID in applied_build from when there is one: a creation that fails
+# rolls the service back out of the list, and the build's record is what says why.
+applied_build=""
+building() {
+  local name=$1 building_pid
+  shift
+  applied_build=""
+  "$@" >"$git_dir/apply-$name" 2>&1 &
+  building_pid=$!
+  for _ in $(seq 100); do
+    applied_build=$(dw builds list "$name" --environment "$build_env" --json 2>/dev/null | jq -r '.builds[0].id // empty') || true
+    [[ "$applied_build" == bld_* ]] && break
+    kill -0 "$building_pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  if ! wait "$building_pid"; then
+    cat "$git_dir/apply-$name" >&2
+    build_evidence "$applied_build"
+    return 1
+  fi
+  cat "$git_dir/apply-$name"
+}
 # Environment-level placement takes server IDs; the container commands above accept names too.
-dw services create e2e-built --environment "$build_env" --on "$agent_id" --build-git-url "$git_url/web.git" --build-git-ref main \
+building e2e-built dw services create e2e-built --environment "$build_env" --on "$agent_id" --build-git-url "$git_url/web.git" --build-git-ref main \
   --app-ports "{\"host_port\":$built_port,\"container_port\":8080}" --yes || fail "an app that builds from Git didn't deploy"
 served=$(curl -fsS --retry 10 --retry-connrefused --retry-delay 1 "http://127.0.0.1:$built_port/") || fail "what the build made doesn't answer on $built_port"
 [[ "$served" == "Add order export endpoint" ]] || fail "what runs answers '$served', not the commit it was built from"
@@ -4474,54 +4521,6 @@ if docker ps -a --filter label=dev.dockwell.builder --format '{{.Mounts}}' | gre
   fail "a container left on the server mounts dockwell-railpack"
 fi
 
-# build_evidence BUILD prints what explains a build that failed on real Docker: its
-# record and its log, as kept, with its secrets masked, then what Docker and the
-# kernel say of AppArmor, which confines each step where the agent is root.
-build_evidence() {
-  {
-    echo "--- the build's record and log"
-    if [[ "$1" == bld_* ]]; then
-      dw builds get "$1" --json || true
-      dw builds log "$1" || true
-    else
-      echo "no build was recorded before the change ended"
-    fi
-    echo "--- Docker's security options"
-    docker info --format '{{json .SecurityOptions}}' || true
-    echo "--- the AppArmor profiles Docker's containers use"
-    priv grep -E '^(docker|runc|buildkit)' /sys/kernel/security/apparmor/profiles || true
-    echo "--- what the kernel said of AppArmor last"
-    priv dmesg 2>/dev/null | grep -i 'apparmor="DENIED"' | tail -n 30 || true
-    echo "--- and of loading Docker's profile"
-    priv dmesg 2>/dev/null | grep -i 'name="docker-default"' | tail -n 5 || true
-    echo "--- builders left"
-    docker ps --all --filter label=dev.dockwell.builder || true
-  } >&2
-}
-# apply_build CHANGE NAME applies a change that builds the service NAME, and keeps
-# its build's ID in applied_build from when there is one: a creation that fails
-# rolls the service back out of the list, and the build's record is what says why.
-applied_build=""
-apply_build() {
-  local change=$1 name=$2 apply_pid
-  applied_build=""
-  dw changes apply "$change" --yes >"$git_dir/apply-$name" 2>&1 &
-  apply_pid=$!
-  for _ in $(seq 100); do
-    applied_build=$(dw builds list "$name" --environment "$build_env" --json 2>/dev/null |
-      jq -r --arg change "$change" '[.builds[] | select(.changeId == $change)][0].id // empty') || true
-    [[ "$applied_build" == bld_* ]] && break
-    kill -0 "$apply_pid" 2>/dev/null || break
-    sleep 0.1
-  done
-  if ! wait "$apply_pid"; then
-    cat "$git_dir/apply-$name" >&2
-    build_evidence "$applied_build"
-    return 1
-  fi
-  cat "$git_dir/apply-$name"
-}
-
 step "Builds: on each server, the agent build's and the control server's, a build's steps run under Docker's AppArmor profile"
 # The builder reads what the server's kernel has loaded for itself, so an agent that
 # isn't root, as the agent build's is here, confines its steps as one that is root
@@ -4543,7 +4542,7 @@ for where in "agent:$agent_id" "control:$control_id"; do
   name="e2e-confined-${where%%:*}"
   planned=$(dw services create "$name" --environment "$build_env" --on "${where#*:}" --build-git-url "$git_url/web.git" --build-git-ref "confined-${where%%:*}" --plan-only --json) ||
     fail "planning $name failed"
-  apply_build "$(jq -r '.change.id' <<<"$planned")" "$name" || fail "an app didn't build on the ${where%%:*} server"
+  building "$name" dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes || fail "an app didn't build on the ${where%%:*} server"
   confined_id=$(service_id "$name")
   [[ "$confined_id" == svc_* ]] || fail "$name isn't in $build_env: $(dw services list --json)"
   confined_build=$(dw builds list "$confined_id" --json | jq -r '.builds[0].id')
@@ -4567,7 +4566,7 @@ printf 'e2e-npm-secret-value' >"$git_dir/npm"
 dw secrets create NPM --environment "$build_env" --value-file "$git_dir/npm" --yes || fail "secrets create NPM failed"
 planned=$(dw services create e2e-secret --environment "$build_env" --on "$control_id" --build-git-url "$git_url/web.git" --build-git-ref secret --build-secrets NPM_TOKEN=NPM --plan-only --json) ||
   fail "planning an app whose build uses a secret failed"
-apply_build "$(jq -r '.change.id' <<<"$planned")" e2e-secret || fail "an app whose build uses a secret didn't deploy"
+building e2e-secret dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes || fail "an app whose build uses a secret didn't deploy"
 secret_id=$(service_id e2e-secret)
 [[ "$secret_id" == svc_* ]] || fail "e2e-secret isn't in $build_env: $(dw services list --json)"
 secret_build=$(dw builds list "$secret_id" --json | jq -r '.builds[0].id')
