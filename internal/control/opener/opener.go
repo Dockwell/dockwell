@@ -4,8 +4,9 @@
 // panel, signed in as the panel is, on an origin of the service's own, a subdomain of
 // the panel's host (ADR 0061): http://<label>.localhost:<port> while the panel is on
 // localhost. A one-time ticket the API hands the panel becomes a cookie of that
-// origin alone, which lasts as long as the panel session that asked, and requests
-// with it go to the service through the agent of the server it runs on.
+// origin alone, which lasts as long as the panel session that asked, and the role
+// that let it, and requests with it go to the service through the agent of the
+// server it runs on. Once either ends, so does every connection it carries.
 package opener
 
 import (
@@ -28,7 +29,6 @@ import (
 	"time"
 
 	"github.com/dockwell/dockwell/internal/auth"
-	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Path is where a ticket becomes a cookie, on the service's origin. It's under a
@@ -41,14 +41,24 @@ const CookieName = "dockwell_open"
 const (
 	// ticketLife is how long a ticket works, once.
 	ticketLife = time.Minute
-	// recheck is how often an open session checks the panel session and the role
-	// behind it, as a terminal's stream does.
+	// recheck is how often a request through an open session counts as a use of
+	// the panel session behind it, which keeps that from its idle limit.
 	recheck = 30 * time.Second
 	// longest is how long an open session lasts at most, whatever its panel session.
 	longest = 12 * time.Hour
 	// labelLength is how many characters of base32 a label has.
 	labelLength = 10
+	// maxConnsPerApp is how many connections an open session holds to its app at
+	// once, the six a browser holds to a host. A request past them waits for one to
+	// be free. Each is a forward its server's agent carries, which it caps.
+	maxConnsPerApp = 6
 )
+
+// Follow starts following the panel session that asked for a ticket, and the role
+// that let it, once the ticket is opened: its context ends when either does, at
+// once on signing out or a revoked session, and within a recheck otherwise, and
+// stop ends it.
+type Follow func() (ctx context.Context, stop func())
 
 // Target is a service's web UI: where it runs, and the port in its container.
 type Target struct {
@@ -65,11 +75,9 @@ type Target struct {
 type Opener struct {
 	// Dial connects to a target's port, through its server's agent.
 	Dial func(ctx context.Context, t Target) (net.Conn, error)
-	// Live reports whether a panel session still works on its site.
+	// Live reports whether a panel session still works on its site, and counts the
+	// check as a use of it.
 	Live func(ctx context.Context, client auth.Client, sessionID string) bool
-	// Role is the role a user holds on a project, which must stay a developer's or
-	// more for what they opened to stay open.
-	Role func(ctx context.Context, userID, projectID string) (string, error)
 	// Key makes each service's label, which stays the same for a service.
 	Key    []byte
 	Logger *slog.Logger
@@ -89,6 +97,7 @@ type ticket struct {
 	session string
 	site    auth.Site
 	expires time.Time
+	follow  Follow
 }
 
 // session is an app opened in a browser.
@@ -97,6 +106,19 @@ type session struct {
 	started time.Time
 	checked time.Time
 	proxy   *httputil.ReverseProxy
+	// ctx ends with the panel session or the role behind this one, and stop ends it.
+	ctx       context.Context //nolint:containedctx // what the session's connections end with
+	stop      func()
+	transport *http.Transport
+	closing   sync.Once
+}
+
+// close ends the session's following, and with it every connection it carries.
+func (s *session) close() {
+	s.closing.Do(func() {
+		s.stop()
+		s.transport.CloseIdleConnections()
+	})
 }
 
 func (o *Opener) now() time.Time {
@@ -123,14 +145,21 @@ var labelHost = regexp.MustCompile(`^([a-z2-7]{10})\.localhost(?::\d+)?$`)
 // which this slice of ADR 0061 doesn't open apps on yet.
 var ErrNotLocalhost = errors.New("an app opens through the panel on localhost for now: open the panel through an SSH tunnel to its port, then open the app again")
 
+// Opens reports whether a panel on site opens apps, which this slice of ADR 0061
+// does on localhost alone.
+func Opens(site auth.Site) bool {
+	host, _ := splitHost(strings.TrimPrefix(site.Origin, "http://"))
+	return site.RPID == "localhost" && !site.Secure && host == "localhost"
+}
+
 // Ticket makes a one-time address that opens t for the user of a panel session on
 // site, and says where, the origin the app answers on, and until when the address
-// works.
-func (o *Opener) Ticket(userID, sessionID string, site auth.Site, t Target) (url, origin string, expires time.Time, err error) {
-	host, port := splitHost(strings.TrimPrefix(site.Origin, "http://"))
-	if site.RPID != "localhost" || site.Secure || host != "localhost" {
+// works. Opening it starts follow, and the app stays open while that goes on.
+func (o *Opener) Ticket(userID, sessionID string, site auth.Site, t Target, follow Follow) (url, origin string, expires time.Time, err error) {
+	if !Opens(site) {
 		return "", "", time.Time{}, ErrNotLocalhost
 	}
+	_, port := splitHost(strings.TrimPrefix(site.Origin, "http://"))
 	token, err := random()
 	if err != nil {
 		return "", "", time.Time{}, err
@@ -147,7 +176,7 @@ func (o *Opener) Ticket(userID, sessionID string, site auth.Site, t Target) (url
 	if o.tickets == nil {
 		o.tickets = map[string]*ticket{}
 	}
-	o.tickets[token] = &ticket{target: t, label: label, user: userID, session: sessionID, site: site, expires: expires}
+	o.tickets[token] = &ticket{target: t, label: label, user: userID, session: sessionID, site: site, expires: expires, follow: follow}
 	return origin + Path + "?ticket=" + token, origin, expires, nil
 }
 
@@ -160,8 +189,9 @@ func (o *Opener) sweep() {
 		}
 	}
 	for k, s := range o.sessions {
-		if now.Sub(s.started) > longest {
+		if now.Sub(s.started) > longest || s.ctx.Err() != nil {
 			delete(o.sessions, k)
+			s.close()
 		}
 	}
 }
@@ -235,15 +265,23 @@ func (o *Opener) open(w http.ResponseWriter, r *http.Request, label string) {
 		refuse("Dockwell can't make a session for the app. Try again.")
 		return
 	}
+	ctx, stop := t.follow()
+	if ctx.Err() != nil {
+		stop()
+		refuse("Your panel session has ended, or your role no longer opens this app. Open it from the panel again.")
+		return
+	}
 	now := o.now()
-	s := &session{ticket: *t, started: now, checked: now}
-	s.proxy = o.proxyFor(s)
+	s := &session{ticket: *t, started: now, checked: now, ctx: ctx, stop: stop}
+	s.proxy, s.transport = o.proxyFor(s)
 	o.mu.Lock()
 	if o.sessions == nil {
 		o.sessions = map[string]*session{}
 	}
 	o.sessions[cookie] = s
 	o.mu.Unlock()
+	// Signing out, a revoked session or a lost role ends it at once, connections and all.
+	context.AfterFunc(ctx, func() { o.end(cookie) })
 	o.Logger.InfoContext(r.Context(), "opened an app through the panel",
 		slog.String("service", t.target.ServiceID), slog.Uint64("port", uint64(t.target.Port)), slog.String("user", t.user))
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // localhost alone, which plain HTTP never leaves, as the panel's own cookie there
@@ -268,6 +306,9 @@ func (o *Opener) sessionFor(r *http.Request, label string) (*session, string) {
 	switch {
 	case s == nil || s.label != label:
 		return nil, "This app's session has ended. " + again
+	case s.ctx.Err() != nil:
+		o.end(c.Value)
+		return nil, "Your panel session has ended, or your role no longer opens this app, and the app's session with it. " + again
 	case now.Sub(s.started) > longest:
 		o.end(c.Value)
 		return nil, "This app's session has lasted its longest. " + again
@@ -284,29 +325,40 @@ func (o *Opener) sessionFor(r *http.Request, label string) (*session, string) {
 			o.end(c.Value)
 			return nil, "Your panel session has ended, and the app's with it. Sign in to the panel, then " + strings.ToLower(again[:1]) + again[1:]
 		}
-		role, err := o.Role(r.Context(), s.user, s.target.ProjectID)
-		if err == nil && store.RoleRank(role) < store.RoleRank(store.RoleDeveloper) {
-			o.end(c.Value)
-			return nil, "You no longer hold a role that opens this app."
-		}
 	}
 	return s, ""
 }
 
+// end forgets an open session and closes what it carries.
 func (o *Opener) end(cookie string) {
 	o.mu.Lock()
-	defer o.mu.Unlock()
+	s := o.sessions[cookie]
 	delete(o.sessions, cookie)
+	o.mu.Unlock()
+	if s != nil {
+		s.close()
+	}
 }
 
 // proxyFor sends a session's requests to its target, over connections its agent
 // carries, as a reverse proxy in front of the app would: with its Host, and the
 // X-Forwarded headers. The panel's own cookies never reach the app, and the app sets
-// none past its own origin.
-func (o *Opener) proxyFor(s *session) *httputil.ReverseProxy {
+// none past its own origin. Each connection closes when the session ends, an
+// upgraded one such as a WebSocket too.
+func (o *Opener) proxyFor(s *session) (*httputil.ReverseProxy, *http.Transport) {
 	target := s.target
 	transport := &http.Transport{
-		DialContext:           func(ctx context.Context, _, _ string) (net.Conn, error) { return o.Dial(ctx, target) },
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			if s.ctx.Err() != nil {
+				return nil, errors.New("this app's session has ended")
+			}
+			conn, err := o.Dial(ctx, target)
+			if err != nil {
+				return nil, err
+			}
+			return closeWith(s.ctx, conn), nil
+		},
+		MaxConnsPerHost:       maxConnsPerApp,
 		MaxIdleConnsPerHost:   4,
 		IdleConnTimeout:       90 * time.Second,
 		ResponseHeaderTimeout: 2 * time.Minute,
@@ -319,15 +371,35 @@ func (o *Opener) proxyFor(s *session) *httputil.ReverseProxy {
 			pr.SetXForwarded()
 			keepAppCookies(pr.Out)
 		},
-		Transport:      transport,
-		ModifyResponse: func(resp *http.Response) error { keepToItsOrigin(resp.Header); return nil },
+		Transport: transport,
+		ModifyResponse: func(resp *http.Response) error {
+			host, _ := splitHost(resp.Request.Host)
+			keepToItsOrigin(resp.Header, host)
+			return nil
+		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			o.Logger.WarnContext(r.Context(), "can't reach an opened app", slog.String("service", target.ServiceID), slog.String("error", err.Error()))
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.WriteHeader(http.StatusBadGateway)
 			_, _ = fmt.Fprintf(w, "Dockwell can't reach %s: %v\n", target.Service, err)
 		},
-	}
+	}, transport
+}
+
+// tiedConn is a connection that closes when its session ends.
+type tiedConn struct {
+	net.Conn
+	stop func() bool
+}
+
+func (c *tiedConn) Close() error {
+	c.stop()
+	return c.Conn.Close()
+}
+
+// closeWith has conn close when ctx ends.
+func closeWith(ctx context.Context, conn net.Conn) net.Conn {
+	return &tiedConn{Conn: conn, stop: context.AfterFunc(ctx, func() { _ = conn.Close() })}
 }
 
 // ours reports a cookie of Dockwell's, which no app gets or sets.
@@ -335,29 +407,67 @@ func ours(name string) bool {
 	return name == CookieName || name == auth.LoopbackCookieName || name == auth.SecureCookieName
 }
 
-// keepAppCookies takes Dockwell's cookies off a request for an app.
+// keepAppCookies takes Dockwell's cookies off a request for an app, and leaves
+// the rest as the browser sent them, byte for byte: a value with a comma, a space
+// or JSON in it reaches the app as it was set.
 func keepAppCookies(r *http.Request) {
-	cookies := r.Cookies()
-	r.Header.Del("Cookie")
-	for _, c := range cookies {
-		if !ours(c.Name) {
-			r.AddCookie(c)
+	lines := r.Header.Values("Cookie")
+	if len(lines) == 0 {
+		return
+	}
+	var kept []string
+	for _, line := range lines {
+		for pair := range strings.SplitSeq(line, ";") {
+			pair = strings.TrimSpace(pair)
+			name, _, _ := strings.Cut(pair, "=")
+			if pair == "" || ours(strings.TrimSpace(name)) {
+				continue
+			}
+			kept = append(kept, pair)
 		}
+	}
+	r.Header.Del("Cookie")
+	if len(kept) > 0 {
+		r.Header.Set("Cookie", strings.Join(kept, "; "))
 	}
 }
 
-// keepToItsOrigin drops a cookie an app sets for more than its own origin, or by
-// a name of Dockwell's, so no app's cookie reaches the panel or another app.
-func keepToItsOrigin(h http.Header) {
+// keepToItsOrigin drops a cookie an app sets for more than its own host, or by a
+// name of Dockwell's, so no app's cookie reaches the panel or another app. The
+// rest pass as the app wrote them, byte for byte, one for its own host by Domain
+// too.
+func keepToItsOrigin(h http.Header, host string) {
 	set := h.Values("Set-Cookie")
 	h.Del("Set-Cookie")
 	for _, line := range set {
-		c, err := http.ParseSetCookie(line)
-		if err != nil || c.Domain != "" || ours(c.Name) || strings.HasPrefix(c.Name, "__Host-dockwell") {
+		name, domain, ok := cookieOf(line)
+		if !ok || ours(name) || strings.HasPrefix(name, "__Host-dockwell") || strings.HasPrefix(name, "__Secure-dockwell") {
+			continue
+		}
+		if domain != "" && !strings.EqualFold(domain, host) {
 			continue
 		}
 		h.Add("Set-Cookie", line)
 	}
+}
+
+// cookieOf reads a Set-Cookie line's name and its Domain, without a leading dot,
+// as a browser would, and nothing else of it.
+func cookieOf(line string) (name, domain string, ok bool) {
+	first, attrs, _ := strings.Cut(line, ";")
+	name, _, ok = strings.Cut(first, "=")
+	name = strings.TrimSpace(name)
+	if !ok || name == "" {
+		return "", "", false
+	}
+	for attr := range strings.SplitSeq(attrs, ";") {
+		key, value, _ := strings.Cut(strings.TrimSpace(attr), "=")
+		if strings.EqualFold(strings.TrimSpace(key), "domain") {
+			// The last Domain is the one a browser takes.
+			domain = strings.TrimPrefix(strings.TrimSpace(value), ".")
+		}
+	}
+	return name, domain, true
 }
 
 // LoadKey reads the key labels are made with from path, making it on first use, so a

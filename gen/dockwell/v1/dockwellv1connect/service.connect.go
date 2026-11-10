@@ -86,12 +86,14 @@ type ServiceServiceClient interface {
 	AddServicePort(context.Context, *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error)
 	// OpenService gives the person who asks a one-time address that opens the web
 	// UI a service publishes on its server, through the panel, on an origin of
-	// the service's own (ADR 0061): a browser that opens it within a minute, in
-	// the same sign-in session, gets that app and nothing else, for as long as
-	// the session lasts. It's as much as revealing a secret, as an admin tool or
-	// an app's first account may be behind it, so it takes a developer in a
-	// session, never a token, and goes on the audit log. Only a panel reached on
-	// localhost opens apps for now: on its domain, this is refused, and says so.
+	// the service's own (ADR 0061): the browser that opens it first, within a
+	// minute, gets that app and nothing else, while the panel session that asked
+	// lasts and its role still lets it, and every connection it made ends with
+	// either. It's as much as revealing a secret, as an admin tool or an app's
+	// first account may be behind it, so it takes a developer in a session, never
+	// a token, and a passkey just now, and goes on the audit log. Only a panel
+	// reached on localhost opens apps for now: on its domain, this is refused,
+	// and says so.
 	OpenService(context.Context, *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error)
 }
 
@@ -218,12 +220,14 @@ type ServiceServiceHandler interface {
 	AddServicePort(context.Context, *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error)
 	// OpenService gives the person who asks a one-time address that opens the web
 	// UI a service publishes on its server, through the panel, on an origin of
-	// the service's own (ADR 0061): a browser that opens it within a minute, in
-	// the same sign-in session, gets that app and nothing else, for as long as
-	// the session lasts. It's as much as revealing a secret, as an admin tool or
-	// an app's first account may be behind it, so it takes a developer in a
-	// session, never a token, and goes on the audit log. Only a panel reached on
-	// localhost opens apps for now: on its domain, this is refused, and says so.
+	// the service's own (ADR 0061): the browser that opens it first, within a
+	// minute, gets that app and nothing else, while the panel session that asked
+	// lasts and its role still lets it, and every connection it made ends with
+	// either. It's as much as revealing a secret, as an admin tool or an app's
+	// first account may be behind it, so it takes a developer in a session, never
+	// a token, and a passkey just now, and goes on the audit log. Only a panel
+	// reached on localhost opens apps for now: on its domain, this is refused,
+	// and says so.
 	OpenService(context.Context, *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error)
 }
 

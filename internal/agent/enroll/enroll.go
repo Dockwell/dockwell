@@ -446,6 +446,34 @@ const (
 	transferConnWindow = 1 << 20
 )
 
+// ForwardClient is Client for connections to apps opened through the panel,
+// which an agent carries dozens of at once where it carries a few transfers: its
+// connection takes in at most ForwardWindow of each stream, and ForwardsPerConn
+// of them in all, before the agent writes it to the app. An upload to an app that
+// reads slowly waits there, so 32 forwards hold 2 MiB at most, where a
+// transfer's window took an agent past its 40 MB (ADR 0061).
+func (i *Identity) ForwardClient() (client agentv1connect.AgentServiceClient, release func(), err error) {
+	cfg, err := i.ClientTLS()
+	if err != nil {
+		return nil, nil, err
+	}
+	hc := httpClient(cfg)
+	hc.Transport.(*http.Transport).HTTP2 = &http.HTTP2Config{ //nolint:forcetypeassert // httpClient's own
+		MaxReceiveBufferPerStream:     ForwardWindow,
+		MaxReceiveBufferPerConnection: ForwardWindow * ForwardsPerConn,
+	}
+	return agentv1connect.NewAgentServiceClient(hc, i.ControlURL, connect.WithGRPC()), hc.CloseIdleConnections, nil
+}
+
+const (
+	// ForwardWindow is how much of a forward's stream its connection takes in
+	// before the agent reads it: two of its messages.
+	ForwardWindow = 64 << 10
+	// ForwardsPerConn is how many forwards share a connection, whose window is
+	// theirs together, so none waits on another's.
+	ForwardsPerConn = 4
+)
+
 // httpClient speaks HTTP/2 over TLS, through a proxy if the environment
 // names one, as gRPC requires.
 func httpClient(cfg *tls.Config) *http.Client {

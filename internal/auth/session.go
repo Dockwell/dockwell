@@ -308,9 +308,9 @@ func (s *Service) Track(ctx context.Context, client Client, p Principal, still .
 // use, such as a terminal nobody is attached to: it ends with the session, at once
 // when that's revoked or signed out and within a recheck when it expires, but its
 // checks aren't use. So it keeps no session alive past its idle limit, and never
-// moves its last-seen time or address.
-func (s *Service) Follow(ctx context.Context, client Client, p Principal) (context.Context, func()) {
-	return s.track(ctx, client, p, false)
+// moves its last-seen time or address. still is asked as Track asks it.
+func (s *Service) Follow(ctx context.Context, client Client, p Principal, still ...func(context.Context) error) (context.Context, func()) {
+	return s.track(ctx, client, p, false, still...)
 }
 
 func (s *Service) track(ctx context.Context, client Client, p Principal, use bool, still ...func(context.Context) error) (context.Context, func()) {

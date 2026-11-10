@@ -17,17 +17,19 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
-// An app that answers only on its server opens through the panel (ADR 0061): the
-// panel gets a one-time address on an origin of the app's own, a browser that opens
-// it gets a cookie of that origin, and what it asks for reaches the app through the
-// server's agent, which dials the port the service publishes. It goes on the audit
-// log, and a panel on its domain is told it opens apps on localhost for now.
+// An app that answers only on its server opens through the panel (ADR 0061): with a
+// passkey just now, the panel gets a one-time address on an origin of the app's own,
+// a browser that opens it gets a cookie of that origin, and what it asks for reaches
+// the app through the server's agent, which dials the port the service publishes. It
+// goes on the audit log, with where it was asked from, and signing out of the panel
+// ends it at once.
 func TestAnAppOpensThroughThePanel(t *testing.T) { storetest.Each(t, testAnAppOpensThroughThePanel) }
 
 func testAnAppOpensThroughThePanel(t *testing.T, backend store.Backend) {
@@ -58,9 +60,22 @@ func testAnAppOpensThroughThePanel(t *testing.T, backend store.Backend) {
 	}))
 
 	services := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
-	res, err := services.OpenService(t.Context(), connect.NewRequest(&dockwellv1.OpenServiceRequest{Id: "phpmyadmin"}))
+	_, err := services.OpenService(t.Context(), connect.NewRequest(&dockwellv1.OpenServiceRequest{Id: "phpmyadmin"}))
+	if reasonOf(err) != authapi.ReasonNeedsStepUp {
+		t.Fatalf("opening it with no passkey: %v, want needs_step_up", err)
+	}
+	listed, err := services.ListServices(t.Context(), connect.NewRequest(&dockwellv1.ListServicesRequest{}))
+	if err != nil || len(listed.Msg.GetServices()) != 1 {
+		t.Fatalf("ListServices: %v, %v", listed, err)
+	}
+	serviceID := listed.Msg.GetServices()[0].GetId()
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_SERVICE, serviceID)
+	res, err := services.OpenService(t.Context(), connect.NewRequest(&dockwellv1.OpenServiceRequest{Id: "phpmyadmin", Proof: proof}))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if _, err := services.OpenService(t.Context(), connect.NewRequest(&dockwellv1.OpenServiceRequest{Id: "phpmyadmin", Proof: proof})); reasonOf(err) != authapi.ReasonNeedsStepUp {
+		t.Errorf("a proof opened it a second time: %v", err)
 	}
 	origin := res.Msg.GetOrigin()
 	if !strings.HasSuffix(origin, ".localhost:"+strings.TrimPrefix(b.origin[strings.LastIndex(b.origin, ":"):], ":")) {
@@ -76,6 +91,7 @@ func testAnAppOpensThroughThePanel(t *testing.T, backend store.Backend) {
 	if got.StatusCode != http.StatusOK || string(body) != "phpMyAdmin at "+host+"/" {
 		t.Fatalf("opening it answered %d: %s", got.StatusCode, body)
 	}
+	opened := origin + "/index.php"
 	again, err := b.client.Get(res.Msg.GetUrl())
 	if err != nil {
 		t.Fatal(err)
@@ -101,13 +117,33 @@ func testAnAppOpensThroughThePanel(t *testing.T, backend store.Backend) {
 		Service string `json:"service"`
 		Port    uint32 `json:"port"`
 		Origin  string `json:"origin"`
+		From    string `json:"from"`
 	}
-	if err := json.Unmarshal([]byte(told), &detail); err != nil || detail.Service != "phpmyadmin" || detail.Port != 80 || detail.Origin != origin {
+	if err := json.Unmarshal([]byte(told), &detail); err != nil || detail.Service != "phpmyadmin" || detail.Port != 80 || detail.Origin != origin || detail.From != "127.0.0.1" {
 		t.Errorf("the audit log says %q", told)
 	}
 
+	// Refused before a passkey is asked for, so nobody confirms what can't happen.
 	_, err = services.OpenService(t.Context(), connect.NewRequest(&dockwellv1.OpenServiceRequest{Id: "phpmyadmin", Port: 443}))
 	if connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), "publishes no port for 443") {
 		t.Errorf("a port it doesn't publish: %v", err)
+	}
+
+	// Signing out of the panel ends what it opened at once, not at a recheck.
+	if again, err := b.client.Get(opened); err != nil || again.StatusCode != http.StatusOK {
+		t.Fatalf("the open app answered %v, %v", again, err)
+	} else {
+		_ = again.Body.Close()
+	}
+	if _, err := b.authClient().SignOut(t.Context(), connect.NewRequest(&dockwellv1.SignOutRequest{})); err != nil {
+		t.Fatal(err)
+	}
+	after, err := b.client.Get(opened)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = after.Body.Close()
+	if after.StatusCode != http.StatusUnauthorized {
+		t.Errorf("the app stayed open after signing out of the panel: %d", after.StatusCode)
 	}
 }

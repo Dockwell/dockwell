@@ -30,9 +30,12 @@ import (
 // or removing a passkey, setting up or turning off code sign-in, making
 // recovery codes and creating a token. So does what could do the same on a
 // server: applying a plan that's as good as root there, saving a file that's a
-// way back onto it, and opening a terminal on it. See
-// docs/adr/0022-secrets-encrypted-at-rest.md, docs/adr/0011-claim-and-sign-in.md,
-// docs/adr/0032-files-on-a-server.md and docs/adr/0037-a-terminal-on-a-server.md.
+// way back onto it, and opening a terminal on it. So does opening an app's web
+// UI through the panel, as an admin tool may sign whoever reaches it in by
+// itself. See docs/adr/0022-secrets-encrypted-at-rest.md,
+// docs/adr/0011-claim-and-sign-in.md, docs/adr/0032-files-on-a-server.md,
+// docs/adr/0037-a-terminal-on-a-server.md and
+// docs/adr/0061-opening-an-apps-web-ui-through-the-panel.md.
 
 // StepUpTTL is how long a step-up's proof works.
 const StepUpTTL = time.Minute
@@ -93,6 +96,10 @@ const (
 	StepUpRestoreWayBackIn StepUpAction = "file.restore_way_back_in"
 	// StepUpAddServer makes a ticket that adds a server to the fleet.
 	StepUpAddServer StepUpAction = "server.add"
+	// StepUpOpenService opens a service's web UI through the panel, which may sign
+	// whoever reaches it in by itself, as an admin tool does. Its target is the
+	// service's ID. A proof opens it once (ADR 0061).
+	StepUpOpenService StepUpAction = "service.open"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -119,6 +126,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpDeleteWayBackIn:  {"deleting", true},
 	StepUpRestoreWayBackIn: {"putting back", true},
 	StepUpAddServer:        {"adding a server", false},
+	StepUpOpenService:      {"opening", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".

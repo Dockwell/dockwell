@@ -100,7 +100,11 @@ type OpenServiceRequest struct {
 	Project string `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
 	// The environment of a service named by name, by name or ID, when its
 	// project has more than one.
-	Environment   string `protobuf:"bytes,4,opt,name=environment,proto3" json:"environment,omitempty"`
+	Environment string `protobuf:"bytes,4,opt,name=environment,proto3" json:"environment,omitempty"`
+	// The proof from FinishStepUp, for opening this service, by its ID. It works
+	// once, within a minute, in the session that made it. Without one, the call
+	// is refused with needs_step_up once nothing else refuses it.
+	Proof         string `protobuf:"bytes,5,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -159,6 +163,13 @@ func (x *OpenServiceRequest) GetProject() string {
 func (x *OpenServiceRequest) GetEnvironment() string {
 	if x != nil {
 		return x.Environment
+	}
+	return ""
+}
+
+func (x *OpenServiceRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
 	}
 	return ""
 }
@@ -1312,12 +1323,13 @@ var File_dockwell_v1_service_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/service.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"t\n" +
+	"\x19dockwell/v1/service.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8a\x01\n" +
 	"\x12OpenServiceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12 \n" +
-	"\venvironment\x18\x04 \x01(\tR\venvironment\"|\n" +
+	"\venvironment\x18\x04 \x01(\tR\venvironment\x12\x14\n" +
+	"\x05proof\x18\x05 \x01(\tR\x05proof\"|\n" +
 	"\x13OpenServiceResponse\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12;\n" +
 	"\vexpire_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +

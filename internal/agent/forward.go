@@ -7,12 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/agent/v1/agentv1connect"
+	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/docker"
 )
 
@@ -22,17 +25,94 @@ const forwardDial = 10 * time.Second
 // forwardChunk is the most a message of Forward carries.
 const forwardChunk = 32 << 10
 
-// forward carries one connection to the port a service publishes, over a connection
-// of the agent's own to the control plane, as a terminal's bytes go (ADR 0061). It
-// finds the service's running container, and where Docker publishes the port the
+const (
+	// forwardsPerConn is how many forwards share a connection to the control plane
+	// (enroll.ForwardClient): each takes in at most its window of what the browser
+	// sends before the agent writes it to the app, and the connection theirs
+	// together, so a forward to an app that reads slowly holds up no other.
+	forwardsPerConn = enroll.ForwardsPerConn
+	// maxForwards is how many connections to apps opened through the panel this
+	// agent carries at once: three apps with the six a browser holds to each, and
+	// two more. Each holds up to its window and a message or two each way, about
+	// 200 KiB when busy, and an agent's memory has a budget of 40 MB, so past them
+	// it refuses. make forwards-load holds it to that with every one busy.
+	maxForwards = 20
+)
+
+// errTooManyForwards is a forward past maxForwards.
+var errTooManyForwards = fmt.Errorf("this server carries %d connections to apps opened through the panel already, the most it carries at once. Close tabs of apps you opened through the panel, then try again", maxForwards)
+
+// forwardPool is the connections forwards go over, a few forwards to each, and
+// how many forwards there are.
+type forwardPool struct {
+	mu    sync.Mutex
+	open  int
+	conns []*forwardConn
+}
+
+type forwardConn struct {
+	client  agentv1connect.AgentServiceClient
+	release func()
+	carries int
+}
+
+// take gives a forward a connection: one with room, or a new one, which goes once
+// it carries nothing, so a renewed certificate reaches the next. It says how to
+// give it back.
+func (p *forwardPool) take(id *enroll.Identity) (agentv1connect.AgentServiceClient, func(), error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.open >= maxForwards {
+		return nil, nil, errTooManyForwards
+	}
+	var fc *forwardConn
+	for _, c := range p.conns {
+		if c.carries < forwardsPerConn {
+			fc = c
+			break
+		}
+	}
+	if fc == nil {
+		client, release, err := id.ForwardClient()
+		if err != nil {
+			return nil, nil, err
+		}
+		fc = &forwardConn{client: client, release: release}
+		p.conns = append(p.conns, fc)
+	}
+	fc.carries++
+	p.open++
+	var once sync.Once
+	return fc.client, func() {
+		once.Do(func() {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			fc.carries--
+			p.open--
+			if fc.carries == 0 {
+				p.conns = slices.DeleteFunc(p.conns, func(c *forwardConn) bool { return c == fc })
+				fc.release()
+			}
+		})
+	}, nil
+}
+
+// forward carries one connection to the port a service publishes, over a stream of
+// a connection to the control plane it shares with a few other forwards (ADR 0061).
+// It finds the service's running container, and where Docker publishes the port the
 // call names, itself, and dials that: never an address the call names.
 func (c *calls) forward(ctx context.Context, call *agentv1.ForwardCall) *agentv1.CallResult {
 	fail := func(err error) *agentv1.CallResult {
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error(), Draining: c.isClosing() && c.ctx.Err() == nil}}}
 	}
-	if c.cfg.Docker == nil {
+	if c.cfg.Docker == nil || c.cfg.forwards == nil {
 		return fail(errors.New("this agent can't reach Docker, so it opens no app"))
 	}
+	client, release, err := c.cfg.forwards.take(c.cfg.Identity)
+	if err != nil {
+		return fail(err)
+	}
+	defer release()
 	addr, err := published(ctx, c.cfg.Docker, call.GetProject(), call.GetService(), call.GetPort())
 	if err != nil {
 		return fail(err)
@@ -42,11 +122,6 @@ func (c *calls) forward(ctx context.Context, call *agentv1.ForwardCall) *agentv1
 		return fail(fmt.Errorf("%s doesn't answer on %s: %w", call.GetService(), addr, err))
 	}
 	defer conn.Close()
-	client, release, err := c.cfg.Identity.Client()
-	if err != nil {
-		return fail(err)
-	}
-	defer release()
 	streamCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stream := client.Forward(streamCtx)

@@ -668,6 +668,38 @@ func (c *scopedConn) recheck(ctx context.Context, p auth.Principal) error {
 	return nil
 }
 
+// Recheck is what asks again, later, whether p may still make the call to
+// procedure with req, as an open stream's recheck does: the gate on their role
+// as it is then, and the places req names, a protected environment's rule and
+// all. It's for a call whose effect outlives it, such as an app opened through
+// the panel (ADR 0061), which ends once this errs. A read of the grants that
+// fails is ridden out, as a stream's is, up to failedRechecks in a row.
+func Recheck(svc *auth.Service, logger *slog.Logger, procedure string, p auth.Principal, req proto.Message) func(context.Context) error {
+	i := &interceptor{svc: svc, logger: logger}
+	var mu sync.Mutex
+	failed := 0
+	return func(ctx context.Context) error {
+		gated, err := i.gate(ctx, p, procedure)
+		if err == nil {
+			// checkScope may fill in what the request leaves out, so each check has a copy.
+			err = i.checkScope(gated, procedure, proto.Clone(req))
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if connect.CodeOf(err) == connect.CodeUnavailable {
+			failed++
+			if failed < failedRechecks {
+				return nil
+			}
+			return err
+		}
+		if err == nil {
+			failed = 0
+		}
+		return err
+	}
+}
+
 // endedBy is why a recheck ended the stream, or nil when it didn't.
 func (c *scopedConn) endedBy() error {
 	c.mu.Lock()

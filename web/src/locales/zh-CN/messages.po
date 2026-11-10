@@ -5195,8 +5195,14 @@ msgstr "它的链接跟随它的域名 {domain}：{names}"
 msgid "Its links follow the domain you add: {names}"
 msgstr "它的链接跟随你添加的域名：{names}"
 
+msgid "Open {app} in a new tab"
+msgstr "在新标签页中打开 {app}"
+
 msgid "Point {app} at {domain}"
 msgstr "将 {app} 指向 {domain}"
+
+msgid "Published on port {port}"
+msgstr "已发布在端口 {port}"
 
 msgid "SSH tunnel command copied"
 msgstr "已复制 SSH 隧道命令"

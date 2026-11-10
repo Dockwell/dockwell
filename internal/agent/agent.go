@@ -119,6 +119,9 @@ type Config struct {
 	CallGrace time.Duration
 	// unfinished is what outlives its call, across this agent's streams.
 	unfinished *unfinished
+	// forwards carry connections to apps opened through the panel, across this
+	// agent's streams.
+	forwards *forwardPool
 	// firewall reads what filters the server's inbound traffic, when asked.
 	firewall *firewallReader
 	// outlook keeps what the server found out from one stream to the next.
@@ -394,6 +397,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	cfg.unfinished = newUnfinished()
 	defer resource.OnPathBack(cfg.unfinished.wake)()
+	cfg.forwards = &forwardPool{}
 	id := cfg.Identity
 	cfg.Logger = cfg.Logger.With(slog.String("server", id.ServerID))
 	cfg.Logger.Info("agent running", slog.String("name", id.ServerName), slog.String("control_plane", id.ControlURL),

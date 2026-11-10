@@ -5195,8 +5195,14 @@ msgstr "Its links follow its domain, {domain}: {names}"
 msgid "Its links follow the domain you add: {names}"
 msgstr "Its links follow the domain you add: {names}"
 
+msgid "Open {app} in a new tab"
+msgstr "Open {app} in a new tab"
+
 msgid "Point {app} at {domain}"
 msgstr "Point {app} at {domain}"
+
+msgid "Published on port {port}"
+msgstr "Published on port {port}"
 
 msgid "SSH tunnel command copied"
 msgstr "SSH tunnel command copied"

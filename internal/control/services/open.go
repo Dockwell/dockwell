@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net"
 	"time"
 
 	"connectrpc.com/connect"
@@ -14,6 +16,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/opener"
@@ -28,7 +31,7 @@ const EventOpen = "service.open"
 
 // Opener issues the one-time addresses OpenService hands out (opener.Opener).
 type Opener interface {
-	Ticket(userID, sessionID string, site auth.Site, t opener.Target) (url, origin string, expires time.Time, err error)
+	Ticket(userID, sessionID string, site auth.Site, t opener.Target, follow opener.Follow) (url, origin string, expires time.Time, err error)
 }
 
 // opened is what the audit log says of an app opened through the panel.
@@ -36,13 +39,15 @@ type opened struct {
 	Service string `json:"service"`
 	Port    uint32 `json:"port"`
 	Origin  string `json:"origin"`
+	// From is the address the panel was asked from.
+	From string `json:"from,omitempty"`
 }
 
 // OpenService gives the caller a one-time address that opens a service's web UI
 // through the panel, on an origin of its own (ADR 0061).
 func (h *Handler) OpenService(ctx context.Context, req *connect.Request[dockwellv1.OpenServiceRequest]) (*connect.Response[dockwellv1.OpenServiceResponse], error) {
 	m := req.Msg
-	if h.Opener == nil {
+	if h.Opener == nil || h.Auth == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("this control plane opens no apps"))
 	}
 	p, ok := authapi.PrincipalFrom(ctx)
@@ -50,6 +55,10 @@ func (h *Handler) OpenService(ctx context.Context, req *connect.Request[dockwell
 		return nil, authapi.ReasonError(connect.CodePermissionDenied, errors.New("an app opens for a person signed in to the panel, not for an API token"), "needs_session")
 	}
 	client, _ := authapi.ClientFrom(ctx)
+	if !opener.Opens(client.Site) {
+		// Before the passkey, so nobody confirms what can't happen.
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, opener.ErrNotLocalhost, "open_on_localhost")
+	}
 	r, err := h.find(ctx, m.GetId(), m.GetProject(), m.GetEnvironment())
 	if err != nil {
 		return nil, err
@@ -104,14 +113,44 @@ func (h *Handler) OpenService(ctx context.Context, req *connect.Request[dockwell
 		}
 		return nil, h.internal(ctx, "open a service", err)
 	}
-	url, origin, expires, err := h.Opener.Ticket(p.User.ID, p.Session.ID, client.Site, target)
+	// An admin tool may sign whoever reaches it in, so opening one takes a passkey,
+	// as revealing a secret does, once nothing else refuses. A proof opens it once.
+	if m.GetProof() == "" {
+		h.Auth.AskedForStepUp(p, auth.StepUpOpenService, r.ID, func() {})
+		return nil, authapi.ReasonError(connect.CodePermissionDenied,
+			fmt.Errorf("%s may sign in whoever opens it, so opening it takes your passkey. Confirm with it, then open it again", r.Name),
+			authapi.ReasonNeedsStepUp)
+	}
+	giveBack, err := h.Auth.HoldStepUp(p, m.GetProof(), auth.StepUpOpenService, r.ID)
+	if err != nil {
+		h.logger.InfoContext(ctx, "refused to open an app with a confirmation that is used, expired or for something else",
+			slog.String("service", r.ID), slog.String("user", p.User.ID))
+		return nil, authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+	}
+	// A proof that opened nothing isn't spent.
+	done := false
+	defer func() {
+		if !done {
+			giveBack()
+		}
+	}()
+	// What was opened stays open while the session that asked does, and while its
+	// role still lets it open this service where it is now, protected or not.
+	still := authapi.Recheck(h.Auth, h.logger, dockwellv1connect.ServiceServiceOpenServiceProcedure, p,
+		&dockwellv1.OpenServiceRequest{Id: r.ID, Port: target.Port})
+	follow := func() (context.Context, func()) { return h.Auth.Follow(context.Background(), client, p, still) }
+	url, origin, expires, err := h.Opener.Ticket(p.User.ID, p.Session.ID, client.Site, target, follow)
 	switch {
 	case errors.Is(err, opener.ErrNotLocalhost):
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "open_on_localhost")
 	case err != nil:
 		return nil, h.internal(ctx, "open a service", err)
 	}
-	detail, _ := json.Marshal(opened{Service: r.Name, Port: target.Port, Origin: origin})
+	from, _, err := net.SplitHostPort(client.Addr)
+	if err != nil {
+		from = client.Addr
+	}
+	detail, _ := json.Marshal(opened{Service: r.Name, Port: target.Port, Origin: origin, From: from})
 	if err := h.db.Update(ctx, func(tx *store.Tx) error {
 		return tx.RecordEvent(ctx, store.Event{
 			ID: id.New(id.Event), At: time.Now(), Actor: p.Actor(), Action: EventOpen, Subject: r.ID, Target: target.Server,
@@ -121,6 +160,7 @@ func (h *Handler) OpenService(ctx context.Context, req *connect.Request[dockwell
 		// What can't go on record doesn't open.
 		return nil, h.internal(ctx, "record an app opened", err)
 	}
+	done = true
 	return connect.NewResponse(&dockwellv1.OpenServiceResponse{Url: url, Origin: origin, ExpireTime: timestamppb.New(expires)}), nil
 }
 

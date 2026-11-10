@@ -196,6 +196,10 @@ logs-load: build-go build-agent ## Measure an agent's memory while a container f
 transfers-load: build-go build-agent ## Measure an agent's memory while four files upload and four download at once
 	scripts/transfers-load.sh $(BIN) $(AGENT_BIN)
 
+.PHONY: forwards-load
+forwards-load: build-go build-agent ## Measure an agent's memory while four apps opened through the panel carry 32 connections, on a fake Docker
+	scripts/forwards-load.sh $(BIN) $(AGENT_BIN)
+
 .PHONY: docker-e2e
 docker-e2e: build-go build-agent ## Run, change, undo and export a service through the CLI on this machine's Docker, import a Compose file, and run a container through the agent build
 	scripts/docker-e2e.sh $(BIN) $(AGENT_BIN)

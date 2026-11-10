@@ -11,13 +11,15 @@ import {
   type Entry,
   type Input,
   InputType,
+  Protocol,
   type ServiceInfo,
   ServiceService,
+  StepUpAction,
   VariableService,
 } from "@dockwell/api";
 import { Button, ConnectionCard, type ConnectionItem, CopyButton, Icon, type IconName } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { appOf, environmentOf, nameOf, valuesOf } from "../apps/app";
@@ -25,6 +27,7 @@ import { type EnvEdit, envEdits } from "../apps/envEdit";
 import { useServices } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useAuthError } from "../auth/messages";
+import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedIn } from "../auth/useAuthState";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
@@ -304,6 +307,26 @@ export function useInstallFacts(
         />
       ),
     });
+  } else if (web && onLocalhost) {
+    // On localhost, any port it publishes over TCP opens through the panel, with a
+    // domain or without: for an admin tool, that's still the safer way in.
+    const published = appOf(web)?.ports.find((p) => p.protocol !== Protocol.UDP && p.hostPort > 0);
+    if (published) {
+      const port = String(published.hostPort);
+      out.push({
+        key: "open",
+        icon: "external",
+        text: t`Published on port ${port}`,
+        action: (
+          <OpenAppButton
+            serviceId={web.id}
+            environment={install.environmentId}
+            port={published.containerPort}
+            app={entry.category === "databases" ? nameOf(web) : app}
+          />
+        ),
+      });
+    }
   }
   for (const [i, note] of entry.notes.entries()) out.push({ key: `note-${i}`, icon: "question", text: note });
   if (entry.firstSteps) out.push({ key: "first", icon: "arrow-right", text: entry.firstSteps });
@@ -311,9 +334,11 @@ export function useInstallFacts(
 }
 
 /**
- * Opens a service's web UI through the panel, in a tab of its own (ADR 0061). The tab
- * opens as the button is pressed, so no popup blocker stops it, and goes to the app
- * once the control plane hands over its one-time address.
+ * Opens a service's web UI through the panel, in a tab of its own (ADR 0061), once
+ * a passkey confirms it, as revealing a secret takes one: an admin tool may sign in
+ * whoever reaches it. The passkey can take longer than a browser lets a click open
+ * a tab, so where the tab is held back, the address is a link to press, for the
+ * minute it works.
  */
 export function OpenAppButton({
   serviceId,
@@ -334,20 +359,30 @@ export function OpenAppButton({
   const explain = useAuthError();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
+  // The one-time address, while a held-back tab leaves it to a link.
+  const [ready, setReady] = useState<string>();
+  useEffect(() => {
+    if (!ready) return;
+    const gone = window.setTimeout(() => setReady(undefined), 60_000);
+    return () => window.clearTimeout(gone);
+  }, [ready]);
   const open = async () => {
     setProblem(undefined);
+    setReady(undefined);
     setBusy(true);
-    const tab = window.open("about:blank", "_blank");
     try {
-      const res = await createClient(ServiceService, transport).openService({ id: serviceId, port: port ?? 0 });
+      const client = createClient(ServiceService, transport);
+      const res = await withStepUpIfAsked(transport, StepUpAction.OPEN_SERVICE, serviceId, (proof) =>
+        client.openService({ id: serviceId, port: port ?? 0, proof }),
+      );
+      const tab = window.open("", "_blank");
       if (tab) {
         tab.opener = null;
         tab.location.href = res.url;
       } else {
-        window.location.assign(res.url);
+        setReady(res.url);
       }
     } catch (err) {
-      tab?.close();
       setProblem(explain(err));
     } finally {
       setBusy(false);
@@ -355,9 +390,21 @@ export function OpenAppButton({
   };
   return (
     <span className="catalog-open">
-      <Button size="sm" icon="external" loading={busy} onClick={() => void open()} {...mayOpen.off}>
-        {t`Open ${app}`}
-      </Button>
+      {ready ? (
+        <a
+          className="catalog-link"
+          href={ready}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => setReady(undefined)}
+        >
+          {t`Open ${app} in a new tab`}
+        </a>
+      ) : (
+        <Button size="sm" icon="external" loading={busy} onClick={() => void open()} {...mayOpen.off}>
+          {t`Open ${app}`}
+        </Button>
+      )}
       {problem ? (
         <span className="catalog-open-problem" role="alert">
           {problem}

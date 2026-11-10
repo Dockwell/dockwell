@@ -1,14 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
-import { EntrySchema, InputType, type ProposeChangeRequest, Role, type WatchServersResponse } from "@dockwell/api";
+import { Code } from "@connectrpc/connect";
+import {
+  EntrySchema,
+  InputType,
+  type ProposeChangeRequest,
+  Role,
+  StepUpAction,
+  type WatchServersResponse,
+} from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, ENV, places, SERVER } from "../../test/apps";
-import { authState, mira } from "../../test/auth";
+import { authError, authState, mira, stubPasskeys } from "../../test/auth";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -199,44 +207,99 @@ describe("What an installed app says of itself", () => {
     expect(within(panel).getByText("Its first account is its owner: make yours before it has a domain")).toBeVisible();
   });
 
-  it("opens it through the panel on localhost, in a tab of its own", async () => {
-    const user = userEvent.setup();
-    const asked: { id: string; port: number }[] = [];
-    const tab = { opener: {} as unknown, location: { href: "" }, close: vi.fn() };
-    vi.stubGlobal(
-      "open",
-      vi.fn(() => tab),
-    );
-    renderAt(
-      "/apps/svc_gitea",
-      api(gitea, {
-        auth: { getAuthState: () => authState({ user: { ...mira, email: "mira@example.com" }, rpId: "localhost" }) },
+  /** Gitea, published on loopback alone, which opens through the panel, with a passkey. */
+  function openable(
+    open: () => unknown,
+    more: { ports?: { hostIp: string; hostPort: number; containerPort: number }[]; domains?: string[] } = {},
+  ) {
+    const asked: { id: string; port: number; proof: string }[] = [];
+    const steps: unknown[] = [];
+    return {
+      asked,
+      steps,
+      api: api(gitea, {
+        auth: {
+          getAuthState: () => authState({ user: { ...mira, email: "mira@example.com" }, rpId: "localhost" }),
+          beginStepUp: (req) => {
+            steps.push(req);
+            return { ceremonyId: "cer_1", optionsJson: JSON.stringify({ challenge: "q83v", rpId: "localhost" }) };
+          },
+          finishStepUp: () => ({ proof: "proof_1" }),
+        },
         services: {
           listServices: () => ({
             services: [
               anApp("gitea", "gitea/gitea:1.25", {
-                ports: [{ hostIp: "127.0.0.1", hostPort: 3000, containerPort: 3000 }],
+                ports: more.ports ?? [{ hostIp: "127.0.0.1", hostPort: 3000, containerPort: 3000 }],
               }),
             ],
           }),
-          openService: (req: { id: string; port: number }) => {
-            asked.push({ id: req.id, port: req.port });
+          openService: (req: { id: string; port: number; proof: string }) => {
+            asked.push({ id: req.id, port: req.port, proof: req.proof });
+            // As the control plane: a passkey, once nothing else refuses.
+            if (req.proof === "") throw authError(Code.PermissionDenied, "needs_step_up");
+            open();
             return {
               url: "http://abcde23456.localhost:7600/.dockwell/open?ticket=t",
               origin: "http://abcde23456.localhost:7600",
             };
           },
         },
-        domains: { listDomains: () => ({ domains: [] }) },
+        domains: { listDomains: () => ({ domains: (more.domains ?? []).map((name) => ({ name })) }) },
       }),
+    };
+  }
+
+  it("opens it through the panel on localhost with a passkey, in a tab of its own", async () => {
+    const user = userEvent.setup();
+    const passkeys = stubPasskeys();
+    const tab = { opener: {} as unknown, location: { href: "" }, close: vi.fn() };
+    vi.stubGlobal(
+      "open",
+      vi.fn(() => tab),
     );
+    const stand = openable(() => {});
+    renderAt("/apps/svc_gitea", stand.api);
     const panel = await screen.findByRole("region", { name: "From the catalog" });
     await user.click(await within(panel).findByRole("button", { name: "Open Gitea" }));
     await waitFor(() => expect(tab.location.href).toBe("http://abcde23456.localhost:7600/.dockwell/open?ticket=t"));
-    expect(asked).toEqual([{ id: "svc_gitea", port: 3000 }]);
+    expect(passkeys.get).toHaveBeenCalledOnce();
+    expect(stand.steps).toEqual([expect.objectContaining({ action: StepUpAction.OPEN_SERVICE, target: "svc_gitea" })]);
+    expect(stand.asked).toEqual([
+      { id: "svc_gitea", port: 3000, proof: "" },
+      { id: "svc_gitea", port: 3000, proof: "proof_1" },
+    ]);
     expect(tab.opener).toBeNull();
     expect(within(panel).queryByRole("button", { name: "Copy the SSH tunnel command" })).toBeNull();
   });
+
+  it("gives the address as a link to press when the browser holds the tab back", async () => {
+    const user = userEvent.setup();
+    stubPasskeys();
+    vi.stubGlobal(
+      "open",
+      vi.fn(() => null),
+    );
+    renderAt("/apps/svc_gitea", openable(() => {}).api);
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    await user.click(await within(panel).findByRole("button", { name: "Open Gitea" }));
+    const link = await within(panel).findByRole("link", { name: "Open Gitea in a new tab" });
+    expect(link).toHaveAttribute("href", "http://abcde23456.localhost:7600/.dockwell/open?ticket=t");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("opens it on localhost from any port it publishes, with a domain or without", async () => {
+    renderAt(
+      "/apps/svc_gitea",
+      openable(() => {}, { ports: [{ hostIp: "", hostPort: 3000, containerPort: 3000 }], domains: ["git.example.com"] })
+        .api,
+    );
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    expect(await within(panel).findByText("Published on port 3000")).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "Open Gitea" })).toBeVisible();
+  });
+
   it("leaves Close sign-ups and the sign-in's Reveal in place for a viewer, off, with why", async () => {
     renderAt(
       "/apps/svc_gitea",

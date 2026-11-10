@@ -378,9 +378,10 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 					}
 					return s.Forward(ctx, t.Project, t.Service, t.Port)
 				},
-				Live: cfg.Auth.SessionLive, Role: cfg.Auth.RoleOn, Key: key, Logger: cfg.Logger,
+				Live: cfg.Auth.SessionLive, Key: key, Logger: cfg.Logger,
 			}
 			serviceHandler.Opener = appOpener
+			serviceHandler.Auth = cfg.Auth
 		}
 		handle(dockwellv1connect.NewServiceServiceHandler(serviceHandler, opts...))
 		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)
@@ -448,12 +449,18 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	return serve.Serve(ctx, ln, s.api, serve.Options{Name: "control plane", Logger: s.logger})
 }
 
+// agentFrame is the largest HTTP/2 frame the agent listener takes.
+const agentFrame = 16 << 10
+
 // ServeAgents serves the agent listener on ln until ctx is done.
 func (s *Server) ServeAgents(ctx context.Context, ln net.Listener) error {
 	if s.agents == nil {
 		return errors.New("control: the agent listener needs Config.Identity")
 	}
-	return serve.Serve(ctx, ln, s.agents, serve.Options{Name: "agent listener", Logger: s.logger, TLS: s.agentTLS})
+	// HTTP/2's smallest frame, a TLS record's size: an agent writes each stream's body
+	// through a buffer of the frame's size, and with Go's own, 1 MiB, that's 512 KiB
+	// for each upload, download and forward under way (ADR 0061).
+	return serve.Serve(ctx, ln, s.agents, serve.Options{Name: "agent listener", Logger: s.logger, TLS: s.agentTLS, MaxFrame: agentFrame})
 }
 
 // AddAgentHost has the agent listener's certificate name host too, from the next
