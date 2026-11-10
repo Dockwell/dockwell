@@ -346,6 +346,9 @@ func (m *Monitor) refresh(now time.Time) {
 // container that restarted between two scans may have a new address, and another
 // container its old one.
 func (m *Monitor) scan(ctx context.Context) time.Duration {
+	// From before the list is asked for: what a step did since then, the list
+	// may not show, so OnList mustn't take the list for newer than the step.
+	asked := time.Now()
 	list, err := m.list(ctx)
 	if err != nil {
 		if !docker.IsUnavailable(err) && ctx.Err() == nil {
@@ -441,7 +444,7 @@ func (m *Monitor) scan(ctx context.Context) time.Duration {
 		m.tell()
 	}
 	if onList != nil {
-		onList(ctx, now, list)
+		onList(ctx, asked, list)
 	}
 	for _, r := range slices.Concat(toRead, quiet) {
 		m.read(ctx, r.id, r.w)

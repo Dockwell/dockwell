@@ -1255,7 +1255,19 @@ func (d *Docker) HoldAt(ctx context.Context, t Target, spec *resourcev1.Containe
 		}
 		mine[volumes[p]] = "the volume at " + p
 	}
-	if img, err := d.Client.InspectImage(ctx, spec.GetImage()); err == nil && img.Config != nil {
+	// Where the image keeps data is only known from the image, so one that isn't
+	// here, or that Docker can't read, holds the container back: made again
+	// unchecked, it could start empty beside its old data. The caller has the
+	// image its record names in place before it asks (ADR 0054).
+	img, err := d.Client.InspectImage(ctx, spec.GetImage())
+	switch {
+	case docker.IsNotFound(err):
+		return fmt.Sprintf("Its image, %s, isn't on this server, so the agent can't tell where it keeps data, and making it again could start it empty. "+
+			"Apply it again from the control plane once it's back", spec.GetImage()), nil
+	case err != nil:
+		return "", fmt.Errorf("can't read its image, %s, to see where it keeps data: %w", spec.GetImage(), err)
+	}
+	if img.Config != nil {
 		for _, p := range slices.Sorted(maps.Keys(img.Config.Volumes)) {
 			if _, seen := volumes[p]; !seen && !targets[p] {
 				return fmt.Sprintf("Its image keeps data at %s, and the agent never saw the volume it was in, so making it again would start it empty. "+

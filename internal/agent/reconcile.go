@@ -318,17 +318,24 @@ func (r *reconciler) runs(ctx context.Context, rv resource.Reviver, rec desired.
 			"Apply it again from the control plane to run it")
 		return
 	}
-	why, err := rv.Hold(look, ref, spec, rec.Volumes)
-	switch {
-	case err != nil:
-		r.journal(ref, desired.Waiting, fmt.Sprintf("Docker can't say whether what it mounts is there (%v), so the agent leaves it. It looks again every minute", err))
-		return
-	case why != "":
+	// The image first: where it keeps data is read from the image, so the one
+	// its record names has to be the one in place before Hold reads it. A tag
+	// that moved, or an image that's gone, would otherwise have Hold read
+	// another image's paths, or none, and the container made on an empty volume.
+	note, why := r.image(ctx, rec, spec)
+	if why != "" {
 		r.journal(ref, desired.Waiting, why)
 		return
 	}
-	note, why := r.image(ctx, rec, spec)
-	if why != "" {
+	// A deadline of its own: a pull can outlast the look's.
+	hold, cancelHold := context.WithTimeout(ctx, lookTimeout)
+	why, err = rv.Hold(hold, ref, spec, rec.Volumes)
+	cancelHold()
+	switch {
+	case err != nil:
+		r.journal(ref, desired.Waiting, fmt.Sprintf("Docker can't say whether what it mounts and its image are there (%v), so the agent leaves it. It looks again every minute", err))
+		return
+	case why != "":
 		r.journal(ref, desired.Waiting, why)
 		return
 	}
@@ -418,10 +425,32 @@ func (r *reconciler) make(ctx context.Context, rec desired.Record, spec proto.Me
 	deploy.Reconcile = e.ID
 	ctx = resource.WithDeploy(ctx, deploy)
 	if err := r.local.Apply(ctx, step, spec); err != nil {
-		r.journal(ref, desired.Waiting, fmt.Sprintf("Making it again failed (%v). The agent tries again in a minute", err))
+		why := fmt.Sprintf("Making it again failed (%v). The agent tries again in a minute", err)
+		if r.madeNothing(ctx, ref) {
+			// Nothing of it is there, so the receipt ends here, with why. Left
+			// pending, it would be taken for a creation the agent was stopped
+			// in once the control plane applies the resource.
+			r.endAction(e, desired.Waiting, why)
+			return
+		}
+		// Something of it is there, or Docker can't say: the receipt stays, and
+		// the next look finishes it or says what stands in its place.
+		r.journal(ref, desired.Waiting, why)
 		return
 	}
 	r.endAction(e, desired.Made, note)
+}
+
+// madeNothing says a failed making left nothing of ref behind, as Docker reads now.
+func (r *reconciler) madeNothing(ctx context.Context, ref resource.Ref) bool {
+	look, cancel := context.WithTimeout(context.WithoutCancel(ctx), lookTimeout)
+	defer cancel()
+	if rv := r.local.Reviver(ref); rv != nil {
+		st, err := rv.RunState(look, ref)
+		return err == nil && !st.Exists
+	}
+	seen, err := r.local.Observe(look, []resource.Ref{ref})
+	return err == nil && len(seen) == 1 && seen[0] == nil
 }
 
 // start starts a container Docker couldn't, at most startTries times each boot,
@@ -431,7 +460,13 @@ func (r *reconciler) start(ctx context.Context, rv resource.Reviver, ref resourc
 		return
 	}
 	e, ok := r.beginAction(ref, desired.Started, "", target)
-	if !ok || !r.tryStart(ctx, rv, ref) {
+	if !ok {
+		return
+	}
+	if why := r.tryStart(ctx, rv, ref); why != "" {
+		// The receipt ends here, with why: left pending, the next look would
+		// take it for a start the agent was stopped in, which it wasn't.
+		r.endAction(e, desired.Waiting, why)
 		return
 	}
 	r.endAction(e, desired.Started, "")
@@ -457,16 +492,16 @@ func (r *reconciler) canStart(ref resource.Ref, failed string) bool {
 	return true
 }
 
-func (r *reconciler) tryStart(ctx context.Context, rv resource.Reviver, ref resource.Ref) bool {
+// tryStart starts it, and says why it couldn't, for the caller to write down.
+func (r *reconciler) tryStart(ctx context.Context, rv resource.Reviver, ref resource.Ref) (why string) {
 	t := r.tries[ref]
 	now := r.now()
 	t.n++
 	t.next = now.Add(min(firstRetry<<(t.n-1), lastRetry))
 	if err := rv.Start(ctx, ref); err != nil {
-		r.journal(ref, desired.Waiting, fmt.Sprintf("Docker couldn't start it, nor could the agent (%v). The agent tries again in %s", err, human.Duration(t.next.Sub(now))))
-		return false
+		return fmt.Sprintf("Docker couldn't start it, nor could the agent (%v). The agent tries again in %s", err, human.Duration(t.next.Sub(now)))
 	}
-	return true
+	return ""
 }
 
 // image makes sure the image a resource is made from is the one its record says:
@@ -490,8 +525,11 @@ func (r *reconciler) image(ctx context.Context, rec desired.Record, spec proto.M
 	defer cancel()
 	if strings.Contains(ref, "@") {
 		// Pinned by digest, so it names one image wherever it's pulled from.
-		if _, err := c.InspectImage(look, ref); err == nil {
+		switch _, err := c.InspectImage(look, ref); {
+		case err == nil:
 			return "", ""
+		case !docker.IsNotFound(err):
+			return "", fmt.Sprintf("Docker can't say whether its image, %s, is here (%v), so the agent leaves it. It looks again every minute", ref, err)
 		}
 		if err := r.pull(ctx, ref); err != nil {
 			return "", fmt.Sprintf("Its image, %s, is gone, and pulling it again failed (%v). The agent tries again in a minute", ref, err)
@@ -523,7 +561,10 @@ func (r *reconciler) image(ctx context.Context, rec desired.Record, spec proto.M
 	if err := r.pull(ctx, rec.Image.Digest); err != nil {
 		return "", fmt.Sprintf("Its image is gone, or %s names another one now, and pulling it by its digest, %s, failed (%v). The agent tries again in a minute", ref, rec.Image.Digest, err)
 	}
-	if err := c.TagImage(look, rec.Image.Digest, ref); err != nil {
+	// A deadline of its own: the pull may have outlasted the look's.
+	tag, cancelTag := context.WithTimeout(ctx, lookTimeout)
+	defer cancelTag()
+	if err := c.TagImage(tag, rec.Image.Digest, ref); err != nil {
 		return "", fmt.Sprintf("Pulled %s, and can't name it %s (%v). Apply it again from the control plane once it's back", rec.Image.Digest, ref, err)
 	}
 	return fmt.Sprintf("Pulled its image by its digest, %s, as %s was gone or named another one.", rec.Image.Digest, ref), ""
