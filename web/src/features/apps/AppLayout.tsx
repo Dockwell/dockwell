@@ -220,7 +220,14 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const where = at ? (
     <>
       {" · "}
-      <a className="app-head-at" href={`http://${at}`} target="_blank" rel="noreferrer" aria-label={t`Open ${at}`}>
+      {/* Named by where it answers: What runs has the link named Open, and two links of one name read as one. */}
+      <a
+        className="app-head-at"
+        href={`http://${at}`}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={t`Answers at ${at}`}
+      >
         <code>{at}</code>
         <Icon name="external" size={12} />
       </a>

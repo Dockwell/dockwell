@@ -1912,6 +1912,9 @@ msgstr "{variables, plural, other {# 个变量}}"
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{serviceId}</0> 可能已被删除，或链接有误。"
 
+msgid "Answers at {at}"
+msgstr "在 {at} 响应"
+
 msgid "App sections"
 msgstr "应用分区"
 
@@ -1963,9 +1966,6 @@ msgstr "没有此 ID 的应用"
 
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "服务器上没有任何变化。请重新加载页面再试。"
-
-msgid "Open {at}"
-msgstr "打开 {at}"
 
 msgid "Overview"
 msgstr "概览"
@@ -2122,6 +2122,9 @@ msgstr "部署失败后，服务器重新连接时，Dockwell 会恢复 <0>{imag
 
 msgid "Open the plan"
 msgstr "打开计划"
+
+msgid "Open {at}"
+msgstr "打开 {at}"
 
 msgid "Open {where}"
 msgstr "打开 {where}"

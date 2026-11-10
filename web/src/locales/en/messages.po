@@ -1912,6 +1912,9 @@ msgstr "{variables, plural, one {# variable} other {# variables}}"
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 
+msgid "Answers at {at}"
+msgstr "Answers at {at}"
+
 msgid "App sections"
 msgstr "App sections"
 
@@ -1963,9 +1966,6 @@ msgstr "No app with this ID"
 
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "Nothing changed on the server. Reload the page to try again."
-
-msgid "Open {at}"
-msgstr "Open {at}"
 
 msgid "Overview"
 msgstr "Overview"
@@ -2122,6 +2122,9 @@ msgstr "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy th
 
 msgid "Open the plan"
 msgstr "Open the plan"
+
+msgid "Open {at}"
+msgstr "Open {at}"
 
 msgid "Open {where}"
 msgstr "Open {where}"
