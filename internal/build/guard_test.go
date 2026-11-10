@@ -246,7 +246,7 @@ func TestStepsRunUnderDockersAppArmorProfileWhereThereIsOne(t *testing.T) {
 		if err != nil || string(out) != c.want {
 			t.Errorf("where %s, the builder says %q, %v, want %q", c.name, out, err, c.want)
 		}
-		if _, err := os.Stat(filepath.Join(root, "sbin/apparmor_parser")); (err == nil) != c.parser {
+		if _, err := os.Stat(filepath.Join(root, "sbin", "apparmor_parser")); (err == nil) != c.parser {
 			t.Errorf("where %s, what stands in for AppArmor's parser is there: %v, want %v", c.name, err == nil, c.parser)
 		}
 	}
