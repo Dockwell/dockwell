@@ -8,6 +8,7 @@ import {
   BackupCopy,
   BackupDestinationProblem,
   BackupMethod,
+  BackupPolicy_Drill,
   BackupPolicy_Every,
   BackupSchema,
   BackupState,
@@ -382,6 +383,11 @@ describe("the backups page", () => {
     const edit = proposed.mock.calls[0]?.[0].edits[0];
     expect(edit?.resource).toMatchObject({ kind: "backup.policy", scope: "env_1", name: "orders-daily" });
     expect(edit?.spec?.kind.value).toMatchObject({ volume: "orders", at: "03:00", keep: 3, stop: true });
+    // It checks that its backups restore weekly unless someone chooses otherwise (ADR 0068).
+    expect(edit?.spec?.kind.value).toMatchObject({ drill: BackupPolicy_Drill.WEEKLY });
+    expect(
+      screen.getByText(/Restores the newest into a throwaway copy, about 100 MB, an hour after its run/),
+    ).toBeVisible();
   });
 
   it("says a schedule starts in the install's time zone, and leaves it for the control plane to set", async () => {
@@ -529,6 +535,65 @@ describe("the backups page", () => {
     await activateLocale("en");
   });
 
+  it("offers weekly checks for schedules made before them, as one plan for a person to apply", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((req: ProposeChangeRequest) => {
+      void req;
+      return {
+        change: create(ChangeSchema, {
+          id: "chg_checks",
+          state: ChangeState.PLANNED,
+          plan: { fingerprint: "abc", resources: [] },
+        }),
+      };
+    });
+    const policy = (name: string, drill: BackupPolicy_Drill) => ({
+      id: `bpl_${name}`,
+      name,
+      environmentId: "env_1",
+      spec: {
+        volume: "orders",
+        every: BackupPolicy_Every.DAY,
+        at: "02:30",
+        keep: 5,
+        timeZone: "UTC",
+        destination: "r2",
+        drill,
+      },
+    });
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({
+            policies: [
+              policy("orders-daily", BackupPolicy_Drill.UNSPECIFIED),
+              policy("logs-daily", BackupPolicy_Drill.UNSPECIFIED),
+              policy("media-daily", BackupPolicy_Drill.NEVER),
+              policy("db-daily", BackupPolicy_Drill.WEEKLY),
+            ],
+          }),
+        },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    expect(await screen.findByText("2 schedules never check a restore")).toBeVisible();
+    const panel = screen.getByRole("region", { name: "Schedules" });
+    expect(within(panel).getByText("Checks a restore weekly")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Check weekly" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    const edits = proposed.mock.calls[0]?.[0].edits ?? [];
+    expect(edits.map((e) => e.resource?.name)).toEqual(["orders-daily", "logs-daily"]);
+    // Each whole as it is, but its check.
+    expect(edits[0]?.spec?.kind.value).toMatchObject({
+      at: "02:30",
+      keep: 5,
+      destination: "r2",
+      drill: BackupPolicy_Drill.WEEKLY,
+    });
+  });
+
   it("shows each schedule, and a failed run where you'll see it", async () => {
     renderAt(
       "/backups",
@@ -563,6 +628,7 @@ describe("the backups page", () => {
     // In the schedule's zone, as its time is: 03:00 UTC is 11:00 there.
     expect(within(panel).getByText(/Next run .*11:00/)).toBeVisible();
     expect(within(panel).getByText("Keeps 7, holding 3 now (936 MB)")).toBeVisible();
+    expect(within(panel).getByText("Doesn't check a restore")).toBeVisible();
     expect(within(panel).getByText("Last run failed")).toBeVisible();
     expect(within(panel).getByText("The disk is full.")).toBeVisible();
   });

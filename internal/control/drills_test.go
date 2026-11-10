@@ -7,11 +7,13 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/id"
@@ -165,5 +167,101 @@ func testABackupIsCheckedInADrill(t *testing.T, backend store.Backend) {
 	_, err = bc.DrillBackup(t.Context(), connect.NewRequest(&dockwellv1.DrillBackupRequest{Id: "bkp_none"}))
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Errorf("a drill of no backup: %v", err)
+	}
+}
+
+// A schedule that's new checks a restore weekly (ADR 0068): Dockwell drills the newest
+// of its backups that read back whole an hour after its time on Sunday, as its own,
+// for the policy. Two weeks without a pass and restore-drill-late says so.
+func TestAScheduleChecksARestoreWeekly(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c, bc := changeClient(b, b.origin), backupClient(b, b.origin)
+	webWithData(t, e, c)
+	if done := apply(t, c, propose(t, c, "Back up data each night", drillingPolicyEdit(7))); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the policy ended %v", done.GetState())
+	}
+	listed, err := bc.ListBackupPolicies(t.Context(), connect.NewRequest(&dockwellv1.ListBackupPoliciesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := listed.Msg.GetPolicies()[0]
+	if policy.GetSpec().GetDrill() != resourcev1.BackupPolicy_DRILL_WEEKLY {
+		t.Fatalf("a new policy checks a restore %v, want weekly", policy.GetSpec().GetDrill())
+	}
+
+	start := time.Now()
+	var now atomic.Int64
+	now.Store(start.Add(25 * time.Hour).UnixNano())
+	srv, letIn := f.restart(t, func(s *Server) {
+		s.backups.Now = func() time.Time { return time.Unix(0, now.Load()) }
+	})
+	letIn()
+	eventually(t, "the server to connect", func() bool {
+		_, ok := f.agents.Session(f.lastDocker.id.ServerID)
+		return ok
+	})
+	h := srv.backups
+	if err := h.RunDue(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "its run to finish", func() bool {
+		got := backupsOf(t, bc)
+		return len(got) == 1 && got[0].GetState() == dockwellv1.BackupState_BACKUP_STATE_DONE
+	})
+	taken := backupsOf(t, bc)[0]
+	if taken.GetDrill() != nil {
+		t.Fatalf("a drill ran before it fell due: %v", taken.GetDrill())
+	}
+
+	// A week on, past its Sunday, its drill falls due, of the newest that read back.
+	now.Store(start.Add(8 * 24 * time.Hour).UnixNano())
+	if err := h.RunDue(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := waitDrill(t, bc, taken.GetId()); got.GetResult() != dockwellv1.DrillResult_DRILL_RESULT_PASSED || got.GetActor().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL {
+		t.Fatalf("the scheduled drill = %v", got)
+	}
+	var drills []store.Drill
+	if err := f.store.View(t.Context(), func(tx *store.Tx) (err error) {
+		drills, err = tx.ListDrills(t.Context(), store.DrillFilter{PolicyID: policy.GetId()})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(drills) != 1 || drills[0].BackupID != taken.GetId() {
+		t.Fatalf("the policy's drills are %v", drills)
+	}
+	// Once it ran, the next falls due the Sunday after.
+	if err := h.RunDue(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Late is two weeks without a pass.
+	at := &clock{now: start.Add(9 * 24 * time.Hour)}
+	ev := evaluatorOn(f, at)
+	sites := dockwellv1connect.NewAlertServiceClient(b, b.origin, connect.WithProtoJSON())
+	late := func() int {
+		t.Helper()
+		tickOn(t, ev)
+		res, err := sites.ListAlerts(t.Context(), connect.NewRequest(&dockwellv1.ListAlertsRequest{FiringOnly: true}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, a := range res.Msg.GetAlerts() {
+			if a.GetRuleName() == "restore-drill-late" {
+				n++
+			}
+		}
+		return n
+	}
+	if n := late(); n != 0 {
+		t.Errorf("a schedule that passed a day ago is late %d times", n)
+	}
+	at.add(15 * 24 * time.Hour)
+	if n := late(); n != 1 {
+		t.Errorf("two weeks without a pass, restore-drill-late fires %d times", n)
 	}
 }

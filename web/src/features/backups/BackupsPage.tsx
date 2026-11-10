@@ -1,9 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { clone, create } from "@bufbuild/protobuf";
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
-import { type Backup, BackupCopy, BackupMethod, BackupService, BackupState, DrillResult } from "@dockwell/api";
+import {
+  type Backup,
+  BackupCopy,
+  BackupMethod,
+  BackupPolicy_Drill,
+  type BackupPolicyInfo,
+  BackupPolicySchema,
+  BackupService,
+  BackupState,
+  ChangeService,
+  DrillResult,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -82,6 +94,7 @@ export function BackupsPage() {
       ) : null}
       <div className="backups-columns">
         <div className="backups-main">
+          <UncheckedSchedules policies={policies} />
           {volumes.length > 0 ? <PoliciesPanel policies={policies} onAdd={() => setScheduling(true)} /> : null}
           {query.isPending ? null : backups.length === 0 ? (
             <Panel>
@@ -525,4 +538,51 @@ function DrillLine({ backup, onCheck }: { backup: Backup; onCheck?: () => void }
       return said(t`Restore check failed ${ago}: ${why}`, true);
   }
   return said(t`Not checked: ${why}`);
+}
+
+/**
+ * Schedules made before restore drills check none (ADR 0068). One button plans
+ * weekly checks for all of them, for a person to review and apply; nothing turns
+ * them on by itself, as a check costs disk and time their owner didn't plan for.
+ */
+function UncheckedSchedules({ policies }: { policies: readonly BackupPolicyInfo[] }) {
+  const sheet = useChangeSheet();
+  const may = useMay();
+  const unchecked = policies.filter((p) => p.spec && p.spec.drill === BackupPolicy_Drill.UNSPECIFIED);
+  if (unchecked.length === 0) return null;
+  const plan = () =>
+    sheet.open({
+      kind: "propose",
+      summary: plural(unchecked.length, {
+        one: "Check a restore of # schedule's backups weekly",
+        other: "Check a restore of # schedules' backups weekly",
+      }),
+      edits: unchecked.map((p) => {
+        // The whole policy as it is, but its check.
+        const value = clone(BackupPolicySchema, p.spec ?? create(BackupPolicySchema));
+        value.drill = BackupPolicy_Drill.WEEKLY;
+        return {
+          resource: { kind: "backup.policy", scope: p.environmentId, name: p.name },
+          spec: { kind: { case: "backupPolicy" as const, value } },
+        };
+      }),
+    });
+  return (
+    <Callout
+      tone="info"
+      title={plural(unchecked.length, {
+        one: "# schedule never checks a restore",
+        other: "# schedules never check a restore",
+      })}
+      actions={
+        <Button
+          size="sm"
+          onClick={plan}
+          {...may(ChangeService.method.proposeChange, { environment: unchecked[0]?.environmentId ?? "" }).off}
+        >
+          <Trans>Check weekly</Trans>
+        </Button>
+      }
+    />
+  );
 }

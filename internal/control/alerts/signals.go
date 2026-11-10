@@ -59,6 +59,8 @@ func (s *signals) of(ctx context.Context, r rule) ([]finding, error) {
 		return s.checksDown(), nil
 	case resourcev1.AlertRule_CONDITION_RESTORE_DRILL_FAILED:
 		return s.drillsFailed(ctx)
+	case resourcev1.AlertRule_CONDITION_RESTORE_DRILL_LATE:
+		return s.drillsLate(ctx)
 	case resourcev1.AlertRule_CONDITION_UNSPECIFIED:
 	}
 	return nil, fmt.Errorf("no signal for %v", r.spec.GetCondition())
@@ -507,6 +509,73 @@ func (s *signals) drillsFailed(ctx context.Context) ([]finding, error) {
 		return nil
 	})
 	return out, err
+}
+
+// drillsLate holds for a policy that drills and has gone two of its periods, on a
+// server it runs on, without a drill that passed: its drills weren't checked, or
+// never ran. backup-late reads backups' runs alone, so this says it (ADR 0068).
+func (s *signals) drillsLate(ctx context.Context) ([]finding, error) {
+	var out []finding
+	now := s.e.now()
+	err := s.e.DB.View(ctx, func(tx *store.Tx) error {
+		stored, err := tx.ListKind(ctx, string(backuppolicy.Kind))
+		if err != nil {
+			return err
+		}
+		for i := range stored {
+			r := &stored[i]
+			decoded, err := s.e.Engine.Kinds().Decode(backuppolicy.Kind, r.Spec)
+			if err != nil {
+				return err
+			}
+			p := decoded.(*resourcev1.BackupPolicy)
+			if !backuppolicy.Drills(p) {
+				continue
+			}
+			rev, err := tx.GetRevision(ctx, r.ID, r.Revision)
+			if err != nil {
+				return err
+			}
+			v, err := tx.GetResource(ctx, "volume", r.Scope, p.GetVolume())
+			if err != nil || v.Spec == nil {
+				continue
+			}
+			placed, err := tx.Placement(ctx, v.ID, v.Revision)
+			if err != nil {
+				return err
+			}
+			for _, server := range placed {
+				drills, err := tx.ListDrills(ctx, store.DrillFilter{PolicyID: r.ID, ServerID: server})
+				if err != nil {
+					return err
+				}
+				since := rev.CreatedAt
+				for k := range drills {
+					if drills[k].Result == store.DrillPassed {
+						since = max2(since, drills[k].StartedAt)
+						break
+					}
+				}
+				f := finding{thing: "drill-late:" + r.ID + ":" + server, serverID: server, subjectID: v.ID, subjectName: v.Name, path: "/backups", verdict: fine}
+				if late := since.Add(2 * backuppolicy.DrillPeriod(p)); now.After(late) {
+					f.verdict, f.since = holds, late
+					f.title = "No restore check of " + v.Name + " has passed lately"
+					f.detail = r.Name + " checks a restore, and none of its checks has passed in two of its periods, so nothing shows its backups restore. Backups says why each wasn't checked."
+				}
+				out = append(out, f)
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
+// max2 is the later of two times.
+func max2(a, b time.Time) time.Time {
+	if b.After(a) {
+		return b
+	}
+	return a
 }
 
 func (s *signals) backupsLate(ctx context.Context) ([]finding, error) {

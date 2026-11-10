@@ -28,6 +28,7 @@ const DefaultsSummary = "Set up the default alert rules"
 var later = map[string]string{
 	"check-down":           "alerts.defaults.check-down",
 	"restore-drill-failed": "alerts.defaults.restore-drill-failed",
+	"restore-drill-late":   "alerts.defaults.restore-drill-late",
 }
 
 // MakeDefaults makes an install's first rules, one for each condition, as

@@ -831,6 +831,9 @@ msgstr "Named this install {value}"
 msgid "Named this install {value}, which was {previous}"
 msgstr "Named this install {value}, which was {previous}"
 
+msgid "No restore check of {subject} has passed lately"
+msgstr "No restore check of {subject} has passed lately"
+
 msgid "Not running"
 msgstr "Not running"
 
@@ -4693,6 +4696,9 @@ msgstr "Backups, newest first"
 msgid "Check it restores"
 msgstr "Check it restores"
 
+msgid "Check weekly"
+msgstr "Check weekly"
+
 msgid "Checking it restores"
 msgstr "Checking it restores"
 
@@ -4815,6 +4821,14 @@ msgstr "Unpacked whole {ago}"
 #. placeholder {0}: Number(b.filesChanged)
 msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 msgstr "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
+
+#. placeholder {0}: unchecked.length
+msgid "{0, plural, one {# schedule never checks a restore} other {# schedules never check a restore}}"
+msgstr "{0, plural, one {# schedule never checks a restore} other {# schedules never check a restore}}"
+
+#. placeholder {0}: unchecked.length
+msgid "{0, plural, one {Check a restore of # schedule's backups weekly} other {Check a restore of # schedules' backups weekly}}"
+msgstr "{0, plural, one {Check a restore of # schedule's backups weekly} other {Check a restore of # schedules' backups weekly}}"
 
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, one {# backup} other {# backups}}"
@@ -4971,6 +4985,15 @@ msgstr "Stop sending backups to {0}"
 msgid "{0} backups, {1}"
 msgstr "{0} backups, {1}"
 
+msgid "Checks a restore monthly"
+msgstr "Checks a restore monthly"
+
+msgid "Checks a restore weekly"
+msgstr "Checks a restore weekly"
+
+msgid "Doesn't check a restore"
+msgstr "Doesn't check a restore"
+
 msgid "Hasn't run yet"
 msgstr "Hasn't run yet"
 
@@ -5021,6 +5044,12 @@ msgstr "Back up {0} on a schedule"
 msgid "Backups to keep"
 msgstr "Backups to keep"
 
+msgid "Check monthly"
+msgstr "Check monthly"
+
+msgid "Check that it restores"
+msgstr "Check that it restores"
+
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell can't say what this costs"
 
@@ -5043,6 +5072,16 @@ msgstr "Keeping {count} takes about {0} while the next is taken, and the disk ha
 
 msgid "Minutes past the hour, as 00:MM"
 msgstr "Minutes past the hour, as 00:MM"
+
+msgid "Never check"
+msgstr "Never check"
+
+msgid "Restores the newest into a throwaway copy an hour after its run, for up to 6 h."
+msgstr "Restores the newest into a throwaway copy an hour after its run, for up to 6 h."
+
+#. placeholder {0}: formatBytes(each, i18n.locale)
+msgid "Restores the newest into a throwaway copy, about {0}, an hour after its run, for up to 6 h."
+msgstr "Restores the newest into a throwaway copy, about {0}, an hour after its run, for up to 6 h."
 
 msgid "Stop {running} for each backup"
 msgstr "Stop {running} for each backup"

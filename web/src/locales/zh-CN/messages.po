@@ -831,6 +831,9 @@ msgstr "将此安装命名为 {value}"
 msgid "Named this install {value}, which was {previous}"
 msgstr "将这个安装命名为 {value}（原为 {previous}）"
 
+msgid "No restore check of {subject} has passed lately"
+msgstr "{subject} 最近没有通过的恢复检查"
+
 msgid "Not running"
 msgstr "没有运行"
 
@@ -4693,6 +4696,9 @@ msgstr "备份，最新的在前"
 msgid "Check it restores"
 msgstr "检查能否恢复"
 
+msgid "Check weekly"
+msgstr "每周检查"
+
 msgid "Checking it restores"
 msgstr "正在检查能否恢复"
 
@@ -4815,6 +4821,14 @@ msgstr "已完整解包（{ago}）"
 #. placeholder {0}: Number(b.filesChanged)
 msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 msgstr "{0, plural, other {# 个文件在复制时发生了变化}}"
+
+#. placeholder {0}: unchecked.length
+msgid "{0, plural, one {# schedule never checks a restore} other {# schedules never check a restore}}"
+msgstr "{0, plural, other {# 个计划从不检查恢复}}"
+
+#. placeholder {0}: unchecked.length
+msgid "{0, plural, one {Check a restore of # schedule's backups weekly} other {Check a restore of # schedules' backups weekly}}"
+msgstr "{0, plural, other {每周检查 # 个计划的备份能否恢复}}"
 
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, other {# 个备份}}"
@@ -4971,6 +4985,15 @@ msgstr "停止将备份发送到 {0}"
 msgid "{0} backups, {1}"
 msgstr "{0} 份备份，{1}"
 
+msgid "Checks a restore monthly"
+msgstr "每月检查恢复"
+
+msgid "Checks a restore weekly"
+msgstr "每周检查恢复"
+
+msgid "Doesn't check a restore"
+msgstr "不检查恢复"
+
 msgid "Hasn't run yet"
 msgstr "尚未运行"
 
@@ -5021,6 +5044,12 @@ msgstr "按计划备份 {0}"
 msgid "Backups to keep"
 msgstr "保留的备份数"
 
+msgid "Check monthly"
+msgstr "每月检查"
+
+msgid "Check that it restores"
+msgstr "检查能否恢复"
+
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell 无法估算占用空间"
 
@@ -5043,6 +5072,16 @@ msgstr "保留 {count} 份在下次备份期间约占 {0}，磁盘还有 {1} 可
 
 msgid "Minutes past the hour, as 00:MM"
 msgstr "每小时的分钟数，格式为 00:MM"
+
+msgid "Never check"
+msgstr "从不检查"
+
+msgid "Restores the newest into a throwaway copy an hour after its run, for up to 6 h."
+msgstr "在每次运行一小时后，把最新的备份恢复到一个用后即弃的副本中，最长 6 小时。"
+
+#. placeholder {0}: formatBytes(each, i18n.locale)
+msgid "Restores the newest into a throwaway copy, about {0}, an hour after its run, for up to 6 h."
+msgstr "在每次运行一小时后，把最新的备份恢复到一个用后即弃的副本中，约 {0}，最长 6 小时。"
 
 msgid "Stop {running} for each backup"
 msgstr "每次备份时停止 {running}"
