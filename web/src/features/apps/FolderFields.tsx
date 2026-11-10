@@ -2,16 +2,26 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import { FileService, FileType, type WebsiteRuntime } from "@dockwell/api";
-import { Button, Callout, SegmentedControl, SelectField, TextField } from "@dockwell/ui";
+import {
+  Advanced,
+  Button,
+  Callout,
+  FolderPicker,
+  PortField,
+  SegmentedControl,
+  SelectField,
+  TextField,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type Ref, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, type Ref, useCallback, useEffect, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { nameOf, parentOf } from "../files/paths";
 import { canWrite } from "../websites/WebsiteFields";
 import { toLabel } from "./app";
+import { useServerFolders } from "./folders";
 import type { FolderForm, FormErrors } from "./form";
 import { APP_LANGUAGES, languageName, versionsOf } from "./runtime";
 
@@ -59,11 +69,39 @@ export function versionIn(language: string, file: string, content: string): stri
   }
 }
 
+/** The file that says the port an app listens on, where it sets one of its own, for each language. */
+const PORT_FILES: Readonly<Record<string, string>> = { node: "package.json", python: "app.py" };
+
+/**
+ * The port an app's own files say it listens on, whatever PORT says: a start script's
+ * --port, -p or PORT=, or app.py's port=. Zero where they say none.
+ */
+export function portIn(language: string, content: string): number {
+  let text = content;
+  if (language === "node") {
+    try {
+      text = String((JSON.parse(content) as { scripts?: { start?: unknown } }).scripts?.start ?? "");
+    } catch {
+      return 0;
+    }
+  }
+  const found =
+    language === "node"
+      ? /(?:--port[ =]|-p\s+|\bPORT=)(\d{2,5})\b/.exec(text)
+      : language === "python"
+        ? /\bport\s*=\s*(\d{2,5})\b/.exec(text)
+        : null;
+  const port = Number(found?.[1] ?? 0);
+  return port >= 1 && port <= 65_535 ? port : 0;
+}
+
 /** What a folder's files say it runs on: the language, the version where a file names one, and the files that said so. */
 interface Detected {
   language: string;
   version: string;
   from: readonly string[];
+  /** The port its files say it listens on, or 0. */
+  port: number;
 }
 
 /** The name an app from a folder takes unless it's given one: the folder's own, as a label. */
@@ -136,15 +174,19 @@ export function FolderFields({
   const [changing, setChanging] = useState(false);
   const [detected, setDetected] = useState<Detected>();
   const [advanced, setAdvanced] = useState(false);
+  // The port is what the folder's files say until someone types one.
+  const [portTyped, setPortTyped] = useState(false);
+  // A single server's folders to pick from, where its reader may list them.
+  const folders = useServerFolders(servers.length === 1 ? servers[0]?.id : undefined);
   const onDetected = useCallback(
     (found: Detected | undefined) => {
       setDetected(found);
       if (!found || picked) return;
       const offered = versionsOf(found.language, runtimes);
       const version = offered.some((v) => v.version === found.version) ? found.version : "";
-      update({ language: found.language, version });
+      update({ language: found.language, version, ...(found.port && !portTyped ? { port: String(found.port) } : {}) });
     },
-    [picked, runtimes, update],
+    [picked, portTyped, runtimes, update],
   );
   const user = form.user.trim() || DEFAULT_RUNTIME_USER;
   const start = form.start.trim() || chosen?.start || "";
@@ -200,20 +242,6 @@ export function FolderFields({
           update({ name: typed, ...(folderTyped ? {} : { folder: defaultFolder(typed) }) }, "name");
         }}
       />
-      <TextField
-        label={t`Folder`}
-        mono
-        autoCapitalize="none"
-        autoCorrect="off"
-        spellCheck={false}
-        placeholder="/srv/shop"
-        value={form.folder}
-        error={errors["folder"]}
-        onChange={(event) => {
-          setFolderTyped(event.target.value !== "");
-          update({ folder: event.target.value }, "folder");
-        }}
-      />
       <AppFolderNotes
         servers={servers}
         folder={form.folder}
@@ -226,7 +254,39 @@ export function FolderFields({
         }}
         onRunAs={(owner) => update({ user: owner }, "user")}
         onDetected={onDetected}
-      />
+      >
+        {(note) =>
+          folders ? (
+            <FolderPicker
+              label={t`Folder`}
+              value={form.folder}
+              list={folders}
+              note={note}
+              error={errors["folder"]}
+              onChange={(path) => {
+                setFolderTyped(path !== "");
+                update({ folder: path }, "folder");
+              }}
+            />
+          ) : (
+            <TextField
+              label={t`Folder`}
+              mono
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="/srv/shop"
+              value={form.folder}
+              error={errors["folder"]}
+              hint={note}
+              onChange={(event) => {
+                setFolderTyped(event.target.value !== "");
+                update({ folder: event.target.value }, "folder");
+              }}
+            />
+          )
+        }
+      </AppFolderNotes>
       {follows ? (
         <div className="app-field">
           <span className="dw-field-label">
@@ -248,21 +308,19 @@ export function FolderFields({
       ) : (
         pickers
       )}
-      <details
-        className="app-folder-advanced"
+      <Advanced
         open={advanced || errors["port"] !== undefined || errors["user"] !== undefined}
-        onToggle={(event) => setAdvanced(event.currentTarget.open)}
-      >
-        <summary>
-          <Trans>Advanced</Trans>
-          <span className="app-muted app-folder-summary">
+        onOpenChange={setAdvanced}
+        summary={
+          <>
             <code>{start}</code>
             {" · "}
             <Trans>port {port}</Trans>
             {" · "}
             <Trans>as {user}</Trans>
-          </span>
-        </summary>
+          </>
+        }
+      >
         <TextField
           label={t`Installs with`}
           mono
@@ -287,16 +345,21 @@ export function FolderFields({
           onChange={(event) => update({ start: event.target.value })}
         />
         <div className="app-folder-pair">
-          <TextField
+          <PortField
             label={t`Port`}
-            mono
             optional
-            inputMode="numeric"
             placeholder={chosen ? String(chosen.port) : ""}
             value={form.port}
             error={errors["port"]}
-            hint={t`The app gets it as PORT.`}
-            onChange={(event) => update({ port: event.target.value }, "port")}
+            hint={
+              detected?.port && String(detected.port) === form.port.trim()
+                ? t`From ${PORT_FILES[detected.language] ?? ""}. The app gets it as PORT.`
+                : t`The app gets it as PORT.`
+            }
+            onChange={(value) => {
+              setPortTyped(value !== "");
+              update({ port: value }, "port");
+            }}
           />
           <TextField
             label={t`Runs as`}
@@ -309,7 +372,7 @@ export function FolderFields({
             onChange={(event) => update({ user: event.target.value }, "user")}
           />
         </div>
-      </details>
+      </Advanced>
     </>
   );
 }
@@ -318,34 +381,56 @@ export function FolderFields({
 const ignore = () => {};
 
 /**
- * The folder's note for each server it runs on: one note where there's one server,
- * and one under each server's name where there are several, as the folder may be
- * there on one and not another. The first server's owner fills in who it runs as.
+ * The folder's field with what each server it runs on says of it. With one server,
+ * that is the field's own line, and anything that stops the app there under it. With
+ * several, the field stands alone and each server's line is under its name, as the
+ * folder may be there on one and not another. The first server's owner fills in who
+ * it runs as, and its files what it runs on.
  */
 function AppFolderNotes({
   servers,
   onOwner,
   onDetected,
+  children,
   ...note
-}: Omit<Parameters<typeof AppFolderNote>[0], "server"> & { servers: readonly { id: string; name: string }[] }) {
-  if (servers.length <= 1) {
-    return <AppFolderNote {...note} server={servers[0]?.id ?? ""} onOwner={onOwner} onDetected={onDetected} />;
+}: Omit<Parameters<typeof useFolderState>[0], "server"> & {
+  servers: readonly { id: string; name: string }[];
+  children: (note: ReactNode) => ReactNode;
+}) {
+  const one = servers.length <= 1;
+  const first = useFolderState({ ...note, server: one ? (servers[0]?.id ?? "") : "", onOwner, onDetected });
+  if (one) {
+    return (
+      <>
+        {children(first.note)}
+        {first.problem}
+      </>
+    );
   }
   return (
-    <div className="app-folder-notes">
-      {servers.map((s, i) => (
-        <div key={s.id} className="app-folder-on">
-          <span className="code-sm app-muted">{s.name}</span>
-          <AppFolderNote
-            {...note}
-            server={s.id}
-            onOwner={i === 0 ? onOwner : ignore}
-            onDetected={i === 0 ? onDetected : ignore}
-          />
-        </div>
-      ))}
-    </div>
+    <>
+      {children(undefined)}
+      <div className="app-folder-notes">
+        {servers.map((s, i) => (
+          <div key={s.id} className="app-folder-on">
+            <span className="code-sm app-muted">{s.name}</span>
+            <ServerFolderNote
+              {...note}
+              server={s.id}
+              onOwner={i === 0 ? onOwner : ignore}
+              onDetected={i === 0 ? onDetected : ignore}
+            />
+          </div>
+        ))}
+      </div>
+    </>
   );
+}
+
+/** What one of several servers says of the folder: its line, or what stops the app there. */
+function ServerFolderNote(props: Parameters<typeof useFolderState>[0]) {
+  const { note, problem } = useFolderState(props);
+  return problem ?? (note ? <p className="app-folder-holds">{note}</p> : null);
 }
 
 /** A value once typing has settled. */
@@ -359,13 +444,13 @@ function useSettled<T>(value: T, ms: number): T {
 }
 
 /**
- * What the server says of an app's folder, under its field, as a state: new, and
- * Dockwell makes it; what it holds; or what stops the app there, with what puts it
- * right. It reads the folder above first, so a folder that isn't there yet isn't a
+ * What the server says of an app's folder: a short line for its field (new, and
+ * Dockwell makes it; or what it holds), or what stops the app there, with what puts
+ * it right. It reads the folder above first, so a folder that isn't there yet isn't a
  * refusal on Activity, and says what the folder's files run on (onDetected).
  * Reading the disk is a person's, as Files is, so this is too.
  */
-function AppFolderNote({
+function useFolderState({
   server,
   folder,
   language,
@@ -386,7 +471,7 @@ function AppFolderNote({
   onRunAs: (owner: string) => void;
   /** Hears what the folder's files run on, or undefined once they say nothing. */
   onDetected: (found: Detected | undefined) => void;
-}) {
+}): { note?: ReactNode; problem?: ReactNode } {
   const { t } = useLingui();
   const path = useSettled(folder.trim().replace(/\/+$/, ""), READ_AFTER_MS);
   const asked = server !== "" && path.startsWith("/") && path.length > 1 && !/\/\.\.?(\/|$)/.test(path);
@@ -429,11 +514,19 @@ function AppFolderNote({
   );
   const itsVersion =
     itsLanguage && versionFile && read.data ? versionIn(itsLanguage, versionFile, read.data.content) : "";
-  const waiting = versionFile !== undefined && read.isPending;
+  const portFile = itsLanguage ? PORT_FILES[itsLanguage] : undefined;
+  const hasPortFile = portFile !== undefined && names?.includes(portFile) === true;
+  const readPort = useQuery(
+    FileService.method.readFile,
+    { serverId: server, path: `${path}/${portFile ?? ""}` },
+    { enabled: asked && hasPortFile, retry: false, refetchOnWindowFocus: false },
+  );
+  const itsPort = itsLanguage && readPort.data ? portIn(itsLanguage, readPort.data.content) : 0;
+  const waiting = (versionFile !== undefined && read.isPending) || (hasPortFile && readPort.isPending);
   const said = useRef("");
   useEffect(() => {
     if (waiting) return;
-    const key = itsLanguage ? `${path}|${itsLanguage}|${itsVersion}` : "";
+    const key = itsLanguage ? `${path}|${itsLanguage}|${itsVersion}|${itsPort}` : "";
     if (said.current === key) return;
     said.current = key;
     onDetected(
@@ -442,78 +535,91 @@ function AppFolderNote({
             language: itsLanguage,
             version: itsVersion,
             from: itsVersion && versionFile && versionFile !== itsMarker ? [itsMarker, versionFile] : [itsMarker],
+            port: itsPort,
           }
         : undefined,
     );
-  }, [waiting, path, itsLanguage, itsMarker, itsVersion, versionFile, onDetected]);
-  if (!asked || above.isPending || (above.error && !aboveMissing)) return null;
+  }, [waiting, path, itsLanguage, itsMarker, itsVersion, itsPort, versionFile, onDetected]);
+  if (!asked || above.isPending || (above.error && !aboveMissing)) return {};
   if (aboveMissing || !there) {
-    return (
-      <p className="app-folder-holds">
-        <span className="app-folder-state">{t({ message: "New", context: "a folder that isn't there yet" })}</span>{" "}
-        <Trans>
-          Dockwell makes it, owned by <code>{user}</code>.
-        </Trans>
-      </p>
-    );
+    return {
+      note: (
+        <>
+          <span className="app-folder-state">{t({ message: "New", context: "a folder that isn't there yet" })}</span>{" "}
+          <Trans>
+            Dockwell makes it, owned by <code>{user}</code>
+          </Trans>
+        </>
+      ),
+    };
   }
   if (!isFolder) {
-    return (
-      <Callout tone="warning" className="app-folder-note" title={t`${path} is a file`}>
-        <Trans>Choose the folder that holds the app.</Trans>
-      </Callout>
-    );
+    return {
+      problem: (
+        <Callout tone="warning" className="app-folder-note" title={t`${path} is a file`}>
+          <Trans>Choose the folder that holds the app.</Trans>
+        </Callout>
+      ),
+    };
   }
-  if (listed.isPending) return null;
+  if (listed.isPending) return {};
   if (listed.error) {
-    return (
-      <Callout tone="warning" className="app-folder-note">
-        {sentence(listed.error)}
-      </Callout>
-    );
+    return {
+      problem: (
+        <Callout tone="warning" className="app-folder-note">
+          {sentence(listed.error)}
+        </Callout>
+      ),
+    };
   }
   const { entries } = listed.data;
   if (dir && (dir.uid === 0 || dir.gid === 0)) {
-    return (
-      <Callout tone="warning" className="app-folder-note" title={t`${path} is root's, and an app never runs as root`}>
-        <Trans>
-          Run{" "}
-          <code>
-            sudo chown -R {user} {path}
-          </code>{" "}
-          on the server.
-        </Trans>
-      </Callout>
-    );
+    return {
+      problem: (
+        <Callout tone="warning" className="app-folder-note" title={t`${path} is root's, and an app never runs as root`}>
+          <Trans>
+            Run{" "}
+            <code>
+              sudo chown -R {user} {path}
+            </code>{" "}
+            on the server.
+          </Trans>
+        </Callout>
+      ),
+    };
   }
   if (dir && !canWrite(user, dir.mode, dir.uid, dir.gid)) {
     const theirs = `${dir.uid}:${dir.gid}`;
     // Its own folder, closed to itself: the mode is what to change.
     if (theirs === user) {
-      return (
-        <Callout tone="warning" className="app-folder-note" title={t`The app can't write to ${path}`}>
+      return {
+        problem: (
+          <Callout tone="warning" className="app-folder-note" title={t`The app can't write to ${path}`}>
+            <Trans>
+              Its mode is <code>{dir.mode}</code>. Run <code>chmod u+w {path}</code> on the server.
+            </Trans>
+          </Callout>
+        ),
+      };
+    }
+    return {
+      problem: (
+        <Callout
+          tone="warning"
+          className="app-folder-note"
+          title={t`The app can't write to ${path}`}
+          actions={
+            <Button size="sm" onClick={() => onRunAs(theirs)}>
+              <Trans>Run as {theirs}</Trans>
+            </Button>
+          }
+        >
           <Trans>
-            Its mode is <code>{dir.mode}</code>. Run <code>chmod u+w {path}</code> on the server.
+            It's <code>{theirs}</code>'s, and the app runs as <code>{user}</code>.
           </Trans>
         </Callout>
-      );
-    }
-    return (
-      <Callout
-        tone="warning"
-        className="app-folder-note"
-        title={t`The app can't write to ${path}`}
-        actions={
-          <Button size="sm" onClick={() => onRunAs(theirs)}>
-            <Trans>Run as {theirs}</Trans>
-          </Button>
-        }
-      >
-        <Trans>
-          It's <code>{theirs}</code>'s, and the app runs as <code>{user}</code>.
-        </Trans>
-      </Callout>
-    );
+      ),
+    };
   }
   const markers = MARKERS[language] ?? [];
   const found = markers.find((m) => entries.some((e) => e.name === m));
@@ -524,24 +630,29 @@ function AppFolderNote({
   );
   if (!found && markers.length > 0) {
     const first = markers[0];
-    return (
-      <Callout tone="warning" className="app-folder-note" title={t`No ${languageWord} app in ${path} yet`}>
-        <Trans>
-          It has no <code>{first}</code>. Put the app's files there.
-        </Trans>{" "}
-        {files}
-      </Callout>
-    );
+    return {
+      problem: (
+        <Callout tone="warning" className="app-folder-note" title={t`No ${languageWord} app in ${path} yet`}>
+          <Trans>
+            It has no <code>{first}</code>. Put the app's files there.
+          </Trans>{" "}
+          {files}
+        </Callout>
+      ),
+    };
   }
   const others = entries.length - 1;
-  return (
-    <p className="app-folder-holds">
-      {found && others > 0
-        ? plural(others, { one: `Holds ${found} and # more.`, other: `Holds ${found} and # more.` })
-        : found
-          ? t`Holds ${found}.`
-          : null}{" "}
-      {files}
-    </p>
-  );
+  return {
+    note: (
+      <>
+        {found && others > 0
+          ? plural(others, { one: `Holds ${found} and # more`, other: `Holds ${found} and # more` })
+          : found
+            ? t`Holds ${found}`
+            : null}
+        {" · "}
+        {files}
+      </>
+    ),
+  };
 }

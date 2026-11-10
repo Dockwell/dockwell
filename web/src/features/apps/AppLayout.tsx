@@ -284,7 +284,12 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             <Trans>Logs</Trans>
           </RouterButtonLink>
           {changeable ? (
-            <Button variant="primary" icon="deploy" onClick={() => setDeploying(true)} {...(runtime ? mayChangeVersion : mayDeploy).off}>
+            <Button
+              variant="primary"
+              icon="deploy"
+              onClick={() => setDeploying(true)}
+              {...(runtime ? mayChangeVersion : mayDeploy).off}
+            >
               {runtime ? <Trans>Change version</Trans> : <Trans>Deploy</Trans>}
             </Button>
           ) : null}
@@ -339,7 +344,13 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
               <Trans>Restart</Trans>
             </Button>
           ) : null}
-          <Button variant="primary" icon="deploy" size="lg" onClick={() => setDeploying(true)} {...(runtime ? mayChangeVersion : mayDeploy).off}>
+          <Button
+            variant="primary"
+            icon="deploy"
+            size="lg"
+            onClick={() => setDeploying(true)}
+            {...(runtime ? mayChangeVersion : mayDeploy).off}
+          >
             {runtime ? <Trans>Change version</Trans> : <Trans>Deploy</Trans>}
           </Button>
         </div>

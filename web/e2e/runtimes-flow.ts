@@ -79,8 +79,11 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
     await sheet.getByRole("radio", { name: "Folder" }).click();
     const runsOn = sheet.getByRole("group", { name: "Runs on" });
     if ((await runsOn.count()) > 0) await runsOn.getByRole("checkbox").first().check();
-    await sheet.getByRole("textbox", { name: "Folder", exact: true }).fill(folder);
-    await sheet.getByText("Holds package.json and 1 more.").waitFor({ timeout: 15_000 });
+    // The folder is picked: here by its path, typed into the picker, as someone who knows it would.
+    await sheet.getByRole("button", { name: /^(Choose a folder|Change the folder)/ }).click();
+    await sheet.getByRole("textbox", { name: "Path", exact: true }).fill(folder);
+    await sheet.getByRole("button", { name: "Done", exact: true }).click();
+    await sheet.getByText("Holds package.json and 1 more").waitFor({ timeout: 15_000 });
     // Its files say what it runs on, so nobody picks a language: the newest Node.js, as nothing names a version.
     const runtime = sheet.getByText(/^Node\.js \d+$/);
     await runtime.waitFor({ timeout: 15_000 });
@@ -90,12 +93,12 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
     if ((await sheet.getByRole("radio", { name: "Node.js" }).count()) > 0)
       fail("New app asks for a language its folder already says");
     // How it starts and who it runs as are the language's and the folder owner's, under Advanced.
-    await sheet.getByText("Advanced", { exact: true }).click();
+    await sheet.getByRole("button", { name: "Advanced" }).click();
     const runsAs = sheet.getByRole("textbox", { name: /^Runs as/ });
     if ((await runsAs.inputValue()) !== owner) fail(`New app runs it as '${await runsAs.inputValue()}', want ${owner}`);
     await sheet.getByRole("textbox", { name: "Name", exact: true }).fill(name);
-    if ((await sheet.getByRole("textbox", { name: "Folder", exact: true }).inputValue()) !== folder) {
-      fail("naming the app moved the folder someone typed");
+    if ((await sheet.getByRole("button", { name: `Change the folder, ${folder}` }).count()) !== 1) {
+      fail("naming the app moved the folder someone chose");
     }
     await sheet.getByRole("textbox", { name: /^Port(?!s)/ }).fill(String(port));
     await shoot(page, "app-new-folder");

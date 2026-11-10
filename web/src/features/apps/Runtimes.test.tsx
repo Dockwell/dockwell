@@ -24,7 +24,7 @@ import { aHealth, anApp, aRevision, ENV, places, SERVER } from "../../test/apps"
 import { type Api, feed, onPhone, onScreen, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { forgetDrafts } from "./AppEnvironment";
-import { versionIn } from "./FolderFields";
+import { portIn, versionIn } from "./FolderFields";
 
 const hz1 = aServer({ id: SERVER, name: "hz-1" });
 
@@ -181,6 +181,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Chooses a folder in New app's picker by typing its path, as someone who knows it would. */
+async function chooseFolder(user: ReturnType<typeof userEvent.setup>, sheet: HTMLElement, path: string) {
+  await user.click(within(sheet).getByRole("button", { name: /^(Choose a folder|Change the folder)/ }));
+  const typed = within(sheet).getByRole("textbox", { name: "Path" });
+  await user.clear(typed);
+  await user.type(typed, path);
+  await user.click(within(sheet).getByRole("button", { name: "Done" }));
+}
+
 describe("New app, from a folder", () => {
   it("asks for a name, and takes the folder, the language and its version from what's there", async () => {
     const user = userEvent.setup();
@@ -207,15 +216,20 @@ describe("New app, from a folder", () => {
     await user.click(within(sheet).getByRole("radio", { name: "Folder" }));
     // The folder follows the name until it's typed.
     await user.type(within(sheet).getByLabelText("Name"), "api");
-    expect(within(sheet).getByLabelText("Folder")).toHaveValue("/srv/api");
+    expect(within(sheet).getByRole("button", { name: "Change the folder, /srv/api" })).toBeVisible();
     // The server says whose the folder is, and it runs as them.
-    await waitFor(() => expect(within(sheet).getByLabelText(/^Runs as/)).toHaveValue("1001:1001"), { timeout: 3_000 });
-    expect(sheet).toHaveTextContent("Holds requirements.txt and 2 more.");
+    await waitFor(() => expect(sheet).toHaveTextContent("as 1001:1001"), { timeout: 3_000 });
+    // Once its files have said what it runs on, the folder holds what that needs.
+    await waitFor(() => expect(sheet).toHaveTextContent("Holds requirements.txt and 2 more · Open in Files"), {
+      timeout: 3_000,
+    });
     // Its files say what it runs on, so nobody is asked: the pickers are one click away.
     await waitFor(() => expect(sheet).toHaveTextContent("RuntimePython 3.13 · from requirements.txt, .python-version"));
     expect(within(sheet).queryByRole("radio", { name: "Python" })).toBeNull();
     // What the language does unless you say is under Advanced, and shows on its line.
     expect(sheet).toHaveTextContent("Advancedpython app.py · port 8000 · as 1001:1001");
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    expect(within(sheet).getByLabelText(/^Runs as/)).toHaveValue("1001:1001");
     expect(within(sheet).getByLabelText(/^Starts with/)).toHaveAttribute("placeholder", "python app.py");
     expect(within(sheet).getByLabelText(/^Port(?!s)/)).toHaveAttribute("placeholder", "8000");
     expect(sheet).toHaveTextContent("You approve what it reaches in the plan");
@@ -254,12 +268,47 @@ describe("New app, from a folder", () => {
     await user.click(within(sheet).getByRole("radio", { name: "Go" }));
     expect(within(sheet).getByRole("radio", { name: "Go" })).toBeChecked();
     // A folder typed after the name stays as typed, and the name stays too.
-    const folder = within(sheet).getByLabelText("Folder");
-    await user.clear(folder);
-    await user.type(folder, "/srv/other");
+    await chooseFolder(user, sheet, "/srv/other");
     await user.type(within(sheet).getByLabelText("Name"), "2");
-    expect(folder).toHaveValue("/srv/other");
+    expect(within(sheet).getByRole("button", { name: "Change the folder, /srv/other" })).toBeVisible();
     expect(within(sheet).getByRole("radio", { name: "Go" })).toBeChecked();
+  });
+
+  it("takes the port the app's own files listen on", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/new?source=folder",
+      api(
+        {
+          files: {
+            listFiles: disk({ "/srv/api": { uid: 1000, entries: ["package.json"] } }),
+            readFile: (req: { path: string }) => ({
+              path: req.path,
+              content: '{"scripts":{"start":"next start -p 4000"}}',
+            }),
+          },
+        },
+        [],
+      ),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Name"), "api");
+    await waitFor(() => expect(sheet).toHaveTextContent("Advancednpm start · port 4000 · as 1000:1000"), {
+      timeout: 3_000,
+    });
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    expect(within(sheet).getByLabelText(/^Port(?!s)/)).toHaveValue("4000");
+    expect(within(sheet).getByLabelText(/^Port(?!s)/)).toHaveAccessibleDescription(
+      "From package.json. The app gets it as PORT.",
+    );
+  });
+
+  it("reads a start script's or app.py's port", () => {
+    expect(portIn("node", '{"scripts":{"start":"node server.js --port=5050"}}')).toBe(5050);
+    expect(portIn("node", '{"scripts":{"start":"PORT=4100 node server.js"}}')).toBe(4100);
+    expect(portIn("node", '{"scripts":{"start":"node server.js"}}')).toBe(0);
+    expect(portIn("node", "not json")).toBe(0);
+    expect(portIn("python", "app.run(host='0.0.0.0', port=5000)")).toBe(5000);
   });
 
   it("reads a version file as Dockwell names its versions", () => {
@@ -289,19 +338,16 @@ describe("New app, from a folder", () => {
       ),
     );
     const sheet = await screen.findByRole("dialog", { name: "New app" });
-    const folder = within(sheet).getByLabelText("Folder");
-    await user.type(folder, "/srv/root");
+    await chooseFolder(user, sheet, "/srv/root");
     await waitFor(() => expect(sheet).toHaveTextContent("/srv/root is root's, and an app never runs as root"), {
       timeout: 3_000,
     });
-    await user.clear(folder);
-    await user.type(folder, "/srv/empty");
+    await chooseFolder(user, sheet, "/srv/empty");
     await waitFor(() => expect(sheet).toHaveTextContent("No Node.js app in /srv/empty yetIt has no package.json."), {
       timeout: 3_000,
     });
     // Its own, closed to itself: the mode is what to change.
-    await user.clear(folder);
-    await user.type(folder, "/srv/locked");
+    await chooseFolder(user, sheet, "/srv/locked");
     await waitFor(
       () =>
         expect(sheet).toHaveTextContent(
@@ -309,20 +355,20 @@ describe("New app, from a folder", () => {
         ),
       { timeout: 3_000 },
     );
-    await user.clear(folder);
-    await user.type(folder, "/srv/new");
-    await waitFor(() => expect(sheet).toHaveTextContent("New Dockwell makes it, owned by 1000:1000."), {
+    await chooseFolder(user, sheet, "/srv/new");
+    await waitFor(() => expect(sheet).toHaveTextContent("New Dockwell makes it, owned by 1000:1000"), {
       timeout: 3_000,
     });
-    // The folder it found before was mira's, and the field took her uid:gid.
-    const runsAs = within(sheet).getByLabelText(/^Runs as/);
-    expect(runsAs).toHaveValue("1000:1000");
+    // The folder it found before was mira's, and the app took her uid:gid.
+    expect(sheet).toHaveTextContent("as 1000:1000");
     // Someone else's folder: one press runs the app as its owner.
-    await user.clear(folder);
-    await user.type(folder, "/srv/theirs");
+    await chooseFolder(user, sheet, "/srv/theirs");
     await user.click(await within(sheet).findByRole("button", { name: "Run as 1001:1001" }, { timeout: 3_000 }));
+    await waitFor(() => expect(sheet).toHaveTextContent("Holds package.json · Open in Files"));
+    expect(sheet).toHaveTextContent("as 1001:1001");
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    const runsAs = within(sheet).getByLabelText(/^Runs as/);
     expect(runsAs).toHaveValue("1001:1001");
-    await waitFor(() => expect(sheet).toHaveTextContent("Holds package.json."));
     await user.clear(runsAs);
     await user.type(runsAs, "0:0");
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
@@ -358,10 +404,12 @@ describe("New app, from a folder", () => {
     await user.type(within(sheet).getByLabelText("Folder"), "/srv/api");
     const on1 = await within(sheet).findByText("hz-1", { selector: ".app-folder-on span" });
     const on2 = within(sheet).getByText("hz-2", { selector: ".app-folder-on span" });
-    await waitFor(() => expect(on1.parentElement).toHaveTextContent("Holds package.json."), { timeout: 3_000 });
+    await waitFor(() => expect(on1.parentElement).toHaveTextContent("Holds package.json · Open in Files"), {
+      timeout: 3_000,
+    });
     await waitFor(() => expect(on2.parentElement).toHaveTextContent("New Dockwell makes it"), { timeout: 3_000 });
     // The first server's owner is who it runs as.
-    expect(within(sheet).getByLabelText(/^Runs as/)).toHaveValue("1001:1001");
+    expect(sheet).toHaveTextContent("as 1001:1001");
   });
 
   it("opens on the language and version a runtime's card asks for", async () => {

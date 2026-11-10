@@ -2547,64 +2547,6 @@
   line-height: 20px;
 }
 
-/* How it installs, starts, listens and who it runs as: the language's, until opened. */
-.app-folder-advanced summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-3);
-  border-radius: var(--radius-xs);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.app-folder-advanced summary {
-  list-style: none;
-}
-
-.app-folder-advanced summary::-webkit-details-marker {
-  display: none;
-}
-
-/* Its arrow, which turns down once it's open. */
-.app-folder-advanced summary::before {
-  content: "";
-  align-self: center;
-  width: 6px;
-  height: 6px;
-  margin-right: var(--space-1);
-  border-right: 1.5px solid var(--ink-muted);
-  border-bottom: 1.5px solid var(--ink-muted);
-  transform: rotate(-45deg);
-}
-
-.app-folder-advanced[open] summary::before {
-  transform: rotate(45deg);
-}
-
-.app-folder-advanced summary:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-.app-folder-advanced[open] summary {
-  margin-bottom: var(--space-4);
-}
-
-.app-folder-advanced > .dw-field + .dw-field,
-.app-folder-advanced > .dw-field + .app-folder-pair {
-  margin-top: var(--space-4);
-}
-
-.app-folder-summary {
-  min-width: 0;
-  font-size: 12.5px;
-  font-weight: 400;
-  overflow-wrap: anywhere;
-}
-
 /* What an app from a folder runs on, in its Configuration. */
 .app-runtime,
 .app-runtime-folder {

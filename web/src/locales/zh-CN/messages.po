@@ -3082,11 +3082,15 @@ msgstr "应用不会以 root 运行。请使用文件夹所有者的 uid:gid，�
 msgid "Choose the folder that holds the app."
 msgstr "请选择存放应用的文件夹。"
 
-msgid "Dockwell makes it, owned by <0>{user}</0>."
-msgstr "Dockwell 会创建它，所有者为 <0>{user}</0>。"
+msgid "Dockwell makes it, owned by <0>{user}</0>"
+msgstr "Dockwell 会创建它，所有者为 <0>{user}</0>"
 
-msgid "Holds {found}."
-msgstr "包含 {found}。"
+#. placeholder {0}: PORT_FILES[detected.language] ?? ""
+msgid "From {0}. The app gets it as PORT."
+msgstr "来自 {0}。应用通过 PORT 获得它。"
+
+msgid "Holds {found}"
+msgstr "包含 {found}"
 
 msgid "It has no <0>{first}</0>. Put the app's files there."
 msgstr "其中没有 <0>{first}</0>。请把应用的文件放进去。"
@@ -3153,8 +3157,8 @@ msgstr "端口 {port}"
 msgid "uid:gid of the folder's owner."
 msgstr "文件夹所有者的 uid:gid。"
 
-msgid "{others, plural, one {Holds {found} and # more.} other {Holds {found} and # more.}}"
-msgstr "{others, plural, other {包含 {found} 以及另外 # 项。}}"
+msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
+msgstr "{others, plural, other {包含 {found} 等 # 项}}"
 
 msgid "{path} is a file"
 msgstr "{path} 是文件"
@@ -12484,6 +12488,9 @@ msgstr "请用数字填写用户，例如 1000。"
 msgid "Goes to index.php"
 msgstr "交给 index.php"
 
+msgid "Holds {found}."
+msgstr "包含 {found}。"
+
 msgid "Index files"
 msgstr "首页文件"
 
@@ -12593,6 +12600,9 @@ msgstr "服务器本身上监听的程序，监听 127.0.0.1 或所有地址。�
 
 msgid "With a path, such as /app, each request goes under it."
 msgstr "带路径时（例如 /app），每个请求都会放在该路径下。"
+
+msgid "{others, plural, one {Holds {found} and # more.} other {Holds {found} and # more.}}"
+msgstr "{others, plural, other {包含 {found} 以及另外 # 项。}}"
 
 msgid "Changed"
 msgstr "更改于"
