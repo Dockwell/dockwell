@@ -161,3 +161,65 @@
   margin-top: 2px;
   color: var(--ink-muted);
 }
+
+/* The list, and where the certificates stand beside it, as Domains-List lays them out. */
+.domains-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: flex-start;
+}
+
+.domains-main {
+  flex: 3 1 640px;
+  min-width: 0;
+}
+
+.domains-certificates {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.domains-certificates-meta {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+.domains-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.domains-facts > div {
+  display: contents;
+}
+
+.domains-facts dt {
+  color: var(--ink-muted);
+}
+
+.domains-facts > .is-wide > * {
+  grid-column: 1 / -1;
+}
+
+.domains-facts > .is-wide > dd {
+  margin-top: calc(-1 * var(--space-1));
+  margin-bottom: var(--space-1);
+}
+
+.domains-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.domains-dns-found {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

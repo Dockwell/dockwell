@@ -89,7 +89,7 @@ func (s *Service) CreateSignInLink(ctx context.Context, email, actor string) (Li
 		if email == "" {
 			user, err = tx.Owner(ctx)
 			if errors.Is(err, store.ErrNotFound) {
-				return errors.New("this install has no owner yet. Claim it with the link from dockwell claim")
+				return errNoOwner(ctx, tx, "there's nobody to sign in as")
 			}
 		} else {
 			e, nerr := normalizeEmail(email)

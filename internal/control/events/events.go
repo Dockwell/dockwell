@@ -33,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/control/processes"
 	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/control/tasks"
@@ -491,10 +492,23 @@ func (h *Handler) render(ctx context.Context, tx *store.Tx, names *actors.Names,
 		records[r.ID] = r
 	}
 	look := names.In(ctx, tx)
+	placer := place.NewPlacer(tx)
 	out := make([]*dockwellv1.Event, len(entries))
 	for i, e := range entries {
 		if e.Change != nil {
-			out[i] = changeEvent(e.At, records[e.Change.ID], look)
+			r := records[e.Change.ID]
+			out[i] = changeEvent(e.At, r, look)
+			if r.State == store.ChangePlanned {
+				// A planned change in a protected environment waits for an admin (ADR 0049).
+				places, err := placer.Of(ctx, r.ID)
+				if err != nil && !errors.Is(err, store.ErrNotFound) && !errors.Is(err, place.ErrUnknown) {
+					return nil, err
+				}
+				out[i].Change.Protected = slices.ContainsFunc(places, func(p place.Place) bool { return p.Protected })
+				if err := changes.ForCaller(ctx, tx, h.engine, r.ID, out[i].Change); err != nil {
+					return nil, err
+				}
+			}
 		} else {
 			out[i] = FromAudit(e.Event, look)
 		}

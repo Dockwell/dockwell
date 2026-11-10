@@ -293,6 +293,13 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
               <Trans>Restart</Trans>
             </Button>
           ) : null}
+          {/*
+            As App-Overview has it, between Restart and Deploy. It stays on the Logs tab too, as App-Logs has it,
+            so the buttons don't move from tab to tab; there the router marks it as the current page.
+          */}
+          <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal">
+            <Trans>Logs</Trans>
+          </RouterButtonLink>
           {changeable ? (
             <Button variant="primary" icon="deploy" onClick={deploy}>
               <Trans>Deploy</Trans>
@@ -339,6 +346,9 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       {/* The logs tab has a bar of its own on a phone: Download and Copy. */}
       {phone && !onLogs && changeable ? (
         <div className="app-actionbar">
+          <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal" size="lg">
+            <Trans>Logs</Trans>
+          </RouterButtonLink>
           {restartable ? (
             <Button icon="refresh" size="lg" onClick={restart}>
               <Trans>Restart</Trans>

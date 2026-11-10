@@ -852,3 +852,38 @@ func TestEveryRESTPathFindsItsMethod(t *testing.T) {
 		t.Error("a path no rule names found a method")
 	}
 }
+
+// Who calls a REST path, and their role, are checked before its query and body
+// are read: someone signed out learns they're signed out, and someone whose
+// role doesn't cover the call learns that, however wrong the request.
+func TestRESTChecksTheCallerBeforeTheRequest(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		anon := newBrowser(t, b.origin, f.api, nil)
+		hold := aMember(t, f)
+		hold(onInstall(store.RoleViewer))
+		for _, tt := range []struct {
+			who            *browser
+			verb, path     string
+			body           string
+			status         int
+			reason, saying string
+		}{
+			{anon, http.MethodGet, "/v1/auditEvents?pageSize=notanumber", "", http.StatusUnauthorized, "unauthenticated", ""},
+			{anon, http.MethodPost, "/v1/settings:setTimeZone", "{not json", http.StatusUnauthorized, "unauthenticated", ""},
+			{b, http.MethodGet, "/v1/auditEvents?pageSize=notanumber", "", http.StatusForbidden, "needs_role", "only an admin or the owner can do this, and you're a viewer"},
+			{b, http.MethodPost, "/v1/settings:setTimeZone", "{not json", http.StatusForbidden, "needs_role", "only an admin or the owner"},
+			{b, http.MethodPost, "/v1/servers/srv_nothere:setPublicAddress", `{"ipv4":{"address":"192.0.2.10"}}`, http.StatusForbidden, "needs_role", ""},
+			// What the caller may make is still read as Vanguard reads it.
+			{b, http.MethodGet, "/v1/events?pageSize=notanumber", "", http.StatusBadRequest, "", ""},
+		} {
+			status, reason, body := callREST(t, tt.who, tt.verb, tt.path, nil, tt.body)
+			var said rpcStatus
+			_ = json.Unmarshal([]byte(body), &said)
+			if status != tt.status || reason != tt.reason || !strings.Contains(said.Message, tt.saying) {
+				t.Errorf("%s %s: %d %q %s, want %d %q saying %q", tt.verb, tt.path, status, reason, body, tt.status, tt.reason, tt.saying)
+			}
+		}
+	})
+}

@@ -787,6 +787,26 @@ describe("editing a file", () => {
     expect(screen.queryByText("You have unsaved changes to .user.ini")).toBeNull();
   });
 
+  it("closes up the columns of facts beside an open file, so a name keeps its room", async () => {
+    vi.stubGlobal("confirm", () => true);
+    const { router } = await edited({ readFile: () => text("old\n") });
+    const width = (name: string) => screen.getByRole("columnheader", { name }).style.width;
+    expect([width("Size"), width("Modified"), width("Permissions"), width("Owner")]).toEqual([
+      "68px",
+      "78px",
+      "100px",
+      "80px",
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: "Close .user.ini" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www" }));
+    expect([width("Size"), width("Modified"), width("Permissions"), width("Owner")]).toEqual([
+      "84px",
+      "92px",
+      "116px",
+      "96px",
+    ]);
+  });
+
   it("asks before leaving what you typed", async () => {
     const confirm = vi.fn(() => false);
     vi.stubGlobal("confirm", confirm);

@@ -967,18 +967,18 @@ const file_dockwell_v1_terminal_proto_rawDesc = "" +
 	"#TERMINAL_END_REASON_AGENT_RESTARTED\x10\x06\x12/\n" +
 	"+TERMINAL_END_REASON_CONTROL_PLANE_RESTARTED\x10\a\x12&\n" +
 	"\"TERMINAL_END_REASON_SERVER_REMOVED\x10\b\x12\x1e\n" +
-	"\x1aTERMINAL_END_REASON_FAILED\x10\t2\x9e\x06\n" +
-	"\x0fTerminalService\x12\x9e\x01\n" +
-	"\fOpenTerminal\x12 .dockwell.v1.OpenTerminalRequest\x1a!.dockwell.v1.OpenTerminalResponse\"I\xa0\xbb\x18\x04\xaa\xbb\x18\x11\n" +
-	"\tterminals\x12\x04open\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/servers/{server_id}/terminals\x12\xa1\x01\n" +
-	"\rListTerminals\x12!.dockwell.v1.ListTerminalsRequest\x1a\".dockwell.v1.ListTerminalsResponse\"I\xa0\xbb\x18\x01\xaa\xbb\x18\x11\n" +
-	"\tterminals\x12\x04list\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02#\x12!/v1/servers/{server_id}/terminals\x90\x02\x01\x12|\n" +
-	"\x0eAttachTerminal\x12\".dockwell.v1.AttachTerminalRequest\x1a#.dockwell.v1.AttachTerminalResponse\"\x1f\xa0\xbb\x18\x01\xaa\xbb\x18\x13\n" +
-	"\tterminals\x12\x06attach\xb0\xbb\x18\x010\x01\x12\xa2\x01\n" +
-	"\rWriteTerminal\x12!.dockwell.v1.WriteTerminalRequest\x1a\".dockwell.v1.WriteTerminalResponse\"J\xa0\xbb\x18\x04\xaa\xbb\x18\x12\n" +
-	"\tterminals\x12\x05write\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/terminals/{terminal_id}:write\x12\xa2\x01\n" +
-	"\rCloseTerminal\x12!.dockwell.v1.CloseTerminalRequest\x1a\".dockwell.v1.CloseTerminalResponse\"J\xa0\xbb\x18\x04\xaa\xbb\x18\x12\n" +
-	"\tterminals\x12\x05close\xb0\xbb\x18\x01\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/terminals/{terminal_id}:closeB\xa6\x01\n" +
+	"\x1aTERMINAL_END_REASON_FAILED\x10\t2\xdb\x06\n" +
+	"\x0fTerminalService\x12\xaa\x01\n" +
+	"\fOpenTerminal\x12 .dockwell.v1.OpenTerminalRequest\x1a!.dockwell.v1.OpenTerminalResponse\"U\xa0\xbb\x18\x04\xaa\xbb\x18\x11\n" +
+	"\tterminals\x12\x04open\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/servers/{server_id}/terminals\x12\xad\x01\n" +
+	"\rListTerminals\x12!.dockwell.v1.ListTerminalsRequest\x1a\".dockwell.v1.ListTerminalsResponse\"U\xa0\xbb\x18\x01\xaa\xbb\x18\x11\n" +
+	"\tterminals\x12\x04list\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02#\x12!/v1/servers/{server_id}/terminals\x90\x02\x01\x12\x88\x01\n" +
+	"\x0eAttachTerminal\x12\".dockwell.v1.AttachTerminalRequest\x1a#.dockwell.v1.AttachTerminalResponse\"+\xa0\xbb\x18\x01\xaa\xbb\x18\x13\n" +
+	"\tterminals\x12\x06attach\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x060\x01\x12\xae\x01\n" +
+	"\rWriteTerminal\x12!.dockwell.v1.WriteTerminalRequest\x1a\".dockwell.v1.WriteTerminalResponse\"V\xa0\xbb\x18\x04\xaa\xbb\x18\x12\n" +
+	"\tterminals\x12\x05write\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/terminals/{terminal_id}:write\x12\xae\x01\n" +
+	"\rCloseTerminal\x12!.dockwell.v1.CloseTerminalRequest\x1a\".dockwell.v1.CloseTerminalResponse\"V\xa0\xbb\x18\x04\xaa\xbb\x18\x12\n" +
+	"\tterminals\x12\x05close\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/terminals/{terminal_id}:closeB\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rTerminalProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

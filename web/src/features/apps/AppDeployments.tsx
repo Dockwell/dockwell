@@ -16,7 +16,6 @@ import {
 } from "@dockwell/api";
 import {
   Button,
-  Callout,
   cx,
   Icon,
   type IconName,
@@ -35,7 +34,6 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { isValidElement, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 
-import { sentence } from "../../lib/errors";
 import { formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -46,6 +44,7 @@ import { RollbackLine, rollbackSubject } from "../changes/RollbackLine";
 import { useChangeWords } from "../changes/words";
 import { DeployLogLink } from "../logs/DeployLogLinks";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
+import { ReadFailed } from "../shell/ReadFailed";
 import { useApp, useRevisions } from "./AppContext";
 import { ListSkeleton } from "./AppsPage";
 import {
@@ -273,17 +272,15 @@ export function AppDeployments() {
 
   if (history.error && !revisions) {
     return (
-      <Callout
-        tone="critical"
+      <ReadFailed
+        error={history.error}
         title={t`Can't load the deployments`}
         actions={
           <Button onClick={() => void history.refetch()} loading={history.isFetching}>
             <Trans>Try again</Trans>
           </Button>
         }
-      >
-        {sentence(history.error)}
-      </Callout>
+      />
     );
   }
 

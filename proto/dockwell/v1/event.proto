@@ -35,6 +35,9 @@ service EventService {
   rpc ListEvents(ListEventsRequest) returns (ListEventsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/events"};
   }
 
@@ -45,6 +48,9 @@ service EventService {
   // few seconds.
   rpc WatchEvents(WatchEventsRequest) returns (stream WatchEventsResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
   }
 }
 

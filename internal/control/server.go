@@ -228,6 +228,11 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cfg.Changes != nil {
+		// Every change through the API carries who makes it, so the engine
+		// refuses a person's that comes without (ADR 0049).
+		cfg.Changes.RequireRoles()
+	}
 	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, stepGrace: cfg.StepGrace}
 	ports.server = s
 	s.ports = ports
@@ -396,13 +401,14 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		*tasksOut = tasks.New(cfg.Changes, cfg.Agents, cfg.Store, cfg.Logger)
 		handle(dockwellv1connect.NewTaskServiceHandler(*tasksOut, opts...))
 	}
-	restPaths, err := restHandler(rest, authapi.Authorizer(cfg.Auth, cfg.Logger))
+	authorize := authapi.Authorizer(cfg.Auth, cfg.Logger)
+	restPaths, err := restHandler(rest, authorize)
 	if err != nil {
 		return nil, err
 	}
 	mux.Handle(authapi.RESTPrefix, guardREST(restPaths))
 	if filesHandler != nil {
-		streamTransfers(mux, filesHandler, guardREST)
+		streamTransfers(mux, filesHandler, guardREST, authorize)
 	}
 	mux.Handle("GET "+apidoc.Path, apidoc.Handler())
 

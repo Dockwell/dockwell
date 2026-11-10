@@ -2892,7 +2892,22 @@ type Change struct {
 	// cleaned and masked.
 	Because string `protobuf:"bytes,19,opt,name=because,proto3" json:"because,omitempty"`
 	// True for a restart, which makes no revision.
-	Restart       bool `protobuf:"varint,20,opt,name=restart,proto3" json:"restart,omitempty"`
+	Restart bool `protobuf:"varint,20,opt,name=restart,proto3" json:"restart,omitempty"`
+	// True on a planned change with an item in a protected environment: a
+	// developer's waits for an admin or the owner to apply it, and someone
+	// else's is approved with a passkey (ADR 0049).
+	Protected bool `protobuf:"varint,21,opt,name=protected,proto3" json:"protected,omitempty"`
+	// On a planned change, for whoever reads it: true when applying it approves
+	// someone else's change in a protected environment, which takes a session,
+	// the plan's fingerprint and a passkey (STEP_UP_ACTION_APPROVE_CHANGE),
+	// whether they planned it in the panel or with an API token.
+	Approves bool `protobuf:"varint,22,opt,name=approves,proto3" json:"approves,omitempty"`
+	// On a planned change, for whoever reads it below an admin: why it waits for
+	// an admin or the owner to apply it, such as "As it changes web in a
+	// protected environment, an admin or the owner applies this. Leave it
+	// planned for them". Empty when they may apply it, and for a viewer, who
+	// applies nothing.
+	Waits         string `protobuf:"bytes,23,opt,name=waits,proto3" json:"waits,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3065,6 +3080,27 @@ func (x *Change) GetRestart() bool {
 		return x.Restart
 	}
 	return false
+}
+
+func (x *Change) GetProtected() bool {
+	if x != nil {
+		return x.Protected
+	}
+	return false
+}
+
+func (x *Change) GetApproves() bool {
+	if x != nil {
+		return x.Approves
+	}
+	return false
+}
+
+func (x *Change) GetWaits() string {
+	if x != nil {
+		return x.Waits
+	}
+	return ""
 }
 
 // RollbackStatus is how the rollback of a failed change is going, for
@@ -6497,7 +6533,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
 	"resourceId\"A\n" +
 	"\x12AdoptDriftResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xd4\x06\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xa4\a\n" +
 	"\x06Change\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\asummary\x18\x02 \x01(\tR\asummary\x12.\n" +
@@ -6524,7 +6560,10 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\tundone_by\x18\x11 \x01(\tR\bundoneBy\x12D\n" +
 	"\x0frollback_status\x18\x12 \x01(\v2\x1b.dockwell.v1.RollbackStatusR\x0erollbackStatus\x12\x18\n" +
 	"\abecause\x18\x13 \x01(\tR\abecause\x12\x18\n" +
-	"\arestart\x18\x14 \x01(\bR\arestart\"\xd3\x01\n" +
+	"\arestart\x18\x14 \x01(\bR\arestart\x12\x1c\n" +
+	"\tprotected\x18\x15 \x01(\bR\tprotected\x12\x1a\n" +
+	"\bapproves\x18\x16 \x01(\bR\bapproves\x12\x14\n" +
+	"\x05waits\x18\x17 \x01(\tR\x05waits\"\xd3\x01\n" +
 	"\x0eRollbackStatus\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x120\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x1a.dockwell.v1.RollbackStateR\x05state\x12\x14\n" +
@@ -6945,21 +6984,21 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0fSTEP_STATE_DONE\x10\x03\x12\x15\n" +
 	"\x11STEP_STATE_FAILED\x10\x04\x12\x16\n" +
 	"\x12STEP_STATE_SKIPPED\x10\x05\x12\x16\n" +
-	"\x12STEP_STATE_WAITING\x10\x062\xdc\x12\n" +
-	"\rChangeService\x12r\n" +
-	"\rProposeChange\x12!.dockwell.v1.ProposeChangeRequest\x1a\".dockwell.v1.ProposeChangeResponse\"\x1a\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/changes\x12k\n" +
-	"\tGetChange\x12\x1d.dockwell.v1.GetChangeRequest\x1a\x1e.dockwell.v1.GetChangeResponse\"\x1f\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/changes/{id}\x90\x02\x01\x12l\n" +
-	"\vListChanges\x12\x1f.dockwell.v1.ListChangesRequest\x1a .dockwell.v1.ListChangesResponse\"\x1a\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/changes\x90\x02\x01\x12w\n" +
-	"\vApplyChange\x12\x1f.dockwell.v1.ApplyChangeRequest\x1a .dockwell.v1.ApplyChangeResponse\"%\xa0\xbb\x18\x03\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/changes/{id}:apply\x12X\n" +
-	"\vWatchChange\x12\x1f.dockwell.v1.WatchChangeRequest\x1a .dockwell.v1.WatchChangeResponse\"\x04\xa0\xbb\x18\x010\x01\x12s\n" +
+	"\x12STEP_STATE_WAITING\x10\x062\xe2\x13\n" +
+	"\rChangeService\x12~\n" +
+	"\rProposeChange\x12!.dockwell.v1.ProposeChangeRequest\x1a\".dockwell.v1.ProposeChangeResponse\"&\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/changes\x12w\n" +
+	"\tGetChange\x12\x1d.dockwell.v1.GetChangeRequest\x1a\x1e.dockwell.v1.GetChangeResponse\"+\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/changes/{id}\x90\x02\x01\x12x\n" +
+	"\vListChanges\x12\x1f.dockwell.v1.ListChangesRequest\x1a .dockwell.v1.ListChangesResponse\"&\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\r\x12\v/v1/changes\x90\x02\x01\x12\x83\x01\n" +
+	"\vApplyChange\x12\x1f.dockwell.v1.ApplyChangeRequest\x1a .dockwell.v1.ApplyChangeResponse\"1\xa0\xbb\x18\x03\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/changes/{id}:apply\x12d\n" +
+	"\vWatchChange\x12\x1f.dockwell.v1.WatchChangeRequest\x1a .dockwell.v1.WatchChangeResponse\"\x10\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x040\x01\x12\x7f\n" +
 	"\n" +
-	"UndoChange\x12\x1e.dockwell.v1.UndoChangeRequest\x1a\x1f.dockwell.v1.UndoChangeResponse\"$\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/changes/{id}:undo\x12\x7f\n" +
-	"\rDiscardChange\x12!.dockwell.v1.DiscardChangeRequest\x1a\".dockwell.v1.DiscardChangeResponse\"'\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/changes/{id}:discard\x12\x83\x01\n" +
-	"\x0eRestartService\x12\".dockwell.v1.RestartServiceRequest\x1a#.dockwell.v1.RestartServiceResponse\"(\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/services/{id}:restart\x12d\n" +
-	"\tListDrift\x12\x1d.dockwell.v1.ListDriftRequest\x1a\x1e.dockwell.v1.ListDriftResponse\"\x18\xa0\xbb\x18\x01\x82\xd3\xe4\x93\x02\v\x12\t/v1/drift\x90\x02\x01\x12q\n" +
-	"\vRevertDrift\x12\x1f.dockwell.v1.RevertDriftRequest\x1a .dockwell.v1.RevertDriftResponse\"\x1f\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/drift:revert\x12m\n" +
+	"UndoChange\x12\x1e.dockwell.v1.UndoChangeRequest\x1a\x1f.dockwell.v1.UndoChangeResponse\"0\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/changes/{id}:undo\x12\x8b\x01\n" +
+	"\rDiscardChange\x12!.dockwell.v1.DiscardChangeRequest\x1a\".dockwell.v1.DiscardChangeResponse\"3\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/changes/{id}:discard\x12\x8f\x01\n" +
+	"\x0eRestartService\x12\".dockwell.v1.RestartServiceRequest\x1a#.dockwell.v1.RestartServiceResponse\"4\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/services/{id}:restart\x12p\n" +
+	"\tListDrift\x12\x1d.dockwell.v1.ListDriftRequest\x1a\x1e.dockwell.v1.ListDriftResponse\"$\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\v\x12\t/v1/drift\x90\x02\x01\x12}\n" +
+	"\vRevertDrift\x12\x1f.dockwell.v1.RevertDriftRequest\x1a .dockwell.v1.RevertDriftResponse\"+\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/drift:revert\x12y\n" +
 	"\n" +
-	"AdoptDrift\x12\x1e.dockwell.v1.AdoptDriftRequest\x1a\x1f.dockwell.v1.AdoptDriftResponse\"\x1e\xa0\xbb\x18\x02\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/drift:adopt\x1a\xe4\b\xa2\xbb\x18\xcf\x03\n" +
+	"AdoptDrift\x12\x1e.dockwell.v1.AdoptDriftRequest\x1a\x1f.dockwell.v1.AdoptDriftResponse\"*\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/drift:adopt\x1a\xe4\b\xa2\xbb\x18\xcf\x03\n" +
 	"\achanges\x12\xc3\x03A change is a set of edits to managed state, with the plan that carries them out. You propose edits and get a plan back; applying it writes immutable revisions and runs its steps on the servers; undoing it makes a new plan that puts things back. A change applies only as it was planned, and a plan never shows a secret, only that it changed.\n" +
 	"\n" +
 	"See docs/adr/0009-resources-revisions-and-plans.md and docs/adr/0017-the-change-api-and-the-agent-stream.md.\xa2\xbb\x18\x97\x02\n" +

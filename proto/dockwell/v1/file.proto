@@ -27,6 +27,9 @@ service FileService {
   rpc ListFiles(ListFilesRequest) returns (ListFilesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -40,6 +43,9 @@ service FileService {
   // audit log.
   rpc ReadFile(ReadFileRequest) returns (ReadFileResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -57,6 +63,9 @@ service FileService {
   // audit log, and on the timeline.
   rpc SaveFile(SaveFileRequest) returns (SaveFileResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -74,6 +83,9 @@ service FileService {
   // timeline. See docs/adr/0045-a-file-manager-on-a-server.md.
   rpc MakeFile(MakeFileRequest) returns (MakeFileResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -91,6 +103,9 @@ service FileService {
   // one is on the timeline.
   rpc MoveFile(MoveFileRequest) returns (MoveFileResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -109,6 +124,9 @@ service FileService {
   // API token can call it. Each one is on the timeline.
   rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -125,6 +143,9 @@ service FileService {
   rpc ListDeletedFiles(ListDeletedFilesRequest) returns (ListDeletedFilesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -138,6 +159,9 @@ service FileService {
   // the timeline.
   rpc RestoreFile(RestoreFileRequest) returns (RestoreFileResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -154,6 +178,9 @@ service FileService {
   // timeline.
   rpc PurgeDeletedFile(PurgeDeletedFileRequest) returns (PurgeDeletedFileResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -173,6 +200,9 @@ service FileService {
   // docs/adr/0045-a-file-manager-on-a-server.md.
   rpc BeginUpload(BeginUploadRequest) returns (BeginUploadResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -194,6 +224,9 @@ service FileService {
   // API token can call it.
   rpc UploadFile(stream UploadFileRequest) returns (UploadFileResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -211,6 +244,9 @@ service FileService {
   // timeline.
   rpc FinishUpload(FinishUploadRequest) returns (FinishUploadResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -227,6 +263,9 @@ service FileService {
   // token can call it.
   rpc CancelUpload(CancelUploadRequest) returns (CancelUploadResponse) {
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"
@@ -244,6 +283,9 @@ service FileService {
   rpc DownloadFile(DownloadFileRequest) returns (stream DownloadFileResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {
       noun: "files"

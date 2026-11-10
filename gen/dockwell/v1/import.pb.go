@@ -1713,10 +1713,10 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x15IMPORT_ACTION_TAKE_ON\x10\x01\x12\x16\n" +
 	"\x12IMPORT_ACTION_MAKE\x10\x02\x12\x17\n" +
 	"\x13IMPORT_ACTION_LEAVE\x10\x03\x12\x16\n" +
-	"\x12IMPORT_ACTION_DONE\x10\x042\xb8\x01\n" +
-	"\rImportService\x12\xa6\x01\n" +
-	"\x0eImportOnePanel\x12\".dockwell.v1.ImportOnePanelRequest\x1a#.dockwell.v1.ImportOnePanelResponse\"K\xa0\xbb\x18\x02\xaa\xbb\x18\x10\n" +
-	"\x06import\x12\x061panel\x82\xd3\xe4\x93\x02-:\x01*\"(/v1/servers/{server_id}/imports:onepanelB\xa4\x01\n" +
+	"\x12IMPORT_ACTION_DONE\x10\x042\xc4\x01\n" +
+	"\rImportService\x12\xb2\x01\n" +
+	"\x0eImportOnePanel\x12\".dockwell.v1.ImportOnePanelRequest\x1a#.dockwell.v1.ImportOnePanelResponse\"W\xa0\xbb\x18\x02\xaa\xbb\x18\x10\n" +
+	"\x06import\x12\x061panel\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02-:\x01*\"(/v1/servers/{server_id}/imports:onepanelB\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vImportProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (

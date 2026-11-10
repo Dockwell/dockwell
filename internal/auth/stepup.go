@@ -76,6 +76,10 @@ const (
 	// StepUpOpenTerminal opens a root shell on a server. Its target is the
 	// server's ID. A proof opens one terminal (ADR 0037).
 	StepUpOpenTerminal StepUpAction = "terminal.open"
+	// StepUpApproveChange applies someone else's change in a protected
+	// environment. Its target is the change's ID and its plan's fingerprint, as
+	// "chg_…:fingerprint".
+	StepUpApproveChange StepUpAction = "change.approve"
 	// StepUpMakeWayBackIn makes a file or a folder that's a way back onto a server.
 	// Its target is the server's ID and the path, as for a save.
 	StepUpMakeWayBackIn StepUpAction = "file.make_way_back_in"
@@ -106,6 +110,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpSaveWayBackIn:   {"saving", true},
 	StepUpEndProcess:      {"ending process", true},
 	StepUpOpenTerminal:    {"opening a terminal on", true},
+	StepUpApproveChange:   {"approving", true},
 	// A move's target has its two paths on two lines, which doing puts in words.
 	StepUpMakeWayBackIn:    {"making", true},
 	StepUpMoveWayBackIn:    {"moving", true},

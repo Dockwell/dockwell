@@ -44,6 +44,9 @@ service AlertService {
   rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (google.api.http) = {get: "/v1/alerts"};
   }
 
@@ -52,6 +55,9 @@ service AlertService {
   rpc ListAlertRules(ListAlertRulesRequest) returns (ListAlertRulesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (google.api.http) = {get: "/v1/alert-rules"};
   }
 
@@ -60,6 +66,9 @@ service AlertService {
   rpc ListAlertChannels(ListAlertChannelsRequest) returns (ListAlertChannelsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (google.api.http) = {get: "/v1/alert-channels"};
   }
 
@@ -68,6 +77,9 @@ service AlertService {
   rpc ListAlertDeliveries(ListAlertDeliveriesRequest) returns (ListAlertDeliveriesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.command) = {
       noun: "alert-deliveries"
       verb: "list"
@@ -79,6 +91,9 @@ service AlertService {
   // one a form holds, and says what the far end answered. It changes nothing.
   rpc TestAlertChannel(TestAlertChannelRequest) returns (TestAlertChannelResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (google.api.http) = {
       post: "/v1/alert-channels:test"
       body: "*"
@@ -90,6 +105,9 @@ service AlertService {
   rpc ListAlertMutes(ListAlertMutesRequest) returns (ListAlertMutesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.command) = {
       noun: "alert-mutes"
       verb: "list"
@@ -103,6 +121,9 @@ service AlertService {
   // sent. Muting again what's muted moves its end.
   rpc MuteAlerts(MuteAlertsRequest) returns (MuteAlertsResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.command) = {
       noun: "alerts"
       verb: "mute"
@@ -116,6 +137,9 @@ service AlertService {
   // UnmuteAlerts ends a mute now, and sends what's still firing.
   rpc UnmuteAlerts(UnmuteAlertsRequest) returns (UnmuteAlertsResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.command) = {
       noun: "alerts"
       verb: "unmute"

@@ -18,11 +18,20 @@ import "google/protobuf/timestamp.proto";
 // A build's log is a log, so reading it needs the logs grant, as a Dockerfile's
 // step can print what an app shouldn't. The values of the build's secrets are
 // masked in it.
+//
+// A build is its service's, in its project and environment (ADR 0049): a viewer
+// there reads it and its log, a developer reads how a repository would build,
+// and stopping a build is stopping part of a change under way, so it is a
+// developer's where the environment is open and an admin's where it is protected,
+// as applying is.
 service BuildService {
   // ListBuilds returns a service's builds, newest first, a page at a time.
   rpc ListBuilds(ListBuildsRequest) returns (ListBuildsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/services/{id}/builds"};
     option (dockwell.v1.command) = {
       noun: "builds"
@@ -34,6 +43,9 @@ service BuildService {
   rpc GetBuild(GetBuildRequest) returns (GetBuildResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/builds/{id}"};
   }
 
@@ -42,6 +54,9 @@ service BuildService {
   rpc ReadBuildLog(ReadBuildLogRequest) returns (ReadBuildLogResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.needs_grant) = TOKEN_GRANT_LOGS;
     option (google.api.http) = {get: "/v1/builds/{id}/log"};
     option (dockwell.v1.command) = {
@@ -55,6 +70,9 @@ service BuildService {
   rpc WatchBuild(WatchBuildRequest) returns (stream WatchBuildResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.needs_grant) = TOKEN_GRANT_LOGS;
     option (dockwell.v1.command) = {
       noun: "builds"
@@ -68,6 +86,9 @@ service BuildService {
   // changed. A plan that builds with Railpack says the same before it builds.
   rpc DetectBuild(DetectBuildRequest) returns (DetectBuildResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/builds:detect"
       body: "*"
@@ -83,6 +104,9 @@ service BuildService {
   // has nothing to do and what ran goes on running.
   rpc CancelBuild(CancelBuildRequest) returns (CancelBuildResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {
       post: "/v1/builds/{id}:cancel"
       body: "*"

@@ -7,10 +7,12 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/grpchealth"
@@ -21,6 +23,8 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/control/place"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 // publicProcedures work without a session: claiming, signing in, and what
@@ -373,14 +377,304 @@ var tokenAccess = func() map[string]auth.Access {
 	return m
 }()
 
+// rule is what a procedure needs of a role (ADR 0049): the lowest role it
+// needs anywhere, which the interceptor checks first, and what its objects are.
+type rule struct {
+	needs, needsProtected dockwellv1.Needs
+	reach                 dockwellv1.Reach
+	effect                dockwellv1.Effect
+}
+
+// roleRules maps each procedure of dockwell.v1 to its rule, from its
+// (dockwell.v1.min_role) and (dockwell.v1.reach). A procedure without one needs
+// the owner, so a new method is closed until it says.
+var roleRules = func() map[string]rule {
+	m := map[string]rule{}
+	protoregistry.GlobalFiles.RangeFilesByPackage("dockwell.v1", func(fd protoreflect.FileDescriptor) bool {
+		for i := range fd.Services().Len() {
+			sd := fd.Services().Get(i)
+			for j := range sd.Methods().Len() {
+				md := sd.Methods().Get(j)
+				needs, _ := proto.GetExtension(md.Options(), dockwellv1.E_MinRole).(dockwellv1.Needs)
+				protected, _ := proto.GetExtension(md.Options(), dockwellv1.E_MinRoleProtected).(dockwellv1.Needs)
+				reach, _ := proto.GetExtension(md.Options(), dockwellv1.E_Reach).(dockwellv1.Reach)
+				effect, _ := proto.GetExtension(md.Options(), dockwellv1.E_Effect).(dockwellv1.Effect)
+				m["/"+string(sd.FullName())+"/"+string(md.Name())] = rule{needs: needs, needsProtected: protected, reach: reach, effect: effect}
+			}
+		}
+		return true
+	})
+	return m
+}()
+
+// roleOf is the store's role a Needs names, or "" for none.
+func roleOf(n dockwellv1.Needs) string {
+	switch n {
+	case dockwellv1.Needs_NEEDS_VIEWER:
+		return store.RoleViewer
+	case dockwellv1.Needs_NEEDS_DEVELOPER:
+		return store.RoleDeveloper
+	case dockwellv1.Needs_NEEDS_ADMIN:
+		return store.RoleAdmin
+	case dockwellv1.Needs_NEEDS_NOTHING:
+		return ""
+	case dockwellv1.Needs_NEEDS_OWNER, dockwellv1.Needs_NEEDS_UNSPECIFIED:
+		// Unset is the owner's, so a method that doesn't say is closed.
+	}
+	return store.RoleOwner
+}
+
+// gate checks the lowest role a procedure needs anywhere against the highest
+// the caller holds, a person's own or a token's maker's, read now. It's the
+// first of the checks roles make: where the call's objects are is checked
+// after (ADR 0048, ADR 0049).
+// It returns ctx with the caller's grants, for what's checked after.
+func (i *interceptor) gate(ctx context.Context, p auth.Principal, procedure string) (context.Context, error) {
+	ctx, _, _, err := i.check(ctx, p, procedure)
+	return ctx, err
+}
+
+// gateCall is gate for a call as it opens, which audits a refusal for want of
+// a role. A stream's rechecks don't: what ended it was a change to a grant,
+// audited as it was made.
+func (i *interceptor) gateCall(ctx context.Context, client auth.Client, p auth.Principal, procedure string) (context.Context, error) {
+	ctx, held, needs, err := i.check(ctx, p, procedure)
+	if err != nil && needs != "" {
+		i.svc.RefuseRole(ctx, client, p, procedure, held, needs)
+	}
+	return ctx, err
+}
+
+// check is the gate, saying when it refuses what the caller holds and what the
+// call needs.
+func (i *interceptor) check(ctx context.Context, p auth.Principal, procedure string) (_ context.Context, held, needs string, _ error) {
+	r, known := roleRules[procedure]
+	if !known && unroled[procedure] {
+		return ctx, "", "", nil // gRPC's health and reflection, which read nothing of anyone's
+	}
+	needs = roleOf(r.needs)
+	if needs == "" {
+		return ctx, "", "", nil
+	}
+	grants, err := i.svc.Grants(ctx, p)
+	if err != nil {
+		i.logger.ErrorContext(ctx, "can't read what someone may do", slog.Any("error", err))
+		return ctx, "", "", ReasonError(connect.CodeUnavailable, errors.New("can't check your role right now, so this didn't happen. Try again in a moment"), ReasonUnavailable)
+	}
+	held = auth.Highest(grants)
+	if store.RoleRank(held) >= store.RoleRank(needs) {
+		return place.WithCaller(ctx, place.Caller{UserID: p.User.ID, Grants: grants}), "", "", nil
+	}
+	if why, ok := adminsBecause[procedure]; ok && held != "" && needs == store.RoleAdmin {
+		return ctx, held, needs, ReasonError(connect.CodePermissionDenied,
+			fmt.Errorf("%s, which only an admin or the owner can do, and %s, so it didn't happen. Ask one of them", why, youAre(p, held)), ReasonNeedsRole)
+	}
+	return ctx, held, needs, ReasonError(connect.CodePermissionDenied, roleRefusal(p, held, needs), ReasonNeedsRole)
+}
+
+// unroled are the calls outside dockwell.v1 that need no role: gRPC's health,
+// for supervisors, and reflection, which says what the API is. Any other call
+// without a rule is the owner's.
+var unroled = map[string]bool{
+	"/" + grpchealth.HealthV1ServiceName + "/Check":                  true,
+	"/" + grpchealth.HealthV1ServiceName + "/Watch":                  true,
+	"/grpc.reflection.v1.ServerReflection/ServerReflectionInfo":      true,
+	"/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo": true,
+}
+
+// grantsFrom are the caller's grants, as the gate read them for this call.
+func grantsFrom(ctx context.Context) ([]store.Grant, bool) {
+	c, ok := place.CallerFrom(ctx)
+	return c.Grants, ok
+}
+
+// roleRefusal says what the call needs, what the caller holds, that it didn't
+// happen, and who can change that.
+func roleRefusal(p auth.Principal, held, needs string) error {
+	who, whose := "you're "+aRole(held), "your"
+	if p.Token != nil {
+		who, whose = "this API token's maker is "+aRole(held), "its maker's"
+	}
+	switch {
+	case held == "" && p.Token != nil:
+		return errors.New("this API token's maker holds no role on this install any more, so it can't make calls. Ask an admin, or use another token")
+	case held == "":
+		return errors.New("you hold no role on this install any more, so you can only sign out. Ask an admin to add you again")
+	case needs == store.RoleOwner:
+		return fmt.Errorf("only the owner can do this, and %s, so it didn't happen. Ask the owner", who)
+	}
+	return fmt.Errorf("only %s can do this, and %s, so it didn't happen. Ask an admin to change %s role", atLeast(needs), who, whose)
+}
+
+// adminsBecause says why a call is an admin's, where its name alone doesn't.
+var adminsBecause = map[string]string{
+	dockwellv1connect.CatalogServiceInstallCatalogEntryProcedure: "installing from the catalog makes a project of its own",
+	// A website is its project, and the engine holds a project to an admin.
+	dockwellv1connect.WebsiteServiceUpdateWebsiteProcedure: "changing a website changes its project",
+	dockwellv1connect.WebsiteServiceDeleteWebsiteProcedure: "deleting a website deletes its project",
+}
+
+// youAre says what the caller holds: "you're a developer", or for an API
+// token, its maker's.
+func youAre(p auth.Principal, held string) string {
+	if p.Token != nil {
+		return "this API token's maker is " + aRole(held)
+	}
+	return "you're " + aRole(held)
+}
+
+// aRole names a role with its article: "a viewer", "an admin".
+func aRole(role string) string {
+	if role == store.RoleAdmin || role == store.RoleOwner {
+		return "an " + role
+	}
+	return "a " + role
+}
+
+// atLeast names who may do what a role may: "a developer or more", "an admin
+// or the owner".
+func atLeast(role string) string {
+	switch role {
+	case store.RoleAdmin:
+		return "an admin or the owner"
+	case store.RoleViewer:
+		return "someone with a role"
+	}
+	return aRole(role) + " or more"
+}
+
 func (i *interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		ctx, err := i.authorize(ctx, req.Spec().Procedure)
+		procedure := req.Spec().Procedure
+		ctx, err := i.authorize(ctx, procedure)
 		if err != nil {
 			return nil, err
 		}
-		return next(ctx, req)
+		if err := i.checkScope(ctx, procedure, req.Any()); err != nil {
+			return nil, err
+		}
+		if err := i.openPage(ctx, procedure, req.Any()); err != nil {
+			return nil, err
+		}
+		res, err := next(ctx, req)
+		// Each question of which project, such as one an edit of a change asks,
+		// answered for someone who holds one alone.
+		for range 16 {
+			again, cerr := i.theirProject(ctx, procedure, req.Any(), err)
+			if cerr != nil {
+				return nil, cerr
+			}
+			if !again {
+				break
+			}
+			res, err = next(ctx, req)
+		}
+		if err != nil {
+			return res, i.narrowChoice(ctx, procedure, err)
+		}
+		if _, err := i.filter(ctx, procedure, res.Any()); err != nil {
+			i.logger.ErrorContext(ctx, "can't narrow a response to what its caller may see", slog.Any("error", err))
+			return nil, ReasonError(connect.CodeUnavailable, errors.New("can't check what you may see right now. Try again in a moment"), ReasonUnavailable)
+		}
+		i.sealPage(ctx, procedure, res.Any())
+		if trims(ctx, procedure) {
+			trim(res.Any())
+		}
+		return res, nil
 	}
+}
+
+// scopedConn checks what a stream's request names, narrows what it sends to the
+// caller's places, and trims it to names and states for someone below an admin
+// reading what projects name. Each recheck reads the caller's grants again and
+// checks the request against them.
+type scopedConn struct {
+	connect.StreamingHandlerConn
+	i    *interceptor
+	trim bool
+
+	mu     sync.Mutex
+	ctx    context.Context //nolint:containedctx // the stream's own, with the grants last read
+	req    any             // the request, once received
+	ended  error           // why a recheck ended the stream
+	failed int             // rechecks in a row that couldn't read the grants
+}
+
+// failedRechecks is how many rechecks in a row may fail to read a stream's
+// grants before it ends: a failed read isn't a reason to close, as the
+// session's own check rides one out, but a stream can't go on for long without
+// knowing its caller may still make it.
+const failedRechecks = 3
+
+func (c *scopedConn) Receive(m any) error {
+	if err := c.StreamingHandlerConn.Receive(m); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.req != nil {
+		return nil
+	}
+	c.req = m
+	if err := c.i.checkScope(c.ctx, c.Spec().Procedure, m); err != nil {
+		return err
+	}
+	return c.i.openPage(c.ctx, c.Spec().Procedure, m)
+}
+
+// recheck reads the caller's grants again, as the gate does, and checks the
+// request against them. What it read narrows what the stream sends next.
+func (c *scopedConn) recheck(ctx context.Context, p auth.Principal) error {
+	procedure := c.Spec().Procedure
+	gated, err := c.i.gate(ctx, p, procedure)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err == nil && c.req != nil {
+		err = c.i.checkScope(gated, procedure, c.req)
+	}
+	if connect.CodeOf(err) == connect.CodeUnavailable {
+		// The grants couldn't be read: what was read before still narrows what
+		// the stream sends, until the next recheck decides.
+		c.failed++
+		if c.failed < failedRechecks {
+			return nil
+		}
+	}
+	if err != nil {
+		c.ended = err
+		return err
+	}
+	c.failed = 0
+	// The stream's own context, with the grants just read.
+	if caller, ok := place.CallerFrom(gated); ok {
+		c.ctx = place.WithCaller(c.ctx, caller)
+	}
+	return nil
+}
+
+// endedBy is why a recheck ended the stream, or nil when it didn't.
+func (c *scopedConn) endedBy() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.ended
+}
+
+func (c *scopedConn) Send(m any) error {
+	c.mu.Lock()
+	ctx := c.ctx
+	c.mu.Unlock()
+	skip, err := c.i.filter(ctx, c.Spec().Procedure, m)
+	if err != nil {
+		return ReasonError(connect.CodeUnavailable, errors.New("can't check what you may see right now. Try again in a moment"), ReasonUnavailable)
+	}
+	if skip {
+		return nil
+	}
+	c.i.sealPage(ctx, c.Spec().Procedure, m)
+	if c.trim {
+		trim(m)
+	}
+	return c.StreamingHandlerConn.Send(m)
 }
 
 func (*interceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
@@ -400,10 +694,19 @@ func (i *interceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) co
 			return next(ctx, conn)
 		}
 		client, _ := ClientFrom(ctx)
-		tracked, stop := i.svc.Track(ctx, client, p)
+		procedure := conn.Spec().Procedure
+		scoped := &scopedConn{StreamingHandlerConn: conn, i: i, trim: trims(ctx, procedure), ctx: ctx}
+		// Each recheck asks the gate and the request's places again, so a stream
+		// ends once its caller's role, or a token's maker's, no longer lets them
+		// make it, or reach what it names (ADR 0048).
+		still := func(recheck context.Context) error { return scoped.recheck(recheck, p) }
+		tracked, stop := i.svc.Track(ctx, client, p, still)
 		defer stop()
-		err = next(tracked, conn)
+		err = i.narrowChoice(ctx, procedure, next(tracked, scoped))
 		if ctx.Err() == nil && tracked.Err() != nil {
+			if ended := scoped.endedBy(); ended != nil {
+				return ended
+			}
 			if p.Token != nil {
 				return ReasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)
 			}
@@ -411,6 +714,16 @@ func (i *interceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) co
 		}
 		return err
 	}
+}
+
+// Admit checks a call to procedure as the interceptor does before its handler
+// runs: who makes it, and that their role lets them. The REST paths ask it
+// before Vanguard reads the request, so someone who can't make the call learns
+// that, and not what's wrong with their query or body. The interceptor checks
+// the call again after, so a path Admit isn't asked about loses nothing.
+func Admit(ctx context.Context, svc *auth.Service, logger *slog.Logger, procedure string) error {
+	_, err := (&interceptor{svc: svc, logger: logger}).authorize(ctx, procedure)
+	return err
 }
 
 func (i *interceptor) authorize(ctx context.Context, procedure string) (context.Context, error) {
@@ -451,11 +764,16 @@ func (i *interceptor) authorize(ctx context.Context, procedure string) (context.
 	if publicProcedures[procedure] {
 		return ctx, nil
 	}
-	if _, ok := PrincipalFrom(ctx); !ok {
+	p, ok := PrincipalFrom(ctx)
+	if !ok {
 		if req.token != "" {
 			return ctx, ReasonError(connect.CodeUnauthenticated, errSessionEnded, ReasonSessionEnded)
 		}
 		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
+	}
+	ctx, err := i.gateCall(ctx, req.client, p, procedure)
+	if err != nil {
+		return ctx, err
 	}
 	if !req.get && !req.sameOrigin {
 		return ctx, ReasonError(connect.CodePermissionDenied,
@@ -474,6 +792,10 @@ func (i *interceptor) authorizeToken(ctx context.Context, req request, procedure
 	p, err := i.svc.AuthenticateToken(ctx, req.client, req.bearer, accessFor(procedure), procedure)
 	switch {
 	case err == nil:
+		ctx, err := i.gateCall(ctx, req.client, p, procedure)
+		if err != nil {
+			return ctx, err
+		}
 		return context.WithValue(ctx, principalKey{}, p), nil
 	case errors.Is(err, auth.ErrTokenRejected):
 		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)
