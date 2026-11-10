@@ -9368,9 +9368,6 @@ msgstr "Answers in"
 msgid "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
 msgstr "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
 
-msgid "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
-msgstr "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
-
 msgid "Built from {commit}"
 msgstr "Built from {commit}"
 
@@ -9383,17 +9380,11 @@ msgstr "By hand, for now"
 msgid "Dockwell can't say how its control plane is"
 msgstr "Dockwell can't say how its control plane is"
 
-msgid "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
-msgstr "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
-
-msgid "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
-msgstr "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
-
-msgid "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
-msgstr "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
-
 msgid "Engine"
 msgstr "Engine"
+
+msgid "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
+msgstr "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
 
 msgid "From elsewhere"
 msgstr "From elsewhere"
@@ -9413,6 +9404,12 @@ msgstr "Key"
 
 msgid "Location"
 msgstr "Location"
+
+msgid "Not a service here: stop <0>dockwell run</0>, run this as root, then start it again."
+msgstr "Not a service here: stop <0>dockwell run</0>, run this as root, then start it again."
+
+msgid "On this server, this installs the newest release and restarts Dockwell; apps keep serving."
+msgstr "On this server, this installs the newest release and restarts Dockwell; apps keep serving."
 
 msgid "One · if it stops, the panel and API stop with it, and servers keep running what they run"
 msgstr "One · if it stops, the panel and API stop with it, and servers keep running what they run"
@@ -9449,14 +9446,17 @@ msgstr "Releases"
 msgid "Replicas"
 msgstr "Replicas"
 
-msgid "Run this as root, in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "Run this as root, in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgid "Run it as root over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
+msgstr "Run it as root over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
 
-msgid "Run this in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "Run this in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
+msgid "Run it over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
+msgstr "Run it over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
 
 msgid "SQLite, on this server"
 msgstr "SQLite, on this server"
+
+msgid "Set where Dockwell starts; the panel's domain is under <0>General</0>."
+msgstr "Set where Dockwell starts; the panel's domain is under <0>General</0>."
 
 msgctxt "on disk"
 msgid "Size"
@@ -9465,20 +9465,17 @@ msgstr "Size"
 msgid "State store"
 msgstr "State store"
 
+msgid "The database isn't in it: back it up with <0>pg_dump</0>."
+msgstr "The database isn't in it: back it up with <0>pg_dump</0>."
+
 msgid "The version that runs here is unknown"
 msgstr "The version that runs here is unknown"
 
-msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
-msgstr "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
-
-msgid "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
-msgstr "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
+msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off this server, to two places: the key opens every secret in the copy."
+msgstr "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off this server, to two places: the key opens every secret in the copy."
 
 msgid "This control plane"
 msgstr "This control plane"
-
-msgid "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
-msgstr "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
 
 msgid "agent"
 msgstr "agent"
@@ -9542,9 +9539,6 @@ msgstr "{0}, since {1}"
 msgid "A change goes on Activity, with what it replaced."
 msgstr "A change goes on Activity, with what it replaced."
 
-msgid "A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with."
-msgstr "A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with."
-
 msgid "Always on, through an SSH tunnel to the server"
 msgstr "Always on, through an SSH tunnel to the server"
 
@@ -9565,6 +9559,9 @@ msgstr "Loopback"
 
 msgid "Loopback only"
 msgstr "Loopback only"
+
+msgid "New schedules start in it; each keeps the zone it was made with."
+msgstr "New schedules start in it; each keeps the zone it was made with."
 
 msgid "Not set: UTC"
 msgstr "Not set: UTC"
@@ -9593,11 +9590,11 @@ msgstr "Served by"
 msgid "Show the panel in"
 msgstr "Show the panel in"
 
+msgid "Shown on the sign-in screen and in browser tabs."
+msgstr "Shown on the sign-in screen and in browser tabs."
+
 msgid "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>, and read as it starts. Change it there and restart Dockwell:"
 msgstr "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>, and read as it starts. Change it there and restart Dockwell:"
-
-msgid "The sign-in screen and your browser's tabs say it. Empty, they say Dockwell."
-msgstr "The sign-in screen and your browser's tabs say it. Empty, they say Dockwell."
 
 msgid "This install"
 msgstr "This install"
@@ -9633,11 +9630,8 @@ msgstr "1 connected · the services Dockwell sends backups to and routes behind"
 msgid "A backup didn't get here {when}"
 msgstr "A backup didn't get here {when}"
 
-msgid "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
-msgstr "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
-
-msgid "Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave."
-msgstr "Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave."
+msgid "A route can sit behind its proxy or a Tunnel."
+msgstr "A route can sit behind its proxy or a Tunnel."
 
 msgid "Any DNS provider"
 msgstr "Any DNS provider"
@@ -9646,20 +9640,11 @@ msgstr "Any DNS provider"
 msgid "Bucket <0>{0}</0> at <1>{host}</1>"
 msgstr "Bucket <0>{0}</0> at <1>{host}</1>"
 
-msgid "Cloud providers"
-msgstr "Cloud providers"
-
-msgid "Coming later"
-msgstr "Coming later"
-
 msgid "Connect"
 msgstr "Connect"
 
 msgid "Connect storage"
 msgstr "Connect storage"
-
-msgid "Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand."
-msgstr "Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand."
 
 msgid "DNS and proxies"
 msgstr "DNS and proxies"
@@ -9667,14 +9652,11 @@ msgstr "DNS and proxies"
 msgid "Dockwell can't list where backups go"
 msgstr "Dockwell can't list where backups go"
 
-msgid "Git"
-msgstr "Git"
+msgid "Dockwell says which record to make, then gets the certificate."
+msgstr "Dockwell says which record to make, then gets the certificate."
 
-msgid "GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file."
-msgstr "GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file."
-
-msgid "Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket."
-msgstr "Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket."
+msgid "Git providers, private registries and cloud providers come later."
+msgstr "Git providers, private registries and cloud providers come later."
 
 msgid "How to route behind it"
 msgstr "How to route behind it"
@@ -9697,15 +9679,12 @@ msgstr "Object storage"
 msgid "Open Domains"
 msgstr "Open Domains"
 
-msgid "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
-msgstr "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
-
 #. placeholder {0}: words.ago(uploaded, now)
 msgid "Received a backup {0}"
 msgstr "Received a backup {0}"
 
-msgid "Registries"
-msgstr "Registries"
+msgid "S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave."
+msgstr "S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave."
 
 msgid "S3-compatible storage"
 msgstr "S3-compatible storage"

@@ -213,52 +213,40 @@ function BackupPanel({ cp }: { cp: ControlPlane | undefined }) {
   return (
     <Panel title={t`Backups`} actions={<span className="settings-meta">{t`By hand, for now`}</span>}>
       <div className="cp-body" aria-busy={cp === undefined}>
-        <p className="cp-text">
-          <Trans>
-            Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key
-            opens every secret the state store keeps, and a copy of the store opens none without it.
-          </Trans>
-        </p>
-        {postgres ? (
-          <p className="cp-text">
-            <Trans>
-              Back the database up with <code>pg_dump</code>, as any Postgres database, and copy the control plane's
-              folder and the key as below.
-            </Trans>
-          </p>
-        ) : null}
         {copy ? (
           <>
+            {/* Dockwell's own terminal ends when Dockwell stops, so nothing after the stop would run. */}
             <p className="cp-text">
               {manager === ServiceManager.SYSTEMD ? (
                 <Trans>
-                  Run this in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell
-                  ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for
-                  the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's
-                  stopped, and servers reconnect when it's back.
+                  Run it over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving.
                 </Trans>
               ) : manager === ServiceManager.OPENRC ? (
                 <Trans>
-                  Run this as root, in an SSH session on the control server, not in a terminal Dockwell opens: stopping
-                  Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops
-                  Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving
-                  while it's stopped, and servers reconnect when it's back.
+                  Run it as root over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep
+                  serving.
                 </Trans>
               ) : (
                 <Trans>
-                  Dockwell doesn't run as a service here, so stop <code>dockwell run</code> first: the store is whole
-                  only while nothing writes to it. Then run this as root, and start Dockwell again after.
+                  Not a service here: stop <code>dockwell run</code>, run this as root, then start it again.
                 </Trans>
               )}
             </p>
             <CopyCommand command={copy} className="cp-commands" />
             <p className="cp-note">
               <Trans>
-                Then move <code>/root/dockwell-control.tgz</code> and <code>/root/dockwell-key</code> off the server, to
-                two different places.
+                Then move <code>/root/dockwell-control.tgz</code> and <code>/root/dockwell-key</code> off this server,
+                to two places: the key opens every secret in the copy.
               </Trans>
             </p>
           </>
+        ) : null}
+        {postgres ? (
+          <p className="cp-note">
+            <Trans>
+              The database isn't in it: back it up with <code>pg_dump</code>.
+            </Trans>
+          </p>
         ) : null}
         <p className="cp-note cp-divided">
           <span>
@@ -336,16 +324,12 @@ function UpdatesPanel({ cp }: { cp: ControlPlane | undefined }) {
         </div>
         <div className="cp-divided">
           <p className="cp-text">
-            <Trans>
-              To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies
-              and installs it, then restarts Dockwell. Your apps keep serving.
-            </Trans>
+            <Trans>On this server, this installs the newest release and restarts Dockwell; apps keep serving.</Trans>
           </p>
           <CopyCommand command={INSTALL_COMMAND} />
           <p className="cp-note">
             <Trans>
-              Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with{" "}
-              <code>sudo sh -s -- --version 0.4.0</code>.
+              For a particular release, end it with <code>sudo sh -s -- --version 0.4.0</code>.
             </Trans>
           </p>
         </div>
@@ -474,11 +458,11 @@ function AddressesPanel({ cp }: { cp: ControlPlane | undefined }) {
       </dl>
       <p className="settings-how">
         <Trans>
-          These come from how Dockwell was started. The panel's domain is under{" "}
+          Set where Dockwell starts; the panel's domain is under{" "}
           <Link to="/settings/general" className="cp-link">
             General
           </Link>
-          ; the rest is set the same way.
+          .
         </Trans>{" "}
         <a href={`${DOCS}#change-settings`} target="_blank" rel="noreferrer" className="cp-link">
           <Trans>How to change settings</Trans>
