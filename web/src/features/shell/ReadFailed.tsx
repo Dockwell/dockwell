@@ -29,7 +29,6 @@ export function ReadFailed({
   /** What follows the reason, such as what isn't affected. */
   children?: ReactNode;
 }) {
-  const { t } = useLingui();
   if (isRoleRefusal(error)) return <RoleRefused className={className} />;
   return (
     <Callout tone={tone} title={title} actions={actions} className={className}>
