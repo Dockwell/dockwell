@@ -11,6 +11,7 @@ import { CopyButton } from "../servers/CopyButton";
 import { domainAdviceOf, forwardToOf, providerName, useFirewallWords } from "../servers/network";
 
 import "./DomainRecord.css";
+import { useMay } from "../auth/may";
 
 /** How long typing has to stop before a name is looked up, and how often DNS is read again until it has the record. */
 const SETTLES_MS = 400;
@@ -32,11 +33,13 @@ function useSettled(value: string): string {
  */
 function useDomainCheck(server: string, domain: string, wanted: readonly string[]): DomainCheck | undefined {
   const asked = useSettled(domain);
+  // Checking a name is part of planning a route, which is a developer's (ADR 0059).
+  const allowed = useMay()(DomainService.method.checkDomain).allowed;
   const read = useQuery(
     DomainService.method.checkDomain,
     { serverId: server, domain: asked },
     {
-      enabled: server !== "" && asked !== "",
+      enabled: server !== "" && asked !== "" && allowed,
       retry: false,
       refetchInterval: (query) => {
         const check = query.state.data?.check;

@@ -40,6 +40,11 @@ export function isRoleRefusal(error: unknown): boolean {
   return reasonOf(error) === "needs_role";
 }
 
+/** What a role refusal says, wherever it shows: from a call the control plane refused, or one the panel knew not to make. */
+export function roleRefusalSentence(): string {
+  return t`Your role doesn't let you do this here. Ask an admin to change your role.`;
+}
+
 /**
  * The control plane's own message as a sentence, for errors the panel has no
  * words of its own for. API messages start lowercase, as Go errors do. A role
@@ -47,7 +52,7 @@ export function isRoleRefusal(error: unknown): boolean {
  * panel's language, wherever it shows.
  */
 export function sentence(error: unknown): string {
-  if (isRoleRefusal(error)) return t`Your role doesn't let you do this here. Ask an admin to change your role.`;
+  if (isRoleRefusal(error)) return roleRefusalSentence();
   const err = ConnectError.from(error);
   const text = (err.rawMessage || err.message).trim();
   if (!text) return "";

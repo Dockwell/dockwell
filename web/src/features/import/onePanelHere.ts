@@ -3,6 +3,8 @@
 import { useQuery } from "@connectrpc/connect-query";
 import { Connection, ContainerService, type Server } from "@dockwell/api";
 
+import { useMay } from "../auth/may";
+
 /**
  * Whether a container is one 1Panel made that's left to move: 1Panel names each
  * after itself, and OpenResty stays 1Panel's until websites move. One Dockwell took
@@ -16,10 +18,12 @@ export function leftToMove(name: string): boolean {
 export function useOnePanelHere(server: Server): boolean {
   const readable = server.connection === Connection.CONNECTED && server.dockerUnreadableSince === undefined;
   // The same read as the containers panel's, which the query cache shares.
+  // A server's containers are an admin's to read, and nobody else is asked to move them (ADR 0059).
+  const allowed = useMay()(ContainerService.method.listContainers).allowed;
   const list = useQuery(
     ContainerService.method.listContainers,
     { server: server.id },
-    { retry: false, enabled: readable },
+    { retry: false, enabled: readable && allowed },
   );
   return readable && (list.data?.containers.some((c) => leftToMove(c.name)) ?? false);
 }

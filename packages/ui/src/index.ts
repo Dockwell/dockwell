@@ -72,6 +72,7 @@ export { TextField, type TextFieldProps } from "./components/TextField/TextField
 export { Timeline, type TimelineEvent, type TimelineKind, type TimelineProps } from "./components/Timeline/Timeline";
 export { Toast, type ToastAction, type ToastProps } from "./components/Toast/Toast";
 export { cx } from "./lib/cx";
+export { type Off, useOff, useOffReasons } from "./lib/off";
 export { type GlyphShape, STATUS, type Status, TONE, type Tone, type ToneClass } from "./lib/status";
 export { englishStrings, type UIStrings, UIStringsProvider, useUIStrings } from "./lib/strings";
 export { PHONE_QUERY, useMediaQuery } from "./lib/useMediaQuery";

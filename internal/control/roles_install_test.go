@@ -128,3 +128,60 @@ func TestAnAlertsEventIsReadWhereItsSubjectIs(t *testing.T) {
 		}
 	})
 }
+
+// The sign-in state says what its person holds, and an environment whether it's
+// protected, so the panel can offer what the server will take (ADR 0059).
+func TestTheSignInStateSaysWhatYouHold(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newReachStand(t, backend)
+		ctx := t.Context()
+		held := func() []string {
+			t.Helper()
+			state, err := s.b.authClient().GetAuthState(ctx, connect.NewRequest(&dockwellv1.GetAuthStateRequest{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out []string
+			for _, g := range state.Msg.GetGrants() {
+				out = append(out, g.GetProjectId()+"="+g.GetRole().String())
+			}
+			slices.Sort(out)
+			return out
+		}
+		if got := held(); !slices.Equal(got, []string{"=ROLE_ADMIN"}) {
+			t.Errorf("the stand's admin holds %v, want the install", got)
+		}
+		s.hold(in(s.blogID, store.RoleDeveloper), onInstall(store.RoleViewer))
+		if got := held(); !slices.Equal(got, []string{"=ROLE_VIEWER", s.blogID + "=ROLE_DEVELOPER"}) {
+			t.Errorf("a viewer of the install who develops blog holds %v", got)
+		}
+		s.hold()
+		if got := held(); len(got) != 0 {
+			t.Errorf("someone with no role holds %v", got)
+		}
+		// The grants are a session's own: a call with no session, or with an API token, is told none.
+		s.hold(onInstall(store.RoleAdmin))
+		token := createToken(t, s.b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY)
+		for who, client := range map[string]connect.HTTPClient{
+			"nobody signed in": &http.Client{Transport: s.b.client.Transport},
+			"an API token":     bearer{token: token, rt: s.b.client.Transport},
+		} {
+			state, err := dockwellv1connect.NewAuthServiceClient(client, s.b.origin, connect.WithProtoJSON()).GetAuthState(ctx, connect.NewRequest(&dockwellv1.GetAuthStateRequest{}))
+			if err != nil || len(state.Msg.GetGrants()) != 0 || state.Msg.GetUser() != nil {
+				t.Errorf("%s is told it holds %v, as %v, %v; want nothing of anyone", who, state.Msg.GetGrants(), state.Msg.GetUser(), err)
+			}
+		}
+		s.hold(onInstall(store.RoleViewer))
+		envs, err := dockwellv1connect.NewResourceServiceClient(s.b, s.b.origin, connect.WithProtoJSON()).ListResources(ctx, connect.NewRequest(&dockwellv1.ListResourcesRequest{Kind: "environment"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		protected := map[string]bool{}
+		for _, e := range envs.Msg.GetResources() {
+			protected[e.GetId()] = e.GetProtected()
+		}
+		if !protected[s.production] || protected[s.staging] || len(protected) < 2 {
+			t.Errorf("environments read protected as %v, want production protected and staging open", protected)
+		}
+	})
+}

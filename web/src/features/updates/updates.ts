@@ -19,11 +19,14 @@ const ASK_EVERY_MS = 10 * 60_000;
  * control plane asks the agent only when what it has is stale, so every page that
  * shows them shares this one answer.
  */
-export function useServerUpdates(serverId: string) {
+export function useServerUpdates(serverId: string, { ask = true }: { ask?: boolean } = {}) {
   return useQuery(
     UpdateService.method.getServerUpdates,
     { id: serverId },
     {
+      // Asked only for someone who may read them (ADR 0059): the tab and the card are left out for
+      // anyone else, and the page says their role doesn't cover it, without asking.
+      enabled: ask,
       staleTime: 30_000,
       retry: false,
       refetchInterval: (query) => (query.state.data?.updates?.checking ? CHECKING_EVERY_MS : ASK_EVERY_MS),

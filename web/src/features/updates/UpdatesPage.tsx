@@ -28,10 +28,11 @@ import { type ReactNode, useId, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
 import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { useControlPlaneNow } from "../servers/useFleet";
-import { ReadFailed } from "../shell/ReadFailed";
+import { ReadFailed, RoleRefused } from "../shell/ReadFailed";
 import {
   installCommand,
   managerName,
@@ -54,7 +55,10 @@ export function UpdatesPage({ serverId }: { serverId: string }) {
 
 function Updates({ server }: { server: Server }) {
   const { t } = useLingui();
-  const query = useServerUpdates(server.id);
+  // A server's updates are an admin's to read. Someone else who opens this address is told so in
+  // the words a refused read gets, and nothing is asked on their behalf (ADR 0059).
+  const allowed = useMay()(UpdateService.method.getServerUpdates).allowed;
+  const query = useServerUpdates(server.id, { ask: allowed });
   const transport = useTransport();
   const client = useMemo(() => createClient(UpdateService, transport), [transport]);
   const whyNot = useWhyNot();
@@ -75,6 +79,7 @@ function Updates({ server }: { server: Server }) {
       setPressed(false);
     }
   };
+  if (!allowed) return <RoleRefused />;
   if (query.isPending) {
     return (
       <div className="updates-layout">
