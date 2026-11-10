@@ -10545,10 +10545,17 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/CatalogSourceRef'
-                    description: 'Each branch, then each tag, by name. At most 500: more are left out.'
+                    description: |-
+                        The default branch, then each other branch, then each tag, by name. At most
+                         500: more are left out.
                 more:
                     type: boolean
                     description: Whether some were left out.
+                head:
+                    type: string
+                    description: |-
+                        The branch the repository's HEAD names, its default, such as
+                         "refs/heads/main", which leads refs. Empty when it names none.
             description: ListCatalogSourceRefsResponse is the repository's branches and tags.
         ListCatalogSourcesResponse:
             type: object
