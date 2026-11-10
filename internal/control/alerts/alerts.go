@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/actors"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/checks"
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource/alert"
@@ -669,4 +670,57 @@ func recordMute(ctx context.Context, tx *store.Tx, action string, m store.AlertM
 	return tx.RecordEvent(ctx, store.Event{
 		ID: id.New(id.Event), At: now, Actor: actor, Action: action, Subject: subject, Target: serverID, Detail: string(detail), Surface: surface,
 	})
+}
+
+// ListAlertChecks lists every check with how it stands. One made a moment ago,
+// which the runner hasn't read yet, reads waiting.
+func (h *Handler) ListAlertChecks(ctx context.Context, _ *connect.Request[dockwellv1.ListAlertChecksRequest]) (*connect.Response[dockwellv1.ListAlertChecksResponse], error) {
+	standing := map[string]checks.Status{}
+	if h.eval.Checks != nil {
+		for _, s := range h.eval.Checks.Statuses() {
+			standing[s.ID] = s
+		}
+	}
+	res := &dockwellv1.ListAlertChecksResponse{}
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		stored, err := tx.ListKind(ctx, string(alert.CheckKind))
+		if err != nil {
+			return err
+		}
+		for i := range stored {
+			s := &stored[i]
+			spec, err := h.eval.Keeper.Decode(ctx, tx, store.InRevision(s.ID, s.Kind, s.Revision), s.Spec)
+			c, ok := spec.(*resourcev1.AlertCheck)
+			info := &dockwellv1.AlertCheckInfo{
+				Id: s.ID, Name: s.Name, Spec: c, From: checks.From,
+				State: dockwellv1.AlertCheckState_ALERT_CHECK_STATE_WAITING,
+			}
+			if err != nil || !ok {
+				// Listed all the same, with why, rather than failing the list.
+				if h.logger != nil {
+					h.logger.WarnContext(ctx, "can't read a check", slog.String("check", s.Name), slog.Any("error", err))
+				}
+				info.Spec, info.Problem = nil, checks.Unreadable
+				if st, ok := standing[s.ID]; ok {
+					info.State, info.Runs = st.State, st.Runs
+				}
+				res.Checks = append(res.Checks, info)
+				continue
+			}
+			// What the runner holds is of this spec only once it has read it.
+			if st, ok := standing[s.ID]; ok && proto.Equal(st.Spec, c) {
+				info.State, info.Runs, info.Problem = st.State, st.Runs, st.Problem
+				if !st.Since.IsZero() {
+					info.Since = timestamppb.New(st.Since)
+				}
+			}
+			res.Checks = append(res.Checks, info)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	slices.SortFunc(res.Checks, func(a, b *dockwellv1.AlertCheckInfo) int { return strings.Compare(a.GetName(), b.GetName()) })
+	return connect.NewResponse(res), nil
 }

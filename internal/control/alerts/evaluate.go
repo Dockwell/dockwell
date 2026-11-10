@@ -174,7 +174,9 @@ type Evaluator struct {
 	Health  Health
 	// Standings say whether an app is down. Nil judges by Health's states alone.
 	Standings Standings
-	Sender    *Sender
+	// Checks say how each check of a URL stands (ADR 0066). Nil has none.
+	Checks Checks
+	Sender *Sender
 	// Panel is where the panel answers, for links in messages. Empty puts none.
 	Panel  string
 	Logger *slog.Logger

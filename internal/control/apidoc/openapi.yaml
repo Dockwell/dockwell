@@ -54,6 +54,27 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/alert-checks:
+        get:
+            tags:
+                - AlertService
+            description: |-
+                ListAlertChecks returns every check, with how it stands and its last runs,
+                 newest first. A check made a moment ago reads waiting until its first run.
+            operationId: AlertService_ListAlertChecks
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListAlertChecksResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/alert-deliveries:
         get:
             tags:
@@ -4767,6 +4788,7 @@ components:
                         - CONDITION_BACKUP_FAILED
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
+                        - CONDITION_CHECK_DOWN
                     type: string
                     description: What the rule watches for, and how much it matters, as it did when it fired.
                     format: enum
@@ -4908,6 +4930,125 @@ components:
                         The fields that sign in which it has, such as "email.password". They're
                          sealed and never shown; an update that leaves one empty keeps it.
             description: AlertChannelInfo is a channel, with nothing that signs in to it.
+        AlertCheck:
+            type: object
+            properties:
+                address:
+                    type: string
+                    description: |-
+                        The address it asks, an http or https URL, such as
+                         "https://shop.example.com/".
+                every:
+                    type: string
+                    description: 'How often it''s checked: "30s", "1m", "5m" or "15m". "1m" unless set.'
+                timeout:
+                    type: string
+                    description: |-
+                        How long a run waits for an answer: "10s" unless set, at most "30s", and
+                         less than every.
+                downAfter:
+                    type: integer
+                    description: 'How many runs in a row have to fail for it to read down: 2 unless set, 1 to 10.'
+                    format: uint32
+                expectFrom:
+                    type: integer
+                    description: 'The lowest status that counts as up: 200 unless set.'
+                    format: uint32
+                expectTo:
+                    type: integer
+                    description: 'The highest status that counts as up: 399 unless set, so a redirect is up.'
+                    format: uint32
+                keyword:
+                    type: string
+                    description: Text the answer's first 64 KiB has to hold, when set, such as "Welcome".
+                keywordAbsent:
+                    type: boolean
+                    description: Says the keyword has to be absent instead, such as "Error".
+                insideNetwork:
+                    type: boolean
+                    description: |-
+                        Lets the check reach the private networks the control server is on, such as
+                         an address only the office's network serves. Unset, it reaches the internet
+                         alone, keyword included, and a name that resolves to a private address reads
+                         failing with how to allow it. Never this server's loopback, nor a metadata or
+                         link-local address. Plans, the Checks tab and Activity show it (ADR 0066).
+            description: |-
+                AlertCheck is an address Dockwell asks, every so often, whether it answers as
+                 it should: an uptime check. It lives in the organization, and the control
+                 plane runs it. A run is one GET, with no redirect followed, that keeps nothing
+                 of the answer but its status, how long it took, and whether the keyword was
+                 there. See docs/adr/0066-checks-of-a-url.md.
+        AlertCheckInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The check's ID, "chk_…", and its name.
+                name:
+                    type: string
+                spec:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertCheck'
+                    description: What it is.
+                state:
+                    enum:
+                        - ALERT_CHECK_STATE_UNSPECIFIED
+                        - ALERT_CHECK_STATE_WAITING
+                        - ALERT_CHECK_STATE_UP
+                        - ALERT_CHECK_STATE_FAILING
+                        - ALERT_CHECK_STATE_DOWN
+                    type: string
+                    description: How it stands.
+                    format: enum
+                since:
+                    type: string
+                    description: Since when it has stood so. Unset while it waits for its first run.
+                    format: date-time
+                runs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AlertCheckRun'
+                    description: |-
+                        Its last runs, newest first, at most 10. They're in memory, so a restart of
+                         the control plane starts them again.
+                from:
+                    type: string
+                    description: Where it runs from, in words, such as "the control server".
+                problem:
+                    type: string
+                    description: |-
+                        Why Dockwell can't run the check now, such as a spec it can't read; empty
+                         while it can. A check with a problem keeps the alert it had open.
+            description: AlertCheckInfo is a check, how it stands, and its last runs.
+        AlertCheckRun:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When it ran.
+                    format: date-time
+                ok:
+                    type: boolean
+                    description: Whether it passed.
+                status:
+                    type: integer
+                    description: The status the address answered with. 0 when nothing answered.
+                    format: uint32
+                took:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: How long the answer took, to its headers.
+                said:
+                    type: string
+                    description: |-
+                        What went wrong, in words, such as "no answer within 10s" or "502, outside
+                         200 to 399". Empty when it passed.
+                skipped:
+                    type: boolean
+                    description: |-
+                        True for a run that didn't start, as every slot for runs was taken: it says
+                         nothing of the address, and counts neither as up nor as a failure.
+            description: AlertCheckRun is one run of a check.
         AlertDelivery:
             type: object
             properties:
@@ -5039,6 +5180,7 @@ components:
                         - CONDITION_BACKUP_FAILED
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
+                        - CONDITION_CHECK_DOWN
                     type: string
                     description: What it watches for.
                     format: enum
@@ -7931,6 +8073,7 @@ components:
                         - CONDITION_BACKUP_FAILED
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
+                        - CONDITION_CHECK_DOWN
                     type: string
                     description: |-
                         What its title says, apart, for the panel to say in its own language: the
@@ -9666,6 +9809,14 @@ components:
                     items:
                         $ref: '#/components/schemas/AlertChannelInfo'
             description: ListAlertChannelsResponse lists the channels, by name.
+        ListAlertChecksResponse:
+            type: object
+            properties:
+                checks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AlertCheckInfo'
+            description: ListAlertChecksResponse lists the checks.
         ListAlertDeliveriesResponse:
             type: object
             properties:
@@ -13771,6 +13922,10 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/AlertChannel'
                     description: Where alerts are sent, kind "alert.channel".
+                alertCheck:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertCheck'
+                    description: An address checked for whether it answers, kind "alert.check" (ADR 0066).
                 task:
                     allOf:
                         - $ref: '#/components/schemas/Task'

@@ -40,6 +40,9 @@ const (
 	// AlertServiceListAlertRulesProcedure is the fully-qualified name of the AlertService's
 	// ListAlertRules RPC.
 	AlertServiceListAlertRulesProcedure = "/dockwell.v1.AlertService/ListAlertRules"
+	// AlertServiceListAlertChecksProcedure is the fully-qualified name of the AlertService's
+	// ListAlertChecks RPC.
+	AlertServiceListAlertChecksProcedure = "/dockwell.v1.AlertService/ListAlertChecks"
 	// AlertServiceListAlertChannelsProcedure is the fully-qualified name of the AlertService's
 	// ListAlertChannels RPC.
 	AlertServiceListAlertChannelsProcedure = "/dockwell.v1.AlertService/ListAlertChannels"
@@ -73,6 +76,9 @@ type AlertServiceClient interface {
 	// ListAlertRules returns every rule, in the order Dockwell lists them, with
 	// what each is firing on now.
 	ListAlertRules(context.Context, *connect.Request[v1.ListAlertRulesRequest]) (*connect.Response[v1.ListAlertRulesResponse], error)
+	// ListAlertChecks returns every check, with how it stands and its last runs,
+	// newest first. A check made a moment ago reads waiting until its first run.
+	ListAlertChecks(context.Context, *connect.Request[v1.ListAlertChecksRequest]) (*connect.Response[v1.ListAlertChecksResponse], error)
 	// ListAlertChannels returns every channel, with how its last message went, and
 	// never what signs in to it.
 	ListAlertChannels(context.Context, *connect.Request[v1.ListAlertChannelsRequest]) (*connect.Response[v1.ListAlertChannelsResponse], error)
@@ -124,6 +130,13 @@ func NewAlertServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			httpClient,
 			baseURL+AlertServiceListAlertRulesProcedure,
 			connect.WithSchema(alertServiceMethods.ByName("ListAlertRules")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		listAlertChecks: connect.NewClient[v1.ListAlertChecksRequest, v1.ListAlertChecksResponse](
+			httpClient,
+			baseURL+AlertServiceListAlertChecksProcedure,
+			connect.WithSchema(alertServiceMethods.ByName("ListAlertChecks")),
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
@@ -185,6 +198,7 @@ func NewAlertServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 type alertServiceClient struct {
 	listAlerts          *connect.Client[v1.ListAlertsRequest, v1.ListAlertsResponse]
 	listAlertRules      *connect.Client[v1.ListAlertRulesRequest, v1.ListAlertRulesResponse]
+	listAlertChecks     *connect.Client[v1.ListAlertChecksRequest, v1.ListAlertChecksResponse]
 	listAlertChannels   *connect.Client[v1.ListAlertChannelsRequest, v1.ListAlertChannelsResponse]
 	listAlertDeliveries *connect.Client[v1.ListAlertDeliveriesRequest, v1.ListAlertDeliveriesResponse]
 	testAlertChannel    *connect.Client[v1.TestAlertChannelRequest, v1.TestAlertChannelResponse]
@@ -203,6 +217,11 @@ func (c *alertServiceClient) ListAlerts(ctx context.Context, req *connect.Reques
 // ListAlertRules calls dockwell.v1.AlertService.ListAlertRules.
 func (c *alertServiceClient) ListAlertRules(ctx context.Context, req *connect.Request[v1.ListAlertRulesRequest]) (*connect.Response[v1.ListAlertRulesResponse], error) {
 	return c.listAlertRules.CallUnary(ctx, req)
+}
+
+// ListAlertChecks calls dockwell.v1.AlertService.ListAlertChecks.
+func (c *alertServiceClient) ListAlertChecks(ctx context.Context, req *connect.Request[v1.ListAlertChecksRequest]) (*connect.Response[v1.ListAlertChecksResponse], error) {
+	return c.listAlertChecks.CallUnary(ctx, req)
 }
 
 // ListAlertChannels calls dockwell.v1.AlertService.ListAlertChannels.
@@ -253,6 +272,9 @@ type AlertServiceHandler interface {
 	// ListAlertRules returns every rule, in the order Dockwell lists them, with
 	// what each is firing on now.
 	ListAlertRules(context.Context, *connect.Request[v1.ListAlertRulesRequest]) (*connect.Response[v1.ListAlertRulesResponse], error)
+	// ListAlertChecks returns every check, with how it stands and its last runs,
+	// newest first. A check made a moment ago reads waiting until its first run.
+	ListAlertChecks(context.Context, *connect.Request[v1.ListAlertChecksRequest]) (*connect.Response[v1.ListAlertChecksResponse], error)
 	// ListAlertChannels returns every channel, with how its last message went, and
 	// never what signs in to it.
 	ListAlertChannels(context.Context, *connect.Request[v1.ListAlertChannelsRequest]) (*connect.Response[v1.ListAlertChannelsResponse], error)
@@ -300,6 +322,13 @@ func NewAlertServiceHandler(svc AlertServiceHandler, opts ...connect.HandlerOpti
 		AlertServiceListAlertRulesProcedure,
 		svc.ListAlertRules,
 		connect.WithSchema(alertServiceMethods.ByName("ListAlertRules")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	alertServiceListAlertChecksHandler := connect.NewUnaryHandler(
+		AlertServiceListAlertChecksProcedure,
+		svc.ListAlertChecks,
+		connect.WithSchema(alertServiceMethods.ByName("ListAlertChecks")),
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
@@ -360,6 +389,8 @@ func NewAlertServiceHandler(svc AlertServiceHandler, opts ...connect.HandlerOpti
 			alertServiceListAlertsHandler.ServeHTTP(w, r)
 		case AlertServiceListAlertRulesProcedure:
 			alertServiceListAlertRulesHandler.ServeHTTP(w, r)
+		case AlertServiceListAlertChecksProcedure:
+			alertServiceListAlertChecksHandler.ServeHTTP(w, r)
 		case AlertServiceListAlertChannelsProcedure:
 			alertServiceListAlertChannelsHandler.ServeHTTP(w, r)
 		case AlertServiceListAlertDeliveriesProcedure:
@@ -391,6 +422,10 @@ func (UnimplementedAlertServiceHandler) ListAlerts(context.Context, *connect.Req
 
 func (UnimplementedAlertServiceHandler) ListAlertRules(context.Context, *connect.Request[v1.ListAlertRulesRequest]) (*connect.Response[v1.ListAlertRulesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AlertService.ListAlertRules is not implemented"))
+}
+
+func (UnimplementedAlertServiceHandler) ListAlertChecks(context.Context, *connect.Request[v1.ListAlertChecksRequest]) (*connect.Response[v1.ListAlertChecksResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AlertService.ListAlertChecks is not implemented"))
 }
 
 func (UnimplementedAlertServiceHandler) ListAlertChannels(context.Context, *connect.Request[v1.ListAlertChannelsRequest]) (*connect.Response[v1.ListAlertChannelsResponse], error) {

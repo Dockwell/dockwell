@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 
 import { RouterTabLink } from "../../lib/links";
 import { Page } from "../shell/Page";
+import { useChecks } from "./checks";
 import { useAlerts, useChannels, useRules } from "./useAlerts";
 import "./Alerts.css";
 
@@ -28,6 +29,8 @@ export function AlertsPage({
   const firing = useAlerts().data?.firing ?? 0;
   const rules = useRules().data?.rules;
   const channels = useChannels().data?.channels;
+  // Checks are an admin's: the tab is there for whoever may list them.
+  const checks = useChecks();
   const lead =
     rules && channels
       ? [
@@ -49,6 +52,11 @@ export function AlertsPage({
         >
           <Trans>Alerts</Trans>
         </RouterTabLink>
+        {checks.may.allowed ? (
+          <RouterTabLink to="/alerts/checks" count={checks.data?.checks.length}>
+            <Trans context="checks of a URL">Checks</Trans>
+          </RouterTabLink>
+        ) : null}
         <RouterTabLink to="/alerts/rules" count={rules?.length}>
           <Trans>Rules</Trans>
         </RouterTabLink>

@@ -651,6 +651,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		if err := e.checkRoles(ctx, tx, p.Actor, nil, items, planning); err != nil {
 			return err
 		}
+		if err := e.capsHeld(ctx, tx, items); err != nil {
+			return err
+		}
 		return e.portsOutOfReach(ctx, tx, items)
 	}); err != nil {
 		return nil, err

@@ -243,6 +243,41 @@ func (e *Engine) reachFirst(ctx context.Context, tx *store.Tx, actor string, edi
 // out of the person's reach publishes there, in words that name neither it nor
 // its project, before the server's own check, which names what holds a port
 // (ADR 0048). What's in reach the server's check words as it always has.
+// capsHeld refuses a change that would take the install past the most it keeps
+// of a kind (resource.Capped), counting what the change makes and deletes.
+func (e *Engine) capsHeld(ctx context.Context, tx *store.Tx, items []item) error {
+	more := map[resource.Kind]int{}
+	for i := range items {
+		switch it := &items[i]; {
+		case it.current == nil && it.spec != nil:
+			more[it.ref.Kind]++
+		case it.current != nil && it.spec == nil:
+			more[it.ref.Kind]--
+		}
+	}
+	for kind, n := range more {
+		if n <= 0 {
+			continue
+		}
+		t, err := e.kinds.Type(kind)
+		if err != nil {
+			continue
+		}
+		c, ok := t.(resource.Capped)
+		if !ok {
+			continue
+		}
+		have, err := tx.ListKind(ctx, string(kind))
+		if err != nil {
+			return err
+		}
+		if len(have)+n > c.Cap() {
+			return fault.New(ErrInvalid, "%s", c.CapWords(len(have)))
+		}
+	}
+	return nil
+}
+
 func (e *Engine) portsOutOfReach(ctx context.Context, tx *store.Tx, items []item) error {
 	caller, ok := place.CallerFrom(ctx)
 	if !ok || store.RoleRank(place.Holds(caller.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin) {

@@ -37,6 +37,10 @@ const (
 	MaxRepeat = 7 * 24 * time.Hour
 	// DefaultLate is how late a scheduled backup may start, unless a rule says.
 	DefaultLate = time.Hour
+	// DefaultCheckHold is how long an address has to hold down before its alert
+	// opens, from its first failed run, and up before it resolves, unless a rule
+	// says.
+	DefaultCheckHold = 2 * time.Minute
 )
 
 // Rule is the alert rule kind.
@@ -113,6 +117,13 @@ func (Rule) Validate(spec proto.Message) error {
 	}
 	if c == resourcev1.AlertRule_CONDITION_BACKUP_LATE && held == 0 {
 		held = DefaultLate
+	}
+	// A check that comes back resolves only once it has been up this long, so one
+	// that fails twice and passes once, round and round, stays one alert and
+	// doesn't get around repeat (ADR 0044). Its check says how many failed runs
+	// make it down; this is how long it has to hold, from the first of them.
+	if c == resourcev1.AlertRule_CONDITION_CHECK_DOWN && held == 0 {
+		held = DefaultCheckHold
 	}
 	switch {
 	case held > MaxDuration:
@@ -233,6 +244,8 @@ func Word(c resourcev1.AlertRule_Condition) string {
 		return "a late backup"
 	case resourcev1.AlertRule_CONDITION_CHANGE_FAILED:
 		return "a failed change"
+	case resourcev1.AlertRule_CONDITION_CHECK_DOWN:
+		return "an address that doesn't answer"
 	default:
 		return "that condition"
 	}
@@ -259,6 +272,8 @@ func Title(r *resourcev1.AlertRule) string {
 		return "Backup late"
 	case resourcev1.AlertRule_CONDITION_CHANGE_FAILED:
 		return "Change failed"
+	case resourcev1.AlertRule_CONDITION_CHECK_DOWN:
+		return "Address down"
 	default:
 		return "Unknown condition"
 	}
@@ -286,6 +301,8 @@ func Expression(r *resourcev1.AlertRule) string {
 		return "backup.late > " + r.GetDuration()
 	case resourcev1.AlertRule_CONDITION_CHANGE_FAILED:
 		return "change.state == failed"
+	case resourcev1.AlertRule_CONDITION_CHECK_DOWN:
+		return "check.state == down"
 	default:
 		return ""
 	}
@@ -312,6 +329,7 @@ func Defaults() []Default {
 		{"backup-failed", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_BACKUP_FAILED, Severity: critical}},
 		{"backup-late", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_BACKUP_LATE, Duration: "1h", Severity: warning}},
 		{"change-failed", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_CHANGE_FAILED, Severity: warning}},
+		{"check-down", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_CHECK_DOWN, Duration: "2m", Severity: critical, Repeat: "4h"}},
 	}
 	return slices.Clip(rules)
 }
