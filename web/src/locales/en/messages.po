@@ -1588,6 +1588,9 @@ msgstr "New value of {target}"
 msgid "New variable"
 msgstr "New variable"
 
+msgid "No variables yet"
+msgstr "No variables yet"
+
 msgid "Not applied"
 msgstr "Not applied"
 

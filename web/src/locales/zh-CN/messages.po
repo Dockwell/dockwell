@@ -1588,6 +1588,9 @@ msgstr "{target} 的新值"
 msgid "New variable"
 msgstr "新变量"
 
+msgid "No variables yet"
+msgstr "还没有变量"
+
 msgid "Not applied"
 msgstr "未应用"
 
