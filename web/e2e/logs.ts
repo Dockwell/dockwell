@@ -26,6 +26,8 @@ import { parseArgs } from "node:util";
 
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
 
+import { describePages, watchBrowser } from "./report.ts";
+
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
 
@@ -320,8 +322,10 @@ async function main() {
 
   browser = await chromium.launch({
     executablePath: process.env["CHROMIUM_PATH"] ?? "/usr/bin/chromium",
-    args: ["--enable-precise-memory-info"],
+    // /dev/shm is small in a container and shared by every browser on the machine; Chromium crashes when it fills.
+    args: ["--disable-dev-shm-usage", "--enable-precise-memory-info"],
   });
+  watchBrowser(browser);
   const context: BrowserContext = await browser.newContext({
     viewport: { width: 1440, height: 970 },
     colorScheme: "dark",
@@ -329,7 +333,8 @@ async function main() {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const page = await context.newPage();
   lastPage = page;
-  page.on("pageerror", (err) => fail(`the page threw: ${err.message}`));
+  // A throw in a listener would end the process and skip the report and the cleaning up.
+  page.on("pageerror", (err) => pageThrew(new Error(`the page threw: ${err.message}`)));
   await page.goto(signIn);
   await page.getByText("You signed in with a one-time link").first().waitFor();
   const url = `${origin}/apps/${serviceId}/logs`;
@@ -1058,7 +1063,12 @@ async function finish(code: number) {
   process.exit(code);
 }
 
-main().then(
+let pageThrew: (err: Error) => void = () => {};
+const pageError = new Promise<never>((_, threw) => {
+  pageThrew = threw;
+});
+
+Promise.race([main(), pageError]).then(
   () => finish(0),
   async (err: unknown) => {
     console.error(err);
@@ -1066,13 +1076,14 @@ main().then(
     // What the page says of itself, as a step can fail for want of a button that a state took away.
     const said = await lastPage
       ?.evaluate(() => ({
-        url: location.href,
+        url: location.href.replace(/#.+$/, "#<token>"),
         head: document.querySelector(".dw-log-head")?.textContent,
         foot: document.querySelector(".dw-log-foot")?.textContent,
         notes: [...document.querySelectorAll(".logs-note, [role=alert]")].map((el) => el.textContent),
       }))
       .catch(() => undefined);
-    console.error("the page said:", said);
+    console.error("the log said:", said);
+    console.error(await describePages());
     if (shots && lastPage) {
       mkdirSync(shots, { recursive: true });
       await lastPage.screenshot({ path: join(shots, "failure.png") }).catch(() => {});
