@@ -29,13 +29,13 @@ A read goes to the agent on the server the request names, over its stream to the
 
 It reads the cheapest source first:
 
-1. **What the server has.** An image already on it is inspected through Docker, with no network: its config, its digest, and every tag of it there.
+1. **What the server has.** An image already on it is inspected through Docker, with no network: its config and its digest.
 2. **The registry, by its API.** The agent speaks the registry API (`/v2/`) itself, anonymously, with the bearer token a registry hands any client, rather than through Docker's `/distribution`, which costs a pull on Docker Hub. It follows the server's Docker: Docker Hub through the first of Docker's `registry-mirrors` that answers, then Docker Hub itself; plain HTTP only to a registry Docker treats as insecure (`/info`'s `RegistryConfig`); ADR 0013's per-registry mirrors once they exist.
 3. **Docker Hub's own API**, for a repository's tags with their push times and digests, and for search, through Docker's `/images/search`. Neither is a pull.
 
 ### What a form can ask
 
-- **Search:** names that start with or contain what was typed: the images on the server first, then Docker Hub's, official ones first, with each one's description. Nothing else searches.
+- **Search:** Docker Hub's images whose names hold what was typed, official ones first, with each one's description. Nothing else searches. An answer says nothing of the server it was read through, such as which images it has, which is the install's to know ([ADR 0048](0048-members-as-far-as-one-owner-goes.md)); the server's own images are only the cheapest source of a config.
 - **Tags of a repository, newest first.** From Docker Hub, by push time, each with its digest, so the tags that point where `latest` does are marked. From any other registry, by version (numbers compared as numbers, a release before its pre-releases), with `latest` marked by comparing the digests of `latest` and the ten newest versions, each a HEAD.
 - **One image:** whether it's found, its digest, and its config for the server's platform. "Found" rests on a HEAD of the manifest, which no registry counts as a pull, and the config takes one GET of the platform's manifest, by digest, and the config blob.
 
@@ -57,11 +57,15 @@ The agent has no registry logins, as a pull has none ([`internal/docker/images.g
 
 ### Time
 
-Each request to a registry has 5 seconds, and a whole read 8, inside the control plane's 10 for the agent's answer. A registry that doesn't answer joins the list the plans keep of silent registries, for the same 5 minutes, and a read through it says it couldn't reach it.
+Each request to a registry has 5 seconds, and a whole read 8, inside the control plane's 10 for the agent's answer. A registry that doesn't answer isn't asked again for 5 minutes, as plans leave one alone, and a read through it meanwhile says it couldn't reach it.
 
 ### What a registry read may reach
 
 The agent reaches only the host a reference names, its token realm, and the server's mirrors; over `/v2/` and Docker Hub's API alone; with GET and HEAD; and reads at most 4 MiB of a manifest or config, and 10 pages of tags. A link-local or metadata address is refused (`netguard`), as no registry lives there. A loopback or private address is allowed, as a registry on the server or its network is common and the pull reaches it anyway.
+
+### In a test
+
+A test asks nothing beyond the machine it runs on. With `DOCKWELL_TEST` set, the agent reads every registry and Docker Hub's API from the one `DOCKWELL_TEST_REGISTRY` names, such as the fake engine's (`FAKEDOCKER_REGISTRY`), and reads none without it.
 
 ### Who may ask
 
@@ -77,7 +81,8 @@ Anyone who may propose an app in an environment: a developer in its project, and
 
 - A newcomer picks `nginx`, then `1.27`, and the form says Found, fills port 80 with a free server port, and shows where it will answer, with nothing typed beyond the name.
 - The agent gains a small registry client and an image cache that empties when idle, and its protocol a request and an answer for each of the three reads (field numbers 200 to 209).
-- New API methods, each with its role and reach declared: `SearchImages`, `ListImageTags` and `GetImage`.
+- New API methods, each with its role and reach declared: `SearchImages`, `ListImageTags` and `GetImage`, whose answers belong to no project and aren't narrowed (`requestBound`).
+- The agent build links `internal/registry` and `internal/netguard`.
 - Docker Hub sees at most 10 more counted pulls in 6 hours from each server, and only when someone reads an image no cache had.
 - Private images read as "Not found, or private" until registry logins come.
 - Deploy can offer the newer tags of what an app runs, from the same read.
