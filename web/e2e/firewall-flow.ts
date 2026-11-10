@@ -12,6 +12,7 @@ import { join } from "node:path";
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { ownServerPath } from "./own-server.ts";
 
 /** ufw status verbose as ufw prints it, its rows "%-26s %-12s%-26s", app profiles named after their ports. */
 const ufwStatus = [
@@ -53,9 +54,8 @@ function fail(message: string): never {
 
 export async function firewallFlow(page: Page, { origin, step, shoot }: FirewallFlowOptions) {
   step("a server's Firewall tab says what filters its traffic, read-only, and what Docker publishes past it");
-  await page.goto(`${origin}/`);
-  const link = await page.locator('a[href^="/servers/srv_"]').first().getAttribute("href");
-  if (!link) fail("the overview links to no server");
+  // The run has a second server by now, with no agent connected: read the control server's.
+  const link = await ownServerPath(page, origin);
   await page.goto(`${origin}${link}`);
   await page
     .getByRole("navigation", { name: /^Server / })
