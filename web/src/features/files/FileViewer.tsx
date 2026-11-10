@@ -14,6 +14,7 @@ import { isRoleRefusal, reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { onApple } from "../../lib/platform";
 import { PasskeyError } from "../../lib/webauthn";
+import { AddPasskeyHere } from "../auth/AddPasskeyHere";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedInUser } from "../auth/useAuthState";
@@ -226,6 +227,8 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [problem, setProblem] = useState<string>();
+  // Saving took a passkey, and there's none for this address: offer to add one, then save again.
+  const [noPasskey, setNoPasskey] = useState(false);
   // A save that was writing as the server stopped answering isn't a failure.
   const [mayLand, setMayLand] = useState(false);
   // Where the file leads now, once that isn't where it led when you read it.
@@ -280,6 +283,7 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
     const content = restoreEndings(sent, base.crlf);
     setSaving(true);
     setProblem(undefined);
+    setNoPasskey(false);
     setMayLand(false);
     setConflict(false);
     setJustSaved(false);
@@ -309,12 +313,8 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
     } catch (err) {
       const reason = reasonOf(err);
       if (reason === "file_changed") setConflict(true);
-      else if (reason === "no_passkey_here") {
-        const where = base.where;
-        setProblem(
-          t`Saving ${where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it.`,
-        );
-      } else {
+      else if (reason === "no_passkey_here") setNoPasskey(true);
+      else {
         setMayLand(reason === "save_may_land");
         if (err instanceof PasskeyError && err.problem === "cancelled") {
           setProblem(t`The passkey prompt closed, so nothing was saved. Save again when you're ready.`);
@@ -449,6 +449,14 @@ function Editor({ serverId, path, name, read, onSaved, onEdited }: EditorProps) 
               </Button>
             </span>
           </Callout>
+        </div>
+      ) : null}
+      {noPasskey ? (
+        <div className="files-note">
+          <AddPasskeyHere
+            title={t`Saving this takes a passkey, and there's none for this address yet`}
+            onAdded={() => void save(base.version)}
+          />
         </div>
       ) : null}
       {problem ? (

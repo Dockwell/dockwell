@@ -3463,6 +3463,18 @@ msgstr "工作目录"
 msgid "{servers} offline"
 msgstr "{servers} 离线"
 
+msgid "Add a passkey here"
+msgstr "在此添加通行密钥"
+
+msgid "Adding one here needs a sign-in just now, with a code or a link."
+msgstr "在此添加需要你刚刚用验证码或链接登录过。"
+
+msgid "No passkey for this address yet"
+msgstr "此地址还没有通行密钥"
+
+msgid "Sign in again"
+msgstr "重新登录"
+
 msgid "Can't check your session"
 msgstr "无法检查你的会话"
 
@@ -3711,17 +3723,14 @@ msgstr "再添加一种登录方式"
 msgid "Code sign-in is locked"
 msgstr "验证码登录已锁定"
 
-msgid "If you lose the device with your only passkey, you'd need <0>dockwell recover</0> on the server. Add another passkey, or an authenticator app."
-msgstr "如果你丢了保存唯一通行密钥的设备，就需要在服务器上运行 <0>dockwell recover</0>。请再添加一个通行密钥，或设置身份验证器应用。"
-
 msgid "If you lost a passkey, add a new one now, then remove the lost one below."
 msgstr "如果你丢了通行密钥，请现在添加一个新的，然后在下方移除丢失的那个。"
 
+msgid "Losing the device with your only passkey would lock you out."
+msgstr "丢失唯一存有通行密钥的设备会让你无法登录。"
+
 msgid "No passkey works at {rpId} yet"
 msgstr "{rpId} 上还没有可用的通行密钥"
-
-msgid "Passkeys belong to the address they were made on. Add one for {rpId} so you can sign in here without a code. If you came here after adding a domain, run <0>dockwell recover</0> on the server: its link signs you in here, so you can add a passkey with no code."
-msgstr "通行密钥属于创建它的地址。请为 {rpId} 添加一个，这样在这里登录就不需要验证码。如果你是在添加域名后来到这里，请在服务器上运行 <0>dockwell recover</0>：它的链接会让你在这里登录，然后无需验证码即可添加通行密钥。"
 
 msgid "Profile and security"
 msgstr "个人资料和安全"
@@ -3826,8 +3835,11 @@ msgstr "请输入你账户的邮箱。"
 msgid "Lost your passkey?"
 msgstr "丢了通行密钥？"
 
-msgid "No passkey for this address? Passkeys belong to the address they were made on, so one made through the SSH tunnel doesn't work here. Sign in with a code, or run <0>dockwell recover</0> on the server for a one-time link, then add a passkey here."
-msgstr "这个地址没有通行密钥？通行密钥属于创建它的地址，所以通过 SSH 隧道创建的通行密钥在这里不可用。请用验证码登录，或在服务器上运行 <0>dockwell recover</0> 获取一次性链接，然后在这里添加通行密钥。"
+msgid "No passkey for this address?"
+msgstr "此地址没有通行密钥？"
+
+msgid "One made through the SSH tunnel works only there. Add one here once you're in."
+msgstr "通过 SSH 隧道创建的通行密钥只在那里有效。登录后在此添加一个。"
 
 msgid "Open the panel through your SSH tunnel at <0>http://localhost</0>, or on its domain over HTTPS. You can still sign in with a code."
 msgstr "请通过 SSH 隧道在 <0>http://localhost</0> 打开面板，或通过 HTTPS 在它的域名上打开。你仍然可以用验证码登录。"
@@ -3843,6 +3855,9 @@ msgstr "登录 Dockwell"
 
 msgid "Sign in with a passkey"
 msgstr "使用通行密钥登录"
+
+msgid "Use a code"
+msgstr "使用验证码"
 
 msgid "Use a code from your authenticator app"
 msgstr "使用身份验证器应用中的验证码"
@@ -3985,9 +4000,6 @@ msgstr "添加通行密钥需要用你在此地址已有的通行密钥确认，
 msgid "Code sign-in is locked after 10 wrong codes in a row. Sign in with a passkey or a recovery code, or run dockwell recover on the server, then unlock it under Profile and security."
 msgstr "连续输错 10 次验证码后，验证码登录已锁定。请用通行密钥或恢复码登录，或在服务器上运行 dockwell recover，然后在“个人资料和安全”中解锁。"
 
-msgid "Confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again."
-msgstr "确认此操作需要此地址的通行密钥，而你在这里还没有。请在“个人资料和安全”中添加一个，然后重试。"
-
 msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 msgstr "通行密钥需要主机名，不能用 IP 地址。请在同一端口上打开 http://localhost 访问面板。"
 
@@ -4020,6 +4032,9 @@ msgstr "这个通行密钥没有为此地址注册，或无法验证。请尝试
 
 msgid "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
 msgstr "这个通行密钥报告的使用次数比之前少，这在通行密钥被复制时会发生，所以它已不能再用于登录。请用其他方式登录，然后在“个人资料和安全”中移除它。"
+
+msgid "That takes a passkey, and there's none for this address yet. Add one under Profile and security."
+msgstr "这需要通行密钥，而此地址还没有。请在“个人资料和安全”中添加。"
 
 msgid "That was the last try. 5 wrong codes ended this setup, and its key no longer works. Close this and set it up again, which asks for your passkey."
 msgstr "这是最后一次尝试。输错 5 次验证码已结束此次设置，其密钥不再有效。请关闭此处并重新设置，届时需要用通行密钥确认。"
@@ -6908,8 +6923,8 @@ msgstr "正在保存"
 msgid "Saving replaces the file at once, and can't be undone."
 msgstr "保存会立即替换文件，且无法撤销。"
 
-msgid "Saving {where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it."
-msgstr "保存 {where} 需要通行密钥，而你在这个地址上没有。请通过 SSH 连接到服务器来修改。"
+msgid "Saving this takes a passkey, and there's none for this address yet"
+msgstr "保存需要通行密钥，而此地址还没有"
 
 msgid "Showing the first 1 MB"
 msgstr "只显示前 1 MB"
@@ -7110,9 +7125,6 @@ msgstr "{more, plural, other {还有 # 个，见其列表}}"
 msgid "A name can't have a / in it. Make the folder first, then this in it."
 msgstr "名称中不能有 /。请先创建文件夹，再在其中创建它。"
 
-msgid "Changing {where} takes a passkey, and you have none for this address. Connect to the server over SSH to change it."
-msgstr "更改 {where} 需要通行密钥，而你在这个地址上没有通行密钥。请通过 SSH 连接服务器来更改。"
-
 msgid "Delete for good"
 msgstr "永久删除"
 
@@ -7212,6 +7224,9 @@ msgstr "名称太长，服务器无法接受。请控制在 255 字节以内。"
 
 msgid "That name stands for a folder already. Choose another."
 msgstr "这个名称已代表一个文件夹，请换一个。"
+
+msgid "That takes a passkey, and there's none for this address yet."
+msgstr "这需要通行密钥，而此地址还没有。"
 
 msgid "The folder {folder} is gone, so {name} wasn't put back, and it's still in Recently deleted. Make the folder again first, then put it back."
 msgstr "文件夹 {folder} 已不存在，所以 {name} 没有放回原处，仍在“最近删除”中。请先重新创建该文件夹，再放回原处。"
@@ -10793,9 +10808,15 @@ msgstr "<0>{0}</0> 在 <1>{1}</1> 上可达 root 权限：它是特权容器、�
 msgid "A shell in <0>{wanted}</0> runs in the container, as its own user, with the first of bash, ash and sh its image has. One in a container that reaches as far as root on <1>{0}</1> asks for your passkey."
 msgstr "<0>{wanted}</0> 中的 shell 在容器内以容器自己的用户运行，使用镜像中 bash、ash、sh 里找到的第一个。如果容器在 <1>{0}</1> 上的权限相当于 root，打开时会要求验证你的通行密钥。"
 
+msgid "A shell in {shellIn} takes a passkey, and there's none for this address"
+msgstr "在 {shellIn} 中打开 shell 需要通行密钥，而此地址还没有"
+
 #. placeholder {0}: server.name
 msgid "A terminal here is a root shell on <0>{0}</0>, through its agent, so it needs no SSH port. Opening one asks for your passkey."
 msgstr "这里的终端是 <0>{0}</0> 上的 root shell，通过它的代理连接，所以无需 SSH 端口。打开终端时会要求验证你的通行密钥。"
+
+msgid "A terminal takes a passkey, and there's none for this address"
+msgstr "打开终端需要通行密钥，而此地址还没有"
 
 msgid "Another tab or window attached to it, so what you type there goes to it. It goes on running."
 msgstr "另一个标签页或窗口连接了它，所以你在那里输入的内容会发送给它。它会继续运行。"
@@ -10863,9 +10884,6 @@ msgstr "打开终端"
 msgid "Open somewhere else"
 msgstr "已在别处打开"
 
-msgid "Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
-msgstr "打开终端需要通行密钥，而你在这个地址上没有。请在“个人资料和安全”中添加一个，或通过 SSH 连接到 {name}。"
-
 msgid "Select text in the terminal to copy it"
 msgstr "在终端中选中文字即可复制"
 
@@ -10899,9 +10917,6 @@ msgstr "你输入的内容会等待发送"
 #. placeholder {0}: names.get(tab.id) ?? tab.title
 msgid "{0} output"
 msgstr "{0} 的输出"
-
-msgid "{inContainer} reaches as far as root on {name}, so a shell in it takes a passkey, and you have none for this address. Add one under Profile and security, or connect to {name} over SSH."
-msgstr "{inContainer} 在 {name} 上的权限相当于 root，所以在其中打开 shell 需要通行密钥，而你在这个地址上没有。请在“个人资料和安全”中添加一个，或通过 SSH 连接到 {name}。"
 
 msgid "{title} · through the agent"
 msgstr "{title} · 通过代理"
